@@ -1,0 +1,253 @@
+namespace DVG.ECS;
+
+using System;
+using System.Buffers;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
+
+public sealed class DenseChunkLease : IDisposable
+{
+    private readonly World _owner;
+    private readonly Archetype _archetype;
+    private readonly Chunk _chunk;
+    private readonly int _globalChunkId;
+    private readonly int _slotCount;
+    private ulong[]? _overlayMask;
+    private readonly bool _fullMask;
+    private bool _disposed;
+
+    internal DenseChunkLease(World owner, Archetype archetype, Chunk chunk, int globalChunkId, ulong[]? overlayMask, bool fullMask)
+    {
+        _owner = owner;
+        _archetype = archetype;
+        _chunk = chunk;
+        _globalChunkId = globalChunkId;
+        _slotCount = chunk.Size;
+        _overlayMask = overlayMask;
+        _fullMask = fullMask;
+    }
+
+    public int ArchetypeId => _archetype.Id;
+
+    public int GlobalChunkId => _globalChunkId;
+
+    public int SlotCount => _slotCount;
+
+    public Span<Entity> Entities => _chunk.Entities;
+
+    public bool IsActiveSlot(int slotIndex)
+    {
+        if (_fullMask)
+        {
+            return (uint)slotIndex < (uint)_slotCount;
+        }
+
+        return _overlayMask is not null
+            && (_overlayMask[slotIndex >> 6] & (1UL << (slotIndex & 63))) != 0;
+    }
+
+    public Span<T> GetComponentRow<T>(ComponentId componentId)
+    {
+        if (!_archetype.TryGetComponentIndex(componentId, out var index))
+        {
+            throw new ArgumentException("Component is not part of this chunk archetype.", nameof(componentId));
+        }
+
+        return _chunk.GetComponentRow<T>(index);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (_overlayMask is not null)
+        {
+            ArrayPool<ulong>.Shared.Return(_overlayMask, clearArray: true);
+            _overlayMask = null;
+        }
+
+        _owner.CompleteChunkLease();
+        _disposed = true;
+    }
+}
+
+public ref struct DenseChunkLeaseView
+{
+    private readonly Archetype _archetype;
+    private readonly Chunk _chunk;
+    private readonly int _archetypeId;
+    private readonly int _globalChunkId;
+    private readonly int _slotCount;
+    private readonly int[]? _queryComponentRowIndices;
+    private ulong[]? _overlayMask;
+    private readonly bool _fullMask;
+    private readonly World _owner;
+    private readonly int _viewId;
+    private bool _disposed;
+
+    internal DenseChunkLeaseView(
+        World owner,
+        Archetype archetype,
+        Chunk chunk,
+        int globalChunkId,
+        int[]? queryComponentRowIndices,
+        ulong[]? overlayMask,
+        bool fullMask,
+        int viewId)
+    {
+        _archetype = archetype;
+        _chunk = chunk;
+        _archetypeId = archetype.Id;
+        _globalChunkId = globalChunkId;
+        _slotCount = chunk.Size;
+        _queryComponentRowIndices = queryComponentRowIndices;
+        _overlayMask = overlayMask;
+        _fullMask = fullMask;
+        _owner = owner;
+        _viewId = viewId;
+        _disposed = false;
+    }
+
+    public int ArchetypeId => _archetypeId;
+
+    public int GlobalChunkId => _globalChunkId;
+
+    public int SlotCount => _slotCount;
+
+    public bool IsAllSlotsActive
+    {
+        get
+        {
+            EnsureCurrent();
+            return _fullMask;
+        }
+    }
+
+    public Span<Entity> Entities
+    {
+        get
+        {
+            EnsureCurrent();
+            return _chunk.Entities;
+        }
+    }
+
+    public bool IsActiveSlot(int slotIndex)
+    {
+        EnsureCurrent();
+        if (_fullMask)
+        {
+            return (uint)slotIndex < (uint)_slotCount;
+        }
+
+        return _overlayMask is not null
+            && (_overlayMask[slotIndex >> 6] & (1UL << (slotIndex & 63))) != 0;
+    }
+
+    public Span<T> GetComponentRow<T>(ComponentId componentId)
+    {
+        EnsureCurrent();
+        if (!_archetype.TryGetComponentIndex(componentId, out var index))
+        {
+            throw new ArgumentException("Component is not part of this chunk archetype.", nameof(componentId));
+        }
+
+        return _chunk.GetComponentRow<T>(index);
+    }
+
+    public Span<T> GetComponentRow<T>(int queryComponentIndex)
+    {
+        EnsureCurrent();
+        Debug.Assert(_queryComponentRowIndices is not null);
+        Debug.Assert((uint)queryComponentIndex < (uint)_queryComponentRowIndices!.Length);
+        return _chunk.GetComponentRow<T>(_queryComponentRowIndices[queryComponentIndex]);
+    }
+
+    internal void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (_overlayMask is not null)
+        {
+            _owner.ReturnChunkLeaseOverlay(_overlayMask);
+            _overlayMask = null;
+        }
+
+        _disposed = true;
+    }
+
+    private void EnsureCurrent()
+    {
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(nameof(DenseChunkLeaseView));
+        }
+
+        if (!_owner.IsChunkLeaseViewIdValid(_viewId))
+        {
+            throw new InvalidOperationException("Chunk lease view is stale.");
+        }
+    }
+}
+
+internal sealed class CachedQuery
+{
+    private readonly QueryDescription _description;
+    private int _version = -1;
+    private int[] _matchingArchetypes = Array.Empty<int>();
+    private int[][] _matchingComponentRowIndices = Array.Empty<int[]>();
+
+    public CachedQuery(QueryDescription description)
+    {
+        _description = description;
+    }
+
+    public int[] MatchingArchetypes(World world)
+    {
+        if (_version == world.ArchetypeVersion)
+        {
+            return _matchingArchetypes;
+        }
+
+        var matches = new List<int>(world.Archetypes.Count);
+        var plans = new List<int[]>(world.Archetypes.Count);
+        for (var archetypeId = 0; archetypeId < world.Archetypes.Count; archetypeId++)
+        {
+            var archetype = world.Archetypes[archetypeId];
+            if (!Matches(archetype))
+            {
+                continue;
+            }
+
+            var indices = new int[_description.AllComponents.Length];
+            for (var componentIndex = 0; componentIndex < indices.Length; componentIndex++)
+            {
+                indices[componentIndex] = archetype.Mask.Rank(_description.AllComponents[componentIndex]);
+            }
+
+            matches.Add(archetypeId);
+            plans.Add(indices);
+        }
+
+        _matchingArchetypes = matches.ToArray();
+        _matchingComponentRowIndices = plans.ToArray();
+        _version = world.ArchetypeVersion;
+        return _matchingArchetypes;
+    }
+
+    public int[] ComponentRowIndices(int matchingIndex) => _matchingComponentRowIndices[matchingIndex];
+
+    private bool Matches(Archetype archetype)
+    {
+        return archetype.Mask.ContainsAll(_description.AllMask)
+            && (_description.AnyMask.IsEmpty || archetype.Mask.Intersects(_description.AnyMask))
+            && !archetype.Mask.Intersects(_description.NoneMask);
+    }
+}
