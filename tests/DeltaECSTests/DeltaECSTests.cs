@@ -43,6 +43,43 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
+    public void ArchetypeHandle_Canonicalizes_And_Creates_Entities()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        var world = new World(layouts);
+
+        var first = world.GetArchetype(VelocityId, PositionId, PositionId);
+        var version = world.ArchetypeVersion;
+        var same = world.ResolveArchetype(PositionId, VelocityId);
+
+        Assert.That(first.IsValid, Is.True);
+        Assert.That(first, Is.EqualTo(same));
+        Assert.That(world.ArchetypeVersion, Is.EqualTo(version));
+
+        var entities = new Entity[2];
+        Assert.That(world.CreateBatch(first, entities), Is.EqualTo(2));
+        Assert.That(world.Create(first).IsAlive, Is.True);
+        Assert.That(world.AliveEntityCount, Is.EqualTo(3));
+    }
+
+    [Test]
+    public void ArchetypeHandle_Rejects_Invalid_And_Foreign_World_Handles()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        var world = new World(layouts);
+        var foreignWorld = new World(layouts);
+        var handle = world.GetArchetype(PositionId);
+
+        Assert.Throws<ArgumentException>(() => foreignWorld.Create(handle));
+        Assert.Throws<ArgumentException>(() => world.Create(ArchetypeHandle.Invalid));
+        Assert.Throws<ArgumentException>(() => foreignWorld.CreateBatch(handle, new Entity[1]));
+        Assert.Throws<ArgumentException>(() => world.CreateBatch(ArchetypeHandle.Invalid, new Entity[1]));
+        Assert.That(ArchetypeHandle.Invalid.IsValid, Is.False);
+    }
+
+    [Test]
     public void DenseBatch_Create_Destroy_Succeeds_And_Query()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -76,6 +113,29 @@ public sealed class DeltaECSDeliveryTests
 
         world.DestroyBatch(created);
         Assert.AreEqual(0, world.AliveEntityCount);
+    }
+
+    [Test]
+    public void ImmediateBatchTransition_CompletesBeforeReturn_AndIsIdempotent()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        var world = new World(layouts, chunkCapacity: 2);
+        var entities = new Entity[5];
+        world.CreateBatch(new[] { PositionId }, entities);
+
+        Assert.That(world.AddComponents(new[] { VelocityId }, entities), Is.EqualTo(entities.Length));
+        foreach (var entity in entities)
+        {
+            Assert.That(world.TryGetComponent<Velocity>(entity, VelocityId, out _), Is.True);
+        }
+
+        Assert.That(world.AddComponents(new[] { VelocityId }, entities), Is.EqualTo(0));
+        Assert.That(world.RemoveComponents(new[] { VelocityId }, entities), Is.EqualTo(entities.Length));
+        foreach (var entity in entities)
+        {
+            Assert.That(world.TryGetComponent<Velocity>(entity, VelocityId, out _), Is.False);
+        }
     }
 
     [Test]
@@ -355,8 +415,7 @@ public sealed class DeltaECSDeliveryTests
             row[0].Value++;
         });
 
-        world.QueueAddComponents(new[] { markerId }, new[] { entity });
-        world.PlaybackTransitions();
+        world.AddComponents(new[] { markerId }, entity);
 
         Assert.That(world.TryGetComponent(entity, referenceId, out actual), Is.True);
         Assert.That(actual, Is.SameAs(component));
@@ -377,16 +436,14 @@ public sealed class DeltaECSDeliveryTests
 
         world.SetComponent(entity, localId, new NamedRef { Name = "local", Id = 11 });
         world.SetComponent(entity, worldId, new NamedRef { Name = "world", Id = 22 });
-        world.QueueAddComponents(new[] { markerId }, new[] { entity });
-        world.PlaybackTransitions();
+        world.AddComponents(new[] { markerId }, entity);
 
         Assert.True(world.TryGetComponent(entity, localId, out NamedRef localAfterAdd));
         Assert.True(world.TryGetComponent(entity, worldId, out NamedRef worldAfterAdd));
         Assert.AreEqual(11, localAfterAdd.Id);
         Assert.AreEqual(22, worldAfterAdd.Id);
 
-        world.QueueRemoveComponents(new[] { markerId }, new[] { entity });
-        world.PlaybackTransitions();
+        world.RemoveComponents(new[] { markerId }, entity);
         Assert.True(world.TryGetComponent(entity, localId, out NamedRef localAfterRemove));
         Assert.True(world.TryGetComponent(entity, worldId, out NamedRef worldAfterRemove));
         Assert.AreEqual("local", localAfterRemove.Name);
@@ -404,10 +461,12 @@ public sealed class DeltaECSDeliveryTests
         var id = layouts.Register<NamedRef>(new SchemaId(10_301));
         var world = new World(layouts);
         var entity = world.Create(new[] { id });
-        var query = world.CreateQuery(QueryDescription.ForComponents(id));
+        var description = QueryDescription.ForComponents(id);
+        var query = world.CreateQuery(in description);
         var state = new LeaseMutationState { World = world, Entity = entity };
 
         Assert.Throws<InvalidOperationException>(() => world.Query(in query, QueryAccess.Write, ref state, s_destroyDuringLease));
+        Assert.Throws<InvalidOperationException>(() => world.Query(in description, QueryAccess.Read, _ => world.AddComponents(new[] { id }, entity)));
         Assert.True(world.IsAlive(entity));
         Assert.True(world.Destroy(entity));
         Assert.False(world.IsAlive(entity));
@@ -425,8 +484,7 @@ public sealed class DeltaECSDeliveryTests
         world.SetComponent(first, PositionId, new Position { X = 10, Y = 11 });
         world.SetComponent(first, VelocityId, new Velocity { X = 20, Y = 21 });
 
-        world.QueueAddComponents(new[] { HealthId }, new[] { first });
-        world.PlaybackTransitions();
+        world.AddComponents(new[] { HealthId }, first);
 
         Assert.True(world.TryGetComponent<Position>(first, PositionId, out var posAfterAdd));
         Assert.True(world.TryGetComponent<Velocity>(first, VelocityId, out var velAfterAdd));
@@ -435,8 +493,7 @@ public sealed class DeltaECSDeliveryTests
         Assert.AreEqual(21, velAfterAdd.Y);
         Assert.AreEqual(0, healthAfterAdd.Value);
 
-        world.QueueRemoveComponents(new[] { VelocityId }, new[] { first });
-        world.PlaybackTransitions();
+        world.RemoveComponents(new[] { VelocityId }, first);
 
         Assert.True(world.TryGetComponent<Position>(first, PositionId, out var posAfterRemove));
         Assert.True(world.TryGetComponent<Health>(first, HealthId, out _));
@@ -591,7 +648,7 @@ public sealed class DeltaECSDeliveryTests
 
                 if (addVelocity)
                 {
-                    world.QueueAddComponents(new[] { VelocityId }, new[] { entity });
+                    world.AddComponents(new[] { VelocityId }, entity);
 
                     if (!current.Velocity.HasValue)
                     {
@@ -600,12 +657,11 @@ public sealed class DeltaECSDeliveryTests
                 }
                 else
                 {
-                    world.QueueRemoveComponents(new[] { VelocityId }, new[] { entity });
+                    world.RemoveComponents(new[] { VelocityId }, entity);
                     current.Velocity = null;
                 }
 
                 model[entity.Index] = current;
-                world.PlaybackTransitions();
             }
             else if (action == 3 && allEntities.Count > 0)
             {

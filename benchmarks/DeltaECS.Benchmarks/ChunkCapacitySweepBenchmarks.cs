@@ -57,7 +57,7 @@ public class DenseCapacitySweepBenchmarks
         _legacy = new LegacyByteDenseReference(8, Amount, ChunkCapacity);
     }
 
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public void DeltaECS_Array()
     {
         using var chunks = _arrayWorld.QueryChunks(in _query, QueryAccess.Write);
@@ -76,6 +76,6 @@ public class DenseCapacitySweepBenchmarks
         }
     }
 
-    [Benchmark(Baseline = true)]
+    [Benchmark]
     public void LegacyByte() => _legacy.Iterate();
 }

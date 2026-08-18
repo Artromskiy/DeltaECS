@@ -2,17 +2,18 @@
 
 ## Context
 
-The first P0 review found three correctness hazards around deferred structural
-work and query access: a playback edge cache could reuse one command's edge for
-another command from the same source archetype, write access was accepted but
-did not update component versions, and invalid tags could be stored while query
+The first P0 review found three correctness hazards around structural movement
+and query access: an edge cache could reuse one transition's edge for another
+transition from the same source archetype, write access was accepted but did
+not update component versions, and invalid tags could be stored while query
 normalization silently discarded them.
 
 ## Decision
 
-- Transition playback uses a monotonically increasing cache token per queued
-  command. The archetype-indexed edge array remains reusable; on token rollover
-  the version slots are cleared before tokens restart at one.
+- Structural add/remove is immediate: single-entity and batch calls normalize
+  the change set, reuse the existing transition edge cache, and complete
+  `MoveEntity` before returning. Batch calls do not invoke the public
+  single-entity API in a loop and have no deferred world-owned command state.
 - `WorldTick` is advanced once for each write query invocation. A component row
   is marked only when its matching chunk is actually yielded, and only for the
   query's requested `AllComponents` rows. Read queries do not mark versions.

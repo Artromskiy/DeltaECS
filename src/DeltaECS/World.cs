@@ -18,17 +18,8 @@ public sealed class World
     private readonly List<EntityRecord> _records = new();
     private int[] _freeRecords = new int[16];
     private int _freeCount;
-    private StructuralCommand[] _pendingCommands = new StructuralCommand[16];
-    private int _pendingCommandCount;
-    private ComponentId[] _commandComponents = new ComponentId[32];
-    private int _commandComponentCount;
-    private Entity[] _commandEntities = new Entity[256];
-    private int _commandEntityCount;
     private readonly Dictionary<TransitionKey, TransitionEdge> _transitionCache = new();
     private readonly Dictionary<QueryDescription, CachedQuery> _queryCache = new(QueryDescription.Comparer);
-    private TransitionEdge[] _playbackEdges = Array.Empty<TransitionEdge>();
-    private int[] _playbackEdgeVersions = Array.Empty<int>();
-    private int _playbackVersion;
     private DestroyEntry[] _destroyScratch = new DestroyEntry[32];
     private int _nextChunkId;
     private int _activeChunkLeases;
@@ -66,7 +57,18 @@ public sealed class World
 
     internal List<Archetype> Archetypes => _archetypes;
 
-    internal Archetype GetArchetype(int id) => _archetypes[id];
+    public ArchetypeHandle GetArchetype(params ComponentId[] componentIds) => ResolveArchetype(componentIds);
+
+    public ArchetypeHandle ResolveArchetype(params ComponentId[] componentIds)
+    {
+        ArgumentNullException.ThrowIfNull(componentIds);
+        if (!Canonicalize(componentIds, out var canonical, out var mask))
+        {
+            throw new InvalidOperationException("Component list is empty or invalid.");
+        }
+
+        return new ArchetypeHandle(this, GetOrCreateArchetype(mask, canonical).Id);
+    }
 
     public QueryHandle CreateQuery(in QueryDescription description)
     {
@@ -86,12 +88,24 @@ public sealed class World
             return 0;
         }
 
-        if (!Canonicalize(componentIds, out var canonical, out var mask))
-        {
-            throw new InvalidOperationException("Component list is empty or invalid.");
-        }
+        var handle = ResolveArchetype(componentIds);
+        return CreateBatch(handle, output);
+    }
 
-        var archetype = GetOrCreateArchetype(mask, canonical);
+    public Entity Create(ArchetypeHandle handle)
+    {
+        Span<Entity> entities = stackalloc Entity[1];
+        return CreateBatch(handle, entities) == 0 ? Entity.Null : entities[0];
+    }
+
+    public int CreateBatch(ArchetypeHandle handle, Span<Entity> output)
+    {
+        var archetype = ResolveArchetype(handle);
+        return CreateBatch(archetype, output);
+    }
+
+    private int CreateBatch(Archetype archetype, Span<Entity> output)
+    {
         for (var i = 0; i < output.Length; i++)
         {
             var recordIndex = AllocateRecord();
@@ -108,6 +122,18 @@ public sealed class World
         }
 
         return output.Length;
+    }
+
+    private Archetype ResolveArchetype(ArchetypeHandle handle)
+    {
+        if (!handle.IsValid
+            || !ReferenceEquals(handle.Owner, this)
+            || (uint)handle.ArchetypeId >= (uint)_archetypes.Count)
+        {
+            throw new ArgumentException("Archetype handle does not belong to this world.", nameof(handle));
+        }
+
+        return _archetypes[handle.ArchetypeId];
     }
 
     public bool Destroy(Entity entity)
@@ -271,57 +297,28 @@ public sealed class World
         }
     }
 
-    public void QueueAddComponents(ComponentId[] componentIds, ReadOnlySpan<Entity> entities)
+    public void AddComponents(ComponentId[] componentIds, Entity entity)
     {
-        QueueTransition(true, componentIds, entities);
+        Span<Entity> entities = stackalloc Entity[1];
+        entities[0] = entity;
+        _ = ApplyComponents(true, componentIds, entities);
     }
 
-    public void QueueRemoveComponents(ComponentId[] componentIds, ReadOnlySpan<Entity> entities)
+    public int AddComponents(ComponentId[] componentIds, ReadOnlySpan<Entity> entities)
     {
-        QueueTransition(false, componentIds, entities);
+        return ApplyComponents(true, componentIds, entities);
     }
 
-    public void PlaybackTransitions()
+    public void RemoveComponents(ComponentId[] componentIds, Entity entity)
     {
-        EnsureNoActiveLease("play transitions");
-        if (_pendingCommandCount == 0)
-        {
-            return;
-        }
+        Span<Entity> entities = stackalloc Entity[1];
+        entities[0] = entity;
+        _ = ApplyComponents(false, componentIds, entities);
+    }
 
-        EnsurePlaybackCache(_archetypes.Count);
-        for (var commandIndex = 0; commandIndex < _pendingCommandCount; commandIndex++)
-        {
-            var version = NextPlaybackVersion();
-            var command = _pendingCommands[commandIndex];
-            var changeMask = ComponentMask.From(_commandComponents.AsSpan(command.ComponentOffset, command.ComponentCount));
-            var commandEntities = _commandEntities.AsSpan(command.EntityOffset, command.EntityCount);
-            for (var entityIndex = 0; entityIndex < commandEntities.Length; entityIndex++)
-            {
-                var entity = commandEntities[entityIndex];
-                if (!TryResolve(entity, out var recordIndex, out var record))
-                {
-                    continue;
-                }
-
-                var sourceArchetypeId = record.Archetype;
-                if (_playbackEdgeVersions[sourceArchetypeId] != version)
-                {
-                    _playbackEdges[sourceArchetypeId] = GetTransitionEdge(sourceArchetypeId, changeMask, command.IsAdd);
-                    _playbackEdgeVersions[sourceArchetypeId] = version;
-                }
-
-                var edge = _playbackEdges[sourceArchetypeId];
-                if (edge.TargetArchetypeId != sourceArchetypeId)
-                {
-                    MoveEntity(recordIndex, record, edge);
-                }
-            }
-        }
-
-        _pendingCommandCount = 0;
-        _commandComponentCount = 0;
-        _commandEntityCount = 0;
+    public int RemoveComponents(ComponentId[] componentIds, ReadOnlySpan<Entity> entities)
+    {
+        return ApplyComponents(false, componentIds, entities);
     }
 
     public void Query(in QueryDescription query, QueryAccess access, Action<DenseChunkLease> body)
@@ -341,7 +338,7 @@ public sealed class World
                     continue;
                 }
 
-                var overlay = BuildOverlayMask(query, hasTags, archetype.GetChunkGlobalId(chunkIndex), chunk.Size, out var fullMask);
+                var overlay = BuildOverlayMask(query, hasTags, chunk.GlobalId, chunk.Size, out var fullMask);
                 if (hasTags && overlay is null && !fullMask)
                 {
                     continue;
@@ -353,7 +350,7 @@ public sealed class World
                 }
 
                 _activeChunkLeases++;
-                using var lease = new DenseChunkLease(this, archetype, chunk, archetype.GetChunkGlobalId(chunkIndex), overlay, fullMask);
+                using var lease = new DenseChunkLease(this, archetype, chunk, chunk.GlobalId, overlay, fullMask);
                 body(lease);
             }
         }
@@ -386,7 +383,7 @@ public sealed class World
                         continue;
                     }
 
-                    var chunkId = archetype.GetChunkGlobalId(chunkIndex);
+                    var chunkId = chunk.GlobalId;
                     var overlay = BuildOverlayMask(query, hasTags, chunkId, chunk.Size, out var fullMask);
                     if (hasTags && overlay is null && !fullMask)
                     {
@@ -498,7 +495,7 @@ public sealed class World
                         continue;
                     }
 
-                    var chunkId = archetype.GetChunkGlobalId(chunkIndex);
+                    var chunkId = chunk.GlobalId;
                     var overlay = _owner.BuildOverlayMask(_query, _hasTags, chunkId, chunk.Size, out var fullMask);
                     if (_hasTags && overlay is null && !fullMask)
                     {
@@ -565,6 +562,7 @@ public sealed class World
 
     internal void CompleteChunkLease() => _activeChunkLeases--;
     internal int RentChunkLeaseView() => ++_chunkLeaseViewId;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool IsChunkLeaseViewIdValid(int viewId) => viewId == _chunkLeaseViewId;
     internal void InvalidateChunkLeaseViews() => _chunkLeaseViewId++;
     internal void ReturnChunkLeaseOverlay(ulong[]? overlayMask)
@@ -617,34 +615,50 @@ public sealed class World
         }
     }
 
-    private void QueueTransition(bool isAdd, ComponentId[] componentIds, ReadOnlySpan<Entity> entities)
+    private int ApplyComponents(bool isAdd, ComponentId[] componentIds, ReadOnlySpan<Entity> entities)
     {
+        EnsureNoActiveLease(isAdd ? "add components" : "remove components");
         if (componentIds.Length == 0 || entities.Length == 0)
         {
-            return;
+            return 0;
         }
 
-        EnsurePendingCommandCapacity(_pendingCommandCount + 1);
-        var componentOffset = _commandComponentCount;
-        EnsureCommandComponentCapacity(componentOffset + componentIds.Length);
-        componentIds.AsSpan().CopyTo(_commandComponents.AsSpan(componentOffset));
-        var componentCount = NormalizeInPlace(_commandComponents.AsSpan(componentOffset, componentIds.Length));
+        var normalizedComponents = new ComponentId[componentIds.Length];
+        componentIds.AsSpan().CopyTo(normalizedComponents);
+        var componentCount = NormalizeInPlace(normalizedComponents);
         if (componentCount == 0)
         {
-            return;
+            return 0;
         }
 
-        var entityOffset = _commandEntityCount;
-        EnsureCommandEntityCapacity(entityOffset + entities.Length);
-        entities.CopyTo(_commandEntities.AsSpan(entityOffset));
-        _pendingCommands[_pendingCommandCount++] = new StructuralCommand(
-            isAdd,
-            componentOffset,
-            componentCount,
-            entityOffset,
-            entities.Length);
-        _commandComponentCount += componentCount;
-        _commandEntityCount += entities.Length;
+        var changeMask = ComponentMask.From(normalizedComponents.AsSpan(0, componentCount));
+        var edgesBySource = new Dictionary<int, TransitionEdge>();
+        var changed = 0;
+        for (var entityIndex = 0; entityIndex < entities.Length; entityIndex++)
+        {
+            var entity = entities[entityIndex];
+            if (!TryResolve(entity, out var recordIndex, out var record))
+            {
+                continue;
+            }
+
+            var sourceArchetypeId = record.Archetype;
+            if (!edgesBySource.TryGetValue(sourceArchetypeId, out var edge))
+            {
+                edge = GetTransitionEdge(sourceArchetypeId, changeMask, isAdd);
+                edgesBySource.Add(sourceArchetypeId, edge);
+            }
+
+            if (edge.TargetArchetypeId == sourceArchetypeId)
+            {
+                continue;
+            }
+
+            MoveEntity(recordIndex, record, edge);
+            changed++;
+        }
+
+        return changed;
     }
 
     private void DestroyResolved(int recordIndex, EntityRecord record)
@@ -939,62 +953,6 @@ public sealed class World
         }
     }
 
-    private void EnsurePendingCommandCapacity(int required)
-    {
-        if (required <= _pendingCommands.Length)
-        {
-            return;
-        }
-
-        Array.Resize(ref _pendingCommands, Math.Max(required, _pendingCommands.Length * 2));
-    }
-
-    private void EnsureCommandComponentCapacity(int required)
-    {
-        if (required <= _commandComponents.Length)
-        {
-            return;
-        }
-
-        Array.Resize(ref _commandComponents, Math.Max(required, _commandComponents.Length * 2));
-    }
-
-    private void EnsureCommandEntityCapacity(int required)
-    {
-        if (required <= _commandEntities.Length)
-        {
-            return;
-        }
-
-        Array.Resize(ref _commandEntities, Math.Max(required, _commandEntities.Length * 2));
-    }
-
-    private void EnsurePlaybackCache(int required)
-    {
-        if (required <= _playbackEdges.Length)
-        {
-            return;
-        }
-
-        Array.Resize(ref _playbackEdges, required);
-        Array.Resize(ref _playbackEdgeVersions, required);
-    }
-
-    private int NextPlaybackVersion()
-    {
-        if (_playbackVersion == int.MaxValue)
-        {
-            Array.Clear(_playbackEdgeVersions, 0, _playbackEdgeVersions.Length);
-            _playbackVersion = 1;
-        }
-        else
-        {
-            _playbackVersion++;
-        }
-
-        return _playbackVersion;
-    }
-
     private void EnsureDestroyScratch(int required)
     {
         if (required > _destroyScratch.Length)
@@ -1021,24 +979,6 @@ public sealed class World
 
         var remaining = chunkSize & 63;
         return remaining == 0 || words[fullWords] == (1UL << remaining) - 1UL;
-    }
-
-    private readonly struct StructuralCommand
-    {
-        public StructuralCommand(bool isAdd, int componentOffset, int componentCount, int entityOffset, int entityCount)
-        {
-            IsAdd = isAdd;
-            ComponentOffset = componentOffset;
-            ComponentCount = componentCount;
-            EntityOffset = entityOffset;
-            EntityCount = entityCount;
-        }
-
-        public bool IsAdd { get; }
-        public int ComponentOffset { get; }
-        public int ComponentCount { get; }
-        public int EntityOffset { get; }
-        public int EntityCount { get; }
     }
 
     private readonly struct TransitionKey : IEquatable<TransitionKey>

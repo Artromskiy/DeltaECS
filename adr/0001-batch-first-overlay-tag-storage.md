@@ -1,7 +1,7 @@
 # ADR-0001: Начальные допущения по шагам 1–5 ядра DeltaECS
 
 ## Контекст
-README требует тип-стираемого kernel с batched-операциями, SoA archetype/chunk, queue-based структурных переходов и overlay-tag mask-индексом без смены archetype.
+README требует тип-стираемого kernel с batched-операциями, SoA archetype/chunk, immediate structural transitions и overlay-tag mask-индексом без смены archetype.
 
 ## Решение для этой поставки
 - Реализована версия ядра, где:
@@ -16,7 +16,7 @@ README требует тип-стираемого kernel с batched-операц
   - один CLR element type может иметь несколько виртуальных ComponentId, но
     их физические массивы всегда независимы;
   - только dense-компоненты поддерживаются в шагах 1–5;
-  - `Create/Destroy` и structural transitions работают через батч-очередь (`QueueAddComponents`, `QueueRemoveComponents`, `PlaybackTransitions`);
+  - `Create/Destroy` и structural transitions завершаются немедленно через single/batch API `AddComponents` и `RemoveComponents`;
   - query-кеш кэширует соответствующие archetype и пересчитывается при появлении новых archetype;
   - overlay-теги хранятся в sparse-структуре `tag -> chunk -> bitset` и применяются через маски в query.
 

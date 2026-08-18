@@ -72,8 +72,8 @@ schema IDs.
 1. `Dense`: stable, hot data stored as SoA component rows inside archetype chunks.
 2. `Overlay`: frequently toggled tags and short-lived components which do not
    participate in the archetype signature.
-3. `Stream`: frame-lifetime events and commands allocated from a resettable
-   arena rather than represented as persistent components.
+3. `Stream`: frame-lifetime events and transient messages allocated from a
+   resettable arena rather than represented as persistent components.
 
 Do not add automatic promotion between these classes in the first versions.
 Storage is an explicit part of the layout so performance remains predictable.
@@ -86,10 +86,26 @@ rows. A logical entity column is the set of components at one entity slot and
 need not be physically contiguous. Chunk capacity is configurable; the legacy
 byte implementation is isolated to benchmark comparison code.
 
-Structural changes are deferred through command buffers and played back in
-batches. Add/remove transitions are cached as archetype graph edges. Batch
-create, destroy, add, remove, move, clone, and set operations are first-class;
-the implementation must not loop through the public single-entity API.
+The current delivery deliberately keeps the 256-component limit. Public APIs
+must treat `ComponentMask` as an opaque value and must not expose its four-word
+representation, so a later wider or paged mask can replace the internal layout
+without breaking queries, systems, or generated code.
+
+Structural changes are immediate in the base kernel: a create, destroy, add,
+remove, move, clone, or set call has completed before it returns. Both
+single-entity and batch APIs are first-class, but the batch implementation may
+group work by source archetype and chunk, reuse cached archetype graph edges,
+and copy rows in bulk. It must not repeatedly call the public single-entity API.
+
+The base kernel has no structural command buffer, mandatory playback phase, or
+global structural barrier. `AddComponents` and `RemoveComponents` are immediate
+single/batch operations: structural work is complete before the call returns.
+
+Deferred selection and transformation syntax, including future LINQ-like APIs,
+is an optional layer above the kernel. Such a layer may collect entity handles
+or an execution plan while reading, release its query lease, and then invoke
+one immediate batch mutation. It does not change the semantics of the world API
+and does not require a world-owned command queue.
 
 ### Overlay tags and temporary components
 
@@ -116,26 +132,87 @@ chunks; ad-hoc queries may remain uncached.
 
 The hot API yields chunks and component rows, not one entity at a time. The kernel
 needs explicit read/write leases so the scheduler and change tracker know the
-access set. Raw references and spans must not escape a lease or survive a
-structural playback/sort point.
+access set. Raw references and spans must not escape a lease or survive an
+immediate structural mutation or sort point. Structural mutation remains
+prohibited while a conflicting chunk lease is active; a higher-level query
+transformation must finish enumeration before invoking the immediate batch API.
+This local lifetime rule is not a global barrier.
 
 ### Change tracking
 
-The default mechanism is a monotonically increasing world tick and a version
-per `(ChunkId, ComponentId)`. A write lease marks the component row when that chunk is
-actually yielded, not when the query object is constructed. Each consumer keeps
-its own last-seen tick; there is no globally cleared dirty flag.
+Change tracking is consumer-owned and does not require a global publication
+barrier. A renderer or another system registers its own tracking slot for the
+`ComponentId` values it mirrors. When ECS grants mutable access to a tracked
+component, it marks the affected entity slots in that consumer's dirty bitset.
+The consumer reads and clears only its own marks; one consumer cannot consume
+another consumer's changes.
 
-Entity-slot tracking is opt-in:
+Access semantics are explicit:
 
-- full write span: mark the whole component row;
-- contiguous batch: record a dirty range;
-- sparse GPU-mirrored writes: use a slot bitset;
-- multi-threaded writers: collect job-local slot masks and merge at the barrier.
+- `ref readonly` and `ReadOnlySpan<T>` never mark a component;
+- requesting `ref T` is an explicit promise that the caller may write, so the
+  corresponding entity slot is marked even if the caller ultimately does not;
+- a mutable full-row span marks the yielded row range;
+- a mutable contiguous batch records a dirty range;
+- sparse GPU-mirrored writes set entity-slot bits directly.
+
+The existing monotonically increasing world tick and per-row version remain a
+cheap coarse fallback for chunk-level queries. Fine-grained renderer tracking
+uses per-consumer entity-slot masks. In the single-threaded runner these masks
+are immediately visible and need no barrier. A future parallel scheduler may
+merge job-local masks at a stage boundary, but that synchronization belongs to
+the scheduler and is not part of the base change-tracking API.
 
 Keep semantic `ChangeVersion` separate from `OrderVersion` and topology changes.
 Sorting entity slots changes storage order without pretending every component value was
 modified.
+
+### Competitive benchmarking lanes
+
+`DefaultEcsComparisonBenchmarks.cs` and `EcsLiteComparisonBenchmarks.cs` compare
+the same four workload families at 10K/100K entities and 0/2/6 cold payload
+rows: dense movement, cached iteration, create/destroy, and structural
+add/remove. Each logical workload has its own DVG baseline. Checksums are
+accumulated with the useful work to prevent elimination, while validation is
+performed after the loop.
+
+```text
+dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net8.0/DeltaECS.Benchmarks.dll defaultecs --filter '*' --warmupCount 3 --iterationCount 5 --launchCount 1
+dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net8.0/DeltaECS.Benchmarks.dll ecslite --filter '*' --warmupCount 3 --iterationCount 5 --launchCount 1
+```
+
+The complete in-process comparison suite is available through one route:
+
+```text
+dotnet build benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj -c Release --no-restore
+dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net8.0/DeltaECS.Benchmarks.dll full-comparison --filter '*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json csv markdown --artifacts artifacts/full-comparison
+```
+
+DeltaECS is the BenchmarkDotNet baseline in every comparative workload group.
+Therefore a future `Ratio < 1` means that the compared implementation is faster
+than DeltaECS, while `Ratio > 1` means that it is slower. Historical tables
+below that explicitly name Arch as their baseline retain their original ratios.
+
+It covers all currently integrated ECS implementations:
+
+| Implementation | Covered workloads |
+|---|---|
+| DeltaECS | Every comparison lane |
+| Legacy byte-row reference | Dense, movement, wide-archetype, and sparse-query lanes |
+| Arch | Dense, movement, wide-archetype, and sparse-query lanes |
+| Friflo.Engine.ECS | Dense, movement, wide-archetype, and sparse-query lanes |
+| DefaultEcs | Movement, cached iteration, create/destroy, and structural add/remove |
+| LeoECS Lite | Movement, cached iteration, create/destroy, and structural add/remove |
+
+`full-comparison` intentionally excludes Delta-only feature experiments,
+capacity sweeps, and `HardwareProfileBenchmarks`. That keeps the result an
+ECS-to-ECS comparison and avoids requesting unsupported PMU counters on macOS.
+The command is intentionally long-running; build it first, then run it only on
+an otherwise idle machine with a fixed power mode.
+
+A one-iteration `--job dry` run is only a compile, lifecycle, and correctness
+smoke. Its timings and allocations are dominated by cold-start overhead and
+must not be published as performance results.
 
 ### Ordering and locality
 
@@ -157,9 +234,12 @@ boundaries, double-buffered where readers need the previous frame, and reset in
 bulk. No allocation is allowed per event.
 
 The scheduler consumes read/write `ComponentId` sets generated for systems,
-builds a dependency graph, and schedules non-conflicting chunk jobs. Structural
-and overlay-presence changes are applied at explicit barriers. Deterministic
-single-threaded execution remains available for tests and debugging.
+builds a dependency graph, and schedules non-conflicting chunk jobs. The base
+world still exposes immediate structural and overlay-presence changes. A future
+parallel runner may coordinate when a job is allowed to call those APIs, but
+that stage synchronization belongs to the runner and does not introduce a
+kernel command buffer. Deterministic single-threaded execution remains
+available for tests and debugging.
 
 ## Roslyn code generation
 
@@ -169,7 +249,7 @@ and direct component-row loops. It must generate code rather than use reflection
 runtime generic dispatch in hot paths.
 
 Generated access semantics should distinguish `in`, `ref`, write-only, optional,
-overlay, event reader/writer, and structural command access. Diagnostics must
+overlay, event reader/writer, and immediate structural mutation access. Diagnostics must
 reject escaping references, conflicting aliases, managed fields in unmanaged
 layouts, unsupported alignment, and ambiguous schema IDs.
 
@@ -202,12 +282,12 @@ wins.
 1. Standalone solution, entity allocator, layout registry, unmanaged slabs.
 2. Dense archetypes/chunks, location table, batch create/destroy.
 3. Cached dense queries and chunk/component-row leases.
-4. Batched structural command playback and transition cache.
+4. Immediate single/batch structural transitions and transition cache.
 5. Overlay tag masks and filtered chunk iteration.
 6. Change versions, order versions, dirty ranges, opt-in dirty-slot bitsets.
 7. Event streams.
 8. Sidecar overlay payloads.
-9. Scheduler and deterministic barriers.
+9. Scheduler and deterministic stage coordination outside the base kernel.
 10. Roslyn generator/analyzers and DeltaEngine adapter.
 11. Partitioning, compaction, sorting, and GPU-oriented export.
 
@@ -222,6 +302,8 @@ storage and query invariants are covered by randomized tests.
   permitted only as cold ArrayRows creation metadata.
 - Entity generations catch stale handles.
 - Batch create/destroy and archetype transitions preserve all component bytes.
+- DefaultEcs benchmark lane is present and should stay comparable in workload setup
+  and count with the DeltaECS lane before considering optimizations that depend on it.
 - Cached queries remain correct after new archetypes appear.
 - Overlay tags do not cause archetype transitions.
 - Cached dense hot iteration allocates zero managed memory after warm-up;
@@ -311,7 +393,7 @@ measurement remain pending. Existing structural numbers were collected before
 the ArrayRows-only redesign and must not be presented as current Array backend
 measurements.
 
-The correctness suite has 23 passing tests, including randomized transitions,
+The correctness suite has 24 passing tests, including randomized transitions,
 `DestroyBatch`, managed reference rows, virtual IDs with independent arrays,
 schema dedup/conflict, source/target row mapping, reference clearing, stale
 handles, lease ownership, immutable query inputs, chunk reuse, TagId validation,

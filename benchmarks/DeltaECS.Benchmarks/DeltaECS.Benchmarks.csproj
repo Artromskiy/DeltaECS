@@ -11,12 +11,14 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DeltaECS\DeltaECS.csproj" />
-    <ProjectReference Include="..\..\..\DeltaEngine\Depend\Arch\src\Arch\Arch.csproj" AdditionalProperties="Configuration=Release" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Arch" Version="1.2.8.1-alpha" />
     <PackageReference Include="BenchmarkDotNet" Version="0.13.12" />
+    <PackageReference Include="DefaultEcs" Version="0.17.2" />
     <PackageReference Include="Friflo.Engine.ECS" Version="3.6.0" />
+    <PackageReference Include="Leopotam.EcsLite" Version="1.0.1" />
   </ItemGroup>
 
 </Project>

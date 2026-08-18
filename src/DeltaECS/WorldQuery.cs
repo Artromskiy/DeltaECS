@@ -159,6 +159,7 @@ public ref struct DenseChunkLeaseView
         return _chunk.GetComponentRow<T>(index);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Span<T> GetComponentRow<T>(int queryComponentIndex)
     {
         EnsureCurrent();
@@ -183,6 +184,7 @@ public ref struct DenseChunkLeaseView
         _disposed = true;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void EnsureCurrent()
     {
         if (_disposed)

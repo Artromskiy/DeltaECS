@@ -127,7 +127,7 @@ public class DeltaEcsVsArchBenchmarks
         _deltaWorld.Query(in _deltaQuery, QueryAccess.Write, ref state, s_deltaIteration);
     }
 
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public void DeltaECS_Array_DenseIteration()
     {
         var state = new DeltaState
@@ -138,7 +138,7 @@ public class DeltaEcsVsArchBenchmarks
         _arrayWorld.Query(in _arrayQuery, QueryAccess.Write, ref state, s_deltaIteration);
     }
 
-    [Benchmark(Baseline = true)]
+    [Benchmark]
     public void Arch_DenseIteration()
     {
         switch (ComponentCount)
@@ -383,10 +383,8 @@ public class DeltaEcsTransitionBenchmarks
     [Benchmark]
     public void BatchAddRemoveTransition()
     {
-        _world.QueueAddComponents(_transitionComponents, _entities);
-        _world.PlaybackTransitions();
-        _world.QueueRemoveComponents(_transitionComponents, _entities);
-        _world.PlaybackTransitions();
+        _world.AddComponents(_transitionComponents, _entities);
+        _world.RemoveComponents(_transitionComponents, _entities);
     }
 }
 
@@ -548,8 +546,27 @@ public class DeltaEcsHotPathProfileBenchmarks
 
 public static class Program
 {
+    private static readonly Type[] s_fullComparisonSuite =
+    {
+        typeof(SmallDenseScenarioBenchmarks),
+        typeof(AlgorithmicMovementBenchmarks),
+        typeof(DistinctDenseComparisonBenchmarks),
+        typeof(WideArchetypeNarrowAccessComparisonBenchmarks),
+        typeof(SparseHeterogeneousQueryBenchmarks),
+        typeof(DefaultEcsComparisonBenchmarks),
+        typeof(EcsLiteComparisonBenchmarks)
+    };
+
     public static void Main(string[] args)
     {
+        if (args.Length > 0 && string.Equals(args[0], "full-comparison", StringComparison.OrdinalIgnoreCase))
+        {
+            var benchmarkArgs = new string[args.Length - 1];
+            Array.Copy(args, 1, benchmarkArgs, 0, benchmarkArgs.Length);
+            BenchmarkSwitcher.FromTypes(s_fullComparisonSuite).Run(benchmarkArgs);
+            return;
+        }
+
         if (args.Length > 0 && string.Equals(args[0], "distinct", StringComparison.OrdinalIgnoreCase))
         {
             var benchmarkArgs = new string[args.Length - 1];
@@ -563,6 +580,62 @@ public static class Program
             var benchmarkArgs = new string[args.Length - 1];
             Array.Copy(args, 1, benchmarkArgs, 0, benchmarkArgs.Length);
             BenchmarkSwitcher.FromTypes(new[] { typeof(DenseCapacitySweepBenchmarks) }).Run(benchmarkArgs);
+            return;
+        }
+
+        if (args.Length > 0 && string.Equals(args[0], "defaultecs", StringComparison.OrdinalIgnoreCase))
+        {
+            var benchmarkArgs = new string[args.Length - 1];
+            Array.Copy(args, 1, benchmarkArgs, 0, benchmarkArgs.Length);
+            BenchmarkSwitcher.FromTypes(new[] { typeof(DefaultEcsComparisonBenchmarks) }).Run(benchmarkArgs);
+            return;
+        }
+
+        if (args.Length > 0 && string.Equals(args[0], "ecslite", StringComparison.OrdinalIgnoreCase))
+        {
+            var benchmarkArgs = new string[args.Length - 1];
+            Array.Copy(args, 1, benchmarkArgs, 0, benchmarkArgs.Length);
+            BenchmarkSwitcher.FromTypes(new[] { typeof(EcsLiteComparisonBenchmarks) }).Run(benchmarkArgs);
+            return;
+        }
+
+        if (args.Length > 0 && string.Equals(args[0], "scenario-small", StringComparison.OrdinalIgnoreCase))
+        {
+            var benchmarkArgs = new string[args.Length - 1];
+            Array.Copy(args, 1, benchmarkArgs, 0, benchmarkArgs.Length);
+            BenchmarkSwitcher.FromTypes(new[] { typeof(SmallDenseScenarioBenchmarks) }).Run(benchmarkArgs);
+            return;
+        }
+
+        if (args.Length > 0 && string.Equals(args[0], "scenario-wide", StringComparison.OrdinalIgnoreCase))
+        {
+            var benchmarkArgs = new string[args.Length - 1];
+            Array.Copy(args, 1, benchmarkArgs, 0, benchmarkArgs.Length);
+            BenchmarkSwitcher.FromTypes(new[] { typeof(WideArchetypeNarrowAccessBenchmarks) }).Run(benchmarkArgs);
+            return;
+        }
+
+        if (args.Length > 0 && string.Equals(args[0], "scenario-wide-comparison", StringComparison.OrdinalIgnoreCase))
+        {
+            var benchmarkArgs = new string[args.Length - 1];
+            Array.Copy(args, 1, benchmarkArgs, 0, benchmarkArgs.Length);
+            BenchmarkSwitcher.FromTypes(new[] { typeof(WideArchetypeNarrowAccessComparisonBenchmarks) }).Run(benchmarkArgs);
+            return;
+        }
+
+        if (args.Length > 0 && string.Equals(args[0], "scenario-fragmented", StringComparison.OrdinalIgnoreCase))
+        {
+            var benchmarkArgs = new string[args.Length - 1];
+            Array.Copy(args, 1, benchmarkArgs, 0, benchmarkArgs.Length);
+            BenchmarkSwitcher.FromTypes(new[] { typeof(DeltaOnlyFragmentedQueryBenchmarks) }).Run(benchmarkArgs);
+            return;
+        }
+
+        if (args.Length > 0 && string.Equals(args[0], "scenario-sparse", StringComparison.OrdinalIgnoreCase))
+        {
+            var benchmarkArgs = new string[args.Length - 1];
+            Array.Copy(args, 1, benchmarkArgs, 0, benchmarkArgs.Length);
+            BenchmarkSwitcher.FromTypes(new[] { typeof(SparseHeterogeneousQueryBenchmarks) }).Run(benchmarkArgs);
             return;
         }
 

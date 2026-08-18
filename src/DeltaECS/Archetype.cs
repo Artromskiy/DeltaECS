@@ -2,6 +2,7 @@ namespace DVG.ECS;
 
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 internal sealed class Archetype
 {
@@ -61,6 +62,7 @@ internal sealed class Archetype
 
     public ref readonly ComponentLayout GetLayout(int index) => ref _layouts[index];
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasAvailableChunk() => _availableChunkStack.Count != 0;
 
     public void AddEntity(Entity entity, int chunkId, out int chunkIndex, out int slotIndex)
@@ -133,7 +135,9 @@ internal sealed class Archetype
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int GetChunkGlobalId(int chunkIndex) => _chunks[chunkIndex].GlobalId;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Chunk GetChunk(int chunkIndex) => _chunks[chunkIndex];
 }

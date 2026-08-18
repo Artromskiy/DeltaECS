@@ -56,7 +56,7 @@ public class AlgorithmicMovementBenchmarks
         _legacy = new LegacyMovementReference(Amount, PayloadRows);
     }
 
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public double DeltaECS_Movement()
     {
         var state = new DeltaState { Dt = Dt };

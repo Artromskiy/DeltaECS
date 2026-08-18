@@ -31,6 +31,39 @@ public readonly struct Entity : IEquatable<Entity>
     public override string ToString() => $"[{Index}:{Generation}]";
 }
 
+public readonly struct ArchetypeHandle : IEquatable<ArchetypeHandle>
+{
+    private readonly World? _owner;
+    private readonly int _archetypeId;
+
+    internal ArchetypeHandle(World owner, int archetypeId)
+    {
+        _owner = owner;
+        _archetypeId = archetypeId;
+    }
+
+    public int ArchetypeId => _archetypeId;
+
+    public bool IsValid => _owner is not null && _archetypeId >= 0;
+
+    internal World? Owner => _owner;
+
+    public bool Equals(ArchetypeHandle other)
+    {
+        return ReferenceEquals(_owner, other._owner) && _archetypeId == other._archetypeId;
+    }
+
+    public override bool Equals(object? obj) => obj is ArchetypeHandle other && Equals(other);
+
+    public override int GetHashCode() => HashCode.Combine(_owner, _archetypeId);
+
+    public static bool operator ==(ArchetypeHandle left, ArchetypeHandle right) => left.Equals(right);
+
+    public static bool operator !=(ArchetypeHandle left, ArchetypeHandle right) => !left.Equals(right);
+
+    public static readonly ArchetypeHandle Invalid = default;
+}
+
 internal struct EntityRecord
 {
     public int Generation;

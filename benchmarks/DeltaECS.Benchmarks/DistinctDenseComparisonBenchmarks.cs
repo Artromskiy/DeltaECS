@@ -96,7 +96,7 @@ public class DistinctDenseComparisonBenchmarks
         _frifloQ8 = _frifloWorld.Query<F0, F1, F2, F3, F4>();
     }
 
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public void DeltaECS_Array_DistinctTypes()
     {
         var state = new State { ComponentCount = ComponentCount };
@@ -111,7 +111,7 @@ public class DistinctDenseComparisonBenchmarks
     [Benchmark]
     public void DeltaECS_LegacyByte_DistinctTypes() => _legacy.Iterate();
 
-    [Benchmark(Baseline = true)]
+    [Benchmark]
     public void Arch_DistinctTypes()
     {
         switch (ComponentCount)
@@ -261,10 +261,47 @@ internal sealed class LegacyByteDenseReference
         {
             var rows = _chunks[chunkIndex];
             var size = _sizes[chunkIndex];
-            for (var row = 0; row < rows.Length; row++)
+            switch (rows.Length)
             {
-                var values = MemoryMarshal.Cast<byte, LegacyValue>(rows[row].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                for (var i = 0; i < values.Length; i++) values[i].X += values[i].Y;
+                case 1:
+                {
+                    var row0 = MemoryMarshal.Cast<byte, LegacyValue>(rows[0].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                    for (var i = 0; i < size; i++) row0[i].X += row0[i].Y;
+                    break;
+                }
+                case 2:
+                {
+                    var row0 = MemoryMarshal.Cast<byte, LegacyValue>(rows[0].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                    var row1 = MemoryMarshal.Cast<byte, LegacyValue>(rows[1].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                    for (var i = 0; i < size; i++) { row0[i].X += row0[i].Y; row1[i].X += row1[i].Y; }
+                    break;
+                }
+                case 4:
+                {
+                    var row0 = MemoryMarshal.Cast<byte, LegacyValue>(rows[0].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                    var row1 = MemoryMarshal.Cast<byte, LegacyValue>(rows[1].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                    var row2 = MemoryMarshal.Cast<byte, LegacyValue>(rows[2].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                    var row3 = MemoryMarshal.Cast<byte, LegacyValue>(rows[3].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                    for (var i = 0; i < size; i++) { row0[i].X += row0[i].Y; row1[i].X += row1[i].Y; row2[i].X += row2[i].Y; row3[i].X += row3[i].Y; }
+                    break;
+                }
+                case 8:
+                {
+                    var row0 = MemoryMarshal.Cast<byte, LegacyValue>(rows[0].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                    var row1 = MemoryMarshal.Cast<byte, LegacyValue>(rows[1].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                    var row2 = MemoryMarshal.Cast<byte, LegacyValue>(rows[2].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                    var row3 = MemoryMarshal.Cast<byte, LegacyValue>(rows[3].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                    var row4 = MemoryMarshal.Cast<byte, LegacyValue>(rows[4].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                    var row5 = MemoryMarshal.Cast<byte, LegacyValue>(rows[5].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                    var row6 = MemoryMarshal.Cast<byte, LegacyValue>(rows[6].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                    var row7 = MemoryMarshal.Cast<byte, LegacyValue>(rows[7].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                    for (var i = 0; i < size; i++)
+                    {
+                        row0[i].X += row0[i].Y; row1[i].X += row1[i].Y; row2[i].X += row2[i].Y; row3[i].X += row3[i].Y;
+                        row4[i].X += row4[i].Y; row5[i].X += row5[i].Y; row6[i].X += row6[i].Y; row7[i].X += row7[i].Y;
+                    }
+                    break;
+                }
             }
         }
     }

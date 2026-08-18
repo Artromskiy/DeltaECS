@@ -15,34 +15,42 @@ namespace DVG.ECS.Benchmarks;
 [BenchmarkCategory("DeltaOnlyFeatureLane", "FragmentedQuery")]
 public class DeltaOnlyFragmentedQueryBenchmarks
 {
-    [Params(8, 64, 256)]
-    public int ArchetypeSignatures { get; set; }
+[Params(8, 64, 256, 1024)]
+public int ArchetypeSignatures { get; set; }
 
-    [Params(0.25, 0.50, 0.75)]
-    public double MatchingDensity { get; set; }
+[Params(1, 10, 50, 100)]
+public int MatchingPercent { get; set; }
 
-    private World _world = null!;
-    private QueryHandle _query;
-    private ComponentId _required;
-    private int _expectedMatches;
+private World _world = null!;
+private QueryHandle _query;
+private ComponentId _required;
+private int _expectedMatches;
 
     [GlobalSetup]
     public void Setup()
     {
-        if (ArchetypeSignatures is not (8 or 64 or 256))
+        if (ArchetypeSignatures is not (8 or 64 or 256 or 1024))
         {
             throw new ArgumentOutOfRangeException(nameof(ArchetypeSignatures));
         }
 
         var layouts = new ComponentLayoutRegistry();
-        var components = new ComponentId[10];
+        // One required component plus eleven independent bits gives 2,048
+        // distinct masks, so the 1,024-signature case remains genuinely
+        // fragmented instead of silently reusing signatures.
+        var components = new ComponentId[12];
         for (var i = 0; i < components.Length; i++)
         {
             components[i] = layouts.Register<FragmentValue>(new SchemaId((ulong)(61_000 + i)));
         }
 
         _required = components[0];
-        _expectedMatches = (int)(ArchetypeSignatures * MatchingDensity);
+        if (MatchingPercent is < 0 or > 100)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MatchingPercent));
+        }
+
+        _expectedMatches = (int)Math.Round(ArchetypeSignatures * (MatchingPercent / 100d), MidpointRounding.AwayFromZero);
         _world = new World(layouts, initialEntityCapacity: ArchetypeSignatures, chunkCapacity: 1);
 
         // Every signature has one entity and a unique deterministic mask. The
@@ -85,7 +93,7 @@ public class DeltaOnlyFragmentedQueryBenchmarks
 
         if (state.Matches != _expectedMatches)
         {
-            throw new InvalidOperationException($"Fragmented query matched {state.Matches}, expected {_expectedMatches}.");
+            throw new InvalidOperationException($"Fragmented query matched {state.Matches}, expected {_expectedMatches} ({MatchingPercent}% of {ArchetypeSignatures} signatures).");
         }
 
         return state.Checksum;
@@ -100,10 +108,39 @@ public class DeltaOnlyFragmentedQueryBenchmarks
 
         if (state.Matches != _expectedMatches)
         {
-            throw new InvalidOperationException($"Fragmented query dispatched {state.Matches}, expected {_expectedMatches}.");
+            throw new InvalidOperationException($"Fragmented query dispatched {state.Matches}, expected {_expectedMatches} ({MatchingPercent}% of {ArchetypeSignatures} signatures).");
         }
 
         return state.Matches;
+    }
+
+    [Benchmark]
+    public int DeltaOnly_ColdPlan()
+    {
+        var state = new FragmentQueryState();
+        var description = QueryDescription.ForComponents(_required);
+        var coldQuery = _world.CreateQuery(in description);
+        _world.Query(in coldQuery, QueryAccess.Read, ref state, static (ref FragmentQueryState s, ref DenseChunkLeaseView lease) =>
+        {
+            var values = lease.GetComponentRow<FragmentValue>(0);
+            for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+            {
+                if (!lease.IsAllSlotsActive && !lease.IsActiveSlot(slotIndex))
+                {
+                    continue;
+                }
+
+                s.Matches++;
+                s.Checksum += values[slotIndex].Value;
+            }
+        });
+
+        if (state.Matches != _expectedMatches)
+        {
+            throw new InvalidOperationException($"Fragmented cold query matched {state.Matches}, expected {_expectedMatches} ({MatchingPercent}% of {ArchetypeSignatures} signatures).");
+        }
+
+        return state.Checksum;
     }
 
     private static ComponentId[] BuildSignature(ComponentId[] components, int mask)
