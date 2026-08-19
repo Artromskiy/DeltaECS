@@ -400,6 +400,52 @@ dotnet build benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj -c Releas
 dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net8.0/DeltaECS.Benchmarks.dll distinct --filter '*' --warmupCount 3 --iterationCount 5 --launchCount 1
 ```
 
+### DeltaECS version comparison
+
+`DeltaECS.VersionBenchmarks` compares two API-compatible DeltaECS revisions in
+one BenchmarkDotNet process. The same shared scenario source is compiled twice:
+the previous checkout becomes `DeltaECS.Baseline`, the candidate becomes
+`DeltaECS.Candidate`, and adapter assemblies keep their types isolated without
+reflection. `Previous_*` is the BenchmarkDotNet baseline, so a candidate ratio
+below `1.00` is an improvement.
+
+The suite currently covers dense iteration, two- and four-component movement,
+atomic create/destroy/add/remove, and list batch create/destroy/add/remove. Its
+correctness smoke runs automatically after the normal Release tests on every
+push and pull request, comparing the current revision with the previous commit
+or pull-request base. The automatic step validates results and BenchmarkDotNet
+discovery but does not collect timings. Full measurements remain an explicit
+GitHub workflow run.
+
+In **Actions → ECS benchmarks → Run workflow**, select:
+
+```text
+suite:          version-comparison
+baseline_ref:   commit, tag, or branch
+candidate_ref:  commit, tag, or branch
+```
+
+Both refs must expose the same public API. Revisions before the
+`DenseChunkScope` / `DenseChunkAccessor` rename require a separate legacy
+adapter and are intentionally rejected by this suite.
+
+For a local dual-checkout smoke:
+
+```text
+dotnet restore benchmarks/DeltaECS.VersionBenchmarks/DeltaECS.VersionBenchmarks.csproj \
+  --disable-parallel \
+  -p:BaselineRoot=/path/to/previous \
+  -p:CandidateRoot=/path/to/current
+
+dotnet build benchmarks/DeltaECS.VersionBenchmarks/DeltaECS.VersionBenchmarks.csproj \
+  -c Release --no-restore --disable-build-servers -m:1 \
+  /p:UseSharedCompilation=false \
+  -p:BaselineRoot=/path/to/previous \
+  -p:CandidateRoot=/path/to/current
+
+dotnet benchmarks/DeltaECS.VersionBenchmarks/bin/Release/net8.0/DeltaECS.VersionBenchmarks.dll smoke
+```
+
 The harness uses BenchmarkDotNet `MemoryDiagnoser`, Amount `10_000` and
 `100_000`, distinct CLR types, and 1, 2, 4, and 8 component rows. Results below
 are Apple M4 Pro, macOS 26.5.2, .NET 8.0.29 / Arm64 RyuJIT,

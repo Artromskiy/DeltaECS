@@ -30,6 +30,17 @@ on:
           - structural-list
           - structural-query
           - structural-atomic
+          - version-comparison
+      baseline_ref:
+        description: Baseline DeltaECS git ref for version-comparison
+        required: true
+        default: main
+        type: string
+      candidate_ref:
+        description: Candidate DeltaECS git ref for version-comparison
+        required: true
+        default: main
+        type: string
       warmup_count:
         description: BenchmarkDotNet warm-up iterations
         required: true
@@ -75,6 +86,28 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: Resolve automatic version baseline
+        id: automatic-baseline
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            baseline_ref="${{ github.event.pull_request.base.sha }}"
+          else
+            baseline_ref="${{ github.event.before }}"
+          fi
+          if [ -z "$baseline_ref" ] || [[ "$baseline_ref" =~ ^0+$ ]]; then
+            baseline_ref="$(git rev-parse HEAD^)"
+          fi
+          echo "ref=$baseline_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout automatic version baseline
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.automatic-baseline.outputs.ref }}
+          path: .version-baseline
 
       - name: Install .NET 8
         uses: actions/setup-dotnet@v6
@@ -115,6 +148,20 @@ jobs:
             --list flat \
             --filter '*'
 
+      - name: Run automatic version comparison smoke
+        run: |
+          dotnet restore benchmarks/DeltaECS.VersionBenchmarks/DeltaECS.VersionBenchmarks.csproj \
+            --disable-parallel \
+            -p:BaselineRoot="$GITHUB_WORKSPACE/.version-baseline" \
+            -p:CandidateRoot="$GITHUB_WORKSPACE"
+          dotnet build benchmarks/DeltaECS.VersionBenchmarks/DeltaECS.VersionBenchmarks.csproj \
+            -c Release --no-restore --disable-build-servers -m:1 /p:UseSharedCompilation=false \
+            -p:BaselineRoot="$GITHUB_WORKSPACE/.version-baseline" \
+            -p:CandidateRoot="$GITHUB_WORKSPACE"
+          dotnet benchmarks/DeltaECS.VersionBenchmarks/bin/Release/net8.0/DeltaECS.VersionBenchmarks.dll smoke
+          dotnet benchmarks/DeltaECS.VersionBenchmarks/bin/Release/net8.0/DeltaECS.VersionBenchmarks.dll \
+            --list flat --filter '*'
+
       - name: Upload smoke artifacts
         if: always()
         uses: actions/upload-artifact@v7
@@ -126,7 +173,7 @@ jobs:
 
   full:
     name: Full comparative benchmark
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    if: (github.event_name == 'workflow_dispatch' && inputs.suite != 'version-comparison') || github.event_name == 'schedule'
     runs-on: ${{ inputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 360
     concurrency:
@@ -218,5 +265,132 @@ jobs:
         with:
           name: ecs-benchmarks-${{ env.BENCHMARK_SUITE }}-${{ runner.arch }}-${{ github.run_number }}
           path: artifacts/github-full
+          if-no-files-found: warn
+          retention-days: 30
+
+  versions:
+    name: DeltaECS version comparison
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'version-comparison'
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 360
+    concurrency:
+      group: ecs-version-comparison-${{ inputs.baseline_ref }}-${{ inputs.candidate_ref }}-${{ inputs.runner }}
+      cancel-in-progress: false
+    env:
+      BASELINE_ROOT: ${{ github.workspace }}/baseline
+      CANDIDATE_ROOT: ${{ github.workspace }}/candidate
+      HARNESS_ROOT: ${{ github.workspace }}/harness
+      WARMUP_COUNT: ${{ inputs.warmup_count }}
+      ITERATION_COUNT: ${{ inputs.iteration_count }}
+      LAUNCH_COUNT: ${{ inputs.launch_count }}
+
+    steps:
+      - name: Checkout benchmark harness
+        uses: actions/checkout@v7
+        with:
+          path: harness
+
+      - name: Checkout baseline
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.baseline_ref }}
+          path: baseline
+
+      - name: Checkout candidate
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.candidate_ref }}
+          path: candidate
+
+      - name: Install .NET 8
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-version-${{ runner.os }}-${{ inputs.baseline_ref }}-${{ inputs.candidate_ref }}-${{ hashFiles('harness/benchmarks/DeltaECS.VersionBenchmarks/**/*.csproj') }}
+          restore-keys: |
+            nuget-version-${{ runner.os }}-
+
+      - name: Build and test both versions
+        shell: bash
+        run: |
+          for root in "$BASELINE_ROOT" "$CANDIDATE_ROOT"; do
+            dotnet restore "$root/DeltaECS.sln"
+            dotnet build "$root/DeltaECS.sln" -c Release --no-restore
+            dotnet test "$root/tests/DeltaECSTests/DeltaECSTests.csproj" -c Release --no-build --no-restore
+          done
+
+      - name: Restore and build version suite
+        working-directory: harness
+        run: |
+          dotnet restore benchmarks/DeltaECS.VersionBenchmarks/DeltaECS.VersionBenchmarks.csproj \
+            --disable-parallel \
+            -p:BaselineRoot="$BASELINE_ROOT" \
+            -p:CandidateRoot="$CANDIDATE_ROOT"
+          dotnet build benchmarks/DeltaECS.VersionBenchmarks/DeltaECS.VersionBenchmarks.csproj \
+            -c Release --no-restore --disable-build-servers -m:1 /p:UseSharedCompilation=false \
+            -p:BaselineRoot="$BASELINE_ROOT" \
+            -p:CandidateRoot="$CANDIDATE_ROOT"
+
+      - name: Run version contract smoke
+        working-directory: harness
+        run: |
+          dotnet benchmarks/DeltaECS.VersionBenchmarks/bin/Release/net8.0/DeltaECS.VersionBenchmarks.dll smoke
+          dotnet benchmarks/DeltaECS.VersionBenchmarks/bin/Release/net8.0/DeltaECS.VersionBenchmarks.dll \
+            --list flat --filter '*'
+
+      - name: Record runner and version information
+        shell: bash
+        run: |
+          mkdir -p "$HARNESS_ROOT/artifacts/version-comparison"
+          {
+            echo "baseline_ref=${{ inputs.baseline_ref }}"
+            echo "baseline_sha=$(git -C "$BASELINE_ROOT" rev-parse HEAD)"
+            echo "candidate_ref=${{ inputs.candidate_ref }}"
+            echo "candidate_sha=$(git -C "$CANDIDATE_ROOT" rev-parse HEAD)"
+            uname -a
+            lscpu
+            dotnet --info
+          } > "$HARNESS_ROOT/artifacts/version-comparison/runner.txt"
+
+      - name: Run version benchmarks
+        working-directory: harness
+        run: |
+          dotnet benchmarks/DeltaECS.VersionBenchmarks/bin/Release/net8.0/DeltaECS.VersionBenchmarks.dll \
+            --filter '*' \
+            --warmupCount "$WARMUP_COUNT" \
+            --iterationCount "$ITERATION_COUNT" \
+            --launchCount "$LAUNCH_COUNT" \
+            --exporters json csv markdown github \
+            --artifacts artifacts/version-comparison
+
+      - name: Add version results to workflow summary
+        if: always()
+        working-directory: harness
+        shell: bash
+        run: |
+          {
+            echo "## DeltaECS version comparison"
+            echo
+            echo "Baseline: `${{ inputs.baseline_ref }}` → Candidate: `${{ inputs.candidate_ref }}`"
+            echo
+            echo "Runner: `${{ runner.os }} ${{ runner.arch }}`"
+            echo
+            while IFS= read -r report; do
+              cat "$report"
+              echo
+            done < <(find artifacts/version-comparison -type f -name '*-report-github.md' | sort)
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload version benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ecs-version-${{ runner.arch }}-${{ github.run_number }}
+          path: harness/artifacts/version-comparison
           if-no-files-found: warn
           retention-days: 30

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>DeltaECS.VersionAdapter.Baseline</AssemblyName>
+    <RootNamespace>DeltaECS.VersionAdapter</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <Target Name="ValidateBaselineRoot" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(BaselineRoot)' == ''" Text="BaselineRoot is required." />
+  </Target>
+
+  <ItemGroup>
+    <Compile Include="../../Shared/VersionScenarios.cs" Link="VersionScenarios.cs" />
+    <ProjectReference Include="$(BaselineRoot)/src/DeltaECS/DeltaECS.csproj"
+                      AdditionalProperties="AssemblyName=DeltaECS.Baseline" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>DeltaECS.VersionAdapter.Candidate</AssemblyName>
+    <RootNamespace>DeltaECS.VersionAdapter</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <Target Name="ValidateCandidateRoot" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(CandidateRoot)' == ''" Text="CandidateRoot is required." />
+  </Target>
+
+  <ItemGroup>
+    <Compile Include="../../Shared/VersionScenarios.cs" Link="VersionScenarios.cs" />
+    <ProjectReference Include="$(CandidateRoot)/src/DeltaECS/DeltaECS.csproj"
+                      AdditionalProperties="AssemblyName=DeltaECS.Candidate" />
+  </ItemGroup>
+
+</Project>
