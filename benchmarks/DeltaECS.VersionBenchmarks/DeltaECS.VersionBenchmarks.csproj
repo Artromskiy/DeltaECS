@@ -29,6 +29,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <AssemblyMetadata Include="DeltaECS.BaselineRoot" Value="$(BaselineRoot)" />
+    <AssemblyMetadata Include="DeltaECS.CandidateRoot" Value="$(CandidateRoot)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" Version="0.13.12" />
   </ItemGroup>
 
