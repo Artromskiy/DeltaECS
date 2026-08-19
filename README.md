@@ -316,10 +316,11 @@ storage and query invariants are covered by randomized tests.
 
 The cached dense hot path now has an allocation-free API:
 `World.CreateQuery` creates a reusable `QueryHandle`; the ref-state query
-overload invokes a `DenseChunkLeaseView` ref struct and uses cached
+overload invokes a `DenseChunkAccessor` ref struct and uses cached
 component-index mappings. The structural lease guard covers the synchronous
-query and is released in `finally`; the view cannot escape the callback.
-The original `Action<DenseChunkLease>` API remains available for compatibility.
+query and is released in `finally`; the accessor cannot escape the callback.
+The `Action<DenseChunkScope>` API is the callback scope surface; the accessor
+surface is used by the ref-state query overload and cannot escape its callback.
 
 The primary dense benchmark now uses `World.QueryChunks`, a stack-only cached
 chunk enumerator. It holds the mutation lease for the whole synchronous pass,
@@ -327,19 +328,19 @@ returns the cached row-index plan, and avoids callback dispatch plus per-chunk
 lease disposal. The callback query API remains for general correctness and
 filtered/tagged access; it is not the primary dense performance lane.
 
-Both `DenseChunkLease` and `DenseChunkLeaseView` expose an aligned,
+Both `DenseChunkScope` and `DenseChunkAccessor` expose an aligned,
 zero-copy `ReadOnlySpan<Entity>` alongside component rows. For a
-`DenseChunkLeaseView` created from a query containing overlay/tag predicates,
+`DenseChunkAccessor` created from a query containing overlay/tag predicates,
 select the active-slot path once per chunk: `IsAllSlotsActive` is a chunk-level
 fast-path flag, not a per-entity validity check. Dense slot work uses the
 reverse slot order while preserving slot alignment and overlay checks:
 
 ```csharp
-ReadOnlySpan<Entity> entities = lease.Entities;
-var positions = lease.GetComponentRow<Position>(positionId);
-if (lease.IsAllSlotsActive)
+ReadOnlySpan<Entity> entities = accessor.Entities;
+var positions = accessor.GetComponentRow<Position>(positionId);
+if (accessor.IsAllSlotsActive)
 {
-    for (var i = lease.SlotCount - 1; i >= 0; i--)
+    for (var i = accessor.SlotCount - 1; i >= 0; i--)
     {
         Entity entity = entities[i];
         ref Position position = ref positions[i];
@@ -348,9 +349,9 @@ if (lease.IsAllSlotsActive)
 }
 else
 {
-    for (var i = lease.SlotCount - 1; i >= 0; i--)
+    for (var i = accessor.SlotCount - 1; i >= 0; i--)
     {
-        if (!lease.IsActiveSlot(i)) continue;
+        if (!accessor.IsActiveSlot(i)) continue;
         Entity entity = entities[i];
         ref Position position = ref positions[i];
         Process(entity, ref position);

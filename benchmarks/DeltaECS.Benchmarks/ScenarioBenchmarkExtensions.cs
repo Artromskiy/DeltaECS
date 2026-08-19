@@ -268,7 +268,7 @@ public class SmallDenseScenarioBenchmarks
         return checksum;
     }
 
-    private static void IterateSmallDense(ref SmallDenseState state, ref DenseChunkLeaseView lease)
+    private static void IterateSmallDense(ref SmallDenseState state, ref DenseChunkAccessor lease)
     {
         switch (state.ComponentCount)
         {
@@ -445,7 +445,7 @@ public class WideArchetypeNarrowAccessBenchmarks
     public double DeltaECS_NarrowAccess()
     {
         var state = new SmallWideState();
-        _deltaWorld.Query(in _deltaQuery, QueryAccess.Write, ref state, static (ref SmallWideState s, ref DenseChunkLeaseView lease) =>
+        _deltaWorld.Query(in _deltaQuery, QueryAccess.Write, ref state, static (ref SmallWideState s, ref DenseChunkAccessor lease) =>
         {
             var positions = lease.GetComponentRow<WideDenseValue>(0);
             var velocities = lease.GetComponentRow<WideDenseValue>(1);
@@ -569,7 +569,7 @@ public class WideArchetypeNarrowAccessComparisonBenchmarks
     public double DeltaECS_ComparisonNarrow()
     {
         var checksum = 0d;
-        _deltaWorld.Query(in _deltaQuery, QueryAccess.Write, ref checksum, static (ref double result, ref DenseChunkLeaseView lease) =>
+        _deltaWorld.Query(in _deltaQuery, QueryAccess.Write, ref checksum, static (ref double result, ref DenseChunkAccessor lease) =>
         {
             var positions = lease.GetComponentRow<WideDenseValue>(0);
             var velocities = lease.GetComponentRow<WideDenseValue>(1);
@@ -954,7 +954,7 @@ public class SparseHeterogeneousQueryBenchmarks
 
     private static bool IsMatch(int entityIndex) => entityIndex % MatchStride == 0;
 
-    private static void CountDeltaMatches(ref SparseState state, ref DenseChunkLeaseView lease)
+    private static void CountDeltaMatches(ref SparseState state, ref DenseChunkAccessor lease)
     {
         for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
         {
@@ -962,7 +962,7 @@ public class SparseHeterogeneousQueryBenchmarks
         }
     }
 
-    private static void IterateDeltaMatches(ref SparseState state, ref DenseChunkLeaseView lease)
+    private static void IterateDeltaMatches(ref SparseState state, ref DenseChunkAccessor lease)
     {
         var positions = lease.GetComponentRow<SparseValue>(0);
         var velocities = lease.GetComponentRow<SparseValue>(1);

@@ -24,7 +24,7 @@ public sealed class World
     private DestroyEntry[] _destroyScratch = new DestroyEntry[32];
     private int _nextChunkId;
     private int _activeChunkLeases;
-    private int _chunkLeaseViewId;
+    private int _chunkAccessorId;
     private int _archetypeVersion;
 
     public World(
@@ -341,7 +341,7 @@ public sealed class World
         return ApplyComponents(false, componentIds, entities);
     }
 
-    public void Query(in QueryDescription query, QueryAccess access, Action<DenseChunkLease> body)
+    public void Query(in QueryDescription query, QueryAccess access, Action<DenseChunkScope> body)
     {
         var cached = GetOrCreateQuery(query);
         var archetypes = cached.MatchingArchetypes(this);
@@ -370,8 +370,8 @@ public sealed class World
                 }
 
                 _activeChunkLeases++;
-                using var lease = new DenseChunkLease(this, archetype, chunk, chunk.GlobalId, overlay, fullMask);
-                body(lease);
+                using var scope = new DenseChunkScope(this, archetype, chunk, chunk.GlobalId, overlay, fullMask);
+                body(scope);
             }
         }
     }
@@ -415,14 +415,14 @@ public sealed class World
                         MarkQueryRows(chunk, rowIndices, writeTick);
                     }
 
-                    var lease = new DenseChunkLeaseView(this, archetype, chunk, chunkId, rowIndices, overlay, fullMask, RentChunkLeaseView());
+                    var accessor = new DenseChunkAccessor(this, archetype, chunk, chunkId, rowIndices, overlay, fullMask, RentChunkAccessor());
                     try
                     {
-                        body(ref state, ref lease);
+                        body(ref state, ref accessor);
                     }
                     finally
                     {
-                        lease.Dispose();
+                        accessor.Dispose();
                     }
                 }
             }
@@ -430,7 +430,7 @@ public sealed class World
         finally
         {
             _activeChunkLeases--;
-            InvalidateChunkLeaseViews();
+            InvalidateChunkAccessors();
         }
     }
 
@@ -454,7 +454,7 @@ public sealed class World
         private readonly uint _writeTick;
         private int _archetypePosition;
         private int _chunkPosition;
-        private DenseChunkLeaseView _current;
+        private DenseChunkAccessor _current;
         private bool _hasCurrent;
         private bool _disposed;
 
@@ -476,7 +476,7 @@ public sealed class World
             _owner._activeChunkLeases++;
         }
 
-        public DenseChunkLeaseView Current
+        public DenseChunkAccessor Current
         {
             get
             {
@@ -527,7 +527,7 @@ public sealed class World
                         MarkQueryRows(chunk, rowIndices, _writeTick);
                     }
 
-                    _current = new DenseChunkLeaseView(_owner, archetype, chunk, chunkId, rowIndices, overlay, fullMask, _owner.RentChunkLeaseView());
+                    _current = new DenseChunkAccessor(_owner, archetype, chunk, chunkId, rowIndices, overlay, fullMask, _owner.RentChunkAccessor());
                     _hasCurrent = true;
                     return true;
                 }
@@ -554,7 +554,7 @@ public sealed class World
             }
 
             _owner._activeChunkLeases--;
-            _owner.InvalidateChunkLeaseViews();
+            _owner.InvalidateChunkAccessors();
             _disposed = true;
         }
     }
@@ -581,11 +581,11 @@ public sealed class World
         return count;
     }
 
-    internal void CompleteChunkLease() => _activeChunkLeases--;
-    internal int RentChunkLeaseView() => ++_chunkLeaseViewId;
+    internal void CompleteChunkScope() => _activeChunkLeases--;
+    internal int RentChunkAccessor() => ++_chunkAccessorId;
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool IsChunkLeaseViewIdValid(int viewId) => viewId == _chunkLeaseViewId;
-    internal void InvalidateChunkLeaseViews() => _chunkLeaseViewId++;
+    internal bool IsChunkAccessorIdValid(int accessorId) => accessorId == _chunkAccessorId;
+    internal void InvalidateChunkAccessors() => _chunkAccessorId++;
     internal void ReturnChunkLeaseOverlay(ulong[]? overlayMask)
     {
         if (overlayMask is not null)

@@ -218,7 +218,7 @@ public sealed class DeltaECSDeliveryTests
         var observed = new HashSet<Entity>();
         var taggedQuery = world.CreateQuery(in tagged);
         var taggedState = new OverlayQueryState(observed);
-        world.Query(in taggedQuery, QueryAccess.Read, ref taggedState, static (ref OverlayQueryState state, ref DenseChunkLeaseView lease) =>
+        world.Query(in taggedQuery, QueryAccess.Read, ref taggedState, static (ref OverlayQueryState state, ref DenseChunkAccessor lease) =>
         {
             state.SawPartialChunk |= !lease.IsAllSlotsActive;
             var entities = lease.Entities;
@@ -253,7 +253,7 @@ public sealed class DeltaECSDeliveryTests
         }
 
         var fullTaggedState = new OverlayQueryState(new HashSet<Entity>());
-        world.Query(in taggedQuery, QueryAccess.Read, ref fullTaggedState, static (ref OverlayQueryState state, ref DenseChunkLeaseView lease) =>
+        world.Query(in taggedQuery, QueryAccess.Read, ref fullTaggedState, static (ref OverlayQueryState state, ref DenseChunkAccessor lease) =>
         {
             Assert.That(lease.IsAllSlotsActive, Is.True);
             for (var slot = lease.SlotCount - 1; slot >= 0; slot--)
@@ -863,12 +863,12 @@ public sealed class DeltaECSDeliveryTests
         layouts.Register<Health>(new SchemaId(3));
     }
 
-    private static int CountActiveSlots(DenseChunkLease lease)
+    private static int CountActiveSlots(DenseChunkScope scope)
     {
         var count = 0;
-        for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
+        for (var slotIndex = scope.SlotCount - 1; slotIndex >= 0; slotIndex--)
         {
-            if (lease.IsActiveSlot(slotIndex))
+            if (scope.IsActiveSlot(slotIndex))
             {
                 count++;
             }
@@ -941,7 +941,7 @@ public sealed class DeltaECSDeliveryTests
         public int Count;
     }
 
-    private static void AssertAlignedRows(ref AlignmentState state, ref DenseChunkLeaseView lease)
+    private static void AssertAlignedRows(ref AlignmentState state, ref DenseChunkAccessor lease)
     {
         ReadOnlySpan<Entity> entities = lease.Entities;
         var positions = lease.GetComponentRow<Position>(PositionId);
@@ -956,7 +956,7 @@ public sealed class DeltaECSDeliveryTests
         }
     }
 
-    private static void QuerySlots(ref QueryState state, ref DenseChunkLeaseView lease)
+    private static void QuerySlots(ref QueryState state, ref DenseChunkAccessor lease)
     {
         var positions = lease.GetComponentRow<Position>(PositionId);
         var velocities = lease.GetComponentRow<Velocity>(VelocityId);
@@ -968,7 +968,7 @@ public sealed class DeltaECSDeliveryTests
         }
     }
 
-    private static void ReadArrayRows(ref ArrayQueryState state, ref DenseChunkLeaseView lease)
+    private static void ReadArrayRows(ref ArrayQueryState state, ref DenseChunkAccessor lease)
     {
         var first = lease.GetComponentRow<NamedRef>(0);
         var second = lease.GetComponentRow<NamedRef>(1);
@@ -985,7 +985,7 @@ public sealed class DeltaECSDeliveryTests
         }
     }
 
-    private static void DestroyDuringLease(ref LeaseMutationState state, ref DenseChunkLeaseView lease)
+    private static void DestroyDuringLease(ref LeaseMutationState state, ref DenseChunkAccessor lease)
     {
         state.World.Destroy(state.Entity);
     }
@@ -998,7 +998,7 @@ public sealed class DeltaECSDeliveryTests
         return state.ChunkIds;
     }
 
-    private static void CollectChunkIds(ref ChunkIdState state, ref DenseChunkLeaseView lease)
+    private static void CollectChunkIds(ref ChunkIdState state, ref DenseChunkAccessor lease)
     {
         state.ChunkIds.Add(lease.GlobalChunkId);
     }

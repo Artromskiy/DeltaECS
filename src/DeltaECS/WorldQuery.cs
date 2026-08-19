@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
-public sealed class DenseChunkLease : IDisposable
+public sealed class DenseChunkScope : IDisposable
 {
     private readonly World _owner;
     private readonly Archetype _archetype;
@@ -17,7 +17,7 @@ public sealed class DenseChunkLease : IDisposable
     private readonly bool _fullMask;
     private bool _disposed;
 
-    internal DenseChunkLease(World owner, Archetype archetype, Chunk chunk, int globalChunkId, ulong[]? overlayMask, bool fullMask)
+    internal DenseChunkScope(World owner, Archetype archetype, Chunk chunk, int globalChunkId, ulong[]? overlayMask, bool fullMask)
     {
         _owner = owner;
         _archetype = archetype;
@@ -70,12 +70,12 @@ public sealed class DenseChunkLease : IDisposable
             _overlayMask = null;
         }
 
-        _owner.CompleteChunkLease();
+        _owner.CompleteChunkScope();
         _disposed = true;
     }
 }
 
-public ref struct DenseChunkLeaseView
+public ref struct DenseChunkAccessor
 {
     private readonly Archetype _archetype;
     private readonly Chunk _chunk;
@@ -89,7 +89,7 @@ public ref struct DenseChunkLeaseView
     private readonly int _viewId;
     private bool _disposed;
 
-    internal DenseChunkLeaseView(
+    internal DenseChunkAccessor(
         World owner,
         Archetype archetype,
         Chunk chunk,
@@ -209,12 +209,12 @@ public ref struct DenseChunkLeaseView
     {
         if (_disposed)
         {
-            throw new ObjectDisposedException(nameof(DenseChunkLeaseView));
+            throw new ObjectDisposedException(nameof(DenseChunkAccessor));
         }
 
-        if (!_owner.IsChunkLeaseViewIdValid(_viewId))
+        if (!_owner.IsChunkAccessorIdValid(_viewId))
         {
-            throw new InvalidOperationException("Chunk lease view is stale.");
+            throw new InvalidOperationException("Chunk accessor is stale.");
         }
     }
 }

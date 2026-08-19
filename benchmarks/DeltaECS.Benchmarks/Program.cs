@@ -208,7 +208,7 @@ public class DeltaEcsVsArchBenchmarks
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void IterateDelta(ref DeltaState state, ref DenseChunkLeaseView lease)
+    private static void IterateDelta(ref DeltaState state, ref DenseChunkAccessor lease)
     {
         switch (state.ComponentCount)
         {
@@ -221,7 +221,7 @@ public class DeltaEcsVsArchBenchmarks
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void IterateOne(ref DenseChunkLeaseView lease)
+    private static void IterateOne(ref DenseChunkAccessor lease)
     {
         var c0 = lease.GetComponentRow<Value>(0);
         var slotCount = lease.SlotCount;
@@ -232,7 +232,7 @@ public class DeltaEcsVsArchBenchmarks
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void IterateTwo(ref DenseChunkLeaseView lease)
+    private static void IterateTwo(ref DenseChunkAccessor lease)
     {
         var c0 = lease.GetComponentRow<Value>(0);
         var c1 = lease.GetComponentRow<Value>(1);
@@ -245,7 +245,7 @@ public class DeltaEcsVsArchBenchmarks
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void IterateFour(ref DenseChunkLeaseView lease)
+    private static void IterateFour(ref DenseChunkAccessor lease)
     {
         var c0 = lease.GetComponentRow<Value>(0);
         var c1 = lease.GetComponentRow<Value>(1);
@@ -262,7 +262,7 @@ public class DeltaEcsVsArchBenchmarks
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void IterateEight(ref DenseChunkLeaseView lease)
+    private static void IterateEight(ref DenseChunkAccessor lease)
     {
         var c0 = lease.GetComponentRow<Value>(0);
         var c1 = lease.GetComponentRow<Value>(1);
@@ -429,7 +429,7 @@ public class DeltaEcsManagedArrayBenchmarks
         GC.KeepAlive(state.Sum);
     }
 
-    private static void Iterate(ref State state, ref DenseChunkLeaseView lease)
+    private static void Iterate(ref State state, ref DenseChunkAccessor lease)
     {
         var values = lease.GetComponentRow<ManagedValue>(0);
         for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
@@ -510,19 +510,19 @@ public class DeltaEcsHotPathProfileBenchmarks
     }
 
 
-    private static void CountChunk(ref ProfileState state, ref DenseChunkLeaseView lease)
+    private static void CountChunk(ref ProfileState state, ref DenseChunkAccessor lease)
     {
         state.Chunks++;
     }
 
-    private static void LookupComponentRows(ref ProfileState state, ref DenseChunkLeaseView lease)
+    private static void LookupComponentRows(ref ProfileState state, ref DenseChunkAccessor lease)
     {
         _ = lease.GetComponentRow<Value>(0);
         _ = lease.GetComponentRow<Value>(1);
         state.Chunks++;
     }
 
-    private static void IterateSlots(ref ProfileState state, ref DenseChunkLeaseView lease)
+    private static void IterateSlots(ref ProfileState state, ref DenseChunkAccessor lease)
     {
         var first = lease.GetComponentRow<Value>(0);
         var second = lease.GetComponentRow<Value>(1);

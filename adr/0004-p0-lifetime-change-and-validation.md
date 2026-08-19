@@ -20,7 +20,7 @@ normalization silently discarded them.
   `HasChangedSince(chunkId, componentId, sinceTick)` exposes the chunk-level
   semantic version without adding checks to the dense iteration loop.
 - `QueryDescription` owns normalized copies of its inputs and exposes read-only
-  spans. `DenseChunkLeaseView` owns its pooled overlay mask through the world
+  spans. `DenseChunkAccessor` owns its pooled overlay mask through the world
   view token; a stale copy cannot read or return the mask after the enumerator
   advances.
 - Negative `TagId` values are invalid at every public tag mutation/read API and

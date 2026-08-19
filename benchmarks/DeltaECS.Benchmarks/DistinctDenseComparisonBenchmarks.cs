@@ -153,7 +153,7 @@ public class DistinctDenseComparisonBenchmarks
         }
     }
 
-    private static void IterateDelta(ref State state, ref DenseChunkLeaseView lease)
+    private static void IterateDelta(ref State state, ref DenseChunkAccessor lease)
     {
         switch (state.ComponentCount)
         {

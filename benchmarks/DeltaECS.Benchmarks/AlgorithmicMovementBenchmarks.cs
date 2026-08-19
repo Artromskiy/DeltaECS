@@ -60,7 +60,7 @@ public class AlgorithmicMovementBenchmarks
     public double DeltaECS_Movement()
     {
         var state = new DeltaState { Dt = Dt };
-        _deltaWorld.Query(in _deltaQuery, QueryAccess.Write, ref state, static (ref DeltaState s, ref DenseChunkLeaseView lease) =>
+        _deltaWorld.Query(in _deltaQuery, QueryAccess.Write, ref state, static (ref DeltaState s, ref DenseChunkAccessor lease) =>
         {
             var positions = lease.GetComponentRow<DeltaPosition>(0);
             var velocities = lease.GetComponentRow<DeltaVelocity>(1);

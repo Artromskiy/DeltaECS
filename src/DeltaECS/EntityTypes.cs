@@ -100,4 +100,4 @@ public readonly struct QueryHandle
     public bool IsValid => _owner is not null && _cached is not null;
 }
 
-public delegate void ChunkAction<TState>(ref TState state, ref DenseChunkLeaseView lease);
+public delegate void ChunkAction<TState>(ref TState state, ref DenseChunkAccessor accessor);

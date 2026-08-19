@@ -73,7 +73,7 @@ public class DeltaEcsTagFilteringBenchmarks
     public int Delta_TagQueryAndIteration()
     {
         var state = new TagFilterState { UpdateValues = true };
-        _world.Query(in _query, QueryAccess.Write, ref state, static (ref TagFilterState s, ref DenseChunkLeaseView lease)
+        _world.Query(in _query, QueryAccess.Write, ref state, static (ref TagFilterState s, ref DenseChunkAccessor lease)
             => IterateTagged(ref s, ref lease));
         return TagFilterGuard.CountAndChecksum(state, _expectedTaggedCount);
     }
@@ -83,12 +83,12 @@ public class DeltaEcsTagFilteringBenchmarks
     public int Delta_TagQueryMaskOnly()
     {
         var state = new TagFilterState();
-        _world.Query(in _query, QueryAccess.Read, ref state, static (ref TagFilterState s, ref DenseChunkLeaseView lease)
+        _world.Query(in _query, QueryAccess.Read, ref state, static (ref TagFilterState s, ref DenseChunkAccessor lease)
             => IterateTagged(ref s, ref lease));
         return TagFilterGuard.CountAndChecksum(state, _expectedTaggedCount);
     }
 
-    private static void IterateTagged(ref TagFilterState state, ref DenseChunkLeaseView lease)
+    private static void IterateTagged(ref TagFilterState state, ref DenseChunkAccessor lease)
     {
         var values = state.UpdateValues ? lease.GetComponentRow<TagFilterValue>(0) : default;
         var allSlotsActive = lease.IsAllSlotsActive;

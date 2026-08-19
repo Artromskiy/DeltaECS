@@ -174,7 +174,7 @@ public int Amount { get; set; }
         return iterations;
     }
 
-    private static void IterateEntityMajor(ref ProfileState state, ref DenseChunkLeaseView lease)
+    private static void IterateEntityMajor(ref ProfileState state, ref DenseChunkAccessor lease)
     {
         switch (state.ComponentCount)
         {
@@ -279,7 +279,7 @@ public int Amount { get; set; }
         }
     }
 
-    private static void IterateRowMajor(ref ProfileState state, ref DenseChunkLeaseView lease)
+    private static void IterateRowMajor(ref ProfileState state, ref DenseChunkAccessor lease)
     {
         switch (state.ComponentCount)
         {
@@ -384,7 +384,7 @@ public int Amount { get; set; }
         }
     }
 
-    private static void LookupOnly(ref ProfileState state, ref DenseChunkLeaseView lease)
+    private static void LookupOnly(ref ProfileState state, ref DenseChunkAccessor lease)
     {
         switch (state.ComponentCount)
         {
@@ -418,7 +418,7 @@ public int Amount { get; set; }
         state.Checksum += lease.SlotCount;
     }
 
-    private static void DispatchOnly(ref ProfileState state, ref DenseChunkLeaseView lease)
+    private static void DispatchOnly(ref ProfileState state, ref DenseChunkAccessor lease)
     {
         state.Checksum += lease.SlotCount;
     }
