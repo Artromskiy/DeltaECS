@@ -19,6 +19,19 @@ move verified work to the completed section instead of silently deleting it.
   same cached query hot path, preserve benchmark and test API compatibility,
   and add a correctness test covering component mutation.
 
+- [ ] Clarify the stateful query terminology:
+
+  ```text
+  TState → TContext
+  state  → context
+  body   → action
+  ```
+
+  The generic parameter rename is binary-safe. Renaming public method
+  parameters can break source callers that use named arguments, so audit the
+  repository and decide whether to accept that migration before changing
+  `Query<TState>` or `ChunkAction<TState>`.
+
 ## Completed
 
 Move completed items here with their commit hash and verification summary.
