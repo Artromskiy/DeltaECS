@@ -26,12 +26,10 @@ on:
         type: choice
         options:
           - full-comparison
-          - scenario-small
-          - scenario-wide-comparison
-          - scenario-sparse
-          - distinct
-          - defaultecs
-          - ecslite
+          - iteration
+          - structural-list
+          - structural-query
+          - structural-atomic
       warmup_count:
         description: BenchmarkDotNet warm-up iterations
         required: true
@@ -77,15 +75,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install .NET 8
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 8.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ env.NUGET_PACKAGES }}
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
@@ -110,18 +108,17 @@ jobs:
           lscpu >> artifacts/ci-smoke/runner.txt
           dotnet --info >> artifacts/ci-smoke/runner.txt
 
-      - name: Run one-iteration comparison smoke
+      - name: Run comparative contract and discovery smoke
         run: |
+          dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net8.0/DeltaECS.Benchmarks.dll contract-smoke
           dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net8.0/DeltaECS.Benchmarks.dll \
-            scenario-small \
-            --job dry \
-            --filter '*' \
-            --exporters json markdown github \
-            --artifacts artifacts/ci-smoke
+            full-comparison \
+            --list flat \
+            --filter '*'
 
       - name: Upload smoke artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ecs-benchmark-smoke-${{ github.run_number }}
           path: artifacts/ci-smoke
@@ -141,15 +138,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install .NET 8
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 8.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ env.NUGET_PACKAGES }}
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
@@ -183,7 +180,8 @@ jobs:
             --iterationCount "$ITERATION_COUNT" \
             --launchCount "$LAUNCH_COUNT" \
             --exporters json csv markdown github \
-            --artifacts artifacts/github-full
+            --artifacts artifacts/github-full \
+            --combined-report artifacts/github-full
 
       - name: Add results to workflow summary
         if: always()
@@ -200,11 +198,16 @@ jobs:
               sed -n '1,140p' "$report"
               echo
             done < <(find artifacts/github-full -type f -name '*-report-github.md' | sort)
+            if [ -f artifacts/github-full/comparative-report.md ]; then
+              echo "### Combined capability report"
+              echo
+              sed -n '1,220p' artifacts/github-full/comparative-report.md
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload full benchmark artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ecs-benchmarks-${{ env.BENCHMARK_SUITE }}-${{ runner.arch }}-${{ github.run_number }}
           path: artifacts/github-full

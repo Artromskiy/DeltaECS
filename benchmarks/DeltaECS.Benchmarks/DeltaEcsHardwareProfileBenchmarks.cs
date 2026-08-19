@@ -181,7 +181,7 @@ public int Amount { get; set; }
             case 1:
             {
                 var c0 = lease.GetComponentRow<ProfileValue>(0);
-                for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+                for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
                 {
                     var value = c0[slotIndex];
                     value.X += value.Y;
@@ -194,7 +194,7 @@ public int Amount { get; set; }
             {
                 var c0 = lease.GetComponentRow<ProfileValue>(0);
                 var c1 = lease.GetComponentRow<ProfileValue>(1);
-                for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+                for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
                 {
                     var p0 = c0[slotIndex];
                     var p1 = c1[slotIndex];
@@ -212,7 +212,7 @@ public int Amount { get; set; }
                 var c1 = lease.GetComponentRow<ProfileValue>(1);
                 var c2 = lease.GetComponentRow<ProfileValue>(2);
                 var c3 = lease.GetComponentRow<ProfileValue>(3);
-                for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+                for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
                 {
                     var p0 = c0[slotIndex];
                     var p1 = c1[slotIndex];
@@ -241,7 +241,7 @@ public int Amount { get; set; }
                 var c5 = lease.GetComponentRow<ProfileValue>(5);
                 var c6 = lease.GetComponentRow<ProfileValue>(6);
                 var c7 = lease.GetComponentRow<ProfileValue>(7);
-                for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+                for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
                 {
                     var p0 = c0[slotIndex];
                     var p1 = c1[slotIndex];
@@ -286,7 +286,7 @@ public int Amount { get; set; }
             case 1:
             {
                 var c0 = lease.GetComponentRow<ProfileValue>(0);
-                for (var i = 0; i < c0.Length; i++)
+                for (var i = c0.Length - 1; i >= 0; i--)
                 {
                     var p0 = c0[i];
                     p0.X += p0.Y;
@@ -299,7 +299,7 @@ public int Amount { get; set; }
             {
                 var c0 = lease.GetComponentRow<ProfileValue>(0);
                 var c1 = lease.GetComponentRow<ProfileValue>(1);
-                for (var i = 0; i < c0.Length; i++)
+                for (var i = c0.Length - 1; i >= 0; i--)
                 {
                     var p0 = c0[i];
                     var p1 = c1[i];
@@ -317,7 +317,7 @@ public int Amount { get; set; }
                 var c1 = lease.GetComponentRow<ProfileValue>(1);
                 var c2 = lease.GetComponentRow<ProfileValue>(2);
                 var c3 = lease.GetComponentRow<ProfileValue>(3);
-                for (var i = 0; i < c0.Length; i++)
+                for (var i = c0.Length - 1; i >= 0; i--)
                 {
                     var p0 = c0[i];
                     var p1 = c1[i];
@@ -346,7 +346,7 @@ public int Amount { get; set; }
                 var c5 = lease.GetComponentRow<ProfileValue>(5);
                 var c6 = lease.GetComponentRow<ProfileValue>(6);
                 var c7 = lease.GetComponentRow<ProfileValue>(7);
-                for (var i = 0; i < c0.Length; i++)
+                for (var i = c0.Length - 1; i >= 0; i--)
                 {
                     var p0 = c0[i];
                     var p1 = c1[i];
@@ -469,7 +469,7 @@ internal sealed class LegacyProfileBackend
                 case 1:
                 {
                     var row0 = CastLegacyRow(rows[0]);
-                    for (var slotIndex = 0; slotIndex < size; slotIndex++)
+                    for (var slotIndex = size - 1; slotIndex >= 0; slotIndex--)
                     {
                         var value = row0[slotIndex];
                         value.X += value.Y;
@@ -482,7 +482,7 @@ internal sealed class LegacyProfileBackend
                 {
                     var row0 = CastLegacyRow(rows[0]);
                     var row1 = CastLegacyRow(rows[1]);
-                    for (var slotIndex = 0; slotIndex < size; slotIndex++)
+                    for (var slotIndex = size - 1; slotIndex >= 0; slotIndex--)
                     {
                         var p0 = row0[slotIndex];
                         var p1 = row1[slotIndex];
@@ -500,7 +500,7 @@ internal sealed class LegacyProfileBackend
                     var row1 = CastLegacyRow(rows[1]);
                     var row2 = CastLegacyRow(rows[2]);
                     var row3 = CastLegacyRow(rows[3]);
-                    for (var slotIndex = 0; slotIndex < size; slotIndex++)
+                    for (var slotIndex = size - 1; slotIndex >= 0; slotIndex--)
                     {
                         var p0 = row0[slotIndex];
                         var p1 = row1[slotIndex];
@@ -529,7 +529,7 @@ internal sealed class LegacyProfileBackend
                     var row5 = CastLegacyRow(rows[5]);
                     var row6 = CastLegacyRow(rows[6]);
                     var row7 = CastLegacyRow(rows[7]);
-                    for (var slotIndex = 0; slotIndex < size; slotIndex++)
+                    for (var slotIndex = size - 1; slotIndex >= 0; slotIndex--)
                     {
                         var p0 = row0[slotIndex];
                         var p1 = row1[slotIndex];
@@ -584,7 +584,7 @@ internal sealed class LegacyProfileBackend
                 case 1:
                 {
                     var row0 = CastLegacyRow(rows[0]);
-                    for (var slotIndex = 0; slotIndex < size; slotIndex++)
+                    for (var slotIndex = size - 1; slotIndex >= 0; slotIndex--)
                     {
                         var value = row0[slotIndex];
                         value.X += value.Y;
@@ -597,7 +597,7 @@ internal sealed class LegacyProfileBackend
                 {
                     var row0 = CastLegacyRow(rows[0]);
                     var row1 = CastLegacyRow(rows[1]);
-                    for (var slotIndex = 0; slotIndex < size; slotIndex++)
+                    for (var slotIndex = size - 1; slotIndex >= 0; slotIndex--)
                     {
                         var value0 = row0[slotIndex];
                         value0.X += value0.Y;
@@ -615,7 +615,7 @@ internal sealed class LegacyProfileBackend
                     var row1 = CastLegacyRow(rows[1]);
                     var row2 = CastLegacyRow(rows[2]);
                     var row3 = CastLegacyRow(rows[3]);
-                    for (var slotIndex = 0; slotIndex < size; slotIndex++)
+                    for (var slotIndex = size - 1; slotIndex >= 0; slotIndex--)
                     {
                         var value0 = row0[slotIndex];
                         value0.X += value0.Y;
@@ -644,7 +644,7 @@ internal sealed class LegacyProfileBackend
                     var row5 = CastLegacyRow(rows[5]);
                     var row6 = CastLegacyRow(rows[6]);
                     var row7 = CastLegacyRow(rows[7]);
-                    for (var slotIndex = 0; slotIndex < size; slotIndex++)
+                    for (var slotIndex = size - 1; slotIndex >= 0; slotIndex--)
                     {
                         var value0 = row0[slotIndex];
                         value0.X += value0.Y;

@@ -3,8 +3,8 @@
 The `ECS benchmarks` workflow has two lanes:
 
 - pull requests and pushes to `main` build the solution, run the correctness
-  tests, and execute a BenchmarkDotNet `Dry` smoke. Its numbers are not
-  performance results;
+  tests, validate the capability contract, and run a BenchmarkDotNet discovery
+  list smoke. It does not measure performance;
 - a manual dispatch or the Monday schedule runs the selected comparative suite
   in Release and uploads JSON, CSV, Markdown, logs, and runner metadata.
 
@@ -14,8 +14,15 @@ the normal report. The manual form can use either the standard x64 Linux runner
 or the standard ARM64 Linux runner; smaller suites are available for focused
 investigation. The weekly run uses x64.
 
-The generated tables are appended to the Actions run summary. Complete output
-is retained as the `ecs-benchmarks-*` artifact for 30 days.
+The generated raw BDN tables and the stable `comparative-report.md` / `.csv`
+combined schema are appended to the Actions run summary. Unsupported native
+batch capabilities are retained as `Supported=false`, `Mode=Unsupported`, and
+`∞` mean/ratio rows. Complete output is retained as the `ecs-benchmarks-*`
+artifact for 30 days.
+
+The new matrix compares DeltaECS, Arch, Friflo.Engine.ECS, DefaultEcs, and
+LeoECS Lite. Legacy is intentionally excluded from `full-comparison`; older
+Legacy-containing classes remain only on their historical focused routes.
 
 GitHub-hosted runners are shared and their CPU model may change between jobs.
 Use a single run to compare DeltaECS with the other ECS implementations because

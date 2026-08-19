@@ -10,13 +10,22 @@ internal sealed class Archetype
     private readonly int _chunkCapacity;
     private readonly ComponentId[] _componentIds;
     private readonly ComponentLayout[] _layouts;
+    private readonly ComponentRowOperations[] _rowOperations;
     private readonly List<Chunk> _chunks = new();
     private readonly List<int> _availableChunkStack = new();
     private bool[] _availableChunkFlags = Array.Empty<bool>();
 
-    public Archetype(int id, ComponentMask mask, ComponentLayout[] layouts, ComponentId[] componentIds, int chunkCapacity)
+    public Archetype(
+        int id,
+        ComponentMask mask,
+        ComponentLayout[] layouts,
+        ComponentRowOperations[] rowOperations,
+        ComponentId[] componentIds,
+        int chunkCapacity)
     {
-        if (componentIds.Length == 0 || layouts.Length != componentIds.Length)
+        if (componentIds.Length == 0
+            || layouts.Length != componentIds.Length
+            || rowOperations.Length != componentIds.Length)
         {
             throw new ArgumentException("Archetype must have matching non-empty component and layout arrays.");
         }
@@ -26,6 +35,7 @@ internal sealed class Archetype
         _chunkCapacity = chunkCapacity;
         _componentIds = componentIds;
         _layouts = layouts;
+        _rowOperations = rowOperations;
     }
 
     public int Id => _id;
@@ -65,12 +75,17 @@ internal sealed class Archetype
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasAvailableChunk() => _availableChunkStack.Count != 0;
 
-    public void AddEntity(Entity entity, int chunkId, out int chunkIndex, out int slotIndex)
+    public void AddEntity(
+        Entity entity,
+        int chunkId,
+        out int chunkIndex,
+        out int slotIndex,
+        out bool reusedSlot)
     {
         if (TryTakeAvailableChunk(out var availableIndex, out var available))
         {
             chunkIndex = availableIndex;
-            slotIndex = available.Add(entity);
+            slotIndex = available.Add(entity, out reusedSlot);
             if (!available.IsFull)
             {
                 PushAvailableChunk(chunkIndex);
@@ -80,9 +95,9 @@ internal sealed class Archetype
         }
 
         chunkIndex = _chunks.Count;
-        _chunks.Add(new Chunk(_chunkCapacity, _layouts, chunkId));
+        _chunks.Add(new Chunk(_chunkCapacity, _layouts, _rowOperations, chunkId));
         EnsureAvailableChunkCapacity(chunkIndex);
-        slotIndex = _chunks[chunkIndex].Add(entity);
+        slotIndex = _chunks[chunkIndex].Add(entity, out reusedSlot);
         if (!_chunks[chunkIndex].IsFull)
         {
             PushAvailableChunk(chunkIndex);

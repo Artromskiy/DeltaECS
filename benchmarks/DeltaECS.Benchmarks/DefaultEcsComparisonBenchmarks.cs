@@ -81,7 +81,7 @@ public class DefaultEcsComparisonBenchmarks
             var velocities = lease.GetComponentRow<MovementVelocity>(1);
             var slotCount = lease.SlotCount;
             var activeAll = lease.IsAllSlotsActive;
-            for (var i = 0; i < slotCount; i++)
+            for (var i = slotCount - 1; i >= 0; i--)
             {
                 if (!activeAll && !lease.IsActiveSlot(i))
                 {

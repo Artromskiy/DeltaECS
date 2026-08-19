@@ -68,7 +68,7 @@ public class DenseCapacitySweepBenchmarks
             var c2 = lease.GetComponentRow<S2>(2); var c3 = lease.GetComponentRow<S3>(3);
             var c4 = lease.GetComponentRow<S4>(4); var c5 = lease.GetComponentRow<S5>(5);
             var c6 = lease.GetComponentRow<S6>(6); var c7 = lease.GetComponentRow<S7>(7);
-            for (var i = 0; i < c0.Length; i++)
+            for (var i = c0.Length - 1; i >= 0; i--)
             {
                 c0[i].X += c0[i].Y; c1[i].X += c1[i].Y; c2[i].X += c2[i].Y; c3[i].X += c3[i].Y;
                 c4[i].X += c4[i].Y; c5[i].X += c5[i].Y; c6[i].X += c6[i].Y; c7[i].X += c7[i].Y;

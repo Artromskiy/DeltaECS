@@ -327,6 +327,22 @@ returns the cached row-index plan, and avoids callback dispatch plus per-chunk
 lease disposal. The callback query API remains for general correctness and
 filtered/tagged access; it is not the primary dense performance lane.
 
+Both `DenseChunkLease` and `DenseChunkLeaseView` expose an aligned,
+zero-copy `ReadOnlySpan<Entity>` alongside component rows. Dense slot work uses
+the reverse slot order while preserving slot alignment and overlay checks:
+
+```csharp
+ReadOnlySpan<Entity> entities = lease.Entities;
+var positions = lease.GetComponentRow<Position>(positionId);
+for (var i = lease.SlotCount - 1; i >= 0; i--)
+{
+    if (!lease.IsActiveSlot(i)) continue;
+    Entity entity = entities[i];
+    ref Position position = ref positions[i];
+    Process(entity, ref position);
+}
+```
+
 The benchmark/use-site dispatch selects 1/2/4/8 component-row loops once per
 benchmark operation. Component-row count and active-slot state are chunk
 invariants, so the inner slot loop has no per-slot component-count branches.
@@ -337,6 +353,14 @@ The staged `HotPathProfile` measured dispatch at `363.0 ns`, cached two-componen
 lookup at `715.1 ns`, and the generic two-component-row slot loop at `59.0 us`, all at
 `0 B/op` in the BDN child process. This separates sub-microsecond query/component-row
 overhead from the slot work before comparing the full lanes.
+
+The standardized comparative suite is split into `iteration`, `structural-list`,
+`structural-query`, and `structural-atomic`; `full-comparison` is their unified
+route. Its capability manifest covers DeltaECS, Arch, Friflo.Engine.ECS,
+DefaultEcs, and LeoECS Lite. Native bulk operations are compared as batch only;
+unsupported competitors are emitted in the combined report as
+`Supported=false`, `Mode=Unsupported`, and `∞` mean/ratio rows. The full route
+does not include Legacy or the Delta-only hardware/profile lanes.
 
 The reproducible distinct-type dense comparison command is:
 

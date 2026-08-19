@@ -112,7 +112,16 @@ public sealed class World
             var record = _records[recordIndex];
             var entity = new Entity(recordIndex, record.Generation);
             var chunkId = archetype.HasAvailableChunk() ? -1 : AllocateChunkId();
-            archetype.AddEntity(entity, chunkId, out var chunkIndex, out var slotIndex);
+            archetype.AddEntity(
+                entity,
+                chunkId,
+                out var chunkIndex,
+                out var slotIndex,
+                out var reusedSlot);
+            if (reusedSlot)
+            {
+                archetype.GetChunk(chunkIndex).InitializeSlot(slotIndex);
+            }
             record.Archetype = archetype.Id;
             record.Chunk = chunkIndex;
             record.SlotIndex = slotIndex;
@@ -700,7 +709,12 @@ public sealed class World
         var sourceSlotIndex = sourceRecord.SlotIndex;
         var sourceChunkIndex = sourceRecord.Chunk;
         var targetChunkId = targetArchetype.HasAvailableChunk() ? -1 : AllocateChunkId();
-        targetArchetype.AddEntity(new Entity(recordIndex, sourceRecord.Generation), targetChunkId, out var targetChunkIndex, out var targetSlotIndex);
+        targetArchetype.AddEntity(
+            new Entity(recordIndex, sourceRecord.Generation),
+            targetChunkId,
+            out var targetChunkIndex,
+            out var targetSlotIndex,
+            out var reusedTargetSlot);
         var targetChunk = targetArchetype.GetChunk(targetChunkIndex);
 
         for (var sourceIndex = 0; sourceIndex < edge.SourceToTargetRowIndices.Length; sourceIndex++)
@@ -710,6 +724,11 @@ public sealed class World
             {
                 sourceChunk.CopySlotTo(targetChunk, sourceSlotIndex, targetSlotIndex, sourceIndex, targetIndex);
             }
+        }
+
+        if (reusedTargetSlot)
+        {
+            targetChunk.InitializeRows(targetSlotIndex, edge.AddedTargetRowIndices);
         }
 
         _overlayTags.CopySlotTags(sourceChunkId, sourceSlotIndex, targetChunk.GlobalId, targetSlotIndex);
@@ -753,12 +772,32 @@ public sealed class World
         targetMask.CopyComponentIds(targetIds);
         var target = GetOrCreateArchetype(targetMask, targetIds);
         var mapping = new int[source.ComponentCount];
+        var copiedTargetRows = new bool[target.ComponentCount];
         for (var i = 0; i < mapping.Length; i++)
         {
             mapping[i] = target.Mask.Rank(source.ComponentIds[i]);
+            if (mapping[i] >= 0)
+            {
+                copiedTargetRows[mapping[i]] = true;
+            }
         }
 
-        edge = new TransitionEdge(target.Id, mapping);
+        var addedTargetRows = new int[target.ComponentCount];
+        var addedCount = 0;
+        for (var targetIndex = 0; targetIndex < copiedTargetRows.Length; targetIndex++)
+        {
+            if (!copiedTargetRows[targetIndex])
+            {
+                addedTargetRows[addedCount++] = targetIndex;
+            }
+        }
+
+        if (addedCount != addedTargetRows.Length)
+        {
+            Array.Resize(ref addedTargetRows, addedCount);
+        }
+
+        edge = new TransitionEdge(target.Id, mapping, addedTargetRows);
         _transitionCache.Add(key, edge);
         return edge;
     }
@@ -786,6 +825,7 @@ public sealed class World
         }
 
         var layouts = new ComponentLayout[componentIds.Length];
+        var rowOperations = new ComponentRowOperations[componentIds.Length];
         for (var i = 0; i < componentIds.Length; i++)
         {
             if (!_layouts.TryGet(componentIds[i], out var layout))
@@ -799,9 +839,16 @@ public sealed class World
             }
 
             layouts[i] = layout;
+            rowOperations[i] = _layouts.GetRowOperations(componentIds[i]);
         }
 
-        var archetype = new Archetype(_archetypes.Count, mask, layouts, componentIds, _chunkCapacity);
+        var archetype = new Archetype(
+            _archetypes.Count,
+            mask,
+            layouts,
+            rowOperations,
+            componentIds,
+            _chunkCapacity);
         _archetypeByMask.Add(mask, archetype.Id);
         _archetypes.Add(archetype);
         _archetypeVersion++;
@@ -1003,14 +1050,19 @@ public sealed class World
 
     private readonly struct TransitionEdge
     {
-        public TransitionEdge(int targetArchetypeId, int[] sourceToTargetRowIndices)
+        public TransitionEdge(
+            int targetArchetypeId,
+            int[] sourceToTargetRowIndices,
+            int[] addedTargetRowIndices)
         {
             TargetArchetypeId = targetArchetypeId;
             SourceToTargetRowIndices = sourceToTargetRowIndices;
+            AddedTargetRowIndices = addedTargetRowIndices;
         }
 
         public int TargetArchetypeId { get; }
         public int[] SourceToTargetRowIndices { get; }
+        public int[] AddedTargetRowIndices { get; }
     }
 
     private readonly struct DestroyEntry

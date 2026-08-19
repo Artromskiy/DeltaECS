@@ -79,7 +79,7 @@ private int _expectedMatches;
         _world.Query(in _query, QueryAccess.Read, ref state, static (ref FragmentQueryState s, ref DenseChunkLeaseView lease) =>
         {
             var values = lease.GetComponentRow<FragmentValue>(0);
-            for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+            for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
             {
                 if (!lease.IsAllSlotsActive && !lease.IsActiveSlot(slotIndex))
                 {
@@ -123,7 +123,7 @@ private int _expectedMatches;
         _world.Query(in coldQuery, QueryAccess.Read, ref state, static (ref FragmentQueryState s, ref DenseChunkLeaseView lease) =>
         {
             var values = lease.GetComponentRow<FragmentValue>(0);
-            for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+            for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
             {
                 if (!lease.IsAllSlotsActive && !lease.IsActiveSlot(slotIndex))
                 {

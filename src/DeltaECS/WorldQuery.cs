@@ -34,7 +34,7 @@ public sealed class DenseChunkLease : IDisposable
 
     public int SlotCount => _slotCount;
 
-    public Span<Entity> Entities => _chunk.Entities;
+    public ReadOnlySpan<Entity> Entities => _chunk.Entities;
 
     public bool IsActiveSlot(int slotIndex)
     {
@@ -127,7 +127,7 @@ public ref struct DenseChunkLeaseView
         }
     }
 
-    public Span<Entity> Entities
+    public ReadOnlySpan<Entity> Entities
     {
         get
         {

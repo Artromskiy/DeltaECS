@@ -8,10 +8,16 @@ public sealed class ComponentLayoutRegistry
 {
     private readonly Dictionary<SchemaId, int> _idsBySchema = new();
     private readonly List<ComponentLayout> _layouts = new();
+    private readonly List<ComponentRowOperations> _rowOperations = new();
 
     public int Count => _layouts.Count;
 
     public ComponentId Register(ComponentLayout layout)
+    {
+        return Register(layout, ComponentRowOperations.Fallback);
+    }
+
+    private ComponentId Register(ComponentLayout layout, ComponentRowOperations rowOperations)
     {
         if (_idsBySchema.TryGetValue(layout.SchemaId, out var existingId))
         {
@@ -31,6 +37,7 @@ public sealed class ComponentLayoutRegistry
 
         var id = new ComponentId(_layouts.Count);
         _layouts.Add(layout);
+        _rowOperations.Add(rowOperations);
         _idsBySchema.Add(layout.SchemaId, id.Value);
 
         return id;
@@ -38,13 +45,15 @@ public sealed class ComponentLayoutRegistry
 
     public ComponentId Register<T>(SchemaId schemaId, ComponentStorageClass storageClass = ComponentStorageClass.Dense)
     {
-        return Register(new ComponentLayout(schemaId, typeof(T), storageClass));
+        return Register(new ComponentLayout(schemaId, typeof(T), storageClass), ComponentRowOperations.For<T>());
     }
 
     public ComponentId RegisterUnmanaged<T>(SchemaId schemaId, ComponentStorageClass storageClass = ComponentStorageClass.Dense)
         where T : unmanaged
     {
-        return Register(new ComponentLayout(schemaId, typeof(T), storageClass, Unsafe.SizeOf<T>()));
+        return Register(
+            new ComponentLayout(schemaId, typeof(T), storageClass, Unsafe.SizeOf<T>()),
+            ComponentRowOperations.For<T>());
     }
 
     public bool TryGetId(SchemaId schemaId, out ComponentId componentId)
@@ -79,5 +88,15 @@ public sealed class ComponentLayoutRegistry
 
         layout = default;
         return false;
+    }
+
+    internal ComponentRowOperations GetRowOperations(ComponentId id)
+    {
+        if (!id.IsValid || id.Value >= _rowOperations.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(id));
+        }
+
+        return _rowOperations[id.Value];
     }
 }

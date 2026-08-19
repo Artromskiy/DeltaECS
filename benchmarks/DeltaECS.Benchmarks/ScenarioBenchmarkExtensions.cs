@@ -276,7 +276,7 @@ public class SmallDenseScenarioBenchmarks
             case 1:
             {
                 var c0 = lease.GetComponentRow<SmallDenseValue>(0);
-                for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+                for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
                 {
                     if (!allSlotsActive && !lease.IsActiveSlot(slotIndex))
                     {
@@ -294,7 +294,7 @@ public class SmallDenseScenarioBenchmarks
             {
                 var c0 = lease.GetComponentRow<SmallDenseValue>(0);
                 var c1 = lease.GetComponentRow<SmallDenseValue>(1);
-                for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+                for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
                 {
                     if (!allSlotsActive && !lease.IsActiveSlot(slotIndex))
                     {
@@ -316,7 +316,7 @@ public class SmallDenseScenarioBenchmarks
                 var c1 = lease.GetComponentRow<SmallDenseValue>(1);
                 var c2 = lease.GetComponentRow<SmallDenseValue>(2);
                 var c3 = lease.GetComponentRow<SmallDenseValue>(3);
-                for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+                for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
                 {
                     if (!allSlotsActive && !lease.IsActiveSlot(slotIndex))
                     {
@@ -346,7 +346,7 @@ public class SmallDenseScenarioBenchmarks
                 var c5 = lease.GetComponentRow<SmallDenseValue>(5);
                 var c6 = lease.GetComponentRow<SmallDenseValue>(6);
                 var c7 = lease.GetComponentRow<SmallDenseValue>(7);
-                for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+                for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
                 {
                     if (!allSlotsActive && !lease.IsActiveSlot(slotIndex))
                     {
@@ -470,7 +470,7 @@ public class WideArchetypeNarrowAccessBenchmarks
         {
             var positions = lease.GetComponentRow<WideDenseValue>(0);
             var velocities = lease.GetComponentRow<WideDenseValue>(1);
-            for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+            for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
             {
                 if (!lease.IsAllSlotsActive && !lease.IsActiveSlot(slotIndex))
                 {
@@ -599,7 +599,7 @@ public class WideArchetypeNarrowAccessComparisonBenchmarks
         {
             var positions = lease.GetComponentRow<WideDenseValue>(0);
             var velocities = lease.GetComponentRow<WideDenseValue>(1);
-            for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+            for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
             {
                 if (!lease.IsAllSlotsActive && !lease.IsActiveSlot(slotIndex))
                 {
@@ -987,7 +987,7 @@ public class SparseHeterogeneousQueryBenchmarks
 
     private static void CountDeltaMatches(ref SparseState state, ref DenseChunkLeaseView lease)
     {
-        for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+        for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
         {
             if (lease.IsAllSlotsActive || lease.IsActiveSlot(slotIndex))
             {
@@ -1000,7 +1000,7 @@ public class SparseHeterogeneousQueryBenchmarks
     {
         var positions = lease.GetComponentRow<SparseValue>(0);
         var velocities = lease.GetComponentRow<SparseValue>(1);
-        for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+        for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
         {
             if (!lease.IsAllSlotsActive && !lease.IsActiveSlot(slotIndex))
             {
@@ -1140,7 +1140,7 @@ internal sealed class LegacyDenseReference
         {
             var bytes = new byte[amount * valueSize];
             var values = MemoryMarshal.Cast<byte, LegacyDenseValue>(bytes.AsSpan());
-            for (var i = 0; i < values.Length; i++)
+            for (var i = values.Length - 1; i >= 0; i--)
             {
                 values[i] = new LegacyDenseValue { X = 1f, Y = 2f };
             }
@@ -1154,7 +1154,7 @@ internal sealed class LegacyDenseReference
         for (var rowIndex = 0; rowIndex < _rows.Length; rowIndex++)
         {
             var values = MemoryMarshal.Cast<byte, LegacyDenseValue>(_rows[rowIndex].AsSpan());
-            for (var i = 0; i < values.Length; i++)
+            for (var i = values.Length - 1; i >= 0; i--)
             {
                 var value = values[i];
                 value.X += value.Y;
@@ -1166,7 +1166,7 @@ internal sealed class LegacyDenseReference
         for (var rowIndex = 0; rowIndex < _rows.Length; rowIndex++)
         {
             var values = MemoryMarshal.Cast<byte, LegacyDenseValue>(_rows[rowIndex].AsSpan());
-            for (var i = 0; i < values.Length; i++)
+            for (var i = values.Length - 1; i >= 0; i--)
             {
                 checksum += values[i].X;
             }
@@ -1197,7 +1197,7 @@ internal sealed class LegacyWideReference
         {
             var bytes = new byte[amount * valueSize];
             var values = MemoryMarshal.Cast<byte, LegacyWideValue>(bytes.AsSpan());
-            for (var i = 0; i < values.Length; i++)
+            for (var i = values.Length - 1; i >= 0; i--)
             {
                 values[i] = new LegacyWideValue { X = 1f, Y = 2f + row };
             }
@@ -1217,7 +1217,7 @@ internal sealed class LegacyWideReference
         var velocities = MemoryMarshal.Cast<byte, LegacyWideValue>(_rows[1].AsSpan());
         var checksum = 0d;
 
-        for (var i = 0; i < _amount; i++)
+        for (var i = _amount - 1; i >= 0; i--)
         {
             var pos = positions[i];
             var vel = velocities[i];

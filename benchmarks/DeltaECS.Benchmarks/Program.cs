@@ -226,7 +226,7 @@ public class DeltaEcsVsArchBenchmarks
         var c0 = lease.GetComponentRow<Value>(0);
         var slotCount = lease.SlotCount;
         var allSlotsActive = lease.IsAllSlotsActive;
-        for (var slotIndex = 0; slotIndex < slotCount; slotIndex++)
+        for (var slotIndex = slotCount - 1; slotIndex >= 0; slotIndex--)
         {
             if (!allSlotsActive && !lease.IsActiveSlot(slotIndex)) continue;
             Update(ref c0[slotIndex]);
@@ -240,7 +240,7 @@ public class DeltaEcsVsArchBenchmarks
         var c1 = lease.GetComponentRow<Value>(1);
         var slotCount = lease.SlotCount;
         var allSlotsActive = lease.IsAllSlotsActive;
-        for (var slotIndex = 0; slotIndex < slotCount; slotIndex++)
+        for (var slotIndex = slotCount - 1; slotIndex >= 0; slotIndex--)
         {
             if (!allSlotsActive && !lease.IsActiveSlot(slotIndex)) continue;
             Update(ref c0[slotIndex]);
@@ -257,7 +257,7 @@ public class DeltaEcsVsArchBenchmarks
         var c3 = lease.GetComponentRow<Value>(3);
         var slotCount = lease.SlotCount;
         var allSlotsActive = lease.IsAllSlotsActive;
-        for (var slotIndex = 0; slotIndex < slotCount; slotIndex++)
+        for (var slotIndex = slotCount - 1; slotIndex >= 0; slotIndex--)
         {
             if (!allSlotsActive && !lease.IsActiveSlot(slotIndex)) continue;
             Update(ref c0[slotIndex]);
@@ -280,7 +280,7 @@ public class DeltaEcsVsArchBenchmarks
         var c7 = lease.GetComponentRow<Value>(7);
         var slotCount = lease.SlotCount;
         var allSlotsActive = lease.IsAllSlotsActive;
-        for (var slotIndex = 0; slotIndex < slotCount; slotIndex++)
+        for (var slotIndex = slotCount - 1; slotIndex >= 0; slotIndex--)
         {
             if (!allSlotsActive && !lease.IsActiveSlot(slotIndex)) continue;
             Update(ref c0[slotIndex]);
@@ -440,7 +440,7 @@ public class DeltaEcsManagedArrayBenchmarks
     private static void Iterate(ref State state, ref DenseChunkLeaseView lease)
     {
         var values = lease.GetComponentRow<ManagedValue>(0);
-        for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+        for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
         {
             if (lease.IsActiveSlot(slotIndex))
             {
@@ -534,7 +534,7 @@ public class DeltaEcsHotPathProfileBenchmarks
     {
         var first = lease.GetComponentRow<Value>(0);
         var second = lease.GetComponentRow<Value>(1);
-        for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+        for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
         {
             first[slotIndex].X += first[slotIndex].Y;
             second[slotIndex].X += second[slotIndex].Y;
@@ -546,24 +546,68 @@ public class DeltaEcsHotPathProfileBenchmarks
 
 public static class Program
 {
-    private static readonly Type[] s_fullComparisonSuite =
+    private static readonly Type[] s_fullComparisonSuite = ComparativeBenchmarkCatalog.FullComparison;
+
+    private static void RunComparative(string route, string[] args)
     {
-        typeof(SmallDenseScenarioBenchmarks),
-        typeof(AlgorithmicMovementBenchmarks),
-        typeof(DistinctDenseComparisonBenchmarks),
-        typeof(WideArchetypeNarrowAccessComparisonBenchmarks),
-        typeof(SparseHeterogeneousQueryBenchmarks),
-        typeof(DefaultEcsComparisonBenchmarks),
-        typeof(EcsLiteComparisonBenchmarks)
-    };
+        var reportPath = ExtractOption(args, "--combined-report", out var benchmarkArgs);
+        BenchmarkSwitcher.FromTypes(ComparativeBenchmarkCatalog.ForRoute(route)).Run(benchmarkArgs);
+        if (reportPath is not null)
+        {
+            ComparativeReportBuilder.WriteManifest(reportPath);
+        }
+    }
+
+    private static string? ExtractOption(string[] args, string option, out string[] remaining)
+    {
+        var values = new List<string>(args.Length);
+        string? path = null;
+        for (var i = 0; i < args.Length; i++)
+        {
+            if (string.Equals(args[i], option, StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                path = args[++i];
+                continue;
+            }
+
+            values.Add(args[i]);
+        }
+
+        remaining = values.ToArray();
+        return path;
+    }
 
     public static void Main(string[] args)
     {
+        if (args.Length > 0 && string.Equals(args[0], "contract-smoke", StringComparison.OrdinalIgnoreCase))
+        {
+            ComparativeBenchmarkCatalog.Validate();
+            Console.WriteLine($"Comparative contract smoke passed: {ComparativeBenchmarkCatalog.FullComparison.Length} unified classes, {ComparativeCapabilityManifest.Rows.Count} capability rows.");
+            return;
+        }
+
+        if (args.Length > 0 && string.Equals(args[0], "combined-report", StringComparison.OrdinalIgnoreCase))
+        {
+            var directory = args.Length > 1 ? args[1] : "artifacts/comparative";
+            ComparativeBenchmarkCatalog.Validate();
+            ComparativeReportBuilder.WriteManifest(directory);
+            Console.WriteLine($"Wrote comparative report to {directory}.");
+            return;
+        }
+
+        if (args.Length > 0 && (string.Equals(args[0], "iteration", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(args[0], "structural-list", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(args[0], "structural-query", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(args[0], "structural-atomic", StringComparison.OrdinalIgnoreCase)))
+        {
+            var benchmarkArgs = args[1..];
+            RunComparative(args[0], benchmarkArgs);
+            return;
+        }
+
         if (args.Length > 0 && string.Equals(args[0], "full-comparison", StringComparison.OrdinalIgnoreCase))
         {
-            var benchmarkArgs = new string[args.Length - 1];
-            Array.Copy(args, 1, benchmarkArgs, 0, benchmarkArgs.Length);
-            BenchmarkSwitcher.FromTypes(s_fullComparisonSuite).Run(benchmarkArgs);
+            RunComparative("full-comparison", args[1..]);
             return;
         }
 

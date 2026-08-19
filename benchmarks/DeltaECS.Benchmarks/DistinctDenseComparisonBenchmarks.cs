@@ -160,26 +160,26 @@ public class DistinctDenseComparisonBenchmarks
             case 1:
             {
                 var c0 = lease.GetComponentRow<D0>(0);
-                for (var i = 0; i < c0.Length; i++) c0[i].X += c0[i].Y;
+                for (var i = c0.Length - 1; i >= 0; i--) c0[i].X += c0[i].Y;
                 break;
             }
             case 2:
             {
                 var c0 = lease.GetComponentRow<D0>(0); var c1 = lease.GetComponentRow<D1>(1);
-                for (var i = 0; i < c0.Length; i++) { c0[i].X += c0[i].Y; c1[i].X += c1[i].Y; }
+                for (var i = c0.Length - 1; i >= 0; i--) { c0[i].X += c0[i].Y; c1[i].X += c1[i].Y; }
                 break;
             }
             case 4:
             {
                 var c0 = lease.GetComponentRow<D0>(0); var c1 = lease.GetComponentRow<D1>(1); var c2 = lease.GetComponentRow<D2>(2); var c3 = lease.GetComponentRow<D3>(3);
-                for (var i = 0; i < c0.Length; i++) { c0[i].X += c0[i].Y; c1[i].X += c1[i].Y; c2[i].X += c2[i].Y; c3[i].X += c3[i].Y; }
+                for (var i = c0.Length - 1; i >= 0; i--) { c0[i].X += c0[i].Y; c1[i].X += c1[i].Y; c2[i].X += c2[i].Y; c3[i].X += c3[i].Y; }
                 break;
             }
             case 8:
             {
                 var c0 = lease.GetComponentRow<D0>(0); var c1 = lease.GetComponentRow<D1>(1); var c2 = lease.GetComponentRow<D2>(2); var c3 = lease.GetComponentRow<D3>(3);
                 var c4 = lease.GetComponentRow<D4>(4); var c5 = lease.GetComponentRow<D5>(5); var c6 = lease.GetComponentRow<D6>(6); var c7 = lease.GetComponentRow<D7>(7);
-                for (var i = 0; i < c0.Length; i++) { c0[i].X += c0[i].Y; c1[i].X += c1[i].Y; c2[i].X += c2[i].Y; c3[i].X += c3[i].Y; c4[i].X += c4[i].Y; c5[i].X += c5[i].Y; c6[i].X += c6[i].Y; c7[i].X += c7[i].Y; }
+                for (var i = c0.Length - 1; i >= 0; i--) { c0[i].X += c0[i].Y; c1[i].X += c1[i].Y; c2[i].X += c2[i].Y; c3[i].X += c3[i].Y; c4[i].X += c4[i].Y; c5[i].X += c5[i].Y; c6[i].X += c6[i].Y; c7[i].X += c7[i].Y; }
                 break;
             }
         }
@@ -266,14 +266,14 @@ internal sealed class LegacyByteDenseReference
                 case 1:
                 {
                     var row0 = MemoryMarshal.Cast<byte, LegacyValue>(rows[0].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                    for (var i = 0; i < size; i++) row0[i].X += row0[i].Y;
+                    for (var i = size - 1; i >= 0; i--) row0[i].X += row0[i].Y;
                     break;
                 }
                 case 2:
                 {
                     var row0 = MemoryMarshal.Cast<byte, LegacyValue>(rows[0].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
                     var row1 = MemoryMarshal.Cast<byte, LegacyValue>(rows[1].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                    for (var i = 0; i < size; i++) { row0[i].X += row0[i].Y; row1[i].X += row1[i].Y; }
+                    for (var i = size - 1; i >= 0; i--) { row0[i].X += row0[i].Y; row1[i].X += row1[i].Y; }
                     break;
                 }
                 case 4:
@@ -282,7 +282,7 @@ internal sealed class LegacyByteDenseReference
                     var row1 = MemoryMarshal.Cast<byte, LegacyValue>(rows[1].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
                     var row2 = MemoryMarshal.Cast<byte, LegacyValue>(rows[2].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
                     var row3 = MemoryMarshal.Cast<byte, LegacyValue>(rows[3].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                    for (var i = 0; i < size; i++) { row0[i].X += row0[i].Y; row1[i].X += row1[i].Y; row2[i].X += row2[i].Y; row3[i].X += row3[i].Y; }
+                    for (var i = size - 1; i >= 0; i--) { row0[i].X += row0[i].Y; row1[i].X += row1[i].Y; row2[i].X += row2[i].Y; row3[i].X += row3[i].Y; }
                     break;
                 }
                 case 8:
@@ -295,7 +295,7 @@ internal sealed class LegacyByteDenseReference
                     var row5 = MemoryMarshal.Cast<byte, LegacyValue>(rows[5].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
                     var row6 = MemoryMarshal.Cast<byte, LegacyValue>(rows[6].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
                     var row7 = MemoryMarshal.Cast<byte, LegacyValue>(rows[7].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                    for (var i = 0; i < size; i++)
+                    for (var i = size - 1; i >= 0; i--)
                     {
                         row0[i].X += row0[i].Y; row1[i].X += row1[i].Y; row2[i].X += row2[i].Y; row3[i].X += row3[i].Y;
                         row4[i].X += row4[i].Y; row5[i].X += row5[i].Y; row6[i].X += row6[i].Y; row7[i].X += row7[i].Y;

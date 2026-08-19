@@ -401,7 +401,7 @@ public sealed class StructuralAlgorithmTests
             var parents = lease.GetComponentRow<ParentLink>(parentId);
             var locals = lease.GetComponentRow<LocalTransform>(localId);
             var worlds = lease.GetComponentRow<WorldTransform>(worldId);
-            for (var slot = 0; slot < lease.SlotCount; slot++)
+            for (var slot = lease.SlotCount - 1; slot >= 0; slot--)
             {
                 if (!lease.IsActiveSlot(slot))
                 {
@@ -499,7 +499,7 @@ public sealed class StructuralAlgorithmTests
         var count = 0;
         world.Query(in query, QueryAccess.Read, lease =>
         {
-            for (var slot = 0; slot < lease.SlotCount; slot++)
+            for (var slot = lease.SlotCount - 1; slot >= 0; slot--)
             {
                 if (lease.IsActiveSlot(slot))
                 {

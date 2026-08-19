@@ -7,11 +7,17 @@ internal sealed class Chunk
 {
     private readonly int _capacity;
     private readonly Array[] _componentRows;
+    private readonly ComponentRowOperations[] _rowOperations;
     private readonly uint[] _componentVersions;
     private readonly Entity[] _entities;
     private int _size;
+    private int _highWaterMark;
 
-    public Chunk(int capacity, ComponentLayout[] layouts, int globalId)
+    public Chunk(
+        int capacity,
+        ComponentLayout[] layouts,
+        ComponentRowOperations[] rowOperations,
+        int globalId)
     {
         if (capacity <= 0)
         {
@@ -23,10 +29,16 @@ internal sealed class Chunk
             throw new ArgumentOutOfRangeException(nameof(layouts));
         }
 
+        if (rowOperations.Length != layouts.Length)
+        {
+            throw new ArgumentException("Each component row must have cached operations.", nameof(rowOperations));
+        }
+
         _capacity = capacity;
         GlobalId = globalId;
         _entities = new Entity[capacity];
         _componentRows = new Array[layouts.Length];
+        _rowOperations = rowOperations;
         _componentVersions = new uint[layouts.Length];
         for (var index = 0; index < layouts.Length; index++)
         {
@@ -52,7 +64,7 @@ internal sealed class Chunk
 
     public Span<Entity> Entities => new(_entities, 0, _size);
 
-    public int Add(Entity entity)
+    public int Add(Entity entity, out bool reusedSlot)
     {
         if (IsFull)
         {
@@ -60,6 +72,12 @@ internal sealed class Chunk
         }
 
         var slotIndex = _size++;
+        reusedSlot = slotIndex < _highWaterMark;
+        if (_size > _highWaterMark)
+        {
+            _highWaterMark = _size;
+        }
+
         _entities[slotIndex] = entity;
         return slotIndex;
     }
@@ -80,7 +98,7 @@ internal sealed class Chunk
         }
 
         _entities[lastSlotIndex] = Entity.Null;
-        ClearSlot(lastSlotIndex);
+        ClearReferenceRows(lastSlotIndex);
         _size = lastSlotIndex;
         return slotIndex < lastSlotIndex ? moved : Entity.Null;
     }
@@ -103,14 +121,22 @@ internal sealed class Chunk
 
     public void CopySlotTo(Chunk target, int sourceSlotIndex, int targetSlotIndex, int sourceComponentIndex, int targetComponentIndex)
     {
-        Array.Copy(_componentRows[sourceComponentIndex], sourceSlotIndex, target._componentRows[targetComponentIndex], targetSlotIndex, 1);
+        _rowOperations[sourceComponentIndex].CopyOne(
+            _componentRows[sourceComponentIndex],
+            sourceSlotIndex,
+            target._componentRows[targetComponentIndex],
+            targetSlotIndex);
     }
 
     public void CopySlot(int sourceSlotIndex, int destinationSlotIndex, int componentIndex)
     {
         if (sourceSlotIndex != destinationSlotIndex)
         {
-            Array.Copy(_componentRows[componentIndex], sourceSlotIndex, _componentRows[componentIndex], destinationSlotIndex, 1);
+            _rowOperations[componentIndex].CopyOne(
+                _componentRows[componentIndex],
+                sourceSlotIndex,
+                _componentRows[componentIndex],
+                destinationSlotIndex);
         }
     }
 
@@ -122,11 +148,32 @@ internal sealed class Chunk
         }
     }
 
-    public void ClearSlot(int slotIndex)
+    private void ClearReferenceRows(int slotIndex)
     {
         for (var componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
         {
-            Array.Clear(_componentRows[componentIndex], slotIndex, 1);
+            ref readonly var operations = ref _rowOperations[componentIndex];
+            if (operations.ContainsReferences)
+            {
+                operations.ClearOne(_componentRows[componentIndex], slotIndex);
+            }
+        }
+    }
+
+    public void InitializeSlot(int slotIndex)
+    {
+        for (var componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
+        {
+            _rowOperations[componentIndex].ClearOne(_componentRows[componentIndex], slotIndex);
+        }
+    }
+
+    public void InitializeRows(int slotIndex, ReadOnlySpan<int> componentIndices)
+    {
+        for (var index = 0; index < componentIndices.Length; index++)
+        {
+            var componentIndex = componentIndices[index];
+            _rowOperations[componentIndex].ClearOne(_componentRows[componentIndex], slotIndex);
         }
     }
 }

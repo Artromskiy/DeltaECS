@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DeltaECS\DeltaECS.csproj" />
+    <ProjectReference Include="..\..\benchmarks\DeltaECS.Benchmarks\DeltaECS.Benchmarks.csproj" />
   </ItemGroup>
 
   <ItemGroup>

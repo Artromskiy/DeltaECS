@@ -96,7 +96,7 @@ public sealed class DeltaECSDeliveryTests
         {
             var pos = lease.GetComponentRow<Position>(PositionId);
             var vel = lease.GetComponentRow<Velocity>(VelocityId);
-            for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+            for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
             {
                 if (!lease.IsActiveSlot(slotIndex))
                 {
@@ -113,6 +113,125 @@ public sealed class DeltaECSDeliveryTests
 
         world.DestroyBatch(created);
         Assert.AreEqual(0, world.AliveEntityCount);
+    }
+
+    [Test]
+    public void LeaseEntities_AndComponentRows_StayAligned_OnBothLeaseSurfaces()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        var world = new World(layouts, chunkCapacity: 4);
+        var created = new Entity[5];
+        world.CreateBatch(new[] { PositionId, VelocityId }, created);
+        var expected = new Dictionary<Entity, int>();
+        for (var i = 0; i < created.Length; i++)
+        {
+            expected.Add(created[i], i);
+            world.SetComponent(created[i], PositionId, new Position { X = i, Y = -i });
+            world.SetComponent(created[i], VelocityId, new Velocity { X = i + 10, Y = i + 20 });
+        }
+
+        var description = QueryDescription.ForComponents(PositionId, VelocityId);
+        var denseLeaseCount = 0;
+        world.Query(in description, QueryAccess.Read, lease =>
+        {
+            ReadOnlySpan<Entity> entities = lease.Entities;
+            var positions = lease.GetComponentRow<Position>(PositionId);
+            var velocities = lease.GetComponentRow<Velocity>(VelocityId);
+            for (var slot = lease.SlotCount - 1; slot >= 0; slot--)
+            {
+                var entity = entities[slot];
+                Assert.That(expected.ContainsKey(entity), Is.True);
+                Assert.That(positions[slot].X, Is.EqualTo(expected[entity]));
+                Assert.That(velocities[slot].X, Is.EqualTo(expected[entity] + 10));
+                denseLeaseCount++;
+            }
+        });
+
+        var query = world.CreateQuery(in description);
+        var state = new AlignmentState(expected);
+        world.Query(in query, QueryAccess.Read, ref state, AssertAlignedRows);
+
+        Assert.That(denseLeaseCount, Is.EqualTo(created.Length));
+        Assert.That(state.Count, Is.EqualTo(created.Length));
+    }
+
+    [Test]
+    public void ReverseIteration_HandlesEmptySingleFullChunks_AndOverlayHoles()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        var world = new World(layouts, chunkCapacity: 4);
+        var description = QueryDescription.ForComponents(PositionId);
+        var emptyQuery = world.CreateQuery(in description);
+        using (var emptyChunks = world.QueryChunks(in emptyQuery))
+        {
+            Assert.That(emptyChunks.MoveNext(), Is.False);
+        }
+
+        var singleWorld = new World(layouts, chunkCapacity: 4);
+        var single = singleWorld.Create(new[] { PositionId });
+        var singleQuery = singleWorld.CreateQuery(QueryDescription.ForComponents(PositionId));
+        using (var singleChunks = singleWorld.QueryChunks(in singleQuery))
+        {
+            Assert.That(singleChunks.MoveNext(), Is.True);
+            var lease = singleChunks.Current;
+            Assert.That(lease.SlotCount, Is.EqualTo(1));
+            Assert.That(lease.Entities[0], Is.EqualTo(single));
+            Assert.That(singleChunks.MoveNext(), Is.False);
+        }
+
+        var created = new Entity[4];
+        world.CreateBatch(new[] { PositionId }, created);
+        for (var i = 0; i < created.Length; i++)
+        {
+            world.SetComponent(created[i], PositionId, new Position { X = i, Y = 0 });
+        }
+
+        var fullChunkCount = 0;
+        using (var chunks = world.QueryChunks(in emptyQuery))
+        {
+            Assert.That(chunks.MoveNext(), Is.True);
+            var lease = chunks.Current;
+            Assert.That(lease.SlotCount, Is.EqualTo(4));
+            var entities = lease.Entities;
+            var positions = lease.GetComponentRow<Position>(PositionId);
+            for (var slot = lease.SlotCount - 1; slot >= 0; slot--)
+            {
+                Assert.That(entities[slot].IsAlive, Is.True);
+                Assert.That(positions[slot].X, Is.EqualTo(slot));
+                fullChunkCount++;
+            }
+
+            Assert.That(chunks.MoveNext(), Is.False);
+        }
+
+        var tagged = new QueryDescription(
+            new[] { PositionId },
+            Array.Empty<ComponentId>(),
+            Array.Empty<ComponentId>(),
+            new[] { TagActive },
+            Array.Empty<TagId>(),
+            Array.Empty<TagId>());
+        world.AddTag(created[0], TagActive);
+        world.AddTag(created[2], TagActive);
+        var observed = new HashSet<Entity>();
+        world.Query(in tagged, QueryAccess.Read, lease =>
+        {
+            var entities = lease.Entities;
+            for (var slot = lease.SlotCount - 1; slot >= 0; slot--)
+            {
+                if (!lease.IsActiveSlot(slot))
+                {
+                    continue;
+                }
+
+                Assert.That(observed.Add(entities[slot]), Is.True);
+            }
+        });
+
+        Assert.That(fullChunkCount, Is.EqualTo(created.Length));
+        Assert.That(observed, Is.EquivalentTo(new[] { created[0], created[2] }));
     }
 
     [Test]
@@ -716,7 +835,7 @@ public sealed class DeltaECSDeliveryTests
     private static int CountActiveSlots(DenseChunkLease lease)
     {
         var count = 0;
-        for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+        for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
         {
             if (lease.IsActiveSlot(slotIndex))
             {
@@ -779,11 +898,38 @@ public sealed class DeltaECSDeliveryTests
         public float Sum;
     }
 
+    private struct AlignmentState
+    {
+        public AlignmentState(Dictionary<Entity, int> expected)
+        {
+            Expected = expected;
+            Count = 0;
+        }
+
+        public Dictionary<Entity, int> Expected;
+        public int Count;
+    }
+
+    private static void AssertAlignedRows(ref AlignmentState state, ref DenseChunkLeaseView lease)
+    {
+        ReadOnlySpan<Entity> entities = lease.Entities;
+        var positions = lease.GetComponentRow<Position>(PositionId);
+        var velocities = lease.GetComponentRow<Velocity>(VelocityId);
+        for (var slot = lease.SlotCount - 1; slot >= 0; slot--)
+        {
+            var entity = entities[slot];
+            Assert.That(state.Expected.ContainsKey(entity), Is.True);
+            Assert.That(positions[slot].X, Is.EqualTo(state.Expected[entity]));
+            Assert.That(velocities[slot].X, Is.EqualTo(state.Expected[entity] + 10));
+            state.Count++;
+        }
+    }
+
     private static void QuerySlots(ref QueryState state, ref DenseChunkLeaseView lease)
     {
         var positions = lease.GetComponentRow<Position>(PositionId);
         var velocities = lease.GetComponentRow<Velocity>(VelocityId);
-        for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+        for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
         {
             positions[slotIndex].X += velocities[slotIndex].X;
             positions[slotIndex].Y += velocities[slotIndex].Y;
@@ -795,7 +941,7 @@ public sealed class DeltaECSDeliveryTests
     {
         var first = lease.GetComponentRow<NamedRef>(0);
         var second = lease.GetComponentRow<NamedRef>(1);
-        for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+        for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
         {
             if (!lease.IsActiveSlot(slotIndex))
             {

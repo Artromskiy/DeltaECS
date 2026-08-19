@@ -92,7 +92,7 @@ public class DeltaEcsTagFilteringBenchmarks
     {
         var values = state.UpdateValues ? lease.GetComponentRow<TagFilterValue>(0) : default;
         var allSlotsActive = lease.IsAllSlotsActive;
-        for (var slotIndex = 0; slotIndex < lease.SlotCount; slotIndex++)
+        for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
         {
             if (!allSlotsActive && !lease.IsActiveSlot(slotIndex))
             {
