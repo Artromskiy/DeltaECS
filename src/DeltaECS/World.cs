@@ -381,13 +381,8 @@ public sealed class World
                     continue;
                 }
 
-                if (writeTick != 0)
-                {
-                    MarkQueryRows(chunk, rowIndices, writeTick);
-                }
-
                 _activeChunkLeases++;
-                using var scope = new DenseChunkScope(this, archetype, chunk, chunk.GlobalId, null, OverlayMaskResult.Full);
+                using var scope = new DenseChunkScope(this, cached, archetype, chunk, chunk.GlobalId, rowIndices, null, OverlayMaskResult.Full, writeTick);
                 body(scope);
             }
         }
@@ -420,13 +415,8 @@ public sealed class World
                     continue;
                 }
 
-                if (writeTick != 0)
-                {
-                    MarkQueryRows(chunk, rowIndices, writeTick);
-                }
-
                 _activeChunkLeases++;
-                using var scope = new DenseChunkScope(this, archetype, chunk, chunk.GlobalId, scratch, overlayResult);
+                using var scope = new DenseChunkScope(this, cached, archetype, chunk, chunk.GlobalId, rowIndices, scratch, overlayResult, writeTick);
                 body(scope);
             }
         }
@@ -489,12 +479,7 @@ public sealed class World
                     continue;
                 }
 
-                if (writeTick != 0)
-                {
-                    MarkQueryRows(chunk, rowIndices, writeTick);
-                }
-
-                var accessor = new DenseChunkAccessor(this, archetype, chunk, chunk.GlobalId, rowIndices, null, OverlayMaskResult.Full, RentChunkAccessor());
+                var accessor = new DenseChunkAccessor(this, cached, archetype, chunk, chunk.GlobalId, rowIndices, null, OverlayMaskResult.Full, RentChunkAccessor(), writeTick);
                 try
                 {
                     body(ref state, ref accessor);
@@ -536,12 +521,7 @@ public sealed class World
                     continue;
                 }
 
-                if (writeTick != 0)
-                {
-                    MarkQueryRows(chunk, rowIndices, writeTick);
-                }
-
-                var accessor = new DenseChunkAccessor(this, archetype, chunk, chunkId, rowIndices, scratch, overlayResult, RentChunkAccessor());
+                var accessor = new DenseChunkAccessor(this, cached, archetype, chunk, chunkId, rowIndices, scratch, overlayResult, RentChunkAccessor(), writeTick);
                 try
                 {
                     body(ref state, ref accessor);
@@ -645,12 +625,7 @@ public sealed class World
                         continue;
                     }
 
-                    if (_writeTick != 0)
-                    {
-                        MarkQueryRows(chunk, rowIndices, _writeTick);
-                    }
-
-                    _current = new DenseChunkAccessor(_owner, archetype, chunk, chunk.GlobalId, rowIndices, null, OverlayMaskResult.Full, _owner.RentChunkAccessor());
+                    _current = new DenseChunkAccessor(_owner, _cached, archetype, chunk, chunk.GlobalId, rowIndices, null, OverlayMaskResult.Full, _owner.RentChunkAccessor(), _writeTick);
                     _hasCurrent = true;
                     return true;
                 }
@@ -686,12 +661,7 @@ public sealed class World
                         continue;
                     }
 
-                    if (_writeTick != 0)
-                    {
-                        MarkQueryRows(chunk, rowIndices, _writeTick);
-                    }
-
-                    _current = new DenseChunkAccessor(_owner, archetype, chunk, chunkId, rowIndices, scratch, overlayResult, _owner.RentChunkAccessor());
+                    _current = new DenseChunkAccessor(_owner, _cached, archetype, chunk, chunkId, rowIndices, scratch, overlayResult, _owner.RentChunkAccessor(), _writeTick);
                     _hasCurrent = true;
                     return true;
                 }
@@ -782,14 +752,6 @@ public sealed class World
         }
 
         return WorldTick;
-    }
-
-    private static void MarkQueryRows(Chunk chunk, int[] rowIndices, uint writeTick)
-    {
-        for (var rowIndex = 0; rowIndex < rowIndices.Length; rowIndex++)
-        {
-            chunk.MarkComponentWritten(rowIndices[rowIndex], writeTick);
-        }
     }
 
     private int ApplyComponents(bool isAdd, ComponentId[] componentIds, ReadOnlySpan<Entity> entities)

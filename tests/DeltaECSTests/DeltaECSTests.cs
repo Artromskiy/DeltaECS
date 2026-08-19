@@ -533,6 +533,98 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
+    public void QueryRowBindings_Are_Typed_QueryBound_And_Precisely_Track_Writes()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        var world = new World(layouts, chunkCapacity: 2);
+        world.Create(new[] { PositionId, VelocityId });
+        world.Create(new[] { PositionId, VelocityId, HealthId });
+
+        var description = QueryDescription.ForComponents(PositionId, VelocityId);
+        var query = world.CreateQuery(in description);
+        var position = query.Bind<Position>(PositionId, RowAccess.Write);
+        var velocity = query.Bind<Velocity>(VelocityId, RowAccess.Read);
+
+        Assert.That(position.IsValid, Is.True);
+        Assert.That(velocity.IsValid, Is.True);
+
+        var scopeRows = 0;
+        world.Query(in description, QueryAccess.Read, scope =>
+        {
+            ReadOnlySpan<Velocity> rows = scope.GetRow(velocity);
+            scopeRows += rows.Length;
+        });
+        Assert.That(scopeRows, Is.EqualTo(2));
+
+        var state = new BoundRowState(position, velocity);
+        var before = world.WorldTick;
+        world.Query(in query, QueryAccess.Write, ref state, ApplyBoundRows);
+
+        Assert.That(state.Rows, Is.EqualTo(2));
+        Assert.That(state.Chunks.Count, Is.EqualTo(2));
+        foreach (var chunkId in state.Chunks)
+        {
+            Assert.That(world.HasChangedSince(chunkId, PositionId, before), Is.True);
+            Assert.That(world.HasChangedSince(chunkId, VelocityId, before), Is.False);
+        }
+
+        var oldApiRows = 0;
+        world.Query(in query, QueryAccess.Read, ref oldApiRows, static (ref int rows, ref DenseChunkAccessor accessor) =>
+        {
+            rows += accessor.GetComponentRow<Position>(0).Length;
+        });
+        Assert.That(oldApiRows, Is.EqualTo(2));
+
+        var wrongType = Assert.Throws<ArgumentException>(() => query.Bind<Velocity>(PositionId, RowAccess.Read));
+        Assert.That(wrongType!.Message, Does.Contain("registered"));
+
+        var anyDescription = new QueryDescription(
+            new[] { PositionId }, new[] { VelocityId }, Array.Empty<ComponentId>(),
+            Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>());
+        var anyQuery = world.CreateQuery(in anyDescription);
+        Assert.Throws<ArgumentException>(() => anyQuery.Bind<Velocity>(VelocityId, RowAccess.Read));
+
+        Assert.Throws<InvalidOperationException>(() => ExecuteReadWithWriteBinding(world, query, position));
+    }
+
+    [Test]
+    public void QueryRowBindings_Reject_Mismatched_Query_And_Foreign_World_Bindings()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        var world = new World(layouts);
+        world.Create(new[] { PositionId, VelocityId });
+        var description = QueryDescription.ForComponents(PositionId, VelocityId);
+        var query = world.CreateQuery(in description);
+        var otherDescription = QueryDescription.ForComponents(PositionId);
+        var otherQuery = world.CreateQuery(in otherDescription);
+        var mismatchedBinding = otherQuery.Bind<Position>(PositionId, RowAccess.Read);
+
+        Assert.Throws<InvalidOperationException>(() => world.Query(in description, QueryAccess.Read, scope =>
+        {
+            _ = scope.GetRow(mismatchedBinding);
+        }));
+
+        var foreignWorld = new World(layouts);
+        foreignWorld.Create(new[] { PositionId, VelocityId });
+        var foreignQuery = foreignWorld.CreateQuery(QueryDescription.ForComponents(PositionId, VelocityId));
+        var foreignBinding = foreignQuery.Bind<Position>(PositionId, RowAccess.Read);
+
+        Assert.Throws<InvalidOperationException>(() => world.Query(in description, QueryAccess.Read, scope =>
+        {
+            _ = scope.GetRow(foreignBinding);
+        }));
+
+        var defaultBinding = default(ReadRowBinding<Position>);
+        Assert.That(defaultBinding.IsValid, Is.False);
+        Assert.Throws<InvalidOperationException>(() => world.Query(in description, QueryAccess.Read, scope =>
+        {
+            _ = scope.GetRow(defaultBinding);
+        }));
+    }
+
+    [Test]
     public void Invalid_TagId_Is_Rejected_By_World_And_Query_Contracts()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -1100,6 +1192,46 @@ public sealed class DeltaECSDeliveryTests
     private struct QueryState
     {
         public float Sum;
+    }
+
+    private struct BoundRowState
+    {
+        public BoundRowState(WriteRowBinding<Position> position, ReadRowBinding<Velocity> velocity)
+        {
+            Position = position;
+            Velocity = velocity;
+            Rows = 0;
+            Chunks = new HashSet<int>();
+        }
+
+        public WriteRowBinding<Position> Position;
+        public ReadRowBinding<Velocity> Velocity;
+        public int Rows;
+        public HashSet<int> Chunks;
+    }
+
+    private static void ApplyBoundRows(ref BoundRowState state, ref DenseChunkAccessor accessor)
+    {
+        Span<Position> positions = accessor.GetRow(state.Position);
+        ReadOnlySpan<Velocity> velocities = accessor.GetRow(state.Velocity);
+        state.Chunks.Add(accessor.GlobalChunkId);
+        for (var slot = accessor.SlotCount - 1; slot >= 0; slot--)
+        {
+            positions[slot].X += velocities[slot].X;
+            state.Rows++;
+        }
+    }
+
+    private static void ExecuteReadWithWriteBinding(
+        World world,
+        QueryHandle query,
+        WriteRowBinding<Position> position)
+    {
+        var state = new BoundRowState(position, default);
+        world.Query(in query, QueryAccess.Read, ref state, static (ref BoundRowState current, ref DenseChunkAccessor accessor) =>
+        {
+            _ = accessor.GetRow(current.Position);
+        });
     }
 
     private struct AlignmentState

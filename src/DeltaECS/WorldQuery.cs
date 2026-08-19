@@ -8,21 +8,36 @@ using System.Runtime.CompilerServices;
 public sealed class DenseChunkScope : IDisposable
 {
     private readonly World _owner;
+    private readonly CachedQuery _query;
     private readonly Archetype _archetype;
     private readonly Chunk _chunk;
     private readonly int _globalChunkId;
     private readonly int _slotCount;
+    private readonly int[]? _queryComponentRowIndices;
+    private readonly uint _writeTick;
     private ulong[]? _overlayMask;
     private readonly bool _fullMask;
     private bool _disposed;
 
-    internal DenseChunkScope(World owner, Archetype archetype, Chunk chunk, int globalChunkId, ulong[]? overlayMask, OverlayMaskResult overlayResult)
+    internal DenseChunkScope(
+        World owner,
+        CachedQuery query,
+        Archetype archetype,
+        Chunk chunk,
+        int globalChunkId,
+        int[]? queryComponentRowIndices,
+        ulong[]? overlayMask,
+        OverlayMaskResult overlayResult,
+        uint writeTick)
     {
         _owner = owner;
+        _query = query;
         _archetype = archetype;
         _chunk = chunk;
         _globalChunkId = globalChunkId;
         _slotCount = chunk.Count;
+        _queryComponentRowIndices = queryComponentRowIndices;
+        _writeTick = writeTick;
         _overlayMask = overlayResult == OverlayMaskResult.Partial ? overlayMask : null;
         _fullMask = overlayResult == OverlayMaskResult.Full;
     }
@@ -53,7 +68,61 @@ public sealed class DenseChunkScope : IDisposable
             throw new ArgumentException("Component is not part of this chunk archetype.", nameof(componentId));
         }
 
+        MarkWritten(index);
         return _chunk.GetComponentRow<T>(index);
+    }
+
+    public ReadOnlySpan<T> GetRow<T>(ReadRowBinding<T> binding)
+    {
+        var index = ResolveBinding(binding.Data);
+        return _chunk.GetComponentRow<T>(index);
+    }
+
+    public Span<T> GetRow<T>(WriteRowBinding<T> binding)
+    {
+        var index = ResolveWriteBinding(binding.Data);
+        return _chunk.GetComponentRow<T>(index);
+    }
+
+    private int ResolveBinding(RowBindingData binding)
+    {
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(nameof(DenseChunkScope));
+        }
+
+        if (!binding.IsValid || !binding.BelongsTo(_owner, _query))
+        {
+            throw new InvalidOperationException("The row binding does not belong to this query or world.");
+        }
+
+        if (_queryComponentRowIndices is null
+            || (uint)binding.QueryComponentIndex >= (uint)_queryComponentRowIndices.Length)
+        {
+            throw new InvalidOperationException("The row binding is stale for this query.");
+        }
+
+        return _queryComponentRowIndices[binding.QueryComponentIndex];
+    }
+
+    private int ResolveWriteBinding(RowBindingData binding)
+    {
+        var index = ResolveBinding(binding);
+        if (_writeTick == 0)
+        {
+            throw new InvalidOperationException("A write row binding requires QueryAccess.Write.");
+        }
+
+        MarkWritten(index);
+        return index;
+    }
+
+    private void MarkWritten(int componentIndex)
+    {
+        if (_writeTick != 0)
+        {
+            _chunk.MarkComponentWritten(componentIndex, _writeTick);
+        }
     }
 
     public void Dispose()
@@ -70,6 +139,7 @@ public sealed class DenseChunkScope : IDisposable
 
 public ref struct DenseChunkAccessor
 {
+    private readonly CachedQuery _query;
     private readonly Archetype _archetype;
     private readonly Chunk _chunk;
     private readonly int _archetypeId;
@@ -80,18 +150,22 @@ public ref struct DenseChunkAccessor
     private readonly bool _fullMask;
     private readonly World _owner;
     private readonly int _viewId;
+    private readonly uint _writeTick;
     private bool _disposed;
 
     internal DenseChunkAccessor(
         World owner,
+        CachedQuery query,
         Archetype archetype,
         Chunk chunk,
         int globalChunkId,
         int[]? queryComponentRowIndices,
         ulong[]? overlayMask,
         OverlayMaskResult overlayResult,
-        int viewId)
+        int viewId,
+        uint writeTick)
     {
+        _query = query;
         _archetype = archetype;
         _chunk = chunk;
         _archetypeId = archetype.Id;
@@ -102,6 +176,7 @@ public ref struct DenseChunkAccessor
         _fullMask = overlayResult == OverlayMaskResult.Full;
         _owner = owner;
         _viewId = viewId;
+        _writeTick = writeTick;
         _disposed = false;
     }
 
@@ -169,6 +244,7 @@ public ref struct DenseChunkAccessor
             throw new ArgumentException("Component is not part of this chunk archetype.", nameof(componentId));
         }
 
+        MarkWritten(index);
         return _chunk.GetComponentRow<T>(index);
     }
 
@@ -178,7 +254,58 @@ public ref struct DenseChunkAccessor
         EnsureCurrent();
         Debug.Assert(_queryComponentRowIndices is not null);
         Debug.Assert((uint)queryComponentIndex < (uint)_queryComponentRowIndices!.Length);
-        return _chunk.GetComponentRow<T>(_queryComponentRowIndices[queryComponentIndex]);
+        var index = _queryComponentRowIndices[queryComponentIndex];
+        MarkWritten(index);
+        return _chunk.GetComponentRow<T>(index);
+    }
+
+    public ReadOnlySpan<T> GetRow<T>(ReadRowBinding<T> binding)
+    {
+        var index = ResolveBinding(binding.Data);
+        return _chunk.GetComponentRow<T>(index);
+    }
+
+    public Span<T> GetRow<T>(WriteRowBinding<T> binding)
+    {
+        var index = ResolveWriteBinding(binding.Data);
+        return _chunk.GetComponentRow<T>(index);
+    }
+
+    private int ResolveBinding(RowBindingData binding)
+    {
+        EnsureCurrent();
+        if (!binding.IsValid || !binding.BelongsTo(_owner, _query))
+        {
+            throw new InvalidOperationException("The row binding does not belong to this query or world.");
+        }
+
+        if (_queryComponentRowIndices is null
+            || (uint)binding.QueryComponentIndex >= (uint)_queryComponentRowIndices.Length)
+        {
+            throw new InvalidOperationException("The row binding is stale for this query.");
+        }
+
+        return _queryComponentRowIndices[binding.QueryComponentIndex];
+    }
+
+    private int ResolveWriteBinding(RowBindingData binding)
+    {
+        var index = ResolveBinding(binding);
+        if (_writeTick == 0)
+        {
+            throw new InvalidOperationException("A write row binding requires QueryAccess.Write.");
+        }
+
+        MarkWritten(index);
+        return index;
+    }
+
+    private void MarkWritten(int componentIndex)
+    {
+        if (_writeTick != 0)
+        {
+            _chunk.MarkComponentWritten(componentIndex, _writeTick);
+        }
     }
 
     internal void Dispose()

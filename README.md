@@ -340,15 +340,20 @@ fast-path flag, not a per-entity validity check. Dense slot work uses the
 reverse slot order while preserving slot alignment and overlay checks:
 
 ```csharp
+var query = world.CreateQuery(QueryDescription.ForComponents(positionId, velocityId));
+var position = query.Bind<Position>(positionId, RowAccess.Write);
+var velocity = query.Bind<Velocity>(velocityId, RowAccess.Read);
+
 ReadOnlySpan<Entity> entities = accessor.Entities;
-var positions = accessor.GetComponentRow<Position>(positionId);
+Span<Position> positions = accessor.GetRow(position);
+ReadOnlySpan<Velocity> velocities = accessor.GetRow(velocity);
 if (accessor.IsAllSlotsActive)
 {
     for (var i = accessor.SlotCount - 1; i >= 0; i--)
     {
         Entity entity = entities[i];
         ref Position position = ref positions[i];
-        Process(entity, ref position);
+        Process(entity, ref position, velocities[i]);
     }
 }
 else
@@ -358,10 +363,15 @@ else
         if (!accessor.IsActiveSlot(i)) continue;
         Entity entity = entities[i];
         ref Position position = ref positions[i];
-        Process(entity, ref position);
+        Process(entity, ref position, velocities[i]);
     }
 }
 ```
+
+`ReadRowBinding<T>` and `WriteRowBinding<T>` are distinct typed bindings. The
+legacy `GetComponentRow<T>(ComponentId/int)` methods remain transitional and
+return a writable `Span<T>` even under `QueryAccess.Read`, which can bypass
+precise dirty tracking; use `GetRow(binding)` for new code.
 
 The benchmark/use-site dispatch selects 1/2/4/8 component-row loops once per
 benchmark operation. Component-row count and active-slot state are chunk

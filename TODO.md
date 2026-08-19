@@ -6,25 +6,6 @@ move verified work to the completed section instead of silently deleting it.
 
 ## API ergonomics
 
-- [ ] Replace the error-prone positional row API
-  `DenseChunkAccessor.GetComponentRow<T>(int queryComponentIndex)` with
-  query-bound typed row handles, while keeping the cached query-to-archetype
-  row mapping internal:
-
-  ```csharp
-  var position = query.Bind<Position>(PositionId);
-  Span<Position> positions = chunk.GetRow(position);
-  ```
-
-  Keep the storage and query core type-erased. Generic row access may exist as
-  a thin checked boundary over `Array[]`, but it must not turn the core into a
-  generic `Query<T1, T2>` implementation. A binding validates the registered
-  component type once, outside chunk and entity loops. This change will
-  probably break existing benchmark and test source API, so first inventory
-  positional-index callers and provide a temporary compatibility overload or
-  migrate all consumers in one commit. Preserve the allocation-free cached row
-  plan and verify that performance does not regress.
-
 - [ ] Add a simple `Query` overload without user context:
 
   ```csharp
@@ -51,7 +32,23 @@ move verified work to the completed section instead of silently deleting it.
   repository and decide whether to accept that migration before changing
   `Query<TState>` or `ChunkAction<TState>`.
 
+- [ ] Make binding-driven execution own the write intent instead of duplicating
+  it between `WriteRowBinding<T>` and `QueryAccess.Write`. Keep `QueryAccess`
+  for compatibility; defer any lazy/shared write-tick design.
+
+- [ ] Retire the transitional legacy `GetComponentRow<T>(ComponentId/int)`
+  APIs. They return a writable `Span<T>` even under `QueryAccess.Read`, so they
+  can bypass precise dirty tracking; migrate callers to typed row bindings first.
+
 ## Completed
+
+- [x] Added query-bound `ReadRowBinding<T>`/`WriteRowBinding<T>` handles.
+  Binding validates the registered CLR type, world/query ownership, and
+  All-mask membership once; `GetRow` returns `ReadOnlySpan<T>` for read
+  bindings and `Span<T>` for write bindings. Write bindings mark only their
+  component row, while positional `GetComponentRow<T>(int)` remains
+  compatible. Tests cover multiple archetypes, invalid types, foreign/mismatched
+  bindings, read-only access, precise change tracking, and the legacy API.
 
 Move completed items here with their commit hash and verification summary.
 
