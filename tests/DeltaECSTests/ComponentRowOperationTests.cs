@@ -92,6 +92,66 @@ public sealed class ComponentRowOperationTests
         });
     }
 
+    [Test]
+    public void SwapBack_Does_Not_Clear_Unmanaged_Tail_But_Clears_Reference_Tail()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        var valueId = layouts.Register<int>(SchemaId.FromUInt64(10_031));
+        var referenceId = layouts.Register<ReferencePayload>(SchemaId.FromUInt64(10_032));
+        var world = new World(layouts, chunkCapacity: 4);
+        var archetypeHandle = world.GetArchetype(valueId, referenceId);
+        var removed = world.Create(archetypeHandle);
+        var survivor = world.Create(archetypeHandle);
+        var survivorReference = new ReferencePayload("survivor");
+        world.SetComponent(removed, valueId, 11);
+        world.SetComponent(survivor, valueId, 22);
+        world.SetComponent(survivor, referenceId, survivorReference);
+
+        Assert.That(world.Destroy(removed), Is.True);
+        var archetype = world.Archetypes[archetypeHandle.ArchetypeId];
+        var chunk = archetype.GetChunk(0);
+        var valueRow = (int[])chunk.GetRawComponentRow(0);
+        var referenceRow = (ReferencePayload[])chunk.GetRawComponentRow(1);
+        Assert.Multiple(() =>
+        {
+            Assert.That(chunk.Size, Is.EqualTo(1));
+            Assert.That(valueRow[1], Is.EqualTo(22), "value-only tail is intentionally not cleared");
+            Assert.That(referenceRow[1], Is.Null, "reference tail must be cleared for GC");
+        });
+    }
+
+    [Test]
+    public void SwapBack_Updates_Moved_Record_And_Stale_Generation_Is_Rejected()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        var id = layouts.Register<int>(SchemaId.FromUInt64(10_041));
+        var world = new World(layouts, chunkCapacity: 2);
+        var first = world.Create(new[] { id });
+        var second = world.Create(new[] { id });
+        world.SetComponent(second, id, 42);
+
+        Assert.That(world.Destroy(first), Is.True);
+        Assert.That(world.TryGetComponent(second, id, out int value), Is.True);
+        Assert.That(value, Is.EqualTo(42));
+        Assert.That(world.Destroy(second), Is.True);
+        Assert.That(world.IsAlive(second), Is.False);
+        Assert.That(world.TryGetComponent(second, id, out int _), Is.False);
+    }
+
+    [Test]
+    public void Invalid_Entity_Never_Returns_A_Component_Reference()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        var id = layouts.Register<int>(SchemaId.FromUInt64(10_051));
+        var world = new World(layouts);
+        var invalid = new Entity(999_999, 0);
+
+        Assert.That(world.IsAlive(invalid), Is.False);
+#pragma warning disable CS0618
+        Assert.Throws<InvalidOperationException>(() => world.GetComponentRefUnsafe<int>(invalid, id));
+#pragma warning restore CS0618
+    }
+
     private readonly struct ManagedPayload
     {
         public ManagedPayload(string text)

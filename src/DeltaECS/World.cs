@@ -4,6 +4,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 public sealed class World
 {
@@ -109,7 +110,7 @@ public sealed class World
         for (var i = 0; i < output.Length; i++)
         {
             var recordIndex = AllocateRecord();
-            var record = _records[recordIndex];
+            ref var record = ref RecordAt(recordIndex);
             var entity = new Entity(recordIndex, record.Generation);
             var chunkId = archetype.HasAvailableChunk() ? -1 : AllocateChunkId();
             archetype.AddEntity(
@@ -125,7 +126,6 @@ public sealed class World
             record.Archetype = archetype.Id;
             record.Chunk = chunkIndex;
             record.SlotIndex = slotIndex;
-            _records[recordIndex] = record;
             output[i] = entity;
             AliveEntityCount++;
         }
@@ -148,12 +148,12 @@ public sealed class World
     public bool Destroy(Entity entity)
     {
         EnsureNoActiveLease("destroy entities");
-        if (!TryResolve(entity, out var recordIndex, out var record))
+        if (!TryResolve(entity, out var recordIndex))
         {
             return false;
         }
 
-        DestroyResolved(recordIndex, record);
+        DestroyResolved(recordIndex);
         return true;
     }
 
@@ -164,9 +164,10 @@ public sealed class World
         var count = 0;
         for (var i = 0; i < entities.Length; i++)
         {
-            if (TryResolve(entities[i], out var recordIndex, out var record))
+            if (TryResolve(entities[i], out var recordIndex))
             {
-                _destroyScratch[count++] = new DestroyEntry(entities[i], recordIndex, record);
+                ref readonly var record = ref RecordAt(recordIndex);
+                _destroyScratch[count++] = new DestroyEntry(entities[i], recordIndex, record.Archetype, record.Chunk, record.SlotIndex);
             }
         }
 
@@ -175,8 +176,13 @@ public sealed class World
         for (var i = 0; i < count; i++)
         {
             var entry = _destroyScratch[i];
-            if (!TryResolve(entry.Entity, out var recordIndex, out var record)
-                || recordIndex != entry.RecordIndex
+            if (!TryResolve(entry.Entity, out var recordIndex))
+            {
+                continue;
+            }
+
+            ref readonly var record = ref RecordAt(recordIndex);
+            if (recordIndex != entry.RecordIndex
                 || record.Archetype != entry.Archetype
                 || record.Chunk != entry.Chunk
                 || record.SlotIndex != entry.SlotIndex)
@@ -184,14 +190,14 @@ public sealed class World
                 continue;
             }
 
-            DestroyResolved(recordIndex, record);
+            DestroyResolved(recordIndex);
             destroyed++;
         }
 
         return destroyed;
     }
 
-    public bool IsAlive(Entity entity) => TryResolve(entity, out _, out _);
+    public bool IsAlive(Entity entity) => TryResolve(entity, out _);
 
     public bool HasChangedSince(int globalChunkId, ComponentId componentId, uint sinceTick)
     {
@@ -222,18 +228,19 @@ public sealed class World
 
     public bool SetComponent<T>(Entity entity, ComponentId componentId, in T value)
     {
-        return TryResolve(entity, out var recordIndex, out _)
+        return TryResolve(entity, out var recordIndex)
             && SetComponentUnchecked(recordIndex, componentId, value);
     }
 
     public bool TryGetComponent<T>(Entity entity, ComponentId componentId, out T value)
     {
-        if (!TryResolve(entity, out var recordIndex, out var record))
+        if (!TryResolve(entity, out var recordIndex))
         {
             value = default!;
             return false;
         }
 
+        ref readonly var record = ref RecordAt(recordIndex);
         var archetype = _archetypes[record.Archetype];
         if (!archetype.TryGetComponentIndex(componentId, out var componentIndex)
             || !_layouts.TryGet(componentId, out var layout)
@@ -250,11 +257,12 @@ public sealed class World
     [Obsolete("Unsafe API: returned reference can escape active archetype/slot ownership and must not be used outside a live lease scope.")]
     public ref T GetComponentRefUnsafe<T>(Entity entity, ComponentId componentId)
     {
-        if (!TryResolve(entity, out _, out var record))
+        if (!TryResolve(entity, out var recordIndex))
         {
             throw new InvalidOperationException("Unable to get component reference.");
         }
 
+        ref readonly var record = ref RecordAt(recordIndex);
         var archetype = _archetypes[record.Archetype];
         if (!archetype.TryGetComponentIndex(componentId, out var componentIndex)
             || !_layouts.TryGet(componentId, out var layout)
@@ -269,8 +277,9 @@ public sealed class World
     public void AddTag(Entity entity, TagId tag)
     {
         ValidateTag(tag);
-        if (TryResolve(entity, out _, out var record))
+        if (TryResolve(entity, out var recordIndex))
         {
+            ref readonly var record = ref RecordAt(recordIndex);
             var archetype = _archetypes[record.Archetype];
             _overlayTags.AddTag(archetype.GetChunkGlobalId(record.Chunk), record.SlotIndex, tag);
         }
@@ -279,8 +288,9 @@ public sealed class World
     public void RemoveTag(Entity entity, TagId tag)
     {
         ValidateTag(tag);
-        if (TryResolve(entity, out _, out var record))
+        if (TryResolve(entity, out var recordIndex))
         {
+            ref readonly var record = ref RecordAt(recordIndex);
             var archetype = _archetypes[record.Archetype];
             _overlayTags.RemoveTag(archetype.GetChunkGlobalId(record.Chunk), record.SlotIndex, tag);
         }
@@ -289,11 +299,12 @@ public sealed class World
     public bool HasTag(Entity entity, TagId tag)
     {
         ValidateTag(tag);
-        if (!TryResolve(entity, out _, out var record))
+        if (!TryResolve(entity, out var recordIndex))
         {
             return false;
         }
 
+        ref readonly var record = ref RecordAt(recordIndex);
         var archetype = _archetypes[record.Archetype];
         return _overlayTags.HasTag(archetype.GetChunkGlobalId(record.Chunk), record.SlotIndex, tag);
     }
@@ -553,7 +564,8 @@ public sealed class World
         var count = 0;
         for (var i = 0; i < _records.Count; i++)
         {
-            if (_records[i].Archetype < 0)
+            ref readonly var record = ref RecordAt(i);
+            if (record.Archetype < 0)
             {
                 continue;
             }
@@ -563,7 +575,7 @@ public sealed class World
                 throw new ArgumentOutOfRangeException(nameof(destination));
             }
 
-            destination[count++] = new Entity(i, _records[i].Generation);
+            destination[count++] = new Entity(i, record.Generation);
         }
 
         return count;
@@ -646,11 +658,12 @@ public sealed class World
         for (var entityIndex = 0; entityIndex < entities.Length; entityIndex++)
         {
             var entity = entities[entityIndex];
-            if (!TryResolve(entity, out var recordIndex, out var record))
+            if (!TryResolve(entity, out var recordIndex))
             {
                 continue;
             }
 
+            ref readonly var record = ref RecordAt(recordIndex);
             var sourceArchetypeId = record.Archetype;
             if (!edgesBySource.TryGetValue(sourceArchetypeId, out var edge))
             {
@@ -663,15 +676,16 @@ public sealed class World
                 continue;
             }
 
-            MoveEntity(recordIndex, record, edge);
+            MoveEntity(recordIndex, edge);
             changed++;
         }
 
         return changed;
     }
 
-    private void DestroyResolved(int recordIndex, EntityRecord record)
+    private void DestroyResolved(int recordIndex)
     {
+        ref var record = ref RecordAt(recordIndex);
         var archetype = _archetypes[record.Archetype];
         var chunk = archetype.GetChunk(record.Chunk);
         var chunkId = chunk.GlobalId;
@@ -685,23 +699,22 @@ public sealed class World
         _overlayTags.ClearSlot(chunkId, lastSlotIndex);
         if (moved.IsAlive)
         {
-            var movedRecord = _records[moved.Index];
+            ref var movedRecord = ref RecordAt(moved.Index);
             movedRecord.Chunk = record.Chunk;
             movedRecord.SlotIndex = record.SlotIndex;
-            _records[moved.Index] = movedRecord;
         }
 
         record.Archetype = -1;
         record.Chunk = -1;
         record.SlotIndex = -1;
         record.Generation++;
-        _records[recordIndex] = record;
         PushFree(recordIndex);
         AliveEntityCount--;
     }
 
-    private void MoveEntity(int recordIndex, EntityRecord sourceRecord, TransitionEdge edge)
+    private void MoveEntity(int recordIndex, TransitionEdge edge)
     {
+        ref var sourceRecord = ref RecordAt(recordIndex);
         var sourceArchetype = _archetypes[sourceRecord.Archetype];
         var targetArchetype = _archetypes[edge.TargetArchetypeId];
         var sourceChunk = sourceArchetype.GetChunk(sourceRecord.Chunk);
@@ -743,13 +756,11 @@ public sealed class World
         sourceRecord.Archetype = edge.TargetArchetypeId;
         sourceRecord.Chunk = targetChunkIndex;
         sourceRecord.SlotIndex = targetSlotIndex;
-        _records[recordIndex] = sourceRecord;
         if (moved.IsAlive)
         {
-            var movedRecord = _records[moved.Index];
+            ref var movedRecord = ref RecordAt(moved.Index);
             movedRecord.Chunk = sourceChunkIndex;
             movedRecord.SlotIndex = sourceSlotIndex;
-            _records[moved.Index] = movedRecord;
         }
     }
 
@@ -804,7 +815,7 @@ public sealed class World
 
     private bool SetComponentUnchecked<T>(int recordIndex, ComponentId componentId, T value)
     {
-        var record = _records[recordIndex];
+        ref readonly var record = ref RecordAt(recordIndex);
         var archetype = _archetypes[record.Archetype];
         if (!archetype.TryGetComponentIndex(componentId, out var componentIndex)
             || !_layouts.TryGet(componentId, out var layout)
@@ -941,16 +952,21 @@ public sealed class World
 
     private int AllocateChunkId() => _nextChunkId++;
 
-    private bool TryResolve(Entity entity, out int recordIndex, out EntityRecord record)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ref EntityRecord RecordAt(int recordIndex)
+    {
+        return ref CollectionsMarshal.AsSpan(_records)[recordIndex];
+    }
+
+    private bool TryResolve(Entity entity, out int recordIndex)
     {
         recordIndex = entity.Index;
         if (recordIndex < 0 || recordIndex >= _records.Count)
         {
-            record = default;
             return false;
         }
 
-        record = _records[recordIndex];
+        ref readonly var record = ref RecordAt(recordIndex);
         return record.Archetype >= 0 && record.Generation == entity.Generation;
     }
 
@@ -1067,13 +1083,13 @@ public sealed class World
 
     private readonly struct DestroyEntry
     {
-        public DestroyEntry(Entity entity, int recordIndex, EntityRecord record)
+        public DestroyEntry(Entity entity, int recordIndex, int archetype, int chunk, int slotIndex)
         {
             Entity = entity;
             RecordIndex = recordIndex;
-            Archetype = record.Archetype;
-            Chunk = record.Chunk;
-            SlotIndex = record.SlotIndex;
+            Archetype = archetype;
+            Chunk = chunk;
+            SlotIndex = slotIndex;
         }
 
         public Entity Entity { get; }
