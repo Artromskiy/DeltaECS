@@ -2,11 +2,11 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using BenchmarkDotNet.Attributes;
-using DVG.ECS;
+using Delta.ECS;
 using Friflo.Engine.ECS;
 using FrifloEntity = Friflo.Engine.ECS.Entity;
 
-namespace DVG.ECS.Benchmarks;
+namespace Delta.ECS.Benchmarks;
 
 /// <summary>
 /// Position += Velocity * dt with the same two hot components and optional

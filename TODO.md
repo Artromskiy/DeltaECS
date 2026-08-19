@@ -6,6 +6,25 @@ move verified work to the completed section instead of silently deleting it.
 
 ## API ergonomics
 
+- [ ] Replace the error-prone positional row API
+  `DenseChunkAccessor.GetComponentRow<T>(int queryComponentIndex)` with
+  query-bound typed row handles, while keeping the cached query-to-archetype
+  row mapping internal:
+
+  ```csharp
+  var position = query.Bind<Position>(PositionId);
+  Span<Position> positions = chunk.GetRow(position);
+  ```
+
+  Keep the storage and query core type-erased. Generic row access may exist as
+  a thin checked boundary over `Array[]`, but it must not turn the core into a
+  generic `Query<T1, T2>` implementation. A binding validates the registered
+  component type once, outside chunk and entity loops. This change will
+  probably break existing benchmark and test source API, so first inventory
+  positional-index callers and provide a temporary compatibility overload or
+  migrate all consumers in one commit. Preserve the allocation-free cached row
+  plan and verify that performance does not regress.
+
 - [ ] Add a simple `Query` overload without user context:
 
   ```csharp
@@ -35,3 +54,8 @@ move verified work to the completed section instead of silently deleting it.
 ## Completed
 
 Move completed items here with their commit hash and verification summary.
+
+- [x] Migrated the complete repository to the `Delta` namespace root,
+  including source, tests, benchmarks, project metadata, documentation, CI
+  inputs, generated artifacts, and file names. Assembly and project names stay
+  `DeltaECS*` for reference compatibility.

@@ -1,4 +1,4 @@
-namespace DVG.ECS.Benchmarks;
+namespace Delta.ECS.Benchmarks;
 
 /// <summary>Runs every supported unified method once at Amount=100 without BDN.</summary>
 public static class ComparativeBenchmarkExecutionSmoke

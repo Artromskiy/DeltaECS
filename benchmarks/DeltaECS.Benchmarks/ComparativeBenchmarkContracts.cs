@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace DVG.ECS.Benchmarks;
+namespace Delta.ECS.Benchmarks;
 
 /// <summary>One source of truth for the comparable workload sizes.</summary>
 public static class ComparativeBenchmarkParameters

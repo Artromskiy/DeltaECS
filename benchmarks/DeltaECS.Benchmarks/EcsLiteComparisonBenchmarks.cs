@@ -1,9 +1,9 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
-using DVG.ECS;
+using Delta.ECS;
 using Leopotam.EcsLite;
 
-namespace DVG.ECS.Benchmarks;
+namespace Delta.ECS.Benchmarks;
 
 [MemoryDiagnoser]
 [ShortRunJob]

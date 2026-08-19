@@ -2,14 +2,14 @@ using System;
 using BenchmarkDotNet.Attributes;
 using DefaultEcs.Command;
 using DefaultEcs;
-using DVG.ECS;
+using Delta.ECS;
 
-using DVGEntity = DVG.ECS.Entity;
+using DeltaEntity = Delta.ECS.Entity;
 
-namespace DVG.ECS.Benchmarks;
+namespace Delta.ECS.Benchmarks;
 
 /// <summary>
-/// Fairness-focused comparison of dense movement and structural workloads between DVG.ECS and DefaultEcs.
+/// Fairness-focused comparison of dense movement and structural workloads between Delta.ECS and DefaultEcs.
 /// Setups are done once in <see cref="GlobalSetup"/>; only hot loop work is measured.
 /// </summary>
 [MemoryDiagnoser]
@@ -24,14 +24,14 @@ public class DefaultEcsComparisonBenchmarks
     [Params(0, 2, 6)]
     public int PayloadRows { get; set; }
 
-    private World _dvgMovementWorld = null!;
-    private ComponentId _dvgPosition;
-    private ComponentId _dvgVelocity;
-    private ComponentId[] _dvgPayloads = Array.Empty<ComponentId>();
-    private ComponentId[] _dvgMovementComponents = Array.Empty<ComponentId>();
-    private QueryHandle _dvgMovementQuery;
-    private DVGEntity[] _dvgMovementEntities = Array.Empty<DVGEntity>();
-    private ComponentId[] _dvgTransitionComponents = Array.Empty<ComponentId>();
+    private World _deltaMovementWorld = null!;
+    private ComponentId _deltaPosition;
+    private ComponentId _deltaVelocity;
+    private ComponentId[] _deltaPayloads = Array.Empty<ComponentId>();
+    private ComponentId[] _deltaMovementComponents = Array.Empty<ComponentId>();
+    private QueryHandle _deltaMovementQuery;
+    private DeltaEntity[] _deltaMovementEntities = Array.Empty<DeltaEntity>();
+    private ComponentId[] _deltaTransitionComponents = Array.Empty<ComponentId>();
 
     private DefaultEcs.World _defaultMovementWorld = null!;
     private DefaultEcs.Entity[] _defaultMovementEntities = Array.Empty<DefaultEcs.Entity>();
@@ -41,21 +41,21 @@ public class DefaultEcsComparisonBenchmarks
     private DefaultEcs.Entity[] _defaultTransitionEntities = Array.Empty<DefaultEcs.Entity>();
     private EntityCommandRecorder _defaultTransitionRecorder = null!;
 
-    private World _dvgBatchWorld = null!;
-    private ComponentId[] _dvgBatchComponents = Array.Empty<ComponentId>();
-    private DVGEntity[] _dvgBatchEntities = Array.Empty<DVGEntity>();
+    private World _deltaBatchWorld = null!;
+    private ComponentId[] _deltaBatchComponents = Array.Empty<ComponentId>();
+    private DeltaEntity[] _deltaBatchEntities = Array.Empty<DeltaEntity>();
 
-    private World _dvgTransitionWorld = null!;
-    private DVGEntity[] _dvgTransitionEntities = Array.Empty<DVGEntity>();
+    private World _deltaTransitionWorld = null!;
+    private DeltaEntity[] _deltaTransitionEntities = Array.Empty<DeltaEntity>();
 
     [GlobalSetup]
     public void Setup()
     {
-        SetupMovementDvg();
+        SetupMovementDelta();
         SetupMovementDefault();
-        SetupBatchDvg();
+        SetupBatchDelta();
         SetupBatchDefault();
-        SetupTransitionDvg();
+        SetupTransitionDelta();
         SetupTransitionDefault();
     }
 
@@ -63,7 +63,7 @@ public class DefaultEcsComparisonBenchmarks
     public void Cleanup()
     {
         // DefaultEcs owns its component stores and must be disposed after each
-        // parameter combination. DVG.ECS has no world-level IDisposable API.
+        // parameter combination. Delta.ECS has no world-level IDisposable API.
         _defaultMovementWorld?.Dispose();
         _defaultBatchWorld?.Dispose();
         _defaultTransitionWorld?.Dispose();
@@ -75,7 +75,7 @@ public class DefaultEcsComparisonBenchmarks
     public double DeltaECS_Movement_PositionVelocity()
     {
         var state = new MovementState { Count = 0, ExpectedCount = Amount, Dt = Dt };
-        _dvgMovementWorld.Query(in _dvgMovementQuery, QueryAccess.Write, ref state, static (ref MovementState s, ref DenseChunkAccessor lease) =>
+        _deltaMovementWorld.Query(in _deltaMovementQuery, QueryAccess.Write, ref state, static (ref MovementState s, ref DenseChunkAccessor lease) =>
         {
             var positions = lease.GetComponentRow<MovementPosition>(0);
             var velocities = lease.GetComponentRow<MovementVelocity>(1);
@@ -115,11 +115,11 @@ public class DefaultEcsComparisonBenchmarks
     [BenchmarkCategory("CreateDestroy")]
     public int DeltaECS_Batch_CreateDestroy()
     {
-        var created = _dvgBatchWorld.CreateBatch(_dvgBatchComponents, _dvgBatchEntities);
-        var destroyed = _dvgBatchWorld.DestroyBatch(_dvgBatchEntities);
-        if (created != Amount || destroyed != Amount || _dvgBatchWorld.AliveEntityCount != 0)
+        var created = _deltaBatchWorld.CreateBatch(_deltaBatchComponents, _deltaBatchEntities);
+        var destroyed = _deltaBatchWorld.DestroyBatch(_deltaBatchEntities);
+        if (created != Amount || destroyed != Amount || _deltaBatchWorld.AliveEntityCount != 0)
         {
-            throw new InvalidOperationException($"DVG batch lifecycle mismatch: created={created}, destroyed={destroyed}, alive={_dvgBatchWorld.AliveEntityCount}.");
+            throw new InvalidOperationException($"Delta batch lifecycle mismatch: created={created}, destroyed={destroyed}, alive={_deltaBatchWorld.AliveEntityCount}.");
         }
 
         return created + destroyed;
@@ -134,7 +134,7 @@ public class DefaultEcsComparisonBenchmarks
         {
             _defaultBatchEntities[i] = _defaultBatchWorld.CreateEntity();
             // DefaultEcs creates an empty entity; adding the two components is
-            // the corresponding operation to DVG's two-component CreateBatch.
+            // the corresponding operation to Delta's two-component CreateBatch.
             _defaultBatchEntities[i].Set<BatchValue>();
             _defaultBatchEntities[i].Set<BatchVelocity>();
             created++;
@@ -164,18 +164,18 @@ public class DefaultEcsComparisonBenchmarks
     [BenchmarkCategory("Structural")]
     public int DeltaECS_Batch_AddRemoveTransition()
     {
-        _dvgTransitionWorld.AddComponents(_dvgTransitionComponents, _dvgTransitionEntities);
+        _deltaTransitionWorld.AddComponents(_deltaTransitionComponents, _deltaTransitionEntities);
 
-        if (!_dvgTransitionWorld.TryGetComponent(_dvgTransitionEntities[0], _dvgTransitionComponents[0], out TransitionPayload _))
+        if (!_deltaTransitionWorld.TryGetComponent(_deltaTransitionEntities[0], _deltaTransitionComponents[0], out TransitionPayload _))
         {
-            throw new InvalidOperationException("DVG transition add did not produce the payload component.");
+            throw new InvalidOperationException("Delta transition add did not produce the payload component.");
         }
 
-        _dvgTransitionWorld.RemoveComponents(_dvgTransitionComponents, _dvgTransitionEntities);
+        _deltaTransitionWorld.RemoveComponents(_deltaTransitionComponents, _deltaTransitionEntities);
 
-        if (_dvgTransitionWorld.TryGetComponent(_dvgTransitionEntities[0], _dvgTransitionComponents[0], out TransitionPayload _))
+        if (_deltaTransitionWorld.TryGetComponent(_deltaTransitionEntities[0], _deltaTransitionComponents[0], out TransitionPayload _))
         {
-            throw new InvalidOperationException("DVG transition remove left the payload component present.");
+            throw new InvalidOperationException("Delta transition remove left the payload component present.");
         }
 
         return Amount * 2;
@@ -214,41 +214,41 @@ public class DefaultEcsComparisonBenchmarks
         return Amount * 2;
     }
 
-    private void SetupMovementDvg()
+    private void SetupMovementDelta()
     {
         var layouts = new ComponentLayoutRegistry();
-        _dvgPosition = layouts.Register<MovementPosition>(new SchemaId(130_000));
-        _dvgVelocity = layouts.Register<MovementVelocity>(new SchemaId(130_001));
-        _dvgPayloads = new ComponentId[PayloadRows];
+        _deltaPosition = layouts.Register<MovementPosition>(new SchemaId(130_000));
+        _deltaVelocity = layouts.Register<MovementVelocity>(new SchemaId(130_001));
+        _deltaPayloads = new ComponentId[PayloadRows];
         for (var i = 0; i < PayloadRows; i++)
         {
-            _dvgPayloads[i] = RegisterPayload(layouts, i);
+            _deltaPayloads[i] = RegisterPayload(layouts, i);
         }
 
-        _dvgMovementComponents = new ComponentId[2 + PayloadRows];
-        _dvgMovementComponents[0] = _dvgPosition;
-        _dvgMovementComponents[1] = _dvgVelocity;
+        _deltaMovementComponents = new ComponentId[2 + PayloadRows];
+        _deltaMovementComponents[0] = _deltaPosition;
+        _deltaMovementComponents[1] = _deltaVelocity;
         for (var i = 0; i < PayloadRows; i++)
         {
-            _dvgMovementComponents[2 + i] = _dvgPayloads[i];
+            _deltaMovementComponents[2 + i] = _deltaPayloads[i];
         }
 
-        _dvgMovementWorld = new World(layouts, initialEntityCapacity: Amount);
-        _dvgMovementEntities = new DVGEntity[Amount];
-        _dvgMovementWorld.CreateBatch(_dvgMovementComponents, _dvgMovementEntities);
+        _deltaMovementWorld = new World(layouts, initialEntityCapacity: Amount);
+        _deltaMovementEntities = new DeltaEntity[Amount];
+        _deltaMovementWorld.CreateBatch(_deltaMovementComponents, _deltaMovementEntities);
 
-        for (var i = 0; i < _dvgMovementEntities.Length; i++)
+        for (var i = 0; i < _deltaMovementEntities.Length; i++)
         {
-            _dvgMovementWorld.SetComponent(_dvgMovementEntities[i], _dvgPosition, new MovementPosition { X = 1f, Y = 2f });
-            _dvgMovementWorld.SetComponent(_dvgMovementEntities[i], _dvgVelocity, new MovementVelocity { X = 3f, Y = 4f });
+            _deltaMovementWorld.SetComponent(_deltaMovementEntities[i], _deltaPosition, new MovementPosition { X = 1f, Y = 2f });
+            _deltaMovementWorld.SetComponent(_deltaMovementEntities[i], _deltaVelocity, new MovementVelocity { X = 3f, Y = 4f });
             for (var payloadIndex = 0; payloadIndex < PayloadRows; payloadIndex++)
             {
-                _dvgMovementWorld.SetComponent(_dvgMovementEntities[i], _dvgPayloads[payloadIndex], new MovementPayload());
+                _deltaMovementWorld.SetComponent(_deltaMovementEntities[i], _deltaPayloads[payloadIndex], new MovementPayload());
             }
         }
 
-        var queryDescription = QueryDescription.ForComponents(_dvgMovementComponents);
-        _dvgMovementQuery = _dvgMovementWorld.CreateQuery(in queryDescription);
+        var queryDescription = QueryDescription.ForComponents(_deltaMovementComponents);
+        _deltaMovementQuery = _deltaMovementWorld.CreateQuery(in queryDescription);
     }
 
     private void SetupMovementDefault()
@@ -286,14 +286,14 @@ public class DefaultEcsComparisonBenchmarks
         }
     }
 
-    private void SetupBatchDvg()
+    private void SetupBatchDelta()
     {
         var layouts = new ComponentLayoutRegistry();
         var first = layouts.Register<BatchValue>(new SchemaId(130_101));
         var second = layouts.Register<BatchValue>(new SchemaId(130_102));
-        _dvgBatchWorld = new World(layouts, initialEntityCapacity: Amount);
-        _dvgBatchComponents = new[] { first, second };
-        _dvgBatchEntities = new DVGEntity[Amount];
+        _deltaBatchWorld = new World(layouts, initialEntityCapacity: Amount);
+        _deltaBatchComponents = new[] { first, second };
+        _deltaBatchEntities = new DeltaEntity[Amount];
     }
 
     private void SetupBatchDefault()
@@ -302,25 +302,25 @@ public class DefaultEcsComparisonBenchmarks
         _defaultBatchEntities = new DefaultEcs.Entity[Amount];
     }
 
-    private void SetupTransitionDvg()
+    private void SetupTransitionDelta()
     {
         var layouts = new ComponentLayoutRegistry();
         var baseComponent = layouts.Register<TransitionBase>(new SchemaId(130_201));
         var transitionPayload = layouts.Register<TransitionPayload>(new SchemaId(130_202));
-        _dvgTransitionWorld = new World(layouts, initialEntityCapacity: Amount);
-        _dvgTransitionEntities = new DVGEntity[Amount];
-        _dvgTransitionWorld.CreateBatch(new[] { baseComponent }, _dvgTransitionEntities);
-        _dvgTransitionComponents = new[] { transitionPayload };
+        _deltaTransitionWorld = new World(layouts, initialEntityCapacity: Amount);
+        _deltaTransitionEntities = new DeltaEntity[Amount];
+        _deltaTransitionWorld.CreateBatch(new[] { baseComponent }, _deltaTransitionEntities);
+        _deltaTransitionComponents = new[] { transitionPayload };
         for (var i = 0; i < Amount; i++)
         {
-            _dvgTransitionWorld.SetComponent(_dvgTransitionEntities[i], baseComponent, new TransitionBase { A = 1 });
+            _deltaTransitionWorld.SetComponent(_deltaTransitionEntities[i], baseComponent, new TransitionBase { A = 1 });
         }
     }
 
     private void SetupTransitionDefault()
     {
         _defaultTransitionWorld = new DefaultEcs.World(Amount);
-        // Match DVG's queue + playback lifecycle. The generous fixed command
+        // Match Delta's queue + playback lifecycle. The generous fixed command
         // budget keeps recorder growth/allocation out of the measured loop.
         _defaultTransitionRecorder = new EntityCommandRecorder(Amount * 64);
         _defaultTransitionEntities = new DefaultEcs.Entity[Amount];

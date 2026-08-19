@@ -1,4 +1,4 @@
-namespace DVG.ECS;
+namespace Delta.ECS;
 
 using System;
 

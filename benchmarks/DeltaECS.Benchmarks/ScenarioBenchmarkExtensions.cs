@@ -3,12 +3,12 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Arch.Core;
 using BenchmarkDotNet.Attributes;
-using DVG.ECS;
+using Delta.ECS;
 using Friflo.Engine.ECS;
 using ArchComponentType = Arch.Core.Utils.ComponentType;
 using FrifloEntity = Friflo.Engine.ECS.Entity;
 
-namespace DVG.ECS.Benchmarks;
+namespace Delta.ECS.Benchmarks;
 
 [MemoryDiagnoser]
 [ShortRunJob]
@@ -67,7 +67,7 @@ public class SmallDenseScenarioBenchmarks
         }
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
-        var description = DVG.ECS.QueryDescription.ForComponents(_deltaComponents);
+        var description = Delta.ECS.QueryDescription.ForComponents(_deltaComponents);
         _deltaQuery = _deltaWorld.CreateQuery(in description);
 
         var entities = new Entity[Amount];
@@ -425,7 +425,7 @@ public class WideArchetypeNarrowAccessBenchmarks
         }
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
-        var query = DVG.ECS.QueryDescription.ForComponents(_deltaComponents[0], _deltaComponents[1]);
+        var query = Delta.ECS.QueryDescription.ForComponents(_deltaComponents[0], _deltaComponents[1]);
         _deltaQuery = _deltaWorld.CreateQuery(in query);
 
         var entities = new Entity[Amount];
@@ -514,7 +514,7 @@ public class WideArchetypeNarrowAccessComparisonBenchmarks
         }
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
-        var query = DVG.ECS.QueryDescription.ForComponents(_deltaComponents[0], _deltaComponents[1]);
+        var query = Delta.ECS.QueryDescription.ForComponents(_deltaComponents[0], _deltaComponents[1]);
         _deltaQuery = _deltaWorld.CreateQuery(in query);
 
         var entities = new Entity[Amount];

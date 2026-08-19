@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using NUnit.Framework;
-using DVG.ECS;
+using Delta.ECS;
 
-namespace DVG.ECS.Tests;
+namespace Delta.ECS.Tests;
 
 [TestFixture]
 public sealed class DeltaECSDeliveryTests
@@ -263,6 +263,89 @@ public sealed class DeltaECSDeliveryTests
         });
 
         Assert.That(fullTaggedState.Entities, Is.EquivalentTo(created));
+    }
+
+    [Test]
+    public void TaggedQueries_Reuse_Scratch_And_Preserve_None_Full_Partial_Across_All_APIs()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        var world = new World(layouts, chunkCapacity: 2);
+        var entities = new Entity[5];
+        world.CreateBatch(new[] { PositionId }, entities);
+        world.AddTag(entities[0], TagActive);
+        world.AddTag(entities[4], TagActive);
+
+        var tagged = new QueryDescription(
+            new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
+            new[] { TagActive }, Array.Empty<TagId>(), Array.Empty<TagId>());
+        var handle = world.CreateQuery(in tagged);
+
+        var actionSummary = new OverlaySummary();
+        world.Query(in tagged, QueryAccess.Read, scope => actionSummary.Observe(scope));
+        Assert.That(actionSummary.ActiveSlots, Is.EqualTo(2));
+        Assert.That(actionSummary.Chunks, Is.EqualTo(2));
+        Assert.That(actionSummary.SawPartial, Is.True);
+        Assert.That(actionSummary.SawFull, Is.True);
+
+        var callbackSummary = new OverlaySummary();
+        world.Query(in handle, QueryAccess.Read, ref callbackSummary, static (ref OverlaySummary state, ref DenseChunkAccessor accessor) =>
+        {
+            state.Observe(ref accessor);
+        });
+        Assert.That(callbackSummary.ActiveSlots, Is.EqualTo(2));
+        Assert.That(callbackSummary.Chunks, Is.EqualTo(2));
+        Assert.That(callbackSummary.SawPartial, Is.True);
+        Assert.That(callbackSummary.SawFull, Is.True);
+
+        var enumeratorSummary = new OverlaySummary();
+        using (var chunks = world.QueryChunks(in handle))
+        {
+            while (chunks.MoveNext())
+            {
+                var accessor = chunks.Current;
+                enumeratorSummary.Observe(ref accessor);
+            }
+        }
+
+        Assert.That(enumeratorSummary.ActiveSlots, Is.EqualTo(2));
+        Assert.That(enumeratorSummary.Chunks, Is.EqualTo(2));
+        Assert.That(enumeratorSummary.SawPartial, Is.True);
+        Assert.That(enumeratorSummary.SawFull, Is.True);
+
+        var missingAll = new QueryDescription(
+            new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
+            new[] { new TagId(404) }, Array.Empty<TagId>(), Array.Empty<TagId>());
+        var missingAny = new QueryDescription(
+            new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
+            Array.Empty<TagId>(), new[] { new TagId(405) }, Array.Empty<TagId>());
+        Assert.That(CountQuery(world, missingAll), Is.EqualTo(0));
+        Assert.That(CountQuery(world, missingAny), Is.EqualTo(0));
+
+        var missingNone = new QueryDescription(
+            new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
+            Array.Empty<TagId>(), Array.Empty<TagId>(), new[] { new TagId(406) });
+        var noneCount = 0;
+        world.Query(in missingNone, QueryAccess.Read, scope => noneCount += CountActiveSlots(scope));
+        Assert.That(noneCount, Is.EqualTo(entities.Length));
+    }
+
+    [Test]
+    public void OverlayMask_Fills_Only_Configured_Words_And_Clears_Unused_Chunk_Bits()
+    {
+        var manager = new OverlayTagManager(chunkCapacity: 130);
+        var query = new QueryDescription(
+            Array.Empty<ComponentId>(), Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
+            Array.Empty<TagId>(), Array.Empty<TagId>(), new[] { new TagId(404) });
+        var scratch = new ulong[17];
+        Array.Fill(scratch, ulong.MaxValue);
+
+        var result = manager.BuildMask(query, chunkId: 0, chunkSize: 65, scratch);
+
+        Assert.That(result, Is.EqualTo(OverlayMaskResult.Full));
+        Assert.That(scratch[0], Is.EqualTo(ulong.MaxValue));
+        Assert.That(scratch[1], Is.EqualTo(1UL));
+        Assert.That(scratch[2], Is.EqualTo(0UL));
     }
 
     [Test]
@@ -1140,6 +1223,57 @@ public sealed class DeltaECSDeliveryTests
 
         public HashSet<Entity> Entities;
         public bool SawPartialChunk;
+    }
+
+    private sealed class OverlaySummary
+    {
+        public int ActiveSlots;
+        public int Chunks;
+        public bool SawPartial;
+        public bool SawFull;
+
+        public void Observe(DenseChunkScope scope)
+        {
+            Chunks++;
+            var chunkActive = 0;
+            for (var slot = scope.SlotCount - 1; slot >= 0; slot--)
+            {
+                if (scope.IsActiveSlot(slot))
+                {
+                    chunkActive++;
+                }
+            }
+
+            ActiveSlots += chunkActive;
+            if (chunkActive == scope.SlotCount)
+            {
+                SawFull = true;
+            }
+            else
+            {
+                SawPartial = true;
+            }
+        }
+
+        public void Observe(ref DenseChunkAccessor accessor)
+        {
+            Chunks++;
+            if (accessor.IsAllSlotsActive)
+            {
+                SawFull = true;
+                ActiveSlots += accessor.SlotCount;
+                return;
+            }
+
+            SawPartial = true;
+            for (var slot = accessor.SlotCount - 1; slot >= 0; slot--)
+            {
+                if (accessor.IsActiveSlot(slot))
+                {
+                    ActiveSlots++;
+                }
+            }
+        }
     }
 
     private struct LeaseMutationState

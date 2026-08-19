@@ -4,9 +4,9 @@ using Arch.Core;
 using Arch.Core.Utils;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
-using DVG.ECS;
+using Delta.ECS;
 
-namespace DVG.ECS.Benchmarks;
+namespace Delta.ECS.Benchmarks;
 
 [MemoryDiagnoser]
 [SimpleJob]

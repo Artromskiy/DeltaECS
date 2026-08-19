@@ -2,16 +2,16 @@ using Arch.Core;
 using Arch.Core.Utils;
 using BenchmarkDotNet.Attributes;
 using DefaultEcs;
-using DVG.ECS;
+using Delta.ECS;
 using Friflo.Engine.ECS;
 using Leopotam.EcsLite;
-using DeltaEntity = DVG.ECS.Entity;
-using DeltaWorld = DVG.ECS.World;
+using DeltaEntity = Delta.ECS.Entity;
+using DeltaWorld = Delta.ECS.World;
 using DefaultWorld = DefaultEcs.World;
 using FrifloEntity = Friflo.Engine.ECS.Entity;
 using ArchComponentType = Arch.Core.Utils.ComponentType;
 
-namespace DVG.ECS.Benchmarks;
+namespace Delta.ECS.Benchmarks;
 
 [MemoryDiagnoser]
 [ShortRunJob]

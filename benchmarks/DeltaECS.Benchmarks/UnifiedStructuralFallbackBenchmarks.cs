@@ -11,7 +11,7 @@ using DefaultEntity = DefaultEcs.Entity;
 using DefaultWorld = DefaultEcs.World;
 using FrifloEntity = Friflo.Engine.ECS.Entity;
 
-namespace DVG.ECS.Benchmarks;
+namespace Delta.ECS.Benchmarks;
 
 public partial class ComparativeStructuralListBenchmarks
 {

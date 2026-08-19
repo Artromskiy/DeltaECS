@@ -1,8 +1,8 @@
 using System;
 using BenchmarkDotNet.Attributes;
-using DVG.ECS;
+using Delta.ECS;
 
-namespace DVG.ECS.Benchmarks;
+namespace Delta.ECS.Benchmarks;
 
 public enum TagFilterDistribution
 {

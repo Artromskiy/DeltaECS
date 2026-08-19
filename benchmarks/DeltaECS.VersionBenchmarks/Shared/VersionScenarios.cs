@@ -1,6 +1,6 @@
 namespace DeltaECS.VersionAdapter;
 
-using DVG.ECS;
+using Delta.ECS;
 
 public enum AtomicOperation
 {

@@ -2,12 +2,12 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using BenchmarkDotNet.Attributes;
-using DVG.ECS;
+using Delta.ECS;
 using Friflo.Engine.ECS;
-using DeltaEntity = DVG.ECS.Entity;
+using DeltaEntity = Delta.ECS.Entity;
 using ArchComponentType = Arch.Core.Utils.ComponentType;
 
-namespace DVG.ECS.Benchmarks;
+namespace Delta.ECS.Benchmarks;
 
 [MemoryDiagnoser]
 [SimpleJob]

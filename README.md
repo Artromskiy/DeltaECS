@@ -5,8 +5,8 @@ design goals are predictable data locality, very fast batch operations, cheap
 temporary state, and generated typed ergonomics without making the storage
 kernel depend on CLR component types.
 
-The public namespace is `DVG.ECS`; test and benchmark code uses the nested
-namespaces `DVG.ECS.Tests` and `DVG.ECS.Benchmarks`. Project and assembly names
+The public namespace is `Delta.ECS`; test and benchmark code uses the nested
+namespaces `Delta.ECS.Tests` and `Delta.ECS.Benchmarks`. Project and assembly names
 remain `DeltaECS*` for reference compatibility, so consumers only need a
 source-level namespace update.
 

@@ -1,7 +1,7 @@
-using DVG.ECS.Benchmarks;
+using Delta.ECS.Benchmarks;
 using NUnit.Framework;
 
-namespace DVG.ECS.Tests;
+namespace Delta.ECS.Tests;
 
 [TestFixture]
 public sealed class ComparativeBenchmarkContractTests

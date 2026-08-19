@@ -1,7 +1,7 @@
-using DVG.ECS;
+using Delta.ECS;
 using NUnit.Framework;
 
-namespace DVG.ECS.Tests;
+namespace Delta.ECS.Tests;
 
 [TestFixture]
 public sealed class ComponentRowOperationTests

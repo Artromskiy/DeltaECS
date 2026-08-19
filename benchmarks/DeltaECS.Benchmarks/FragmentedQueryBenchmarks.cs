@@ -1,8 +1,8 @@
 using System;
 using BenchmarkDotNet.Attributes;
-using DVG.ECS;
+using Delta.ECS;
 
-namespace DVG.ECS.Benchmarks;
+namespace Delta.ECS.Benchmarks;
 
 /// <summary>
 /// Delta-only feature lane: deliberately stresses the cached query's
