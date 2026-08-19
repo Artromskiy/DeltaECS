@@ -114,7 +114,7 @@ public sealed class ComponentRowOperationTests
         var referenceRow = (ReferencePayload[])chunk.GetRawComponentRow(1);
         Assert.Multiple(() =>
         {
-            Assert.That(chunk.Size, Is.EqualTo(1));
+            Assert.That(chunk.Count, Is.EqualTo(1));
             Assert.That(valueRow[1], Is.EqualTo(22), "value-only tail is intentionally not cleared");
             Assert.That(referenceRow[1], Is.Null, "reference tail must be cleared for GC");
         });

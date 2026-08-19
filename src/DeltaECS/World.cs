@@ -359,7 +359,7 @@ public sealed class World
                     continue;
                 }
 
-                var overlay = BuildOverlayMask(query, hasTags, chunk.GlobalId, chunk.Size, out var fullMask);
+                var overlay = BuildOverlayMask(query, hasTags, chunk.GlobalId, chunk.Count, out var fullMask);
                 if (hasTags && overlay is null && !fullMask)
                 {
                     continue;
@@ -405,7 +405,7 @@ public sealed class World
                     }
 
                     var chunkId = chunk.GlobalId;
-                    var overlay = BuildOverlayMask(query, hasTags, chunkId, chunk.Size, out var fullMask);
+                    var overlay = BuildOverlayMask(query, hasTags, chunkId, chunk.Count, out var fullMask);
                     if (hasTags && overlay is null && !fullMask)
                     {
                         continue;
@@ -517,7 +517,7 @@ public sealed class World
                     }
 
                     var chunkId = chunk.GlobalId;
-                    var overlay = _owner.BuildOverlayMask(_query, _hasTags, chunkId, chunk.Size, out var fullMask);
+                    var overlay = _owner.BuildOverlayMask(_query, _hasTags, chunkId, chunk.Count, out var fullMask);
                     if (_hasTags && overlay is null && !fullMask)
                     {
                         continue;
@@ -679,7 +679,7 @@ public sealed class World
         var archetype = _archetypes[record.Archetype];
         var chunk = archetype.GetChunk(record.Chunk);
         var chunkId = chunk.GlobalId;
-        var lastSlotIndex = chunk.Size - 1;
+        var lastSlotIndex = chunk.Count - 1;
         var moved = archetype.RemoveEntity(record.Chunk, record.SlotIndex);
         if (record.SlotIndex != lastSlotIndex)
         {
@@ -735,7 +735,7 @@ public sealed class World
         }
 
         _overlayTags.CopySlotTags(sourceChunkId, sourceSlotIndex, targetChunk.GlobalId, targetSlotIndex);
-        var lastSlotIndex = sourceChunk.Size - 1;
+        var lastSlotIndex = sourceChunk.Count - 1;
         var moved = sourceArchetype.RemoveEntity(sourceChunkIndex, sourceSlotIndex);
         if (sourceSlotIndex != lastSlotIndex)
         {

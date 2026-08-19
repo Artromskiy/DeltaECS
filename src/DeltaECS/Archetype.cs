@@ -55,7 +55,7 @@ internal sealed class Archetype
             var count = 0;
             for (var i = 0; i < _chunks.Count; i++)
             {
-                count += _chunks[i].Size;
+                count += _chunks[i].Count;
             }
 
             return count;

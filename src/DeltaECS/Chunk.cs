@@ -10,7 +10,7 @@ internal sealed class Chunk
     private readonly ComponentRowOperations[] _rowOperations;
     private readonly uint[] _componentVersions;
     private readonly Entity[] _entities;
-    private int _size;
+    private int _count;
     private int _highWaterMark;
 
     public Chunk(
@@ -56,13 +56,13 @@ internal sealed class Chunk
 
     public int Capacity => _capacity;
 
-    public int Size => _size;
+    public int Count => _count;
 
-    public bool IsFull => _size >= _capacity;
+    public bool IsFull => _count >= _capacity;
 
-    public bool IsEmpty => _size == 0;
+    public bool IsEmpty => _count == 0;
 
-    public Span<Entity> Entities => new(_entities, 0, _size);
+    public Span<Entity> Entities => new(_entities, 0, _count);
 
     public int Add(Entity entity, out bool reusedSlot)
     {
@@ -71,11 +71,11 @@ internal sealed class Chunk
             throw new InvalidOperationException("Chunk is full.");
         }
 
-        var slotIndex = _size++;
+        var slotIndex = _count++;
         reusedSlot = slotIndex < _highWaterMark;
-        if (_size > _highWaterMark)
+        if (_count > _highWaterMark)
         {
-            _highWaterMark = _size;
+            _highWaterMark = _count;
         }
 
         _entities[slotIndex] = entity;
@@ -84,12 +84,12 @@ internal sealed class Chunk
 
     public Entity RemoveSwapBack(int slotIndex)
     {
-        if (slotIndex < 0 || slotIndex >= _size)
+        if (slotIndex < 0 || slotIndex >= _count)
         {
             throw new ArgumentOutOfRangeException(nameof(slotIndex));
         }
 
-        var lastSlotIndex = _size - 1;
+        var lastSlotIndex = _count - 1;
         var moved = _entities[lastSlotIndex];
         if (slotIndex < lastSlotIndex)
         {
@@ -99,14 +99,14 @@ internal sealed class Chunk
 
         _entities[lastSlotIndex] = Entity.Null;
         ClearReferenceRows(lastSlotIndex);
-        _size = lastSlotIndex;
+        _count = lastSlotIndex;
         return slotIndex < lastSlotIndex ? moved : Entity.Null;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Span<T> GetComponentRow<T>(int componentIndex)
     {
-        return ((T[])_componentRows[componentIndex]).AsSpan(0, _size);
+        return ((T[])_componentRows[componentIndex]).AsSpan(0, _count);
     }
 
     public Array GetRawComponentRow(int componentIndex) => _componentRows[componentIndex];

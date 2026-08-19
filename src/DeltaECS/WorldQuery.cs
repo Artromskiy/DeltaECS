@@ -23,7 +23,7 @@ public sealed class DenseChunkScope : IDisposable
         _archetype = archetype;
         _chunk = chunk;
         _globalChunkId = globalChunkId;
-        _slotCount = chunk.Size;
+        _slotCount = chunk.Count;
         _overlayMask = overlayMask;
         _fullMask = fullMask;
     }
@@ -103,7 +103,7 @@ public ref struct DenseChunkAccessor
         _chunk = chunk;
         _archetypeId = archetype.Id;
         _globalChunkId = globalChunkId;
-        _slotCount = chunk.Size;
+        _slotCount = chunk.Count;
         _queryComponentRowIndices = queryComponentRowIndices;
         _overlayMask = overlayMask;
         _fullMask = fullMask;
