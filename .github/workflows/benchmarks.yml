@@ -32,9 +32,9 @@ on:
           - structural-atomic
           - version-comparison
       baseline_ref:
-        description: Baseline DeltaECS git ref for version-comparison
-        required: true
-        default: main
+        description: Baseline ref; leave empty to use the parent of candidate_ref
+        required: false
+        default: ""
         type: string
       candidate_ref:
         description: Candidate DeltaECS git ref for version-comparison
@@ -253,17 +253,51 @@ jobs:
         uses: actions/checkout@v7
         with:
           path: harness
+          fetch-depth: 0
+
+      - name: Resolve version refs
+        id: version-refs
+        shell: bash
+        env:
+          BASELINE_REF_INPUT: ${{ inputs.baseline_ref }}
+          CANDIDATE_REF_INPUT: ${{ inputs.candidate_ref }}
+        run: |
+          resolve_ref() {
+            local requested="$1"
+            local resolved
+            if resolved="$(git -C "$HARNESS_ROOT" rev-parse --verify --end-of-options "${requested}^{commit}" 2>/dev/null)"; then
+              printf '%s\n' "$resolved"
+              return
+            fi
+            if resolved="$(git -C "$HARNESS_ROOT" rev-parse --verify --end-of-options "origin/${requested}^{commit}" 2>/dev/null)"; then
+              printf '%s\n' "$resolved"
+              return
+            fi
+            echo "::error::Cannot resolve git ref '$requested'." >&2
+            return 1
+          }
+
+          candidate_sha="$(resolve_ref "$CANDIDATE_REF_INPUT")"
+          if [ -n "$BASELINE_REF_INPUT" ]; then
+            baseline_sha="$(resolve_ref "$BASELINE_REF_INPUT")"
+          else
+            baseline_sha="$(git -C "$HARNESS_ROOT" rev-parse --verify "${candidate_sha}^")"
+          fi
+
+          echo "candidate_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
+          echo "baseline_sha=$baseline_sha" >> "$GITHUB_OUTPUT"
+          echo "Resolved baseline $baseline_sha -> candidate $candidate_sha"
 
       - name: Checkout baseline
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.baseline_ref }}
+          ref: ${{ steps.version-refs.outputs.baseline_sha }}
           path: baseline
 
       - name: Checkout candidate
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.candidate_ref }}
+          ref: ${{ steps.version-refs.outputs.candidate_sha }}
           path: candidate
 
       - name: Install .NET 8
@@ -275,7 +309,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ env.NUGET_PACKAGES }}
-          key: nuget-version-${{ runner.os }}-${{ inputs.baseline_ref }}-${{ inputs.candidate_ref }}-${{ hashFiles('harness/benchmarks/DeltaECS.VersionBenchmarks/**/*.csproj') }}
+          key: nuget-version-${{ runner.os }}-${{ steps.version-refs.outputs.baseline_sha }}-${{ steps.version-refs.outputs.candidate_sha }}-${{ hashFiles('harness/benchmarks/DeltaECS.VersionBenchmarks/**/*.csproj') }}
           restore-keys: |
             nuget-version-${{ runner.os }}-
 
@@ -312,7 +346,7 @@ jobs:
         run: |
           mkdir -p "$HARNESS_ROOT/artifacts/version-comparison"
           {
-            echo "baseline_ref=${{ inputs.baseline_ref }}"
+            echo "baseline_ref=${{ inputs.baseline_ref || 'candidate parent' }}"
             echo "baseline_sha=$(git -C "$BASELINE_ROOT" rev-parse HEAD)"
             echo "candidate_ref=${{ inputs.candidate_ref }}"
             echo "candidate_sha=$(git -C "$CANDIDATE_ROOT" rev-parse HEAD)"
@@ -340,7 +374,7 @@ jobs:
           {
             echo "## DeltaECS version comparison"
             echo
-            echo "Baseline: `${{ inputs.baseline_ref }}` → Candidate: `${{ inputs.candidate_ref }}`"
+            echo "Baseline: `${{ steps.version-refs.outputs.baseline_sha }}` → Candidate: `${{ steps.version-refs.outputs.candidate_sha }}`"
             echo
             echo "Runner: `${{ runner.os }} ${{ runner.arch }}`"
             echo

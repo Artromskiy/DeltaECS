@@ -420,9 +420,13 @@ In **Actions → ECS benchmarks → Run workflow**, select:
 
 ```text
 suite:          version-comparison
-baseline_ref:   commit, tag, or branch
-candidate_ref:  commit, tag, or branch
+baseline_ref:   optional commit, tag, or branch
+candidate_ref:  commit, tag, or branch (default: main)
 ```
+
+Leave `baseline_ref` empty for the common case: the workflow compares the
+parent of `candidate_ref` against the candidate. Both fields also accept short
+commit hashes; the workflow resolves them to full hashes before checkout.
 
 Both refs must expose the same public API. Revisions before the
 `DenseChunkScope` / `DenseChunkAccessor` rename require a separate legacy
