@@ -284,8 +284,15 @@ jobs:
             baseline_sha="$(git -C "$HARNESS_ROOT" rev-parse --verify "${candidate_sha}^")"
           fi
 
+          if git -C "$HARNESS_ROOT" diff --quiet "$baseline_sha" "$candidate_sha" -- src/DeltaECS; then
+            core_changed=false
+          else
+            core_changed=true
+          fi
+
           echo "candidate_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
           echo "baseline_sha=$baseline_sha" >> "$GITHUB_OUTPUT"
+          echo "core_changed=$core_changed" >> "$GITHUB_OUTPUT"
           echo "Resolved baseline $baseline_sha -> candidate $candidate_sha"
 
       - name: Checkout baseline
@@ -350,6 +357,7 @@ jobs:
             echo "baseline_sha=$(git -C "$BASELINE_ROOT" rev-parse HEAD)"
             echo "candidate_ref=${{ inputs.candidate_ref }}"
             echo "candidate_sha=$(git -C "$CANDIDATE_ROOT" rev-parse HEAD)"
+            echo "core_changed=${{ steps.version-refs.outputs.core_changed }}"
             uname -a
             lscpu
             dotnet --info
@@ -370,13 +378,25 @@ jobs:
         if: always()
         working-directory: harness
         shell: bash
+        env:
+          BASELINE_SHA: ${{ steps.version-refs.outputs.baseline_sha }}
+          CANDIDATE_SHA: ${{ steps.version-refs.outputs.candidate_sha }}
+          CORE_CHANGED: ${{ steps.version-refs.outputs.core_changed }}
+          RUNNER_OS_NAME: ${{ runner.os }}
+          RUNNER_ARCH_NAME: ${{ runner.arch }}
         run: |
           {
             echo "## DeltaECS version comparison"
             echo
-            echo "Baseline: `${{ steps.version-refs.outputs.baseline_sha }}` → Candidate: `${{ steps.version-refs.outputs.candidate_sha }}`"
+            printf 'Baseline: `%s` → Candidate: `%s`\n' "$BASELINE_SHA" "$CANDIDATE_SHA"
             echo
-            echo "Runner: `${{ runner.os }} ${{ runner.arch }}`"
+            printf 'Runner: `%s %s`\n' "$RUNNER_OS_NAME" "$RUNNER_ARCH_NAME"
+            echo
+            if [ "$CORE_CHANGED" = "true" ]; then
+              echo "Production ECS source changed between these revisions."
+            else
+              echo '> **Control run:** `src/DeltaECS` is identical in both revisions; differences below are measurement noise or code-layout effects.'
+            fi
             echo
             while IFS= read -r report; do
               cat "$report"
