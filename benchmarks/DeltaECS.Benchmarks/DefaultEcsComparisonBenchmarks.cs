@@ -77,7 +77,7 @@ public class DefaultEcsComparisonBenchmarks
     public double DeltaECS_Movement_PositionVelocity()
     {
         var state = new MovementState { Count = 0, ExpectedCount = Amount, Dt = Dt, Position = _deltaPositionBinding, Velocity = _deltaVelocityBinding };
-        _deltaMovementWorld.Query(in _deltaMovementQuery, QueryAccess.Write, ref state, static (ref MovementState s, ref DenseChunkAccessor lease) =>
+        _deltaMovementWorld.Query(in _deltaMovementQuery, ref state, static (ref MovementState s, ref DenseChunkAccessor lease) =>
         {
             var positions = lease.GetRow(s.Position);
             var velocities = lease.GetRow(s.Velocity);

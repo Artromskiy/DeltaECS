@@ -115,7 +115,7 @@ public class DistinctDenseComparisonBenchmarks
     public void DeltaECS_Array_DistinctTypes()
     {
         var state = new State { ComponentCount = ComponentCount, D0 = _d0Binding, D1 = _d1Binding, D2 = _d2Binding, D3 = _d3Binding, D4 = _d4Binding, D5 = _d5Binding, D6 = _d6Binding, D7 = _d7Binding };
-        using var chunks = _deltaWorld.QueryChunks(in _deltaQuery, QueryAccess.Write);
+        using var chunks = _deltaWorld.QueryChunks(in _deltaQuery);
         while (chunks.MoveNext())
         {
             var lease = chunks.Current;

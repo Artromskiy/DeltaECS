@@ -6,43 +6,27 @@ move verified work to the completed section instead of silently deleting it.
 
 ## API ergonomics
 
-- [ ] Add a simple `Query` overload without user context:
-
-  ```csharp
-  world.Query(in handle, access,
-      static (ref DenseChunkAccessor chunk) => { });
-  ```
-
-  Keep the existing `Query<TState>(..., ref TState state,
-  ChunkAction<TState> body)` overload unchanged for allocation-free
-  accumulators and existing callers. Implement the simple overload through the
-  same cached query hot path, preserve benchmark and test API compatibility,
-  and add a correctness test covering component mutation.
-
-- [ ] Clarify the stateful query terminology:
-
-  ```text
-  TState → TContext
-  state  → context
-  body   → action
-  ```
-
-  The generic parameter rename is binary-safe. Renaming public method
-  parameters can break source callers that use named arguments, so audit the
-  repository and decide whether to accept that migration before changing
-  `Query<TState>` or `ChunkAction<TState>`.
-
-- [ ] Make binding-driven execution own the write intent instead of duplicating
-  it between `WriteRowBinding<T>` and `QueryAccess.Write`. Keep `QueryAccess`
-  for compatibility; defer any lazy/shared write-tick design.
-
-- [ ] Retire the transitional legacy `GetComponentRow<T>(ComponentId/int)`
-  APIs. The `ComponentId` overload still returns a writable `Span<T>` even under
-  `QueryAccess.Read`, so it can bypass precise dirty tracking. The ordinal `int`
-  overload is now internal; migrate remaining compatibility callers to typed
-  row bindings before removing the transitional APIs completely.
+No open API-ergonomics items.
 
 ## Completed
+
+- [x] Added simple cached-query overloads with and without the compatibility
+  `QueryAccess` argument. Both route through the same context hot path, and the
+  mutation test covers write-bound component access without user context.
+
+- [x] Renamed the stateful query terminology to `TContext`, `context`, and
+  `action` across the public delegate and `World.Query` signatures. This accepts
+  the source migration for callers that used named arguments.
+
+- [x] Made `WriteRowBinding<T>` register write intent on its cached query.
+  Binding-driven `Query` and `QueryChunks` execution now prepares a write tick
+  without requiring `QueryAccess.Write`; dirty versions are still updated only
+  when the write-bound row is actually requested. `QueryAccess` remains as a
+  compatibility surface.
+
+- [x] Removed the transitional public `GetComponentRow<T>(ComponentId/int)`
+  methods from `DenseChunkScope` and `DenseChunkAccessor`. Repository tests use
+  typed bindings, including both adapters of the dual-version benchmark.
 
 - [x] Added additive `World.AddComponents(in QueryHandle, ComponentId[])`,
   `World.RemoveComponents(in QueryHandle, ComponentId[])`, and
@@ -57,17 +41,14 @@ move verified work to the completed section instead of silently deleting it.
   Binding validates the registered CLR type, world/query ownership, and
   All-mask membership once; `GetRow` returns `ReadOnlySpan<T>` for read
   bindings and `Span<T>` for write bindings. Write bindings mark only their
-  component row. The positional `GetComponentRow<T>(int)` compatibility path is
-  internal so it cannot remain part of the public hot-path contract. Tests cover
-  multiple archetypes, invalid types, foreign/mismatched bindings, read-only
-  access, precise change tracking, and the legacy API.
+  component row. Tests cover multiple archetypes, invalid types,
+  foreign/mismatched bindings, read-only access, and precise change tracking.
 
 - [x] Migrated all benchmark ordinal row access to setup-time typed bindings and
   `GetRow`, including unified comparative workloads, Delta-only profiles,
   scenario lanes, and the version-suite shared scenarios. The benchmark
-  contract guard rejects numeric ordinal access, while the version suite keeps
-  its shared baseline/candidate adapter compatibility through the existing
-  `ComponentId` overload.
+  contract guard rejects numeric ordinal access, and both version-suite
+  adapters now share the typed binding path.
 
 Move completed items here with their commit hash and verification summary.
 

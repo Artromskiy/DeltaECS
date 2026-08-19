@@ -152,6 +152,24 @@ public sealed record ComparativeReportRow(
 /// <summary>Produces the stable combined schema, including explicit infinity rows.</summary>
 public static class ComparativeReportBuilder
 {
+    private static readonly (string Prefix, string DisplayName)[] s_summaryCategories =
+    {
+        ("Iteration.", "Итерация"),
+        ("Structural.Atomic.", "Atomic structural"),
+        ("Structural.List.", "Batch по списку"),
+        ("Structural.Query.", "Batch по query")
+    };
+
+    private static readonly (string Workload, string DisplayName)[] s_iterationWorkloads =
+    {
+        ("Iteration.Dense", "Dense"),
+        ("Iteration.Movement2Components", "Movement — 2 компонента"),
+        ("Iteration.Movement4Components", "Movement — 4 компонента"),
+        ("Iteration.SparseWorldCachedQuery", "Sparse world — cached query"),
+        ("Iteration.SparseWorldColdQuery", "Sparse world — cold query"),
+        ("Iteration.WideArchetypeNarrowQuery", "Wide archetype, narrow query")
+    };
+
     public static IReadOnlyList<ComparativeReportRow> BuildManifestRows(string? parameters = null)
     {
         var result = new List<ComparativeReportRow>(ComparativeCapabilityManifest.Rows.Count);
@@ -183,6 +201,68 @@ public static class ComparativeReportBuilder
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Produces the compact GitHub-facing report. A victory is one workload/parameter
+    /// scenario where Delta has the lowest mean among all supported competitors.
+    /// </summary>
+    public static string ToSummaryMarkdown(IEnumerable<ComparativeReportRow> rows)
+    {
+        var scenarios = rows
+            .Where(IsMeasured)
+            .GroupBy(row => (row.Workload, row.Params))
+            .Select(group =>
+            {
+                var delta = group.FirstOrDefault(row => row.Ecs == ComparativeEcs.DeltaECS);
+                var rivals = group.Where(row => row.Ecs != ComparativeEcs.DeltaECS).ToArray();
+                return delta is null || rivals.Length == 0
+                    ? null
+                    : new ComparisonScenario(group.Key.Workload, group.Key.Params, delta, rivals);
+            })
+            .Where(scenario => scenario is not null)
+            .Cast<ComparisonScenario>()
+            .ToArray();
+
+        var builder = new StringBuilder();
+        builder.AppendLine("## Сводка сравнительных бенчмарков DeltaECS").AppendLine();
+        if (scenarios.Length == 0)
+        {
+            builder.AppendLine("Измеренные сравнительные результаты отсутствуют.");
+            return builder.ToString();
+        }
+
+        builder.AppendLine("| Категория | Победы Delta |");
+        builder.AppendLine("|---|---:|");
+        foreach (var category in s_summaryCategories)
+        {
+            var categoryScenarios = scenarios.Where(scenario => scenario.Workload.StartsWith(category.Prefix, StringComparison.Ordinal)).ToArray();
+            if (categoryScenarios.Length == 0) continue;
+            builder.Append('|').Append(category.DisplayName).Append('|')
+                .Append(CountVictories(categoryScenarios)).Append('/').Append(categoryScenarios.Length)
+                .Append('|').AppendLine();
+        }
+
+        builder.AppendLine().AppendLine("### Итерация").AppendLine();
+        builder.AppendLine("| Тест | Победы Delta | Лучший конкурент и отношение времени |");
+        builder.AppendLine("|---|---:|---|");
+        foreach (var workload in s_iterationWorkloads)
+        {
+            var workloadScenarios = scenarios.Where(scenario => scenario.Workload == workload.Workload).ToArray();
+            if (workloadScenarios.Length == 0) continue;
+            builder.Append('|').Append(workload.DisplayName).Append('|')
+                .Append(CountVictories(workloadScenarios)).Append('/').Append(workloadScenarios.Length).Append('|')
+                .Append(FormatBestRival(FindBestRival(workloadScenarios, static _ => true))).Append('|').AppendLine();
+        }
+
+        AppendStructuralSummary(builder, scenarios, "Structural.Atomic.", "Atomic structural");
+        AppendStructuralSummary(builder, scenarios, "Structural.List.", "Batch по списку");
+        AppendStructuralSummary(builder, scenarios, "Structural.Query.", "Batch по query");
+
+        builder.AppendLine().AppendLine(
+            "Победа — минимальное среднее время для конкретной операции и набора параметров. " +
+            "Неподдерживаемые операции исключены; отношение рассчитано по среднему времени лучшего конкурента.");
+        return builder.ToString();
+    }
+
     public static string ToCsv(IEnumerable<ComparativeReportRow> rows)
     {
         var builder = new StringBuilder("Workload,Params,ECS,Mean,RatioToDelta,Allocated,Supported,Mode,Note\n");
@@ -202,9 +282,92 @@ public static class ComparativeReportBuilder
     {
         Directory.CreateDirectory(directory);
         var rows = BuildCombinedRows(directory);
+        File.WriteAllText(Path.Combine(directory, "comparative-summary.md"), ToSummaryMarkdown(rows));
         File.WriteAllText(Path.Combine(directory, "comparative-report.md"), ToMarkdown(rows));
         File.WriteAllText(Path.Combine(directory, "comparative-report.csv"), ToCsv(rows));
     }
+
+    private static void AppendStructuralSummary(StringBuilder builder, ComparisonScenario[] scenarios, string prefix, string title)
+    {
+        var categoryScenarios = scenarios.Where(scenario => scenario.Workload.StartsWith(prefix, StringComparison.Ordinal)).ToArray();
+        if (categoryScenarios.Length == 0) return;
+
+        builder.AppendLine().Append("### ").AppendLine(title).AppendLine();
+        builder.AppendLine("| Операция | Победы Delta | Лучший native-конкурент | Лучший fallback-конкурент |");
+        builder.AppendLine("|---|---:|---|---|");
+        foreach (var operation in new[] { "Add", "Create", "Destroy", "Remove" })
+        {
+            var operationScenarios = categoryScenarios
+                .Where(scenario => StructuralOperation(scenario.Workload) == operation)
+                .ToArray();
+            if (operationScenarios.Length == 0) continue;
+
+            builder.Append('|').Append(operation).Append('|')
+                .Append(CountVictories(operationScenarios)).Append('/').Append(operationScenarios.Length).Append('|')
+                .Append(FormatBestRival(FindBestRival(operationScenarios, row => row.Mode == ComparativeCapabilityMode.Native))).Append('|')
+                .Append(FormatBestRival(FindBestRival(operationScenarios, row => row.Mode is ComparativeCapabilityMode.QueryFallback
+                    or ComparativeCapabilityMode.ListFallback or ComparativeCapabilityMode.AtomicFallback))).Append('|').AppendLine();
+        }
+    }
+
+    private static int CountVictories(IEnumerable<ComparisonScenario> scenarios) =>
+        scenarios.Count(scenario => scenario.Rivals.All(rival => scenario.Delta.Mean <= rival.Mean));
+
+    private static BestRival? FindBestRival(IEnumerable<ComparisonScenario> scenarios, Func<ComparativeReportRow, bool> predicate)
+    {
+        BestRival? best = null;
+        foreach (var scenario in scenarios)
+        {
+            foreach (var rival in scenario.Rivals.Where(predicate))
+            {
+                var ratio = rival.Mean / scenario.Delta.Mean;
+                if (!double.IsFinite(ratio) || ratio <= 0) continue;
+                if (best is null || ratio < best.RatioToDelta)
+                {
+                    best = new(rival.Ecs, scenario.Params, ratio);
+                }
+            }
+        }
+
+        return best;
+    }
+
+    private static string FormatBestRival(BestRival? best)
+    {
+        if (best is null) return "—";
+        var rival = DisplayName(best.Ecs);
+        var parameters = Markdown(best.Params);
+        if (best.RatioToDelta < 1)
+        {
+            return $"{rival} быстрее Delta в {FormatRatio(1 / best.RatioToDelta)}× (`{parameters}`)";
+        }
+
+        if (best.RatioToDelta > 1)
+        {
+            return $"Delta быстрее {rival} в {FormatRatio(best.RatioToDelta)}× (`{parameters}`)";
+        }
+
+        return $"Ничья с {rival} (`{parameters}`)";
+    }
+
+    private static bool IsMeasured(ComparativeReportRow row) =>
+        row.Supported && double.IsFinite(row.Mean) && row.Mean > 0;
+
+    private static string StructuralOperation(string workload)
+    {
+        var operation = workload[(workload.LastIndexOf('.') + 1)..];
+        return operation.EndsWith("Batch", StringComparison.Ordinal) ? operation[..^"Batch".Length] : operation;
+    }
+
+    private static string FormatRatio(double ratio) => ratio.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private sealed record ComparisonScenario(
+        string Workload,
+        string Params,
+        ComparativeReportRow Delta,
+        ComparativeReportRow[] Rivals);
+
+    private sealed record BestRival(ComparativeEcs Ecs, string Params, double RatioToDelta);
 
     private static IReadOnlyList<ComparativeReportRow> BuildCombinedRows(string directory)
     {

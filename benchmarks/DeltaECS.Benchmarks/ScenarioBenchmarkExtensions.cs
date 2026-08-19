@@ -155,7 +155,7 @@ public class SmallDenseScenarioBenchmarks
     public double DeltaECS_CachedQuery()
     {
         var state = new SmallDenseState { ComponentCount = ComponentCount, Bindings = _deltaBindings };
-        _deltaWorld.Query(in _deltaQuery, QueryAccess.Write, ref state, s_cachedIteration);
+        _deltaWorld.Query(in _deltaQuery, ref state, s_cachedIteration);
         return state.Checksum;
     }
 
@@ -163,7 +163,7 @@ public class SmallDenseScenarioBenchmarks
     public double DeltaECS_QueryChunks()
     {
         var state = new SmallDenseState { ComponentCount = ComponentCount, Bindings = _deltaBindings };
-        using var chunks = _deltaWorld.QueryChunks(in _deltaQuery, QueryAccess.Write);
+        using var chunks = _deltaWorld.QueryChunks(in _deltaQuery);
         while (chunks.MoveNext())
         {
             var lease = chunks.Current;
@@ -454,7 +454,7 @@ public class WideArchetypeNarrowAccessBenchmarks
     public double DeltaECS_NarrowAccess()
     {
         var state = new SmallWideState { Position = _deltaPositionBinding, Velocity = _deltaVelocityBinding };
-        _deltaWorld.Query(in _deltaQuery, QueryAccess.Write, ref state, static (ref SmallWideState s, ref DenseChunkAccessor lease) =>
+        _deltaWorld.Query(in _deltaQuery, ref state, static (ref SmallWideState s, ref DenseChunkAccessor lease) =>
         {
             var positions = lease.GetRow(s.Position);
             var velocities = lease.GetRow(s.Velocity);
@@ -585,7 +585,7 @@ public class WideArchetypeNarrowAccessComparisonBenchmarks
     public double DeltaECS_ComparisonNarrow()
     {
         var state = new WideComparisonState { Position = _deltaPositionBinding, Velocity = _deltaVelocityBinding };
-        _deltaWorld.Query(in _deltaQuery, QueryAccess.Write, ref state, static (ref WideComparisonState current, ref DenseChunkAccessor lease) =>
+        _deltaWorld.Query(in _deltaQuery, ref state, static (ref WideComparisonState current, ref DenseChunkAccessor lease) =>
         {
             var positions = lease.GetRow(current.Position);
             var velocities = lease.GetRow(current.Velocity);
@@ -719,7 +719,7 @@ public class SparseHeterogeneousQueryBenchmarks
         // equivalent query with an absent marker component, which forces a
         // fresh matching plan while selecting the same entities.
         var warmState = new SparseState();
-        _deltaWorld.Query(in _deltaWarmQuery, QueryAccess.Read, ref warmState, CountDeltaMatches);
+        _deltaWorld.Query(in _deltaWarmQuery, ref warmState, CountDeltaMatches);
         if (warmState.Count != ExpectedMatches)
         {
             throw new InvalidOperationException($"Delta warm query matched {warmState.Count}, expected {ExpectedMatches}.");
@@ -731,7 +731,7 @@ public class SparseHeterogeneousQueryBenchmarks
     public double DeltaECS_CachedWarmQuery()
     {
         var state = new SparseState { Position = _deltaPositionBinding, Velocity = _deltaVelocityBinding };
-        _deltaWorld.Query(in _deltaWarmQuery, QueryAccess.Write, ref state, IterateDeltaMatches);
+        _deltaWorld.Query(in _deltaWarmQuery, ref state, IterateDeltaMatches);
         return CheckResult(state, "DeltaECS cached warm query");
     }
 
@@ -751,7 +751,7 @@ public class SparseHeterogeneousQueryBenchmarks
         var positionBinding = coldQuery.Bind<SparseValue>(_deltaPosition, RowAccess.Write);
         var velocityBinding = coldQuery.Bind<SparseValue>(_deltaVelocity, RowAccess.Read);
         var state = new SparseState { Position = positionBinding, Velocity = velocityBinding };
-        _deltaWorld.Query(in coldQuery, QueryAccess.Write, ref state, IterateDeltaMatches);
+        _deltaWorld.Query(in coldQuery, ref state, IterateDeltaMatches);
         return CheckResult(state, "DeltaECS cold query");
     }
 

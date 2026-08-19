@@ -187,6 +187,8 @@ public sealed class QueryStructuralOperationsTests
         world.CreateBatch(new[] { PositionId }, entities);
         var description = QueryDescription.ForComponents(PositionId);
         var query = world.CreateQuery(in description);
+        var readPosition = query.Bind<Position>(PositionId, RowAccess.Read);
+        var writePosition = query.Bind<Position>(PositionId, RowAccess.Write);
 
         Assert.That(world.AddComponents(in query, new[] { VelocityId }), Is.EqualTo(entities.Length));
 
@@ -200,14 +202,14 @@ public sealed class QueryStructuralOperationsTests
             }
 
             readChunkId = scope.GlobalChunkId;
-            _ = scope.GetComponentRow<Position>(PositionId);
+            _ = scope.GetRow(readPosition);
         });
 
         Assert.That(readChunkId, Is.GreaterThanOrEqualTo(0));
         Assert.That(world.HasChangedSince(readChunkId, PositionId, readBefore), Is.False);
 
         var writeChunkId = -1;
-        world.Query(in description, QueryAccess.Write, scope =>
+        world.Query(in description, QueryAccess.Read, scope =>
         {
             if (scope.SlotCount == 0)
             {
@@ -215,7 +217,7 @@ public sealed class QueryStructuralOperationsTests
             }
 
             writeChunkId = scope.GlobalChunkId;
-            _ = scope.GetComponentRow<Position>(PositionId);
+            _ = scope.GetRow(writePosition);
         });
 
         Assert.That(writeChunkId, Is.EqualTo(readChunkId));

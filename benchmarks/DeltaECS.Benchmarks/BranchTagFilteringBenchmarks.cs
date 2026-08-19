@@ -77,7 +77,7 @@ public class DeltaEcsTagFilteringBenchmarks
     public int Delta_TagQueryAndIteration()
     {
         var state = new TagFilterState { UpdateValues = true, WriteValue = _writeBinding, ReadValue = _readBinding };
-        _world.Query(in _query, QueryAccess.Write, ref state, static (ref TagFilterState s, ref DenseChunkAccessor lease)
+        _world.Query(in _query, ref state, static (ref TagFilterState s, ref DenseChunkAccessor lease)
             => IterateTagged(ref s, ref lease));
         return TagFilterGuard.CountAndChecksum(state, _expectedTaggedCount);
     }
@@ -87,7 +87,7 @@ public class DeltaEcsTagFilteringBenchmarks
     public int Delta_TagQueryMaskOnly()
     {
         var state = new TagFilterState { ReadValue = _readBinding };
-        _world.Query(in _query, QueryAccess.Read, ref state, static (ref TagFilterState s, ref DenseChunkAccessor lease)
+        _world.Query(in _query, ref state, static (ref TagFilterState s, ref DenseChunkAccessor lease)
             => IterateTagged(ref s, ref lease));
         return TagFilterGuard.CountAndChecksum(state, _expectedTaggedCount);
     }

@@ -2,7 +2,6 @@ namespace Delta.ECS;
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 public sealed class DenseChunkScope : IDisposable
@@ -61,17 +60,6 @@ public sealed class DenseChunkScope : IDisposable
             && (_overlayMask[slotIndex >> 6] & (1UL << (slotIndex & 63))) != 0;
     }
 
-    public Span<T> GetComponentRow<T>(ComponentId componentId)
-    {
-        if (!_archetype.TryGetComponentIndex(componentId, out var index))
-        {
-            throw new ArgumentException("Component is not part of this chunk archetype.", nameof(componentId));
-        }
-
-        MarkWritten(index);
-        return _chunk.GetComponentRow<T>(index);
-    }
-
     public ReadOnlySpan<T> GetRow<T>(ReadRowBinding<T> binding)
     {
         var index = ResolveBinding(binding.Data);
@@ -110,7 +98,7 @@ public sealed class DenseChunkScope : IDisposable
         var index = ResolveBinding(binding);
         if (_writeTick == 0)
         {
-            throw new InvalidOperationException("A write row binding requires QueryAccess.Write.");
+            throw new InvalidOperationException("The query did not register its write row binding.");
         }
 
         MarkWritten(index);
@@ -236,29 +224,6 @@ public ref struct DenseChunkAccessor
             && (_overlayMask[slotIndex >> 6] & (1UL << (slotIndex & 63))) != 0;
     }
 
-    public Span<T> GetComponentRow<T>(ComponentId componentId)
-    {
-        EnsureCurrent();
-        if (!_archetype.TryGetComponentIndex(componentId, out var index))
-        {
-            throw new ArgumentException("Component is not part of this chunk archetype.", nameof(componentId));
-        }
-
-        MarkWritten(index);
-        return _chunk.GetComponentRow<T>(index);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Span<T> GetComponentRow<T>(int queryComponentIndex)
-    {
-        EnsureCurrent();
-        Debug.Assert(_queryComponentRowIndices is not null);
-        Debug.Assert((uint)queryComponentIndex < (uint)_queryComponentRowIndices!.Length);
-        var index = _queryComponentRowIndices[queryComponentIndex];
-        MarkWritten(index);
-        return _chunk.GetComponentRow<T>(index);
-    }
-
     public ReadOnlySpan<T> GetRow<T>(ReadRowBinding<T> binding)
     {
         var index = ResolveBinding(binding.Data);
@@ -293,7 +258,7 @@ public ref struct DenseChunkAccessor
         var index = ResolveBinding(binding);
         if (_writeTick == 0)
         {
-            throw new InvalidOperationException("A write row binding requires QueryAccess.Write.");
+            throw new InvalidOperationException("The query did not register its write row binding.");
         }
 
         MarkWritten(index);
@@ -339,6 +304,7 @@ internal sealed class CachedQuery
     private int _version = -1;
     private int[] _matchingArchetypes = Array.Empty<int>();
     private int[][] _matchingComponentRowIndices = Array.Empty<int[]>();
+    private bool _hasWriteBindings;
 
     public CachedQuery(QueryDescription description)
     {
@@ -348,6 +314,10 @@ internal sealed class CachedQuery
     public bool HasTags => !_description.AllTags.IsEmpty
         || !_description.AnyTags.IsEmpty
         || !_description.NoneTags.IsEmpty;
+
+    public bool HasWriteBindings => _hasWriteBindings;
+
+    public void RegisterWriteBinding() => _hasWriteBindings = true;
 
     public int[] MatchingArchetypes(World world)
     {

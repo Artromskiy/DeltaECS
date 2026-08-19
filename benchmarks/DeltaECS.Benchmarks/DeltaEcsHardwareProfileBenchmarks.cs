@@ -107,7 +107,7 @@ public int Amount { get; set; }
     public void DeltaArray_EntityMajor_Profile()
     {
         var state = new ProfileState { ComponentCount = ComponentCount, WriteBindings = _writeBindings, ReadBindings = _readBindings };
-        _iterations = RunUntilDuration(() => _world.Query(in _query, QueryAccess.Write, ref state, s_entityMajor));
+        _iterations = RunUntilDuration(() => _world.Query(in _query, ref state, s_entityMajor));
         _checksum = state.Checksum;
     }
 
@@ -115,7 +115,7 @@ public int Amount { get; set; }
     public void DeltaArray_RowMajor_Profile()
     {
         var state = new ProfileState { ComponentCount = ComponentCount, WriteBindings = _writeBindings, ReadBindings = _readBindings };
-        _iterations = RunUntilDuration(() => _world.Query(in _query, QueryAccess.Write, ref state, s_rowMajor));
+        _iterations = RunUntilDuration(() => _world.Query(in _query, ref state, s_rowMajor));
         _checksum = state.Checksum;
     }
 
@@ -123,7 +123,7 @@ public int Amount { get; set; }
     public void DeltaArray_DispatchOnly_Profile()
     {
         var state = new ProfileState { ReadBindings = _readBindings };
-        _iterations = RunUntilDuration(() => _world.Query(in _query, QueryAccess.Read, ref state, s_dispatchOnly));
+        _iterations = RunUntilDuration(() => _world.Query(in _query, ref state, s_dispatchOnly));
         _checksum = state.Checksum;
     }
 
@@ -131,7 +131,7 @@ public int Amount { get; set; }
     public void DeltaArray_LookupOnly_Profile()
     {
         var state = new ProfileState { ComponentCount = ComponentCount, ReadBindings = _readBindings, WriteBindings = _writeBindings };
-        _iterations = RunUntilDuration(() => _world.Query(in _query, QueryAccess.Read, ref state, s_lookupOnly));
+        _iterations = RunUntilDuration(() => _world.Query(in _query, ref state, s_lookupOnly));
         _checksum = state.Checksum;
     }
 

@@ -66,7 +66,7 @@ public class DenseCapacitySweepBenchmarks
     [Benchmark(Baseline = true)]
     public void DeltaECS_Array()
     {
-        using var chunks = _arrayWorld.QueryChunks(in _query, QueryAccess.Write);
+        using var chunks = _arrayWorld.QueryChunks(in _query);
         while (chunks.MoveNext())
         {
             var lease = chunks.Current;

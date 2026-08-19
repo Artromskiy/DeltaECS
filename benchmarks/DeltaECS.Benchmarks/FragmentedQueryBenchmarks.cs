@@ -78,7 +78,7 @@ private int _expectedMatches;
     public int DeltaOnly_QueryAndIteration()
     {
         var state = new FragmentQueryState { Value = _valueBinding };
-        _world.Query(in _query, QueryAccess.Read, ref state, static (ref FragmentQueryState s, ref DenseChunkAccessor lease) =>
+        _world.Query(in _query, ref state, static (ref FragmentQueryState s, ref DenseChunkAccessor lease) =>
         {
             var values = lease.GetRow(s.Value);
             for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
@@ -100,7 +100,7 @@ private int _expectedMatches;
     public int DeltaOnly_QueryChunkDispatch()
     {
         var state = new FragmentQueryState { Value = _valueBinding };
-        _world.Query(in _query, QueryAccess.Read, ref state, static (ref FragmentQueryState s, ref DenseChunkAccessor lease)
+        _world.Query(in _query, ref state, static (ref FragmentQueryState s, ref DenseChunkAccessor lease)
             => s.Matches += lease.SlotCount);
 
         if (state.Matches != _expectedMatches)
@@ -119,7 +119,7 @@ private int _expectedMatches;
         var coldQuery = _world.CreateQuery(in description);
         var valueBinding = coldQuery.Bind<FragmentValue>(_required, RowAccess.Read);
         state.Value = valueBinding;
-        _world.Query(in coldQuery, QueryAccess.Read, ref state, static (ref FragmentQueryState s, ref DenseChunkAccessor lease) =>
+        _world.Query(in coldQuery, ref state, static (ref FragmentQueryState s, ref DenseChunkAccessor lease) =>
         {
             var values = lease.GetRow(s.Value);
             for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)

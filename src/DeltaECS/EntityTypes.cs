@@ -177,7 +177,9 @@ public readonly struct QueryHandle
 
     public WriteRowBinding<T> Bind<T>(ComponentId componentId, WriteRowAccess _)
     {
-        return new WriteRowBinding<T>(CreateBinding<T>(componentId));
+        var binding = CreateBinding<T>(componentId);
+        _cached.RegisterWriteBinding();
+        return new WriteRowBinding<T>(binding);
     }
 
     private RowBindingData CreateBinding<T>(ComponentId componentId)
@@ -206,4 +208,6 @@ public readonly struct QueryHandle
     }
 }
 
-public delegate void ChunkAction<TState>(ref TState state, ref DenseChunkAccessor accessor);
+public delegate void ChunkAction(ref DenseChunkAccessor accessor);
+
+public delegate void ChunkAction<TContext>(ref TContext context, ref DenseChunkAccessor accessor);

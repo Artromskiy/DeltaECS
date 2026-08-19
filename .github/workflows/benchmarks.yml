@@ -205,7 +205,9 @@ jobs:
             echo
             echo "Suite: \`$BENCHMARK_SUITE\` · runner: \`${{ runner.os }} ${{ runner.arch }}\`"
             echo
-            if [ -f artifacts/github-full/comparative-report.md ]; then
+            if [ -f artifacts/github-full/comparative-summary.md ]; then
+              cat artifacts/github-full/comparative-summary.md
+            elif [ -f artifacts/github-full/comparative-report.md ]; then
               echo "### Combined capability report"
               echo
               cat artifacts/github-full/comparative-report.md

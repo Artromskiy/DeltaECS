@@ -132,7 +132,7 @@ public class DeltaEcsVsArchBenchmarks
             Bindings = _deltaBindings,
             ComponentCount = ComponentCount
         };
-        _deltaWorld.Query(in _deltaQuery, QueryAccess.Write, ref state, s_deltaIteration);
+        _deltaWorld.Query(in _deltaQuery, ref state, s_deltaIteration);
     }
 
     [Benchmark(Baseline = true)]
@@ -143,7 +143,7 @@ public class DeltaEcsVsArchBenchmarks
             Bindings = _arrayBindings,
             ComponentCount = ComponentCount
         };
-        _arrayWorld.Query(in _arrayQuery, QueryAccess.Write, ref state, s_deltaIteration);
+        _arrayWorld.Query(in _arrayQuery, ref state, s_deltaIteration);
     }
 
     [Benchmark]
@@ -436,7 +436,7 @@ public class DeltaEcsManagedArrayBenchmarks
     public void ManagedArrayDenseIteration()
     {
         var state = new State { Binding = _binding };
-        _world.Query(in _query, QueryAccess.Read, ref state, s_iteration);
+        _world.Query(in _query, ref state, s_iteration);
         GC.KeepAlive(state.Sum);
     }
 
@@ -512,7 +512,7 @@ public class DeltaEcsHotPathProfileBenchmarks
     public void CachedQueryDispatchOnly()
     {
         var state = new ProfileState { First = _firstBinding, Second = _secondBinding, FirstWrite = _firstWriteBinding, SecondRead = _secondReadBinding };
-        _world.Query(in _query, QueryAccess.Read, ref state, s_dispatch);
+        _world.Query(in _query, ref state, s_dispatch);
         GC.KeepAlive(state.Chunks);
     }
 
@@ -520,7 +520,7 @@ public class DeltaEcsHotPathProfileBenchmarks
     public void CachedQueryComponentRowLookup()
     {
         var state = new ProfileState { First = _firstBinding, Second = _secondBinding, FirstWrite = _firstWriteBinding, SecondRead = _secondReadBinding };
-        _world.Query(in _query, QueryAccess.Read, ref state, s_lookup);
+        _world.Query(in _query, ref state, s_lookup);
         GC.KeepAlive(state.Chunks);
     }
 
@@ -528,7 +528,7 @@ public class DeltaEcsHotPathProfileBenchmarks
     public void CachedQuerySlotLoop()
     {
         var state = new ProfileState { First = _firstBinding, Second = _secondBinding, FirstWrite = _firstWriteBinding, SecondRead = _secondReadBinding };
-        _world.Query(in _query, QueryAccess.Write, ref state, s_slots);
+        _world.Query(in _query, ref state, s_slots);
         GC.KeepAlive(state.Chunks);
     }
 

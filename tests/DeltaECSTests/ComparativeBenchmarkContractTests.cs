@@ -58,10 +58,10 @@ public sealed class ComparativeBenchmarkContractTests
             Assert.That(ordinalAccess.IsMatch(File.ReadAllText(source)), Is.False, source);
         }
 
-        var ordinalMethod = typeof(DenseChunkAccessor).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)
-            .Single(method => method.Name == "GetComponentRow" && method.IsGenericMethodDefinition &&
-                              method.GetParameters().Length == 1 && method.GetParameters()[0].ParameterType == typeof(int));
-        Assert.That(ordinalMethod.IsPublic, Is.False);
+        var publicAccessorMethods = typeof(DenseChunkAccessor).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+        var publicScopeMethods = typeof(DenseChunkScope).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+        Assert.That(publicAccessorMethods.Any(method => method.Name == "GetComponentRow"), Is.False);
+        Assert.That(publicScopeMethods.Any(method => method.Name == "GetComponentRow"), Is.False);
     }
 
     private static string FindBenchmarkRoot()
@@ -111,9 +111,12 @@ public sealed class ComparativeBenchmarkContractTests
 
             ComparativeReportBuilder.WriteManifest(directory);
             var report = File.ReadAllText(Path.Combine(directory, "comparative-report.md"));
+            var summary = File.ReadAllText(Path.Combine(directory, "comparative-summary.md"));
             Assert.That(report, Does.Contain("|Iteration.Dense|Amount=100|DeltaECS|100|1|"));
             Assert.That(report, Does.Contain("|Iteration.Dense|Amount=100|Arch|200|2|1,024 B|"));
             Assert.That(report, Does.Not.Contain("|Iteration.Dense|manifest|"));
+            Assert.That(summary, Does.Contain("|Итерация|1/1|"));
+            Assert.That(summary, Does.Contain("|Dense|1/1|Delta быстрее Arch в 2× (`Amount=100`)|"));
         }
         finally
         {
@@ -137,5 +140,35 @@ public sealed class ComparativeBenchmarkContractTests
         Assert.That(markdown, Does.Not.Contain("65.379999999999995"));
         Assert.That(markdown, Does.Not.Contain("4.7800000000000002"));
     }
+
+    [Test]
+    public void Compact_summary_counts_victories_and_selects_best_native_and_fallback_rivals()
+    {
+        var rows = new[]
+        {
+            Row("Iteration.Dense", "Amount=100", ComparativeEcs.DeltaECS, 100, ComparativeCapabilityMode.Native),
+            Row("Iteration.Dense", "Amount=100", ComparativeEcs.Arch, 200, ComparativeCapabilityMode.Native),
+            Row("Iteration.Dense", "Amount=1000", ComparativeEcs.DeltaECS, 200, ComparativeCapabilityMode.Native),
+            Row("Iteration.Dense", "Amount=1000", ComparativeEcs.Arch, 100, ComparativeCapabilityMode.Native),
+            Row("Structural.Atomic.Add", "Amount=100;ChangeWidth=1", ComparativeEcs.DeltaECS, 100, ComparativeCapabilityMode.Native),
+            Row("Structural.Atomic.Add", "Amount=100;ChangeWidth=1", ComparativeEcs.Arch, 80, ComparativeCapabilityMode.Native),
+            Row("Structural.Atomic.Add", "Amount=100;ChangeWidth=1", ComparativeEcs.DefaultEcs, 50, ComparativeCapabilityMode.AtomicFallback)
+        };
+
+        var summary = ComparativeReportBuilder.ToSummaryMarkdown(rows);
+
+        Assert.That(summary, Does.Contain("|Итерация|1/2|"));
+        Assert.That(summary, Does.Contain("|Atomic structural|0/1|"));
+        Assert.That(summary, Does.Contain("|Dense|1/2|Arch быстрее Delta в 2× (`Amount=1000`)|"));
+        Assert.That(summary, Does.Contain("|Add|0/1|Arch быстрее Delta в 1.25× (`Amount=100;ChangeWidth=1`)|DefaultEcs быстрее Delta в 2× (`Amount=100;ChangeWidth=1`)|"));
+    }
+
+    private static ComparativeReportRow Row(
+        string workload,
+        string parameters,
+        ComparativeEcs ecs,
+        double mean,
+        ComparativeCapabilityMode mode) =>
+        new(workload, parameters, ecs, mean, double.NaN, "0 B", true, mode, "test");
 
 }

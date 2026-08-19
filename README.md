@@ -30,7 +30,7 @@ benchmarkable without DeltaEngine or DeltaRender.
   `System.Type` as component identity.
 - A later Roslyn generator may expose typed C# systems and component accessors,
   but generated code lowers to the same ID/layout API.
-- KibiHex.Maths can be used by typed fixtures later; the kernel does not depend
+- Delta.Maths can be used by typed fixtures later; the kernel does not depend
   on it.
 - Arch is a migration baseline and benchmark competitor, not a dependency.
 
@@ -319,12 +319,13 @@ storage and query invariants are covered by randomized tests.
 ## Performance-pass status (2026-08-18)
 
 The cached dense hot path now has an allocation-free API:
-`World.CreateQuery` creates a reusable `QueryHandle`; the ref-state query
+`World.CreateQuery` creates a reusable `QueryHandle`; the context query
 overload invokes a `DenseChunkAccessor` ref struct and uses cached
 component-index mappings. The structural lease guard covers the synchronous
 query and is released in `finally`; the accessor cannot escape the callback.
 The `Action<DenseChunkScope>` API is the callback scope surface; the accessor
-surface is used by the ref-state query overload and cannot escape its callback.
+surface is used by the context and simple query overloads and cannot escape
+their callbacks.
 
 The primary dense benchmark now uses `World.QueryChunks`, a stack-only cached
 chunk enumerator. It holds the mutation lease for the whole synchronous pass,
@@ -343,35 +344,39 @@ reverse slot order while preserving slot alignment and overlay checks:
 var query = world.CreateQuery(QueryDescription.ForComponents(positionId, velocityId));
 var position = query.Bind<Position>(positionId, RowAccess.Write);
 var velocity = query.Bind<Velocity>(velocityId, RowAccess.Read);
+var context = (Position: position, Velocity: velocity);
 
-ReadOnlySpan<Entity> entities = accessor.Entities;
-Span<Position> positions = accessor.GetRow(position);
-ReadOnlySpan<Velocity> velocities = accessor.GetRow(velocity);
-if (accessor.IsAllSlotsActive)
+world.Query(in query, ref context,
+    static (ref (WriteRowBinding<Position> Position, ReadRowBinding<Velocity> Velocity) context,
+            ref DenseChunkAccessor accessor) =>
 {
-    for (var i = accessor.SlotCount - 1; i >= 0; i--)
+    ReadOnlySpan<Entity> entities = accessor.Entities;
+    Span<Position> positions = accessor.GetRow(context.Position);
+    ReadOnlySpan<Velocity> velocities = accessor.GetRow(context.Velocity);
+    if (accessor.IsAllSlotsActive)
     {
-        Entity entity = entities[i];
-        ref Position position = ref positions[i];
-        Process(entity, ref position, velocities[i]);
+        for (var i = accessor.SlotCount - 1; i >= 0; i--)
+        {
+            Process(entities[i], ref positions[i], velocities[i]);
+        }
     }
-}
-else
-{
-    for (var i = accessor.SlotCount - 1; i >= 0; i--)
+    else
     {
-        if (!accessor.IsActiveSlot(i)) continue;
-        Entity entity = entities[i];
-        ref Position position = ref positions[i];
-        Process(entity, ref position, velocities[i]);
+        for (var i = accessor.SlotCount - 1; i >= 0; i--)
+        {
+            if (!accessor.IsActiveSlot(i)) continue;
+            Process(entities[i], ref positions[i], velocities[i]);
+        }
     }
-}
+});
 ```
 
 `ReadRowBinding<T>` and `WriteRowBinding<T>` are distinct typed bindings. The
-legacy `GetComponentRow<T>(ComponentId/int)` methods remain transitional and
-return a writable `Span<T>` even under `QueryAccess.Read`, which can bypass
-precise dirty tracking; use `GetRow(binding)` for new code.
+binding owns the row access intent: registering a write binding prepares the
+query write tick, and `GetRow(writeBinding)` marks exactly that component row.
+`QueryAccess` overloads remain for source compatibility, but bound queries do
+not need to repeat `QueryAccess.Write`. The legacy public
+`GetComponentRow<T>(ComponentId/int)` APIs have been removed.
 
 The benchmark/use-site dispatch selects 1/2/4/8 component-row loops once per
 benchmark operation. Component-row count and active-slot state are chunk
@@ -403,9 +408,9 @@ Delta-only hardware/profile lanes.
 `Iteration.Movement4Components` uses the same integer workload in every ECS:
 `a' = a + d`, `b' = b + d`, `c' = (a' + b') / 2`, with `d` retained as the
 control row. The checksum accumulates `a' + b' + c' + d'`; setup values
-`(1, 2, 3, 4)` produce `(5, 6, 5, 4)` and `20` per entity. DeltaECS executes
-this query with `QueryAccess.Write` and preserves its reverse dense-slot
-traversal; this conservatively marks all queried rows, including read-only `d`.
+`(1, 2, 3, 4)` produce `(5, 6, 5, 4)` and `20` per entity. DeltaECS preserves
+its reverse dense-slot traversal and marks only the three write-bound rows;
+the control row `d` remains read-only.
 
 The reproducible distinct-type dense comparison command is:
 
@@ -416,12 +421,12 @@ dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net8.0/DeltaECS.Benchmarks.dll
 
 ### DeltaECS version comparison
 
-`DeltaECS.VersionBenchmarks` compares two API-compatible DeltaECS revisions in
-one BenchmarkDotNet process. The same shared scenario source is compiled twice:
+`DeltaECS.VersionBenchmarks` compares two compatible DeltaECS revisions in one
+BenchmarkDotNet process. The same shared scenario source is compiled twice:
 the previous checkout becomes `DeltaECS.Baseline`, the candidate becomes
 `DeltaECS.Candidate`, and adapter assemblies keep their types isolated without
-reflection. `Previous_*` is the BenchmarkDotNet baseline, so a candidate ratio
-below `1.00` is an improvement.
+reflection. Both adapters use the typed row-binding API. `Previous_*` is the
+BenchmarkDotNet baseline, so a candidate ratio below `1.00` is an improvement.
 
 The suite currently covers dense iteration, two- and four-component movement,
 atomic create/destroy/add/remove, and list batch create/destroy/add/remove.
@@ -442,9 +447,9 @@ Leave `baseline_ref` empty for the common case: the workflow compares the
 parent of `candidate_ref` against the candidate. Both fields also accept short
 commit hashes; the workflow resolves them to full hashes before checkout.
 
-Both refs must expose the same public API. Revisions before the
-`DenseChunkScope` / `DenseChunkAccessor` rename require a separate legacy
-adapter and are intentionally rejected by this suite.
+Both refs must expose the typed row-binding API used by the shared adapter.
+Older revisions require a separate legacy adapter and are intentionally
+rejected by this suite.
 
 For a local dual-checkout smoke:
 

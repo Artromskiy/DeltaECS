@@ -380,20 +380,20 @@ public sealed class World
         return destroyed;
     }
 
-    public void Query(in QueryDescription query, QueryAccess access, Action<DenseChunkScope> body)
+    public void Query(in QueryDescription query, QueryAccess access, Action<DenseChunkScope> action)
     {
         var cached = GetOrCreateQuery(query);
         var archetypes = cached.MatchingArchetypes(this);
         if (!cached.HasTags)
         {
-            QueryScopesDense(cached, archetypes, access, body);
+            QueryScopesDense(cached, archetypes, access, action);
             return;
         }
 
         var scratch = RentChunkOverlayScratch();
         try
         {
-            QueryScopesTagged(query, cached, archetypes, access, scratch, body);
+            QueryScopesTagged(query, cached, archetypes, access, scratch, action);
         }
         finally
         {
@@ -405,9 +405,9 @@ public sealed class World
         CachedQuery cached,
         int[] archetypes,
         QueryAccess access,
-        Action<DenseChunkScope> body)
+        Action<DenseChunkScope> action)
     {
-        var writeTick = access == QueryAccess.Write ? AdvanceWorldTick() : 0;
+        var writeTick = QueryWriteTick(cached, access);
         for (var i = 0; i < archetypes.Length; i++)
         {
             var archetype = _archetypes[archetypes[i]];
@@ -422,7 +422,7 @@ public sealed class World
 
                 _activeChunkLeases++;
                 using var scope = new DenseChunkScope(this, cached, archetype, chunk, chunk.GlobalId, rowIndices, null, OverlayMaskResult.Full, writeTick);
-                body(scope);
+                action(scope);
             }
         }
     }
@@ -433,9 +433,9 @@ public sealed class World
         int[] archetypes,
         QueryAccess access,
         ulong[] scratch,
-        Action<DenseChunkScope> body)
+        Action<DenseChunkScope> action)
     {
-        var writeTick = access == QueryAccess.Write ? AdvanceWorldTick() : 0;
+        var writeTick = QueryWriteTick(cached, access);
         for (var i = 0; i < archetypes.Length; i++)
         {
             var archetype = _archetypes[archetypes[i]];
@@ -456,12 +456,28 @@ public sealed class World
 
                 _activeChunkLeases++;
                 using var scope = new DenseChunkScope(this, cached, archetype, chunk, chunk.GlobalId, rowIndices, scratch, overlayResult, writeTick);
-                body(scope);
+                action(scope);
             }
         }
     }
 
-    public void Query<TState>(in QueryHandle handle, QueryAccess access, ref TState state, ChunkAction<TState> body)
+    public void Query(in QueryHandle handle, QueryAccess access, ChunkAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        Query(in handle, access, ref action, static (ref ChunkAction callback, ref DenseChunkAccessor accessor) => callback(ref accessor));
+    }
+
+    public void Query(in QueryHandle handle, ChunkAction action)
+    {
+        Query(in handle, QueryAccess.Read, action);
+    }
+
+    public void Query<TContext>(in QueryHandle handle, ref TContext context, ChunkAction<TContext> action)
+    {
+        Query(in handle, QueryAccess.Read, ref context, action);
+    }
+
+    public void Query<TContext>(in QueryHandle handle, QueryAccess access, ref TContext context, ChunkAction<TContext> action)
     {
         if (!ReferenceEquals(handle.Owner, this) || !handle.IsValid)
         {
@@ -476,14 +492,14 @@ public sealed class World
         {
             if (!cached.HasTags)
             {
-                QueryAccessorsDense(cached, archetypes, access, ref state, body);
+                QueryAccessorsDense(cached, archetypes, access, ref context, action);
             }
             else
             {
                 var scratch = RentChunkOverlayScratch();
                 try
                 {
-                    QueryAccessorsTagged(query, cached, archetypes, access, scratch, ref state, body);
+                    QueryAccessorsTagged(query, cached, archetypes, access, scratch, ref context, action);
                 }
                 finally
                 {
@@ -498,14 +514,14 @@ public sealed class World
         }
     }
 
-    private void QueryAccessorsDense<TState>(
+    private void QueryAccessorsDense<TContext>(
         CachedQuery cached,
         int[] archetypes,
         QueryAccess access,
-        ref TState state,
-        ChunkAction<TState> body)
+        ref TContext context,
+        ChunkAction<TContext> action)
     {
-        var writeTick = access == QueryAccess.Write ? AdvanceWorldTick() : 0;
+        var writeTick = QueryWriteTick(cached, access);
         for (var i = 0; i < archetypes.Length; i++)
         {
             var archetype = _archetypes[archetypes[i]];
@@ -521,7 +537,7 @@ public sealed class World
                 var accessor = new DenseChunkAccessor(this, cached, archetype, chunk, chunk.GlobalId, rowIndices, null, OverlayMaskResult.Full, RentChunkAccessor(), writeTick);
                 try
                 {
-                    body(ref state, ref accessor);
+                    action(ref context, ref accessor);
                 }
                 finally
                 {
@@ -531,16 +547,16 @@ public sealed class World
         }
     }
 
-    private void QueryAccessorsTagged<TState>(
+    private void QueryAccessorsTagged<TContext>(
         in QueryDescription query,
         CachedQuery cached,
         int[] archetypes,
         QueryAccess access,
         ulong[] scratch,
-        ref TState state,
-        ChunkAction<TState> body)
+        ref TContext context,
+        ChunkAction<TContext> action)
     {
-        var writeTick = access == QueryAccess.Write ? AdvanceWorldTick() : 0;
+        var writeTick = QueryWriteTick(cached, access);
         for (var i = 0; i < archetypes.Length; i++)
         {
             var archetype = _archetypes[archetypes[i]];
@@ -563,7 +579,7 @@ public sealed class World
                 var accessor = new DenseChunkAccessor(this, cached, archetype, chunk, chunkId, rowIndices, scratch, overlayResult, RentChunkAccessor(), writeTick);
                 try
                 {
-                    body(ref state, ref accessor);
+                    action(ref context, ref accessor);
                 }
                 finally
                 {
@@ -580,8 +596,12 @@ public sealed class World
             throw new ArgumentException("Query handle does not belong to this world.", nameof(handle));
         }
 
-        return new CachedChunkEnumerator(this, handle.Cached, handle.Description, access == QueryAccess.Write ? AdvanceWorldTick() : 0);
+        return new CachedChunkEnumerator(this, handle.Cached, handle.Description, QueryWriteTick(handle.Cached, access));
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private uint QueryWriteTick(CachedQuery cached, QueryAccess access) =>
+        access == QueryAccess.Write || cached.HasWriteBindings ? AdvanceWorldTick() : 0;
 
     public ref struct CachedChunkEnumerator
     {
