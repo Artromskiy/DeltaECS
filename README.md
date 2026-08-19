@@ -15,6 +15,10 @@ faster than Arch, Unity Entities, Flecs, EnTT-like designs, or another ECS must
 name the workload, hardware, data layout, compiler/runtime, entity count, and
 memory cost. Regressions are rejected by benchmarks checked into this project.
 
+Before proposing or assigning new DeltaECS work, check [TODO.md](TODO.md).
+It is the project's first source of pending tasks and records work intentionally
+deferred from the current implementation.
+
 ## Ownership and boundaries
 
 This directory is owned by the ECS workstream. It must remain buildable and
