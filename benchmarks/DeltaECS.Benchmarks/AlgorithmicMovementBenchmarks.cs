@@ -65,14 +65,8 @@ public class AlgorithmicMovementBenchmarks
             var positions = lease.GetComponentRow<DeltaPosition>(0);
             var velocities = lease.GetComponentRow<DeltaVelocity>(1);
             var slotCount = lease.SlotCount;
-            var allSlotsActive = lease.IsAllSlotsActive;
             for (var i = slotCount - 1; i >= 0; i--)
             {
-                if (!allSlotsActive && !lease.IsActiveSlot(i))
-                {
-                    continue;
-                }
-
                 positions[i].X += velocities[i].X * s.Dt;
                 positions[i].Y += velocities[i].Y * s.Dt;
                 s.Count++;

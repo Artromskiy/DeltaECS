@@ -18,24 +18,24 @@ public static class ComparativeBenchmarkExecutionSmoke
         try { Require(dense.DeltaECS_Dense(), 5_050, "Delta dense"); Require(dense.Arch_Dense(), 5_050, "Arch dense"); Require(dense.FrifloEngineECS_Dense(), 5_050, "Friflo dense"); Require(dense.DefaultEcs_Dense(), 5_050, "Default dense"); Require(dense.LeoEcsLite_Dense(), 5_050, "Leo dense"); }
         finally { dense.Cleanup(); }
 
-        var movement = new ComparativeMovementBenchmarks { Amount = 100 };
+        var movement = new ComparativeMovement2ComponentsBenchmarks { Amount = 100 };
         movement.Setup();
-        try { movement.ResetMovement(); movement.DeltaECS_Movement(); movement.ResetMovement(); movement.Arch_Movement(); movement.ResetMovement(); movement.FrifloEngineECS_Movement(); movement.ResetMovement(); movement.DefaultEcs_Movement(); movement.ResetMovement(); movement.LeoEcsLite_Movement(); }
+        try { movement.ResetMovement(); movement.DeltaECS_Movement2Components(); movement.ResetMovement(); movement.Arch_Movement2Components(); movement.ResetMovement(); movement.FrifloEngineECS_Movement2Components(); movement.ResetMovement(); movement.DefaultEcs_Movement2Components(); movement.ResetMovement(); movement.LeoEcsLite_Movement2Components(); }
         finally { movement.Cleanup(); }
 
-        var distinct = new ComparativeDistinctRowsBenchmarks { Amount = 100 };
+        var distinct = new ComparativeMovement4ComponentsBenchmarks { Amount = 100 };
         distinct.Setup();
-        try { Require(distinct.DeltaECS_DistinctRows(), 1_000, "Delta distinct"); Require(distinct.Arch_DistinctRows(), 1_000, "Arch distinct"); Require(distinct.FrifloEngineECS_DistinctRows(), 1_000, "Friflo distinct"); Require(distinct.DefaultEcs_DistinctRows(), 1_000, "Default distinct"); Require(distinct.LeoEcsLite_DistinctRows(), 1_000, "Leo distinct"); }
+        try { Require(distinct.DeltaECS_Movement4Components(), 1_000, "Delta movement four components"); Require(distinct.Arch_Movement4Components(), 1_000, "Arch movement four components"); Require(distinct.FrifloEngineECS_Movement4Components(), 1_000, "Friflo movement four components"); Require(distinct.DefaultEcs_Movement4Components(), 1_000, "Default movement four components"); Require(distinct.LeoEcsLite_Movement4Components(), 1_000, "Leo movement four components"); }
         finally { distinct.Cleanup(); }
 
-        var wide = new ComparativeWideNarrowBenchmarks { Amount = 100 };
+        var wide = new ComparativeWideArchetypeNarrowQueryBenchmarks { Amount = 100 };
         wide.Setup();
-        try { Require(wide.DeltaECS_WideNarrow(), 900, "Delta wide"); Require(wide.Arch_WideNarrow(), 900, "Arch wide"); Require(wide.FrifloEngineECS_WideNarrow(), 900, "Friflo wide"); Require(wide.DefaultEcs_WideNarrow(), 900, "Default wide"); Require(wide.LeoEcsLite_WideNarrow(), 900, "Leo wide"); }
+        try { Require(wide.DeltaECS_WideArchetypeNarrowQuery(), 900, "Delta wide archetype narrow query"); Require(wide.Arch_WideArchetypeNarrowQuery(), 900, "Arch wide archetype narrow query"); Require(wide.FrifloEngineECS_WideArchetypeNarrowQuery(), 900, "Friflo wide archetype narrow query"); Require(wide.DefaultEcs_WideArchetypeNarrowQuery(), 900, "Default wide archetype narrow query"); Require(wide.LeoEcsLite_WideArchetypeNarrowQuery(), 900, "Leo wide archetype narrow query"); }
         finally { wide.Cleanup(); }
 
         var sparse = new ComparativeSparseQueryBenchmarks { Amount = 100 };
         sparse.Setup();
-        try { Require(sparse.DeltaECS_SparseCached(), 25, "Delta sparse cached"); Require(sparse.Arch_SparseCached(), 25, "Arch sparse cached"); Require(sparse.FrifloEngineECS_SparseCached(), 25, "Friflo sparse cached"); Require(sparse.DefaultEcs_SparseCached(), 25, "Default sparse cached"); Require(sparse.LeoEcsLite_SparseCached(), 25, "Leo sparse cached"); Require(sparse.DeltaECS_SparseCold(), 25, "Delta sparse cold"); Require(sparse.Arch_SparseCold(), 25, "Arch sparse cold"); Require(sparse.FrifloEngineECS_SparseCold(), 25, "Friflo sparse cold"); Require(sparse.DefaultEcs_SparseCold(), 25, "Default sparse cold"); Require(sparse.LeoEcsLite_SparseCold(), 25, "Leo sparse cold"); }
+        try { Require(sparse.DeltaECS_SparseWorldCachedQuery(), 25, "Delta sparse world cached query"); Require(sparse.Arch_SparseWorldCachedQuery(), 25, "Arch sparse world cached query"); Require(sparse.FrifloEngineECS_SparseWorldCachedQuery(), 25, "Friflo sparse world cached query"); Require(sparse.DefaultEcs_SparseWorldCachedQuery(), 25, "Default sparse world cached query"); Require(sparse.LeoEcsLite_SparseWorldCachedQuery(), 25, "Leo sparse world cached query"); Require(sparse.DeltaECS_SparseWorldColdQuery(), 25, "Delta sparse world cold query"); Require(sparse.Arch_SparseWorldColdQuery(), 25, "Arch sparse world cold query"); Require(sparse.FrifloEngineECS_SparseWorldColdQuery(), 25, "Friflo sparse world cold query"); Require(sparse.DefaultEcs_SparseWorldColdQuery(), 25, "Default sparse world cold query"); Require(sparse.LeoEcsLite_SparseWorldColdQuery(), 25, "Leo sparse world cold query"); }
         finally { sparse.Cleanup(); }
     }
 
@@ -43,7 +43,33 @@ public static class ComparativeBenchmarkExecutionSmoke
     {
         var b = new ComparativeStructuralListBenchmarks { Amount = 100, ChangeWidth = 4 };
         b.Setup();
-        try { b.PrepareCreate(); Require(b.DeltaECS_List_CreateBatch(), 100, "list create"); b.RestoreAfterIteration(); b.PrepareDestroy(); Require(b.DeltaECS_List_DestroyBatch(), 100, "list destroy"); b.RestoreAfterIteration(); b.PrepareAdd(); Require(b.DeltaECS_List_AddBatch(), 100, "list add"); b.RestoreAfterIteration(); b.PrepareRemove(); Require(b.DeltaECS_List_RemoveBatch(), 100, "list remove"); b.RestoreAfterIteration(); }
+        try
+        {
+            b.PrepareCreate(); Require(b.DeltaECS_List_CreateBatch(), 100, "Delta list create"); b.RestoreAfterIteration();
+            b.PrepareDestroy(); Require(b.DeltaECS_List_DestroyBatch(), 100, "Delta list destroy"); b.RestoreAfterIteration();
+            b.PrepareAdd(); Require(b.DeltaECS_List_AddBatch(), 100, "Delta list add"); b.RestoreAfterIteration();
+            b.PrepareRemove(); Require(b.DeltaECS_List_RemoveBatch(), 100, "Delta list remove"); b.RestoreAfterIteration();
+
+            b.PrepareArchListCreate(); Require(b.Arch_List_CreateBatch(), 100, "Arch list create"); b.RestoreAfterIteration();
+            b.PrepareArchListDestroy(); Require(b.Arch_List_DestroyBatch(), 100, "Arch list destroy"); b.RestoreAfterIteration();
+            b.PrepareArchListAdd(); Require(b.Arch_List_AddBatch(), 100, "Arch list add"); b.RestoreAfterIteration();
+            b.PrepareArchListRemove(); Require(b.Arch_List_RemoveBatch(), 100, "Arch list remove"); b.RestoreAfterIteration();
+
+            b.PrepareFrifloListCreate(); Require(b.FrifloEngineECS_List_CreateBatch(), 100, "Friflo list create"); b.RestoreAfterIteration();
+            b.PrepareFrifloListDestroy(); Require(b.FrifloEngineECS_List_DestroyBatch(), 100, "Friflo list destroy"); b.RestoreAfterIteration();
+            b.PrepareFrifloListAdd(); Require(b.FrifloEngineECS_List_AddBatch(), 100, "Friflo list add"); b.RestoreAfterIteration();
+            b.PrepareFrifloListRemove(); Require(b.FrifloEngineECS_List_RemoveBatch(), 100, "Friflo list remove"); b.RestoreAfterIteration();
+
+            b.PrepareDefaultListCreate(); Require(b.DefaultEcs_List_CreateBatch(), 100, "Default list create"); b.RestoreAfterIteration();
+            b.PrepareDefaultListDestroy(); Require(b.DefaultEcs_List_DestroyBatch(), 100, "Default list destroy"); b.RestoreAfterIteration();
+            b.PrepareDefaultListAdd(); Require(b.DefaultEcs_List_AddBatch(), 100, "Default list add"); b.RestoreAfterIteration();
+            b.PrepareDefaultListRemove(); Require(b.DefaultEcs_List_RemoveBatch(), 100, "Default list remove"); b.RestoreAfterIteration();
+
+            b.PrepareLeoListCreate(); Require(b.LeoEcsLite_List_CreateBatch(), 100, "Leo list create"); b.RestoreAfterIteration();
+            b.PrepareLeoListDestroy(); Require(b.LeoEcsLite_List_DestroyBatch(), 100, "Leo list destroy"); b.RestoreAfterIteration();
+            b.PrepareLeoListAdd(); Require(b.LeoEcsLite_List_AddBatch(), 100, "Leo list add"); b.RestoreAfterIteration();
+            b.PrepareLeoListRemove(); Require(b.LeoEcsLite_List_RemoveBatch(), 100, "Leo list remove"); b.RestoreAfterIteration();
+        }
         finally { b.RestoreAfterIteration(); }
     }
 
@@ -51,7 +77,33 @@ public static class ComparativeBenchmarkExecutionSmoke
     {
         var b = new ComparativeStructuralQueryBenchmarks { Amount = 100, ChangeWidth = 4 };
         b.Setup();
-        try { b.PrepareCreate(); Require(b.DeltaECS_Query_CreateBatch(), 100, "query create"); b.RestoreAfterIteration(); b.PrepareDestroy(); Require(b.DeltaECS_Query_DestroyBatch(), 25, "query destroy"); b.RestoreAfterIteration(); b.PrepareAdd(); Require(b.DeltaECS_Query_AddBatch(), 25, "query add"); b.RestoreAfterIteration(); b.PrepareRemove(); Require(b.DeltaECS_Query_RemoveBatch(), 25, "query remove"); b.RestoreAfterIteration(); }
+        try
+        {
+            b.PrepareCreate(); Require(b.DeltaECS_Query_CreateBatch(), 100, "Delta query create"); b.RestoreAfterIteration();
+            b.PrepareDestroy(); Require(b.DeltaECS_Query_DestroyBatch(), 25, "Delta query destroy"); b.RestoreAfterIteration();
+            b.PrepareAdd(); Require(b.DeltaECS_Query_AddBatch(), 25, "Delta query add"); b.RestoreAfterIteration();
+            b.PrepareRemove(); Require(b.DeltaECS_Query_RemoveBatch(), 25, "Delta query remove"); b.RestoreAfterIteration();
+
+            b.PrepareArchQueryCreate(); Require(b.Arch_Query_CreateBatch(), 100, "Arch query create"); b.RestoreAfterIteration();
+            b.PrepareArchQueryDestroy(); Require(b.Arch_Query_DestroyBatch(), 25, "Arch query destroy"); b.RestoreAfterIteration();
+            b.PrepareArchQueryAdd(); Require(b.Arch_Query_AddBatch(), 25, "Arch query add"); b.RestoreAfterIteration();
+            b.PrepareArchQueryRemove(); Require(b.Arch_Query_RemoveBatch(), 25, "Arch query remove"); b.RestoreAfterIteration();
+
+            b.PrepareFrifloQueryCreate(); Require(b.FrifloEngineECS_Query_CreateBatch(), 100, "Friflo query create"); b.RestoreAfterIteration();
+            b.PrepareFrifloQueryDestroy(); Require(b.FrifloEngineECS_Query_DestroyBatch(), 25, "Friflo query destroy"); b.RestoreAfterIteration();
+            b.PrepareFrifloQueryAdd(); Require(b.FrifloEngineECS_Query_AddBatch(), 25, "Friflo query add"); b.RestoreAfterIteration();
+            b.PrepareFrifloQueryRemove(); Require(b.FrifloEngineECS_Query_RemoveBatch(), 25, "Friflo query remove"); b.RestoreAfterIteration();
+
+            b.PrepareDefaultQueryCreate(); Require(b.DefaultEcs_Query_CreateBatch(), 100, "Default query create"); b.RestoreAfterIteration();
+            b.PrepareDefaultQueryDestroy(); Require(b.DefaultEcs_Query_DestroyBatch(), 25, "Default query destroy"); b.RestoreAfterIteration();
+            b.PrepareDefaultQueryAdd(); Require(b.DefaultEcs_Query_AddBatch(), 25, "Default query add"); b.RestoreAfterIteration();
+            b.PrepareDefaultQueryRemove(); Require(b.DefaultEcs_Query_RemoveBatch(), 25, "Default query remove"); b.RestoreAfterIteration();
+
+            b.PrepareLeoQueryCreate(); Require(b.LeoEcsLite_Query_CreateBatch(), 100, "Leo query create"); b.RestoreAfterIteration();
+            b.PrepareLeoQueryDestroy(); Require(b.LeoEcsLite_Query_DestroyBatch(), 25, "Leo query destroy"); b.RestoreAfterIteration();
+            b.PrepareLeoQueryAdd(); Require(b.LeoEcsLite_Query_AddBatch(), 25, "Leo query add"); b.RestoreAfterIteration();
+            b.PrepareLeoQueryRemove(); Require(b.LeoEcsLite_Query_RemoveBatch(), 25, "Leo query remove"); b.RestoreAfterIteration();
+        }
         finally { b.RestoreAfterIteration(); }
     }
 

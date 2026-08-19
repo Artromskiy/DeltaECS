@@ -194,17 +194,22 @@ jobs:
             echo
             echo "Suite: \`$BENCHMARK_SUITE\` · runner: \`${{ runner.os }} ${{ runner.arch }}\`"
             echo
-            while IFS= read -r report; do
-              echo "### $(basename "$report")"
-              echo
-              sed -n '1,140p' "$report"
-              echo
-            done < <(find artifacts/github-full -type f -name '*-report-github.md' | sort)
             if [ -f artifacts/github-full/comparative-report.md ]; then
               echo "### Combined capability report"
               echo
-              sed -n '1,220p' artifacts/github-full/comparative-report.md
+              cat artifacts/github-full/comparative-report.md
+            else
+              echo "The combined report was not produced. Raw reports are listed below; full files are available in the uploaded artifact."
+              echo
+              while IFS= read -r report; do
+                echo "### $(basename "$report")"
+                echo
+                sed -n '1,140p' "$report"
+                echo
+              done < <(find artifacts/github-full -type f -name '*-report-github.md' | sort)
             fi
+            echo
+            echo "Raw BenchmarkDotNet reports and runner metadata are available in the uploaded artifact."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload full benchmark artifacts

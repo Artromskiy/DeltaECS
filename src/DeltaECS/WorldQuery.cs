@@ -118,6 +118,19 @@ public ref struct DenseChunkLeaseView
 
     public int SlotCount => _slotCount;
 
+    /// <summary>
+    /// Gets a value indicating whether every slot in this view is active.
+    /// </summary>
+    /// <remarks>
+    /// This is a chunk-level fast-path selector for views created from queries
+    /// that contain overlay/tag predicates. If it is <see langword="true"/>,
+    /// the slot loop may process every index from <c>SlotCount - 1</c>
+    /// down to zero without calling <see cref="IsActiveSlot(int)"/>. If it is
+    /// <see langword="false"/>, the view can contain overlay holes and each
+    /// slot must be checked with <see cref="IsActiveSlot(int)"/>. Component
+    /// matching is resolved at archetype level and is not represented by this
+    /// mask.
+    /// </remarks>
     public bool IsAllSlotsActive
     {
         get
@@ -136,6 +149,13 @@ public ref struct DenseChunkLeaseView
         }
     }
 
+    /// <summary>
+    /// Gets whether a slot passes the overlay/tag predicates of this view.
+    /// </summary>
+    /// <remarks>
+    /// Call this inside the slot loop only after <see cref="IsAllSlotsActive"/>
+    /// returned <see langword="false"/> for the current chunk.
+    /// </remarks>
     public bool IsActiveSlot(int slotIndex)
     {
         EnsureCurrent();

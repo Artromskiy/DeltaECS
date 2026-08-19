@@ -104,15 +104,8 @@ public class EcsLiteComparisonBenchmarks
             var positions = lease.GetComponentRow<DeltaPosition>(0);
             var velocities = lease.GetComponentRow<DeltaVelocity>(1);
             var slotCount = lease.SlotCount;
-            var allSlotsActive = lease.IsAllSlotsActive;
-
             for (var i = slotCount - 1; i >= 0; i--)
             {
-                if (!allSlotsActive && !lease.IsActiveSlot(i))
-                {
-                    continue;
-                }
-
                 positions[i].X += velocities[i].X * Dt;
                 positions[i].Y += velocities[i].Y * Dt;
                 state.Count++;
@@ -155,15 +148,8 @@ public class EcsLiteComparisonBenchmarks
             var positions = lease.GetComponentRow<DeltaFilterPosition>(0);
             var velocities = lease.GetComponentRow<DeltaFilterVelocity>(1);
             var slotCount = lease.SlotCount;
-            var allSlotsActive = lease.IsAllSlotsActive;
-
             for (var i = slotCount - 1; i >= 0; i--)
             {
-                if (!allSlotsActive && !lease.IsActiveSlot(i))
-                {
-                    continue;
-                }
-
                 state.Count++;
                 state.Checksum += positions[i].X + velocities[i].Y;
             }

@@ -167,25 +167,25 @@ Keep semantic `ChangeVersion` separate from `OrderVersion` and topology changes.
 Sorting entity slots changes storage order without pretending every component value was
 modified.
 
-### Competitive benchmarking lanes
+### Comparative benchmarking lanes
 
-`DefaultEcsComparisonBenchmarks.cs` and `EcsLiteComparisonBenchmarks.cs` compare
-the same four workload families at 10K/100K entities and 0/2/6 cold payload
-rows: dense movement, cached iteration, create/destroy, and structural
-add/remove. Each logical workload has its own DVG baseline. Checksums are
-accumulated with the useful work to prevent elimination, while validation is
-performed after the loop.
+The current unified comparative matrix is split into `iteration`,
+`structural-list`, `structural-query`, and `structural-atomic` routes. Each
+logical workload has one `DeltaECS` baseline and direct methods for DeltaECS,
+Arch, Friflo.Engine.ECS, DefaultEcs, and LeoECS Lite. Checksums are accumulated
+with the useful work to prevent elimination, while validation is performed
+outside the measured operation where the workload is stateful.
 
 ```text
 dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net8.0/DeltaECS.Benchmarks.dll defaultecs --filter '*' --warmupCount 3 --iterationCount 5 --launchCount 1
 dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net8.0/DeltaECS.Benchmarks.dll ecslite --filter '*' --warmupCount 3 --iterationCount 5 --launchCount 1
 ```
 
-The complete in-process comparison suite is available through one route:
+The complete comparison suite is available through one route:
 
 ```text
 dotnet build benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj -c Release --no-restore
-dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net8.0/DeltaECS.Benchmarks.dll full-comparison --filter '*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json csv markdown --artifacts artifacts/full-comparison
+dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net8.0/DeltaECS.Benchmarks.dll full-comparison --filter '*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json csv markdown github --artifacts artifacts/full-comparison --combined-report artifacts/full-comparison
 ```
 
 DeltaECS is the BenchmarkDotNet baseline in every comparative workload group.
@@ -198,15 +198,15 @@ It covers all currently integrated ECS implementations:
 | Implementation | Covered workloads |
 |---|---|
 | DeltaECS | Every comparison lane |
-| Legacy byte-row reference | Dense, movement, wide-archetype, and sparse-query lanes |
-| Arch | Dense, movement, wide-archetype, and sparse-query lanes |
-| Friflo.Engine.ECS | Dense, movement, wide-archetype, and sparse-query lanes |
-| DefaultEcs | Movement, cached iteration, create/destroy, and structural add/remove |
-| LeoECS Lite | Movement, cached iteration, create/destroy, and structural add/remove |
+| Arch | Every comparison family, with native query-wide transitions where available |
+| Friflo.Engine.ECS | Every comparison family, with native `EntityBatch` add/remove where available |
+| DefaultEcs | Every comparison family through direct APIs and declared fallbacks |
+| LeoECS Lite | Every comparison family through direct APIs and declared fallbacks |
 
-`full-comparison` intentionally excludes Delta-only feature experiments,
-capacity sweeps, and `HardwareProfileBenchmarks`. That keeps the result an
-ECS-to-ECS comparison and avoids requesting unsupported PMU counters on macOS.
+`full-comparison` intentionally excludes Legacy and Delta-only feature
+experiments, capacity sweeps, and `HardwareProfileBenchmarks`. That keeps the
+result an ECS-to-ECS comparison and avoids requesting unsupported PMU counters
+on macOS.
 The command is intentionally long-running; build it first, then run it only on
 an otherwise idle machine with a fixed power mode.
 
@@ -328,18 +328,33 @@ lease disposal. The callback query API remains for general correctness and
 filtered/tagged access; it is not the primary dense performance lane.
 
 Both `DenseChunkLease` and `DenseChunkLeaseView` expose an aligned,
-zero-copy `ReadOnlySpan<Entity>` alongside component rows. Dense slot work uses
-the reverse slot order while preserving slot alignment and overlay checks:
+zero-copy `ReadOnlySpan<Entity>` alongside component rows. For a
+`DenseChunkLeaseView` created from a query containing overlay/tag predicates,
+select the active-slot path once per chunk: `IsAllSlotsActive` is a chunk-level
+fast-path flag, not a per-entity validity check. Dense slot work uses the
+reverse slot order while preserving slot alignment and overlay checks:
 
 ```csharp
 ReadOnlySpan<Entity> entities = lease.Entities;
 var positions = lease.GetComponentRow<Position>(positionId);
-for (var i = lease.SlotCount - 1; i >= 0; i--)
+if (lease.IsAllSlotsActive)
 {
-    if (!lease.IsActiveSlot(i)) continue;
-    Entity entity = entities[i];
-    ref Position position = ref positions[i];
-    Process(entity, ref position);
+    for (var i = lease.SlotCount - 1; i >= 0; i--)
+    {
+        Entity entity = entities[i];
+        ref Position position = ref positions[i];
+        Process(entity, ref position);
+    }
+}
+else
+{
+    for (var i = lease.SlotCount - 1; i >= 0; i--)
+    {
+        if (!lease.IsActiveSlot(i)) continue;
+        Entity entity = entities[i];
+        ref Position position = ref positions[i];
+        Process(entity, ref position);
+    }
 }
 ```
 
@@ -357,10 +372,18 @@ overhead from the slot work before comparing the full lanes.
 The standardized comparative suite is split into `iteration`, `structural-list`,
 `structural-query`, and `structural-atomic`; `full-comparison` is their unified
 route. Its capability manifest covers DeltaECS, Arch, Friflo.Engine.ECS,
-DefaultEcs, and LeoECS Lite. Native bulk operations are compared as batch only;
-unsupported competitors are emitted in the combined report as
-`Supported=false`, `Mode=Unsupported`, and `∞` mean/ratio rows. The full route
-does not include Legacy or the Delta-only hardware/profile lanes.
+DefaultEcs, and LeoECS Lite. Every structural workload uses the highest
+semantics-preserving implementation available to that ECS:
+`Native` -> `QueryFallback` -> `ListFallback` -> `AtomicFallback`.
+Arch uses its native query-wide `Destroy` and multi-component `Add`/`Remove`
+overloads. Friflo uses `EntityBatch` for list- and query-wide multi-component
+`Add`/`Remove`. Other missing bulk APIs fall back to selection plus a lower-level
+batch or atomic loop, so the timing still represents a complete operation.
+Only an operation with no correct fallback is emitted as `Supported=false`,
+`Mode=Unsupported`, and `∞` mean/ratio. The `Mode` and `Note` columns make the
+chosen implementation explicit; native and fallback results must not be treated
+as equivalent API capabilities. The full route does not include Legacy or the
+Delta-only hardware/profile lanes.
 
 The reproducible distinct-type dense comparison command is:
 

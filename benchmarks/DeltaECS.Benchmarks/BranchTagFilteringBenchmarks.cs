@@ -92,18 +92,33 @@ public class DeltaEcsTagFilteringBenchmarks
     {
         var values = state.UpdateValues ? lease.GetComponentRow<TagFilterValue>(0) : default;
         var allSlotsActive = lease.IsAllSlotsActive;
-        for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
+        if (allSlotsActive)
         {
-            if (!allSlotsActive && !lease.IsActiveSlot(slotIndex))
+            for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
             {
-                continue;
+                state.TaggedCount++;
+                if (state.UpdateValues)
+                {
+                    values[slotIndex].X += values[slotIndex].Y * 0.5f;
+                    state.Checksum += values[slotIndex].X;
+                }
             }
-
-            state.TaggedCount++;
-            if (state.UpdateValues)
+        }
+        else
+        {
+            for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
             {
-                values[slotIndex].X += values[slotIndex].Y * 0.5f;
-                state.Checksum += values[slotIndex].X;
+                if (!lease.IsActiveSlot(slotIndex))
+                {
+                    continue;
+                }
+
+                state.TaggedCount++;
+                if (state.UpdateValues)
+                {
+                    values[slotIndex].X += values[slotIndex].Y * 0.5f;
+                    state.Checksum += values[slotIndex].X;
+                }
             }
         }
     }

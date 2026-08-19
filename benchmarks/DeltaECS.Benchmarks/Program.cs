@@ -225,10 +225,8 @@ public class DeltaEcsVsArchBenchmarks
     {
         var c0 = lease.GetComponentRow<Value>(0);
         var slotCount = lease.SlotCount;
-        var allSlotsActive = lease.IsAllSlotsActive;
         for (var slotIndex = slotCount - 1; slotIndex >= 0; slotIndex--)
         {
-            if (!allSlotsActive && !lease.IsActiveSlot(slotIndex)) continue;
             Update(ref c0[slotIndex]);
         }
     }
@@ -239,10 +237,8 @@ public class DeltaEcsVsArchBenchmarks
         var c0 = lease.GetComponentRow<Value>(0);
         var c1 = lease.GetComponentRow<Value>(1);
         var slotCount = lease.SlotCount;
-        var allSlotsActive = lease.IsAllSlotsActive;
         for (var slotIndex = slotCount - 1; slotIndex >= 0; slotIndex--)
         {
-            if (!allSlotsActive && !lease.IsActiveSlot(slotIndex)) continue;
             Update(ref c0[slotIndex]);
             Update(ref c1[slotIndex]);
         }
@@ -256,10 +252,8 @@ public class DeltaEcsVsArchBenchmarks
         var c2 = lease.GetComponentRow<Value>(2);
         var c3 = lease.GetComponentRow<Value>(3);
         var slotCount = lease.SlotCount;
-        var allSlotsActive = lease.IsAllSlotsActive;
         for (var slotIndex = slotCount - 1; slotIndex >= 0; slotIndex--)
         {
-            if (!allSlotsActive && !lease.IsActiveSlot(slotIndex)) continue;
             Update(ref c0[slotIndex]);
             Update(ref c1[slotIndex]);
             Update(ref c2[slotIndex]);
@@ -279,10 +273,8 @@ public class DeltaEcsVsArchBenchmarks
         var c6 = lease.GetComponentRow<Value>(6);
         var c7 = lease.GetComponentRow<Value>(7);
         var slotCount = lease.SlotCount;
-        var allSlotsActive = lease.IsAllSlotsActive;
         for (var slotIndex = slotCount - 1; slotIndex >= 0; slotIndex--)
         {
-            if (!allSlotsActive && !lease.IsActiveSlot(slotIndex)) continue;
             Update(ref c0[slotIndex]);
             Update(ref c1[slotIndex]);
             Update(ref c2[slotIndex]);

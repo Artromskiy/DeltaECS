@@ -216,22 +216,53 @@ public sealed class DeltaECSDeliveryTests
         world.AddTag(created[0], TagActive);
         world.AddTag(created[2], TagActive);
         var observed = new HashSet<Entity>();
-        world.Query(in tagged, QueryAccess.Read, lease =>
+        var taggedQuery = world.CreateQuery(in tagged);
+        var taggedState = new OverlayQueryState(observed);
+        world.Query(in taggedQuery, QueryAccess.Read, ref taggedState, static (ref OverlayQueryState state, ref DenseChunkLeaseView lease) =>
         {
+            state.SawPartialChunk |= !lease.IsAllSlotsActive;
             var entities = lease.Entities;
-            for (var slot = lease.SlotCount - 1; slot >= 0; slot--)
+            if (lease.IsAllSlotsActive)
             {
-                if (!lease.IsActiveSlot(slot))
+                for (var slot = lease.SlotCount - 1; slot >= 0; slot--)
                 {
-                    continue;
+                    Assert.That(state.Entities.Add(entities[slot]), Is.True);
                 }
+            }
+            else
+            {
+                for (var slot = lease.SlotCount - 1; slot >= 0; slot--)
+                {
+                    if (!lease.IsActiveSlot(slot))
+                    {
+                        continue;
+                    }
 
-                Assert.That(observed.Add(entities[slot]), Is.True);
+                    Assert.That(state.Entities.Add(entities[slot]), Is.True);
+                }
             }
         });
 
         Assert.That(fullChunkCount, Is.EqualTo(created.Length));
+        Assert.That(taggedState.SawPartialChunk, Is.True);
         Assert.That(observed, Is.EquivalentTo(new[] { created[0], created[2] }));
+
+        foreach (var entity in created)
+        {
+            world.AddTag(entity, TagActive);
+        }
+
+        var fullTaggedState = new OverlayQueryState(new HashSet<Entity>());
+        world.Query(in taggedQuery, QueryAccess.Read, ref fullTaggedState, static (ref OverlayQueryState state, ref DenseChunkLeaseView lease) =>
+        {
+            Assert.That(lease.IsAllSlotsActive, Is.True);
+            for (var slot = lease.SlotCount - 1; slot >= 0; slot--)
+            {
+                Assert.That(state.Entities.Add(lease.Entities[slot]), Is.True);
+            }
+        });
+
+        Assert.That(fullTaggedState.Entities, Is.EquivalentTo(created));
     }
 
     [Test]
@@ -1007,6 +1038,18 @@ public sealed class DeltaECSDeliveryTests
         public int Count;
         public NamedRef First;
         public NamedRef Second;
+    }
+
+    private struct OverlayQueryState
+    {
+        public OverlayQueryState(HashSet<Entity> entities)
+        {
+            Entities = entities;
+            SawPartialChunk = false;
+        }
+
+        public HashSet<Entity> Entities;
+        public bool SawPartialChunk;
     }
 
     private struct LeaseMutationState

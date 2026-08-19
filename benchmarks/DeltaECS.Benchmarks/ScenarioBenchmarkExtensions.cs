@@ -175,7 +175,7 @@ public class SmallDenseScenarioBenchmarks
     }
 
     [Benchmark]
-    public double Arch_DistinctRows()
+    public double Arch_Movement4Components()
     {
         var checksum = 0d;
         switch (ComponentCount)
@@ -220,7 +220,7 @@ public class SmallDenseScenarioBenchmarks
     }
 
     [Benchmark]
-    public double Friflo_DistinctRows()
+    public double Friflo_Movement4Components()
     {
         var checksum = 0d;
         switch (ComponentCount)
@@ -270,7 +270,6 @@ public class SmallDenseScenarioBenchmarks
 
     private static void IterateSmallDense(ref SmallDenseState state, ref DenseChunkLeaseView lease)
     {
-        var allSlotsActive = lease.IsAllSlotsActive;
         switch (state.ComponentCount)
         {
             case 1:
@@ -278,11 +277,6 @@ public class SmallDenseScenarioBenchmarks
                 var c0 = lease.GetComponentRow<SmallDenseValue>(0);
                 for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
                 {
-                    if (!allSlotsActive && !lease.IsActiveSlot(slotIndex))
-                    {
-                        continue;
-                    }
-
                     ref var value = ref c0[slotIndex];
                     value.X += value.Y;
                     state.Checksum += value.X + value.Y;
@@ -296,11 +290,6 @@ public class SmallDenseScenarioBenchmarks
                 var c1 = lease.GetComponentRow<SmallDenseValue>(1);
                 for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
                 {
-                    if (!allSlotsActive && !lease.IsActiveSlot(slotIndex))
-                    {
-                        continue;
-                    }
-
                     ref var v0 = ref c0[slotIndex];
                     ref var v1 = ref c1[slotIndex];
                     v0.X += v0.Y;
@@ -318,11 +307,6 @@ public class SmallDenseScenarioBenchmarks
                 var c3 = lease.GetComponentRow<SmallDenseValue>(3);
                 for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
                 {
-                    if (!allSlotsActive && !lease.IsActiveSlot(slotIndex))
-                    {
-                        continue;
-                    }
-
                     ref var v0 = ref c0[slotIndex];
                     ref var v1 = ref c1[slotIndex];
                     ref var v2 = ref c2[slotIndex];
@@ -348,11 +332,6 @@ public class SmallDenseScenarioBenchmarks
                 var c7 = lease.GetComponentRow<SmallDenseValue>(7);
                 for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
                 {
-                    if (!allSlotsActive && !lease.IsActiveSlot(slotIndex))
-                    {
-                        continue;
-                    }
-
                     ref var v0 = ref c0[slotIndex];
                     ref var v1 = ref c1[slotIndex];
                     ref var v2 = ref c2[slotIndex];
@@ -472,11 +451,6 @@ public class WideArchetypeNarrowAccessBenchmarks
             var velocities = lease.GetComponentRow<WideDenseValue>(1);
             for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
             {
-                if (!lease.IsAllSlotsActive && !lease.IsActiveSlot(slotIndex))
-                {
-                    continue;
-                }
-
                 ref var pos = ref positions[slotIndex];
                 ref var vel = ref velocities[slotIndex];
                 pos.X += vel.X;
@@ -601,11 +575,6 @@ public class WideArchetypeNarrowAccessComparisonBenchmarks
             var velocities = lease.GetComponentRow<WideDenseValue>(1);
             for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
             {
-                if (!lease.IsAllSlotsActive && !lease.IsActiveSlot(slotIndex))
-                {
-                    continue;
-                }
-
                 ref var pos = ref positions[slotIndex];
                 ref var vel = ref velocities[slotIndex];
                 pos.X += vel.X;
@@ -989,10 +958,7 @@ public class SparseHeterogeneousQueryBenchmarks
     {
         for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
         {
-            if (lease.IsAllSlotsActive || lease.IsActiveSlot(slotIndex))
-            {
-                state.Count++;
-            }
+            state.Count++;
         }
     }
 
@@ -1002,11 +968,6 @@ public class SparseHeterogeneousQueryBenchmarks
         var velocities = lease.GetComponentRow<SparseValue>(1);
         for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
         {
-            if (!lease.IsAllSlotsActive && !lease.IsActiveSlot(slotIndex))
-            {
-                continue;
-            }
-
             ref var position = ref positions[slotIndex];
             ref var velocity = ref velocities[slotIndex];
             position.X += velocity.X;

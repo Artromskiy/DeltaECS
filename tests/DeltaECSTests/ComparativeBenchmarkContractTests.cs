@@ -11,19 +11,23 @@ public sealed class ComparativeBenchmarkContractTests
     {
         ComparativeBenchmarkCatalog.Validate();
         var expected = Enum.GetValues<ComparativeEcs>().Length;
-        foreach (var workload in new[] { "Iteration.Dense", "Iteration.Movement", "Iteration.DistinctRows", "Iteration.WideNarrow", "Iteration.SparseCached", "Iteration.SparseCold" })
+        foreach (var workload in new[] { "Iteration.Dense", "Iteration.Movement2Components", "Iteration.Movement4Components", "Iteration.WideArchetypeNarrowQuery", "Iteration.SparseWorldCachedQuery", "Iteration.SparseWorldColdQuery" })
         {
             Assert.That(ComparativeCapabilityManifest.Rows.Count(row => row.Workload == workload), Is.EqualTo(expected), workload);
         }
     }
 
     [Test]
-    public void Unsupported_capabilities_are_explicit_infinity_rows()
+    public void Structural_capabilities_use_explicit_fallback_levels()
     {
         var rows = ComparativeReportBuilder.BuildManifestRows();
-        Assert.That(rows.Any(row => !row.Supported), Is.True);
         Assert.That(rows.Where(row => !row.Supported).All(row => double.IsPositiveInfinity(row.Mean) && double.IsPositiveInfinity(row.RatioToDelta)), Is.True);
-        Assert.That(ComparativeReportBuilder.ToMarkdown(rows), Does.Contain("∞"));
+        Assert.That(rows.Single(row => row.Workload == "Structural.Query.AddBatch" && row.Ecs == ComparativeEcs.Arch).Mode, Is.EqualTo(ComparativeCapabilityMode.Native));
+        Assert.That(rows.Single(row => row.Workload == "Structural.Query.AddBatch" && row.Ecs == ComparativeEcs.DeltaECS).Mode, Is.EqualTo(ComparativeCapabilityMode.ListFallback));
+        Assert.That(rows.Single(row => row.Workload == "Structural.Query.AddBatch" && row.Ecs == ComparativeEcs.LeoEcsLite).Mode, Is.EqualTo(ComparativeCapabilityMode.AtomicFallback));
+        Assert.That(rows.Single(row => row.Workload == "Structural.Atomic.Add" && row.Ecs == ComparativeEcs.Arch).Mode, Is.EqualTo(ComparativeCapabilityMode.Native));
+        Assert.That(rows.Single(row => row.Workload == "Structural.Atomic.Remove" && row.Ecs == ComparativeEcs.FrifloEngineECS).Mode, Is.EqualTo(ComparativeCapabilityMode.Native));
+        Assert.That(rows.Single(row => row.Workload == "Structural.Atomic.Add" && row.Ecs == ComparativeEcs.DefaultEcs).Mode, Is.EqualTo(ComparativeCapabilityMode.AtomicFallback));
     }
 
     [Test]
@@ -48,6 +52,33 @@ public sealed class ComparativeBenchmarkContractTests
         {
             File.WriteAllText(Path.Combine(directory, "bad.csv"), "Method;Mean;Allocated;Amount\nDeltaECS_Dense;NA;0 B;100\n");
             Assert.Throws<InvalidOperationException>(() => ComparativeReportBuilder.WriteManifest(directory));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Test]
+    public void Combined_report_reads_comma_delimited_linux_csv()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "deltaecs-linux-report-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            File.WriteAllText(Path.Combine(directory, "linux.csv"),
+                "Method,Mean,Allocated,Amount\n" +
+                "DeltaECS_Dense,100 ns,0 B,100\n" +
+                "Arch_Dense,200 ns,\"1,024 B\",100\n" +
+                "FrifloEngineECS_Dense,300 ns,88 B,100\n" +
+                "DefaultEcs_Dense,400 ns,0 B,100\n" +
+                "LeoEcsLite_Dense,500 ns,0 B,100\n");
+
+            ComparativeReportBuilder.WriteManifest(directory);
+            var report = File.ReadAllText(Path.Combine(directory, "comparative-report.md"));
+            Assert.That(report, Does.Contain("|Iteration.Dense|Amount=100|DeltaECS|100|1|"));
+            Assert.That(report, Does.Contain("|Iteration.Dense|Amount=100|Arch|200|2|1,024 B|"));
+            Assert.That(report, Does.Not.Contain("|Iteration.Dense|manifest|"));
         }
         finally
         {

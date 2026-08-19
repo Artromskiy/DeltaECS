@@ -81,11 +81,6 @@ private int _expectedMatches;
             var values = lease.GetComponentRow<FragmentValue>(0);
             for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
             {
-                if (!lease.IsAllSlotsActive && !lease.IsActiveSlot(slotIndex))
-                {
-                    continue;
-                }
-
                 s.Matches++;
                 s.Checksum += values[slotIndex].Value;
             }
@@ -125,11 +120,6 @@ private int _expectedMatches;
             var values = lease.GetComponentRow<FragmentValue>(0);
             for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
             {
-                if (!lease.IsAllSlotsActive && !lease.IsActiveSlot(slotIndex))
-                {
-                    continue;
-                }
-
                 s.Matches++;
                 s.Checksum += values[slotIndex].Value;
             }
