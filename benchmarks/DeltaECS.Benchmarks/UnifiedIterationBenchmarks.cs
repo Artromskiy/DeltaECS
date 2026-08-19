@@ -5,6 +5,8 @@ using DefaultEcs;
 using Delta.ECS;
 using Friflo.Engine.ECS;
 using Leopotam.EcsLite;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using DeltaEntity = Delta.ECS.Entity;
 using DeltaWorld = Delta.ECS.World;
 using DefaultWorld = DefaultEcs.World;
@@ -219,9 +221,13 @@ public class ComparativeMovement2ComponentsBenchmarks
         _delta.Query(in _deltaQuery, ref state, static (ref Movement2State current, ref DenseChunkAccessor lease) =>
         {
             var positions = lease.GetRow(current.Position); var velocities = lease.GetRow(current.Velocity);
+            ref var firstPosition = ref MemoryMarshal.GetReference(positions);
+            ref readonly var firstVelocity = ref MemoryMarshal.GetReference(velocities);
             for (var i = lease.SlotCount - 1; i >= 0; i--)
             {
-                positions[i].X += velocities[i].X / 60f; positions[i].Y += velocities[i].Y / 60f; current.Sum += positions[i].X + positions[i].Y;
+                ref var position = ref Unsafe.Add(ref firstPosition, i);
+                ref readonly var velocity = ref Unsafe.Add(ref Unsafe.AsRef(in firstVelocity), i);
+                position.X += velocity.X / 60f; position.Y += velocity.Y / 60f; current.Sum += position.X + position.Y;
             }
         });
         return MovementChecksum(state.Sum, Amount);
@@ -303,7 +309,7 @@ public class ComparativeMovement4ComponentsBenchmarks
         }
     }
     [GlobalCleanup] public void Cleanup() { _defaultQuery?.Dispose(); _default?.Dispose(); }
-    [Benchmark(Baseline = true)] public int DeltaECS_Movement4Components() { var state = new Movement4State { A = _delta0Binding, B = _delta1Binding, C = _delta2Binding, D = _delta3Binding }; _delta.Query(in _deltaQuery, ref state, static (ref Movement4State current, ref DenseChunkAccessor l) => { var a = l.GetRow(current.A); var b = l.GetRow(current.B); var c = l.GetRow(current.C); var d = l.GetRow(current.D); for (var i = l.SlotCount - 1; i >= 0; i--) { var updatedA = a[i].Value + d[i].Value; var updatedB = b[i].Value + d[i].Value; a[i].Value = updatedA; b[i].Value = updatedB; c[i].Value = (updatedA + updatedB) / 2; current.Sum += a[i].Value + b[i].Value + c[i].Value + d[i].Value; } }); return Check(state.Sum, Amount * 20); }
+    [Benchmark(Baseline = true)] public int DeltaECS_Movement4Components() { var state = new Movement4State { A = _delta0Binding, B = _delta1Binding, C = _delta2Binding, D = _delta3Binding }; _delta.Query(in _deltaQuery, ref state, static (ref Movement4State current, ref DenseChunkAccessor l) => { var a = l.GetRow(current.A); var b = l.GetRow(current.B); var c = l.GetRow(current.C); var d = l.GetRow(current.D); ref var firstA = ref MemoryMarshal.GetReference(a); ref var firstB = ref MemoryMarshal.GetReference(b); ref var firstC = ref MemoryMarshal.GetReference(c); ref readonly var firstD = ref MemoryMarshal.GetReference(d); for (var i = l.SlotCount - 1; i >= 0; i--) { ref var rowA = ref Unsafe.Add(ref firstA, i); ref var rowB = ref Unsafe.Add(ref firstB, i); ref var rowC = ref Unsafe.Add(ref firstC, i); ref readonly var rowD = ref Unsafe.Add(ref Unsafe.AsRef(in firstD), i); var updatedA = rowA.Value + rowD.Value; var updatedB = rowB.Value + rowD.Value; rowA.Value = updatedA; rowB.Value = updatedB; rowC.Value = (updatedA + updatedB) / 2; current.Sum += rowA.Value + rowB.Value + rowC.Value + rowD.Value; } }); return Check(state.Sum, Amount * 20); }
     [Benchmark] public int Arch_Movement4Components() { var s = 0; _arch.Query(_archQuery, (ref DistinctArch0 a, ref DistinctArch1 b, ref DistinctArch2 c, ref DistinctArch3 d) => { var updatedA = a.Value + d.Value; var updatedB = b.Value + d.Value; a.Value = updatedA; b.Value = updatedB; c.Value = (updatedA + updatedB) / 2; s += a.Value + b.Value + c.Value + d.Value; }); return Check(s, Amount * 20); }
     [Benchmark] public int FrifloEngineECS_Movement4Components() { var s = 0; _frifloQuery.ForEachEntity((ref DistinctFriflo0 a, ref DistinctFriflo1 b, ref DistinctFriflo2 c, ref DistinctFriflo3 d, FrifloEntity _) => { var updatedA = a.Value + d.Value; var updatedB = b.Value + d.Value; a.Value = updatedA; b.Value = updatedB; c.Value = (updatedA + updatedB) / 2; s += a.Value + b.Value + c.Value + d.Value; }); return Check(s, Amount * 20); }
     [Benchmark] public int DefaultEcs_Movement4Components() { var s = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { ref var a = ref entities[i].Get<DistinctDefault0>(); ref var b = ref entities[i].Get<DistinctDefault1>(); ref var c = ref entities[i].Get<DistinctDefault2>(); var d = entities[i].Get<DistinctDefault3>(); var updatedA = a.Value + d.Value; var updatedB = b.Value + d.Value; a.Value = updatedA; b.Value = updatedB; c.Value = (updatedA + updatedB) / 2; s += a.Value + b.Value + c.Value + d.Value; } return Check(s, Amount * 20); }
