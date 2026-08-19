@@ -1,7 +1,6 @@
 namespace DVG.ECS;
 
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -17,15 +16,15 @@ public sealed class DenseChunkScope : IDisposable
     private readonly bool _fullMask;
     private bool _disposed;
 
-    internal DenseChunkScope(World owner, Archetype archetype, Chunk chunk, int globalChunkId, ulong[]? overlayMask, bool fullMask)
+    internal DenseChunkScope(World owner, Archetype archetype, Chunk chunk, int globalChunkId, ulong[]? overlayMask, OverlayMaskResult overlayResult)
     {
         _owner = owner;
         _archetype = archetype;
         _chunk = chunk;
         _globalChunkId = globalChunkId;
         _slotCount = chunk.Count;
-        _overlayMask = overlayMask;
-        _fullMask = fullMask;
+        _overlayMask = overlayResult == OverlayMaskResult.Partial ? overlayMask : null;
+        _fullMask = overlayResult == OverlayMaskResult.Full;
     }
 
     public int ArchetypeId => _archetype.Id;
@@ -64,12 +63,6 @@ public sealed class DenseChunkScope : IDisposable
             return;
         }
 
-        if (_overlayMask is not null)
-        {
-            ArrayPool<ulong>.Shared.Return(_overlayMask, clearArray: true);
-            _overlayMask = null;
-        }
-
         _owner.CompleteChunkScope();
         _disposed = true;
     }
@@ -96,7 +89,7 @@ public ref struct DenseChunkAccessor
         int globalChunkId,
         int[]? queryComponentRowIndices,
         ulong[]? overlayMask,
-        bool fullMask,
+        OverlayMaskResult overlayResult,
         int viewId)
     {
         _archetype = archetype;
@@ -105,8 +98,8 @@ public ref struct DenseChunkAccessor
         _globalChunkId = globalChunkId;
         _slotCount = chunk.Count;
         _queryComponentRowIndices = queryComponentRowIndices;
-        _overlayMask = overlayMask;
-        _fullMask = fullMask;
+        _overlayMask = overlayResult == OverlayMaskResult.Partial ? overlayMask : null;
+        _fullMask = overlayResult == OverlayMaskResult.Full;
         _owner = owner;
         _viewId = viewId;
         _disposed = false;
@@ -195,12 +188,6 @@ public ref struct DenseChunkAccessor
             return;
         }
 
-        if (_overlayMask is not null)
-        {
-            _owner.ReturnChunkLeaseOverlay(_overlayMask);
-            _overlayMask = null;
-        }
-
         _disposed = true;
     }
 
@@ -230,6 +217,10 @@ internal sealed class CachedQuery
     {
         _description = description;
     }
+
+    public bool HasTags => !_description.AllTags.IsEmpty
+        || !_description.AnyTags.IsEmpty
+        || !_description.NoneTags.IsEmpty;
 
     public int[] MatchingArchetypes(World world)
     {

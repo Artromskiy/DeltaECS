@@ -345,7 +345,29 @@ public sealed class World
     {
         var cached = GetOrCreateQuery(query);
         var archetypes = cached.MatchingArchetypes(this);
-        var hasTags = !query.AllTags.IsEmpty || !query.AnyTags.IsEmpty || !query.NoneTags.IsEmpty;
+        if (!cached.HasTags)
+        {
+            QueryScopesDense(cached, archetypes, access, body);
+            return;
+        }
+
+        var scratch = RentChunkOverlayScratch();
+        try
+        {
+            QueryScopesTagged(query, cached, archetypes, access, scratch, body);
+        }
+        finally
+        {
+            ReturnChunkOverlayScratch(scratch);
+        }
+    }
+
+    private void QueryScopesDense(
+        CachedQuery cached,
+        int[] archetypes,
+        QueryAccess access,
+        Action<DenseChunkScope> body)
+    {
         var writeTick = access == QueryAccess.Write ? AdvanceWorldTick() : 0;
         for (var i = 0; i < archetypes.Length; i++)
         {
@@ -359,8 +381,41 @@ public sealed class World
                     continue;
                 }
 
-                var overlay = BuildOverlayMask(query, hasTags, chunk.GlobalId, chunk.Count, out var fullMask);
-                if (hasTags && overlay is null && !fullMask)
+                if (writeTick != 0)
+                {
+                    MarkQueryRows(chunk, rowIndices, writeTick);
+                }
+
+                _activeChunkLeases++;
+                using var scope = new DenseChunkScope(this, archetype, chunk, chunk.GlobalId, null, OverlayMaskResult.Full);
+                body(scope);
+            }
+        }
+    }
+
+    private void QueryScopesTagged(
+        in QueryDescription query,
+        CachedQuery cached,
+        int[] archetypes,
+        QueryAccess access,
+        ulong[] scratch,
+        Action<DenseChunkScope> body)
+    {
+        var writeTick = access == QueryAccess.Write ? AdvanceWorldTick() : 0;
+        for (var i = 0; i < archetypes.Length; i++)
+        {
+            var archetype = _archetypes[archetypes[i]];
+            var rowIndices = cached.ComponentRowIndices(i);
+            for (var chunkIndex = 0; chunkIndex < archetype.ChunkCount; chunkIndex++)
+            {
+                var chunk = archetype.GetChunk(chunkIndex);
+                if (chunk.IsEmpty)
+                {
+                    continue;
+                }
+
+                var overlayResult = _overlayTags.BuildMask(query, chunk.GlobalId, chunk.Count, scratch);
+                if (overlayResult == OverlayMaskResult.None)
                 {
                     continue;
                 }
@@ -371,7 +426,7 @@ public sealed class World
                 }
 
                 _activeChunkLeases++;
-                using var scope = new DenseChunkScope(this, archetype, chunk, chunk.GlobalId, overlay, fullMask);
+                using var scope = new DenseChunkScope(this, archetype, chunk, chunk.GlobalId, scratch, overlayResult);
                 body(scope);
             }
         }
@@ -387,44 +442,23 @@ public sealed class World
         var query = handle.Description;
         var cached = handle.Cached;
         var archetypes = cached.MatchingArchetypes(this);
-        var hasTags = !query.AllTags.IsEmpty || !query.AnyTags.IsEmpty || !query.NoneTags.IsEmpty;
-        var writeTick = access == QueryAccess.Write ? AdvanceWorldTick() : 0;
         _activeChunkLeases++;
         try
         {
-            for (var i = 0; i < archetypes.Length; i++)
+            if (!cached.HasTags)
             {
-                var archetype = _archetypes[archetypes[i]];
-                var rowIndices = cached.ComponentRowIndices(i);
-                for (var chunkIndex = 0; chunkIndex < archetype.ChunkCount; chunkIndex++)
+                QueryAccessorsDense(cached, archetypes, access, ref state, body);
+            }
+            else
+            {
+                var scratch = RentChunkOverlayScratch();
+                try
                 {
-                    var chunk = archetype.GetChunk(chunkIndex);
-                    if (chunk.IsEmpty)
-                    {
-                        continue;
-                    }
-
-                    var chunkId = chunk.GlobalId;
-                    var overlay = BuildOverlayMask(query, hasTags, chunkId, chunk.Count, out var fullMask);
-                    if (hasTags && overlay is null && !fullMask)
-                    {
-                        continue;
-                    }
-
-                    if (writeTick != 0)
-                    {
-                        MarkQueryRows(chunk, rowIndices, writeTick);
-                    }
-
-                    var accessor = new DenseChunkAccessor(this, archetype, chunk, chunkId, rowIndices, overlay, fullMask, RentChunkAccessor());
-                    try
-                    {
-                        body(ref state, ref accessor);
-                    }
-                    finally
-                    {
-                        accessor.Dispose();
-                    }
+                    QueryAccessorsTagged(query, cached, archetypes, access, scratch, ref state, body);
+                }
+                finally
+                {
+                    ReturnChunkOverlayScratch(scratch);
                 }
             }
         }
@@ -432,6 +466,91 @@ public sealed class World
         {
             _activeChunkLeases--;
             InvalidateChunkAccessors();
+        }
+    }
+
+    private void QueryAccessorsDense<TState>(
+        CachedQuery cached,
+        int[] archetypes,
+        QueryAccess access,
+        ref TState state,
+        ChunkAction<TState> body)
+    {
+        var writeTick = access == QueryAccess.Write ? AdvanceWorldTick() : 0;
+        for (var i = 0; i < archetypes.Length; i++)
+        {
+            var archetype = _archetypes[archetypes[i]];
+            var rowIndices = cached.ComponentRowIndices(i);
+            for (var chunkIndex = 0; chunkIndex < archetype.ChunkCount; chunkIndex++)
+            {
+                var chunk = archetype.GetChunk(chunkIndex);
+                if (chunk.IsEmpty)
+                {
+                    continue;
+                }
+
+                if (writeTick != 0)
+                {
+                    MarkQueryRows(chunk, rowIndices, writeTick);
+                }
+
+                var accessor = new DenseChunkAccessor(this, archetype, chunk, chunk.GlobalId, rowIndices, null, OverlayMaskResult.Full, RentChunkAccessor());
+                try
+                {
+                    body(ref state, ref accessor);
+                }
+                finally
+                {
+                    accessor.Dispose();
+                }
+            }
+        }
+    }
+
+    private void QueryAccessorsTagged<TState>(
+        in QueryDescription query,
+        CachedQuery cached,
+        int[] archetypes,
+        QueryAccess access,
+        ulong[] scratch,
+        ref TState state,
+        ChunkAction<TState> body)
+    {
+        var writeTick = access == QueryAccess.Write ? AdvanceWorldTick() : 0;
+        for (var i = 0; i < archetypes.Length; i++)
+        {
+            var archetype = _archetypes[archetypes[i]];
+            var rowIndices = cached.ComponentRowIndices(i);
+            for (var chunkIndex = 0; chunkIndex < archetype.ChunkCount; chunkIndex++)
+            {
+                var chunk = archetype.GetChunk(chunkIndex);
+                if (chunk.IsEmpty)
+                {
+                    continue;
+                }
+
+                var chunkId = chunk.GlobalId;
+                var overlayResult = _overlayTags.BuildMask(query, chunkId, chunk.Count, scratch);
+                if (overlayResult == OverlayMaskResult.None)
+                {
+                    continue;
+                }
+
+                if (writeTick != 0)
+                {
+                    MarkQueryRows(chunk, rowIndices, writeTick);
+                }
+
+                var accessor = new DenseChunkAccessor(this, archetype, chunk, chunkId, rowIndices, scratch, overlayResult, RentChunkAccessor());
+                try
+                {
+                    body(ref state, ref accessor);
+                }
+                finally
+                {
+                    accessor.Dispose();
+                }
+            }
         }
     }
 
@@ -452,6 +571,7 @@ public sealed class World
         private readonly CachedQuery _cached;
         private readonly int[] _archetypeIds;
         private readonly bool _hasTags;
+        private ulong[]? _overlayScratch;
         private readonly uint _writeTick;
         private int _archetypePosition;
         private int _chunkPosition;
@@ -465,9 +585,8 @@ public sealed class World
             _cached = cached;
             _query = query;
             _archetypeIds = cached.MatchingArchetypes(owner);
-            _hasTags = !query.AllTags.IsEmpty
-                || !query.AnyTags.IsEmpty
-                || !query.NoneTags.IsEmpty;
+            _hasTags = cached.HasTags;
+            _overlayScratch = _hasTags ? owner.RentChunkOverlayScratch() : null;
             _writeTick = writeTick;
             _archetypePosition = 0;
             _chunkPosition = 0;
@@ -503,6 +622,50 @@ public sealed class World
                 _hasCurrent = false;
             }
 
+            if (_hasTags)
+            {
+                return MoveNextTagged();
+            }
+
+            return MoveNextDense();
+        }
+
+        private bool MoveNextDense()
+        {
+            while (_archetypePosition < _archetypeIds.Length)
+            {
+                var archetype = _owner._archetypes[_archetypeIds[_archetypePosition]];
+                var rowIndices = _cached.ComponentRowIndices(_archetypePosition);
+                while (_chunkPosition < archetype.ChunkCount)
+                {
+                    var chunkIndex = _chunkPosition++;
+                    var chunk = archetype.GetChunk(chunkIndex);
+                    if (chunk.IsEmpty)
+                    {
+                        continue;
+                    }
+
+                    if (_writeTick != 0)
+                    {
+                        MarkQueryRows(chunk, rowIndices, _writeTick);
+                    }
+
+                    _current = new DenseChunkAccessor(_owner, archetype, chunk, chunk.GlobalId, rowIndices, null, OverlayMaskResult.Full, _owner.RentChunkAccessor());
+                    _hasCurrent = true;
+                    return true;
+                }
+
+                _archetypePosition++;
+                _chunkPosition = 0;
+            }
+
+            Dispose();
+            return false;
+        }
+
+        private bool MoveNextTagged()
+        {
+            var scratch = _overlayScratch!;
             while (_archetypePosition < _archetypeIds.Length)
             {
                 var archetype = _owner._archetypes[_archetypeIds[_archetypePosition]];
@@ -517,8 +680,8 @@ public sealed class World
                     }
 
                     var chunkId = chunk.GlobalId;
-                    var overlay = _owner.BuildOverlayMask(_query, _hasTags, chunkId, chunk.Count, out var fullMask);
-                    if (_hasTags && overlay is null && !fullMask)
+                    var overlayResult = _owner._overlayTags.BuildMask(_query, chunkId, chunk.Count, scratch);
+                    if (overlayResult == OverlayMaskResult.None)
                     {
                         continue;
                     }
@@ -528,7 +691,7 @@ public sealed class World
                         MarkQueryRows(chunk, rowIndices, _writeTick);
                     }
 
-                    _current = new DenseChunkAccessor(_owner, archetype, chunk, chunkId, rowIndices, overlay, fullMask, _owner.RentChunkAccessor());
+                    _current = new DenseChunkAccessor(_owner, archetype, chunk, chunkId, rowIndices, scratch, overlayResult, _owner.RentChunkAccessor());
                     _hasCurrent = true;
                     return true;
                 }
@@ -555,6 +718,11 @@ public sealed class World
             }
 
             _owner._activeChunkLeases--;
+            if (_overlayScratch is not null)
+            {
+                _owner.ReturnChunkOverlayScratch(_overlayScratch);
+                _overlayScratch = null;
+            }
             _owner.InvalidateChunkAccessors();
             _disposed = true;
         }
@@ -587,12 +755,10 @@ public sealed class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool IsChunkAccessorIdValid(int accessorId) => accessorId == _chunkAccessorId;
     internal void InvalidateChunkAccessors() => _chunkAccessorId++;
-    internal void ReturnChunkLeaseOverlay(ulong[]? overlayMask)
+    internal ulong[] RentChunkOverlayScratch() => ArrayPool<ulong>.Shared.Rent(_overlayTags.WordsPerChunk);
+    internal void ReturnChunkOverlayScratch(ulong[] scratch)
     {
-        if (overlayMask is not null)
-        {
-            ArrayPool<ulong>.Shared.Return(overlayMask, clearArray: true);
-        }
+        ArrayPool<ulong>.Shared.Return(scratch, clearArray: true);
     }
 
     private uint AdvanceWorldTick()
@@ -972,32 +1138,6 @@ public sealed class World
         return cached;
     }
 
-    private ulong[]? BuildOverlayMask(QueryDescription query, bool hasTags, int chunkId, int chunkSize, out bool fullMask)
-    {
-        fullMask = true;
-        if (!hasTags)
-        {
-            return null;
-        }
-
-        var candidate = ArrayPool<ulong>.Shared.Rent(_overlayTags.WordsPerChunk);
-        if (!_overlayTags.TryBuildMask(query, chunkId, chunkSize, candidate))
-        {
-            ArrayPool<ulong>.Shared.Return(candidate, clearArray: true);
-            fullMask = false;
-            return null;
-        }
-
-        if (IsAllOnes(candidate, chunkSize))
-        {
-            ArrayPool<ulong>.Shared.Return(candidate, clearArray: true);
-            return null;
-        }
-
-        fullMask = false;
-        return candidate;
-    }
-
     private void EnsureNoActiveLease(string operation)
     {
         if (_activeChunkLeases > 0)
@@ -1017,21 +1157,6 @@ public sealed class World
     private static bool IsCompatibleComponentType<T>(ComponentLayout layout)
     {
         return layout.RuntimeType == typeof(T);
-    }
-
-    private static bool IsAllOnes(ulong[] words, int chunkSize)
-    {
-        var fullWords = chunkSize >> 6;
-        for (var i = 0; i < fullWords; i++)
-        {
-            if (words[i] != ulong.MaxValue)
-            {
-                return false;
-            }
-        }
-
-        var remaining = chunkSize & 63;
-        return remaining == 0 || words[fullWords] == (1UL << remaining) - 1UL;
     }
 
     private readonly struct TransitionKey : IEquatable<TransitionKey>

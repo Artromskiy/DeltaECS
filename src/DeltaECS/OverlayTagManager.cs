@@ -3,6 +3,13 @@ namespace DVG.ECS;
 using System;
 using System.Collections.Generic;
 
+internal enum OverlayMaskResult : byte
+{
+    None,
+    Full,
+    Partial
+}
+
 internal sealed class OverlayTagManager
 {
     private sealed class TagState
@@ -125,41 +132,50 @@ internal sealed class OverlayTagManager
         }
     }
 
-    public bool TryBuildMask(QueryDescription query, int chunkId, int chunkSize, Span<ulong> destination)
+    public OverlayMaskResult BuildMask(QueryDescription query, int chunkId, int chunkSize, Span<ulong> destination)
     {
-        if (query.AllTags.Length == 0 && query.AnyTags.Length == 0 && query.NoneTags.Length == 0)
-        {
-            destination.Clear();
-            return true;
-        }
-
         if (_wordsPerChunk > destination.Length)
         {
             throw new ArgumentOutOfRangeException(nameof(destination));
         }
 
-        FillFullMask(destination, chunkSize);
-
         if (query.AllTags.Length > 0)
         {
-            for (var i = 0; i < query.AllTags.Length; i++)
+            if (query.AllTags.Length == 1)
             {
-                var tag = query.AllTags[i];
-                if (!GetOrDefaultMask(tag, chunkId, out var mask))
+                if (!GetOrDefaultMask(query.AllTags[0], chunkId, out var mask))
                 {
-                    return false;
+                    return OverlayMaskResult.None;
                 }
 
-                for (var w = 0; w < _wordsPerChunk; w++)
+                mask.AsSpan(0, _wordsPerChunk).CopyTo(destination);
+            }
+            else
+            {
+                FillFullMask(destination, chunkSize);
+                for (var i = 0; i < query.AllTags.Length; i++)
                 {
-                    destination[w] &= mask[w];
+                    if (!GetOrDefaultMask(query.AllTags[i], chunkId, out var mask))
+                    {
+                        return OverlayMaskResult.None;
+                    }
+
+                    for (var w = 0; w < _wordsPerChunk; w++)
+                    {
+                        destination[w] &= mask[w];
+                    }
                 }
             }
+        }
+        else
+        {
+            FillFullMask(destination, chunkSize);
         }
 
         if (query.AnyTags.Length > 0)
         {
             Span<ulong> anyMask = destination.Length >= _wordsPerChunk ? stackalloc ulong[_wordsPerChunk] : new ulong[_wordsPerChunk];
+            anyMask.Clear();
             var hadAny = false;
             for (var i = 0; i < query.AnyTags.Length; i++)
             {
@@ -178,7 +194,7 @@ internal sealed class OverlayTagManager
 
             if (!hadAny)
             {
-                return false;
+                return OverlayMaskResult.None;
             }
 
             for (var w = 0; w < _wordsPerChunk; w++)
@@ -190,6 +206,7 @@ internal sealed class OverlayTagManager
         if (query.NoneTags.Length > 0)
         {
             Span<ulong> noneMask = destination.Length >= _wordsPerChunk ? stackalloc ulong[_wordsPerChunk] : new ulong[_wordsPerChunk];
+            noneMask.Clear();
             for (var i = 0; i < query.NoneTags.Length; i++)
             {
                 var tag = query.NoneTags[i];
@@ -210,15 +227,26 @@ internal sealed class OverlayTagManager
             }
         }
 
+        TrimToChunkSize(destination, chunkSize);
+
+        var hasActiveSlots = false;
         for (var w = 0; w < _wordsPerChunk; w++)
         {
             if (destination[w] != 0)
             {
-                return true;
+                hasActiveSlots = true;
+                break;
             }
         }
 
-        return false;
+        if (!hasActiveSlots)
+        {
+            return OverlayMaskResult.None;
+        }
+
+        return IsFullMask(destination, chunkSize)
+            ? OverlayMaskResult.Full
+            : OverlayMaskResult.Partial;
     }
 
     private TagState GetOrCreateState(TagId tag)
@@ -334,14 +362,13 @@ internal sealed class OverlayTagManager
 
     private void FillFullMask(Span<ulong> destination, int chunkSize)
     {
-        var i = 0;
-        for (; i < destination.Length; i++)
+        for (var i = 0; i < _wordsPerChunk; i++)
         {
-            destination[i] = ulong.MaxValue;
+            destination[i] = 0;
         }
 
         var fullWords = chunkSize >> 6;
-        for (i = 0; i < fullWords; i++)
+        for (var i = 0; i < fullWords; i++)
         {
             destination[i] = ulong.MaxValue;
         }
@@ -350,6 +377,40 @@ internal sealed class OverlayTagManager
         if (remainingBits > 0)
         {
             destination[fullWords] = (1UL << remainingBits) - 1UL;
+        }
+    }
+
+    private bool IsFullMask(ReadOnlySpan<ulong> words, int chunkSize)
+    {
+        if (chunkSize == 0)
+        {
+            return false;
+        }
+
+        var fullWords = chunkSize >> 6;
+        for (var i = 0; i < fullWords; i++)
+        {
+            if (words[i] != ulong.MaxValue)
+            {
+                return false;
+            }
+        }
+
+        var remainingBits = chunkSize & 63;
+        return remainingBits == 0 || words[fullWords] == (1UL << remainingBits) - 1UL;
+    }
+
+    private void TrimToChunkSize(Span<ulong> destination, int chunkSize)
+    {
+        var usedWords = (chunkSize + 63) / 64;
+        for (var i = usedWords; i < _wordsPerChunk; i++)
+        {
+            destination[i] = 0;
+        }
+
+        if (usedWords > 0 && (chunkSize & 63) != 0)
+        {
+            destination[usedWords - 1] &= (1UL << (chunkSize & 63)) - 1UL;
         }
     }
 }
