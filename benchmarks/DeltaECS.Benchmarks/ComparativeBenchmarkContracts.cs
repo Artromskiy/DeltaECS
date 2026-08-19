@@ -78,7 +78,10 @@ public static class ComparativeCapabilityManifest
         {
             foreach (var ecs in Enum.GetValues<ComparativeEcs>())
             {
-                rows.Add(new(workload, ecs, true, ComparativeCapabilityMode.Native, "one structural operation"));
+                var multiComponent = workload is "Structural.Atomic.Add" or "Structural.Atomic.Remove";
+                var mode = multiComponent && ecs != ComparativeEcs.DeltaECS ? ComparativeCapabilityMode.Emulated : ComparativeCapabilityMode.Native;
+                var note = mode == ComparativeCapabilityMode.Native ? "one structural operation" : "direct component calls; no native multi-component API";
+                rows.Add(new(workload, ecs, true, mode, note));
             }
         }
 
@@ -183,12 +186,15 @@ public static class ComparativeReportBuilder
                 if (fields.Length <= Math.Max(methodIndex, meanIndex)) continue;
                 if (!TryMapMethod(fields[methodIndex], out var workload, out var ecs)) continue;
                 var mean = ParseMeasurement(fields[meanIndex]);
+                if (double.IsNaN(mean))
+                    throw new InvalidOperationException($"BenchmarkDotNet produced an invalid Mean for '{fields[methodIndex]}' in '{file}'. NA rows are not reportable results.");
                 var ratio = ratioIndex >= 0 && ratioIndex < fields.Length ? ParseMeasurement(fields[ratioIndex]) : double.NaN;
                 var parameters = amountIndex >= 0 && amountIndex < fields.Length ? $"Amount={fields[amountIndex]}" : "raw";
                 if (widthIndex >= 0 && widthIndex < fields.Length) parameters += $";ChangeWidth={fields[widthIndex]}";
+                var capability = ComparativeCapabilityManifest.Rows.FirstOrDefault(row => row.Workload == workload && row.Ecs == ecs);
                 measured.Add(new(workload, parameters, ecs, mean, ratio,
                     allocatedIndex >= 0 && allocatedIndex < fields.Length ? fields[allocatedIndex] : "N/A", true,
-                    ComparativeCapabilityMode.Native));
+                    capability?.Mode ?? ComparativeCapabilityMode.Native));
             }
         }
 
@@ -200,6 +206,8 @@ public static class ComparativeReportBuilder
             foreach (var capability in ComparativeCapabilityManifest.Rows.Where(row => row.Workload == group.Key.Workload))
             {
                 if (group.Any(row => row.Ecs == capability.Ecs)) continue;
+                if (capability.Supported)
+                    throw new InvalidOperationException($"Measured report is missing supported ECS '{capability.Ecs}' for {group.Key.Workload} ({group.Key.Params}).");
                 result.Add(new(capability.Workload, group.Key.Params, capability.Ecs,
                     double.PositiveInfinity, double.PositiveInfinity, "N/A", false, ComparativeCapabilityMode.Unsupported));
             }
@@ -308,5 +316,15 @@ public static class ComparativeBenchmarkCatalog
         var unsupported = ComparativeReportBuilder.BuildManifestRows().Where(row => !row.Supported).ToArray();
         if (unsupported.Length == 0 || unsupported.Any(row => !double.IsPositiveInfinity(row.Mean) || !double.IsPositiveInfinity(row.RatioToDelta)))
             throw new InvalidOperationException("Unsupported capability rows must render as infinity.");
+
+        var benchmarkAttribute = typeof(BenchmarkDotNet.Attributes.BenchmarkAttribute);
+        foreach (var type in FullComparison)
+        {
+            var methods = type.GetMethods().Where(method => method.GetCustomAttributes(benchmarkAttribute, inherit: true).Length != 0).ToArray();
+            if (methods.Length == 0) throw new InvalidOperationException($"Comparative class {type.Name} has no benchmark methods.");
+            var baselines = methods.Where(method => ((BenchmarkDotNet.Attributes.BenchmarkAttribute)method.GetCustomAttributes(benchmarkAttribute, true).Single()).Baseline).ToArray();
+            if (baselines.Length == 0 || baselines.Any(method => !method.Name.StartsWith("DeltaECS_", StringComparison.Ordinal)))
+                throw new InvalidOperationException($"Comparative class {type.Name} must expose a DeltaECS baseline.");
+        }
     }
 }

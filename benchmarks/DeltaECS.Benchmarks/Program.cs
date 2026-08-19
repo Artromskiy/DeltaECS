@@ -582,7 +582,8 @@ public static class Program
         if (args.Length > 0 && string.Equals(args[0], "contract-smoke", StringComparison.OrdinalIgnoreCase))
         {
             ComparativeBenchmarkCatalog.Validate();
-            Console.WriteLine($"Comparative contract smoke passed: {ComparativeBenchmarkCatalog.FullComparison.Length} unified classes, {ComparativeCapabilityManifest.Rows.Count} capability rows.");
+            ComparativeBenchmarkExecutionSmoke.RunAmount100();
+            Console.WriteLine($"Comparative contract smoke passed: {ComparativeBenchmarkCatalog.FullComparison.Length} unified classes, {ComparativeCapabilityManifest.Rows.Count} capability rows, Amount=100 execution.");
             return;
         }
 

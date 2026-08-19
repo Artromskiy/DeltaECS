@@ -32,4 +32,27 @@ public sealed class ComparativeBenchmarkContractTests
         Assert.That(ComparativeBenchmarkCatalog.FullComparison, Is.Not.Empty);
         Assert.That(ComparativeBenchmarkCatalog.FullComparison.Any(type => type.Name.Contains("Legacy", StringComparison.OrdinalIgnoreCase)), Is.False);
     }
+
+    [Test]
+    public void Amount_100_contract_smoke_executes_supported_methods()
+    {
+        Assert.DoesNotThrow(ComparativeBenchmarkExecutionSmoke.RunAmount100);
+    }
+
+    [Test]
+    public void Combined_report_rejects_na_measured_rows()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "deltaecs-report-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            File.WriteAllText(Path.Combine(directory, "bad.csv"), "Method;Mean;Allocated;Amount\nDeltaECS_Dense;NA;0 B;100\n");
+            Assert.Throws<InvalidOperationException>(() => ComparativeReportBuilder.WriteManifest(directory));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
 }
