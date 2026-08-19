@@ -410,12 +410,11 @@ reflection. `Previous_*` is the BenchmarkDotNet baseline, so a candidate ratio
 below `1.00` is an improvement.
 
 The suite currently covers dense iteration, two- and four-component movement,
-atomic create/destroy/add/remove, and list batch create/destroy/add/remove. Its
-correctness smoke runs automatically after the normal Release tests on every
-push and pull request, comparing the current revision with the previous commit
-or pull-request base. The automatic step validates results and BenchmarkDotNet
-discovery but does not collect timings. Full measurements remain an explicit
-GitHub workflow run.
+atomic create/destroy/add/remove, and list batch create/destroy/add/remove.
+Version comparison is intentionally manual: the normal push and pull-request
+workflow keeps its existing build, tests, and comparative benchmark smoke, while
+the dual-version correctness smoke and full measurements run only after an
+explicit GitHub workflow dispatch.
 
 In **Actions → ECS benchmarks → Run workflow**, select:
 

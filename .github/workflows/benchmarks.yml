@@ -86,28 +86,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 2
-
-      - name: Resolve automatic version baseline
-        id: automatic-baseline
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            baseline_ref="${{ github.event.pull_request.base.sha }}"
-          else
-            baseline_ref="${{ github.event.before }}"
-          fi
-          if [ -z "$baseline_ref" ] || [[ "$baseline_ref" =~ ^0+$ ]]; then
-            baseline_ref="$(git rev-parse HEAD^)"
-          fi
-          echo "ref=$baseline_ref" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout automatic version baseline
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ steps.automatic-baseline.outputs.ref }}
-          path: .version-baseline
 
       - name: Install .NET 8
         uses: actions/setup-dotnet@v6
@@ -147,20 +125,6 @@ jobs:
             full-comparison \
             --list flat \
             --filter '*'
-
-      - name: Run automatic version comparison smoke
-        run: |
-          dotnet restore benchmarks/DeltaECS.VersionBenchmarks/DeltaECS.VersionBenchmarks.csproj \
-            --disable-parallel \
-            -p:BaselineRoot="$GITHUB_WORKSPACE/.version-baseline" \
-            -p:CandidateRoot="$GITHUB_WORKSPACE"
-          dotnet build benchmarks/DeltaECS.VersionBenchmarks/DeltaECS.VersionBenchmarks.csproj \
-            -c Release --no-restore --disable-build-servers -m:1 /p:UseSharedCompilation=false \
-            -p:BaselineRoot="$GITHUB_WORKSPACE/.version-baseline" \
-            -p:CandidateRoot="$GITHUB_WORKSPACE"
-          dotnet benchmarks/DeltaECS.VersionBenchmarks/bin/Release/net8.0/DeltaECS.VersionBenchmarks.dll smoke
-          dotnet benchmarks/DeltaECS.VersionBenchmarks/bin/Release/net8.0/DeltaECS.VersionBenchmarks.dll \
-            --list flat --filter '*'
 
       - name: Upload smoke artifacts
         if: always()
