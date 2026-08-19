@@ -228,31 +228,67 @@ public class ComparativeMovement2ComponentsBenchmarks
 [GroupBenchmarksBy(BenchmarkDotNet.Configs.BenchmarkLogicalGroupRule.ByCategory)]
 [CategoriesColumn]
 [BenchmarkCategory("Iteration.Movement4Components")]
+// Per slot, using integer arithmetic: a' = a + d; b' = b + d;
+// c' = (a' + b') / 2; d' remains the read-only control/input row. The checksum
+// adds a' + b' + c' + d'. Setup values (1, 2, 3, 4) therefore produce 20 per
+// entity. Delta uses QueryAccess.Write, which conservatively marks all queried
+// rows even though d is read-only.
 public class ComparativeMovement4ComponentsBenchmarks
 {
     [Params(100, 1_000, 10_000, 100_000)] public int Amount { get; set; }
-    private DeltaWorld _delta = null!; private QueryHandle _deltaQuery; private ComponentId[] _deltaIds = null!;
-    private Arch.Core.World _arch = null!; private ArchComponentType[] _archTypes = null!; private Arch.Core.QueryDescription _archQuery;
-    private EntityStore _friflo = null!; private ArchetypeQuery<DistinctFriflo0, DistinctFriflo1, DistinctFriflo2, DistinctFriflo3> _frifloQuery = null!;
+    private DeltaWorld _delta = null!; private QueryHandle _deltaQuery; private ComponentId[] _deltaIds = null!; private DeltaEntity[] _deltaEntities = null!;
+    private Arch.Core.World _arch = null!; private ArchComponentType[] _archTypes = null!; private Arch.Core.QueryDescription _archQuery; private Arch.Core.Entity[] _archEntities = null!;
+    private EntityStore _friflo = null!; private ArchetypeQuery<DistinctFriflo0, DistinctFriflo1, DistinctFriflo2, DistinctFriflo3> _frifloQuery = null!; private FrifloEntity[] _frifloEntities = null!;
     private DefaultWorld _default = null!; private DefaultEcs.Entity[] _defaultEntities = null!; private DefaultEcs.EntitySet _defaultQuery = null!;
     private EcsWorld _leo = null!; private EcsPool<DistinctLeo0> _leo0 = null!; private EcsPool<DistinctLeo1> _leo1 = null!; private EcsPool<DistinctLeo2> _leo2 = null!; private EcsPool<DistinctLeo3> _leo3 = null!; private int[] _leoEntities = null!; private EcsFilter _leoQuery = null!;
 
     [GlobalSetup]
     public void Setup()
     {
-        var layouts = new ComponentLayoutRegistry(); _deltaIds = new[] { layouts.Register<DistinctDelta0>(new SchemaId(202_000)), layouts.Register<DistinctDelta1>(new SchemaId(202_001)), layouts.Register<DistinctDelta2>(new SchemaId(202_002)), layouts.Register<DistinctDelta3>(new SchemaId(202_003)) }; _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); var de = new DeltaEntity[Amount]; _delta.CreateBatch(_deltaIds, de); for (var i = 0; i < Amount; i++) { _delta.SetComponent(de[i], _deltaIds[0], new DistinctDelta0 { Value = 1 }); _delta.SetComponent(de[i], _deltaIds[1], new DistinctDelta1 { Value = 2 }); _delta.SetComponent(de[i], _deltaIds[2], new DistinctDelta2 { Value = 3 }); _delta.SetComponent(de[i], _deltaIds[3], new DistinctDelta3 { Value = 4 }); } var d = QueryDescription.ForComponents(_deltaIds); _deltaQuery = _delta.CreateQuery(in d);
-        _arch = Arch.Core.World.Create(); _archTypes = new ArchComponentType[] { typeof(DistinctArch0), typeof(DistinctArch1), typeof(DistinctArch2), typeof(DistinctArch3) }; _arch.Reserve(_archTypes, Amount); _archQuery = new Arch.Core.QueryDescription { All = _archTypes }; for (var i = 0; i < Amount; i++) { var e = _arch.Create(_archTypes); _arch.Set(e, new DistinctArch0 { Value = 1 }); _arch.Set(e, new DistinctArch1 { Value = 2 }); _arch.Set(e, new DistinctArch2 { Value = 3 }); _arch.Set(e, new DistinctArch3 { Value = 4 }); }
-        _friflo = new EntityStore(); for (var i = 0; i < Amount; i++) _friflo.CreateEntity(new DistinctFriflo0 { Value = 1 }, new DistinctFriflo1 { Value = 2 }, new DistinctFriflo2 { Value = 3 }, new DistinctFriflo3 { Value = 4 }); _frifloQuery = _friflo.Query<DistinctFriflo0, DistinctFriflo1, DistinctFriflo2, DistinctFriflo3>();
+        var layouts = new ComponentLayoutRegistry(); _deltaIds = new[] { layouts.Register<DistinctDelta0>(new SchemaId(202_000)), layouts.Register<DistinctDelta1>(new SchemaId(202_001)), layouts.Register<DistinctDelta2>(new SchemaId(202_002)), layouts.Register<DistinctDelta3>(new SchemaId(202_003)) }; _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); _deltaEntities = new DeltaEntity[Amount]; _delta.CreateBatch(_deltaIds, _deltaEntities); for (var i = 0; i < Amount; i++) { _delta.SetComponent(_deltaEntities[i], _deltaIds[0], new DistinctDelta0 { Value = 1 }); _delta.SetComponent(_deltaEntities[i], _deltaIds[1], new DistinctDelta1 { Value = 2 }); _delta.SetComponent(_deltaEntities[i], _deltaIds[2], new DistinctDelta2 { Value = 3 }); _delta.SetComponent(_deltaEntities[i], _deltaIds[3], new DistinctDelta3 { Value = 4 }); } var d = QueryDescription.ForComponents(_deltaIds); _deltaQuery = _delta.CreateQuery(in d);
+        _arch = Arch.Core.World.Create(); _archTypes = new ArchComponentType[] { typeof(DistinctArch0), typeof(DistinctArch1), typeof(DistinctArch2), typeof(DistinctArch3) }; _arch.Reserve(_archTypes, Amount); _archQuery = new Arch.Core.QueryDescription { All = _archTypes }; _archEntities = new Arch.Core.Entity[Amount]; for (var i = 0; i < Amount; i++) { _archEntities[i] = _arch.Create(_archTypes); _arch.Set(_archEntities[i], new DistinctArch0 { Value = 1 }); _arch.Set(_archEntities[i], new DistinctArch1 { Value = 2 }); _arch.Set(_archEntities[i], new DistinctArch2 { Value = 3 }); _arch.Set(_archEntities[i], new DistinctArch3 { Value = 4 }); }
+        _friflo = new EntityStore(); _frifloEntities = new FrifloEntity[Amount]; for (var i = 0; i < Amount; i++) _frifloEntities[i] = _friflo.CreateEntity(new DistinctFriflo0 { Value = 1 }, new DistinctFriflo1 { Value = 2 }, new DistinctFriflo2 { Value = 3 }, new DistinctFriflo3 { Value = 4 }); _frifloQuery = _friflo.Query<DistinctFriflo0, DistinctFriflo1, DistinctFriflo2, DistinctFriflo3>();
         _default = new DefaultWorld(); _defaultEntities = new DefaultEcs.Entity[Amount]; for (var i = 0; i < Amount; i++) { _defaultEntities[i] = _default.CreateEntity(); SetDefault(_defaultEntities[i]); } _defaultQuery = _default.GetEntities().With<DistinctDefault0>().With<DistinctDefault1>().With<DistinctDefault2>().With<DistinctDefault3>().AsSet();
         _leo = new EcsWorld(); _leo0 = _leo.GetPool<DistinctLeo0>(); _leo1 = _leo.GetPool<DistinctLeo1>(); _leo2 = _leo.GetPool<DistinctLeo2>(); _leo3 = _leo.GetPool<DistinctLeo3>(); _leoEntities = new int[Amount]; for (var i = 0; i < Amount; i++) { var e = _leoEntities[i] = _leo.NewEntity(); _leo0.Add(e).Value = 1; _leo1.Add(e).Value = 2; _leo2.Add(e).Value = 3; _leo3.Add(e).Value = 4; } _leoQuery = _leo.Filter<DistinctLeo0>().Inc<DistinctLeo1>().Inc<DistinctLeo2>().Inc<DistinctLeo3>().End();
     }
+    [IterationSetup]
+    public void ResetMovement4()
+    {
+        for (var i = 0; i < Amount; i++)
+        {
+            _delta.SetComponent(_deltaEntities[i], _deltaIds[0], new DistinctDelta0 { Value = 1 });
+            _delta.SetComponent(_deltaEntities[i], _deltaIds[1], new DistinctDelta1 { Value = 2 });
+            _delta.SetComponent(_deltaEntities[i], _deltaIds[2], new DistinctDelta2 { Value = 3 });
+            _delta.SetComponent(_deltaEntities[i], _deltaIds[3], new DistinctDelta3 { Value = 4 });
+
+            _arch.Set(_archEntities[i], new DistinctArch0 { Value = 1 });
+            _arch.Set(_archEntities[i], new DistinctArch1 { Value = 2 });
+            _arch.Set(_archEntities[i], new DistinctArch2 { Value = 3 });
+            _arch.Set(_archEntities[i], new DistinctArch3 { Value = 4 });
+
+            _frifloEntities[i].GetComponent<DistinctFriflo0>().Value = 1;
+            _frifloEntities[i].GetComponent<DistinctFriflo1>().Value = 2;
+            _frifloEntities[i].GetComponent<DistinctFriflo2>().Value = 3;
+            _frifloEntities[i].GetComponent<DistinctFriflo3>().Value = 4;
+
+            _defaultEntities[i].Set(new DistinctDefault0 { Value = 1 });
+            _defaultEntities[i].Set(new DistinctDefault1 { Value = 2 });
+            _defaultEntities[i].Set(new DistinctDefault2 { Value = 3 });
+            _defaultEntities[i].Set(new DistinctDefault3 { Value = 4 });
+
+            _leo0.Get(_leoEntities[i]).Value = 1;
+            _leo1.Get(_leoEntities[i]).Value = 2;
+            _leo2.Get(_leoEntities[i]).Value = 3;
+            _leo3.Get(_leoEntities[i]).Value = 4;
+        }
+    }
     [GlobalCleanup] public void Cleanup() { _defaultQuery?.Dispose(); _default?.Dispose(); }
-    [Benchmark(Baseline = true)] public int DeltaECS_Movement4Components() { var sum = 0; _delta.Query(in _deltaQuery, QueryAccess.Read, ref sum, static (ref int s, ref DenseChunkLeaseView l) => { var a = l.GetComponentRow<DistinctDelta0>(0); var b = l.GetComponentRow<DistinctDelta1>(1); var c = l.GetComponentRow<DistinctDelta2>(2); var d = l.GetComponentRow<DistinctDelta3>(3); for (var i = l.SlotCount - 1; i >= 0; i--) s += a[i].Value + b[i].Value + c[i].Value + d[i].Value; }); return Check(sum, Amount * 10); }
-    [Benchmark] public int Arch_Movement4Components() { var s = 0; _arch.Query(_archQuery, (ref DistinctArch0 a, ref DistinctArch1 b, ref DistinctArch2 c, ref DistinctArch3 d) => s += a.Value + b.Value + c.Value + d.Value); return Check(s, Amount * 10); }
-    [Benchmark] public int FrifloEngineECS_Movement4Components() { var s = 0; _frifloQuery.ForEachEntity((ref DistinctFriflo0 a, ref DistinctFriflo1 b, ref DistinctFriflo2 c, ref DistinctFriflo3 d, FrifloEntity _) => s += a.Value + b.Value + c.Value + d.Value); return Check(s, Amount * 10); }
-    [Benchmark] public int DefaultEcs_Movement4Components() { var s = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { s += entities[i].Get<DistinctDefault0>().Value + entities[i].Get<DistinctDefault1>().Value + entities[i].Get<DistinctDefault2>().Value + entities[i].Get<DistinctDefault3>().Value; } return Check(s, Amount * 10); }
-    [Benchmark] public int LeoEcsLite_Movement4Components() { var s = 0; foreach (var e in _leoQuery) { s += _leo0.Get(e).Value + _leo1.Get(e).Value + _leo2.Get(e).Value + _leo3.Get(e).Value; } return Check(s, Amount * 10); }
-    private static int Check(int actual, int expected) => actual == expected ? actual : throw new InvalidOperationException($"distinct checksum mismatch: {actual} != {expected}");
+    [Benchmark(Baseline = true)] public int DeltaECS_Movement4Components() { var sum = 0; _delta.Query(in _deltaQuery, QueryAccess.Write, ref sum, static (ref int s, ref DenseChunkLeaseView l) => { var a = l.GetComponentRow<DistinctDelta0>(0); var b = l.GetComponentRow<DistinctDelta1>(1); var c = l.GetComponentRow<DistinctDelta2>(2); var d = l.GetComponentRow<DistinctDelta3>(3); for (var i = l.SlotCount - 1; i >= 0; i--) { var updatedA = a[i].Value + d[i].Value; var updatedB = b[i].Value + d[i].Value; a[i].Value = updatedA; b[i].Value = updatedB; c[i].Value = (updatedA + updatedB) / 2; s += a[i].Value + b[i].Value + c[i].Value + d[i].Value; } }); return Check(sum, Amount * 20); }
+    [Benchmark] public int Arch_Movement4Components() { var s = 0; _arch.Query(_archQuery, (ref DistinctArch0 a, ref DistinctArch1 b, ref DistinctArch2 c, ref DistinctArch3 d) => { var updatedA = a.Value + d.Value; var updatedB = b.Value + d.Value; a.Value = updatedA; b.Value = updatedB; c.Value = (updatedA + updatedB) / 2; s += a.Value + b.Value + c.Value + d.Value; }); return Check(s, Amount * 20); }
+    [Benchmark] public int FrifloEngineECS_Movement4Components() { var s = 0; _frifloQuery.ForEachEntity((ref DistinctFriflo0 a, ref DistinctFriflo1 b, ref DistinctFriflo2 c, ref DistinctFriflo3 d, FrifloEntity _) => { var updatedA = a.Value + d.Value; var updatedB = b.Value + d.Value; a.Value = updatedA; b.Value = updatedB; c.Value = (updatedA + updatedB) / 2; s += a.Value + b.Value + c.Value + d.Value; }); return Check(s, Amount * 20); }
+    [Benchmark] public int DefaultEcs_Movement4Components() { var s = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { ref var a = ref entities[i].Get<DistinctDefault0>(); ref var b = ref entities[i].Get<DistinctDefault1>(); ref var c = ref entities[i].Get<DistinctDefault2>(); var d = entities[i].Get<DistinctDefault3>(); var updatedA = a.Value + d.Value; var updatedB = b.Value + d.Value; a.Value = updatedA; b.Value = updatedB; c.Value = (updatedA + updatedB) / 2; s += a.Value + b.Value + c.Value + d.Value; } return Check(s, Amount * 20); }
+    [Benchmark] public int LeoEcsLite_Movement4Components() { var s = 0; foreach (var e in _leoQuery) { ref var a = ref _leo0.Get(e); ref var b = ref _leo1.Get(e); ref var c = ref _leo2.Get(e); var d = _leo3.Get(e); var updatedA = a.Value + d.Value; var updatedB = b.Value + d.Value; a.Value = updatedA; b.Value = updatedB; c.Value = (updatedA + updatedB) / 2; s += a.Value + b.Value + c.Value + d.Value; } return Check(s, Amount * 20); }
+    private static int Check(int actual, int expected) => actual == expected ? actual : throw new InvalidOperationException($"movement4 checksum mismatch: {actual} != {expected}");
     private static void SetDefault(DefaultEcs.Entity e) { e.Set(new DistinctDefault0 { Value = 1 }); e.Set(new DistinctDefault1 { Value = 2 }); e.Set(new DistinctDefault2 { Value = 3 }); e.Set(new DistinctDefault3 { Value = 4 }); }
 }
 

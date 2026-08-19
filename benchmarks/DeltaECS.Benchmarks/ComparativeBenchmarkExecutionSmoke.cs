@@ -25,7 +25,15 @@ public static class ComparativeBenchmarkExecutionSmoke
 
         var distinct = new ComparativeMovement4ComponentsBenchmarks { Amount = 100 };
         distinct.Setup();
-        try { Require(distinct.DeltaECS_Movement4Components(), 1_000, "Delta movement four components"); Require(distinct.Arch_Movement4Components(), 1_000, "Arch movement four components"); Require(distinct.FrifloEngineECS_Movement4Components(), 1_000, "Friflo movement four components"); Require(distinct.DefaultEcs_Movement4Components(), 1_000, "Default movement four components"); Require(distinct.LeoEcsLite_Movement4Components(), 1_000, "Leo movement four components"); }
+        try
+        {
+            distinct.ResetMovement4(); Require(distinct.DeltaECS_Movement4Components(), 2_000, "Delta movement four components");
+            distinct.ResetMovement4(); Require(distinct.Arch_Movement4Components(), 2_000, "Arch movement four components");
+            distinct.ResetMovement4(); Require(distinct.FrifloEngineECS_Movement4Components(), 2_000, "Friflo movement four components");
+            distinct.ResetMovement4(); Require(distinct.DefaultEcs_Movement4Components(), 2_000, "Default movement four components");
+            distinct.ResetMovement4(); Require(distinct.LeoEcsLite_Movement4Components(), 2_000, "Leo movement four components");
+            distinct.ResetMovement4(); Require(distinct.DeltaECS_Movement4Components(), 2_000, "Delta movement four components after reset");
+        }
         finally { distinct.Cleanup(); }
 
         var wide = new ComparativeWideArchetypeNarrowQueryBenchmarks { Amount = 100 };

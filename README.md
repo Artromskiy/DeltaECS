@@ -385,6 +385,13 @@ chosen implementation explicit; native and fallback results must not be treated
 as equivalent API capabilities. The full route does not include Legacy or the
 Delta-only hardware/profile lanes.
 
+`Iteration.Movement4Components` uses the same integer workload in every ECS:
+`a' = a + d`, `b' = b + d`, `c' = (a' + b') / 2`, with `d` retained as the
+control row. The checksum accumulates `a' + b' + c' + d'`; setup values
+`(1, 2, 3, 4)` produce `(5, 6, 5, 4)` and `20` per entity. DeltaECS executes
+this query with `QueryAccess.Write` and preserves its reverse dense-slot
+traversal; this conservatively marks all queried rows, including read-only `d`.
+
 The reproducible distinct-type dense comparison command is:
 
 ```text

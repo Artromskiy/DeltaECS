@@ -86,4 +86,21 @@ public sealed class ComparativeBenchmarkContractTests
         }
     }
 
+    [Test]
+    public void Combined_report_formats_measurements_without_binary_float_tail()
+    {
+        var rows = new[]
+        {
+            new ComparativeReportRow("Iteration.Dense", "Amount=100", ComparativeEcs.DeltaECS, 65.379999999999995, 1, "0 B", true, ComparativeCapabilityMode.Native, "direct public API"),
+            new ComparativeReportRow("Iteration.Dense", "Amount=100", ComparativeEcs.Arch, 312.62, 4.7800000000000002, "88 B", true, ComparativeCapabilityMode.Native, "direct public API")
+        };
+
+        var markdown = ComparativeReportBuilder.ToMarkdown(rows);
+
+        Assert.That(markdown, Does.Contain("|65.38|1|"));
+        Assert.That(markdown, Does.Contain("|312.62|4.78|"));
+        Assert.That(markdown, Does.Not.Contain("65.379999999999995"));
+        Assert.That(markdown, Does.Not.Contain("4.7800000000000002"));
+    }
+
 }

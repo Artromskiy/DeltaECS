@@ -371,7 +371,7 @@ public static class ComparativeReportBuilder
     }
 
     private static string FormatNumber(double value) =>
-        double.IsPositiveInfinity(value) ? "∞" : double.IsNaN(value) ? "N/A" : value.ToString("G17", CultureInfo.InvariantCulture);
+        double.IsPositiveInfinity(value) ? "∞" : double.IsNaN(value) ? "N/A" : value.ToString("0.###", CultureInfo.InvariantCulture);
 
     private static string DisplayName(ComparativeEcs ecs) => ecs == ComparativeEcs.FrifloEngineECS ? "Friflo.Engine.ECS" : ecs.ToString();
 
