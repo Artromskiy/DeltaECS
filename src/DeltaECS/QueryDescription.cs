@@ -5,9 +5,9 @@ using System.Collections.Generic;
 
 public readonly struct QueryDescription : IEquatable<QueryDescription>
 {
-    private readonly ComponentId[] _allComponents;
-    private readonly ComponentId[] _anyComponents;
-    private readonly ComponentId[] _noneComponents;
+    private readonly ComponentMask _allMask;
+    private readonly ComponentMask _anyMask;
+    private readonly ComponentMask _noneMask;
     private readonly TagId[] _allTags;
     private readonly TagId[] _anyTags;
     private readonly TagId[] _noneTags;
@@ -20,29 +20,20 @@ public readonly struct QueryDescription : IEquatable<QueryDescription>
         TagId[] anyTags,
         TagId[] noneTags)
     {
-        _allComponents = Normalize(allComponents, out _);
-        _anyComponents = Normalize(anyComponents, out _);
-        _noneComponents = Normalize(noneComponents, out _);
-        AllMask = ComponentMask.From(AllComponents);
-        AnyMask = ComponentMask.From(AnyComponents);
-        NoneMask = ComponentMask.From(NoneComponents);
+        _allMask = BuildMask(allComponents);
+        _anyMask = BuildMask(anyComponents);
+        _noneMask = BuildMask(noneComponents);
         _allTags = Normalize(allTags);
         _anyTags = Normalize(anyTags);
         _noneTags = Normalize(noneTags);
         Hash = ComputeHash();
     }
 
-    public ReadOnlySpan<ComponentId> AllComponents => _allComponents;
+    public ComponentMask AllMask => _allMask;
 
-    public ReadOnlySpan<ComponentId> AnyComponents => _anyComponents;
+    public ComponentMask AnyMask => _anyMask;
 
-    public ReadOnlySpan<ComponentId> NoneComponents => _noneComponents;
-
-    internal ComponentMask AllMask { get; }
-
-    internal ComponentMask AnyMask { get; }
-
-    internal ComponentMask NoneMask { get; }
+    public ComponentMask NoneMask => _noneMask;
 
     public ReadOnlySpan<TagId> AllTags => _allTags;
 
@@ -77,38 +68,20 @@ public readonly struct QueryDescription : IEquatable<QueryDescription>
         return hash.ToHashCode();
     }
 
-    private static ComponentId[] Normalize(ComponentId[] ids, out bool hasValid)
+    private static ComponentMask BuildMask(ComponentId[] ids)
     {
-        if (ids.Length == 0)
+        var mask = default(ComponentMask);
+        for (var i = 0; i < ids.Length; i++)
         {
-            hasValid = false;
-            return Array.Empty<ComponentId>();
-        }
-
-        var set = new HashSet<ComponentId>(ids);
-        var normalized = new ComponentId[set.Count];
-        var index = 0;
-        var valid = false;
-
-        foreach (var id in set)
-        {
-            if (!id.IsValid)
+            if (!ids[i].IsValid)
             {
                 continue;
             }
 
-            normalized[index++] = id;
-            valid = true;
+            mask = mask.Set(ids[i]);
         }
 
-        if (index < normalized.Length)
-        {
-            Array.Resize(ref normalized, index);
-        }
-
-        Array.Sort(normalized, (x, y) => x.Value.CompareTo(y.Value));
-        hasValid = valid;
-        return normalized;
+        return mask;
     }
 
     private static TagId[] Normalize(TagId[] ids)
@@ -150,38 +123,14 @@ public readonly struct QueryDescription : IEquatable<QueryDescription>
             return false;
         }
 
-        if (AllComponents.Length != other.AllComponents.Length
-            || AnyComponents.Length != other.AnyComponents.Length
-            || NoneComponents.Length != other.NoneComponents.Length
+        if (_allMask != other._allMask
+            || _anyMask != other._anyMask
+            || _noneMask != other._noneMask
             || AllTags.Length != other.AllTags.Length
             || AnyTags.Length != other.AnyTags.Length
             || NoneTags.Length != other.NoneTags.Length)
         {
             return false;
-        }
-
-        for (var i = 0; i < AllComponents.Length; i++)
-        {
-            if (!AllComponents[i].Equals(other.AllComponents[i]))
-            {
-                return false;
-            }
-        }
-
-        for (var i = 0; i < AnyComponents.Length; i++)
-        {
-            if (!AnyComponents[i].Equals(other.AnyComponents[i]))
-            {
-                return false;
-            }
-        }
-
-        for (var i = 0; i < NoneComponents.Length; i++)
-        {
-            if (!NoneComponents[i].Equals(other.NoneComponents[i]))
-            {
-                return false;
-            }
         }
 
         for (var i = 0; i < AllTags.Length; i++)

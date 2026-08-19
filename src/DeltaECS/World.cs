@@ -350,6 +350,7 @@ public sealed class World
         for (var i = 0; i < archetypes.Length; i++)
         {
             var archetype = _archetypes[archetypes[i]];
+            var rowIndices = cached.ComponentRowIndices(i);
             for (var chunkIndex = 0; chunkIndex < archetype.ChunkCount; chunkIndex++)
             {
                 var chunk = archetype.GetChunk(chunkIndex);
@@ -366,7 +367,7 @@ public sealed class World
 
                 if (writeTick != 0)
                 {
-                    MarkQueryRows(archetype, chunk, query.AllComponents, writeTick);
+                    MarkQueryRows(chunk, rowIndices, writeTick);
                 }
 
                 _activeChunkLeases++;
@@ -615,17 +616,6 @@ public sealed class World
         }
 
         return WorldTick;
-    }
-
-    private static void MarkQueryRows(Archetype archetype, Chunk chunk, ReadOnlySpan<ComponentId> componentIds, uint writeTick)
-    {
-        for (var componentIndex = 0; componentIndex < componentIds.Length; componentIndex++)
-        {
-            if (archetype.TryGetComponentIndex(componentIds[componentIndex], out var rowIndex))
-            {
-                chunk.MarkComponentWritten(rowIndex, writeTick);
-            }
-        }
     }
 
     private static void MarkQueryRows(Chunk chunk, int[] rowIndices, uint writeTick)

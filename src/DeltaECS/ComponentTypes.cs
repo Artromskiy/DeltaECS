@@ -135,6 +135,73 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
     public int Count => BitOperations.PopCount(_word0) + BitOperations.PopCount(_word1)
         + BitOperations.PopCount(_word2) + BitOperations.PopCount(_word3);
 
+    /// <summary>
+    /// Enumerates the set component ids in ascending numeric order without allocating.
+    /// </summary>
+    public Enumerator GetEnumerator() => new(_word0, _word1, _word2, _word3);
+
+    public ref struct Enumerator
+    {
+        private ulong _word0;
+        private ulong _word1;
+        private ulong _word2;
+        private ulong _word3;
+        private int _wordIndex;
+
+        internal Enumerator(ulong word0, ulong word1, ulong word2, ulong word3)
+        {
+            _word0 = word0;
+            _word1 = word1;
+            _word2 = word2;
+            _word3 = word3;
+            _wordIndex = 0;
+            Current = default;
+        }
+
+        public ComponentId Current { get; private set; }
+
+        public bool MoveNext()
+        {
+            while (_wordIndex < 4)
+            {
+                var word = _wordIndex switch
+                {
+                    0 => _word0,
+                    1 => _word1,
+                    2 => _word2,
+                    _ => _word3
+                };
+                if (word == 0)
+                {
+                    _wordIndex++;
+                    continue;
+                }
+
+                var bit = BitOperations.TrailingZeroCount(word);
+                switch (_wordIndex)
+                {
+                    case 0:
+                        _word0 = word & (word - 1);
+                        break;
+                    case 1:
+                        _word1 = word & (word - 1);
+                        break;
+                    case 2:
+                        _word2 = word & (word - 1);
+                        break;
+                    default:
+                        _word3 = word & (word - 1);
+                        break;
+                }
+
+                Current = new ComponentId((_wordIndex * 64) + bit);
+                return true;
+            }
+
+            return false;
+        }
+    }
+
     internal void CopyComponentIds(Span<ComponentId> destination)
     {
         if (destination.Length < Count)

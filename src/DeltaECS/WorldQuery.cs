@@ -248,10 +248,11 @@ internal sealed class CachedQuery
                 continue;
             }
 
-            var indices = new int[_description.AllComponents.Length];
-            for (var componentIndex = 0; componentIndex < indices.Length; componentIndex++)
+            var indices = new int[_description.AllMask.Count];
+            var componentIndex = 0;
+            foreach (var componentId in _description.AllMask)
             {
-                indices[componentIndex] = archetype.Mask.Rank(_description.AllComponents[componentIndex]);
+                indices[componentIndex++] = archetype.Mask.Rank(componentId);
             }
 
             matches.Add(archetypeId);

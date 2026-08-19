@@ -330,6 +330,89 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
+    public void QueryDescription_ComponentMasks_Deduplicate_Filter_And_Enumerate_In_Order()
+    {
+        var query = new QueryDescription(
+            new[] { new ComponentId(129), new ComponentId(7), PositionId, new ComponentId(193), new ComponentId(65), new ComponentId(7), ComponentId.Invalid },
+            new[] { VelocityId, VelocityId, ComponentId.Invalid },
+            new[] { HealthId, HealthId },
+            Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>());
+        var equivalent = new QueryDescription(
+            new[] { new ComponentId(65), new ComponentId(193), new ComponentId(129), PositionId, new ComponentId(7) },
+            new[] { VelocityId },
+            new[] { HealthId },
+            Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>());
+
+        Assert.That(query, Is.EqualTo(equivalent));
+        Assert.That(query.GetHashCode(), Is.EqualTo(equivalent.GetHashCode()));
+        Assert.That(query.AllMask.Count, Is.EqualTo(5));
+        Assert.That(query.AnyMask.Contains(VelocityId), Is.True);
+        Assert.That(query.NoneMask.Contains(HealthId), Is.True);
+
+        var expected = new[] { 0, 7, 65, 129, 193 };
+        var index = 0;
+        foreach (var componentId in query.AllMask)
+        {
+            Assert.That(index, Is.LessThan(expected.Length));
+            Assert.That(componentId.Value, Is.EqualTo(expected[index++]));
+        }
+
+        Assert.That(index, Is.EqualTo(expected.Length));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new QueryDescription(
+            new[] { new ComponentId(ComponentMask.Capacity) },
+            Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
+            Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>()));
+    }
+
+    [Test]
+    public void ComponentQueryMasks_Match_All_Any_None_And_Combined_Conditions()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        var world = new World(layouts);
+        world.Create(new[] { PositionId, VelocityId });
+        world.Create(new[] { PositionId });
+        world.Create(new[] { VelocityId });
+        world.Create(new[] { HealthId });
+
+        var all = QueryDescription.ForComponents(PositionId, VelocityId);
+        var any = new QueryDescription(
+            Array.Empty<ComponentId>(), new[] { HealthId, VelocityId }, Array.Empty<ComponentId>(),
+            Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>());
+        var none = new QueryDescription(
+            Array.Empty<ComponentId>(), Array.Empty<ComponentId>(), new[] { HealthId },
+            Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>());
+        var combined = new QueryDescription(
+            new[] { PositionId }, new[] { VelocityId }, new[] { HealthId },
+            Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>());
+
+        Assert.That(CountQuery(world, all), Is.EqualTo(1));
+        Assert.That(CountQuery(world, any), Is.EqualTo(3));
+        Assert.That(CountQuery(world, none), Is.EqualTo(3));
+        Assert.That(CountQuery(world, combined), Is.EqualTo(1));
+    }
+
+    [Test]
+    public void CachedQuery_ComponentRowPlan_Uses_Deterministic_Mask_Order()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        var world = new World(layouts);
+        world.Create(new[] { PositionId, VelocityId });
+        var query = new QueryDescription(
+            new[] { VelocityId, PositionId, VelocityId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
+            Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>());
+        var handle = world.CreateQuery(in query);
+        var cached = handle.Cached;
+
+        Assert.That(cached.MatchingArchetypes(world).Length, Is.EqualTo(1));
+        var rowPlan = cached.ComponentRowIndices(0);
+        Assert.That(rowPlan.Length, Is.EqualTo(2));
+        Assert.That(rowPlan[0], Is.EqualTo(0));
+        Assert.That(rowPlan[1], Is.EqualTo(1));
+    }
+
+    [Test]
     public void QueryAccess_Write_Marks_Only_Yielded_Rows_And_Read_Does_Not_Mark()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -874,6 +957,13 @@ public sealed class DeltaECSDeliveryTests
             }
         }
 
+        return count;
+    }
+
+    private static int CountQuery(World world, in QueryDescription query)
+    {
+        var count = 0;
+        world.Query(in query, QueryAccess.Read, scope => count += CountActiveSlots(scope));
         return count;
     }
 
