@@ -22,6 +22,9 @@ public sealed class World
     private readonly Dictionary<TransitionKey, TransitionEdge> _transitionCache = new();
     private readonly Dictionary<QueryDescription, CachedQuery> _queryCache = new(QueryDescription.Comparer);
     private DestroyEntry[] _destroyScratch = new DestroyEntry[32];
+    private TransitionEdge[] _batchEdgeSlots = Array.Empty<TransitionEdge>();
+    private int[] _batchEdgeStamps = Array.Empty<int>();
+    private int _batchEdgeStamp;
     private int _nextChunkId;
     private int _activeChunkLeases;
     private int _chunkAccessorId;
@@ -63,12 +66,12 @@ public sealed class World
     public ArchetypeHandle ResolveArchetype(params ComponentId[] componentIds)
     {
         ArgumentNullException.ThrowIfNull(componentIds);
-        if (!Canonicalize(componentIds, out var canonical, out var mask))
+        if (!TryBuildComponentMask(componentIds, out var mask))
         {
             throw new InvalidOperationException("Component list is empty or invalid.");
         }
 
-        return new ArchetypeHandle(this, GetOrCreateArchetype(mask, canonical).Id);
+        return new ArchetypeHandle(this, GetOrCreateArchetype(mask).Id);
     }
 
     public QueryHandle CreateQuery(in QueryDescription description)
@@ -339,6 +342,42 @@ public sealed class World
     public int RemoveComponents(ComponentId[] componentIds, ReadOnlySpan<Entity> entities)
     {
         return ApplyComponents(false, componentIds, entities);
+    }
+
+    public int AddComponents(in QueryHandle query, ComponentId[] componentIds)
+    {
+        return ApplyQueryComponents(query, true, componentIds);
+    }
+
+    public int RemoveComponents(in QueryHandle query, ComponentId[] componentIds)
+    {
+        return ApplyQueryComponents(query, false, componentIds);
+    }
+
+    public int Destroy(in QueryHandle query)
+    {
+        ValidateQueryHandle(query);
+        EnsureNoActiveLease("destroy entities");
+
+        var cached = query.Cached;
+        var archetypes = cached.MatchingArchetypes(this);
+        if (cached.HasTags)
+        {
+            var matches = CollectTaggedQueryEntities(query.Description, archetypes);
+            return DestroyBatch(CollectionsMarshal.AsSpan(matches));
+        }
+
+        var destroyed = 0;
+        for (var archetypeIndex = 0; archetypeIndex < archetypes.Length; archetypeIndex++)
+        {
+            var archetype = _archetypes[archetypes[archetypeIndex]];
+            for (var chunkIndex = archetype.ChunkCount - 1; chunkIndex >= 0; chunkIndex--)
+            {
+                destroyed += DestroyChunk(archetype, chunkIndex);
+            }
+        }
+
+        return destroyed;
     }
 
     public void Query(in QueryDescription query, QueryAccess access, Action<DenseChunkScope> body)
@@ -762,16 +801,12 @@ public sealed class World
             return 0;
         }
 
-        var normalizedComponents = new ComponentId[componentIds.Length];
-        componentIds.AsSpan().CopyTo(normalizedComponents);
-        var componentCount = NormalizeInPlace(normalizedComponents);
-        if (componentCount == 0)
+        if (!TryBuildComponentMask(componentIds, out var changeMask))
         {
             return 0;
         }
 
-        var changeMask = ComponentMask.From(normalizedComponents.AsSpan(0, componentCount));
-        var edgesBySource = new Dictionary<int, TransitionEdge>();
+        var edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
         var changed = 0;
         for (var entityIndex = 0; entityIndex < entities.Length; entityIndex++)
         {
@@ -783,11 +818,9 @@ public sealed class World
 
             ref readonly var record = ref RecordAt(recordIndex);
             var sourceArchetypeId = record.Archetype;
-            if (!edgesBySource.TryGetValue(sourceArchetypeId, out var edge))
-            {
-                edge = GetTransitionEdge(sourceArchetypeId, changeMask, isAdd);
-                edgesBySource.Add(sourceArchetypeId, edge);
-            }
+            var edge = edgeStamp == 0
+                ? GetTransitionEdge(sourceArchetypeId, changeMask, isAdd)
+                : GetBatchTransitionEdge(sourceArchetypeId, changeMask, isAdd, edgeStamp);
 
             if (edge.TargetArchetypeId == sourceArchetypeId)
             {
@@ -799,6 +832,198 @@ public sealed class World
         }
 
         return changed;
+    }
+
+    private int ApplyQueryComponents(in QueryHandle query, bool isAdd, ComponentId[] componentIds)
+    {
+        ValidateQueryHandle(query);
+        EnsureNoActiveLease(isAdd ? "add components" : "remove components");
+        if (componentIds.Length == 0)
+        {
+            return 0;
+        }
+
+        if (!TryBuildComponentMask(componentIds, out var changeMask))
+        {
+            return 0;
+        }
+
+        var cached = query.Cached;
+        var matchingArchetypes = cached.MatchingArchetypes(this);
+        if (cached.HasTags)
+        {
+            var matches = CollectTaggedQueryEntities(query.Description, matchingArchetypes);
+            return ApplyComponents(isAdd, componentIds, CollectionsMarshal.AsSpan(matches));
+        }
+
+        var edgeStamp = BeginBatchEdgeCache();
+        var changed = 0;
+        for (var matchingIndex = 0; matchingIndex < matchingArchetypes.Length; matchingIndex++)
+        {
+            var sourceArchetype = _archetypes[matchingArchetypes[matchingIndex]];
+            var edge = GetBatchTransitionEdge(sourceArchetype.Id, changeMask, isAdd, edgeStamp);
+            if (edge.TargetArchetypeId == sourceArchetype.Id)
+            {
+                continue;
+            }
+
+            changed += MoveArchetypeBlocks(sourceArchetype, edge);
+        }
+
+        return changed;
+    }
+
+    private int MoveArchetypeBlocks(Archetype sourceArchetype, TransitionEdge edge)
+    {
+        var movedCount = 0;
+        var targetArchetype = _archetypes[edge.TargetArchetypeId];
+        for (var sourceChunkIndex = sourceArchetype.ChunkCount - 1; sourceChunkIndex >= 0; sourceChunkIndex--)
+        {
+            var sourceChunk = sourceArchetype.GetChunk(sourceChunkIndex);
+            var sourceCount = sourceChunk.Count;
+            if (sourceCount == 0)
+            {
+                continue;
+            }
+
+            var sourceEntities = sourceChunk.RawEntities;
+            var sourceChunkId = sourceChunk.GlobalId;
+            var sourceEnd = sourceCount;
+            while (sourceEnd > 0)
+            {
+                var targetChunkId = targetArchetype.HasAvailableChunk() ? -1 : AllocateChunkId();
+                var reserved = targetArchetype.ReserveRange(
+                    sourceEnd,
+                    targetChunkId,
+                    out var targetChunkIndex,
+                    out var targetChunk);
+                var targetSlot = targetChunk.Count - reserved;
+                var sourceSlot = sourceEnd - reserved;
+
+                Array.Copy(sourceEntities, sourceSlot, targetChunk.RawEntities, targetSlot, reserved);
+                for (var sourceComponentIndex = 0; sourceComponentIndex < edge.SourceToTargetRowIndices.Length; sourceComponentIndex++)
+                {
+                    var targetComponentIndex = edge.SourceToTargetRowIndices[sourceComponentIndex];
+                    if (targetComponentIndex < 0)
+                    {
+                        continue;
+                    }
+
+                    Array.Copy(
+                        sourceChunk.GetRawComponentRow(sourceComponentIndex),
+                        sourceSlot,
+                        targetChunk.GetRawComponentRow(targetComponentIndex),
+                        targetSlot,
+                        reserved);
+                }
+
+                targetChunk.InitializeRowsRange(targetSlot, reserved, edge.AddedTargetRowIndices);
+                for (var slot = 0; slot < reserved; slot++)
+                {
+                    var entity = sourceEntities[sourceSlot + slot];
+                    _overlayTags.CopySlotTags(sourceChunkId, sourceSlot + slot, targetChunk.GlobalId, targetSlot + slot);
+                    ref var record = ref RecordAt(entity.Index);
+                    record.Archetype = targetArchetype.Id;
+                    record.Chunk = targetChunkIndex;
+                    record.SlotIndex = targetSlot + slot;
+                }
+
+                sourceEnd = sourceSlot;
+                movedCount += reserved;
+            }
+
+            for (var slot = sourceCount - 1; slot >= 0; slot--)
+            {
+                _overlayTags.ClearSlot(sourceChunkId, slot);
+            }
+
+            sourceChunk.ClearAll();
+            sourceArchetype.ReleaseChunk(sourceChunkIndex);
+        }
+
+        return movedCount;
+    }
+
+    private int DestroyChunk(Archetype archetype, int chunkIndex)
+    {
+        var chunk = archetype.GetChunk(chunkIndex);
+        var count = chunk.Count;
+        if (count == 0)
+        {
+            return 0;
+        }
+
+        var entities = chunk.RawEntities;
+        for (var slot = count - 1; slot >= 0; slot--)
+        {
+            var entity = entities[slot];
+            ref var record = ref RecordAt(entity.Index);
+            record.Archetype = -1;
+            record.Chunk = -1;
+            record.SlotIndex = -1;
+            record.Generation++;
+            PushFree(entity.Index);
+            _overlayTags.ClearSlot(chunk.GlobalId, slot);
+        }
+
+        chunk.ClearAll();
+        archetype.ReleaseChunk(chunkIndex);
+        AliveEntityCount -= count;
+        return count;
+    }
+
+    private List<Entity> CollectTaggedQueryEntities(
+        QueryDescription query,
+        int[] matchingArchetypes)
+    {
+        var matches = new List<Entity>();
+        var scratch = RentChunkOverlayScratch();
+        try
+        {
+            for (var matchingIndex = 0; matchingIndex < matchingArchetypes.Length; matchingIndex++)
+            {
+                var archetype = _archetypes[matchingArchetypes[matchingIndex]];
+                for (var chunkIndex = 0; chunkIndex < archetype.ChunkCount; chunkIndex++)
+                {
+                    var chunk = archetype.GetChunk(chunkIndex);
+                    if (chunk.IsEmpty)
+                    {
+                        continue;
+                    }
+
+                    var result = _overlayTags.BuildMask(query, chunk.GlobalId, chunk.Count, scratch);
+                    if (result == OverlayMaskResult.None)
+                    {
+                        continue;
+                    }
+
+                    var entities = chunk.Entities;
+                    if (result == OverlayMaskResult.Full)
+                    {
+                        for (var slot = 0; slot < entities.Length; slot++)
+                        {
+                            matches.Add(entities[slot]);
+                        }
+                    }
+                    else
+                    {
+                        for (var slot = 0; slot < entities.Length; slot++)
+                        {
+                            if ((scratch[slot >> 6] & (1UL << (slot & 63))) != 0)
+                            {
+                                matches.Add(entities[slot]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        finally
+        {
+            ReturnChunkOverlayScratch(scratch);
+        }
+
+        return matches;
     }
 
     private void DestroyResolved(int recordIndex)
@@ -897,9 +1122,7 @@ public sealed class World
             throw new InvalidOperationException("An archetype cannot have zero dense components.");
         }
 
-        var targetIds = new ComponentId[targetMask.Count];
-        targetMask.CopyComponentIds(targetIds);
-        var target = GetOrCreateArchetype(targetMask, targetIds);
+        var target = GetOrCreateArchetype(targetMask);
         var mapping = new int[source.ComponentCount];
         var copiedTargetRows = new bool[target.ComponentCount];
         for (var i = 0; i < mapping.Length; i++)
@@ -946,13 +1169,15 @@ public sealed class World
         return true;
     }
 
-    private Archetype GetOrCreateArchetype(ComponentMask mask, ComponentId[] componentIds)
+    private Archetype GetOrCreateArchetype(ComponentMask mask)
     {
         if (_archetypeByMask.TryGetValue(mask, out var existing))
         {
             return _archetypes[existing];
         }
 
+        var componentIds = new ComponentId[mask.Count];
+        mask.CopyComponentIds(componentIds);
         var layouts = new ComponentLayout[componentIds.Length];
         var rowOperations = new ComponentRowOperations[componentIds.Length];
         for (var i = 0; i < componentIds.Length; i++)
@@ -984,66 +1209,20 @@ public sealed class World
         return archetype;
     }
 
-    private static bool Canonicalize(ComponentId[] components, out ComponentId[] canonical, out ComponentMask mask)
+    private static bool TryBuildComponentMask(ReadOnlySpan<ComponentId> componentIds, out ComponentMask mask)
     {
-        canonical = new ComponentId[components.Length];
-        var count = 0;
-        for (var i = 0; i < components.Length; i++)
+        mask = default;
+        for (var i = 0; i < componentIds.Length; i++)
         {
-            if (components[i].IsValid)
+            if (!componentIds[i].IsValid)
             {
-                canonical[count++] = components[i];
+                continue;
             }
+
+            mask = mask.Set(componentIds[i]);
         }
 
-        if (count == 0)
-        {
-            canonical = Array.Empty<ComponentId>();
-            mask = default;
-            return false;
-        }
-
-        Array.Sort(canonical, 0, count, ComponentIdComparer.Instance);
-        var uniqueCount = 1;
-        for (var i = 1; i < count; i++)
-        {
-            if (canonical[i] != canonical[uniqueCount - 1])
-            {
-                canonical[uniqueCount++] = canonical[i];
-            }
-        }
-
-        if (uniqueCount != canonical.Length)
-        {
-            Array.Resize(ref canonical, uniqueCount);
-        }
-
-        mask = ComponentMask.From(canonical);
-        return true;
-    }
-
-    private static int NormalizeInPlace(Span<ComponentId> components)
-    {
-        var count = 0;
-        for (var i = 0; i < components.Length; i++)
-        {
-            if (components[i].IsValid)
-            {
-                components[count++] = components[i];
-            }
-        }
-
-        components[..count].Sort(ComponentIdComparer.Instance);
-        var uniqueCount = count == 0 ? 0 : 1;
-        for (var i = 1; i < count; i++)
-        {
-            if (components[i] != components[uniqueCount - 1])
-            {
-                components[uniqueCount++] = components[i];
-            }
-        }
-
-        return uniqueCount;
+        return !mask.IsEmpty;
     }
 
     private int AllocateRecord()
@@ -1106,6 +1285,64 @@ public sealed class World
         {
             throw new InvalidOperationException($"Cannot {operation} while chunk leases are active.");
         }
+    }
+
+    private void ValidateQueryHandle(in QueryHandle query)
+    {
+        if (!query.IsValid || !ReferenceEquals(query.Owner, this))
+        {
+            throw new ArgumentException("Query handle does not belong to this world.", nameof(query));
+        }
+    }
+
+    private int BeginBatchEdgeCache()
+    {
+        EnsureBatchEdgeCapacity(_archetypes.Count);
+        if (_batchEdgeStamp == int.MaxValue)
+        {
+            Array.Clear(_batchEdgeStamps, 0, _batchEdgeStamps.Length);
+            _batchEdgeStamp = 1;
+        }
+        else
+        {
+            _batchEdgeStamp++;
+        }
+
+        return _batchEdgeStamp;
+    }
+
+    private TransitionEdge GetBatchTransitionEdge(
+        int sourceArchetypeId,
+        ComponentMask changeMask,
+        bool isAdd,
+        int stamp)
+    {
+        if ((uint)sourceArchetypeId >= (uint)_batchEdgeStamps.Length)
+        {
+            EnsureBatchEdgeCapacity(sourceArchetypeId + 1);
+        }
+
+        if (_batchEdgeStamps[sourceArchetypeId] == stamp)
+        {
+            return _batchEdgeSlots[sourceArchetypeId];
+        }
+
+        var edge = GetTransitionEdge(sourceArchetypeId, changeMask, isAdd);
+        _batchEdgeSlots[sourceArchetypeId] = edge;
+        _batchEdgeStamps[sourceArchetypeId] = stamp;
+        return edge;
+    }
+
+    private void EnsureBatchEdgeCapacity(int required)
+    {
+        if (required <= _batchEdgeSlots.Length)
+        {
+            return;
+        }
+
+        var capacity = Math.Max(required, _batchEdgeSlots.Length == 0 ? 4 : _batchEdgeSlots.Length * 2);
+        Array.Resize(ref _batchEdgeSlots, capacity);
+        Array.Resize(ref _batchEdgeStamps, capacity);
     }
 
     private void EnsureDestroyScratch(int required)
@@ -1189,10 +1426,4 @@ public sealed class World
         }
     }
 
-    private sealed class ComponentIdComparer : IComparer<ComponentId>
-    {
-        public static readonly ComponentIdComparer Instance = new();
-
-        public int Compare(ComponentId x, ComponentId y) => x.Value.CompareTo(y.Value);
-    }
 }

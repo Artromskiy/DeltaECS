@@ -33,6 +33,8 @@ public int Amount { get; set; }
     private World _world = null!;
     private ComponentId[] _components = Array.Empty<ComponentId>();
     private QueryHandle _query;
+    private WriteRowBinding<ProfileValue>[] _writeBindings = Array.Empty<WriteRowBinding<ProfileValue>>();
+    private ReadRowBinding<ProfileValue>[] _readBindings = Array.Empty<ReadRowBinding<ProfileValue>>();
     private LegacyProfileBackend _legacy = null!;
 
     private long _checksum;
@@ -48,6 +50,8 @@ public int Amount { get; set; }
     {
         public int ComponentCount;
         public long Checksum;
+        public WriteRowBinding<ProfileValue>[] WriteBindings;
+        public ReadRowBinding<ProfileValue>[] ReadBindings;
     }
 
     private static readonly ChunkAction<ProfileState> s_entityMajor = IterateEntityMajor;
@@ -89,13 +93,20 @@ public int Amount { get; set; }
 
         var description = QueryDescription.ForComponents(_components);
         _query = _world.CreateQuery(in description);
+        _writeBindings = new WriteRowBinding<ProfileValue>[ComponentCount];
+        _readBindings = new ReadRowBinding<ProfileValue>[ComponentCount];
+        for (var i = 0; i < ComponentCount; i++)
+        {
+            _writeBindings[i] = _query.Bind<ProfileValue>(_components[i], RowAccess.Write);
+            _readBindings[i] = _query.Bind<ProfileValue>(_components[i], RowAccess.Read);
+        }
         _legacy = new LegacyProfileBackend(ComponentCount, Amount);
     }
 
     [Benchmark]
     public void DeltaArray_EntityMajor_Profile()
     {
-        var state = new ProfileState { ComponentCount = ComponentCount };
+        var state = new ProfileState { ComponentCount = ComponentCount, WriteBindings = _writeBindings, ReadBindings = _readBindings };
         _iterations = RunUntilDuration(() => _world.Query(in _query, QueryAccess.Write, ref state, s_entityMajor));
         _checksum = state.Checksum;
     }
@@ -103,7 +114,7 @@ public int Amount { get; set; }
     [Benchmark]
     public void DeltaArray_RowMajor_Profile()
     {
-        var state = new ProfileState { ComponentCount = ComponentCount };
+        var state = new ProfileState { ComponentCount = ComponentCount, WriteBindings = _writeBindings, ReadBindings = _readBindings };
         _iterations = RunUntilDuration(() => _world.Query(in _query, QueryAccess.Write, ref state, s_rowMajor));
         _checksum = state.Checksum;
     }
@@ -111,7 +122,7 @@ public int Amount { get; set; }
     [Benchmark]
     public void DeltaArray_DispatchOnly_Profile()
     {
-        var state = new ProfileState();
+        var state = new ProfileState { ReadBindings = _readBindings };
         _iterations = RunUntilDuration(() => _world.Query(in _query, QueryAccess.Read, ref state, s_dispatchOnly));
         _checksum = state.Checksum;
     }
@@ -119,7 +130,7 @@ public int Amount { get; set; }
     [Benchmark]
     public void DeltaArray_LookupOnly_Profile()
     {
-        var state = new ProfileState { ComponentCount = ComponentCount };
+        var state = new ProfileState { ComponentCount = ComponentCount, ReadBindings = _readBindings, WriteBindings = _writeBindings };
         _iterations = RunUntilDuration(() => _world.Query(in _query, QueryAccess.Read, ref state, s_lookupOnly));
         _checksum = state.Checksum;
     }
@@ -180,7 +191,7 @@ public int Amount { get; set; }
         {
             case 1:
             {
-                var c0 = lease.GetComponentRow<ProfileValue>(0);
+                var c0 = lease.GetRow(state.WriteBindings[0]);
                 for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
                 {
                     var value = c0[slotIndex];
@@ -192,8 +203,8 @@ public int Amount { get; set; }
             }
             case 2:
             {
-                var c0 = lease.GetComponentRow<ProfileValue>(0);
-                var c1 = lease.GetComponentRow<ProfileValue>(1);
+                var c0 = lease.GetRow(state.WriteBindings[0]);
+                var c1 = lease.GetRow(state.WriteBindings[1]);
                 for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
                 {
                     var p0 = c0[slotIndex];
@@ -208,10 +219,10 @@ public int Amount { get; set; }
             }
             case 4:
             {
-                var c0 = lease.GetComponentRow<ProfileValue>(0);
-                var c1 = lease.GetComponentRow<ProfileValue>(1);
-                var c2 = lease.GetComponentRow<ProfileValue>(2);
-                var c3 = lease.GetComponentRow<ProfileValue>(3);
+                var c0 = lease.GetRow(state.WriteBindings[0]);
+                var c1 = lease.GetRow(state.WriteBindings[1]);
+                var c2 = lease.GetRow(state.WriteBindings[2]);
+                var c3 = lease.GetRow(state.WriteBindings[3]);
                 for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
                 {
                     var p0 = c0[slotIndex];
@@ -233,14 +244,14 @@ public int Amount { get; set; }
             }
             case 8:
             {
-                var c0 = lease.GetComponentRow<ProfileValue>(0);
-                var c1 = lease.GetComponentRow<ProfileValue>(1);
-                var c2 = lease.GetComponentRow<ProfileValue>(2);
-                var c3 = lease.GetComponentRow<ProfileValue>(3);
-                var c4 = lease.GetComponentRow<ProfileValue>(4);
-                var c5 = lease.GetComponentRow<ProfileValue>(5);
-                var c6 = lease.GetComponentRow<ProfileValue>(6);
-                var c7 = lease.GetComponentRow<ProfileValue>(7);
+                var c0 = lease.GetRow(state.WriteBindings[0]);
+                var c1 = lease.GetRow(state.WriteBindings[1]);
+                var c2 = lease.GetRow(state.WriteBindings[2]);
+                var c3 = lease.GetRow(state.WriteBindings[3]);
+                var c4 = lease.GetRow(state.WriteBindings[4]);
+                var c5 = lease.GetRow(state.WriteBindings[5]);
+                var c6 = lease.GetRow(state.WriteBindings[6]);
+                var c7 = lease.GetRow(state.WriteBindings[7]);
                 for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
                 {
                     var p0 = c0[slotIndex];
@@ -285,7 +296,7 @@ public int Amount { get; set; }
         {
             case 1:
             {
-                var c0 = lease.GetComponentRow<ProfileValue>(0);
+                var c0 = lease.GetRow(state.WriteBindings[0]);
                 for (var i = c0.Length - 1; i >= 0; i--)
                 {
                     var p0 = c0[i];
@@ -297,8 +308,8 @@ public int Amount { get; set; }
             }
             case 2:
             {
-                var c0 = lease.GetComponentRow<ProfileValue>(0);
-                var c1 = lease.GetComponentRow<ProfileValue>(1);
+                var c0 = lease.GetRow(state.WriteBindings[0]);
+                var c1 = lease.GetRow(state.WriteBindings[1]);
                 for (var i = c0.Length - 1; i >= 0; i--)
                 {
                     var p0 = c0[i];
@@ -313,10 +324,10 @@ public int Amount { get; set; }
             }
             case 4:
             {
-                var c0 = lease.GetComponentRow<ProfileValue>(0);
-                var c1 = lease.GetComponentRow<ProfileValue>(1);
-                var c2 = lease.GetComponentRow<ProfileValue>(2);
-                var c3 = lease.GetComponentRow<ProfileValue>(3);
+                var c0 = lease.GetRow(state.WriteBindings[0]);
+                var c1 = lease.GetRow(state.WriteBindings[1]);
+                var c2 = lease.GetRow(state.WriteBindings[2]);
+                var c3 = lease.GetRow(state.WriteBindings[3]);
                 for (var i = c0.Length - 1; i >= 0; i--)
                 {
                     var p0 = c0[i];
@@ -338,14 +349,14 @@ public int Amount { get; set; }
             }
             case 8:
             {
-                var c0 = lease.GetComponentRow<ProfileValue>(0);
-                var c1 = lease.GetComponentRow<ProfileValue>(1);
-                var c2 = lease.GetComponentRow<ProfileValue>(2);
-                var c3 = lease.GetComponentRow<ProfileValue>(3);
-                var c4 = lease.GetComponentRow<ProfileValue>(4);
-                var c5 = lease.GetComponentRow<ProfileValue>(5);
-                var c6 = lease.GetComponentRow<ProfileValue>(6);
-                var c7 = lease.GetComponentRow<ProfileValue>(7);
+                var c0 = lease.GetRow(state.WriteBindings[0]);
+                var c1 = lease.GetRow(state.WriteBindings[1]);
+                var c2 = lease.GetRow(state.WriteBindings[2]);
+                var c3 = lease.GetRow(state.WriteBindings[3]);
+                var c4 = lease.GetRow(state.WriteBindings[4]);
+                var c5 = lease.GetRow(state.WriteBindings[5]);
+                var c6 = lease.GetRow(state.WriteBindings[6]);
+                var c7 = lease.GetRow(state.WriteBindings[7]);
                 for (var i = c0.Length - 1; i >= 0; i--)
                 {
                     var p0 = c0[i];
@@ -389,27 +400,27 @@ public int Amount { get; set; }
         switch (state.ComponentCount)
         {
             case 1:
-                _ = lease.GetComponentRow<ProfileValue>(0);
+                _ = lease.GetRow(state.ReadBindings[0]);
                 break;
             case 2:
-                _ = lease.GetComponentRow<ProfileValue>(0);
-                _ = lease.GetComponentRow<ProfileValue>(1);
+                _ = lease.GetRow(state.ReadBindings[0]);
+                _ = lease.GetRow(state.ReadBindings[1]);
                 break;
             case 4:
-                _ = lease.GetComponentRow<ProfileValue>(0);
-                _ = lease.GetComponentRow<ProfileValue>(1);
-                _ = lease.GetComponentRow<ProfileValue>(2);
-                _ = lease.GetComponentRow<ProfileValue>(3);
+                _ = lease.GetRow(state.ReadBindings[0]);
+                _ = lease.GetRow(state.ReadBindings[1]);
+                _ = lease.GetRow(state.ReadBindings[2]);
+                _ = lease.GetRow(state.ReadBindings[3]);
                 break;
             case 8:
-                _ = lease.GetComponentRow<ProfileValue>(0);
-                _ = lease.GetComponentRow<ProfileValue>(1);
-                _ = lease.GetComponentRow<ProfileValue>(2);
-                _ = lease.GetComponentRow<ProfileValue>(3);
-                _ = lease.GetComponentRow<ProfileValue>(4);
-                _ = lease.GetComponentRow<ProfileValue>(5);
-                _ = lease.GetComponentRow<ProfileValue>(6);
-                _ = lease.GetComponentRow<ProfileValue>(7);
+                _ = lease.GetRow(state.ReadBindings[0]);
+                _ = lease.GetRow(state.ReadBindings[1]);
+                _ = lease.GetRow(state.ReadBindings[2]);
+                _ = lease.GetRow(state.ReadBindings[3]);
+                _ = lease.GetRow(state.ReadBindings[4]);
+                _ = lease.GetRow(state.ReadBindings[5]);
+                _ = lease.GetRow(state.ReadBindings[6]);
+                _ = lease.GetRow(state.ReadBindings[7]);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(state.ComponentCount));

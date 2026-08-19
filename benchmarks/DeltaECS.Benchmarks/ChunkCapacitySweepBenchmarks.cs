@@ -14,6 +14,8 @@ public class DenseCapacitySweepBenchmarks
     private World _arrayWorld = null!;
     private QueryHandle _query;
     private ComponentId[] _components = Array.Empty<ComponentId>();
+    private WriteRowBinding<S0> _b0; private WriteRowBinding<S1> _b1; private WriteRowBinding<S2> _b2; private WriteRowBinding<S3> _b3;
+    private WriteRowBinding<S4> _b4; private WriteRowBinding<S5> _b5; private WriteRowBinding<S6> _b6; private WriteRowBinding<S7> _b7;
     private LegacyByteDenseReference _legacy = null!;
 
     private struct S0 { public float X; public float Y; }
@@ -54,6 +56,10 @@ public class DenseCapacitySweepBenchmarks
 
         var description = QueryDescription.ForComponents(_components);
         _query = _arrayWorld.CreateQuery(in description);
+        _b0 = _query.Bind<S0>(_components[0], RowAccess.Write); _b1 = _query.Bind<S1>(_components[1], RowAccess.Write);
+        _b2 = _query.Bind<S2>(_components[2], RowAccess.Write); _b3 = _query.Bind<S3>(_components[3], RowAccess.Write);
+        _b4 = _query.Bind<S4>(_components[4], RowAccess.Write); _b5 = _query.Bind<S5>(_components[5], RowAccess.Write);
+        _b6 = _query.Bind<S6>(_components[6], RowAccess.Write); _b7 = _query.Bind<S7>(_components[7], RowAccess.Write);
         _legacy = new LegacyByteDenseReference(8, Amount, ChunkCapacity);
     }
 
@@ -64,10 +70,10 @@ public class DenseCapacitySweepBenchmarks
         while (chunks.MoveNext())
         {
             var lease = chunks.Current;
-            var c0 = lease.GetComponentRow<S0>(0); var c1 = lease.GetComponentRow<S1>(1);
-            var c2 = lease.GetComponentRow<S2>(2); var c3 = lease.GetComponentRow<S3>(3);
-            var c4 = lease.GetComponentRow<S4>(4); var c5 = lease.GetComponentRow<S5>(5);
-            var c6 = lease.GetComponentRow<S6>(6); var c7 = lease.GetComponentRow<S7>(7);
+            var c0 = lease.GetRow(_b0); var c1 = lease.GetRow(_b1);
+            var c2 = lease.GetRow(_b2); var c3 = lease.GetRow(_b3);
+            var c4 = lease.GetRow(_b4); var c5 = lease.GetRow(_b5);
+            var c6 = lease.GetRow(_b6); var c7 = lease.GetRow(_b7);
             for (var i = c0.Length - 1; i >= 0; i--)
             {
                 c0[i].X += c0[i].Y; c1[i].X += c1[i].Y; c2[i].X += c2[i].Y; c3[i].X += c3[i].Y;

@@ -249,7 +249,7 @@ public ref struct DenseChunkAccessor
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Span<T> GetComponentRow<T>(int queryComponentIndex)
+    internal Span<T> GetComponentRow<T>(int queryComponentIndex)
     {
         EnsureCurrent();
         Debug.Assert(_queryComponentRowIndices is not null);

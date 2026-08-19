@@ -24,6 +24,7 @@ public int MatchingPercent { get; set; }
 private World _world = null!;
 private QueryHandle _query;
 private ComponentId _required;
+private ReadRowBinding<FragmentValue> _valueBinding;
 private int _expectedMatches;
 
     [GlobalSetup]
@@ -70,15 +71,16 @@ private int _expectedMatches;
 
         var description = QueryDescription.ForComponents(_required);
         _query = _world.CreateQuery(in description);
+        _valueBinding = _query.Bind<FragmentValue>(_required, RowAccess.Read);
     }
 
     [Benchmark]
     public int DeltaOnly_QueryAndIteration()
     {
-        var state = new FragmentQueryState();
+        var state = new FragmentQueryState { Value = _valueBinding };
         _world.Query(in _query, QueryAccess.Read, ref state, static (ref FragmentQueryState s, ref DenseChunkAccessor lease) =>
         {
-            var values = lease.GetComponentRow<FragmentValue>(0);
+            var values = lease.GetRow(s.Value);
             for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
             {
                 s.Matches++;
@@ -97,7 +99,7 @@ private int _expectedMatches;
     [Benchmark]
     public int DeltaOnly_QueryChunkDispatch()
     {
-        var state = new FragmentQueryState();
+        var state = new FragmentQueryState { Value = _valueBinding };
         _world.Query(in _query, QueryAccess.Read, ref state, static (ref FragmentQueryState s, ref DenseChunkAccessor lease)
             => s.Matches += lease.SlotCount);
 
@@ -115,9 +117,11 @@ private int _expectedMatches;
         var state = new FragmentQueryState();
         var description = QueryDescription.ForComponents(_required);
         var coldQuery = _world.CreateQuery(in description);
+        var valueBinding = coldQuery.Bind<FragmentValue>(_required, RowAccess.Read);
+        state.Value = valueBinding;
         _world.Query(in coldQuery, QueryAccess.Read, ref state, static (ref FragmentQueryState s, ref DenseChunkAccessor lease) =>
         {
-            var values = lease.GetComponentRow<FragmentValue>(0);
+            var values = lease.GetRow(s.Value);
             for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
             {
                 s.Matches++;
@@ -166,5 +170,6 @@ private int _expectedMatches;
     {
         public int Matches;
         public int Checksum;
+        public ReadRowBinding<FragmentValue> Value;
     }
 }

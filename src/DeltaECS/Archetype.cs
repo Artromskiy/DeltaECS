@@ -104,11 +104,46 @@ internal sealed class Archetype
         }
     }
 
+    public int ReserveRange(int count, int chunkId, out int chunkIndex, out Chunk chunk)
+    {
+        if (count <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(count));
+        }
+
+        if (TryTakeAvailableChunk(out var availableIndex, out var available))
+        {
+            chunkIndex = availableIndex;
+            chunk = available;
+        }
+        else
+        {
+            chunkIndex = _chunks.Count;
+            chunk = new Chunk(_chunkCapacity, _layouts, _rowOperations, chunkId);
+            _chunks.Add(chunk);
+            EnsureAvailableChunkCapacity(chunkIndex);
+        }
+
+        var reserved = Math.Min(count, chunk.Capacity - chunk.Count);
+        chunk.ReserveRange(reserved);
+        if (!chunk.IsFull)
+        {
+            PushAvailableChunk(chunkIndex);
+        }
+
+        return reserved;
+    }
+
     public Entity RemoveEntity(int chunkIndex, int slotIndex)
     {
         var moved = _chunks[chunkIndex].RemoveSwapBack(slotIndex);
         PushAvailableChunk(chunkIndex);
         return moved;
+    }
+
+    public void ReleaseChunk(int chunkIndex)
+    {
+        PushAvailableChunk(chunkIndex);
     }
 
     private bool TryTakeAvailableChunk(out int chunkIndex, out Chunk chunk)

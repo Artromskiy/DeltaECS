@@ -32,6 +32,8 @@ public class DeltaEcsTagFilteringBenchmarks
     private World _world = null!;
     private QueryHandle _query;
     private ComponentId _valueComponent;
+    private WriteRowBinding<TagFilterValue> _writeBinding;
+    private ReadRowBinding<TagFilterValue> _readBinding;
     private TagId _tag;
     private int _expectedTaggedCount;
 
@@ -66,13 +68,15 @@ public class DeltaEcsTagFilteringBenchmarks
             Array.Empty<TagId>(),
             Array.Empty<TagId>());
         _query = _world.CreateQuery(in description);
+        _writeBinding = _query.Bind<TagFilterValue>(_valueComponent, RowAccess.Write);
+        _readBinding = _query.Bind<TagFilterValue>(_valueComponent, RowAccess.Read);
     }
 
     /// <summary>Mask/query path plus a useful component update.</summary>
     [Benchmark]
     public int Delta_TagQueryAndIteration()
     {
-        var state = new TagFilterState { UpdateValues = true };
+        var state = new TagFilterState { UpdateValues = true, WriteValue = _writeBinding, ReadValue = _readBinding };
         _world.Query(in _query, QueryAccess.Write, ref state, static (ref TagFilterState s, ref DenseChunkAccessor lease)
             => IterateTagged(ref s, ref lease));
         return TagFilterGuard.CountAndChecksum(state, _expectedTaggedCount);
@@ -82,7 +86,7 @@ public class DeltaEcsTagFilteringBenchmarks
     [Benchmark]
     public int Delta_TagQueryMaskOnly()
     {
-        var state = new TagFilterState();
+        var state = new TagFilterState { ReadValue = _readBinding };
         _world.Query(in _query, QueryAccess.Read, ref state, static (ref TagFilterState s, ref DenseChunkAccessor lease)
             => IterateTagged(ref s, ref lease));
         return TagFilterGuard.CountAndChecksum(state, _expectedTaggedCount);
@@ -90,7 +94,6 @@ public class DeltaEcsTagFilteringBenchmarks
 
     private static void IterateTagged(ref TagFilterState state, ref DenseChunkAccessor lease)
     {
-        var values = state.UpdateValues ? lease.GetComponentRow<TagFilterValue>(0) : default;
         var allSlotsActive = lease.IsAllSlotsActive;
         if (allSlotsActive)
         {
@@ -99,6 +102,7 @@ public class DeltaEcsTagFilteringBenchmarks
                 state.TaggedCount++;
                 if (state.UpdateValues)
                 {
+                    var values = lease.GetRow(state.WriteValue);
                     values[slotIndex].X += values[slotIndex].Y * 0.5f;
                     state.Checksum += values[slotIndex].X;
                 }
@@ -116,6 +120,7 @@ public class DeltaEcsTagFilteringBenchmarks
                 state.TaggedCount++;
                 if (state.UpdateValues)
                 {
+                    var values = lease.GetRow(state.WriteValue);
                     values[slotIndex].X += values[slotIndex].Y * 0.5f;
                     state.Checksum += values[slotIndex].X;
                 }
@@ -156,7 +161,7 @@ public class DeltaEcsTagFilteringBenchmarks
         return indices;
     }
 
-    private struct TagFilterValue
+    internal struct TagFilterValue
     {
         public float X;
         public float Y;
@@ -167,6 +172,8 @@ public class DeltaEcsTagFilteringBenchmarks
         public bool UpdateValues;
         public int TaggedCount;
         public double Checksum;
+        public WriteRowBinding<TagFilterValue> WriteValue;
+        public ReadRowBinding<TagFilterValue> ReadValue;
     }
 }
 

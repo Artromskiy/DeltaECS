@@ -31,6 +31,8 @@ public class DefaultEcsComparisonBenchmarks
     private ComponentId[] _deltaMovementComponents = Array.Empty<ComponentId>();
     private QueryHandle _deltaMovementQuery;
     private DeltaEntity[] _deltaMovementEntities = Array.Empty<DeltaEntity>();
+    private WriteRowBinding<MovementPosition> _deltaPositionBinding;
+    private ReadRowBinding<MovementVelocity> _deltaVelocityBinding;
     private ComponentId[] _deltaTransitionComponents = Array.Empty<ComponentId>();
 
     private DefaultEcs.World _defaultMovementWorld = null!;
@@ -74,11 +76,11 @@ public class DefaultEcsComparisonBenchmarks
     [BenchmarkCategory("DenseMovement")]
     public double DeltaECS_Movement_PositionVelocity()
     {
-        var state = new MovementState { Count = 0, ExpectedCount = Amount, Dt = Dt };
+        var state = new MovementState { Count = 0, ExpectedCount = Amount, Dt = Dt, Position = _deltaPositionBinding, Velocity = _deltaVelocityBinding };
         _deltaMovementWorld.Query(in _deltaMovementQuery, QueryAccess.Write, ref state, static (ref MovementState s, ref DenseChunkAccessor lease) =>
         {
-            var positions = lease.GetComponentRow<MovementPosition>(0);
-            var velocities = lease.GetComponentRow<MovementVelocity>(1);
+            var positions = lease.GetRow(s.Position);
+            var velocities = lease.GetRow(s.Velocity);
             var slotCount = lease.SlotCount;
             for (var i = slotCount - 1; i >= 0; i--)
             {
@@ -249,6 +251,8 @@ public class DefaultEcsComparisonBenchmarks
 
         var queryDescription = QueryDescription.ForComponents(_deltaMovementComponents);
         _deltaMovementQuery = _deltaMovementWorld.CreateQuery(in queryDescription);
+        _deltaPositionBinding = _deltaMovementQuery.Bind<MovementPosition>(_deltaPosition, RowAccess.Write);
+        _deltaVelocityBinding = _deltaMovementQuery.Bind<MovementVelocity>(_deltaVelocity, RowAccess.Read);
     }
 
     private void SetupMovementDefault()
@@ -342,6 +346,8 @@ public class DefaultEcsComparisonBenchmarks
         public int ExpectedCount;
         public float Dt;
         public double Checksum;
+        public WriteRowBinding<MovementPosition> Position;
+        public ReadRowBinding<MovementVelocity> Velocity;
     }
 
     private struct MovementPosition

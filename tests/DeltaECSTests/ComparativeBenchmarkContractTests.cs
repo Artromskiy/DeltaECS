@@ -1,5 +1,7 @@
 using Delta.ECS.Benchmarks;
+using Delta.ECS;
 using NUnit.Framework;
+using System.Text.RegularExpressions;
 
 namespace Delta.ECS.Tests;
 
@@ -41,6 +43,39 @@ public sealed class ComparativeBenchmarkContractTests
     public void Amount_100_contract_smoke_executes_supported_methods()
     {
         Assert.DoesNotThrow(ComparativeBenchmarkExecutionSmoke.RunAmount100);
+    }
+
+    [Test]
+    public void Benchmark_sources_do_not_use_numeric_ordinal_row_access()
+    {
+        var benchmarkRoot = FindBenchmarkRoot();
+        var ordinalAccess = new Regex(@"GetComponentRow<[^>]+>\(\s*\d+\s*\)", RegexOptions.CultureInvariant);
+        var benchmarkRoots = new[] { benchmarkRoot, Path.Combine(Path.GetDirectoryName(benchmarkRoot)!, "DeltaECS.VersionBenchmarks") };
+        foreach (var source in benchmarkRoots.SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
+                     .Where(path => !path.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar)
+                                 && !path.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar)))
+        {
+            Assert.That(ordinalAccess.IsMatch(File.ReadAllText(source)), Is.False, source);
+        }
+
+        var ordinalMethod = typeof(DenseChunkAccessor).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)
+            .Single(method => method.Name == "GetComponentRow" && method.IsGenericMethodDefinition &&
+                              method.GetParameters().Length == 1 && method.GetParameters()[0].ParameterType == typeof(int));
+        Assert.That(ordinalMethod.IsPublic, Is.False);
+    }
+
+    private static string FindBenchmarkRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            var candidate = Path.Combine(directory.FullName, "benchmarks", "DeltaECS.Benchmarks");
+            if (Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        throw new DirectoryNotFoundException("Could not locate benchmarks/DeltaECS.Benchmarks from the test output directory.");
     }
 
     [Test]

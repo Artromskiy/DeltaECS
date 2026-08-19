@@ -31,6 +31,8 @@ public class AlgorithmicMovementBenchmarks
     private ComponentId _deltaVelocity;
     private ComponentId[] _deltaComponents = Array.Empty<ComponentId>();
     private QueryHandle _deltaQuery;
+    private WriteRowBinding<DeltaPosition> _deltaPositionBinding;
+    private ReadRowBinding<DeltaVelocity> _deltaVelocityBinding;
     private LegacyMovementReference _legacy = null!;
 
     private Arch.Core.World _archWorld = null!;
@@ -45,6 +47,8 @@ public class AlgorithmicMovementBenchmarks
         public float Dt;
         public int Count;
         public double Checksum;
+        public WriteRowBinding<DeltaPosition> Position;
+        public ReadRowBinding<DeltaVelocity> Velocity;
     }
 
     [GlobalSetup]
@@ -59,11 +63,11 @@ public class AlgorithmicMovementBenchmarks
     [Benchmark(Baseline = true)]
     public double DeltaECS_Movement()
     {
-        var state = new DeltaState { Dt = Dt };
+        var state = new DeltaState { Dt = Dt, Position = _deltaPositionBinding, Velocity = _deltaVelocityBinding };
         _deltaWorld.Query(in _deltaQuery, QueryAccess.Write, ref state, static (ref DeltaState s, ref DenseChunkAccessor lease) =>
         {
-            var positions = lease.GetComponentRow<DeltaPosition>(0);
-            var velocities = lease.GetComponentRow<DeltaVelocity>(1);
+            var positions = lease.GetRow(s.Position);
+            var velocities = lease.GetRow(s.Velocity);
             var slotCount = lease.SlotCount;
             for (var i = slotCount - 1; i >= 0; i--)
             {
@@ -141,6 +145,8 @@ public class AlgorithmicMovementBenchmarks
 
         var description = QueryDescription.ForComponents(_deltaComponents);
         _deltaQuery = _deltaWorld.CreateQuery(in description);
+        _deltaPositionBinding = _deltaQuery.Bind<DeltaPosition>(_deltaPosition, RowAccess.Write);
+        _deltaVelocityBinding = _deltaQuery.Bind<DeltaVelocity>(_deltaVelocity, RowAccess.Read);
     }
 
     private void SetupArch()

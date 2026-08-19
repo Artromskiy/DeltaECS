@@ -27,6 +27,7 @@ public sealed class IterationScenario
     private readonly QueryHandle _movement4Query;
     private readonly ComponentId _position;
     private readonly ComponentId _velocity;
+    private readonly ComponentId _dense;
     private readonly ComponentId[] _movement4Ids;
     private readonly Entity[] _movement2Entities;
     private readonly Entity[] _movement4Entities;
@@ -35,7 +36,7 @@ public sealed class IterationScenario
     {
         _amount = amount;
         var layouts = new ComponentLayoutRegistry();
-        var dense = layouts.Register<DenseValue>(new SchemaId(950_000));
+        _dense = layouts.Register<DenseValue>(new SchemaId(950_000));
         _position = layouts.Register<Position>(new SchemaId(950_001));
         _velocity = layouts.Register<Velocity>(new SchemaId(950_002));
         _movement4Ids =
@@ -49,10 +50,10 @@ public sealed class IterationScenario
         _world = new World(layouts, initialEntityCapacity: amount * 3);
 
         var denseEntities = new Entity[amount];
-        _world.CreateBatch([dense], denseEntities);
+        _world.CreateBatch([_dense], denseEntities);
         for (var i = 0; i < amount; i++)
         {
-            _world.SetComponent(denseEntities[i], dense, new DenseValue { Value = i + 1 });
+            _world.SetComponent(denseEntities[i], _dense, new DenseValue { Value = i + 1 });
         }
 
         _movement2Entities = new Entity[amount];
@@ -65,7 +66,7 @@ public sealed class IterationScenario
         var movement4Description = QueryDescription.ForComponents(_movement4Ids);
         _movement4Query = _world.CreateQuery(in movement4Description);
 
-        var denseDescription = QueryDescription.ForComponents(dense);
+        var denseDescription = QueryDescription.ForComponents(_dense);
         _denseQuery = _world.CreateQuery(in denseDescription);
         ResetMovements();
     }
@@ -85,52 +86,52 @@ public sealed class IterationScenario
 
     public long DenseRead()
     {
-        long sum = 0;
-        _world.Query(in _denseQuery, QueryAccess.Read, ref sum, static (ref long state, ref DenseChunkAccessor accessor) =>
+        var state = new DenseState { Component = _dense };
+        _world.Query(in _denseQuery, QueryAccess.Read, ref state, static (ref DenseState current, ref DenseChunkAccessor accessor) =>
         {
-            var row = accessor.GetComponentRow<DenseValue>(0);
+            var row = accessor.GetComponentRow<DenseValue>(current.Component);
             for (var i = row.Length - 1; i >= 0; i--)
             {
-                state += row[i].Value;
+                current.Sum += row[i].Value;
             }
         });
 
         var expected = (long)_amount * (_amount + 1) / 2;
-        return sum == expected ? sum : throw new InvalidOperationException($"Dense checksum mismatch: {sum} != {expected}.");
+        return state.Sum == expected ? state.Sum : throw new InvalidOperationException($"Dense checksum mismatch: {state.Sum} != {expected}.");
     }
 
     public double Movement2()
     {
-        double sum = 0;
-        _world.Query(in _movement2Query, QueryAccess.Write, ref sum, static (ref double state, ref DenseChunkAccessor accessor) =>
+        var state = new Movement2State { Position = _position, Velocity = _velocity };
+        _world.Query(in _movement2Query, QueryAccess.Write, ref state, static (ref Movement2State current, ref DenseChunkAccessor accessor) =>
         {
-            var positions = accessor.GetComponentRow<Position>(0);
-            var velocities = accessor.GetComponentRow<Velocity>(1);
+            var positions = accessor.GetComponentRow<Position>(current.Position);
+            var velocities = accessor.GetComponentRow<Velocity>(current.Velocity);
             for (var i = positions.Length - 1; i >= 0; i--)
             {
                 ref var position = ref positions[i];
                 ref readonly var velocity = ref velocities[i];
                 position.X += velocity.X / 60f;
                 position.Y += velocity.Y / 60f;
-                state += position.X + position.Y;
+                current.Sum += position.X + position.Y;
             }
         });
 
         var expected = _amount * (1 + 3 / 60f + 2 + 4 / 60f);
-        return Math.Abs(sum - expected) < Math.Max(0.001, _amount * 0.000001)
-            ? sum
-            : throw new InvalidOperationException($"Movement2 checksum mismatch: {sum} != {expected}.");
+        return Math.Abs(state.Sum - expected) < Math.Max(0.001, _amount * 0.000001)
+            ? state.Sum
+            : throw new InvalidOperationException($"Movement2 checksum mismatch: {state.Sum} != {expected}.");
     }
 
     public int Movement4()
     {
-        var sum = 0;
-        _world.Query(in _movement4Query, QueryAccess.Write, ref sum, static (ref int state, ref DenseChunkAccessor accessor) =>
+        var state = new Movement4State { Components = _movement4Ids };
+        _world.Query(in _movement4Query, QueryAccess.Write, ref state, static (ref Movement4State current, ref DenseChunkAccessor accessor) =>
         {
-            var a = accessor.GetComponentRow<MovementA>(0);
-            var b = accessor.GetComponentRow<MovementB>(1);
-            var c = accessor.GetComponentRow<MovementC>(2);
-            var d = accessor.GetComponentRow<MovementD>(3);
+            var a = accessor.GetComponentRow<MovementA>(current.Components[0]);
+            var b = accessor.GetComponentRow<MovementB>(current.Components[1]);
+            var c = accessor.GetComponentRow<MovementC>(current.Components[2]);
+            var d = accessor.GetComponentRow<MovementD>(current.Components[3]);
             for (var i = a.Length - 1; i >= 0; i--)
             {
                 var updatedA = a[i].Value + d[i].Value;
@@ -138,13 +139,17 @@ public sealed class IterationScenario
                 a[i].Value = updatedA;
                 b[i].Value = updatedB;
                 c[i].Value = (updatedA + updatedB) / 2;
-                state += a[i].Value + b[i].Value + c[i].Value + d[i].Value;
+                current.Sum += a[i].Value + b[i].Value + c[i].Value + d[i].Value;
             }
         });
 
         var expected = _amount * 20;
-        return sum == expected ? sum : throw new InvalidOperationException($"Movement4 checksum mismatch: {sum} != {expected}.");
+        return state.Sum == expected ? state.Sum : throw new InvalidOperationException($"Movement4 checksum mismatch: {state.Sum} != {expected}.");
     }
+
+    private struct DenseState { public ComponentId Component; public long Sum; }
+    private struct Movement2State { public ComponentId Position; public ComponentId Velocity; public double Sum; }
+    private struct Movement4State { public ComponentId[] Components; public int Sum; }
 }
 
 public sealed class AtomicScenario

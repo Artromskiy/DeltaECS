@@ -82,6 +82,23 @@ internal sealed class Chunk
         return slotIndex;
     }
 
+    public int ReserveRange(int count)
+    {
+        if (count < 0 || _count + count > _capacity)
+        {
+            throw new ArgumentOutOfRangeException(nameof(count));
+        }
+
+        var start = _count;
+        _count += count;
+        if (_count > _highWaterMark)
+        {
+            _highWaterMark = _count;
+        }
+
+        return start;
+    }
+
     public Entity RemoveSwapBack(int slotIndex)
     {
         if (slotIndex < 0 || slotIndex >= _count)
@@ -110,6 +127,8 @@ internal sealed class Chunk
     }
 
     public Array GetRawComponentRow(int componentIndex) => _componentRows[componentIndex];
+
+    internal Entity[] RawEntities => _entities;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal uint GetComponentVersion(int componentIndex) => _componentVersions[componentIndex];
@@ -175,5 +194,27 @@ internal sealed class Chunk
             var componentIndex = componentIndices[index];
             _rowOperations[componentIndex].ClearOne(_componentRows[componentIndex], slotIndex);
         }
+    }
+
+    public void InitializeRowsRange(int slotIndex, int count, ReadOnlySpan<int> componentIndices)
+    {
+        for (var index = 0; index < componentIndices.Length; index++)
+        {
+            Array.Clear(_componentRows[componentIndices[index]], slotIndex, count);
+        }
+    }
+
+    public void ClearAll()
+    {
+        for (var componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
+        {
+            if (_rowOperations[componentIndex].ContainsReferences)
+            {
+                Array.Clear(_componentRows[componentIndex], 0, _count);
+            }
+        }
+
+        Array.Clear(_entities, 0, _count);
+        _count = 0;
     }
 }
