@@ -577,6 +577,12 @@ public static class ComparativeBenchmarkCatalog
         if (FullComparison.Any(type => type.Name.Contains("Legacy", StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException("Legacy is not allowed in the new comparative catalog.");
 
+        foreach (var type in Iteration)
+        {
+            if (type.GetMethods().Any(method => method.GetCustomAttributes(typeof(BenchmarkDotNet.Attributes.IterationSetupAttribute), inherit: true).Length != 0))
+                throw new InvalidOperationException($"Iteration benchmark {type.Name} must not force InvocationCount=1 through IterationSetup.");
+        }
+
         var ecsCount = Enum.GetValues<ComparativeEcs>().Length;
         foreach (var workload in new[] { "Iteration.Dense", "Iteration.Movement2Components", "Iteration.Movement4Components", "Iteration.WideArchetypeNarrowQuery", "Iteration.SparseWorldCachedQuery", "Iteration.SparseWorldColdQuery" })
         {

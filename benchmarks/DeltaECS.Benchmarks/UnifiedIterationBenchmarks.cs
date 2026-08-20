@@ -191,7 +191,7 @@ public class ComparativeMovement2ComponentsBenchmarks
         _leoQuery = _leo.Filter<MoveLeoPosition>().Inc<MoveLeoVelocity>().End();
     }
 
-    [IterationSetup] public void ResetMovement()
+    public void ResetMovement()
     {
         for (var i = 0; i < Amount; i++)
         {
@@ -230,15 +230,13 @@ public class ComparativeMovement2ComponentsBenchmarks
                 position.X += velocity.X / 60f; position.Y += velocity.Y / 60f; current.Sum += position.X + position.Y;
             }
         });
-        return MovementChecksum(state.Sum, Amount);
+        return state.Sum;
     }
 
-    [Benchmark] public double Arch_Movement2Components() { double sum = 0; _arch.Query(_archQuery, (ref MoveArchPosition p, ref MoveArchVelocity v) => { p.X += v.X / 60f; p.Y += v.Y / 60f; sum += p.X + p.Y; }); return MovementChecksum(sum, Amount); }
-    [Benchmark] public double FrifloEngineECS_Movement2Components() { double sum = 0; _frifloQuery.ForEachEntity((ref MoveFrifloPosition p, ref MoveFrifloVelocity v, FrifloEntity _) => { p.X += v.X / 60f; p.Y += v.Y / 60f; sum += p.X + p.Y; }); return MovementChecksum(sum, Amount); }
-    [Benchmark] public double DefaultEcs_Movement2Components() { double sum = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { ref var p = ref entities[i].Get<MoveDefaultPosition>(); var v = entities[i].Get<MoveDefaultVelocity>(); p.X += v.X / 60f; p.Y += v.Y / 60f; sum += p.X + p.Y; } return MovementChecksum(sum, Amount); }
-    [Benchmark] public double LeoEcsLite_Movement2Components() { double sum = 0; foreach (var entity in _leoQuery) { ref var p = ref _leoPosition.Get(entity); var v = _leoVelocity.Get(entity); p.X += v.X / 60f; p.Y += v.Y / 60f; sum += p.X + p.Y; } return MovementChecksum(sum, Amount); }
-
-    private static double MovementChecksum(double value, int amount) { var expected = amount * (1 + 3 / 60f + 2 + 4 / 60f); return Math.Abs(value - expected) < Math.Max(0.001, amount * 0.000001) ? value : throw new InvalidOperationException($"movement checksum mismatch: {value} != {expected}"); }
+    [Benchmark] public double Arch_Movement2Components() { double sum = 0; _arch.Query(_archQuery, (ref MoveArchPosition p, ref MoveArchVelocity v) => { p.X += v.X / 60f; p.Y += v.Y / 60f; sum += p.X + p.Y; }); return sum; }
+    [Benchmark] public double FrifloEngineECS_Movement2Components() { double sum = 0; _frifloQuery.ForEachEntity((ref MoveFrifloPosition p, ref MoveFrifloVelocity v, FrifloEntity _) => { p.X += v.X / 60f; p.Y += v.Y / 60f; sum += p.X + p.Y; }); return sum; }
+    [Benchmark] public double DefaultEcs_Movement2Components() { double sum = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { ref var p = ref entities[i].Get<MoveDefaultPosition>(); var v = entities[i].Get<MoveDefaultVelocity>(); p.X += v.X / 60f; p.Y += v.Y / 60f; sum += p.X + p.Y; } return sum; }
+    [Benchmark] public double LeoEcsLite_Movement2Components() { double sum = 0; foreach (var entity in _leoQuery) { ref var p = ref _leoPosition.Get(entity); var v = _leoVelocity.Get(entity); p.X += v.X / 60f; p.Y += v.Y / 60f; sum += p.X + p.Y; } return sum; }
 
     private struct Movement2State
     {
@@ -256,8 +254,8 @@ public class ComparativeMovement2ComponentsBenchmarks
 // Per slot, using integer arithmetic: a' = a + d; b' = b + d;
 // c' = (a' + b') / 2; d' remains the read-only control/input row. The checksum
 // adds a' + b' + c' + d'. Setup values (1, 2, 3, 4) therefore produce 20 per
-// entity. Delta uses QueryAccess.Write, which conservatively marks all queried
-// rows even though d is read-only.
+// entity on the first invocation. Measured invocations intentionally accumulate
+// these values so BenchmarkDotNet can select a throughput invocation count.
 public class ComparativeMovement4ComponentsBenchmarks
 {
     [Params(100, 1_000, 10_000, 100_000)] public int Amount { get; set; }
@@ -277,7 +275,6 @@ public class ComparativeMovement4ComponentsBenchmarks
         _default = new DefaultWorld(); _defaultEntities = new DefaultEcs.Entity[Amount]; for (var i = 0; i < Amount; i++) { _defaultEntities[i] = _default.CreateEntity(); SetDefault(_defaultEntities[i]); } _defaultQuery = _default.GetEntities().With<DistinctDefault0>().With<DistinctDefault1>().With<DistinctDefault2>().With<DistinctDefault3>().AsSet();
         _leo = new EcsWorld(); _leo0 = _leo.GetPool<DistinctLeo0>(); _leo1 = _leo.GetPool<DistinctLeo1>(); _leo2 = _leo.GetPool<DistinctLeo2>(); _leo3 = _leo.GetPool<DistinctLeo3>(); _leoEntities = new int[Amount]; for (var i = 0; i < Amount; i++) { var e = _leoEntities[i] = _leo.NewEntity(); _leo0.Add(e).Value = 1; _leo1.Add(e).Value = 2; _leo2.Add(e).Value = 3; _leo3.Add(e).Value = 4; } _leoQuery = _leo.Filter<DistinctLeo0>().Inc<DistinctLeo1>().Inc<DistinctLeo2>().Inc<DistinctLeo3>().End();
     }
-    [IterationSetup]
     public void ResetMovement4()
     {
         for (var i = 0; i < Amount; i++)
@@ -309,12 +306,11 @@ public class ComparativeMovement4ComponentsBenchmarks
         }
     }
     [GlobalCleanup] public void Cleanup() { _defaultQuery?.Dispose(); _default?.Dispose(); }
-    [Benchmark(Baseline = true)] public int DeltaECS_Movement4Components() { var state = new Movement4State { A = _delta0Binding, B = _delta1Binding, C = _delta2Binding, D = _delta3Binding }; _delta.Query(in _deltaQuery, ref state, static (ref Movement4State current, ref DenseChunkAccessor l) => { var a = l.GetRow(current.A); var b = l.GetRow(current.B); var c = l.GetRow(current.C); var d = l.GetRow(current.D); ref var firstA = ref MemoryMarshal.GetReference(a); ref var firstB = ref MemoryMarshal.GetReference(b); ref var firstC = ref MemoryMarshal.GetReference(c); ref readonly var firstD = ref MemoryMarshal.GetReference(d); for (var i = l.SlotCount - 1; i >= 0; i--) { ref var rowA = ref Unsafe.Add(ref firstA, i); ref var rowB = ref Unsafe.Add(ref firstB, i); ref var rowC = ref Unsafe.Add(ref firstC, i); ref readonly var rowD = ref Unsafe.Add(ref Unsafe.AsRef(in firstD), i); var updatedA = rowA.Value + rowD.Value; var updatedB = rowB.Value + rowD.Value; rowA.Value = updatedA; rowB.Value = updatedB; rowC.Value = (updatedA + updatedB) / 2; current.Sum += rowA.Value + rowB.Value + rowC.Value + rowD.Value; } }); return Check(state.Sum, Amount * 20); }
-    [Benchmark] public int Arch_Movement4Components() { var s = 0; _arch.Query(_archQuery, (ref DistinctArch0 a, ref DistinctArch1 b, ref DistinctArch2 c, ref DistinctArch3 d) => { var updatedA = a.Value + d.Value; var updatedB = b.Value + d.Value; a.Value = updatedA; b.Value = updatedB; c.Value = (updatedA + updatedB) / 2; s += a.Value + b.Value + c.Value + d.Value; }); return Check(s, Amount * 20); }
-    [Benchmark] public int FrifloEngineECS_Movement4Components() { var s = 0; _frifloQuery.ForEachEntity((ref DistinctFriflo0 a, ref DistinctFriflo1 b, ref DistinctFriflo2 c, ref DistinctFriflo3 d, FrifloEntity _) => { var updatedA = a.Value + d.Value; var updatedB = b.Value + d.Value; a.Value = updatedA; b.Value = updatedB; c.Value = (updatedA + updatedB) / 2; s += a.Value + b.Value + c.Value + d.Value; }); return Check(s, Amount * 20); }
-    [Benchmark] public int DefaultEcs_Movement4Components() { var s = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { ref var a = ref entities[i].Get<DistinctDefault0>(); ref var b = ref entities[i].Get<DistinctDefault1>(); ref var c = ref entities[i].Get<DistinctDefault2>(); var d = entities[i].Get<DistinctDefault3>(); var updatedA = a.Value + d.Value; var updatedB = b.Value + d.Value; a.Value = updatedA; b.Value = updatedB; c.Value = (updatedA + updatedB) / 2; s += a.Value + b.Value + c.Value + d.Value; } return Check(s, Amount * 20); }
-    [Benchmark] public int LeoEcsLite_Movement4Components() { var s = 0; foreach (var e in _leoQuery) { ref var a = ref _leo0.Get(e); ref var b = ref _leo1.Get(e); ref var c = ref _leo2.Get(e); var d = _leo3.Get(e); var updatedA = a.Value + d.Value; var updatedB = b.Value + d.Value; a.Value = updatedA; b.Value = updatedB; c.Value = (updatedA + updatedB) / 2; s += a.Value + b.Value + c.Value + d.Value; } return Check(s, Amount * 20); }
-    private static int Check(int actual, int expected) => actual == expected ? actual : throw new InvalidOperationException($"movement4 checksum mismatch: {actual} != {expected}");
+    [Benchmark(Baseline = true)] public int DeltaECS_Movement4Components() { var state = new Movement4State { A = _delta0Binding, B = _delta1Binding, C = _delta2Binding, D = _delta3Binding }; _delta.Query(in _deltaQuery, ref state, static (ref Movement4State current, ref DenseChunkAccessor l) => { var a = l.GetRow(current.A); var b = l.GetRow(current.B); var c = l.GetRow(current.C); var d = l.GetRow(current.D); ref var firstA = ref MemoryMarshal.GetReference(a); ref var firstB = ref MemoryMarshal.GetReference(b); ref var firstC = ref MemoryMarshal.GetReference(c); ref readonly var firstD = ref MemoryMarshal.GetReference(d); for (var i = l.SlotCount - 1; i >= 0; i--) { ref var rowA = ref Unsafe.Add(ref firstA, i); ref var rowB = ref Unsafe.Add(ref firstB, i); ref var rowC = ref Unsafe.Add(ref firstC, i); ref readonly var rowD = ref Unsafe.Add(ref Unsafe.AsRef(in firstD), i); var updatedA = rowA.Value + rowD.Value; var updatedB = rowB.Value + rowD.Value; rowA.Value = updatedA; rowB.Value = updatedB; rowC.Value = (updatedA + updatedB) / 2; current.Sum += rowA.Value + rowB.Value + rowC.Value + rowD.Value; } }); return state.Sum; }
+    [Benchmark] public int Arch_Movement4Components() { var s = 0; _arch.Query(_archQuery, (ref DistinctArch0 a, ref DistinctArch1 b, ref DistinctArch2 c, ref DistinctArch3 d) => { var updatedA = a.Value + d.Value; var updatedB = b.Value + d.Value; a.Value = updatedA; b.Value = updatedB; c.Value = (updatedA + updatedB) / 2; s += a.Value + b.Value + c.Value + d.Value; }); return s; }
+    [Benchmark] public int FrifloEngineECS_Movement4Components() { var s = 0; _frifloQuery.ForEachEntity((ref DistinctFriflo0 a, ref DistinctFriflo1 b, ref DistinctFriflo2 c, ref DistinctFriflo3 d, FrifloEntity _) => { var updatedA = a.Value + d.Value; var updatedB = b.Value + d.Value; a.Value = updatedA; b.Value = updatedB; c.Value = (updatedA + updatedB) / 2; s += a.Value + b.Value + c.Value + d.Value; }); return s; }
+    [Benchmark] public int DefaultEcs_Movement4Components() { var s = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { ref var a = ref entities[i].Get<DistinctDefault0>(); ref var b = ref entities[i].Get<DistinctDefault1>(); ref var c = ref entities[i].Get<DistinctDefault2>(); var d = entities[i].Get<DistinctDefault3>(); var updatedA = a.Value + d.Value; var updatedB = b.Value + d.Value; a.Value = updatedA; b.Value = updatedB; c.Value = (updatedA + updatedB) / 2; s += a.Value + b.Value + c.Value + d.Value; } return s; }
+    [Benchmark] public int LeoEcsLite_Movement4Components() { var s = 0; foreach (var e in _leoQuery) { ref var a = ref _leo0.Get(e); ref var b = ref _leo1.Get(e); ref var c = ref _leo2.Get(e); var d = _leo3.Get(e); var updatedA = a.Value + d.Value; var updatedB = b.Value + d.Value; a.Value = updatedA; b.Value = updatedB; c.Value = (updatedA + updatedB) / 2; s += a.Value + b.Value + c.Value + d.Value; } return s; }
     private struct Movement4State
     {
         public WriteRowBinding<DistinctDelta0> A;

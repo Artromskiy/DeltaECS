@@ -407,10 +407,13 @@ Delta-only hardware/profile lanes.
 
 `Iteration.Movement4Components` uses the same integer workload in every ECS:
 `a' = a + d`, `b' = b + d`, `c' = (a' + b') / 2`, with `d` retained as the
-control row. The checksum accumulates `a' + b' + c' + d'`; setup values
-`(1, 2, 3, 4)` produce `(5, 6, 5, 4)` and `20` per entity. DeltaECS preserves
-its reverse dense-slot traversal and marks only the three write-bound rows;
-the control row `d` remains read-only.
+control row. The returned checksum accumulates `a' + b' + c' + d'`; initial
+values `(1, 2, 3, 4)` produce `(5, 6, 5, 4)` and `20` per entity on the first
+invocation. Movement state intentionally accumulates across measured
+invocations, allowing BenchmarkDotNet to select a normal throughput invocation
+count. Correctness smoke resets each ECS independently and verifies the first
+update. DeltaECS preserves its reverse dense-slot traversal and marks only the
+three write-bound rows; the control row `d` remains read-only.
 
 The reproducible distinct-type dense comparison command is:
 
@@ -430,6 +433,11 @@ BenchmarkDotNet baseline, so a candidate ratio below `1.00` is an improvement.
 
 The suite currently covers dense iteration, two- and four-component movement,
 atomic create/destroy/add/remove, and list batch create/destroy/add/remove.
+Dense and movement workloads use normal BenchmarkDotNet throughput invocation
+selection. Movement values accumulate between invocations; the shared smoke
+performs explicit resets and checks both revisions. Stateful structural
+workloads retain iteration setup and one invocation because each measured
+operation consumes or changes its prepared world state.
 Version comparison is intentionally manual: the normal push and pull-request
 workflow keeps its existing build, tests, and comparative benchmark smoke, while
 the dual-version correctness smoke and full measurements run only after an

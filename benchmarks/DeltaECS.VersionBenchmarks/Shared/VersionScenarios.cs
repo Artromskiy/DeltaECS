@@ -131,10 +131,10 @@ public sealed class IterationScenario
             }
         });
 
-        var expected = _amount * (1 + 3 / 60f + 2 + 4 / 60f);
-        return Math.Abs(state.Sum - expected) < Math.Max(0.001, _amount * 0.000001)
-            ? state.Sum
-            : throw new InvalidOperationException($"Movement2 checksum mismatch: {state.Sum} != {expected}.");
+        // Movement benchmarks intentionally accumulate state across invocations so
+        // BenchmarkDotNet can select a throughput invocation count. The dedicated
+        // smoke resets both revisions and verifies that their returned checksums agree.
+        return state.Sum;
     }
 
     public int Movement4()
@@ -163,8 +163,7 @@ public sealed class IterationScenario
             }
         });
 
-        var expected = _amount * 20;
-        return state.Sum == expected ? state.Sum : throw new InvalidOperationException($"Movement4 checksum mismatch: {state.Sum} != {expected}.");
+        return state.Sum;
     }
 
     private struct DenseState { public ReadRowBinding<DenseValue> Component; public long Sum; }

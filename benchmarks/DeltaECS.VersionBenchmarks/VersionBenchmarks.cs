@@ -49,7 +49,6 @@ public class VersionMovement2Benchmarks
         _candidate = new CandidateIterationScenario(Amount);
     }
 
-    [IterationSetup]
     public void Reset()
     {
         _baseline.ResetMovements();
@@ -75,7 +74,6 @@ public class VersionMovement4Benchmarks
         _candidate = new CandidateIterationScenario(Amount);
     }
 
-    [IterationSetup]
     public void Reset()
     {
         _baseline.ResetMovements();
@@ -159,6 +157,7 @@ internal static class VersionBenchmarkSmoke
 {
     public static void Run()
     {
+        RequireThroughputIterationConfiguration();
         const int amount = 100;
         var baselineIteration = new BaselineIterationScenario(amount);
         var candidateIteration = new CandidateIterationScenario(amount);
@@ -189,6 +188,17 @@ internal static class VersionBenchmarkSmoke
         }
 
         Console.WriteLine("Version comparison smoke passed: 3 iteration workloads, 4 atomic operations, 4 batch operations.");
+    }
+
+    private static void RequireThroughputIterationConfiguration()
+    {
+        foreach (var type in new[] { typeof(VersionDenseBenchmarks), typeof(VersionMovement2Benchmarks), typeof(VersionMovement4Benchmarks) })
+        {
+            if (type.GetMethods().Any(method => method.GetCustomAttributes(typeof(IterationSetupAttribute), inherit: true).Length != 0))
+            {
+                throw new InvalidOperationException($"Iteration benchmark {type.Name} must not force InvocationCount=1 through IterationSetup.");
+            }
+        }
     }
 
     private static void RequireEqual(long baseline, long candidate, string workload)
