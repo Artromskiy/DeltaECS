@@ -44,17 +44,17 @@ on:
       warmup_count:
         description: BenchmarkDotNet warm-up iterations
         required: true
-        default: 3
+        default: 5
         type: number
       iteration_count:
         description: BenchmarkDotNet measurement iterations
         required: true
-        default: 5
+        default: 10
         type: number
       launch_count:
         description: Number of isolated benchmark launches
         required: true
-        default: 1
+        default: 3
         type: number
       runner:
         description: Standard GitHub-hosted runner architecture
@@ -87,10 +87,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Install .NET 8
+      - name: Install .NET 10
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
 
       - name: Cache NuGet packages
         uses: actions/cache@v6
@@ -102,12 +102,12 @@ jobs:
 
       - name: Restore
         run: |
-          dotnet restore DeltaECS.sln
+          dotnet restore DeltaECS.slnx
           dotnet restore benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj
 
       - name: Build and test
         run: |
-          dotnet build DeltaECS.sln -c Release --no-restore
+          dotnet build DeltaECS.slnx -c Release --no-restore
           dotnet test tests/DeltaECSTests/DeltaECSTests.csproj -c Release --no-build --no-restore
           dotnet build benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj -c Release --no-restore
 
@@ -145,18 +145,18 @@ jobs:
       cancel-in-progress: false
     env:
       BENCHMARK_SUITE: ${{ inputs.suite || 'full-comparison' }}
-      WARMUP_COUNT: ${{ inputs.warmup_count || 3 }}
-      ITERATION_COUNT: ${{ inputs.iteration_count || 5 }}
-      LAUNCH_COUNT: ${{ inputs.launch_count || 1 }}
+      WARMUP_COUNT: ${{ inputs.warmup_count || 5 }}
+      ITERATION_COUNT: ${{ inputs.iteration_count || 10 }}
+      LAUNCH_COUNT: ${{ inputs.launch_count || 3 }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Install .NET 8
+      - name: Install .NET 10
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
 
       - name: Cache NuGet packages
         uses: actions/cache@v6
@@ -168,9 +168,9 @@ jobs:
 
       - name: Restore, build, and test
         run: |
-          dotnet restore DeltaECS.sln
+          dotnet restore DeltaECS.slnx
           dotnet restore benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj
-          dotnet build DeltaECS.sln -c Release --no-restore
+          dotnet build DeltaECS.slnx -c Release --no-restore
           dotnet test tests/DeltaECSTests/DeltaECSTests.csproj -c Release --no-build --no-restore
           dotnet build benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj -c Release --no-restore
 
@@ -309,10 +309,10 @@ jobs:
           ref: ${{ steps.version-refs.outputs.candidate_sha }}
           path: candidate
 
-      - name: Install .NET 8
+      - name: Install .NET 10
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
 
       - name: Cache NuGet packages
         uses: actions/cache@v6
@@ -326,8 +326,8 @@ jobs:
         shell: bash
         run: |
           for root in "$BASELINE_ROOT" "$CANDIDATE_ROOT"; do
-            dotnet restore "$root/DeltaECS.sln"
-            dotnet build "$root/DeltaECS.sln" -c Release --no-restore
+            dotnet restore "$root/tests/DeltaECSTests/DeltaECSTests.csproj"
+            dotnet build "$root/tests/DeltaECSTests/DeltaECSTests.csproj" -c Release --no-restore
             dotnet test "$root/tests/DeltaECSTests/DeltaECSTests.csproj" -c Release --no-build --no-restore
           done
 
