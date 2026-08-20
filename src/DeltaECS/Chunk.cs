@@ -123,7 +123,10 @@ internal sealed class Chunk
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Span<T> GetComponentRow<T>(int componentIndex)
     {
-        return ((T[])_componentRows[componentIndex]).AsSpan(0, _count);
+        // Component layout/type compatibility is validated before this
+        // internal hot path is reached. Avoid repeating the array cast check
+        // for every row requested by every chunk.
+        return Unsafe.As<T[]>(_componentRows[componentIndex]).AsSpan(0, _count);
     }
 
     public Array GetRawComponentRow(int componentIndex) => _componentRows[componentIndex];
