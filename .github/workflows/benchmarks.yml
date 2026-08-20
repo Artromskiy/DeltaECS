@@ -31,6 +31,15 @@ on:
           - structural-query
           - structural-atomic
           - version-comparison
+      benchmark_mode:
+        description: BenchmarkDotNet measurement mode
+        required: true
+        default: adaptive
+        type: choice
+        options:
+          - adaptive
+          - fixed
+          - short
       baseline_ref:
         description: Baseline ref; leave empty to use the parent of candidate_ref
         required: false
@@ -42,19 +51,19 @@ on:
         default: main
         type: string
       warmup_count:
-        description: BenchmarkDotNet warm-up iterations
+        description: Warm-up iterations used only in fixed mode
         required: true
         default: 5
         type: number
       iteration_count:
-        description: BenchmarkDotNet measurement iterations
+        description: Measurement iterations used only in fixed mode
         required: true
         default: 10
         type: number
       launch_count:
-        description: Number of isolated benchmark launches
+        description: Number of isolated launches in every mode
         required: true
-        default: 3
+        default: 1
         type: number
       runner:
         description: Standard GitHub-hosted runner architecture
@@ -145,9 +154,10 @@ jobs:
       cancel-in-progress: false
     env:
       BENCHMARK_SUITE: ${{ inputs.suite || 'full-comparison' }}
+      BENCHMARK_MODE: ${{ inputs.benchmark_mode || 'adaptive' }}
       WARMUP_COUNT: ${{ inputs.warmup_count || 5 }}
       ITERATION_COUNT: ${{ inputs.iteration_count || 10 }}
-      LAUNCH_COUNT: ${{ inputs.launch_count || 3 }}
+      LAUNCH_COUNT: ${{ inputs.launch_count || 1 }}
 
     steps:
       - name: Checkout
@@ -180,21 +190,42 @@ jobs:
           uname -a > artifacts/github-full/runner.txt
           lscpu >> artifacts/github-full/runner.txt
           dotnet --info >> artifacts/github-full/runner.txt
-          printf 'suite=%s\nwarmup=%s\niterations=%s\nlaunches=%s\n' \
-            "$BENCHMARK_SUITE" "$WARMUP_COUNT" "$ITERATION_COUNT" "$LAUNCH_COUNT" \
+          printf 'suite=%s\nmode=%s\nwarmup_fixed=%s\niterations_fixed=%s\nlaunches=%s\n' \
+            "$BENCHMARK_SUITE" "$BENCHMARK_MODE" "$WARMUP_COUNT" "$ITERATION_COUNT" "$LAUNCH_COUNT" \
             >> artifacts/github-full/runner.txt
 
       - name: Run comparative benchmarks
+        shell: bash
         run: |
-          dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net8.0/DeltaECS.Benchmarks.dll \
-            "$BENCHMARK_SUITE" \
-            --filter '*' \
-            --warmupCount "$WARMUP_COUNT" \
-            --iterationCount "$ITERATION_COUNT" \
-            --launchCount "$LAUNCH_COUNT" \
-            --exporters json csv markdown github \
-            --artifacts artifacts/github-full \
+          benchmark_args=(
+            "$BENCHMARK_SUITE"
+            --filter '*'
+            --launchCount "$LAUNCH_COUNT"
+            --exporters json csv markdown github
+            --artifacts artifacts/github-full
             --combined-report artifacts/github-full
+          )
+          case "$BENCHMARK_MODE" in
+            adaptive)
+              benchmark_args+=(--job Default)
+              ;;
+            fixed)
+              benchmark_args+=(
+                --job Default
+                --warmupCount "$WARMUP_COUNT"
+                --iterationCount "$ITERATION_COUNT"
+              )
+              ;;
+            short)
+              benchmark_args+=(--job Short)
+              ;;
+            *)
+              echo "::error::Unknown benchmark mode '$BENCHMARK_MODE'."
+              exit 1
+              ;;
+          esac
+          dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net8.0/DeltaECS.Benchmarks.dll \
+            "${benchmark_args[@]}"
 
       - name: Add results to workflow summary
         if: always()
@@ -203,7 +234,7 @@ jobs:
           {
             echo "## DeltaECS benchmark"
             echo
-            echo "Suite: \`$BENCHMARK_SUITE\` · runner: \`${{ runner.os }} ${{ runner.arch }}\`"
+            echo "Suite: \`$BENCHMARK_SUITE\` · mode: \`$BENCHMARK_MODE\` · runner: \`${{ runner.os }} ${{ runner.arch }}\`"
             echo
             if [ -f artifacts/github-full/comparative-summary.md ]; then
               cat artifacts/github-full/comparative-summary.md
@@ -246,6 +277,7 @@ jobs:
       BASELINE_ROOT: ${{ github.workspace }}/baseline
       CANDIDATE_ROOT: ${{ github.workspace }}/candidate
       HARNESS_ROOT: ${{ github.workspace }}/harness
+      BENCHMARK_MODE: ${{ inputs.benchmark_mode }}
       WARMUP_COUNT: ${{ inputs.warmup_count }}
       ITERATION_COUNT: ${{ inputs.iteration_count }}
       LAUNCH_COUNT: ${{ inputs.launch_count }}
@@ -360,6 +392,10 @@ jobs:
             echo "candidate_ref=${{ inputs.candidate_ref }}"
             echo "candidate_sha=$(git -C "$CANDIDATE_ROOT" rev-parse HEAD)"
             echo "core_changed=${{ steps.version-refs.outputs.core_changed }}"
+            echo "benchmark_mode=$BENCHMARK_MODE"
+            echo "warmup_fixed=$WARMUP_COUNT"
+            echo "iterations_fixed=$ITERATION_COUNT"
+            echo "launches=$LAUNCH_COUNT"
             uname -a
             lscpu
             dotnet --info
@@ -367,14 +403,35 @@ jobs:
 
       - name: Run version benchmarks
         working-directory: harness
+        shell: bash
         run: |
-          dotnet benchmarks/DeltaECS.VersionBenchmarks/bin/Release/net8.0/DeltaECS.VersionBenchmarks.dll \
-            --filter '*' \
-            --warmupCount "$WARMUP_COUNT" \
-            --iterationCount "$ITERATION_COUNT" \
-            --launchCount "$LAUNCH_COUNT" \
-            --exporters json csv markdown github \
+          benchmark_args=(
+            --filter '*'
+            --launchCount "$LAUNCH_COUNT"
+            --exporters json csv markdown github
             --artifacts artifacts/version-comparison
+          )
+          case "$BENCHMARK_MODE" in
+            adaptive)
+              benchmark_args+=(--job Default)
+              ;;
+            fixed)
+              benchmark_args+=(
+                --job Default
+                --warmupCount "$WARMUP_COUNT"
+                --iterationCount "$ITERATION_COUNT"
+              )
+              ;;
+            short)
+              benchmark_args+=(--job Short)
+              ;;
+            *)
+              echo "::error::Unknown benchmark mode '$BENCHMARK_MODE'."
+              exit 1
+              ;;
+          esac
+          dotnet benchmarks/DeltaECS.VersionBenchmarks/bin/Release/net8.0/DeltaECS.VersionBenchmarks.dll \
+            "${benchmark_args[@]}"
 
       - name: Add version results to workflow summary
         if: always()
@@ -393,6 +450,8 @@ jobs:
             printf 'Baseline: `%s` → Candidate: `%s`\n' "$BASELINE_SHA" "$CANDIDATE_SHA"
             echo
             printf 'Runner: `%s %s`\n' "$RUNNER_OS_NAME" "$RUNNER_ARCH_NAME"
+            echo
+            printf 'Mode: `%s` · launches: `%s`\n' "$BENCHMARK_MODE" "$LAUNCH_COUNT"
             echo
             if [ "$CORE_CHANGED" = "true" ]; then
               echo "Production ECS source changed between these revisions."

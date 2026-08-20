@@ -146,4 +146,8 @@ dotnet build benchmarks/DeltaECS.VersionBenchmarks/DeltaECS.VersionBenchmarks.cs
 ```
 
 The GitHub Actions manual version-comparison workflow is the preferred way to
-run this against committed revisions. It is not an automatic gate.
+run this against committed revisions. It is not an automatic gate. Its
+`adaptive` mode uses an unconstrained BenchmarkDotNet `Job.Default`; `fixed`
+uses the explicitly entered warm-up and measurement counts, and `short` uses
+the built-in short job. The independently configurable launch count applies to
+all three modes and defaults to one.

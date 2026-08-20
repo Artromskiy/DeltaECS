@@ -11,7 +11,6 @@ using DefaultWorld = DefaultEcs.World;
 namespace Delta.ECS.Benchmarks;
 
 [MemoryDiagnoser]
-[ShortRunJob]
 [InvocationCount(1)]
 [GroupBenchmarksBy(BenchmarkDotNet.Configs.BenchmarkLogicalGroupRule.ByCategory)]
 [CategoriesColumn]
@@ -35,7 +34,6 @@ public partial class ComparativeStructuralListBenchmarks
 }
 
 [MemoryDiagnoser]
-[ShortRunJob]
 [InvocationCount(1)]
 [GroupBenchmarksBy(BenchmarkDotNet.Configs.BenchmarkLogicalGroupRule.ByCategory)]
 [CategoriesColumn]
@@ -62,7 +60,6 @@ public partial class ComparativeStructuralQueryBenchmarks
 }
 
 [MemoryDiagnoser]
-[ShortRunJob]
 [InvocationCount(1)]
 [GroupBenchmarksBy(BenchmarkDotNet.Configs.BenchmarkLogicalGroupRule.ByCategory)]
 [CategoriesColumn]

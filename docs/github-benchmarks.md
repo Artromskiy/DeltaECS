@@ -8,11 +8,14 @@ The `ECS benchmarks` workflow has two lanes:
 - a manual dispatch or the Monday schedule runs the selected comparative suite
   in Release and uploads JSON, CSV, Markdown, logs, and runner metadata.
 
-To start a measured run, open **Actions → ECS benchmarks → Run workflow**. Keep
-`full-comparison`, three warm-ups, five measured iterations, and one launch for
-the normal report. The manual form can use either the standard x64 Linux runner
-or the standard ARM64 Linux runner; smaller suites are available for focused
-investigation. The weekly run uses x64.
+To start a measured run, open **Actions → ECS benchmarks → Run workflow**. The
+default `adaptive` mode uses `Job.Default` and lets BenchmarkDotNet choose its
+warm-up and measurement iteration counts. `launch_count` is independent and
+always configurable; it defaults to one. Use `fixed` when exact warm-up and
+measurement counts are required, or `short` for a quick exploratory run. The
+manual form can use either the standard x64 Linux runner or the standard ARM64
+Linux runner; smaller suites are available for focused investigation. The
+weekly run uses adaptive mode on x64.
 
 The generated raw BDN tables and the stable `comparative-report.md` / `.csv`
 combined schema are appended to the Actions run summary. Unsupported native

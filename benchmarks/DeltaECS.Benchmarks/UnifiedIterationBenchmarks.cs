@@ -14,7 +14,6 @@ using ArchComponentType = Arch.Core.Utils.ComponentType;
 namespace Delta.ECS.Benchmarks;
 
 [MemoryDiagnoser]
-[ShortRunJob]
 [GroupBenchmarksBy(BenchmarkDotNet.Configs.BenchmarkLogicalGroupRule.ByCategory)]
 [CategoriesColumn]
 [BenchmarkCategory("Iteration.Dense")]
@@ -115,7 +114,6 @@ public class ComparativeDenseIterationBenchmarks
 }
 
 [MemoryDiagnoser]
-[ShortRunJob]
 [GroupBenchmarksBy(BenchmarkDotNet.Configs.BenchmarkLogicalGroupRule.ByCategory)]
 [CategoriesColumn]
 [BenchmarkCategory("Iteration.Movement2Components")]
@@ -286,7 +284,6 @@ public class ComparativeMovement2ComponentsBenchmarks
 }
 
 [MemoryDiagnoser]
-[ShortRunJob]
 [GroupBenchmarksBy(BenchmarkDotNet.Configs.BenchmarkLogicalGroupRule.ByCategory)]
 [CategoriesColumn]
 [BenchmarkCategory("Iteration.Movement4Components")]
@@ -400,7 +397,6 @@ public class ComparativeMovement4ComponentsBenchmarks
 }
 
 [MemoryDiagnoser]
-[ShortRunJob]
 [GroupBenchmarksBy(BenchmarkDotNet.Configs.BenchmarkLogicalGroupRule.ByCategory)]
 [CategoriesColumn]
 [BenchmarkCategory("Iteration.WideArchetypeNarrowQuery")]
@@ -438,7 +434,6 @@ public class ComparativeWideArchetypeNarrowQueryBenchmarks
 }
 
 [MemoryDiagnoser]
-[ShortRunJob]
 [GroupBenchmarksBy(BenchmarkDotNet.Configs.BenchmarkLogicalGroupRule.ByCategory)]
 [CategoriesColumn]
 public class ComparativeSparseQueryBenchmarks

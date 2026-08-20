@@ -577,6 +577,9 @@ public static class ComparativeBenchmarkCatalog
         if (FullComparison.Any(type => type.Name.Contains("Legacy", StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException("Legacy is not allowed in the new comparative catalog.");
 
+        if (FullComparison.Any(HasEmbeddedMeasurementJob))
+            throw new InvalidOperationException("Unified comparative benchmarks must take their measurement job from the selected workflow mode.");
+
         foreach (var type in Iteration)
         {
             if (type.GetMethods().Any(method => method.GetCustomAttributes(typeof(BenchmarkDotNet.Attributes.IterationSetupAttribute), inherit: true).Length != 0)
@@ -620,4 +623,9 @@ public static class ComparativeBenchmarkCatalog
 
     private static bool AllowsIterationSetup(Type type) =>
         type.Name.Contains("Movement", StringComparison.Ordinal);
+
+    private static bool HasEmbeddedMeasurementJob(Type type) =>
+        type.GetCustomAttributes(inherit: true).Any(attribute =>
+            attribute is BenchmarkDotNet.Attributes.ShortRunJobAttribute
+            or BenchmarkDotNet.Attributes.SimpleJobAttribute);
 }
