@@ -12,18 +12,28 @@ internal static class MicroIds
         layouts.Register<Velocity>(new SchemaId(30_002));
         layouts.Register<Auxiliary>(new SchemaId(30_003));
         layouts.Register<ReferenceValue>(new SchemaId(30_004));
+        layouts.Register<Movement4A>(new SchemaId(30_005));
+        layouts.Register<Movement4B>(new SchemaId(30_006));
+        layouts.Register<Movement4C>(new SchemaId(30_007));
+        layouts.Register<Movement4D>(new SchemaId(30_008));
         return layouts;
     }
 
-    public static (ComponentId Position, ComponentId Velocity, ComponentId Auxiliary, ComponentId Reference) Register(ComponentLayoutRegistry layouts)
+    public static (ComponentId Position, ComponentId Velocity, ComponentId Auxiliary, ComponentId Reference, ComponentId Movement4A, ComponentId Movement4B, ComponentId Movement4C, ComponentId Movement4D) Register(ComponentLayoutRegistry layouts)
         => (layouts.Register<Position>(new SchemaId(30_001)), layouts.Register<Velocity>(new SchemaId(30_002)),
-            layouts.Register<Auxiliary>(new SchemaId(30_003)), layouts.Register<ReferenceValue>(new SchemaId(30_004)));
+            layouts.Register<Auxiliary>(new SchemaId(30_003)), layouts.Register<ReferenceValue>(new SchemaId(30_004)),
+            layouts.Register<Movement4A>(new SchemaId(30_005)), layouts.Register<Movement4B>(new SchemaId(30_006)),
+            layouts.Register<Movement4C>(new SchemaId(30_007)), layouts.Register<Movement4D>(new SchemaId(30_008)));
 }
 
 public struct Position { public int X; public int Y; }
 public struct Velocity { public int X; public int Y; }
 public struct Auxiliary { public int Value; }
 public sealed class ReferenceValue { public int Value; }
+public struct Movement4A { public int Value; }
+public struct Movement4B { public int Value; }
+public struct Movement4C { public int Value; }
+public struct Movement4D { public int Value; }
 
 internal sealed class MicroWorld
 {
@@ -32,27 +42,56 @@ internal sealed class MicroWorld
     public readonly ComponentId Velocity;
     public readonly ComponentId Auxiliary;
     public readonly ComponentId Reference;
+    public readonly ComponentId Movement4A;
+    public readonly ComponentId Movement4B;
+    public readonly ComponentId Movement4C;
+    public readonly ComponentId Movement4D;
 
     public MicroWorld(int chunkCapacity = 64)
     {
-        (Position, Velocity, Auxiliary, Reference) = MicroIds.Register(Layouts);
+        (Position, Velocity, Auxiliary, Reference, Movement4A, Movement4B, Movement4C, Movement4D) = MicroIds.Register(Layouts);
         World = new World(Layouts, initialEntityCapacity: 100_000, chunkCapacity: chunkCapacity);
     }
 
     public World World { get; }
     public ComponentId[] Moving => [Position, Velocity];
     public ComponentId[] Wide => [Position, Velocity, Auxiliary, Reference];
+    public ComponentId[] Movement4 => [Movement4A, Movement4B, Movement4C, Movement4D];
 
     public Entity[] CreateMoving(int amount)
     {
         var entities = new Entity[amount];
         World.CreateBatch(Moving, entities);
+        ResetMoving(entities);
+        return entities;
+    }
+
+    public void ResetMoving(Entity[] entities)
+    {
         for (var i = 0; i < entities.Length; i++)
         {
             World.SetComponent(entities[i], Position, new Position { X = i, Y = i + 1 });
             World.SetComponent(entities[i], Velocity, new Velocity { X = 1, Y = 2 });
         }
+    }
+
+    public Entity[] CreateMovement4(int amount)
+    {
+        var entities = new Entity[amount];
+        World.CreateBatch(Movement4, entities);
+        ResetMovement4(entities);
         return entities;
+    }
+
+    public void ResetMovement4(Entity[] entities)
+    {
+        for (var i = 0; i < entities.Length; i++)
+        {
+            World.SetComponent(entities[i], Movement4A, new Movement4A { Value = 1 });
+            World.SetComponent(entities[i], Movement4B, new Movement4B { Value = 2 });
+            World.SetComponent(entities[i], Movement4C, new Movement4C { Value = 3 });
+            World.SetComponent(entities[i], Movement4D, new Movement4D { Value = 4 });
+        }
     }
 }
 
@@ -111,86 +150,154 @@ public class CachedBindingIterationMicroBenchmarks
 {
     [Params(100, 1_000, 10_000, 100_000)] public int Amount { get; set; }
     private MicroWorld _fixture = null!;
-    private Entity[] _entities = null!;
-    private QueryHandle _query;
-    private ReadRowBinding<Position> _position;
-    private ReadRowBinding<Velocity> _velocity;
-    private WriteRowBinding<Position> _writePosition;
-    private WriteRowBinding<Velocity> _writeVelocity;
+    private Entity[] _movement2Entities = null!;
+    private Entity[] _movement4Entities = null!;
+    private QueryHandle _movement2Query;
+    private QueryHandle _movement4Query;
+    private WriteRowBinding<Position> _movement2WritePosition;
+    private ReadRowBinding<Velocity> _movement2ReadVelocity;
+    private WriteRowBinding<Movement4A> _movement4WriteA;
+    private WriteRowBinding<Movement4B> _movement4WriteB;
+    private WriteRowBinding<Movement4C> _movement4WriteC;
+    private ReadRowBinding<Movement4D> _movement4ReadD;
 
     [GlobalSetup]
     public void Setup()
     {
         _fixture = new MicroWorld();
-        _entities = _fixture.CreateMoving(Amount);
-        var description = QueryDescription.ForComponents(_fixture.Position, _fixture.Velocity);
-        _query = _fixture.World.CreateQuery(in description);
-        _position = _query.Bind<Position>(_fixture.Position, RowAccess.Read);
-        _velocity = _query.Bind<Velocity>(_fixture.Velocity, RowAccess.Read);
-        _writePosition = _query.Bind<Position>(_fixture.Position, RowAccess.Write);
-        _writeVelocity = _query.Bind<Velocity>(_fixture.Velocity, RowAccess.Write);
+        _movement2Entities = _fixture.CreateMoving(Amount);
+        _movement4Entities = _fixture.CreateMovement4(Amount);
+
+        var movement2Description = QueryDescription.ForComponents(_fixture.Position, _fixture.Velocity);
+        _movement2Query = _fixture.World.CreateQuery(in movement2Description);
+        _movement2WritePosition = _movement2Query.Bind<Position>(_fixture.Position, RowAccess.Write);
+        _movement2ReadVelocity = _movement2Query.Bind<Velocity>(_fixture.Velocity, RowAccess.Read);
+
+        var movement4Description = QueryDescription.ForComponents(_fixture.Movement4A, _fixture.Movement4B, _fixture.Movement4C, _fixture.Movement4D);
+        _movement4Query = _fixture.World.CreateQuery(in movement4Description);
+        _movement4WriteA = _movement4Query.Bind<Movement4A>(_fixture.Movement4A, RowAccess.Write);
+        _movement4WriteB = _movement4Query.Bind<Movement4B>(_fixture.Movement4B, RowAccess.Write);
+        _movement4WriteC = _movement4Query.Bind<Movement4C>(_fixture.Movement4C, RowAccess.Write);
+        _movement4ReadD = _movement4Query.Bind<Movement4D>(_fixture.Movement4D, RowAccess.Read);
     }
 
-    [IterationSetup]
-    public void Reset() => Setup();
+    [IterationSetup(Target = nameof(Movement2ComponentsForward))]
+    public void ResetMovement2Forward() => _fixture.ResetMoving(_movement2Entities);
+
+    [IterationSetup(Target = nameof(Movement2ComponentsReverse))]
+    public void ResetMovement2Reverse() => _fixture.ResetMoving(_movement2Entities);
+
+    [IterationSetup(Target = nameof(Movement4ComponentsForward))]
+    public void ResetMovement4Forward() => _fixture.ResetMovement4(_movement4Entities);
+
+    [IterationSetup(Target = nameof(Movement4ComponentsReverse))]
+    public void ResetMovement4Reverse() => _fixture.ResetMovement4(_movement4Entities);
 
     [Benchmark]
-    public int Movement2Forward()
+    public int Movement2ComponentsForward()
     {
-        var state = new MovementState(_writePosition, _writeVelocity);
-        _fixture.World.Query(in _query, ref state, static (ref MovementState s, ref DenseChunkAccessor chunk) =>
+        var state = new Movement2State(_movement2WritePosition, _movement2ReadVelocity);
+        _fixture.World.Query(in _movement2Query, ref state, static (ref Movement2State s, ref DenseChunkAccessor chunk) =>
         {
             var positions = chunk.GetRow(s.Position);
             var velocities = chunk.GetRow(s.Velocity);
+            var checksum = 0;
             for (var i = 0; i < chunk.SlotCount; i++)
-                s.Checksum += (positions[i].X += velocities[i].X) + (positions[i].Y += velocities[i].Y);
+            {
+                positions[i].X += velocities[i].X;
+                positions[i].Y += velocities[i].Y;
+                checksum += positions[i].X + positions[i].Y;
+            }
+            s.Checksum += checksum;
         });
         return state.Checksum;
     }
 
     [Benchmark]
-    public int Movement2Reverse()
+    public int Movement2ComponentsReverse()
     {
-        var state = new MovementState(_writePosition, _writeVelocity);
-        _fixture.World.Query(in _query, ref state, static (ref MovementState s, ref DenseChunkAccessor chunk) =>
+        var state = new Movement2State(_movement2WritePosition, _movement2ReadVelocity);
+        _fixture.World.Query(in _movement2Query, ref state, static (ref Movement2State s, ref DenseChunkAccessor chunk) =>
         {
             var positions = chunk.GetRow(s.Position);
             var velocities = chunk.GetRow(s.Velocity);
-            for (var i = chunk.SlotCount - 1; i >= 0; i--)
-                s.Checksum += (positions[i].X += velocities[i].X) + (positions[i].Y += velocities[i].Y);
-        });
-        return state.Checksum;
-    }
-
-    [Benchmark]
-    public int Movement4Reverse()
-    {
-        var state = new Movement4State(_writePosition, _writeVelocity);
-        _fixture.World.Query(in _query, ref state, static (ref Movement4State s, ref DenseChunkAccessor chunk) =>
-        {
-            var positions = chunk.GetRow(s.WritePosition);
-            var velocities = chunk.GetRow(s.WriteVelocity);
+            var checksum = 0;
             for (var i = chunk.SlotCount - 1; i >= 0; i--)
             {
                 positions[i].X += velocities[i].X;
                 positions[i].Y += velocities[i].Y;
-                s.Checksum += positions[i].X + positions[i].Y;
+                checksum += positions[i].X + positions[i].Y;
             }
+            s.Checksum += checksum;
         });
         return state.Checksum;
     }
 
-    private struct MovementState(WriteRowBinding<Position> position, WriteRowBinding<Velocity> velocity)
+    [Benchmark]
+    public int Movement4ComponentsForward()
+    {
+        var state = new Movement4State(_movement4WriteA, _movement4WriteB, _movement4WriteC, _movement4ReadD);
+        _fixture.World.Query(in _movement4Query, ref state, static (ref Movement4State s, ref DenseChunkAccessor chunk) =>
+        {
+            // For each slot: a += d; b += d; c = (a + b) / 2; d stays read-only.
+            var a = chunk.GetRow(s.A);
+            var b = chunk.GetRow(s.B);
+            var c = chunk.GetRow(s.C);
+            var d = chunk.GetRow(s.D);
+            var checksum = 0;
+            for (var i = 0; i < chunk.SlotCount; i++)
+            {
+                a[i].Value += d[i].Value;
+                b[i].Value += d[i].Value;
+                c[i].Value = (a[i].Value + b[i].Value) / 2;
+                checksum += a[i].Value + b[i].Value + c[i].Value + d[i].Value;
+            }
+            s.Checksum += checksum;
+        });
+        return state.Checksum;
+    }
+
+    [Benchmark]
+    public int Movement4ComponentsReverse()
+    {
+        var state = new Movement4State(_movement4WriteA, _movement4WriteB, _movement4WriteC, _movement4ReadD);
+        _fixture.World.Query(in _movement4Query, ref state, static (ref Movement4State s, ref DenseChunkAccessor chunk) =>
+        {
+            // For each slot: a += d; b += d; c = (a + b) / 2; d stays read-only.
+            var a = chunk.GetRow(s.A);
+            var b = chunk.GetRow(s.B);
+            var c = chunk.GetRow(s.C);
+            var d = chunk.GetRow(s.D);
+            var checksum = 0;
+            for (var i = chunk.SlotCount - 1; i >= 0; i--)
+            {
+                a[i].Value += d[i].Value;
+                b[i].Value += d[i].Value;
+                c[i].Value = (a[i].Value + b[i].Value) / 2;
+                checksum += a[i].Value + b[i].Value + c[i].Value + d[i].Value;
+            }
+            s.Checksum += checksum;
+        });
+        return state.Checksum;
+    }
+
+    private struct Movement2State(WriteRowBinding<Position> position, ReadRowBinding<Velocity> velocity)
     {
         public WriteRowBinding<Position> Position = position;
-        public WriteRowBinding<Velocity> Velocity = velocity;
+        public ReadRowBinding<Velocity> Velocity = velocity;
         public int Checksum;
     }
 
-    private struct Movement4State(WriteRowBinding<Position> position, WriteRowBinding<Velocity> velocity)
+    private struct Movement4State(
+        WriteRowBinding<Movement4A> a,
+        WriteRowBinding<Movement4B> b,
+        WriteRowBinding<Movement4C> c,
+        ReadRowBinding<Movement4D> d)
     {
-        public WriteRowBinding<Position> WritePosition = position;
-        public WriteRowBinding<Velocity> WriteVelocity = velocity;
+        public WriteRowBinding<Movement4A> A = a;
+        public WriteRowBinding<Movement4B> B = b;
+        public WriteRowBinding<Movement4C> C = c;
+        public ReadRowBinding<Movement4D> D = d;
         public int Checksum;
     }
 }
@@ -313,28 +420,95 @@ internal static class MicroContractSmoke
     public static void Run()
     {
         var fixture = new MicroWorld(chunkCapacity: 4);
-        var entities = fixture.CreateMoving(8);
-        var queryDescription = QueryDescription.ForComponents(fixture.Position, fixture.Velocity);
-        var query = fixture.World.CreateQuery(in queryDescription);
-        var position = query.Bind<Position>(fixture.Position, RowAccess.Read);
-        var velocity = query.Bind<Velocity>(fixture.Velocity, RowAccess.Read);
-        var state = new CheckState(position, velocity);
-        fixture.World.Query(in query, ref state, static (ref CheckState s, ref DenseChunkAccessor chunk) =>
+        var movement2Entities = fixture.CreateMoving(8);
+        var movement2QueryDescription = QueryDescription.ForComponents(fixture.Position, fixture.Velocity);
+        var movement2Query = fixture.World.CreateQuery(in movement2QueryDescription);
+        var movement2Position = movement2Query.Bind<Position>(fixture.Position, RowAccess.Read);
+        var movement2Velocity = movement2Query.Bind<Velocity>(fixture.Velocity, RowAccess.Read);
+        var movement2State = new Movement2SmokeState(movement2Position, movement2Velocity);
+        fixture.World.Query(in movement2Query, ref movement2State, static (ref Movement2SmokeState s, ref DenseChunkAccessor chunk) =>
         {
             var p = chunk.GetRow(s.Position);
             var v = chunk.GetRow(s.Velocity);
-            for (var i = chunk.SlotCount - 1; i >= 0; i--) s.Sum += p[i].X + v[i].X;
+            for (var i = chunk.SlotCount - 1; i >= 0; i--)
+                s.Sum += p[i].X + v[i].X;
         });
-        if (state.Sum != entities.Length * (entities.Length + 1) / 2) throw new InvalidOperationException("Movement checksum mismatch.");
-        if (fixture.World.DestroyBatch(entities.AsSpan(0, 2)) != 2 || fixture.World.AliveEntityCount != 6)
+        if (movement2State.Sum != movement2Entities.Length * (movement2Entities.Length + 1) / 2) throw new InvalidOperationException("Movement checksum mismatch.");
+        fixture.ResetMoving(movement2Entities);
+        movement2State.Sum = 0;
+        fixture.World.Query(in movement2Query, ref movement2State, static (ref Movement2SmokeState s, ref DenseChunkAccessor chunk) =>
+        {
+            var p = chunk.GetRow(s.Position);
+            var v = chunk.GetRow(s.Velocity);
+            for (var i = chunk.SlotCount - 1; i >= 0; i--)
+                s.Sum += p[i].X + v[i].X;
+        });
+        if (movement2State.Sum != movement2Entities.Length * (movement2Entities.Length + 1) / 2)
+            throw new InvalidOperationException("Movement reset mismatch.");
+
+        var movement4Entities = fixture.CreateMovement4(8);
+        var movement4QueryDescription = QueryDescription.ForComponents(fixture.Movement4A, fixture.Movement4B, fixture.Movement4C, fixture.Movement4D);
+        var movement4Query = fixture.World.CreateQuery(in movement4QueryDescription);
+        var a = movement4Query.Bind<Movement4A>(fixture.Movement4A, RowAccess.Write);
+        var b = movement4Query.Bind<Movement4B>(fixture.Movement4B, RowAccess.Write);
+        var c = movement4Query.Bind<Movement4C>(fixture.Movement4C, RowAccess.Write);
+        var d = movement4Query.Bind<Movement4D>(fixture.Movement4D, RowAccess.Read);
+        var movement4State = new Movement4SmokeState(a, b, c, d);
+        fixture.World.Query(in movement4Query, ref movement4State, static (ref Movement4SmokeState s, ref DenseChunkAccessor chunk) =>
+        {
+            var a = chunk.GetRow(s.A);
+            var b = chunk.GetRow(s.B);
+            var c = chunk.GetRow(s.C);
+            var d = chunk.GetRow(s.D);
+            for (var i = chunk.SlotCount - 1; i >= 0; i--)
+            {
+                a[i].Value += d[i].Value;
+                b[i].Value += d[i].Value;
+                c[i].Value = (a[i].Value + b[i].Value) / 2;
+                s.Sum += a[i].Value + b[i].Value + c[i].Value + d[i].Value;
+            }
+        });
+        if (movement4State.Sum != movement4Entities.Length * 20) throw new InvalidOperationException("Movement4 checksum mismatch.");
+        fixture.ResetMovement4(movement4Entities);
+        movement4State.Sum = 0;
+        fixture.World.Query(in movement4Query, ref movement4State, static (ref Movement4SmokeState s, ref DenseChunkAccessor chunk) =>
+        {
+            var a = chunk.GetRow(s.A);
+            var b = chunk.GetRow(s.B);
+            var c = chunk.GetRow(s.C);
+            var d = chunk.GetRow(s.D);
+            for (var i = chunk.SlotCount - 1; i >= 0; i--)
+            {
+                a[i].Value += d[i].Value;
+                b[i].Value += d[i].Value;
+                c[i].Value = (a[i].Value + b[i].Value) / 2;
+                s.Sum += a[i].Value + b[i].Value + c[i].Value + d[i].Value;
+            }
+        });
+        if (movement4State.Sum != movement4Entities.Length * 20) throw new InvalidOperationException("Movement4 reset mismatch.");
+
+        if (fixture.World.DestroyBatch(movement2Entities.AsSpan(0, 2)) != 2 || fixture.World.AliveEntityCount != 14)
             throw new InvalidOperationException("Destroy batch invariant failed.");
-        Console.WriteLine("Micro contract smoke passed: bindings, reverse movement, create and destroy batch.");
+        Console.WriteLine("Micro contract smoke passed: bindings, reverse movement, movement4 reset, create and destroy batch.");
     }
 
-    private struct CheckState(ReadRowBinding<Position> position, ReadRowBinding<Velocity> velocity)
+    private struct Movement2SmokeState(ReadRowBinding<Position> position, ReadRowBinding<Velocity> velocity)
     {
         public ReadRowBinding<Position> Position = position;
         public ReadRowBinding<Velocity> Velocity = velocity;
+        public int Sum;
+    }
+
+    private struct Movement4SmokeState(
+        WriteRowBinding<Movement4A> a,
+        WriteRowBinding<Movement4B> b,
+        WriteRowBinding<Movement4C> c,
+        ReadRowBinding<Movement4D> d)
+    {
+        public WriteRowBinding<Movement4A> A = a;
+        public WriteRowBinding<Movement4B> B = b;
+        public WriteRowBinding<Movement4C> C = c;
+        public ReadRowBinding<Movement4D> D = d;
         public int Sum;
     }
 }

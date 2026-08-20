@@ -128,9 +128,9 @@ method and use a narrow filter:
 
 ```bash
 DOTNET_TieredCompilation=0 DOTNET_ReadyToRun=0 \
-DOTNET_JitDisasm='*Movement2Reverse*' DOTNET_JitDisasmDiffable=1 \
+DOTNET_JitDisasm='*Movement2ComponentsReverse*' DOTNET_JitDisasmDiffable=1 \
 dotnet benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/DeltaECS.MicroBenchmarks.dll \
-  --filter '*Movement2Reverse*'
+  --filter '*Movement2ComponentsReverse*'
 ```
 
 ## Version comparison

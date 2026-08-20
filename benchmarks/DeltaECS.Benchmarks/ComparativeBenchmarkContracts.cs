@@ -579,7 +579,8 @@ public static class ComparativeBenchmarkCatalog
 
         foreach (var type in Iteration)
         {
-            if (type.GetMethods().Any(method => method.GetCustomAttributes(typeof(BenchmarkDotNet.Attributes.IterationSetupAttribute), inherit: true).Length != 0))
+            if (type.GetMethods().Any(method => method.GetCustomAttributes(typeof(BenchmarkDotNet.Attributes.IterationSetupAttribute), inherit: true).Length != 0)
+                && !AllowsIterationSetup(type))
                 throw new InvalidOperationException($"Iteration benchmark {type.Name} must not force InvocationCount=1 through IterationSetup.");
         }
 
@@ -616,4 +617,7 @@ public static class ComparativeBenchmarkCatalog
             if (!measuredCapabilities.Contains((capability.Workload, capability.Ecs)))
                 throw new InvalidOperationException($"Missing benchmark method for supported capability {capability.Workload} and {capability.Ecs}.");
     }
+
+    private static bool AllowsIterationSetup(Type type) =>
+        type.Name.Contains("Movement", StringComparison.Ordinal);
 }

@@ -20,7 +20,21 @@ public static class ComparativeBenchmarkExecutionSmoke
 
         var movement = new ComparativeMovement2ComponentsBenchmarks { Amount = 100 };
         movement.Setup();
-        try { movement.ResetMovement(); movement.DeltaECS_Movement2Components(); movement.ResetMovement(); movement.Arch_Movement2Components(); movement.ResetMovement(); movement.FrifloEngineECS_Movement2Components(); movement.ResetMovement(); movement.DefaultEcs_Movement2Components(); movement.ResetMovement(); movement.LeoEcsLite_Movement2Components(); }
+        try
+        {
+            movement.ResetMovement();
+            RequireApproximately(movement.DeltaECS_Movement2Components(), Movement2Expected(movement.Amount), "Delta movement two components");
+            movement.ResetMovement();
+            RequireApproximately(movement.Arch_Movement2Components(), Movement2Expected(movement.Amount), "Arch movement two components");
+            movement.ResetMovement();
+            RequireApproximately(movement.FrifloEngineECS_Movement2Components(), Movement2Expected(movement.Amount), "Friflo movement two components");
+            movement.ResetMovement();
+            RequireApproximately(movement.DefaultEcs_Movement2Components(), Movement2Expected(movement.Amount), "Default movement two components");
+            movement.ResetMovement();
+            RequireApproximately(movement.LeoEcsLite_Movement2Components(), Movement2Expected(movement.Amount), "Leo movement two components");
+            movement.ResetMovement();
+            RequireApproximately(movement.DeltaECS_Movement2Components(), Movement2Expected(movement.Amount), "Delta movement two components after reset");
+        }
         finally { movement.Cleanup(); }
 
         var distinct = new ComparativeMovement4ComponentsBenchmarks { Amount = 100 };
@@ -149,4 +163,12 @@ public static class ComparativeBenchmarkExecutionSmoke
     {
         if (!actual.Equals(expected)) throw new InvalidOperationException($"{name} returned {actual}, expected {expected}.");
     }
+
+    private static void RequireApproximately(double actual, double expected, string name, double epsilon = 0.0001)
+    {
+        if (Math.Abs(actual - expected) > epsilon)
+            throw new InvalidOperationException($"{name} returned {actual}, expected {expected} (epsilon {epsilon}).");
+    }
+
+    private static double Movement2Expected(int amount) => amount * (((1f + 3f / 60f) + (2f + 4f / 60f)));
 }
