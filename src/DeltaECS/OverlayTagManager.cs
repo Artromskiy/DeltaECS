@@ -34,8 +34,11 @@ internal sealed class OverlayTagManager
 
     public int WordsPerChunk => _wordsPerChunk;
 
+    internal bool HasAnyTags { get; private set; }
+
     public void AddTag(int chunkId, int slotIndex, TagId tag)
     {
+        HasAnyTags = true;
         var state = GetOrCreateState(tag);
         var mask = GetOrAddChunk(state, chunkId);
         SetBit(mask, slotIndex, true);

@@ -60,18 +60,21 @@ public sealed class DenseChunkScope : IDisposable
             && (_overlayMask[slotIndex >> 6] & (1UL << (slotIndex & 63))) != 0;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ReadOnlySpan<T> GetRow<T>(ReadRowBinding<T> binding)
     {
         var index = ResolveBinding(binding.Data);
         return _chunk.GetComponentRow<T>(index);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Span<T> GetRow<T>(WriteRowBinding<T> binding)
     {
         var index = ResolveWriteBinding(binding.Data);
         return _chunk.GetComponentRow<T>(index);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private int ResolveBinding(RowBindingData binding)
     {
         if (_disposed)
@@ -93,6 +96,7 @@ public sealed class DenseChunkScope : IDisposable
         return _queryComponentRowIndices[binding.QueryComponentIndex];
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private int ResolveWriteBinding(RowBindingData binding)
     {
         var index = ResolveBinding(binding);
@@ -224,18 +228,21 @@ public ref struct DenseChunkAccessor
             && (_overlayMask[slotIndex >> 6] & (1UL << (slotIndex & 63))) != 0;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ReadOnlySpan<T> GetRow<T>(ReadRowBinding<T> binding)
     {
         var index = ResolveBinding(binding.Data);
         return _chunk.GetComponentRow<T>(index);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Span<T> GetRow<T>(WriteRowBinding<T> binding)
     {
         var index = ResolveWriteBinding(binding.Data);
         return _chunk.GetComponentRow<T>(index);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private int ResolveBinding(RowBindingData binding)
     {
         EnsureCurrent();
@@ -253,6 +260,7 @@ public ref struct DenseChunkAccessor
         return _queryComponentRowIndices[binding.QueryComponentIndex];
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private int ResolveWriteBinding(RowBindingData binding)
     {
         var index = ResolveBinding(binding);

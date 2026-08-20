@@ -895,6 +895,77 @@ public sealed class World
 
     private int MoveArchetypeBlocks(Archetype sourceArchetype, TransitionEdge edge)
     {
+        return _overlayTags.HasAnyTags
+            ? MoveArchetypeBlocksTagged(sourceArchetype, edge)
+            : MoveArchetypeBlocksDense(sourceArchetype, edge);
+    }
+
+    private int MoveArchetypeBlocksDense(Archetype sourceArchetype, TransitionEdge edge)
+    {
+        var movedCount = 0;
+        var targetArchetype = _archetypes[edge.TargetArchetypeId];
+        for (var sourceChunkIndex = sourceArchetype.ChunkCount - 1; sourceChunkIndex >= 0; sourceChunkIndex--)
+        {
+            var sourceChunk = sourceArchetype.GetChunk(sourceChunkIndex);
+            var sourceCount = sourceChunk.Count;
+            if (sourceCount == 0)
+            {
+                continue;
+            }
+
+            var sourceEntities = sourceChunk.RawEntities;
+            var sourceEnd = sourceCount;
+            while (sourceEnd > 0)
+            {
+                var targetChunkId = targetArchetype.HasAvailableChunk() ? -1 : AllocateChunkId();
+                var reserved = targetArchetype.ReserveRange(
+                    sourceEnd,
+                    targetChunkId,
+                    out var targetChunkIndex,
+                    out var targetChunk);
+                var targetSlot = targetChunk.Count - reserved;
+                var sourceSlot = sourceEnd - reserved;
+
+                Array.Copy(sourceEntities, sourceSlot, targetChunk.RawEntities, targetSlot, reserved);
+                for (var sourceComponentIndex = 0; sourceComponentIndex < edge.SourceToTargetRowIndices.Length; sourceComponentIndex++)
+                {
+                    var targetComponentIndex = edge.SourceToTargetRowIndices[sourceComponentIndex];
+                    if (targetComponentIndex < 0)
+                    {
+                        continue;
+                    }
+
+                    Array.Copy(
+                        sourceChunk.GetRawComponentRow(sourceComponentIndex),
+                        sourceSlot,
+                        targetChunk.GetRawComponentRow(targetComponentIndex),
+                        targetSlot,
+                        reserved);
+                }
+
+                targetChunk.InitializeRowsRange(targetSlot, reserved, edge.AddedTargetRowIndices);
+                for (var slot = 0; slot < reserved; slot++)
+                {
+                    var entity = sourceEntities[sourceSlot + slot];
+                    ref var record = ref RecordAt(entity.Index);
+                    record.Archetype = targetArchetype.Id;
+                    record.Chunk = targetChunkIndex;
+                    record.SlotIndex = targetSlot + slot;
+                }
+
+                sourceEnd = sourceSlot;
+                movedCount += reserved;
+            }
+
+            sourceChunk.ClearAll();
+            sourceArchetype.ReleaseChunk(sourceChunkIndex);
+        }
+
+        return movedCount;
+    }
+
+    private int MoveArchetypeBlocksTagged(Archetype sourceArchetype, TransitionEdge edge)
+    {
         var movedCount = 0;
         var targetArchetype = _archetypes[edge.TargetArchetypeId];
         for (var sourceChunkIndex = sourceArchetype.ChunkCount - 1; sourceChunkIndex >= 0; sourceChunkIndex--)
@@ -974,6 +1045,7 @@ public sealed class World
         }
 
         var entities = chunk.RawEntities;
+        var preserveOverlayTags = _overlayTags.HasAnyTags;
         for (var slot = count - 1; slot >= 0; slot--)
         {
             var entity = entities[slot];
@@ -983,7 +1055,10 @@ public sealed class World
             record.SlotIndex = -1;
             record.Generation++;
             PushFree(entity.Index);
-            _overlayTags.ClearSlot(chunk.GlobalId, slot);
+            if (preserveOverlayTags)
+            {
+                _overlayTags.ClearSlot(chunk.GlobalId, slot);
+            }
         }
 
         chunk.ClearAll();
@@ -1052,14 +1127,18 @@ public sealed class World
         var archetype = _archetypes[record.Archetype];
         var chunk = archetype.GetChunk(record.Chunk);
         var chunkId = chunk.GlobalId;
+        var preserveOverlayTags = _overlayTags.HasAnyTags;
         var lastSlotIndex = chunk.Count - 1;
         var moved = archetype.RemoveEntity(record.Chunk, record.SlotIndex);
-        if (record.SlotIndex != lastSlotIndex)
+        if (preserveOverlayTags && record.SlotIndex != lastSlotIndex)
         {
             _overlayTags.MoveSlotBits(chunkId, lastSlotIndex, record.SlotIndex);
         }
 
-        _overlayTags.ClearSlot(chunkId, lastSlotIndex);
+        if (preserveOverlayTags)
+        {
+            _overlayTags.ClearSlot(chunkId, lastSlotIndex);
+        }
         if (moved.IsAlive)
         {
             ref var movedRecord = ref RecordAt(moved.Index);
@@ -1082,6 +1161,7 @@ public sealed class World
         var targetArchetype = _archetypes[edge.TargetArchetypeId];
         var sourceChunk = sourceArchetype.GetChunk(sourceRecord.Chunk);
         var sourceChunkId = sourceChunk.GlobalId;
+        var preserveOverlayTags = _overlayTags.HasAnyTags;
         var sourceSlotIndex = sourceRecord.SlotIndex;
         var sourceChunkIndex = sourceRecord.Chunk;
         var targetChunkId = targetArchetype.HasAvailableChunk() ? -1 : AllocateChunkId();
@@ -1107,15 +1187,21 @@ public sealed class World
             targetChunk.InitializeRows(targetSlotIndex, edge.AddedTargetRowIndices);
         }
 
-        _overlayTags.CopySlotTags(sourceChunkId, sourceSlotIndex, targetChunk.GlobalId, targetSlotIndex);
+        if (preserveOverlayTags)
+        {
+            _overlayTags.CopySlotTags(sourceChunkId, sourceSlotIndex, targetChunk.GlobalId, targetSlotIndex);
+        }
         var lastSlotIndex = sourceChunk.Count - 1;
         var moved = sourceArchetype.RemoveEntity(sourceChunkIndex, sourceSlotIndex);
-        if (sourceSlotIndex != lastSlotIndex)
+        if (preserveOverlayTags && sourceSlotIndex != lastSlotIndex)
         {
             _overlayTags.MoveSlotBits(sourceChunkId, lastSlotIndex, sourceSlotIndex);
         }
 
-        _overlayTags.ClearSlot(sourceChunkId, lastSlotIndex);
+        if (preserveOverlayTags)
+        {
+            _overlayTags.ClearSlot(sourceChunkId, lastSlotIndex);
+        }
         sourceRecord.Archetype = edge.TargetArchetypeId;
         sourceRecord.Chunk = targetChunkIndex;
         sourceRecord.SlotIndex = targetSlotIndex;
