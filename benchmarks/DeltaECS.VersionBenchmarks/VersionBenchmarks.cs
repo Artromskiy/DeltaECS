@@ -16,7 +16,6 @@ using CandidateBatchScenario = candidateAdapter::DeltaECS.VersionAdapter.BatchSc
 using CandidateIterationScenario = candidateAdapter::DeltaECS.VersionAdapter.IterationScenario;
 
 [MemoryDiagnoser]
-[ShortRunJob]
 public class VersionDenseBenchmarks
 {
     [Params(100, 1_000, 10_000, 100_000)] public int Amount { get; set; }
@@ -35,7 +34,6 @@ public class VersionDenseBenchmarks
 }
 
 [MemoryDiagnoser]
-[ShortRunJob]
 public class VersionMovement2Benchmarks
 {
     [Params(100, 1_000, 10_000, 100_000)] public int Amount { get; set; }
@@ -60,7 +58,6 @@ public class VersionMovement2Benchmarks
 }
 
 [MemoryDiagnoser]
-[ShortRunJob]
 public class VersionMovement4Benchmarks
 {
     [Params(100, 1_000, 10_000, 100_000)] public int Amount { get; set; }
@@ -87,7 +84,6 @@ public class VersionMovement4Benchmarks
 public enum VersionAtomicOperation { Create, Destroy, Add, Remove }
 
 [MemoryDiagnoser]
-[ShortRunJob]
 public class VersionAtomicBenchmarks
 {
     [ParamsAllValues] public VersionAtomicOperation Operation { get; set; }
@@ -115,7 +111,6 @@ public class VersionAtomicBenchmarks
 public enum VersionBatchOperation { Create, Destroy, Add, Remove }
 
 [MemoryDiagnoser]
-[ShortRunJob]
 public class VersionBatchBenchmarks
 {
     [Params(100, 1_000, 10_000, 100_000)] public int Amount { get; set; }
@@ -192,7 +187,24 @@ internal static class VersionBenchmarkSmoke
 
     private static void RequireThroughputIterationConfiguration()
     {
-        foreach (var type in new[] { typeof(VersionDenseBenchmarks), typeof(VersionMovement2Benchmarks), typeof(VersionMovement4Benchmarks) })
+        var benchmarkTypes = new[]
+        {
+            typeof(VersionDenseBenchmarks),
+            typeof(VersionMovement2Benchmarks),
+            typeof(VersionMovement4Benchmarks),
+            typeof(VersionAtomicBenchmarks),
+            typeof(VersionBatchBenchmarks)
+        };
+        foreach (var type in benchmarkTypes)
+        {
+            if (type.GetCustomAttributes(inherit: true).Any(attribute =>
+                    attribute is ShortRunJobAttribute or SimpleJobAttribute))
+            {
+                throw new InvalidOperationException($"Version benchmark {type.Name} must take its measurement job from the selected workflow mode.");
+            }
+        }
+
+        foreach (var type in benchmarkTypes.Take(3))
         {
             if (type.GetMethods().Any(method => method.GetCustomAttributes(typeof(IterationSetupAttribute), inherit: true).Length != 0))
             {
