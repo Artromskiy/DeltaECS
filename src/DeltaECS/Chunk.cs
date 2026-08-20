@@ -123,7 +123,7 @@ internal sealed class Chunk
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Span<T> GetComponentRow<T>(int componentIndex)
     {
-        return ((T[])_componentRows[componentIndex]).AsSpan(0, _count);
+        return Unsafe.As<T[]>(_componentRows[componentIndex]).AsSpan(0, _count);
     }
 
     public Array GetRawComponentRow(int componentIndex) => _componentRows[componentIndex];
