@@ -400,7 +400,7 @@ public sealed class StructuralAlgorithmTests
         var parentBinding = query.Bind<ParentLink>(parentId, RowAccess.Read);
         var local = query.Bind<LocalTransform>(localId, RowAccess.Read);
         var worldTransform = query.Bind<WorldTransform>(worldId, RowAccess.Read);
-        world.Query(in description, QueryAccess.Read, lease =>
+        world.Query(in description, lease =>
         {
             var parents = lease.GetRow(parentBinding);
             var locals = lease.GetRow(local);
@@ -501,7 +501,7 @@ public sealed class StructuralAlgorithmTests
     private static int CountQuery(World world, in QueryDescription query)
     {
         var count = 0;
-        world.Query(in query, QueryAccess.Read, lease =>
+        world.Query(in query, lease =>
         {
             for (var slot = lease.SlotCount - 1; slot >= 0; slot--)
             {

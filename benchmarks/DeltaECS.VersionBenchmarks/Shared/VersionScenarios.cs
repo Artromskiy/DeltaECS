@@ -101,7 +101,7 @@ public sealed class IterationScenario
     public long DenseRead()
     {
         var state = new DenseState { Component = _denseBinding };
-        _world.Query(in _denseQuery, QueryAccess.Read, ref state, static (ref DenseState current, ref DenseChunkAccessor accessor) =>
+        _world.Query(in _denseQuery, ref state, static (ref DenseState current, ref DenseChunkAccessor accessor) =>
         {
             var row = accessor.GetRow(current.Component);
             for (var i = row.Length - 1; i >= 0; i--)
@@ -117,7 +117,7 @@ public sealed class IterationScenario
     public double Movement2()
     {
         var state = new Movement2State { Position = _positionBinding, Velocity = _velocityBinding };
-        _world.Query(in _movement2Query, QueryAccess.Write, ref state, static (ref Movement2State current, ref DenseChunkAccessor accessor) =>
+        _world.Query(in _movement2Query, ref state, static (ref Movement2State current, ref DenseChunkAccessor accessor) =>
         {
             var positions = accessor.GetRow(current.Position);
             var velocities = accessor.GetRow(current.Velocity);
@@ -146,7 +146,7 @@ public sealed class IterationScenario
             C = _movementCBinding,
             D = _movementDBinding
         };
-        _world.Query(in _movement4Query, QueryAccess.Write, ref state, static (ref Movement4State current, ref DenseChunkAccessor accessor) =>
+        _world.Query(in _movement4Query, ref state, static (ref Movement4State current, ref DenseChunkAccessor accessor) =>
         {
             var a = accessor.GetRow(current.A);
             var b = accessor.GetRow(current.B);

@@ -139,7 +139,7 @@ public sealed class DeltaECSDeliveryTests
         var position = query.Bind<Position>(PositionId, RowAccess.Read);
         var velocity = query.Bind<Velocity>(VelocityId, RowAccess.Read);
         var denseLeaseCount = 0;
-        world.Query(in description, QueryAccess.Read, lease =>
+        world.Query(in description, lease =>
         {
             ReadOnlySpan<Entity> entities = lease.Entities;
             var positions = lease.GetRow(position);
@@ -155,7 +155,7 @@ public sealed class DeltaECSDeliveryTests
         });
 
         var state = new AlignmentState(expected, position, velocity);
-        world.Query(in query, QueryAccess.Read, ref state, AssertAlignedRows);
+        world.Query(in query, ref state, AssertAlignedRows);
 
         Assert.That(denseLeaseCount, Is.EqualTo(created.Length));
         Assert.That(state.Count, Is.EqualTo(created.Length));
@@ -224,7 +224,7 @@ public sealed class DeltaECSDeliveryTests
         var observed = new HashSet<Entity>();
         var taggedQuery = world.CreateQuery(in tagged);
         var taggedState = new OverlayQueryState(observed);
-        world.Query(in taggedQuery, QueryAccess.Read, ref taggedState, static (ref OverlayQueryState state, ref DenseChunkAccessor lease) =>
+        world.Query(in taggedQuery, ref taggedState, static (ref OverlayQueryState state, ref DenseChunkAccessor lease) =>
         {
             state.SawPartialChunk |= !lease.IsAllSlotsActive;
             var entities = lease.Entities;
@@ -259,7 +259,7 @@ public sealed class DeltaECSDeliveryTests
         }
 
         var fullTaggedState = new OverlayQueryState(new HashSet<Entity>());
-        world.Query(in taggedQuery, QueryAccess.Read, ref fullTaggedState, static (ref OverlayQueryState state, ref DenseChunkAccessor lease) =>
+        world.Query(in taggedQuery, ref fullTaggedState, static (ref OverlayQueryState state, ref DenseChunkAccessor lease) =>
         {
             Assert.That(lease.IsAllSlotsActive, Is.True);
             for (var slot = lease.SlotCount - 1; slot >= 0; slot--)
@@ -288,14 +288,14 @@ public sealed class DeltaECSDeliveryTests
         var handle = world.CreateQuery(in tagged);
 
         var actionSummary = new OverlaySummary();
-        world.Query(in tagged, QueryAccess.Read, scope => actionSummary.Observe(scope));
+        world.Query(in tagged, scope => actionSummary.Observe(scope));
         Assert.That(actionSummary.ActiveSlots, Is.EqualTo(2));
         Assert.That(actionSummary.Chunks, Is.EqualTo(2));
         Assert.That(actionSummary.SawPartial, Is.True);
         Assert.That(actionSummary.SawFull, Is.True);
 
         var callbackSummary = new OverlaySummary();
-        world.Query(in handle, QueryAccess.Read, ref callbackSummary, static (ref OverlaySummary state, ref DenseChunkAccessor accessor) =>
+        world.Query(in handle, ref callbackSummary, static (ref OverlaySummary state, ref DenseChunkAccessor accessor) =>
         {
             state.Observe(ref accessor);
         });
@@ -332,7 +332,7 @@ public sealed class DeltaECSDeliveryTests
             new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
             Array.Empty<TagId>(), Array.Empty<TagId>(), new[] { new TagId(406) });
         var noneCount = 0;
-        world.Query(in missingNone, QueryAccess.Read, scope => noneCount += CountActiveSlots(scope));
+        world.Query(in missingNone, scope => noneCount += CountActiveSlots(scope));
         Assert.That(noneCount, Is.EqualTo(entities.Length));
     }
 
@@ -389,13 +389,13 @@ public sealed class DeltaECSDeliveryTests
         var initial = new Entity[1];
         world.CreateBatch(new[] { PositionId }, initial);
         var before = 0;
-        world.Query(in query, QueryAccess.Read, lease => { before += CountActiveSlots(lease); });
+        world.Query(in query, lease => { before += CountActiveSlots(lease); });
 
         var withVelocity = new Entity[2];
         world.CreateBatch(new[] { PositionId, VelocityId }, withVelocity);
 
         var after = 0;
-        world.Query(in query, QueryAccess.Read, lease => { after += CountActiveSlots(lease); });
+        world.Query(in query, lease => { after += CountActiveSlots(lease); });
 
         Assert.AreEqual(before + 2, after, $"before={before}, after={after}, alive={world.AliveEntityCount}");
     }
@@ -414,7 +414,7 @@ public sealed class DeltaECSDeliveryTests
         world.Create(new[] { PositionId });
 
         var count = 0;
-        world.Query(in query, QueryAccess.Read, lease => { count += CountActiveSlots(lease); });
+        world.Query(in query, lease => { count += CountActiveSlots(lease); });
         Assert.AreEqual(1, count);
     }
 
@@ -515,18 +515,18 @@ public sealed class DeltaECSDeliveryTests
         var writePosition = query.Bind<Position>(PositionId, RowAccess.Write);
         var before = world.WorldTick;
 
-        world.Query(in description, QueryAccess.Read, lease => chunkId = lease.GlobalChunkId);
+        world.Query(in description, lease => chunkId = lease.GlobalChunkId);
         Assert.That(chunkId, Is.GreaterThanOrEqualTo(0));
         Assert.That(world.HasChangedSince(chunkId, PositionId, before), Is.False);
         Assert.That(world.HasChangedSince(chunkId, VelocityId, before), Is.False);
 
-        world.Query(in description, QueryAccess.Read, lease => { _ = lease.GetRow(writePosition); });
+        world.Query(in description, lease => { _ = lease.GetRow(writePosition); });
         var afterWrite = world.WorldTick;
         Assert.That(afterWrite, Is.GreaterThan(before));
         Assert.That(world.HasChangedSince(chunkId, PositionId, before), Is.True);
         Assert.That(world.HasChangedSince(chunkId, VelocityId, before), Is.False);
 
-        world.Query(in description, QueryAccess.Read, lease => { _ = lease.GetRow(readPosition); });
+        world.Query(in description, lease => { _ = lease.GetRow(readPosition); });
         Assert.That(world.HasChangedSince(chunkId, VelocityId, afterWrite), Is.False);
 
         using (var chunks = world.QueryChunks(in query))
@@ -538,6 +538,21 @@ public sealed class DeltaECSDeliveryTests
         Assert.That(world.WorldTick, Is.GreaterThan(afterWrite));
         Assert.That(world.HasChangedSince(chunkId, PositionId, afterWrite), Is.True);
         Assert.That(world.IsAlive(entity), Is.True);
+    }
+
+    [Test]
+    public void QueryAccess_Compatibility_API_Is_Removed()
+    {
+        var assembly = typeof(World).Assembly;
+        Assert.That(assembly.GetType("Delta.ECS.QueryAccess"), Is.Null);
+
+        var queryMethods = typeof(World).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)
+            .Where(static method => method.Name is nameof(World.Query) or nameof(World.QueryChunks));
+
+        Assert.That(
+            queryMethods.SelectMany(static method => method.GetParameters())
+                .Any(static parameter => parameter.ParameterType.Name == "QueryAccess"),
+            Is.False);
     }
 
     [Test]
@@ -558,7 +573,7 @@ public sealed class DeltaECSDeliveryTests
         Assert.That(velocity.IsValid, Is.True);
 
         var scopeRows = 0;
-        world.Query(in description, QueryAccess.Read, scope =>
+        world.Query(in description, scope =>
         {
             ReadOnlySpan<Velocity> rows = scope.GetRow(velocity);
             scopeRows += rows.Length;
@@ -578,7 +593,7 @@ public sealed class DeltaECSDeliveryTests
         }
 
         var simpleRows = 0;
-        world.Query(in query, QueryAccess.Read, (ref DenseChunkAccessor accessor) =>
+        world.Query(in query, (ref DenseChunkAccessor accessor) =>
         {
             simpleRows += accessor.GetRow(velocity).Length;
         });
@@ -609,7 +624,7 @@ public sealed class DeltaECSDeliveryTests
         var otherQuery = world.CreateQuery(in otherDescription);
         var mismatchedBinding = otherQuery.Bind<Position>(PositionId, RowAccess.Read);
 
-        Assert.Throws<InvalidOperationException>(() => world.Query(in description, QueryAccess.Read, scope =>
+        Assert.Throws<InvalidOperationException>(() => world.Query(in description, scope =>
         {
             _ = scope.GetRow(mismatchedBinding);
         }));
@@ -619,14 +634,14 @@ public sealed class DeltaECSDeliveryTests
         var foreignQuery = foreignWorld.CreateQuery(QueryDescription.ForComponents(PositionId, VelocityId));
         var foreignBinding = foreignQuery.Bind<Position>(PositionId, RowAccess.Read);
 
-        Assert.Throws<InvalidOperationException>(() => world.Query(in description, QueryAccess.Read, scope =>
+        Assert.Throws<InvalidOperationException>(() => world.Query(in description, scope =>
         {
             _ = scope.GetRow(foreignBinding);
         }));
 
         var defaultBinding = default(ReadRowBinding<Position>);
         Assert.That(defaultBinding.IsValid, Is.False);
-        Assert.Throws<InvalidOperationException>(() => world.Query(in description, QueryAccess.Read, scope =>
+        Assert.Throws<InvalidOperationException>(() => world.Query(in description, scope =>
         {
             _ = scope.GetRow(defaultBinding);
         }));
@@ -749,7 +764,7 @@ public sealed class DeltaECSDeliveryTests
         var state = new QueryState { Position = position, Velocity = velocity };
         for (var warmup = 0; warmup < 3; warmup++)
         {
-            world.Query(in query, QueryAccess.Write, ref state, s_querySlots);
+            world.Query(in query, ref state, s_querySlots);
         }
 
         for (var i = 0; i < entities.Length; i++)
@@ -759,10 +774,10 @@ public sealed class DeltaECSDeliveryTests
         }
 
         state = new QueryState { Position = position, Velocity = velocity };
-        world.Query(in query, QueryAccess.Write, ref state, s_querySlots);
-        world.Query(in query, QueryAccess.Write, ref state, s_querySlots);
+        world.Query(in query, ref state, s_querySlots);
+        world.Query(in query, ref state, s_querySlots);
         var firstMeasuredAfter = GC.GetAllocatedBytesForCurrentThread();
-        world.Query(in query, QueryAccess.Write, ref state, s_querySlots);
+        world.Query(in query, ref state, s_querySlots);
         var after = GC.GetAllocatedBytesForCurrentThread();
 
         // VSTest's current-thread allocation counter reports a one-time 24-byte
@@ -804,7 +819,7 @@ public sealed class DeltaECSDeliveryTests
         world.SetComponent(entity, worldId, new NamedRef { Name = "world", Id = 2 });
 
         var state = new ArrayQueryState { FirstRow = local, SecondRow = worldRow };
-        world.Query(in query, QueryAccess.Read, ref state, s_readArrayRows);
+        world.Query(in query, ref state, s_readArrayRows);
 
         Assert.AreEqual(1, state.Count);
         Assert.AreEqual("local", state.First.Name);
@@ -830,7 +845,7 @@ public sealed class DeltaECSDeliveryTests
 
         var query = world.CreateQuery(QueryDescription.ForComponents(referenceId));
         var reference = query.Bind<ReferenceComponent>(referenceId, RowAccess.Write);
-        world.Query(in query, QueryAccess.Read, (ref DenseChunkAccessor lease) =>
+        world.Query(in query, (ref DenseChunkAccessor lease) =>
         {
             var row = lease.GetRow(reference);
             Assert.That(row[0], Is.SameAs(component));
@@ -887,8 +902,8 @@ public sealed class DeltaECSDeliveryTests
         var query = world.CreateQuery(in description);
         var state = new LeaseMutationState { World = world, Entity = entity };
 
-        Assert.Throws<InvalidOperationException>(() => world.Query(in query, QueryAccess.Write, ref state, s_destroyDuringLease));
-        Assert.Throws<InvalidOperationException>(() => world.Query(in description, QueryAccess.Read, _ => world.AddComponents(new[] { id }, entity)));
+        Assert.Throws<InvalidOperationException>(() => world.Query(in query, ref state, s_destroyDuringLease));
+        Assert.Throws<InvalidOperationException>(() => world.Query(in description, _ => world.AddComponents(new[] { id }, entity)));
         Assert.True(world.IsAlive(entity));
         Assert.True(world.Destroy(entity));
         Assert.False(world.IsAlive(entity));
@@ -973,9 +988,9 @@ public sealed class DeltaECSDeliveryTests
         var c2 = 0;
         var c3 = 0;
 
-        world.Query(in even, QueryAccess.Read, lease => c1 += CountActiveSlots(lease));
-        world.Query(in visibleEven, QueryAccess.Read, lease => c2 += CountActiveSlots(lease));
-        world.Query(in visibleOnly, QueryAccess.Read, lease => c3 += CountActiveSlots(lease));
+        world.Query(in even, lease => c1 += CountActiveSlots(lease));
+        world.Query(in visibleEven, lease => c2 += CountActiveSlots(lease));
+        world.Query(in visibleOnly, lease => c3 += CountActiveSlots(lease));
 
         Assert.AreEqual(32, c1);
         Assert.AreEqual(16, c2);
@@ -1152,7 +1167,7 @@ public sealed class DeltaECSDeliveryTests
     private static int CountQuery(World world, in QueryDescription query)
     {
         var count = 0;
-        world.Query(in query, QueryAccess.Read, scope => count += CountActiveSlots(scope));
+        world.Query(in query, scope => count += CountActiveSlots(scope));
         return count;
     }
 
@@ -1244,7 +1259,7 @@ public sealed class DeltaECSDeliveryTests
         WriteRowBinding<Position> position)
     {
         var state = new BoundRowState(position, default);
-        world.Query(in query, QueryAccess.Read, ref state, static (ref BoundRowState current, ref DenseChunkAccessor accessor) =>
+        world.Query(in query, ref state, static (ref BoundRowState current, ref DenseChunkAccessor accessor) =>
         {
             _ = accessor.GetRow(current.Position);
         });
@@ -1322,7 +1337,7 @@ public sealed class DeltaECSDeliveryTests
     {
         var query = world.CreateQuery(QueryDescription.ForComponents(PositionId));
         var state = new ChunkIdState(new HashSet<int>());
-        world.Query(in query, QueryAccess.Read, ref state, s_collectChunkIds);
+        world.Query(in query, ref state, s_collectChunkIds);
         return state.ChunkIds;
     }
 

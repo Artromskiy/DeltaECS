@@ -131,7 +131,7 @@ public sealed class QueryStructuralOperationsTests
         Assert.Throws<ArgumentException>(() => world.AddComponents(in invalid, new[] { VelocityId }));
         Assert.Throws<ArgumentException>(() => world.RemoveComponents(in foreignQuery, new[] { VelocityId }));
         Assert.Throws<ArgumentException>(() => world.Destroy(in foreignQuery));
-        Assert.Throws<InvalidOperationException>(() => world.Query(QueryDescription.ForComponents(PositionId), QueryAccess.Read, _ =>
+        Assert.Throws<InvalidOperationException>(() => world.Query(QueryDescription.ForComponents(PositionId), _ =>
             world.AddComponents(in query, new[] { VelocityId })));
         Assert.That(world.IsAlive(entity), Is.True);
     }
@@ -194,7 +194,7 @@ public sealed class QueryStructuralOperationsTests
 
         var readChunkId = -1;
         var readBefore = world.WorldTick;
-        world.Query(in description, QueryAccess.Read, scope =>
+        world.Query(in description, scope =>
         {
             if (scope.SlotCount == 0)
             {
@@ -209,7 +209,7 @@ public sealed class QueryStructuralOperationsTests
         Assert.That(world.HasChangedSince(readChunkId, PositionId, readBefore), Is.False);
 
         var writeChunkId = -1;
-        world.Query(in description, QueryAccess.Read, scope =>
+        world.Query(in description, scope =>
         {
             if (scope.SlotCount == 0)
             {

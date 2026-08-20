@@ -72,12 +72,6 @@ internal struct EntityRecord
     public int SlotIndex;
 }
 
-public enum QueryAccess
-{
-    Read,
-    Write
-}
-
 public readonly struct ReadRowAccess
 {
 }

@@ -67,9 +67,6 @@ public class EcsLiteComparisonBenchmarks
     private EcsPool<LeoPayload5> _leoTransitionPayload5 = null!;
     private int[] _leoTransitionEntities = [];
 
-    private static readonly QueryAccess s_writeAccess = QueryAccess.Write;
-    private static readonly QueryAccess s_readAccess = QueryAccess.Read;
-
     [GlobalSetup]
     public void Setup()
     {
@@ -101,7 +98,7 @@ public class EcsLiteComparisonBenchmarks
     public double DeltaECS_DenseMovement()
     {
         var state = new MovementState();
-        using var chunks = _deltaMovementWorld.QueryChunks(in _deltaMovementQuery, s_writeAccess);
+        using var chunks = _deltaMovementWorld.QueryChunks(in _deltaMovementQuery);
         while (chunks.MoveNext())
         {
             var lease = chunks.Current;
@@ -145,7 +142,7 @@ public class EcsLiteComparisonBenchmarks
     public int DeltaECS_CachedQueryIteration()
     {
         var state = new QueryState();
-        using var chunks = _deltaFilterWorld.QueryChunks(in _deltaFilterQuery, s_readAccess);
+        using var chunks = _deltaFilterWorld.QueryChunks(in _deltaFilterQuery);
         while (chunks.MoveNext())
         {
             var lease = chunks.Current;

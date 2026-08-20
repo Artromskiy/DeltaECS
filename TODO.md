@@ -10,9 +10,9 @@ No open API-ergonomics items.
 
 ## Completed
 
-- [x] Added simple cached-query overloads with and without the compatibility
-  `QueryAccess` argument. Both route through the same context hot path, and the
-  mutation test covers write-bound component access without user context.
+- [x] Removed the transitional `QueryAccess` compatibility argument. Query
+  access intent now comes exclusively from typed read/write row bindings, and
+  mutation tests cover write-bound component access without user context.
 
 - [x] Renamed the stateful query terminology to `TContext`, `context`, and
   `action` across the public delegate and `World.Query` signatures. This accepts
@@ -20,9 +20,8 @@ No open API-ergonomics items.
 
 - [x] Made `WriteRowBinding<T>` register write intent on its cached query.
   Binding-driven `Query` and `QueryChunks` execution now prepares a write tick
-  without requiring `QueryAccess.Write`; dirty versions are still updated only
-  when the write-bound row is actually requested. `QueryAccess` remains as a
-  compatibility surface.
+  automatically; dirty versions are still updated only when the write-bound row
+  is actually requested.
 
 - [x] Removed the transitional public `GetComponentRow<T>(ComponentId/int)`
   methods from `DenseChunkScope` and `DenseChunkAccessor`. Repository tests use
