@@ -93,6 +93,10 @@ tracking and benchmark scenario contracts.
 
 ## Benchmarks
 
+For small, assembly-guided performance experiments, use
+[benchmarks/README.md](benchmarks/README.md). It defines the micro-algorithm
+matrix, correctness requirements and JIT capture workflow.
+
 The unified manual comparison covers DeltaECS, Arch, Friflo.Engine.ECS,
 DefaultEcs and LeoECS Lite across iteration, atomic structural operations,
 list-batch operations and query-batch operations. DeltaECS is the baseline.

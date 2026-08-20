@@ -132,13 +132,12 @@ public sealed class DenseChunkScope : IDisposable
 public ref struct DenseChunkAccessor
 {
     private readonly CachedQuery _query;
-    private readonly Archetype _archetype;
     private readonly Chunk _chunk;
     private readonly int _archetypeId;
     private readonly int _globalChunkId;
     private readonly int _slotCount;
     private readonly int[]? _queryComponentRowIndices;
-    private ulong[]? _overlayMask;
+    private readonly ulong[]? _overlayMask;
     private readonly bool _fullMask;
     private readonly World _owner;
     private readonly int _viewId;
@@ -158,7 +157,6 @@ public ref struct DenseChunkAccessor
         uint writeTick)
     {
         _query = query;
-        _archetype = archetype;
         _chunk = chunk;
         _archetypeId = archetype.Id;
         _globalChunkId = globalChunkId;
