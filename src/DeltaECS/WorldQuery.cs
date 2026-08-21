@@ -79,21 +79,21 @@ public sealed class DenseChunkScope : IDisposable
     {
         if (_disposed)
         {
-            throw new ObjectDisposedException(nameof(DenseChunkScope));
+            QueryThrowHelper.ThrowDisposedScope();
         }
 
-        if (!binding.IsValid || !binding.BelongsTo(_owner, _query))
+        if (!binding.IsValid || !ReferenceEquals(binding.Query, _query))
         {
-            throw new InvalidOperationException("The row binding does not belong to this query or world.");
+            QueryThrowHelper.ThrowBindingMismatch();
         }
 
         if (_queryComponentRowIndices is null
             || (uint)binding.QueryComponentIndex >= (uint)_queryComponentRowIndices.Length)
         {
-            throw new InvalidOperationException("The row binding is stale for this query.");
+            QueryThrowHelper.ThrowStaleBinding();
         }
 
-        return _queryComponentRowIndices[binding.QueryComponentIndex];
+        return _queryComponentRowIndices![binding.QueryComponentIndex];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -102,7 +102,7 @@ public sealed class DenseChunkScope : IDisposable
         var index = ResolveBinding(binding);
         if (_writeTick == 0)
         {
-            throw new InvalidOperationException("The query did not register its write row binding.");
+            QueryThrowHelper.ThrowMissingWriteIntent();
         }
 
         MarkWritten(index);
@@ -244,18 +244,18 @@ public ref struct DenseChunkAccessor
     private int ResolveBinding(RowBindingData binding)
     {
         EnsureCurrent();
-        if (!binding.IsValid || !binding.BelongsTo(_owner, _query))
+        if (!binding.IsValid || !ReferenceEquals(binding.Query, _query))
         {
-            throw new InvalidOperationException("The row binding does not belong to this query or world.");
+            QueryThrowHelper.ThrowBindingMismatch();
         }
 
         if (_queryComponentRowIndices is null
             || (uint)binding.QueryComponentIndex >= (uint)_queryComponentRowIndices.Length)
         {
-            throw new InvalidOperationException("The row binding is stale for this query.");
+            QueryThrowHelper.ThrowStaleBinding();
         }
 
-        return _queryComponentRowIndices[binding.QueryComponentIndex];
+        return _queryComponentRowIndices![binding.QueryComponentIndex];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -264,7 +264,7 @@ public ref struct DenseChunkAccessor
         var index = ResolveBinding(binding);
         if (_writeTick == 0)
         {
-            throw new InvalidOperationException("The query did not register its write row binding.");
+            QueryThrowHelper.ThrowMissingWriteIntent();
         }
 
         MarkWritten(index);
@@ -294,12 +294,12 @@ public ref struct DenseChunkAccessor
     {
         if (_disposed)
         {
-            throw new ObjectDisposedException(nameof(DenseChunkAccessor));
+            QueryThrowHelper.ThrowDisposedAccessor();
         }
 
         if (!_owner.IsChunkAccessorIdValid(_viewId))
         {
-            throw new InvalidOperationException("Chunk accessor is stale.");
+            QueryThrowHelper.ThrowStaleAccessor();
         }
     }
 }
@@ -309,7 +309,7 @@ internal sealed class CachedQuery
     private readonly QueryDescription _description;
     private int _version = -1;
     private int[] _matchingArchetypes = Array.Empty<int>();
-    private int[][] _matchingComponentRowIndices = Array.Empty<int[]>();
+    private DenseArchetypePlan[] _matchingPlans = Array.Empty<DenseArchetypePlan>();
     private bool _hasWriteBindings;
 
     public CachedQuery(QueryDescription description)
@@ -333,7 +333,7 @@ internal sealed class CachedQuery
         }
 
         var matches = new List<int>(world.Archetypes.Count);
-        var plans = new List<int[]>(world.Archetypes.Count);
+        var plans = new List<DenseArchetypePlan>(world.Archetypes.Count);
         for (var archetypeId = 0; archetypeId < world.Archetypes.Count; archetypeId++)
         {
             var archetype = world.Archetypes[archetypeId];
@@ -350,16 +350,22 @@ internal sealed class CachedQuery
             }
 
             matches.Add(archetypeId);
-            plans.Add(indices);
+            plans.Add(new DenseArchetypePlan(archetype, indices));
         }
 
         _matchingArchetypes = matches.ToArray();
-        _matchingComponentRowIndices = plans.ToArray();
+        _matchingPlans = plans.ToArray();
         _version = world.ArchetypeVersion;
         return _matchingArchetypes;
     }
 
-    public int[] ComponentRowIndices(int matchingIndex) => _matchingComponentRowIndices[matchingIndex];
+    public DenseArchetypePlan[] MatchingPlans(World world)
+    {
+        MatchingArchetypes(world);
+        return _matchingPlans;
+    }
+
+    public int[] ComponentRowIndices(int matchingIndex) => _matchingPlans[matchingIndex].ComponentRows;
 
     private bool Matches(Archetype archetype)
     {
@@ -367,4 +373,38 @@ internal sealed class CachedQuery
             && (_description.AnyMask.IsEmpty || archetype.Mask.Intersects(_description.AnyMask))
             && !archetype.Mask.Intersects(_description.NoneMask);
     }
+}
+
+internal readonly struct DenseArchetypePlan
+{
+    public DenseArchetypePlan(Archetype archetype, int[] componentRows)
+    {
+        Archetype = archetype;
+        ComponentRows = componentRows;
+    }
+
+    public Archetype Archetype { get; }
+
+    public int[] ComponentRows { get; }
+}
+
+internal static class QueryThrowHelper
+{
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowDisposedScope() => throw new ObjectDisposedException(nameof(DenseChunkScope));
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowDisposedAccessor() => throw new ObjectDisposedException(nameof(DenseChunkAccessor));
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowStaleAccessor() => throw new InvalidOperationException("Chunk accessor is stale.");
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowBindingMismatch() => throw new InvalidOperationException("The row binding does not belong to this query or world.");
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowStaleBinding() => throw new InvalidOperationException("The row binding is stale for this query.");
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowMissingWriteIntent() => throw new InvalidOperationException("The query did not register its write row binding.");
 }

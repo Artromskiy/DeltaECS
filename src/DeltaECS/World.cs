@@ -383,17 +383,17 @@ public sealed class World
     public void Query(in QueryDescription query, Action<DenseChunkScope> action)
     {
         var cached = GetOrCreateQuery(query);
-        var archetypes = cached.MatchingArchetypes(this);
+        var plans = cached.MatchingPlans(this);
         if (!cached.HasTags)
         {
-            QueryScopesDense(cached, archetypes, action);
+            QueryScopesDense(cached, plans, action);
             return;
         }
 
         var scratch = RentChunkOverlayScratch();
         try
         {
-            QueryScopesTagged(query, cached, archetypes, scratch, action);
+            QueryScopesTagged(query, cached, plans, scratch, action);
         }
         finally
         {
@@ -403,14 +403,14 @@ public sealed class World
 
     private void QueryScopesDense(
         CachedQuery cached,
-        int[] archetypes,
+        DenseArchetypePlan[] plans,
         Action<DenseChunkScope> action)
     {
         var writeTick = QueryWriteTick(cached);
-        for (var i = 0; i < archetypes.Length; i++)
+        for (var i = 0; i < plans.Length; i++)
         {
-            var archetype = _archetypes[archetypes[i]];
-            var rowIndices = cached.ComponentRowIndices(i);
+            var archetype = plans[i].Archetype;
+            var rowIndices = plans[i].ComponentRows;
             for (var activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
             {
                 var chunkIndex = archetype.GetActiveChunkIndex(activeChunkIndex);
@@ -426,15 +426,15 @@ public sealed class World
     private void QueryScopesTagged(
         in QueryDescription query,
         CachedQuery cached,
-        int[] archetypes,
+        DenseArchetypePlan[] plans,
         ulong[] scratch,
         Action<DenseChunkScope> action)
     {
         var writeTick = QueryWriteTick(cached);
-        for (var i = 0; i < archetypes.Length; i++)
+        for (var i = 0; i < plans.Length; i++)
         {
-            var archetype = _archetypes[archetypes[i]];
-            var rowIndices = cached.ComponentRowIndices(i);
+            var archetype = plans[i].Archetype;
+            var rowIndices = plans[i].ComponentRows;
             for (var activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
             {
                 var chunkIndex = archetype.GetActiveChunkIndex(activeChunkIndex);
@@ -468,20 +468,20 @@ public sealed class World
 
         var query = handle.Description;
         var cached = handle.Cached;
-        var archetypes = cached.MatchingArchetypes(this);
+        var plans = cached.MatchingPlans(this);
         _activeChunkLeases++;
         try
         {
             if (!cached.HasTags)
             {
-                QueryAccessorsDense(cached, archetypes, ref context, action);
+                QueryAccessorsDense(cached, plans, ref context, action);
             }
             else
             {
                 var scratch = RentChunkOverlayScratch();
                 try
                 {
-                    QueryAccessorsTagged(query, cached, archetypes, scratch, ref context, action);
+                    QueryAccessorsTagged(query, cached, plans, scratch, ref context, action);
                 }
                 finally
                 {
@@ -498,15 +498,15 @@ public sealed class World
 
     private void QueryAccessorsDense<TContext>(
         CachedQuery cached,
-        int[] archetypes,
+        DenseArchetypePlan[] plans,
         ref TContext context,
         ChunkAction<TContext> action)
     {
         var writeTick = QueryWriteTick(cached);
-        for (var i = 0; i < archetypes.Length; i++)
+        for (var i = 0; i < plans.Length; i++)
         {
-            var archetype = _archetypes[archetypes[i]];
-            var rowIndices = cached.ComponentRowIndices(i);
+            var archetype = plans[i].Archetype;
+            var rowIndices = plans[i].ComponentRows;
             for (var activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
             {
                 var chunkIndex = archetype.GetActiveChunkIndex(activeChunkIndex);
@@ -528,16 +528,16 @@ public sealed class World
     private void QueryAccessorsTagged<TContext>(
         in QueryDescription query,
         CachedQuery cached,
-        int[] archetypes,
+        DenseArchetypePlan[] plans,
         ulong[] scratch,
         ref TContext context,
         ChunkAction<TContext> action)
     {
         var writeTick = QueryWriteTick(cached);
-        for (var i = 0; i < archetypes.Length; i++)
+        for (var i = 0; i < plans.Length; i++)
         {
-            var archetype = _archetypes[archetypes[i]];
-            var rowIndices = cached.ComponentRowIndices(i);
+            var archetype = plans[i].Archetype;
+            var rowIndices = plans[i].ComponentRows;
             for (var activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
             {
                 var chunkIndex = archetype.GetActiveChunkIndex(activeChunkIndex);
@@ -582,7 +582,7 @@ public sealed class World
         private readonly World _owner;
         private readonly QueryDescription _query;
         private readonly CachedQuery _cached;
-        private readonly int[] _archetypeIds;
+        private readonly DenseArchetypePlan[] _plans;
         private readonly bool _hasTags;
         private ulong[]? _overlayScratch;
         private readonly uint _writeTick;
@@ -597,7 +597,7 @@ public sealed class World
             _owner = owner;
             _cached = cached;
             _query = query;
-            _archetypeIds = cached.MatchingArchetypes(owner);
+            _plans = cached.MatchingPlans(owner);
             _hasTags = cached.HasTags;
             _overlayScratch = _hasTags ? owner.RentChunkOverlayScratch() : null;
             _writeTick = writeTick;
@@ -645,10 +645,10 @@ public sealed class World
 
         private bool MoveNextDense()
         {
-            while (_archetypePosition < _archetypeIds.Length)
+            while (_archetypePosition < _plans.Length)
             {
-                var archetype = _owner._archetypes[_archetypeIds[_archetypePosition]];
-                var rowIndices = _cached.ComponentRowIndices(_archetypePosition);
+                var archetype = _plans[_archetypePosition].Archetype;
+                var rowIndices = _plans[_archetypePosition].ComponentRows;
                 while (_chunkPosition < archetype.ActiveChunkCount)
                 {
                     var chunkIndex = archetype.GetActiveChunkIndex(_chunkPosition++);
@@ -670,10 +670,10 @@ public sealed class World
         private bool MoveNextTagged()
         {
             var scratch = _overlayScratch!;
-            while (_archetypePosition < _archetypeIds.Length)
+            while (_archetypePosition < _plans.Length)
             {
-                var archetype = _owner._archetypes[_archetypeIds[_archetypePosition]];
-                var rowIndices = _cached.ComponentRowIndices(_archetypePosition);
+                var archetype = _plans[_archetypePosition].Archetype;
+                var rowIndices = _plans[_archetypePosition].ComponentRows;
                 while (_chunkPosition < archetype.ActiveChunkCount)
                 {
                     var chunkIndex = archetype.GetActiveChunkIndex(_chunkPosition++);

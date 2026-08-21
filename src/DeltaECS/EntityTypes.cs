@@ -89,15 +89,12 @@ public static class RowAccess
 
 internal readonly struct RowBindingData
 {
-    public RowBindingData(World owner, CachedQuery query, ComponentId componentId, int queryComponentIndex)
+    public RowBindingData(CachedQuery query, ComponentId componentId, int queryComponentIndex)
     {
-        Owner = owner;
         Query = query;
         ComponentId = componentId;
         QueryComponentIndex = queryComponentIndex;
     }
-
-    public World? Owner { get; }
 
     public CachedQuery? Query { get; }
 
@@ -105,10 +102,7 @@ internal readonly struct RowBindingData
 
     public int QueryComponentIndex { get; }
 
-    public bool IsValid => Owner is not null && Query is not null && QueryComponentIndex >= 0;
-
-    public bool BelongsTo(World owner, CachedQuery query) =>
-        ReferenceEquals(Owner, owner) && ReferenceEquals(Query, query);
+    public bool IsValid => Query is not null && QueryComponentIndex >= 0;
 }
 
 public readonly struct ReadRowBinding<T>
@@ -198,7 +192,7 @@ public readonly struct QueryHandle
             throw new ArgumentException($"Component {componentId} is registered as {layout.RuntimeType}, not {typeof(T)}.", nameof(componentId));
         }
 
-        return new RowBindingData(_owner, _cached, componentId, _description.AllMask.Rank(componentId));
+        return new RowBindingData(_cached, componentId, _description.AllMask.Rank(componentId));
     }
 }
 
