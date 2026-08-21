@@ -372,10 +372,9 @@ public ref struct ResolvedReadRow<T>
         _row = row;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref readonly T Current(in DenseChunkCursor cursor)
+    public ref readonly T this[DenseChunkCursor cursor]
     {
-        return ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), cursor.CurrentIndex);
+        get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), cursor.CurrentIndex);
     }
 }
 
@@ -388,10 +387,9 @@ public ref struct ResolvedWriteRow<T>
         _row = row;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T Current(in DenseChunkCursor cursor)
+    public ref T this[DenseChunkCursor cursor]
     {
-        return ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), cursor.CurrentIndex);
+        get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), cursor.CurrentIndex);
     }
 }
 

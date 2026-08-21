@@ -163,7 +163,22 @@ The script sets `DOTNET_TieredCompilation=0`, `DOTNET_ReadyToRun=0` and
 by default. `--method` selects JIT methods; `--filter` selects the benchmark
 fixture that invokes them.
 
-## Version comparison
+## Dense QueryCursor API
+
+The additive dense cursor path uses `CursorReadBinding<T>`/
+`CursorWriteBinding<T>`. Resolve rows once per chunk and use the safe ref-return
+indexer inside the slot loop:
+
+```csharp
+var values = cursor.Resolve(binding);
+while (cursor.MoveNext())
+{
+    ref readonly Value value = ref values[cursor];
+}
+```
+
+The legacy comparison fixtures were removed from the microbenchmark catalog;
+the cursor API is the only dense microbenchmark path here.
 
 `DeltaECS.VersionBenchmarks` requires two checkouts and is intentionally not a
 normal solution-build project:

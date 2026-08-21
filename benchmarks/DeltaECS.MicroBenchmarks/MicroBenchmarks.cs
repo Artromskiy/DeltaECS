@@ -47,10 +47,10 @@ internal sealed class MicroWorld
     public readonly ComponentId Movement4C;
     public readonly ComponentId Movement4D;
 
-    public MicroWorld(int chunkCapacity = 64)
+    public MicroWorld(int chunkCapacity = 64, int initialEntityCapacity = 100_000)
     {
         (Position, Velocity, Auxiliary, Reference, Movement4A, Movement4B, Movement4C, Movement4D) = MicroIds.Register(Layouts);
-        World = new World(Layouts, initialEntityCapacity: 100_000, chunkCapacity: chunkCapacity);
+        World = new World(Layouts, initialEntityCapacity: initialEntityCapacity, chunkCapacity: chunkCapacity);
     }
 
     public World World { get; }
@@ -487,6 +487,21 @@ internal static class MicroContractSmoke
         });
         if (movement4State.Sum != movement4Entities.Length * 20) throw new InvalidOperationException("Movement4 reset mismatch.");
 
+        fixture.ResetMovement4(movement4Entities);
+        var cursorA = movement4Query.CursorBind<Movement4A>(fixture.Movement4A, RowAccess.Read);
+        var cursorB = movement4Query.CursorBind<Movement4B>(fixture.Movement4B, RowAccess.Read);
+        var cursorC = movement4Query.CursorBind<Movement4C>(fixture.Movement4C, RowAccess.Read);
+        var cursorD = movement4Query.CursorBind<Movement4D>(fixture.Movement4D, RowAccess.Read);
+        var cursorState = new CursorSmokeState(cursorA, cursorB, cursorC, cursorD);
+        fixture.World.QueryCursor(in movement4Query, ref cursorState, static (ref CursorSmokeState s, ref DenseChunkCursor chunk) =>
+        {
+            var a = chunk.Resolve(s.A); var b = chunk.Resolve(s.B);
+            var c = chunk.Resolve(s.C); var d = chunk.Resolve(s.D);
+            while (chunk.MoveNext())
+                s.Sum += a[chunk].Value + b[chunk].Value + c[chunk].Value + d[chunk].Value;
+        });
+        if (cursorState.Sum != movement4Entities.Length * 10) throw new InvalidOperationException("Cursor checksum mismatch.");
+
         if (fixture.World.DestroyBatch(movement2Entities.AsSpan(0, 2)) != 2 || fixture.World.AliveEntityCount != 14)
             throw new InvalidOperationException("Destroy batch invariant failed.");
         Console.WriteLine("Micro contract smoke passed: bindings, reverse movement, movement4 reset, create and destroy batch.");
@@ -509,6 +524,19 @@ internal static class MicroContractSmoke
         public WriteRowBinding<Movement4B> B = b;
         public WriteRowBinding<Movement4C> C = c;
         public ReadRowBinding<Movement4D> D = d;
+        public int Sum;
+    }
+
+    private struct CursorSmokeState(
+        CursorReadBinding<Movement4A> a,
+        CursorReadBinding<Movement4B> b,
+        CursorReadBinding<Movement4C> c,
+        CursorReadBinding<Movement4D> d)
+    {
+        public CursorReadBinding<Movement4A> A = a;
+        public CursorReadBinding<Movement4B> B = b;
+        public CursorReadBinding<Movement4C> C = c;
+        public CursorReadBinding<Movement4D> D = d;
         public int Sum;
     }
 }
