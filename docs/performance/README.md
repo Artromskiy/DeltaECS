@@ -9,17 +9,19 @@ and the benchmark comparison contract.
 
 - `DenseChunkAccessor.GetRow` and `DenseChunkScope.GetRow` already use the
   cached query-row index and the internal unchecked managed-array cast.
-- The remaining binding path performs `EnsureCurrent`, query ownership
-  validation, and a `QueryComponentIndex -> ComponentRows` lookup for every
-  requested row on every chunk.
+- Dense query execution now prepares a pooled direct `Array[]` row packet once
+  per query invocation and fills it once per visited chunk. `GetRow` performs
+  one binding-index lookup into that packet; write access still uses the cached
+  physical row index for precise dirty tracking.
+- The remaining binding path performs `EnsureCurrent`/ownership validation and
+  one prepared-row bounds check for every requested row on every chunk.
 - Prior JIT inspection showed bounds checks remain in the entity loop when rows
   are accessed as `Span<T>[i]`. No new measurement is implied by this note.
 
-## Candidate 1: query-bound prepared row access
+## Implemented: query-bound prepared row access
 
-The query should own the bindings it creates and validate them once at the
-start of `World.Query`. The current query-owned registration/validation is the
-first step; the next step is to prepare a compact per-archetype row packet:
+The query owns the bindings it creates and validates them at the start of
+`World.Query`. Dense execution now prepares a compact per-chunk row packet:
 
 ```text
 QueryHandle/CachedQuery
@@ -27,16 +29,20 @@ QueryHandle/CachedQuery
 DenseArchetypePlan
     binding token -> physical component row
 Chunk execution
-    prepared physical row -> component array
+    prepared query row -> direct component array
 ```
 
-The dense accessor/cursor would then use a trusted internal path for bindings
-that were validated by the current query invocation. The public checked path can
-remain available for foreign/default binding rejection. This removes repeated
-`EnsureCurrent`, ownership checks, and query-row-index lookup from Movement2,
-Movement4, and other multi-row workloads.
+The dense accessor/cursor uses the prepared packet for the row data while the
+public checked path remains available for foreign/default binding rejection.
+This removes the physical component-row lookup from Movement2, Movement4,
+and other multi-row workloads. Lifetime and ownership validation remain per
+`GetRow` until a separate trusted execution path is proven safe.
 
-Required proof:
+The implementation uses an `ArrayPool<Array>` scratch packet owned by the
+query/enumerator, so it does not allocate or return a packet per chunk. Tagged
+paths prepare rows only after the overlay mask accepts the chunk.
+
+Remaining proof:
 
 - foreign, default, and deliberately corrupted internal bindings still fail
   before the callback or through the checked compatibility path;
@@ -49,12 +55,23 @@ Required proof:
 In a separately measured internal experiment, take row references once per
 chunk with `MemoryMarshal.GetReference` and advance with `Unsafe.Add`. Keep the
 reverse traversal semantics and observable checksum unchanged. This is unsafe
-and must be limited to a trusted dense packet; do not expose raw pointers in
-the public API.
+internally and must be limited to a trusted dense packet; do not expose raw
+pointers or require unsafe code in the public API/user callback. A safe
+`Span<T>` reverse loop remains the compatibility path, but the JIT is not
+required to eliminate its index check.
 
 Required proof: JIT disassembly must show the bounds checks disappear, and a
 small Release microbenchmark must beat the normal span-indexed loop without
 changing the result.
+
+## Candidate 3: adjacent component loads and `ldp`
+
+The dense probe currently loads adjacent fields of a component with separate
+`ldr` instructions. Test whether a sufficiently visible row/element shape lets
+the AArch64 JIT combine those loads into `ldp` without changing the public
+binding API or introducing user-facing unsafe code. This is only an assembly
+experiment: do not add explicit assembly or assume that `ldp` is faster until
+the generated code and a narrow probe confirm it on the target CPU.
 
 ## Implemented: direct active chunk references
 
