@@ -160,12 +160,15 @@ public readonly struct QueryHandle
 
     public ReadRowBinding<T> Bind<T>(ComponentId componentId, ReadRowAccess _)
     {
-        return new ReadRowBinding<T>(CreateBinding<T>(componentId));
+        var binding = CreateBinding<T>(componentId);
+        _cached.RegisterBinding(binding);
+        return new ReadRowBinding<T>(binding);
     }
 
     public WriteRowBinding<T> Bind<T>(ComponentId componentId, WriteRowAccess _)
     {
         var binding = CreateBinding<T>(componentId);
+        _cached.RegisterBinding(binding);
         _cached.RegisterWriteBinding();
         return new WriteRowBinding<T>(binding);
     }

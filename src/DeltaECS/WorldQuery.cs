@@ -82,15 +82,9 @@ public sealed class DenseChunkScope : IDisposable
             QueryThrowHelper.ThrowDisposedScope();
         }
 
-        if (!binding.IsValid || !ReferenceEquals(binding.Query, _query))
+        if (!ReferenceEquals(binding.Query, _query))
         {
             QueryThrowHelper.ThrowBindingMismatch();
-        }
-
-        if (_queryComponentRowIndices is null
-            || (uint)binding.QueryComponentIndex >= (uint)_queryComponentRowIndices.Length)
-        {
-            QueryThrowHelper.ThrowStaleBinding();
         }
 
         return _queryComponentRowIndices![binding.QueryComponentIndex];
@@ -244,15 +238,9 @@ public ref struct DenseChunkAccessor
     private int ResolveBinding(RowBindingData binding)
     {
         EnsureCurrent();
-        if (!binding.IsValid || !ReferenceEquals(binding.Query, _query))
+        if (!ReferenceEquals(binding.Query, _query))
         {
             QueryThrowHelper.ThrowBindingMismatch();
-        }
-
-        if (_queryComponentRowIndices is null
-            || (uint)binding.QueryComponentIndex >= (uint)_queryComponentRowIndices.Length)
-        {
-            QueryThrowHelper.ThrowStaleBinding();
         }
 
         return _queryComponentRowIndices![binding.QueryComponentIndex];
@@ -310,6 +298,7 @@ internal sealed class CachedQuery
     private int _version = -1;
     private int[] _matchingArchetypes = Array.Empty<int>();
     private DenseArchetypePlan[] _matchingPlans = Array.Empty<DenseArchetypePlan>();
+    private List<RowBindingData>? _bindings;
     private bool _hasWriteBindings;
 
     public CachedQuery(QueryDescription description)
@@ -323,10 +312,36 @@ internal sealed class CachedQuery
 
     public bool HasWriteBindings => _hasWriteBindings;
 
+    public void RegisterBinding(RowBindingData binding)
+    {
+        (_bindings ??= new List<RowBindingData>(4)).Add(binding);
+    }
+
     public void RegisterWriteBinding() => _hasWriteBindings = true;
+
+    public void ValidateBindings()
+    {
+        if (_bindings is null)
+        {
+            return;
+        }
+
+        for (var i = 0; i < _bindings.Count; i++)
+        {
+            var binding = _bindings[i];
+            if (!ReferenceEquals(binding.Query, this)
+                || !binding.IsValid
+                || (uint)binding.QueryComponentIndex >= (uint)_description.AllMask.Count
+                || _description.AllMask.Rank(binding.ComponentId) != binding.QueryComponentIndex)
+            {
+                QueryThrowHelper.ThrowInvalidBindingRegistration();
+            }
+        }
+    }
 
     public int[] MatchingArchetypes(World world)
     {
+        ValidateBindings();
         if (_version == world.ArchetypeVersion)
         {
             return _matchingArchetypes;
@@ -403,8 +418,8 @@ internal static class QueryThrowHelper
     public static void ThrowBindingMismatch() => throw new InvalidOperationException("The row binding does not belong to this query or world.");
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public static void ThrowStaleBinding() => throw new InvalidOperationException("The row binding is stale for this query.");
+    public static void ThrowMissingWriteIntent() => throw new InvalidOperationException("The query did not register its write row binding.");
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public static void ThrowMissingWriteIntent() => throw new InvalidOperationException("The query did not register its write row binding.");
+    public static void ThrowInvalidBindingRegistration() => throw new InvalidOperationException("The query contains an invalid row binding registration.");
 }

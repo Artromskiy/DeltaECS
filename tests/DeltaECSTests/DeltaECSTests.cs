@@ -648,6 +648,24 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
+    public void QueryRowBindings_Are_Validated_At_Query_Start()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        var world = new World(layouts);
+        world.Create(new[] { PositionId });
+        var description = QueryDescription.ForComponents(PositionId);
+        var query = world.CreateQuery(in description);
+
+        query.Cached.RegisterBinding(new RowBindingData(query.Cached, PositionId, -1));
+
+        Assert.Throws<InvalidOperationException>(() => world.Query(in description, _ =>
+        {
+            Assert.Fail("Invalid binding registration must be rejected before the callback.");
+        }));
+    }
+
+    [Test]
     public void Invalid_TagId_Is_Rejected_By_World_And_Query_Contracts()
     {
         var layouts = new ComponentLayoutRegistry();
