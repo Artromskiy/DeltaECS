@@ -4,9 +4,14 @@ This file is the first source of candidate work for DeltaECS. Check it before
 proposing, assigning, or starting another task. Keep unfinished items here;
 move verified work to the completed section instead of silently deleting it.
 
-## Cross-world versioned subscriptions
+## Ideas
 
-- [ ] Add a versioned change-feed layer for one-way projection between
+Ideas are not active tasks and must not be started without an explicit decision
+and a measured workload demonstrating the need.
+
+### Cross-world versioned subscriptions
+
+- A versioned change-feed layer could support one-way projection between
   independent worlds. Each subscription owns its query, watched components,
   interested change kinds, and cursor. This is a coalesced latest-state feed,
   not an ordered event log: the world stores versioned `ChangeFlags` and does
@@ -14,16 +19,16 @@ move verified work to the completed section instead of silently deleting it.
   `Removed` may be set together when several operations happened between two
   consumptions; ordering and multiplicity are intentionally unspecified.
   Component writes may initially be tracked at chunk granularity.
-- [ ] Keep ownership unambiguous. The source world owns authoritative mutable
+- Keep ownership unambiguous. The source world owns authoritative mutable
   state; the target world stores a projection plus domain-local runtime state.
   For example, gameplay owns `Transform` and `Renderable`, while render owns
   `RenderTransform`, `GpuRegistration`, and visibility data. Render-only
   components never enter the gameplay registry.
-- [ ] Treat `ComponentId` as registry-local. A sync plan resolves stable
+- Treat `ComponentId` as registry-local. A sync plan resolves stable
   `SchemaId` values to source and target component IDs once; numeric component
   IDs are never assumed to match between worlds. Entity identity is translated
   through a generation-aware `WorldEntityMap`, never by matching entity indices.
-- [ ] Keep synchronization outside the ECS kernel. `World` exposes change
+- Keep synchronization outside the ECS kernel. `World` exposes change
   batches; a domain sync system creates/destroys target proxies and copies
   watched values. The target then uses ordinary dense queries without mapping
   overhead in its hot path.
@@ -61,7 +66,8 @@ renderSync.Apply(
 render.Query(renderQuery, ref frame, RenderVisibleMeshes);
 ```
 
-Initial implementation order: complete write-version marking (including
+If this idea is revisited, the possible implementation order is: complete
+write-version marking (including
 `SetComponent`), add chunk-level `SubscribeChanged<T>()`, add structural
 `Added`/`Removed` flags with version stamps, then build `WorldEntityMap` and the
 external gameplay-to-render projection. Removal keeps only enough latest

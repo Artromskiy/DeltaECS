@@ -14,6 +14,9 @@ internal sealed class Archetype
     private readonly List<Chunk> _chunks = new();
     private readonly List<int> _availableChunkStack = new();
     private bool[] _availableChunkFlags = Array.Empty<bool>();
+    private int[] _activeChunkIndices = Array.Empty<int>();
+    private int[] _activeChunkPositions = Array.Empty<int>();
+    private int _activeChunkCount;
 
     public Archetype(
         int id,
@@ -47,6 +50,8 @@ internal sealed class Archetype
     public int ComponentCount => _componentIds.Length;
 
     public int ChunkCount => _chunks.Count;
+
+    public int ActiveChunkCount => _activeChunkCount;
 
     public int EntityCount
     {
@@ -85,7 +90,13 @@ internal sealed class Archetype
         if (TryTakeAvailableChunk(out var availableIndex, out var available))
         {
             chunkIndex = availableIndex;
+            var wasEmpty = available.IsEmpty;
             slotIndex = available.Add(entity, out reusedSlot);
+            if (wasEmpty)
+            {
+                ActivateChunk(chunkIndex);
+            }
+
             if (!available.IsFull)
             {
                 PushAvailableChunk(chunkIndex);
@@ -97,7 +108,9 @@ internal sealed class Archetype
         chunkIndex = _chunks.Count;
         _chunks.Add(new Chunk(_chunkCapacity, _layouts, _rowOperations, chunkId));
         EnsureAvailableChunkCapacity(chunkIndex);
+        _activeChunkPositions[chunkIndex] = -1;
         slotIndex = _chunks[chunkIndex].Add(entity, out reusedSlot);
+        ActivateChunk(chunkIndex);
         if (!_chunks[chunkIndex].IsFull)
         {
             PushAvailableChunk(chunkIndex);
@@ -122,10 +135,17 @@ internal sealed class Archetype
             chunk = new Chunk(_chunkCapacity, _layouts, _rowOperations, chunkId);
             _chunks.Add(chunk);
             EnsureAvailableChunkCapacity(chunkIndex);
+            _activeChunkPositions[chunkIndex] = -1;
         }
 
+        var wasEmpty = chunk.IsEmpty;
         var reserved = Math.Min(count, chunk.Capacity - chunk.Count);
         chunk.ReserveRange(reserved);
+        if (wasEmpty && reserved > 0)
+        {
+            ActivateChunk(chunkIndex);
+        }
+
         if (!chunk.IsFull)
         {
             PushAvailableChunk(chunkIndex);
@@ -136,13 +156,24 @@ internal sealed class Archetype
 
     public Entity RemoveEntity(int chunkIndex, int slotIndex)
     {
-        var moved = _chunks[chunkIndex].RemoveSwapBack(slotIndex);
+        var chunk = _chunks[chunkIndex];
+        var moved = chunk.RemoveSwapBack(slotIndex);
+        if (chunk.IsEmpty)
+        {
+            DeactivateChunk(chunkIndex);
+        }
+
         PushAvailableChunk(chunkIndex);
         return moved;
     }
 
     public void ReleaseChunk(int chunkIndex)
     {
+        if (_chunks[chunkIndex].IsEmpty)
+        {
+            DeactivateChunk(chunkIndex);
+        }
+
         PushAvailableChunk(chunkIndex);
     }
 
@@ -181,8 +212,45 @@ internal sealed class Archetype
     {
         if (chunkIndex >= _availableChunkFlags.Length)
         {
-            Array.Resize(ref _availableChunkFlags, Math.Max(chunkIndex + 1, _availableChunkFlags.Length == 0 ? 4 : _availableChunkFlags.Length * 2));
+            var capacity = Math.Max(chunkIndex + 1, _availableChunkFlags.Length == 0 ? 4 : _availableChunkFlags.Length * 2);
+            Array.Resize(ref _availableChunkFlags, capacity);
+            Array.Resize(ref _activeChunkPositions, capacity);
         }
+    }
+
+    private void ActivateChunk(int chunkIndex)
+    {
+        if (_activeChunkPositions[chunkIndex] >= 0)
+        {
+            return;
+        }
+
+        if (_activeChunkCount == _activeChunkIndices.Length)
+        {
+            Array.Resize(ref _activeChunkIndices, Math.Max(4, _activeChunkIndices.Length * 2));
+        }
+
+        _activeChunkPositions[chunkIndex] = _activeChunkCount;
+        _activeChunkIndices[_activeChunkCount++] = chunkIndex;
+    }
+
+    private void DeactivateChunk(int chunkIndex)
+    {
+        var position = _activeChunkPositions[chunkIndex];
+        if (position < 0)
+        {
+            return;
+        }
+
+        var lastPosition = --_activeChunkCount;
+        var movedChunkIndex = _activeChunkIndices[lastPosition];
+        if (position != lastPosition)
+        {
+            _activeChunkIndices[position] = movedChunkIndex;
+            _activeChunkPositions[movedChunkIndex] = position;
+        }
+
+        _activeChunkPositions[chunkIndex] = -1;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -190,4 +258,7 @@ internal sealed class Archetype
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Chunk GetChunk(int chunkIndex) => _chunks[chunkIndex];
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public int GetActiveChunkIndex(int activeIndex) => _activeChunkIndices[activeIndex];
 }
