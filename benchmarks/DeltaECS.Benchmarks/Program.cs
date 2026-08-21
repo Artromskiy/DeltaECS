@@ -1,5 +1,7 @@
 using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using Arch.Core;
 using Arch.Core.Utils;
 using BenchmarkDotNet.Attributes;
@@ -566,10 +568,36 @@ public static class Program
     private static void RunComparative(string route, string[] args)
     {
         var reportPath = ExtractOption(args, "--combined-report", out var benchmarkArgs);
-        BenchmarkSwitcher.FromTypes(ComparativeBenchmarkCatalog.ForRoute(route)).Run(benchmarkArgs);
+        RunTimed($"comparative/{route}", () =>
+        {
+            BenchmarkSwitcher.FromTypes(ComparativeBenchmarkCatalog.ForRoute(route)).Run(benchmarkArgs);
+        });
         if (reportPath is not null)
         {
             ComparativeReportBuilder.WriteManifest(reportPath);
+        }
+    }
+
+    private static void RunTimed(string name, Action benchmarkRun)
+    {
+        var startedAt = DateTimeOffset.Now;
+        var stopwatch = Stopwatch.StartNew();
+        Console.WriteLine($"[{startedAt:yyyy-MM-dd HH:mm:ss zzz}] Benchmark started: {name}");
+
+        using var heartbeat = new Timer(
+            _ => Console.WriteLine($"[{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}] Benchmark still running: {name}, elapsed {stopwatch.Elapsed:hh\\:mm\\:ss}"),
+            null,
+            TimeSpan.FromSeconds(30),
+            TimeSpan.FromSeconds(30));
+
+        try
+        {
+            benchmarkRun();
+        }
+        finally
+        {
+            stopwatch.Stop();
+            Console.WriteLine($"[{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}] Benchmark finished: {name}, elapsed {stopwatch.Elapsed:hh\\:mm\\:ss}");
         }
     }
 
@@ -631,7 +659,10 @@ public static class Program
         {
             var benchmarkArgs = new string[args.Length - 1];
             Array.Copy(args, 1, benchmarkArgs, 0, benchmarkArgs.Length);
-            BenchmarkSwitcher.FromTypes(new[] { typeof(DistinctDenseComparisonBenchmarks) }).Run(benchmarkArgs);
+            RunTimed("distinct", () =>
+            {
+                BenchmarkSwitcher.FromTypes(new[] { typeof(DistinctDenseComparisonBenchmarks) }).Run(benchmarkArgs);
+            });
             return;
         }
 
@@ -639,7 +670,10 @@ public static class Program
         {
             var benchmarkArgs = new string[args.Length - 1];
             Array.Copy(args, 1, benchmarkArgs, 0, benchmarkArgs.Length);
-            BenchmarkSwitcher.FromTypes(new[] { typeof(DenseCapacitySweepBenchmarks) }).Run(benchmarkArgs);
+            RunTimed("capacity", () =>
+            {
+                BenchmarkSwitcher.FromTypes(new[] { typeof(DenseCapacitySweepBenchmarks) }).Run(benchmarkArgs);
+            });
             return;
         }
 
@@ -647,7 +681,10 @@ public static class Program
         {
             var benchmarkArgs = new string[args.Length - 1];
             Array.Copy(args, 1, benchmarkArgs, 0, benchmarkArgs.Length);
-            BenchmarkSwitcher.FromTypes(new[] { typeof(DefaultEcsComparisonBenchmarks) }).Run(benchmarkArgs);
+            RunTimed("default-ecs", () =>
+            {
+                BenchmarkSwitcher.FromTypes(new[] { typeof(DefaultEcsComparisonBenchmarks) }).Run(benchmarkArgs);
+            });
             return;
         }
 
@@ -655,7 +692,10 @@ public static class Program
         {
             var benchmarkArgs = new string[args.Length - 1];
             Array.Copy(args, 1, benchmarkArgs, 0, benchmarkArgs.Length);
-            BenchmarkSwitcher.FromTypes(new[] { typeof(EcsLiteComparisonBenchmarks) }).Run(benchmarkArgs);
+            RunTimed("ecs-lite", () =>
+            {
+                BenchmarkSwitcher.FromTypes(new[] { typeof(EcsLiteComparisonBenchmarks) }).Run(benchmarkArgs);
+            });
             return;
         }
 
@@ -663,7 +703,10 @@ public static class Program
         {
             var benchmarkArgs = new string[args.Length - 1];
             Array.Copy(args, 1, benchmarkArgs, 0, benchmarkArgs.Length);
-            BenchmarkSwitcher.FromTypes(new[] { typeof(SmallDenseScenarioBenchmarks) }).Run(benchmarkArgs);
+            RunTimed("scenario-small", () =>
+            {
+                BenchmarkSwitcher.FromTypes(new[] { typeof(SmallDenseScenarioBenchmarks) }).Run(benchmarkArgs);
+            });
             return;
         }
 
@@ -671,7 +714,10 @@ public static class Program
         {
             var benchmarkArgs = new string[args.Length - 1];
             Array.Copy(args, 1, benchmarkArgs, 0, benchmarkArgs.Length);
-            BenchmarkSwitcher.FromTypes(new[] { typeof(WideArchetypeNarrowAccessBenchmarks) }).Run(benchmarkArgs);
+            RunTimed("scenario-wide", () =>
+            {
+                BenchmarkSwitcher.FromTypes(new[] { typeof(WideArchetypeNarrowAccessBenchmarks) }).Run(benchmarkArgs);
+            });
             return;
         }
 
@@ -679,7 +725,10 @@ public static class Program
         {
             var benchmarkArgs = new string[args.Length - 1];
             Array.Copy(args, 1, benchmarkArgs, 0, benchmarkArgs.Length);
-            BenchmarkSwitcher.FromTypes(new[] { typeof(WideArchetypeNarrowAccessComparisonBenchmarks) }).Run(benchmarkArgs);
+            RunTimed("scenario-wide-comparison", () =>
+            {
+                BenchmarkSwitcher.FromTypes(new[] { typeof(WideArchetypeNarrowAccessComparisonBenchmarks) }).Run(benchmarkArgs);
+            });
             return;
         }
 
@@ -687,7 +736,10 @@ public static class Program
         {
             var benchmarkArgs = new string[args.Length - 1];
             Array.Copy(args, 1, benchmarkArgs, 0, benchmarkArgs.Length);
-            BenchmarkSwitcher.FromTypes(new[] { typeof(DeltaOnlyFragmentedQueryBenchmarks) }).Run(benchmarkArgs);
+            RunTimed("scenario-fragmented", () =>
+            {
+                BenchmarkSwitcher.FromTypes(new[] { typeof(DeltaOnlyFragmentedQueryBenchmarks) }).Run(benchmarkArgs);
+            });
             return;
         }
 
@@ -695,17 +747,26 @@ public static class Program
         {
             var benchmarkArgs = new string[args.Length - 1];
             Array.Copy(args, 1, benchmarkArgs, 0, benchmarkArgs.Length);
-            BenchmarkSwitcher.FromTypes(new[] { typeof(SparseHeterogeneousQueryBenchmarks) }).Run(benchmarkArgs);
+            RunTimed("scenario-sparse", () =>
+            {
+                BenchmarkSwitcher.FromTypes(new[] { typeof(SparseHeterogeneousQueryBenchmarks) }).Run(benchmarkArgs);
+            });
             return;
         }
 
         if (args.Length > 0)
         {
-            BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
+            RunTimed("assembly", () =>
+            {
+                BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
+            });
         }
         else
         {
-            BenchmarkRunner.Run<DeltaEcsVsArchBenchmarks>();
+            RunTimed("default", () =>
+            {
+                BenchmarkRunner.Run<DeltaEcsVsArchBenchmarks>();
+            });
         }
     }
 }

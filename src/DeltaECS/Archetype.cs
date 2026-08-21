@@ -15,6 +15,7 @@ internal sealed class Archetype
     private readonly List<int> _availableChunkStack = new();
     private bool[] _availableChunkFlags = Array.Empty<bool>();
     private int[] _activeChunkIndices = Array.Empty<int>();
+    private Chunk[] _activeChunks = Array.Empty<Chunk>();
     private int[] _activeChunkPositions = Array.Empty<int>();
     private int _activeChunkCount;
 
@@ -227,11 +228,14 @@ internal sealed class Archetype
 
         if (_activeChunkCount == _activeChunkIndices.Length)
         {
-            Array.Resize(ref _activeChunkIndices, Math.Max(4, _activeChunkIndices.Length * 2));
+            var capacity = Math.Max(4, _activeChunkIndices.Length * 2);
+            Array.Resize(ref _activeChunkIndices, capacity);
+            Array.Resize(ref _activeChunks, capacity);
         }
 
         _activeChunkPositions[chunkIndex] = _activeChunkCount;
-        _activeChunkIndices[_activeChunkCount++] = chunkIndex;
+        _activeChunkIndices[_activeChunkCount] = chunkIndex;
+        _activeChunks[_activeChunkCount++] = _chunks[chunkIndex];
     }
 
     private void DeactivateChunk(int chunkIndex)
@@ -247,9 +251,12 @@ internal sealed class Archetype
         if (position != lastPosition)
         {
             _activeChunkIndices[position] = movedChunkIndex;
+            _activeChunks[position] = _activeChunks[lastPosition];
             _activeChunkPositions[movedChunkIndex] = position;
         }
 
+        _activeChunkIndices[lastPosition] = -1;
+        _activeChunks[lastPosition] = null!;
         _activeChunkPositions[chunkIndex] = -1;
     }
 
@@ -260,5 +267,5 @@ internal sealed class Archetype
     public Chunk GetChunk(int chunkIndex) => _chunks[chunkIndex];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public int GetActiveChunkIndex(int activeIndex) => _activeChunkIndices[activeIndex];
+    public Chunk GetActiveChunk(int activeIndex) => _activeChunks[activeIndex];
 }

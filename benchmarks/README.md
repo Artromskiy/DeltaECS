@@ -104,6 +104,12 @@ dotnet run --project benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj \
   -c Release --no-build --no-restore -- contract-smoke
 ```
 
+Every measured route prints a local timestamp when the runner starts, emits a
+heartbeat every 30 seconds while BenchmarkDotNet is running, and prints the
+total elapsed time when the route finishes. The heartbeat belongs to the parent
+runner and does not execute inside the measured benchmark process, so it does
+not affect the measurements.
+
 When a microbenchmark project is added, it must expose `--list flat` for
 discovery and a narrow `--filter` path. Store raw BenchmarkDotNet and JIT output
 under an ignored `artifacts/` directory; commit only compact, reproducible

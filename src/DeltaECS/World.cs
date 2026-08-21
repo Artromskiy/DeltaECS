@@ -413,8 +413,7 @@ public sealed class World
             var rowIndices = plans[i].ComponentRows;
             for (var activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
             {
-                var chunkIndex = archetype.GetActiveChunkIndex(activeChunkIndex);
-                var chunk = archetype.GetChunk(chunkIndex);
+                var chunk = archetype.GetActiveChunk(activeChunkIndex);
 
                 _activeChunkLeases++;
                 using var scope = new DenseChunkScope(this, cached, archetype, chunk, chunk.GlobalId, rowIndices, null, OverlayMaskResult.Full, writeTick);
@@ -437,8 +436,7 @@ public sealed class World
             var rowIndices = plans[i].ComponentRows;
             for (var activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
             {
-                var chunkIndex = archetype.GetActiveChunkIndex(activeChunkIndex);
-                var chunk = archetype.GetChunk(chunkIndex);
+                var chunk = archetype.GetActiveChunk(activeChunkIndex);
 
                 var overlayResult = _overlayTags.BuildMask(query, chunk.GlobalId, chunk.Count, scratch);
                 if (overlayResult == OverlayMaskResult.None)
@@ -509,8 +507,7 @@ public sealed class World
             var rowIndices = plans[i].ComponentRows;
             for (var activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
             {
-                var chunkIndex = archetype.GetActiveChunkIndex(activeChunkIndex);
-                var chunk = archetype.GetChunk(chunkIndex);
+                var chunk = archetype.GetActiveChunk(activeChunkIndex);
 
                 var accessor = new DenseChunkAccessor(this, cached, archetype, chunk, chunk.GlobalId, rowIndices, null, OverlayMaskResult.Full, RentChunkAccessor(), writeTick);
                 try
@@ -540,8 +537,7 @@ public sealed class World
             var rowIndices = plans[i].ComponentRows;
             for (var activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
             {
-                var chunkIndex = archetype.GetActiveChunkIndex(activeChunkIndex);
-                var chunk = archetype.GetChunk(chunkIndex);
+                var chunk = archetype.GetActiveChunk(activeChunkIndex);
 
                 var chunkId = chunk.GlobalId;
                 var overlayResult = _overlayTags.BuildMask(query, chunkId, chunk.Count, scratch);
@@ -651,8 +647,7 @@ public sealed class World
                 var rowIndices = _plans[_archetypePosition].ComponentRows;
                 while (_chunkPosition < archetype.ActiveChunkCount)
                 {
-                    var chunkIndex = archetype.GetActiveChunkIndex(_chunkPosition++);
-                    var chunk = archetype.GetChunk(chunkIndex);
+                    var chunk = archetype.GetActiveChunk(_chunkPosition++);
 
                     _current = new DenseChunkAccessor(_owner, _cached, archetype, chunk, chunk.GlobalId, rowIndices, null, OverlayMaskResult.Full, _owner.RentChunkAccessor(), _writeTick);
                     _hasCurrent = true;
@@ -676,8 +671,7 @@ public sealed class World
                 var rowIndices = _plans[_archetypePosition].ComponentRows;
                 while (_chunkPosition < archetype.ActiveChunkCount)
                 {
-                    var chunkIndex = archetype.GetActiveChunkIndex(_chunkPosition++);
-                    var chunk = archetype.GetChunk(chunkIndex);
+                    var chunk = archetype.GetActiveChunk(_chunkPosition++);
 
                     var chunkId = chunk.GlobalId;
                     var overlayResult = _owner._overlayTags.BuildMask(_query, chunkId, chunk.Count, scratch);
@@ -1046,8 +1040,7 @@ public sealed class World
                 var archetype = _archetypes[matchingArchetypes[matchingIndex]];
                 for (var activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
                 {
-                    var chunkIndex = archetype.GetActiveChunkIndex(activeChunkIndex);
-                    var chunk = archetype.GetChunk(chunkIndex);
+                    var chunk = archetype.GetActiveChunk(activeChunkIndex);
 
                     var result = _overlayTags.BuildMask(query, chunk.GlobalId, chunk.Count, scratch);
                     if (result == OverlayMaskResult.None)
