@@ -25,15 +25,15 @@ public class EcsLiteComparisonBenchmarks
     private ComponentId _deltaVelocity;
     private ComponentId[] _deltaMovementPayload = [];
     private Entity[] _deltaMovementEntities = [];
-    private WriteRowBinding<DeltaPosition> _deltaMovementPositionBinding;
-    private ReadRowBinding<DeltaVelocity> _deltaMovementVelocityBinding;
+    private CursorWriteBinding<DeltaPosition> _deltaMovementPositionBinding;
+    private CursorReadBinding<DeltaVelocity> _deltaMovementVelocityBinding;
 
     private World _deltaFilterWorld = null!;
     private QueryHandle _deltaFilterQuery;
     private ComponentId[] _deltaFilterPayload = [];
     private Entity[] _deltaFilterEntities = [];
-    private ReadRowBinding<DeltaFilterPosition> _deltaFilterPositionBinding;
-    private ReadRowBinding<DeltaFilterVelocity> _deltaFilterVelocityBinding;
+    private CursorReadBinding<DeltaFilterPosition> _deltaFilterPositionBinding;
+    private CursorReadBinding<DeltaFilterVelocity> _deltaFilterVelocityBinding;
 
     private World _deltaCreateDestroyWorld = null!;
     private Entity[] _deltaCreateDestroyEntities = [];
@@ -98,19 +98,18 @@ public class EcsLiteComparisonBenchmarks
     public double DeltaECS_DenseMovement()
     {
         var state = new MovementState();
-        using var chunks = _deltaMovementWorld.QueryChunks(in _deltaMovementQuery);
+        using var chunks = _deltaMovementWorld.QueryCursorChunks(in _deltaMovementQuery);
         while (chunks.MoveNext())
         {
-            var lease = chunks.Current;
-            var positions = lease.GetRow(_deltaMovementPositionBinding);
-            var velocities = lease.GetRow(_deltaMovementVelocityBinding);
-            var slotCount = lease.SlotCount;
-            for (var i = slotCount - 1; i >= 0; i--)
+            var cursor = chunks.Current;
+            var positions = cursor.Resolve(_deltaMovementPositionBinding);
+            var velocities = cursor.Resolve(_deltaMovementVelocityBinding);
+            while (cursor.MoveNext())
             {
-                positions[i].X += velocities[i].X * Dt;
-                positions[i].Y += velocities[i].Y * Dt;
+                positions[cursor].X += velocities[cursor].X * Dt;
+                positions[cursor].Y += velocities[cursor].Y * Dt;
                 state.Count++;
-                state.Checksum += positions[i].X + positions[i].Y;
+                state.Checksum += positions[cursor].X + positions[cursor].Y;
             }
         }
 
@@ -142,17 +141,16 @@ public class EcsLiteComparisonBenchmarks
     public int DeltaECS_CachedQueryIteration()
     {
         var state = new QueryState();
-        using var chunks = _deltaFilterWorld.QueryChunks(in _deltaFilterQuery);
+        using var chunks = _deltaFilterWorld.QueryCursorChunks(in _deltaFilterQuery);
         while (chunks.MoveNext())
         {
-            var lease = chunks.Current;
-            var positions = lease.GetRow(_deltaFilterPositionBinding);
-            var velocities = lease.GetRow(_deltaFilterVelocityBinding);
-            var slotCount = lease.SlotCount;
-            for (var i = slotCount - 1; i >= 0; i--)
+            var cursor = chunks.Current;
+            var positions = cursor.Resolve(_deltaFilterPositionBinding);
+            var velocities = cursor.Resolve(_deltaFilterVelocityBinding);
+            while (cursor.MoveNext())
             {
                 state.Count++;
-                state.Checksum += positions[i].X + velocities[i].Y;
+                state.Checksum += positions[cursor].X + velocities[cursor].Y;
             }
         }
 
@@ -324,8 +322,8 @@ public class EcsLiteComparisonBenchmarks
 
         var queryDescription = QueryDescription.ForComponents(components);
         _deltaMovementQuery = _deltaMovementWorld.CreateQuery(in queryDescription);
-        _deltaMovementPositionBinding = _deltaMovementQuery.Bind<DeltaPosition>(_deltaPosition, RowAccess.Write);
-        _deltaMovementVelocityBinding = _deltaMovementQuery.Bind<DeltaVelocity>(_deltaVelocity, RowAccess.Read);
+        _deltaMovementPositionBinding = _deltaMovementQuery.CursorBind<DeltaPosition>(_deltaPosition, RowAccess.Write);
+        _deltaMovementVelocityBinding = _deltaMovementQuery.CursorBind<DeltaVelocity>(_deltaVelocity, RowAccess.Read);
     }
 
     private void BuildDeltaFilterWorld()
@@ -339,8 +337,8 @@ public class EcsLiteComparisonBenchmarks
         _deltaFilterWorld = new World(layouts, initialEntityCapacity: Amount);
         var queryDescription = QueryDescription.ForComponents(components);
         _deltaFilterQuery = _deltaFilterWorld.CreateQuery(in queryDescription);
-        _deltaFilterPositionBinding = _deltaFilterQuery.Bind<DeltaFilterPosition>(position, RowAccess.Read);
-        _deltaFilterVelocityBinding = _deltaFilterQuery.Bind<DeltaFilterVelocity>(velocity, RowAccess.Read);
+        _deltaFilterPositionBinding = _deltaFilterQuery.CursorBind<DeltaFilterPosition>(position, RowAccess.Read);
+        _deltaFilterVelocityBinding = _deltaFilterQuery.CursorBind<DeltaFilterVelocity>(velocity, RowAccess.Read);
         _deltaFilterWorld.CreateBatch(components, _deltaFilterEntities);
 
         for (var entityIndex = 0; entityIndex < _deltaFilterEntities.Length; entityIndex++)

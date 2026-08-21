@@ -131,8 +131,9 @@ public sealed class QueryStructuralOperationsTests
         Assert.Throws<ArgumentException>(() => world.AddComponents(in invalid, new[] { VelocityId }));
         Assert.Throws<ArgumentException>(() => world.RemoveComponents(in foreignQuery, new[] { VelocityId }));
         Assert.Throws<ArgumentException>(() => world.Destroy(in foreignQuery));
-        Assert.Throws<InvalidOperationException>(() => world.Query(QueryDescription.ForComponents(PositionId), _ =>
-            world.AddComponents(in query, new[] { VelocityId })));
+        var activeLeaseState = 0;
+        Assert.Throws<InvalidOperationException>(() => world.QueryCursor(in query, ref activeLeaseState,
+            (ref int _, ref DenseChunkCursor _) => world.AddComponents(in query, new[] { VelocityId })));
         Assert.That(world.IsAlive(entity), Is.True);
     }
 
@@ -187,41 +188,62 @@ public sealed class QueryStructuralOperationsTests
         world.CreateBatch(new[] { PositionId }, entities);
         var description = QueryDescription.ForComponents(PositionId);
         var query = world.CreateQuery(in description);
-        var readPosition = query.Bind<Position>(PositionId, RowAccess.Read);
-        var writePosition = query.Bind<Position>(PositionId, RowAccess.Write);
+        var readPosition = query.CursorBind<Position>(PositionId, RowAccess.Read);
+        var writePosition = query.CursorBind<Position>(PositionId, RowAccess.Write);
 
         Assert.That(world.AddComponents(in query, new[] { VelocityId }), Is.EqualTo(entities.Length));
 
         var readChunkId = -1;
         var readBefore = world.WorldTick;
-        world.Query(in description, scope =>
+        var readState = new ChangeTrackingCursorState(readPosition);
+        world.QueryCursor(in query, ref readState, static (ref ChangeTrackingCursorState state, ref DenseChunkCursor cursor) =>
         {
-            if (scope.SlotCount == 0)
+            if (cursor.SlotCount == 0)
             {
                 return;
             }
 
-            readChunkId = scope.GlobalChunkId;
-            _ = scope.GetRow(readPosition);
+            state.ChunkId = cursor.GlobalChunkId;
+            _ = cursor.Resolve(state.ReadBinding);
         });
+        readChunkId = readState.ChunkId;
 
         Assert.That(readChunkId, Is.GreaterThanOrEqualTo(0));
         Assert.That(world.HasChangedSince(readChunkId, PositionId, readBefore), Is.False);
 
         var writeChunkId = -1;
-        world.Query(in description, scope =>
+        var writeState = new ChangeTrackingCursorState(writePosition);
+        world.QueryCursor(in query, ref writeState, static (ref ChangeTrackingCursorState state, ref DenseChunkCursor cursor) =>
         {
-            if (scope.SlotCount == 0)
+            if (cursor.SlotCount == 0)
             {
                 return;
             }
 
-            writeChunkId = scope.GlobalChunkId;
-            _ = scope.GetRow(writePosition);
+            state.ChunkId = cursor.GlobalChunkId;
+            _ = cursor.Resolve(state.WriteBinding);
         });
+        writeChunkId = writeState.ChunkId;
 
         Assert.That(writeChunkId, Is.EqualTo(readChunkId));
         Assert.That(world.HasChangedSince(writeChunkId, PositionId, readBefore), Is.True);
+    }
+
+    private sealed class ChangeTrackingCursorState
+    {
+        public ChangeTrackingCursorState(CursorReadBinding<Position> binding)
+        {
+            ReadBinding = binding;
+        }
+
+        public ChangeTrackingCursorState(CursorWriteBinding<Position> binding)
+        {
+            WriteBinding = binding;
+        }
+
+        public CursorReadBinding<Position> ReadBinding { get; }
+        public CursorWriteBinding<Position> WriteBinding { get; }
+        public int ChunkId { get; set; } = -1;
     }
 
     [Test]

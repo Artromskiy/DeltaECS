@@ -505,14 +505,11 @@ public sealed class World
             throw new ArgumentException("Query handle does not belong to this world.", nameof(handle));
         }
 
+        var query = handle.Description;
         var cached = handle.Cached;
-        if (cached.HasTags)
-        {
-            throw new NotSupportedException("Version 1 QueryCursor supports dense queries without tag predicates.");
-        }
-
         var plans = cached.MatchingPlans(this);
         var writeTick = QueryWriteTick(cached);
+        ulong[]? scratch = cached.HasTags ? RentChunkOverlayScratch() : null;
         _activeChunkLeases++;
         try
         {
@@ -522,7 +519,16 @@ public sealed class World
                 var archetype = plan.Archetype;
                 for (var chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
                 {
-                    var cursor = new DenseChunkCursor(cached, archetype.GetActiveChunk(chunkIndex), plan.ComponentRows, writeTick);
+                    var chunk = archetype.GetActiveChunk(chunkIndex);
+                    var overlayResult = cached.HasTags
+                        ? _overlayTags.BuildMask(query, chunk.GlobalId, chunk.Count, scratch!)
+                        : OverlayMaskResult.Full;
+                    if (overlayResult == OverlayMaskResult.None)
+                    {
+                        continue;
+                    }
+
+                    var cursor = new DenseChunkCursor(cached, archetype.Id, chunk, plan.ComponentRows, writeTick, scratch, overlayResult);
                     action(ref context, ref cursor);
                 }
             }
@@ -531,6 +537,10 @@ public sealed class World
         {
             _activeChunkLeases--;
             InvalidateChunkAccessors();
+            if (scratch is not null)
+            {
+                ReturnChunkOverlayScratch(scratch);
+            }
         }
     }
 
@@ -607,6 +617,17 @@ public sealed class World
         }
 
         return new CachedChunkEnumerator(this, handle.Cached, handle.Description, QueryWriteTick(handle.Cached));
+    }
+
+    /// <summary>Enumerates query chunks through the cursor API. Dispose the enumerator when finished.</summary>
+    public CursorChunkEnumerator QueryCursorChunks(in QueryHandle handle)
+    {
+        if (!ReferenceEquals(handle.Owner, this) || !handle.IsValid)
+        {
+            throw new ArgumentException("Query handle does not belong to this world.", nameof(handle));
+        }
+
+        return new CursorChunkEnumerator(this, handle.Cached, handle.Description, QueryWriteTick(handle.Cached));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -754,6 +775,105 @@ public sealed class World
             }
             _owner.InvalidateChunkAccessors();
             _disposed = true;
+        }
+    }
+
+    public ref struct CursorChunkEnumerator
+    {
+        private readonly World _owner;
+        private readonly QueryDescription _query;
+        private readonly CachedQuery _cached;
+        private readonly DenseArchetypePlan[] _plans;
+        private readonly bool _hasTags;
+        private ulong[]? _overlayScratch;
+        private readonly uint _writeTick;
+        private int _archetypePosition;
+        private int _chunkPosition;
+        private DenseChunkCursor _current;
+        private bool _hasCurrent;
+        private bool _disposed;
+
+        internal CursorChunkEnumerator(World owner, CachedQuery cached, QueryDescription query, uint writeTick)
+        {
+            _owner = owner;
+            _query = query;
+            _cached = cached;
+            _plans = cached.MatchingPlans(owner);
+            _hasTags = cached.HasTags;
+            _overlayScratch = _hasTags ? owner.RentChunkOverlayScratch() : null;
+            _writeTick = writeTick;
+            _archetypePosition = 0;
+            _chunkPosition = 0;
+            _current = default;
+            _hasCurrent = false;
+            _disposed = false;
+            _owner._activeChunkLeases++;
+        }
+
+        public DenseChunkCursor Current
+        {
+            get
+            {
+                if (!_hasCurrent || _disposed)
+                {
+                    throw new InvalidOperationException("The cursor chunk enumerator is not positioned on a chunk.");
+                }
+
+                return _current;
+            }
+        }
+
+        public bool MoveNext()
+        {
+            if (_disposed)
+            {
+                return false;
+            }
+
+            while (_archetypePosition < _plans.Length)
+            {
+                var plan = _plans[_archetypePosition];
+                var archetype = plan.Archetype;
+                while (_chunkPosition < archetype.ActiveChunkCount)
+                {
+                    var chunk = archetype.GetActiveChunk(_chunkPosition++);
+                    var overlayResult = _hasTags
+                        ? _owner._overlayTags.BuildMask(_query, chunk.GlobalId, chunk.Count, _overlayScratch!)
+                        : OverlayMaskResult.Full;
+                    if (overlayResult == OverlayMaskResult.None)
+                    {
+                        continue;
+                    }
+
+                    _current = new DenseChunkCursor(_cached, archetype.Id, chunk, plan.ComponentRows, _writeTick, _overlayScratch, overlayResult);
+                    _hasCurrent = true;
+                    return true;
+                }
+
+                _archetypePosition++;
+                _chunkPosition = 0;
+            }
+
+            Dispose();
+            return false;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            _hasCurrent = false;
+            _owner._activeChunkLeases--;
+            _owner.InvalidateChunkAccessors();
+            if (_overlayScratch is not null)
+            {
+                _owner.ReturnChunkOverlayScratch(_overlayScratch);
+                _overlayScratch = null;
+            }
         }
     }
 

@@ -32,8 +32,8 @@ public class DeltaEcsTagFilteringBenchmarks
     private World _world = null!;
     private QueryHandle _query;
     private ComponentId _valueComponent;
-    private WriteRowBinding<TagFilterValue> _writeBinding;
-    private ReadRowBinding<TagFilterValue> _readBinding;
+    private CursorWriteBinding<TagFilterValue> _writeBinding;
+    private CursorReadBinding<TagFilterValue> _readBinding;
     private TagId _tag;
     private int _expectedTaggedCount;
 
@@ -68,8 +68,8 @@ public class DeltaEcsTagFilteringBenchmarks
             Array.Empty<TagId>(),
             Array.Empty<TagId>());
         _query = _world.CreateQuery(in description);
-        _writeBinding = _query.Bind<TagFilterValue>(_valueComponent, RowAccess.Write);
-        _readBinding = _query.Bind<TagFilterValue>(_valueComponent, RowAccess.Read);
+        _writeBinding = _query.CursorBind<TagFilterValue>(_valueComponent, RowAccess.Write);
+        _readBinding = _query.CursorBind<TagFilterValue>(_valueComponent, RowAccess.Read);
     }
 
     /// <summary>Mask/query path plus a useful component update.</summary>
@@ -77,8 +77,8 @@ public class DeltaEcsTagFilteringBenchmarks
     public int Delta_TagQueryAndIteration()
     {
         var state = new TagFilterState { UpdateValues = true, WriteValue = _writeBinding, ReadValue = _readBinding };
-        _world.Query(in _query, ref state, static (ref TagFilterState s, ref DenseChunkAccessor lease)
-            => IterateTagged(ref s, ref lease));
+        _world.QueryCursor(in _query, ref state, static (ref TagFilterState s, ref DenseChunkCursor cursor)
+            => IterateTagged(ref s, ref cursor));
         return TagFilterGuard.CountAndChecksum(state, _expectedTaggedCount);
     }
 
@@ -87,43 +87,32 @@ public class DeltaEcsTagFilteringBenchmarks
     public int Delta_TagQueryMaskOnly()
     {
         var state = new TagFilterState { ReadValue = _readBinding };
-        _world.Query(in _query, ref state, static (ref TagFilterState s, ref DenseChunkAccessor lease)
-            => IterateTagged(ref s, ref lease));
+        _world.QueryCursor(in _query, ref state, static (ref TagFilterState s, ref DenseChunkCursor cursor)
+            => IterateTagged(ref s, ref cursor));
         return TagFilterGuard.CountAndChecksum(state, _expectedTaggedCount);
     }
 
-    private static void IterateTagged(ref TagFilterState state, ref DenseChunkAccessor lease)
+    private static void IterateTagged(ref TagFilterState state, ref DenseChunkCursor lease)
     {
-        var allSlotsActive = lease.IsAllSlotsActive;
-        if (allSlotsActive)
+        if (state.UpdateValues)
         {
-            for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
+            var values = lease.Resolve(state.WriteValue);
+            while (lease.MoveNext())
             {
+                if (!lease.IsActiveSlot(lease.CurrentIndex)) continue;
                 state.TaggedCount++;
-                if (state.UpdateValues)
-                {
-                    var values = lease.GetRow(state.WriteValue);
-                    values[slotIndex].X += values[slotIndex].Y * 0.5f;
-                    state.Checksum += values[slotIndex].X;
-                }
+                values[lease].X += values[lease].Y * 0.5f;
+                state.Checksum += values[lease].X;
             }
         }
         else
         {
-            for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
+            var values = lease.Resolve(state.ReadValue);
+            while (lease.MoveNext())
             {
-                if (!lease.IsActiveSlot(slotIndex))
-                {
-                    continue;
-                }
-
+                if (!lease.IsActiveSlot(lease.CurrentIndex)) continue;
                 state.TaggedCount++;
-                if (state.UpdateValues)
-                {
-                    var values = lease.GetRow(state.WriteValue);
-                    values[slotIndex].X += values[slotIndex].Y * 0.5f;
-                    state.Checksum += values[slotIndex].X;
-                }
+                state.Checksum += values[lease].X;
             }
         }
     }
@@ -172,8 +161,8 @@ public class DeltaEcsTagFilteringBenchmarks
         public bool UpdateValues;
         public int TaggedCount;
         public double Checksum;
-        public WriteRowBinding<TagFilterValue> WriteValue;
-        public ReadRowBinding<TagFilterValue> ReadValue;
+        public CursorWriteBinding<TagFilterValue> WriteValue;
+        public CursorReadBinding<TagFilterValue> ReadValue;
     }
 }
 

@@ -14,8 +14,8 @@ public class DenseCapacitySweepBenchmarks
     private World _arrayWorld = null!;
     private QueryHandle _query;
     private ComponentId[] _components = Array.Empty<ComponentId>();
-    private WriteRowBinding<S0> _b0; private WriteRowBinding<S1> _b1; private WriteRowBinding<S2> _b2; private WriteRowBinding<S3> _b3;
-    private WriteRowBinding<S4> _b4; private WriteRowBinding<S5> _b5; private WriteRowBinding<S6> _b6; private WriteRowBinding<S7> _b7;
+    private CursorWriteBinding<S0> _b0; private CursorWriteBinding<S1> _b1; private CursorWriteBinding<S2> _b2; private CursorWriteBinding<S3> _b3;
+    private CursorWriteBinding<S4> _b4; private CursorWriteBinding<S5> _b5; private CursorWriteBinding<S6> _b6; private CursorWriteBinding<S7> _b7;
     private LegacyByteDenseReference _legacy = null!;
 
     private struct S0 { public float X; public float Y; }
@@ -56,28 +56,28 @@ public class DenseCapacitySweepBenchmarks
 
         var description = QueryDescription.ForComponents(_components);
         _query = _arrayWorld.CreateQuery(in description);
-        _b0 = _query.Bind<S0>(_components[0], RowAccess.Write); _b1 = _query.Bind<S1>(_components[1], RowAccess.Write);
-        _b2 = _query.Bind<S2>(_components[2], RowAccess.Write); _b3 = _query.Bind<S3>(_components[3], RowAccess.Write);
-        _b4 = _query.Bind<S4>(_components[4], RowAccess.Write); _b5 = _query.Bind<S5>(_components[5], RowAccess.Write);
-        _b6 = _query.Bind<S6>(_components[6], RowAccess.Write); _b7 = _query.Bind<S7>(_components[7], RowAccess.Write);
+        _b0 = _query.CursorBind<S0>(_components[0], RowAccess.Write); _b1 = _query.CursorBind<S1>(_components[1], RowAccess.Write);
+        _b2 = _query.CursorBind<S2>(_components[2], RowAccess.Write); _b3 = _query.CursorBind<S3>(_components[3], RowAccess.Write);
+        _b4 = _query.CursorBind<S4>(_components[4], RowAccess.Write); _b5 = _query.CursorBind<S5>(_components[5], RowAccess.Write);
+        _b6 = _query.CursorBind<S6>(_components[6], RowAccess.Write); _b7 = _query.CursorBind<S7>(_components[7], RowAccess.Write);
         _legacy = new LegacyByteDenseReference(8, Amount, ChunkCapacity);
     }
 
     [Benchmark(Baseline = true)]
     public void DeltaECS_Array()
     {
-        using var chunks = _arrayWorld.QueryChunks(in _query);
+        using var chunks = _arrayWorld.QueryCursorChunks(in _query);
         while (chunks.MoveNext())
         {
-            var lease = chunks.Current;
-            var c0 = lease.GetRow(_b0); var c1 = lease.GetRow(_b1);
-            var c2 = lease.GetRow(_b2); var c3 = lease.GetRow(_b3);
-            var c4 = lease.GetRow(_b4); var c5 = lease.GetRow(_b5);
-            var c6 = lease.GetRow(_b6); var c7 = lease.GetRow(_b7);
-            for (var i = c0.Length - 1; i >= 0; i--)
+            var cursor = chunks.Current;
+            var c0 = cursor.Resolve(_b0); var c1 = cursor.Resolve(_b1);
+            var c2 = cursor.Resolve(_b2); var c3 = cursor.Resolve(_b3);
+            var c4 = cursor.Resolve(_b4); var c5 = cursor.Resolve(_b5);
+            var c6 = cursor.Resolve(_b6); var c7 = cursor.Resolve(_b7);
+            while (cursor.MoveNext())
             {
-                c0[i].X += c0[i].Y; c1[i].X += c1[i].Y; c2[i].X += c2[i].Y; c3[i].X += c3[i].Y;
-                c4[i].X += c4[i].Y; c5[i].X += c5[i].Y; c6[i].X += c6[i].Y; c7[i].X += c7[i].Y;
+                c0[cursor].X += c0[cursor].Y; c1[cursor].X += c1[cursor].Y; c2[cursor].X += c2[cursor].Y; c3[cursor].X += c3[cursor].Y;
+                c4[cursor].X += c4[cursor].Y; c5[cursor].X += c5[cursor].Y; c6[cursor].X += c6[cursor].Y; c7[cursor].X += c7[cursor].Y;
             }
         }
     }

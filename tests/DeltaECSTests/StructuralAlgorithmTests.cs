@@ -397,26 +397,27 @@ public sealed class StructuralAlgorithmTests
         var observed = new Dictionary<Entity, HierarchyObserved>();
         var description = QueryDescription.ForComponents(parentId, localId, worldId);
         var query = world.CreateQuery(in description);
-        var parentBinding = query.Bind<ParentLink>(parentId, RowAccess.Read);
-        var local = query.Bind<LocalTransform>(localId, RowAccess.Read);
-        var worldTransform = query.Bind<WorldTransform>(worldId, RowAccess.Read);
-        world.Query(in description, lease =>
+        var parentBinding = query.CursorBind<ParentLink>(parentId, RowAccess.Read);
+        var local = query.CursorBind<LocalTransform>(localId, RowAccess.Read);
+        var worldTransform = query.CursorBind<WorldTransform>(worldId, RowAccess.Read);
+        var cursorState = new HierarchyCursorState(parentBinding, local, worldTransform, observed);
+        world.QueryCursor(in query, ref cursorState, static (ref HierarchyCursorState state, ref DenseChunkCursor cursor) =>
         {
-            var parents = lease.GetRow(parentBinding);
-            var locals = lease.GetRow(local);
-            var worlds = lease.GetRow(worldTransform);
-            for (var slot = lease.SlotCount - 1; slot >= 0; slot--)
+            var parents = cursor.Resolve(state.ParentBinding);
+            var locals = cursor.Resolve(state.LocalBinding);
+            var worlds = cursor.Resolve(state.WorldBinding);
+            while (cursor.MoveNext())
             {
-                if (!lease.IsActiveSlot(slot))
+                if (!cursor.IsActiveSlot(cursor.CurrentIndex))
                 {
                     continue;
                 }
 
-                observed[lease.Entities[slot]] = new HierarchyObserved
+                state.Observed[cursor.Entities[cursor.CurrentIndex]] = new HierarchyObserved
                 {
-                    Parent = parents[slot].Parent,
-                    Local = locals[slot],
-                    World = worlds[slot]
+                    Parent = parents[cursor].Parent,
+                    Local = locals[cursor],
+                    World = worlds[cursor]
                 };
             }
         });
@@ -465,6 +466,26 @@ public sealed class StructuralAlgorithmTests
         Assert.That(observedChecksum, Is.EqualTo(checksum));
     }
 
+    private sealed class HierarchyCursorState
+    {
+        public HierarchyCursorState(
+            CursorReadBinding<ParentLink> parentBinding,
+            CursorReadBinding<LocalTransform> localBinding,
+            CursorReadBinding<WorldTransform> worldBinding,
+            Dictionary<Entity, HierarchyObserved> observed)
+        {
+            ParentBinding = parentBinding;
+            LocalBinding = localBinding;
+            WorldBinding = worldBinding;
+            Observed = observed;
+        }
+
+        public CursorReadBinding<ParentLink> ParentBinding { get; }
+        public CursorReadBinding<LocalTransform> LocalBinding { get; }
+        public CursorReadBinding<WorldTransform> WorldBinding { get; }
+        public Dictionary<Entity, HierarchyObserved> Observed { get; }
+    }
+
     private static void AssertTransitionModel(
         World world,
         Dictionary<Entity, TransitionState> model,
@@ -500,19 +521,25 @@ public sealed class StructuralAlgorithmTests
 
     private static int CountQuery(World world, in QueryDescription query)
     {
-        var count = 0;
-        world.Query(in query, lease =>
+        var handle = world.CreateQuery(in query);
+        var state = new CountCursorState();
+        world.QueryCursor(in handle, ref state, static (ref CountCursorState current, ref DenseChunkCursor cursor) =>
         {
-            for (var slot = lease.SlotCount - 1; slot >= 0; slot--)
+            while (cursor.MoveNext())
             {
-                if (lease.IsActiveSlot(slot))
+                if (cursor.IsActiveSlot(cursor.CurrentIndex))
                 {
-                    count++;
+                    current.Count++;
                 }
             }
         });
 
-        return count;
+        return state.Count;
+    }
+
+    private sealed class CountCursorState
+    {
+        public int Count { get; set; }
     }
 
     private static int Count(Dictionary<Entity, TagState> model, Predicate<TagState> predicate)

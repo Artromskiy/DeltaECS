@@ -33,8 +33,8 @@ public int Amount { get; set; }
     private World _world = null!;
     private ComponentId[] _components = Array.Empty<ComponentId>();
     private QueryHandle _query;
-    private WriteRowBinding<ProfileValue>[] _writeBindings = Array.Empty<WriteRowBinding<ProfileValue>>();
-    private ReadRowBinding<ProfileValue>[] _readBindings = Array.Empty<ReadRowBinding<ProfileValue>>();
+    private CursorWriteBinding<ProfileValue>[] _writeBindings = Array.Empty<CursorWriteBinding<ProfileValue>>();
+    private CursorReadBinding<ProfileValue>[] _readBindings = Array.Empty<CursorReadBinding<ProfileValue>>();
     private LegacyProfileBackend _legacy = null!;
 
     private long _checksum;
@@ -50,14 +50,14 @@ public int Amount { get; set; }
     {
         public int ComponentCount;
         public long Checksum;
-        public WriteRowBinding<ProfileValue>[] WriteBindings;
-        public ReadRowBinding<ProfileValue>[] ReadBindings;
+        public CursorWriteBinding<ProfileValue>[] WriteBindings;
+        public CursorReadBinding<ProfileValue>[] ReadBindings;
     }
 
-    private static readonly ChunkAction<ProfileState> s_entityMajor = IterateEntityMajor;
-    private static readonly ChunkAction<ProfileState> s_rowMajor = IterateRowMajor;
-    private static readonly ChunkAction<ProfileState> s_lookupOnly = LookupOnly;
-    private static readonly ChunkAction<ProfileState> s_dispatchOnly = DispatchOnly;
+    private static readonly QueryCursorAction<ProfileState> s_entityMajor = IterateEntityMajor;
+    private static readonly QueryCursorAction<ProfileState> s_rowMajor = IterateRowMajor;
+    private static readonly QueryCursorAction<ProfileState> s_lookupOnly = LookupOnly;
+    private static readonly QueryCursorAction<ProfileState> s_dispatchOnly = DispatchOnly;
 
     [GlobalSetup]
     public void Setup()
@@ -93,12 +93,12 @@ public int Amount { get; set; }
 
         var description = QueryDescription.ForComponents(_components);
         _query = _world.CreateQuery(in description);
-        _writeBindings = new WriteRowBinding<ProfileValue>[ComponentCount];
-        _readBindings = new ReadRowBinding<ProfileValue>[ComponentCount];
+        _writeBindings = new CursorWriteBinding<ProfileValue>[ComponentCount];
+        _readBindings = new CursorReadBinding<ProfileValue>[ComponentCount];
         for (var i = 0; i < ComponentCount; i++)
         {
-            _writeBindings[i] = _query.Bind<ProfileValue>(_components[i], RowAccess.Write);
-            _readBindings[i] = _query.Bind<ProfileValue>(_components[i], RowAccess.Read);
+            _writeBindings[i] = _query.CursorBind<ProfileValue>(_components[i], RowAccess.Write);
+            _readBindings[i] = _query.CursorBind<ProfileValue>(_components[i], RowAccess.Read);
         }
         _legacy = new LegacyProfileBackend(ComponentCount, Amount);
     }
@@ -107,7 +107,7 @@ public int Amount { get; set; }
     public void DeltaArray_EntityMajor_Profile()
     {
         var state = new ProfileState { ComponentCount = ComponentCount, WriteBindings = _writeBindings, ReadBindings = _readBindings };
-        _iterations = RunUntilDuration(() => _world.Query(in _query, ref state, s_entityMajor));
+        _iterations = RunUntilDuration(() => _world.QueryCursor(in _query, ref state, s_entityMajor));
         _checksum = state.Checksum;
     }
 
@@ -115,7 +115,7 @@ public int Amount { get; set; }
     public void DeltaArray_RowMajor_Profile()
     {
         var state = new ProfileState { ComponentCount = ComponentCount, WriteBindings = _writeBindings, ReadBindings = _readBindings };
-        _iterations = RunUntilDuration(() => _world.Query(in _query, ref state, s_rowMajor));
+        _iterations = RunUntilDuration(() => _world.QueryCursor(in _query, ref state, s_rowMajor));
         _checksum = state.Checksum;
     }
 
@@ -123,7 +123,7 @@ public int Amount { get; set; }
     public void DeltaArray_DispatchOnly_Profile()
     {
         var state = new ProfileState { ReadBindings = _readBindings };
-        _iterations = RunUntilDuration(() => _world.Query(in _query, ref state, s_dispatchOnly));
+        _iterations = RunUntilDuration(() => _world.QueryCursor(in _query, ref state, s_dispatchOnly));
         _checksum = state.Checksum;
     }
 
@@ -131,7 +131,7 @@ public int Amount { get; set; }
     public void DeltaArray_LookupOnly_Profile()
     {
         var state = new ProfileState { ComponentCount = ComponentCount, ReadBindings = _readBindings, WriteBindings = _writeBindings };
-        _iterations = RunUntilDuration(() => _world.Query(in _query, ref state, s_lookupOnly));
+        _iterations = RunUntilDuration(() => _world.QueryCursor(in _query, ref state, s_lookupOnly));
         _checksum = state.Checksum;
     }
 
@@ -185,58 +185,58 @@ public int Amount { get; set; }
         return iterations;
     }
 
-    private static void IterateEntityMajor(ref ProfileState state, ref DenseChunkAccessor lease)
+    private static void IterateEntityMajor(ref ProfileState state, ref DenseChunkCursor lease)
     {
         switch (state.ComponentCount)
         {
             case 1:
             {
-                var c0 = lease.GetRow(state.WriteBindings[0]);
-                for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
+                var c0 = lease.Resolve(state.WriteBindings[0]);
+                while (lease.MoveNext())
                 {
-                    var value = c0[slotIndex];
+                    var value = c0[lease];
                     value.X += value.Y;
-                    c0[slotIndex] = value;
+                    c0[lease] = value;
                     state.Checksum += BitConverter.SingleToInt32Bits(value.X);
                 }
                 return;
             }
             case 2:
             {
-                var c0 = lease.GetRow(state.WriteBindings[0]);
-                var c1 = lease.GetRow(state.WriteBindings[1]);
-                for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
+                var c0 = lease.Resolve(state.WriteBindings[0]);
+                var c1 = lease.Resolve(state.WriteBindings[1]);
+                while (lease.MoveNext())
                 {
-                    var p0 = c0[slotIndex];
-                    var p1 = c1[slotIndex];
+                    var p0 = c0[lease];
+                    var p1 = c1[lease];
                     p0.X += p0.Y;
                     p1.X += p1.Y;
-                    c0[slotIndex] = p0;
-                    c1[slotIndex] = p1;
+                    c0[lease] = p0;
+                    c1[lease] = p1;
                     state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
                 }
                 return;
             }
             case 4:
             {
-                var c0 = lease.GetRow(state.WriteBindings[0]);
-                var c1 = lease.GetRow(state.WriteBindings[1]);
-                var c2 = lease.GetRow(state.WriteBindings[2]);
-                var c3 = lease.GetRow(state.WriteBindings[3]);
-                for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
+                var c0 = lease.Resolve(state.WriteBindings[0]);
+                var c1 = lease.Resolve(state.WriteBindings[1]);
+                var c2 = lease.Resolve(state.WriteBindings[2]);
+                var c3 = lease.Resolve(state.WriteBindings[3]);
+                while (lease.MoveNext())
                 {
-                    var p0 = c0[slotIndex];
-                    var p1 = c1[slotIndex];
-                    var p2 = c2[slotIndex];
-                    var p3 = c3[slotIndex];
+                    var p0 = c0[lease];
+                    var p1 = c1[lease];
+                    var p2 = c2[lease];
+                    var p3 = c3[lease];
                     p0.X += p0.Y;
                     p1.X += p1.Y;
                     p2.X += p2.Y;
                     p3.X += p3.Y;
-                    c0[slotIndex] = p0;
-                    c1[slotIndex] = p1;
-                    c2[slotIndex] = p2;
-                    c3[slotIndex] = p3;
+                    c0[lease] = p0;
+                    c1[lease] = p1;
+                    c2[lease] = p2;
+                    c3[lease] = p3;
                     state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
                     state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
                 }
@@ -244,24 +244,24 @@ public int Amount { get; set; }
             }
             case 8:
             {
-                var c0 = lease.GetRow(state.WriteBindings[0]);
-                var c1 = lease.GetRow(state.WriteBindings[1]);
-                var c2 = lease.GetRow(state.WriteBindings[2]);
-                var c3 = lease.GetRow(state.WriteBindings[3]);
-                var c4 = lease.GetRow(state.WriteBindings[4]);
-                var c5 = lease.GetRow(state.WriteBindings[5]);
-                var c6 = lease.GetRow(state.WriteBindings[6]);
-                var c7 = lease.GetRow(state.WriteBindings[7]);
-                for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
+                var c0 = lease.Resolve(state.WriteBindings[0]);
+                var c1 = lease.Resolve(state.WriteBindings[1]);
+                var c2 = lease.Resolve(state.WriteBindings[2]);
+                var c3 = lease.Resolve(state.WriteBindings[3]);
+                var c4 = lease.Resolve(state.WriteBindings[4]);
+                var c5 = lease.Resolve(state.WriteBindings[5]);
+                var c6 = lease.Resolve(state.WriteBindings[6]);
+                var c7 = lease.Resolve(state.WriteBindings[7]);
+                while (lease.MoveNext())
                 {
-                    var p0 = c0[slotIndex];
-                    var p1 = c1[slotIndex];
-                    var p2 = c2[slotIndex];
-                    var p3 = c3[slotIndex];
-                    var p4 = c4[slotIndex];
-                    var p5 = c5[slotIndex];
-                    var p6 = c6[slotIndex];
-                    var p7 = c7[slotIndex];
+                    var p0 = c0[lease];
+                    var p1 = c1[lease];
+                    var p2 = c2[lease];
+                    var p3 = c3[lease];
+                    var p4 = c4[lease];
+                    var p5 = c5[lease];
+                    var p6 = c6[lease];
+                    var p7 = c7[lease];
                     p0.X += p0.Y;
                     p1.X += p1.Y;
                     p2.X += p2.Y;
@@ -270,14 +270,14 @@ public int Amount { get; set; }
                     p5.X += p5.Y;
                     p6.X += p6.Y;
                     p7.X += p7.Y;
-                    c0[slotIndex] = p0;
-                    c1[slotIndex] = p1;
-                    c2[slotIndex] = p2;
-                    c3[slotIndex] = p3;
-                    c4[slotIndex] = p4;
-                    c5[slotIndex] = p5;
-                    c6[slotIndex] = p6;
-                    c7[slotIndex] = p7;
+                    c0[lease] = p0;
+                    c1[lease] = p1;
+                    c2[lease] = p2;
+                    c3[lease] = p3;
+                    c4[lease] = p4;
+                    c5[lease] = p5;
+                    c6[lease] = p6;
+                    c7[lease] = p7;
                     state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
                     state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
                     state.Checksum += BitConverter.SingleToInt32Bits(p4.X) + BitConverter.SingleToInt32Bits(p5.X);
@@ -290,58 +290,58 @@ public int Amount { get; set; }
         }
     }
 
-    private static void IterateRowMajor(ref ProfileState state, ref DenseChunkAccessor lease)
+    private static void IterateRowMajor(ref ProfileState state, ref DenseChunkCursor lease)
     {
         switch (state.ComponentCount)
         {
             case 1:
             {
-                var c0 = lease.GetRow(state.WriteBindings[0]);
-                for (var i = c0.Length - 1; i >= 0; i--)
+                var c0 = lease.Resolve(state.WriteBindings[0]);
+                while (lease.MoveNext())
                 {
-                    var p0 = c0[i];
+                    var p0 = c0[lease];
                     p0.X += p0.Y;
-                    c0[i] = p0;
+                    c0[lease] = p0;
                     state.Checksum += BitConverter.SingleToInt32Bits(p0.X);
                 }
                 return;
             }
             case 2:
             {
-                var c0 = lease.GetRow(state.WriteBindings[0]);
-                var c1 = lease.GetRow(state.WriteBindings[1]);
-                for (var i = c0.Length - 1; i >= 0; i--)
+                var c0 = lease.Resolve(state.WriteBindings[0]);
+                var c1 = lease.Resolve(state.WriteBindings[1]);
+                while (lease.MoveNext())
                 {
-                    var p0 = c0[i];
-                    var p1 = c1[i];
+                    var p0 = c0[lease];
+                    var p1 = c1[lease];
                     p0.X += p0.Y;
                     p1.X += p1.Y;
-                    c0[i] = p0;
-                    c1[i] = p1;
+                    c0[lease] = p0;
+                    c1[lease] = p1;
                     state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
                 }
                 return;
             }
             case 4:
             {
-                var c0 = lease.GetRow(state.WriteBindings[0]);
-                var c1 = lease.GetRow(state.WriteBindings[1]);
-                var c2 = lease.GetRow(state.WriteBindings[2]);
-                var c3 = lease.GetRow(state.WriteBindings[3]);
-                for (var i = c0.Length - 1; i >= 0; i--)
+                var c0 = lease.Resolve(state.WriteBindings[0]);
+                var c1 = lease.Resolve(state.WriteBindings[1]);
+                var c2 = lease.Resolve(state.WriteBindings[2]);
+                var c3 = lease.Resolve(state.WriteBindings[3]);
+                while (lease.MoveNext())
                 {
-                    var p0 = c0[i];
-                    var p1 = c1[i];
-                    var p2 = c2[i];
-                    var p3 = c3[i];
+                    var p0 = c0[lease];
+                    var p1 = c1[lease];
+                    var p2 = c2[lease];
+                    var p3 = c3[lease];
                     p0.X += p0.Y;
                     p1.X += p1.Y;
                     p2.X += p2.Y;
                     p3.X += p3.Y;
-                    c0[i] = p0;
-                    c1[i] = p1;
-                    c2[i] = p2;
-                    c3[i] = p3;
+                    c0[lease] = p0;
+                    c1[lease] = p1;
+                    c2[lease] = p2;
+                    c3[lease] = p3;
                     state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
                     state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
                 }
@@ -349,24 +349,24 @@ public int Amount { get; set; }
             }
             case 8:
             {
-                var c0 = lease.GetRow(state.WriteBindings[0]);
-                var c1 = lease.GetRow(state.WriteBindings[1]);
-                var c2 = lease.GetRow(state.WriteBindings[2]);
-                var c3 = lease.GetRow(state.WriteBindings[3]);
-                var c4 = lease.GetRow(state.WriteBindings[4]);
-                var c5 = lease.GetRow(state.WriteBindings[5]);
-                var c6 = lease.GetRow(state.WriteBindings[6]);
-                var c7 = lease.GetRow(state.WriteBindings[7]);
-                for (var i = c0.Length - 1; i >= 0; i--)
+                var c0 = lease.Resolve(state.WriteBindings[0]);
+                var c1 = lease.Resolve(state.WriteBindings[1]);
+                var c2 = lease.Resolve(state.WriteBindings[2]);
+                var c3 = lease.Resolve(state.WriteBindings[3]);
+                var c4 = lease.Resolve(state.WriteBindings[4]);
+                var c5 = lease.Resolve(state.WriteBindings[5]);
+                var c6 = lease.Resolve(state.WriteBindings[6]);
+                var c7 = lease.Resolve(state.WriteBindings[7]);
+                while (lease.MoveNext())
                 {
-                    var p0 = c0[i];
-                    var p1 = c1[i];
-                    var p2 = c2[i];
-                    var p3 = c3[i];
-                    var p4 = c4[i];
-                    var p5 = c5[i];
-                    var p6 = c6[i];
-                    var p7 = c7[i];
+                    var p0 = c0[lease];
+                    var p1 = c1[lease];
+                    var p2 = c2[lease];
+                    var p3 = c3[lease];
+                    var p4 = c4[lease];
+                    var p5 = c5[lease];
+                    var p6 = c6[lease];
+                    var p7 = c7[lease];
                     p0.X += p0.Y;
                     p1.X += p1.Y;
                     p2.X += p2.Y;
@@ -375,14 +375,14 @@ public int Amount { get; set; }
                     p5.X += p5.Y;
                     p6.X += p6.Y;
                     p7.X += p7.Y;
-                    c0[i] = p0;
-                    c1[i] = p1;
-                    c2[i] = p2;
-                    c3[i] = p3;
-                    c4[i] = p4;
-                    c5[i] = p5;
-                    c6[i] = p6;
-                    c7[i] = p7;
+                    c0[lease] = p0;
+                    c1[lease] = p1;
+                    c2[lease] = p2;
+                    c3[lease] = p3;
+                    c4[lease] = p4;
+                    c5[lease] = p5;
+                    c6[lease] = p6;
+                    c7[lease] = p7;
                     state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
                     state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
                     state.Checksum += BitConverter.SingleToInt32Bits(p4.X) + BitConverter.SingleToInt32Bits(p5.X);
@@ -395,32 +395,32 @@ public int Amount { get; set; }
         }
     }
 
-    private static void LookupOnly(ref ProfileState state, ref DenseChunkAccessor lease)
+    private static void LookupOnly(ref ProfileState state, ref DenseChunkCursor lease)
     {
         switch (state.ComponentCount)
         {
             case 1:
-                _ = lease.GetRow(state.ReadBindings[0]);
+                _ = lease.Resolve(state.ReadBindings[0]);
                 break;
             case 2:
-                _ = lease.GetRow(state.ReadBindings[0]);
-                _ = lease.GetRow(state.ReadBindings[1]);
+                _ = lease.Resolve(state.ReadBindings[0]);
+                _ = lease.Resolve(state.ReadBindings[1]);
                 break;
             case 4:
-                _ = lease.GetRow(state.ReadBindings[0]);
-                _ = lease.GetRow(state.ReadBindings[1]);
-                _ = lease.GetRow(state.ReadBindings[2]);
-                _ = lease.GetRow(state.ReadBindings[3]);
+                _ = lease.Resolve(state.ReadBindings[0]);
+                _ = lease.Resolve(state.ReadBindings[1]);
+                _ = lease.Resolve(state.ReadBindings[2]);
+                _ = lease.Resolve(state.ReadBindings[3]);
                 break;
             case 8:
-                _ = lease.GetRow(state.ReadBindings[0]);
-                _ = lease.GetRow(state.ReadBindings[1]);
-                _ = lease.GetRow(state.ReadBindings[2]);
-                _ = lease.GetRow(state.ReadBindings[3]);
-                _ = lease.GetRow(state.ReadBindings[4]);
-                _ = lease.GetRow(state.ReadBindings[5]);
-                _ = lease.GetRow(state.ReadBindings[6]);
-                _ = lease.GetRow(state.ReadBindings[7]);
+                _ = lease.Resolve(state.ReadBindings[0]);
+                _ = lease.Resolve(state.ReadBindings[1]);
+                _ = lease.Resolve(state.ReadBindings[2]);
+                _ = lease.Resolve(state.ReadBindings[3]);
+                _ = lease.Resolve(state.ReadBindings[4]);
+                _ = lease.Resolve(state.ReadBindings[5]);
+                _ = lease.Resolve(state.ReadBindings[6]);
+                _ = lease.Resolve(state.ReadBindings[7]);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(state.ComponentCount));
@@ -429,7 +429,7 @@ public int Amount { get; set; }
         state.Checksum += lease.SlotCount;
     }
 
-    private static void DispatchOnly(ref ProfileState state, ref DenseChunkAccessor lease)
+    private static void DispatchOnly(ref ProfileState state, ref DenseChunkCursor lease)
     {
         state.Checksum += lease.SlotCount;
     }
@@ -482,9 +482,9 @@ internal sealed class LegacyProfileBackend
                     var row0 = CastLegacyRow(rows[0]);
                     for (var slotIndex = size - 1; slotIndex >= 0; slotIndex--)
                     {
-                        var value = row0[slotIndex];
+var value = row0[slotIndex];
                         value.X += value.Y;
-                        row0[slotIndex] = value;
+row0[slotIndex] = value;
                         checksum += BitConverter.SingleToInt32Bits(value.X);
                     }
                     break;
@@ -495,12 +495,12 @@ internal sealed class LegacyProfileBackend
                     var row1 = CastLegacyRow(rows[1]);
                     for (var slotIndex = size - 1; slotIndex >= 0; slotIndex--)
                     {
-                        var p0 = row0[slotIndex];
-                        var p1 = row1[slotIndex];
+var p0 = row0[slotIndex];
+var p1 = row1[slotIndex];
                         p0.X += p0.Y;
                         p1.X += p1.Y;
-                        row0[slotIndex] = p0;
-                        row1[slotIndex] = p1;
+row0[slotIndex] = p0;
+row1[slotIndex] = p1;
                         checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
                     }
                     break;
@@ -513,18 +513,18 @@ internal sealed class LegacyProfileBackend
                     var row3 = CastLegacyRow(rows[3]);
                     for (var slotIndex = size - 1; slotIndex >= 0; slotIndex--)
                     {
-                        var p0 = row0[slotIndex];
-                        var p1 = row1[slotIndex];
-                        var p2 = row2[slotIndex];
-                        var p3 = row3[slotIndex];
+var p0 = row0[slotIndex];
+var p1 = row1[slotIndex];
+var p2 = row2[slotIndex];
+var p3 = row3[slotIndex];
                         p0.X += p0.Y;
                         p1.X += p1.Y;
                         p2.X += p2.Y;
                         p3.X += p3.Y;
-                        row0[slotIndex] = p0;
-                        row1[slotIndex] = p1;
-                        row2[slotIndex] = p2;
-                        row3[slotIndex] = p3;
+row0[slotIndex] = p0;
+row1[slotIndex] = p1;
+row2[slotIndex] = p2;
+row3[slotIndex] = p3;
                         checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
                         checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
                     }
@@ -542,12 +542,12 @@ internal sealed class LegacyProfileBackend
                     var row7 = CastLegacyRow(rows[7]);
                     for (var slotIndex = size - 1; slotIndex >= 0; slotIndex--)
                     {
-                        var p0 = row0[slotIndex];
-                        var p1 = row1[slotIndex];
-                        var p2 = row2[slotIndex];
-                        var p3 = row3[slotIndex];
-                        var p4 = row4[slotIndex];
-                        var p5 = row5[slotIndex];
+var p0 = row0[slotIndex];
+var p1 = row1[slotIndex];
+var p2 = row2[slotIndex];
+var p3 = row3[slotIndex];
+var p4 = row4[slotIndex];
+var p5 = row5[slotIndex];
                         var p6 = row6[slotIndex];
                         var p7 = row7[slotIndex];
                         p0.X += p0.Y;
@@ -558,13 +558,13 @@ internal sealed class LegacyProfileBackend
                         p5.X += p5.Y;
                         p6.X += p6.Y;
                         p7.X += p7.Y;
-                        row0[slotIndex] = p0;
-                        row1[slotIndex] = p1;
-                        row2[slotIndex] = p2;
-                        row3[slotIndex] = p3;
-                        row4[slotIndex] = p4;
-                        row5[slotIndex] = p5;
-                        row6[slotIndex] = p6;
+row0[slotIndex] = p0;
+row1[slotIndex] = p1;
+row2[slotIndex] = p2;
+row3[slotIndex] = p3;
+row4[slotIndex] = p4;
+row5[slotIndex] = p5;
+row6[slotIndex] = p6;
                         row7[slotIndex] = p7;
                         checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
                         checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
@@ -597,9 +597,9 @@ internal sealed class LegacyProfileBackend
                     var row0 = CastLegacyRow(rows[0]);
                     for (var slotIndex = size - 1; slotIndex >= 0; slotIndex--)
                     {
-                        var value = row0[slotIndex];
+var value = row0[slotIndex];
                         value.X += value.Y;
-                        row0[slotIndex] = value;
+row0[slotIndex] = value;
                         checksum += BitConverter.SingleToInt32Bits(value.X);
                     }
                     break;
@@ -610,12 +610,12 @@ internal sealed class LegacyProfileBackend
                     var row1 = CastLegacyRow(rows[1]);
                     for (var slotIndex = size - 1; slotIndex >= 0; slotIndex--)
                     {
-                        var value0 = row0[slotIndex];
+var value0 = row0[slotIndex];
                         value0.X += value0.Y;
-                        row0[slotIndex] = value0;
-                        var value1 = row1[slotIndex];
+row0[slotIndex] = value0;
+var value1 = row1[slotIndex];
                         value1.X += value1.Y;
-                        row1[slotIndex] = value1;
+row1[slotIndex] = value1;
                         checksum += BitConverter.SingleToInt32Bits(value0.X) + BitConverter.SingleToInt32Bits(value1.X);
                     }
                     break;
@@ -628,18 +628,18 @@ internal sealed class LegacyProfileBackend
                     var row3 = CastLegacyRow(rows[3]);
                     for (var slotIndex = size - 1; slotIndex >= 0; slotIndex--)
                     {
-                        var value0 = row0[slotIndex];
+var value0 = row0[slotIndex];
                         value0.X += value0.Y;
-                        row0[slotIndex] = value0;
-                        var value1 = row1[slotIndex];
+row0[slotIndex] = value0;
+var value1 = row1[slotIndex];
                         value1.X += value1.Y;
-                        row1[slotIndex] = value1;
-                        var value2 = row2[slotIndex];
+row1[slotIndex] = value1;
+var value2 = row2[slotIndex];
                         value2.X += value2.Y;
-                        row2[slotIndex] = value2;
-                        var value3 = row3[slotIndex];
+row2[slotIndex] = value2;
+var value3 = row3[slotIndex];
                         value3.X += value3.Y;
-                        row3[slotIndex] = value3;
+row3[slotIndex] = value3;
                         checksum += BitConverter.SingleToInt32Bits(value0.X) + BitConverter.SingleToInt32Bits(value1.X);
                         checksum += BitConverter.SingleToInt32Bits(value2.X) + BitConverter.SingleToInt32Bits(value3.X);
                     }
@@ -657,27 +657,27 @@ internal sealed class LegacyProfileBackend
                     var row7 = CastLegacyRow(rows[7]);
                     for (var slotIndex = size - 1; slotIndex >= 0; slotIndex--)
                     {
-                        var value0 = row0[slotIndex];
+var value0 = row0[slotIndex];
                         value0.X += value0.Y;
-                        row0[slotIndex] = value0;
-                        var value1 = row1[slotIndex];
+row0[slotIndex] = value0;
+var value1 = row1[slotIndex];
                         value1.X += value1.Y;
-                        row1[slotIndex] = value1;
-                        var value2 = row2[slotIndex];
+row1[slotIndex] = value1;
+var value2 = row2[slotIndex];
                         value2.X += value2.Y;
-                        row2[slotIndex] = value2;
-                        var value3 = row3[slotIndex];
+row2[slotIndex] = value2;
+var value3 = row3[slotIndex];
                         value3.X += value3.Y;
-                        row3[slotIndex] = value3;
-                        var value4 = row4[slotIndex];
+row3[slotIndex] = value3;
+var value4 = row4[slotIndex];
                         value4.X += value4.Y;
-                        row4[slotIndex] = value4;
-                        var value5 = row5[slotIndex];
+row4[slotIndex] = value4;
+var value5 = row5[slotIndex];
                         value5.X += value5.Y;
-                        row5[slotIndex] = value5;
+row5[slotIndex] = value5;
                         var value6 = row6[slotIndex];
                         value6.X += value6.Y;
-                        row6[slotIndex] = value6;
+row6[slotIndex] = value6;
                         var value7 = row7[slotIndex];
                         value7.X += value7.Y;
                         row7[slotIndex] = value7;

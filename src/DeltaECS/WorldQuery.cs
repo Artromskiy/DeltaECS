@@ -294,28 +294,58 @@ public ref struct DenseChunkCursor
     private readonly Chunk _chunk;
     private readonly int[] _componentRows;
     private readonly uint _writeTick;
+    private readonly ulong[]? _overlayMask;
+    private readonly bool _fullMask;
     private int _index;
 
-    internal DenseChunkCursor(CachedQuery query, Chunk chunk, int[] componentRows, uint writeTick)
+    internal DenseChunkCursor(
+        CachedQuery query,
+        int archetypeId,
+        Chunk chunk,
+        int[] componentRows,
+        uint writeTick,
+        ulong[]? overlayMask,
+        OverlayMaskResult overlayResult)
     {
         _query = query;
+        ArchetypeId = archetypeId;
         _chunk = chunk;
         _componentRows = componentRows;
         _writeTick = writeTick;
-        _index = -1;
+        _overlayMask = overlayResult == OverlayMaskResult.Partial ? overlayMask : null;
+        _fullMask = overlayResult == OverlayMaskResult.Full;
+        _index = chunk.Count;
     }
 
     public int SlotCount => _chunk.Count;
 
     public int CurrentIndex => _index;
 
+    public int ArchetypeId { get; }
+
+    public int GlobalChunkId => _chunk.GlobalId;
+
+    public ReadOnlySpan<Entity> Entities => _chunk.Entities;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool IsActiveSlot(int slotIndex)
+    {
+        if ((uint)slotIndex >= (uint)_chunk.Count)
+        {
+            return false;
+        }
+
+        return _fullMask
+            || (_overlayMask is not null && (_overlayMask[slotIndex >> 6] & (1UL << (slotIndex & 63))) != 0);
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNext()
     {
-        var next = _index + 1;
-        if ((uint)next >= (uint)_chunk.Count)
+        var next = _index - 1;
+        if (next < 0)
         {
-            _index = _chunk.Count;
+            _index = -1;
             return false;
         }
 

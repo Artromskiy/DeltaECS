@@ -177,6 +177,11 @@ while (cursor.MoveNext())
 }
 ```
 
+The same cursor supports tagged queries. `IsActiveSlot(cursor.CurrentIndex)`
+filters the snapshot overlay mask without exposing mutable tag storage. For
+manual chunk traversal use `World.QueryCursorChunks(handle)` and dispose the
+enumerator after the loop; its scratch mask is owned for the whole enumeration.
+
 The legacy comparison fixtures were removed from the microbenchmark catalog;
 the cursor API is the only dense microbenchmark path here.
 
