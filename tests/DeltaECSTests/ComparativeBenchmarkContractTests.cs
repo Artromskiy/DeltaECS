@@ -46,7 +46,7 @@ public sealed class ComparativeBenchmarkContractTests
     }
 
     [Test]
-    public void Benchmark_sources_do_not_use_numeric_ordinal_row_access()
+    public void Benchmark_sources_use_cursor_row_access()
     {
         var benchmarkRoot = FindBenchmarkRoot();
         var ordinalAccess = new Regex(@"GetComponentRow<[^>]+>\(\s*\d+\s*\)", RegexOptions.CultureInvariant);
@@ -58,10 +58,8 @@ public sealed class ComparativeBenchmarkContractTests
             Assert.That(ordinalAccess.IsMatch(File.ReadAllText(source)), Is.False, source);
         }
 
-        var publicAccessorMethods = typeof(DenseChunkAccessor).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
-        var publicScopeMethods = typeof(DenseChunkScope).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
-        Assert.That(publicAccessorMethods.Any(method => method.Name == "GetComponentRow"), Is.False);
-        Assert.That(publicScopeMethods.Any(method => method.Name == "GetComponentRow"), Is.False);
+        var publicCursorMethods = typeof(DenseChunkCursor).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+        Assert.That(publicCursorMethods.Any(method => method.Name == "GetRow"), Is.False);
     }
 
     private static string FindBenchmarkRoot()

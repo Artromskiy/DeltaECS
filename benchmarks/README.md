@@ -44,7 +44,7 @@ API merely to make a benchmark easier to write.
 |---|---|---|
 | Entity records | resolve by `ref`, generation validation, location update | 1, 100, 10k entities |
 | Creation | `Create(archetype)` and normal create with known component set | empty/partially full/full chunk |
-| Dense access | cached `ReadRowBinding`/`WriteRowBinding` and `GetRow` | one, two and four rows |
+| Dense access | cached cursor bindings, `Resolve`, and cursor indexers | one, two and four rows |
 | Iteration | `Movement2` and `Movement4`, direct/reverse chunk traversal | 100, 1k, 10k, 100k entities |
 | Atomic structure | create, destroy, add/remove one and several components | transition cached/cold |
 | List batches | create, destroy, add/remove for an `Entity[]` | same chunk/many chunks |

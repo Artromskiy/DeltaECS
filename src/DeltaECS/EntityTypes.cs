@@ -87,58 +87,6 @@ public static class RowAccess
     public static WriteRowAccess Write => default;
 }
 
-internal readonly struct RowBindingData
-{
-    public RowBindingData(CachedQuery query, ComponentId componentId, int queryComponentIndex)
-    {
-        Query = query;
-        ComponentId = componentId;
-        _queryComponentIndex = queryComponentIndex;
-    }
-
-    public CachedQuery? Query { get; }
-
-    public ComponentId ComponentId { get; }
-
-    private readonly int _queryComponentIndex;
-
-    public int QueryComponentIndex => _queryComponentIndex;
-
-    public bool IsValid => Query is not null && _queryComponentIndex >= 0;
-}
-
-public readonly struct ReadRowBinding<T>
-{
-    private readonly RowBindingData _data;
-
-    internal ReadRowBinding(RowBindingData data)
-    {
-        _data = data;
-    }
-
-    public bool IsValid => _data.IsValid;
-
-    public ComponentId ComponentId => _data.ComponentId;
-
-    internal RowBindingData Data => _data;
-}
-
-public readonly struct WriteRowBinding<T>
-{
-    private readonly RowBindingData _data;
-
-    internal WriteRowBinding(RowBindingData data)
-    {
-        _data = data;
-    }
-
-    public bool IsValid => _data.IsValid;
-
-    public ComponentId ComponentId => _data.ComponentId;
-
-    internal RowBindingData Data => _data;
-}
-
 public readonly struct QueryHandle
 {
     private readonly World _owner;
@@ -160,35 +108,19 @@ public readonly struct QueryHandle
 
     public bool IsValid => _owner is not null && _cached is not null;
 
-    public ReadRowBinding<T> Bind<T>(ComponentId componentId, ReadRowAccess _)
-    {
-        var binding = CreateBinding<T>(componentId);
-        _cached.RegisterBinding(binding);
-        return new ReadRowBinding<T>(binding);
-    }
-
-    public WriteRowBinding<T> Bind<T>(ComponentId componentId, WriteRowAccess _)
-    {
-        var binding = CreateBinding<T>(componentId);
-        _cached.RegisterBinding(binding);
-        _cached.RegisterWriteBinding();
-        return new WriteRowBinding<T>(binding);
-    }
-
     public CursorReadBinding<T> CursorBind<T>(ComponentId componentId, ReadRowAccess _)
     {
-        var binding = CreateBinding<T>(componentId);
-        return new CursorReadBinding<T>(_cached, binding.QueryComponentIndex);
+        return new CursorReadBinding<T>(_cached, ResolveComponentRow<T>(componentId));
     }
 
     public CursorWriteBinding<T> CursorBind<T>(ComponentId componentId, WriteRowAccess _)
     {
-        var binding = CreateBinding<T>(componentId);
+        var rowIndex = ResolveComponentRow<T>(componentId);
         _cached.RegisterWriteBinding();
-        return new CursorWriteBinding<T>(_cached, binding.QueryComponentIndex);
+        return new CursorWriteBinding<T>(_cached, rowIndex);
     }
 
-    private RowBindingData CreateBinding<T>(ComponentId componentId)
+    private int ResolveComponentRow<T>(ComponentId componentId)
     {
         if (!IsValid)
         {
@@ -210,12 +142,8 @@ public readonly struct QueryHandle
             throw new ArgumentException($"Component {componentId} is registered as {layout.RuntimeType}, not {typeof(T)}.", nameof(componentId));
         }
 
-        return new RowBindingData(_cached, componentId, _description.AllMask.Rank(componentId));
+        return _description.AllMask.Rank(componentId);
     }
 }
-
-public delegate void ChunkAction(ref DenseChunkAccessor accessor);
-
-public delegate void ChunkAction<TContext>(ref TContext context, ref DenseChunkAccessor accessor);
 
 public delegate void QueryCursorAction<TContext>(ref TContext context, ref DenseChunkCursor cursor);

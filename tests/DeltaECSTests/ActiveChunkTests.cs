@@ -30,8 +30,15 @@ public sealed class ActiveChunkTests
         AssertActiveChunks(archetype);
 
         var query = QueryDescription.ForComponents(PositionId);
+        var queryHandle = world.CreateQuery(in query);
         var queriedSlots = 0;
-        world.Query(in query, scope => queriedSlots += scope.SlotCount);
+        using (var chunks = world.QueryCursorChunks(in queryHandle))
+        {
+            while (chunks.MoveNext())
+            {
+                queriedSlots += chunks.Current.SlotCount;
+            }
+        }
         Assert.That(queriedSlots, Is.EqualTo(4));
 
         var replacement = new Entity[2];
@@ -40,7 +47,13 @@ public sealed class ActiveChunkTests
         AssertActiveChunks(archetype);
 
         queriedSlots = 0;
-        world.Query(in query, scope => queriedSlots += scope.SlotCount);
+        using (var chunks = world.QueryCursorChunks(in queryHandle))
+        {
+            while (chunks.MoveNext())
+            {
+                queriedSlots += chunks.Current.SlotCount;
+            }
+        }
         Assert.That(queriedSlots, Is.EqualTo(6));
     }
 

@@ -27,7 +27,6 @@ public sealed class World
     private int _batchEdgeStamp;
     private int _nextChunkId;
     private int _activeChunkLeases;
-    private int _chunkAccessorId;
     private int _archetypeVersion;
 
     public World(
@@ -380,120 +379,6 @@ public sealed class World
         return destroyed;
     }
 
-    public void Query(in QueryDescription query, Action<DenseChunkScope> action)
-    {
-        var cached = GetOrCreateQuery(query);
-        var plans = cached.MatchingPlans(this);
-        if (!cached.HasTags)
-        {
-            QueryScopesDense(cached, plans, action);
-            return;
-        }
-
-        var scratch = RentChunkOverlayScratch();
-        try
-        {
-            QueryScopesTagged(query, cached, plans, scratch, action);
-        }
-        finally
-        {
-            ReturnChunkOverlayScratch(scratch);
-        }
-    }
-
-    private void QueryScopesDense(
-        CachedQuery cached,
-        DenseArchetypePlan[] plans,
-        Action<DenseChunkScope> action)
-    {
-        var writeTick = QueryWriteTick(cached);
-        for (var i = 0; i < plans.Length; i++)
-        {
-            var archetype = plans[i].Archetype;
-            var componentRows = plans[i].ComponentRows;
-            for (var activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
-            {
-                var chunk = archetype.GetActiveChunk(activeChunkIndex);
-
-                _activeChunkLeases++;
-                using var scope = new DenseChunkScope(this, cached, archetype, chunk, chunk.GlobalId, componentRows, null, OverlayMaskResult.Full, writeTick);
-                action(scope);
-            }
-        }
-    }
-
-    private void QueryScopesTagged(
-        in QueryDescription query,
-        CachedQuery cached,
-        DenseArchetypePlan[] plans,
-        ulong[] scratch,
-        Action<DenseChunkScope> action)
-    {
-        var writeTick = QueryWriteTick(cached);
-        for (var i = 0; i < plans.Length; i++)
-        {
-            var archetype = plans[i].Archetype;
-            var componentRows = plans[i].ComponentRows;
-            for (var activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
-            {
-                var chunk = archetype.GetActiveChunk(activeChunkIndex);
-
-                var overlayResult = _overlayTags.BuildMask(query, chunk.GlobalId, chunk.Count, scratch);
-                if (overlayResult == OverlayMaskResult.None)
-                {
-                    continue;
-                }
-
-                _activeChunkLeases++;
-                using var scope = new DenseChunkScope(this, cached, archetype, chunk, chunk.GlobalId, componentRows, scratch, overlayResult, writeTick);
-                action(scope);
-            }
-        }
-    }
-
-    public void Query(in QueryHandle handle, ChunkAction action)
-    {
-        ArgumentNullException.ThrowIfNull(action);
-        Query(in handle, ref action, static (ref ChunkAction callback, ref DenseChunkAccessor accessor) => callback(ref accessor));
-    }
-
-    public void Query<TContext>(in QueryHandle handle, ref TContext context, ChunkAction<TContext> action)
-    {
-        if (!ReferenceEquals(handle.Owner, this) || !handle.IsValid)
-        {
-            throw new ArgumentException("Query handle does not belong to this world.", nameof(handle));
-        }
-
-        var query = handle.Description;
-        var cached = handle.Cached;
-        var plans = cached.MatchingPlans(this);
-        _activeChunkLeases++;
-        try
-        {
-            if (!cached.HasTags)
-            {
-                QueryAccessorsDense(cached, plans, ref context, action);
-            }
-            else
-            {
-                var scratch = RentChunkOverlayScratch();
-                try
-                {
-                    QueryAccessorsTagged(query, cached, plans, scratch, ref context, action);
-                }
-                finally
-                {
-                    ReturnChunkOverlayScratch(scratch);
-                }
-            }
-        }
-        finally
-        {
-            _activeChunkLeases--;
-            InvalidateChunkAccessors();
-        }
-    }
-
     /// <summary>
     /// Executes a dense query through the experimental Version 1 cursor path.
     /// The cursor is valid only for the callback invocation and must not be retained.
@@ -536,87 +421,11 @@ public sealed class World
         finally
         {
             _activeChunkLeases--;
-            InvalidateChunkAccessors();
             if (scratch is not null)
             {
                 ReturnChunkOverlayScratch(scratch);
             }
         }
-    }
-
-    private void QueryAccessorsDense<TContext>(
-        CachedQuery cached,
-        DenseArchetypePlan[] plans,
-        ref TContext context,
-        ChunkAction<TContext> action)
-    {
-        var writeTick = QueryWriteTick(cached);
-        for (var i = 0; i < plans.Length; i++)
-        {
-            var archetype = plans[i].Archetype;
-            var componentRows = plans[i].ComponentRows;
-            for (var activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
-            {
-                var chunk = archetype.GetActiveChunk(activeChunkIndex);
-
-                var accessor = new DenseChunkAccessor(this, cached, archetype, chunk, chunk.GlobalId, componentRows, null, OverlayMaskResult.Full, RentChunkAccessor(), writeTick);
-                try
-                {
-                    action(ref context, ref accessor);
-                }
-                finally
-                {
-                    accessor.Dispose();
-                }
-            }
-        }
-    }
-
-    private void QueryAccessorsTagged<TContext>(
-        in QueryDescription query,
-        CachedQuery cached,
-        DenseArchetypePlan[] plans,
-        ulong[] scratch,
-        ref TContext context,
-        ChunkAction<TContext> action)
-    {
-        var writeTick = QueryWriteTick(cached);
-        for (var i = 0; i < plans.Length; i++)
-        {
-            var archetype = plans[i].Archetype;
-            var componentRows = plans[i].ComponentRows;
-            for (var activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
-            {
-                var chunk = archetype.GetActiveChunk(activeChunkIndex);
-
-                var chunkId = chunk.GlobalId;
-                var overlayResult = _overlayTags.BuildMask(query, chunkId, chunk.Count, scratch);
-                if (overlayResult == OverlayMaskResult.None)
-                {
-                    continue;
-                }
-
-                var accessor = new DenseChunkAccessor(this, cached, archetype, chunk, chunkId, componentRows, scratch, overlayResult, RentChunkAccessor(), writeTick);
-                try
-                {
-                    action(ref context, ref accessor);
-                }
-                finally
-                {
-                    accessor.Dispose();
-                }
-            }
-        }
-    }
-
-    public CachedChunkEnumerator QueryChunks(in QueryHandle handle)
-    {
-        if (!ReferenceEquals(handle.Owner, this) || !handle.IsValid)
-        {
-            throw new ArgumentException("Query handle does not belong to this world.", nameof(handle));
-        }
-
-        return new CachedChunkEnumerator(this, handle.Cached, handle.Description, QueryWriteTick(handle.Cached));
     }
 
     /// <summary>Enumerates query chunks through the cursor API. Dispose the enumerator when finished.</summary>
@@ -633,150 +442,6 @@ public sealed class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private uint QueryWriteTick(CachedQuery cached) =>
         cached.HasWriteBindings ? AdvanceWorldTick() : 0;
-
-    public ref struct CachedChunkEnumerator
-    {
-        private readonly World _owner;
-        private readonly QueryDescription _query;
-        private readonly CachedQuery _cached;
-        private readonly DenseArchetypePlan[] _plans;
-        private readonly bool _hasTags;
-        private ulong[]? _overlayScratch;
-        private readonly uint _writeTick;
-        private int _archetypePosition;
-        private int _chunkPosition;
-        private DenseChunkAccessor _current;
-        private bool _hasCurrent;
-        private bool _disposed;
-
-        internal CachedChunkEnumerator(World owner, CachedQuery cached, QueryDescription query, uint writeTick)
-        {
-            _owner = owner;
-            _cached = cached;
-            _query = query;
-            _plans = cached.MatchingPlans(owner);
-            _hasTags = cached.HasTags;
-            _overlayScratch = _hasTags ? owner.RentChunkOverlayScratch() : null;
-            _writeTick = writeTick;
-            _archetypePosition = 0;
-            _chunkPosition = 0;
-            _current = default;
-            _hasCurrent = false;
-            _disposed = false;
-            _owner._activeChunkLeases++;
-        }
-
-        public DenseChunkAccessor Current
-        {
-            get
-            {
-                if (!_hasCurrent || _disposed)
-                {
-                    throw new InvalidOperationException("The cached chunk enumerator is not positioned on a chunk.");
-                }
-
-                return _current;
-            }
-        }
-
-        public bool MoveNext()
-        {
-            if (_disposed)
-            {
-                return false;
-            }
-
-            if (_hasCurrent)
-            {
-                _current.Dispose();
-                _hasCurrent = false;
-            }
-
-            if (_hasTags)
-            {
-                return MoveNextTagged();
-            }
-
-            return MoveNextDense();
-        }
-
-        private bool MoveNextDense()
-        {
-            while (_archetypePosition < _plans.Length)
-            {
-                var archetype = _plans[_archetypePosition].Archetype;
-                var componentRows = _plans[_archetypePosition].ComponentRows;
-                while (_chunkPosition < archetype.ActiveChunkCount)
-                {
-                    var chunk = archetype.GetActiveChunk(_chunkPosition++);
-
-                    _current = new DenseChunkAccessor(_owner, _cached, archetype, chunk, chunk.GlobalId, componentRows, null, OverlayMaskResult.Full, _owner.RentChunkAccessor(), _writeTick);
-                    _hasCurrent = true;
-                    return true;
-                }
-
-                _archetypePosition++;
-                _chunkPosition = 0;
-            }
-
-            Dispose();
-            return false;
-        }
-
-        private bool MoveNextTagged()
-        {
-            var scratch = _overlayScratch!;
-            while (_archetypePosition < _plans.Length)
-            {
-                var archetype = _plans[_archetypePosition].Archetype;
-                var componentRows = _plans[_archetypePosition].ComponentRows;
-                while (_chunkPosition < archetype.ActiveChunkCount)
-                {
-                    var chunk = archetype.GetActiveChunk(_chunkPosition++);
-
-                    var chunkId = chunk.GlobalId;
-                    var overlayResult = _owner._overlayTags.BuildMask(_query, chunkId, chunk.Count, scratch);
-                    if (overlayResult == OverlayMaskResult.None)
-                    {
-                        continue;
-                    }
-
-                    _current = new DenseChunkAccessor(_owner, _cached, archetype, chunk, chunkId, componentRows, scratch, overlayResult, _owner.RentChunkAccessor(), _writeTick);
-                    _hasCurrent = true;
-                    return true;
-                }
-
-                _archetypePosition++;
-                _chunkPosition = 0;
-            }
-
-            Dispose();
-            return false;
-        }
-
-        public void Dispose()
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            if (_hasCurrent)
-            {
-                _current.Dispose();
-                _hasCurrent = false;
-            }
-
-            _owner._activeChunkLeases--;
-            if (_overlayScratch is not null)
-            {
-                _owner.ReturnChunkOverlayScratch(_overlayScratch);
-                _overlayScratch = null;
-            }
-            _owner.InvalidateChunkAccessors();
-            _disposed = true;
-        }
-    }
 
     public ref struct CursorChunkEnumerator
     {
@@ -868,7 +533,6 @@ public sealed class World
             _disposed = true;
             _hasCurrent = false;
             _owner._activeChunkLeases--;
-            _owner.InvalidateChunkAccessors();
             if (_overlayScratch is not null)
             {
                 _owner.ReturnChunkOverlayScratch(_overlayScratch);
@@ -899,11 +563,6 @@ public sealed class World
         return count;
     }
 
-    internal void CompleteChunkScope() => _activeChunkLeases--;
-    internal int RentChunkAccessor() => ++_chunkAccessorId;
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool IsChunkAccessorIdValid(int accessorId) => accessorId == _chunkAccessorId;
-    internal void InvalidateChunkAccessors() => _chunkAccessorId++;
     internal ulong[] RentChunkOverlayScratch() => ArrayPool<ulong>.Shared.Rent(_overlayTags.WordsPerChunk);
     internal void ReturnChunkOverlayScratch(ulong[] scratch)
     {

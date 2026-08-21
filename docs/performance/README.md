@@ -2,41 +2,38 @@
 
 This document records candidate hot-path work. Ideas here are not implemented
 or measured unless a section says otherwise. Any change must preserve the
-validated public binding API, dense/tagged query semantics, lifetime barriers,
+validated public cursor API, dense/tagged query semantics, lifetime barriers,
 and the benchmark comparison contract.
 
 ## Current evidence
 
-- `DenseChunkAccessor.GetRow` and `DenseChunkScope.GetRow` already use the
-  cached query-row index and the internal unchecked managed-array cast.
-- Dense query execution now prepares a pooled direct `Array[]` row packet once
-  per query invocation and fills it once per visited chunk. `GetRow` performs
-  one binding-index lookup into that packet; write access still uses the cached
-  physical row index for precise dirty tracking.
-- The remaining binding path performs `EnsureCurrent`/ownership validation and
-  one prepared-row bounds check for every requested row on every chunk.
+- The cursor resolves each typed row once per visited chunk and exposes it
+  through the safe cursor indexer.
+- Dense query execution prepares a pooled direct `Array[]` row packet once per
+  query invocation and fills it once per visited chunk; write access still uses
+  the cached physical row index for precise dirty tracking.
+- Cursor ownership is checked when resolving the row, while slot traversal is
+  performed by `MoveNext` and the resolved-row indexer.
 - Prior JIT inspection showed bounds checks remain in the entity loop when rows
   are accessed as `Span<T>[i]`. No new measurement is implied by this note.
 
 ## Implemented: query-bound prepared row access
 
-The query owns the bindings it creates and validates them at the start of
-`World.Query`. Dense execution now prepares a compact per-chunk row packet:
+The query creates typed cursor bindings and validates them before execution.
+Dense execution prepares a compact per-chunk row packet:
 
 ```text
 QueryHandle/CachedQuery
-    binding token -> query row
+    cursor binding token -> query row
 DenseArchetypePlan
     binding token -> physical component row
 Chunk execution
     prepared query row -> direct component array
 ```
 
-The dense accessor/cursor uses the prepared packet for the row data while the
-public checked path remains available for foreign/default binding rejection.
-This removes the physical component-row lookup from Movement2, Movement4,
-and other multi-row workloads. Lifetime and ownership validation remain per
-`GetRow` until a separate trusted execution path is proven safe.
+The cursor uses the prepared packet for row data and rejects foreign/default
+bindings during `Resolve`. This removes the physical component-row lookup from
+Movement2, Movement4, and other multi-row workloads.
 
 The implementation uses an `ArrayPool<Array>` scratch packet owned by the
 query/enumerator, so it does not allocate or return a packet per chunk. Tagged
@@ -44,8 +41,7 @@ paths prepare rows only after the overlay mask accepts the chunk.
 
 Remaining proof:
 
-- foreign, default, and deliberately corrupted internal bindings still fail
-  before the callback or through the checked compatibility path;
+- foreign and default cursor bindings still fail before row access;
 - archetype plan refresh after a new archetype remains correct;
 - read/write dirty tracking remains precise;
 - JIT output shows the hot path loading the prepared row directly.
@@ -92,11 +88,10 @@ chunk is active.
 
 ## Candidate 4: trusted dense execution path
 
-The handle query path still creates/invalidates an accessor and invokes a
-delegate for each chunk. A future dense cursor or internal execution packet
-could validate lifetime once per query and avoid per-chunk accessor-id and
-dispose work. Tagged queries and the public stale-accessor contract must keep
-their checked path.
+The cursor path still invokes a delegate for each chunk. A future internal
+execution packet could validate lifetime once per query and further reduce
+per-chunk execution bookkeeping. Tagged queries must retain their checked
+snapshot-mask path.
 
 ## Benchmark fairness note
 

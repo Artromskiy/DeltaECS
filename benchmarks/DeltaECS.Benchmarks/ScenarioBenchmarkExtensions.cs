@@ -160,7 +160,7 @@ public class SmallDenseScenarioBenchmarks
     }
 
     [Benchmark(Baseline = true)]
-    public double DeltaECS_QueryChunks()
+    public double DeltaECS_CursorChunks()
     {
         var state = new SmallDenseState { ComponentCount = ComponentCount, Bindings = _deltaBindings };
         using var chunks = _deltaWorld.QueryCursorChunks(in _deltaQuery);
