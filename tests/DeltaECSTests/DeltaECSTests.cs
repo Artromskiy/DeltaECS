@@ -612,6 +612,37 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
+    public void QueryRowBinding_Refreshes_Resolved_Row_For_New_Archetypes()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        var world = new World(layouts, chunkCapacity: 2);
+        world.Create(new[] { VelocityId });
+
+        var description = QueryDescription.ForComponents(VelocityId);
+        var query = world.CreateQuery(in description);
+        var velocity = query.Bind<Velocity>(VelocityId, RowAccess.Read);
+
+        var firstRows = 0;
+        world.Query(in query, (ref DenseChunkAccessor accessor) =>
+        {
+            firstRows += accessor.GetRow(velocity).Length;
+        });
+
+        // The new archetype stores Velocity at physical row 1 instead of row 0.
+        world.Create(new[] { PositionId, VelocityId });
+
+        var secondRows = 0;
+        world.Query(in query, (ref DenseChunkAccessor accessor) =>
+        {
+            secondRows += accessor.GetRow(velocity).Length;
+        });
+
+        Assert.That(firstRows, Is.EqualTo(1));
+        Assert.That(secondRows, Is.EqualTo(2));
+    }
+
+    [Test]
     public void QueryRowBindings_Reject_Mismatched_Query_And_Foreign_World_Bindings()
     {
         var layouts = new ComponentLayoutRegistry();

@@ -87,22 +87,52 @@ public static class RowAccess
     public static WriteRowAccess Write => default;
 }
 
-internal readonly struct RowBindingData
+internal sealed class RowBindingState
 {
-    public RowBindingData(CachedQuery query, ComponentId componentId, int queryComponentIndex)
+    public RowBindingState(CachedQuery query, ComponentId componentId, int queryComponentIndex)
     {
         Query = query;
         ComponentId = componentId;
         QueryComponentIndex = queryComponentIndex;
     }
 
-    public CachedQuery? Query { get; }
+    public CachedQuery Query { get; }
 
     public ComponentId ComponentId { get; }
 
     public int QueryComponentIndex { get; }
 
+    public int[]? RowIndicesByArchetype { get; private set; }
+
+    public void SetRowIndicesByArchetype(int[] rowIndicesByArchetype)
+    {
+        RowIndicesByArchetype = rowIndicesByArchetype;
+    }
+}
+
+internal readonly struct RowBindingData
+{
+    public RowBindingData(CachedQuery query, ComponentId componentId, int queryComponentIndex)
+    {
+        State = new RowBindingState(query, componentId, queryComponentIndex);
+    }
+
+    private RowBindingState? State { get; }
+
+    public CachedQuery? Query => State?.Query;
+
+    public ComponentId ComponentId => State?.ComponentId ?? default;
+
+    public int QueryComponentIndex => State?.QueryComponentIndex ?? -1;
+
     public bool IsValid => Query is not null && QueryComponentIndex >= 0;
+
+    internal int[]? RowIndicesByArchetype => State?.RowIndicesByArchetype;
+
+    internal void SetRowIndicesByArchetype(int[] rowIndicesByArchetype)
+    {
+        State?.SetRowIndicesByArchetype(rowIndicesByArchetype);
+    }
 }
 
 public readonly struct ReadRowBinding<T>

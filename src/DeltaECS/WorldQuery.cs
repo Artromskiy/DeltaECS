@@ -12,7 +12,6 @@ public sealed class DenseChunkScope : IDisposable
     private readonly Chunk _chunk;
     private readonly int _globalChunkId;
     private readonly int _slotCount;
-    private readonly int[]? _queryComponentRowIndices;
     private readonly uint _writeTick;
     private ulong[]? _overlayMask;
     private readonly bool _fullMask;
@@ -24,7 +23,6 @@ public sealed class DenseChunkScope : IDisposable
         Archetype archetype,
         Chunk chunk,
         int globalChunkId,
-        int[]? queryComponentRowIndices,
         ulong[]? overlayMask,
         OverlayMaskResult overlayResult,
         uint writeTick)
@@ -35,7 +33,6 @@ public sealed class DenseChunkScope : IDisposable
         _chunk = chunk;
         _globalChunkId = globalChunkId;
         _slotCount = chunk.Count;
-        _queryComponentRowIndices = queryComponentRowIndices;
         _writeTick = writeTick;
         _overlayMask = overlayResult == OverlayMaskResult.Partial ? overlayMask : null;
         _fullMask = overlayResult == OverlayMaskResult.Full;
@@ -87,7 +84,7 @@ public sealed class DenseChunkScope : IDisposable
             QueryThrowHelper.ThrowBindingMismatch();
         }
 
-        return _queryComponentRowIndices![binding.QueryComponentIndex];
+        return binding.RowIndicesByArchetype![_archetype.Id];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -130,7 +127,6 @@ public ref struct DenseChunkAccessor
     private readonly int _archetypeId;
     private readonly int _globalChunkId;
     private readonly int _slotCount;
-    private readonly int[]? _queryComponentRowIndices;
     private readonly ulong[]? _overlayMask;
     private readonly bool _fullMask;
     private readonly World _owner;
@@ -144,7 +140,6 @@ public ref struct DenseChunkAccessor
         Archetype archetype,
         Chunk chunk,
         int globalChunkId,
-        int[]? queryComponentRowIndices,
         ulong[]? overlayMask,
         OverlayMaskResult overlayResult,
         int viewId,
@@ -155,7 +150,6 @@ public ref struct DenseChunkAccessor
         _archetypeId = archetype.Id;
         _globalChunkId = globalChunkId;
         _slotCount = chunk.Count;
-        _queryComponentRowIndices = queryComponentRowIndices;
         _overlayMask = overlayResult == OverlayMaskResult.Partial ? overlayMask : null;
         _fullMask = overlayResult == OverlayMaskResult.Full;
         _owner = owner;
@@ -243,7 +237,7 @@ public ref struct DenseChunkAccessor
             QueryThrowHelper.ThrowBindingMismatch();
         }
 
-        return _queryComponentRowIndices![binding.QueryComponentIndex];
+        return binding.RowIndicesByArchetype![_archetypeId];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -300,6 +294,7 @@ internal sealed class CachedQuery
     private DenseArchetypePlan[] _matchingPlans = Array.Empty<DenseArchetypePlan>();
     private List<RowBindingData>? _bindings;
     private bool _hasWriteBindings;
+    private int _bindingsPreparedVersion = -1;
 
     public CachedQuery(QueryDescription description)
     {
@@ -315,6 +310,7 @@ internal sealed class CachedQuery
     public void RegisterBinding(RowBindingData binding)
     {
         (_bindings ??= new List<RowBindingData>(4)).Add(binding);
+        _bindingsPreparedVersion = -1;
     }
 
     public void RegisterWriteBinding() => _hasWriteBindings = true;
@@ -344,6 +340,7 @@ internal sealed class CachedQuery
         ValidateBindings();
         if (_version == world.ArchetypeVersion)
         {
+            PrepareBindingRows(world);
             return _matchingArchetypes;
         }
 
@@ -371,7 +368,31 @@ internal sealed class CachedQuery
         _matchingArchetypes = matches.ToArray();
         _matchingPlans = plans.ToArray();
         _version = world.ArchetypeVersion;
+        PrepareBindingRows(world);
         return _matchingArchetypes;
+    }
+
+    private void PrepareBindingRows(World world)
+    {
+        if (_bindings is null || _bindingsPreparedVersion == _version)
+        {
+            return;
+        }
+
+        for (var bindingIndex = 0; bindingIndex < _bindings.Count; bindingIndex++)
+        {
+            var binding = _bindings[bindingIndex];
+            var rowIndices = new int[world.Archetypes.Count];
+            for (var planIndex = 0; planIndex < _matchingPlans.Length; planIndex++)
+            {
+                var plan = _matchingPlans[planIndex];
+                rowIndices[plan.Archetype.Id] = plan.ComponentRows[binding.QueryComponentIndex];
+            }
+
+            binding.SetRowIndicesByArchetype(rowIndices);
+        }
+
+        _bindingsPreparedVersion = _version;
     }
 
     public DenseArchetypePlan[] MatchingPlans(World world)
