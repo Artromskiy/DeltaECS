@@ -105,10 +105,7 @@ public sealed class DenseChunkScope : IDisposable
 
     private void MarkWritten(int componentIndex)
     {
-        if (_writeTick != 0)
-        {
-            _chunk.MarkComponentWritten(componentIndex, _writeTick);
-        }
+        _chunk.MarkComponentWritten(componentIndex, _writeTick);
     }
 
     public void Dispose()
@@ -261,10 +258,7 @@ public ref struct DenseChunkAccessor
 
     private void MarkWritten(int componentIndex)
     {
-        if (_writeTick != 0)
-        {
-            _chunk.MarkComponentWritten(componentIndex, _writeTick);
-        }
+        _chunk.MarkComponentWritten(componentIndex, _writeTick);
     }
 
     internal void Dispose()

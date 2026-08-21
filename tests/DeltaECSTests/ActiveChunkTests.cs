@@ -48,7 +48,7 @@ public sealed class ActiveChunkTests
     {
         for (var activeIndex = 0; activeIndex < archetype.ActiveChunkCount; activeIndex++)
         {
-            var chunk = archetype.GetChunk(archetype.GetActiveChunkIndex(activeIndex));
+            var chunk = archetype.GetActiveChunk(activeIndex);
             Assert.That(chunk.IsEmpty, Is.False);
         }
     }
