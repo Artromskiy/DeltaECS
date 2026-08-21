@@ -175,6 +175,19 @@ public readonly struct QueryHandle
         return new WriteRowBinding<T>(binding);
     }
 
+    public CursorReadBinding<T> CursorBind<T>(ComponentId componentId, ReadRowAccess _)
+    {
+        var binding = CreateBinding<T>(componentId);
+        return new CursorReadBinding<T>(_cached, binding.QueryComponentIndex);
+    }
+
+    public CursorWriteBinding<T> CursorBind<T>(ComponentId componentId, WriteRowAccess _)
+    {
+        var binding = CreateBinding<T>(componentId);
+        _cached.RegisterWriteBinding();
+        return new CursorWriteBinding<T>(_cached, binding.QueryComponentIndex);
+    }
+
     private RowBindingData CreateBinding<T>(ComponentId componentId)
     {
         if (!IsValid)
@@ -204,3 +217,5 @@ public readonly struct QueryHandle
 public delegate void ChunkAction(ref DenseChunkAccessor accessor);
 
 public delegate void ChunkAction<TContext>(ref TContext context, ref DenseChunkAccessor accessor);
+
+public delegate void QueryCursorAction<TContext>(ref TContext context, ref DenseChunkCursor cursor);

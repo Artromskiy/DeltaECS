@@ -494,6 +494,46 @@ public sealed class World
         }
     }
 
+    /// <summary>
+    /// Executes a dense query through the experimental Version 1 cursor path.
+    /// The cursor is valid only for the callback invocation and must not be retained.
+    /// </summary>
+    public void QueryCursor<TContext>(in QueryHandle handle, ref TContext context, QueryCursorAction<TContext> action)
+    {
+        if (!ReferenceEquals(handle.Owner, this) || !handle.IsValid)
+        {
+            throw new ArgumentException("Query handle does not belong to this world.", nameof(handle));
+        }
+
+        var cached = handle.Cached;
+        if (cached.HasTags)
+        {
+            throw new NotSupportedException("Version 1 QueryCursor supports dense queries without tag predicates.");
+        }
+
+        var plans = cached.MatchingPlans(this);
+        var writeTick = QueryWriteTick(cached);
+        _activeChunkLeases++;
+        try
+        {
+            for (var planIndex = 0; planIndex < plans.Length; planIndex++)
+            {
+                var plan = plans[planIndex];
+                var archetype = plan.Archetype;
+                for (var chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
+                {
+                    var cursor = new DenseChunkCursor(cached, archetype.GetActiveChunk(chunkIndex), plan.ComponentRows, writeTick);
+                    action(ref context, ref cursor);
+                }
+            }
+        }
+        finally
+        {
+            _activeChunkLeases--;
+            InvalidateChunkAccessors();
+        }
+    }
+
     private void QueryAccessorsDense<TContext>(
         CachedQuery cached,
         DenseArchetypePlan[] plans,

@@ -3,6 +3,7 @@ namespace Delta.ECS;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 public sealed class DenseChunkScope : IDisposable
 {
@@ -284,6 +285,138 @@ public ref struct DenseChunkAccessor
             QueryThrowHelper.ThrowStaleAccessor();
         }
     }
+}
+
+/// <summary>Short-lived dense chunk access used only by <see cref="World.QueryCursor{TContext}"/>.</summary>
+public ref struct DenseChunkCursor
+{
+    private readonly CachedQuery _query;
+    private readonly Chunk _chunk;
+    private readonly int[] _componentRows;
+    private readonly uint _writeTick;
+    private int _index;
+
+    internal DenseChunkCursor(CachedQuery query, Chunk chunk, int[] componentRows, uint writeTick)
+    {
+        _query = query;
+        _chunk = chunk;
+        _componentRows = componentRows;
+        _writeTick = writeTick;
+        _index = -1;
+    }
+
+    public int SlotCount => _chunk.Count;
+
+    public int CurrentIndex => _index;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool MoveNext()
+    {
+        var next = _index + 1;
+        if ((uint)next >= (uint)_chunk.Count)
+        {
+            _index = _chunk.Count;
+            return false;
+        }
+
+        _index = next;
+        return true;
+    }
+
+    public ResolvedReadRow<T> Resolve<T>(CursorReadBinding<T> binding)
+    {
+        return new ResolvedReadRow<T>(GetRow(binding));
+    }
+
+    public ResolvedWriteRow<T> Resolve<T>(CursorWriteBinding<T> binding)
+    {
+        return new ResolvedWriteRow<T>(GetRow(binding));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ReadOnlySpan<T> GetRow<T>(CursorReadBinding<T> binding)
+    {
+        if (!ReferenceEquals(binding.Query, _query))
+        {
+            QueryThrowHelper.ThrowBindingMismatch();
+        }
+
+        return _chunk.GetComponentRow<T>(_componentRows[binding.QueryComponentIndex]);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Span<T> GetRow<T>(CursorWriteBinding<T> binding)
+    {
+        if (!ReferenceEquals(binding.Query, _query))
+        {
+            QueryThrowHelper.ThrowBindingMismatch();
+        }
+
+        var index = _componentRows[binding.QueryComponentIndex];
+        if (_writeTick == 0)
+        {
+            QueryThrowHelper.ThrowMissingWriteIntent();
+        }
+
+        _chunk.MarkComponentWritten(index, _writeTick);
+        return _chunk.GetComponentRow<T>(index);
+    }
+}
+
+public ref struct ResolvedReadRow<T>
+{
+    private readonly ReadOnlySpan<T> _row;
+
+    internal ResolvedReadRow(ReadOnlySpan<T> row)
+    {
+        _row = row;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref readonly T Current(in DenseChunkCursor cursor)
+    {
+        return ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), cursor.CurrentIndex);
+    }
+}
+
+public ref struct ResolvedWriteRow<T>
+{
+    private readonly Span<T> _row;
+
+    internal ResolvedWriteRow(Span<T> row)
+    {
+        _row = row;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T Current(in DenseChunkCursor cursor)
+    {
+        return ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), cursor.CurrentIndex);
+    }
+}
+
+public readonly struct CursorReadBinding<T>
+{
+    internal CursorReadBinding(CachedQuery query, int queryComponentIndex)
+    {
+        Query = query;
+        QueryComponentIndex = queryComponentIndex;
+    }
+
+    internal CachedQuery? Query { get; }
+    internal int QueryComponentIndex { get; }
+}
+
+public readonly struct CursorWriteBinding<T>
+{
+    internal CursorWriteBinding(CachedQuery query, int queryComponentIndex)
+    {
+        Query = query;
+        QueryComponentIndex = queryComponentIndex;
+    }
+
+    internal CachedQuery? Query { get; }
+    internal int QueryComponentIndex { get; }
 }
 
 internal sealed class CachedQuery
