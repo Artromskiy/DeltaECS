@@ -22,8 +22,8 @@ public class DistinctDenseComparisonBenchmarks
     private World _deltaWorld = null!;
     private ComponentId[] _deltaComponents = Array.Empty<ComponentId>();
     private QueryHandle _deltaQuery;
-    private WriteRowBinding<D0> _d0Binding; private WriteRowBinding<D1> _d1Binding; private WriteRowBinding<D2> _d2Binding; private WriteRowBinding<D3> _d3Binding;
-    private WriteRowBinding<D4> _d4Binding; private WriteRowBinding<D5> _d5Binding; private WriteRowBinding<D6> _d6Binding; private WriteRowBinding<D7> _d7Binding;
+    private CursorWriteBinding<D0> _d0Binding; private CursorWriteBinding<D1> _d1Binding; private CursorWriteBinding<D2> _d2Binding; private CursorWriteBinding<D3> _d3Binding;
+    private CursorWriteBinding<D4> _d4Binding; private CursorWriteBinding<D5> _d5Binding; private CursorWriteBinding<D6> _d6Binding; private CursorWriteBinding<D7> _d7Binding;
     private DeltaEntity[] _deltaEntities = Array.Empty<DeltaEntity>();
     private LegacyByteDenseReference _legacy = null!;
     private Arch.Core.World _archWorld = null!;
@@ -38,8 +38,8 @@ public class DistinctDenseComparisonBenchmarks
     private struct State
     {
         public int ComponentCount;
-        public WriteRowBinding<D0> D0; public WriteRowBinding<D1> D1; public WriteRowBinding<D2> D2; public WriteRowBinding<D3> D3;
-        public WriteRowBinding<D4> D4; public WriteRowBinding<D5> D5; public WriteRowBinding<D6> D6; public WriteRowBinding<D7> D7;
+        public CursorWriteBinding<D0> D0; public CursorWriteBinding<D1> D1; public CursorWriteBinding<D2> D2; public CursorWriteBinding<D3> D3;
+        public CursorWriteBinding<D4> D4; public CursorWriteBinding<D5> D5; public CursorWriteBinding<D6> D6; public CursorWriteBinding<D7> D7;
     }
 
     private static readonly ArchComponentType[] s_archTypes =
@@ -78,14 +78,14 @@ public class DistinctDenseComparisonBenchmarks
 
         var queryDescription = QueryDescription.ForComponents(_deltaComponents);
         _deltaQuery = _deltaWorld.CreateQuery(in queryDescription);
-        _d0Binding = _deltaQuery.Bind<D0>(_deltaComponents[0], RowAccess.Write);
-        _d1Binding = ComponentCount >= 2 ? _deltaQuery.Bind<D1>(_deltaComponents[1], RowAccess.Write) : default;
-        _d2Binding = ComponentCount >= 4 ? _deltaQuery.Bind<D2>(_deltaComponents[2], RowAccess.Write) : default;
-        _d3Binding = ComponentCount >= 4 ? _deltaQuery.Bind<D3>(_deltaComponents[3], RowAccess.Write) : default;
-        _d4Binding = ComponentCount >= 8 ? _deltaQuery.Bind<D4>(_deltaComponents[4], RowAccess.Write) : default;
-        _d5Binding = ComponentCount >= 8 ? _deltaQuery.Bind<D5>(_deltaComponents[5], RowAccess.Write) : default;
-        _d6Binding = ComponentCount >= 8 ? _deltaQuery.Bind<D6>(_deltaComponents[6], RowAccess.Write) : default;
-        _d7Binding = ComponentCount >= 8 ? _deltaQuery.Bind<D7>(_deltaComponents[7], RowAccess.Write) : default;
+        _d0Binding = _deltaQuery.CursorBind<D0>(_deltaComponents[0], RowAccess.Write);
+        _d1Binding = ComponentCount >= 2 ? _deltaQuery.CursorBind<D1>(_deltaComponents[1], RowAccess.Write) : default;
+        _d2Binding = ComponentCount >= 4 ? _deltaQuery.CursorBind<D2>(_deltaComponents[2], RowAccess.Write) : default;
+        _d3Binding = ComponentCount >= 4 ? _deltaQuery.CursorBind<D3>(_deltaComponents[3], RowAccess.Write) : default;
+        _d4Binding = ComponentCount >= 8 ? _deltaQuery.CursorBind<D4>(_deltaComponents[4], RowAccess.Write) : default;
+        _d5Binding = ComponentCount >= 8 ? _deltaQuery.CursorBind<D5>(_deltaComponents[5], RowAccess.Write) : default;
+        _d6Binding = ComponentCount >= 8 ? _deltaQuery.CursorBind<D6>(_deltaComponents[6], RowAccess.Write) : default;
+        _d7Binding = ComponentCount >= 8 ? _deltaQuery.CursorBind<D7>(_deltaComponents[7], RowAccess.Write) : default;
         _legacy = new LegacyByteDenseReference(ComponentCount, Amount);
 
         _archWorld = Arch.Core.World.Create();
@@ -115,12 +115,7 @@ public class DistinctDenseComparisonBenchmarks
     public void DeltaECS_Array_DistinctTypes()
     {
         var state = new State { ComponentCount = ComponentCount, D0 = _d0Binding, D1 = _d1Binding, D2 = _d2Binding, D3 = _d3Binding, D4 = _d4Binding, D5 = _d5Binding, D6 = _d6Binding, D7 = _d7Binding };
-        using var chunks = _deltaWorld.QueryChunks(in _deltaQuery);
-        while (chunks.MoveNext())
-        {
-            var lease = chunks.Current;
-            IterateDelta(ref state, ref lease);
-        }
+        _deltaWorld.QueryCursor(in _deltaQuery, ref state, static (ref State current, ref DenseChunkCursor cursor) => IterateDelta(ref current, ref cursor));
     }
 
     [Benchmark]
@@ -168,33 +163,33 @@ public class DistinctDenseComparisonBenchmarks
         }
     }
 
-    private static void IterateDelta(ref State state, ref DenseChunkAccessor lease)
+    private static void IterateDelta(ref State state, ref DenseChunkCursor cursor)
     {
         switch (state.ComponentCount)
         {
             case 1:
             {
-                var c0 = lease.GetRow(state.D0);
-                for (var i = c0.Length - 1; i >= 0; i--) c0[i].X += c0[i].Y;
+                var c0 = cursor.Resolve<D0>(state.D0);
+                while (cursor.MoveNext()) c0[cursor].X += c0[cursor].Y;
                 break;
             }
             case 2:
             {
-                var c0 = lease.GetRow(state.D0); var c1 = lease.GetRow(state.D1);
-                for (var i = c0.Length - 1; i >= 0; i--) { c0[i].X += c0[i].Y; c1[i].X += c1[i].Y; }
+                var c0 = cursor.Resolve<D0>(state.D0); var c1 = cursor.Resolve<D1>(state.D1);
+                while (cursor.MoveNext()) { c0[cursor].X += c0[cursor].Y; c1[cursor].X += c1[cursor].Y; }
                 break;
             }
             case 4:
             {
-                var c0 = lease.GetRow(state.D0); var c1 = lease.GetRow(state.D1); var c2 = lease.GetRow(state.D2); var c3 = lease.GetRow(state.D3);
-                for (var i = c0.Length - 1; i >= 0; i--) { c0[i].X += c0[i].Y; c1[i].X += c1[i].Y; c2[i].X += c2[i].Y; c3[i].X += c3[i].Y; }
+                var c0 = cursor.Resolve<D0>(state.D0); var c1 = cursor.Resolve<D1>(state.D1); var c2 = cursor.Resolve<D2>(state.D2); var c3 = cursor.Resolve<D3>(state.D3);
+                while (cursor.MoveNext()) { c0[cursor].X += c0[cursor].Y; c1[cursor].X += c1[cursor].Y; c2[cursor].X += c2[cursor].Y; c3[cursor].X += c3[cursor].Y; }
                 break;
             }
             case 8:
             {
-                var c0 = lease.GetRow(state.D0); var c1 = lease.GetRow(state.D1); var c2 = lease.GetRow(state.D2); var c3 = lease.GetRow(state.D3);
-                var c4 = lease.GetRow(state.D4); var c5 = lease.GetRow(state.D5); var c6 = lease.GetRow(state.D6); var c7 = lease.GetRow(state.D7);
-                for (var i = c0.Length - 1; i >= 0; i--) { c0[i].X += c0[i].Y; c1[i].X += c1[i].Y; c2[i].X += c2[i].Y; c3[i].X += c3[i].Y; c4[i].X += c4[i].Y; c5[i].X += c5[i].Y; c6[i].X += c6[i].Y; c7[i].X += c7[i].Y; }
+                var c0 = cursor.Resolve<D0>(state.D0); var c1 = cursor.Resolve<D1>(state.D1); var c2 = cursor.Resolve<D2>(state.D2); var c3 = cursor.Resolve<D3>(state.D3);
+                var c4 = cursor.Resolve<D4>(state.D4); var c5 = cursor.Resolve<D5>(state.D5); var c6 = cursor.Resolve<D6>(state.D6); var c7 = cursor.Resolve<D7>(state.D7);
+                while (cursor.MoveNext()) { c0[cursor].X += c0[cursor].Y; c1[cursor].X += c1[cursor].Y; c2[cursor].X += c2[cursor].Y; c3[cursor].X += c3[cursor].Y; c4[cursor].X += c4[cursor].Y; c5[cursor].X += c5[cursor].Y; c6[cursor].X += c6[cursor].Y; c7[cursor].X += c7[cursor].Y; }
                 break;
             }
         }

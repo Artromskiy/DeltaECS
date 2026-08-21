@@ -154,12 +154,12 @@ public class CachedBindingIterationMicroBenchmarks
     private Entity[] _movement4Entities = null!;
     private QueryHandle _movement2Query;
     private QueryHandle _movement4Query;
-    private WriteRowBinding<Position> _movement2WritePosition;
-    private ReadRowBinding<Velocity> _movement2ReadVelocity;
-    private WriteRowBinding<Movement4A> _movement4WriteA;
-    private WriteRowBinding<Movement4B> _movement4WriteB;
-    private WriteRowBinding<Movement4C> _movement4WriteC;
-    private ReadRowBinding<Movement4D> _movement4ReadD;
+    private CursorWriteBinding<Position> _movement2WritePosition;
+    private CursorReadBinding<Velocity> _movement2ReadVelocity;
+    private CursorWriteBinding<Movement4A> _movement4WriteA;
+    private CursorWriteBinding<Movement4B> _movement4WriteB;
+    private CursorWriteBinding<Movement4C> _movement4WriteC;
+    private CursorReadBinding<Movement4D> _movement4ReadD;
 
     [GlobalSetup]
     public void Setup()
@@ -170,15 +170,15 @@ public class CachedBindingIterationMicroBenchmarks
 
         var movement2Description = QueryDescription.ForComponents(_fixture.Position, _fixture.Velocity);
         _movement2Query = _fixture.World.CreateQuery(in movement2Description);
-        _movement2WritePosition = _movement2Query.Bind<Position>(_fixture.Position, RowAccess.Write);
-        _movement2ReadVelocity = _movement2Query.Bind<Velocity>(_fixture.Velocity, RowAccess.Read);
+        _movement2WritePosition = _movement2Query.CursorBind<Position>(_fixture.Position, RowAccess.Write);
+        _movement2ReadVelocity = _movement2Query.CursorBind<Velocity>(_fixture.Velocity, RowAccess.Read);
 
         var movement4Description = QueryDescription.ForComponents(_fixture.Movement4A, _fixture.Movement4B, _fixture.Movement4C, _fixture.Movement4D);
         _movement4Query = _fixture.World.CreateQuery(in movement4Description);
-        _movement4WriteA = _movement4Query.Bind<Movement4A>(_fixture.Movement4A, RowAccess.Write);
-        _movement4WriteB = _movement4Query.Bind<Movement4B>(_fixture.Movement4B, RowAccess.Write);
-        _movement4WriteC = _movement4Query.Bind<Movement4C>(_fixture.Movement4C, RowAccess.Write);
-        _movement4ReadD = _movement4Query.Bind<Movement4D>(_fixture.Movement4D, RowAccess.Read);
+        _movement4WriteA = _movement4Query.CursorBind<Movement4A>(_fixture.Movement4A, RowAccess.Write);
+        _movement4WriteB = _movement4Query.CursorBind<Movement4B>(_fixture.Movement4B, RowAccess.Write);
+        _movement4WriteC = _movement4Query.CursorBind<Movement4C>(_fixture.Movement4C, RowAccess.Write);
+        _movement4ReadD = _movement4Query.CursorBind<Movement4D>(_fixture.Movement4D, RowAccess.Read);
     }
 
     [IterationSetup(Target = nameof(Movement2ComponentsForward))]
@@ -197,16 +197,16 @@ public class CachedBindingIterationMicroBenchmarks
     public int Movement2ComponentsForward()
     {
         var state = new Movement2State(_movement2WritePosition, _movement2ReadVelocity);
-        _fixture.World.Query(in _movement2Query, ref state, static (ref Movement2State s, ref DenseChunkAccessor chunk) =>
+        _fixture.World.QueryCursor(in _movement2Query, ref state, static (ref Movement2State s, ref DenseChunkCursor chunk) =>
         {
-            var positions = chunk.GetRow(s.Position);
-            var velocities = chunk.GetRow(s.Velocity);
+            var positions = chunk.Resolve(s.Position);
+            var velocities = chunk.Resolve(s.Velocity);
             var checksum = 0;
-            for (var i = 0; i < chunk.SlotCount; i++)
+            while (chunk.MoveNext())
             {
-                positions[i].X += velocities[i].X;
-                positions[i].Y += velocities[i].Y;
-                checksum += positions[i].X + positions[i].Y;
+                positions[chunk].X += velocities[chunk].X;
+                positions[chunk].Y += velocities[chunk].Y;
+                checksum += positions[chunk].X + positions[chunk].Y;
             }
             s.Checksum += checksum;
         });
@@ -217,16 +217,16 @@ public class CachedBindingIterationMicroBenchmarks
     public int Movement2ComponentsReverse()
     {
         var state = new Movement2State(_movement2WritePosition, _movement2ReadVelocity);
-        _fixture.World.Query(in _movement2Query, ref state, static (ref Movement2State s, ref DenseChunkAccessor chunk) =>
+        _fixture.World.QueryCursor(in _movement2Query, ref state, static (ref Movement2State s, ref DenseChunkCursor chunk) =>
         {
-            var positions = chunk.GetRow(s.Position);
-            var velocities = chunk.GetRow(s.Velocity);
+            var positions = chunk.Resolve(s.Position);
+            var velocities = chunk.Resolve(s.Velocity);
             var checksum = 0;
-            for (var i = chunk.SlotCount - 1; i >= 0; i--)
+            while (chunk.MoveNext())
             {
-                positions[i].X += velocities[i].X;
-                positions[i].Y += velocities[i].Y;
-                checksum += positions[i].X + positions[i].Y;
+                positions[chunk].X += velocities[chunk].X;
+                positions[chunk].Y += velocities[chunk].Y;
+                checksum += positions[chunk].X + positions[chunk].Y;
             }
             s.Checksum += checksum;
         });
@@ -237,20 +237,18 @@ public class CachedBindingIterationMicroBenchmarks
     public int Movement4ComponentsForward()
     {
         var state = new Movement4State(_movement4WriteA, _movement4WriteB, _movement4WriteC, _movement4ReadD);
-        _fixture.World.Query(in _movement4Query, ref state, static (ref Movement4State s, ref DenseChunkAccessor chunk) =>
+        _fixture.World.QueryCursor(in _movement4Query, ref state, static (ref Movement4State s, ref DenseChunkCursor chunk) =>
         {
             // For each slot: a += d; b += d; c = (a + b) / 2; d stays read-only.
-            var a = chunk.GetRow(s.A);
-            var b = chunk.GetRow(s.B);
-            var c = chunk.GetRow(s.C);
-            var d = chunk.GetRow(s.D);
+            var a = chunk.Resolve(s.A); var b = chunk.Resolve(s.B);
+            var c = chunk.Resolve(s.C); var d = chunk.Resolve(s.D);
             var checksum = 0;
-            for (var i = 0; i < chunk.SlotCount; i++)
+            while (chunk.MoveNext())
             {
-                a[i].Value += d[i].Value;
-                b[i].Value += d[i].Value;
-                c[i].Value = (a[i].Value + b[i].Value) / 2;
-                checksum += a[i].Value + b[i].Value + c[i].Value + d[i].Value;
+                a[chunk].Value += d[chunk].Value;
+                b[chunk].Value += d[chunk].Value;
+                c[chunk].Value = (a[chunk].Value + b[chunk].Value) / 2;
+                checksum += a[chunk].Value + b[chunk].Value + c[chunk].Value + d[chunk].Value;
             }
             s.Checksum += checksum;
         });
@@ -261,43 +259,41 @@ public class CachedBindingIterationMicroBenchmarks
     public int Movement4ComponentsReverse()
     {
         var state = new Movement4State(_movement4WriteA, _movement4WriteB, _movement4WriteC, _movement4ReadD);
-        _fixture.World.Query(in _movement4Query, ref state, static (ref Movement4State s, ref DenseChunkAccessor chunk) =>
+        _fixture.World.QueryCursor(in _movement4Query, ref state, static (ref Movement4State s, ref DenseChunkCursor chunk) =>
         {
             // For each slot: a += d; b += d; c = (a + b) / 2; d stays read-only.
-            var a = chunk.GetRow(s.A);
-            var b = chunk.GetRow(s.B);
-            var c = chunk.GetRow(s.C);
-            var d = chunk.GetRow(s.D);
+            var a = chunk.Resolve(s.A); var b = chunk.Resolve(s.B);
+            var c = chunk.Resolve(s.C); var d = chunk.Resolve(s.D);
             var checksum = 0;
-            for (var i = chunk.SlotCount - 1; i >= 0; i--)
+            while (chunk.MoveNext())
             {
-                a[i].Value += d[i].Value;
-                b[i].Value += d[i].Value;
-                c[i].Value = (a[i].Value + b[i].Value) / 2;
-                checksum += a[i].Value + b[i].Value + c[i].Value + d[i].Value;
+                a[chunk].Value += d[chunk].Value;
+                b[chunk].Value += d[chunk].Value;
+                c[chunk].Value = (a[chunk].Value + b[chunk].Value) / 2;
+                checksum += a[chunk].Value + b[chunk].Value + c[chunk].Value + d[chunk].Value;
             }
             s.Checksum += checksum;
         });
         return state.Checksum;
     }
 
-    private struct Movement2State(WriteRowBinding<Position> position, ReadRowBinding<Velocity> velocity)
+    private struct Movement2State(CursorWriteBinding<Position> position, CursorReadBinding<Velocity> velocity)
     {
-        public WriteRowBinding<Position> Position = position;
-        public ReadRowBinding<Velocity> Velocity = velocity;
+        public CursorWriteBinding<Position> Position = position;
+        public CursorReadBinding<Velocity> Velocity = velocity;
         public int Checksum;
     }
 
     private struct Movement4State(
-        WriteRowBinding<Movement4A> a,
-        WriteRowBinding<Movement4B> b,
-        WriteRowBinding<Movement4C> c,
-        ReadRowBinding<Movement4D> d)
+        CursorWriteBinding<Movement4A> a,
+        CursorWriteBinding<Movement4B> b,
+        CursorWriteBinding<Movement4C> c,
+        CursorReadBinding<Movement4D> d)
     {
-        public WriteRowBinding<Movement4A> A = a;
-        public WriteRowBinding<Movement4B> B = b;
-        public WriteRowBinding<Movement4C> C = c;
-        public ReadRowBinding<Movement4D> D = d;
+        public CursorWriteBinding<Movement4A> A = a;
+        public CursorWriteBinding<Movement4B> B = b;
+        public CursorWriteBinding<Movement4C> C = c;
+        public CursorReadBinding<Movement4D> D = d;
         public int Checksum;
     }
 }

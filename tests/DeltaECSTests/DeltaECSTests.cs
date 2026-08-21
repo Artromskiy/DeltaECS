@@ -92,23 +92,20 @@ public sealed class DeltaECSDeliveryTests
         Assert.AreEqual(requested, world.AliveEntityCount);
 
         var query = world.CreateQuery(QueryDescription.ForComponents(PositionId, VelocityId));
-        var position = query.Bind<Position>(PositionId, RowAccess.Write);
-        var velocity = query.Bind<Velocity>(VelocityId, RowAccess.Write);
+        var position = query.CursorBind<Position>(PositionId, RowAccess.Write);
+        var velocity = query.CursorBind<Velocity>(VelocityId, RowAccess.Write);
         var sum = 0L;
-        world.Query(in query, (ref DenseChunkAccessor lease) =>
+        world.QueryCursor(in query, ref sum, (ref long total, ref DenseChunkCursor cursor) =>
         {
-            var pos = lease.GetRow(position);
-            var vel = lease.GetRow(velocity);
-            for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
+            var pos = cursor.Resolve(position);
+            var vel = cursor.Resolve(velocity);
+            while (cursor.MoveNext())
             {
-                if (!lease.IsActiveSlot(slotIndex))
-                {
-                    continue;
-                }
-
-                pos[slotIndex] = new Position { X = slotIndex, Y = slotIndex * 2f };
-                vel[slotIndex] = new Velocity { X = 1, Y = 1 };
-                sum += (long)pos[slotIndex].X + (long)vel[slotIndex].Y;
+                ref var p = ref pos[cursor];
+                ref var v = ref vel[cursor];
+                p = new Position { X = cursor.CurrentIndex, Y = cursor.CurrentIndex * 2f };
+                v = new Velocity { X = 1, Y = 1 };
+                total += (long)p.X + (long)v.Y;
             }
         });
 

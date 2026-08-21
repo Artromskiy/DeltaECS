@@ -31,8 +31,8 @@ public class AlgorithmicMovementBenchmarks
     private ComponentId _deltaVelocity;
     private ComponentId[] _deltaComponents = Array.Empty<ComponentId>();
     private QueryHandle _deltaQuery;
-    private WriteRowBinding<DeltaPosition> _deltaPositionBinding;
-    private ReadRowBinding<DeltaVelocity> _deltaVelocityBinding;
+    private CursorWriteBinding<DeltaPosition> _deltaPositionBinding;
+    private CursorReadBinding<DeltaVelocity> _deltaVelocityBinding;
     private LegacyMovementReference _legacy = null!;
 
     private Arch.Core.World _archWorld = null!;
@@ -47,8 +47,8 @@ public class AlgorithmicMovementBenchmarks
         public float Dt;
         public int Count;
         public double Checksum;
-        public WriteRowBinding<DeltaPosition> Position;
-        public ReadRowBinding<DeltaVelocity> Velocity;
+        public CursorWriteBinding<DeltaPosition> Position;
+        public CursorReadBinding<DeltaVelocity> Velocity;
     }
 
     [GlobalSetup]
@@ -64,17 +64,18 @@ public class AlgorithmicMovementBenchmarks
     public double DeltaECS_Movement()
     {
         var state = new DeltaState { Dt = Dt, Position = _deltaPositionBinding, Velocity = _deltaVelocityBinding };
-        _deltaWorld.Query(in _deltaQuery, ref state, static (ref DeltaState s, ref DenseChunkAccessor lease) =>
+        _deltaWorld.QueryCursor(in _deltaQuery, ref state, static (ref DeltaState s, ref DenseChunkCursor cursor) =>
         {
-            var positions = lease.GetRow(s.Position);
-            var velocities = lease.GetRow(s.Velocity);
-            var slotCount = lease.SlotCount;
-            for (var i = slotCount - 1; i >= 0; i--)
+            var positions = cursor.Resolve(s.Position);
+            var velocities = cursor.Resolve(s.Velocity);
+            while (cursor.MoveNext())
             {
-                positions[i].X += velocities[i].X * s.Dt;
-                positions[i].Y += velocities[i].Y * s.Dt;
+                ref var position = ref positions[cursor];
+                ref readonly var velocity = ref velocities[cursor];
+                position.X += velocity.X * s.Dt;
+                position.Y += velocity.Y * s.Dt;
                 s.Count++;
-                s.Checksum += positions[i].X + positions[i].Y;
+                s.Checksum += position.X + position.Y;
             }
         });
 
@@ -145,8 +146,8 @@ public class AlgorithmicMovementBenchmarks
 
         var description = QueryDescription.ForComponents(_deltaComponents);
         _deltaQuery = _deltaWorld.CreateQuery(in description);
-        _deltaPositionBinding = _deltaQuery.Bind<DeltaPosition>(_deltaPosition, RowAccess.Write);
-        _deltaVelocityBinding = _deltaQuery.Bind<DeltaVelocity>(_deltaVelocity, RowAccess.Read);
+        _deltaPositionBinding = _deltaQuery.CursorBind<DeltaPosition>(_deltaPosition, RowAccess.Write);
+        _deltaVelocityBinding = _deltaQuery.CursorBind<DeltaVelocity>(_deltaVelocity, RowAccess.Read);
     }
 
     private void SetupArch()

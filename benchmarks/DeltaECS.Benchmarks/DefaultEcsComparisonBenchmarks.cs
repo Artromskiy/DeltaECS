@@ -31,8 +31,8 @@ public class DefaultEcsComparisonBenchmarks
     private ComponentId[] _deltaMovementComponents = Array.Empty<ComponentId>();
     private QueryHandle _deltaMovementQuery;
     private DeltaEntity[] _deltaMovementEntities = Array.Empty<DeltaEntity>();
-    private WriteRowBinding<MovementPosition> _deltaPositionBinding;
-    private ReadRowBinding<MovementVelocity> _deltaVelocityBinding;
+    private CursorWriteBinding<MovementPosition> _deltaPositionBinding;
+    private CursorReadBinding<MovementVelocity> _deltaVelocityBinding;
     private ComponentId[] _deltaTransitionComponents = Array.Empty<ComponentId>();
 
     private DefaultEcs.World _defaultMovementWorld = null!;
@@ -77,17 +77,18 @@ public class DefaultEcsComparisonBenchmarks
     public double DeltaECS_Movement_PositionVelocity()
     {
         var state = new MovementState { Count = 0, ExpectedCount = Amount, Dt = Dt, Position = _deltaPositionBinding, Velocity = _deltaVelocityBinding };
-        _deltaMovementWorld.Query(in _deltaMovementQuery, ref state, static (ref MovementState s, ref DenseChunkAccessor lease) =>
+        _deltaMovementWorld.QueryCursor(in _deltaMovementQuery, ref state, static (ref MovementState s, ref DenseChunkCursor cursor) =>
         {
-            var positions = lease.GetRow(s.Position);
-            var velocities = lease.GetRow(s.Velocity);
-            var slotCount = lease.SlotCount;
-            for (var i = slotCount - 1; i >= 0; i--)
+            var positions = cursor.Resolve<MovementPosition>(s.Position);
+            var velocities = cursor.Resolve<MovementVelocity>(s.Velocity);
+            while (cursor.MoveNext())
             {
-                positions[i].X += velocities[i].X * s.Dt;
-                positions[i].Y += velocities[i].Y * s.Dt;
+                ref var position = ref positions[cursor];
+                ref readonly var velocity = ref velocities[cursor];
+                position.X += velocity.X * s.Dt;
+                position.Y += velocity.Y * s.Dt;
                 s.Count++;
-                s.Checksum += positions[i].X + positions[i].Y;
+                s.Checksum += position.X + position.Y;
             }
         });
 
@@ -251,8 +252,8 @@ public class DefaultEcsComparisonBenchmarks
 
         var queryDescription = QueryDescription.ForComponents(_deltaMovementComponents);
         _deltaMovementQuery = _deltaMovementWorld.CreateQuery(in queryDescription);
-        _deltaPositionBinding = _deltaMovementQuery.Bind<MovementPosition>(_deltaPosition, RowAccess.Write);
-        _deltaVelocityBinding = _deltaMovementQuery.Bind<MovementVelocity>(_deltaVelocity, RowAccess.Read);
+        _deltaPositionBinding = _deltaMovementQuery.CursorBind<MovementPosition>(_deltaPosition, RowAccess.Write);
+        _deltaVelocityBinding = _deltaMovementQuery.CursorBind<MovementVelocity>(_deltaVelocity, RowAccess.Read);
     }
 
     private void SetupMovementDefault()
@@ -346,8 +347,8 @@ public class DefaultEcsComparisonBenchmarks
         public int ExpectedCount;
         public float Dt;
         public double Checksum;
-        public WriteRowBinding<MovementPosition> Position;
-        public ReadRowBinding<MovementVelocity> Velocity;
+        public CursorWriteBinding<MovementPosition> Position;
+        public CursorReadBinding<MovementVelocity> Velocity;
     }
 
     private struct MovementPosition

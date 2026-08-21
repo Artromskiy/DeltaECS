@@ -24,7 +24,7 @@ public int MatchingPercent { get; set; }
 private World _world = null!;
 private QueryHandle _query;
 private ComponentId _required;
-private ReadRowBinding<FragmentValue> _valueBinding;
+private CursorReadBinding<FragmentValue> _valueBinding;
 private int _expectedMatches;
 
     [GlobalSetup]
@@ -71,20 +71,20 @@ private int _expectedMatches;
 
         var description = QueryDescription.ForComponents(_required);
         _query = _world.CreateQuery(in description);
-        _valueBinding = _query.Bind<FragmentValue>(_required, RowAccess.Read);
+        _valueBinding = _query.CursorBind<FragmentValue>(_required, RowAccess.Read);
     }
 
     [Benchmark]
     public int DeltaOnly_QueryAndIteration()
     {
         var state = new FragmentQueryState { Value = _valueBinding };
-        _world.Query(in _query, ref state, static (ref FragmentQueryState s, ref DenseChunkAccessor lease) =>
+        _world.QueryCursor(in _query, ref state, static (ref FragmentQueryState s, ref DenseChunkCursor cursor) =>
         {
-            var values = lease.GetRow(s.Value);
-            for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
+            var values = cursor.Resolve<FragmentValue>(s.Value);
+            while (cursor.MoveNext())
             {
                 s.Matches++;
-                s.Checksum += values[slotIndex].Value;
+                s.Checksum += values[cursor].Value;
             }
         });
 
@@ -100,8 +100,8 @@ private int _expectedMatches;
     public int DeltaOnly_QueryChunkDispatch()
     {
         var state = new FragmentQueryState { Value = _valueBinding };
-        _world.Query(in _query, ref state, static (ref FragmentQueryState s, ref DenseChunkAccessor lease)
-            => s.Matches += lease.SlotCount);
+        _world.QueryCursor(in _query, ref state, static (ref FragmentQueryState s, ref DenseChunkCursor cursor) =>
+        { while (cursor.MoveNext()) s.Matches++; });
 
         if (state.Matches != _expectedMatches)
         {
@@ -117,15 +117,15 @@ private int _expectedMatches;
         var state = new FragmentQueryState();
         var description = QueryDescription.ForComponents(_required);
         var coldQuery = _world.CreateQuery(in description);
-        var valueBinding = coldQuery.Bind<FragmentValue>(_required, RowAccess.Read);
+        var valueBinding = coldQuery.CursorBind<FragmentValue>(_required, RowAccess.Read);
         state.Value = valueBinding;
-        _world.Query(in coldQuery, ref state, static (ref FragmentQueryState s, ref DenseChunkAccessor lease) =>
+        _world.QueryCursor(in coldQuery, ref state, static (ref FragmentQueryState s, ref DenseChunkCursor cursor) =>
         {
-            var values = lease.GetRow(s.Value);
-            for (var slotIndex = lease.SlotCount - 1; slotIndex >= 0; slotIndex--)
+            var values = cursor.Resolve<FragmentValue>(s.Value);
+            while (cursor.MoveNext())
             {
                 s.Matches++;
-                s.Checksum += values[slotIndex].Value;
+                s.Checksum += values[cursor].Value;
             }
         });
 
@@ -170,6 +170,6 @@ private int _expectedMatches;
     {
         public int Matches;
         public int Checksum;
-        public ReadRowBinding<FragmentValue> Value;
+        public CursorReadBinding<FragmentValue> Value;
     }
 }
