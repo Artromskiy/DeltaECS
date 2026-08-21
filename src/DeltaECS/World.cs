@@ -410,13 +410,14 @@ public sealed class World
         for (var i = 0; i < plans.Length; i++)
         {
             var archetype = plans[i].Archetype;
+            var componentRows = plans[i].ComponentRows;
             for (var activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
             {
                 var chunkIndex = archetype.GetActiveChunkIndex(activeChunkIndex);
                 var chunk = archetype.GetChunk(chunkIndex);
 
                 _activeChunkLeases++;
-                using var scope = new DenseChunkScope(this, cached, archetype, chunk, chunk.GlobalId, null, OverlayMaskResult.Full, writeTick);
+                using var scope = new DenseChunkScope(this, cached, archetype, chunk, chunk.GlobalId, componentRows, null, OverlayMaskResult.Full, writeTick);
                 action(scope);
             }
         }
@@ -433,6 +434,7 @@ public sealed class World
         for (var i = 0; i < plans.Length; i++)
         {
             var archetype = plans[i].Archetype;
+            var componentRows = plans[i].ComponentRows;
             for (var activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
             {
                 var chunkIndex = archetype.GetActiveChunkIndex(activeChunkIndex);
@@ -445,7 +447,7 @@ public sealed class World
                 }
 
                 _activeChunkLeases++;
-                using var scope = new DenseChunkScope(this, cached, archetype, chunk, chunk.GlobalId, scratch, overlayResult, writeTick);
+                using var scope = new DenseChunkScope(this, cached, archetype, chunk, chunk.GlobalId, componentRows, scratch, overlayResult, writeTick);
                 action(scope);
             }
         }
@@ -504,12 +506,13 @@ public sealed class World
         for (var i = 0; i < plans.Length; i++)
         {
             var archetype = plans[i].Archetype;
+            var componentRows = plans[i].ComponentRows;
             for (var activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
             {
                 var chunkIndex = archetype.GetActiveChunkIndex(activeChunkIndex);
                 var chunk = archetype.GetChunk(chunkIndex);
 
-                var accessor = new DenseChunkAccessor(this, cached, archetype, chunk, chunk.GlobalId, null, OverlayMaskResult.Full, RentChunkAccessor(), writeTick);
+                var accessor = new DenseChunkAccessor(this, cached, archetype, chunk, chunk.GlobalId, componentRows, null, OverlayMaskResult.Full, RentChunkAccessor(), writeTick);
                 try
                 {
                     action(ref context, ref accessor);
@@ -534,6 +537,7 @@ public sealed class World
         for (var i = 0; i < plans.Length; i++)
         {
             var archetype = plans[i].Archetype;
+            var componentRows = plans[i].ComponentRows;
             for (var activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
             {
                 var chunkIndex = archetype.GetActiveChunkIndex(activeChunkIndex);
@@ -546,7 +550,7 @@ public sealed class World
                     continue;
                 }
 
-                var accessor = new DenseChunkAccessor(this, cached, archetype, chunk, chunkId, scratch, overlayResult, RentChunkAccessor(), writeTick);
+                var accessor = new DenseChunkAccessor(this, cached, archetype, chunk, chunkId, componentRows, scratch, overlayResult, RentChunkAccessor(), writeTick);
                 try
                 {
                     action(ref context, ref accessor);
@@ -644,12 +648,13 @@ public sealed class World
             while (_archetypePosition < _plans.Length)
             {
                 var archetype = _plans[_archetypePosition].Archetype;
+                var componentRows = _plans[_archetypePosition].ComponentRows;
                 while (_chunkPosition < archetype.ActiveChunkCount)
                 {
                     var chunkIndex = archetype.GetActiveChunkIndex(_chunkPosition++);
                     var chunk = archetype.GetChunk(chunkIndex);
 
-                    _current = new DenseChunkAccessor(_owner, _cached, archetype, chunk, chunk.GlobalId, null, OverlayMaskResult.Full, _owner.RentChunkAccessor(), _writeTick);
+                    _current = new DenseChunkAccessor(_owner, _cached, archetype, chunk, chunk.GlobalId, componentRows, null, OverlayMaskResult.Full, _owner.RentChunkAccessor(), _writeTick);
                     _hasCurrent = true;
                     return true;
                 }
@@ -668,6 +673,7 @@ public sealed class World
             while (_archetypePosition < _plans.Length)
             {
                 var archetype = _plans[_archetypePosition].Archetype;
+                var componentRows = _plans[_archetypePosition].ComponentRows;
                 while (_chunkPosition < archetype.ActiveChunkCount)
                 {
                     var chunkIndex = archetype.GetActiveChunkIndex(_chunkPosition++);
@@ -680,7 +686,7 @@ public sealed class World
                         continue;
                     }
 
-                    _current = new DenseChunkAccessor(_owner, _cached, archetype, chunk, chunkId, scratch, overlayResult, _owner.RentChunkAccessor(), _writeTick);
+                    _current = new DenseChunkAccessor(_owner, _cached, archetype, chunk, chunkId, componentRows, scratch, overlayResult, _owner.RentChunkAccessor(), _writeTick);
                     _hasCurrent = true;
                     return true;
                 }

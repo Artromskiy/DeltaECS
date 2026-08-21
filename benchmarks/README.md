@@ -133,6 +133,30 @@ dotnet benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/DeltaECS.MicroBenc
   --filter '*Movement2ComponentsReverse*'
 ```
 
+For a quick repeatable capture, use
+[`run-jit-disasm.sh`](run-jit-disasm.sh). It builds only the selected probe
+project incrementally, never the full solution. The default `dry` job is for
+JIT/lifecycle inspection only and is not a timing result; pass `--job default`
+only when an actual BenchmarkDotNet run is intentionally wanted.
+
+```bash
+./benchmarks/run-jit-disasm.sh \
+  --method 'Movement2ComponentsReverse' \
+  --filter '*Movement2ComponentsReverse*'
+
+# Reuse an already-built probe without compiling it:
+./benchmarks/run-jit-disasm.sh \
+  --method 'RunRead' \
+  --project /private/tmp/deltaecs-dense-jit-probe/DenseJitProbe.csproj \
+  --filter '*' --no-build \
+  --output /private/tmp/deltaecs-dense-jit-current.txt
+```
+
+The script sets `DOTNET_TieredCompilation=0`, `DOTNET_ReadyToRun=0` and
+`DOTNET_JitDisasmDiffable=1`, and writes raw output under `artifacts/jit-disasm`
+by default. `--method` selects JIT methods; `--filter` selects the benchmark
+fixture that invokes them.
+
 ## Version comparison
 
 `DeltaECS.VersionBenchmarks` requires two checkouts and is intentionally not a

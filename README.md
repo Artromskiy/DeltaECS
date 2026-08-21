@@ -96,6 +96,9 @@ tracking and benchmark scenario contracts.
 For small, assembly-guided performance experiments, use
 [benchmarks/README.md](benchmarks/README.md). It defines the micro-algorithm
 matrix, correctness requirements and JIT capture workflow.
+The repeatable narrow capture helper is
+[benchmarks/run-jit-disasm.sh](benchmarks/run-jit-disasm.sh); it builds only the
+selected probe project and defaults to a non-measuring `dry` job.
 
 The unified manual comparison covers DeltaECS, Arch, Friflo.Engine.ECS,
 DefaultEcs and LeoECS Lite across iteration, atomic structural operations,
