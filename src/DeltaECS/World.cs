@@ -256,26 +256,6 @@ public sealed class World
         return true;
     }
 
-    [Obsolete("Unsafe API: returned reference can escape active archetype/slot ownership and must not be used outside a live lease scope.")]
-    public ref T GetComponentRefUnsafe<T>(Entity entity, ComponentId componentId)
-    {
-        if (!TryResolve(entity, out var recordIndex))
-        {
-            throw new InvalidOperationException("Unable to get component reference.");
-        }
-
-        ref readonly var record = ref RecordAt(recordIndex);
-        var archetype = _archetypes[record.Archetype];
-        if (!archetype.TryGetComponentIndex(componentId, out var componentIndex)
-            || !_layouts.TryGet(componentId, out var layout)
-            || !IsCompatibleComponentType<T>(layout))
-        {
-            throw new InvalidOperationException("Unable to get component reference.");
-        }
-
-        return ref archetype.GetChunk(record.Chunk).GetComponentRow<T>(componentIndex)[record.SlotIndex];
-    }
-
     public void AddTag(Entity entity, TagId tag)
     {
         ValidateTag(tag);

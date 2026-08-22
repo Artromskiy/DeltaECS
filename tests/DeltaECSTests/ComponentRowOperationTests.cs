@@ -147,9 +147,7 @@ public sealed class ComponentRowOperationTests
         var invalid = new Entity(999_999, 0);
 
         Assert.That(world.IsAlive(invalid), Is.False);
-#pragma warning disable CS0618
-        Assert.Throws<InvalidOperationException>(() => world.GetComponentRefUnsafe<int>(invalid, id));
-#pragma warning restore CS0618
+        Assert.That(world.TryGetComponent(invalid, id, out int _), Is.False);
     }
 
     private readonly struct ManagedPayload
