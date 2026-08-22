@@ -18,7 +18,11 @@ public ref struct DenseSlotIterator
         _index = chunk.Count;
     }
 
-    public int CurrentIndex => _index;
+    public int CurrentIndex
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _index;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNext()
@@ -34,6 +38,7 @@ public ref struct DenseSlotIterator
         return true;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ResolvedReadRow<T> Resolve<T>(DenseReadBinding<T> binding)
     {
         if (!ReferenceEquals(binding.Query, _plan.Query))
@@ -41,10 +46,11 @@ public ref struct DenseSlotIterator
             QueryThrowHelper.ThrowBindingMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows[binding.QueryComponentIndex];
+        var physicalRow = _plan.ComponentRows.Element(binding.QueryComponentIndex);
         return new ResolvedReadRow<T>(_chunk.GetComponentRow<T>(physicalRow));
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ResolvedWriteRow<T> Resolve<T>(DenseWriteBinding<T> binding)
     {
         if (!ReferenceEquals(binding.Query, _plan.Query))
@@ -52,7 +58,7 @@ public ref struct DenseSlotIterator
             QueryThrowHelper.ThrowBindingMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows[binding.QueryComponentIndex];
+        var physicalRow = _plan.ComponentRows.Element(binding.QueryComponentIndex);
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
         return new ResolvedWriteRow<T>(_chunk.GetComponentRow<T>(physicalRow));
     }
