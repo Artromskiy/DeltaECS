@@ -244,10 +244,14 @@ Store raw BDN and JIT output under ignored `artifacts/` paths. For a before/
 after comparison, use the exact same filter, runtime, architecture, machine
 conditions and BDN arguments on both checkouts.
 
-For assembly review, record calls, branches, bounds checks, row lookup/array
-indirection, loads/stores and code size. Assembly size does not prove cache
-misses or throughput; use targeted BDN for throughput and hardware counters
-only where the platform supports them.
+For assembly review, record calls (`bl`/`blr`), returns, unconditional and
+conditional branches, compare-and-branch/test-bit branches, bounds branches
+(`b.hs`/`bhs`), compare instructions, address arithmetic, multiply/divide,
+bitfield/shift operations, scalar and pair loads/stores, prefetch and AdvSIMD
+loads/arithmetic. The report categories intentionally overlap: for example a
+`cbnz` contributes to both `compare branch` and the aggregate `branch` count.
+Assembly size does not prove cache misses or throughput; use targeted BDN for
+throughput and hardware counters only where the platform supports them.
 
 For a compact repeatable instruction table, use the report wrapper. It invokes
 the existing JIT helper, keeps the first emitted assembly block, counts the

@@ -22,13 +22,28 @@ PDB_MAPPER = ROOT / "benchmarks" / "JitSourceMap" / "JitSourceMap.csproj"
 PATTERNS = (
     ("blr", re.compile(r"\bblr\b"), "P1"),
     ("bl", re.compile(r"\bbl\s+"), "P2"),
-    ("bhs", re.compile(r"\bbhs\b"), "P2"),
-    ("branch", re.compile(r"\b(?:b|beq|bne|blo|cbnz|cbz|tbnz|tbz)\b"), "P2"),
+    ("ret", re.compile(r"\bret(?:\s|$)"), "P2"),
+    ("bounds branch", re.compile(r"\b(?:bhs|b\.hs)\b"), "P1"),
+    (
+        "conditional branch",
+        re.compile(r"\bb\.(?:eq|ne|cs|cc|hs|lo|mi|pl|vs|vc|hi|ls|ge|lt|gt|le)\b"),
+        "P2",
+    ),
+    ("compare branch", re.compile(r"\b(?:cbz|cbnz)\b"), "P2"),
+    ("test-bit branch", re.compile(r"\b(?:tbz|tbnz)\b"), "P2"),
+    ("branch", re.compile(r"\b(?:b|beq|bne|blo|cbnz|cbz|tbnz|tbz|b\.[a-z]{2})\b"), "P2"),
+    ("compare", re.compile(r"\b(?:cmp|cmn|tst)\b"), "P2"),
+    ("add/sub", re.compile(r"\b(?:add|adds|sub|subs)\b"), "P2"),
+    ("multiply", re.compile(r"\b(?:mul|madd|msub|umull|smull|umaddl|smaddl)\b"), "P2"),
+    ("divide", re.compile(r"\b(?:sdiv|udiv)\b"), "P1"),
     ("sbfiz", re.compile(r"\bsbfiz\b"), "P1"),
-    ("umull", re.compile(r"\bumull\b"), "P2"),
-    ("ldr", re.compile(r"\bldr(?:b|h|sb|sh)?\b"), "P2"),
-    ("str", re.compile(r"\bstr(?:b|h)?\b"), "P2"),
+    ("shift/bitfield", re.compile(r"\b(?:lsl|lsr|asr|ubfiz|ubfx|sbfx|sbfm|ubfm)\b"), "P2"),
+    ("ldr", re.compile(r"\b(?:ldr|ldur)(?:b|h|sb|sh|sw)?\b"), "P2"),
+    ("str", re.compile(r"\b(?:str|stur)(?:b|h)?\b"), "P2"),
     ("ldp/stp", re.compile(r"\b(?:ldp|stp)\b"), "P1"),
+    ("prefetch", re.compile(r"\bprfm\b"), "P2"),
+    ("AdvSIMD load/store", re.compile(r"\b(?:ld1|ld2|ld3|ld4|st1|st2|st3|st4)\b"), "P1"),
+    ("AdvSIMD arithmetic", re.compile(r"\b(?:fadd|fsub|fmul|fmla|fmls|addv|saddv|uaddv|dup)\b"), "P1"),
 )
 
 def parse_args() -> argparse.Namespace:
