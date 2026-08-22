@@ -124,6 +124,12 @@ public ref struct ResolvedReadRow<T>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), cursor.CurrentIndex);
     }
+
+    public ref readonly T this[DenseSlotIterator iterator]
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), iterator.CurrentIndex);
+    }
 }
 
 public ref struct ResolvedWriteRow<T>
@@ -139,6 +145,12 @@ public ref struct ResolvedWriteRow<T>
     {
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), cursor.CurrentIndex);
+    }
+
+    public ref T this[DenseSlotIterator iterator]
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), iterator.CurrentIndex);
     }
 }
 
@@ -212,7 +224,7 @@ internal sealed class CachedQuery
             }
 
             matches.Add(archetypeId);
-            plans.Add(new DenseArchetypePlan(archetype, indices));
+            plans.Add(new DenseArchetypePlan(this, archetype, indices));
         }
 
         _matchingArchetypes = matches.ToArray();
@@ -239,11 +251,14 @@ internal sealed class CachedQuery
 
 internal readonly struct DenseArchetypePlan
 {
-    public DenseArchetypePlan(Archetype archetype, int[] componentRows)
+    public DenseArchetypePlan(CachedQuery query, Archetype archetype, int[] componentRows)
     {
+        Query = query;
         Archetype = archetype;
         ComponentRows = componentRows;
     }
+
+    public CachedQuery Query { get; }
 
     public Archetype Archetype { get; }
 
@@ -257,5 +272,11 @@ internal static class QueryThrowHelper
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     public static void ThrowMissingWriteIntent() => throw new InvalidOperationException("The query did not register its write row binding.");
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowArchetypeIteratorNotPositioned() => throw new InvalidOperationException("The archetype iterator is not positioned on an archetype.");
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowChunkIteratorNotPositioned() => throw new InvalidOperationException("The chunk iterator is not positioned on a chunk.");
 
 }

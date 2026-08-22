@@ -35,6 +35,8 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `CursorReadBinding<T>`, `CursorWriteBinding<T>` | Query-bound typed row intent | `src/DeltaECS/WorldQuery.cs` |
 | `QueryIterator` | Explicit `archetype -> chunk -> slot` traversal | `src/DeltaECS/QueryIterator.cs` |
 | `QueryChunkIterator` | Active chunk traversal for the selected archetype | `src/DeltaECS/QueryChunkIterator.cs` |
+| `DenseQueryScope` | Dense-only validation and structural lease owner | `src/DeltaECS/DenseQueryScope.cs` |
+| `DenseArchetypeIterator`, `DenseChunkIterator`, `DenseSlotIterator` | Independent dense traversal levels | matching `src/DeltaECS/Dense*Iterator.cs` files |
 | `DenseChunkCursor` | Current chunk, reverse slot traversal, row resolution and tag mask | `src/DeltaECS/WorldQuery.cs` |
 | `ResolvedReadRow<T>`, `ResolvedWriteRow<T>` | Safe typed cursor indexers over a resolved row | `src/DeltaECS/WorldQuery.cs` |
 | `World.QueryCursor` | Callback-based query execution over `DenseChunkCursor` | `src/DeltaECS/World.cs` |
@@ -42,16 +44,16 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 
 ## Query execution path
 
-For dense iteration, read only this chain first:
+For independent dense iteration, read only this chain first:
 
 ```text
-World.Iterate(in QueryHandle)
-  -> QueryIterator.MoveNextArchetype()
-  -> QueryIterator.MoveNextChunk()
-  -> QueryIterator.CurrentChunk
-  -> DenseChunkCursor.MoveNext()
-  -> DenseChunkCursor.Resolve(binding)
-  -> ResolvedReadRow<T>/ResolvedWriteRow<T>[cursor]
+World.IterateDense(in QueryHandle)
+  -> DenseQueryScope.Prepare(binding)
+  -> DenseArchetypeIterator.MoveNext()
+  -> DenseChunkIterator.MoveNext()
+  -> DenseSlotIterator.Resolve(binding)
+  -> DenseSlotIterator.MoveNext()
+  -> ResolvedReadRow<T>/ResolvedWriteRow<T>[iterator]
   -> Chunk.GetComponentRow<T>(physicalRow)
 ```
 
@@ -60,25 +62,28 @@ matching and the query-row to archetype-row plan. Read them when the issue is
 archetype matching, new-archetype refresh, or binding row resolution; do not
 start with tests or structural move code.
 
-The three-loop public shape is:
+The dense three-loop public shape is:
 
 ```csharp
-using var iterator = world.Iterate(in query);
-while (iterator.MoveNextArchetype())
+using var scope = world.IterateDense(in query);
+var prepared = scope.Prepare(binding);
+var archetypes = scope.Archetypes;
+while (archetypes.MoveNext())
 {
-    while (iterator.MoveNextChunk())
+    var chunks = archetypes.Current.Chunks;
+    while (chunks.MoveNext())
     {
-        ref var cursor = ref iterator.CurrentChunk;
-        var row = cursor.Resolve(binding);
-        while (cursor.MoveNext())
+        var slots = chunks.Current.Slots;
+        var row = slots.Resolve(prepared);
+        while (slots.MoveNext())
         {
-            _ = row[cursor];
+            _ = row[slots];
         }
     }
 }
 ```
 
-For tagged queries, `QueryIterator.MoveNextChunk()` selects chunks and
+For tagged queries, keep using `QueryIterator.MoveNextChunk()`, which selects chunks, and
 `DenseChunkCursor.IsActiveSlot(cursor.CurrentIndex)` selects slots in a
 partial mask. The tag implementation is in `OverlayTagManager.cs`.
 

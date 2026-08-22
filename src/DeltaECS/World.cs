@@ -87,6 +87,15 @@ public sealed class World
         return new QueryIterator(this, handle);
     }
 
+    /// <summary>
+    /// Creates a validated dense-only query scope with independent archetype,
+    /// chunk and slot iterators. Queries with tag predicates are rejected.
+    /// </summary>
+    public DenseQueryScope IterateDense(in QueryHandle handle)
+    {
+        return new DenseQueryScope(this, handle);
+    }
+
     public Entity Create(ComponentId[] componentIds)
     {
         Span<Entity> entities = stackalloc Entity[1];

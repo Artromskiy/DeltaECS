@@ -54,6 +54,8 @@ internal sealed class Archetype
 
     public int ActiveChunkCount => _activeChunkCount;
 
+    internal Chunk[] ActiveChunks => _activeChunks;
+
     public int EntityCount
     {
         get

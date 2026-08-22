@@ -32,6 +32,31 @@ nested loops: `MoveNextArchetype()`, `MoveNextChunk()` and the returned
 responsible for typed row resolution; tagged queries must still check
 `IsActiveSlot` for partial chunks.
 
+Queries without tag predicates may use the thinner independent dense path:
+
+```csharp
+using var scope = world.IterateDense(in query);
+var positions = scope.Prepare(positionBinding);
+var archetypes = scope.Archetypes;
+while (archetypes.MoveNext())
+{
+    var chunks = archetypes.Current.Chunks;
+    while (chunks.MoveNext())
+    {
+        var slots = chunks.Current.Slots;
+        var row = slots.Resolve(positions);
+        while (slots.MoveNext())
+        {
+            _ = row[slots];
+        }
+    }
+}
+```
+
+The root scope validates ownership, rejects tag predicates and owns the lease.
+The archetype, chunk and slot iterators contain only their own traversal state;
+the dense `MoveNext` methods contain no world, tag or lifetime branch.
+
 Structural mutation is invalid while a conflicting row lease is active. This
 is a local lifetime rule, not a global barrier. External consumers keep their
 own cursors/caches; one consumer never clears another's change state.

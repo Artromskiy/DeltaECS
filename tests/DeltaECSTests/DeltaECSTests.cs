@@ -156,6 +156,99 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
+    public void DenseQueryScope_Uses_Independent_Archetype_Chunk_And_Slot_Iterators()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        var world = new World(layouts, chunkCapacity: 2);
+        var positionOnly = new Entity[3];
+        var positionVelocity = new Entity[4];
+        world.CreateBatch(new[] { PositionId }, positionOnly);
+        world.CreateBatch(new[] { PositionId, VelocityId }, positionVelocity);
+
+        var expected = new Dictionary<Entity, int>();
+        var nextValue = 0;
+        foreach (var entity in positionOnly)
+        {
+            expected[entity] = nextValue;
+            world.SetComponent(entity, PositionId, new Position { X = nextValue++ });
+        }
+
+        foreach (var entity in positionVelocity)
+        {
+            expected[entity] = nextValue;
+            world.SetComponent(entity, PositionId, new Position { X = nextValue++ });
+        }
+
+        var query = world.CreateQuery(QueryDescription.ForComponents(PositionId));
+        var position = query.CursorBind<Position>(PositionId, RowAccess.Write);
+        var before = world.WorldTick;
+        var archetypeCount = 0;
+        var chunkCount = 0;
+        var slotCount = 0;
+        var writtenChunks = new List<int>();
+
+        using (var scope = world.IterateDense(in query))
+        {
+            var preparedPosition = scope.Prepare(position);
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
+            {
+                archetypeCount++;
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    chunkCount++;
+                    var chunk = chunks.Current;
+                    writtenChunks.Add(chunk.GlobalChunkId);
+                    var entities = chunk.Entities;
+                    var slots = chunk.Slots;
+                    var positions = slots.Resolve(preparedPosition);
+                    while (slots.MoveNext())
+                    {
+                        var entity = entities[slots.CurrentIndex];
+                        ref var value = ref positions[slots];
+                        Assert.That(value.X, Is.EqualTo(expected[entity]));
+                        value.X++;
+                        slotCount++;
+                    }
+                }
+            }
+
+            Assert.Throws<InvalidOperationException>(() => world.Destroy(positionOnly[0]));
+        }
+
+        Assert.That(archetypeCount, Is.EqualTo(2));
+        Assert.That(chunkCount, Is.EqualTo(4));
+        Assert.That(slotCount, Is.EqualTo(7));
+        foreach (var chunkId in writtenChunks)
+        {
+            Assert.That(world.HasChangedSince(chunkId, PositionId, before), Is.True);
+        }
+    }
+
+    [Test]
+    public void DenseQueryScope_Rejects_Tag_Predicates_At_Scope_Creation()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        var world = new World(layouts);
+        var tagged = new QueryDescription(
+            new[] { PositionId },
+            Array.Empty<ComponentId>(),
+            Array.Empty<ComponentId>(),
+            new[] { TagActive },
+            Array.Empty<TagId>(),
+            Array.Empty<TagId>());
+        var query = world.CreateQuery(in tagged);
+
+        Assert.Throws<ArgumentException>(() =>
+        {
+            using var _ = world.IterateDense(in query);
+        });
+    }
+
+    [Test]
     public void LeaseEntities_AndComponentRows_StayAligned_OnBothLeaseSurfaces()
     {
         var layouts = new ComponentLayoutRegistry();
