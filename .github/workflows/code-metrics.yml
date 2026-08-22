@@ -1,0 +1,73 @@
+name: Code metrics
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: 1
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+
+jobs:
+  metrics:
+    name: .NET code metrics
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.x
+            10.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore DeltaECS.slnx
+
+      - name: Verify formatting
+        continue-on-error: true
+        run: |
+          mkdir -p artifacts/code-metrics
+          FORMAT_CHECK=1 ./eng/format.sh 2>&1 | tee artifacts/code-metrics/format.log
+
+      - name: Build and collect analyzer metrics
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts/code-metrics
+          set +e
+          dotnet build DeltaECS.slnx \
+            -c Release \
+            --no-restore \
+            --disable-build-servers \
+            -m:1 \
+            /p:UseSharedCompilation=false \
+            /p:AnalysisMode=AllEnabledByDefault \
+            /p:ErrorLog="$GITHUB_WORKSPACE/artifacts/code-metrics/diagnostics.sarif,version=2.1" \
+            2>&1 | tee artifacts/code-metrics/build.log
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "Build exit code: $status" | tee artifacts/code-metrics/summary.txt
+          exit 0
+
+      - name: Upload metrics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: code-metrics
+          path: artifacts/code-metrics
+          if-no-files-found: warn
