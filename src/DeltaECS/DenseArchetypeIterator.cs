@@ -35,7 +35,6 @@ public ref struct DenseArchetypeIterator
     {
         if ((uint)++_index >= (uint)_plans.Length)
         {
-            _index = _plans.Length;
             return false;
         }
 

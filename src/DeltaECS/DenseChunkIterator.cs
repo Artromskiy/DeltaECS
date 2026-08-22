@@ -39,7 +39,6 @@ public ref struct DenseChunkIterator
     {
         if ((uint)++_index >= (uint)_count)
         {
-            _index = _count;
             return false;
         }
 
