@@ -33,14 +33,12 @@ public ref struct DenseArchetypeIterator
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNext()
     {
-        var next = _index + 1;
-        if ((uint)next >= (uint)_plans.Length)
+        if ((uint)++_index >= (uint)_plans.Length)
         {
             _index = _plans.Length;
             return false;
         }
 
-        _index = next;
         return true;
     }
 }
