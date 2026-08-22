@@ -1,0 +1,1080 @@
+// Validating benchmarks:
+// ***** BenchmarkRunner: Start   *****
+// ***** Found 12 benchmark(s) in total *****
+// ***** Building 1 exe(s) in Parallel: Start   *****
+// start dotnet  restore /p:UseSharedCompilation=false /p:BuildInParallel=false /m:1 /p:Deterministic=true /p:Optimize=true in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/ca3be1d2-cacf-4db7-b817-18c5696fea5e
+// command took 2.29 sec and exited with 0
+// start dotnet  build -c Release --no-restore /p:UseSharedCompilation=false /p:BuildInParallel=false /m:1 /p:Deterministic=true /p:Optimize=true in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/ca3be1d2-cacf-4db7-b817-18c5696fea5e
+// command took 5.65 sec and exited with 0
+// ***** Done, took 00:00:08 (8.12 sec)   *****
+// Found 12 benchmarks:
+//   DenseIterationMicroBenchmarks.Movement2Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=100]
+//   DenseIterationMicroBenchmarks.Movement4Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=100]
+//   DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=100]
+//   DenseIterationMicroBenchmarks.Movement2Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=1000]
+//   DenseIterationMicroBenchmarks.Movement4Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=1000]
+//   DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=1000]
+//   DenseIterationMicroBenchmarks.Movement2Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=10000]
+//   DenseIterationMicroBenchmarks.Movement4Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=10000]
+//   DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=10000]
+//   DenseIterationMicroBenchmarks.Movement2Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=100000]
+//   DenseIterationMicroBenchmarks.Movement4Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=100000]
+//   DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=100000]
+
+// **************************
+// Benchmark: DenseIterationMicroBenchmarks.Movement2Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=100]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet ca3be1d2-cacf-4db7-b817-18c5696fea5e.dll --anonymousPipes 116 117 --benchmarkName "Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarks.Movement2Components(Amount: 100)" --job Dry --benchmarkId 0 in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/ca3be1d2-cacf-4db7-b817-18c5696fea5e/bin/Release/net8.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.13.12
+// Runtime=.NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AdvSIMD,AES,CRC32,DP,RDM,SHA1,SHA256 VectorSize=128
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 2538208.00 ns, 2.5382 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 2538208.00 ns, 2.5382 ms/op
+// GC:  0 0 0 736 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 80559 has exited with code 0.
+
+Mean = 2.538 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 2.538 ms, Q1 = 2.538 ms, Median = 2.538 ms, Q3 = 2.538 ms, Max = 2.538 ms
+IQR = 0.000 ms, LowerFence = 2.538 ms, UpperFence = 2.538 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 11 (91,7 %) benchmark(s) to run. Estimated finish 2026-08-23 2:22 (0h 0m from now) **
+// **************************
+// Benchmark: DenseIterationMicroBenchmarks.Movement4Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=100]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet ca3be1d2-cacf-4db7-b817-18c5696fea5e.dll --anonymousPipes 116 117 --benchmarkName "Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarks.Movement4Components(Amount: 100)" --job Dry --benchmarkId 1 in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/ca3be1d2-cacf-4db7-b817-18c5696fea5e/bin/Release/net8.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.13.12
+// Runtime=.NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AdvSIMD,AES,CRC32,DP,RDM,SHA1,SHA256 VectorSize=128
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 3087958.00 ns, 3.0880 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 3087958.00 ns, 3.0880 ms/op
+// GC:  0 0 0 736 1
+// Threading:  0 0 1
+
+// AfterAll
+; Assembly listing for method Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarkImplementation:Movement4Components():int:this (FullOpts)
+; Emitting BLENDED_CODE for generic ARM64 - MacOS
+; FullOpts code
+; optimized code
+; fp based frame
+; partially interruptible
+; No PGO data
+G_M000_IG01:
+            stp     fp, lr, [sp, #-0x70]!
+            mov     fp, sp
+ 
+G_M000_IG02:
+            ldr     x1, [x0, #0x08]
+            add     x2, x0, #184
+ 
+G_M000_IG03:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x58]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x68]
+ 
+G_M000_IG04:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x40]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x50]
+ 
+G_M000_IG05:
+            add     x3, x0, #0xD1FFAB1E
+            ldp     x4, x5, [x3, #0x28]
+            stp     x4, x5, [fp, #0x28]
+            ldr     x4, [x3, #0x38]
+            str     x4, [fp, #0x38]
+ 
+G_M000_IG06:
+            add     x3, x0, #0xD1FFAB1E
+            ldp     x4, x5, [x3, #0x10]
+            stp     x4, x5, [fp, #0x10]
+            ldr     x4, [x3, #0x20]
+            str     x4, [fp, #0x20]
+ 
+G_M000_IG07:
+            mov     x0, x1
+            mov     x1, x2
+            add     x2, fp, #88	// 
+            add     x3, fp, #64	// 
+            add     x4, fp, #40	// 
+            add     x5, fp, #16	// 
+            movz    x6, #0xD1FFAB1E
+            movk    x6, #0xD1FFAB1E LSL #16
+            movk    x6, #1 LSL #32
+            ldr     x6, [x6]
+            blr     x6
+ 
+G_M000_IG08:
+            ldp     fp, lr, [sp], #0x70
+            ret     lr
+ 
+; Total bytes of code 140
+// Benchmark Process 80562 has exited with code 0.
+
+Mean = 3.088 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 3.088 ms, Q1 = 3.088 ms, Median = 3.088 ms, Q3 = 3.088 ms, Max = 3.088 ms
+IQR = 0.000 ms, LowerFence = 3.088 ms, UpperFence = 3.088 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 10 (83,3 %) benchmark(s) to run. Estimated finish 2026-08-23 2:22 (0h 0m from now) **
+// **************************
+// Benchmark: DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=100]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet ca3be1d2-cacf-4db7-b817-18c5696fea5e.dll --anonymousPipes 116 117 --benchmarkName "Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility(Amount: 100)" --job Dry --benchmarkId 2 in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/ca3be1d2-cacf-4db7-b817-18c5696fea5e/bin/Release/net8.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.13.12
+// Runtime=.NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AdvSIMD,AES,CRC32,DP,RDM,SHA1,SHA256 VectorSize=128
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 3781875.00 ns, 3.7819 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 3781875.00 ns, 3.7819 ms/op
+// GC:  0 0 0 736 1
+// Threading:  0 0 1
+
+// AfterAll
+; Assembly listing for method Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarkImplementation:Movement4ComponentsGenericCompatibility():int:this (FullOpts)
+; Emitting BLENDED_CODE for generic ARM64 - MacOS
+; FullOpts code
+; optimized code
+; fp based frame
+; partially interruptible
+; No PGO data
+G_M000_IG01:
+            stp     fp, lr, [sp, #-0x70]!
+            mov     fp, sp
+ 
+G_M000_IG02:
+            ldr     x1, [x0, #0x08]
+            add     x2, x0, #184
+ 
+G_M000_IG03:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x58]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x68]
+ 
+G_M000_IG04:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x40]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x50]
+ 
+G_M000_IG05:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x28]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x38]
+ 
+G_M000_IG06:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x10]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x20]
+ 
+G_M000_IG07:
+            mov     x0, x1
+            mov     x1, x2
+            add     x2, fp, #88	// 
+            add     x3, fp, #64	// 
+            add     x4, fp, #40	// 
+            add     x5, fp, #16	// 
+            movz    x6, #0xD1FFAB1E
+            movk    x6, #0xD1FFAB1E LSL #16
+            movk    x6, #1 LSL #32
+            ldr     x6, [x6]
+            blr     x6
+ 
+G_M000_IG08:
+            ldp     fp, lr, [sp], #0x70
+            ret     lr
+ 
+; Total bytes of code 132
+// Benchmark Process 80565 has exited with code 0.
+
+Mean = 3.782 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 3.782 ms, Q1 = 3.782 ms, Median = 3.782 ms, Q3 = 3.782 ms, Max = 3.782 ms
+IQR = 0.000 ms, LowerFence = 3.782 ms, UpperFence = 3.782 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 9 (75,0 %) benchmark(s) to run. Estimated finish 2026-08-23 2:22 (0h 0m from now) **
+// **************************
+// Benchmark: DenseIterationMicroBenchmarks.Movement2Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=1000]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet ca3be1d2-cacf-4db7-b817-18c5696fea5e.dll --anonymousPipes 116 117 --benchmarkName "Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarks.Movement2Components(Amount: 1000)" --job Dry --benchmarkId 3 in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/ca3be1d2-cacf-4db7-b817-18c5696fea5e/bin/Release/net8.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.13.12
+// Runtime=.NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AdvSIMD,AES,CRC32,DP,RDM,SHA1,SHA256 VectorSize=128
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 2373750.00 ns, 2.3737 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 2373750.00 ns, 2.3737 ms/op
+// GC:  0 0 0 736 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 80566 has exited with code 0.
+
+Mean = 2.374 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 2.374 ms, Q1 = 2.374 ms, Median = 2.374 ms, Q3 = 2.374 ms, Max = 2.374 ms
+IQR = 0.000 ms, LowerFence = 2.374 ms, UpperFence = 2.374 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 8 (66,7 %) benchmark(s) to run. Estimated finish 2026-08-23 2:22 (0h 0m from now) **
+// **************************
+// Benchmark: DenseIterationMicroBenchmarks.Movement4Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=1000]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet ca3be1d2-cacf-4db7-b817-18c5696fea5e.dll --anonymousPipes 116 117 --benchmarkName "Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarks.Movement4Components(Amount: 1000)" --job Dry --benchmarkId 4 in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/ca3be1d2-cacf-4db7-b817-18c5696fea5e/bin/Release/net8.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.13.12
+// Runtime=.NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AdvSIMD,AES,CRC32,DP,RDM,SHA1,SHA256 VectorSize=128
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 3222875.00 ns, 3.2229 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 3222875.00 ns, 3.2229 ms/op
+// GC:  0 0 0 736 1
+// Threading:  0 0 1
+
+// AfterAll
+; Assembly listing for method Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarkImplementation:Movement4Components():int:this (FullOpts)
+; Emitting BLENDED_CODE for generic ARM64 - MacOS
+; FullOpts code
+; optimized code
+; fp based frame
+; partially interruptible
+; No PGO data
+G_M000_IG01:
+            stp     fp, lr, [sp, #-0x70]!
+            mov     fp, sp
+ 
+G_M000_IG02:
+            ldr     x1, [x0, #0x08]
+            add     x2, x0, #184
+ 
+G_M000_IG03:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x58]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x68]
+ 
+G_M000_IG04:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x40]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x50]
+ 
+G_M000_IG05:
+            add     x3, x0, #0xD1FFAB1E
+            ldp     x4, x5, [x3, #0x28]
+            stp     x4, x5, [fp, #0x28]
+            ldr     x4, [x3, #0x38]
+            str     x4, [fp, #0x38]
+ 
+G_M000_IG06:
+            add     x3, x0, #0xD1FFAB1E
+            ldp     x4, x5, [x3, #0x10]
+            stp     x4, x5, [fp, #0x10]
+            ldr     x4, [x3, #0x20]
+            str     x4, [fp, #0x20]
+ 
+G_M000_IG07:
+            mov     x0, x1
+            mov     x1, x2
+            add     x2, fp, #88	// 
+            add     x3, fp, #64	// 
+            add     x4, fp, #40	// 
+            add     x5, fp, #16	// 
+            movz    x6, #0xD1FFAB1E
+            movk    x6, #0xD1FFAB1E LSL #16
+            movk    x6, #1 LSL #32
+            ldr     x6, [x6]
+            blr     x6
+ 
+G_M000_IG08:
+            ldp     fp, lr, [sp], #0x70
+            ret     lr
+ 
+; Total bytes of code 140
+// Benchmark Process 80567 has exited with code 0.
+
+Mean = 3.223 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 3.223 ms, Q1 = 3.223 ms, Median = 3.223 ms, Q3 = 3.223 ms, Max = 3.223 ms
+IQR = 0.000 ms, LowerFence = 3.223 ms, UpperFence = 3.223 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 7 (58,3 %) benchmark(s) to run. Estimated finish 2026-08-23 2:22 (0h 0m from now) **
+// **************************
+// Benchmark: DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=1000]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet ca3be1d2-cacf-4db7-b817-18c5696fea5e.dll --anonymousPipes 116 117 --benchmarkName "Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility(Amount: 1000)" --job Dry --benchmarkId 5 in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/ca3be1d2-cacf-4db7-b817-18c5696fea5e/bin/Release/net8.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.13.12
+// Runtime=.NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AdvSIMD,AES,CRC32,DP,RDM,SHA1,SHA256 VectorSize=128
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 2733000.00 ns, 2.7330 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 2733000.00 ns, 2.7330 ms/op
+// GC:  0 0 0 736 1
+// Threading:  0 0 1
+
+// AfterAll
+; Assembly listing for method Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarkImplementation:Movement4ComponentsGenericCompatibility():int:this (FullOpts)
+; Emitting BLENDED_CODE for generic ARM64 - MacOS
+; FullOpts code
+; optimized code
+; fp based frame
+; partially interruptible
+; No PGO data
+G_M000_IG01:
+            stp     fp, lr, [sp, #-0x70]!
+            mov     fp, sp
+ 
+G_M000_IG02:
+            ldr     x1, [x0, #0x08]
+            add     x2, x0, #184
+ 
+G_M000_IG03:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x58]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x68]
+ 
+G_M000_IG04:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x40]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x50]
+ 
+G_M000_IG05:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x28]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x38]
+ 
+G_M000_IG06:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x10]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x20]
+ 
+G_M000_IG07:
+            mov     x0, x1
+            mov     x1, x2
+            add     x2, fp, #88	// 
+            add     x3, fp, #64	// 
+            add     x4, fp, #40	// 
+            add     x5, fp, #16	// 
+            movz    x6, #0xD1FFAB1E
+            movk    x6, #0xD1FFAB1E LSL #16
+            movk    x6, #1 LSL #32
+            ldr     x6, [x6]
+            blr     x6
+ 
+G_M000_IG08:
+            ldp     fp, lr, [sp], #0x70
+            ret     lr
+ 
+; Total bytes of code 132
+// Benchmark Process 80568 has exited with code 0.
+
+Mean = 2.733 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 2.733 ms, Q1 = 2.733 ms, Median = 2.733 ms, Q3 = 2.733 ms, Max = 2.733 ms
+IQR = 0.000 ms, LowerFence = 2.733 ms, UpperFence = 2.733 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 6 (50,0 %) benchmark(s) to run. Estimated finish 2026-08-23 2:22 (0h 0m from now) **
+// **************************
+// Benchmark: DenseIterationMicroBenchmarks.Movement2Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=10000]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet ca3be1d2-cacf-4db7-b817-18c5696fea5e.dll --anonymousPipes 116 117 --benchmarkName "Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarks.Movement2Components(Amount: 10000)" --job Dry --benchmarkId 6 in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/ca3be1d2-cacf-4db7-b817-18c5696fea5e/bin/Release/net8.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.13.12
+// Runtime=.NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AdvSIMD,AES,CRC32,DP,RDM,SHA1,SHA256 VectorSize=128
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 2263250.00 ns, 2.2633 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 2263250.00 ns, 2.2633 ms/op
+// GC:  0 0 0 736 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 80569 has exited with code 0.
+
+Mean = 2.263 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 2.263 ms, Q1 = 2.263 ms, Median = 2.263 ms, Q3 = 2.263 ms, Max = 2.263 ms
+IQR = 0.000 ms, LowerFence = 2.263 ms, UpperFence = 2.263 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 5 (41,7 %) benchmark(s) to run. Estimated finish 2026-08-23 2:22 (0h 0m from now) **
+// **************************
+// Benchmark: DenseIterationMicroBenchmarks.Movement4Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=10000]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet ca3be1d2-cacf-4db7-b817-18c5696fea5e.dll --anonymousPipes 116 117 --benchmarkName "Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarks.Movement4Components(Amount: 10000)" --job Dry --benchmarkId 7 in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/ca3be1d2-cacf-4db7-b817-18c5696fea5e/bin/Release/net8.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.13.12
+// Runtime=.NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AdvSIMD,AES,CRC32,DP,RDM,SHA1,SHA256 VectorSize=128
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 3128833.00 ns, 3.1288 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 3128833.00 ns, 3.1288 ms/op
+// GC:  0 0 0 736 1
+// Threading:  0 0 1
+
+// AfterAll
+; Assembly listing for method Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarkImplementation:Movement4Components():int:this (FullOpts)
+; Emitting BLENDED_CODE for generic ARM64 - MacOS
+; FullOpts code
+; optimized code
+; fp based frame
+; partially interruptible
+; No PGO data
+G_M000_IG01:
+            stp     fp, lr, [sp, #-0x70]!
+            mov     fp, sp
+ 
+G_M000_IG02:
+            ldr     x1, [x0, #0x08]
+            add     x2, x0, #184
+ 
+G_M000_IG03:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x58]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x68]
+ 
+G_M000_IG04:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x40]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x50]
+ 
+G_M000_IG05:
+            add     x3, x0, #0xD1FFAB1E
+            ldp     x4, x5, [x3, #0x28]
+            stp     x4, x5, [fp, #0x28]
+            ldr     x4, [x3, #0x38]
+            str     x4, [fp, #0x38]
+ 
+G_M000_IG06:
+            add     x3, x0, #0xD1FFAB1E
+            ldp     x4, x5, [x3, #0x10]
+            stp     x4, x5, [fp, #0x10]
+            ldr     x4, [x3, #0x20]
+            str     x4, [fp, #0x20]
+ 
+G_M000_IG07:
+            mov     x0, x1
+            mov     x1, x2
+            add     x2, fp, #88	// 
+            add     x3, fp, #64	// 
+            add     x4, fp, #40	// 
+            add     x5, fp, #16	// 
+            movz    x6, #0xD1FFAB1E
+            movk    x6, #0xD1FFAB1E LSL #16
+            movk    x6, #1 LSL #32
+            ldr     x6, [x6]
+            blr     x6
+ 
+G_M000_IG08:
+            ldp     fp, lr, [sp], #0x70
+            ret     lr
+ 
+; Total bytes of code 140
+// Benchmark Process 80570 has exited with code 0.
+
+Mean = 3.129 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 3.129 ms, Q1 = 3.129 ms, Median = 3.129 ms, Q3 = 3.129 ms, Max = 3.129 ms
+IQR = 0.000 ms, LowerFence = 3.129 ms, UpperFence = 3.129 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 4 (33,3 %) benchmark(s) to run. Estimated finish 2026-08-23 2:22 (0h 0m from now) **
+// **************************
+// Benchmark: DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=10000]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet ca3be1d2-cacf-4db7-b817-18c5696fea5e.dll --anonymousPipes 116 117 --benchmarkName "Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility(Amount: 10000)" --job Dry --benchmarkId 8 in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/ca3be1d2-cacf-4db7-b817-18c5696fea5e/bin/Release/net8.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.13.12
+// Runtime=.NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AdvSIMD,AES,CRC32,DP,RDM,SHA1,SHA256 VectorSize=128
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 2967917.00 ns, 2.9679 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 2967917.00 ns, 2.9679 ms/op
+// GC:  0 0 0 736 1
+// Threading:  0 0 1
+
+// AfterAll
+; Assembly listing for method Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarkImplementation:Movement4ComponentsGenericCompatibility():int:this (FullOpts)
+; Emitting BLENDED_CODE for generic ARM64 - MacOS
+; FullOpts code
+; optimized code
+; fp based frame
+; partially interruptible
+; No PGO data
+G_M000_IG01:
+            stp     fp, lr, [sp, #-0x70]!
+            mov     fp, sp
+ 
+G_M000_IG02:
+            ldr     x1, [x0, #0x08]
+            add     x2, x0, #184
+ 
+G_M000_IG03:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x58]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x68]
+ 
+G_M000_IG04:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x40]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x50]
+ 
+G_M000_IG05:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x28]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x38]
+ 
+G_M000_IG06:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x10]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x20]
+ 
+G_M000_IG07:
+            mov     x0, x1
+            mov     x1, x2
+            add     x2, fp, #88	// 
+            add     x3, fp, #64	// 
+            add     x4, fp, #40	// 
+            add     x5, fp, #16	// 
+            movz    x6, #0xD1FFAB1E
+            movk    x6, #0xD1FFAB1E LSL #16
+            movk    x6, #1 LSL #32
+            ldr     x6, [x6]
+            blr     x6
+ 
+G_M000_IG08:
+            ldp     fp, lr, [sp], #0x70
+            ret     lr
+ 
+; Total bytes of code 132
+// Benchmark Process 80581 has exited with code 0.
+
+Mean = 2.968 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 2.968 ms, Q1 = 2.968 ms, Median = 2.968 ms, Q3 = 2.968 ms, Max = 2.968 ms
+IQR = 0.000 ms, LowerFence = 2.968 ms, UpperFence = 2.968 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 3 (25,0 %) benchmark(s) to run. Estimated finish 2026-08-23 2:22 (0h 0m from now) **
+// **************************
+// Benchmark: DenseIterationMicroBenchmarks.Movement2Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=100000]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet ca3be1d2-cacf-4db7-b817-18c5696fea5e.dll --anonymousPipes 116 117 --benchmarkName "Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarks.Movement2Components(Amount: 100000)" --job Dry --benchmarkId 9 in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/ca3be1d2-cacf-4db7-b817-18c5696fea5e/bin/Release/net8.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.13.12
+// Runtime=.NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AdvSIMD,AES,CRC32,DP,RDM,SHA1,SHA256 VectorSize=128
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 2677625.00 ns, 2.6776 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 2677625.00 ns, 2.6776 ms/op
+// GC:  0 0 0 736 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 80592 has exited with code 0.
+
+Mean = 2.678 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 2.678 ms, Q1 = 2.678 ms, Median = 2.678 ms, Q3 = 2.678 ms, Max = 2.678 ms
+IQR = 0.000 ms, LowerFence = 2.678 ms, UpperFence = 2.678 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 2 (16,7 %) benchmark(s) to run. Estimated finish 2026-08-23 2:22 (0h 0m from now) **
+// **************************
+// Benchmark: DenseIterationMicroBenchmarks.Movement4Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=100000]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet ca3be1d2-cacf-4db7-b817-18c5696fea5e.dll --anonymousPipes 116 117 --benchmarkName "Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarks.Movement4Components(Amount: 100000)" --job Dry --benchmarkId 10 in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/ca3be1d2-cacf-4db7-b817-18c5696fea5e/bin/Release/net8.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.13.12
+// Runtime=.NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AdvSIMD,AES,CRC32,DP,RDM,SHA1,SHA256 VectorSize=128
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 3129666.00 ns, 3.1297 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 3129666.00 ns, 3.1297 ms/op
+// GC:  0 0 0 736 1
+// Threading:  0 0 1
+
+// AfterAll
+; Assembly listing for method Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarkImplementation:Movement4Components():int:this (FullOpts)
+; Emitting BLENDED_CODE for generic ARM64 - MacOS
+; FullOpts code
+; optimized code
+; fp based frame
+; partially interruptible
+; No PGO data
+G_M000_IG01:
+            stp     fp, lr, [sp, #-0x70]!
+            mov     fp, sp
+ 
+G_M000_IG02:
+            ldr     x1, [x0, #0x08]
+            add     x2, x0, #184
+ 
+G_M000_IG03:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x58]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x68]
+ 
+G_M000_IG04:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x40]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x50]
+ 
+G_M000_IG05:
+            add     x3, x0, #0xD1FFAB1E
+            ldp     x4, x5, [x3, #0x28]
+            stp     x4, x5, [fp, #0x28]
+            ldr     x4, [x3, #0x38]
+            str     x4, [fp, #0x38]
+ 
+G_M000_IG06:
+            add     x3, x0, #0xD1FFAB1E
+            ldp     x4, x5, [x3, #0x10]
+            stp     x4, x5, [fp, #0x10]
+            ldr     x4, [x3, #0x20]
+            str     x4, [fp, #0x20]
+ 
+G_M000_IG07:
+            mov     x0, x1
+            mov     x1, x2
+            add     x2, fp, #88	// 
+            add     x3, fp, #64	// 
+            add     x4, fp, #40	// 
+            add     x5, fp, #16	// 
+            movz    x6, #0xD1FFAB1E
+            movk    x6, #0xD1FFAB1E LSL #16
+            movk    x6, #1 LSL #32
+            ldr     x6, [x6]
+            blr     x6
+ 
+G_M000_IG08:
+            ldp     fp, lr, [sp], #0x70
+            ret     lr
+ 
+; Total bytes of code 140
+// Benchmark Process 80594 has exited with code 0.
+
+Mean = 3.130 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 3.130 ms, Q1 = 3.130 ms, Median = 3.130 ms, Q3 = 3.130 ms, Max = 3.130 ms
+IQR = 0.000 ms, LowerFence = 3.130 ms, UpperFence = 3.130 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 1 (8,3 %) benchmark(s) to run. Estimated finish 2026-08-23 2:22 (0h 0m from now) **
+// **************************
+// Benchmark: DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=100000]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet ca3be1d2-cacf-4db7-b817-18c5696fea5e.dll --anonymousPipes 116 117 --benchmarkName "Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility(Amount: 100000)" --job Dry --benchmarkId 11 in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/ca3be1d2-cacf-4db7-b817-18c5696fea5e/bin/Release/net8.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.13.12
+// Runtime=.NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AdvSIMD,AES,CRC32,DP,RDM,SHA1,SHA256 VectorSize=128
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 3189292.00 ns, 3.1893 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 3189292.00 ns, 3.1893 ms/op
+// GC:  0 0 0 736 1
+// Threading:  0 0 1
+
+// AfterAll
+; Assembly listing for method Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarkImplementation:Movement4ComponentsGenericCompatibility():int:this (FullOpts)
+; Emitting BLENDED_CODE for generic ARM64 - MacOS
+; FullOpts code
+; optimized code
+; fp based frame
+; partially interruptible
+; No PGO data
+G_M000_IG01:
+            stp     fp, lr, [sp, #-0x70]!
+            mov     fp, sp
+ 
+G_M000_IG02:
+            ldr     x1, [x0, #0x08]
+            add     x2, x0, #184
+ 
+G_M000_IG03:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x58]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x68]
+ 
+G_M000_IG04:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x40]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x50]
+ 
+G_M000_IG05:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x28]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x38]
+ 
+G_M000_IG06:
+            ldp     x3, x4, [x0, #0xD1FFAB1E]
+            stp     x3, x4, [fp, #0x10]
+            ldr     x3, [x0, #0xD1FFAB1E]
+            str     x3, [fp, #0x20]
+ 
+G_M000_IG07:
+            mov     x0, x1
+            mov     x1, x2
+            add     x2, fp, #88	// 
+            add     x3, fp, #64	// 
+            add     x4, fp, #40	// 
+            add     x5, fp, #16	// 
+            movz    x6, #0xD1FFAB1E
+            movk    x6, #0xD1FFAB1E LSL #16
+            movk    x6, #1 LSL #32
+            ldr     x6, [x6]
+            blr     x6
+ 
+G_M000_IG08:
+            ldp     fp, lr, [sp], #0x70
+            ret     lr
+ 
+; Total bytes of code 132
+// Benchmark Process 80595 has exited with code 0.
+
+Mean = 3.189 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 3.189 ms, Q1 = 3.189 ms, Median = 3.189 ms, Q3 = 3.189 ms, Max = 3.189 ms
+IQR = 0.000 ms, LowerFence = 3.189 ms, UpperFence = 3.189 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 0 (0,0 %) benchmark(s) to run. Estimated finish 2026-08-23 2:22 (0h 0m from now) **
+// ***** BenchmarkRunner: Finish  *****
+
+// * Export *
+  BenchmarkDotNet.Artifacts/results/Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarks-report.csv
+  BenchmarkDotNet.Artifacts/results/Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarks-report-github.md
+  BenchmarkDotNet.Artifacts/results/Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarks-report.html
+
+// * Detailed results *
+DenseIterationMicroBenchmarks.Movement2Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=100]
+Runtime = .NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD; GC = Concurrent Workstation
+Mean = 2.538 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 2.538 ms, Q1 = 2.538 ms, Median = 2.538 ms, Q3 = 2.538 ms, Max = 2.538 ms
+IQR = 0.000 ms, LowerFence = 2.538 ms, UpperFence = 2.538 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[2.538 ms ; 2.538 ms) | @
+---------------------------------------------------
+
+DenseIterationMicroBenchmarks.Movement4Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=100]
+Runtime = .NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD; GC = Concurrent Workstation
+Mean = 3.088 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 3.088 ms, Q1 = 3.088 ms, Median = 3.088 ms, Q3 = 3.088 ms, Max = 3.088 ms
+IQR = 0.000 ms, LowerFence = 3.088 ms, UpperFence = 3.088 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[3.088 ms ; 3.088 ms) | @
+---------------------------------------------------
+
+DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=100]
+Runtime = .NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD; GC = Concurrent Workstation
+Mean = 3.782 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 3.782 ms, Q1 = 3.782 ms, Median = 3.782 ms, Q3 = 3.782 ms, Max = 3.782 ms
+IQR = 0.000 ms, LowerFence = 3.782 ms, UpperFence = 3.782 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[3.782 ms ; 3.782 ms) | @
+---------------------------------------------------
+
+DenseIterationMicroBenchmarks.Movement2Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=1000]
+Runtime = .NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD; GC = Concurrent Workstation
+Mean = 2.374 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 2.374 ms, Q1 = 2.374 ms, Median = 2.374 ms, Q3 = 2.374 ms, Max = 2.374 ms
+IQR = 0.000 ms, LowerFence = 2.374 ms, UpperFence = 2.374 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[2.374 ms ; 2.374 ms) | @
+---------------------------------------------------
+
+DenseIterationMicroBenchmarks.Movement4Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=1000]
+Runtime = .NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD; GC = Concurrent Workstation
+Mean = 3.223 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 3.223 ms, Q1 = 3.223 ms, Median = 3.223 ms, Q3 = 3.223 ms, Max = 3.223 ms
+IQR = 0.000 ms, LowerFence = 3.223 ms, UpperFence = 3.223 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[3.223 ms ; 3.223 ms) | @
+---------------------------------------------------
+
+DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=1000]
+Runtime = .NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD; GC = Concurrent Workstation
+Mean = 2.733 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 2.733 ms, Q1 = 2.733 ms, Median = 2.733 ms, Q3 = 2.733 ms, Max = 2.733 ms
+IQR = 0.000 ms, LowerFence = 2.733 ms, UpperFence = 2.733 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[2.733 ms ; 2.733 ms) | @
+---------------------------------------------------
+
+DenseIterationMicroBenchmarks.Movement2Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=10000]
+Runtime = .NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD; GC = Concurrent Workstation
+Mean = 2.263 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 2.263 ms, Q1 = 2.263 ms, Median = 2.263 ms, Q3 = 2.263 ms, Max = 2.263 ms
+IQR = 0.000 ms, LowerFence = 2.263 ms, UpperFence = 2.263 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[2.263 ms ; 2.263 ms) | @
+---------------------------------------------------
+
+DenseIterationMicroBenchmarks.Movement4Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=10000]
+Runtime = .NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD; GC = Concurrent Workstation
+Mean = 3.129 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 3.129 ms, Q1 = 3.129 ms, Median = 3.129 ms, Q3 = 3.129 ms, Max = 3.129 ms
+IQR = 0.000 ms, LowerFence = 3.129 ms, UpperFence = 3.129 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[3.129 ms ; 3.129 ms) | @
+---------------------------------------------------
+
+DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=10000]
+Runtime = .NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD; GC = Concurrent Workstation
+Mean = 2.968 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 2.968 ms, Q1 = 2.968 ms, Median = 2.968 ms, Q3 = 2.968 ms, Max = 2.968 ms
+IQR = 0.000 ms, LowerFence = 2.968 ms, UpperFence = 2.968 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[2.968 ms ; 2.968 ms) | @
+---------------------------------------------------
+
+DenseIterationMicroBenchmarks.Movement2Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=100000]
+Runtime = .NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD; GC = Concurrent Workstation
+Mean = 2.678 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 2.678 ms, Q1 = 2.678 ms, Median = 2.678 ms, Q3 = 2.678 ms, Max = 2.678 ms
+IQR = 0.000 ms, LowerFence = 2.678 ms, UpperFence = 2.678 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[2.678 ms ; 2.678 ms) | @
+---------------------------------------------------
+
+DenseIterationMicroBenchmarks.Movement4Components: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=100000]
+Runtime = .NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD; GC = Concurrent Workstation
+Mean = 3.130 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 3.130 ms, Q1 = 3.130 ms, Median = 3.130 ms, Q3 = 3.130 ms, Max = 3.130 ms
+IQR = 0.000 ms, LowerFence = 3.130 ms, UpperFence = 3.130 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[3.130 ms ; 3.130 ms) | @
+---------------------------------------------------
+
+DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=100000]
+Runtime = .NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD; GC = Concurrent Workstation
+Mean = 3.189 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 3.189 ms, Q1 = 3.189 ms, Median = 3.189 ms, Q3 = 3.189 ms, Max = 3.189 ms
+IQR = 0.000 ms, LowerFence = 3.189 ms, UpperFence = 3.189 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[3.189 ms ; 3.189 ms) | @
+---------------------------------------------------
+
+// * Summary *
+
+BenchmarkDotNet v0.13.12, macOS 26.5.2 (25F84) [Darwin 25.5.0]
+Apple M4 Pro, 1 CPU, 14 logical and 14 physical cores
+.NET SDK 10.0.301
+  [Host] : .NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD
+  Dry    : .NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD
+
+Job=Dry  IterationCount=1  LaunchCount=1  
+RunStrategy=ColdStart  UnrollFactor=1  WarmupCount=1  
+
+| Method                                  | Amount | Mean     | Error | Allocated |
+|---------------------------------------- |------- |---------:|------:|----------:|
+| Movement2Components                     | 100    | 2.538 ms |    NA |     736 B |
+| Movement4Components                     | 100    | 3.088 ms |    NA |     736 B |
+| Movement4ComponentsGenericCompatibility | 100    | 3.782 ms |    NA |     736 B |
+| Movement2Components                     | 1000   | 2.374 ms |    NA |     736 B |
+| Movement4Components                     | 1000   | 3.223 ms |    NA |     736 B |
+| Movement4ComponentsGenericCompatibility | 1000   | 2.733 ms |    NA |     736 B |
+| Movement2Components                     | 10000  | 2.263 ms |    NA |     736 B |
+| Movement4Components                     | 10000  | 3.129 ms |    NA |     736 B |
+| Movement4ComponentsGenericCompatibility | 10000  | 2.968 ms |    NA |     736 B |
+| Movement2Components                     | 100000 | 2.678 ms |    NA |     736 B |
+| Movement4Components                     | 100000 | 3.130 ms |    NA |     736 B |
+| Movement4ComponentsGenericCompatibility | 100000 | 3.189 ms |    NA |     736 B |
+
+// * Warnings *
+MinIterationTime
+  DenseIterationMicroBenchmarks.Movement2Components: Dry                     -> The minimum observed iteration time is 2.5382 ms which is very small. It's recommended to increase it to at least 100.0000 ms using more operations.
+  DenseIterationMicroBenchmarks.Movement4Components: Dry                     -> The minimum observed iteration time is 3.0880 ms which is very small. It's recommended to increase it to at least 100.0000 ms using more operations.
+  DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility: Dry -> The minimum observed iteration time is 3.7819 ms which is very small. It's recommended to increase it to at least 100.0000 ms using more operations.
+  DenseIterationMicroBenchmarks.Movement2Components: Dry                     -> The minimum observed iteration time is 2.3737 ms which is very small. It's recommended to increase it to at least 100.0000 ms using more operations.
+  DenseIterationMicroBenchmarks.Movement4Components: Dry                     -> The minimum observed iteration time is 3.2229 ms which is very small. It's recommended to increase it to at least 100.0000 ms using more operations.
+  DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility: Dry -> The minimum observed iteration time is 2.7330 ms which is very small. It's recommended to increase it to at least 100.0000 ms using more operations.
+  DenseIterationMicroBenchmarks.Movement2Components: Dry                     -> The minimum observed iteration time is 2.2633 ms which is very small. It's recommended to increase it to at least 100.0000 ms using more operations.
+  DenseIterationMicroBenchmarks.Movement4Components: Dry                     -> The minimum observed iteration time is 3.1288 ms which is very small. It's recommended to increase it to at least 100.0000 ms using more operations.
+  DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility: Dry -> The minimum observed iteration time is 2.9679 ms which is very small. It's recommended to increase it to at least 100.0000 ms using more operations.
+  DenseIterationMicroBenchmarks.Movement2Components: Dry                     -> The minimum observed iteration time is 2.6776 ms which is very small. It's recommended to increase it to at least 100.0000 ms using more operations.
+  DenseIterationMicroBenchmarks.Movement4Components: Dry                     -> The minimum observed iteration time is 3.1297 ms which is very small. It's recommended to increase it to at least 100.0000 ms using more operations.
+  DenseIterationMicroBenchmarks.Movement4ComponentsGenericCompatibility: Dry -> The minimum observed iteration time is 3.1893 ms which is very small. It's recommended to increase it to at least 100.0000 ms using more operations.
+
+// * Legends *
+  Amount    : Value of the 'Amount' parameter
+  Mean      : Arithmetic mean of all measurements
+  Error     : Half of 99.9% confidence interval
+  Allocated : Allocated memory per single operation (managed only, inclusive, 1KB = 1024B)
+  1 ms      : 1 Millisecond (0.001 sec)
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:00:03 (3.99 sec), executed benchmarks: 12
+
+Global total time: 00:00:12 (12.36 sec), executed benchmarks: 12
+// * Artifacts cleanup *
+Artifacts cleanup is finished
