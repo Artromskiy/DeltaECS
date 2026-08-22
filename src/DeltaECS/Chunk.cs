@@ -126,7 +126,7 @@ internal sealed class Chunk
         // Component layout/type compatibility is validated before this
         // internal hot path is reached. Avoid repeating the array cast check
         // for every row requested by every chunk.
-        return Unsafe.As<T[]>(_componentRows[componentIndex]).AsSpan(0, _count);
+        return Unsafe.As<T[]>(_componentRows.Element(componentIndex)).AsSpan(0, _count);
     }
 
     public Array GetRawComponentRow(int componentIndex) => _componentRows[componentIndex];
@@ -134,10 +134,10 @@ internal sealed class Chunk
     internal Entity[] RawEntities => _entities;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal uint GetComponentVersion(int componentIndex) => _componentVersions[componentIndex];
+    internal uint GetComponentVersion(int componentIndex) => _componentVersions.Element(componentIndex);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void MarkComponentWritten(int componentIndex, uint worldTick) => _componentVersions[componentIndex] = worldTick;
+    internal void MarkComponentWritten(int componentIndex, uint worldTick) => _componentVersions.Element(componentIndex) = worldTick;
 
     internal void ClearComponentVersions() => Array.Clear(_componentVersions, 0, _componentVersions.Length);
 
