@@ -30,7 +30,7 @@ public ref struct DenseChunkIterator
                 QueryThrowHelper.ThrowChunkIteratorNotPositioned();
             }
 
-            return new DenseQueryChunk(_plan, _chunks[_index], _writeTick);
+            return new DenseQueryChunk(_plan, _chunks.Element(_index), _writeTick);
         }
     }
 
