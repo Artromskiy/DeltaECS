@@ -225,7 +225,7 @@ internal sealed class CachedQuery
             }
 
             matches.Add(archetypeId);
-            plans.Add(new DenseArchetypePlan(this, archetype, indices));
+            plans.Add(new DenseArchetypePlan(archetype, indices));
         }
 
         _matchingArchetypes = matches.ToArray();
@@ -252,14 +252,11 @@ internal sealed class CachedQuery
 
 internal readonly struct DenseArchetypePlan
 {
-    public DenseArchetypePlan(CachedQuery query, Archetype archetype, int[] componentRows)
+    public DenseArchetypePlan(Archetype archetype, int[] componentRows)
     {
-        Query = query;
         Archetype = archetype;
         ComponentRows = componentRows;
     }
-
-    public CachedQuery Query { get; }
 
     public Archetype Archetype { get; }
 

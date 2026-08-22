@@ -6,14 +6,16 @@ using System.Runtime.CompilerServices;
 public ref struct DenseChunkIterator
 {
     private readonly DenseArchetypePlan _plan;
+    private readonly CachedQuery _query;
     private readonly Chunk[] _chunks;
     private readonly int _count;
     private readonly uint _writeTick;
     private int _index;
 
-    internal DenseChunkIterator(DenseArchetypePlan plan, uint writeTick)
+    internal DenseChunkIterator(DenseArchetypePlan plan, CachedQuery query, uint writeTick)
     {
         _plan = plan;
+        _query = query;
         _chunks = plan.Archetype.ActiveChunks;
         _count = plan.Archetype.ActiveChunkCount;
         _writeTick = writeTick;
@@ -30,7 +32,7 @@ public ref struct DenseChunkIterator
                 QueryThrowHelper.ThrowChunkIteratorNotPositioned();
             }
 
-            return new DenseQueryChunk(_plan, _chunks.Element(_index), _writeTick);
+            return new DenseQueryChunk(_plan, _chunks.Element(_index), _query, _writeTick);
         }
     }
 
@@ -51,12 +53,14 @@ public readonly ref struct DenseQueryChunk
 {
     private readonly DenseArchetypePlan _plan;
     private readonly Chunk _chunk;
+    private readonly CachedQuery _query;
     private readonly uint _writeTick;
 
-    internal DenseQueryChunk(DenseArchetypePlan plan, Chunk chunk, uint writeTick)
+    internal DenseQueryChunk(DenseArchetypePlan plan, Chunk chunk, CachedQuery query, uint writeTick)
     {
         _plan = plan;
         _chunk = chunk;
+        _query = query;
         _writeTick = writeTick;
     }
 
@@ -68,5 +72,5 @@ public readonly ref struct DenseQueryChunk
 
     public ReadOnlySpan<Entity> Entities => _chunk.Entities;
 
-    public DenseSlotIterator Slots => new(_plan, _chunk, _writeTick);
+    public DenseSlotIterator Slots => new(_plan, _chunk, _query, _writeTick);
 }

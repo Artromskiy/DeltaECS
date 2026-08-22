@@ -6,12 +6,14 @@ using System.Runtime.CompilerServices;
 public ref struct DenseArchetypeIterator
 {
     private readonly DenseArchetypePlan[] _plans;
+    private readonly CachedQuery _query;
     private readonly uint _writeTick;
     private int _index;
 
-    internal DenseArchetypeIterator(DenseArchetypePlan[] plans, uint writeTick)
+    internal DenseArchetypeIterator(DenseArchetypePlan[] plans, CachedQuery query, uint writeTick)
     {
         _plans = plans;
+        _query = query;
         _writeTick = writeTick;
         _index = -1;
     }
@@ -26,7 +28,7 @@ public ref struct DenseArchetypeIterator
                 QueryThrowHelper.ThrowArchetypeIteratorNotPositioned();
             }
 
-            return new DenseQueryArchetype(_plans.Element(_index), _writeTick);
+            return new DenseQueryArchetype(_plans.Element(_index), _query, _writeTick);
         }
     }
 
@@ -46,11 +48,13 @@ public ref struct DenseArchetypeIterator
 public readonly ref struct DenseQueryArchetype
 {
     private readonly DenseArchetypePlan _plan;
+    private readonly CachedQuery _query;
     private readonly uint _writeTick;
 
-    internal DenseQueryArchetype(DenseArchetypePlan plan, uint writeTick)
+    internal DenseQueryArchetype(DenseArchetypePlan plan, CachedQuery query, uint writeTick)
     {
         _plan = plan;
+        _query = query;
         _writeTick = writeTick;
     }
 
@@ -60,5 +64,5 @@ public readonly ref struct DenseQueryArchetype
 
     public int ChunkCount => _plan.Archetype.ActiveChunkCount;
 
-    public DenseChunkIterator Chunks => new(_plan, _writeTick);
+    public DenseChunkIterator Chunks => new(_plan, _query, _writeTick);
 }

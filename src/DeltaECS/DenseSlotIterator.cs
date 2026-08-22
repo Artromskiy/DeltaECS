@@ -7,13 +7,15 @@ public ref struct DenseSlotIterator
 {
     private readonly DenseArchetypePlan _plan;
     private readonly Chunk _chunk;
+    private readonly CachedQuery _query;
     private readonly uint _writeTick;
     private int _index;
 
-    internal DenseSlotIterator(DenseArchetypePlan plan, Chunk chunk, uint writeTick)
+    internal DenseSlotIterator(DenseArchetypePlan plan, Chunk chunk, CachedQuery query, uint writeTick)
     {
         _plan = plan;
         _chunk = chunk;
+        _query = query;
         _writeTick = writeTick;
         _index = chunk.Count;
     }
@@ -39,7 +41,7 @@ public ref struct DenseSlotIterator
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ResolvedReadRow<T> Resolve<T>(DenseReadBinding<T> binding)
     {
-        if (!ReferenceEquals(binding.Query, _plan.Query))
+        if (!ReferenceEquals(binding.Query, _query))
         {
             QueryThrowHelper.ThrowBindingMismatch();
         }
@@ -51,7 +53,7 @@ public ref struct DenseSlotIterator
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ResolvedWriteRow<T> Resolve<T>(DenseWriteBinding<T> binding)
     {
-        if (!ReferenceEquals(binding.Query, _plan.Query))
+        if (!ReferenceEquals(binding.Query, _query))
         {
             QueryThrowHelper.ThrowBindingMismatch();
         }

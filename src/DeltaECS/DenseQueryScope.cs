@@ -40,7 +40,7 @@ public ref struct DenseQueryScope
         get
         {
             EnsureActive();
-            return new DenseArchetypeIterator(_plans, _writeTick);
+            return new DenseArchetypeIterator(_plans, _query, _writeTick);
         }
     }
 
