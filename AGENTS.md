@@ -9,6 +9,7 @@ changes, tags, queries and measured performance work.
 - [IDEAS.md](IDEAS.md) — deferred ECS designs; never implement without an
   explicit decision and workload.
 - [WORKFLOW.md](WORKFLOW.md) — correctness checks and benchmark routing.
+- [docs/APIMAP.md](docs/APIMAP.md) — source/API navigation map for focused reads.
 - [benchmarks/README.md](benchmarks/README.md) — micro/JIT procedure.
 - [docs/performance/README.md](docs/performance/README.md) — evidence and
   optimization candidates, not automatic tasks.

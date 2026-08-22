@@ -78,6 +78,15 @@ public sealed class World
         return new QueryHandle(this, GetOrCreateQuery(description), description);
     }
 
+    /// <summary>
+    /// Creates a short-lived three-level iterator for the query's matching
+    /// archetypes, active chunks and current chunk cursor.
+    /// </summary>
+    public QueryIterator Iterate(in QueryHandle handle)
+    {
+        return new QueryIterator(this, handle);
+    }
+
     public Entity Create(ComponentId[] componentIds)
     {
         Span<Entity> entities = stackalloc Entity[1];
@@ -544,6 +553,15 @@ public sealed class World
     }
 
     internal ulong[] RentChunkOverlayScratch() => ArrayPool<ulong>.Shared.Rent(_overlayTags.WordsPerChunk);
+
+    internal OverlayTagManager OverlayTags => _overlayTags;
+
+    internal void BeginQueryLease() => _activeChunkLeases++;
+
+    internal void EndQueryLease() => _activeChunkLeases--;
+
+    internal uint GetQueryWriteTick(CachedQuery cached) => QueryWriteTick(cached);
+
     internal void ReturnChunkOverlayScratch(ulong[] scratch)
     {
         ArrayPool<ulong>.Shared.Return(scratch, clearArray: true);

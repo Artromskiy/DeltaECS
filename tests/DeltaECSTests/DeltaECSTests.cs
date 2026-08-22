@@ -116,6 +116,46 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
+    public void QueryIterator_Traverses_Archetypes_Chunks_And_Slots()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        var world = new World(layouts, chunkCapacity: 2);
+        var positionOnly = new Entity[3];
+        var positionVelocity = new Entity[4];
+        world.CreateBatch(new[] { PositionId }, positionOnly);
+        world.CreateBatch(new[] { PositionId, VelocityId }, positionVelocity);
+
+        var query = world.CreateQuery(QueryDescription.ForComponents(PositionId));
+        var position = query.CursorBind<Position>(PositionId, RowAccess.Read);
+        var archetypes = 0;
+        var chunks = 0;
+        var slots = 0;
+        using (var iterator = world.Iterate(in query))
+        {
+            while (iterator.MoveNextArchetype())
+            {
+                archetypes++;
+                while (iterator.MoveNextChunk())
+                {
+                    chunks++;
+                    var cursor = iterator.Current;
+                    var positions = cursor.Resolve(position);
+                    while (cursor.MoveNext())
+                    {
+                        _ = positions[cursor];
+                        slots++;
+                    }
+                }
+            }
+        }
+
+        Assert.That(archetypes, Is.EqualTo(2));
+        Assert.That(chunks, Is.EqualTo(4));
+        Assert.That(slots, Is.EqualTo(7));
+    }
+
+    [Test]
     public void LeaseEntities_AndComponentRows_StayAligned_OnBothLeaseSurfaces()
     {
         var layouts = new ComponentLayoutRegistry();

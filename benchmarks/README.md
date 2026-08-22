@@ -4,13 +4,58 @@ This directory contains two different kinds of performance work:
 
 - `DeltaECS.Benchmarks` is the manual cross-ECS comparison suite.
 - `DeltaECS.VersionBenchmarks` compares two API-compatible DeltaECS revisions.
-- Future microbenchmark projects isolate one hot operation at a time. They are
-  the evidence source for assembly-guided optimization; they do not replace the
+- `DeltaECS.MicroBenchmarks` isolates one hot operation at a time. It is the
+  evidence source for assembly-guided optimization; it does not replace the
   comparison suite.
 
 Do not run a full BenchmarkDotNet measurement during normal review or CI. Build,
 test, contract smoke and benchmark discovery are safe gates. A human explicitly
 starts measurements on a stable, otherwise idle machine.
+
+## Fast path
+
+Use the smallest command set that answers the current question:
+
+| Situation | Action |
+|---|---|
+| Existing JIT probe, unchanged source | `run-jit-disasm.sh --no-build` |
+| Microbenchmark or ECS source changed | Build `DeltaECS.MicroBenchmarks` once |
+| New/renamed benchmark class | Run `--list flat` once, then `contract-smoke` once |
+| Need throughput | Run one quoted `--filter` with BDN's default job |
+| Before commit | Run the Release build/tests from `WORKFLOW.md` and `git diff --check` |
+
+Do not repeat restore, solution build, discovery, or contract smoke for every
+assembly edit. Do not read the full test project before locating the benchmark
+class and hot method. Full comparative BenchmarkDotNet runs are separate manual
+evidence and are not part of this loop.
+
+## Microbenchmark file layout
+
+Keep the benchmark-facing file deliberately small:
+
+- `DeltaECS.MicroBenchmarks/MicroBenchmarks.cs` contains only the catalog and
+  public BDN wrappers. It is the short API surface for selecting iteration,
+  add/remove, create and destroy scenarios.
+- `DeltaECS.MicroBenchmarks/MicroBenchmarkImplementations.cs` contains fixture
+  creation, reset/setup, kernels, checksums and contract smoke. It is where an
+  implementation variant belongs.
+- `DeltaECS.MicroBenchmarks/Program.cs` only dispatches `--list`, BDN filters
+  and `contract-smoke`.
+
+To add one comparable operation: add the implementation class and its direct
+benchmark methods to `MicroBenchmarkImplementations.cs`, add one empty public
+wrapper plus one catalog entry to `MicroBenchmarks.cs`, then run discovery and
+contract smoke once. Do not copy fixture/setup code into the wrapper file.
+
+The current scaffold exposes these operation families:
+
+| Family | Entry points |
+|---|---|
+| Iteration | `Movement2ComponentsForward/Reverse`, `Movement4ComponentsForward/Reverse` |
+| Atomic | `AddRemove`, `CreateDestroy` |
+| Entity-list batch | `CreateBatch`, `DestroyBatch`, `AddBatch`, `RemoveBatch` |
+| Query batch | `DestroyMatching`, `AddMatching`, `RemoveMatching` |
+| Storage/tags | overlay full/partial/empty, swap-back, reference-aware move |
 
 ## Microbenchmark contract
 
@@ -60,32 +105,25 @@ stable.
 
 ## Assembly-guided loop
 
-1. Add the smallest fixture and an equivalent correctness test.
-2. Build Release with build servers disabled. Record the exact command and
-   machine/runtime details.
-3. Run the microbenchmark once to establish a timing/allocation baseline.
-4. Capture JIT output for only the hot method; use a stable JIT configuration:
+For one source change, use this order:
 
-   ```bash
-   DOTNET_TieredCompilation=0 \
-   DOTNET_ReadyToRun=0 \
-   DOTNET_JitDisasm='*Movement2Components*' \
-   DOTNET_JitDisasmDiffable=1 \
-   dotnet <microbenchmark dll> --filter '*Movement2Components*'
-   ```
+1. Build the microbenchmark project once; do not build the full solution.
+2. Capture only the target method with `run-jit-disasm.sh --no-build`.
+3. Run the same narrow BDN filter only if throughput/allocation is needed.
+4. Change one thing and repeat from step 2, reusing the already-built project
+   whenever the binary did not change.
+5. Run correctness and full Release gates only before review/commit.
 
-   `BenchmarkDotNet.DisassemblyDiagnoser` may be used when it works on the
-   current OS. Prefer the JIT environment variables above when it does not.
+The benchmark method must return a checksum, entity, count or other observable
+result. Setup, world creation, bindings, query construction, reset and report
+formatting stay outside the measured method. Never use a `dry` result as timing
+evidence.
 
-5. Review C# and generated assembly together. Look for bounds checks inside
-   the entity loop, failed inlining, delegate/interface dispatch, repeated row
-   lookup, dynamic stride arithmetic, extra loads/stores, branches and missed
-   vectorization. Assembly is evidence for a source-level change, never an
-   artifact to edit.
-6. Make one narrowly scoped source change. Re-run correctness tests, the same
-   microbenchmark and the same JIT capture.
-7. Keep a change only if semantics remain identical and the intended workload
-   improves reproducibly. Record regressions and inconclusive results too.
+Review only the selected hot method and its immediate driver. Look for bounds
+checks in the entity loop, failed inlining, delegate/interface dispatch,
+repeated row lookup, dynamic stride arithmetic, extra loads/stores and missed
+vectorization. Assembly is evidence for a source change, never an artifact to
+edit.
 
 On Apple Silicon use `assembly-arm`, `apple-silicon` and `vectorization` when
 reviewing the output. Use `assembly-x86` for the GitHub Linux runner output; do
@@ -93,75 +131,97 @@ not equate instruction sequences across architectures.
 
 ## Commands
 
-Build the normal suite and run its non-measuring contract smoke:
+Build the isolated microbenchmark project once after source changes:
 
 ```bash
-dotnet build benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj \
-  -c Release --no-restore --disable-build-servers -m:1 \
-  /p:UseSharedCompilation=false
-
-dotnet run --project benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj \
-  -c Release --no-build --no-restore -- contract-smoke
-```
-
-Every measured route prints a local timestamp when the runner starts, emits a
-heartbeat every 30 seconds while BenchmarkDotNet is running, and prints the
-total elapsed time when the route finishes. The heartbeat belongs to the parent
-runner and does not execute inside the measured benchmark process, so it does
-not affect the measurements.
-
-When a microbenchmark project is added, it must expose `--list flat` for
-discovery and a narrow `--filter` path. Store raw BenchmarkDotNet and JIT output
-under an ignored `artifacts/` directory; commit only compact, reproducible
-reports when a decision requires them.
-
-The assembly-guided fixtures live in `DeltaECS.MicroBenchmarks`, outside the
-normal solution and outside the version-comparison suite:
-
-```bash
-dotnet restore benchmarks/DeltaECS.MicroBenchmarks/DeltaECS.MicroBenchmarks.csproj
 dotnet build benchmarks/DeltaECS.MicroBenchmarks/DeltaECS.MicroBenchmarks.csproj \
   -c Release --no-restore --disable-build-servers -m:1 \
-  /p:UseSharedCompilation=false
+  /p:UseSharedCompilation=false /p:NuGetAudit=false -v:minimal
+```
+
+Run restore only when the project or package graph changed. A micro/JIT
+iteration does not require `dotnet build DeltaECS.slnx` or the test project.
+
+Comparative runner routes print a local timestamp when the runner starts, emit
+a heartbeat every 30 seconds while BenchmarkDotNet is running, and print the
+total elapsed time when the route finishes. The heartbeat belongs to the parent
+runner and does not execute inside the measured benchmark process, so it does
+not affect the measurements. Direct microbenchmark DLL runs do not provide this
+runner heartbeat.
+
+When a class or method is new, discover and smoke it once. Do not repeat these
+commands before every assembly edit:
+
+```bash
 dotnet benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/DeltaECS.MicroBenchmarks.dll \
   --list flat
 dotnet benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/DeltaECS.MicroBenchmarks.dll \
   contract-smoke
 ```
 
-For a later, explicitly requested JIT capture, keep setup outside the measured
-method and use a narrow filter:
+Always quote filters so the shell does not expand `*`:
 
 ```bash
-DOTNET_TieredCompilation=0 DOTNET_ReadyToRun=0 \
-DOTNET_JitDisasm='*Movement2ComponentsReverse*' DOTNET_JitDisasmDiffable=1 \
 dotnet benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/DeltaECS.MicroBenchmarks.dll \
-  --filter '*Movement2ComponentsReverse*'
+  --filter '*CachedBindingIterationMicroBenchmarks.Movement4ComponentsReverse*' \
+  --artifacts artifacts/micro/movement4
 ```
 
-For a quick repeatable capture, use
-[`run-jit-disasm.sh`](run-jit-disasm.sh). It builds only the selected probe
-project incrementally, never the full solution. The default `dry` job is for
-JIT/lifecycle inspection only and is not a timing result; pass `--job default`
-only when an actual BenchmarkDotNet run is intentionally wanted.
+BDN's default job automatically chooses invocation, warmup, iteration and
+launch strategy. Do not add manual loops, `ShortRun`, `InvocationCount` or
+fixed warmup counts unless the experiment explicitly requires them.
+
+For a JIT-only capture, reuse the same DLL and do not rebuild:
 
 ```bash
 ./benchmarks/run-jit-disasm.sh \
-  --method 'Movement2ComponentsReverse' \
-  --filter '*Movement2ComponentsReverse*'
-
-# Reuse an already-built probe without compiling it:
-./benchmarks/run-jit-disasm.sh \
-  --method 'RunRead' \
-  --project /private/tmp/deltaecs-dense-jit-probe/DenseJitProbe.csproj \
-  --filter '*' --no-build \
-  --output /private/tmp/deltaecs-dense-jit-current.txt
+  --method '*Movement4ComponentsReverse*' \
+  --filter '*CachedBindingIterationMicroBenchmarks.Movement4ComponentsReverse*' \
+  --no-build \
+  --output artifacts/jit-disasm/movement4-reverse.txt
 ```
 
-The script sets `DOTNET_TieredCompilation=0`, `DOTNET_ReadyToRun=0` and
-`DOTNET_JitDisasmDiffable=1`, and writes raw output under `artifacts/jit-disasm`
-by default. `--method` selects JIT methods; `--filter` selects the benchmark
-fixture that invokes them.
+The helper sets `DOTNET_TieredCompilation=0`, `DOTNET_ReadyToRun=0` and
+`DOTNET_JitDisasmDiffable=1`. Its default `dry` job executes the selected path
+to emit JIT output; its timing is not a performance result. Use
+`--job default` only for an intentionally measured BDN run. Do not use
+`DisassemblyDiagnoser` for this workflow.
+
+The helper accepts another already-built probe without compiling it:
+
+```bash
+./benchmarks/run-jit-disasm.sh \
+  --project /private/tmp/deltaecs-dense-jit-probe/DenseJitProbe.csproj \
+  --method 'RunMovement4' --filter '*' --no-build \
+  --output artifacts/jit-disasm/dense-probe.txt
+```
+
+Store raw BDN and JIT output under ignored `artifacts/` paths. For a before/
+after comparison, use the exact same filter, runtime, architecture, machine
+conditions and BDN arguments on both checkouts.
+
+For assembly review, record calls, branches, bounds checks, row lookup/array
+indirection, loads/stores and code size. Assembly size does not prove cache
+misses or throughput; use targeted BDN for throughput and hardware counters
+only where the platform supports them.
+
+## Full comparison gate
+
+The comparative project is manual evidence. Build it and run its non-measuring
+contract smoke only when comparative source, manifest or report code changed:
+
+```bash
+dotnet build benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj \
+  -c Release --no-restore --disable-build-servers -m:1 \
+  /p:UseSharedCompilation=false /p:NuGetAudit=false -v:minimal
+dotnet run --project benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj \
+  -c Release --no-build --no-restore -- contract-smoke
+```
+
+Do not run the full comparative BenchmarkDotNet suite for a micro/JIT question.
+Use its README and a quoted narrow `--filter` when a comparative measurement
+is explicitly requested. The runner prints a start timestamp, a 30-second
+heartbeat and total elapsed time; the heartbeat is outside the measured process.
 
 ## Dense QueryCursor API
 
