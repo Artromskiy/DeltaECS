@@ -133,6 +133,12 @@ internal sealed class Chunk
 
     internal Entity[] RawEntities => _entities;
 
+    internal Array[] RawComponentRows => _componentRows;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Span<T> GetComponentRow<T>(Array[] componentRows, int componentIndex)
+        => Unsafe.As<T[]>(componentRows.Element(componentIndex)).AsSpan(0, _count);
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal uint GetComponentVersion(int componentIndex) => _componentVersions.Element(componentIndex);
 
