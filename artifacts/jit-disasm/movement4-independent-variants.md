@@ -62,3 +62,32 @@ remaining calls and checks are in setup/error paths.
 Throughput and allocation measurements were not run in this sweep. A selected
 candidate must still pass the normal Release tests and a non-dry benchmark
 before being treated as a runtime speedup.
+
+## Current-branch merge audit
+
+The remaining candidates were evaluated by merging each branch into temporary
+worktrees based on current commit `05b8b43`, then running the same Release JIT
+probe. The baseline at that point was 1412 B with `blr=16`, `bl=3`,
+`branch=40`, `ldr=96`, `str=21` and `ldp/stp=33`; absent `bhs` and `umull`
+are zero in this release block.
+
+| Candidate | Merged result | Decision |
+|---|---|---|
+| v03–v15 | 1412 B; no counter change | rejected: no effect |
+| v16 | already present in current | retained as existing change |
+| v17 | 1408 B; `branch=39`, all other counters unchanged | accepted and merged |
+| v18 | 1412 B; no counter change | rejected: no effect |
+| v19 | 1412 B; no counter change after applying its unique `ref readonly` change | rejected: no effect |
+| v20 | 1412 B; no counter change | rejected: no effect |
+
+The no-effect ledger for future iterations is: ref-based resolved-row access
+(v04–v06), extra iterator inlining/state reshaping (v07–v14), alternate slot
+decrement (v15), the v03 array-access combination when layered on the current
+branch, the unused optimization helper (v18), `ref readonly` plan storage
+(v19), and the repeated compact slot state variant (v20). These changes should
+not be reintroduced without a materially different surrounding JIT shape.
+
+The accepted v17 change is the pre-increment form of
+`DenseArchetypeIterator.MoveNext`; it is merged in commit `9b975d6`. No
+extreme code-size/counter trade-off requiring a candidate branch to remain was
+observed.
