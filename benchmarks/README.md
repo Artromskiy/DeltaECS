@@ -51,7 +51,7 @@ The current scaffold exposes these operation families:
 
 | Family | Entry points |
 |---|---|
-| Iteration | `Movement2Components`, `Movement4Components` through `IterateDense` |
+| Iteration | `Movement2Components`, `Movement4Components` through `OpenQuery` |
 | Structural | `Add`, `Remove`, `Create`, `Destroy` |
 | Width | `ChangeWidth=1` and `ChangeWidth=4` for Add/Remove |
 
@@ -85,7 +85,7 @@ API merely to make a benchmark easier to write.
 
 | Group | Algorithms | Typical parameters |
 |---|---|---|
-| Dense iteration | `Movement2Components`, `Movement4Components` through `IterateDense` | 100, 1k, 10k, 100k entities |
+| Dense iteration | `Movement2Components`, `Movement4Components` through `OpenQuery` | 100, 1k, 10k, 100k entities |
 | Atomic structure | `Add`, `Remove`, `Create`, `Destroy` | one entity; width 1/4 for changes |
 
 Use fixture names that describe domain work, not an implementation trick:
@@ -331,14 +331,15 @@ heartbeat and total elapsed time; the heartbeat is outside the measured process.
 
 ## Dense iterator API
 
-The microbenchmark dense path uses `World.IterateDense(in query)` and keeps the
-archetype, chunk and slot traversal explicit. Typed cursor bindings are created
-in setup; dense bindings are prepared once per scope and rows are resolved once
+The microbenchmark dense path uses `World.OpenQuery(in query)` and keeps the
+archetype, chunk and slot traversal explicit. Typed access requests are created
+in setup; dense access requests are prepared once per scope and values are obtained once
 when a chunk is selected, not in the slot loop:
 
 ```csharp
-using var scope = world.IterateDense(in query);
-var prepared = scope.Prepare(binding);
+using var scope = world.OpenQuery(in query);
+// access is created in GlobalSetup.
+var prepared = scope.Bind(access);
 var archetypes = scope.Archetypes;
 while (archetypes.MoveNext())
 {
@@ -346,7 +347,7 @@ while (archetypes.MoveNext())
     while (chunks.MoveNext())
     {
         var slots = chunks.Current.Slots;
-        var values = slots.Resolve(prepared);
+        var values = slots.Get(prepared);
         while (slots.MoveNext())
         {
             ref readonly Value value = ref values[slots];
@@ -355,8 +356,8 @@ while (archetypes.MoveNext())
 }
 ```
 
-Tagged queries use `World.QueryCursor` with an action and
-`IsActiveSlot(cursor.CurrentIndex)`; `IterateDense` intentionally rejects tag
+Tagged queries use `World.Query` with an action and
+`IsActiveSlot(cursor.CurrentIndex)`; `OpenQuery` intentionally rejects tag
 predicates. The microbenchmark catalog contains this dense path and the four
 direct structural operations below it; removed duplicate traversal fixtures are
 not part of discovery or measurement routes.

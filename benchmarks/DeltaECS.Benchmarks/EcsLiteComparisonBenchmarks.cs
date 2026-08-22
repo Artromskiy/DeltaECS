@@ -20,20 +20,20 @@ public class EcsLiteComparisonBenchmarks
     public int PayloadRows { get; set; }
 
     private World _deltaMovementWorld = null!;
-    private QueryHandle _deltaMovementQuery;
+    private Query _deltaMovementQuery;
     private ComponentId _deltaPosition;
     private ComponentId _deltaVelocity;
     private ComponentId[] _deltaMovementPayload = [];
     private Entity[] _deltaMovementEntities = [];
-    private CursorWriteBinding<DeltaPosition> _deltaMovementPositionBinding;
-    private CursorReadBinding<DeltaVelocity> _deltaMovementVelocityBinding;
+    private WriteRequest<DeltaPosition> _deltaMovementPositionBinding;
+    private ReadRequest<DeltaVelocity> _deltaMovementVelocityBinding;
 
     private World _deltaFilterWorld = null!;
-    private QueryHandle _deltaFilterQuery;
+    private Query _deltaFilterQuery;
     private ComponentId[] _deltaFilterPayload = [];
     private Entity[] _deltaFilterEntities = [];
-    private CursorReadBinding<DeltaFilterPosition> _deltaFilterPositionBinding;
-    private CursorReadBinding<DeltaFilterVelocity> _deltaFilterVelocityBinding;
+    private ReadRequest<DeltaFilterPosition> _deltaFilterPositionBinding;
+    private ReadRequest<DeltaFilterVelocity> _deltaFilterVelocityBinding;
 
     private World _deltaCreateDestroyWorld = null!;
     private Entity[] _deltaCreateDestroyEntities = [];
@@ -102,7 +102,7 @@ public class EcsLiteComparisonBenchmarks
             Position = _deltaMovementPositionBinding,
             Velocity = _deltaMovementVelocityBinding
         };
-        _deltaMovementWorld.QueryCursor(in _deltaMovementQuery, ref state, s_deltaMovement);
+        _deltaMovementWorld.Query(in _deltaMovementQuery, ref state, s_deltaMovement);
 
         return BenchmarkGuard.Check(state.Checksum, state.Count, Amount);
     }
@@ -128,21 +128,21 @@ public class EcsLiteComparisonBenchmarks
     }
 
     [Benchmark(Baseline = true)]
-    [BenchmarkCategory("CachedQuery")]
-    public int DeltaECS_CachedQueryIteration()
+    [BenchmarkCategory("QueryPlan")]
+    public int DeltaECS_QueryPlanIteration()
     {
         var state = new QueryState
         {
             Position = _deltaFilterPositionBinding,
             Velocity = _deltaFilterVelocityBinding
         };
-        _deltaFilterWorld.QueryCursor(in _deltaFilterQuery, ref state, s_deltaFilter);
+        _deltaFilterWorld.Query(in _deltaFilterQuery, ref state, s_deltaFilter);
 
         return BenchmarkGuard.Check(state.Count, state.Checksum, Amount);
     }
 
     [Benchmark]
-    [BenchmarkCategory("CachedQuery")]
+    [BenchmarkCategory("QueryPlan")]
     public int LeoEcsLite_CachedFilterIteration()
     {
         var checksum = 0d;
@@ -304,10 +304,10 @@ public class EcsLiteComparisonBenchmarks
             }
         }
 
-        var queryDescription = QueryDescription.ForComponents(components);
+        var queryDescription = QuerySpec.ForComponents(components);
         _deltaMovementQuery = _deltaMovementWorld.CreateQuery(in queryDescription);
-        _deltaMovementPositionBinding = _deltaMovementQuery.CursorBind<DeltaPosition>(_deltaPosition, RowAccess.Write);
-        _deltaMovementVelocityBinding = _deltaMovementQuery.CursorBind<DeltaVelocity>(_deltaVelocity, RowAccess.Read);
+        _deltaMovementPositionBinding = _deltaMovementQuery.Access<DeltaPosition>(_deltaPosition, AccessMode.Write);
+        _deltaMovementVelocityBinding = _deltaMovementQuery.Access<DeltaVelocity>(_deltaVelocity, AccessMode.Read);
     }
 
     private void BuildDeltaFilterWorld()
@@ -319,10 +319,10 @@ public class EcsLiteComparisonBenchmarks
         var components = MergeComponents(position, velocity, _deltaFilterPayload, PayloadRows);
 
         _deltaFilterWorld = new World(layouts, initialEntityCapacity: Amount);
-        var queryDescription = QueryDescription.ForComponents(components);
+        var queryDescription = QuerySpec.ForComponents(components);
         _deltaFilterQuery = _deltaFilterWorld.CreateQuery(in queryDescription);
-        _deltaFilterPositionBinding = _deltaFilterQuery.CursorBind<DeltaFilterPosition>(position, RowAccess.Read);
-        _deltaFilterVelocityBinding = _deltaFilterQuery.CursorBind<DeltaFilterVelocity>(velocity, RowAccess.Read);
+        _deltaFilterPositionBinding = _deltaFilterQuery.Access<DeltaFilterPosition>(position, AccessMode.Read);
+        _deltaFilterVelocityBinding = _deltaFilterQuery.Access<DeltaFilterVelocity>(velocity, AccessMode.Read);
         _deltaFilterWorld.CreateBatch(components, _deltaFilterEntities);
 
         for (var entityIndex = 0; entityIndex < _deltaFilterEntities.Length; entityIndex++)
@@ -651,25 +651,25 @@ public class EcsLiteComparisonBenchmarks
     {
         public int Count;
         public double Checksum;
-        public CursorWriteBinding<DeltaPosition> Position;
-        public CursorReadBinding<DeltaVelocity> Velocity;
+        public WriteRequest<DeltaPosition> Position;
+        public ReadRequest<DeltaVelocity> Velocity;
     }
 
     private struct QueryState
     {
         public int Count;
         public double Checksum;
-        public CursorReadBinding<DeltaFilterPosition> Position;
-        public CursorReadBinding<DeltaFilterVelocity> Velocity;
+        public ReadRequest<DeltaFilterPosition> Position;
+        public ReadRequest<DeltaFilterVelocity> Velocity;
     }
 
-    private static readonly QueryCursorAction<MovementState> s_deltaMovement = IterateDeltaMovement;
-    private static readonly QueryCursorAction<QueryState> s_deltaFilter = IterateDeltaFilter;
+    private static readonly QueryAction<MovementState> s_deltaMovement = IterateDeltaMovement;
+    private static readonly QueryAction<QueryState> s_deltaFilter = IterateDeltaFilter;
 
-    private static void IterateDeltaMovement(ref MovementState state, ref DenseChunkCursor cursor)
+    private static void IterateDeltaMovement(ref MovementState state, ref QueryChunkCursor cursor)
     {
-        var positions = cursor.Resolve(state.Position);
-        var velocities = cursor.Resolve(state.Velocity);
+        var positions = cursor.Get(state.Position);
+        var velocities = cursor.Get(state.Velocity);
         while (cursor.MoveNext())
         {
             positions[cursor].X += velocities[cursor].X * Dt;
@@ -679,10 +679,10 @@ public class EcsLiteComparisonBenchmarks
         }
     }
 
-    private static void IterateDeltaFilter(ref QueryState state, ref DenseChunkCursor cursor)
+    private static void IterateDeltaFilter(ref QueryState state, ref QueryChunkCursor cursor)
     {
-        var positions = cursor.Resolve(state.Position);
-        var velocities = cursor.Resolve(state.Velocity);
+        var positions = cursor.Get(state.Position);
+        var velocities = cursor.Get(state.Velocity);
         while (cursor.MoveNext())
         {
             state.Count++;

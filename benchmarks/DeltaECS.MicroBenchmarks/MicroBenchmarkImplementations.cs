@@ -90,14 +90,14 @@ internal static class MicroBenchmarkKernels
 {
     public static int IterateMovement2Dense(
         MicroWorld fixture,
-        in QueryHandle query,
-        CursorWriteBinding<Position> position,
-        CursorReadBinding<Velocity> velocity)
+        in Query query,
+        WriteRequest<Position> position,
+        ReadRequest<Velocity> velocity)
     {
         var checksum = 0;
-        using var scope = fixture.World.IterateDense(in query);
-        var preparedPosition = scope.Prepare(position);
-        var preparedVelocity = scope.Prepare(velocity);
+        using var scope = fixture.World.OpenQuery(in query);
+        var preparedPosition = scope.Bind(position);
+        var preparedVelocity = scope.Bind(velocity);
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -105,8 +105,8 @@ internal static class MicroBenchmarkKernels
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var positions = slots.Resolve(preparedPosition);
-                var velocities = slots.Resolve(preparedVelocity);
+                var positions = slots.Get(preparedPosition);
+                var velocities = slots.Get(preparedVelocity);
                 while (slots.MoveNext())
                 {
                     ref var p = ref positions[slots];
@@ -123,18 +123,18 @@ internal static class MicroBenchmarkKernels
 
     public static int IterateMovement4Dense(
         MicroWorld fixture,
-        in QueryHandle query,
-        CursorWriteBinding<Movement4A> aBinding,
-        CursorWriteBinding<Movement4B> bBinding,
-        CursorWriteBinding<Movement4C> cBinding,
-        CursorReadBinding<Movement4D> dBinding)
+        in Query query,
+        WriteRequest<Movement4A> aBinding,
+        WriteRequest<Movement4B> bBinding,
+        WriteRequest<Movement4C> cBinding,
+        ReadRequest<Movement4D> dBinding)
     {
         var checksum = 0;
-        using var scope = fixture.World.IterateDense(in query);
-        var preparedA = scope.Prepare(aBinding);
-        var preparedB = scope.Prepare(bBinding);
-        var preparedC = scope.Prepare(cBinding);
-        var preparedD = scope.Prepare(dBinding);
+        using var scope = fixture.World.OpenQuery(in query);
+        var preparedA = scope.Bind(aBinding);
+        var preparedB = scope.Bind(bBinding);
+        var preparedC = scope.Bind(cBinding);
+        var preparedD = scope.Bind(dBinding);
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -142,10 +142,10 @@ internal static class MicroBenchmarkKernels
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var a = slots.Resolve(preparedA);
-                var b = slots.Resolve(preparedB);
-                var c = slots.Resolve(preparedC);
-                var d = slots.Resolve(preparedD);
+                var a = slots.Get(preparedA);
+                var b = slots.Get(preparedB);
+                var c = slots.Get(preparedC);
+                var d = slots.Get(preparedD);
                 while (slots.MoveNext())
                 {
                     ref var rowA = ref a[slots];
@@ -172,14 +172,14 @@ public class DenseIterationMicroBenchmarkImplementation
     private MicroWorld _fixture = null!;
     private Entity[] _movement2Entities = null!;
     private Entity[] _movement4Entities = null!;
-    private QueryHandle _movement2Query;
-    private QueryHandle _movement4Query;
-    private CursorWriteBinding<Position> _movement2Position;
-    private CursorReadBinding<Velocity> _movement2Velocity;
-    private CursorWriteBinding<Movement4A> _movement4A;
-    private CursorWriteBinding<Movement4B> _movement4B;
-    private CursorWriteBinding<Movement4C> _movement4C;
-    private CursorReadBinding<Movement4D> _movement4D;
+    private Query _movement2Query;
+    private Query _movement4Query;
+    private WriteRequest<Position> _movement2Position;
+    private ReadRequest<Velocity> _movement2Velocity;
+    private WriteRequest<Movement4A> _movement4A;
+    private WriteRequest<Movement4B> _movement4B;
+    private WriteRequest<Movement4C> _movement4C;
+    private ReadRequest<Movement4D> _movement4D;
 
     [GlobalSetup]
     public void Setup()
@@ -188,21 +188,21 @@ public class DenseIterationMicroBenchmarkImplementation
         _movement2Entities = _fixture.CreateMoving(Amount);
         _movement4Entities = _fixture.CreateMovement4(Amount);
 
-        var movement2 = QueryDescription.ForComponents(_fixture.Position, _fixture.Velocity);
+        var movement2 = QuerySpec.ForComponents(_fixture.Position, _fixture.Velocity);
         _movement2Query = _fixture.World.CreateQuery(in movement2);
-        _movement2Position = _movement2Query.CursorBind<Position>(_fixture.Position, RowAccess.Write);
-        _movement2Velocity = _movement2Query.CursorBind<Velocity>(_fixture.Velocity, RowAccess.Read);
+        _movement2Position = _movement2Query.Access<Position>(_fixture.Position, AccessMode.Write);
+        _movement2Velocity = _movement2Query.Access<Velocity>(_fixture.Velocity, AccessMode.Read);
 
-        var movement4 = QueryDescription.ForComponents(
+        var movement4 = QuerySpec.ForComponents(
             _fixture.Movement4A,
             _fixture.Movement4B,
             _fixture.Movement4C,
             _fixture.Movement4D);
         _movement4Query = _fixture.World.CreateQuery(in movement4);
-        _movement4A = _movement4Query.CursorBind<Movement4A>(_fixture.Movement4A, RowAccess.Write);
-        _movement4B = _movement4Query.CursorBind<Movement4B>(_fixture.Movement4B, RowAccess.Write);
-        _movement4C = _movement4Query.CursorBind<Movement4C>(_fixture.Movement4C, RowAccess.Write);
-        _movement4D = _movement4Query.CursorBind<Movement4D>(_fixture.Movement4D, RowAccess.Read);
+        _movement4A = _movement4Query.Access<Movement4A>(_fixture.Movement4A, AccessMode.Write);
+        _movement4B = _movement4Query.Access<Movement4B>(_fixture.Movement4B, AccessMode.Write);
+        _movement4C = _movement4Query.Access<Movement4C>(_fixture.Movement4C, AccessMode.Write);
+        _movement4D = _movement4Query.Access<Movement4D>(_fixture.Movement4D, AccessMode.Read);
     }
 
     [IterationSetup(Target = nameof(Movement2Components))]
@@ -337,10 +337,10 @@ internal static class MicroContractSmoke
     {
         var fixture = new MicroWorld(chunkCapacity: 4);
         var movement2Entities = fixture.CreateMoving(8);
-        var movement2Description = QueryDescription.ForComponents(fixture.Position, fixture.Velocity);
+        var movement2Description = QuerySpec.ForComponents(fixture.Position, fixture.Velocity);
         var movement2Query = fixture.World.CreateQuery(in movement2Description);
-        var movement2Position = movement2Query.CursorBind<Position>(fixture.Position, RowAccess.Write);
-        var movement2Velocity = movement2Query.CursorBind<Velocity>(fixture.Velocity, RowAccess.Read);
+        var movement2Position = movement2Query.Access<Position>(fixture.Position, AccessMode.Write);
+        var movement2Velocity = movement2Query.Access<Velocity>(fixture.Velocity, AccessMode.Read);
 
         var movement2Sum = MicroBenchmarkKernels.IterateMovement2Dense(
             fixture,
@@ -352,16 +352,16 @@ internal static class MicroContractSmoke
 
         fixture.ResetMoving(movement2Entities);
         var movement4Entities = fixture.CreateMovement4(8);
-        var movement4Description = QueryDescription.ForComponents(
+        var movement4Description = QuerySpec.ForComponents(
             fixture.Movement4A,
             fixture.Movement4B,
             fixture.Movement4C,
             fixture.Movement4D);
         var movement4Query = fixture.World.CreateQuery(in movement4Description);
-        var movement4A = movement4Query.CursorBind<Movement4A>(fixture.Movement4A, RowAccess.Write);
-        var movement4B = movement4Query.CursorBind<Movement4B>(fixture.Movement4B, RowAccess.Write);
-        var movement4C = movement4Query.CursorBind<Movement4C>(fixture.Movement4C, RowAccess.Write);
-        var movement4D = movement4Query.CursorBind<Movement4D>(fixture.Movement4D, RowAccess.Read);
+        var movement4A = movement4Query.Access<Movement4A>(fixture.Movement4A, AccessMode.Write);
+        var movement4B = movement4Query.Access<Movement4B>(fixture.Movement4B, AccessMode.Write);
+        var movement4C = movement4Query.Access<Movement4C>(fixture.Movement4C, AccessMode.Write);
+        var movement4D = movement4Query.Access<Movement4D>(fixture.Movement4D, AccessMode.Read);
 
         var movement4Sum = MicroBenchmarkKernels.IterateMovement4Dense(
             fixture,

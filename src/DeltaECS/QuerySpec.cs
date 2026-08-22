@@ -3,7 +3,7 @@ namespace Delta.ECS;
 using System;
 using System.Collections.Generic;
 
-public readonly struct QueryDescription : IEquatable<QueryDescription>
+public readonly struct QuerySpec : IEquatable<QuerySpec>
 {
     private readonly ComponentMask _allMask;
     private readonly ComponentMask _anyMask;
@@ -12,7 +12,7 @@ public readonly struct QueryDescription : IEquatable<QueryDescription>
     private readonly TagId[] _anyTags;
     private readonly TagId[] _noneTags;
 
-    public QueryDescription(
+    public QuerySpec(
         ComponentId[] allComponents,
         ComponentId[] anyComponents,
         ComponentId[] noneComponents,
@@ -116,7 +116,7 @@ public readonly struct QueryDescription : IEquatable<QueryDescription>
         return normalized;
     }
 
-    public bool Equals(QueryDescription other)
+    public bool Equals(QuerySpec other)
     {
         if (Hash != other.Hash)
         {
@@ -160,19 +160,19 @@ public readonly struct QueryDescription : IEquatable<QueryDescription>
         return true;
     }
 
-    public override bool Equals(object? obj) => obj is QueryDescription other && Equals(other);
+    public override bool Equals(object? obj) => obj is QuerySpec other && Equals(other);
 
     public override int GetHashCode() => Hash;
 
-    public static QueryDescription ForComponents(params ComponentId[] components) =>
+    public static QuerySpec ForComponents(params ComponentId[] components) =>
         new(components, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(), Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>());
 
-    public static IEqualityComparer<QueryDescription> Comparer { get; } = new QueryDescriptionComparer();
+    public static IEqualityComparer<QuerySpec> Comparer { get; } = new QuerySpecComparer();
 }
 
-internal sealed class QueryDescriptionComparer : IEqualityComparer<QueryDescription>
+internal sealed class QuerySpecComparer : IEqualityComparer<QuerySpec>
 {
-    public bool Equals(QueryDescription x, QueryDescription y) => x.Equals(y);
+    public bool Equals(QuerySpec x, QuerySpec y) => x.Equals(y);
 
-    public int GetHashCode(QueryDescription obj) => obj.GetHashCode();
+    public int GetHashCode(QuerySpec obj) => obj.GetHashCode();
 }

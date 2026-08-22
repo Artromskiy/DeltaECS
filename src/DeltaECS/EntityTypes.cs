@@ -72,28 +72,28 @@ internal struct EntityRecord
     public int SlotIndex;
 }
 
-public readonly struct ReadRowAccess
+public readonly struct ReadAccessMode
 {
 }
 
-public readonly struct WriteRowAccess
+public readonly struct WriteAccessMode
 {
 }
 
-public static class RowAccess
+public static class AccessMode
 {
-    public static ReadRowAccess Read => default;
+    public static ReadAccessMode Read => default;
 
-    public static WriteRowAccess Write => default;
+    public static WriteAccessMode Write => default;
 }
 
-public readonly struct QueryHandle
+public readonly struct Query
 {
     private readonly World _owner;
-    private readonly CachedQuery _cached;
-    private readonly QueryDescription _description;
+    private readonly QueryPlan _cached;
+    private readonly QuerySpec _description;
 
-    internal QueryHandle(World owner, CachedQuery cached, QueryDescription description)
+    internal Query(World owner, QueryPlan cached, QuerySpec description)
     {
         _owner = owner;
         _cached = cached;
@@ -102,22 +102,22 @@ public readonly struct QueryHandle
 
     internal World Owner => _owner;
 
-    internal CachedQuery Cached => _cached;
+    internal QueryPlan Cached => _cached;
 
-    internal QueryDescription Description => _description;
+    internal QuerySpec Description => _description;
 
     public bool IsValid => _owner is not null && _cached is not null;
 
-    public CursorReadBinding<T> CursorBind<T>(ComponentId componentId, ReadRowAccess _)
+    public ReadRequest<T> Access<T>(ComponentId componentId, ReadAccessMode _)
     {
-        return new CursorReadBinding<T>(_cached, ResolveComponentRow<T>(componentId));
+        return new ReadRequest<T>(_cached, ResolveComponentRow<T>(componentId));
     }
 
-    public CursorWriteBinding<T> CursorBind<T>(ComponentId componentId, WriteRowAccess _)
+    public WriteRequest<T> Access<T>(ComponentId componentId, WriteAccessMode _)
     {
         var rowIndex = ResolveComponentRow<T>(componentId);
-        _cached.RegisterWriteBinding();
-        return new CursorWriteBinding<T>(_cached, rowIndex);
+        _cached.RegisterWriteAccess();
+        return new WriteRequest<T>(_cached, rowIndex);
     }
 
     private int ResolveComponentRow<T>(ComponentId componentId)
@@ -129,7 +129,7 @@ public readonly struct QueryHandle
 
         if (!_description.AllMask.Contains(componentId))
         {
-            throw new ArgumentException("A row binding must target a component guaranteed by the query All mask.", nameof(componentId));
+            throw new ArgumentException("A row access must target a component guaranteed by the query All mask.", nameof(componentId));
         }
 
         if (!_owner.Layouts.TryGet(componentId, out var layout))
@@ -146,4 +146,4 @@ public readonly struct QueryHandle
     }
 }
 
-public delegate void QueryCursorAction<TContext>(ref TContext context, ref DenseChunkCursor cursor);
+public delegate void QueryAction<TContext>(ref TContext context, ref QueryChunkCursor cursor);

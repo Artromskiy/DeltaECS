@@ -22,9 +22,9 @@ public int ArchetypeSignatures { get; set; }
 public int MatchingPercent { get; set; }
 
 private World _world = null!;
-private QueryHandle _query;
+private Query _query;
 private ComponentId _required;
-private CursorReadBinding<FragmentValue> _valueBinding;
+private ReadRequest<FragmentValue> _valueBinding;
 private int _expectedMatches;
 
     [GlobalSetup]
@@ -69,18 +69,18 @@ private int _expectedMatches;
             }
         }
 
-        var description = QueryDescription.ForComponents(_required);
+        var description = QuerySpec.ForComponents(_required);
         _query = _world.CreateQuery(in description);
-        _valueBinding = _query.CursorBind<FragmentValue>(_required, RowAccess.Read);
+        _valueBinding = _query.Access<FragmentValue>(_required, AccessMode.Read);
     }
 
     [Benchmark]
     public int DeltaOnly_QueryAndIteration()
     {
         var state = new FragmentQueryState { Value = _valueBinding };
-        _world.QueryCursor(in _query, ref state, static (ref FragmentQueryState s, ref DenseChunkCursor cursor) =>
+        _world.Query(in _query, ref state, static (ref FragmentQueryState s, ref QueryChunkCursor cursor) =>
         {
-            var values = cursor.Resolve<FragmentValue>(s.Value);
+            var values = cursor.Get<FragmentValue>(s.Value);
             while (cursor.MoveNext())
             {
                 s.Matches++;
@@ -100,7 +100,7 @@ private int _expectedMatches;
     public int DeltaOnly_QueryChunkDispatch()
     {
         var state = new FragmentQueryState { Value = _valueBinding };
-        _world.QueryCursor(in _query, ref state, static (ref FragmentQueryState s, ref DenseChunkCursor cursor) =>
+        _world.Query(in _query, ref state, static (ref FragmentQueryState s, ref QueryChunkCursor cursor) =>
         { while (cursor.MoveNext()) s.Matches++; });
 
         if (state.Matches != _expectedMatches)
@@ -115,13 +115,13 @@ private int _expectedMatches;
     public int DeltaOnly_ColdPlan()
     {
         var state = new FragmentQueryState();
-        var description = QueryDescription.ForComponents(_required);
+        var description = QuerySpec.ForComponents(_required);
         var coldQuery = _world.CreateQuery(in description);
-        var valueBinding = coldQuery.CursorBind<FragmentValue>(_required, RowAccess.Read);
+        var valueBinding = coldQuery.Access<FragmentValue>(_required, AccessMode.Read);
         state.Value = valueBinding;
-        _world.QueryCursor(in coldQuery, ref state, static (ref FragmentQueryState s, ref DenseChunkCursor cursor) =>
+        _world.Query(in coldQuery, ref state, static (ref FragmentQueryState s, ref QueryChunkCursor cursor) =>
         {
-            var values = cursor.Resolve<FragmentValue>(s.Value);
+            var values = cursor.Get<FragmentValue>(s.Value);
             while (cursor.MoveNext())
             {
                 s.Matches++;
@@ -170,6 +170,6 @@ private int _expectedMatches;
     {
         public int Matches;
         public int Checksum;
-        public CursorReadBinding<FragmentValue> Value;
+        public ReadRequest<FragmentValue> Value;
     }
 }

@@ -21,7 +21,7 @@ throughput claim.
 | 5. Direct current chunk/slot state fields | `4f4745e` | 1412 B | 16 | 3 | 39 | 97 | 21 | reject |
 | 6. Reduce owner/description indirections | `002c0f6` | **1160 B** | **12** | 3 | **35** | **76** | 14 | **winner** |
 
-Variant 6 carries the validated `CachedQuery` directly through the dense
+Variant 6 carries the validated `QueryPlan` directly through the dense
 iterator state and removes the unused query owner from `DenseArchetypePlan`.
 No public API or tag path was changed.
 

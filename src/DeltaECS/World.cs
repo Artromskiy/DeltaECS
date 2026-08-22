@@ -20,7 +20,7 @@ public sealed class World
     private int[] _freeRecords = new int[16];
     private int _freeCount;
     private readonly Dictionary<TransitionKey, TransitionEdge> _transitionCache = new();
-    private readonly Dictionary<QueryDescription, CachedQuery> _queryCache = new(QueryDescription.Comparer);
+    private readonly Dictionary<QuerySpec, QueryPlan> _queryCache = new(QuerySpec.Comparer);
     private DestroyEntry[] _destroyScratch = new DestroyEntry[32];
     private TransitionEdge[] _batchEdgeSlots = Array.Empty<TransitionEdge>();
     private int[] _batchEdgeStamps = Array.Empty<int>();
@@ -73,18 +73,18 @@ public sealed class World
         return new ArchetypeHandle(this, GetOrCreateArchetype(mask).Id);
     }
 
-    public QueryHandle CreateQuery(in QueryDescription description)
+    public Query CreateQuery(in QuerySpec description)
     {
-        return new QueryHandle(this, GetOrCreateQuery(description), description);
+        return new Query(this, GetOrCreateQuery(description), description);
     }
 
     /// <summary>
     /// Creates a validated dense-only query scope with independent archetype,
     /// chunk and slot iterators. Queries with tag predicates are rejected.
     /// </summary>
-    public DenseQueryScope IterateDense(in QueryHandle handle)
+    public QueryScope OpenQuery(in Query handle)
     {
-        return new DenseQueryScope(this, handle);
+        return new QueryScope(this, handle);
     }
 
     public Entity Create(ComponentId[] componentIds)
@@ -332,19 +332,19 @@ public sealed class World
         return ApplyComponents(false, componentIds, entities);
     }
 
-    public int AddComponents(in QueryHandle query, ComponentId[] componentIds)
+    public int AddComponents(in Query query, ComponentId[] componentIds)
     {
         return ApplyQueryComponents(query, true, componentIds);
     }
 
-    public int RemoveComponents(in QueryHandle query, ComponentId[] componentIds)
+    public int RemoveComponents(in Query query, ComponentId[] componentIds)
     {
         return ApplyQueryComponents(query, false, componentIds);
     }
 
-    public int Destroy(in QueryHandle query)
+    public int Destroy(in Query query)
     {
-        ValidateQueryHandle(query);
+        ValidateQuery(query);
         EnsureNoActiveLease("destroy entities");
 
         var cached = query.Cached;
@@ -372,7 +372,7 @@ public sealed class World
     /// Executes a dense query through the experimental Version 1 cursor path.
     /// The cursor is valid only for the callback invocation and must not be retained.
     /// </summary>
-    public void QueryCursor<TContext>(in QueryHandle handle, ref TContext context, QueryCursorAction<TContext> action)
+    public void Query<TContext>(in Query handle, ref TContext context, QueryAction<TContext> action)
     {
         if (!ReferenceEquals(handle.Owner, this) || !handle.IsValid)
         {
@@ -402,7 +402,7 @@ public sealed class World
                         continue;
                     }
 
-                    var cursor = new DenseChunkCursor(cached, archetype.Id, chunk, plan.ComponentRows, writeTick, scratch, overlayResult);
+                    var cursor = new QueryChunkCursor(cached, archetype.Id, chunk, plan.ComponentRows, writeTick, scratch, overlayResult);
                     action(ref context, ref cursor);
                 }
             }
@@ -418,8 +418,8 @@ public sealed class World
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private uint QueryWriteTick(CachedQuery cached) =>
-        cached.HasWriteBindings ? AdvanceWorldTick() : 0;
+    private uint QueryWriteTick(QueryPlan cached) =>
+        cached.HasWriteAccess ? AdvanceWorldTick() : 0;
 
     public int CollectAliveEntities(Span<Entity> destination)
     {
@@ -451,7 +451,7 @@ public sealed class World
 
     internal void EndQueryLease() => _activeChunkLeases--;
 
-    internal uint GetQueryWriteTick(CachedQuery cached) => QueryWriteTick(cached);
+    internal uint GetQueryWriteTick(QueryPlan cached) => QueryWriteTick(cached);
 
     internal void ReturnChunkOverlayScratch(ulong[] scratch)
     {
@@ -522,9 +522,9 @@ public sealed class World
         return changed;
     }
 
-    private int ApplyQueryComponents(in QueryHandle query, bool isAdd, ComponentId[] componentIds)
+    private int ApplyQueryComponents(in Query query, bool isAdd, ComponentId[] componentIds)
     {
-        ValidateQueryHandle(query);
+        ValidateQuery(query);
         EnsureNoActiveLease(isAdd ? "add components" : "remove components");
         if (componentIds.Length == 0)
         {
@@ -736,7 +736,7 @@ public sealed class World
     }
 
     private List<Entity> CollectTaggedQueryEntities(
-        QueryDescription query,
+        QuerySpec query,
         int[] matchingArchetypes)
     {
         var matches = new List<Entity>();
@@ -1037,14 +1037,14 @@ public sealed class World
         return record.Archetype >= 0 && record.Generation == entity.Generation;
     }
 
-    private CachedQuery GetOrCreateQuery(QueryDescription description)
+    private QueryPlan GetOrCreateQuery(QuerySpec description)
     {
         if (_queryCache.TryGetValue(description, out var cached))
         {
             return cached;
         }
 
-        cached = new CachedQuery(description);
+        cached = new QueryPlan(description);
         _queryCache.Add(description, cached);
         return cached;
     }
@@ -1057,7 +1057,7 @@ public sealed class World
         }
     }
 
-    private void ValidateQueryHandle(in QueryHandle query)
+    private void ValidateQuery(in Query query)
     {
         if (!query.IsValid || !ReferenceEquals(query.Owner, this))
         {

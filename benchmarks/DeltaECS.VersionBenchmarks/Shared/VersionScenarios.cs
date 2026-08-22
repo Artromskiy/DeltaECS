@@ -22,22 +22,22 @@ public sealed class IterationScenario
 {
     private readonly int _amount;
     private readonly World _world;
-    private readonly QueryHandle _denseQuery;
-    private readonly QueryHandle _movement2Query;
-    private readonly QueryHandle _movement4Query;
+    private readonly Query _denseQuery;
+    private readonly Query _movement2Query;
+    private readonly Query _movement4Query;
     private readonly ComponentId _position;
     private readonly ComponentId _velocity;
     private readonly ComponentId _dense;
     private readonly ComponentId[] _movement4Ids;
     private readonly Entity[] _movement2Entities;
     private readonly Entity[] _movement4Entities;
-    private readonly CursorReadBinding<DenseValue> _denseBinding;
-    private readonly CursorWriteBinding<Position> _positionBinding;
-    private readonly CursorReadBinding<Velocity> _velocityBinding;
-    private readonly CursorWriteBinding<MovementA> _movementABinding;
-    private readonly CursorWriteBinding<MovementB> _movementBBinding;
-    private readonly CursorWriteBinding<MovementC> _movementCBinding;
-    private readonly CursorReadBinding<MovementD> _movementDBinding;
+    private readonly ReadRequest<DenseValue> _denseBinding;
+    private readonly WriteRequest<Position> _positionBinding;
+    private readonly ReadRequest<Velocity> _velocityBinding;
+    private readonly WriteRequest<MovementA> _movementABinding;
+    private readonly WriteRequest<MovementB> _movementBBinding;
+    private readonly WriteRequest<MovementC> _movementCBinding;
+    private readonly ReadRequest<MovementD> _movementDBinding;
 
     public IterationScenario(int amount)
     {
@@ -65,23 +65,23 @@ public sealed class IterationScenario
 
         _movement2Entities = new Entity[amount];
         _world.CreateBatch([_position, _velocity], _movement2Entities);
-        var movement2Description = QueryDescription.ForComponents(_position, _velocity);
+        var movement2Description = QuerySpec.ForComponents(_position, _velocity);
         _movement2Query = _world.CreateQuery(in movement2Description);
 
         _movement4Entities = new Entity[amount];
         _world.CreateBatch(_movement4Ids, _movement4Entities);
-        var movement4Description = QueryDescription.ForComponents(_movement4Ids);
+        var movement4Description = QuerySpec.ForComponents(_movement4Ids);
         _movement4Query = _world.CreateQuery(in movement4Description);
 
-        var denseDescription = QueryDescription.ForComponents(_dense);
+        var denseDescription = QuerySpec.ForComponents(_dense);
         _denseQuery = _world.CreateQuery(in denseDescription);
-        _denseBinding = _denseQuery.CursorBind<DenseValue>(_dense, RowAccess.Read);
-        _positionBinding = _movement2Query.CursorBind<Position>(_position, RowAccess.Write);
-        _velocityBinding = _movement2Query.CursorBind<Velocity>(_velocity, RowAccess.Read);
-        _movementABinding = _movement4Query.CursorBind<MovementA>(_movement4Ids[0], RowAccess.Write);
-        _movementBBinding = _movement4Query.CursorBind<MovementB>(_movement4Ids[1], RowAccess.Write);
-        _movementCBinding = _movement4Query.CursorBind<MovementC>(_movement4Ids[2], RowAccess.Write);
-        _movementDBinding = _movement4Query.CursorBind<MovementD>(_movement4Ids[3], RowAccess.Read);
+        _denseBinding = _denseQuery.Access<DenseValue>(_dense, AccessMode.Read);
+        _positionBinding = _movement2Query.Access<Position>(_position, AccessMode.Write);
+        _velocityBinding = _movement2Query.Access<Velocity>(_velocity, AccessMode.Read);
+        _movementABinding = _movement4Query.Access<MovementA>(_movement4Ids[0], AccessMode.Write);
+        _movementBBinding = _movement4Query.Access<MovementB>(_movement4Ids[1], AccessMode.Write);
+        _movementCBinding = _movement4Query.Access<MovementC>(_movement4Ids[2], AccessMode.Write);
+        _movementDBinding = _movement4Query.Access<MovementD>(_movement4Ids[3], AccessMode.Read);
         ResetMovements();
     }
 
@@ -101,9 +101,9 @@ public sealed class IterationScenario
     public long DenseRead()
     {
         var state = new DenseState { Component = _denseBinding };
-        _world.QueryCursor(in _denseQuery, ref state, static (ref DenseState current, ref DenseChunkCursor cursor) =>
+        _world.Query(in _denseQuery, ref state, static (ref DenseState current, ref QueryChunkCursor cursor) =>
         {
-            var row = cursor.Resolve(current.Component);
+            var row = cursor.Get(current.Component);
             while (cursor.MoveNext()) current.Sum += row[cursor].Value;
         });
 
@@ -114,10 +114,10 @@ public sealed class IterationScenario
     public double Movement2()
     {
         var state = new Movement2State { Position = _positionBinding, Velocity = _velocityBinding };
-        _world.QueryCursor(in _movement2Query, ref state, static (ref Movement2State current, ref DenseChunkCursor cursor) =>
+        _world.Query(in _movement2Query, ref state, static (ref Movement2State current, ref QueryChunkCursor cursor) =>
         {
-            var positions = cursor.Resolve(current.Position);
-            var velocities = cursor.Resolve(current.Velocity);
+            var positions = cursor.Get(current.Position);
+            var velocities = cursor.Get(current.Velocity);
             while (cursor.MoveNext())
             {
                 ref var position = ref positions[cursor];
@@ -143,12 +143,12 @@ public sealed class IterationScenario
             C = _movementCBinding,
             D = _movementDBinding
         };
-        _world.QueryCursor(in _movement4Query, ref state, static (ref Movement4State current, ref DenseChunkCursor cursor) =>
+        _world.Query(in _movement4Query, ref state, static (ref Movement4State current, ref QueryChunkCursor cursor) =>
         {
-            var a = cursor.Resolve(current.A);
-            var b = cursor.Resolve(current.B);
-            var c = cursor.Resolve(current.C);
-            var d = cursor.Resolve(current.D);
+            var a = cursor.Get(current.A);
+            var b = cursor.Get(current.B);
+            var c = cursor.Get(current.C);
+            var d = cursor.Get(current.D);
             while (cursor.MoveNext())
             {
                 var updatedA = a[cursor].Value + d[cursor].Value;
@@ -163,14 +163,14 @@ public sealed class IterationScenario
         return state.Sum;
     }
 
-    private struct DenseState { public CursorReadBinding<DenseValue> Component; public long Sum; }
-    private struct Movement2State { public CursorWriteBinding<Position> Position; public CursorReadBinding<Velocity> Velocity; public double Sum; }
+    private struct DenseState { public ReadRequest<DenseValue> Component; public long Sum; }
+    private struct Movement2State { public WriteRequest<Position> Position; public ReadRequest<Velocity> Velocity; public double Sum; }
     private struct Movement4State
     {
-        public CursorWriteBinding<MovementA> A;
-        public CursorWriteBinding<MovementB> B;
-        public CursorWriteBinding<MovementC> C;
-        public CursorReadBinding<MovementD> D;
+        public WriteRequest<MovementA> A;
+        public WriteRequest<MovementB> B;
+        public WriteRequest<MovementC> C;
+        public ReadRequest<MovementD> D;
         public int Sum;
     }
 }

@@ -4,15 +4,15 @@ namespace Delta.ECS;
 /// Owns one validated dense query execution and its structural lease.
 /// Child iterators are trusted stack-only views and do not own the lease.
 /// </summary>
-public ref struct DenseQueryScope
+public ref struct QueryScope
 {
     private readonly World _owner;
-    private readonly CachedQuery _query;
+    private readonly QueryPlan _query;
     private readonly DenseArchetypePlan[] _plans;
     private readonly uint _writeTick;
     private bool _disposed;
 
-    internal DenseQueryScope(World owner, in QueryHandle handle)
+    internal QueryScope(World owner, in Query handle)
     {
         if (!ReferenceEquals(handle.Owner, owner) || !handle.IsValid)
         {
@@ -35,34 +35,34 @@ public ref struct DenseQueryScope
     }
 
     /// <summary>Creates the independent outer iterator over matching archetypes.</summary>
-    public DenseArchetypeIterator Archetypes
+    public QueryArchetypes Archetypes
     {
         get
         {
             EnsureActive();
-            return new DenseArchetypeIterator(_plans, _query, _writeTick);
+            return new QueryArchetypes(_plans, _query, _writeTick);
         }
     }
 
     /// <summary>Validates a read binding once for this dense execution.</summary>
-    public DenseReadBinding<T> Prepare<T>(CursorReadBinding<T> binding)
+    public ReadAccess<T> Bind<T>(ReadRequest<T> binding)
     {
         EnsureActive();
         if (!ReferenceEquals(binding.Query, _query))
         {
-            QueryThrowHelper.ThrowBindingMismatch();
+            QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        return new DenseReadBinding<T>(_query, binding.QueryComponentIndex);
+        return new ReadAccess<T>(_query, binding.QueryComponentIndex);
     }
 
     /// <summary>Validates a write binding once for this dense execution.</summary>
-    public DenseWriteBinding<T> Prepare<T>(CursorWriteBinding<T> binding)
+    public WriteAccess<T> Bind<T>(WriteRequest<T> binding)
     {
         EnsureActive();
         if (!ReferenceEquals(binding.Query, _query))
         {
-            QueryThrowHelper.ThrowBindingMismatch();
+            QueryThrowHelper.ThrowAccessMismatch();
         }
 
         if (_writeTick == 0)
@@ -70,7 +70,7 @@ public ref struct DenseQueryScope
             QueryThrowHelper.ThrowMissingWriteIntent();
         }
 
-        return new DenseWriteBinding<T>(_query, binding.QueryComponentIndex);
+        return new WriteAccess<T>(_query, binding.QueryComponentIndex);
     }
 
     public void Dispose()
@@ -94,29 +94,29 @@ public ref struct DenseQueryScope
 }
 
 /// <summary>Scope-validated read row token for dense iteration.</summary>
-public readonly struct DenseReadBinding<T>
+public readonly struct ReadAccess<T>
 {
-    internal DenseReadBinding(CachedQuery query, int queryComponentIndex)
+    internal ReadAccess(QueryPlan query, int queryComponentIndex)
     {
         Query = query;
         QueryComponentIndex = queryComponentIndex;
     }
 
-    internal CachedQuery? Query { get; }
+    internal QueryPlan? Query { get; }
 
     internal int QueryComponentIndex { get; }
 }
 
 /// <summary>Scope-validated write row token for dense iteration.</summary>
-public readonly struct DenseWriteBinding<T>
+public readonly struct WriteAccess<T>
 {
-    internal DenseWriteBinding(CachedQuery query, int queryComponentIndex)
+    internal WriteAccess(QueryPlan query, int queryComponentIndex)
     {
         Query = query;
         QueryComponentIndex = queryComponentIndex;
     }
 
-    internal CachedQuery? Query { get; }
+    internal QueryPlan? Query { get; }
 
     internal int QueryComponentIndex { get; }
 }

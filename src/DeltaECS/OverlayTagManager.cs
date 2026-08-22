@@ -135,7 +135,7 @@ internal sealed class OverlayTagManager
         }
     }
 
-    public OverlayMaskResult BuildMask(QueryDescription query, int chunkId, int chunkSize, Span<ulong> destination)
+    public OverlayMaskResult BuildMask(QuerySpec query, int chunkId, int chunkSize, Span<ulong> destination)
     {
         if (_wordsPerChunk > destination.Length)
         {

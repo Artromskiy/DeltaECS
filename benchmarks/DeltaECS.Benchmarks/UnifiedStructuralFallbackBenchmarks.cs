@@ -388,7 +388,7 @@ internal struct ListLeoK3 { }
 public partial class ComparativeStructuralQueryBenchmarks
 {
     private ArchWorld _archQueryWorld = null!;
-    private Arch.Core.QueryDescription _archQueryDescription;
+    private Arch.Core.QueryDescription _archQuerySpec;
     private ArchComponentType[] _archQueryMatchTypes = null!;
     private ArchComponentType[] _archQueryNonMatchTypes = null!;
     private ArchComponentType[] _archQueryMatchChangedTypes = null!;
@@ -444,7 +444,7 @@ public partial class ComparativeStructuralQueryBenchmarks
         _archQueryWorld.Reserve(_archQueryNonMatchTypes, Amount);
         _archQueryWorld.Reserve(_archQueryMatchChangedTypes, Amount);
         _archQueryWorld.Reserve(_archQueryNonMatchChangedTypes, Amount);
-        _archQueryDescription = new Arch.Core.QueryDescription { All = new[] { a, b }, None = new[] { c } };
+        _archQuerySpec = new Arch.Core.QueryDescription { All = new[] { a, b }, None = new[] { c } };
         _archQueryEntities = new ArchEntity[Amount];
         _archQueryNonMatches = new ArchEntity[Amount];
         _archQueryCreated = new ArchEntity[Amount];
@@ -510,13 +510,13 @@ public partial class ComparativeStructuralQueryBenchmarks
     }
 
     [Benchmark, BenchmarkCategory("Structural.Query.DestroyBatch")]
-    public int Arch_Query_DestroyBatch() { _archQueryWorld.Destroy(in _archQueryDescription); _archQueryState = QueryFallbackState.Destroyed; return ExpectedMatches; }
+    public int Arch_Query_DestroyBatch() { _archQueryWorld.Destroy(in _archQuerySpec); _archQueryState = QueryFallbackState.Destroyed; return ExpectedMatches; }
 
     [Benchmark, BenchmarkCategory("Structural.Query.AddBatch")]
     public int Arch_Query_AddBatch()
     {
-        if (ChangeWidth == 1) _archQueryWorld.Add(in _archQueryDescription, new QueryArchK0());
-        else _archQueryWorld.Add(in _archQueryDescription, new QueryArchK0(), new QueryArchK1(), new QueryArchK2(), new QueryArchK3());
+        if (ChangeWidth == 1) _archQueryWorld.Add(in _archQuerySpec, new QueryArchK0());
+        else _archQueryWorld.Add(in _archQuerySpec, new QueryArchK0(), new QueryArchK1(), new QueryArchK2(), new QueryArchK3());
         _archQueryState = QueryFallbackState.Mixed;
         return ExpectedMatches;
     }
@@ -524,8 +524,8 @@ public partial class ComparativeStructuralQueryBenchmarks
     [Benchmark, BenchmarkCategory("Structural.Query.RemoveBatch")]
     public int Arch_Query_RemoveBatch()
     {
-        if (ChangeWidth == 1) _archQueryWorld.Remove<QueryArchK0>(in _archQueryDescription);
-        else _archQueryWorld.Remove<QueryArchK0, QueryArchK1, QueryArchK2, QueryArchK3>(in _archQueryDescription);
+        if (ChangeWidth == 1) _archQueryWorld.Remove<QueryArchK0>(in _archQuerySpec);
+        else _archQueryWorld.Remove<QueryArchK0, QueryArchK1, QueryArchK2, QueryArchK3>(in _archQuerySpec);
         _archQueryState = QueryFallbackState.Mixed;
         return ExpectedMatches;
     }

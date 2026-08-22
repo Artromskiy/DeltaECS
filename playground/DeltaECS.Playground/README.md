@@ -11,8 +11,8 @@ dotnet run --project playground/DeltaECS.Playground/DeltaECS.Playground.csproj -
 
 The sample demonstrates both retained query surfaces:
 
-- `World.IterateDense` with independent archetype, chunk and slot loops;
-- `World.QueryCursor` with a callback/action.
+- `World.OpenQuery` with independent archetype, chunk and slot loops;
+- `World.Query` with a callback/action.
 
 Add temporary components, queries and experiments to `Program.cs`. Keep
 performance measurements in the benchmark projects instead.

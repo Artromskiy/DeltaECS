@@ -19,14 +19,14 @@ and the benchmark comparison contract.
 
 ## Implemented: query-bound prepared row access
 
-The query creates typed cursor bindings and validates them before execution.
+The query creates typed access requests and validates them before execution.
 Dense execution prepares a compact per-chunk row packet:
 
 ```text
-QueryHandle/CachedQuery
-    cursor binding token -> query row
+Query/QueryPlan
+    access request token -> query row
 DenseArchetypePlan
-    binding token -> physical component row
+    access-request token -> physical component row
 Chunk execution
     prepared query row -> direct component array
 ```
@@ -41,7 +41,7 @@ paths prepare rows only after the overlay mask accepts the chunk.
 
 Remaining proof:
 
-- foreign and default cursor bindings still fail before row access;
+- foreign and default access requests still fail before row access;
 - archetype plan refresh after a new archetype remains correct;
 - read/write dirty tracking remains precise;
 - JIT output shows the hot path loading the prepared row directly.

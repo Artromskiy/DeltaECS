@@ -17,7 +17,7 @@ selected work belongs in `TODO.md`, and deferred ideas belong in `IDEAS.md`.
 Useful navigation commands:
 
 ```bash
-rg -n "public |internal |QueryCursor|IterateDense|CursorBind|MoveNext" src/DeltaECS
+rg -n "public |internal |Query|OpenQuery|Access|MoveNext" src/DeltaECS
 rg -n "<relevant API or invariant>" tests/DeltaECSTests
 ```
 
@@ -30,40 +30,40 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `ArchetypeHandle` | World-owned archetype identity used by create paths | `src/DeltaECS/EntityTypes.cs` |
 | `ComponentId`, `ComponentMask`, `ComponentLayout` | Dense component identity, matching mask, registered layout metadata | `src/DeltaECS/ComponentTypes.cs` |
 | `ComponentLayoutRegistry` | CLR type/storage registration and validation | `src/DeltaECS/ComponentLayoutRegistry.cs` |
-| `QueryDescription` | All/Any/None component and tag predicates | `src/DeltaECS/QueryDescription.cs` |
-| `QueryHandle` | World/query identity and typed cursor-binding factory | `src/DeltaECS/EntityTypes.cs` |
-| `CursorReadBinding<T>`, `CursorWriteBinding<T>` | Query-bound typed row intent | `src/DeltaECS/WorldQuery.cs` |
-| `DenseQueryScope` | Dense-only validation and structural lease owner | `src/DeltaECS/DenseQueryScope.cs` |
-| `DenseArchetypeIterator`, `DenseChunkIterator`, `DenseSlotIterator` | Independent dense traversal levels | matching `src/DeltaECS/Dense*Iterator.cs` files |
-| `DenseChunkCursor` | Current chunk, reverse slot traversal, row resolution and tag mask | `src/DeltaECS/WorldQuery.cs` |
-| `ResolvedReadRow<T>`, `ResolvedWriteRow<T>` | Safe typed cursor indexers over a resolved row | `src/DeltaECS/WorldQuery.cs` |
-| `World.QueryCursor` | Callback-based query execution over `DenseChunkCursor` | `src/DeltaECS/World.cs` |
+| `QuerySpec` | All/Any/None component and tag predicates | `src/DeltaECS/QuerySpec.cs` |
+| `Query` | World/query identity and typed access-request factory | `src/DeltaECS/EntityTypes.cs` |
+| `ReadRequest<T>`, `WriteRequest<T>` | Query-bound typed access intent | `src/DeltaECS/QueryAccess.cs` |
+| `QueryScope` | Dense-only validation and structural lease owner | `src/DeltaECS/QueryScope.cs` |
+| `QueryArchetypes`, `QueryChunks`, `QuerySlots` | Independent dense traversal levels | `src/DeltaECS/QueryArchetypes.cs`, `QueryChunks.cs`, `QuerySlots.cs` |
+| `QueryChunkCursor` | Current chunk, reverse slot traversal, value access and tag mask | `src/DeltaECS/QueryAccess.cs` |
+| `ReadValues<T>`, `WriteValues<T>` | Safe typed indexers over prepared component access | `src/DeltaECS/QueryAccess.cs` |
+| `World.Query` | Callback-based query execution over `QueryChunkCursor` | `src/DeltaECS/World.cs` |
 
 ## Query execution path
 
 For independent dense iteration, read only this chain first:
 
 ```text
-World.IterateDense(in QueryHandle)
-  -> DenseQueryScope.Prepare(binding)
-  -> DenseArchetypeIterator.MoveNext()
-  -> DenseChunkIterator.MoveNext()
-  -> DenseSlotIterator.Resolve(binding)
-  -> DenseSlotIterator.MoveNext()
-  -> ResolvedReadRow<T>/ResolvedWriteRow<T>[iterator]
+World.OpenQuery(in Query)
+  -> QueryScope.Bind(access request)
+  -> QueryArchetypes.MoveNext()
+  -> QueryChunks.MoveNext()
+  -> QuerySlots.Get(access)
+  -> QuerySlots.MoveNext()
+  -> ReadValues<T>/WriteValues<T>[iterator]
   -> Chunk.GetComponentRow<T>(physicalRow)
 ```
 
-`CachedQuery` and `DenseArchetypePlan` live in `WorldQuery.cs`. They own query
+`QueryPlan` and `DenseArchetypePlan` live in `QueryAccess.cs`. They own query
 matching and the query-row to archetype-row plan. Read them when the issue is
-archetype matching, new-archetype refresh, or binding row resolution; do not
+archetype matching, new-archetype refresh, or access row resolution; do not
 start with tests or structural move code.
 
 The dense three-loop public shape is:
 
 ```csharp
-using var scope = world.IterateDense(in query);
-var prepared = scope.Prepare(binding);
+using var scope = world.OpenQuery(in query);
+var prepared = scope.Bind(access);
 var archetypes = scope.Archetypes;
 while (archetypes.MoveNext())
 {
@@ -71,7 +71,7 @@ while (archetypes.MoveNext())
     while (chunks.MoveNext())
     {
         var slots = chunks.Current.Slots;
-        var row = slots.Resolve(prepared);
+        var row = slots.Get(prepared);
         while (slots.MoveNext())
         {
             _ = row[slots];
@@ -80,8 +80,8 @@ while (archetypes.MoveNext())
 }
 ```
 
-For tagged queries, use `World.QueryCursor` with an action. It selects matching
-chunks and exposes `DenseChunkCursor.IsActiveSlot(cursor.CurrentIndex)` for
+For tagged queries, use `World.Query` with an action. It selects matching
+chunks and exposes `QueryChunkCursor.IsActiveSlot(cursor.CurrentIndex)` for
 partial overlay masks. The tag implementation is in `OverlayTagManager.cs`.
 
 ## Structural and storage paths
@@ -104,13 +104,13 @@ the query path proves to depend on their storage contract.
 
 ## Lifetime and validation map
 
-- Query ownership/type validation: `QueryHandle` in `EntityTypes.cs` and
-  `DenseChunkCursor.Resolve` in `WorldQuery.cs`.
-- Query plan refresh: `CachedQuery.MatchingPlans` in `WorldQuery.cs`.
+- Query ownership/type validation: `Query` in `EntityTypes.cs` and
+  `QueryChunkCursor.Get` in `QueryAccess.cs`.
+- Query plan refresh: `QueryPlan.MatchingPlans` in `QueryAccess.cs`.
 - Active lease barrier: `World._activeChunkLeases`, lease helpers in
-  `World.cs`, and `DenseQueryScope.Dispose`/`World.QueryCursor`.
-- Write tracking: `CachedQuery.RegisterWriteBinding`, `World.QueryWriteTick`,
-  `DenseChunkCursor.Resolve(CursorWriteBinding<T>)`, and
+  `World.cs`, and `QueryScope.Dispose`/`World.Query`.
+- Write tracking: `QueryPlan.RegisterWriteAccess`, `World.QueryWriteTick`,
+  `QueryChunkCursor.Get(WriteRequest<T>)`, and
   `Chunk.MarkComponentWritten`.
 - Stale entity generation/location: `EntityRecord` and resolve helpers in
   `World.cs`.
@@ -141,9 +141,9 @@ for a production correctness test.
 
 - `Chunk.GetComponentRow<T>(int)` is an internal storage primitive, not a
   public user API. Do not remove it while migrating public cursor access.
-- `World.QueryCursor` is the callback surface for tagged and general queries;
-  dense no-tag code should use `World.IterateDense`.
-- `QueryCursorAction<TContext>` is the callback surface. Do not infer that a
+- `World.Query` is the callback surface for tagged and general queries;
+  dense no-tag code should use `World.OpenQuery`.
+- `QueryAction<TContext>` is the callback surface. Do not infer that a
   callback benchmark represents the only supported query execution style.
 - Do not reintroduce removed ordinal/public unsafe row APIs without an explicit
   API decision and a benchmark contract update.

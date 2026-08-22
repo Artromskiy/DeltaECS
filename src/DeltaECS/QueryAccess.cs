@@ -4,10 +4,10 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-/// <summary>Short-lived dense chunk access used only by <see cref="World.QueryCursor{TContext}"/>.</summary>
-public ref struct DenseChunkCursor
+/// <summary>Short-lived dense chunk access used only by <see cref="World.Query{TContext}"/>.</summary>
+public ref struct QueryChunkCursor
 {
-    private readonly CachedQuery _query;
+    private readonly QueryPlan _query;
     private readonly Chunk _chunk;
     private readonly int[] _componentRows;
     private readonly uint _writeTick;
@@ -15,8 +15,8 @@ public ref struct DenseChunkCursor
     private readonly bool _fullMask;
     private int _index;
 
-    internal DenseChunkCursor(
-        CachedQuery query,
+    internal QueryChunkCursor(
+        QueryPlan query,
         int archetypeId,
         Chunk chunk,
         int[] componentRows,
@@ -70,33 +70,33 @@ public ref struct DenseChunkCursor
         return true;
     }
 
-    public ResolvedReadRow<T> Resolve<T>(CursorReadBinding<T> binding)
+    public ReadValues<T> Get<T>(ReadRequest<T> binding)
     {
-        return new ResolvedReadRow<T>(ResolveReadRow(binding));
+        return new ReadValues<T>(GetReadValues(binding));
     }
 
-    public ResolvedWriteRow<T> Resolve<T>(CursorWriteBinding<T> binding)
+    public WriteValues<T> Get<T>(WriteRequest<T> binding)
     {
-        return new ResolvedWriteRow<T>(ResolveWriteRow(binding));
+        return new WriteValues<T>(GetWriteValues(binding));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ReadOnlySpan<T> ResolveReadRow<T>(CursorReadBinding<T> binding)
+    private ReadOnlySpan<T> GetReadValues<T>(ReadRequest<T> binding)
     {
         if (!ReferenceEquals(binding.Query, _query))
         {
-            QueryThrowHelper.ThrowBindingMismatch();
+            QueryThrowHelper.ThrowAccessMismatch();
         }
 
         return _chunk.GetComponentRow<T>(_componentRows[binding.QueryComponentIndex]);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private Span<T> ResolveWriteRow<T>(CursorWriteBinding<T> binding)
+    private Span<T> GetWriteValues<T>(WriteRequest<T> binding)
     {
         if (!ReferenceEquals(binding.Query, _query))
         {
-            QueryThrowHelper.ThrowBindingMismatch();
+            QueryThrowHelper.ThrowAccessMismatch();
         }
 
         var index = _componentRows[binding.QueryComponentIndex];
@@ -110,44 +110,44 @@ public ref struct DenseChunkCursor
     }
 }
 
-public ref struct ResolvedReadRow<T>
+public ref struct ReadValues<T>
 {
     private readonly ReadOnlySpan<T> _row;
 
-    internal ResolvedReadRow(ReadOnlySpan<T> row)
+    internal ReadValues(ReadOnlySpan<T> row)
     {
         _row = row;
     }
 
-    public ref readonly T this[DenseChunkCursor cursor]
+    public ref readonly T this[QueryChunkCursor cursor]
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), cursor.CurrentIndex);
     }
 
-    public ref readonly T this[DenseSlotIterator iterator]
+    public ref readonly T this[QuerySlots iterator]
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), iterator.CurrentIndex);
     }
 }
 
-public ref struct ResolvedWriteRow<T>
+public ref struct WriteValues<T>
 {
     private readonly Span<T> _row;
 
-    internal ResolvedWriteRow(Span<T> row)
+    internal WriteValues(Span<T> row)
     {
         _row = row;
     }
 
-    public ref T this[DenseChunkCursor cursor]
+    public ref T this[QueryChunkCursor cursor]
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), cursor.CurrentIndex);
     }
 
-    public ref T this[DenseSlotIterator iterator]
+    public ref T this[QuerySlots iterator]
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), iterator.CurrentIndex);
@@ -155,39 +155,39 @@ public ref struct ResolvedWriteRow<T>
 
 }
 
-public readonly struct CursorReadBinding<T>
+public readonly struct ReadRequest<T>
 {
-    internal CursorReadBinding(CachedQuery query, int queryComponentIndex)
+    internal ReadRequest(QueryPlan query, int queryComponentIndex)
     {
         Query = query;
         QueryComponentIndex = queryComponentIndex;
     }
 
-    internal CachedQuery? Query { get; }
+    internal QueryPlan? Query { get; }
     internal int QueryComponentIndex { get; }
 }
 
-public readonly struct CursorWriteBinding<T>
+public readonly struct WriteRequest<T>
 {
-    internal CursorWriteBinding(CachedQuery query, int queryComponentIndex)
+    internal WriteRequest(QueryPlan query, int queryComponentIndex)
     {
         Query = query;
         QueryComponentIndex = queryComponentIndex;
     }
 
-    internal CachedQuery? Query { get; }
+    internal QueryPlan? Query { get; }
     internal int QueryComponentIndex { get; }
 }
 
-internal sealed class CachedQuery
+internal sealed class QueryPlan
 {
-    private readonly QueryDescription _description;
+    private readonly QuerySpec _description;
     private int _version = -1;
     private int[] _matchingArchetypes = Array.Empty<int>();
     private DenseArchetypePlan[] _matchingPlans = Array.Empty<DenseArchetypePlan>();
-    private bool _hasWriteBindings;
+    private bool _hasWriteAccess;
 
-    public CachedQuery(QueryDescription description)
+    public QueryPlan(QuerySpec description)
     {
         _description = description;
     }
@@ -196,9 +196,9 @@ internal sealed class CachedQuery
         || !_description.AnyTags.IsEmpty
         || !_description.NoneTags.IsEmpty;
 
-    public bool HasWriteBindings => _hasWriteBindings;
+    public bool HasWriteAccess => _hasWriteAccess;
 
-    public void RegisterWriteBinding() => _hasWriteBindings = true;
+    public void RegisterWriteAccess() => _hasWriteAccess = true;
 
     public int[] MatchingArchetypes(World world)
     {
@@ -266,10 +266,10 @@ internal readonly struct DenseArchetypePlan
 internal static class QueryThrowHelper
 {
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public static void ThrowBindingMismatch() => throw new InvalidOperationException("The row binding does not belong to this query or world.");
+    public static void ThrowAccessMismatch() => throw new InvalidOperationException("The row access does not belong to this query or world.");
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public static void ThrowMissingWriteIntent() => throw new InvalidOperationException("The query did not register its write row binding.");
+    public static void ThrowMissingWriteIntent() => throw new InvalidOperationException("The query did not register its write row access.");
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     public static void ThrowArchetypeIteratorNotPositioned() => throw new InvalidOperationException("The archetype iterator is not positioned on an archetype.");

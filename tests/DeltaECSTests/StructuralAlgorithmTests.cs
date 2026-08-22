@@ -320,16 +320,16 @@ public sealed class StructuralAlgorithmTests
                 entities.Add(entity);
             }
 
-            var allA = new QueryDescription(
+            var allA = new QuerySpec(
                 new[] { payloadId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
                 new[] { TagA }, Array.Empty<TagId>(), Array.Empty<TagId>());
-            var anyAB = new QueryDescription(
+            var anyAB = new QuerySpec(
                 new[] { payloadId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
                 Array.Empty<TagId>(), new[] { TagA, TagB }, Array.Empty<TagId>());
-            var noneC = new QueryDescription(
+            var noneC = new QuerySpec(
                 new[] { payloadId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
                 Array.Empty<TagId>(), Array.Empty<TagId>(), new[] { TagC });
-            var combined = new QueryDescription(
+            var combined = new QuerySpec(
                 new[] { payloadId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
                 new[] { TagA }, new[] { TagB, TagC }, new[] { TagC });
 
@@ -395,17 +395,17 @@ public sealed class StructuralAlgorithmTests
         }
 
         var observed = new Dictionary<Entity, HierarchyObserved>();
-        var description = QueryDescription.ForComponents(parentId, localId, worldId);
+        var description = QuerySpec.ForComponents(parentId, localId, worldId);
         var query = world.CreateQuery(in description);
-        var parentBinding = query.CursorBind<ParentLink>(parentId, RowAccess.Read);
-        var local = query.CursorBind<LocalTransform>(localId, RowAccess.Read);
-        var worldTransform = query.CursorBind<WorldTransform>(worldId, RowAccess.Read);
+        var parentBinding = query.Access<ParentLink>(parentId, AccessMode.Read);
+        var local = query.Access<LocalTransform>(localId, AccessMode.Read);
+        var worldTransform = query.Access<WorldTransform>(worldId, AccessMode.Read);
         var cursorState = new HierarchyCursorState(parentBinding, local, worldTransform, observed);
-        world.QueryCursor(in query, ref cursorState, static (ref HierarchyCursorState state, ref DenseChunkCursor cursor) =>
+        world.Query(in query, ref cursorState, static (ref HierarchyCursorState state, ref QueryChunkCursor cursor) =>
         {
-            var parents = cursor.Resolve(state.ParentBinding);
-            var locals = cursor.Resolve(state.LocalBinding);
-            var worlds = cursor.Resolve(state.WorldBinding);
+            var parents = cursor.Get(state.ParentBinding);
+            var locals = cursor.Get(state.LocalBinding);
+            var worlds = cursor.Get(state.WorldBinding);
             while (cursor.MoveNext())
             {
                 if (!cursor.IsActiveSlot(cursor.CurrentIndex))
@@ -469,9 +469,9 @@ public sealed class StructuralAlgorithmTests
     private sealed class HierarchyCursorState
     {
         public HierarchyCursorState(
-            CursorReadBinding<ParentLink> parentBinding,
-            CursorReadBinding<LocalTransform> localBinding,
-            CursorReadBinding<WorldTransform> worldBinding,
+            ReadRequest<ParentLink> parentBinding,
+            ReadRequest<LocalTransform> localBinding,
+            ReadRequest<WorldTransform> worldBinding,
             Dictionary<Entity, HierarchyObserved> observed)
         {
             ParentBinding = parentBinding;
@@ -480,9 +480,9 @@ public sealed class StructuralAlgorithmTests
             Observed = observed;
         }
 
-        public CursorReadBinding<ParentLink> ParentBinding { get; }
-        public CursorReadBinding<LocalTransform> LocalBinding { get; }
-        public CursorReadBinding<WorldTransform> WorldBinding { get; }
+        public ReadRequest<ParentLink> ParentBinding { get; }
+        public ReadRequest<LocalTransform> LocalBinding { get; }
+        public ReadRequest<WorldTransform> WorldBinding { get; }
         public Dictionary<Entity, HierarchyObserved> Observed { get; }
     }
 
@@ -519,11 +519,11 @@ public sealed class StructuralAlgorithmTests
         }
     }
 
-    private static int CountQuery(World world, in QueryDescription query)
+    private static int CountQuery(World world, in QuerySpec query)
     {
         var handle = world.CreateQuery(in query);
         var state = new CountCursorState();
-        world.QueryCursor(in handle, ref state, static (ref CountCursorState current, ref DenseChunkCursor cursor) =>
+        world.Query(in handle, ref state, static (ref CountCursorState current, ref QueryChunkCursor cursor) =>
         {
             while (cursor.MoveNext())
             {

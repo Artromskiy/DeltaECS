@@ -3,16 +3,16 @@ namespace Delta.ECS;
 using System.Runtime.CompilerServices;
 
 /// <summary>Independent iterator over the active chunks of one dense archetype.</summary>
-public ref struct DenseChunkIterator
+public ref struct QueryChunks
 {
     private readonly DenseArchetypePlan _plan;
-    private readonly CachedQuery _query;
+    private readonly QueryPlan _query;
     private readonly Chunk[] _chunks;
     private readonly int _count;
     private readonly uint _writeTick;
     private int _index;
 
-    internal DenseChunkIterator(DenseArchetypePlan plan, CachedQuery query, uint writeTick)
+    internal QueryChunks(DenseArchetypePlan plan, QueryPlan query, uint writeTick)
     {
         _plan = plan;
         _query = query;
@@ -22,7 +22,7 @@ public ref struct DenseChunkIterator
         _index = -1;
     }
 
-    public DenseQueryChunk Current
+    public QueryChunk Current
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
@@ -32,7 +32,7 @@ public ref struct DenseChunkIterator
                 QueryThrowHelper.ThrowChunkIteratorNotPositioned();
             }
 
-            return new DenseQueryChunk(_plan, _chunks.Element(_index), _query, _writeTick);
+            return new QueryChunk(_plan, _chunks.Element(_index), _query, _writeTick);
         }
     }
 
@@ -49,14 +49,14 @@ public ref struct DenseChunkIterator
 }
 
 /// <summary>Current dense chunk without archetype- or query-iterator state.</summary>
-public readonly ref struct DenseQueryChunk
+public readonly ref struct QueryChunk
 {
     private readonly DenseArchetypePlan _plan;
     private readonly Chunk _chunk;
-    private readonly CachedQuery _query;
+    private readonly QueryPlan _query;
     private readonly uint _writeTick;
 
-    internal DenseQueryChunk(DenseArchetypePlan plan, Chunk chunk, CachedQuery query, uint writeTick)
+    internal QueryChunk(DenseArchetypePlan plan, Chunk chunk, QueryPlan query, uint writeTick)
     {
         _plan = plan;
         _chunk = chunk;
@@ -72,5 +72,5 @@ public readonly ref struct DenseQueryChunk
 
     public ReadOnlySpan<Entity> Entities => _chunk.Entities;
 
-    public DenseSlotIterator Slots => new(_plan, _chunk, _query, _writeTick);
+    public QuerySlots Slots => new(_plan, _chunk, _query, _writeTick);
 }

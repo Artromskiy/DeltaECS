@@ -3,14 +3,14 @@ namespace Delta.ECS;
 using System.Runtime.CompilerServices;
 
 /// <summary>Independent dense iterator over the query's matching archetypes.</summary>
-public ref struct DenseArchetypeIterator
+public ref struct QueryArchetypes
 {
     private readonly DenseArchetypePlan[] _plans;
-    private readonly CachedQuery _query;
+    private readonly QueryPlan _query;
     private readonly uint _writeTick;
     private int _index;
 
-    internal DenseArchetypeIterator(DenseArchetypePlan[] plans, CachedQuery query, uint writeTick)
+    internal QueryArchetypes(DenseArchetypePlan[] plans, QueryPlan query, uint writeTick)
     {
         _plans = plans;
         _query = query;
@@ -18,7 +18,7 @@ public ref struct DenseArchetypeIterator
         _index = -1;
     }
 
-    public DenseQueryArchetype Current
+    public QueryArchetype Current
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
@@ -28,7 +28,7 @@ public ref struct DenseArchetypeIterator
                 QueryThrowHelper.ThrowArchetypeIteratorNotPositioned();
             }
 
-            return new DenseQueryArchetype(_plans.Element(_index), _query, _writeTick);
+            return new QueryArchetype(_plans.Element(_index), _query, _writeTick);
         }
     }
 
@@ -45,13 +45,13 @@ public ref struct DenseArchetypeIterator
 }
 
 /// <summary>Current matching archetype and its dense row plan.</summary>
-public readonly ref struct DenseQueryArchetype
+public readonly ref struct QueryArchetype
 {
     private readonly DenseArchetypePlan _plan;
-    private readonly CachedQuery _query;
+    private readonly QueryPlan _query;
     private readonly uint _writeTick;
 
-    internal DenseQueryArchetype(DenseArchetypePlan plan, CachedQuery query, uint writeTick)
+    internal QueryArchetype(DenseArchetypePlan plan, QueryPlan query, uint writeTick)
     {
         _plan = plan;
         _query = query;
@@ -64,5 +64,5 @@ public readonly ref struct DenseQueryArchetype
 
     public int ChunkCount => _plan.Archetype.ActiveChunkCount;
 
-    public DenseChunkIterator Chunks => new(_plan, _query, _writeTick);
+    public QueryChunks Chunks => new(_plan, _query, _writeTick);
 }

@@ -29,7 +29,7 @@ public sealed class ActiveChunkTests
         Assert.That(archetype.ActiveChunkCount, Is.EqualTo(2));
         AssertActiveChunks(archetype);
 
-        var query = QueryDescription.ForComponents(PositionId);
+        var query = QuerySpec.ForComponents(PositionId);
         var queryHandle = world.CreateQuery(in query);
         var queriedSlots = CountQueriedSlots(world, queryHandle);
         Assert.That(queriedSlots, Is.EqualTo(4));
@@ -43,10 +43,10 @@ public sealed class ActiveChunkTests
         Assert.That(queriedSlots, Is.EqualTo(6));
     }
 
-    private static int CountQueriedSlots(World world, in QueryHandle query)
+    private static int CountQueriedSlots(World world, in Query query)
     {
         var count = 0;
-        world.QueryCursor(in query, ref count, static (ref int state, ref DenseChunkCursor cursor) =>
+        world.Query(in query, ref count, static (ref int state, ref QueryChunkCursor cursor) =>
         {
             state += cursor.SlotCount;
         });

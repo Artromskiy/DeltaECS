@@ -14,57 +14,56 @@ for (var i = 0; i < entities.Length; i++)
     world.SetComponent(entities[i], velocityId, new Velocity { X = 1, Y = 0.5f });
 }
 
-var description = QueryDescription.ForComponents(positionId, velocityId);
+var description = QuerySpec.ForComponents(positionId, velocityId);
 var query = world.CreateQuery(in description);
-var writePosition = query.CursorBind<Position>(positionId, RowAccess.Write);
-var readVelocity = query.CursorBind<Velocity>(velocityId, RowAccess.Read);
+var writePosition = query.Access<Position>(positionId, AccessMode.Write);
+var readVelocity = query.Access<Velocity>(velocityId, AccessMode.Read);
 
 Console.WriteLine("Dense archetype -> chunk -> slot iteration:");
-using (var scope = world.IterateDense(in query))
+using var scope = world.OpenQuery(in query);
+
+var position = scope.Bind(writePosition);
+var velocity = scope.Bind(readVelocity);
+var archetypes = scope.Archetypes;
+
+while (archetypes.MoveNext())
 {
-    var position = scope.Prepare(writePosition);
-    var velocity = scope.Prepare(readVelocity);
-    var archetypes = scope.Archetypes;
-
-    while (archetypes.MoveNext())
+    var chunks = archetypes.Current.Chunks;
+    while (chunks.MoveNext())
     {
-        var chunks = archetypes.Current.Chunks;
-        while (chunks.MoveNext())
-        {
-            var slots = chunks.Current.Slots;
-            var positions = slots.Resolve(position);
-            var velocities = slots.Resolve(velocity);
+        var slots = chunks.Current.Slots;
+        var positions = slots.Get(position);
+        var velocities = slots.Get(velocity);
 
-            while (slots.MoveNext())
-            {
-                ref var p = ref positions[slots];
-                ref readonly var v = ref velocities[slots];
-                p.X += v.X;
-                p.Y += v.Y;
-                Console.WriteLine($"  slot {slots.CurrentIndex}: ({p.X}, {p.Y})");
-            }
+        while (slots.MoveNext())
+        {
+            ref var p = ref positions[slots];
+            ref readonly var v = ref velocities[slots];
+            p.X += v.X;
+            p.Y += v.Y;
+            Console.WriteLine($"  slot {slots.CurrentIndex}: ({p.X}, {p.Y})");
         }
     }
 }
 
 Console.WriteLine("Callback/action query iteration:");
-var readPosition = query.CursorBind<Position>(positionId, RowAccess.Read);
+var readPosition = query.Access<Position>(positionId, AccessMode.Read);
 var actionState = new ActionState
 {
     Position = readPosition,
     Velocity = readVelocity
 };
-world.QueryCursor(in query, ref actionState, static (ref ActionState state, ref DenseChunkCursor cursor) =>
+world.Query(in query, ref actionState, static (ref ActionState state, ref QueryChunkCursor cursor) =>
 {
-    var positions = cursor.Resolve(state.Position);
-    var velocities = cursor.Resolve(state.Velocity);
+    var positions = cursor.Get(state.Position);
+    var velocities = cursor.Get(state.Velocity);
     while (cursor.MoveNext())
     {
         state.Checksum += positions[cursor].X + velocities[cursor].X;
     }
 });
 Console.WriteLine($"  observable checksum: {actionState.Checksum}");
-
+Console.ReadLine();
 public struct Position
 {
     public float X;
@@ -79,7 +78,7 @@ public struct Velocity
 
 public struct ActionState
 {
-    public CursorReadBinding<Position> Position;
-    public CursorReadBinding<Velocity> Velocity;
+    public ReadRequest<Position> Position;
+    public ReadRequest<Velocity> Velocity;
     public float Checksum;
 }

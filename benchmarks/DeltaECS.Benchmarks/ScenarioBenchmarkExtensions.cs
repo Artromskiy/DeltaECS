@@ -23,8 +23,8 @@ public class SmallDenseScenarioBenchmarks
 
     private World _deltaWorld = null!;
     private ComponentId[] _deltaComponents = Array.Empty<ComponentId>();
-    private QueryHandle _deltaQuery;
-    private CursorWriteBinding<SmallDenseValue>[] _deltaBindings = Array.Empty<CursorWriteBinding<SmallDenseValue>>();
+    private Query _deltaQuery;
+    private WriteRequest<SmallDenseValue>[] _deltaBindings = Array.Empty<WriteRequest<SmallDenseValue>>();
     private LegacyDenseReference _legacy = null!;
 
     private Arch.Core.World _archWorld = null!;
@@ -37,13 +37,13 @@ public class SmallDenseScenarioBenchmarks
     private ArchetypeQuery<F0, F1, F2, F3> _frifloQ4 = null!;
     private ArchetypeQuery<F0, F1, F2, F3, F4> _frifloQ5 = null!;
 
-    private static readonly QueryCursorAction<SmallDenseState> s_cachedIteration = IterateSmallDense;
+    private static readonly QueryAction<SmallDenseState> s_cachedIteration = IterateSmallDense;
 
     private struct SmallDenseState
     {
         public int ComponentCount;
         public double Checksum;
-        public CursorWriteBinding<SmallDenseValue>[] Bindings;
+        public WriteRequest<SmallDenseValue>[] Bindings;
     }
 
     private static readonly ArchComponentType[] s_allArchComponents =
@@ -69,11 +69,11 @@ public class SmallDenseScenarioBenchmarks
         }
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
-        var description = Delta.ECS.QueryDescription.ForComponents(_deltaComponents);
+        var description = Delta.ECS.QuerySpec.ForComponents(_deltaComponents);
         _deltaQuery = _deltaWorld.CreateQuery(in description);
-        _deltaBindings = new CursorWriteBinding<SmallDenseValue>[ComponentCount];
+        _deltaBindings = new WriteRequest<SmallDenseValue>[ComponentCount];
         for (var i = 0; i < ComponentCount; i++)
-            _deltaBindings[i] = _deltaQuery.CursorBind<SmallDenseValue>(_deltaComponents[i], RowAccess.Write);
+            _deltaBindings[i] = _deltaQuery.Access<SmallDenseValue>(_deltaComponents[i], AccessMode.Write);
 
         var entities = new Entity[Amount];
         _deltaWorld.CreateBatch(_deltaComponents, entities);
@@ -152,10 +152,10 @@ public class SmallDenseScenarioBenchmarks
     }
 
     [Benchmark]
-    public double DeltaECS_CachedQuery()
+    public double DeltaECS_QueryPlan()
     {
         var state = new SmallDenseState { ComponentCount = ComponentCount, Bindings = _deltaBindings };
-        _deltaWorld.QueryCursor(in _deltaQuery, ref state, s_cachedIteration);
+        _deltaWorld.Query(in _deltaQuery, ref state, s_cachedIteration);
         return state.Checksum;
     }
 
@@ -259,13 +259,13 @@ public class SmallDenseScenarioBenchmarks
         return checksum;
     }
 
-    private static void IterateSmallDense(ref SmallDenseState state, ref DenseChunkCursor lease)
+    private static void IterateSmallDense(ref SmallDenseState state, ref QueryChunkCursor lease)
     {
         switch (state.ComponentCount)
         {
             case 1:
             {
-                var c0 = lease.Resolve(state.Bindings[0]);
+                var c0 = lease.Get(state.Bindings[0]);
                 while (lease.MoveNext())
                 {
                     ref var value = ref c0[lease];
@@ -277,8 +277,8 @@ public class SmallDenseScenarioBenchmarks
             }
             case 2:
             {
-                var c0 = lease.Resolve(state.Bindings[0]);
-                var c1 = lease.Resolve(state.Bindings[1]);
+                var c0 = lease.Get(state.Bindings[0]);
+                var c1 = lease.Get(state.Bindings[1]);
                 while (lease.MoveNext())
                 {
                     ref var v0 = ref c0[lease];
@@ -292,10 +292,10 @@ public class SmallDenseScenarioBenchmarks
             }
             case 4:
             {
-                var c0 = lease.Resolve(state.Bindings[0]);
-                var c1 = lease.Resolve(state.Bindings[1]);
-                var c2 = lease.Resolve(state.Bindings[2]);
-                var c3 = lease.Resolve(state.Bindings[3]);
+                var c0 = lease.Get(state.Bindings[0]);
+                var c1 = lease.Get(state.Bindings[1]);
+                var c2 = lease.Get(state.Bindings[2]);
+                var c3 = lease.Get(state.Bindings[3]);
                 while (lease.MoveNext())
                 {
                     ref var v0 = ref c0[lease];
@@ -313,14 +313,14 @@ public class SmallDenseScenarioBenchmarks
             }
             case 8:
             {
-                var c0 = lease.Resolve(state.Bindings[0]);
-                var c1 = lease.Resolve(state.Bindings[1]);
-                var c2 = lease.Resolve(state.Bindings[2]);
-                var c3 = lease.Resolve(state.Bindings[3]);
-                var c4 = lease.Resolve(state.Bindings[4]);
-                var c5 = lease.Resolve(state.Bindings[5]);
-                var c6 = lease.Resolve(state.Bindings[6]);
-                var c7 = lease.Resolve(state.Bindings[7]);
+                var c0 = lease.Get(state.Bindings[0]);
+                var c1 = lease.Get(state.Bindings[1]);
+                var c2 = lease.Get(state.Bindings[2]);
+                var c3 = lease.Get(state.Bindings[3]);
+                var c4 = lease.Get(state.Bindings[4]);
+                var c5 = lease.Get(state.Bindings[5]);
+                var c6 = lease.Get(state.Bindings[6]);
+                var c7 = lease.Get(state.Bindings[7]);
                 while (lease.MoveNext())
                 {
                     ref var v0 = ref c0[lease];
@@ -397,9 +397,9 @@ public class WideArchetypeNarrowAccessBenchmarks
 
     private World _deltaWorld = null!;
     private ComponentId[] _deltaComponents = Array.Empty<ComponentId>();
-    private QueryHandle _deltaQuery;
-    private CursorWriteBinding<WideDenseValue> _deltaPositionBinding;
-    private CursorReadBinding<WideDenseValue> _deltaVelocityBinding;
+    private Query _deltaQuery;
+    private WriteRequest<WideDenseValue> _deltaPositionBinding;
+    private ReadRequest<WideDenseValue> _deltaVelocityBinding;
     private LegacyWideReference _legacy = null!;
 
     [GlobalSetup]
@@ -418,10 +418,10 @@ public class WideArchetypeNarrowAccessBenchmarks
         }
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
-        var query = Delta.ECS.QueryDescription.ForComponents(_deltaComponents[0], _deltaComponents[1]);
+        var query = Delta.ECS.QuerySpec.ForComponents(_deltaComponents[0], _deltaComponents[1]);
         _deltaQuery = _deltaWorld.CreateQuery(in query);
-        _deltaPositionBinding = _deltaQuery.CursorBind<WideDenseValue>(_deltaComponents[0], RowAccess.Write);
-        _deltaVelocityBinding = _deltaQuery.CursorBind<WideDenseValue>(_deltaComponents[1], RowAccess.Read);
+        _deltaPositionBinding = _deltaQuery.Access<WideDenseValue>(_deltaComponents[0], AccessMode.Write);
+        _deltaVelocityBinding = _deltaQuery.Access<WideDenseValue>(_deltaComponents[1], AccessMode.Read);
 
         var entities = new Entity[Amount];
         _deltaWorld.CreateBatch(_deltaComponents, entities);
@@ -440,10 +440,10 @@ public class WideArchetypeNarrowAccessBenchmarks
     public double DeltaECS_NarrowAccess()
     {
         var state = new SmallWideState { Position = _deltaPositionBinding, Velocity = _deltaVelocityBinding };
-        _deltaWorld.QueryCursor(in _deltaQuery, ref state, static (ref SmallWideState s, ref DenseChunkCursor cursor) =>
+        _deltaWorld.Query(in _deltaQuery, ref state, static (ref SmallWideState s, ref QueryChunkCursor cursor) =>
         {
-            var positions = cursor.Resolve(s.Position);
-            var velocities = cursor.Resolve(s.Velocity);
+            var positions = cursor.Get(s.Position);
+            var velocities = cursor.Get(s.Velocity);
             while (cursor.MoveNext())
             {
                 ref var pos = ref positions[cursor];
@@ -466,8 +466,8 @@ public class WideArchetypeNarrowAccessBenchmarks
     private struct SmallWideState
     {
         public double Checksum;
-        public CursorWriteBinding<WideDenseValue> Position;
-        public CursorReadBinding<WideDenseValue> Velocity;
+        public WriteRequest<WideDenseValue> Position;
+        public ReadRequest<WideDenseValue> Velocity;
     }
 
     private struct WideDenseValue
@@ -491,9 +491,9 @@ public class WideArchetypeNarrowAccessComparisonBenchmarks
 
     private World _deltaWorld = null!;
     private ComponentId[] _deltaComponents = Array.Empty<ComponentId>();
-    private QueryHandle _deltaQuery;
-    private CursorWriteBinding<WideDenseValue> _deltaPositionBinding;
-    private CursorReadBinding<WideDenseValue> _deltaVelocityBinding;
+    private Query _deltaQuery;
+    private WriteRequest<WideDenseValue> _deltaPositionBinding;
+    private ReadRequest<WideDenseValue> _deltaVelocityBinding;
     private LegacyWideReference _legacy = null!;
 
     private Arch.Core.World _archWorld = null!;
@@ -514,10 +514,10 @@ public class WideArchetypeNarrowAccessComparisonBenchmarks
         }
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
-        var query = Delta.ECS.QueryDescription.ForComponents(_deltaComponents[0], _deltaComponents[1]);
+        var query = Delta.ECS.QuerySpec.ForComponents(_deltaComponents[0], _deltaComponents[1]);
         _deltaQuery = _deltaWorld.CreateQuery(in query);
-        _deltaPositionBinding = _deltaQuery.CursorBind<WideDenseValue>(_deltaComponents[0], RowAccess.Write);
-        _deltaVelocityBinding = _deltaQuery.CursorBind<WideDenseValue>(_deltaComponents[1], RowAccess.Read);
+        _deltaPositionBinding = _deltaQuery.Access<WideDenseValue>(_deltaComponents[0], AccessMode.Write);
+        _deltaVelocityBinding = _deltaQuery.Access<WideDenseValue>(_deltaComponents[1], AccessMode.Read);
 
         var entities = new Entity[Amount];
         _deltaWorld.CreateBatch(_deltaComponents, entities);
@@ -571,10 +571,10 @@ public class WideArchetypeNarrowAccessComparisonBenchmarks
     public double DeltaECS_ComparisonNarrow()
     {
         var state = new WideComparisonState { Position = _deltaPositionBinding, Velocity = _deltaVelocityBinding };
-        _deltaWorld.QueryCursor(in _deltaQuery, ref state, static (ref WideComparisonState current, ref DenseChunkCursor cursor) =>
+        _deltaWorld.Query(in _deltaQuery, ref state, static (ref WideComparisonState current, ref QueryChunkCursor cursor) =>
         {
-            var positions = cursor.Resolve(current.Position);
-            var velocities = cursor.Resolve(current.Velocity);
+            var positions = cursor.Get(current.Position);
+            var velocities = cursor.Get(current.Velocity);
             while (cursor.MoveNext())
             {
                 ref var pos = ref positions[cursor];
@@ -630,8 +630,8 @@ public class WideArchetypeNarrowAccessComparisonBenchmarks
 
     private struct WideComparisonState
     {
-        public CursorWriteBinding<WideDenseValue> Position;
-        public CursorReadBinding<WideDenseValue> Velocity;
+        public WriteRequest<WideDenseValue> Position;
+        public ReadRequest<WideDenseValue> Velocity;
         public double Checksum;
     }
 
@@ -671,9 +671,9 @@ public class SparseHeterogeneousQueryBenchmarks
     private ComponentId _deltaVelocity;
     private ComponentId[] _deltaNoise = Array.Empty<ComponentId>();
     private ComponentId[] _deltaColdMarkers = Array.Empty<ComponentId>();
-    private QueryHandle _deltaWarmQuery;
-    private CursorWriteBinding<SparseValue> _deltaPositionBinding;
-    private CursorReadBinding<SparseValue> _deltaVelocityBinding;
+    private Query _deltaWarmQuery;
+    private WriteRequest<SparseValue> _deltaPositionBinding;
+    private ReadRequest<SparseValue> _deltaVelocityBinding;
     private int _deltaColdMarkerIndex;
 
     private Arch.Core.World _archWorld = null!;
@@ -689,8 +689,8 @@ public class SparseHeterogeneousQueryBenchmarks
     {
         public int Count;
         public double Checksum;
-        public CursorWriteBinding<SparseValue> Position;
-        public CursorReadBinding<SparseValue> Velocity;
+        public WriteRequest<SparseValue> Position;
+        public ReadRequest<SparseValue> Velocity;
     }
 
     [GlobalSetup]
@@ -705,7 +705,7 @@ public class SparseHeterogeneousQueryBenchmarks
         // equivalent query with an absent marker component, which forces a
         // fresh matching plan while selecting the same entities.
         var warmState = new SparseState();
-        _deltaWorld.QueryCursor(in _deltaWarmQuery, ref warmState, CountDeltaMatches);
+        _deltaWorld.Query(in _deltaWarmQuery, ref warmState, CountDeltaMatches);
         if (warmState.Count != ExpectedMatches)
         {
             throw new InvalidOperationException($"Delta warm query matched {warmState.Count}, expected {ExpectedMatches}.");
@@ -717,7 +717,7 @@ public class SparseHeterogeneousQueryBenchmarks
     public double DeltaECS_CachedWarmQuery()
     {
         var state = new SparseState { Position = _deltaPositionBinding, Velocity = _deltaVelocityBinding };
-        _deltaWorld.QueryCursor(in _deltaWarmQuery, ref state, IterateDeltaMatches);
+        _deltaWorld.Query(in _deltaWarmQuery, ref state, IterateDeltaMatches);
         return CheckResult(state, "DeltaECS cached warm query");
     }
 
@@ -726,7 +726,7 @@ public class SparseHeterogeneousQueryBenchmarks
     public double DeltaECS_ColdQuery()
     {
         var marker = _deltaColdMarkers[_deltaColdMarkerIndex++ % _deltaColdMarkers.Length];
-        var description = new QueryDescription(
+        var description = new QuerySpec(
             new[] { _deltaPosition, _deltaVelocity },
             Array.Empty<ComponentId>(),
             new[] { marker },
@@ -734,10 +734,10 @@ public class SparseHeterogeneousQueryBenchmarks
             Array.Empty<TagId>(),
             Array.Empty<TagId>());
         var coldQuery = _deltaWorld.CreateQuery(in description);
-        var positionBinding = coldQuery.CursorBind<SparseValue>(_deltaPosition, RowAccess.Write);
-        var velocityBinding = coldQuery.CursorBind<SparseValue>(_deltaVelocity, RowAccess.Read);
+        var positionBinding = coldQuery.Access<SparseValue>(_deltaPosition, AccessMode.Write);
+        var velocityBinding = coldQuery.Access<SparseValue>(_deltaVelocity, AccessMode.Read);
         var state = new SparseState { Position = positionBinding, Velocity = velocityBinding };
-        _deltaWorld.QueryCursor(in coldQuery, ref state, IterateDeltaMatches);
+        _deltaWorld.Query(in coldQuery, ref state, IterateDeltaMatches);
         return CheckResult(state, "DeltaECS cold query");
     }
 
@@ -854,10 +854,10 @@ public class SparseHeterogeneousQueryBenchmarks
             }
         }
 
-        var warmDescription = QueryDescription.ForComponents(_deltaPosition, _deltaVelocity);
+        var warmDescription = QuerySpec.ForComponents(_deltaPosition, _deltaVelocity);
         _deltaWarmQuery = _deltaWorld.CreateQuery(in warmDescription);
-        _deltaPositionBinding = _deltaWarmQuery.CursorBind<SparseValue>(_deltaPosition, RowAccess.Write);
-        _deltaVelocityBinding = _deltaWarmQuery.CursorBind<SparseValue>(_deltaVelocity, RowAccess.Read);
+        _deltaPositionBinding = _deltaWarmQuery.Access<SparseValue>(_deltaPosition, AccessMode.Write);
+        _deltaVelocityBinding = _deltaWarmQuery.Access<SparseValue>(_deltaVelocity, AccessMode.Read);
     }
 
     private void SetupArch()
@@ -971,7 +971,7 @@ public class SparseHeterogeneousQueryBenchmarks
 
     private static bool IsMatch(int entityIndex) => entityIndex % MatchStride == 0;
 
-    private static void CountDeltaMatches(ref SparseState state, ref DenseChunkCursor cursor)
+    private static void CountDeltaMatches(ref SparseState state, ref QueryChunkCursor cursor)
     {
         while (cursor.MoveNext())
         {
@@ -979,10 +979,10 @@ public class SparseHeterogeneousQueryBenchmarks
         }
     }
 
-    private static void IterateDeltaMatches(ref SparseState state, ref DenseChunkCursor cursor)
+    private static void IterateDeltaMatches(ref SparseState state, ref QueryChunkCursor cursor)
     {
-        var positions = cursor.Resolve(state.Position);
-        var velocities = cursor.Resolve(state.Velocity);
+        var positions = cursor.Get(state.Position);
+        var velocities = cursor.Get(state.Velocity);
         while (cursor.MoveNext())
         {
             if (!cursor.IsActiveSlot(cursor.CurrentIndex)) continue;

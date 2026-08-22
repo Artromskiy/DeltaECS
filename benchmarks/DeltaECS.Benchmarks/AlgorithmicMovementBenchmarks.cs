@@ -30,9 +30,9 @@ public class AlgorithmicMovementBenchmarks
     private ComponentId _deltaPosition;
     private ComponentId _deltaVelocity;
     private ComponentId[] _deltaComponents = Array.Empty<ComponentId>();
-    private QueryHandle _deltaQuery;
-    private CursorWriteBinding<DeltaPosition> _deltaPositionBinding;
-    private CursorReadBinding<DeltaVelocity> _deltaVelocityBinding;
+    private Query _deltaQuery;
+    private WriteRequest<DeltaPosition> _deltaPositionBinding;
+    private ReadRequest<DeltaVelocity> _deltaVelocityBinding;
     private LegacyMovementReference _legacy = null!;
 
     private Arch.Core.World _archWorld = null!;
@@ -47,8 +47,8 @@ public class AlgorithmicMovementBenchmarks
         public float Dt;
         public int Count;
         public double Checksum;
-        public CursorWriteBinding<DeltaPosition> Position;
-        public CursorReadBinding<DeltaVelocity> Velocity;
+        public WriteRequest<DeltaPosition> Position;
+        public ReadRequest<DeltaVelocity> Velocity;
     }
 
     [GlobalSetup]
@@ -64,10 +64,10 @@ public class AlgorithmicMovementBenchmarks
     public double DeltaECS_Movement()
     {
         var state = new DeltaState { Dt = Dt, Position = _deltaPositionBinding, Velocity = _deltaVelocityBinding };
-        _deltaWorld.QueryCursor(in _deltaQuery, ref state, static (ref DeltaState s, ref DenseChunkCursor cursor) =>
+        _deltaWorld.Query(in _deltaQuery, ref state, static (ref DeltaState s, ref QueryChunkCursor cursor) =>
         {
-            var positions = cursor.Resolve(s.Position);
-            var velocities = cursor.Resolve(s.Velocity);
+            var positions = cursor.Get(s.Position);
+            var velocities = cursor.Get(s.Velocity);
             while (cursor.MoveNext())
             {
                 ref var position = ref positions[cursor];
@@ -144,10 +144,10 @@ public class AlgorithmicMovementBenchmarks
             SetDeltaPayload(entities[i], i);
         }
 
-        var description = QueryDescription.ForComponents(_deltaComponents);
+        var description = QuerySpec.ForComponents(_deltaComponents);
         _deltaQuery = _deltaWorld.CreateQuery(in description);
-        _deltaPositionBinding = _deltaQuery.CursorBind<DeltaPosition>(_deltaPosition, RowAccess.Write);
-        _deltaVelocityBinding = _deltaQuery.CursorBind<DeltaVelocity>(_deltaVelocity, RowAccess.Read);
+        _deltaPositionBinding = _deltaQuery.Access<DeltaPosition>(_deltaPosition, AccessMode.Write);
+        _deltaVelocityBinding = _deltaQuery.Access<DeltaVelocity>(_deltaVelocity, AccessMode.Read);
     }
 
     private void SetupArch()

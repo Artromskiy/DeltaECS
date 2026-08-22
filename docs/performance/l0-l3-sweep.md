@@ -14,8 +14,8 @@ The current branch contains the following accepted source changes:
 | Change | Source effect | Commit |
 |---|---|---|
 | Terminal iterator assignments | Do not write exhausted archetype/chunk indexes a second time | `672ed81` |
-| Reverse slot decrement | Use pre-decrement in `DenseSlotIterator.MoveNext` | `827b7e7` |
-| Direct validated query state | Pass `CachedQuery` through dense iterators and remove `plan → query` indirection | `8b70dc3` |
+| Reverse slot decrement | Use pre-decrement in `QuerySlots.MoveNext` | `827b7e7` |
+| Direct validated query state | Pass `QueryPlan` through dense iterators and remove `plan → query` indirection | `8b70dc3` |
 | Cached component-row table | Cache `Chunk.RawComponentRows` once per slot iterator and resolve through the cached table | `dd43b6b` |
 
 The tool counter expansion is in `d554b42`; it adds calls, branches,

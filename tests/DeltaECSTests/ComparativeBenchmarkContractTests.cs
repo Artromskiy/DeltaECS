@@ -13,7 +13,7 @@ public sealed class ComparativeBenchmarkContractTests
     {
         ComparativeBenchmarkCatalog.Validate();
         var expected = Enum.GetValues<ComparativeEcs>().Length;
-        foreach (var workload in new[] { "Iteration.Dense", "Iteration.Movement2Components", "Iteration.Movement4Components", "Iteration.WideArchetypeNarrowQuery", "Iteration.SparseWorldCachedQuery", "Iteration.SparseWorldColdQuery" })
+        foreach (var workload in new[] { "Iteration.Dense", "Iteration.Movement2Components", "Iteration.Movement4Components", "Iteration.WideArchetypeNarrowQuery", "Iteration.SparseWorldQueryPlan", "Iteration.SparseWorldColdQuery" })
         {
             Assert.That(ComparativeCapabilityManifest.Rows.Count(row => row.Workload == workload), Is.EqualTo(expected), workload);
         }
@@ -58,7 +58,7 @@ public sealed class ComparativeBenchmarkContractTests
             Assert.That(ordinalAccess.IsMatch(File.ReadAllText(source)), Is.False, source);
         }
 
-        var publicCursorMethods = typeof(DenseChunkCursor).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+        var publicCursorMethods = typeof(QueryChunkCursor).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
         Assert.That(publicCursorMethods.Any(method => method.Name == "GetRow"), Is.False);
     }
 

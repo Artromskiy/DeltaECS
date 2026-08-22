@@ -22,13 +22,13 @@ public class DeltaEcsVsArchBenchmarks
 
     private World _deltaWorld = null!;
     private ComponentId[] _deltaComponents = Array.Empty<ComponentId>();
-    private QueryHandle _deltaQuery;
-    private CursorWriteBinding<Value>[] _deltaBindings = Array.Empty<CursorWriteBinding<Value>>();
+    private Query _deltaQuery;
+    private WriteRequest<Value>[] _deltaBindings = Array.Empty<WriteRequest<Value>>();
     private Entity[] _deltaCreated = Array.Empty<Entity>();
     private World _arrayWorld = null!;
     private ComponentId[] _arrayComponents = Array.Empty<ComponentId>();
-    private QueryHandle _arrayQuery;
-    private CursorWriteBinding<Value>[] _arrayBindings = Array.Empty<CursorWriteBinding<Value>>();
+    private Query _arrayQuery;
+    private WriteRequest<Value>[] _arrayBindings = Array.Empty<WriteRequest<Value>>();
     private Entity[] _arrayCreated = Array.Empty<Entity>();
 
     private Arch.Core.World _archWorld = null!;
@@ -43,7 +43,7 @@ public class DeltaEcsVsArchBenchmarks
 
     private struct DeltaState
     {
-        public CursorWriteBinding<Value>[] Bindings;
+        public WriteRequest<Value>[] Bindings;
         public int ComponentCount;
     }
 
@@ -56,7 +56,7 @@ public class DeltaEcsVsArchBenchmarks
     private struct ArchValue6 { public float X; public float Y; }
     private struct ArchValue7 { public float X; public float Y; }
 
-    private static readonly QueryCursorAction<DeltaState> s_deltaIteration = IterateDelta;
+    private static readonly QueryAction<DeltaState> s_deltaIteration = IterateDelta;
     private static readonly ComponentType[] s_allArchComponents =
     {
         typeof(ArchValue0), typeof(ArchValue1), typeof(ArchValue2), typeof(ArchValue3),
@@ -74,11 +74,11 @@ public class DeltaEcsVsArchBenchmarks
         }
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
-        var description = QueryDescription.ForComponents(_deltaComponents);
+        var description = QuerySpec.ForComponents(_deltaComponents);
         _deltaQuery = _deltaWorld.CreateQuery(in description);
-        _deltaBindings = new CursorWriteBinding<Value>[ComponentCount];
+        _deltaBindings = new WriteRequest<Value>[ComponentCount];
         for (var i = 0; i < ComponentCount; i++)
-            _deltaBindings[i] = _deltaQuery.CursorBind<Value>(_deltaComponents[i], RowAccess.Write);
+            _deltaBindings[i] = _deltaQuery.Access<Value>(_deltaComponents[i], AccessMode.Write);
         _deltaCreated = new Entity[Amount];
         _deltaWorld.CreateBatch(_deltaComponents, _deltaCreated);
         for (var i = 0; i < _deltaCreated.Length; i++)
@@ -99,11 +99,11 @@ public class DeltaEcsVsArchBenchmarks
         _arrayWorld = new World(
             arrayLayouts,
             initialEntityCapacity: Amount);
-        var arrayDescription = QueryDescription.ForComponents(_arrayComponents);
+        var arrayDescription = QuerySpec.ForComponents(_arrayComponents);
         _arrayQuery = _arrayWorld.CreateQuery(in arrayDescription);
-        _arrayBindings = new CursorWriteBinding<Value>[ComponentCount];
+        _arrayBindings = new WriteRequest<Value>[ComponentCount];
         for (var i = 0; i < ComponentCount; i++)
-            _arrayBindings[i] = _arrayQuery.CursorBind<Value>(_arrayComponents[i], RowAccess.Write);
+            _arrayBindings[i] = _arrayQuery.Access<Value>(_arrayComponents[i], AccessMode.Write);
         _arrayCreated = new Entity[Amount];
         _arrayWorld.CreateBatch(_arrayComponents, _arrayCreated);
         for (var i = 0; i < _arrayCreated.Length; i++)
@@ -134,7 +134,7 @@ public class DeltaEcsVsArchBenchmarks
             Bindings = _deltaBindings,
             ComponentCount = ComponentCount
         };
-        _deltaWorld.QueryCursor(in _deltaQuery, ref state, s_deltaIteration);
+        _deltaWorld.Query(in _deltaQuery, ref state, s_deltaIteration);
     }
 
     [Benchmark(Baseline = true)]
@@ -145,7 +145,7 @@ public class DeltaEcsVsArchBenchmarks
             Bindings = _arrayBindings,
             ComponentCount = ComponentCount
         };
-        _arrayWorld.QueryCursor(in _arrayQuery, ref state, s_deltaIteration);
+        _arrayWorld.Query(in _arrayQuery, ref state, s_deltaIteration);
     }
 
     [Benchmark]
@@ -218,7 +218,7 @@ public class DeltaEcsVsArchBenchmarks
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void IterateDelta(ref DeltaState state, ref DenseChunkCursor lease)
+    private static void IterateDelta(ref DeltaState state, ref QueryChunkCursor lease)
     {
         switch (state.ComponentCount)
         {
@@ -231,9 +231,9 @@ public class DeltaEcsVsArchBenchmarks
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void IterateOne(ref DeltaState state, ref DenseChunkCursor lease)
+    private static void IterateOne(ref DeltaState state, ref QueryChunkCursor lease)
     {
-        var c0 = lease.Resolve(state.Bindings[0]);
+        var c0 = lease.Get(state.Bindings[0]);
         var slotCount = lease.SlotCount;
         while (lease.MoveNext())
         {
@@ -242,10 +242,10 @@ public class DeltaEcsVsArchBenchmarks
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void IterateTwo(ref DeltaState state, ref DenseChunkCursor lease)
+    private static void IterateTwo(ref DeltaState state, ref QueryChunkCursor lease)
     {
-        var c0 = lease.Resolve(state.Bindings[0]);
-        var c1 = lease.Resolve(state.Bindings[1]);
+        var c0 = lease.Get(state.Bindings[0]);
+        var c1 = lease.Get(state.Bindings[1]);
         var slotCount = lease.SlotCount;
         while (lease.MoveNext())
         {
@@ -255,12 +255,12 @@ public class DeltaEcsVsArchBenchmarks
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void IterateFour(ref DeltaState state, ref DenseChunkCursor lease)
+    private static void IterateFour(ref DeltaState state, ref QueryChunkCursor lease)
     {
-        var c0 = lease.Resolve(state.Bindings[0]);
-        var c1 = lease.Resolve(state.Bindings[1]);
-        var c2 = lease.Resolve(state.Bindings[2]);
-        var c3 = lease.Resolve(state.Bindings[3]);
+        var c0 = lease.Get(state.Bindings[0]);
+        var c1 = lease.Get(state.Bindings[1]);
+        var c2 = lease.Get(state.Bindings[2]);
+        var c3 = lease.Get(state.Bindings[3]);
         var slotCount = lease.SlotCount;
         while (lease.MoveNext())
         {
@@ -272,16 +272,16 @@ public class DeltaEcsVsArchBenchmarks
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void IterateEight(ref DeltaState state, ref DenseChunkCursor lease)
+    private static void IterateEight(ref DeltaState state, ref QueryChunkCursor lease)
     {
-        var c0 = lease.Resolve(state.Bindings[0]);
-        var c1 = lease.Resolve(state.Bindings[1]);
-        var c2 = lease.Resolve(state.Bindings[2]);
-        var c3 = lease.Resolve(state.Bindings[3]);
-        var c4 = lease.Resolve(state.Bindings[4]);
-        var c5 = lease.Resolve(state.Bindings[5]);
-        var c6 = lease.Resolve(state.Bindings[6]);
-        var c7 = lease.Resolve(state.Bindings[7]);
+        var c0 = lease.Get(state.Bindings[0]);
+        var c1 = lease.Get(state.Bindings[1]);
+        var c2 = lease.Get(state.Bindings[2]);
+        var c3 = lease.Get(state.Bindings[3]);
+        var c4 = lease.Get(state.Bindings[4]);
+        var c5 = lease.Get(state.Bindings[5]);
+        var c6 = lease.Get(state.Bindings[6]);
+        var c7 = lease.Get(state.Bindings[7]);
         var slotCount = lease.SlotCount;
         while (lease.MoveNext())
         {
@@ -399,8 +399,8 @@ public class DeltaEcsManagedArrayBenchmarks
 
     private World _world = null!;
     private ComponentId _component;
-    private QueryHandle _query;
-    private CursorReadBinding<ManagedValue> _binding;
+    private Query _query;
+    private ReadRequest<ManagedValue> _binding;
     private Entity[] _entities = Array.Empty<Entity>();
 
     private struct ManagedValue
@@ -412,10 +412,10 @@ public class DeltaEcsManagedArrayBenchmarks
     private struct State
     {
         public int Sum;
-        public CursorReadBinding<ManagedValue> Binding;
+        public ReadRequest<ManagedValue> Binding;
     }
 
-    private static readonly QueryCursorAction<State> s_iteration = Iterate;
+    private static readonly QueryAction<State> s_iteration = Iterate;
 
     [GlobalSetup]
     public void Setup()
@@ -423,9 +423,9 @@ public class DeltaEcsManagedArrayBenchmarks
         var layouts = new ComponentLayoutRegistry();
         _component = layouts.Register<ManagedValue>(new SchemaId(31_001));
         _world = new World(layouts, initialEntityCapacity: Amount);
-        var description = QueryDescription.ForComponents(_component);
+        var description = QuerySpec.ForComponents(_component);
         _query = _world.CreateQuery(in description);
-        _binding = _query.CursorBind<ManagedValue>(_component, RowAccess.Read);
+        _binding = _query.Access<ManagedValue>(_component, AccessMode.Read);
         _entities = new Entity[Amount];
         _world.CreateBatch(new[] { _component }, _entities);
         for (var i = 0; i < _entities.Length; i++)
@@ -438,13 +438,13 @@ public class DeltaEcsManagedArrayBenchmarks
     public void ManagedArrayDenseIteration()
     {
         var state = new State { Binding = _binding };
-        _world.QueryCursor(in _query, ref state, s_iteration);
+        _world.Query(in _query, ref state, s_iteration);
         GC.KeepAlive(state.Sum);
     }
 
-    private static void Iterate(ref State state, ref DenseChunkCursor lease)
+    private static void Iterate(ref State state, ref QueryChunkCursor lease)
     {
-        var values = lease.Resolve(state.Binding);
+        var values = lease.Get(state.Binding);
         while (lease.MoveNext())
         {
             if (lease.IsActiveSlot(lease.CurrentIndex))
@@ -462,11 +462,11 @@ public class DeltaEcsHotPathProfileBenchmarks
     private World _world = null!;
     private ComponentId _first;
     private ComponentId _second;
-    private QueryHandle _query;
-    private CursorReadBinding<Value> _firstBinding;
-    private CursorReadBinding<Value> _secondReadBinding;
-    private CursorWriteBinding<Value> _firstWriteBinding;
-    private CursorWriteBinding<Value> _secondBinding;
+    private Query _query;
+    private ReadRequest<Value> _firstBinding;
+    private ReadRequest<Value> _secondReadBinding;
+    private WriteRequest<Value> _firstWriteBinding;
+    private WriteRequest<Value> _secondBinding;
     private Entity[] _entities = Array.Empty<Entity>();
 
     private struct Value
@@ -478,15 +478,15 @@ public class DeltaEcsHotPathProfileBenchmarks
     private struct ProfileState
     {
         public int Chunks;
-        public CursorReadBinding<Value> First;
-        public CursorWriteBinding<Value> Second;
-        public CursorWriteBinding<Value> FirstWrite;
-        public CursorReadBinding<Value> SecondRead;
+        public ReadRequest<Value> First;
+        public WriteRequest<Value> Second;
+        public WriteRequest<Value> FirstWrite;
+        public ReadRequest<Value> SecondRead;
     }
 
-    private static readonly QueryCursorAction<ProfileState> s_dispatch = CountChunk;
-    private static readonly QueryCursorAction<ProfileState> s_lookup = LookupComponentRows;
-    private static readonly QueryCursorAction<ProfileState> s_slots = IterateSlots;
+    private static readonly QueryAction<ProfileState> s_dispatch = CountChunk;
+    private static readonly QueryAction<ProfileState> s_lookup = LookupComponentRows;
+    private static readonly QueryAction<ProfileState> s_slots = IterateSlots;
 
     [GlobalSetup]
     public void Setup()
@@ -495,12 +495,12 @@ public class DeltaEcsHotPathProfileBenchmarks
         _first = layouts.Register<Value>(new SchemaId(20_001));
         _second = layouts.Register<Value>(new SchemaId(20_002));
         _world = new World(layouts, initialEntityCapacity: 100_000);
-        var description = QueryDescription.ForComponents(_first, _second);
+        var description = QuerySpec.ForComponents(_first, _second);
         _query = _world.CreateQuery(in description);
-        _firstBinding = _query.CursorBind<Value>(_first, RowAccess.Read);
-        _secondReadBinding = _query.CursorBind<Value>(_second, RowAccess.Read);
-        _firstWriteBinding = _query.CursorBind<Value>(_first, RowAccess.Write);
-        _secondBinding = _query.CursorBind<Value>(_second, RowAccess.Write);
+        _firstBinding = _query.Access<Value>(_first, AccessMode.Read);
+        _secondReadBinding = _query.Access<Value>(_second, AccessMode.Read);
+        _firstWriteBinding = _query.Access<Value>(_first, AccessMode.Write);
+        _secondBinding = _query.Access<Value>(_second, AccessMode.Write);
         _entities = new Entity[100_000];
         _world.CreateBatch(new[] { _first, _second }, _entities);
         for (var i = 0; i < _entities.Length; i++)
@@ -511,46 +511,46 @@ public class DeltaEcsHotPathProfileBenchmarks
     }
 
     [Benchmark]
-    public void CachedQueryDispatchOnly()
+    public void QueryPlanDispatchOnly()
     {
         var state = new ProfileState { First = _firstBinding, Second = _secondBinding, FirstWrite = _firstWriteBinding, SecondRead = _secondReadBinding };
-        _world.QueryCursor(in _query, ref state, s_dispatch);
+        _world.Query(in _query, ref state, s_dispatch);
         GC.KeepAlive(state.Chunks);
     }
 
     [Benchmark]
-    public void CachedQueryComponentRowLookup()
+    public void QueryPlanComponentRowLookup()
     {
         var state = new ProfileState { First = _firstBinding, Second = _secondBinding, FirstWrite = _firstWriteBinding, SecondRead = _secondReadBinding };
-        _world.QueryCursor(in _query, ref state, s_lookup);
+        _world.Query(in _query, ref state, s_lookup);
         GC.KeepAlive(state.Chunks);
     }
 
     [Benchmark]
-    public void CachedQuerySlotLoop()
+    public void QueryPlanSlotLoop()
     {
         var state = new ProfileState { First = _firstBinding, Second = _secondBinding, FirstWrite = _firstWriteBinding, SecondRead = _secondReadBinding };
-        _world.QueryCursor(in _query, ref state, s_slots);
+        _world.Query(in _query, ref state, s_slots);
         GC.KeepAlive(state.Chunks);
     }
 
 
-    private static void CountChunk(ref ProfileState state, ref DenseChunkCursor lease)
+    private static void CountChunk(ref ProfileState state, ref QueryChunkCursor lease)
     {
         state.Chunks++;
     }
 
-    private static void LookupComponentRows(ref ProfileState state, ref DenseChunkCursor lease)
+    private static void LookupComponentRows(ref ProfileState state, ref QueryChunkCursor lease)
     {
-        _ = lease.Resolve(state.First);
-        _ = lease.Resolve(state.SecondRead);
+        _ = lease.Get(state.First);
+        _ = lease.Get(state.SecondRead);
         state.Chunks++;
     }
 
-    private static void IterateSlots(ref ProfileState state, ref DenseChunkCursor lease)
+    private static void IterateSlots(ref ProfileState state, ref QueryChunkCursor lease)
     {
-        var first = lease.Resolve(state.FirstWrite);
-        var second = lease.Resolve(state.Second);
+        var first = lease.Get(state.FirstWrite);
+        var second = lease.Get(state.Second);
         while (lease.MoveNext())
         {
             first[lease].X += first[lease].Y;

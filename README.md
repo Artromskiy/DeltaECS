@@ -21,21 +21,22 @@ masks and do not move entities.
 
 ## Queries and changes
 
-Reusable `QueryHandle` values cache matching archetypes and row plans. Typed
-bindings validate world/query/type ownership outside the entity loop. Read rows
+Reusable `Query` values cache matching archetypes and row plans. Typed access
+requests validate world/query/type ownership outside the entity loop. Read rows
 return `ReadOnlySpan<T>`; write rows return `Span<T>` and mark coarse row
 versions once per yielded chunk. Raw ordinal access remains internal.
 
-For explicit low-level traversal, `world.IterateDense(in query)` exposes three
+For explicit low-level traversal, `world.OpenQuery(in query)` exposes three
 independent nested loops: archetype, chunk and reverse slot. The callback
-`QueryCursor` API remains responsible for tagged query execution; tagged
+`World.Query` API remains responsible for tagged query execution; tagged
 callbacks must still check `IsActiveSlot` for partial chunks.
 
 Queries without tag predicates may use the thinner independent dense path:
 
 ```csharp
-using var scope = world.IterateDense(in query);
-var positions = scope.Prepare(positionBinding);
+using var scope = world.OpenQuery(in query);
+var positionAccess = query.Access<Position>(positionId, AccessMode.Read);
+var position = scope.Bind(positionAccess);
 var archetypes = scope.Archetypes;
 while (archetypes.MoveNext())
 {
@@ -43,7 +44,7 @@ while (archetypes.MoveNext())
     while (chunks.MoveNext())
     {
         var slots = chunks.Current.Slots;
-        var row = slots.Resolve(positions);
+        var row = slots.Get(position);
         while (slots.MoveNext())
         {
             _ = row[slots];
