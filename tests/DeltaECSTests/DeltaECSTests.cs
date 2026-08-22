@@ -1327,13 +1327,13 @@ public sealed class DeltaECSDeliveryTests
 
         for (var i = 0; i < exact.Length; i++)
         {
-                var entity = exact[i];
-                Assert.True(model.ContainsKey(entity.Index));
+            var entity = exact[i];
+            Assert.True(model.ContainsKey(entity.Index));
 
-                var expected = model[entity.Index];
-                Assert.True(world.TryGetComponent<Position>(entity, PositionId, out var position));
-                Assert.That(Math.Abs(expected.Position.X - position.X) < 1e-5f, $"Mismatch Position.X for entity {entity}");
-                Assert.That(Math.Abs(expected.Position.Y - position.Y) < 1e-5f, $"Mismatch Position.Y for entity {entity}");
+            var expected = model[entity.Index];
+            Assert.True(world.TryGetComponent<Position>(entity, PositionId, out var position));
+            Assert.That(Math.Abs(expected.Position.X - position.X) < 1e-5f, $"Mismatch Position.X for entity {entity}");
+            Assert.That(Math.Abs(expected.Position.Y - position.Y) < 1e-5f, $"Mismatch Position.Y for entity {entity}");
 
             Assert.AreEqual(expected.TagA, world.HasTag(entity, TagActive));
             Assert.AreEqual(expected.TagB, world.HasTag(entity, TagVisible));

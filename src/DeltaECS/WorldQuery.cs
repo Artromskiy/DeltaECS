@@ -121,7 +121,7 @@ public ref struct ResolvedReadRow<T>
 
     public ref readonly T this[DenseChunkCursor cursor]
     {
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), cursor.CurrentIndex);
     }
 

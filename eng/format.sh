@@ -9,8 +9,12 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 format_args=(
     whitespace
     --folder .
-    --include src tests playground benchmarks
-    --exclude ./obj ./bin
+    --include src
+    --include tests
+    --include playground
+    --include benchmarks
+    --exclude ./obj
+    --exclude ./bin
     --verbosity minimal
 )
 if [[ "${FORMAT_CHECK:-0}" == "1" ]]; then
