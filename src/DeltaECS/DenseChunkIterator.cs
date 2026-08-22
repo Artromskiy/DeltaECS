@@ -37,14 +37,12 @@ public ref struct DenseChunkIterator
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNext()
     {
-        var next = _index + 1;
-        if ((uint)next >= (uint)_count)
+        if ((uint)++_index >= (uint)_count)
         {
             _index = _count;
             return false;
         }
 
-        _index = next;
         return true;
     }
 }
