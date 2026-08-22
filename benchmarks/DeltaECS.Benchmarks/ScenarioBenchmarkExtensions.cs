@@ -159,20 +159,6 @@ public class SmallDenseScenarioBenchmarks
         return state.Checksum;
     }
 
-    [Benchmark(Baseline = true)]
-    public double DeltaECS_CursorChunks()
-    {
-        var state = new SmallDenseState { ComponentCount = ComponentCount, Bindings = _deltaBindings };
-        using var chunks = _deltaWorld.QueryCursorChunks(in _deltaQuery);
-        while (chunks.MoveNext())
-        {
-            var cursor = chunks.Current;
-            IterateSmallDense(ref state, ref cursor);
-        }
-
-        return state.Checksum;
-    }
-
     [Benchmark]
     public double DeltaECS_Legacy()
     {

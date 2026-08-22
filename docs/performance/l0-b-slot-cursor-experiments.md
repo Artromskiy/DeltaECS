@@ -4,7 +4,7 @@ Baseline: `54e0b93` (`perf/query-cursor-version1`). All probes ran in the
 isolated worktree `/Users/rum/GitProjects/DeltaECS-L0-B` on Apple M4 Pro,
 macOS 26.5.2, .NET 8.0.29 Arm64 RyuJIT, with Release-optimized managed
 code, tiering disabled by the JIT probe, and the same
-`Movement4IndependentIterators` filter. No tests, public API signatures, or
+`DenseIterationMicroBenchmarks.Movement4Components` filter. No tests, public API signatures, or
 ECS storage structures were changed.
 
 ## Candidate matrix

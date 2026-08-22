@@ -97,21 +97,12 @@ public class EcsLiteComparisonBenchmarks
     [BenchmarkCategory("DenseMovement")]
     public double DeltaECS_DenseMovement()
     {
-        var state = new MovementState();
-        using var chunks = _deltaMovementWorld.QueryCursorChunks(in _deltaMovementQuery);
-        while (chunks.MoveNext())
+        var state = new MovementState
         {
-            var cursor = chunks.Current;
-            var positions = cursor.Resolve(_deltaMovementPositionBinding);
-            var velocities = cursor.Resolve(_deltaMovementVelocityBinding);
-            while (cursor.MoveNext())
-            {
-                positions[cursor].X += velocities[cursor].X * Dt;
-                positions[cursor].Y += velocities[cursor].Y * Dt;
-                state.Count++;
-                state.Checksum += positions[cursor].X + positions[cursor].Y;
-            }
-        }
+            Position = _deltaMovementPositionBinding,
+            Velocity = _deltaMovementVelocityBinding
+        };
+        _deltaMovementWorld.QueryCursor(in _deltaMovementQuery, ref state, s_deltaMovement);
 
         return BenchmarkGuard.Check(state.Checksum, state.Count, Amount);
     }
@@ -140,19 +131,12 @@ public class EcsLiteComparisonBenchmarks
     [BenchmarkCategory("CachedQuery")]
     public int DeltaECS_CachedQueryIteration()
     {
-        var state = new QueryState();
-        using var chunks = _deltaFilterWorld.QueryCursorChunks(in _deltaFilterQuery);
-        while (chunks.MoveNext())
+        var state = new QueryState
         {
-            var cursor = chunks.Current;
-            var positions = cursor.Resolve(_deltaFilterPositionBinding);
-            var velocities = cursor.Resolve(_deltaFilterVelocityBinding);
-            while (cursor.MoveNext())
-            {
-                state.Count++;
-                state.Checksum += positions[cursor].X + velocities[cursor].Y;
-            }
-        }
+            Position = _deltaFilterPositionBinding,
+            Velocity = _deltaFilterVelocityBinding
+        };
+        _deltaFilterWorld.QueryCursor(in _deltaFilterQuery, ref state, s_deltaFilter);
 
         return BenchmarkGuard.Check(state.Count, state.Checksum, Amount);
     }
@@ -667,12 +651,43 @@ public class EcsLiteComparisonBenchmarks
     {
         public int Count;
         public double Checksum;
+        public CursorWriteBinding<DeltaPosition> Position;
+        public CursorReadBinding<DeltaVelocity> Velocity;
     }
 
     private struct QueryState
     {
         public int Count;
         public double Checksum;
+        public CursorReadBinding<DeltaFilterPosition> Position;
+        public CursorReadBinding<DeltaFilterVelocity> Velocity;
+    }
+
+    private static readonly QueryCursorAction<MovementState> s_deltaMovement = IterateDeltaMovement;
+    private static readonly QueryCursorAction<QueryState> s_deltaFilter = IterateDeltaFilter;
+
+    private static void IterateDeltaMovement(ref MovementState state, ref DenseChunkCursor cursor)
+    {
+        var positions = cursor.Resolve(state.Position);
+        var velocities = cursor.Resolve(state.Velocity);
+        while (cursor.MoveNext())
+        {
+            positions[cursor].X += velocities[cursor].X * Dt;
+            positions[cursor].Y += velocities[cursor].Y * Dt;
+            state.Count++;
+            state.Checksum += positions[cursor].X + positions[cursor].Y;
+        }
+    }
+
+    private static void IterateDeltaFilter(ref QueryState state, ref DenseChunkCursor cursor)
+    {
+        var positions = cursor.Resolve(state.Position);
+        var velocities = cursor.Resolve(state.Velocity);
+        while (cursor.MoveNext())
+        {
+            state.Count++;
+            state.Checksum += positions[cursor].X + velocities[cursor].Y;
+        }
     }
 
     private static class BenchmarkGuard

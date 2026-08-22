@@ -116,46 +116,6 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
-    public void QueryIterator_Traverses_Archetypes_Chunks_And_Slots()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        RegisterComponentLayouts(layouts);
-        var world = new World(layouts, chunkCapacity: 2);
-        var positionOnly = new Entity[3];
-        var positionVelocity = new Entity[4];
-        world.CreateBatch(new[] { PositionId }, positionOnly);
-        world.CreateBatch(new[] { PositionId, VelocityId }, positionVelocity);
-
-        var query = world.CreateQuery(QueryDescription.ForComponents(PositionId));
-        var position = query.CursorBind<Position>(PositionId, RowAccess.Read);
-        var archetypes = 0;
-        var chunkCount = 0;
-        var slots = 0;
-        using (var iterator = world.Iterate(in query))
-        {
-            while (iterator.MoveNextArchetype())
-            {
-                archetypes++;
-                while (iterator.MoveNextChunk())
-                {
-                    chunkCount++;
-                    ref var cursor = ref iterator.CurrentChunk;
-                    var positions = cursor.Resolve(position);
-                    while (cursor.MoveNext())
-                    {
-                        _ = positions[cursor];
-                        slots++;
-                    }
-                }
-            }
-        }
-
-        Assert.That(archetypes, Is.EqualTo(2));
-        Assert.That(chunkCount, Is.EqualTo(4));
-        Assert.That(slots, Is.EqualTo(7));
-    }
-
-    [Test]
     public void DenseQueryScope_Uses_Independent_Archetype_Chunk_And_Slot_Iterators()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -300,22 +260,24 @@ public sealed class DeltaECSDeliveryTests
         var description = QueryDescription.ForComponents(PositionId);
         var emptyQuery = world.CreateQuery(in description);
         var position = emptyQuery.CursorBind<Position>(PositionId, RowAccess.Read);
-        using (var emptyChunks = world.QueryCursorChunks(in emptyQuery))
-        {
-            Assert.That(emptyChunks.MoveNext(), Is.False);
-        }
+        var emptyChunkCount = 0;
+        world.QueryCursor(
+            in emptyQuery,
+            ref emptyChunkCount,
+            static (ref int count, ref DenseChunkCursor cursor) => count++);
+        Assert.That(emptyChunkCount, Is.EqualTo(0));
 
         var singleWorld = new World(layouts, chunkCapacity: 4);
         var single = singleWorld.Create(new[] { PositionId });
         var singleQuery = singleWorld.CreateQuery(QueryDescription.ForComponents(PositionId));
-        using (var singleChunks = singleWorld.QueryCursorChunks(in singleQuery))
+        var singleChunkCount = 0;
+        singleWorld.QueryCursor(in singleQuery, ref singleChunkCount, (ref int count, ref DenseChunkCursor cursor) =>
         {
-            Assert.That(singleChunks.MoveNext(), Is.True);
-            var cursor = singleChunks.Current;
+            count++;
             Assert.That(cursor.SlotCount, Is.EqualTo(1));
             Assert.That(cursor.Entities[0], Is.EqualTo(single));
-            Assert.That(singleChunks.MoveNext(), Is.False);
-        }
+        });
+        Assert.That(singleChunkCount, Is.EqualTo(1));
 
         var created = new Entity[4];
         world.CreateBatch(new[] { PositionId }, created);
@@ -325,10 +287,8 @@ public sealed class DeltaECSDeliveryTests
         }
 
         var fullChunkCount = 0;
-        using (var chunks = world.QueryCursorChunks(in emptyQuery))
+        world.QueryCursor(in emptyQuery, ref fullChunkCount, (ref int count, ref DenseChunkCursor cursor) =>
         {
-            Assert.That(chunks.MoveNext(), Is.True);
-            var cursor = chunks.Current;
             Assert.That(cursor.SlotCount, Is.EqualTo(4));
             var entities = cursor.Entities;
             var positions = cursor.Resolve(position);
@@ -336,11 +296,9 @@ public sealed class DeltaECSDeliveryTests
             {
                 Assert.That(entities[cursor.CurrentIndex].IsAlive, Is.True);
                 Assert.That(positions[cursor].X, Is.EqualTo(cursor.CurrentIndex));
-                fullChunkCount++;
+                count++;
             }
-
-            Assert.That(chunks.MoveNext(), Is.False);
-        }
+        });
 
         var tagged = new QueryDescription(
             new[] { PositionId },
@@ -398,7 +356,7 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
-    public void TaggedQueries_Reuse_Scratch_And_Preserve_None_Full_Partial_Across_All_APIs()
+    public void TaggedQueries_Reuse_Scratch_And_Preserve_None_Full_Partial_Across_Action_Path()
     {
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
@@ -433,20 +391,16 @@ public sealed class DeltaECSDeliveryTests
         Assert.That(callbackSummary.SawPartial, Is.True);
         Assert.That(callbackSummary.SawFull, Is.True);
 
-        var enumeratorSummary = new OverlaySummary();
-        using (var chunks = world.QueryCursorChunks(in handle))
+        var repeatedSummary = new OverlaySummary();
+        world.QueryCursor(in handle, ref repeatedSummary, static (ref OverlaySummary state, ref DenseChunkCursor cursor) =>
         {
-            while (chunks.MoveNext())
-            {
-                var cursor = chunks.Current;
-                enumeratorSummary.Observe(ref cursor);
-            }
-        }
+            state.Observe(ref cursor);
+        });
 
-        Assert.That(enumeratorSummary.ActiveSlots, Is.EqualTo(2));
-        Assert.That(enumeratorSummary.Chunks, Is.EqualTo(2));
-        Assert.That(enumeratorSummary.SawPartial, Is.True);
-        Assert.That(enumeratorSummary.SawFull, Is.True);
+        Assert.That(repeatedSummary.ActiveSlots, Is.EqualTo(2));
+        Assert.That(repeatedSummary.Chunks, Is.EqualTo(2));
+        Assert.That(repeatedSummary.SawPartial, Is.True);
+        Assert.That(repeatedSummary.SawFull, Is.True);
 
         var missingAll = new QueryDescription(
             new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
@@ -499,22 +453,18 @@ public sealed class DeltaECSDeliveryTests
         Assert.That(state.ActiveCount, Is.EqualTo(2));
 
         var enumerated = 0;
-        using (var chunks = world.QueryCursorChunks(in query))
+        world.QueryCursor(in query, ref enumerated, (ref int count, ref DenseChunkCursor cursor) =>
         {
-            while (chunks.MoveNext())
+            var rows = cursor.Resolve(position);
+            while (cursor.MoveNext())
             {
-                var cursor = chunks.Current;
-                var rows = cursor.Resolve(position);
-                while (cursor.MoveNext())
+                if (cursor.IsActiveSlot(cursor.CurrentIndex))
                 {
-                    if (cursor.IsActiveSlot(cursor.CurrentIndex))
-                    {
-                        _ = rows[cursor];
-                        enumerated++;
-                    }
+                    _ = rows[cursor];
+                    count++;
                 }
             }
-        }
+        });
 
         Assert.That(enumerated, Is.EqualTo(2));
     }
@@ -697,11 +647,13 @@ public sealed class DeltaECSDeliveryTests
         var writePosition = query.CursorBind<Position>(PositionId, RowAccess.Write);
         var before = world.WorldTick;
 
-        using (var chunks = world.QueryCursorChunks(in query))
+        world.QueryCursor(in query, ref chunkId, static (ref int id, ref DenseChunkCursor cursor) =>
         {
-            Assert.That(chunks.MoveNext(), Is.True);
-            chunkId = chunks.Current.GlobalChunkId;
-        }
+            if (id < 0)
+            {
+                id = cursor.GlobalChunkId;
+            }
+        });
         Assert.That(chunkId, Is.GreaterThanOrEqualTo(0));
         Assert.That(world.HasChangedSince(chunkId, PositionId, before), Is.False);
         Assert.That(world.HasChangedSince(chunkId, VelocityId, before), Is.False);
@@ -721,12 +673,10 @@ public sealed class DeltaECSDeliveryTests
         });
         Assert.That(world.HasChangedSince(chunkId, VelocityId, afterWrite), Is.False);
 
-        using (var chunks = world.QueryCursorChunks(in query))
+        world.QueryCursor(in query, ref writePosition, static (ref CursorWriteBinding<Position> binding, ref DenseChunkCursor cursor) =>
         {
-            Assert.That(chunks.MoveNext(), Is.True);
-            var cursor = chunks.Current;
-            _ = cursor.Resolve(writePosition);
-        }
+            _ = cursor.Resolve(binding);
+        });
 
         Assert.That(world.WorldTick, Is.GreaterThan(afterWrite));
         Assert.That(world.HasChangedSince(chunkId, PositionId, afterWrite), Is.True);
@@ -927,27 +877,6 @@ public sealed class DeltaECSDeliveryTests
 
         Assert.AreEqual(16, world.AliveEntityCount);
         Assert.That(afterRecycle.Count, Is.EqualTo(baseline.Count));
-    }
-
-    [Test]
-    public void QueryCursorChunks_Current_Remains_Valid_After_MoveNext()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        RegisterComponentLayouts(layouts);
-        var world = new World(layouts, chunkCapacity: 2);
-
-        var entities = new Entity[5];
-        world.CreateBatch(new[] { PositionId }, entities);
-
-        var query = world.CreateQuery(QueryDescription.ForComponents(PositionId));
-        using var enumerator = world.QueryCursorChunks(in query);
-        Assert.True(enumerator.MoveNext());
-        var firstChunk = enumerator.Current;
-
-        Assert.True(enumerator.MoveNext());
-        Assert.That(firstChunk.SlotCount, Is.GreaterThan(0));
-        Assert.That(firstChunk.Entities.Length, Is.EqualTo(firstChunk.SlotCount));
-
     }
 
     [Test]
@@ -1377,12 +1306,10 @@ public sealed class DeltaECSDeliveryTests
     {
         var handle = world.CreateQuery(in query);
         var count = 0;
-        using var chunks = world.QueryCursorChunks(in handle);
-        while (chunks.MoveNext())
+        world.QueryCursor(in handle, ref count, static (ref int state, ref DenseChunkCursor cursor) =>
         {
-            var cursor = chunks.Current;
-            count += CountActiveSlots(ref cursor);
-        }
+            state += CountActiveSlots(ref cursor);
+        });
         return count;
     }
 

@@ -17,7 +17,7 @@ selected work belongs in `TODO.md`, and deferred ideas belong in `IDEAS.md`.
 Useful navigation commands:
 
 ```bash
-rg -n "public |internal |QueryCursor|QueryIterator|CursorBind|MoveNext" src/DeltaECS
+rg -n "public |internal |QueryCursor|IterateDense|CursorBind|MoveNext" src/DeltaECS
 rg -n "<relevant API or invariant>" tests/DeltaECSTests
 ```
 
@@ -33,14 +33,11 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `QueryDescription` | All/Any/None component and tag predicates | `src/DeltaECS/QueryDescription.cs` |
 | `QueryHandle` | World/query identity and typed cursor-binding factory | `src/DeltaECS/EntityTypes.cs` |
 | `CursorReadBinding<T>`, `CursorWriteBinding<T>` | Query-bound typed row intent | `src/DeltaECS/WorldQuery.cs` |
-| `QueryIterator` | Explicit `archetype -> chunk -> slot` traversal | `src/DeltaECS/QueryIterator.cs` |
-| `QueryChunkIterator` | Active chunk traversal for the selected archetype | `src/DeltaECS/QueryChunkIterator.cs` |
 | `DenseQueryScope` | Dense-only validation and structural lease owner | `src/DeltaECS/DenseQueryScope.cs` |
 | `DenseArchetypeIterator`, `DenseChunkIterator`, `DenseSlotIterator` | Independent dense traversal levels | matching `src/DeltaECS/Dense*Iterator.cs` files |
 | `DenseChunkCursor` | Current chunk, reverse slot traversal, row resolution and tag mask | `src/DeltaECS/WorldQuery.cs` |
 | `ResolvedReadRow<T>`, `ResolvedWriteRow<T>` | Safe typed cursor indexers over a resolved row | `src/DeltaECS/WorldQuery.cs` |
 | `World.QueryCursor` | Callback-based query execution over `DenseChunkCursor` | `src/DeltaECS/World.cs` |
-| `World.QueryCursorChunks` | Compatibility chunk enumeration over the cursor API | `src/DeltaECS/World.cs` |
 
 ## Query execution path
 
@@ -83,9 +80,9 @@ while (archetypes.MoveNext())
 }
 ```
 
-For tagged queries, keep using `QueryIterator.MoveNextChunk()`, which selects chunks, and
-`DenseChunkCursor.IsActiveSlot(cursor.CurrentIndex)` selects slots in a
-partial mask. The tag implementation is in `OverlayTagManager.cs`.
+For tagged queries, use `World.QueryCursor` with an action. It selects matching
+chunks and exposes `DenseChunkCursor.IsActiveSlot(cursor.CurrentIndex)` for
+partial overlay masks. The tag implementation is in `OverlayTagManager.cs`.
 
 ## Structural and storage paths
 
@@ -111,7 +108,7 @@ the query path proves to depend on their storage contract.
   `DenseChunkCursor.Resolve` in `WorldQuery.cs`.
 - Query plan refresh: `CachedQuery.MatchingPlans` in `WorldQuery.cs`.
 - Active lease barrier: `World._activeChunkLeases`, lease helpers in
-  `World.cs`, and `QueryIterator.Dispose`/`CursorChunkEnumerator.Dispose`.
+  `World.cs`, and `DenseQueryScope.Dispose`/`World.QueryCursor`.
 - Write tracking: `CachedQuery.RegisterWriteBinding`, `World.QueryWriteTick`,
   `DenseChunkCursor.Resolve(CursorWriteBinding<T>)`, and
   `Chunk.MarkComponentWritten`.
@@ -144,8 +141,8 @@ for a production correctness test.
 
 - `Chunk.GetComponentRow<T>(int)` is an internal storage primitive, not a
   public user API. Do not remove it while migrating public cursor access.
-- `World.QueryCursorChunks` remains a compatibility surface; new outer-loop
-  code should use `World.Iterate` and `QueryIterator`.
+- `World.QueryCursor` is the callback surface for tagged and general queries;
+  dense no-tag code should use `World.IterateDense`.
 - `QueryCursorAction<TContext>` is the callback surface. Do not infer that a
   callback benchmark represents the only supported query execution style.
 - Do not reintroduce removed ordinal/public unsafe row APIs without an explicit

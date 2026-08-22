@@ -26,11 +26,10 @@ bindings validate world/query/type ownership outside the entity loop. Read rows
 return `ReadOnlySpan<T>`; write rows return `Span<T>` and mark coarse row
 versions once per yielded chunk. Raw ordinal access remains internal.
 
-For explicit low-level traversal, `world.Iterate(in query)` exposes three
-nested loops: `MoveNextArchetype()`, `MoveNextChunk()` and the returned
-`DenseChunkCursor.MoveNext()` through `ref CurrentChunk`. The cursor API remains
-responsible for typed row resolution; tagged queries must still check
-`IsActiveSlot` for partial chunks.
+For explicit low-level traversal, `world.IterateDense(in query)` exposes three
+independent nested loops: archetype, chunk and reverse slot. The callback
+`QueryCursor` API remains responsible for tagged query execution; tagged
+callbacks must still check `IsActiveSlot` for partial chunks.
 
 Queries without tag predicates may use the thinner independent dense path:
 

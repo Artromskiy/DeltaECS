@@ -79,15 +79,6 @@ public sealed class World
     }
 
     /// <summary>
-    /// Creates a short-lived three-level iterator for the query's matching
-    /// archetypes, active chunks and current chunk cursor.
-    /// </summary>
-    public QueryIterator Iterate(in QueryHandle handle)
-    {
-        return new QueryIterator(this, handle);
-    }
-
-    /// <summary>
     /// Creates a validated dense-only query scope with independent archetype,
     /// chunk and slot iterators. Queries with tag predicates are rejected.
     /// </summary>
@@ -426,118 +417,9 @@ public sealed class World
         }
     }
 
-    /// <summary>Enumerates query chunks through the cursor API. Dispose the enumerator when finished.</summary>
-    public CursorChunkEnumerator QueryCursorChunks(in QueryHandle handle)
-    {
-        if (!ReferenceEquals(handle.Owner, this) || !handle.IsValid)
-        {
-            throw new ArgumentException("Query handle does not belong to this world.", nameof(handle));
-        }
-
-        return new CursorChunkEnumerator(this, handle.Cached, handle.Description, QueryWriteTick(handle.Cached));
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private uint QueryWriteTick(CachedQuery cached) =>
         cached.HasWriteBindings ? AdvanceWorldTick() : 0;
-
-    public ref struct CursorChunkEnumerator
-    {
-        private readonly World _owner;
-        private readonly QueryDescription _query;
-        private readonly CachedQuery _cached;
-        private readonly DenseArchetypePlan[] _plans;
-        private readonly bool _hasTags;
-        private ulong[]? _overlayScratch;
-        private readonly uint _writeTick;
-        private int _archetypePosition;
-        private int _chunkPosition;
-        private DenseChunkCursor _current;
-        private bool _hasCurrent;
-        private bool _disposed;
-
-        internal CursorChunkEnumerator(World owner, CachedQuery cached, QueryDescription query, uint writeTick)
-        {
-            _owner = owner;
-            _query = query;
-            _cached = cached;
-            _plans = cached.MatchingPlans(owner);
-            _hasTags = cached.HasTags;
-            _overlayScratch = _hasTags ? owner.RentChunkOverlayScratch() : null;
-            _writeTick = writeTick;
-            _archetypePosition = 0;
-            _chunkPosition = 0;
-            _current = default;
-            _hasCurrent = false;
-            _disposed = false;
-            _owner._activeChunkLeases++;
-        }
-
-        public DenseChunkCursor Current
-        {
-            get
-            {
-                if (!_hasCurrent || _disposed)
-                {
-                    throw new InvalidOperationException("The cursor chunk enumerator is not positioned on a chunk.");
-                }
-
-                return _current;
-            }
-        }
-
-        public bool MoveNext()
-        {
-            if (_disposed)
-            {
-                return false;
-            }
-
-            while (_archetypePosition < _plans.Length)
-            {
-                var plan = _plans[_archetypePosition];
-                var archetype = plan.Archetype;
-                while (_chunkPosition < archetype.ActiveChunkCount)
-                {
-                    var chunk = archetype.GetActiveChunk(_chunkPosition++);
-                    var overlayResult = _hasTags
-                        ? _owner._overlayTags.BuildMask(_query, chunk.GlobalId, chunk.Count, _overlayScratch!)
-                        : OverlayMaskResult.Full;
-                    if (overlayResult == OverlayMaskResult.None)
-                    {
-                        continue;
-                    }
-
-                    _current = new DenseChunkCursor(_cached, archetype.Id, chunk, plan.ComponentRows, _writeTick, _overlayScratch, overlayResult);
-                    _hasCurrent = true;
-                    return true;
-                }
-
-                _archetypePosition++;
-                _chunkPosition = 0;
-            }
-
-            Dispose();
-            return false;
-        }
-
-        public void Dispose()
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _disposed = true;
-            _hasCurrent = false;
-            _owner._activeChunkLeases--;
-            if (_overlayScratch is not null)
-            {
-                _owner.ReturnChunkOverlayScratch(_overlayScratch);
-                _overlayScratch = null;
-            }
-        }
-    }
 
     public int CollectAliveEntities(Span<Entity> destination)
     {

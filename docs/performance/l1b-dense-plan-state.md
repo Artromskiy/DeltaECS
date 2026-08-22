@@ -6,7 +6,7 @@ Worktree: `/Users/rum/GitProjects/TheFurnace-DeltaECS-L1B`
 Runtime: .NET 8.0.29, Arm64 RyuJIT AdvSIMD, Apple M4 Pro, macOS 26.5.2
 
 The probe was the same Release/JIT capture for
-`QueryIteratorIterationMicroBenchmarks.Movement4IndependentIterators`, with
+`DenseIterationMicroBenchmarks.Movement4Components`, with
 `DOTNET_TieredCompilation=0`, `DOTNET_ReadyToRun=0`, and the first emitted ARM64
 code block reported by `jit-report.py`. Code size is a JIT signal, not a
 throughput claim.

@@ -31,14 +31,7 @@ public sealed class ActiveChunkTests
 
         var query = QueryDescription.ForComponents(PositionId);
         var queryHandle = world.CreateQuery(in query);
-        var queriedSlots = 0;
-        using (var chunks = world.QueryCursorChunks(in queryHandle))
-        {
-            while (chunks.MoveNext())
-            {
-                queriedSlots += chunks.Current.SlotCount;
-            }
-        }
+        var queriedSlots = CountQueriedSlots(world, queryHandle);
         Assert.That(queriedSlots, Is.EqualTo(4));
 
         var replacement = new Entity[2];
@@ -46,15 +39,18 @@ public sealed class ActiveChunkTests
         Assert.That(archetype.ActiveChunkCount, Is.EqualTo(3));
         AssertActiveChunks(archetype);
 
-        queriedSlots = 0;
-        using (var chunks = world.QueryCursorChunks(in queryHandle))
-        {
-            while (chunks.MoveNext())
-            {
-                queriedSlots += chunks.Current.SlotCount;
-            }
-        }
+        queriedSlots = CountQueriedSlots(world, queryHandle);
         Assert.That(queriedSlots, Is.EqualTo(6));
+    }
+
+    private static int CountQueriedSlots(World world, in QueryHandle query)
+    {
+        var count = 0;
+        world.QueryCursor(in query, ref count, static (ref int state, ref DenseChunkCursor cursor) =>
+        {
+            state += cursor.SlotCount;
+        });
+        return count;
     }
 
     private static void AssertActiveChunks(Archetype archetype)

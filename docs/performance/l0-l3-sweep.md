@@ -1,7 +1,7 @@
 # L0–L3 dense Movement4 sweep
 
 This document records the isolated optimization sweep for
-`QueryIteratorIterationMicroBenchmarks.Movement4IndependentIterators`.
+`DenseIterationMicroBenchmarks.Movement4Components`.
 Each candidate started from `54e0b93`; a candidate was accepted only when its
 Release JIT result improved without a public API or tag-semantics change.
 JIT size is evidence about generated code, not a cache-miss or throughput
@@ -26,7 +26,7 @@ example, `cbnz` contributes to both `compare branch` and aggregate `branch`.
 ## Merged JIT comparison
 
 Same Release probe, ARM64, first emitted code block:
-`IterateMovement4IndependentIterators`.
+`IterateMovement4Dense`.
 
 | Metric | Baseline `54e0b93` | 48-candidate checkpoint `1a89172` | Final 50 `dd43b6b` |
 |---|---:|---:|---:|

@@ -18,6 +18,20 @@ public class DenseCapacitySweepBenchmarks
     private CursorWriteBinding<S4> _b4; private CursorWriteBinding<S5> _b5; private CursorWriteBinding<S6> _b6; private CursorWriteBinding<S7> _b7;
     private LegacyByteDenseReference _legacy = null!;
 
+    private struct DenseState
+    {
+        public CursorWriteBinding<S0> B0;
+        public CursorWriteBinding<S1> B1;
+        public CursorWriteBinding<S2> B2;
+        public CursorWriteBinding<S3> B3;
+        public CursorWriteBinding<S4> B4;
+        public CursorWriteBinding<S5> B5;
+        public CursorWriteBinding<S6> B6;
+        public CursorWriteBinding<S7> B7;
+    }
+
+    private static readonly QueryCursorAction<DenseState> s_iterate = Iterate;
+
     private struct S0 { public float X; public float Y; }
     private struct S1 { public float X; public float Y; }
     private struct S2 { public float X; public float Y; }
@@ -66,19 +80,34 @@ public class DenseCapacitySweepBenchmarks
     [Benchmark(Baseline = true)]
     public void DeltaECS_Array()
     {
-        using var chunks = _arrayWorld.QueryCursorChunks(in _query);
-        while (chunks.MoveNext())
+        var state = new DenseState
         {
-            var cursor = chunks.Current;
-            var c0 = cursor.Resolve(_b0); var c1 = cursor.Resolve(_b1);
-            var c2 = cursor.Resolve(_b2); var c3 = cursor.Resolve(_b3);
-            var c4 = cursor.Resolve(_b4); var c5 = cursor.Resolve(_b5);
-            var c6 = cursor.Resolve(_b6); var c7 = cursor.Resolve(_b7);
-            while (cursor.MoveNext())
-            {
-                c0[cursor].X += c0[cursor].Y; c1[cursor].X += c1[cursor].Y; c2[cursor].X += c2[cursor].Y; c3[cursor].X += c3[cursor].Y;
-                c4[cursor].X += c4[cursor].Y; c5[cursor].X += c5[cursor].Y; c6[cursor].X += c6[cursor].Y; c7[cursor].X += c7[cursor].Y;
-            }
+            B0 = _b0,
+            B1 = _b1,
+            B2 = _b2,
+            B3 = _b3,
+            B4 = _b4,
+            B5 = _b5,
+            B6 = _b6,
+            B7 = _b7
+        };
+        _arrayWorld.QueryCursor(in _query, ref state, s_iterate);
+    }
+
+    private static void Iterate(ref DenseState state, ref DenseChunkCursor cursor)
+    {
+        var c0 = cursor.Resolve(state.B0);
+        var c1 = cursor.Resolve(state.B1);
+        var c2 = cursor.Resolve(state.B2);
+        var c3 = cursor.Resolve(state.B3);
+        var c4 = cursor.Resolve(state.B4);
+        var c5 = cursor.Resolve(state.B5);
+        var c6 = cursor.Resolve(state.B6);
+        var c7 = cursor.Resolve(state.B7);
+        while (cursor.MoveNext())
+        {
+            c0[cursor].X += c0[cursor].Y; c1[cursor].X += c1[cursor].Y; c2[cursor].X += c2[cursor].Y; c3[cursor].X += c3[cursor].Y;
+            c4[cursor].X += c4[cursor].Y; c5[cursor].X += c5[cursor].Y; c6[cursor].X += c6[cursor].Y; c7[cursor].X += c7[cursor].Y;
         }
     }
 

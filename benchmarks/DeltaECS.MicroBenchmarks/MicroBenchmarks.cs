@@ -7,7 +7,7 @@ internal static class MicroBenchmarkCatalog
 {
     public static readonly Type[] Types =
     [
-        typeof(QueryIteratorIterationMicroBenchmarks),
+        typeof(DenseIterationMicroBenchmarks),
         typeof(AddMicroBenchmarks),
         typeof(RemoveMicroBenchmarks),
         typeof(CreateMicroBenchmarks),
@@ -16,7 +16,7 @@ internal static class MicroBenchmarkCatalog
 }
 
 [MemoryDiagnoser]
-public class QueryIteratorIterationMicroBenchmarks : QueryIteratorIterationMicroBenchmarkImplementation
+public class DenseIterationMicroBenchmarks : DenseIterationMicroBenchmarkImplementation
 {
 }
 
