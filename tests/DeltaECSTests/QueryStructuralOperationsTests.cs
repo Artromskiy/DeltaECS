@@ -231,18 +231,18 @@ public sealed class QueryStructuralOperationsTests
 
     private sealed class ChangeTrackingCursorState
     {
-        public ChangeTrackingCursorState(ReadRequest<Position> binding)
+        public ChangeTrackingCursorState(ReadRequest binding)
         {
             ReadBinding = binding;
         }
 
-        public ChangeTrackingCursorState(WriteRequest<Position> binding)
+        public ChangeTrackingCursorState(WriteRequest binding)
         {
             WriteBinding = binding;
         }
 
-        public ReadRequest<Position> ReadBinding { get; }
-        public WriteRequest<Position> WriteBinding { get; }
+        public ReadRequest ReadBinding { get; }
+        public WriteRequest WriteBinding { get; }
         public int ChunkId { get; set; } = -1;
     }
 

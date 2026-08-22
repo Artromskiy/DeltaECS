@@ -42,6 +42,32 @@ public ref struct QuerySlots
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ReadValues Get(ReadAccess binding)
+    {
+        if (!ReferenceEquals(binding.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        var physicalRow = _plan.ComponentRows.Element(binding.QueryComponentIndex);
+        return new ReadValues(_componentRows.Element(physicalRow));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public WriteValues Get(WriteAccess binding)
+    {
+        if (!ReferenceEquals(binding.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        var physicalRow = _plan.ComponentRows.Element(binding.QueryComponentIndex);
+        _chunk.MarkComponentWritten(physicalRow, _writeTick);
+        return new WriteValues(_componentRows.Element(physicalRow));
+    }
+
+    // Legacy compatibility path retained for old comparative/version callers only.
+    [Obsolete("Use non-generic Get(WriteAccess), then values.Ref<T>(slots).")]
     public ReadValues<T> Get<T>(ReadAccess<T> binding)
     {
         if (!ReferenceEquals(binding.Query, _query))
@@ -53,7 +79,8 @@ public ref struct QuerySlots
         return new ReadValues<T>(_chunk.GetComponentRow<T>(_componentRows, physicalRow));
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    // Legacy compatibility path retained for old comparative/version callers only.
+    [Obsolete("Use non-generic Get(WriteAccess), then values.Ref<T>(slots).")]
     public WriteValues<T> Get<T>(WriteAccess<T> binding)
     {
         if (!ReferenceEquals(binding.Query, _query))
@@ -65,4 +92,5 @@ public ref struct QuerySlots
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
         return new WriteValues<T>(_chunk.GetComponentRow<T>(_componentRows, physicalRow));
     }
+
 }

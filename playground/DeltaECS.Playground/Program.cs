@@ -37,8 +37,8 @@ while (archetypes.MoveNext())
 
         while (slots.MoveNext())
         {
-            ref var p = ref positions[slots];
-            ref readonly var v = ref velocities[slots];
+            ref var p = ref positions.Ref<Position>(slots);
+            ref readonly var v = ref velocities.Ref<Velocity>(slots);
             p.X += v.X;
             p.Y += v.Y;
             Console.WriteLine($"  slot {slots.CurrentIndex}: ({p.X}, {p.Y})");
@@ -59,7 +59,7 @@ world.Query(in query, ref actionState, static (ref ActionState state, ref QueryC
     var velocities = cursor.Get(state.Velocity);
     while (cursor.MoveNext())
     {
-        state.Checksum += positions[cursor].X + velocities[cursor].X;
+        state.Checksum += positions.Ref<Position>(cursor).X + velocities.Ref<Velocity>(cursor).X;
     }
 });
 Console.WriteLine($"  observable checksum: {actionState.Checksum}");
@@ -78,7 +78,7 @@ public struct Velocity
 
 public struct ActionState
 {
-    public ReadRequest<Position> Position;
-    public ReadRequest<Velocity> Velocity;
+    public ReadRequest Position;
+    public ReadRequest Velocity;
     public float Checksum;
 }

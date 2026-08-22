@@ -415,9 +415,9 @@ public sealed class StructuralAlgorithmTests
 
                 state.Observed[cursor.Entities[cursor.CurrentIndex]] = new HierarchyObserved
                 {
-                    Parent = parents[cursor].Parent,
-                    Local = locals[cursor],
-                    World = worlds[cursor]
+                    Parent = parents.Ref<ParentLink>(cursor).Parent,
+                    Local = locals.Ref<LocalTransform>(cursor),
+                    World = worlds.Ref<WorldTransform>(cursor)
                 };
             }
         });
@@ -469,9 +469,9 @@ public sealed class StructuralAlgorithmTests
     private sealed class HierarchyCursorState
     {
         public HierarchyCursorState(
-            ReadRequest<ParentLink> parentBinding,
-            ReadRequest<LocalTransform> localBinding,
-            ReadRequest<WorldTransform> worldBinding,
+            ReadRequest parentBinding,
+            ReadRequest localBinding,
+            ReadRequest worldBinding,
             Dictionary<Entity, HierarchyObserved> observed)
         {
             ParentBinding = parentBinding;
@@ -480,9 +480,9 @@ public sealed class StructuralAlgorithmTests
             Observed = observed;
         }
 
-        public ReadRequest<ParentLink> ParentBinding { get; }
-        public ReadRequest<LocalTransform> LocalBinding { get; }
-        public ReadRequest<WorldTransform> WorldBinding { get; }
+        public ReadRequest ParentBinding { get; }
+        public ReadRequest LocalBinding { get; }
+        public ReadRequest WorldBinding { get; }
         public Dictionary<Entity, HierarchyObserved> Observed { get; }
     }
 

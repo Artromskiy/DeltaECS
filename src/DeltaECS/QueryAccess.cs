@@ -70,29 +70,28 @@ public ref struct QueryChunkCursor
         return true;
     }
 
-    public ReadValues<T> Get<T>(ReadRequest<T> binding)
-    {
-        return new ReadValues<T>(GetReadValues(binding));
-    }
-
-    public WriteValues<T> Get<T>(WriteRequest<T> binding)
-    {
-        return new WriteValues<T>(GetWriteValues(binding));
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ReadOnlySpan<T> GetReadValues<T>(ReadRequest<T> binding)
+    public ReadValues Get(ReadAccess binding)
     {
         if (!ReferenceEquals(binding.Query, _query))
         {
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        return _chunk.GetComponentRow<T>(_componentRows[binding.QueryComponentIndex]);
+        return new ReadValues(_chunk.GetRawComponentRow(_componentRows[binding.QueryComponentIndex]));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private Span<T> GetWriteValues<T>(WriteRequest<T> binding)
+    public ReadValues Get(ReadRequest binding)
+    {
+        if (!ReferenceEquals(binding.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        return new ReadValues(_chunk.GetRawComponentRow(_componentRows[binding.QueryComponentIndex]));
+    }
+
+    public WriteValues Get(WriteAccess binding)
     {
         if (!ReferenceEquals(binding.Query, _query))
         {
@@ -106,18 +105,112 @@ public ref struct QueryChunkCursor
         }
 
         _chunk.MarkComponentWritten(index, _writeTick);
-        return _chunk.GetComponentRow<T>(index);
+        return new WriteValues(_chunk.GetRawComponentRow(index));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public WriteValues Get(WriteRequest binding)
+    {
+        if (!ReferenceEquals(binding.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        var index = _componentRows[binding.QueryComponentIndex];
+        if (_writeTick == 0)
+        {
+            QueryThrowHelper.ThrowMissingWriteIntent();
+        }
+
+        _chunk.MarkComponentWritten(index, _writeTick);
+        return new WriteValues(_chunk.GetRawComponentRow(index));
+    }
+
+    // Legacy compatibility path. New code must use the non-generic request/access/value chain above.
+    [Obsolete("Use non-generic Access, Bind and Get, then values.Ref<T>(cursor).")]
+    public ReadValues<T> Get<T>(ReadRequest<T> binding)
+    {
+        if (!ReferenceEquals(binding.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        return new ReadValues<T>(_chunk.GetComponentRow<T>(_componentRows[binding.QueryComponentIndex]));
+    }
+
+    // Legacy compatibility path. New code must use the non-generic request/access/value chain above.
+    [Obsolete("Use non-generic Access, Bind and Get, then values.Ref<T>(cursor).")]
+    public WriteValues<T> Get<T>(WriteRequest<T> binding)
+    {
+        if (!ReferenceEquals(binding.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        var index = _componentRows[binding.QueryComponentIndex];
+        if (_writeTick == 0)
+        {
+            QueryThrowHelper.ThrowMissingWriteIntent();
+        }
+
+        _chunk.MarkComponentWritten(index, _writeTick);
+        return new WriteValues<T>(_chunk.GetComponentRow<T>(index));
+    }
+
+}
+
+public ref struct ReadValues
+{
+    private readonly Array _row;
+
+    internal ReadValues(Array row)
+    {
+        _row = row;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref readonly T Ref<T>(QueryChunkCursor cursor)
+    {
+        return ref Unsafe.Add(ref MemoryMarshal.GetReference(Unsafe.As<T[]>(_row).AsSpan()), cursor.CurrentIndex);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref readonly T Ref<T>(QuerySlots iterator)
+    {
+        return ref Unsafe.Add(ref MemoryMarshal.GetReference(Unsafe.As<T[]>(_row).AsSpan()), iterator.CurrentIndex);
     }
 }
 
+public ref struct WriteValues
+{
+    private readonly Array _row;
+
+    internal WriteValues(Array row)
+    {
+        _row = row;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T Ref<T>(QueryChunkCursor cursor)
+    {
+        return ref Unsafe.Add(ref MemoryMarshal.GetReference(Unsafe.As<T[]>(_row).AsSpan()), cursor.CurrentIndex);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T Ref<T>(QuerySlots iterator)
+    {
+        return ref Unsafe.Add(ref MemoryMarshal.GetReference(Unsafe.As<T[]>(_row).AsSpan()), iterator.CurrentIndex);
+    }
+
+}
+
+// Legacy compatibility path retained for old comparative/version callers only.
+[Obsolete("Use non-generic WriteValues and values.Ref<T>(cursor).")]
 public ref struct ReadValues<T>
 {
     private readonly ReadOnlySpan<T> _row;
 
-    internal ReadValues(ReadOnlySpan<T> row)
-    {
-        _row = row;
-    }
+    internal ReadValues(ReadOnlySpan<T> row) => _row = row;
 
     public ref readonly T this[QueryChunkCursor cursor]
     {
@@ -132,14 +225,13 @@ public ref struct ReadValues<T>
     }
 }
 
+// Legacy compatibility path retained for old comparative/version callers only.
+[Obsolete("Use non-generic WriteValues and values.Ref<T>(cursor).")]
 public ref struct WriteValues<T>
 {
     private readonly Span<T> _row;
 
-    internal WriteValues(Span<T> row)
-    {
-        _row = row;
-    }
+    internal WriteValues(Span<T> row) => _row = row;
 
     public ref T this[QueryChunkCursor cursor]
     {
@@ -152,10 +244,9 @@ public ref struct WriteValues<T>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), iterator.CurrentIndex);
     }
-
 }
 
-public readonly struct ReadRequest<T>
+public readonly struct ReadRequest
 {
     internal ReadRequest(QueryPlan query, int queryComponentIndex)
     {
@@ -167,7 +258,7 @@ public readonly struct ReadRequest<T>
     internal int QueryComponentIndex { get; }
 }
 
-public readonly struct WriteRequest<T>
+public readonly struct WriteRequest
 {
     internal WriteRequest(QueryPlan query, int queryComponentIndex)
     {
@@ -178,6 +269,41 @@ public readonly struct WriteRequest<T>
     internal QueryPlan? Query { get; }
     internal int QueryComponentIndex { get; }
 }
+
+// Legacy compatibility path retained for old comparative/version callers only.
+[Obsolete("Use non-generic WriteRequest.")]
+public readonly struct ReadRequest<T>
+{
+    internal ReadRequest(QueryPlan query, int queryComponentIndex)
+    {
+        Query = query;
+        QueryComponentIndex = queryComponentIndex;
+    }
+
+    internal QueryPlan? Query { get; }
+    internal int QueryComponentIndex { get; }
+
+    public static implicit operator ReadRequest<T>(ReadRequest request)
+        => new(request.Query!, request.QueryComponentIndex);
+}
+
+// Legacy compatibility path retained for old comparative/version callers only.
+[Obsolete("Use non-generic WriteRequest.")]
+public readonly struct WriteRequest<T>
+{
+    internal WriteRequest(QueryPlan query, int queryComponentIndex)
+    {
+        Query = query;
+        QueryComponentIndex = queryComponentIndex;
+    }
+
+    internal QueryPlan? Query { get; }
+    internal int QueryComponentIndex { get; }
+
+    public static implicit operator WriteRequest<T>(WriteRequest request)
+        => new(request.Query!, request.QueryComponentIndex);
+}
+
 
 internal sealed class QueryPlan
 {

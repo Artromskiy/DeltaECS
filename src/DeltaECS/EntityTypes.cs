@@ -108,19 +108,40 @@ public readonly struct Query
 
     public bool IsValid => _owner is not null && _cached is not null;
 
-    public ReadRequest<T> Access<T>(ComponentId componentId, ReadAccessMode _)
-    {
-        return new ReadRequest<T>(_cached, ResolveComponentRow<T>(componentId));
-    }
+    public ReadRequest Access(ComponentId componentId, ReadAccessMode _)
+        => new(_cached, ResolveComponentRow(componentId));
 
-    public WriteRequest<T> Access<T>(ComponentId componentId, WriteAccessMode _)
+    public WriteRequest Access(ComponentId componentId, WriteAccessMode _)
     {
-        var rowIndex = ResolveComponentRow<T>(componentId);
+        var rowIndex = ResolveComponentRow(componentId);
         _cached.RegisterWriteAccess();
-        return new WriteRequest<T>(_cached, rowIndex);
+        return new WriteRequest(_cached, rowIndex);
     }
 
-    private int ResolveComponentRow<T>(ComponentId componentId)
+    public ReadRequest Access<T>(ComponentId componentId, ReadAccessMode _)
+    {
+        var row = ResolveComponentRow(componentId);
+        if (!_owner.Layouts.TryGet(componentId, out var layout) || layout.RuntimeType != typeof(T))
+        {
+            throw new ArgumentException($"Component {componentId} is registered as {layout.RuntimeType}, not {typeof(T)}.", nameof(componentId));
+        }
+
+        return new ReadRequest(_cached, row);
+    }
+
+    public WriteRequest Access<T>(ComponentId componentId, WriteAccessMode _)
+    {
+        var rowIndex = ResolveComponentRow(componentId);
+        if (!_owner.Layouts.TryGet(componentId, out var layout) || layout.RuntimeType != typeof(T))
+        {
+            throw new ArgumentException($"Component {componentId} is registered as {layout.RuntimeType}, not {typeof(T)}.", nameof(componentId));
+        }
+
+        _cached.RegisterWriteAccess();
+        return new WriteRequest(_cached, rowIndex);
+    }
+
+    private int ResolveComponentRow(ComponentId componentId)
     {
         if (!IsValid)
         {
@@ -137,13 +158,9 @@ public readonly struct Query
             throw new ArgumentException("The component is not registered in the query's world.", nameof(componentId));
         }
 
-        if (layout.RuntimeType != typeof(T))
-        {
-            throw new ArgumentException($"Component {componentId} is registered as {layout.RuntimeType}, not {typeof(T)}.", nameof(componentId));
-        }
-
         return _description.AllMask.Rank(componentId);
     }
+
 }
 
 public delegate void QueryAction<TContext>(ref TContext context, ref QueryChunkCursor cursor);

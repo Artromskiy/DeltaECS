@@ -101,8 +101,8 @@ public sealed class DeltaECSDeliveryTests
             var vel = cursor.Get(velocity);
             while (cursor.MoveNext())
             {
-                ref var p = ref pos[cursor];
-                ref var v = ref vel[cursor];
+                ref var p = ref pos.Ref<Position>(cursor);
+                ref var v = ref vel.Ref<Velocity>(cursor);
                 p = new Position { X = cursor.CurrentIndex, Y = cursor.CurrentIndex * 2f };
                 v = new Velocity { X = 1, Y = 1 };
                 total += (long)p.X + (long)v.Y;
@@ -167,7 +167,7 @@ public sealed class DeltaECSDeliveryTests
                     while (slots.MoveNext())
                     {
                         var entity = entities[slots.CurrentIndex];
-                        ref var value = ref positions[slots];
+                        ref var value = ref positions.Ref<Position>(slots);
                         Assert.That(value.X, Is.EqualTo(expected[entity]));
                         value.X++;
                         slotCount++;
@@ -238,8 +238,8 @@ public sealed class DeltaECSDeliveryTests
             {
                 var entity = entities[cursor.CurrentIndex];
                 Assert.That(expected.ContainsKey(entity), Is.True);
-                Assert.That(positions[cursor].X, Is.EqualTo(expected[entity]));
-                Assert.That(velocities[cursor].X, Is.EqualTo(expected[entity] + 10));
+                Assert.That(positions.Ref<Position>(cursor).X, Is.EqualTo(expected[entity]));
+                Assert.That(velocities.Ref<Velocity>(cursor).X, Is.EqualTo(expected[entity] + 10));
                 count++;
             }
         });
@@ -295,7 +295,7 @@ public sealed class DeltaECSDeliveryTests
             while (cursor.MoveNext())
             {
                 Assert.That(entities[cursor.CurrentIndex].IsAlive, Is.True);
-                Assert.That(positions[cursor].X, Is.EqualTo(cursor.CurrentIndex));
+                Assert.That(positions.Ref<Position>(cursor).X, Is.EqualTo(cursor.CurrentIndex));
                 count++;
             }
         });
@@ -446,7 +446,7 @@ public sealed class DeltaECSDeliveryTests
                 }
 
                 current.ActiveCount++;
-                current.Sum += positions[cursor].X;
+                current.Sum += positions.Ref<Position>(cursor).X;
             }
         });
 
@@ -460,7 +460,7 @@ public sealed class DeltaECSDeliveryTests
             {
                 if (cursor.IsActiveSlot(cursor.CurrentIndex))
                 {
-                    _ = rows[cursor];
+                    _ = rows.Ref<Position>(cursor);
                     count++;
                 }
             }
@@ -658,7 +658,7 @@ public sealed class DeltaECSDeliveryTests
         Assert.That(world.HasChangedSince(chunkId, PositionId, before), Is.False);
         Assert.That(world.HasChangedSince(chunkId, VelocityId, before), Is.False);
 
-        world.Query(in query, ref writePosition, static (ref WriteRequest<Position> binding, ref QueryChunkCursor cursor) =>
+        world.Query(in query, ref writePosition, static (ref WriteRequest binding, ref QueryChunkCursor cursor) =>
         {
             _ = cursor.Get(binding);
         });
@@ -667,13 +667,13 @@ public sealed class DeltaECSDeliveryTests
         Assert.That(world.HasChangedSince(chunkId, PositionId, before), Is.True);
         Assert.That(world.HasChangedSince(chunkId, VelocityId, before), Is.False);
 
-        world.Query(in query, ref readPosition, static (ref ReadRequest<Position> binding, ref QueryChunkCursor cursor) =>
+        world.Query(in query, ref readPosition, static (ref ReadRequest binding, ref QueryChunkCursor cursor) =>
         {
             _ = cursor.Get(binding);
         });
         Assert.That(world.HasChangedSince(chunkId, VelocityId, afterWrite), Is.False);
 
-        world.Query(in query, ref writePosition, static (ref WriteRequest<Position> binding, ref QueryChunkCursor cursor) =>
+        world.Query(in query, ref writePosition, static (ref WriteRequest binding, ref QueryChunkCursor cursor) =>
         {
             _ = cursor.Get(binding);
         });
@@ -751,6 +751,49 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
+    public void NonGeneric_AccessBindGet_Uses_RefBoundary_And_Preserves_WriteTracking()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        var world = new World(layouts, chunkCapacity: 4);
+        world.Create(new[] { PositionId, VelocityId });
+
+        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId, VelocityId));
+        ReadRequest readRequest = query.Access(VelocityId, AccessMode.Read);
+        WriteRequest writeRequest = query.Access(PositionId, AccessMode.Write);
+        var before = world.WorldTick;
+        var sum = 0f;
+
+        using (var scope = world.OpenQuery(in query))
+        {
+            var read = scope.Bind(readRequest);
+            var write = scope.Bind(writeRequest);
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
+            {
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    var slots = chunks.Current.Slots;
+                    var positions = slots.Get(write);
+                    var velocities = slots.Get(read);
+                    while (slots.MoveNext())
+                    {
+                        ref var position = ref positions.Ref<Position>(slots);
+                        ref readonly var velocity = ref velocities.Ref<Velocity>(slots);
+                        position.X += velocity.X + 1;
+                        sum += position.X;
+                    }
+                }
+            }
+        }
+
+        Assert.That(sum, Is.GreaterThan(0));
+        Assert.That(world.HasChangedSince(0, PositionId, before), Is.True);
+        Assert.That(world.HasChangedSince(0, VelocityId, before), Is.False);
+    }
+
+    [Test]
     public void AccessRequest_Refreshes_Values_For_New_Archetypes()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -794,7 +837,7 @@ public sealed class DeltaECSDeliveryTests
         var otherQuery = world.CreateQuery(in otherDescription);
         var mismatchedBinding = otherQuery.Access<Position>(PositionId, AccessMode.Read);
 
-        Assert.Throws<InvalidOperationException>(() => world.Query(in query, ref mismatchedBinding, static (ref ReadRequest<Position> binding, ref QueryChunkCursor cursor) =>
+        Assert.Throws<InvalidOperationException>(() => world.Query(in query, ref mismatchedBinding, static (ref ReadRequest binding, ref QueryChunkCursor cursor) =>
         {
             _ = cursor.Get(binding);
         }));
@@ -804,14 +847,14 @@ public sealed class DeltaECSDeliveryTests
         var foreignQuery = foreignWorld.CreateQuery(QuerySpec.ForComponents(PositionId, VelocityId));
         var foreignBinding = foreignQuery.Access<Position>(PositionId, AccessMode.Read);
 
-        Assert.Throws<InvalidOperationException>(() => world.Query(in query, ref foreignBinding, static (ref ReadRequest<Position> binding, ref QueryChunkCursor cursor) =>
+        Assert.Throws<InvalidOperationException>(() => world.Query(in query, ref foreignBinding, static (ref ReadRequest binding, ref QueryChunkCursor cursor) =>
         {
             _ = cursor.Get(binding);
         }));
 
-        var defaultBinding = default(ReadRequest<Position>);
+        var defaultBinding = default(ReadRequest);
         Assert.That(defaultBinding.Query, Is.Null);
-        Assert.Throws<InvalidOperationException>(() => world.Query(in query, ref defaultBinding, static (ref ReadRequest<Position> binding, ref QueryChunkCursor cursor) =>
+        Assert.Throws<InvalidOperationException>(() => world.Query(in query, ref defaultBinding, static (ref ReadRequest binding, ref QueryChunkCursor cursor) =>
         {
             _ = cursor.Get(binding);
         }));
@@ -985,8 +1028,8 @@ public sealed class DeltaECSDeliveryTests
             var row = cursor.Get(current.Binding);
             while (cursor.MoveNext())
             {
-                Assert.That(row[cursor], Is.SameAs(current.Expected));
-                row[cursor].Value++;
+                Assert.That(row.Ref<ReferenceComponent>(cursor), Is.SameAs(current.Expected));
+                row.Ref<ReferenceComponent>(cursor).Value++;
             }
         });
 
@@ -1362,13 +1405,13 @@ public sealed class DeltaECSDeliveryTests
     private struct QueryState
     {
         public float Sum;
-        public WriteRequest<Position> Position;
-        public ReadRequest<Velocity> Velocity;
+        public WriteRequest Position;
+        public ReadRequest Velocity;
     }
 
     private struct BoundRowState
     {
-        public BoundRowState(WriteRequest<Position> position, ReadRequest<Velocity> velocity)
+        public BoundRowState(WriteRequest position, ReadRequest velocity)
         {
             Position = position;
             Velocity = velocity;
@@ -1376,8 +1419,8 @@ public sealed class DeltaECSDeliveryTests
             Chunks = new HashSet<int>();
         }
 
-        public WriteRequest<Position> Position;
-        public ReadRequest<Velocity> Velocity;
+        public WriteRequest Position;
+        public ReadRequest Velocity;
         public int Rows;
         public HashSet<int> Chunks;
     }
@@ -1389,7 +1432,7 @@ public sealed class DeltaECSDeliveryTests
         state.Chunks.Add(cursor.GlobalChunkId);
         while (cursor.MoveNext())
         {
-            positions[cursor].X += velocities[cursor].X;
+            positions.Ref<Position>(cursor).X += velocities.Ref<Velocity>(cursor).X;
             state.Rows++;
         }
     }
@@ -1397,7 +1440,7 @@ public sealed class DeltaECSDeliveryTests
     private static void ExecuteReadWithWriteBinding(
         World world,
         Query query,
-        WriteRequest<Position> position)
+        WriteRequest position)
     {
         var state = new BoundRowState(position, default);
         world.Query(in query, ref state, static (ref BoundRowState current, ref QueryChunkCursor cursor) =>
@@ -1410,8 +1453,8 @@ public sealed class DeltaECSDeliveryTests
     {
         public AlignmentState(
             Dictionary<Entity, int> expected,
-            ReadRequest<Position> position,
-            ReadRequest<Velocity> velocity)
+            ReadRequest position,
+            ReadRequest velocity)
         {
             Expected = expected;
             Position = position;
@@ -1420,8 +1463,8 @@ public sealed class DeltaECSDeliveryTests
         }
 
         public Dictionary<Entity, int> Expected;
-        public ReadRequest<Position> Position;
-        public ReadRequest<Velocity> Velocity;
+        public ReadRequest Position;
+        public ReadRequest Velocity;
         public int Count;
     }
 
@@ -1434,8 +1477,8 @@ public sealed class DeltaECSDeliveryTests
         {
             var entity = entities[cursor.CurrentIndex];
             Assert.That(state.Expected.ContainsKey(entity), Is.True);
-            Assert.That(positions[cursor].X, Is.EqualTo(state.Expected[entity]));
-            Assert.That(velocities[cursor].X, Is.EqualTo(state.Expected[entity] + 10));
+            Assert.That(positions.Ref<Position>(cursor).X, Is.EqualTo(state.Expected[entity]));
+            Assert.That(velocities.Ref<Velocity>(cursor).X, Is.EqualTo(state.Expected[entity] + 10));
             state.Count++;
         }
     }
@@ -1446,9 +1489,9 @@ public sealed class DeltaECSDeliveryTests
         var velocities = cursor.Get(state.Velocity);
         while (cursor.MoveNext())
         {
-            positions[cursor].X += velocities[cursor].X;
-            positions[cursor].Y += velocities[cursor].Y;
-            state.Sum += positions[cursor].X;
+            positions.Ref<Position>(cursor).X += velocities.Ref<Velocity>(cursor).X;
+            positions.Ref<Position>(cursor).Y += velocities.Ref<Velocity>(cursor).Y;
+            state.Sum += positions.Ref<Position>(cursor).X;
         }
     }
 
@@ -1463,8 +1506,8 @@ public sealed class DeltaECSDeliveryTests
                 continue;
             }
 
-            state.First = first[cursor];
-            state.Second = second[cursor];
+            state.First = first.Ref<NamedRef>(cursor);
+            state.Second = second.Ref<NamedRef>(cursor);
             state.Count++;
         }
     }
@@ -1522,8 +1565,8 @@ public sealed class DeltaECSDeliveryTests
         public int Count;
         public NamedRef First;
         public NamedRef Second;
-        public ReadRequest<NamedRef> FirstRow;
-        public ReadRequest<NamedRef> SecondRow;
+        public ReadRequest FirstRow;
+        public ReadRequest SecondRow;
     }
 
     private struct OverlayQueryState
@@ -1540,12 +1583,12 @@ public sealed class DeltaECSDeliveryTests
 
     private struct CursorTaggedState
     {
-        public CursorTaggedState(ReadRequest<Position> position)
+        public CursorTaggedState(ReadRequest position)
         {
             Position = position;
         }
 
-        public ReadRequest<Position> Position;
+        public ReadRequest Position;
         public int ActiveCount;
         public float Sum;
     }
@@ -1584,14 +1627,14 @@ public sealed class DeltaECSDeliveryTests
     private readonly struct ReferenceRowState
     {
         public ReferenceRowState(
-            WriteRequest<ReferenceComponent> binding,
+            WriteRequest binding,
             ReferenceComponent expected)
         {
             Binding = binding;
             Expected = expected;
         }
 
-        public WriteRequest<ReferenceComponent> Binding { get; }
+        public WriteRequest Binding { get; }
         public ReferenceComponent Expected { get; }
     }
 

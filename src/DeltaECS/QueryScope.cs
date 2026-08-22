@@ -45,6 +45,36 @@ public ref struct QueryScope
     }
 
     /// <summary>Validates a read binding once for this dense execution.</summary>
+    public ReadAccess Bind(ReadRequest binding)
+    {
+        EnsureActive();
+        if (!ReferenceEquals(binding.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        return new ReadAccess(_query, binding.QueryComponentIndex);
+    }
+
+    /// <summary>Validates a write binding once for this dense execution.</summary>
+    public WriteAccess Bind(WriteRequest binding)
+    {
+        EnsureActive();
+        if (!ReferenceEquals(binding.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        if (_writeTick == 0)
+        {
+            QueryThrowHelper.ThrowMissingWriteIntent();
+        }
+
+        return new WriteAccess(_query, binding.QueryComponentIndex);
+    }
+
+    // Legacy compatibility path retained for old comparative/version callers only.
+    [Obsolete("Use non-generic Bind(ReadRequest).")]
     public ReadAccess<T> Bind<T>(ReadRequest<T> binding)
     {
         EnsureActive();
@@ -56,7 +86,8 @@ public ref struct QueryScope
         return new ReadAccess<T>(_query, binding.QueryComponentIndex);
     }
 
-    /// <summary>Validates a write binding once for this dense execution.</summary>
+    // Legacy compatibility path retained for old comparative/version callers only.
+    [Obsolete("Use non-generic Bind(WriteRequest).")]
     public WriteAccess<T> Bind<T>(WriteRequest<T> binding)
     {
         EnsureActive();
@@ -94,7 +125,7 @@ public ref struct QueryScope
 }
 
 /// <summary>Scope-validated read row token for dense iteration.</summary>
-public readonly struct ReadAccess<T>
+public readonly struct ReadAccess
 {
     internal ReadAccess(QueryPlan query, int queryComponentIndex)
     {
@@ -108,7 +139,7 @@ public readonly struct ReadAccess<T>
 }
 
 /// <summary>Scope-validated write row token for dense iteration.</summary>
-public readonly struct WriteAccess<T>
+public readonly struct WriteAccess
 {
     internal WriteAccess(QueryPlan query, int queryComponentIndex)
     {
@@ -118,5 +149,33 @@ public readonly struct WriteAccess<T>
 
     internal QueryPlan? Query { get; }
 
+    internal int QueryComponentIndex { get; }
+}
+
+// Legacy compatibility path retained for old comparative/version callers only.
+[Obsolete("Use non-generic ReadAccess.")]
+public readonly struct ReadAccess<T>
+{
+    internal ReadAccess(QueryPlan query, int queryComponentIndex)
+    {
+        Query = query;
+        QueryComponentIndex = queryComponentIndex;
+    }
+
+    internal QueryPlan? Query { get; }
+    internal int QueryComponentIndex { get; }
+}
+
+// Legacy compatibility path retained for old comparative/version callers only.
+[Obsolete("Use non-generic WriteAccess.")]
+public readonly struct WriteAccess<T>
+{
+    internal WriteAccess(QueryPlan query, int queryComponentIndex)
+    {
+        Query = query;
+        QueryComponentIndex = queryComponentIndex;
+    }
+
+    internal QueryPlan? Query { get; }
     internal int QueryComponentIndex { get; }
 }
