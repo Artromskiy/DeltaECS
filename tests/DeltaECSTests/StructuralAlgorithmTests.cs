@@ -395,8 +395,8 @@ public sealed class StructuralAlgorithmTests
         }
 
         var observed = new Dictionary<Entity, HierarchyObserved>();
-        var description = QuerySpec.ForComponents(parentId, localId, worldId);
-        var query = world.CreateQuery(in description);
+        var spec = QuerySpec.ForComponents(parentId, localId, worldId);
+        var query = world.CreateQuery(in spec);
         var parentBinding = query.Access<ParentLink>(parentId, AccessMode.Read);
         var local = query.Access<LocalTransform>(localId, AccessMode.Read);
         var worldTransform = query.Access<WorldTransform>(worldId, AccessMode.Read);

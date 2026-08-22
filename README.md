@@ -31,6 +31,13 @@ independent nested loops: archetype, chunk and reverse slot. The callback
 `World.Query` API remains responsible for tagged query execution; tagged
 callbacks must still check `IsActiveSlot` for partial chunks.
 
+The dense API has three deliberately separate stages: `QuerySpec` describes
+selection, `World.CreateQuery` returns the world-owned `Query`, and
+`query.Access<T>(id, AccessMode.Read/Write)` declares component access. Inside
+an `OpenQuery` scope, `scope.Bind(access)` validates that declaration once;
+`slots.Get(prepared)` then exposes the typed `ReadValues<T>` or
+`WriteValues<T>` row for the current chunk.
+
 Queries without tag predicates may use the thinner independent dense path:
 
 ```csharp

@@ -60,14 +60,14 @@ public class DeltaEcsTagFilteringBenchmarks
             _world.AddTag(entities[tagged[i]], _tag);
         }
 
-        var description = new QuerySpec(
+        var spec = new QuerySpec(
             new[] { _valueComponent },
             Array.Empty<ComponentId>(),
             Array.Empty<ComponentId>(),
             new[] { _tag },
             Array.Empty<TagId>(),
             Array.Empty<TagId>());
-        _query = _world.CreateQuery(in description);
+        _query = _world.CreateQuery(in spec);
         _writeBinding = _query.Access<TagFilterValue>(_valueComponent, AccessMode.Write);
         _readBinding = _query.Access<TagFilterValue>(_valueComponent, AccessMode.Read);
     }

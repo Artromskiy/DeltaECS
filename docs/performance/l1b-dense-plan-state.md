@@ -19,7 +19,7 @@ throughput claim.
 | 3. Direct row-index plan lookup | `437ca78` | 1448 B | 16 | 4 | 39 | 98 | 23 | reject |
 | 4. Cache component row indexes per archetype | `215fd3b` | 1408 B | 16 | 3 | 39 | 96 | 21 | no JIT effect; reject |
 | 5. Direct current chunk/slot state fields | `4f4745e` | 1412 B | 16 | 3 | 39 | 97 | 21 | reject |
-| 6. Reduce owner/description indirections | `002c0f6` | **1160 B** | **12** | 3 | **35** | **76** | 14 | **winner** |
+| 6. Reduce owner/spec indirections | `002c0f6` | **1160 B** | **12** | 3 | **35** | **76** | 14 | **winner** |
 
 Variant 6 carries the validated `QueryPlan` directly through the dense
 iterator state and removes the unused query owner from `DenseArchetypePlan`.

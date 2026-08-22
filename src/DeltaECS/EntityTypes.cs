@@ -93,11 +93,11 @@ public readonly struct Query
     private readonly QueryPlan _cached;
     private readonly QuerySpec _description;
 
-    internal Query(World owner, QueryPlan cached, QuerySpec description)
+    internal Query(World owner, QueryPlan cached, QuerySpec spec)
     {
         _owner = owner;
         _cached = cached;
-        _description = description;
+        _description = spec;
     }
 
     internal World Owner => _owner;

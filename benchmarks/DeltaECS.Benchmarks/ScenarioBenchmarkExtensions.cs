@@ -69,8 +69,8 @@ public class SmallDenseScenarioBenchmarks
         }
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
-        var description = Delta.ECS.QuerySpec.ForComponents(_deltaComponents);
-        _deltaQuery = _deltaWorld.CreateQuery(in description);
+        var spec = Delta.ECS.QuerySpec.ForComponents(_deltaComponents);
+        _deltaQuery = _deltaWorld.CreateQuery(in spec);
         _deltaBindings = new WriteRequest<SmallDenseValue>[ComponentCount];
         for (var i = 0; i < ComponentCount; i++)
             _deltaBindings[i] = _deltaQuery.Access<SmallDenseValue>(_deltaComponents[i], AccessMode.Write);
@@ -264,87 +264,87 @@ public class SmallDenseScenarioBenchmarks
         switch (state.ComponentCount)
         {
             case 1:
-            {
-                var c0 = lease.Get(state.Bindings[0]);
-                while (lease.MoveNext())
                 {
-                    ref var value = ref c0[lease];
-                    value.X += value.Y;
-                    state.Checksum += value.X + value.Y;
-                }
+                    var c0 = lease.Get(state.Bindings[0]);
+                    while (lease.MoveNext())
+                    {
+                        ref var value = ref c0[lease];
+                        value.X += value.Y;
+                        state.Checksum += value.X + value.Y;
+                    }
 
-                break;
-            }
+                    break;
+                }
             case 2:
-            {
-                var c0 = lease.Get(state.Bindings[0]);
-                var c1 = lease.Get(state.Bindings[1]);
-                while (lease.MoveNext())
                 {
-                    ref var v0 = ref c0[lease];
-                    ref var v1 = ref c1[lease];
-                    v0.X += v0.Y;
-                    v1.X += v1.Y;
-                    state.Checksum += v0.X + v1.X + v0.Y + v1.Y;
-                }
+                    var c0 = lease.Get(state.Bindings[0]);
+                    var c1 = lease.Get(state.Bindings[1]);
+                    while (lease.MoveNext())
+                    {
+                        ref var v0 = ref c0[lease];
+                        ref var v1 = ref c1[lease];
+                        v0.X += v0.Y;
+                        v1.X += v1.Y;
+                        state.Checksum += v0.X + v1.X + v0.Y + v1.Y;
+                    }
 
-                break;
-            }
+                    break;
+                }
             case 4:
-            {
-                var c0 = lease.Get(state.Bindings[0]);
-                var c1 = lease.Get(state.Bindings[1]);
-                var c2 = lease.Get(state.Bindings[2]);
-                var c3 = lease.Get(state.Bindings[3]);
-                while (lease.MoveNext())
                 {
-                    ref var v0 = ref c0[lease];
-                    ref var v1 = ref c1[lease];
-                    ref var v2 = ref c2[lease];
-                    ref var v3 = ref c3[lease];
-                    v0.X += v0.Y;
-                    v1.X += v1.Y;
-                    v2.X += v2.Y;
-                    v3.X += v3.Y;
-                    state.Checksum += v0.X + v1.X + v2.X + v3.X + v0.Y + v1.Y + v2.Y + v3.Y;
-                }
+                    var c0 = lease.Get(state.Bindings[0]);
+                    var c1 = lease.Get(state.Bindings[1]);
+                    var c2 = lease.Get(state.Bindings[2]);
+                    var c3 = lease.Get(state.Bindings[3]);
+                    while (lease.MoveNext())
+                    {
+                        ref var v0 = ref c0[lease];
+                        ref var v1 = ref c1[lease];
+                        ref var v2 = ref c2[lease];
+                        ref var v3 = ref c3[lease];
+                        v0.X += v0.Y;
+                        v1.X += v1.Y;
+                        v2.X += v2.Y;
+                        v3.X += v3.Y;
+                        state.Checksum += v0.X + v1.X + v2.X + v3.X + v0.Y + v1.Y + v2.Y + v3.Y;
+                    }
 
-                break;
-            }
+                    break;
+                }
             case 8:
-            {
-                var c0 = lease.Get(state.Bindings[0]);
-                var c1 = lease.Get(state.Bindings[1]);
-                var c2 = lease.Get(state.Bindings[2]);
-                var c3 = lease.Get(state.Bindings[3]);
-                var c4 = lease.Get(state.Bindings[4]);
-                var c5 = lease.Get(state.Bindings[5]);
-                var c6 = lease.Get(state.Bindings[6]);
-                var c7 = lease.Get(state.Bindings[7]);
-                while (lease.MoveNext())
                 {
-                    ref var v0 = ref c0[lease];
-                    ref var v1 = ref c1[lease];
-                    ref var v2 = ref c2[lease];
-                    ref var v3 = ref c3[lease];
-                    ref var v4 = ref c4[lease];
-                    ref var v5 = ref c5[lease];
-                    ref var v6 = ref c6[lease];
-                    ref var v7 = ref c7[lease];
-                    v0.X += v0.Y;
-                    v1.X += v1.Y;
-                    v2.X += v2.Y;
-                    v3.X += v3.Y;
-                    v4.X += v4.Y;
-                    v5.X += v5.Y;
-                    v6.X += v6.Y;
-                    v7.X += v7.Y;
-                    state.Checksum += v0.X + v1.X + v2.X + v3.X + v4.X + v5.X + v6.X + v7.X;
-                    state.Checksum += v0.Y + v1.Y + v2.Y + v3.Y + v4.Y + v5.Y + v6.Y + v7.Y;
-                }
+                    var c0 = lease.Get(state.Bindings[0]);
+                    var c1 = lease.Get(state.Bindings[1]);
+                    var c2 = lease.Get(state.Bindings[2]);
+                    var c3 = lease.Get(state.Bindings[3]);
+                    var c4 = lease.Get(state.Bindings[4]);
+                    var c5 = lease.Get(state.Bindings[5]);
+                    var c6 = lease.Get(state.Bindings[6]);
+                    var c7 = lease.Get(state.Bindings[7]);
+                    while (lease.MoveNext())
+                    {
+                        ref var v0 = ref c0[lease];
+                        ref var v1 = ref c1[lease];
+                        ref var v2 = ref c2[lease];
+                        ref var v3 = ref c3[lease];
+                        ref var v4 = ref c4[lease];
+                        ref var v5 = ref c5[lease];
+                        ref var v6 = ref c6[lease];
+                        ref var v7 = ref c7[lease];
+                        v0.X += v0.Y;
+                        v1.X += v1.Y;
+                        v2.X += v2.Y;
+                        v3.X += v3.Y;
+                        v4.X += v4.Y;
+                        v5.X += v5.Y;
+                        v6.X += v6.Y;
+                        v7.X += v7.Y;
+                        state.Checksum += v0.X + v1.X + v2.X + v3.X + v4.X + v5.X + v6.X + v7.X;
+                        state.Checksum += v0.Y + v1.Y + v2.Y + v3.Y + v4.Y + v5.Y + v6.Y + v7.Y;
+                    }
 
-                break;
-            }
+                    break;
+                }
             default:
                 throw new ArgumentOutOfRangeException(nameof(state.ComponentCount));
         }
@@ -726,14 +726,14 @@ public class SparseHeterogeneousQueryBenchmarks
     public double DeltaECS_ColdQuery()
     {
         var marker = _deltaColdMarkers[_deltaColdMarkerIndex++ % _deltaColdMarkers.Length];
-        var description = new QuerySpec(
+        var spec = new QuerySpec(
             new[] { _deltaPosition, _deltaVelocity },
             Array.Empty<ComponentId>(),
             new[] { marker },
             Array.Empty<TagId>(),
             Array.Empty<TagId>(),
             Array.Empty<TagId>());
-        var coldQuery = _deltaWorld.CreateQuery(in description);
+        var coldQuery = _deltaWorld.CreateQuery(in spec);
         var positionBinding = coldQuery.Access<SparseValue>(_deltaPosition, AccessMode.Write);
         var velocityBinding = coldQuery.Access<SparseValue>(_deltaVelocity, AccessMode.Read);
         var state = new SparseState { Position = positionBinding, Velocity = velocityBinding };
@@ -774,12 +774,12 @@ public class SparseHeterogeneousQueryBenchmarks
     [BenchmarkCategory("Cold")]
     public double Arch_ColdQuery()
     {
-        var description = new Arch.Core.QueryDescription
+        var spec = new Arch.Core.QueryDescription
         {
             All = new ArchComponentType[] { typeof(SparseA0), typeof(SparseA1) }
         };
         var state = new SparseState();
-        _archWorld.Query(description, (ref SparseA0 position, ref SparseA1 velocity) =>
+        _archWorld.Query(spec, (ref SparseA0 position, ref SparseA1 velocity) =>
         {
             position.X += velocity.X;
             position.Y += velocity.Y;

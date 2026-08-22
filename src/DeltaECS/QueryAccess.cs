@@ -187,9 +187,9 @@ internal sealed class QueryPlan
     private DenseArchetypePlan[] _matchingPlans = Array.Empty<DenseArchetypePlan>();
     private bool _hasWriteAccess;
 
-    public QueryPlan(QuerySpec description)
+    public QueryPlan(QuerySpec spec)
     {
-        _description = description;
+        _description = spec;
     }
 
     public bool HasTags => !_description.AllTags.IsEmpty

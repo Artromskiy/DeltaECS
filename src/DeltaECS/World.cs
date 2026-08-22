@@ -73,9 +73,9 @@ public sealed class World
         return new ArchetypeHandle(this, GetOrCreateArchetype(mask).Id);
     }
 
-    public Query CreateQuery(in QuerySpec description)
+    public Query CreateQuery(in QuerySpec spec)
     {
-        return new Query(this, GetOrCreateQuery(description), description);
+        return new Query(this, GetOrCreateQuery(spec), spec);
     }
 
     /// <summary>
@@ -1037,15 +1037,15 @@ public sealed class World
         return record.Archetype >= 0 && record.Generation == entity.Generation;
     }
 
-    private QueryPlan GetOrCreateQuery(QuerySpec description)
+    private QueryPlan GetOrCreateQuery(QuerySpec spec)
     {
-        if (_queryCache.TryGetValue(description, out var cached))
+        if (_queryCache.TryGetValue(spec, out var cached))
         {
             return cached;
         }
 
-        cached = new QueryPlan(description);
-        _queryCache.Add(description, cached);
+        cached = new QueryPlan(spec);
+        _queryCache.Add(spec, cached);
         return cached;
     }
 

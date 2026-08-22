@@ -15,17 +15,17 @@ namespace Delta.ECS.Benchmarks;
 [BenchmarkCategory("DeltaOnlyFeatureLane", "FragmentedQuery")]
 public class DeltaOnlyFragmentedQueryBenchmarks
 {
-[Params(8, 64, 256, 1024)]
-public int ArchetypeSignatures { get; set; }
+    [Params(8, 64, 256, 1024)]
+    public int ArchetypeSignatures { get; set; }
 
-[Params(1, 10, 50, 100)]
-public int MatchingPercent { get; set; }
+    [Params(1, 10, 50, 100)]
+    public int MatchingPercent { get; set; }
 
-private World _world = null!;
-private Query _query;
-private ComponentId _required;
-private ReadRequest<FragmentValue> _valueBinding;
-private int _expectedMatches;
+    private World _world = null!;
+    private Query _query;
+    private ComponentId _required;
+    private ReadRequest<FragmentValue> _valueBinding;
+    private int _expectedMatches;
 
     [GlobalSetup]
     public void Setup()
@@ -69,8 +69,8 @@ private int _expectedMatches;
             }
         }
 
-        var description = QuerySpec.ForComponents(_required);
-        _query = _world.CreateQuery(in description);
+        var spec = QuerySpec.ForComponents(_required);
+        _query = _world.CreateQuery(in spec);
         _valueBinding = _query.Access<FragmentValue>(_required, AccessMode.Read);
     }
 
@@ -115,8 +115,8 @@ private int _expectedMatches;
     public int DeltaOnly_ColdPlan()
     {
         var state = new FragmentQueryState();
-        var description = QuerySpec.ForComponents(_required);
-        var coldQuery = _world.CreateQuery(in description);
+        var spec = QuerySpec.ForComponents(_required);
+        var coldQuery = _world.CreateQuery(in spec);
         var valueBinding = coldQuery.Access<FragmentValue>(_required, AccessMode.Read);
         state.Value = valueBinding;
         _world.Query(in coldQuery, ref state, static (ref FragmentQueryState s, ref QueryChunkCursor cursor) =>

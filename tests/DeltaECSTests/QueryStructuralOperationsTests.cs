@@ -96,10 +96,10 @@ public sealed class QueryStructuralOperationsTests
         world.CreateBatch(new[] { PositionId }, entities);
         world.AddTag(entities[0], ActiveTag);
         world.AddTag(entities[2], ActiveTag);
-        var description = new QuerySpec(
+        var spec = new QuerySpec(
             new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
             new[] { ActiveTag }, Array.Empty<TagId>(), Array.Empty<TagId>());
-        var query = world.CreateQuery(in description);
+        var query = world.CreateQuery(in spec);
 
         Assert.That(world.AddComponents(in query, new[] { VelocityId }), Is.EqualTo(2));
         Assert.That(world.TryGetComponent<Velocity>(entities[0], VelocityId, out _), Is.True);
@@ -186,8 +186,8 @@ public sealed class QueryStructuralOperationsTests
         var world = new World(layouts, chunkCapacity: 2);
         var entities = new Entity[3];
         world.CreateBatch(new[] { PositionId }, entities);
-        var description = QuerySpec.ForComponents(PositionId);
-        var query = world.CreateQuery(in description);
+        var spec = QuerySpec.ForComponents(PositionId);
+        var query = world.CreateQuery(in spec);
         var readPosition = query.Access<Position>(PositionId, AccessMode.Read);
         var writePosition = query.Access<Position>(PositionId, AccessMode.Write);
 

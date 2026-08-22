@@ -14,8 +14,8 @@ for (var i = 0; i < entities.Length; i++)
     world.SetComponent(entities[i], velocityId, new Velocity { X = 1, Y = 0.5f });
 }
 
-var description = QuerySpec.ForComponents(positionId, velocityId);
-var query = world.CreateQuery(in description);
+var spec = QuerySpec.ForComponents(positionId, velocityId);
+var query = world.CreateQuery(in spec);
 var writePosition = query.Access<Position>(positionId, AccessMode.Write);
 var readVelocity = query.Access<Velocity>(velocityId, AccessMode.Read);
 

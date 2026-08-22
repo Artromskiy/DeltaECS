@@ -224,8 +224,8 @@ public sealed class DeltaECSDeliveryTests
             world.SetComponent(created[i], VelocityId, new Velocity { X = i + 10, Y = i + 20 });
         }
 
-        var description = QuerySpec.ForComponents(PositionId, VelocityId);
-        var query = world.CreateQuery(in description);
+        var spec = QuerySpec.ForComponents(PositionId, VelocityId);
+        var query = world.CreateQuery(in spec);
         var position = query.Access<Position>(PositionId, AccessMode.Read);
         var velocity = query.Access<Velocity>(VelocityId, AccessMode.Read);
         var denseLeaseCount = 0;
@@ -257,8 +257,8 @@ public sealed class DeltaECSDeliveryTests
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
         var world = new World(layouts, chunkCapacity: 4);
-        var description = QuerySpec.ForComponents(PositionId);
-        var emptyQuery = world.CreateQuery(in description);
+        var spec = QuerySpec.ForComponents(PositionId);
+        var emptyQuery = world.CreateQuery(in spec);
         var position = emptyQuery.Access<Position>(PositionId, AccessMode.Read);
         var emptyChunkCount = 0;
         world.Query(
@@ -429,10 +429,10 @@ public sealed class DeltaECSDeliveryTests
         world.AddTag(entities[0], TagActive);
         world.AddTag(entities[4], TagActive);
 
-        var description = new QuerySpec(
+        var spec = new QuerySpec(
             new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
             new[] { TagActive }, Array.Empty<TagId>(), Array.Empty<TagId>());
-        var query = world.CreateQuery(in description);
+        var query = world.CreateQuery(in spec);
         var position = query.Access<Position>(PositionId, AccessMode.Read);
         var state = new CursorTaggedState(position);
         world.Query(in query, ref state, static (ref CursorTaggedState current, ref QueryChunkCursor cursor) =>
@@ -641,8 +641,8 @@ public sealed class DeltaECSDeliveryTests
         var world = new World(layouts, chunkCapacity: 4);
         var entity = world.Create(new[] { PositionId, VelocityId });
         var chunkId = -1;
-        var description = QuerySpec.ForComponents(PositionId);
-        var query = world.CreateQuery(in description);
+        var spec = QuerySpec.ForComponents(PositionId);
+        var query = world.CreateQuery(in spec);
         var readPosition = query.Access<Position>(PositionId, AccessMode.Read);
         var writePosition = query.Access<Position>(PositionId, AccessMode.Write);
         var before = world.WorldTick;
@@ -705,8 +705,8 @@ public sealed class DeltaECSDeliveryTests
         world.Create(new[] { PositionId, VelocityId });
         world.Create(new[] { PositionId, VelocityId, HealthId });
 
-        var description = QuerySpec.ForComponents(PositionId, VelocityId);
-        var query = world.CreateQuery(in description);
+        var spec = QuerySpec.ForComponents(PositionId, VelocityId);
+        var query = world.CreateQuery(in spec);
         var position = query.Access<Position>(PositionId, AccessMode.Write);
         var velocity = query.Access<Velocity>(VelocityId, AccessMode.Read);
 
@@ -758,8 +758,8 @@ public sealed class DeltaECSDeliveryTests
         var world = new World(layouts, chunkCapacity: 2);
         world.Create(new[] { VelocityId });
 
-        var description = QuerySpec.ForComponents(VelocityId);
-        var query = world.CreateQuery(in description);
+        var spec = QuerySpec.ForComponents(VelocityId);
+        var query = world.CreateQuery(in spec);
         var velocity = query.Access<Velocity>(VelocityId, AccessMode.Read);
 
         var firstRows = 0;
@@ -788,8 +788,8 @@ public sealed class DeltaECSDeliveryTests
         RegisterComponentLayouts(layouts);
         var world = new World(layouts);
         world.Create(new[] { PositionId, VelocityId });
-        var description = QuerySpec.ForComponents(PositionId, VelocityId);
-        var query = world.CreateQuery(in description);
+        var spec = QuerySpec.ForComponents(PositionId, VelocityId);
+        var query = world.CreateQuery(in spec);
         var otherDescription = QuerySpec.ForComponents(PositionId);
         var otherQuery = world.CreateQuery(in otherDescription);
         var mismatchedBinding = otherQuery.Access<Position>(PositionId, AccessMode.Read);
@@ -1036,8 +1036,8 @@ public sealed class DeltaECSDeliveryTests
         var id = layouts.Register<NamedRef>(new SchemaId(10_301));
         var world = new World(layouts);
         var entity = world.Create(new[] { id });
-        var description = QuerySpec.ForComponents(id);
-        var query = world.CreateQuery(in description);
+        var spec = QuerySpec.ForComponents(id);
+        var query = world.CreateQuery(in spec);
         var state = new LeaseMutationState { World = world, Entity = entity };
 
         Assert.Throws<InvalidOperationException>(() => world.Query(in query, ref state, s_destroyDuringLease));

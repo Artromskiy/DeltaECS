@@ -74,8 +74,8 @@ public class DeltaEcsVsArchBenchmarks
         }
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
-        var description = QuerySpec.ForComponents(_deltaComponents);
-        _deltaQuery = _deltaWorld.CreateQuery(in description);
+        var spec = QuerySpec.ForComponents(_deltaComponents);
+        _deltaQuery = _deltaWorld.CreateQuery(in spec);
         _deltaBindings = new WriteRequest<Value>[ComponentCount];
         for (var i = 0; i < ComponentCount; i++)
             _deltaBindings[i] = _deltaQuery.Access<Value>(_deltaComponents[i], AccessMode.Write);
@@ -423,8 +423,8 @@ public class DeltaEcsManagedArrayBenchmarks
         var layouts = new ComponentLayoutRegistry();
         _component = layouts.Register<ManagedValue>(new SchemaId(31_001));
         _world = new World(layouts, initialEntityCapacity: Amount);
-        var description = QuerySpec.ForComponents(_component);
-        _query = _world.CreateQuery(in description);
+        var spec = QuerySpec.ForComponents(_component);
+        _query = _world.CreateQuery(in spec);
         _binding = _query.Access<ManagedValue>(_component, AccessMode.Read);
         _entities = new Entity[Amount];
         _world.CreateBatch(new[] { _component }, _entities);
@@ -495,8 +495,8 @@ public class DeltaEcsHotPathProfileBenchmarks
         _first = layouts.Register<Value>(new SchemaId(20_001));
         _second = layouts.Register<Value>(new SchemaId(20_002));
         _world = new World(layouts, initialEntityCapacity: 100_000);
-        var description = QuerySpec.ForComponents(_first, _second);
-        _query = _world.CreateQuery(in description);
+        var spec = QuerySpec.ForComponents(_first, _second);
+        _query = _world.CreateQuery(in spec);
         _firstBinding = _query.Access<Value>(_first, AccessMode.Read);
         _secondReadBinding = _query.Access<Value>(_second, AccessMode.Read);
         _firstWriteBinding = _query.Access<Value>(_first, AccessMode.Write);
