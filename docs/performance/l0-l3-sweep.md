@@ -59,9 +59,9 @@ Current raw result:
 
 ## Candidate accounting
 
-There were 49 isolated candidates across L0, L1, L2, and the L3 direct-chunk
-check. Most were rejected because the JIT was unchanged or larger; a few
-compiled variants changed assembly but had no paired throughput advantage.
+There were 48 completed isolated candidates across L0, L1, L2, and L3.
+Most were rejected because the JIT was unchanged or larger; a few compiled
+variants changed assembly but had no paired throughput advantage.
 
 | Package | Candidates | Best isolated signal | Decision |
 |---|---:|---|---|
@@ -71,11 +71,12 @@ compiled variants changed assembly but had no paired throughput advantage.
 | L1-B | 6 | 1408 → 1160 B; `blr` 16 → 12 | accepted |
 | L2-A | 6 | 1408 → 1404 B | accepted: pre-decrement candidate |
 | L2-B | 6 | no reliable throughput win | reject |
-| L3 direct chunk | 1 | current combined JIT unchanged at 1108 B | reject |
+| L3-A | 6 | 1408 → 1160 B; duplicate of L1-B winner | reject as duplicate |
+| L3-B | 6 | 1408 → 1400 B in fixture-only packet variant | reject: no production change |
 
-The interrupted L3 worktree was preserved in a local stash and was not
-treated as a measured result. No L3 candidate was merged on incomplete
-evidence.
+The interrupted direct-`Chunk[]` L3 check was preserved in a local stash and
+is not included in the 48-candidate matrix. No incomplete candidate was
+merged.
 
 ## Verification
 
