@@ -26,7 +26,7 @@ public ref struct DenseArchetypeIterator
                 QueryThrowHelper.ThrowArchetypeIteratorNotPositioned();
             }
 
-            return new DenseQueryArchetype(_plans[_index], _writeTick);
+            return new DenseQueryArchetype(_plans.Element(_index), _writeTick);
         }
     }
 
