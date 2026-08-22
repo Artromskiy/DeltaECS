@@ -48,7 +48,7 @@ PATTERNS = (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        spec="Run the repository JIT probe and write an instruction summary."
+        description="Run the repository JIT probe and write an instruction summary."
     )
     parser.add_argument("--method", required=True, help="DOTNET_JitDisasm pattern")
     parser.add_argument("--filter", help="BenchmarkDotNet filter; defaults to --method")
