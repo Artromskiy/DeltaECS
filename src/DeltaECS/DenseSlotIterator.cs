@@ -27,14 +27,12 @@ public ref struct DenseSlotIterator
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNext()
     {
-        var next = _index - 1;
-        if (next < 0)
+        if (--_index < 0)
         {
             _index = -1;
             return false;
         }
 
-        _index = next;
         return true;
     }
 
