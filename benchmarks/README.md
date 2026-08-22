@@ -51,11 +51,9 @@ The current scaffold exposes these operation families:
 
 | Family | Entry points |
 |---|---|
-| Iteration | `Movement2ComponentsForward/Reverse`, `Movement4ComponentsForward/Reverse` |
-| Atomic | `AddRemove`, `CreateDestroy` |
-| Entity-list batch | `CreateBatch`, `DestroyBatch`, `AddBatch`, `RemoveBatch` |
-| Query batch | `DestroyMatching`, `AddMatching`, `RemoveMatching` |
-| Storage/tags | overlay full/partial/empty, swap-back, reference-aware move |
+| Iteration | `Movement2Components`, `Movement4Components` through `QueryIterator` |
+| Structural | `Add`, `Remove`, `Create`, `Destroy` |
+| Width | `ChangeWidth=1` and `ChangeWidth=4` for Add/Remove |
 
 ## Microbenchmark contract
 
@@ -87,21 +85,14 @@ API merely to make a benchmark easier to write.
 
 | Group | Algorithms | Typical parameters |
 |---|---|---|
-| Entity records | resolve by `ref`, generation validation, location update | 1, 100, 10k entities |
-| Creation | `Create(archetype)` and normal create with known component set | empty/partially full/full chunk |
-| Dense access | cached cursor bindings, `Resolve`, and cursor indexers | one, two and four rows |
-| Iteration | `Movement2` and `Movement4`, direct/reverse chunk traversal | 100, 1k, 10k, 100k entities |
-| Atomic structure | create, destroy, add/remove one and several components | transition cached/cold |
-| List batches | create, destroy, add/remove for an `Entity[]` | same chunk/many chunks |
-| Query batches | add/remove/destroy matching archetypes | untagged; tagged fallback separately |
-| Storage primitives | swap-back, typed copy, clear reference-containing row only | value row and reference row |
-| Tags | add/remove and query full/partial/empty overlay masks | full chunk and sparse slots |
+| Dense iteration | `Movement2Components`, `Movement4Components` through `QueryIterator` | 100, 1k, 10k, 100k entities |
+| Atomic structure | `Add`, `Remove`, `Create`, `Destroy` | one entity; width 1/4 for changes |
 
 Use fixture names that describe domain work, not an implementation trick:
-`Movement2Components`, `DestroyEntitiesInOneChunk`,
-`RemoveVelocityFromMovingEntities`, and so on. Candidate variants may add a
-suffix such as `CachedBinding` or `UnsafeReference`; the baseline name remains
-stable.
+`Movement2Components`, `Movement4Components`, `Add`, `Remove`, `Create` and
+`Destroy`. The current microbenchmark catalog has no legacy or parallel
+implementation variants; a future variant must be added as a separate,
+explicitly named scaffold entry.
 
 ## Assembly-guided loop
 
@@ -163,7 +154,7 @@ Always quote filters so the shell does not expand `*`:
 
 ```bash
 dotnet benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/DeltaECS.MicroBenchmarks.dll \
-  --filter '*CachedBindingIterationMicroBenchmarks.Movement4ComponentsReverse*' \
+  --filter '*QueryIteratorIterationMicroBenchmarks.Movement4Components*' \
   --artifacts artifacts/micro/movement4
 ```
 
@@ -175,8 +166,8 @@ For a JIT-only capture, reuse the same DLL and do not rebuild:
 
 ```bash
 ./benchmarks/run-jit-disasm.sh \
-  --method '*Movement4ComponentsReverse*' \
-  --filter '*CachedBindingIterationMicroBenchmarks.Movement4ComponentsReverse*' \
+  --method '*Movement4Components*' \
+  --filter '*QueryIteratorIterationMicroBenchmarks.Movement4Components*' \
   --no-build \
   --output artifacts/jit-disasm/movement4-reverse.txt
 ```
@@ -223,27 +214,33 @@ Use its README and a quoted narrow `--filter` when a comparative measurement
 is explicitly requested. The runner prints a start timestamp, a 30-second
 heartbeat and total elapsed time; the heartbeat is outside the measured process.
 
-## Dense QueryCursor API
+## QueryIterator API
 
-The additive dense cursor path uses `CursorReadBinding<T>`/
-`CursorWriteBinding<T>`. Resolve rows once per chunk and use the safe ref-return
-indexer inside the slot loop:
+The microbenchmark dense path uses `World.Iterate(in query)` and keeps the
+archetype, chunk and slot traversal explicit. Typed cursor bindings are created
+in setup; rows are resolved once when a chunk is selected, not in the slot loop:
 
 ```csharp
-var values = cursor.Resolve(binding);
-while (cursor.MoveNext())
+using var iterator = world.Iterate(in query);
+while (iterator.MoveNextArchetype())
 {
-    ref readonly Value value = ref values[cursor];
+    while (iterator.MoveNextChunk())
+    {
+        var cursor = iterator.Current;
+        var values = cursor.Resolve(binding);
+        while (cursor.MoveNext())
+        {
+            ref readonly Value value = ref values[cursor];
+        }
+    }
 }
 ```
 
 The same cursor supports tagged queries. `IsActiveSlot(cursor.CurrentIndex)`
-filters the snapshot overlay mask without exposing mutable tag storage. For
-manual chunk traversal use `World.QueryCursorChunks(handle)` and dispose the
-enumerator after the loop; its scratch mask is owned for the whole enumeration.
-
-The legacy comparison fixtures were removed from the microbenchmark catalog;
-the cursor API is the only dense microbenchmark path here.
+filters the snapshot overlay mask without exposing mutable tag storage. The
+microbenchmark catalog contains only this iterator-based dense path and the
+four direct structural operations below it; removed legacy callback fixtures
+are not part of discovery or measurement routes.
 
 `DeltaECS.VersionBenchmarks` requires two checkouts and is intentionally not a
 normal solution-build project:

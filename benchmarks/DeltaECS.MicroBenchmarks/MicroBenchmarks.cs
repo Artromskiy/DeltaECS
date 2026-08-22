@@ -2,57 +2,40 @@ using BenchmarkDotNet.Attributes;
 
 namespace Delta.ECS.MicroBenchmarks;
 
-/// <summary>
-/// The only file normally edited when selecting or exposing a microbenchmark.
-/// The fixture, setup details and kernels live in MicroBenchmarkImplementations.cs.
-/// </summary>
+/// <summary>Short BDN surface; fixture and kernel code lives in the implementation file.</summary>
 internal static class MicroBenchmarkCatalog
 {
     public static readonly Type[] Types =
     [
-        typeof(EntityRecordResolveMicroBenchmarks),
-        typeof(CreateKnownArchetypeMicroBenchmarks),
-        typeof(CachedBindingIterationMicroBenchmarks),
-        typeof(AtomicStructuralMicroBenchmarks),
-        typeof(ListBatchMicroBenchmarks),
-        typeof(QueryBatchMicroBenchmarks),
-        typeof(StorageAndOverlayMicroBenchmarks)
+        typeof(QueryIteratorIterationMicroBenchmarks),
+        typeof(AddMicroBenchmarks),
+        typeof(RemoveMicroBenchmarks),
+        typeof(CreateMicroBenchmarks),
+        typeof(DestroyMicroBenchmarks)
     ];
 }
 
-// Keep these wrappers intentionally empty. Add a wrapper and one catalog entry
-// for a new operation; put the actual fixture and kernel in the implementation file.
 [MemoryDiagnoser]
-public class EntityRecordResolveMicroBenchmarks : EntityRecordResolveMicroBenchmarkImplementation
+public class QueryIteratorIterationMicroBenchmarks : QueryIteratorIterationMicroBenchmarkImplementation
 {
 }
 
 [MemoryDiagnoser]
-public class CreateKnownArchetypeMicroBenchmarks : CreateKnownArchetypeMicroBenchmarkImplementation
+public class AddMicroBenchmarks : AddMicroBenchmarkImplementation
 {
 }
 
 [MemoryDiagnoser]
-public class CachedBindingIterationMicroBenchmarks : CachedBindingIterationMicroBenchmarkImplementation
+public class RemoveMicroBenchmarks : RemoveMicroBenchmarkImplementation
 {
 }
 
 [MemoryDiagnoser]
-public class AtomicStructuralMicroBenchmarks : AtomicStructuralMicroBenchmarkImplementation
+public class CreateMicroBenchmarks : CreateMicroBenchmarkImplementation
 {
 }
 
 [MemoryDiagnoser]
-public class ListBatchMicroBenchmarks : ListBatchMicroBenchmarkImplementation
-{
-}
-
-[MemoryDiagnoser]
-public class QueryBatchMicroBenchmarks : QueryBatchMicroBenchmarkImplementation
-{
-}
-
-[MemoryDiagnoser]
-public class StorageAndOverlayMicroBenchmarks : StorageAndOverlayMicroBenchmarkImplementation
+public class DestroyMicroBenchmarks : DestroyMicroBenchmarkImplementation
 {
 }
