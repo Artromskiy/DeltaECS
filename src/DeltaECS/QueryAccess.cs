@@ -15,14 +15,7 @@ public ref struct QueryChunkCursor
     private readonly bool _fullMask;
     private int _index;
 
-    internal QueryChunkCursor(
-        QueryPlan query,
-        int archetypeId,
-        Chunk chunk,
-        int[] componentRows,
-        uint writeTick,
-        ulong[]? overlayMask,
-        OverlayMaskResult overlayResult)
+    internal QueryChunkCursor(QueryPlan query, int archetypeId, Chunk chunk, int[] componentRows, uint writeTick, ulong[]? overlayMask, OverlayMaskResult overlayResult)
     {
         _query = query;
         ArchetypeId = archetypeId;
@@ -35,13 +28,9 @@ public ref struct QueryChunkCursor
     }
 
     public int SlotCount => _chunk.Count;
-
     public int CurrentIndex => _index;
-
     public int ArchetypeId { get; }
-
     public int GlobalChunkId => _chunk.GlobalId;
-
     public ReadOnlySpan<Entity> Entities => _chunk.Entities;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -52,8 +41,7 @@ public ref struct QueryChunkCursor
             return false;
         }
 
-        return _fullMask
-            || (_overlayMask is not null && (_overlayMask[slotIndex >> 6] & (1UL << (slotIndex & 63))) != 0);
+        return _fullMask || (_overlayMask is not null && (_overlayMask[slotIndex >> 6] & (1UL << (slotIndex & 63))) != 0);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -70,113 +58,181 @@ public ref struct QueryChunkCursor
         return true;
     }
 
-    public ReadValues<T> Get<T>(ReadRequest<T> binding)
+    public ReadValues Get(ReadAccess access)
     {
-        return new ReadValues<T>(GetReadValues(binding));
-    }
-
-    public WriteValues<T> Get<T>(WriteRequest<T> binding)
-    {
-        return new WriteValues<T>(GetWriteValues(binding));
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ReadOnlySpan<T> GetReadValues<T>(ReadRequest<T> binding)
-    {
-        if (!ReferenceEquals(binding.Query, _query))
+        if (!ReferenceEquals(access.Query, _query))
         {
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        return _chunk.GetComponentRow<T>(_componentRows[binding.QueryComponentIndex]);
+        var physicalRow = _componentRows[access.QueryComponentIndex];
+        return new ReadValues(_chunk.GetRawComponentRow(physicalRow), access.RuntimeType);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private Span<T> GetWriteValues<T>(WriteRequest<T> binding)
+    public WriteValues Get(WriteAccess access)
     {
-        if (!ReferenceEquals(binding.Query, _query))
+        if (!ReferenceEquals(access.Query, _query))
         {
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var index = _componentRows[binding.QueryComponentIndex];
+        var physicalRow = _componentRows[access.QueryComponentIndex];
         if (_writeTick == 0)
         {
             QueryThrowHelper.ThrowMissingWriteIntent();
         }
 
-        _chunk.MarkComponentWritten(index, _writeTick);
-        return _chunk.GetComponentRow<T>(index);
+        _chunk.MarkComponentWritten(physicalRow, _writeTick);
+        return new WriteValues(_chunk.GetRawComponentRow(physicalRow), access.RuntimeType);
+    }
+
+    public ReadValues GetRead(AccessRequest access)
+    {
+        if (access.IsWrite || !ReferenceEquals(access.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        var physicalRow = _componentRows[access.QueryComponentIndex];
+        return new ReadValues(_chunk.GetRawComponentRow(physicalRow), access.RuntimeType);
+    }
+
+    public WriteValues GetWrite(AccessRequest access)
+    {
+        if (!access.IsWrite || !ReferenceEquals(access.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        var physicalRow = _componentRows[access.QueryComponentIndex];
+        if (_writeTick == 0)
+        {
+            QueryThrowHelper.ThrowMissingWriteIntent();
+        }
+
+        _chunk.MarkComponentWritten(physicalRow, _writeTick);
+        return new WriteValues(_chunk.GetRawComponentRow(physicalRow), access.RuntimeType);
     }
 }
 
-public ref struct ReadValues<T>
+/// <summary>Prepared read-only values for one component row in one current chunk.</summary>
+public ref struct ReadValues
 {
-    private readonly ReadOnlySpan<T> _row;
+    private readonly Array _row;
+    private readonly Type _runtimeType;
 
-    internal ReadValues(ReadOnlySpan<T> row)
+    internal ReadValues(Array row, Type runtimeType)
     {
         _row = row;
+        _runtimeType = runtimeType;
     }
 
-    public ref readonly T this[QueryChunkCursor cursor]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref readonly T Ref<T>(QueryChunkCursor cursor)
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), cursor.CurrentIndex);
+        EnsureType<T>();
+        return ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(Unsafe.As<T[]>(_row)), cursor.CurrentIndex);
     }
 
-    public ref readonly T this[QuerySlots iterator]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref readonly T Ref<T>(QuerySlots slots)
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), iterator.CurrentIndex);
+        EnsureType<T>();
+        return ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(Unsafe.As<T[]>(_row)), slots.CurrentIndex);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void EnsureType<T>()
+    {
+        if (_runtimeType != typeof(T))
+        {
+            QueryThrowHelper.ThrowAccessTypeMismatch();
+        }
     }
 }
 
-public ref struct WriteValues<T>
+/// <summary>Prepared writable values for one component row in one current chunk.</summary>
+public ref struct WriteValues
 {
-    private readonly Span<T> _row;
+    private readonly Array _row;
+    private readonly Type _runtimeType;
 
-    internal WriteValues(Span<T> row)
+    internal WriteValues(Array row, Type runtimeType)
     {
         _row = row;
+        _runtimeType = runtimeType;
     }
 
-    public ref T this[QueryChunkCursor cursor]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T Ref<T>(QueryChunkCursor cursor)
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), cursor.CurrentIndex);
+        EnsureType<T>();
+        return ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(Unsafe.As<T[]>(_row)), cursor.CurrentIndex);
     }
 
-    public ref T this[QuerySlots iterator]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T Ref<T>(QuerySlots slots)
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), iterator.CurrentIndex);
+        EnsureType<T>();
+        return ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(Unsafe.As<T[]>(_row)), slots.CurrentIndex);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void EnsureType<T>()
+    {
+        if (_runtimeType != typeof(T))
+        {
+            QueryThrowHelper.ThrowAccessTypeMismatch();
+        }
+    }
 }
 
-public readonly struct ReadRequest<T>
+/// <summary>Non-generic access request used by the type-erased query core.</summary>
+public readonly struct AccessRequest
 {
-    internal ReadRequest(QueryPlan query, int queryComponentIndex)
+    internal AccessRequest(QueryPlan query, int queryComponentIndex, bool write, Type runtimeType)
     {
         Query = query;
         QueryComponentIndex = queryComponentIndex;
+        IsWrite = write;
+        RuntimeType = runtimeType;
     }
 
     internal QueryPlan? Query { get; }
     internal int QueryComponentIndex { get; }
+    internal bool IsWrite { get; }
+    internal Type RuntimeType { get; }
+
 }
 
-public readonly struct WriteRequest<T>
+/// <summary>Non-generic query access token for a read row.</summary>
+public readonly struct ReadAccess
 {
-    internal WriteRequest(QueryPlan query, int queryComponentIndex)
+    internal ReadAccess(QueryPlan query, int queryComponentIndex, Type runtimeType)
     {
         Query = query;
         QueryComponentIndex = queryComponentIndex;
+        RuntimeType = runtimeType;
     }
 
     internal QueryPlan? Query { get; }
     internal int QueryComponentIndex { get; }
+    internal Type RuntimeType { get; }
+}
+
+/// <summary>Non-generic query access token for a write row.</summary>
+public readonly struct WriteAccess
+{
+    internal WriteAccess(QueryPlan query, int queryComponentIndex, Type runtimeType)
+    {
+        Query = query;
+        QueryComponentIndex = queryComponentIndex;
+        RuntimeType = runtimeType;
+    }
+
+    internal QueryPlan? Query { get; }
+    internal int QueryComponentIndex { get; }
+    internal Type RuntimeType { get; }
 }
 
 internal sealed class QueryPlan
@@ -187,17 +243,10 @@ internal sealed class QueryPlan
     private DenseArchetypePlan[] _matchingPlans = Array.Empty<DenseArchetypePlan>();
     private bool _hasWriteAccess;
 
-    public QueryPlan(QuerySpec spec)
-    {
-        _description = spec;
-    }
+    public QueryPlan(QuerySpec spec) => _description = spec;
 
-    public bool HasTags => !_description.AllTags.IsEmpty
-        || !_description.AnyTags.IsEmpty
-        || !_description.NoneTags.IsEmpty;
-
+    public bool HasTags => !_description.AllTags.IsEmpty || !_description.AnyTags.IsEmpty || !_description.NoneTags.IsEmpty;
     public bool HasWriteAccess => _hasWriteAccess;
-
     public void RegisterWriteAccess() => _hasWriteAccess = true;
 
     public int[] MatchingArchetypes(World world)
@@ -242,12 +291,9 @@ internal sealed class QueryPlan
 
     public int[] ComponentRowIndices(int matchingIndex) => _matchingPlans[matchingIndex].ComponentRows;
 
-    private bool Matches(Archetype archetype)
-    {
-        return archetype.Mask.ContainsAll(_description.AllMask)
-            && (_description.AnyMask.IsEmpty || archetype.Mask.Intersects(_description.AnyMask))
-            && !archetype.Mask.Intersects(_description.NoneMask);
-    }
+    private bool Matches(Archetype archetype) => archetype.Mask.ContainsAll(_description.AllMask)
+        && (_description.AnyMask.IsEmpty || archetype.Mask.Intersects(_description.AnyMask))
+        && !archetype.Mask.Intersects(_description.NoneMask);
 }
 
 internal readonly struct DenseArchetypePlan
@@ -259,7 +305,6 @@ internal readonly struct DenseArchetypePlan
     }
 
     public Archetype Archetype { get; }
-
     public int[] ComponentRows { get; }
 }
 
@@ -269,12 +314,17 @@ internal static class QueryThrowHelper
     public static void ThrowAccessMismatch() => throw new InvalidOperationException("The row access does not belong to this query or world.");
 
     [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowAccessTypeMismatch() => throw new InvalidOperationException("The row access type does not match the registered component type.");
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void ThrowMissingWriteIntent() => throw new InvalidOperationException("The query did not register its write row access.");
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowAccessModeMismatch() => throw new InvalidOperationException("The access mode does not match the requested row operation.");
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     public static void ThrowArchetypeIteratorNotPositioned() => throw new InvalidOperationException("The archetype iterator is not positioned on an archetype.");
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     public static void ThrowChunkIteratorNotPositioned() => throw new InvalidOperationException("The chunk iterator is not positioned on a chunk.");
-
 }

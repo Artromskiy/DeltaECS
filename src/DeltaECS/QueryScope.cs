@@ -34,7 +34,6 @@ public ref struct QueryScope
         _owner.BeginQueryLease();
     }
 
-    /// <summary>Creates the independent outer iterator over matching archetypes.</summary>
     public QueryArchetypes Archetypes
     {
         get
@@ -44,25 +43,32 @@ public ref struct QueryScope
         }
     }
 
-    /// <summary>Validates a read binding once for this dense execution.</summary>
-    public ReadAccess<T> Bind<T>(ReadRequest<T> binding)
+    public ReadAccess BindRead(AccessRequest access)
     {
         EnsureActive();
-        if (!ReferenceEquals(binding.Query, _query))
+        Validate(access.Query);
+        if (access.IsWrite)
         {
-            QueryThrowHelper.ThrowAccessMismatch();
+            QueryThrowHelper.ThrowAccessModeMismatch();
         }
 
-        return new ReadAccess<T>(_query, binding.QueryComponentIndex);
+        return new ReadAccess(_query, access.QueryComponentIndex, access.RuntimeType);
     }
 
-    /// <summary>Validates a write binding once for this dense execution.</summary>
-    public WriteAccess<T> Bind<T>(WriteRequest<T> binding)
+    public ReadAccess Bind(ReadAccess access)
     {
         EnsureActive();
-        if (!ReferenceEquals(binding.Query, _query))
+        Validate(access.Query);
+        return access;
+    }
+
+    public WriteAccess BindWrite(AccessRequest access)
+    {
+        EnsureActive();
+        Validate(access.Query);
+        if (!access.IsWrite)
         {
-            QueryThrowHelper.ThrowAccessMismatch();
+            QueryThrowHelper.ThrowAccessModeMismatch();
         }
 
         if (_writeTick == 0)
@@ -70,7 +76,19 @@ public ref struct QueryScope
             QueryThrowHelper.ThrowMissingWriteIntent();
         }
 
-        return new WriteAccess<T>(_query, binding.QueryComponentIndex);
+        return new WriteAccess(_query, access.QueryComponentIndex, access.RuntimeType);
+    }
+
+    public WriteAccess Bind(WriteAccess access)
+    {
+        EnsureActive();
+        Validate(access.Query);
+        if (_writeTick == 0)
+        {
+            QueryThrowHelper.ThrowMissingWriteIntent();
+        }
+
+        return access;
     }
 
     public void Dispose()
@@ -84,6 +102,14 @@ public ref struct QueryScope
         _owner.EndQueryLease();
     }
 
+    private void Validate(QueryPlan? query)
+    {
+        if (!ReferenceEquals(query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+    }
+
     private void EnsureActive()
     {
         if (_disposed || _owner is null)
@@ -91,32 +117,4 @@ public ref struct QueryScope
             throw new InvalidOperationException("The dense query scope has been disposed.");
         }
     }
-}
-
-/// <summary>Scope-validated read row token for dense iteration.</summary>
-public readonly struct ReadAccess<T>
-{
-    internal ReadAccess(QueryPlan query, int queryComponentIndex)
-    {
-        Query = query;
-        QueryComponentIndex = queryComponentIndex;
-    }
-
-    internal QueryPlan? Query { get; }
-
-    internal int QueryComponentIndex { get; }
-}
-
-/// <summary>Scope-validated write row token for dense iteration.</summary>
-public readonly struct WriteAccess<T>
-{
-    internal WriteAccess(QueryPlan query, int queryComponentIndex)
-    {
-        Query = query;
-        QueryComponentIndex = queryComponentIndex;
-    }
-
-    internal QueryPlan? Query { get; }
-
-    internal int QueryComponentIndex { get; }
 }

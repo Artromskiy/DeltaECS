@@ -9,7 +9,6 @@ public ref struct QuerySlots
     private readonly DenseArchetypePlan _plan;
     private readonly Chunk _chunk;
     private readonly QueryPlan _query;
-    private readonly Array[] _componentRows;
     private readonly uint _writeTick;
     private int _index;
 
@@ -18,7 +17,6 @@ public ref struct QuerySlots
         _plan = plan;
         _chunk = chunk;
         _query = query;
-        _componentRows = chunk.RawComponentRows;
         _writeTick = writeTick;
         _index = chunk.Count;
     }
@@ -42,27 +40,27 @@ public ref struct QuerySlots
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ReadValues<T> Get<T>(ReadAccess<T> binding)
+    public ReadValues Get(ReadAccess access)
     {
-        if (!ReferenceEquals(binding.Query, _query))
+        if (!ReferenceEquals(access.Query, _query))
         {
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows.Element(binding.QueryComponentIndex);
-        return new ReadValues<T>(_chunk.GetComponentRow<T>(_componentRows, physicalRow));
+        var physicalRow = _plan.ComponentRows.Element(access.QueryComponentIndex);
+        return new ReadValues(_chunk.GetRawComponentRow(physicalRow), access.RuntimeType);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public WriteValues<T> Get<T>(WriteAccess<T> binding)
+    public WriteValues Get(WriteAccess access)
     {
-        if (!ReferenceEquals(binding.Query, _query))
+        if (!ReferenceEquals(access.Query, _query))
         {
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows.Element(binding.QueryComponentIndex);
+        var physicalRow = _plan.ComponentRows.Element(access.QueryComponentIndex);
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
-        return new WriteValues<T>(_chunk.GetComponentRow<T>(_componentRows, physicalRow));
+        return new WriteValues(_chunk.GetRawComponentRow(physicalRow), access.RuntimeType);
     }
 }
