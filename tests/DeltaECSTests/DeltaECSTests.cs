@@ -129,17 +129,18 @@ public sealed class DeltaECSDeliveryTests
         var query = world.CreateQuery(QueryDescription.ForComponents(PositionId));
         var position = query.CursorBind<Position>(PositionId, RowAccess.Read);
         var archetypes = 0;
-        var chunks = 0;
+        var chunkCount = 0;
         var slots = 0;
         using (var iterator = world.Iterate(in query))
         {
             while (iterator.MoveNextArchetype())
             {
                 archetypes++;
-                while (iterator.MoveNextChunk())
+                using var chunks = iterator.CreateChunkIterator();
+                while (chunks.MoveNext())
                 {
-                    chunks++;
-                    var cursor = iterator.Current;
+                    chunkCount++;
+                    var cursor = chunks.Current;
                     var positions = cursor.Resolve(position);
                     while (cursor.MoveNext())
                     {
@@ -151,7 +152,7 @@ public sealed class DeltaECSDeliveryTests
         }
 
         Assert.That(archetypes, Is.EqualTo(2));
-        Assert.That(chunks, Is.EqualTo(4));
+        Assert.That(chunkCount, Is.EqualTo(4));
         Assert.That(slots, Is.EqualTo(7));
     }
 

@@ -9,9 +9,10 @@ namespace Delta.ECS;
 /// using var iterator = world.Iterate(in query);
 /// while (iterator.MoveNextArchetype())
 /// {
-///     while (iterator.MoveNextChunk())
+///     using var chunks = iterator.CreateChunkIterator();
+///     while (chunks.MoveNext())
 ///     {
-///         var cursor = iterator.Current;
+///         var cursor = chunks.Current;
 ///         while (cursor.MoveNext())
 ///         {
 ///             // read rows through the cursor's resolved bindings
@@ -32,11 +33,8 @@ public ref struct QueryIterator
     private readonly uint _writeTick;
     private ulong[]? _overlayScratch;
     private int _archetypePosition;
-    private int _chunkPosition;
     private bool _hasArchetype;
-    private bool _hasCurrent;
     private bool _disposed;
-    private DenseChunkCursor _current;
 
     internal QueryIterator(World owner, in QueryHandle handle)
     {
@@ -53,11 +51,8 @@ public ref struct QueryIterator
         _writeTick = owner.GetQueryWriteTick(_cached);
         _overlayScratch = _hasTags ? owner.RentChunkOverlayScratch() : null;
         _archetypePosition = -1;
-        _chunkPosition = 0;
         _hasArchetype = false;
-        _hasCurrent = false;
         _disposed = false;
-        _current = default;
         _owner.BeginQueryLease();
     }
 
@@ -78,19 +73,23 @@ public ref struct QueryIterator
 
     public int ArchetypeId => CurrentArchetype.ArchetypeId;
 
-    /// <summary>Gets the cursor for the chunk selected by the middle loop.</summary>
-    public DenseChunkCursor Current
+    /// <summary>Creates a chunk iterator for the archetype selected by the outer loop.</summary>
+    public QueryChunkIterator CreateChunkIterator()
     {
-        get
+        EnsureNotDisposed();
+        if (!_hasArchetype)
         {
-            EnsureNotDisposed();
-            if (!_hasCurrent)
-            {
-                throw new InvalidOperationException("The iterator is not positioned on a chunk.");
-            }
-
-            return _current;
+            throw new InvalidOperationException("The iterator is not positioned on an archetype.");
         }
+
+        return new QueryChunkIterator(
+            _owner,
+            _description,
+            _cached,
+            _plans[_archetypePosition],
+            _hasTags,
+            _writeTick,
+            _overlayScratch);
     }
 
     /// <summary>Advances the outer loop to the next matching archetype.</summary>
@@ -98,48 +97,8 @@ public ref struct QueryIterator
     {
         EnsureNotDisposed();
         _archetypePosition++;
-        _chunkPosition = 0;
         _hasArchetype = _archetypePosition < _plans.Length;
-        _hasCurrent = false;
         return _hasArchetype;
-    }
-
-    /// <summary>Advances the middle loop to the next matching active chunk.</summary>
-    public bool MoveNextChunk()
-    {
-        EnsureNotDisposed();
-        if (!_hasArchetype)
-        {
-            return false;
-        }
-
-        var plan = _plans[_archetypePosition];
-        var archetype = plan.Archetype;
-        while (_chunkPosition < archetype.ActiveChunkCount)
-        {
-            var chunk = archetype.GetActiveChunk(_chunkPosition++);
-            var overlayResult = _hasTags
-                ? _owner.OverlayTags.BuildMask(_description, chunk.GlobalId, chunk.Count, _overlayScratch!)
-                : OverlayMaskResult.Full;
-            if (overlayResult == OverlayMaskResult.None)
-            {
-                continue;
-            }
-
-            _current = new DenseChunkCursor(
-                _cached,
-                archetype.Id,
-                chunk,
-                plan.ComponentRows,
-                _writeTick,
-                _overlayScratch,
-                overlayResult);
-            _hasCurrent = true;
-            return true;
-        }
-
-        _hasCurrent = false;
-        return false;
     }
 
     public void Dispose()
@@ -151,7 +110,6 @@ public ref struct QueryIterator
 
         _disposed = true;
         _hasArchetype = false;
-        _hasCurrent = false;
         _owner.EndQueryLease();
         if (_overlayScratch is not null)
         {

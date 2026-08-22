@@ -110,6 +110,10 @@ if [[ -z "$output" ]]; then
     output="$repo_root/artifacts/jit-disasm/${safe_pattern}.txt"
 fi
 
+if [[ "$output" != /* ]]; then
+    output="$repo_root/$output"
+fi
+
 mkdir -p "$(dirname "$output")"
 
 if ((no_build == 0)); then
@@ -127,11 +131,15 @@ echo "JIT method pattern: $method_pattern"
 echo "Benchmark filter: $benchmark_filter"
 echo "Output: $output"
 
-env NuGetAudit=false \
-DOTNET_TieredCompilation=0 \
-DOTNET_ReadyToRun=0 \
-DOTNET_JitDisasm="$method_pattern" \
-DOTNET_JitDisasmDiffable=1 \
-dotnet "$dll" --filter "$benchmark_filter" --job "$benchmark_job" > "$output" 2>&1
+(
+    cd "$project_dir"
+    env NuGetAudit=false \
+    RestoreIgnoreFailedSources=true \
+    DOTNET_TieredCompilation=0 \
+    DOTNET_ReadyToRun=0 \
+    DOTNET_JitDisasm="$method_pattern" \
+    DOTNET_JitDisasmDiffable=1 \
+    dotnet "$dll" --filter "$benchmark_filter" --job "$benchmark_job"
+) > "$output" 2>&1
 
 echo "JIT disassembly written to $output"

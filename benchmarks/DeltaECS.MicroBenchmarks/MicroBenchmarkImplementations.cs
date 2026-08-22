@@ -98,9 +98,10 @@ internal static class MicroBenchmarkKernels
         using var iterator = fixture.World.Iterate(in query);
         while (iterator.MoveNextArchetype())
         {
-            while (iterator.MoveNextChunk())
+            using var chunks = iterator.CreateChunkIterator();
+            while (chunks.MoveNext())
             {
-                var cursor = iterator.Current;
+                var cursor = chunks.Current;
                 var positions = cursor.Resolve(position);
                 var velocities = cursor.Resolve(velocity);
                 while (cursor.MoveNext())
@@ -129,9 +130,10 @@ internal static class MicroBenchmarkKernels
         using var iterator = fixture.World.Iterate(in query);
         while (iterator.MoveNextArchetype())
         {
-            while (iterator.MoveNextChunk())
+            using var chunks = iterator.CreateChunkIterator();
+            while (chunks.MoveNext())
             {
-                var cursor = iterator.Current;
+                var cursor = chunks.Current;
                 var a = cursor.Resolve(aBinding);
                 var b = cursor.Resolve(bBinding);
                 var c = cursor.Resolve(cBinding);

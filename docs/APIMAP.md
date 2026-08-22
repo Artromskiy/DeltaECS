@@ -34,6 +34,7 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `QueryHandle` | World/query identity and typed cursor-binding factory | `src/DeltaECS/EntityTypes.cs` |
 | `CursorReadBinding<T>`, `CursorWriteBinding<T>` | Query-bound typed row intent | `src/DeltaECS/WorldQuery.cs` |
 | `QueryIterator` | Explicit `archetype -> chunk -> slot` traversal | `src/DeltaECS/QueryIterator.cs` |
+| `QueryChunkIterator` | Active chunk traversal for the selected archetype | `src/DeltaECS/QueryChunkIterator.cs` |
 | `DenseChunkCursor` | Current chunk, reverse slot traversal, row resolution and tag mask | `src/DeltaECS/WorldQuery.cs` |
 | `ResolvedReadRow<T>`, `ResolvedWriteRow<T>` | Safe typed cursor indexers over a resolved row | `src/DeltaECS/WorldQuery.cs` |
 | `World.QueryCursor` | Callback-based query execution over `DenseChunkCursor` | `src/DeltaECS/World.cs` |
@@ -46,7 +47,8 @@ For dense iteration, read only this chain first:
 ```text
 World.Iterate(in QueryHandle)
   -> QueryIterator.MoveNextArchetype()
-  -> QueryIterator.MoveNextChunk()
+  -> QueryIterator.CreateChunkIterator()
+  -> QueryChunkIterator.MoveNext()
   -> DenseChunkCursor.MoveNext()
   -> DenseChunkCursor.Resolve(binding)
   -> ResolvedReadRow<T>/ResolvedWriteRow<T>[cursor]
@@ -64,9 +66,10 @@ The three-loop public shape is:
 using var iterator = world.Iterate(in query);
 while (iterator.MoveNextArchetype())
 {
-    while (iterator.MoveNextChunk())
+    using var chunks = iterator.CreateChunkIterator();
+    while (chunks.MoveNext())
     {
-        var cursor = iterator.Current;
+        var cursor = chunks.Current;
         var row = cursor.Resolve(binding);
         while (cursor.MoveNext())
         {
@@ -76,7 +79,7 @@ while (iterator.MoveNextArchetype())
 }
 ```
 
-For tagged queries, `MoveNextChunk()` selects chunks and
+For tagged queries, `QueryChunkIterator.MoveNext()` selects chunks and
 `DenseChunkCursor.IsActiveSlot(cursor.CurrentIndex)` selects slots in a
 partial mask. The tag implementation is in `OverlayTagManager.cs`.
 

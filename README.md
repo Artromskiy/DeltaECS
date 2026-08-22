@@ -27,9 +27,10 @@ return `ReadOnlySpan<T>`; write rows return `Span<T>` and mark coarse row
 versions once per yielded chunk. Raw ordinal access remains internal.
 
 For explicit low-level traversal, `world.Iterate(in query)` exposes three
-nested loops: `MoveNextArchetype()`, `MoveNextChunk()`, and the returned
-`DenseChunkCursor.MoveNext()`. The cursor API remains responsible for typed row
-resolution; tagged queries must still check `IsActiveSlot` for partial chunks.
+nested loops: `MoveNextArchetype()`, a `QueryChunkIterator.MoveNext()`, and the
+returned `DenseChunkCursor.MoveNext()`. The cursor API remains responsible for
+typed row resolution; tagged queries must still check `IsActiveSlot` for partial
+chunks.
 
 Structural mutation is invalid while a conflicting row lease is active. This
 is a local lifetime rule, not a global barrier. External consumers keep their
