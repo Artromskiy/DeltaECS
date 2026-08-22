@@ -394,7 +394,7 @@ def write_report(args: argparse.Namespace, output: Path, report: Path) -> None:
                         "",
                     ]
                     if args.mode == "debug"
-                    else []
+                    else [""]
                 ),
                 "---",
                 "",

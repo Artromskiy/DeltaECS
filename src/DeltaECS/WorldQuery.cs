@@ -143,7 +143,7 @@ public ref struct ResolvedWriteRow<T>
 
     public ref T this[DenseChunkCursor cursor]
     {
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), cursor.CurrentIndex);
     }
 
@@ -152,6 +152,7 @@ public ref struct ResolvedWriteRow<T>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), iterator.CurrentIndex);
     }
+
 }
 
 public readonly struct CursorReadBinding<T>
