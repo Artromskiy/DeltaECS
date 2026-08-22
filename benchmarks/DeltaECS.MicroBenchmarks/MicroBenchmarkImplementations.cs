@@ -98,10 +98,9 @@ internal static class MicroBenchmarkKernels
         using var iterator = fixture.World.Iterate(in query);
         while (iterator.MoveNextArchetype())
         {
-            using var chunks = iterator.CreateChunkIterator();
-            while (chunks.MoveNext())
+            while (iterator.MoveNextChunk())
             {
-                var cursor = chunks.Current;
+                ref var cursor = ref iterator.CurrentChunk;
                 var positions = cursor.Resolve(position);
                 var velocities = cursor.Resolve(velocity);
                 while (cursor.MoveNext())
@@ -130,10 +129,76 @@ internal static class MicroBenchmarkKernels
         using var iterator = fixture.World.Iterate(in query);
         while (iterator.MoveNextArchetype())
         {
+            while (iterator.MoveNextChunk())
+            {
+                ref var cursor = ref iterator.CurrentChunk;
+                var a = cursor.Resolve(aBinding);
+                var b = cursor.Resolve(bBinding);
+                var c = cursor.Resolve(cBinding);
+                var d = cursor.Resolve(dBinding);
+                while (cursor.MoveNext())
+                {
+                    ref var rowA = ref a[cursor];
+                    ref var rowB = ref b[cursor];
+                    ref var rowC = ref c[cursor];
+                    ref readonly var rowD = ref d[cursor];
+                    rowA.Value += rowD.Value;
+                    rowB.Value += rowD.Value;
+                    rowC.Value = (rowA.Value + rowB.Value) / 2;
+                    checksum += rowA.Value + rowB.Value + rowC.Value + rowD.Value;
+                }
+            }
+        }
+
+        return checksum;
+    }
+
+    public static int IterateMovement2SeparateChunkIterator(
+        MicroWorld fixture,
+        in QueryHandle query,
+        CursorWriteBinding<Position> position,
+        CursorReadBinding<Velocity> velocity)
+    {
+        var checksum = 0;
+        using var iterator = fixture.World.Iterate(in query);
+        while (iterator.MoveNextArchetype())
+        {
             using var chunks = iterator.CreateChunkIterator();
             while (chunks.MoveNext())
             {
-                var cursor = chunks.Current;
+                ref var cursor = ref chunks.Current;
+                var positions = cursor.Resolve(position);
+                var velocities = cursor.Resolve(velocity);
+                while (cursor.MoveNext())
+                {
+                    ref var p = ref positions[cursor];
+                    ref readonly var v = ref velocities[cursor];
+                    p.X += v.X;
+                    p.Y += v.Y;
+                    checksum += p.X + p.Y;
+                }
+            }
+        }
+
+        return checksum;
+    }
+
+    public static int IterateMovement4SeparateChunkIterator(
+        MicroWorld fixture,
+        in QueryHandle query,
+        CursorWriteBinding<Movement4A> aBinding,
+        CursorWriteBinding<Movement4B> bBinding,
+        CursorWriteBinding<Movement4C> cBinding,
+        CursorReadBinding<Movement4D> dBinding)
+    {
+        var checksum = 0;
+        using var iterator = fixture.World.Iterate(in query);
+        while (iterator.MoveNextArchetype())
+        {
+            using var chunks = iterator.CreateChunkIterator();
+            while (chunks.MoveNext())
+            {
+                ref var cursor = ref chunks.Current;
                 var a = cursor.Resolve(aBinding);
                 var b = cursor.Resolve(bBinding);
                 var c = cursor.Resolve(cBinding);
@@ -200,8 +265,14 @@ public class QueryIteratorIterationMicroBenchmarkImplementation
     [IterationSetup(Target = nameof(Movement2Components))]
     public void ResetMovement2() => _fixture.ResetMoving(_movement2Entities);
 
+    [IterationSetup(Target = nameof(Movement2SeparateChunkIterator))]
+    public void ResetMovement2Separate() => _fixture.ResetMoving(_movement2Entities);
+
     [IterationSetup(Target = nameof(Movement4Components))]
     public void ResetMovement4() => _fixture.ResetMovement4(_movement4Entities);
+
+    [IterationSetup(Target = nameof(Movement4SeparateChunkIterator))]
+    public void ResetMovement4Separate() => _fixture.ResetMovement4(_movement4Entities);
 
     [Benchmark]
     [InvocationCount(1)]
@@ -212,6 +283,26 @@ public class QueryIteratorIterationMicroBenchmarkImplementation
     [InvocationCount(1)]
     public int Movement4Components() =>
         MicroBenchmarkKernels.IterateMovement4(
+            _fixture,
+            in _movement4Query,
+            _movement4A,
+            _movement4B,
+            _movement4C,
+            _movement4D);
+
+    [Benchmark]
+    [InvocationCount(1)]
+    public int Movement2SeparateChunkIterator() =>
+        MicroBenchmarkKernels.IterateMovement2SeparateChunkIterator(
+            _fixture,
+            in _movement2Query,
+            _movement2Position,
+            _movement2Velocity);
+
+    [Benchmark]
+    [InvocationCount(1)]
+    public int Movement4SeparateChunkIterator() =>
+        MicroBenchmarkKernels.IterateMovement4SeparateChunkIterator(
             _fixture,
             in _movement4Query,
             _movement4A,
@@ -339,6 +430,15 @@ internal static class MicroContractSmoke
             throw new InvalidOperationException("QueryIterator Movement2 checksum mismatch.");
 
         fixture.ResetMoving(movement2Entities);
+        var movement2SeparateSum = MicroBenchmarkKernels.IterateMovement2SeparateChunkIterator(
+            fixture,
+            in movement2Query,
+            movement2Position,
+            movement2Velocity);
+        if (movement2SeparateSum != movement2Entities.Length * (movement2Entities.Length + 3))
+            throw new InvalidOperationException("Separate chunk iterator Movement2 checksum mismatch.");
+
+        fixture.ResetMoving(movement2Entities);
         var movement4Entities = fixture.CreateMovement4(8);
         var movement4Description = QueryDescription.ForComponents(
             fixture.Movement4A,
@@ -360,6 +460,17 @@ internal static class MicroContractSmoke
             movement4D);
         if (movement4Sum != movement4Entities.Length * 20)
             throw new InvalidOperationException("QueryIterator Movement4 checksum mismatch.");
+
+        fixture.ResetMovement4(movement4Entities);
+        var movement4SeparateSum = MicroBenchmarkKernels.IterateMovement4SeparateChunkIterator(
+            fixture,
+            in movement4Query,
+            movement4A,
+            movement4B,
+            movement4C,
+            movement4D);
+        if (movement4SeparateSum != movement4Entities.Length * 20)
+            throw new InvalidOperationException("Separate chunk iterator Movement4 checksum mismatch.");
 
         var structural = fixture.World.Create([fixture.Position, fixture.Velocity]);
         fixture.World.AddComponents([fixture.Auxiliary], structural);

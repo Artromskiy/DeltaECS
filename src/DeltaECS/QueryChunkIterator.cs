@@ -1,5 +1,6 @@
 namespace Delta.ECS;
 
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 /// <summary>
@@ -44,7 +45,8 @@ public ref struct QueryChunkIterator
     }
 
     /// <summary>Gets the cursor for the currently selected chunk.</summary>
-    public DenseChunkCursor Current
+    [UnscopedRef]
+    public ref DenseChunkCursor Current
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
@@ -55,7 +57,7 @@ public ref struct QueryChunkIterator
                 throw new InvalidOperationException("The chunk iterator is not positioned on a chunk.");
             }
 
-            return _current;
+            return ref _current;
         }
     }
 

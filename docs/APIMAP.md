@@ -47,8 +47,8 @@ For dense iteration, read only this chain first:
 ```text
 World.Iterate(in QueryHandle)
   -> QueryIterator.MoveNextArchetype()
-  -> QueryIterator.CreateChunkIterator()
-  -> QueryChunkIterator.MoveNext()
+  -> QueryIterator.MoveNextChunk()
+  -> QueryIterator.CurrentChunk
   -> DenseChunkCursor.MoveNext()
   -> DenseChunkCursor.Resolve(binding)
   -> ResolvedReadRow<T>/ResolvedWriteRow<T>[cursor]
@@ -66,10 +66,9 @@ The three-loop public shape is:
 using var iterator = world.Iterate(in query);
 while (iterator.MoveNextArchetype())
 {
-    using var chunks = iterator.CreateChunkIterator();
-    while (chunks.MoveNext())
+    while (iterator.MoveNextChunk())
     {
-        var cursor = chunks.Current;
+        ref var cursor = ref iterator.CurrentChunk;
         var row = cursor.Resolve(binding);
         while (cursor.MoveNext())
         {
@@ -79,7 +78,7 @@ while (iterator.MoveNextArchetype())
 }
 ```
 
-For tagged queries, `QueryChunkIterator.MoveNext()` selects chunks and
+For tagged queries, `QueryIterator.MoveNextChunk()` selects chunks and
 `DenseChunkCursor.IsActiveSlot(cursor.CurrentIndex)` selects slots in a
 partial mask. The tag implementation is in `OverlayTagManager.cs`.
 

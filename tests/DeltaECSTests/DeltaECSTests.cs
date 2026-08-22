@@ -136,11 +136,10 @@ public sealed class DeltaECSDeliveryTests
             while (iterator.MoveNextArchetype())
             {
                 archetypes++;
-                using var chunks = iterator.CreateChunkIterator();
-                while (chunks.MoveNext())
+                while (iterator.MoveNextChunk())
                 {
                     chunkCount++;
-                    var cursor = chunks.Current;
+                    ref var cursor = ref iterator.CurrentChunk;
                     var positions = cursor.Resolve(position);
                     while (cursor.MoveNext())
                     {

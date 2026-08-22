@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj" />
+  <Project Path="benchmarks/DeltaECS.MicroBenchmarks/DeltaECS.MicroBenchmarks.csproj" />
   <Project Path="src/DeltaECS/DeltaECS.csproj" />
   <Project Path="tests/DeltaECSTests/DeltaECSTests.csproj" />
 </Solution>
