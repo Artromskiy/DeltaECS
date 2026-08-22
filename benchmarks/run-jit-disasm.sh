@@ -12,6 +12,8 @@ benchmark_filter=""
 benchmark_job="dry"
 output=""
 no_build=0
+jit_dump=0
+checked_jit="${DELTAECS_CHECKED_JIT:-}"
 
 usage() {
     cat <<'EOF'
@@ -26,6 +28,8 @@ Options:
   --framework <tfm>        Target framework; defaults to net8.0
   --job <name>             BenchmarkDotNet job; defaults to dry
   --output <path>          Output file; defaults to artifacts/jit-disasm/<pattern>.txt
+  --jit-dump               Include the Debug/Checked JIT dump in the output
+  --checked-jit <path>     Version-compatible Debug/Checked libclrjit used in an isolated runtime copy
   --no-build               Run the existing target DLL without building
   -h, --help               Show this help
 
@@ -78,6 +82,15 @@ while (($# > 0)); do
             output=$2
             shift 2
             ;;
+        --jit-dump)
+            jit_dump=1
+            shift
+            ;;
+        --checked-jit)
+            [[ $# -ge 2 ]] || { echo "--checked-jit requires a value" >&2; exit 2; }
+            checked_jit=$2
+            shift 2
+            ;;
         --no-build)
             no_build=1
             shift
@@ -96,6 +109,14 @@ done
 
 [[ -n "$method_pattern" ]] || { echo "--method is required" >&2; usage >&2; exit 2; }
 [[ -f "$project" ]] || { echo "Probe project not found: $project" >&2; exit 2; }
+
+if ((jit_dump == 1)); then
+    [[ -n "$checked_jit" ]] || {
+        echo "--jit-dump requires --checked-jit <path> or DELTAECS_CHECKED_JIT" >&2
+        exit 2
+    }
+    [[ -f "$checked_jit" ]] || { echo "Checked JIT not found: $checked_jit" >&2; exit 2; }
+fi
 
 if [[ -z "$benchmark_filter" ]]; then
     benchmark_filter=$method_pattern
@@ -117,8 +138,14 @@ fi
 mkdir -p "$(dirname "$output")"
 
 if ((no_build == 0)); then
-    env NuGetAudit=false dotnet build "$project" -c "$configuration" --no-restore \
-        --disable-build-servers -m:1 /p:UseSharedCompilation=false /p:NuGetAudit=false -v:minimal
+    env NuGetAudit=false RestoreIgnoreFailedSources=true \
+        dotnet restore "$project" --ignore-failed-sources \
+        --disable-build-servers -m:1 /p:NuGetAudit=false \
+        /p:RestoreIgnoreFailedSources=true -v:minimal
+    env NuGetAudit=false RestoreIgnoreFailedSources=true \
+        dotnet build "$project" -c "$configuration" --no-restore \
+        --disable-build-servers -m:1 /p:UseSharedCompilation=false \
+        /p:NuGetAudit=false /p:RestoreIgnoreFailedSources=true -v:minimal
 fi
 
 [[ -f "$dll" ]] || {
@@ -131,15 +158,81 @@ echo "JIT method pattern: $method_pattern"
 echo "Benchmark filter: $benchmark_filter"
 echo "Output: $output"
 
+dotnet_cli=$(command -v dotnet)
+dotnet_root=""
+
+prepare_checked_runtime() {
+    local framework_major runtime_line runtime_version runtime_base source_root
+    local isolated_root isolated_runtime directory
+
+    framework_major=${target_framework#net}
+    framework_major=${framework_major%%.*}
+    runtime_line=$(dotnet --list-runtimes | awk -v major="$framework_major" '
+        $1 == "Microsoft.NETCore.App" && $2 ~ ("^" major "\\.") { line = $0 }
+        END { print line }
+    ')
+    [[ -n "$runtime_line" ]] || {
+        echo "Microsoft.NETCore.App $framework_major.x was not found." >&2
+        exit 2
+    }
+
+    runtime_version=$(printf '%s\n' "$runtime_line" | awk '{ print $2 }')
+    runtime_base=$(printf '%s\n' "$runtime_line" | sed -E 's/^[^[]*\[([^]]+)\]$/\1/')
+    source_root=$(cd "$runtime_base/../.." && pwd)
+    isolated_root="$repo_root/artifacts/toolchains/jit-runtime-$runtime_version"
+    isolated_runtime="$isolated_root/shared/Microsoft.NETCore.App/$runtime_version"
+
+    mkdir -p "$isolated_root/host" "$isolated_root/shared/Microsoft.NETCore.App"
+    if [[ ! -x "$isolated_root/dotnet" ]]; then
+        cp "$source_root/dotnet" "$isolated_root/dotnet"
+    fi
+    if [[ ! -d "$isolated_root/host/fxr" ]]; then
+        cp -R "$source_root/host/fxr" "$isolated_root/host/"
+    fi
+    if [[ ! -d "$isolated_runtime" ]]; then
+        cp -R "$runtime_base/$runtime_version" "$isolated_runtime"
+    fi
+
+    # BenchmarkDotNet invokes the CLI to build its generated dry-run host. Keep
+    # SDK assets shared, but keep CoreCLR and the Checked JIT isolated.
+    for directory in sdk packs sdk-manifests templates metadata; do
+        if [[ -e "$source_root/$directory" && ! -e "$isolated_root/$directory" ]]; then
+            ln -s "$source_root/$directory" "$isolated_root/$directory"
+        fi
+    done
+
+    cp "$checked_jit" "$isolated_runtime/libclrjit.dylib"
+    dotnet_cli="$isolated_root/dotnet"
+    dotnet_root="$isolated_root"
+    echo "Checked JIT runtime: $isolated_root"
+}
+
+if ((jit_dump == 1)); then
+    prepare_checked_runtime
+fi
+
 (
     cd "$project_dir"
-    env NuGetAudit=false \
-    RestoreIgnoreFailedSources=true \
-    DOTNET_TieredCompilation=0 \
-    DOTNET_ReadyToRun=0 \
-    DOTNET_JitDisasm="$method_pattern" \
-    DOTNET_JitDisasmDiffable=1 \
-    dotnet "$dll" --filter "$benchmark_filter" --job "$benchmark_job"
+    if ((jit_dump == 1)); then
+        env NuGetAudit=false \
+        RestoreIgnoreFailedSources=true \
+        DOTNET_ROOT="$dotnet_root" \
+        DOTNET_TieredCompilation=0 \
+        DOTNET_ReadyToRun=0 \
+        DOTNET_JitDump="$method_pattern" \
+        DOTNET_JitDisasm="$method_pattern" \
+        DOTNET_JitDisasmDiffable=1 \
+        "$dotnet_cli" "$dll" --filter "$benchmark_filter" --job "$benchmark_job" \
+        --cli "$dotnet_cli"
+    else
+        env NuGetAudit=false \
+        RestoreIgnoreFailedSources=true \
+        DOTNET_TieredCompilation=0 \
+        DOTNET_ReadyToRun=0 \
+        DOTNET_JitDisasm="$method_pattern" \
+        DOTNET_JitDisasmDiffable=1 \
+        dotnet "$dll" --filter "$benchmark_filter" --job "$benchmark_job"
+    fi
 ) > "$output" 2>&1
 
 echo "JIT disassembly written to $output"

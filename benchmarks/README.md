@@ -249,6 +249,77 @@ indirection, loads/stores and code size. Assembly size does not prove cache
 misses or throughput; use targeted BDN for throughput and hardware counters
 only where the platform supports them.
 
+For a compact repeatable instruction table, use the report wrapper. It invokes
+the existing JIT helper, keeps the first emitted assembly block, counts the
+relevant instructions and writes a Markdown table with assembly locations and
+priority hints:
+
+```bash
+python3 benchmarks/jit-report.py \
+  --method '*IterateMovement4IndependentIterators*' \
+  --filter '*QueryIteratorIterationMicroBenchmarks.Movement4IndependentIterators*' \
+  --mode release \
+  --output artifacts/jit-disasm/movement4-independent.txt \
+  --report artifacts/jit-disasm/movement4-independent.md \
+  --auto-open
+```
+
+After the probe DLL is already built, add `--no-build`; otherwise the helper
+performs a non-blocking restore/build for the selected configuration. On macOS,
+`--auto-open` opens the generated Markdown through the Obsidian URI handler,
+copying reports outside the vault into the active vault under
+`DeltaECS Reports/jit-disasm/`. Use `--obsidian-vault <path>` to override the
+active vault selected from Obsidian's local configuration. The wrapper uses the
+same non-blocking restore settings and `DOTNET_TieredCompilation=0`,
+`DOTNET_ReadyToRun=0` settings as `run-jit-disasm.sh`; it does not run a
+measuring BDN job unless `--job` is explicitly changed from `dry`.
+
+Links inside the report use `vscode://file/...:line`, so clicking a source or
+assembly location opens the exact line in VS Code while the report remains in
+Obsidian. The generated report starts with a compact operation/count/priority
+summary, followed by one source/assembly row per matched instruction; probe
+metadata and interpretation notes are placed below both tables. A large probe
+can therefore produce hundreds of detailed rows intentionally.
+
+Use `--mode debug` to include the detailed source/assembly mapping table. This
+mode requires a version-compatible Debug/Checked CoreCLR JIT, supplied as
+`--checked-jit <path-to-libclrjit.dylib>`, through `DELTAECS_CHECKED_JIT`, or
+discovered under `artifacts/toolchains/runtime-v*/artifacts/bin/coreclr/`
+`osx.arm64.Checked/libclrjit.dylib`. A normal `dotnet build -c Debug` is not enough:
+`DOTNET_JitDump` is compiled only into Debug/Checked JIT builds. Keep the
+managed probe in Release because BenchmarkDotNet rejects non-optimized Debug
+benchmark assemblies.
+
+The runner copies the installed matching .NET runtime into ignored
+`artifacts/toolchains/jit-runtime-<version>`, replaces the JIT only in that
+isolated copy, and directs BenchmarkDotNet's generated host to the same local
+CLI. It never replaces the system JIT.
+
+The debug report uses the JIT's `genIPmappingGen()` table to map native offsets
+to IL offsets, then reads the matching Portable PDB with the small
+`JitSourceMap` helper to map each IL offset to its nearest sequence point. On
+ARM64 every emitted instruction is four bytes; explicit alignment bytes are
+also included. The mapping is approximate after optimization and inlining, but
+it is derived from real JIT/PDB data. Prolog, epilog and `NO_MAP` ranges receive
+no source link. The script deliberately fails if the supplied JIT emits no IP
+mapping instead of falling back to representative source hints.
+
+Example after building the matching Checked JIT in the auto-discovery path:
+
+```bash
+python3 benchmarks/jit-report.py \
+  --method '*IterateMovement4IndependentIterators*' \
+  --filter '*QueryIteratorIterationMicroBenchmarks.Movement4IndependentIterators*' \
+  --mode debug \
+  --no-build \
+  --output artifacts/jit-disasm/movement4-independent-debug.txt \
+  --report artifacts/jit-disasm/movement4-independent-debug.md \
+  --auto-open
+```
+
+Release mode intentionally omits the detailed table and does not require a
+Checked JIT.
+
 ## Full comparison gate
 
 The comparative project is manual evidence. Build it and run its non-measuring
