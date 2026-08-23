@@ -86,11 +86,13 @@ public sealed class World : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public ArchetypeHandle GetArchetype(params ComponentId[] componentIds) => ResolveArchetype(componentIds);
+    public ArchetypeHandle GetArchetype(params ReadOnlySpan<ComponentId> componentIds) => ResolveArchetype(componentIds);
 
-    public ArchetypeHandle ResolveArchetype(params ComponentId[] componentIds)
+    public ArchetypeHandle GetArchetype(ComponentId first, ComponentId second)
+        => GetArchetype(stackalloc[] { first, second });
+
+    public ArchetypeHandle ResolveArchetype(params ReadOnlySpan<ComponentId> componentIds)
     {
-        ArgumentNullException.ThrowIfNull(componentIds);
         if (!TryBuildComponentMask(componentIds, out var mask))
         {
             throw new InvalidOperationException("Component list is empty or invalid.");
@@ -107,13 +109,13 @@ public sealed class World : IDisposable
     /// </summary>
     public QueryScope OpenQuery(in Query handle) => new QueryScope(this, handle);
 
-    public Entity Create(ComponentId[] componentIds)
+    public Entity Create(params ReadOnlySpan<ComponentId> componentIds)
     {
         Span<Entity> entities = stackalloc Entity[1];
         return CreateBatch(componentIds, entities) == 0 ? Entity.Null : entities[0];
     }
 
-    public int CreateBatch(ComponentId[] componentIds, Span<Entity> output)
+    public int CreateBatch(ReadOnlySpan<ComponentId> componentIds, Span<Entity> output)
     {
         if (output.Length == 0)
         {

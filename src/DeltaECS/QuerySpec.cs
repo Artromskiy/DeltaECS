@@ -68,7 +68,7 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
         return hash.ToHashCode();
     }
 
-    private static ComponentMask BuildMask(ComponentId[] ids)
+    private static ComponentMask BuildMask(ReadOnlySpan<ComponentId> ids)
     {
         var mask = default(ComponentMask);
         for (int i = 0; i < ids.Length; i++)
@@ -164,8 +164,27 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
 
     public override int GetHashCode() => Hash;
 
-    public static QuerySpec ForComponents(params ComponentId[] components) =>
-        new(components, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(), Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>());
+    private QuerySpec(ReadOnlySpan<ComponentId> components)
+    {
+        _allMask = BuildMask(components);
+        _anyMask = default;
+        _noneMask = default;
+        _allTags = Array.Empty<TagId>();
+        _anyTags = Array.Empty<TagId>();
+        _noneTags = Array.Empty<TagId>();
+        Hash = ComputeHash();
+    }
+
+    public static QuerySpec ForComponents(params ReadOnlySpan<ComponentId> components) => new(components);
+
+    public static QuerySpec ForComponents(ComponentId first, ComponentId second)
+        => ForComponents(stackalloc[] { first, second });
+
+    public static QuerySpec ForComponents(ComponentId first, ComponentId second, ComponentId third)
+        => ForComponents(stackalloc[] { first, second, third });
+
+    public static QuerySpec ForComponents(ComponentId first, ComponentId second, ComponentId third, ComponentId fourth)
+        => ForComponents(stackalloc[] { first, second, third, fourth });
 
     public static IEqualityComparer<QuerySpec> Comparer { get; } = new QuerySpecComparer();
 }
