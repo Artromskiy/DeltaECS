@@ -22,8 +22,8 @@ public class DistinctDenseComparisonBenchmarks
     private World _deltaWorld = null!;
     private ComponentId[] _deltaComponents = Array.Empty<ComponentId>();
     private Query _deltaQuery;
-    private AccessRequest _d0Binding; private AccessRequest _d1Binding; private AccessRequest _d2Binding; private AccessRequest _d3Binding;
-    private AccessRequest _d4Binding; private AccessRequest _d5Binding; private AccessRequest _d6Binding; private AccessRequest _d7Binding;
+    private WriteAccess _d0Binding; private WriteAccess _d1Binding; private WriteAccess _d2Binding; private WriteAccess _d3Binding;
+    private WriteAccess _d4Binding; private WriteAccess _d5Binding; private WriteAccess _d6Binding; private WriteAccess _d7Binding;
     private DeltaEntity[] _deltaEntities = Array.Empty<DeltaEntity>();
     private LegacyByteDenseReference _legacy = null!;
     private Arch.Core.World _archWorld = null!;
@@ -34,13 +34,6 @@ public class DistinctDenseComparisonBenchmarks
     private ArchetypeQuery<F0, F1> _frifloQ2 = null!;
     private ArchetypeQuery<F0, F1, F2, F3> _frifloQ4 = null!;
     private ArchetypeQuery<F0, F1, F2, F3, F4> _frifloQ8 = null!;
-
-    private struct State
-    {
-        public int ComponentCount;
-        public AccessRequest D0; public AccessRequest D1; public AccessRequest D2; public AccessRequest D3;
-        public AccessRequest D4; public AccessRequest D5; public AccessRequest D6; public AccessRequest D7;
-    }
 
     private static readonly ArchComponentType[] s_archTypes =
     {
@@ -114,8 +107,105 @@ public class DistinctDenseComparisonBenchmarks
     [Benchmark(Baseline = true)]
     public void DeltaECS_Array_DistinctTypes()
     {
-        var state = new State { ComponentCount = ComponentCount, D0 = _d0Binding, D1 = _d1Binding, D2 = _d2Binding, D3 = _d3Binding, D4 = _d4Binding, D5 = _d5Binding, D6 = _d6Binding, D7 = _d7Binding };
-        _deltaWorld.Query(in _deltaQuery, ref state, static (ref State current, ref QueryChunkCursor cursor) => IterateDelta(ref current, ref cursor));
+        using var scope = _deltaWorld.OpenQuery(in _deltaQuery);
+        var d0 = scope.Bind(_d0Binding);
+        var d1 = ComponentCount >= 2 ? scope.Bind(_d1Binding) : default;
+        var d2 = ComponentCount >= 4 ? scope.Bind(_d2Binding) : default;
+        var d3 = ComponentCount >= 4 ? scope.Bind(_d3Binding) : default;
+        var d4 = ComponentCount >= 8 ? scope.Bind(_d4Binding) : default;
+        var d5 = ComponentCount >= 8 ? scope.Bind(_d5Binding) : default;
+        var d6 = ComponentCount >= 8 ? scope.Bind(_d6Binding) : default;
+        var d7 = ComponentCount >= 8 ? scope.Bind(_d7Binding) : default;
+        var archetypes = scope.Archetypes;
+
+        while (archetypes.MoveNext())
+        {
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var slots = chunks.Current.Slots;
+                switch (ComponentCount)
+                {
+                    case 1:
+                    {
+                        var c0 = slots.Get(d0);
+                        while (slots.MoveNext())
+                        {
+                            ref var value = ref c0.Ref<D0>(slots);
+                            value.X += value.Y;
+                        }
+
+                        break;
+                    }
+                    case 2:
+                    {
+                        var c0 = slots.Get(d0);
+                        var c1 = slots.Get(d1);
+                        while (slots.MoveNext())
+                        {
+                            ref var value0 = ref c0.Ref<D0>(slots);
+                            ref var value1 = ref c1.Ref<D1>(slots);
+                            value0.X += value0.Y;
+                            value1.X += value1.Y;
+                        }
+
+                        break;
+                    }
+                    case 4:
+                    {
+                        var c0 = slots.Get(d0);
+                        var c1 = slots.Get(d1);
+                        var c2 = slots.Get(d2);
+                        var c3 = slots.Get(d3);
+                        while (slots.MoveNext())
+                        {
+                            ref var value0 = ref c0.Ref<D0>(slots);
+                            ref var value1 = ref c1.Ref<D1>(slots);
+                            ref var value2 = ref c2.Ref<D2>(slots);
+                            ref var value3 = ref c3.Ref<D3>(slots);
+                            value0.X += value0.Y;
+                            value1.X += value1.Y;
+                            value2.X += value2.Y;
+                            value3.X += value3.Y;
+                        }
+
+                        break;
+                    }
+                    case 8:
+                    {
+                        var c0 = slots.Get(d0);
+                        var c1 = slots.Get(d1);
+                        var c2 = slots.Get(d2);
+                        var c3 = slots.Get(d3);
+                        var c4 = slots.Get(d4);
+                        var c5 = slots.Get(d5);
+                        var c6 = slots.Get(d6);
+                        var c7 = slots.Get(d7);
+                        while (slots.MoveNext())
+                        {
+                            ref var value0 = ref c0.Ref<D0>(slots);
+                            ref var value1 = ref c1.Ref<D1>(slots);
+                            ref var value2 = ref c2.Ref<D2>(slots);
+                            ref var value3 = ref c3.Ref<D3>(slots);
+                            ref var value4 = ref c4.Ref<D4>(slots);
+                            ref var value5 = ref c5.Ref<D5>(slots);
+                            ref var value6 = ref c6.Ref<D6>(slots);
+                            ref var value7 = ref c7.Ref<D7>(slots);
+                            value0.X += value0.Y;
+                            value1.X += value1.Y;
+                            value2.X += value2.Y;
+                            value3.X += value3.Y;
+                            value4.X += value4.Y;
+                            value5.X += value5.Y;
+                            value6.X += value6.Y;
+                            value7.X += value7.Y;
+                        }
+
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     [Benchmark]
@@ -160,38 +250,6 @@ public class DistinctDenseComparisonBenchmarks
             _deltaWorld.SetComponent(entity, _deltaComponents[5], new D5 { X = 1, Y = 2 });
             _deltaWorld.SetComponent(entity, _deltaComponents[6], new D6 { X = 1, Y = 2 });
             _deltaWorld.SetComponent(entity, _deltaComponents[7], new D7 { X = 1, Y = 2 });
-        }
-    }
-
-    private static void IterateDelta(ref State state, ref QueryChunkCursor cursor)
-    {
-        switch (state.ComponentCount)
-        {
-            case 1:
-            {
-                var c0 = cursor.GetWrite(state.D0);
-                while (cursor.MoveNext()) c0.Ref<D0>(cursor).X += c0.Ref<D0>(cursor).Y;
-                break;
-            }
-            case 2:
-            {
-                var c0 = cursor.GetWrite(state.D0); var c1 = cursor.GetWrite(state.D1);
-                while (cursor.MoveNext()) { c0.Ref<D0>(cursor).X += c0.Ref<D0>(cursor).Y; c1.Ref<D1>(cursor).X += c1.Ref<D1>(cursor).Y; }
-                break;
-            }
-            case 4:
-            {
-                var c0 = cursor.GetWrite(state.D0); var c1 = cursor.GetWrite(state.D1); var c2 = cursor.GetWrite(state.D2); var c3 = cursor.GetWrite(state.D3);
-                while (cursor.MoveNext()) { c0.Ref<D0>(cursor).X += c0.Ref<D0>(cursor).Y; c1.Ref<D1>(cursor).X += c1.Ref<D1>(cursor).Y; c2.Ref<D2>(cursor).X += c2.Ref<D2>(cursor).Y; c3.Ref<D3>(cursor).X += c3.Ref<D3>(cursor).Y; }
-                break;
-            }
-            case 8:
-            {
-                var c0 = cursor.GetWrite(state.D0); var c1 = cursor.GetWrite(state.D1); var c2 = cursor.GetWrite(state.D2); var c3 = cursor.GetWrite(state.D3);
-                var c4 = cursor.GetWrite(state.D4); var c5 = cursor.GetWrite(state.D5); var c6 = cursor.GetWrite(state.D6); var c7 = cursor.GetWrite(state.D7);
-                while (cursor.MoveNext()) { c0.Ref<D0>(cursor).X += c0.Ref<D0>(cursor).Y; c1.Ref<D1>(cursor).X += c1.Ref<D1>(cursor).Y; c2.Ref<D2>(cursor).X += c2.Ref<D2>(cursor).Y; c3.Ref<D3>(cursor).X += c3.Ref<D3>(cursor).Y; c4.Ref<D4>(cursor).X += c4.Ref<D4>(cursor).Y; c5.Ref<D5>(cursor).X += c5.Ref<D5>(cursor).Y; c6.Ref<D6>(cursor).X += c6.Ref<D6>(cursor).Y; c7.Ref<D7>(cursor).X += c7.Ref<D7>(cursor).Y; }
-                break;
-            }
         }
     }
 
