@@ -290,10 +290,10 @@ public class DenseIterationMicroBenchmarkImplementation
             _fixture.Movement4C,
             _fixture.Movement4D);
         _movement4Query = _fixture.World.CreateQuery(in movement4);
-        _movement4A = _movement4Query.Access<Movement4A>(_fixture.Movement4A, AccessMode.Write);
-        _movement4B = _movement4Query.Access<Movement4B>(_fixture.Movement4B, AccessMode.Write);
-        _movement4C = _movement4Query.Access<Movement4C>(_fixture.Movement4C, AccessMode.Write);
-        _movement4D = _movement4Query.Access<Movement4D>(_fixture.Movement4D, AccessMode.Read);
+        _movement4A = _movement4Query.Access(_fixture.Movement4A, AccessMode.Write);
+        _movement4B = _movement4Query.Access(_fixture.Movement4B, AccessMode.Write);
+        _movement4C = _movement4Query.Access(_fixture.Movement4C, AccessMode.Write);
+        _movement4D = _movement4Query.Access(_fixture.Movement4D, AccessMode.Read);
         _movement4AErased = _movement4Query.Access(_fixture.Movement4A, AccessMode.Write);
         _movement4BErased = _movement4Query.Access(_fixture.Movement4B, AccessMode.Write);
         _movement4CErased = _movement4Query.Access(_fixture.Movement4C, AccessMode.Write);

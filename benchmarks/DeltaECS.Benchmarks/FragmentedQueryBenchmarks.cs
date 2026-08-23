@@ -24,7 +24,7 @@ public class DeltaOnlyFragmentedQueryBenchmarks
     private World _world = null!;
     private Query _query;
     private ComponentId _required;
-    private ReadRequest<FragmentValue> _valueBinding;
+    private AccessRequest _valueBinding;
     private int _expectedMatches;
 
     [GlobalSetup]
@@ -71,7 +71,7 @@ public class DeltaOnlyFragmentedQueryBenchmarks
 
         var spec = QuerySpec.ForComponents(_required);
         _query = _world.CreateQuery(in spec);
-        _valueBinding = _query.Access<FragmentValue>(_required, AccessMode.Read);
+        _valueBinding = _query.Access(_required, AccessMode.Read);
     }
 
     [Benchmark]
@@ -80,11 +80,11 @@ public class DeltaOnlyFragmentedQueryBenchmarks
         var state = new FragmentQueryState { Value = _valueBinding };
         _world.Query(in _query, ref state, static (ref FragmentQueryState s, ref QueryChunkCursor cursor) =>
         {
-            var values = cursor.Get<FragmentValue>(s.Value);
+            var values = cursor.GetRead(s.Value);
             while (cursor.MoveNext())
             {
                 s.Matches++;
-                s.Checksum += values[cursor].Value;
+                s.Checksum += values.Ref<FragmentValue>(cursor).Value;
             }
         });
 
@@ -117,15 +117,15 @@ public class DeltaOnlyFragmentedQueryBenchmarks
         var state = new FragmentQueryState();
         var spec = QuerySpec.ForComponents(_required);
         var coldQuery = _world.CreateQuery(in spec);
-        var valueBinding = coldQuery.Access<FragmentValue>(_required, AccessMode.Read);
+        var valueBinding = coldQuery.Access(_required, AccessMode.Read);
         state.Value = valueBinding;
         _world.Query(in coldQuery, ref state, static (ref FragmentQueryState s, ref QueryChunkCursor cursor) =>
         {
-            var values = cursor.Get<FragmentValue>(s.Value);
+            var values = cursor.GetRead(s.Value);
             while (cursor.MoveNext())
             {
                 s.Matches++;
-                s.Checksum += values[cursor].Value;
+                s.Checksum += values.Ref<FragmentValue>(cursor).Value;
             }
         });
 
@@ -170,6 +170,6 @@ public class DeltaOnlyFragmentedQueryBenchmarks
     {
         public int Matches;
         public int Checksum;
-        public ReadRequest<FragmentValue> Value;
+        public AccessRequest Value;
     }
 }

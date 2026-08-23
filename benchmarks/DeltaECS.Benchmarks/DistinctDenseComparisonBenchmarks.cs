@@ -22,8 +22,8 @@ public class DistinctDenseComparisonBenchmarks
     private World _deltaWorld = null!;
     private ComponentId[] _deltaComponents = Array.Empty<ComponentId>();
     private Query _deltaQuery;
-    private WriteRequest<D0> _d0Binding; private WriteRequest<D1> _d1Binding; private WriteRequest<D2> _d2Binding; private WriteRequest<D3> _d3Binding;
-    private WriteRequest<D4> _d4Binding; private WriteRequest<D5> _d5Binding; private WriteRequest<D6> _d6Binding; private WriteRequest<D7> _d7Binding;
+    private AccessRequest _d0Binding; private AccessRequest _d1Binding; private AccessRequest _d2Binding; private AccessRequest _d3Binding;
+    private AccessRequest _d4Binding; private AccessRequest _d5Binding; private AccessRequest _d6Binding; private AccessRequest _d7Binding;
     private DeltaEntity[] _deltaEntities = Array.Empty<DeltaEntity>();
     private LegacyByteDenseReference _legacy = null!;
     private Arch.Core.World _archWorld = null!;
@@ -38,8 +38,8 @@ public class DistinctDenseComparisonBenchmarks
     private struct State
     {
         public int ComponentCount;
-        public WriteRequest<D0> D0; public WriteRequest<D1> D1; public WriteRequest<D2> D2; public WriteRequest<D3> D3;
-        public WriteRequest<D4> D4; public WriteRequest<D5> D5; public WriteRequest<D6> D6; public WriteRequest<D7> D7;
+        public AccessRequest D0; public AccessRequest D1; public AccessRequest D2; public AccessRequest D3;
+        public AccessRequest D4; public AccessRequest D5; public AccessRequest D6; public AccessRequest D7;
     }
 
     private static readonly ArchComponentType[] s_archTypes =
@@ -78,14 +78,14 @@ public class DistinctDenseComparisonBenchmarks
 
         var queryDescription = QuerySpec.ForComponents(_deltaComponents);
         _deltaQuery = _deltaWorld.CreateQuery(in queryDescription);
-        _d0Binding = _deltaQuery.Access<D0>(_deltaComponents[0], AccessMode.Write);
-        _d1Binding = ComponentCount >= 2 ? _deltaQuery.Access<D1>(_deltaComponents[1], AccessMode.Write) : default;
-        _d2Binding = ComponentCount >= 4 ? _deltaQuery.Access<D2>(_deltaComponents[2], AccessMode.Write) : default;
-        _d3Binding = ComponentCount >= 4 ? _deltaQuery.Access<D3>(_deltaComponents[3], AccessMode.Write) : default;
-        _d4Binding = ComponentCount >= 8 ? _deltaQuery.Access<D4>(_deltaComponents[4], AccessMode.Write) : default;
-        _d5Binding = ComponentCount >= 8 ? _deltaQuery.Access<D5>(_deltaComponents[5], AccessMode.Write) : default;
-        _d6Binding = ComponentCount >= 8 ? _deltaQuery.Access<D6>(_deltaComponents[6], AccessMode.Write) : default;
-        _d7Binding = ComponentCount >= 8 ? _deltaQuery.Access<D7>(_deltaComponents[7], AccessMode.Write) : default;
+        _d0Binding = _deltaQuery.Access(_deltaComponents[0], AccessMode.Write);
+        _d1Binding = ComponentCount >= 2 ? _deltaQuery.Access(_deltaComponents[1], AccessMode.Write) : default;
+        _d2Binding = ComponentCount >= 4 ? _deltaQuery.Access(_deltaComponents[2], AccessMode.Write) : default;
+        _d3Binding = ComponentCount >= 4 ? _deltaQuery.Access(_deltaComponents[3], AccessMode.Write) : default;
+        _d4Binding = ComponentCount >= 8 ? _deltaQuery.Access(_deltaComponents[4], AccessMode.Write) : default;
+        _d5Binding = ComponentCount >= 8 ? _deltaQuery.Access(_deltaComponents[5], AccessMode.Write) : default;
+        _d6Binding = ComponentCount >= 8 ? _deltaQuery.Access(_deltaComponents[6], AccessMode.Write) : default;
+        _d7Binding = ComponentCount >= 8 ? _deltaQuery.Access(_deltaComponents[7], AccessMode.Write) : default;
         _legacy = new LegacyByteDenseReference(ComponentCount, Amount);
 
         _archWorld = Arch.Core.World.Create();
@@ -169,27 +169,27 @@ public class DistinctDenseComparisonBenchmarks
         {
             case 1:
             {
-                var c0 = cursor.Get<D0>(state.D0);
-                while (cursor.MoveNext()) c0[cursor].X += c0[cursor].Y;
+                var c0 = cursor.GetWrite(state.D0);
+                while (cursor.MoveNext()) c0.Ref<D0>(cursor).X += c0.Ref<D0>(cursor).Y;
                 break;
             }
             case 2:
             {
-                var c0 = cursor.Get<D0>(state.D0); var c1 = cursor.Get<D1>(state.D1);
-                while (cursor.MoveNext()) { c0[cursor].X += c0[cursor].Y; c1[cursor].X += c1[cursor].Y; }
+                var c0 = cursor.GetWrite(state.D0); var c1 = cursor.GetWrite(state.D1);
+                while (cursor.MoveNext()) { c0.Ref<D0>(cursor).X += c0.Ref<D0>(cursor).Y; c1.Ref<D1>(cursor).X += c1.Ref<D1>(cursor).Y; }
                 break;
             }
             case 4:
             {
-                var c0 = cursor.Get<D0>(state.D0); var c1 = cursor.Get<D1>(state.D1); var c2 = cursor.Get<D2>(state.D2); var c3 = cursor.Get<D3>(state.D3);
-                while (cursor.MoveNext()) { c0[cursor].X += c0[cursor].Y; c1[cursor].X += c1[cursor].Y; c2[cursor].X += c2[cursor].Y; c3[cursor].X += c3[cursor].Y; }
+                var c0 = cursor.GetWrite(state.D0); var c1 = cursor.GetWrite(state.D1); var c2 = cursor.GetWrite(state.D2); var c3 = cursor.GetWrite(state.D3);
+                while (cursor.MoveNext()) { c0.Ref<D0>(cursor).X += c0.Ref<D0>(cursor).Y; c1.Ref<D1>(cursor).X += c1.Ref<D1>(cursor).Y; c2.Ref<D2>(cursor).X += c2.Ref<D2>(cursor).Y; c3.Ref<D3>(cursor).X += c3.Ref<D3>(cursor).Y; }
                 break;
             }
             case 8:
             {
-                var c0 = cursor.Get<D0>(state.D0); var c1 = cursor.Get<D1>(state.D1); var c2 = cursor.Get<D2>(state.D2); var c3 = cursor.Get<D3>(state.D3);
-                var c4 = cursor.Get<D4>(state.D4); var c5 = cursor.Get<D5>(state.D5); var c6 = cursor.Get<D6>(state.D6); var c7 = cursor.Get<D7>(state.D7);
-                while (cursor.MoveNext()) { c0[cursor].X += c0[cursor].Y; c1[cursor].X += c1[cursor].Y; c2[cursor].X += c2[cursor].Y; c3[cursor].X += c3[cursor].Y; c4[cursor].X += c4[cursor].Y; c5[cursor].X += c5[cursor].Y; c6[cursor].X += c6[cursor].Y; c7[cursor].X += c7[cursor].Y; }
+                var c0 = cursor.GetWrite(state.D0); var c1 = cursor.GetWrite(state.D1); var c2 = cursor.GetWrite(state.D2); var c3 = cursor.GetWrite(state.D3);
+                var c4 = cursor.GetWrite(state.D4); var c5 = cursor.GetWrite(state.D5); var c6 = cursor.GetWrite(state.D6); var c7 = cursor.GetWrite(state.D7);
+                while (cursor.MoveNext()) { c0.Ref<D0>(cursor).X += c0.Ref<D0>(cursor).Y; c1.Ref<D1>(cursor).X += c1.Ref<D1>(cursor).Y; c2.Ref<D2>(cursor).X += c2.Ref<D2>(cursor).Y; c3.Ref<D3>(cursor).X += c3.Ref<D3>(cursor).Y; c4.Ref<D4>(cursor).X += c4.Ref<D4>(cursor).Y; c5.Ref<D5>(cursor).X += c5.Ref<D5>(cursor).Y; c6.Ref<D6>(cursor).X += c6.Ref<D6>(cursor).Y; c7.Ref<D7>(cursor).X += c7.Ref<D7>(cursor).Y; }
                 break;
             }
         }

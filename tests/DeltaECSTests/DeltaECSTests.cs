@@ -92,8 +92,8 @@ public sealed class DeltaECSDeliveryTests
         Assert.AreEqual(requested, world.AliveEntityCount);
 
         var query = world.CreateQuery(QuerySpec.ForComponents(PositionId, VelocityId));
-        var position = query.Access<Position>(PositionId, AccessMode.Write);
-        var velocity = query.Access<Velocity>(VelocityId, AccessMode.Write);
+        var position = query.Access(PositionId, AccessMode.Write);
+        var velocity = query.Access(VelocityId, AccessMode.Write);
         var sum = 0L;
         world.Query(in query, ref sum, (ref long total, ref QueryChunkCursor cursor) =>
         {
@@ -141,7 +141,7 @@ public sealed class DeltaECSDeliveryTests
         }
 
         var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
-        var position = query.Access<Position>(PositionId, AccessMode.Write);
+        var position = query.Access(PositionId, AccessMode.Write);
         var before = world.WorldTick;
         var archetypeCount = 0;
         var chunkCount = 0;
@@ -266,8 +266,8 @@ public sealed class DeltaECSDeliveryTests
 
         var spec = QuerySpec.ForComponents(PositionId, VelocityId);
         var query = world.CreateQuery(in spec);
-        var position = query.Access<Position>(PositionId, AccessMode.Read);
-        var velocity = query.Access<Velocity>(VelocityId, AccessMode.Read);
+        var position = query.Access(PositionId, AccessMode.Read);
+        var velocity = query.Access(VelocityId, AccessMode.Read);
         var denseLeaseCount = 0;
         world.Query(in query, ref denseLeaseCount, (ref int count, ref QueryChunkCursor cursor) =>
         {
@@ -299,7 +299,7 @@ public sealed class DeltaECSDeliveryTests
         var world = new World(layouts, chunkCapacity: 4);
         var spec = QuerySpec.ForComponents(PositionId);
         var emptyQuery = world.CreateQuery(in spec);
-        var position = emptyQuery.Access<Position>(PositionId, AccessMode.Read);
+        var position = emptyQuery.Access(PositionId, AccessMode.Read);
         var emptyChunkCount = 0;
         world.Query(
             in emptyQuery,
@@ -475,7 +475,7 @@ public sealed class DeltaECSDeliveryTests
             new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
             new[] { TagActive }, Array.Empty<TagId>(), Array.Empty<TagId>());
         var query = world.CreateQuery(in spec);
-        var position = query.Access<Position>(PositionId, AccessMode.Read);
+        var position = query.Access(PositionId, AccessMode.Read);
         var state = new CursorTaggedState(position);
         world.Query(in query, ref state, static (ref CursorTaggedState current, ref QueryChunkCursor cursor) =>
         {
@@ -676,7 +676,7 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
-    public void WriteRequest_Marks_Only_Yielded_Rows_And_ReadBinding_Does_Not_Mark()
+    public void WriteAccess_Marks_Only_Yielded_Rows_And_ReadBinding_Does_Not_Mark()
     {
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
@@ -685,8 +685,8 @@ public sealed class DeltaECSDeliveryTests
         var chunkId = -1;
         var spec = QuerySpec.ForComponents(PositionId);
         var query = world.CreateQuery(in spec);
-        var readPosition = query.Access<Position>(PositionId, AccessMode.Read);
-        var writePosition = query.Access<Position>(PositionId, AccessMode.Write);
+        var readPosition = query.Access(PositionId, AccessMode.Read);
+        var writePosition = query.Access(PositionId, AccessMode.Write);
         var before = world.WorldTick;
 
         world.Query(in query, ref chunkId, static (ref int id, ref QueryChunkCursor cursor) =>
@@ -736,10 +736,18 @@ public sealed class DeltaECSDeliveryTests
         var publicMethods = typeof(World).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
         Assert.That(publicMethods.Any(static method => method.Name == "Query"), Is.True);
         Assert.That(publicMethods.Any(static method => method.Name == "QueryChunks"), Is.False);
+
+        var publicInstance = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public;
+        Assert.That(typeof(Query).GetMethods(publicInstance).Any(static method => method.Name == "Access" && method.IsGenericMethod), Is.False);
+        Assert.That(typeof(QueryScope).GetMethods(publicInstance).Any(static method => method.Name.StartsWith("Bind", StringComparison.Ordinal) && method.IsGenericMethod), Is.False);
+        Assert.That(typeof(QueryChunkCursor).GetMethods(publicInstance).Any(static method => method.Name == "Get" && method.IsGenericMethod), Is.False);
+        Assert.That(typeof(QuerySlots).GetMethods(publicInstance).Any(static method => method.Name == "Get" && method.IsGenericMethod), Is.False);
+        Assert.That(assembly.GetType("Delta.ECS.ReadValues`1"), Is.Null);
+        Assert.That(assembly.GetType("Delta.ECS.WriteValues`1"), Is.Null);
     }
 
     [Test]
-    public void AccessRequests_Are_Typed_QueryBound_And_Precisely_Track_Writes()
+    public void AccessRequests_Are_NonGeneric_QueryBound_And_Precisely_Track_Writes()
     {
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
@@ -749,8 +757,8 @@ public sealed class DeltaECSDeliveryTests
 
         var spec = QuerySpec.ForComponents(PositionId, VelocityId);
         var query = world.CreateQuery(in spec);
-        var position = query.Access<Position>(PositionId, AccessMode.Write);
-        var velocity = query.Access<Velocity>(VelocityId, AccessMode.Read);
+        var position = query.Access(PositionId, AccessMode.Write);
+        var velocity = query.Access(VelocityId, AccessMode.Read);
 
         Assert.That(query.Cached, Is.Not.Null);
 
@@ -780,14 +788,13 @@ public sealed class DeltaECSDeliveryTests
         });
         Assert.That(simpleRows, Is.EqualTo(2));
 
-        var wrongType = Assert.Throws<ArgumentException>(() => query.Access<Velocity>(PositionId, AccessMode.Read));
-        Assert.That(wrongType!.Message, Does.Contain("registered"));
+        Assert.DoesNotThrow(() => query.Access(PositionId, AccessMode.Read));
 
         var anyDescription = new QuerySpec(
             new[] { PositionId }, new[] { VelocityId }, Array.Empty<ComponentId>(),
             Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>());
         var anyQuery = world.CreateQuery(in anyDescription);
-        Assert.Throws<ArgumentException>(() => anyQuery.Access<Velocity>(VelocityId, AccessMode.Read));
+        Assert.Throws<ArgumentException>(() => anyQuery.Access(VelocityId, AccessMode.Read));
 
         Assert.DoesNotThrow(() => ExecuteReadWithWriteBinding(world, query, position));
     }
@@ -801,15 +808,15 @@ public sealed class DeltaECSDeliveryTests
         world.Create(new[] { PositionId, VelocityId });
 
         var query = world.CreateQuery(QuerySpec.ForComponents(PositionId, VelocityId));
-        ReadRequest readRequest = query.Access(VelocityId, AccessMode.Read);
-        WriteRequest writeRequest = query.Access(PositionId, AccessMode.Write);
+        AccessRequest readRequest = query.Access(VelocityId, AccessMode.Read);
+        AccessRequest writeRequest = query.Access(PositionId, AccessMode.Write);
         var before = world.WorldTick;
         var sum = 0f;
 
         using (var scope = world.OpenQuery(in query))
         {
-            var read = scope.Bind(readRequest);
-            var write = scope.Bind(writeRequest);
+            var read = scope.BindRead(readRequest);
+            var write = scope.BindWrite(writeRequest);
             var archetypes = scope.Archetypes;
             while (archetypes.MoveNext())
             {
@@ -845,7 +852,7 @@ public sealed class DeltaECSDeliveryTests
 
         var spec = QuerySpec.ForComponents(VelocityId);
         var query = world.CreateQuery(in spec);
-        var velocity = query.Access<Velocity>(VelocityId, AccessMode.Read);
+        var velocity = query.Access(VelocityId, AccessMode.Read);
 
         var firstRows = 0;
         world.Query(in query, ref firstRows, (ref int rows, ref QueryChunkCursor cursor) =>
@@ -877,7 +884,7 @@ public sealed class DeltaECSDeliveryTests
         var query = world.CreateQuery(in spec);
         var otherDescription = QuerySpec.ForComponents(PositionId);
         var otherQuery = world.CreateQuery(in otherDescription);
-        var mismatchedBinding = otherQuery.Access<Position>(PositionId, AccessMode.Read);
+        var mismatchedBinding = otherQuery.Access(PositionId, AccessMode.Read);
 
         Assert.Throws<InvalidOperationException>(() => world.Query(in query, ref mismatchedBinding, static (ref AccessRequest binding, ref QueryChunkCursor cursor) =>
         {
@@ -887,7 +894,7 @@ public sealed class DeltaECSDeliveryTests
         var foreignWorld = new World(layouts);
         foreignWorld.Create(new[] { PositionId, VelocityId });
         var foreignQuery = foreignWorld.CreateQuery(QuerySpec.ForComponents(PositionId, VelocityId));
-        var foreignBinding = foreignQuery.Access<Position>(PositionId, AccessMode.Read);
+        var foreignBinding = foreignQuery.Access(PositionId, AccessMode.Read);
 
         Assert.Throws<InvalidOperationException>(() => world.Query(in query, ref foreignBinding, static (ref AccessRequest binding, ref QueryChunkCursor cursor) =>
         {
@@ -978,8 +985,8 @@ public sealed class DeltaECSDeliveryTests
         }
 
         var query = world.CreateQuery(QuerySpec.ForComponents(PositionId, VelocityId));
-        var position = query.Access<Position>(PositionId, AccessMode.Write);
-        var velocity = query.Access<Velocity>(VelocityId, AccessMode.Read);
+        var position = query.Access(PositionId, AccessMode.Write);
+        var velocity = query.Access(VelocityId, AccessMode.Read);
         var state = new QueryState { Position = position, Velocity = velocity };
         for (var warmup = 0; warmup < 3; warmup++)
         {
@@ -1030,8 +1037,8 @@ public sealed class DeltaECSDeliveryTests
         var worldId = layouts.Register<NamedRef>(new SchemaId(10_102));
         var world = new World(layouts, chunkCapacity: 4);
         var query = world.CreateQuery(QuerySpec.ForComponents(localId, worldId));
-        var local = query.Access<NamedRef>(localId, AccessMode.Read);
-        var worldRow = query.Access<NamedRef>(worldId, AccessMode.Read);
+        var local = query.Access(localId, AccessMode.Read);
+        var worldRow = query.Access(worldId, AccessMode.Read);
         var entity = world.Create(new[] { localId, worldId });
 
         world.SetComponent(entity, localId, new NamedRef { Name = "local", Id = 1 });
@@ -1063,7 +1070,7 @@ public sealed class DeltaECSDeliveryTests
         Assert.That(actual, Is.SameAs(component));
 
         var query = world.CreateQuery(QuerySpec.ForComponents(referenceId));
-        var reference = query.Access<ReferenceComponent>(referenceId, AccessMode.Write);
+        var reference = query.Access(referenceId, AccessMode.Write);
         var referenceState = new ReferenceRowState(reference, component);
         world.Query(in query, ref referenceState, static (ref ReferenceRowState current, ref QueryChunkCursor cursor) =>
         {

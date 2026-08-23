@@ -11,12 +11,10 @@ The dense path is:
 AccessRequest -> ReadAccess/WriteAccess -> ReadValues/WriteValues -> Ref<T>
 ```
 
-`T` is present only at component registration, compatibility `Access<T>`
-calls, and the terminal `values.Ref<T>(slots)` operation. The new benchmark
-uses non-generic `AccessRequest`, `BindRead`/`BindWrite`, and `slots.Get`.
-`Movement4ComponentsGenericCompatibility` is an explicitly labelled setup
-compatibility control; its generic `Access<T>` call returns the same
-non-generic request and is not an intermediate hot-path type.
+`T` is present only at component registration and the terminal
+`values.Ref<T>(slots)` operation. The benchmark uses non-generic
+`AccessRequest`, `BindRead`/`BindWrite`, and `slots.Get`; no generic access or
+request compatibility path remains.
 
 The existing comparative and version benchmark projects are deliberately left
 on their legacy callers. They are not part of this L4 migration.

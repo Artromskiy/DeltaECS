@@ -55,23 +55,11 @@ public ref struct QueryScope
         return new ReadAccess(_query, access.QueryComponentIndex);
     }
 
-    /// <summary>Compatibility generic call; the returned access token remains non-generic.</summary>
-    [Obsolete("Use BindRead(AccessRequest); the generic argument is compatibility-only.")]
-    public ReadAccess BindRead<T>(AccessRequest access) => BindRead(access);
-
     public ReadAccess Bind(ReadAccess access)
     {
         EnsureActive();
         Validate(access.Query);
         return access;
-    }
-
-    [Obsolete("Use non-generic AccessRequest with BindRead.")]
-    public ReadAccess Bind(ReadRequest request)
-    {
-        EnsureActive();
-        Validate(request.Query);
-        return new ReadAccess(_query, request.QueryComponentIndex);
     }
 
     public WriteAccess BindWrite(AccessRequest access)
@@ -91,10 +79,6 @@ public ref struct QueryScope
         return new WriteAccess(_query, access.QueryComponentIndex);
     }
 
-    /// <summary>Compatibility generic call; the returned access token remains non-generic.</summary>
-    [Obsolete("Use BindWrite(AccessRequest); the generic argument is compatibility-only.")]
-    public WriteAccess BindWrite<T>(AccessRequest access) => BindWrite(access);
-
     public WriteAccess Bind(WriteAccess access)
     {
         EnsureActive();
@@ -105,42 +89,6 @@ public ref struct QueryScope
         }
 
         return access;
-    }
-
-    [Obsolete("Use non-generic AccessRequest with BindWrite.")]
-    public WriteAccess Bind(WriteRequest request)
-    {
-        EnsureActive();
-        Validate(request.Query);
-        if (_writeTick == 0)
-        {
-            QueryThrowHelper.ThrowMissingWriteIntent();
-        }
-
-        return new WriteAccess(_query, request.QueryComponentIndex);
-    }
-
-    // Obsolete source-compatibility path. The returned token remains non-generic.
-    [Obsolete("Use BindRead(AccessRequest); the generic argument is compatibility-only.")]
-    public ReadAccess Bind<T>(ReadRequest<T> request)
-    {
-        EnsureActive();
-        Validate(request.Query);
-        return new ReadAccess(_query, request.QueryComponentIndex);
-    }
-
-    // Obsolete source-compatibility path. The returned token remains non-generic.
-    [Obsolete("Use BindWrite(AccessRequest); the generic argument is compatibility-only.")]
-    public WriteAccess Bind<T>(WriteRequest<T> request)
-    {
-        EnsureActive();
-        Validate(request.Query);
-        if (_writeTick == 0)
-        {
-            QueryThrowHelper.ThrowMissingWriteIntent();
-        }
-
-        return new WriteAccess(_query, request.QueryComponentIndex);
     }
 
     public void Dispose()

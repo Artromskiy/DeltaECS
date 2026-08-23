@@ -31,8 +31,8 @@ public class DefaultEcsComparisonBenchmarks
     private ComponentId[] _deltaMovementComponents = Array.Empty<ComponentId>();
     private Query _deltaMovementQuery;
     private DeltaEntity[] _deltaMovementEntities = Array.Empty<DeltaEntity>();
-    private WriteRequest<MovementPosition> _deltaPositionBinding;
-    private ReadRequest<MovementVelocity> _deltaVelocityBinding;
+    private AccessRequest _deltaPositionBinding;
+    private AccessRequest _deltaVelocityBinding;
     private ComponentId[] _deltaTransitionComponents = Array.Empty<ComponentId>();
 
     private DefaultEcs.World _defaultMovementWorld = null!;
@@ -79,12 +79,12 @@ public class DefaultEcsComparisonBenchmarks
         var state = new MovementState { Count = 0, ExpectedCount = Amount, Dt = Dt, Position = _deltaPositionBinding, Velocity = _deltaVelocityBinding };
         _deltaMovementWorld.Query(in _deltaMovementQuery, ref state, static (ref MovementState s, ref QueryChunkCursor cursor) =>
         {
-            var positions = cursor.Get<MovementPosition>(s.Position);
-            var velocities = cursor.Get<MovementVelocity>(s.Velocity);
+            var positions = cursor.GetWrite(s.Position);
+            var velocities = cursor.GetRead(s.Velocity);
             while (cursor.MoveNext())
             {
-                ref var position = ref positions[cursor];
-                ref readonly var velocity = ref velocities[cursor];
+                ref var position = ref positions.Ref<MovementPosition>(cursor);
+                ref readonly var velocity = ref velocities.Ref<MovementVelocity>(cursor);
                 position.X += velocity.X * s.Dt;
                 position.Y += velocity.Y * s.Dt;
                 s.Count++;
@@ -252,8 +252,8 @@ public class DefaultEcsComparisonBenchmarks
 
         var queryDescription = QuerySpec.ForComponents(_deltaMovementComponents);
         _deltaMovementQuery = _deltaMovementWorld.CreateQuery(in queryDescription);
-        _deltaPositionBinding = _deltaMovementQuery.Access<MovementPosition>(_deltaPosition, AccessMode.Write);
-        _deltaVelocityBinding = _deltaMovementQuery.Access<MovementVelocity>(_deltaVelocity, AccessMode.Read);
+        _deltaPositionBinding = _deltaMovementQuery.Access(_deltaPosition, AccessMode.Write);
+        _deltaVelocityBinding = _deltaMovementQuery.Access(_deltaVelocity, AccessMode.Read);
     }
 
     private void SetupMovementDefault()
@@ -347,8 +347,8 @@ public class DefaultEcsComparisonBenchmarks
         public int ExpectedCount;
         public float Dt;
         public double Checksum;
-        public WriteRequest<MovementPosition> Position;
-        public ReadRequest<MovementVelocity> Velocity;
+        public AccessRequest Position;
+        public AccessRequest Velocity;
     }
 
     private struct MovementPosition

@@ -108,7 +108,7 @@ internal sealed class Chunk
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Span<T> GetComponentRow<T>(int componentIndex) =>
+    internal Span<T> GetComponentRow<T>(int componentIndex) =>
         // Component layout/type compatibility is validated before this
         // internal hot path is reached. Avoid repeating the array cast check
         // for every row requested by every chunk.

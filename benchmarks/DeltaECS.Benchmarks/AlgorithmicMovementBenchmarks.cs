@@ -31,8 +31,8 @@ public class AlgorithmicMovementBenchmarks
     private ComponentId _deltaVelocity;
     private ComponentId[] _deltaComponents = Array.Empty<ComponentId>();
     private Query _deltaQuery;
-    private WriteRequest<DeltaPosition> _deltaPositionBinding;
-    private ReadRequest<DeltaVelocity> _deltaVelocityBinding;
+    private AccessRequest _deltaPositionBinding;
+    private AccessRequest _deltaVelocityBinding;
     private LegacyMovementReference _legacy = null!;
 
     private Arch.Core.World _archWorld = null!;
@@ -47,8 +47,8 @@ public class AlgorithmicMovementBenchmarks
         public float Dt;
         public int Count;
         public double Checksum;
-        public WriteRequest<DeltaPosition> Position;
-        public ReadRequest<DeltaVelocity> Velocity;
+        public AccessRequest Position;
+        public AccessRequest Velocity;
     }
 
     [GlobalSetup]
@@ -66,12 +66,12 @@ public class AlgorithmicMovementBenchmarks
         var state = new DeltaState { Dt = Dt, Position = _deltaPositionBinding, Velocity = _deltaVelocityBinding };
         _deltaWorld.Query(in _deltaQuery, ref state, static (ref DeltaState s, ref QueryChunkCursor cursor) =>
         {
-            var positions = cursor.Get(s.Position);
-            var velocities = cursor.Get(s.Velocity);
+            var positions = cursor.GetWrite(s.Position);
+            var velocities = cursor.GetRead(s.Velocity);
             while (cursor.MoveNext())
             {
-                ref var position = ref positions[cursor];
-                ref readonly var velocity = ref velocities[cursor];
+                ref var position = ref positions.Ref<DeltaPosition>(cursor);
+                ref readonly var velocity = ref velocities.Ref<DeltaVelocity>(cursor);
                 position.X += velocity.X * s.Dt;
                 position.Y += velocity.Y * s.Dt;
                 s.Count++;
@@ -146,8 +146,8 @@ public class AlgorithmicMovementBenchmarks
 
         var spec = QuerySpec.ForComponents(_deltaComponents);
         _deltaQuery = _deltaWorld.CreateQuery(in spec);
-        _deltaPositionBinding = _deltaQuery.Access<DeltaPosition>(_deltaPosition, AccessMode.Write);
-        _deltaVelocityBinding = _deltaQuery.Access<DeltaVelocity>(_deltaVelocity, AccessMode.Read);
+        _deltaPositionBinding = _deltaQuery.Access(_deltaPosition, AccessMode.Write);
+        _deltaVelocityBinding = _deltaQuery.Access(_deltaVelocity, AccessMode.Read);
     }
 
     private void SetupArch()

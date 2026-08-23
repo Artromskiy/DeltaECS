@@ -32,8 +32,8 @@ public class DeltaEcsTagFilteringBenchmarks
     private World _world = null!;
     private Query _query;
     private ComponentId _valueComponent;
-    private WriteRequest<TagFilterValue> _writeBinding;
-    private ReadRequest<TagFilterValue> _readBinding;
+    private AccessRequest _writeBinding;
+    private AccessRequest _readBinding;
     private TagId _tag;
     private int _expectedTaggedCount;
 
@@ -68,8 +68,8 @@ public class DeltaEcsTagFilteringBenchmarks
             Array.Empty<TagId>(),
             Array.Empty<TagId>());
         _query = _world.CreateQuery(in spec);
-        _writeBinding = _query.Access<TagFilterValue>(_valueComponent, AccessMode.Write);
-        _readBinding = _query.Access<TagFilterValue>(_valueComponent, AccessMode.Read);
+        _writeBinding = _query.Access(_valueComponent, AccessMode.Write);
+        _readBinding = _query.Access(_valueComponent, AccessMode.Read);
     }
 
     /// <summary>Mask/query path plus a useful component update.</summary>
@@ -96,23 +96,23 @@ public class DeltaEcsTagFilteringBenchmarks
     {
         if (state.UpdateValues)
         {
-            var values = lease.Get(state.WriteValue);
+            var values = lease.GetWrite(state.WriteValue);
             while (lease.MoveNext())
             {
                 if (!lease.IsActiveSlot(lease.CurrentIndex)) continue;
                 state.TaggedCount++;
-                values[lease].X += values[lease].Y * 0.5f;
-                state.Checksum += values[lease].X;
+                values.Ref<TagFilterValue>(lease).X += values.Ref<TagFilterValue>(lease).Y * 0.5f;
+                state.Checksum += values.Ref<TagFilterValue>(lease).X;
             }
         }
         else
         {
-            var values = lease.Get(state.ReadValue);
+            var values = lease.GetRead(state.ReadValue);
             while (lease.MoveNext())
             {
                 if (!lease.IsActiveSlot(lease.CurrentIndex)) continue;
                 state.TaggedCount++;
-                state.Checksum += values[lease].X;
+                state.Checksum += values.Ref<TagFilterValue>(lease).X;
             }
         }
     }
@@ -161,8 +161,8 @@ public class DeltaEcsTagFilteringBenchmarks
         public bool UpdateValues;
         public int TaggedCount;
         public double Checksum;
-        public WriteRequest<TagFilterValue> WriteValue;
-        public ReadRequest<TagFilterValue> ReadValue;
+        public AccessRequest WriteValue;
+        public AccessRequest ReadValue;
     }
 }
 

@@ -16,8 +16,8 @@ for (var i = 0; i < entities.Length; i++)
 
 var spec = QuerySpec.ForComponents(positionId, velocityId);
 var query = world.CreateQuery(in spec);
-var writePosition = query.Access<Position>(positionId, AccessMode.Write);
-var readVelocity = query.Access<Velocity>(velocityId, AccessMode.Read);
+var writePosition = query.Access(positionId, AccessMode.Write);
+var readVelocity = query.Access(velocityId, AccessMode.Read);
 
 Console.WriteLine("Dense archetype -> chunk -> slot iteration:");
 using var scope = world.OpenQuery(in query);
@@ -47,7 +47,7 @@ while (archetypes.MoveNext())
 }
 
 Console.WriteLine("Callback/action query iteration:");
-var readPosition = query.Access<Position>(positionId, AccessMode.Read);
+var readPosition = query.Access(positionId, AccessMode.Read);
 var actionState = new ActionState
 {
     Position = readPosition,
@@ -55,8 +55,8 @@ var actionState = new ActionState
 };
 world.Query(in query, ref actionState, static (ref ActionState state, ref QueryChunkCursor cursor) =>
 {
-    var positions = cursor.Get(state.Position);
-    var velocities = cursor.Get(state.Velocity);
+    var positions = cursor.GetWrite(state.Position);
+    var velocities = cursor.GetRead(state.Velocity);
     while (cursor.MoveNext())
     {
         state.Checksum += positions.Ref<Position>(cursor).X + velocities.Ref<Velocity>(cursor).X;
@@ -78,7 +78,7 @@ public struct Velocity
 
 public struct ActionState
 {
-    public ReadRequest Position;
-    public ReadRequest Velocity;
+    public AccessRequest Position;
+    public AccessRequest Velocity;
     public float Checksum;
 }

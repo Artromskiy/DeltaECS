@@ -25,7 +25,7 @@ run was made, so retain this candidate on JIT evidence pending final gates.
 ## Probe details
 
 - Mode: **release**
-- Method: `Delta.ECS.MicroBenchmarks.MicroBenchmarkKernels:IterateMovement4Dense(Delta.ECS.MicroBenchmarks.MicroWorld,byref,Delta.ECS.WriteRequest`1[Delta.ECS.MicroBenchmarks.Movement4A],Delta.ECS.WriteRequest`1[Delta.ECS.MicroBenchmarks.Movement4B],Delta.ECS.WriteRequest`1[Delta.ECS.MicroBenchmarks.Movement4C],Delta.ECS.ReadRequest`1[Delta.ECS.MicroBenchmarks.Movement4D]):int`
+- Method: historical L1A probe; its old generic request signature is no longer part of `ecs-next`.
 - Assembly: [l1a-c2.txt](vscode://file/Users/rum/GitProjects/TheFurnace-DeltaECS-L1A/artifacts/jit-disasm/l1a-c2.txt)
 - First emitted code block: **1400 B**
 - Reconstructed ARM64 instruction span: **1400 B**

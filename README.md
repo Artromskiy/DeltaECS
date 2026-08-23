@@ -21,10 +21,11 @@ masks and do not move entities.
 
 ## Queries and changes
 
-Reusable `Query` values cache matching archetypes and row plans. Typed access
-requests validate world/query/type ownership outside the entity loop. Read rows
-return `ReadOnlySpan<T>`; write rows return `Span<T>` and mark coarse row
-versions once per yielded chunk. Raw ordinal access remains internal.
+Reusable `Query` values cache matching archetypes and row plans. Non-generic
+access requests validate world/query ownership outside the entity loop. The
+component type is supplied only at registration and at the terminal
+`ReadValues.Ref<T>`/`WriteValues.Ref<T>` call. Raw ordinal access remains
+internal.
 
 For explicit low-level traversal, `world.OpenQuery(in query)` exposes three
 independent nested loops: archetype, chunk and forward slot. The callback
@@ -33,17 +34,17 @@ callbacks must still check `IsActiveSlot` for partial chunks.
 
 The dense API has three deliberately separate stages: `QuerySpec` describes
 selection, `World.CreateQuery` returns the world-owned `Query`, and
-`query.Access<T>(id, AccessMode.Read/Write)` declares component access. Inside
-an `OpenQuery` scope, `scope.Bind(access)` validates that declaration once;
-`slots.Get(prepared)` then exposes the typed `ReadValues<T>` or
-`WriteValues<T>` row for the current chunk.
+`query.Access(id, AccessMode.Read/Write)` declares component access. Inside an
+`OpenQuery` scope, `scope.BindRead(access)` or `scope.BindWrite(access)` validates
+that declaration once; `slots.Get(prepared)` then exposes a non-generic values
+object whose terminal `Ref<T>` call provides the component reference.
 
 Queries without tag predicates may use the thinner independent dense path:
 
 ```csharp
 using var scope = world.OpenQuery(in query);
-var positionAccess = query.Access<Position>(positionId, AccessMode.Read);
-var position = scope.Bind(positionAccess);
+var positionAccess = query.Access(positionId, AccessMode.Read);
+var position = scope.BindRead(positionAccess);
 var archetypes = scope.Archetypes;
 while (archetypes.MoveNext())
 {
@@ -54,7 +55,7 @@ while (archetypes.MoveNext())
         var row = slots.Get(position);
         while (slots.MoveNext())
         {
-            _ = row[slots];
+            _ = row.Ref<Position>(slots);
         }
     }
 }

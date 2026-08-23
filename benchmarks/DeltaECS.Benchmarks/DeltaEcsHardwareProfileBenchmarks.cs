@@ -33,8 +33,8 @@ public class HardwareProfileBenchmarks
     private World _world = null!;
     private ComponentId[] _components = Array.Empty<ComponentId>();
     private Query _query;
-    private WriteRequest<ProfileValue>[] _writeBindings = Array.Empty<WriteRequest<ProfileValue>>();
-    private ReadRequest<ProfileValue>[] _readBindings = Array.Empty<ReadRequest<ProfileValue>>();
+    private AccessRequest[] _writeBindings = Array.Empty<AccessRequest>();
+    private AccessRequest[] _readBindings = Array.Empty<AccessRequest>();
     private LegacyProfileBackend _legacy = null!;
 
     private long _checksum;
@@ -50,8 +50,8 @@ public class HardwareProfileBenchmarks
     {
         public int ComponentCount;
         public long Checksum;
-        public WriteRequest<ProfileValue>[] WriteBindings;
-        public ReadRequest<ProfileValue>[] ReadBindings;
+        public AccessRequest[] WriteBindings;
+        public AccessRequest[] ReadBindings;
     }
 
     private static readonly QueryAction<ProfileState> s_entityMajor = IterateEntityMajor;
@@ -93,12 +93,12 @@ public class HardwareProfileBenchmarks
 
         var spec = QuerySpec.ForComponents(_components);
         _query = _world.CreateQuery(in spec);
-        _writeBindings = new WriteRequest<ProfileValue>[ComponentCount];
-        _readBindings = new ReadRequest<ProfileValue>[ComponentCount];
+        _writeBindings = new AccessRequest[ComponentCount];
+        _readBindings = new AccessRequest[ComponentCount];
         for (var i = 0; i < ComponentCount; i++)
         {
-            _writeBindings[i] = _query.Access<ProfileValue>(_components[i], AccessMode.Write);
-            _readBindings[i] = _query.Access<ProfileValue>(_components[i], AccessMode.Read);
+            _writeBindings[i] = _query.Access(_components[i], AccessMode.Write);
+            _readBindings[i] = _query.Access(_components[i], AccessMode.Read);
         }
         _legacy = new LegacyProfileBackend(ComponentCount, Amount);
     }
@@ -191,52 +191,52 @@ public class HardwareProfileBenchmarks
         {
             case 1:
                 {
-                    var c0 = lease.Get(state.WriteBindings[0]);
+                    var c0 = lease.GetWrite(state.WriteBindings[0]);
                     while (lease.MoveNext())
                     {
-                        var value = c0[lease];
+                        var value = c0.Ref<ProfileValue>(lease);
                         value.X += value.Y;
-                        c0[lease] = value;
+                        c0.Ref<ProfileValue>(lease) = value;
                         state.Checksum += BitConverter.SingleToInt32Bits(value.X);
                     }
                     return;
                 }
             case 2:
                 {
-                    var c0 = lease.Get(state.WriteBindings[0]);
-                    var c1 = lease.Get(state.WriteBindings[1]);
+                    var c0 = lease.GetWrite(state.WriteBindings[0]);
+                    var c1 = lease.GetWrite(state.WriteBindings[1]);
                     while (lease.MoveNext())
                     {
-                        var p0 = c0[lease];
-                        var p1 = c1[lease];
+                        var p0 = c0.Ref<ProfileValue>(lease);
+                        var p1 = c1.Ref<ProfileValue>(lease);
                         p0.X += p0.Y;
                         p1.X += p1.Y;
-                        c0[lease] = p0;
-                        c1[lease] = p1;
+                        c0.Ref<ProfileValue>(lease) = p0;
+                        c1.Ref<ProfileValue>(lease) = p1;
                         state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
                     }
                     return;
                 }
             case 4:
                 {
-                    var c0 = lease.Get(state.WriteBindings[0]);
-                    var c1 = lease.Get(state.WriteBindings[1]);
-                    var c2 = lease.Get(state.WriteBindings[2]);
-                    var c3 = lease.Get(state.WriteBindings[3]);
+                    var c0 = lease.GetWrite(state.WriteBindings[0]);
+                    var c1 = lease.GetWrite(state.WriteBindings[1]);
+                    var c2 = lease.GetWrite(state.WriteBindings[2]);
+                    var c3 = lease.GetWrite(state.WriteBindings[3]);
                     while (lease.MoveNext())
                     {
-                        var p0 = c0[lease];
-                        var p1 = c1[lease];
-                        var p2 = c2[lease];
-                        var p3 = c3[lease];
+                        var p0 = c0.Ref<ProfileValue>(lease);
+                        var p1 = c1.Ref<ProfileValue>(lease);
+                        var p2 = c2.Ref<ProfileValue>(lease);
+                        var p3 = c3.Ref<ProfileValue>(lease);
                         p0.X += p0.Y;
                         p1.X += p1.Y;
                         p2.X += p2.Y;
                         p3.X += p3.Y;
-                        c0[lease] = p0;
-                        c1[lease] = p1;
-                        c2[lease] = p2;
-                        c3[lease] = p3;
+                        c0.Ref<ProfileValue>(lease) = p0;
+                        c1.Ref<ProfileValue>(lease) = p1;
+                        c2.Ref<ProfileValue>(lease) = p2;
+                        c3.Ref<ProfileValue>(lease) = p3;
                         state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
                         state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
                     }
@@ -244,24 +244,24 @@ public class HardwareProfileBenchmarks
                 }
             case 8:
                 {
-                    var c0 = lease.Get(state.WriteBindings[0]);
-                    var c1 = lease.Get(state.WriteBindings[1]);
-                    var c2 = lease.Get(state.WriteBindings[2]);
-                    var c3 = lease.Get(state.WriteBindings[3]);
-                    var c4 = lease.Get(state.WriteBindings[4]);
-                    var c5 = lease.Get(state.WriteBindings[5]);
-                    var c6 = lease.Get(state.WriteBindings[6]);
-                    var c7 = lease.Get(state.WriteBindings[7]);
+                    var c0 = lease.GetWrite(state.WriteBindings[0]);
+                    var c1 = lease.GetWrite(state.WriteBindings[1]);
+                    var c2 = lease.GetWrite(state.WriteBindings[2]);
+                    var c3 = lease.GetWrite(state.WriteBindings[3]);
+                    var c4 = lease.GetWrite(state.WriteBindings[4]);
+                    var c5 = lease.GetWrite(state.WriteBindings[5]);
+                    var c6 = lease.GetWrite(state.WriteBindings[6]);
+                    var c7 = lease.GetWrite(state.WriteBindings[7]);
                     while (lease.MoveNext())
                     {
-                        var p0 = c0[lease];
-                        var p1 = c1[lease];
-                        var p2 = c2[lease];
-                        var p3 = c3[lease];
-                        var p4 = c4[lease];
-                        var p5 = c5[lease];
-                        var p6 = c6[lease];
-                        var p7 = c7[lease];
+                        var p0 = c0.Ref<ProfileValue>(lease);
+                        var p1 = c1.Ref<ProfileValue>(lease);
+                        var p2 = c2.Ref<ProfileValue>(lease);
+                        var p3 = c3.Ref<ProfileValue>(lease);
+                        var p4 = c4.Ref<ProfileValue>(lease);
+                        var p5 = c5.Ref<ProfileValue>(lease);
+                        var p6 = c6.Ref<ProfileValue>(lease);
+                        var p7 = c7.Ref<ProfileValue>(lease);
                         p0.X += p0.Y;
                         p1.X += p1.Y;
                         p2.X += p2.Y;
@@ -270,14 +270,14 @@ public class HardwareProfileBenchmarks
                         p5.X += p5.Y;
                         p6.X += p6.Y;
                         p7.X += p7.Y;
-                        c0[lease] = p0;
-                        c1[lease] = p1;
-                        c2[lease] = p2;
-                        c3[lease] = p3;
-                        c4[lease] = p4;
-                        c5[lease] = p5;
-                        c6[lease] = p6;
-                        c7[lease] = p7;
+                        c0.Ref<ProfileValue>(lease) = p0;
+                        c1.Ref<ProfileValue>(lease) = p1;
+                        c2.Ref<ProfileValue>(lease) = p2;
+                        c3.Ref<ProfileValue>(lease) = p3;
+                        c4.Ref<ProfileValue>(lease) = p4;
+                        c5.Ref<ProfileValue>(lease) = p5;
+                        c6.Ref<ProfileValue>(lease) = p6;
+                        c7.Ref<ProfileValue>(lease) = p7;
                         state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
                         state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
                         state.Checksum += BitConverter.SingleToInt32Bits(p4.X) + BitConverter.SingleToInt32Bits(p5.X);
@@ -296,52 +296,52 @@ public class HardwareProfileBenchmarks
         {
             case 1:
                 {
-                    var c0 = lease.Get(state.WriteBindings[0]);
+                    var c0 = lease.GetWrite(state.WriteBindings[0]);
                     while (lease.MoveNext())
                     {
-                        var p0 = c0[lease];
+                        var p0 = c0.Ref<ProfileValue>(lease);
                         p0.X += p0.Y;
-                        c0[lease] = p0;
+                        c0.Ref<ProfileValue>(lease) = p0;
                         state.Checksum += BitConverter.SingleToInt32Bits(p0.X);
                     }
                     return;
                 }
             case 2:
                 {
-                    var c0 = lease.Get(state.WriteBindings[0]);
-                    var c1 = lease.Get(state.WriteBindings[1]);
+                    var c0 = lease.GetWrite(state.WriteBindings[0]);
+                    var c1 = lease.GetWrite(state.WriteBindings[1]);
                     while (lease.MoveNext())
                     {
-                        var p0 = c0[lease];
-                        var p1 = c1[lease];
+                        var p0 = c0.Ref<ProfileValue>(lease);
+                        var p1 = c1.Ref<ProfileValue>(lease);
                         p0.X += p0.Y;
                         p1.X += p1.Y;
-                        c0[lease] = p0;
-                        c1[lease] = p1;
+                        c0.Ref<ProfileValue>(lease) = p0;
+                        c1.Ref<ProfileValue>(lease) = p1;
                         state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
                     }
                     return;
                 }
             case 4:
                 {
-                    var c0 = lease.Get(state.WriteBindings[0]);
-                    var c1 = lease.Get(state.WriteBindings[1]);
-                    var c2 = lease.Get(state.WriteBindings[2]);
-                    var c3 = lease.Get(state.WriteBindings[3]);
+                    var c0 = lease.GetWrite(state.WriteBindings[0]);
+                    var c1 = lease.GetWrite(state.WriteBindings[1]);
+                    var c2 = lease.GetWrite(state.WriteBindings[2]);
+                    var c3 = lease.GetWrite(state.WriteBindings[3]);
                     while (lease.MoveNext())
                     {
-                        var p0 = c0[lease];
-                        var p1 = c1[lease];
-                        var p2 = c2[lease];
-                        var p3 = c3[lease];
+                        var p0 = c0.Ref<ProfileValue>(lease);
+                        var p1 = c1.Ref<ProfileValue>(lease);
+                        var p2 = c2.Ref<ProfileValue>(lease);
+                        var p3 = c3.Ref<ProfileValue>(lease);
                         p0.X += p0.Y;
                         p1.X += p1.Y;
                         p2.X += p2.Y;
                         p3.X += p3.Y;
-                        c0[lease] = p0;
-                        c1[lease] = p1;
-                        c2[lease] = p2;
-                        c3[lease] = p3;
+                        c0.Ref<ProfileValue>(lease) = p0;
+                        c1.Ref<ProfileValue>(lease) = p1;
+                        c2.Ref<ProfileValue>(lease) = p2;
+                        c3.Ref<ProfileValue>(lease) = p3;
                         state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
                         state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
                     }
@@ -349,24 +349,24 @@ public class HardwareProfileBenchmarks
                 }
             case 8:
                 {
-                    var c0 = lease.Get(state.WriteBindings[0]);
-                    var c1 = lease.Get(state.WriteBindings[1]);
-                    var c2 = lease.Get(state.WriteBindings[2]);
-                    var c3 = lease.Get(state.WriteBindings[3]);
-                    var c4 = lease.Get(state.WriteBindings[4]);
-                    var c5 = lease.Get(state.WriteBindings[5]);
-                    var c6 = lease.Get(state.WriteBindings[6]);
-                    var c7 = lease.Get(state.WriteBindings[7]);
+                    var c0 = lease.GetWrite(state.WriteBindings[0]);
+                    var c1 = lease.GetWrite(state.WriteBindings[1]);
+                    var c2 = lease.GetWrite(state.WriteBindings[2]);
+                    var c3 = lease.GetWrite(state.WriteBindings[3]);
+                    var c4 = lease.GetWrite(state.WriteBindings[4]);
+                    var c5 = lease.GetWrite(state.WriteBindings[5]);
+                    var c6 = lease.GetWrite(state.WriteBindings[6]);
+                    var c7 = lease.GetWrite(state.WriteBindings[7]);
                     while (lease.MoveNext())
                     {
-                        var p0 = c0[lease];
-                        var p1 = c1[lease];
-                        var p2 = c2[lease];
-                        var p3 = c3[lease];
-                        var p4 = c4[lease];
-                        var p5 = c5[lease];
-                        var p6 = c6[lease];
-                        var p7 = c7[lease];
+                        var p0 = c0.Ref<ProfileValue>(lease);
+                        var p1 = c1.Ref<ProfileValue>(lease);
+                        var p2 = c2.Ref<ProfileValue>(lease);
+                        var p3 = c3.Ref<ProfileValue>(lease);
+                        var p4 = c4.Ref<ProfileValue>(lease);
+                        var p5 = c5.Ref<ProfileValue>(lease);
+                        var p6 = c6.Ref<ProfileValue>(lease);
+                        var p7 = c7.Ref<ProfileValue>(lease);
                         p0.X += p0.Y;
                         p1.X += p1.Y;
                         p2.X += p2.Y;
@@ -375,14 +375,14 @@ public class HardwareProfileBenchmarks
                         p5.X += p5.Y;
                         p6.X += p6.Y;
                         p7.X += p7.Y;
-                        c0[lease] = p0;
-                        c1[lease] = p1;
-                        c2[lease] = p2;
-                        c3[lease] = p3;
-                        c4[lease] = p4;
-                        c5[lease] = p5;
-                        c6[lease] = p6;
-                        c7[lease] = p7;
+                        c0.Ref<ProfileValue>(lease) = p0;
+                        c1.Ref<ProfileValue>(lease) = p1;
+                        c2.Ref<ProfileValue>(lease) = p2;
+                        c3.Ref<ProfileValue>(lease) = p3;
+                        c4.Ref<ProfileValue>(lease) = p4;
+                        c5.Ref<ProfileValue>(lease) = p5;
+                        c6.Ref<ProfileValue>(lease) = p6;
+                        c7.Ref<ProfileValue>(lease) = p7;
                         state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
                         state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
                         state.Checksum += BitConverter.SingleToInt32Bits(p4.X) + BitConverter.SingleToInt32Bits(p5.X);
@@ -400,27 +400,27 @@ public class HardwareProfileBenchmarks
         switch (state.ComponentCount)
         {
             case 1:
-                _ = lease.Get(state.ReadBindings[0]);
+                _ = lease.GetRead(state.ReadBindings[0]);
                 break;
             case 2:
-                _ = lease.Get(state.ReadBindings[0]);
-                _ = lease.Get(state.ReadBindings[1]);
+                _ = lease.GetRead(state.ReadBindings[0]);
+                _ = lease.GetRead(state.ReadBindings[1]);
                 break;
             case 4:
-                _ = lease.Get(state.ReadBindings[0]);
-                _ = lease.Get(state.ReadBindings[1]);
-                _ = lease.Get(state.ReadBindings[2]);
-                _ = lease.Get(state.ReadBindings[3]);
+                _ = lease.GetRead(state.ReadBindings[0]);
+                _ = lease.GetRead(state.ReadBindings[1]);
+                _ = lease.GetRead(state.ReadBindings[2]);
+                _ = lease.GetRead(state.ReadBindings[3]);
                 break;
             case 8:
-                _ = lease.Get(state.ReadBindings[0]);
-                _ = lease.Get(state.ReadBindings[1]);
-                _ = lease.Get(state.ReadBindings[2]);
-                _ = lease.Get(state.ReadBindings[3]);
-                _ = lease.Get(state.ReadBindings[4]);
-                _ = lease.Get(state.ReadBindings[5]);
-                _ = lease.Get(state.ReadBindings[6]);
-                _ = lease.Get(state.ReadBindings[7]);
+                _ = lease.GetRead(state.ReadBindings[0]);
+                _ = lease.GetRead(state.ReadBindings[1]);
+                _ = lease.GetRead(state.ReadBindings[2]);
+                _ = lease.GetRead(state.ReadBindings[3]);
+                _ = lease.GetRead(state.ReadBindings[4]);
+                _ = lease.GetRead(state.ReadBindings[5]);
+                _ = lease.GetRead(state.ReadBindings[6]);
+                _ = lease.GetRead(state.ReadBindings[7]);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(state.ComponentCount));

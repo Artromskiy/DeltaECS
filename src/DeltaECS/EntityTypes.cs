@@ -107,40 +107,18 @@ public readonly struct Query
 
     public AccessRequest Access(ComponentId componentId, ReadAccessMode _)
     {
-        int rowIndex = ResolveComponentRow(componentId, expectedType: null, out var componentType);
-        return new AccessRequest(_cached, rowIndex, write: false, componentType);
+        int rowIndex = ResolveComponentRow(componentId);
+        return new AccessRequest(_cached, rowIndex, write: false);
     }
 
     public AccessRequest Access(ComponentId componentId, WriteAccessMode _)
     {
-        int rowIndex = ResolveComponentRow(componentId, expectedType: null, out var componentType);
+        int rowIndex = ResolveComponentRow(componentId);
         _cached.RegisterWriteAccess();
-        return new AccessRequest(_cached, rowIndex, write: true, componentType);
+        return new AccessRequest(_cached, rowIndex, write: true);
     }
 
-    public AccessRequest Access<T>(ComponentId componentId, ReadAccessMode _)
-    {
-        var access = Access(componentId, _);
-        if (access.RuntimeType != typeof(T))
-        {
-            throw new ArgumentException($"Component {componentId} is registered as {access.RuntimeType}, not {typeof(T)}.", nameof(componentId));
-        }
-
-        return access;
-    }
-
-    public AccessRequest Access<T>(ComponentId componentId, WriteAccessMode _)
-    {
-        var access = Access(componentId, _);
-        if (access.RuntimeType != typeof(T))
-        {
-            throw new ArgumentException($"Component {componentId} is registered as {access.RuntimeType}, not {typeof(T)}.", nameof(componentId));
-        }
-
-        return access;
-    }
-
-    private int ResolveComponentRow(ComponentId componentId, Type? expectedType, out Type componentType)
+    private int ResolveComponentRow(ComponentId componentId)
     {
         if (!IsValid)
         {
@@ -152,15 +130,9 @@ public readonly struct Query
             throw new ArgumentException("A row access must target a component guaranteed by the query All mask.", nameof(componentId));
         }
 
-        if (!_owner.Layouts.TryGet(componentId, out var layout))
+        if (!_owner.Layouts.TryGet(componentId, out _))
         {
             throw new ArgumentException("The component is not registered in the query's world.", nameof(componentId));
-        }
-
-        componentType = layout.RuntimeType!;
-        if (expectedType is not null && layout.RuntimeType != expectedType)
-        {
-            throw new ArgumentException($"Component {componentId} is registered as {layout.RuntimeType}, not {expectedType}.", nameof(componentId));
         }
 
         return _description.AllMask.Rank(componentId);
