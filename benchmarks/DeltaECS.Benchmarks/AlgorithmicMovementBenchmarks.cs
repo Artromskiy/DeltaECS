@@ -31,8 +31,8 @@ public class AlgorithmicMovementBenchmarks
     private ComponentId _deltaVelocity;
     private ComponentId[] _deltaComponents = Array.Empty<ComponentId>();
     private Query _deltaQuery;
-    private AccessRequest _deltaPositionBinding;
-    private AccessRequest _deltaVelocityBinding;
+    private WriteAccess _deltaPositionBinding;
+    private ReadAccess _deltaVelocityBinding;
     private LegacyMovementReference _legacy = null!;
 
     private Arch.Core.World _archWorld = null!;
@@ -41,15 +41,6 @@ public class AlgorithmicMovementBenchmarks
 
     private EntityStore _frifloWorld = null!;
     private ArchetypeQuery<FrifloPosition, FrifloVelocity> _frifloQuery = null!;
-
-    private struct DeltaState
-    {
-        public float Dt;
-        public int Count;
-        public double Checksum;
-        public AccessRequest Position;
-        public AccessRequest Velocity;
-    }
 
     [GlobalSetup]
     public void Setup()
@@ -63,23 +54,33 @@ public class AlgorithmicMovementBenchmarks
     [Benchmark(Baseline = true)]
     public double DeltaECS_Movement()
     {
-        var state = new DeltaState { Dt = Dt, Position = _deltaPositionBinding, Velocity = _deltaVelocityBinding };
-        _deltaWorld.Query(in _deltaQuery, ref state, static (ref DeltaState s, ref QueryChunkCursor cursor) =>
+        double checksum = 0;
+        var count = 0;
+        using var scope = _deltaWorld.OpenQuery(in _deltaQuery);
+        var positionAccess = scope.Bind(_deltaPositionBinding);
+        var velocityAccess = scope.Bind(_deltaVelocityBinding);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
         {
-            var positions = cursor.GetWrite(s.Position);
-            var velocities = cursor.GetRead(s.Velocity);
-            while (cursor.MoveNext())
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
             {
-                ref var position = ref positions.Ref<DeltaPosition>(cursor);
-                ref readonly var velocity = ref velocities.Ref<DeltaVelocity>(cursor);
-                position.X += velocity.X * s.Dt;
-                position.Y += velocity.Y * s.Dt;
-                s.Count++;
-                s.Checksum += position.X + position.Y;
+                var slots = chunks.Current.Slots;
+                var positions = slots.Get(positionAccess);
+                var velocities = slots.Get(velocityAccess);
+                while (slots.MoveNext())
+                {
+                    ref var position = ref positions.Ref<DeltaPosition>(slots);
+                    ref readonly var velocity = ref velocities.Ref<DeltaVelocity>(slots);
+                    position.X += velocity.X * Dt;
+                    position.Y += velocity.Y * Dt;
+                    count++;
+                    checksum += position.X + position.Y;
+                }
             }
-        });
+        }
 
-        return MovementGuard.Checksum(state.Checksum, state.Count, Amount);
+        return MovementGuard.Checksum(checksum, count, Amount);
     }
 
     [Benchmark]
