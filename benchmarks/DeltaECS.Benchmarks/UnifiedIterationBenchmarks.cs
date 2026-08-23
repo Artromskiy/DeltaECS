@@ -90,13 +90,26 @@ public class ComparativeDenseIterationBenchmarks
     [Benchmark(Baseline = true)]
     public long DeltaECS_Dense()
     {
-        var state = new DenseState { Value = _deltaValueBinding };
-        _delta.Query(in _deltaQuery, ref state, static (ref DenseState current, ref QueryChunkCursor cursor) =>
+        using var scope = _delta.OpenQuery(in _deltaQuery);
+        var valueAccess = scope.Bind(_deltaValueBinding);
+        var archetypes = scope.Archetypes;
+        long sum = 0;
+
+        while (archetypes.MoveNext())
         {
-            var row = cursor.GetRead(current.Value);
-            while (cursor.MoveNext()) current.Sum += row.Ref<UnifiedDeltaValue>(cursor).Value;
-        });
-        return Checksum(state.Sum, (long)Amount * (Amount + 1) / 2, "dense");
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var slots = chunks.Current.Slots;
+                var values = slots.Get(valueAccess);
+                while (slots.MoveNext())
+                {
+                    sum += values.Ref<UnifiedDeltaValue>(slots).Value;
+                }
+            }
+        }
+
+        return Checksum(sum, (long)Amount * (Amount + 1) / 2, "dense");
     }
 
     [Benchmark] public long Arch_Dense() { long sum = 0; _arch.Query(_archQuery, (ref UnifiedArchValue value) => sum += value.Value); return Checksum(sum, (long)Amount * (Amount + 1) / 2, "dense"); }
@@ -106,11 +119,6 @@ public class ComparativeDenseIterationBenchmarks
 
     internal static long Checksum(long actual, long expected, string name) => actual == expected ? actual : throw new InvalidOperationException($"{name} checksum mismatch: {actual} != {expected}");
 
-    private struct DenseState
-    {
-        public AccessRequest Value;
-        public long Sum;
-    }
 }
 
 [MemoryDiagnoser]
@@ -250,24 +258,47 @@ public class ComparativeMovement2ComponentsBenchmarks
         }
     }
 
+    public void ResetDeltaRawMovement() => ResetDeltaMovement();
+
+    public void ResetArchRawMovement() => ResetArchMovement();
+
+    public void ResetFrifloRawMovement() => ResetFrifloMovement();
+
+    public void ResetDefaultRawMovement() => ResetDefaultMovement();
+
+    public void ResetLeoRawMovement() => ResetLeoMovement();
+
     [GlobalCleanup] public void Cleanup() { _defaultQuery?.Dispose(); _default?.Dispose(); }
 
     [Benchmark(Baseline = true), InvocationCount(1)]
     public double DeltaECS_Movement2Components()
     {
-        var state = new Movement2State { Position = _deltaPositionBinding, Velocity = _deltaVelocityBinding };
-        _delta.Query(in _deltaQuery, ref state, static (ref Movement2State current, ref QueryChunkCursor cursor) =>
+        using var scope = _delta.OpenQuery(in _deltaQuery);
+        var positionAccess = scope.Bind(_deltaPositionBinding);
+        var velocityAccess = scope.Bind(_deltaVelocityBinding);
+        var archetypes = scope.Archetypes;
+        double sum = 0;
+
+        while (archetypes.MoveNext())
         {
-            var positions = cursor.GetWrite(current.Position);
-            var velocities = cursor.GetRead(current.Velocity);
-            while (cursor.MoveNext())
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
             {
-                ref var position = ref positions.Ref<MoveDeltaPosition>(cursor);
-                ref readonly var velocity = ref velocities.Ref<MoveDeltaVelocity>(cursor);
-                position.X += velocity.X / 60f; position.Y += velocity.Y / 60f; current.Sum += position.X + position.Y;
+                var slots = chunks.Current.Slots;
+                var positions = slots.Get(positionAccess);
+                var velocities = slots.Get(velocityAccess);
+                while (slots.MoveNext())
+                {
+                    ref var position = ref positions.Ref<MoveDeltaPosition>(slots);
+                    ref readonly var velocity = ref velocities.Ref<MoveDeltaVelocity>(slots);
+                    position.X += velocity.X / 60f;
+                    position.Y += velocity.Y / 60f;
+                    sum += position.X + position.Y;
+                }
             }
-        });
-        return state.Sum;
+        }
+
+        return sum;
     }
 
     internal double RunOpenQueryMovement2Components()
@@ -305,12 +336,96 @@ public class ComparativeMovement2ComponentsBenchmarks
     [Benchmark] public double DefaultEcs_Movement2Components() { double sum = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { ref var p = ref entities[i].Get<MoveDefaultPosition>(); var v = entities[i].Get<MoveDefaultVelocity>(); p.X += v.X / 60f; p.Y += v.Y / 60f; sum += p.X + p.Y; } return sum; }
     [Benchmark] public double LeoEcsLite_Movement2Components() { double sum = 0; foreach (var entity in _leoQuery) { ref var p = ref _leoPosition.Get(entity); var v = _leoVelocity.Get(entity); p.X += v.X / 60f; p.Y += v.Y / 60f; sum += p.X + p.Y; } return sum; }
 
-    private struct Movement2State
+    [Benchmark(Baseline = true), BenchmarkCategory("Iteration.RawAccess.Movement2Components")]
+    public float DeltaECS_RawAccess_Movement2Components()
     {
-        public AccessRequest Position;
-        public AccessRequest Velocity;
-        public double Sum;
+        using var scope = _delta.OpenQuery(in _deltaQuery);
+        var positionAccess = scope.Bind(_deltaPositionBinding);
+        var velocityAccess = scope.Bind(_deltaVelocityBinding);
+        var archetypes = scope.Archetypes;
+        float last = 0;
+
+        while (archetypes.MoveNext())
+        {
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var slots = chunks.Current.Slots;
+                var positions = slots.Get(positionAccess);
+                var velocities = slots.Get(velocityAccess);
+                while (slots.MoveNext())
+                {
+                    ref var position = ref positions.Ref<MoveDeltaPosition>(slots);
+                    ref readonly var velocity = ref velocities.Ref<MoveDeltaVelocity>(slots);
+                    position.X = velocity.X;
+                    position.Y = velocity.Y;
+                    last = position.X;
+                }
+            }
+        }
+
+        return last;
     }
+
+    [Benchmark, BenchmarkCategory("Iteration.RawAccess.Movement2Components")]
+    public float Arch_RawAccess_Movement2Components()
+    {
+        float last = 0;
+        _arch.Query(_archQuery, (ref MoveArchPosition position, ref MoveArchVelocity velocity) =>
+        {
+            position.X = velocity.X;
+            position.Y = velocity.Y;
+            last = position.X;
+        });
+        return last;
+    }
+
+    [Benchmark, BenchmarkCategory("Iteration.RawAccess.Movement2Components")]
+    public float FrifloEngineECS_RawAccess_Movement2Components()
+    {
+        float last = 0;
+        _frifloQuery.ForEachEntity((ref MoveFrifloPosition position, ref MoveFrifloVelocity velocity, FrifloEntity _) =>
+        {
+            position.X = velocity.X;
+            position.Y = velocity.Y;
+            last = position.X;
+        });
+        return last;
+    }
+
+    [Benchmark, BenchmarkCategory("Iteration.RawAccess.Movement2Components")]
+    public float DefaultEcs_RawAccess_Movement2Components()
+    {
+        float last = 0;
+        var entities = _defaultQuery.GetEntities();
+        for (var i = entities.Length - 1; i >= 0; i--)
+        {
+            ref var position = ref entities[i].Get<MoveDefaultPosition>();
+            var velocity = entities[i].Get<MoveDefaultVelocity>();
+            position.X = velocity.X;
+            position.Y = velocity.Y;
+            last = position.X;
+        }
+
+        return last;
+    }
+
+    [Benchmark, BenchmarkCategory("Iteration.RawAccess.Movement2Components")]
+    public float LeoEcsLite_RawAccess_Movement2Components()
+    {
+        float last = 0;
+        foreach (var entity in _leoQuery)
+        {
+            ref var position = ref _leoPosition.Get(entity);
+            var velocity = _leoVelocity.Get(entity);
+            position.X = velocity.X;
+            position.Y = velocity.Y;
+            last = position.X;
+        }
+
+        return last;
+    }
+
 }
 
 [MemoryDiagnoser]
@@ -412,8 +527,56 @@ public class ComparativeMovement4ComponentsBenchmarks
             _leo3.Get(_leoEntities[i]).Value = 4;
         }
     }
+
+    public void ResetDeltaRawMovement4() => ResetDeltaMovement4();
+
+    public void ResetArchRawMovement4() => ResetArchMovement4();
+
+    public void ResetFrifloRawMovement4() => ResetFrifloMovement4();
+
+    public void ResetDefaultRawMovement4() => ResetDefaultMovement4();
+
+    public void ResetLeoRawMovement4() => ResetLeoMovement4();
     [GlobalCleanup] public void Cleanup() { _defaultQuery?.Dispose(); _default?.Dispose(); }
-    [Benchmark(Baseline = true), InvocationCount(1)] public int DeltaECS_Movement4Components() { var state = new Movement4State { A = _delta0Binding, B = _delta1Binding, C = _delta2Binding, D = _delta3Binding }; _delta.Query(in _deltaQuery, ref state, static (ref Movement4State current, ref QueryChunkCursor cursor) => { var a = cursor.GetWrite(current.A); var b = cursor.GetWrite(current.B); var c = cursor.GetWrite(current.C); var d = cursor.GetRead(current.D); while (cursor.MoveNext()) { ref var rowA = ref a.Ref<DistinctDelta0>(cursor); ref var rowB = ref b.Ref<DistinctDelta1>(cursor); ref var rowC = ref c.Ref<DistinctDelta2>(cursor); ref readonly var rowD = ref d.Ref<DistinctDelta3>(cursor); var updatedA = rowA.Value + rowD.Value; var updatedB = rowB.Value + rowD.Value; rowA.Value = updatedA; rowB.Value = updatedB; rowC.Value = (updatedA + updatedB) / 2; current.Sum += rowA.Value + rowB.Value + rowC.Value + rowD.Value; } }); return state.Sum; }
+    [Benchmark(Baseline = true), InvocationCount(1)]
+    public int DeltaECS_Movement4Components()
+    {
+        using var scope = _delta.OpenQuery(in _deltaQuery);
+        var aAccess = scope.Bind(_delta0Binding);
+        var bAccess = scope.Bind(_delta1Binding);
+        var cAccess = scope.Bind(_delta2Binding);
+        var dAccess = scope.Bind(_delta3Binding);
+        var archetypes = scope.Archetypes;
+        var sum = 0;
+
+        while (archetypes.MoveNext())
+        {
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var slots = chunks.Current.Slots;
+                var a = slots.Get(aAccess);
+                var b = slots.Get(bAccess);
+                var c = slots.Get(cAccess);
+                var d = slots.Get(dAccess);
+                while (slots.MoveNext())
+                {
+                    ref var rowA = ref a.Ref<DistinctDelta0>(slots);
+                    ref var rowB = ref b.Ref<DistinctDelta1>(slots);
+                    ref var rowC = ref c.Ref<DistinctDelta2>(slots);
+                    ref readonly var rowD = ref d.Ref<DistinctDelta3>(slots);
+                    var updatedA = rowA.Value + rowD.Value;
+                    var updatedB = rowB.Value + rowD.Value;
+                    rowA.Value = updatedA;
+                    rowB.Value = updatedB;
+                    rowC.Value = (updatedA + updatedB) / 2;
+                    sum += rowA.Value + rowB.Value + rowC.Value + rowD.Value;
+                }
+            }
+        }
+
+        return sum;
+    }
     internal int RunOpenQueryMovement4Components()
     {
         using var scope = _delta.OpenQuery(in _deltaQuery);
@@ -456,13 +619,110 @@ public class ComparativeMovement4ComponentsBenchmarks
     [Benchmark] public int FrifloEngineECS_Movement4Components() { var s = 0; _frifloQuery.ForEachEntity((ref DistinctFriflo0 a, ref DistinctFriflo1 b, ref DistinctFriflo2 c, ref DistinctFriflo3 d, FrifloEntity _) => { var updatedA = a.Value + d.Value; var updatedB = b.Value + d.Value; a.Value = updatedA; b.Value = updatedB; c.Value = (updatedA + updatedB) / 2; s += a.Value + b.Value + c.Value + d.Value; }); return s; }
     [Benchmark] public int DefaultEcs_Movement4Components() { var s = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { ref var a = ref entities[i].Get<DistinctDefault0>(); ref var b = ref entities[i].Get<DistinctDefault1>(); ref var c = ref entities[i].Get<DistinctDefault2>(); var d = entities[i].Get<DistinctDefault3>(); var updatedA = a.Value + d.Value; var updatedB = b.Value + d.Value; a.Value = updatedA; b.Value = updatedB; c.Value = (updatedA + updatedB) / 2; s += a.Value + b.Value + c.Value + d.Value; } return s; }
     [Benchmark] public int LeoEcsLite_Movement4Components() { var s = 0; foreach (var e in _leoQuery) { ref var a = ref _leo0.Get(e); ref var b = ref _leo1.Get(e); ref var c = ref _leo2.Get(e); var d = _leo3.Get(e); var updatedA = a.Value + d.Value; var updatedB = b.Value + d.Value; a.Value = updatedA; b.Value = updatedB; c.Value = (updatedA + updatedB) / 2; s += a.Value + b.Value + c.Value + d.Value; } return s; }
-    private struct Movement4State
+
+    [Benchmark(Baseline = true), BenchmarkCategory("Iteration.RawAccess.Movement4Components")]
+    public int DeltaECS_RawAccess_Movement4Components()
     {
-        public AccessRequest A;
-        public AccessRequest B;
-        public AccessRequest C;
-        public AccessRequest D;
-        public int Sum;
+        using var scope = _delta.OpenQuery(in _deltaQuery);
+        var aAccess = scope.Bind(_delta0Binding);
+        var bAccess = scope.Bind(_delta1Binding);
+        var cAccess = scope.Bind(_delta2Binding);
+        var dAccess = scope.Bind(_delta3Binding);
+        var archetypes = scope.Archetypes;
+        var last = 0;
+
+        while (archetypes.MoveNext())
+        {
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var slots = chunks.Current.Slots;
+                var a = slots.Get(aAccess);
+                var b = slots.Get(bAccess);
+                var c = slots.Get(cAccess);
+                var d = slots.Get(dAccess);
+                while (slots.MoveNext())
+                {
+                    ref var rowA = ref a.Ref<DistinctDelta0>(slots);
+                    ref var rowB = ref b.Ref<DistinctDelta1>(slots);
+                    ref var rowC = ref c.Ref<DistinctDelta2>(slots);
+                    ref readonly var rowD = ref d.Ref<DistinctDelta3>(slots);
+                    rowA.Value = rowD.Value;
+                    rowB.Value = rowD.Value;
+                    rowC.Value = rowD.Value;
+                    last = rowC.Value;
+                }
+            }
+        }
+
+        return last;
+    }
+
+    [Benchmark, BenchmarkCategory("Iteration.RawAccess.Movement4Components")]
+    public int Arch_RawAccess_Movement4Components()
+    {
+        var last = 0;
+        _arch.Query(_archQuery, (ref DistinctArch0 a, ref DistinctArch1 b, ref DistinctArch2 c, ref DistinctArch3 d) =>
+        {
+            a.Value = d.Value;
+            b.Value = d.Value;
+            c.Value = d.Value;
+            last = c.Value;
+        });
+        return last;
+    }
+
+    [Benchmark, BenchmarkCategory("Iteration.RawAccess.Movement4Components")]
+    public int FrifloEngineECS_RawAccess_Movement4Components()
+    {
+        var last = 0;
+        _frifloQuery.ForEachEntity((ref DistinctFriflo0 a, ref DistinctFriflo1 b, ref DistinctFriflo2 c, ref DistinctFriflo3 d, FrifloEntity _) =>
+        {
+            a.Value = d.Value;
+            b.Value = d.Value;
+            c.Value = d.Value;
+            last = c.Value;
+        });
+        return last;
+    }
+
+    [Benchmark, BenchmarkCategory("Iteration.RawAccess.Movement4Components")]
+    public int DefaultEcs_RawAccess_Movement4Components()
+    {
+        var last = 0;
+        var entities = _defaultQuery.GetEntities();
+        for (var i = entities.Length - 1; i >= 0; i--)
+        {
+            ref var a = ref entities[i].Get<DistinctDefault0>();
+            ref var b = ref entities[i].Get<DistinctDefault1>();
+            ref var c = ref entities[i].Get<DistinctDefault2>();
+            var d = entities[i].Get<DistinctDefault3>();
+            a.Value = d.Value;
+            b.Value = d.Value;
+            c.Value = d.Value;
+            last = c.Value;
+        }
+
+        return last;
+    }
+
+    [Benchmark, BenchmarkCategory("Iteration.RawAccess.Movement4Components")]
+    public int LeoEcsLite_RawAccess_Movement4Components()
+    {
+        var last = 0;
+        foreach (var entity in _leoQuery)
+        {
+            ref var a = ref _leo0.Get(entity);
+            ref var b = ref _leo1.Get(entity);
+            ref var c = ref _leo2.Get(entity);
+            var d = _leo3.Get(entity);
+            a.Value = d.Value;
+            b.Value = d.Value;
+            c.Value = d.Value;
+            last = c.Value;
+        }
+
+        return last;
     }
     private static void SetDefault(DefaultEcs.Entity e) { e.Set(new DistinctDefault0 { Value = 1 }); e.Set(new DistinctDefault1 { Value = 2 }); e.Set(new DistinctDefault2 { Value = 3 }); e.Set(new DistinctDefault3 { Value = 4 }); }
 }
@@ -493,17 +753,36 @@ public class ComparativeWideArchetypeNarrowQueryBenchmarks
         _leoQuery = _leo.Filter<WideLeo0>().Inc<WideLeo7>().End();
     }
     [GlobalCleanup] public void Cleanup() { _defaultQuery?.Dispose(); _default?.Dispose(); }
-    [Benchmark(Baseline = true)] public int DeltaECS_WideArchetypeNarrowQuery() { var state = new WideState { A = _delta0Binding, Z = _delta7Binding }; _delta.Query(in _deltaQuery, ref state, static (ref WideState current, ref QueryChunkCursor cursor) => { var a = cursor.GetRead(current.A); var z = cursor.GetRead(current.Z); while (cursor.MoveNext()) current.Sum += a.Ref<WideDelta0>(cursor).Value + z.Ref<WideDelta7>(cursor).Value; }); return Check(state.Sum, Amount * 9); }
+    [Benchmark(Baseline = true)]
+    public int DeltaECS_WideArchetypeNarrowQuery()
+    {
+        using var scope = _delta.OpenQuery(in _deltaQuery);
+        var aAccess = scope.Bind(_delta0Binding);
+        var zAccess = scope.Bind(_delta7Binding);
+        var archetypes = scope.Archetypes;
+        var sum = 0;
+
+        while (archetypes.MoveNext())
+        {
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var slots = chunks.Current.Slots;
+                var a = slots.Get(aAccess);
+                var z = slots.Get(zAccess);
+                while (slots.MoveNext())
+                {
+                    sum += a.Ref<WideDelta0>(slots).Value + z.Ref<WideDelta7>(slots).Value;
+                }
+            }
+        }
+
+        return Check(sum, Amount * 9);
+    }
     [Benchmark] public int Arch_WideArchetypeNarrowQuery() { var s = 0; _arch.Query(_archQuery, (ref WideArch0 a, ref WideArch7 z) => s += a.Value + z.Value); return Check(s, Amount * 9); }
     [Benchmark] public int FrifloEngineECS_WideArchetypeNarrowQuery() { var s = 0; _frifloQuery.ForEachEntity((ref WideFriflo0 a, ref WideFriflo7 z, FrifloEntity _) => s += a.Value + z.Value); return Check(s, Amount * 9); }
     [Benchmark] public int DefaultEcs_WideArchetypeNarrowQuery() { var s = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) s += entities[i].Get<WideDefault0>().Value + entities[i].Get<WideDefault7>().Value; return Check(s, Amount * 9); }
     [Benchmark] public int LeoEcsLite_WideArchetypeNarrowQuery() { var s = 0; foreach (var e in _leoQuery) { s += _leo0.Get(e).Value + _leo7.Get(e).Value; } return Check(s, Amount * 9); }
-    private struct WideState
-    {
-        public AccessRequest A;
-        public AccessRequest Z;
-        public int Sum;
-    }
     private static int Check(int actual, int expected) => actual == expected ? actual : throw new InvalidOperationException($"wide checksum mismatch: {actual} != {expected}");
 }
 
@@ -546,7 +825,33 @@ public class ComparativeSparseQueryBenchmarks
     [Benchmark, InvocationCount(1), BenchmarkCategory("Iteration.QueryPlanConstruction")] public int DefaultEcs_QueryPlanConstruction() { using var q = CreateDefaultQuery(); return DefaultQuery(q.GetEntities()); }
     [Benchmark, InvocationCount(1), BenchmarkCategory("Iteration.QueryPlanConstruction")] public int LeoEcsLite_QueryPlanConstruction() => LeoQuery(_leo.Filter<SparseLeoA>().Inc<SparseLeoB>().Exc<SparseLeoC>().End());
 
-    private int DeltaQuery(Query query, AccessRequest a, AccessRequest b) { var state = new SparseDeltaState { A = a, B = b }; _delta.Query(in query, ref state, static (ref SparseDeltaState current, ref QueryChunkCursor cursor) => { var aRow = cursor.GetRead(current.A); var bRow = cursor.GetRead(current.B); while (cursor.MoveNext()) { _ = aRow.Ref<SparseDeltaA>(cursor); _ = bRow.Ref<SparseDeltaB>(cursor); current.Count++; } }); return Check(state.Count); }
+    private int DeltaQuery(Query query, ReadAccess a, ReadAccess b)
+    {
+        using var scope = _delta.OpenQuery(in query);
+        var aAccess = scope.Bind(a);
+        var bAccess = scope.Bind(b);
+        var archetypes = scope.Archetypes;
+        var count = 0;
+
+        while (archetypes.MoveNext())
+        {
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var slots = chunks.Current.Slots;
+                var aRow = slots.Get(aAccess);
+                var bRow = slots.Get(bAccess);
+                while (slots.MoveNext())
+                {
+                    _ = aRow.Ref<SparseDeltaA>(slots);
+                    _ = bRow.Ref<SparseDeltaB>(slots);
+                    count++;
+                }
+            }
+        }
+
+        return Check(count);
+    }
     private int ArchQuery(Arch.Core.QueryDescription query) { var count = 0; _arch.Query(query, (ref SparseArchA _, ref SparseArchB _) => count++); return Check(count); }
     private int FrifloQuery(ArchetypeQuery<SparseFrifloA, SparseFrifloB> query) { var count = 0; query.ForEachEntity((ref SparseFrifloA _, ref SparseFrifloB _, FrifloEntity _) => count++); return Check(count); }
     private int DefaultQuery(ReadOnlySpan<DefaultEcs.Entity> entities) { var count = 0; for (var i = entities.Length - 1; i >= 0; i--) count++; return Check(count); }
@@ -554,12 +859,6 @@ public class ComparativeSparseQueryBenchmarks
     private int Check(int actual) => actual == ExpectedMatches ? actual : throw new InvalidOperationException($"sparse match mismatch: {actual} != {ExpectedMatches}");
     private ArchetypeQuery<SparseFrifloA, SparseFrifloB> CreateFrifloQuery() { var f = new QueryFilter(); f.WithoutAllComponents(ComponentTypes.Get<SparseFrifloC>()); return _friflo.Query<SparseFrifloA, SparseFrifloB>(f); }
     private DefaultEcs.EntitySet CreateDefaultQuery() => _default.GetEntities().With<SparseDefaultA>().With<SparseDefaultB>().Without<SparseDefaultC>().AsSet();
-    private struct SparseDeltaState
-    {
-        public AccessRequest A;
-        public AccessRequest B;
-        public int Count;
-    }
 }
 
 internal struct UnifiedDeltaValue { public int Value; }
