@@ -403,9 +403,9 @@ public sealed class StructuralAlgorithmTests
         var cursorState = new HierarchyCursorState(parentBinding, local, worldTransform, observed);
         world.Query(in query, ref cursorState, static (ref HierarchyCursorState state, ref QueryChunkCursor cursor) =>
         {
-            var parents = cursor.Get(state.ParentBinding);
-            var locals = cursor.Get(state.LocalBinding);
-            var worlds = cursor.Get(state.WorldBinding);
+            var parents = cursor.GetRead(state.ParentBinding);
+            var locals = cursor.GetRead(state.LocalBinding);
+            var worlds = cursor.GetRead(state.WorldBinding);
             while (cursor.MoveNext())
             {
                 if (!cursor.IsActiveSlot(cursor.CurrentIndex))
@@ -469,9 +469,9 @@ public sealed class StructuralAlgorithmTests
     private sealed class HierarchyCursorState
     {
         public HierarchyCursorState(
-            ReadRequest parentBinding,
-            ReadRequest localBinding,
-            ReadRequest worldBinding,
+            AccessRequest parentBinding,
+            AccessRequest localBinding,
+            AccessRequest worldBinding,
             Dictionary<Entity, HierarchyObserved> observed)
         {
             ParentBinding = parentBinding;
@@ -480,9 +480,9 @@ public sealed class StructuralAlgorithmTests
             Observed = observed;
         }
 
-        public ReadRequest ParentBinding { get; }
-        public ReadRequest LocalBinding { get; }
-        public ReadRequest WorldBinding { get; }
+        public AccessRequest ParentBinding { get; }
+        public AccessRequest LocalBinding { get; }
+        public AccessRequest WorldBinding { get; }
         public Dictionary<Entity, HierarchyObserved> Observed { get; }
     }
 

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Delta.ECS.MicroBenchmarks.DenseIterationMicroBenchmarks-20260823-022139</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.13.12, macOS 26.5.2 (25F84) [Darwin 25.5.0]
+Apple M4 Pro, 1 CPU, 14 logical and 14 physical cores
+.NET SDK 10.0.301
+  [Host]     : .NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD
+  Job-FMBMCU : .NET 8.0.29 (8.0.2926.32403), Arm64 RyuJIT AdvSIMD
+</code></pre>
+<pre><code>InvocationCount=1  UnrollFactor=1  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                           </th><th>Amount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Allocated</th>
+</tr>
+</thead><tbody><tr><td>Movement4Components</td><td>100</td><td>3.663 &mu;s</td><td>0.1914 &mu;s</td><td>0.5430 &mu;s</td><td>3.687 &mu;s</td><td>736 B</td>
+</tr><tr><td>Movement4ComponentsGenericCompatibility</td><td>100</td><td>3.653 &mu;s</td><td>0.1897 &mu;s</td><td>0.5472 &mu;s</td><td>3.604 &mu;s</td><td>736 B</td>
+</tr><tr><td>Movement4Components</td><td>1000</td><td>29.714 &mu;s</td><td>1.7611 &mu;s</td><td>5.1092 &mu;s</td><td>26.916 &mu;s</td><td>736 B</td>
+</tr><tr><td>Movement4ComponentsGenericCompatibility</td><td>1000</td><td>30.419 &mu;s</td><td>1.3880 &mu;s</td><td>4.0267 &mu;s</td><td>31.083 &mu;s</td><td>736 B</td>
+</tr><tr><td>Movement4Components</td><td>10000</td><td>71.792 &mu;s</td><td>2.7769 &mu;s</td><td>8.1003 &mu;s</td><td>71.520 &mu;s</td><td>736 B</td>
+</tr><tr><td>Movement4ComponentsGenericCompatibility</td><td>10000</td><td>65.157 &mu;s</td><td>2.7790 &mu;s</td><td>7.9735 &mu;s</td><td>62.917 &mu;s</td><td>736 B</td>
+</tr><tr><td>Movement4Components</td><td>100000</td><td>375.158 &mu;s</td><td>9.4902 &mu;s</td><td>26.4549 &mu;s</td><td>373.875 &mu;s</td><td>736 B</td>
+</tr><tr><td>Movement4ComponentsGenericCompatibility</td><td>100000</td><td>394.636 &mu;s</td><td>15.3403 &mu;s</td><td>44.9904 &mu;s</td><td>383.667 &mu;s</td><td>736 B</td>
+</tr></tbody></table>
+</body>
+</html>

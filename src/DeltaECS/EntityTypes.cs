@@ -108,40 +108,42 @@ public readonly struct Query
 
     public bool IsValid => _owner is not null && _cached is not null;
 
-    public ReadRequest Access(ComponentId componentId, ReadAccessMode _)
-        => new(_cached, ResolveComponentRow(componentId));
-
-    public WriteRequest Access(ComponentId componentId, WriteAccessMode _)
+    public AccessRequest Access(ComponentId componentId, ReadAccessMode _)
     {
-        var rowIndex = ResolveComponentRow(componentId);
-        _cached.RegisterWriteAccess();
-        return new WriteRequest(_cached, rowIndex);
+        var rowIndex = ResolveComponentRow(componentId, expectedType: null, out var componentType);
+        return new AccessRequest(_cached, rowIndex, write: false, componentType);
     }
 
-    public ReadRequest Access<T>(ComponentId componentId, ReadAccessMode _)
+    public AccessRequest Access(ComponentId componentId, WriteAccessMode _)
     {
-        var row = ResolveComponentRow(componentId);
-        if (!_owner.Layouts.TryGet(componentId, out var layout) || layout.RuntimeType != typeof(T))
+        var rowIndex = ResolveComponentRow(componentId, expectedType: null, out var componentType);
+        _cached.RegisterWriteAccess();
+        return new AccessRequest(_cached, rowIndex, write: true, componentType);
+    }
+
+    public AccessRequest Access<T>(ComponentId componentId, ReadAccessMode _)
+    {
+        var access = Access(componentId, _);
+        if (access.RuntimeType != typeof(T))
         {
-            throw new ArgumentException($"Component {componentId} is registered as {layout.RuntimeType}, not {typeof(T)}.", nameof(componentId));
+            throw new ArgumentException($"Component {componentId} is registered as {access.RuntimeType}, not {typeof(T)}.", nameof(componentId));
         }
 
-        return new ReadRequest(_cached, row);
+        return access;
     }
 
-    public WriteRequest Access<T>(ComponentId componentId, WriteAccessMode _)
+    public AccessRequest Access<T>(ComponentId componentId, WriteAccessMode _)
     {
-        var rowIndex = ResolveComponentRow(componentId);
-        if (!_owner.Layouts.TryGet(componentId, out var layout) || layout.RuntimeType != typeof(T))
+        var access = Access(componentId, _);
+        if (access.RuntimeType != typeof(T))
         {
-            throw new ArgumentException($"Component {componentId} is registered as {layout.RuntimeType}, not {typeof(T)}.", nameof(componentId));
+            throw new ArgumentException($"Component {componentId} is registered as {access.RuntimeType}, not {typeof(T)}.", nameof(componentId));
         }
 
-        _cached.RegisterWriteAccess();
-        return new WriteRequest(_cached, rowIndex);
+        return access;
     }
 
-    private int ResolveComponentRow(ComponentId componentId)
+    private int ResolveComponentRow(ComponentId componentId, Type? expectedType, out Type componentType)
     {
         if (!IsValid)
         {
@@ -156,6 +158,12 @@ public readonly struct Query
         if (!_owner.Layouts.TryGet(componentId, out var layout))
         {
             throw new ArgumentException("The component is not registered in the query's world.", nameof(componentId));
+        }
+
+        componentType = layout.RuntimeType!;
+        if (expectedType is not null && layout.RuntimeType != expectedType)
+        {
+            throw new ArgumentException($"Component {componentId} is registered as {layout.RuntimeType}, not {expectedType}.", nameof(componentId));
         }
 
         return _description.AllMask.Rank(componentId);

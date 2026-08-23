@@ -195,7 +195,7 @@ public sealed class QueryStructuralOperationsTests
 
         var readChunkId = -1;
         var readBefore = world.WorldTick;
-        var readState = new ChangeTrackingCursorState(readPosition);
+        var readState = new ChangeTrackingCursorState(readPosition, isWrite: false);
         world.Query(in query, ref readState, static (ref ChangeTrackingCursorState state, ref QueryChunkCursor cursor) =>
         {
             if (cursor.SlotCount == 0)
@@ -204,7 +204,7 @@ public sealed class QueryStructuralOperationsTests
             }
 
             state.ChunkId = cursor.GlobalChunkId;
-            _ = cursor.Get(state.ReadBinding);
+            _ = cursor.GetRead(state.ReadBinding);
         });
         readChunkId = readState.ChunkId;
 
@@ -212,7 +212,7 @@ public sealed class QueryStructuralOperationsTests
         Assert.That(world.HasChangedSince(readChunkId, PositionId, readBefore), Is.False);
 
         var writeChunkId = -1;
-        var writeState = new ChangeTrackingCursorState(writePosition);
+        var writeState = new ChangeTrackingCursorState(writePosition, isWrite: true);
         world.Query(in query, ref writeState, static (ref ChangeTrackingCursorState state, ref QueryChunkCursor cursor) =>
         {
             if (cursor.SlotCount == 0)
@@ -221,7 +221,7 @@ public sealed class QueryStructuralOperationsTests
             }
 
             state.ChunkId = cursor.GlobalChunkId;
-            _ = cursor.Get(state.WriteBinding);
+            _ = cursor.GetWrite(state.WriteBinding);
         });
         writeChunkId = writeState.ChunkId;
 
@@ -231,18 +231,20 @@ public sealed class QueryStructuralOperationsTests
 
     private sealed class ChangeTrackingCursorState
     {
-        public ChangeTrackingCursorState(ReadRequest binding)
+        public ChangeTrackingCursorState(AccessRequest binding, bool isWrite)
         {
-            ReadBinding = binding;
+            if (isWrite)
+            {
+                WriteBinding = binding;
+            }
+            else
+            {
+                ReadBinding = binding;
+            }
         }
 
-        public ChangeTrackingCursorState(WriteRequest binding)
-        {
-            WriteBinding = binding;
-        }
-
-        public ReadRequest ReadBinding { get; }
-        public WriteRequest WriteBinding { get; }
+        public AccessRequest ReadBinding { get; }
+        public AccessRequest WriteBinding { get; }
         public int ChunkId { get; set; } = -1;
     }
 

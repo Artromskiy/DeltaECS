@@ -91,13 +91,13 @@ internal static class MicroBenchmarkKernels
     public static int IterateMovement2Dense(
         MicroWorld fixture,
         in Query query,
-        WriteRequest position,
-        ReadRequest velocity)
+        AccessRequest position,
+        AccessRequest velocity)
     {
         var checksum = 0;
         using var scope = fixture.World.OpenQuery(in query);
-        var preparedPosition = scope.Bind(position);
-        var preparedVelocity = scope.Bind(velocity);
+        var preparedPosition = scope.BindWrite(position);
+        var preparedVelocity = scope.BindRead(velocity);
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -124,17 +124,17 @@ internal static class MicroBenchmarkKernels
     public static int IterateMovement4Dense(
         MicroWorld fixture,
         in Query query,
-        WriteRequest aBinding,
-        WriteRequest bBinding,
-        WriteRequest cBinding,
-        ReadRequest dBinding)
+        AccessRequest aBinding,
+        AccessRequest bBinding,
+        AccessRequest cBinding,
+        AccessRequest dBinding)
     {
         var checksum = 0;
         using var scope = fixture.World.OpenQuery(in query);
-        var preparedA = scope.Bind(aBinding);
-        var preparedB = scope.Bind(bBinding);
-        var preparedC = scope.Bind(cBinding);
-        var preparedD = scope.Bind(dBinding);
+        var preparedA = scope.BindWrite(aBinding);
+        var preparedB = scope.BindWrite(bBinding);
+        var preparedC = scope.BindWrite(cBinding);
+        var preparedD = scope.BindRead(dBinding);
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -174,12 +174,16 @@ public class DenseIterationMicroBenchmarkImplementation
     private Entity[] _movement4Entities = null!;
     private Query _movement2Query;
     private Query _movement4Query;
-    private WriteRequest _movement2Position;
-    private ReadRequest _movement2Velocity;
-    private WriteRequest _movement4A;
-    private WriteRequest _movement4B;
-    private WriteRequest _movement4C;
-    private ReadRequest _movement4D;
+    private AccessRequest _movement2Position;
+    private AccessRequest _movement2Velocity;
+    private AccessRequest _movement4A;
+    private AccessRequest _movement4B;
+    private AccessRequest _movement4C;
+    private AccessRequest _movement4D;
+    private AccessRequest _movement4AErased;
+    private AccessRequest _movement4BErased;
+    private AccessRequest _movement4CErased;
+    private AccessRequest _movement4DErased;
 
     [GlobalSetup]
     public void Setup()
@@ -199,10 +203,14 @@ public class DenseIterationMicroBenchmarkImplementation
             _fixture.Movement4C,
             _fixture.Movement4D);
         _movement4Query = _fixture.World.CreateQuery(in movement4);
-        _movement4A = _movement4Query.Access(_fixture.Movement4A, AccessMode.Write);
-        _movement4B = _movement4Query.Access(_fixture.Movement4B, AccessMode.Write);
-        _movement4C = _movement4Query.Access(_fixture.Movement4C, AccessMode.Write);
-        _movement4D = _movement4Query.Access(_fixture.Movement4D, AccessMode.Read);
+        _movement4A = _movement4Query.Access<Movement4A>(_fixture.Movement4A, AccessMode.Write);
+        _movement4B = _movement4Query.Access<Movement4B>(_fixture.Movement4B, AccessMode.Write);
+        _movement4C = _movement4Query.Access<Movement4C>(_fixture.Movement4C, AccessMode.Write);
+        _movement4D = _movement4Query.Access<Movement4D>(_fixture.Movement4D, AccessMode.Read);
+        _movement4AErased = _movement4Query.Access(_fixture.Movement4A, AccessMode.Write);
+        _movement4BErased = _movement4Query.Access(_fixture.Movement4B, AccessMode.Write);
+        _movement4CErased = _movement4Query.Access(_fixture.Movement4C, AccessMode.Write);
+        _movement4DErased = _movement4Query.Access(_fixture.Movement4D, AccessMode.Read);
     }
 
     [IterationSetup(Target = nameof(Movement2Components))]
@@ -210,6 +218,9 @@ public class DenseIterationMicroBenchmarkImplementation
 
     [IterationSetup(Target = nameof(Movement4Components))]
     public void ResetMovement4() => _fixture.ResetMovement4(_movement4Entities);
+
+    [IterationSetup(Target = nameof(Movement4ComponentsGenericCompatibility))]
+    public void ResetMovement4GenericCompatibility() => _fixture.ResetMovement4(_movement4Entities);
 
     [Benchmark]
     public int Movement2Components() =>
@@ -221,6 +232,21 @@ public class DenseIterationMicroBenchmarkImplementation
 
     [Benchmark]
     public int Movement4Components() =>
+        MicroBenchmarkKernels.IterateMovement4Dense(
+            _fixture,
+            in _movement4Query,
+            _movement4AErased,
+            _movement4BErased,
+            _movement4CErased,
+            _movement4DErased);
+
+    /// <summary>
+    /// Paired compatibility path: generic Access&lt;T&gt; calls perform their type
+    /// check during setup and return the same non-generic AccessRequest core.
+    /// The measured dense loop is intentionally identical to the type-erased path.
+    /// </summary>
+    [Benchmark]
+    public int Movement4ComponentsGenericCompatibility() =>
         MicroBenchmarkKernels.IterateMovement4Dense(
             _fixture,
             in _movement4Query,

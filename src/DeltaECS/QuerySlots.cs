@@ -9,7 +9,6 @@ public ref struct QuerySlots
     private readonly DenseArchetypePlan _plan;
     private readonly Chunk _chunk;
     private readonly QueryPlan _query;
-    private readonly Array[] _componentRows;
     private readonly uint _writeTick;
     private int _index;
 
@@ -18,7 +17,6 @@ public ref struct QuerySlots
         _plan = plan;
         _chunk = chunk;
         _query = query;
-        _componentRows = chunk.RawComponentRows;
         _writeTick = writeTick;
         _index = chunk.Count;
     }
@@ -42,55 +40,87 @@ public ref struct QuerySlots
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ReadValues Get(ReadAccess binding)
+    public ReadValues Get(ReadAccess access)
     {
-        if (!ReferenceEquals(binding.Query, _query))
+        if (!ReferenceEquals(access.Query, _query))
         {
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows.Element(binding.QueryComponentIndex);
-        return new ReadValues(_componentRows.Element(physicalRow));
+        var physicalRow = _plan.ComponentRows.Element(access.QueryComponentIndex);
+        return new ReadValues(_chunk.GetRawComponentRow(physicalRow));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public WriteValues Get(WriteAccess binding)
+    public WriteValues Get(WriteAccess access)
     {
-        if (!ReferenceEquals(binding.Query, _query))
+        if (!ReferenceEquals(access.Query, _query))
         {
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows.Element(binding.QueryComponentIndex);
+        var physicalRow = _plan.ComponentRows.Element(access.QueryComponentIndex);
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
-        return new WriteValues(_componentRows.Element(physicalRow));
+        return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
     }
 
-    // Legacy compatibility path retained for old comparative/version callers only.
-    [Obsolete("Use non-generic Get(WriteAccess), then values.Ref<T>(slots).")]
-    public ReadValues<T> Get<T>(ReadAccess<T> binding)
+    [Obsolete("Use AccessRequest with BindRead and non-generic values.")]
+    public ReadValues Get(ReadRequest request)
     {
-        if (!ReferenceEquals(binding.Query, _query))
+        if (!ReferenceEquals(request.Query, _query))
         {
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows.Element(binding.QueryComponentIndex);
-        return new ReadValues<T>(_chunk.GetComponentRow<T>(_componentRows, physicalRow));
+        var physicalRow = _plan.ComponentRows.Element(request.QueryComponentIndex);
+        return new ReadValues(_chunk.GetRawComponentRow(physicalRow));
     }
 
-    // Legacy compatibility path retained for old comparative/version callers only.
-    [Obsolete("Use non-generic Get(WriteAccess), then values.Ref<T>(slots).")]
-    public WriteValues<T> Get<T>(WriteAccess<T> binding)
+    [Obsolete("Use AccessRequest with BindWrite and non-generic values.")]
+    public WriteValues Get(WriteRequest request)
     {
-        if (!ReferenceEquals(binding.Query, _query))
+        if (!ReferenceEquals(request.Query, _query))
         {
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows.Element(binding.QueryComponentIndex);
+        var physicalRow = _plan.ComponentRows.Element(request.QueryComponentIndex);
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
-        return new WriteValues<T>(_chunk.GetComponentRow<T>(_componentRows, physicalRow));
+        return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
     }
 
+    // Obsolete source-compatibility path. The L4 path above is non-generic.
+    [Obsolete("Use non-generic ReadAccess and values.Ref<T>(slots).")]
+    public ReadValues<T> Get<T>(ReadRequest<T> request)
+    {
+        if (!ReferenceEquals(request.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        var physicalRow = _plan.ComponentRows.Element(request.QueryComponentIndex);
+        return new ReadValues<T>(_chunk.GetComponentRow<T>(physicalRow));
+    }
+
+    // Obsolete source-compatibility path. The L4 path above is non-generic.
+    [Obsolete("Use non-generic WriteAccess and values.Ref<T>(slots).")]
+    public WriteValues<T> Get<T>(WriteRequest<T> request)
+    {
+        if (!ReferenceEquals(request.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        var physicalRow = _plan.ComponentRows.Element(request.QueryComponentIndex);
+        _chunk.MarkComponentWritten(physicalRow, _writeTick);
+        return new WriteValues<T>(_chunk.GetComponentRow<T>(physicalRow));
+    }
+
+    /// <summary>Compatibility generic call; the returned values object remains non-generic.</summary>
+    [Obsolete("Use Get(ReadAccess); the generic argument is compatibility-only.")]
+    public ReadValues Get<T>(ReadAccess access) => Get(access);
+
+    /// <summary>Compatibility generic call; the returned values object remains non-generic.</summary>
+    [Obsolete("Use Get(WriteAccess); the generic argument is compatibility-only.")]
+    public WriteValues Get<T>(WriteAccess access) => Get(access);
 }

@@ -34,7 +34,6 @@ public ref struct QueryScope
         _owner.BeginQueryLease();
     }
 
-    /// <summary>Creates the independent outer iterator over matching archetypes.</summary>
     public QueryArchetypes Archetypes
     {
         get
@@ -44,25 +43,44 @@ public ref struct QueryScope
         }
     }
 
-    /// <summary>Validates a read binding once for this dense execution.</summary>
-    public ReadAccess Bind(ReadRequest binding)
+    public ReadAccess BindRead(AccessRequest access)
     {
         EnsureActive();
-        if (!ReferenceEquals(binding.Query, _query))
+        Validate(access.Query);
+        if (access.IsWrite)
         {
-            QueryThrowHelper.ThrowAccessMismatch();
+            QueryThrowHelper.ThrowAccessModeMismatch();
         }
 
-        return new ReadAccess(_query, binding.QueryComponentIndex);
+        return new ReadAccess(_query, access.QueryComponentIndex);
     }
 
-    /// <summary>Validates a write binding once for this dense execution.</summary>
-    public WriteAccess Bind(WriteRequest binding)
+    /// <summary>Compatibility generic call; the returned access token remains non-generic.</summary>
+    [Obsolete("Use BindRead(AccessRequest); the generic argument is compatibility-only.")]
+    public ReadAccess BindRead<T>(AccessRequest access) => BindRead(access);
+
+    public ReadAccess Bind(ReadAccess access)
     {
         EnsureActive();
-        if (!ReferenceEquals(binding.Query, _query))
+        Validate(access.Query);
+        return access;
+    }
+
+    [Obsolete("Use non-generic AccessRequest with BindRead.")]
+    public ReadAccess Bind(ReadRequest request)
+    {
+        EnsureActive();
+        Validate(request.Query);
+        return new ReadAccess(_query, request.QueryComponentIndex);
+    }
+
+    public WriteAccess BindWrite(AccessRequest access)
+    {
+        EnsureActive();
+        Validate(access.Query);
+        if (!access.IsWrite)
         {
-            QueryThrowHelper.ThrowAccessMismatch();
+            QueryThrowHelper.ThrowAccessModeMismatch();
         }
 
         if (_writeTick == 0)
@@ -70,38 +88,59 @@ public ref struct QueryScope
             QueryThrowHelper.ThrowMissingWriteIntent();
         }
 
-        return new WriteAccess(_query, binding.QueryComponentIndex);
+        return new WriteAccess(_query, access.QueryComponentIndex);
     }
 
-    // Legacy compatibility path retained for old comparative/version callers only.
-    [Obsolete("Use non-generic Bind(ReadRequest).")]
-    public ReadAccess<T> Bind<T>(ReadRequest<T> binding)
+    /// <summary>Compatibility generic call; the returned access token remains non-generic.</summary>
+    [Obsolete("Use BindWrite(AccessRequest); the generic argument is compatibility-only.")]
+    public WriteAccess BindWrite<T>(AccessRequest access) => BindWrite(access);
+
+    public WriteAccess Bind(WriteAccess access)
     {
         EnsureActive();
-        if (!ReferenceEquals(binding.Query, _query))
-        {
-            QueryThrowHelper.ThrowAccessMismatch();
-        }
-
-        return new ReadAccess<T>(_query, binding.QueryComponentIndex);
-    }
-
-    // Legacy compatibility path retained for old comparative/version callers only.
-    [Obsolete("Use non-generic Bind(WriteRequest).")]
-    public WriteAccess<T> Bind<T>(WriteRequest<T> binding)
-    {
-        EnsureActive();
-        if (!ReferenceEquals(binding.Query, _query))
-        {
-            QueryThrowHelper.ThrowAccessMismatch();
-        }
-
+        Validate(access.Query);
         if (_writeTick == 0)
         {
             QueryThrowHelper.ThrowMissingWriteIntent();
         }
 
-        return new WriteAccess<T>(_query, binding.QueryComponentIndex);
+        return access;
+    }
+
+    [Obsolete("Use non-generic AccessRequest with BindWrite.")]
+    public WriteAccess Bind(WriteRequest request)
+    {
+        EnsureActive();
+        Validate(request.Query);
+        if (_writeTick == 0)
+        {
+            QueryThrowHelper.ThrowMissingWriteIntent();
+        }
+
+        return new WriteAccess(_query, request.QueryComponentIndex);
+    }
+
+    // Obsolete source-compatibility path. The returned token remains non-generic.
+    [Obsolete("Use BindRead(AccessRequest); the generic argument is compatibility-only.")]
+    public ReadAccess Bind<T>(ReadRequest<T> request)
+    {
+        EnsureActive();
+        Validate(request.Query);
+        return new ReadAccess(_query, request.QueryComponentIndex);
+    }
+
+    // Obsolete source-compatibility path. The returned token remains non-generic.
+    [Obsolete("Use BindWrite(AccessRequest); the generic argument is compatibility-only.")]
+    public WriteAccess Bind<T>(WriteRequest<T> request)
+    {
+        EnsureActive();
+        Validate(request.Query);
+        if (_writeTick == 0)
+        {
+            QueryThrowHelper.ThrowMissingWriteIntent();
+        }
+
+        return new WriteAccess(_query, request.QueryComponentIndex);
     }
 
     public void Dispose()
@@ -115,6 +154,14 @@ public ref struct QueryScope
         _owner.EndQueryLease();
     }
 
+    private void Validate(QueryPlan? query)
+    {
+        if (!ReferenceEquals(query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+    }
+
     private void EnsureActive()
     {
         if (_disposed || _owner is null)
@@ -122,60 +169,4 @@ public ref struct QueryScope
             throw new InvalidOperationException("The dense query scope has been disposed.");
         }
     }
-}
-
-/// <summary>Scope-validated read row token for dense iteration.</summary>
-public readonly struct ReadAccess
-{
-    internal ReadAccess(QueryPlan query, int queryComponentIndex)
-    {
-        Query = query;
-        QueryComponentIndex = queryComponentIndex;
-    }
-
-    internal QueryPlan? Query { get; }
-
-    internal int QueryComponentIndex { get; }
-}
-
-/// <summary>Scope-validated write row token for dense iteration.</summary>
-public readonly struct WriteAccess
-{
-    internal WriteAccess(QueryPlan query, int queryComponentIndex)
-    {
-        Query = query;
-        QueryComponentIndex = queryComponentIndex;
-    }
-
-    internal QueryPlan? Query { get; }
-
-    internal int QueryComponentIndex { get; }
-}
-
-// Legacy compatibility path retained for old comparative/version callers only.
-[Obsolete("Use non-generic ReadAccess.")]
-public readonly struct ReadAccess<T>
-{
-    internal ReadAccess(QueryPlan query, int queryComponentIndex)
-    {
-        Query = query;
-        QueryComponentIndex = queryComponentIndex;
-    }
-
-    internal QueryPlan? Query { get; }
-    internal int QueryComponentIndex { get; }
-}
-
-// Legacy compatibility path retained for old comparative/version callers only.
-[Obsolete("Use non-generic WriteAccess.")]
-public readonly struct WriteAccess<T>
-{
-    internal WriteAccess(QueryPlan query, int queryComponentIndex)
-    {
-        Query = query;
-        QueryComponentIndex = queryComponentIndex;
-    }
-
-    internal QueryPlan? Query { get; }
-    internal int QueryComponentIndex { get; }
 }
