@@ -1,36 +1,74 @@
 namespace Delta.ECS;
 
-using System.Buffers;
 using System.Runtime.CompilerServices;
 using RuntimeNativeMemory = System.Runtime.InteropServices.NativeMemory;
 
+/// <summary>Trusted native storage owned and disposed by its containing ECS object.</summary>
 internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
 {
-    private NativeMemoryManager<T>? _owner;
-    private int _length;
-    public NativeMemory(int length) { ArgumentOutOfRangeException.ThrowIfNegative(length); _length = length; _owner = new(length); }
-    public NativeMemory(ReadOnlySpan<T> source) { _length = source.Length; _owner = new(source.Length); source.CopyTo(_owner.Memory.Span); }
-    public int Length => _length;
-    public ref T this[int index] { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => ref Span[index]; }
-    public Span<T> Span => _owner!.Memory.Span;
-    public ReadOnlySpan<T> ReadOnlySpan => Span;
-    public void Resize(int length) { ArgumentOutOfRangeException.ThrowIfNegative(length); if (length == _length) return; var replacement = new NativeMemoryManager<T>(length); Span[..Math.Min(_length, length)].CopyTo(replacement.Memory.Span); _owner!.Release(); _owner = replacement; _length = length; }
-    public void Clear() => RuntimeNativeMemory.Clear((void*)_owner!.Address, ByteLength(_length));
-    public void Dispose() { _owner?.Release(); _owner = null; _length = 0; }
-    private static nuint ByteLength(int length) => checked((nuint)length * (nuint)Unsafe.SizeOf<T>());
-}
-
-/// <remarks>GetSpan intentionally has no disposed branch; World owns lifetime.</remarks>
-internal unsafe sealed class NativeMemoryManager<T> : MemoryManager<T> where T : unmanaged
-{
     private nint _address;
-    private readonly int _length;
-    public NativeMemoryManager(int length) { _length = length; if (length != 0) { _address = (nint)RuntimeNativeMemory.Alloc(ByteLength(length)); RuntimeNativeMemory.Clear((void*)_address, ByteLength(length)); } }
-    public nint Address => _address;
-    public void Release() => Dispose(true);
-    public override Span<T> GetSpan() => new((void*)_address, _length);
-    public override MemoryHandle Pin(int elementIndex = 0) { ArgumentOutOfRangeException.ThrowIfGreaterThan(elementIndex, _length); return new MemoryHandle((byte*)_address + (nuint)elementIndex * (nuint)Unsafe.SizeOf<T>()); }
-    public override void Unpin() { }
-    protected override void Dispose(bool disposing) { if (_address != 0) { RuntimeNativeMemory.Free((void*)_address); _address = 0; } }
+    private int _length;
+
+    public NativeMemory(int length)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(length);
+        _length = length;
+        _address = Allocate(length);
+    }
+
+    public NativeMemory(ReadOnlySpan<T> source)
+    {
+        _length = source.Length;
+        _address = Allocate(_length);
+        source.CopyTo(Span);
+    }
+
+    public int Length => _length;
+
+    public ref T this[int index] => ref Span[index];
+
+    public Span<T> Span => _length == 0 ? System.Span<T>.Empty : new((void*)_address, _length);
+
+    public ReadOnlySpan<T> ReadOnlySpan => Span;
+
+    public void Resize(int length)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(length);
+        if (length == _length) return;
+
+        nint replacement = Allocate(length);
+        int copied = Math.Min(_length, length);
+        if (copied != 0) Span[..copied].CopyTo(new Span<T>((void*)replacement, length));
+        ReleaseBuffer();
+        _address = replacement;
+        _length = length;
+    }
+
+    public void Clear()
+    {
+        if (_length != 0) RuntimeNativeMemory.Clear((void*)_address, ByteLength(_length));
+    }
+
+    public void Dispose()
+    {
+        if (_address != 0) ReleaseBuffer();
+        _length = 0;
+    }
+
+    private static nint Allocate(int length)
+    {
+        if (length == 0) return 0;
+        nuint bytes = ByteLength(length);
+        nint address = (nint)RuntimeNativeMemory.Alloc(bytes);
+        RuntimeNativeMemory.Clear((void*)address, bytes);
+        return address;
+    }
+
     private static nuint ByteLength(int length) => checked((nuint)length * (nuint)Unsafe.SizeOf<T>());
+
+    private void ReleaseBuffer()
+    {
+        RuntimeNativeMemory.Free((void*)_address);
+        _address = 0;
+    }
 }
