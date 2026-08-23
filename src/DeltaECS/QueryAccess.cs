@@ -13,6 +13,7 @@ public ref struct QueryChunkCursor
     private readonly uint _writeTick;
     private readonly ulong[]? _overlayMask;
     private readonly bool _fullMask;
+    private readonly int _count;
     private int _index;
 
     internal QueryChunkCursor(QueryPlan query, int archetypeId, Chunk chunk, int[] componentRows, uint writeTick, ulong[]? overlayMask, OverlayMaskResult overlayResult)
@@ -24,10 +25,11 @@ public ref struct QueryChunkCursor
         _writeTick = writeTick;
         _overlayMask = overlayResult == OverlayMaskResult.Partial ? overlayMask : null;
         _fullMask = overlayResult == OverlayMaskResult.Full;
+        _count = chunk.Count;
         _index = -1;
     }
 
-    public int SlotCount => _chunk.Count;
+    public int SlotCount => _count;
     public int CurrentIndex => _index;
     public int ArchetypeId { get; }
     public int GlobalChunkId => _chunk.GlobalId;
@@ -36,7 +38,7 @@ public ref struct QueryChunkCursor
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool IsActiveSlot(int slotIndex)
     {
-        if ((uint)slotIndex >= (uint)_chunk.Count)
+        if ((uint)slotIndex >= (uint)_count)
         {
             return false;
         }
@@ -48,9 +50,9 @@ public ref struct QueryChunkCursor
     public bool MoveNext()
     {
         int next = _index + 1;
-        if (next >= _chunk.Count)
+        if (next >= _count)
         {
-            _index = _chunk.Count;
+            _index = _count;
             return false;
         }
 

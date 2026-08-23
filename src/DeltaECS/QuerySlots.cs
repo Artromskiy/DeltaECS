@@ -11,6 +11,7 @@ public ref struct QuerySlots
     private readonly Array[] _componentRows;
     private readonly QueryPlan _query;
     private readonly uint _writeTick;
+    private readonly int _count;
     private int _index;
 
     internal QuerySlots(DenseArchetypePlan plan, Chunk chunk, QueryPlan query, uint writeTick)
@@ -20,6 +21,7 @@ public ref struct QuerySlots
         _componentRows = chunk.RawComponentRows;
         _query = query;
         _writeTick = writeTick;
+        _count = chunk.Count;
         _index = -1;
     }
 
@@ -33,9 +35,9 @@ public ref struct QuerySlots
     public bool MoveNext()
     {
         int next = _index + 1;
-        if (next >= _chunk.Count)
+        if (next >= _count)
         {
-            _index = _chunk.Count;
+            _index = _count;
             return false;
         }
 

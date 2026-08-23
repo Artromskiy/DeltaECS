@@ -253,7 +253,7 @@ internal static class MicroBenchmarkKernels
 
 public class DenseIterationMicroBenchmarkImplementation
 {
-    [Params(100, 1_000, 10_000, 100_000)]
+    [Params(100, 1_000, 10_000, 100_000, 1_000_000)]
     public int Amount { get; set; }
 
     private MicroWorld _fixture = null!;
