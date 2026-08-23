@@ -33,12 +33,13 @@ public class HardwareProfileBenchmarks
     private World _world = null!;
     private ComponentId[] _components = Array.Empty<ComponentId>();
     private Query _query;
-    private AccessRequest[] _writeBindings = Array.Empty<AccessRequest>();
-    private AccessRequest[] _readBindings = Array.Empty<AccessRequest>();
+    private WriteAccess[] _writeBindings = Array.Empty<WriteAccess>();
+    private ReadAccess[] _readBindings = Array.Empty<ReadAccess>();
     private LegacyProfileBackend _legacy = null!;
 
     private long _checksum;
     private int _iterations;
+    private ProfileState _profileState;
 
     private struct ProfileValue
     {
@@ -50,14 +51,9 @@ public class HardwareProfileBenchmarks
     {
         public int ComponentCount;
         public long Checksum;
-        public AccessRequest[] WriteBindings;
-        public AccessRequest[] ReadBindings;
+        public WriteAccess[] WriteBindings;
+        public ReadAccess[] ReadBindings;
     }
-
-    private static readonly QueryAction<ProfileState> s_entityMajor = IterateEntityMajor;
-    private static readonly QueryAction<ProfileState> s_rowMajor = IterateRowMajor;
-    private static readonly QueryAction<ProfileState> s_lookupOnly = LookupOnly;
-    private static readonly QueryAction<ProfileState> s_dispatchOnly = DispatchOnly;
 
     [GlobalSetup]
     public void Setup()
@@ -93,8 +89,8 @@ public class HardwareProfileBenchmarks
 
         var spec = QuerySpec.ForComponents(_components);
         _query = _world.CreateQuery(in spec);
-        _writeBindings = new AccessRequest[ComponentCount];
-        _readBindings = new AccessRequest[ComponentCount];
+        _writeBindings = new WriteAccess[ComponentCount];
+        _readBindings = new ReadAccess[ComponentCount];
         for (var i = 0; i < ComponentCount; i++)
         {
             _writeBindings[i] = _query.AccessWrite(_components[i]);
@@ -106,33 +102,33 @@ public class HardwareProfileBenchmarks
     [Benchmark]
     public void DeltaArray_EntityMajor_Profile()
     {
-        var state = new ProfileState { ComponentCount = ComponentCount, WriteBindings = _writeBindings, ReadBindings = _readBindings };
-        _iterations = RunUntilDuration(() => _world.Query(in _query, ref state, s_entityMajor));
-        _checksum = state.Checksum;
+        _profileState = new ProfileState { ComponentCount = ComponentCount, WriteBindings = _writeBindings, ReadBindings = _readBindings };
+        _iterations = RunUntilDuration(IterateEntityMajor);
+        _checksum = _profileState.Checksum;
     }
 
     [Benchmark]
     public void DeltaArray_RowMajor_Profile()
     {
-        var state = new ProfileState { ComponentCount = ComponentCount, WriteBindings = _writeBindings, ReadBindings = _readBindings };
-        _iterations = RunUntilDuration(() => _world.Query(in _query, ref state, s_rowMajor));
-        _checksum = state.Checksum;
+        _profileState = new ProfileState { ComponentCount = ComponentCount, WriteBindings = _writeBindings, ReadBindings = _readBindings };
+        _iterations = RunUntilDuration(IterateRowMajor);
+        _checksum = _profileState.Checksum;
     }
 
     [Benchmark]
     public void DeltaArray_DispatchOnly_Profile()
     {
-        var state = new ProfileState { ReadBindings = _readBindings };
-        _iterations = RunUntilDuration(() => _world.Query(in _query, ref state, s_dispatchOnly));
-        _checksum = state.Checksum;
+        _profileState = new ProfileState { ReadBindings = _readBindings };
+        _iterations = RunUntilDuration(DispatchOnly);
+        _checksum = _profileState.Checksum;
     }
 
     [Benchmark]
     public void DeltaArray_LookupOnly_Profile()
     {
-        var state = new ProfileState { ComponentCount = ComponentCount, ReadBindings = _readBindings, WriteBindings = _writeBindings };
-        _iterations = RunUntilDuration(() => _world.Query(in _query, ref state, s_lookupOnly));
-        _checksum = state.Checksum;
+        _profileState = new ProfileState { ComponentCount = ComponentCount, ReadBindings = _readBindings, WriteBindings = _writeBindings };
+        _iterations = RunUntilDuration(LookupOnly);
+        _checksum = _profileState.Checksum;
     }
 
     [Benchmark]
@@ -185,253 +181,329 @@ public class HardwareProfileBenchmarks
         return iterations;
     }
 
-    private static void IterateEntityMajor(ref ProfileState state, ref QueryChunkCursor lease)
+    private void IterateEntityMajor()
     {
-        switch (state.ComponentCount)
+        ref var state = ref _profileState;
+        using var scope = _world.OpenQuery(in _query);
+        var w0 = default(WriteAccess);
+        var w1 = default(WriteAccess);
+        var w2 = default(WriteAccess);
+        var w3 = default(WriteAccess);
+        var w4 = default(WriteAccess);
+        var w5 = default(WriteAccess);
+        var w6 = default(WriteAccess);
+        var w7 = default(WriteAccess);
+
+        if (state.ComponentCount > 0) w0 = scope.Bind(state.WriteBindings[0]);
+        if (state.ComponentCount > 1) w1 = scope.Bind(state.WriteBindings[1]);
+        if (state.ComponentCount > 2) w2 = scope.Bind(state.WriteBindings[2]);
+        if (state.ComponentCount > 3) w3 = scope.Bind(state.WriteBindings[3]);
+        if (state.ComponentCount > 4) w4 = scope.Bind(state.WriteBindings[4]);
+        if (state.ComponentCount > 5) w5 = scope.Bind(state.WriteBindings[5]);
+        if (state.ComponentCount > 6) w6 = scope.Bind(state.WriteBindings[6]);
+        if (state.ComponentCount > 7) w7 = scope.Bind(state.WriteBindings[7]);
+
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
         {
-            case 1:
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var slots = chunks.Current.Slots;
+                switch (state.ComponentCount)
                 {
-                    var c0 = lease.GetWrite(state.WriteBindings[0]);
-                    while (lease.MoveNext())
+                    case 1:
                     {
-                        var value = c0.Ref<ProfileValue>(lease);
-                        value.X += value.Y;
-                        c0.Ref<ProfileValue>(lease) = value;
-                        state.Checksum += BitConverter.SingleToInt32Bits(value.X);
+                        var c0 = slots.Get(w0);
+                        while (slots.MoveNext())
+                        {
+                            ref var p0 = ref c0.Ref<ProfileValue>(slots);
+                            p0.X += p0.Y;
+                            state.Checksum += BitConverter.SingleToInt32Bits(p0.X);
+                        }
+
+                        break;
                     }
-                    return;
-                }
-            case 2:
-                {
-                    var c0 = lease.GetWrite(state.WriteBindings[0]);
-                    var c1 = lease.GetWrite(state.WriteBindings[1]);
-                    while (lease.MoveNext())
+                    case 2:
                     {
-                        var p0 = c0.Ref<ProfileValue>(lease);
-                        var p1 = c1.Ref<ProfileValue>(lease);
-                        p0.X += p0.Y;
-                        p1.X += p1.Y;
-                        c0.Ref<ProfileValue>(lease) = p0;
-                        c1.Ref<ProfileValue>(lease) = p1;
-                        state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
+                        var c0 = slots.Get(w0);
+                        var c1 = slots.Get(w1);
+                        while (slots.MoveNext())
+                        {
+                            ref var p0 = ref c0.Ref<ProfileValue>(slots);
+                            ref var p1 = ref c1.Ref<ProfileValue>(slots);
+                            p0.X += p0.Y;
+                            p1.X += p1.Y;
+                            state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
+                        }
+
+                        break;
                     }
-                    return;
-                }
-            case 4:
-                {
-                    var c0 = lease.GetWrite(state.WriteBindings[0]);
-                    var c1 = lease.GetWrite(state.WriteBindings[1]);
-                    var c2 = lease.GetWrite(state.WriteBindings[2]);
-                    var c3 = lease.GetWrite(state.WriteBindings[3]);
-                    while (lease.MoveNext())
+                    case 4:
                     {
-                        var p0 = c0.Ref<ProfileValue>(lease);
-                        var p1 = c1.Ref<ProfileValue>(lease);
-                        var p2 = c2.Ref<ProfileValue>(lease);
-                        var p3 = c3.Ref<ProfileValue>(lease);
-                        p0.X += p0.Y;
-                        p1.X += p1.Y;
-                        p2.X += p2.Y;
-                        p3.X += p3.Y;
-                        c0.Ref<ProfileValue>(lease) = p0;
-                        c1.Ref<ProfileValue>(lease) = p1;
-                        c2.Ref<ProfileValue>(lease) = p2;
-                        c3.Ref<ProfileValue>(lease) = p3;
-                        state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
-                        state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
+                        var c0 = slots.Get(w0);
+                        var c1 = slots.Get(w1);
+                        var c2 = slots.Get(w2);
+                        var c3 = slots.Get(w3);
+                        while (slots.MoveNext())
+                        {
+                            ref var p0 = ref c0.Ref<ProfileValue>(slots);
+                            ref var p1 = ref c1.Ref<ProfileValue>(slots);
+                            ref var p2 = ref c2.Ref<ProfileValue>(slots);
+                            ref var p3 = ref c3.Ref<ProfileValue>(slots);
+                            p0.X += p0.Y;
+                            p1.X += p1.Y;
+                            p2.X += p2.Y;
+                            p3.X += p3.Y;
+                            state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
+                            state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
+                        }
+
+                        break;
                     }
-                    return;
-                }
-            case 8:
-                {
-                    var c0 = lease.GetWrite(state.WriteBindings[0]);
-                    var c1 = lease.GetWrite(state.WriteBindings[1]);
-                    var c2 = lease.GetWrite(state.WriteBindings[2]);
-                    var c3 = lease.GetWrite(state.WriteBindings[3]);
-                    var c4 = lease.GetWrite(state.WriteBindings[4]);
-                    var c5 = lease.GetWrite(state.WriteBindings[5]);
-                    var c6 = lease.GetWrite(state.WriteBindings[6]);
-                    var c7 = lease.GetWrite(state.WriteBindings[7]);
-                    while (lease.MoveNext())
+                    case 8:
                     {
-                        var p0 = c0.Ref<ProfileValue>(lease);
-                        var p1 = c1.Ref<ProfileValue>(lease);
-                        var p2 = c2.Ref<ProfileValue>(lease);
-                        var p3 = c3.Ref<ProfileValue>(lease);
-                        var p4 = c4.Ref<ProfileValue>(lease);
-                        var p5 = c5.Ref<ProfileValue>(lease);
-                        var p6 = c6.Ref<ProfileValue>(lease);
-                        var p7 = c7.Ref<ProfileValue>(lease);
-                        p0.X += p0.Y;
-                        p1.X += p1.Y;
-                        p2.X += p2.Y;
-                        p3.X += p3.Y;
-                        p4.X += p4.Y;
-                        p5.X += p5.Y;
-                        p6.X += p6.Y;
-                        p7.X += p7.Y;
-                        c0.Ref<ProfileValue>(lease) = p0;
-                        c1.Ref<ProfileValue>(lease) = p1;
-                        c2.Ref<ProfileValue>(lease) = p2;
-                        c3.Ref<ProfileValue>(lease) = p3;
-                        c4.Ref<ProfileValue>(lease) = p4;
-                        c5.Ref<ProfileValue>(lease) = p5;
-                        c6.Ref<ProfileValue>(lease) = p6;
-                        c7.Ref<ProfileValue>(lease) = p7;
-                        state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
-                        state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
-                        state.Checksum += BitConverter.SingleToInt32Bits(p4.X) + BitConverter.SingleToInt32Bits(p5.X);
-                        state.Checksum += BitConverter.SingleToInt32Bits(p6.X) + BitConverter.SingleToInt32Bits(p7.X);
+                        var c0 = slots.Get(w0);
+                        var c1 = slots.Get(w1);
+                        var c2 = slots.Get(w2);
+                        var c3 = slots.Get(w3);
+                        var c4 = slots.Get(w4);
+                        var c5 = slots.Get(w5);
+                        var c6 = slots.Get(w6);
+                        var c7 = slots.Get(w7);
+                        while (slots.MoveNext())
+                        {
+                            ref var p0 = ref c0.Ref<ProfileValue>(slots);
+                            ref var p1 = ref c1.Ref<ProfileValue>(slots);
+                            ref var p2 = ref c2.Ref<ProfileValue>(slots);
+                            ref var p3 = ref c3.Ref<ProfileValue>(slots);
+                            ref var p4 = ref c4.Ref<ProfileValue>(slots);
+                            ref var p5 = ref c5.Ref<ProfileValue>(slots);
+                            ref var p6 = ref c6.Ref<ProfileValue>(slots);
+                            ref var p7 = ref c7.Ref<ProfileValue>(slots);
+                            p0.X += p0.Y;
+                            p1.X += p1.Y;
+                            p2.X += p2.Y;
+                            p3.X += p3.Y;
+                            p4.X += p4.Y;
+                            p5.X += p5.Y;
+                            p6.X += p6.Y;
+                            p7.X += p7.Y;
+                            state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
+                            state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
+                            state.Checksum += BitConverter.SingleToInt32Bits(p4.X) + BitConverter.SingleToInt32Bits(p5.X);
+                            state.Checksum += BitConverter.SingleToInt32Bits(p6.X) + BitConverter.SingleToInt32Bits(p7.X);
+                        }
+
+                        break;
                     }
-                    return;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(state.ComponentCount));
                 }
-            default:
-                throw new ArgumentOutOfRangeException(nameof(state.ComponentCount));
+            }
         }
     }
 
-    private static void IterateRowMajor(ref ProfileState state, ref QueryChunkCursor lease)
+    private void IterateRowMajor()
     {
-        switch (state.ComponentCount)
+        ref var state = ref _profileState;
+        using var scope = _world.OpenQuery(in _query);
+        var w0 = default(WriteAccess);
+        var w1 = default(WriteAccess);
+        var w2 = default(WriteAccess);
+        var w3 = default(WriteAccess);
+        var w4 = default(WriteAccess);
+        var w5 = default(WriteAccess);
+        var w6 = default(WriteAccess);
+        var w7 = default(WriteAccess);
+
+        if (state.ComponentCount > 0) w0 = scope.Bind(state.WriteBindings[0]);
+        if (state.ComponentCount > 1) w1 = scope.Bind(state.WriteBindings[1]);
+        if (state.ComponentCount > 2) w2 = scope.Bind(state.WriteBindings[2]);
+        if (state.ComponentCount > 3) w3 = scope.Bind(state.WriteBindings[3]);
+        if (state.ComponentCount > 4) w4 = scope.Bind(state.WriteBindings[4]);
+        if (state.ComponentCount > 5) w5 = scope.Bind(state.WriteBindings[5]);
+        if (state.ComponentCount > 6) w6 = scope.Bind(state.WriteBindings[6]);
+        if (state.ComponentCount > 7) w7 = scope.Bind(state.WriteBindings[7]);
+
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
         {
-            case 1:
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var slots = chunks.Current.Slots;
+                switch (state.ComponentCount)
                 {
-                    var c0 = lease.GetWrite(state.WriteBindings[0]);
-                    while (lease.MoveNext())
+                    case 1:
                     {
-                        var p0 = c0.Ref<ProfileValue>(lease);
-                        p0.X += p0.Y;
-                        c0.Ref<ProfileValue>(lease) = p0;
-                        state.Checksum += BitConverter.SingleToInt32Bits(p0.X);
+                        var c0 = slots.Get(w0);
+                        while (slots.MoveNext())
+                        {
+                            ref var p0 = ref c0.Ref<ProfileValue>(slots);
+                            p0.X += p0.Y;
+                            state.Checksum += BitConverter.SingleToInt32Bits(p0.X);
+                        }
+
+                        break;
                     }
-                    return;
-                }
-            case 2:
-                {
-                    var c0 = lease.GetWrite(state.WriteBindings[0]);
-                    var c1 = lease.GetWrite(state.WriteBindings[1]);
-                    while (lease.MoveNext())
+                    case 2:
                     {
-                        var p0 = c0.Ref<ProfileValue>(lease);
-                        var p1 = c1.Ref<ProfileValue>(lease);
-                        p0.X += p0.Y;
-                        p1.X += p1.Y;
-                        c0.Ref<ProfileValue>(lease) = p0;
-                        c1.Ref<ProfileValue>(lease) = p1;
-                        state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
+                        var c0 = slots.Get(w0);
+                        var c1 = slots.Get(w1);
+                        while (slots.MoveNext())
+                        {
+                            ref var p0 = ref c0.Ref<ProfileValue>(slots);
+                            p0.X += p0.Y;
+                            ref var p1 = ref c1.Ref<ProfileValue>(slots);
+                            p1.X += p1.Y;
+                            state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
+                        }
+
+                        break;
                     }
-                    return;
-                }
-            case 4:
-                {
-                    var c0 = lease.GetWrite(state.WriteBindings[0]);
-                    var c1 = lease.GetWrite(state.WriteBindings[1]);
-                    var c2 = lease.GetWrite(state.WriteBindings[2]);
-                    var c3 = lease.GetWrite(state.WriteBindings[3]);
-                    while (lease.MoveNext())
+                    case 4:
                     {
-                        var p0 = c0.Ref<ProfileValue>(lease);
-                        var p1 = c1.Ref<ProfileValue>(lease);
-                        var p2 = c2.Ref<ProfileValue>(lease);
-                        var p3 = c3.Ref<ProfileValue>(lease);
-                        p0.X += p0.Y;
-                        p1.X += p1.Y;
-                        p2.X += p2.Y;
-                        p3.X += p3.Y;
-                        c0.Ref<ProfileValue>(lease) = p0;
-                        c1.Ref<ProfileValue>(lease) = p1;
-                        c2.Ref<ProfileValue>(lease) = p2;
-                        c3.Ref<ProfileValue>(lease) = p3;
-                        state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
-                        state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
+                        var c0 = slots.Get(w0);
+                        var c1 = slots.Get(w1);
+                        var c2 = slots.Get(w2);
+                        var c3 = slots.Get(w3);
+                        while (slots.MoveNext())
+                        {
+                            ref var p0 = ref c0.Ref<ProfileValue>(slots);
+                            p0.X += p0.Y;
+                            ref var p1 = ref c1.Ref<ProfileValue>(slots);
+                            p1.X += p1.Y;
+                            ref var p2 = ref c2.Ref<ProfileValue>(slots);
+                            p2.X += p2.Y;
+                            ref var p3 = ref c3.Ref<ProfileValue>(slots);
+                            p3.X += p3.Y;
+                            state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
+                            state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
+                        }
+
+                        break;
                     }
-                    return;
-                }
-            case 8:
-                {
-                    var c0 = lease.GetWrite(state.WriteBindings[0]);
-                    var c1 = lease.GetWrite(state.WriteBindings[1]);
-                    var c2 = lease.GetWrite(state.WriteBindings[2]);
-                    var c3 = lease.GetWrite(state.WriteBindings[3]);
-                    var c4 = lease.GetWrite(state.WriteBindings[4]);
-                    var c5 = lease.GetWrite(state.WriteBindings[5]);
-                    var c6 = lease.GetWrite(state.WriteBindings[6]);
-                    var c7 = lease.GetWrite(state.WriteBindings[7]);
-                    while (lease.MoveNext())
+                    case 8:
                     {
-                        var p0 = c0.Ref<ProfileValue>(lease);
-                        var p1 = c1.Ref<ProfileValue>(lease);
-                        var p2 = c2.Ref<ProfileValue>(lease);
-                        var p3 = c3.Ref<ProfileValue>(lease);
-                        var p4 = c4.Ref<ProfileValue>(lease);
-                        var p5 = c5.Ref<ProfileValue>(lease);
-                        var p6 = c6.Ref<ProfileValue>(lease);
-                        var p7 = c7.Ref<ProfileValue>(lease);
-                        p0.X += p0.Y;
-                        p1.X += p1.Y;
-                        p2.X += p2.Y;
-                        p3.X += p3.Y;
-                        p4.X += p4.Y;
-                        p5.X += p5.Y;
-                        p6.X += p6.Y;
-                        p7.X += p7.Y;
-                        c0.Ref<ProfileValue>(lease) = p0;
-                        c1.Ref<ProfileValue>(lease) = p1;
-                        c2.Ref<ProfileValue>(lease) = p2;
-                        c3.Ref<ProfileValue>(lease) = p3;
-                        c4.Ref<ProfileValue>(lease) = p4;
-                        c5.Ref<ProfileValue>(lease) = p5;
-                        c6.Ref<ProfileValue>(lease) = p6;
-                        c7.Ref<ProfileValue>(lease) = p7;
-                        state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
-                        state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
-                        state.Checksum += BitConverter.SingleToInt32Bits(p4.X) + BitConverter.SingleToInt32Bits(p5.X);
-                        state.Checksum += BitConverter.SingleToInt32Bits(p6.X) + BitConverter.SingleToInt32Bits(p7.X);
+                        var c0 = slots.Get(w0);
+                        var c1 = slots.Get(w1);
+                        var c2 = slots.Get(w2);
+                        var c3 = slots.Get(w3);
+                        var c4 = slots.Get(w4);
+                        var c5 = slots.Get(w5);
+                        var c6 = slots.Get(w6);
+                        var c7 = slots.Get(w7);
+                        while (slots.MoveNext())
+                        {
+                            ref var p0 = ref c0.Ref<ProfileValue>(slots);
+                            p0.X += p0.Y;
+                            ref var p1 = ref c1.Ref<ProfileValue>(slots);
+                            p1.X += p1.Y;
+                            ref var p2 = ref c2.Ref<ProfileValue>(slots);
+                            p2.X += p2.Y;
+                            ref var p3 = ref c3.Ref<ProfileValue>(slots);
+                            p3.X += p3.Y;
+                            ref var p4 = ref c4.Ref<ProfileValue>(slots);
+                            p4.X += p4.Y;
+                            ref var p5 = ref c5.Ref<ProfileValue>(slots);
+                            p5.X += p5.Y;
+                            ref var p6 = ref c6.Ref<ProfileValue>(slots);
+                            p6.X += p6.Y;
+                            ref var p7 = ref c7.Ref<ProfileValue>(slots);
+                            p7.X += p7.Y;
+                            state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
+                            state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
+                            state.Checksum += BitConverter.SingleToInt32Bits(p4.X) + BitConverter.SingleToInt32Bits(p5.X);
+                            state.Checksum += BitConverter.SingleToInt32Bits(p6.X) + BitConverter.SingleToInt32Bits(p7.X);
+                        }
+
+                        break;
                     }
-                    return;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(state.ComponentCount));
                 }
-            default:
-                throw new ArgumentOutOfRangeException(nameof(state.ComponentCount));
+            }
         }
     }
 
-    private static void LookupOnly(ref ProfileState state, ref QueryChunkCursor lease)
+    private void LookupOnly()
     {
-        switch (state.ComponentCount)
-        {
-            case 1:
-                _ = lease.GetRead(state.ReadBindings[0]);
-                break;
-            case 2:
-                _ = lease.GetRead(state.ReadBindings[0]);
-                _ = lease.GetRead(state.ReadBindings[1]);
-                break;
-            case 4:
-                _ = lease.GetRead(state.ReadBindings[0]);
-                _ = lease.GetRead(state.ReadBindings[1]);
-                _ = lease.GetRead(state.ReadBindings[2]);
-                _ = lease.GetRead(state.ReadBindings[3]);
-                break;
-            case 8:
-                _ = lease.GetRead(state.ReadBindings[0]);
-                _ = lease.GetRead(state.ReadBindings[1]);
-                _ = lease.GetRead(state.ReadBindings[2]);
-                _ = lease.GetRead(state.ReadBindings[3]);
-                _ = lease.GetRead(state.ReadBindings[4]);
-                _ = lease.GetRead(state.ReadBindings[5]);
-                _ = lease.GetRead(state.ReadBindings[6]);
-                _ = lease.GetRead(state.ReadBindings[7]);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(state.ComponentCount));
-        }
+        ref var state = ref _profileState;
+        using var scope = _world.OpenQuery(in _query);
+        var r0 = default(ReadAccess);
+        var r1 = default(ReadAccess);
+        var r2 = default(ReadAccess);
+        var r3 = default(ReadAccess);
+        var r4 = default(ReadAccess);
+        var r5 = default(ReadAccess);
+        var r6 = default(ReadAccess);
+        var r7 = default(ReadAccess);
 
-        state.Checksum += lease.SlotCount;
+        if (state.ComponentCount > 0) r0 = scope.Bind(state.ReadBindings[0]);
+        if (state.ComponentCount > 1) r1 = scope.Bind(state.ReadBindings[1]);
+        if (state.ComponentCount > 2) r2 = scope.Bind(state.ReadBindings[2]);
+        if (state.ComponentCount > 3) r3 = scope.Bind(state.ReadBindings[3]);
+        if (state.ComponentCount > 4) r4 = scope.Bind(state.ReadBindings[4]);
+        if (state.ComponentCount > 5) r5 = scope.Bind(state.ReadBindings[5]);
+        if (state.ComponentCount > 6) r6 = scope.Bind(state.ReadBindings[6]);
+        if (state.ComponentCount > 7) r7 = scope.Bind(state.ReadBindings[7]);
+
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
+        {
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var chunk = chunks.Current;
+                var slots = chunk.Slots;
+                switch (state.ComponentCount)
+                {
+                    case 1:
+                        _ = slots.Get(r0);
+                        break;
+                    case 2:
+                        _ = slots.Get(r0);
+                        _ = slots.Get(r1);
+                        break;
+                    case 4:
+                        _ = slots.Get(r0);
+                        _ = slots.Get(r1);
+                        _ = slots.Get(r2);
+                        _ = slots.Get(r3);
+                        break;
+                    case 8:
+                        _ = slots.Get(r0);
+                        _ = slots.Get(r1);
+                        _ = slots.Get(r2);
+                        _ = slots.Get(r3);
+                        _ = slots.Get(r4);
+                        _ = slots.Get(r5);
+                        _ = slots.Get(r6);
+                        _ = slots.Get(r7);
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(state.ComponentCount));
+                }
+
+                state.Checksum += chunk.SlotCount;
+            }
+        }
     }
 
-    private static void DispatchOnly(ref ProfileState state, ref QueryChunkCursor lease)
+    private void DispatchOnly()
     {
-        state.Checksum += lease.SlotCount;
+        ref var state = ref _profileState;
+        using var scope = _world.OpenQuery(in _query);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
+        {
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                state.Checksum += chunks.Current.SlotCount;
+            }
+        }
     }
 }
 
