@@ -6,6 +6,10 @@ using System.Runtime.InteropServices;
 internal static class ArrayAccess
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ref byte DataReference(Array array) =>
+        ref MemoryMarshal.GetArrayDataReference(Unsafe.As<byte[]>(array));
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ref T Ref<T>(this T[] array, int index) =>
         ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(array), index);
 

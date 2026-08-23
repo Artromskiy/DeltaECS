@@ -70,4 +70,27 @@ public ref struct QuerySlots
         return new WriteValues(_componentRows.Ref(physicalRow));
     }
 
+    public ObjectReadValues GetObject(ReadAccess access)
+    {
+        if (!ReferenceEquals(access.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        int physicalRow = _plan.ComponentRows.Ref(access.QueryComponentIndex);
+        return new ObjectReadValues(_componentRows.Ref(physicalRow));
+    }
+
+    public ObjectWriteValues GetObject(WriteAccess access)
+    {
+        if (!ReferenceEquals(access.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        int physicalRow = _plan.ComponentRows.Ref(access.QueryComponentIndex);
+        _chunk.MarkComponentWritten(physicalRow, _writeTick);
+        return new ObjectWriteValues(_componentRows.Ref(physicalRow));
+    }
+
 }

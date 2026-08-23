@@ -73,6 +73,34 @@ public ref struct QueryChunkCursor
         return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
     }
 
+    public ObjectReadValues GetObject(ReadAccess access)
+    {
+        if (!ReferenceEquals(access.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        int physicalRow = _componentRows[access.QueryComponentIndex];
+        return new ObjectReadValues(_chunk.GetRawComponentRow(physicalRow));
+    }
+
+    public ObjectWriteValues GetObject(WriteAccess access)
+    {
+        if (!ReferenceEquals(access.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        int physicalRow = _componentRows[access.QueryComponentIndex];
+        if (_writeTick == 0)
+        {
+            QueryThrowHelper.ThrowMissingWriteIntent();
+        }
+
+        _chunk.MarkComponentWritten(physicalRow, _writeTick);
+        return new ObjectWriteValues(_chunk.GetRawComponentRow(physicalRow));
+    }
+
     public ReadValues GetRead(ReadAccess access)
     {
         if (!ReferenceEquals(access.Query, _query))

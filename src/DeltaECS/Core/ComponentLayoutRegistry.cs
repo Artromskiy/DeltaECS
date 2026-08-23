@@ -2,9 +2,18 @@ namespace Delta.ECS;
 
 using System;
 using System.Collections.Generic;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+
 public sealed partial class ComponentLayoutRegistry
 {
+    private static readonly MethodInfo _containsReferencesMethod = typeof(RuntimeHelpers).GetMethod(
+        nameof(RuntimeHelpers.IsReferenceOrContainsReferences),
+        BindingFlags.Public | BindingFlags.Static)
+        ?? throw new MissingMethodException(nameof(RuntimeHelpers.IsReferenceOrContainsReferences));
+
     private readonly Dictionary<SchemaId, int> _idsBySchema = new();
+    private readonly Dictionary<Type, bool> _containsReferencesByType = new();
     private readonly List<ComponentLayout> _layouts = new();
     private readonly List<ComponentRowOperations> _rowOperations = new();
 
@@ -16,10 +25,25 @@ public sealed partial class ComponentLayoutRegistry
         ComponentStorageClass storageClass = ComponentStorageClass.Dense)
         => Register(
             new ComponentLayout(schemaId, runtimeType, storageClass),
-            ComponentRowOperations.ForRuntimeType(containsReferences: true));
+            ComponentRowOperations.ForRuntimeType(ContainsReferences(runtimeType)));
 
     public ComponentId Register(ComponentLayout layout)
-        => Register(layout, ComponentRowOperations.ForRuntimeType(containsReferences: true));
+        => Register(
+            layout,
+            ComponentRowOperations.ForRuntimeType(
+                layout.RuntimeType is not { } runtimeType || ContainsReferences(runtimeType)));
+
+    private bool ContainsReferences(Type runtimeType)
+    {
+        if (_containsReferencesByType.TryGetValue(runtimeType, out bool containsReferences))
+        {
+            return containsReferences;
+        }
+
+        containsReferences = _containsReferencesMethod.MakeGenericMethod(runtimeType).Invoke(null, null) is true;
+        _containsReferencesByType.Add(runtimeType, containsReferences);
+        return containsReferences;
+    }
 
     private ComponentId Register(ComponentLayout layout, ComponentRowOperations rowOperations)
     {
