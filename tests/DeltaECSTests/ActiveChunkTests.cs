@@ -46,10 +46,21 @@ public sealed class ActiveChunkTests
     private static int CountQueriedSlots(World world, in Query query)
     {
         var count = 0;
-        world.Query(in query, ref count, static (ref int state, ref QueryChunkCursor cursor) =>
+        using var scope = world.OpenQuery(in query);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
         {
-            state += cursor.SlotCount;
-        });
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var slots = chunks.Current.Slots;
+                while (slots.MoveNext())
+                {
+                    count++;
+                }
+            }
+        }
+
         return count;
     }
 
