@@ -275,18 +275,11 @@ public readonly struct SchemaId : IEquatable<SchemaId>
     public static SchemaId FromUInt64(ulong value) => new(value);
 }
 
-public enum ComponentStorageClass : byte
-{
-    Dense = 0,
-    Stream = 1
-}
-
 public readonly struct ComponentLayout : IEquatable<ComponentLayout>
 {
     public ComponentLayout(
         SchemaId schemaId,
         Type runtimeType,
-        ComponentStorageClass storageClass = ComponentStorageClass.Dense,
         int alignment = 1)
     {
         ArgumentNullException.ThrowIfNull(runtimeType);
@@ -303,7 +296,6 @@ public readonly struct ComponentLayout : IEquatable<ComponentLayout>
         // instead of guessing with Buffer.ByteLength or Marshal.SizeOf.
         Size = 0;
         Alignment = alignment;
-        StorageClass = storageClass;
         RuntimeType = runtimeType;
         RuntimeTypeHandle = runtimeType.TypeHandle;
         Stride = 0;
@@ -312,8 +304,7 @@ public readonly struct ComponentLayout : IEquatable<ComponentLayout>
     public ComponentLayout(
         SchemaId schemaId,
         int size,
-        int alignment,
-        ComponentStorageClass storageClass)
+        int alignment)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size);
 
@@ -325,7 +316,6 @@ public readonly struct ComponentLayout : IEquatable<ComponentLayout>
         SchemaId = schemaId;
         Size = size;
         Alignment = alignment;
-        StorageClass = storageClass;
         Stride = Align(size, alignment);
         RuntimeType = null;
         RuntimeTypeHandle = default;
@@ -337,8 +327,6 @@ public readonly struct ComponentLayout : IEquatable<ComponentLayout>
 
     public int Alignment { get; }
 
-    public ComponentStorageClass StorageClass { get; }
-
     public int Stride { get; }
 
     public Type? RuntimeType { get; }
@@ -347,9 +335,9 @@ public readonly struct ComponentLayout : IEquatable<ComponentLayout>
 
     public static int Align(int size, int alignment) => (size + alignment - 1) / alignment * alignment;
 
-    public bool Equals(ComponentLayout other) => SchemaId == other.SchemaId && Size == other.Size && Alignment == other.Alignment && StorageClass == other.StorageClass && Stride == other.Stride && RuntimeType == other.RuntimeType;
+    public bool Equals(ComponentLayout other) => SchemaId == other.SchemaId && Size == other.Size && Alignment == other.Alignment && Stride == other.Stride && RuntimeType == other.RuntimeType;
 
     public override bool Equals(object? obj) => obj is ComponentLayout other && Equals(other);
 
-    public override int GetHashCode() => HashCode.Combine(SchemaId.Value, Size, Alignment, (int)StorageClass, Stride, RuntimeType);
+    public override int GetHashCode() => HashCode.Combine(SchemaId.Value, Size, Alignment, Stride, RuntimeType);
 }

@@ -21,11 +21,19 @@ public sealed partial class ComponentLayoutRegistry
 
     public ComponentId Register(
         Type runtimeType,
-        SchemaId schemaId,
-        ComponentStorageClass storageClass = ComponentStorageClass.Dense)
+        SchemaId schemaId)
         => Register(
-            new ComponentLayout(schemaId, runtimeType, storageClass),
-            ComponentRowOperations.ForRuntimeType(ContainsReferences(runtimeType)));
+            runtimeType,
+            schemaId,
+            ContainsReferences(runtimeType));
+
+    internal ComponentId Register(
+        Type runtimeType,
+        SchemaId schemaId,
+        bool containsReferences)
+        => Register(
+            new ComponentLayout(schemaId, runtimeType),
+            ComponentRowOperations.ForRuntimeType(containsReferences));
 
     public ComponentId Register(ComponentLayout layout)
         => Register(

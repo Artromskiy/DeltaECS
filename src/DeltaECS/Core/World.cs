@@ -725,11 +725,6 @@ public sealed class World : IDisposable
                 throw new InvalidOperationException($"Missing component layout for {componentIds[i].Value}.");
             }
 
-            if (layout.StorageClass != ComponentStorageClass.Dense)
-            {
-                throw new InvalidOperationException("Non-dense component classes are not supported yet in this delivery.");
-            }
-
             layouts[i] = layout;
             rowOperations[i] = _layouts.GetRowOperations(componentIds[i]);
         }
