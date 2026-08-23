@@ -27,7 +27,7 @@ internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
 
     public ref T this[int index] => ref Span[index];
 
-    public Span<T> Span => _length == 0 ? System.Span<T>.Empty : new((void*)_address, _length);
+    public Span<T> Span => new((void*)_address, _length);
 
     public ReadOnlySpan<T> ReadOnlySpan => Span;
 
