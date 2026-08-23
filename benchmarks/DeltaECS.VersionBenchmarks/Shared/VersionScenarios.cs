@@ -31,13 +31,13 @@ public sealed class IterationScenario
     private readonly ComponentId[] _movement4Ids;
     private readonly Entity[] _movement2Entities;
     private readonly Entity[] _movement4Entities;
-    private readonly AccessRequest _denseBinding;
-    private readonly AccessRequest _positionBinding;
-    private readonly AccessRequest _velocityBinding;
-    private readonly AccessRequest _movementABinding;
-    private readonly AccessRequest _movementBBinding;
-    private readonly AccessRequest _movementCBinding;
-    private readonly AccessRequest _movementDBinding;
+    private readonly ReadAccess _denseBinding;
+    private readonly WriteAccess _positionBinding;
+    private readonly ReadAccess _velocityBinding;
+    private readonly WriteAccess _movementABinding;
+    private readonly WriteAccess _movementBBinding;
+    private readonly WriteAccess _movementCBinding;
+    private readonly ReadAccess _movementDBinding;
 
     public IterationScenario(int amount)
     {
@@ -100,78 +100,92 @@ public sealed class IterationScenario
 
     public long DenseRead()
     {
-        var state = new DenseState { Component = _denseBinding };
-        _world.Query(in _denseQuery, ref state, static (ref DenseState current, ref QueryChunkCursor cursor) =>
+        long sum = 0;
+        using var scope = _world.OpenQuery(in _denseQuery);
+        var dense = scope.Bind(_denseBinding);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
         {
-            var row = cursor.GetRead(current.Component);
-            while (cursor.MoveNext()) current.Sum += row.Ref<DenseValue>(cursor).Value;
-        });
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var slots = chunks.Current.Slots;
+                var row = slots.Get(dense);
+                while (slots.MoveNext())
+                {
+                    sum += row.Ref<DenseValue>(slots).Value;
+                }
+            }
+        }
 
         var expected = (long)_amount * (_amount + 1) / 2;
-        return state.Sum == expected ? state.Sum : throw new InvalidOperationException($"Dense checksum mismatch: {state.Sum} != {expected}.");
+        return sum == expected ? sum : throw new InvalidOperationException($"Dense checksum mismatch: {sum} != {expected}.");
     }
 
     public double Movement2()
     {
-        var state = new Movement2State { Position = _positionBinding, Velocity = _velocityBinding };
-        _world.Query(in _movement2Query, ref state, static (ref Movement2State current, ref QueryChunkCursor cursor) =>
+        double sum = 0;
+        using var scope = _world.OpenQuery(in _movement2Query);
+        var position = scope.Bind(_positionBinding);
+        var velocity = scope.Bind(_velocityBinding);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
         {
-            var positions = cursor.GetWrite(current.Position);
-            var velocities = cursor.GetRead(current.Velocity);
-            while (cursor.MoveNext())
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
             {
-                ref var position = ref positions.Ref<Position>(cursor);
-                ref readonly var velocity = ref velocities.Ref<Velocity>(cursor);
-                position.X += velocity.X / 60f;
-                position.Y += velocity.Y / 60f;
-                current.Sum += position.X + position.Y;
+                var slots = chunks.Current.Slots;
+                var positions = slots.Get(position);
+                var velocities = slots.Get(velocity);
+                while (slots.MoveNext())
+                {
+                    ref var currentPosition = ref positions.Ref<Position>(slots);
+                    ref readonly var currentVelocity = ref velocities.Ref<Velocity>(slots);
+                    currentPosition.X += currentVelocity.X / 60f;
+                    currentPosition.Y += currentVelocity.Y / 60f;
+                    sum += currentPosition.X + currentPosition.Y;
+                }
             }
-        });
+        }
 
         // Movement benchmarks intentionally accumulate state across invocations so
         // BenchmarkDotNet can select a throughput invocation count. The dedicated
         // smoke resets both revisions and verifies that their returned checksums agree.
-        return state.Sum;
+        return sum;
     }
 
     public int Movement4()
     {
-        var state = new Movement4State
+        int sum = 0;
+        using var scope = _world.OpenQuery(in _movement4Query);
+        var aAccess = scope.Bind(_movementABinding);
+        var bAccess = scope.Bind(_movementBBinding);
+        var cAccess = scope.Bind(_movementCBinding);
+        var dAccess = scope.Bind(_movementDBinding);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
         {
-            A = _movementABinding,
-            B = _movementBBinding,
-            C = _movementCBinding,
-            D = _movementDBinding
-        };
-        _world.Query(in _movement4Query, ref state, static (ref Movement4State current, ref QueryChunkCursor cursor) =>
-        {
-            var a = cursor.GetWrite(current.A);
-            var b = cursor.GetWrite(current.B);
-            var c = cursor.GetWrite(current.C);
-            var d = cursor.GetRead(current.D);
-            while (cursor.MoveNext())
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
             {
-                var updatedA = a.Ref<MovementA>(cursor).Value + d.Ref<MovementD>(cursor).Value;
-                var updatedB = b.Ref<MovementB>(cursor).Value + d.Ref<MovementD>(cursor).Value;
-                a.Ref<MovementA>(cursor).Value = updatedA;
-                b.Ref<MovementB>(cursor).Value = updatedB;
-                c.Ref<MovementC>(cursor).Value = (updatedA + updatedB) / 2;
-                current.Sum += a.Ref<MovementA>(cursor).Value + b.Ref<MovementB>(cursor).Value + c.Ref<MovementC>(cursor).Value + d.Ref<MovementD>(cursor).Value;
+                var slots = chunks.Current.Slots;
+                var a = slots.Get(aAccess);
+                var b = slots.Get(bAccess);
+                var c = slots.Get(cAccess);
+                var d = slots.Get(dAccess);
+                while (slots.MoveNext())
+                {
+                    var updatedA = a.Ref<MovementA>(slots).Value + d.Ref<MovementD>(slots).Value;
+                    var updatedB = b.Ref<MovementB>(slots).Value + d.Ref<MovementD>(slots).Value;
+                    a.Ref<MovementA>(slots).Value = updatedA;
+                    b.Ref<MovementB>(slots).Value = updatedB;
+                    c.Ref<MovementC>(slots).Value = (updatedA + updatedB) / 2;
+                    sum += a.Ref<MovementA>(slots).Value + b.Ref<MovementB>(slots).Value + c.Ref<MovementC>(slots).Value + d.Ref<MovementD>(slots).Value;
+                }
             }
-        });
+        }
 
-        return state.Sum;
-    }
-
-    private struct DenseState { public AccessRequest Component; public long Sum; }
-    private struct Movement2State { public AccessRequest Position; public AccessRequest Velocity; public double Sum; }
-    private struct Movement4State
-    {
-        public AccessRequest A;
-        public AccessRequest B;
-        public AccessRequest C;
-        public AccessRequest D;
-        public int Sum;
+        return sum;
     }
 }
 
