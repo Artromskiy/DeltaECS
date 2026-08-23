@@ -7,8 +7,7 @@ public ref struct QueryChunks
 {
     private readonly DenseArchetypePlan _plan;
     private readonly QueryPlan _query;
-    private readonly Chunk[] _chunks;
-    private readonly int _count;
+    private readonly ReadOnlySpan<Chunk> _chunks;
     private readonly uint _writeTick;
     private int _index;
 
@@ -16,8 +15,10 @@ public ref struct QueryChunks
     {
         _plan = plan;
         _query = query;
-        _chunks = plan.Archetype.ActiveChunks;
-        _count = plan.Archetype.ActiveChunkCount;
+        _chunks = new ReadOnlySpan<Chunk>(
+            plan.Archetype.ActiveChunks,
+            0,
+            plan.Archetype.ActiveChunkCount);
         _writeTick = writeTick;
         _index = -1;
     }
@@ -27,7 +28,7 @@ public ref struct QueryChunks
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
         {
-            if ((uint)_index >= (uint)_count)
+            if ((uint)_index >= (uint)_chunks.Length)
             {
                 QueryThrowHelper.ThrowChunkIteratorNotPositioned();
             }
@@ -39,7 +40,7 @@ public ref struct QueryChunks
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNext()
     {
-        if ((uint)++_index >= (uint)_count)
+        if ((uint)++_index >= (uint)_chunks.Length)
         {
             return false;
         }

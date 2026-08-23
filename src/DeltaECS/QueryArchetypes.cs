@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 /// <summary>Independent dense iterator over the query's matching archetypes.</summary>
 public ref struct QueryArchetypes
 {
-    private readonly DenseArchetypePlan[] _plans;
+    private readonly ReadOnlySpan<DenseArchetypePlan> _plans;
     private readonly QueryPlan _query;
     private readonly uint _writeTick;
     private int _index;
