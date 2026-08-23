@@ -50,14 +50,14 @@ public class DistinctDenseComparisonBenchmarks
         {
             _deltaComponents[i] = i switch
             {
-                0 => layouts.Register<D0>(new SchemaId(40_000)),
-                1 => layouts.Register<D1>(new SchemaId(40_001)),
-                2 => layouts.Register<D2>(new SchemaId(40_002)),
-                3 => layouts.Register<D3>(new SchemaId(40_003)),
-                4 => layouts.Register<D4>(new SchemaId(40_004)),
-                5 => layouts.Register<D5>(new SchemaId(40_005)),
-                6 => layouts.Register<D6>(new SchemaId(40_006)),
-                _ => layouts.Register<D7>(new SchemaId(40_007))
+                0 => layouts.Register(typeof(D0), new SchemaId(40_000)),
+                1 => layouts.Register(typeof(D1), new SchemaId(40_001)),
+                2 => layouts.Register(typeof(D2), new SchemaId(40_002)),
+                3 => layouts.Register(typeof(D3), new SchemaId(40_003)),
+                4 => layouts.Register(typeof(D4), new SchemaId(40_004)),
+                5 => layouts.Register(typeof(D5), new SchemaId(40_005)),
+                6 => layouts.Register(typeof(D6), new SchemaId(40_006)),
+                _ => layouts.Register(typeof(D7), new SchemaId(40_007))
             };
         }
 

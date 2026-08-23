@@ -34,7 +34,7 @@ internal sealed class Chunk
         _componentVersions = new NativeMemory<uint>(layouts.Length);
         for (int index = 0; index < layouts.Length; index++)
         {
-            var runtimeType = layouts[index].RuntimeType ?? throw new InvalidOperationException("ArrayRows requires a type-backed component layout. Use Register<T> or RegisterUnmanaged<T>.");
+            var runtimeType = layouts[index].RuntimeType ?? throw new InvalidOperationException("ArrayRows requires a type-backed component layout. Register the component with its runtime Type.");
             _componentRows[index] = Array.CreateInstance(runtimeType, capacity);
         }
     }

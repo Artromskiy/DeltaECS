@@ -125,8 +125,8 @@ public class AlgorithmicMovementBenchmarks
     private void SetupDelta()
     {
         var layouts = new ComponentLayoutRegistry();
-        _deltaPosition = layouts.Register<DeltaPosition>(new SchemaId(60_000));
-        _deltaVelocity = layouts.Register<DeltaVelocity>(new SchemaId(60_001));
+        _deltaPosition = layouts.Register(typeof(DeltaPosition), new SchemaId(60_000));
+        _deltaVelocity = layouts.Register(typeof(DeltaVelocity), new SchemaId(60_001));
         _deltaComponents = new ComponentId[2 + PayloadRows];
         _deltaComponents[0] = _deltaPosition;
         _deltaComponents[1] = _deltaVelocity;
@@ -211,12 +211,12 @@ public class AlgorithmicMovementBenchmarks
 
     private static ComponentId RegisterDeltaPayload(ComponentLayoutRegistry layouts, int index) => index switch
     {
-        0 => layouts.Register<DeltaPayload>(new SchemaId(60_010)),
-        1 => layouts.Register<DeltaPayload>(new SchemaId(60_011)),
-        2 => layouts.Register<DeltaPayload>(new SchemaId(60_012)),
-        3 => layouts.Register<DeltaPayload>(new SchemaId(60_013)),
-        4 => layouts.Register<DeltaPayload>(new SchemaId(60_014)),
-        _ => layouts.Register<DeltaPayload>(new SchemaId(60_015))
+        0 => layouts.Register(typeof(DeltaPayload), new SchemaId(60_010)),
+        1 => layouts.Register(typeof(DeltaPayload), new SchemaId(60_011)),
+        2 => layouts.Register(typeof(DeltaPayload), new SchemaId(60_012)),
+        3 => layouts.Register(typeof(DeltaPayload), new SchemaId(60_013)),
+        4 => layouts.Register(typeof(DeltaPayload), new SchemaId(60_014)),
+        _ => layouts.Register(typeof(DeltaPayload), new SchemaId(60_015))
     };
 
     private void SetDeltaPayload(Entity entity, int seed)

@@ -7,14 +7,14 @@ internal static class MicroIds
 {
     public static (ComponentId Position, ComponentId Velocity, ComponentId Auxiliary, ComponentId Reference, ComponentId Movement4A, ComponentId Movement4B, ComponentId Movement4C, ComponentId Movement4D) Register(ComponentLayoutRegistry layouts)
         => (
-            layouts.Register<Position>(new SchemaId(30_001)),
-            layouts.Register<Velocity>(new SchemaId(30_002)),
-            layouts.Register<Auxiliary>(new SchemaId(30_003)),
-            layouts.Register<ReferenceValue>(new SchemaId(30_004)),
-            layouts.Register<Movement4A>(new SchemaId(30_005)),
-            layouts.Register<Movement4B>(new SchemaId(30_006)),
-            layouts.Register<Movement4C>(new SchemaId(30_007)),
-            layouts.Register<Movement4D>(new SchemaId(30_008)));
+            layouts.Register(typeof(Position), new SchemaId(30_001)),
+            layouts.Register(typeof(Velocity), new SchemaId(30_002)),
+            layouts.Register(typeof(Auxiliary), new SchemaId(30_003)),
+            layouts.Register(typeof(ReferenceValue), new SchemaId(30_004)),
+            layouts.Register(typeof(Movement4A), new SchemaId(30_005)),
+            layouts.Register(typeof(Movement4B), new SchemaId(30_006)),
+            layouts.Register(typeof(Movement4C), new SchemaId(30_007)),
+            layouts.Register(typeof(Movement4D), new SchemaId(30_008)));
 }
 
 public struct Position { public int X; public int Y; }

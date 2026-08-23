@@ -30,14 +30,15 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `ArchetypeHandle` | World-owned archetype identity used by create paths | `src/DeltaECS/EntityTypes.cs` |
 | `ComponentId`, `ComponentMask`, `ComponentLayout` | Dense component identity, matching mask, registered layout metadata | `src/DeltaECS/ComponentTypes.cs` |
 | `ComponentLayoutRegistry` | CLR type/storage registration and validation | `src/DeltaECS/ComponentLayoutRegistry.cs` |
-| `QuerySpec` | All/Any/None component and tag predicates | `src/DeltaECS/QuerySpec.cs` |
+| `QuerySpec` | All/Any/None component predicates | `src/DeltaECS/Core/QuerySpec.cs` |
 | `Query` | World/query identity and non-generic read/write access factory | `src/DeltaECS/EntityTypes.cs` |
 | `ReadAccess`, `WriteAccess` | Query-bound type-erased access intent | `src/DeltaECS/QueryAccess.cs` |
 | `QueryScope` | Dense-only validation and structural lease owner | `src/DeltaECS/QueryScope.cs` |
 | `QueryArchetypes`, `QueryChunks`, `QuerySlots` | Independent dense traversal levels | `src/DeltaECS/QueryArchetypes.cs`, `QueryChunks.cs`, `QuerySlots.cs` |
-| `QueryChunkCursor` | Current chunk, forward slot traversal, value access and tag mask | `src/DeltaECS/QueryAccess.cs` |
-| `ReadValues`, `WriteValues` | Non-generic prepared values; final `Ref<T>` is the typed boundary | `src/DeltaECS/QueryAccess.cs` |
+| `QueryChunkCursor` | Current chunk, forward slot traversal and value access | `src/DeltaECS/QueryAccess.cs` |
+| `ReadValues`, `WriteValues` | Non-generic prepared values; final `Ref<T>` must match the registered component type. Controlled pre-loop mismatch validation is selected correctness work. | `src/DeltaECS/QueryAccess.cs` |
 | `World.Query` | Callback-based query execution over `QueryChunkCursor` | `src/DeltaECS/World.cs` |
+| `World.ForEach` (planned) | Main high-level dense entry point; owns scope, validation, preparation and disposal | `src/DeltaECS/World.cs` |
 
 ## Query execution path
 
@@ -80,10 +81,6 @@ while (archetypes.MoveNext())
 }
 ```
 
-For tagged queries, use `World.Query` with an action. It selects matching
-chunks and exposes `QueryChunkCursor.IsActiveSlot(cursor.CurrentIndex)` for
-partial overlay masks. The tag implementation is in `OverlayTagManager.cs`.
-
 ## Structural and storage paths
 
 Use these slices only for structural or storage work:
@@ -94,8 +91,6 @@ Use these slices only for structural or storage work:
   `Archetype.cs`.
 - Entity rows, component rows, row versions, swap-back and reference clearing:
   `Chunk.cs` and `ComponentRowOperations.cs`.
-- Overlay tag transfer and masks:
-  `OverlayTagManager.cs`.
 - Component transition/cache types are near the bottom of `World.cs`; inspect
   only when the task explicitly concerns transitions.
 
@@ -126,7 +121,7 @@ Open only the relevant class:
 
 | Concern | Test file |
 |---|---|
-| Public lifecycle, queries, cursor rows, tags and leases | `tests/DeltaECSTests/DeltaECSTests.cs` |
+| Public lifecycle, queries, cursor rows and leases | `tests/DeltaECSTests/DeltaECSTests.cs` |
 | Component row defaults, references and stale entities | `tests/DeltaECSTests/ComponentRowOperationTests.cs` |
 | Query Add/Remove/Destroy structural semantics | `tests/DeltaECSTests/QueryStructuralOperationsTests.cs` |
 | Active chunk reuse and direct active traversal | `tests/DeltaECSTests/ActiveChunkTests.cs` |
@@ -141,9 +136,31 @@ for a production correctness test.
 
 - `Chunk.GetComponentRow<T>(int)` is an internal storage primitive, not a
   public user API. Do not remove it while migrating public cursor access.
-- `World.Query` is the callback surface for tagged and general queries;
-  dense no-tag code should use `World.OpenQuery`.
+- `World.Query` is the callback surface for dense component queries;
+  `World.OpenQuery` exposes the explicit three-loop form.
 - `QueryAction<TContext>` is the callback surface. Do not infer that a
   callback benchmark represents the only supported query execution style.
 - Do not reintroduce removed ordinal/public unsafe row APIs without an explicit
   API decision and a benchmark contract update.
+
+## Planned generated callback API
+
+The planned callback surface covers every combination of:
+
+- no context or `TState` context;
+- no entity or current `Entity` argument;
+- zero or more explicitly typed component arguments.
+
+For each supported component arity, source generation will emit the overloads
+instead of maintaining a handwritten variadic matrix. The zero-component case
+is an explicit entity-only path. Generic types are used at the component and
+final `ref T` boundaries; query, access, iteration and storage state remain
+type-erased. A separate future struct-functor family may provide the same
+matrix through `where TFunctor : struct, IQueryFunctor` for static dispatch and
+inlining. Neither family is implemented yet.
+
+`World.ForEach` is the planned default user-facing entry point. It owns the
+temporary query scope and validation internally. `World.OpenQuery` remains the
+advanced path for reusing prepared accesses across multiple passes or combining
+callback execution with explicit archetype/chunk/slot traversal. Both paths
+must call the same dense execution kernel.

@@ -33,10 +33,10 @@ public class DenseCapacitySweepBenchmarks
         var layouts = new ComponentLayoutRegistry();
         _components = new[]
         {
-            layouts.Register<S0>(new SchemaId(50_000)), layouts.Register<S1>(new SchemaId(50_001)),
-            layouts.Register<S2>(new SchemaId(50_002)), layouts.Register<S3>(new SchemaId(50_003)),
-            layouts.Register<S4>(new SchemaId(50_004)), layouts.Register<S5>(new SchemaId(50_005)),
-            layouts.Register<S6>(new SchemaId(50_006)), layouts.Register<S7>(new SchemaId(50_007))
+            layouts.Register(typeof(S0), new SchemaId(50_000)), layouts.Register(typeof(S1), new SchemaId(50_001)),
+            layouts.Register(typeof(S2), new SchemaId(50_002)), layouts.Register(typeof(S3), new SchemaId(50_003)),
+            layouts.Register(typeof(S4), new SchemaId(50_004)), layouts.Register(typeof(S5), new SchemaId(50_005)),
+            layouts.Register(typeof(S6), new SchemaId(50_006)), layouts.Register(typeof(S7), new SchemaId(50_007))
         };
 
         _arrayWorld = new World(layouts, initialEntityCapacity: Amount, chunkCapacity: ChunkCapacity);

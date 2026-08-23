@@ -64,14 +64,14 @@ public class HardwareProfileBenchmarks
         {
             _components[i] = i switch
             {
-                0 => layouts.Register<ProfileValue>(new SchemaId(50_001)),
-                1 => layouts.Register<ProfileValue>(new SchemaId(50_002)),
-                2 => layouts.Register<ProfileValue>(new SchemaId(50_003)),
-                3 => layouts.Register<ProfileValue>(new SchemaId(50_004)),
-                4 => layouts.Register<ProfileValue>(new SchemaId(50_005)),
-                5 => layouts.Register<ProfileValue>(new SchemaId(50_006)),
-                6 => layouts.Register<ProfileValue>(new SchemaId(50_007)),
-                _ => layouts.Register<ProfileValue>(new SchemaId(50_008)),
+                0 => layouts.Register(typeof(ProfileValue), new SchemaId(50_001)),
+                1 => layouts.Register(typeof(ProfileValue), new SchemaId(50_002)),
+                2 => layouts.Register(typeof(ProfileValue), new SchemaId(50_003)),
+                3 => layouts.Register(typeof(ProfileValue), new SchemaId(50_004)),
+                4 => layouts.Register(typeof(ProfileValue), new SchemaId(50_005)),
+                5 => layouts.Register(typeof(ProfileValue), new SchemaId(50_006)),
+                6 => layouts.Register(typeof(ProfileValue), new SchemaId(50_007)),
+                _ => layouts.Register(typeof(ProfileValue), new SchemaId(50_008)),
             };
         }
 

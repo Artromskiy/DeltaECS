@@ -322,8 +322,8 @@ public class EcsLiteComparisonBenchmarks
     private void BuildDeltaMovementWorld()
     {
         var layouts = new ComponentLayoutRegistry();
-        _deltaPosition = layouts.Register<DeltaPosition>(new SchemaId(70_000));
-        _deltaVelocity = layouts.Register<DeltaVelocity>(new SchemaId(70_001));
+        _deltaPosition = layouts.Register(typeof(DeltaPosition), new SchemaId(70_000));
+        _deltaVelocity = layouts.Register(typeof(DeltaVelocity), new SchemaId(70_001));
         _deltaMovementPayload = BuildPayloadComponentIds(layouts, 70_002);
         var components = MergeComponents(_deltaPosition, _deltaVelocity, _deltaMovementPayload, PayloadRows);
 
@@ -351,8 +351,8 @@ public class EcsLiteComparisonBenchmarks
     private void BuildDeltaFilterWorld()
     {
         var layouts = new ComponentLayoutRegistry();
-        var position = layouts.Register<DeltaFilterPosition>(new SchemaId(71_000));
-        var velocity = layouts.Register<DeltaFilterVelocity>(new SchemaId(71_001));
+        var position = layouts.Register(typeof(DeltaFilterPosition), new SchemaId(71_000));
+        var velocity = layouts.Register(typeof(DeltaFilterVelocity), new SchemaId(71_001));
         _deltaFilterPayload = BuildPayloadComponentIds(layouts, 71_002);
         var components = MergeComponents(position, velocity, _deltaFilterPayload, PayloadRows);
 
@@ -379,8 +379,8 @@ public class EcsLiteComparisonBenchmarks
     private void BuildDeltaCreateDestroyWorld()
     {
         var layouts = new ComponentLayoutRegistry();
-        var position = layouts.Register<DeltaCreatePosition>(new SchemaId(72_000));
-        var velocity = layouts.Register<DeltaCreateVelocity>(new SchemaId(72_001));
+        var position = layouts.Register(typeof(DeltaCreatePosition), new SchemaId(72_000));
+        var velocity = layouts.Register(typeof(DeltaCreateVelocity), new SchemaId(72_001));
 
         _deltaCreateDestroyComponents = new[] { position, velocity };
         _deltaCreateDestroyWorld = new World(layouts, initialEntityCapacity: Amount);
@@ -389,8 +389,8 @@ public class EcsLiteComparisonBenchmarks
     private void BuildDeltaTransitionWorld()
     {
         var layouts = new ComponentLayoutRegistry();
-        var position = layouts.Register<DeltaTransitionPosition>(new SchemaId(73_000));
-        var velocity = layouts.Register<DeltaTransitionVelocity>(new SchemaId(73_001));
+        var position = layouts.Register(typeof(DeltaTransitionPosition), new SchemaId(73_000));
+        var velocity = layouts.Register(typeof(DeltaTransitionVelocity), new SchemaId(73_001));
         _deltaTransitionPayload = BuildPayloadComponentIds(layouts, 73_002);
         _deltaTransitionPayloadRows = Slice(_deltaTransitionPayload, PayloadRows);
         _deltaTransitionWorld = new World(layouts, initialEntityCapacity: Amount);
@@ -647,12 +647,12 @@ public class EcsLiteComparisonBenchmarks
     {
         return new[]
         {
-            layouts.Register<DeltaPayload>(new SchemaId(baseSchemaId)),
-            layouts.Register<DeltaPayload>(new SchemaId(baseSchemaId + 1)),
-            layouts.Register<DeltaPayload>(new SchemaId(baseSchemaId + 2)),
-            layouts.Register<DeltaPayload>(new SchemaId(baseSchemaId + 3)),
-            layouts.Register<DeltaPayload>(new SchemaId(baseSchemaId + 4)),
-            layouts.Register<DeltaPayload>(new SchemaId(baseSchemaId + 5))
+            layouts.Register(typeof(DeltaPayload), new SchemaId(baseSchemaId)),
+            layouts.Register(typeof(DeltaPayload), new SchemaId(baseSchemaId + 1)),
+            layouts.Register(typeof(DeltaPayload), new SchemaId(baseSchemaId + 2)),
+            layouts.Register(typeof(DeltaPayload), new SchemaId(baseSchemaId + 3)),
+            layouts.Register(typeof(DeltaPayload), new SchemaId(baseSchemaId + 4)),
+            layouts.Register(typeof(DeltaPayload), new SchemaId(baseSchemaId + 5))
         };
     }
 

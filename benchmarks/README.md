@@ -67,7 +67,7 @@ Every microbenchmark must document:
 | Field | Required value |
 |---|---|
 | Operation | Exact public or internal kernel operation under study |
-| Data shape | Entity count, chunk capacity, archetype/component width, tags |
+| Data shape | Entity count, chunk capacity, archetype/component width |
 | Baseline | Existing implementation or prior DeltaECS revision |
 | Correctness | Test or post-operation invariant that proves equivalent results |
 | Runtime | .NET version, architecture and GC mode |
@@ -356,11 +356,10 @@ while (archetypes.MoveNext())
 }
 ```
 
-Tagged queries use `World.Query` with an action and
-`IsActiveSlot(cursor.CurrentIndex)`; `OpenQuery` intentionally rejects tag
-predicates. The microbenchmark catalog contains this dense path and the four
-direct structural operations below it; removed duplicate traversal fixtures are
-not part of discovery or measurement routes.
+Queries use the dense component path through `World.Query` or `OpenQuery`.
+The microbenchmark catalog contains this dense path and the four direct
+structural operations below it; removed duplicate traversal fixtures are not
+part of discovery or measurement routes.
 
 `DeltaECS.VersionBenchmarks` requires two checkouts and is intentionally not a
 normal solution-build project:

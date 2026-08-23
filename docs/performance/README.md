@@ -2,7 +2,7 @@
 
 This document records candidate hot-path work. Ideas here are not implemented
 or measured unless a section says otherwise. Any change must preserve the
-validated public cursor API, dense/tagged query semantics, lifetime barriers,
+validated public cursor API, dense query semantics, lifetime barriers,
 and the benchmark comparison contract.
 
 ## Current evidence
@@ -36,8 +36,7 @@ bindings during `Resolve`. This removes the physical component-row lookup from
 Movement2, Movement4, and other multi-row workloads.
 
 The implementation uses an `ArrayPool<Array>` scratch packet owned by the
-query/enumerator, so it does not allocate or return a packet per chunk. Tagged
-paths prepare rows only after the overlay mask accepts the chunk.
+query/enumerator, so it does not allocate or return a packet per chunk.
 
 Remaining proof:
 
@@ -78,7 +77,7 @@ active index -> chunk index -> List<Chunk> -> Chunk
 ```
 
 The active list now keeps a parallel dense `Chunk[]` alongside the reverse
-position/index arrays. Dense and tagged query traversal reads the chunk directly
+position/index arrays. Dense query traversal reads the chunk directly
 instead of resolving `active index -> chunk index -> List<Chunk> -> Chunk`.
 The physical `_chunks` list and index-based structural paths remain unchanged.
 
@@ -90,8 +89,7 @@ chunk is active.
 
 The cursor path still invokes a delegate for each chunk. A future internal
 execution packet could validate lifetime once per query and further reduce
-per-chunk execution bookkeeping. Tagged queries must retain their checked
-snapshot-mask path.
+per-chunk execution bookkeeping.
 
 ## Benchmark fairness note
 

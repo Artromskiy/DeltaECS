@@ -43,15 +43,15 @@ public sealed class IterationScenario
     {
         _amount = amount;
         var layouts = new ComponentLayoutRegistry();
-        _dense = layouts.Register<DenseValue>(new SchemaId(950_000));
-        _position = layouts.Register<Position>(new SchemaId(950_001));
-        _velocity = layouts.Register<Velocity>(new SchemaId(950_002));
+        _dense = layouts.Register(typeof(DenseValue), new SchemaId(950_000));
+        _position = layouts.Register(typeof(Position), new SchemaId(950_001));
+        _velocity = layouts.Register(typeof(Velocity), new SchemaId(950_002));
         _movement4Ids =
         [
-            layouts.Register<MovementA>(new SchemaId(950_003)),
-            layouts.Register<MovementB>(new SchemaId(950_004)),
-            layouts.Register<MovementC>(new SchemaId(950_005)),
-            layouts.Register<MovementD>(new SchemaId(950_006))
+            layouts.Register(typeof(MovementA), new SchemaId(950_003)),
+            layouts.Register(typeof(MovementB), new SchemaId(950_004)),
+            layouts.Register(typeof(MovementC), new SchemaId(950_005)),
+            layouts.Register(typeof(MovementD), new SchemaId(950_006))
         ];
 
         _world = new World(layouts, initialEntityCapacity: amount * 3);
@@ -207,8 +207,8 @@ public sealed class AtomicScenario
     public void Reset()
     {
         var layouts = new ComponentLayoutRegistry();
-        var baseId = layouts.Register<StructuralBase>(new SchemaId(951_000));
-        _extra = layouts.Register<StructuralExtra>(new SchemaId(951_001));
+        var baseId = layouts.Register(typeof(StructuralBase), new SchemaId(951_000));
+        _extra = layouts.Register(typeof(StructuralExtra), new SchemaId(951_001));
         _extraIds = [_extra];
 
         _createWorld = new World(layouts);
@@ -283,8 +283,8 @@ public sealed class BatchScenario
     public void Reset()
     {
         var layouts = new ComponentLayoutRegistry();
-        var baseId = layouts.Register<StructuralBase>(new SchemaId(952_000));
-        var extra = layouts.Register<StructuralExtra>(new SchemaId(952_001));
+        var baseId = layouts.Register(typeof(StructuralBase), new SchemaId(952_000));
+        var extra = layouts.Register(typeof(StructuralExtra), new SchemaId(952_001));
         _extraIds = [extra];
 
         _createWorld = new World(layouts, initialEntityCapacity: _amount);

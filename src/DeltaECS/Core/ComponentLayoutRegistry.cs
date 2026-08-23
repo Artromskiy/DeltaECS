@@ -10,6 +10,14 @@ public sealed partial class ComponentLayoutRegistry
 
     public int Count => _layouts.Count;
 
+    public ComponentId Register(
+        Type runtimeType,
+        SchemaId schemaId,
+        ComponentStorageClass storageClass = ComponentStorageClass.Dense)
+        => Register(
+            new ComponentLayout(schemaId, runtimeType, storageClass),
+            ComponentRowOperations.ForRuntimeType(containsReferences: true));
+
     public ComponentId Register(ComponentLayout layout)
         => Register(layout, ComponentRowOperations.ForRuntimeType(containsReferences: true));
 

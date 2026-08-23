@@ -1,7 +1,7 @@
 # DeltaECS
 
 Standalone archetype ECS kernel focused on dense iteration, immediate
-structural changes, batch operations, cheap tags and predictable memory use.
+structural changes, batch operations and predictable memory use.
 Public namespace is `Delta.ECS`; project/assembly names remain `DeltaECS*`.
 
 ## Storage
@@ -18,8 +18,7 @@ Public namespace is `Delta.ECS`; project/assembly names remain `DeltaECS*`.
 
 Create, destroy, add and remove are immediate; the world has no mandatory
 command buffer/playback barrier. Batch APIs group by archetype/chunk rather
-than loop through public atomic operations. Overlay tags use per-chunk slot
-masks and do not move entities.
+than loop through public atomic operations.
 
 ## Queries and changes
 
@@ -30,9 +29,8 @@ component type is supplied only at registration and at the terminal
 internal.
 
 For explicit low-level traversal, `world.OpenQuery(in query)` exposes three
-independent nested loops: archetype, chunk and forward slot. The callback
-`World.Query` API remains responsible for tagged query execution; tagged
-callbacks must still check `IsActiveSlot` for partial chunks.
+independent nested loops: archetype, chunk and forward slot. `World.Query` is
+the callback form of the same dense component selection.
 
 The dense API has three deliberately separate stages: `QuerySpec` describes
 selection, `World.CreateQuery` returns the world-owned `Query`, and
@@ -45,7 +43,7 @@ object whose terminal `Ref<T>` call provides the component reference.
 pre-loop mismatch validation is selected correctness work; callers must not
 use a different `T` to reinterpret row storage.
 
-Queries without tag predicates may use the thinner independent dense path:
+Queries use the thinner independent dense path:
 
 ```csharp
 using var scope = world.OpenQuery(in query);
@@ -67,9 +65,17 @@ while (archetypes.MoveNext())
 }
 ```
 
-The root scope validates ownership, rejects tag predicates and owns the lease.
-The archetype, chunk and slot iterators contain only their own traversal state;
-the dense `MoveNext` methods contain no world, tag or lifetime branch.
+The planned high-level execution entry point is `World.ForEach`. It will own
+query scope creation, validation, access preparation and disposal internally,
+so the common user API does not expose scope management. Explicit
+`OpenQuery` remains an advanced path for reusing prepared accesses across
+several passes or combining `ForEach` with lower-level traversal. Both paths
+must share the same dense execution kernel; the choice must not change the
+hot-loop work.
+
+The root scope validates ownership and owns the lease. The archetype, chunk and
+slot iterators contain only their own traversal state; dense `MoveNext` methods
+contain no world or lifetime branch.
 
 Structural mutation is invalid while a conflicting row lease is active. This
 is a local lifetime rule, not a global barrier. External consumers keep their

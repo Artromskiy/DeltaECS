@@ -7,21 +7,17 @@ namespace Delta.ECS.Tests;
 
 /// <summary>
 /// Deterministic regression coverage for the structural algorithms.  These tests
-/// intentionally use a small chunk size in most cases so that swap-back and
-/// overlay masks are exercised across several chunks.
+/// intentionally use a small chunk size in most cases so that swap-back is
+/// exercised across several chunks.
 /// </summary>
 [TestFixture]
 public sealed class StructuralAlgorithmTests
 {
-    private static readonly TagId TagA = new(701);
-    private static readonly TagId TagB = new(702);
-    private static readonly TagId TagC = new(703);
-
     [Test]
     public void DestroyBatch_RandomContiguousDuplicateAndStaleHandles_PreservesSurvivors()
     {
         var layouts = new ComponentLayoutRegistry();
-        var valueId = layouts.Register<DestroyValue>(new SchemaId(30_001));
+        var valueId = layouts.Register(typeof(DestroyValue), new SchemaId(30_001));
         var world = new World(layouts, chunkCapacity: 7);
         var entities = new Entity[96];
         world.CreateBatch(new[] { valueId }, entities);
@@ -78,7 +74,7 @@ public sealed class StructuralAlgorithmTests
     public void DestroyBatch_RecreateRecyclesAllDestroyedRecordsWithNewGenerations()
     {
         var layouts = new ComponentLayoutRegistry();
-        var valueId = layouts.Register<DestroyValue>(new SchemaId(30_002));
+        var valueId = layouts.Register(typeof(DestroyValue), new SchemaId(30_002));
         var world = new World(layouts, chunkCapacity: 5);
         var old = new Entity[64];
         world.CreateBatch(new[] { valueId }, old);
@@ -107,7 +103,7 @@ public sealed class StructuralAlgorithmTests
     public void DestroyBatch_10KSmoke_UsesExactCountAndLeavesValidHandles()
     {
         var layouts = new ComponentLayoutRegistry();
-        var valueId = layouts.Register<DestroyValue>(new SchemaId(30_003));
+        var valueId = layouts.Register(typeof(DestroyValue), new SchemaId(30_003));
         var world = new World(layouts, chunkCapacity: 257);
         var entities = new Entity[10_000];
         world.CreateBatch(new[] { valueId }, entities);
@@ -136,9 +132,9 @@ public sealed class StructuralAlgorithmTests
     public void RandomizedBatchTransitions_MatchReferenceModelAndPreserveValues()
     {
         var layouts = new ComponentLayoutRegistry();
-        var positionId = layouts.Register<TransitionPosition>(new SchemaId(30_010));
-        var velocityId = layouts.Register<TransitionVelocity>(new SchemaId(30_011));
-        var healthId = layouts.Register<TransitionHealth>(new SchemaId(30_012));
+        var positionId = layouts.Register(typeof(TransitionPosition), new SchemaId(30_010));
+        var velocityId = layouts.Register(typeof(TransitionVelocity), new SchemaId(30_011));
+        var healthId = layouts.Register(typeof(TransitionHealth), new SchemaId(30_012));
         var world = new World(layouts, chunkCapacity: 9);
         var random = new Random(0x51A_7E);
         var model = new Dictionary<Entity, TransitionState>();
@@ -241,112 +237,12 @@ public sealed class StructuralAlgorithmTests
     }
 
     [Test]
-    public void OverlayTagChurn_ClusteredAndRandomQueriesMatchReferenceAfterDestroySwapBack()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        var payloadId = layouts.Register<TagPayload>(new SchemaId(30_020));
-        var world = new World(layouts, chunkCapacity: 11);
-        var random = new Random(0xA11_0F);
-        var model = new Dictionary<Entity, TagState>();
-        var entities = new List<Entity>();
-
-        for (var i = 0; i < 220; i++)
-        {
-            var entity = world.Create(new[] { payloadId });
-            var state = new TagState { A = (i % 3) == 0, B = (i % 5) == 0, C = (i % 7) == 0 };
-            world.SetComponent(entity, payloadId, new TagPayload { Value = i });
-            ApplyTags(world, entity, state);
-            model.Add(entity, state);
-            entities.Add(entity);
-        }
-
-        for (var step = 0; step < 260; step++)
-        {
-            var toggleCount = 1 + random.Next(7);
-            for (var i = 0; i < toggleCount; i++)
-            {
-                var entity = entities[random.Next(entities.Count)];
-                var state = model[entity];
-                var tag = (step % 5) == 0 ? TagA : new[] { TagA, TagB, TagC }[random.Next(3)];
-                if (tag == TagA)
-                {
-                    state.A = !state.A;
-                }
-                else if (tag == TagB)
-                {
-                    state.B = !state.B;
-                }
-                else
-                {
-                    state.C = !state.C;
-                }
-
-                if (state.A && tag == TagA || state.B && tag == TagB || state.C && tag == TagC)
-                {
-                    world.AddTag(entity, tag);
-                }
-                else
-                {
-                    world.RemoveTag(entity, tag);
-                }
-
-                model[entity] = state;
-            }
-
-            if ((step % 11) == 0)
-            {
-                var destroyCount = 1 + random.Next(3);
-                var removed = SelectUnique(entities, random, Math.Min(destroyCount, entities.Count));
-                var removedCount = world.DestroyBatch(CollectionsMarshalCompat.AsSpan(removed));
-                Assert.That(removedCount, Is.EqualTo(removed.Count));
-                foreach (var entity in removed)
-                {
-                    model.Remove(entity);
-                    entities.Remove(entity);
-                }
-            }
-
-            if ((step % 13) == 0)
-            {
-                var entity = world.Create(new[] { payloadId });
-                var state = new TagState
-                {
-                    A = (step % 26) == 0,
-                    B = random.Next(2) == 0,
-                    C = random.Next(2) == 0
-                };
-                ApplyTags(world, entity, state);
-                model.Add(entity, state);
-                entities.Add(entity);
-            }
-
-            var allA = new QuerySpec(
-                new[] { payloadId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
-                new[] { TagA }, Array.Empty<TagId>(), Array.Empty<TagId>());
-            var anyAB = new QuerySpec(
-                new[] { payloadId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
-                Array.Empty<TagId>(), new[] { TagA, TagB }, Array.Empty<TagId>());
-            var noneC = new QuerySpec(
-                new[] { payloadId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
-                Array.Empty<TagId>(), Array.Empty<TagId>(), new[] { TagC });
-            var combined = new QuerySpec(
-                new[] { payloadId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
-                new[] { TagA }, new[] { TagB, TagC }, new[] { TagC });
-
-            Assert.That(CountQuery(world, allA), Is.EqualTo(Count(model, static s => s.A)));
-            Assert.That(CountQuery(world, anyAB), Is.EqualTo(Count(model, static s => s.A || s.B)));
-            Assert.That(CountQuery(world, noneC), Is.EqualTo(Count(model, static s => !s.C)));
-            Assert.That(CountQuery(world, combined), Is.EqualTo(Count(model, static s => s.A && s.B && !s.C)));
-        }
-    }
-
-    [Test]
     public void HierarchyFixture_RandomizedStorageHasTopologicalOrderAndReferenceChecksum()
     {
         var layouts = new ComponentLayoutRegistry();
-        var parentId = layouts.Register<ParentLink>(new SchemaId(30_030));
-        var localId = layouts.Register<LocalTransform>(new SchemaId(30_031));
-        var worldId = layouts.Register<WorldTransform>(new SchemaId(30_032));
+        var parentId = layouts.Register(typeof(ParentLink), new SchemaId(30_030));
+        var localId = layouts.Register(typeof(LocalTransform), new SchemaId(30_031));
+        var worldId = layouts.Register(typeof(WorldTransform), new SchemaId(30_032));
         var world = new World(layouts, chunkCapacity: 8);
         const int count = 127;
         var random = new Random(0x1E_2); // fixed seed; no timing or ambient state
@@ -508,43 +404,6 @@ public sealed class StructuralAlgorithmTests
         }
     }
 
-    private static int CountQuery(World world, in QuerySpec query)
-    {
-        var handle = world.CreateQuery(in query);
-        var state = new CountCursorState();
-        world.Query(in handle, ref state, static (ref CountCursorState current, ref QueryChunkCursor cursor) =>
-        {
-            while (cursor.MoveNext())
-            {
-                if (cursor.IsActiveSlot(cursor.CurrentIndex))
-                {
-                    current.Count++;
-                }
-            }
-        });
-
-        return state.Count;
-    }
-
-    private sealed class CountCursorState
-    {
-        public int Count { get; set; }
-    }
-
-    private static int Count(Dictionary<Entity, TagState> model, Predicate<TagState> predicate)
-    {
-        var count = 0;
-        foreach (var state in model.Values)
-        {
-            if (predicate(state))
-            {
-                count++;
-            }
-        }
-
-        return count;
-    }
-
     private static List<Entity> SelectUnique(List<Entity> entities, Random random, int requested)
     {
         var indexes = new HashSet<int>();
@@ -560,13 +419,6 @@ public sealed class StructuralAlgorithmTests
         }
 
         return selected;
-    }
-
-    private static void ApplyTags(World world, Entity entity, TagState state)
-    {
-        if (state.A) world.AddTag(entity, TagA);
-        if (state.B) world.AddTag(entity, TagB);
-        if (state.C) world.AddTag(entity, TagC);
     }
 
     private static void Shuffle(List<int> values, Random random)
@@ -609,11 +461,6 @@ public sealed class StructuralAlgorithmTests
         public int Value;
     }
 
-    private struct TagPayload
-    {
-        public int Value;
-    }
-
     private struct ParentLink
     {
         public Entity Parent;
@@ -645,13 +492,6 @@ public sealed class StructuralAlgorithmTests
         public TransitionHealth Health;
         public bool HasVelocity;
         public bool HasHealth;
-    }
-
-    private struct TagState
-    {
-        public bool A;
-        public bool B;
-        public bool C;
     }
 
     private struct HierarchyObserved

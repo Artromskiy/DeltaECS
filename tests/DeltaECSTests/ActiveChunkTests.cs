@@ -12,7 +12,7 @@ public sealed class ActiveChunkTests
     public void EmptyChunks_Are_Excluded_And_Reused_Chunks_Rejoin_The_Active_List()
     {
         var layouts = new ComponentLayoutRegistry();
-        layouts.Register<Position>(new SchemaId(1));
+        layouts.Register(typeof(Position), new SchemaId(1));
         var world = new World(layouts, chunkCapacity: 2);
         var handle = world.GetArchetype(PositionId);
         var entities = new Entity[6];

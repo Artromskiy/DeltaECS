@@ -42,7 +42,7 @@ public class DeltaOnlyFragmentedQueryBenchmarks
         var components = new ComponentId[12];
         for (var i = 0; i < components.Length; i++)
         {
-            components[i] = layouts.Register<FragmentValue>(new SchemaId((ulong)(61_000 + i)));
+            components[i] = layouts.Register(typeof(FragmentValue), new SchemaId((ulong)(61_000 + i)));
         }
 
         _required = components[0];

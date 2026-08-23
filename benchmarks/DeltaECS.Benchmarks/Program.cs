@@ -63,7 +63,7 @@ public class DeltaEcsVsArchBenchmarks
         _deltaComponents = new ComponentId[ComponentCount];
         for (var i = 0; i < ComponentCount; i++)
         {
-            _deltaComponents[i] = layouts.Register<Value>(new SchemaId((ulong)(10_001 + i)));
+            _deltaComponents[i] = layouts.Register(typeof(Value), new SchemaId((ulong)(10_001 + i)));
         }
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
@@ -86,7 +86,7 @@ public class DeltaEcsVsArchBenchmarks
         _arrayComponents = new ComponentId[ComponentCount];
         for (var i = 0; i < ComponentCount; i++)
         {
-            _arrayComponents[i] = arrayLayouts.Register<Value>(new SchemaId((ulong)(11_001 + i)));
+            _arrayComponents[i] = arrayLayouts.Register(typeof(Value), new SchemaId((ulong)(11_001 + i)));
         }
 
         _arrayWorld = new World(
@@ -332,8 +332,8 @@ public class DeltaEcsBatchBenchmarks
     public void Setup()
     {
         var layouts = new ComponentLayoutRegistry();
-        var first = layouts.Register<BatchValue>(new SchemaId(30_001));
-        var second = layouts.Register<BatchValue>(new SchemaId(30_002));
+        var first = layouts.Register(typeof(BatchValue), new SchemaId(30_001));
+        var second = layouts.Register(typeof(BatchValue), new SchemaId(30_002));
         _createComponents = new[] { first, second };
         _world = new World(layouts, initialEntityCapacity: Amount);
         _entities = new Entity[Amount];
@@ -369,8 +369,8 @@ public class DeltaEcsTransitionBenchmarks
     public void Setup()
     {
         var layouts = new ComponentLayoutRegistry();
-        var first = layouts.Register<TransitionValue>(new SchemaId(30_101));
-        var second = layouts.Register<TransitionValue>(new SchemaId(30_102));
+        var first = layouts.Register(typeof(TransitionValue), new SchemaId(30_101));
+        var second = layouts.Register(typeof(TransitionValue), new SchemaId(30_102));
         _transitionComponents = new[] { second };
         _world = new World(layouts, initialEntityCapacity: Amount);
         _entities = new Entity[Amount];
@@ -408,7 +408,7 @@ public class DeltaEcsManagedArrayBenchmarks
     public void Setup()
     {
         var layouts = new ComponentLayoutRegistry();
-        _component = layouts.Register<ManagedValue>(new SchemaId(31_001));
+        _component = layouts.Register(typeof(ManagedValue), new SchemaId(31_001));
         _world = new World(layouts, initialEntityCapacity: Amount);
         var spec = QuerySpec.ForComponents(_component);
         _query = _world.CreateQuery(in spec);
@@ -470,8 +470,8 @@ public class DeltaEcsHotPathProfileBenchmarks
     public void Setup()
     {
         var layouts = new ComponentLayoutRegistry();
-        _first = layouts.Register<Value>(new SchemaId(20_001));
-        _second = layouts.Register<Value>(new SchemaId(20_002));
+        _first = layouts.Register(typeof(Value), new SchemaId(20_001));
+        _second = layouts.Register(typeof(Value), new SchemaId(20_002));
         _world = new World(layouts, initialEntityCapacity: 100_000);
         var spec = QuerySpec.ForComponents(_first, _second);
         _query = _world.CreateQuery(in spec);

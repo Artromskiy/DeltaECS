@@ -1,8 +1,8 @@
 using Delta.ECS;
 
 var layouts = new ComponentLayoutRegistry();
-var positionId = layouts.Register<Position>(new SchemaId(1));
-var velocityId = layouts.Register<Velocity>(new SchemaId(2));
+var positionId = layouts.Register(typeof(Position), new SchemaId(1));
+var velocityId = layouts.Register(typeof(Velocity), new SchemaId(2));
 var world = new World(layouts, chunkCapacity: 4);
 var archetype = world.GetArchetype(positionId, velocityId);
 

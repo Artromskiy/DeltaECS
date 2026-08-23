@@ -56,7 +56,7 @@ public class SmallDenseScenarioBenchmarks
         _deltaComponents = new ComponentId[ComponentCount];
         for (var i = 0; i < ComponentCount; i++)
         {
-            _deltaComponents[i] = layouts.Register<SmallDenseValue>(new SchemaId((ulong)(90_000 + i)));
+            _deltaComponents[i] = layouts.Register(typeof(SmallDenseValue), new SchemaId((ulong)(90_000 + i)));
         }
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
@@ -416,7 +416,7 @@ public class WideArchetypeNarrowAccessBenchmarks
         _deltaComponents = new ComponentId[ArchetypeWidth];
         for (var i = 0; i < ArchetypeWidth; i++)
         {
-            _deltaComponents[i] = layouts.Register<WideDenseValue>(new SchemaId((ulong)(91_000 + i)));
+            _deltaComponents[i] = layouts.Register(typeof(WideDenseValue), new SchemaId((ulong)(91_000 + i)));
         }
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
@@ -514,7 +514,7 @@ public class WideArchetypeNarrowAccessComparisonBenchmarks
         _deltaComponents = new ComponentId[ArchetypeWidth];
         for (var i = 0; i < ArchetypeWidth; i++)
         {
-            _deltaComponents[i] = layouts.Register<WideDenseValue>(new SchemaId((ulong)(92_000 + i)));
+            _deltaComponents[i] = layouts.Register(typeof(WideDenseValue), new SchemaId((ulong)(92_000 + i)));
         }
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
@@ -731,10 +731,7 @@ public class SparseHeterogeneousQueryBenchmarks
         var spec = new QuerySpec(
             new[] { _deltaPosition, _deltaVelocity },
             Array.Empty<ComponentId>(),
-            new[] { marker },
-            Array.Empty<TagId>(),
-            Array.Empty<TagId>(),
-            Array.Empty<TagId>());
+            new[] { marker });
         var coldQuery = _deltaWorld.CreateQuery(in spec);
         var positionBinding = coldQuery.AccessWrite(_deltaPosition);
         var velocityBinding = coldQuery.AccessRead(_deltaVelocity);
@@ -826,18 +823,18 @@ public class SparseHeterogeneousQueryBenchmarks
     private void SetupDelta()
     {
         var layouts = new ComponentLayoutRegistry();
-        _deltaPosition = layouts.Register<SparseValue>(new SchemaId(93_000));
-        _deltaVelocity = layouts.Register<SparseValue>(new SchemaId(93_001));
+        _deltaPosition = layouts.Register(typeof(SparseValue), new SchemaId(93_000));
+        _deltaVelocity = layouts.Register(typeof(SparseValue), new SchemaId(93_001));
         _deltaNoise = new ComponentId[NoiseComponentCount];
         for (var i = 0; i < _deltaNoise.Length; i++)
         {
-            _deltaNoise[i] = layouts.Register<SparseValue>(new SchemaId((ulong)(93_010 + i)));
+            _deltaNoise[i] = layouts.Register(typeof(SparseValue), new SchemaId((ulong)(93_010 + i)));
         }
 
         _deltaColdMarkers = new ComponentId[ColdMarkerCount];
         for (var i = 0; i < _deltaColdMarkers.Length; i++)
         {
-            _deltaColdMarkers[i] = layouts.Register<SparseValue>(new SchemaId((ulong)(94_000 + i)));
+            _deltaColdMarkers[i] = layouts.Register(typeof(SparseValue), new SchemaId((ulong)(94_000 + i)));
         }
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);

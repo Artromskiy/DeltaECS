@@ -229,8 +229,8 @@ public class DefaultEcsComparisonBenchmarks
     private void SetupMovementDelta()
     {
         var layouts = new ComponentLayoutRegistry();
-        _deltaPosition = layouts.Register<MovementPosition>(new SchemaId(130_000));
-        _deltaVelocity = layouts.Register<MovementVelocity>(new SchemaId(130_001));
+        _deltaPosition = layouts.Register(typeof(MovementPosition), new SchemaId(130_000));
+        _deltaVelocity = layouts.Register(typeof(MovementVelocity), new SchemaId(130_001));
         _deltaPayloads = new ComponentId[PayloadRows];
         for (var i = 0; i < PayloadRows; i++)
         {
@@ -303,8 +303,8 @@ public class DefaultEcsComparisonBenchmarks
     private void SetupBatchDelta()
     {
         var layouts = new ComponentLayoutRegistry();
-        var first = layouts.Register<BatchValue>(new SchemaId(130_101));
-        var second = layouts.Register<BatchValue>(new SchemaId(130_102));
+        var first = layouts.Register(typeof(BatchValue), new SchemaId(130_101));
+        var second = layouts.Register(typeof(BatchValue), new SchemaId(130_102));
         _deltaBatchWorld = new World(layouts, initialEntityCapacity: Amount);
         _deltaBatchComponents = new[] { first, second };
         _deltaBatchEntities = new DeltaEntity[Amount];
@@ -319,8 +319,8 @@ public class DefaultEcsComparisonBenchmarks
     private void SetupTransitionDelta()
     {
         var layouts = new ComponentLayoutRegistry();
-        var baseComponent = layouts.Register<TransitionBase>(new SchemaId(130_201));
-        var transitionPayload = layouts.Register<TransitionPayload>(new SchemaId(130_202));
+        var baseComponent = layouts.Register(typeof(TransitionBase), new SchemaId(130_201));
+        var transitionPayload = layouts.Register(typeof(TransitionPayload), new SchemaId(130_202));
         _deltaTransitionWorld = new World(layouts, initialEntityCapacity: Amount);
         _deltaTransitionEntities = new DeltaEntity[Amount];
         _deltaTransitionWorld.CreateBatch(new[] { baseComponent }, _deltaTransitionEntities);
@@ -347,7 +347,7 @@ public class DefaultEcsComparisonBenchmarks
 
     private static ComponentId RegisterPayload(ComponentLayoutRegistry layouts, int index)
     {
-        return layouts.Register<MovementPayload>(new SchemaId((ulong)(130_300 + index)));
+        return layouts.Register(typeof(MovementPayload), new SchemaId((ulong)(130_300 + index)));
     }
 
     private struct MovementState
