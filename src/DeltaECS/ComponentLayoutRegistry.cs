@@ -12,14 +12,11 @@ public sealed class ComponentLayoutRegistry
 
     public int Count => _layouts.Count;
 
-    public ComponentId Register(ComponentLayout layout)
-    {
-        return Register(layout, ComponentRowOperations.Fallback);
-    }
+    public ComponentId Register(ComponentLayout layout) => Register(layout, ComponentRowOperations.Fallback);
 
     private ComponentId Register(ComponentLayout layout, ComponentRowOperations rowOperations)
     {
-        if (_idsBySchema.TryGetValue(layout.SchemaId, out var existingId))
+        if (_idsBySchema.TryGetValue(layout.SchemaId, out int existingId))
         {
             var existingLayout = _layouts[existingId];
             if (!existingLayout.Equals(layout))
@@ -43,10 +40,7 @@ public sealed class ComponentLayoutRegistry
         return id;
     }
 
-    public ComponentId Register<T>(SchemaId schemaId, ComponentStorageClass storageClass = ComponentStorageClass.Dense)
-    {
-        return Register(new ComponentLayout(schemaId, typeof(T), storageClass), ComponentRowOperations.For<T>());
-    }
+    public ComponentId Register<T>(SchemaId schemaId, ComponentStorageClass storageClass = ComponentStorageClass.Dense) => Register(new ComponentLayout(schemaId, typeof(T), storageClass), ComponentRowOperations.For<T>());
 
     public ComponentId RegisterUnmanaged<T>(SchemaId schemaId, ComponentStorageClass storageClass = ComponentStorageClass.Dense)
         where T : unmanaged
@@ -58,7 +52,7 @@ public sealed class ComponentLayoutRegistry
 
     public bool TryGetId(SchemaId schemaId, out ComponentId componentId)
     {
-        if (_idsBySchema.TryGetValue(schemaId, out var id))
+        if (_idsBySchema.TryGetValue(schemaId, out int id))
         {
             componentId = new ComponentId(id);
             return true;

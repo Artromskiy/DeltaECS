@@ -34,15 +34,9 @@ public sealed class World
         int initialEntityCapacity = DefaultInitialCapacity,
         int chunkCapacity = DefaultChunkCapacity)
     {
-        if (initialEntityCapacity < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(initialEntityCapacity));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(initialEntityCapacity);
 
-        if (chunkCapacity <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(chunkCapacity));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(chunkCapacity);
 
         _layouts = layouts ?? new ComponentLayoutRegistry();
         _chunkCapacity = chunkCapacity;
@@ -73,19 +67,13 @@ public sealed class World
         return new ArchetypeHandle(this, GetOrCreateArchetype(mask).Id);
     }
 
-    public Query CreateQuery(in QuerySpec spec)
-    {
-        return new Query(this, GetOrCreateQuery(spec), spec);
-    }
+    public Query CreateQuery(in QuerySpec spec) => new Query(this, GetOrCreateQuery(spec), spec);
 
     /// <summary>
     /// Creates a validated dense-only query scope with independent archetype,
     /// chunk and slot iterators. Queries with tag predicates are rejected.
     /// </summary>
-    public QueryScope OpenQuery(in Query handle)
-    {
-        return new QueryScope(this, handle);
-    }
+    public QueryScope OpenQuery(in Query handle) => new QueryScope(this, handle);
 
     public Entity Create(ComponentId[] componentIds)
     {
@@ -118,18 +106,18 @@ public sealed class World
 
     private int CreateBatch(Archetype archetype, Span<Entity> output)
     {
-        for (var i = 0; i < output.Length; i++)
+        for (int i = 0; i < output.Length; i++)
         {
-            var recordIndex = AllocateRecord();
+            int recordIndex = AllocateRecord();
             ref var record = ref RecordAt(recordIndex);
             var entity = new Entity(recordIndex, record.Generation);
-            var chunkId = archetype.HasAvailableChunk() ? -1 : AllocateChunkId();
+            int chunkId = archetype.HasAvailableChunk() ? -1 : AllocateChunkId();
             archetype.AddEntity(
                 entity,
                 chunkId,
-                out var chunkIndex,
-                out var slotIndex,
-                out var reusedSlot);
+                out int chunkIndex,
+                out int slotIndex,
+                out bool reusedSlot);
             if (reusedSlot)
             {
                 archetype.GetChunk(chunkIndex).InitializeSlot(slotIndex);
@@ -159,7 +147,7 @@ public sealed class World
     public bool Destroy(Entity entity)
     {
         EnsureNoActiveLease("destroy entities");
-        if (!TryResolve(entity, out var recordIndex))
+        if (!TryResolve(entity, out int recordIndex))
         {
             return false;
         }
@@ -172,10 +160,10 @@ public sealed class World
     {
         EnsureNoActiveLease("destroy entities");
         EnsureDestroyScratch(entities.Length);
-        var count = 0;
-        for (var i = 0; i < entities.Length; i++)
+        int count = 0;
+        for (int i = 0; i < entities.Length; i++)
         {
-            if (TryResolve(entities[i], out var recordIndex))
+            if (TryResolve(entities[i], out int recordIndex))
             {
                 ref readonly var record = ref RecordAt(recordIndex);
                 _destroyScratch[count++] = new DestroyEntry(entities[i], recordIndex, record.Archetype, record.Chunk, record.SlotIndex);
@@ -183,11 +171,11 @@ public sealed class World
         }
 
         Array.Sort(_destroyScratch, 0, count, DestroyEntryComparer.Instance);
-        var destroyed = 0;
-        for (var i = 0; i < count; i++)
+        int destroyed = 0;
+        for (int i = 0; i < count; i++)
         {
             var entry = _destroyScratch[i];
-            if (!TryResolve(entry.Entity, out var recordIndex))
+            if (!TryResolve(entry.Entity, out int recordIndex))
             {
                 continue;
             }
@@ -212,15 +200,15 @@ public sealed class World
 
     public bool HasChangedSince(int globalChunkId, ComponentId componentId, uint sinceTick)
     {
-        for (var archetypeIndex = 0; archetypeIndex < _archetypes.Count; archetypeIndex++)
+        for (int archetypeIndex = 0; archetypeIndex < _archetypes.Count; archetypeIndex++)
         {
             var archetype = _archetypes[archetypeIndex];
-            if (!archetype.TryGetComponentIndex(componentId, out var componentIndex))
+            if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
             {
                 continue;
             }
 
-            for (var chunkIndex = 0; chunkIndex < archetype.ChunkCount; chunkIndex++)
+            for (int chunkIndex = 0; chunkIndex < archetype.ChunkCount; chunkIndex++)
             {
                 var chunk = archetype.GetChunk(chunkIndex);
                 if (chunk.GlobalId != globalChunkId)
@@ -228,7 +216,7 @@ public sealed class World
                     continue;
                 }
 
-                var version = chunk.GetComponentVersion(componentIndex);
+                uint version = chunk.GetComponentVersion(componentIndex);
                 return version != sinceTick
                     && unchecked(version - sinceTick) < 0x8000_0000u;
             }
@@ -239,13 +227,13 @@ public sealed class World
 
     public bool SetComponent<T>(Entity entity, ComponentId componentId, in T value)
     {
-        return TryResolve(entity, out var recordIndex)
+        return TryResolve(entity, out int recordIndex)
             && SetComponentUnchecked(recordIndex, componentId, value);
     }
 
     public bool TryGetComponent<T>(Entity entity, ComponentId componentId, out T value)
     {
-        if (!TryResolve(entity, out var recordIndex))
+        if (!TryResolve(entity, out int recordIndex))
         {
             value = default!;
             return false;
@@ -253,7 +241,7 @@ public sealed class World
 
         ref readonly var record = ref RecordAt(recordIndex);
         var archetype = _archetypes[record.Archetype];
-        if (!archetype.TryGetComponentIndex(componentId, out var componentIndex)
+        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex)
             || !_layouts.TryGet(componentId, out var layout)
             || !IsCompatibleComponentType<T>(layout))
         {
@@ -268,7 +256,7 @@ public sealed class World
     public void AddTag(Entity entity, TagId tag)
     {
         ValidateTag(tag);
-        if (TryResolve(entity, out var recordIndex))
+        if (TryResolve(entity, out int recordIndex))
         {
             ref readonly var record = ref RecordAt(recordIndex);
             var archetype = _archetypes[record.Archetype];
@@ -279,7 +267,7 @@ public sealed class World
     public void RemoveTag(Entity entity, TagId tag)
     {
         ValidateTag(tag);
-        if (TryResolve(entity, out var recordIndex))
+        if (TryResolve(entity, out int recordIndex))
         {
             ref readonly var record = ref RecordAt(recordIndex);
             var archetype = _archetypes[record.Archetype];
@@ -290,7 +278,7 @@ public sealed class World
     public bool HasTag(Entity entity, TagId tag)
     {
         ValidateTag(tag);
-        if (!TryResolve(entity, out var recordIndex))
+        if (!TryResolve(entity, out int recordIndex))
         {
             return false;
         }
@@ -315,10 +303,7 @@ public sealed class World
         _ = ApplyComponents(true, componentIds, entities);
     }
 
-    public int AddComponents(ComponentId[] componentIds, ReadOnlySpan<Entity> entities)
-    {
-        return ApplyComponents(true, componentIds, entities);
-    }
+    public int AddComponents(ComponentId[] componentIds, ReadOnlySpan<Entity> entities) => ApplyComponents(true, componentIds, entities);
 
     public void RemoveComponents(ComponentId[] componentIds, Entity entity)
     {
@@ -327,20 +312,11 @@ public sealed class World
         _ = ApplyComponents(false, componentIds, entities);
     }
 
-    public int RemoveComponents(ComponentId[] componentIds, ReadOnlySpan<Entity> entities)
-    {
-        return ApplyComponents(false, componentIds, entities);
-    }
+    public int RemoveComponents(ComponentId[] componentIds, ReadOnlySpan<Entity> entities) => ApplyComponents(false, componentIds, entities);
 
-    public int AddComponents(in Query query, ComponentId[] componentIds)
-    {
-        return ApplyQueryComponents(query, true, componentIds);
-    }
+    public int AddComponents(in Query query, ComponentId[] componentIds) => ApplyQueryComponents(query, true, componentIds);
 
-    public int RemoveComponents(in Query query, ComponentId[] componentIds)
-    {
-        return ApplyQueryComponents(query, false, componentIds);
-    }
+    public int RemoveComponents(in Query query, ComponentId[] componentIds) => ApplyQueryComponents(query, false, componentIds);
 
     public int Destroy(in Query query)
     {
@@ -348,18 +324,18 @@ public sealed class World
         EnsureNoActiveLease("destroy entities");
 
         var cached = query.Cached;
-        var archetypes = cached.MatchingArchetypes(this);
+        int[] archetypes = cached.MatchingArchetypes(this);
         if (cached.HasTags)
         {
             var matches = CollectTaggedQueryEntities(query.Description, archetypes);
             return DestroyBatch(CollectionsMarshal.AsSpan(matches));
         }
 
-        var destroyed = 0;
-        for (var archetypeIndex = 0; archetypeIndex < archetypes.Length; archetypeIndex++)
+        int destroyed = 0;
+        for (int archetypeIndex = 0; archetypeIndex < archetypes.Length; archetypeIndex++)
         {
             var archetype = _archetypes[archetypes[archetypeIndex]];
-            for (var chunkIndex = archetype.ChunkCount - 1; chunkIndex >= 0; chunkIndex--)
+            for (int chunkIndex = archetype.ChunkCount - 1; chunkIndex >= 0; chunkIndex--)
             {
                 destroyed += DestroyChunk(archetype, chunkIndex);
             }
@@ -382,16 +358,16 @@ public sealed class World
         var query = handle.Description;
         var cached = handle.Cached;
         var plans = cached.MatchingPlans(this);
-        var writeTick = QueryWriteTick(cached);
+        uint writeTick = QueryWriteTick(cached);
         ulong[]? scratch = cached.HasTags ? RentChunkOverlayScratch() : null;
         _activeChunkLeases++;
         try
         {
-            for (var planIndex = 0; planIndex < plans.Length; planIndex++)
+            for (int planIndex = 0; planIndex < plans.Length; planIndex++)
             {
                 var plan = plans[planIndex];
                 var archetype = plan.Archetype;
-                for (var chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
+                for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
                 {
                     var chunk = archetype.GetActiveChunk(chunkIndex);
                     var overlayResult = cached.HasTags
@@ -423,8 +399,8 @@ public sealed class World
 
     public int CollectAliveEntities(Span<Entity> destination)
     {
-        var count = 0;
-        for (var i = 0; i < _records.Count; i++)
+        int count = 0;
+        for (int i = 0; i < _records.Count; i++)
         {
             ref readonly var record = ref RecordAt(i);
             if (record.Archetype < 0)
@@ -453,19 +429,16 @@ public sealed class World
 
     internal uint GetQueryWriteTick(QueryPlan cached) => QueryWriteTick(cached);
 
-    internal void ReturnChunkOverlayScratch(ulong[] scratch)
-    {
-        ArrayPool<ulong>.Shared.Return(scratch, clearArray: true);
-    }
+    internal void ReturnChunkOverlayScratch(ulong[] scratch) => ArrayPool<ulong>.Shared.Return(scratch, clearArray: true);
 
     private uint AdvanceWorldTick()
     {
         if (WorldTick == uint.MaxValue)
         {
-            for (var archetypeIndex = 0; archetypeIndex < _archetypes.Count; archetypeIndex++)
+            for (int archetypeIndex = 0; archetypeIndex < _archetypes.Count; archetypeIndex++)
             {
                 var archetype = _archetypes[archetypeIndex];
-                for (var chunkIndex = 0; chunkIndex < archetype.ChunkCount; chunkIndex++)
+                for (int chunkIndex = 0; chunkIndex < archetype.ChunkCount; chunkIndex++)
                 {
                     archetype.GetChunk(chunkIndex).ClearComponentVersions();
                 }
@@ -494,18 +467,18 @@ public sealed class World
             return 0;
         }
 
-        var edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
-        var changed = 0;
-        for (var entityIndex = 0; entityIndex < entities.Length; entityIndex++)
+        int edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
+        int changed = 0;
+        for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
         {
             var entity = entities[entityIndex];
-            if (!TryResolve(entity, out var recordIndex))
+            if (!TryResolve(entity, out int recordIndex))
             {
                 continue;
             }
 
             ref readonly var record = ref RecordAt(recordIndex);
-            var sourceArchetypeId = record.Archetype;
+            int sourceArchetypeId = record.Archetype;
             var edge = edgeStamp == 0
                 ? GetTransitionEdge(sourceArchetypeId, changeMask, isAdd)
                 : GetBatchTransitionEdge(sourceArchetypeId, changeMask, isAdd, edgeStamp);
@@ -537,16 +510,16 @@ public sealed class World
         }
 
         var cached = query.Cached;
-        var matchingArchetypes = cached.MatchingArchetypes(this);
+        int[] matchingArchetypes = cached.MatchingArchetypes(this);
         if (cached.HasTags)
         {
             var matches = CollectTaggedQueryEntities(query.Description, matchingArchetypes);
             return ApplyComponents(isAdd, componentIds, CollectionsMarshal.AsSpan(matches));
         }
 
-        var edgeStamp = BeginBatchEdgeCache();
-        var changed = 0;
-        for (var matchingIndex = 0; matchingIndex < matchingArchetypes.Length; matchingIndex++)
+        int edgeStamp = BeginBatchEdgeCache();
+        int changed = 0;
+        for (int matchingIndex = 0; matchingIndex < matchingArchetypes.Length; matchingIndex++)
         {
             var sourceArchetype = _archetypes[matchingArchetypes[matchingIndex]];
             var edge = GetBatchTransitionEdge(sourceArchetype.Id, changeMask, isAdd, edgeStamp);
@@ -570,34 +543,34 @@ public sealed class World
 
     private int MoveArchetypeBlocksDense(Archetype sourceArchetype, TransitionEdge edge)
     {
-        var movedCount = 0;
+        int movedCount = 0;
         var targetArchetype = _archetypes[edge.TargetArchetypeId];
-        for (var sourceChunkIndex = sourceArchetype.ChunkCount - 1; sourceChunkIndex >= 0; sourceChunkIndex--)
+        for (int sourceChunkIndex = sourceArchetype.ChunkCount - 1; sourceChunkIndex >= 0; sourceChunkIndex--)
         {
             var sourceChunk = sourceArchetype.GetChunk(sourceChunkIndex);
-            var sourceCount = sourceChunk.Count;
+            int sourceCount = sourceChunk.Count;
             if (sourceCount == 0)
             {
                 continue;
             }
 
             var sourceEntities = sourceChunk.RawEntities;
-            var sourceEnd = sourceCount;
+            int sourceEnd = sourceCount;
             while (sourceEnd > 0)
             {
-                var targetChunkId = targetArchetype.HasAvailableChunk() ? -1 : AllocateChunkId();
-                var reserved = targetArchetype.ReserveRange(
+                int targetChunkId = targetArchetype.HasAvailableChunk() ? -1 : AllocateChunkId();
+                int reserved = targetArchetype.ReserveRange(
                     sourceEnd,
                     targetChunkId,
-                    out var targetChunkIndex,
+                    out int targetChunkIndex,
                     out var targetChunk);
-                var targetSlot = targetChunk.Count - reserved;
-                var sourceSlot = sourceEnd - reserved;
+                int targetSlot = targetChunk.Count - reserved;
+                int sourceSlot = sourceEnd - reserved;
 
                 Array.Copy(sourceEntities, sourceSlot, targetChunk.RawEntities, targetSlot, reserved);
-                for (var sourceComponentIndex = 0; sourceComponentIndex < edge.SourceToTargetRowIndices.Length; sourceComponentIndex++)
+                for (int sourceComponentIndex = 0; sourceComponentIndex < edge.SourceToTargetRowIndices.Length; sourceComponentIndex++)
                 {
-                    var targetComponentIndex = edge.SourceToTargetRowIndices[sourceComponentIndex];
+                    int targetComponentIndex = edge.SourceToTargetRowIndices[sourceComponentIndex];
                     if (targetComponentIndex < 0)
                     {
                         continue;
@@ -612,7 +585,7 @@ public sealed class World
                 }
 
                 targetChunk.InitializeRowsRange(targetSlot, reserved, edge.AddedTargetRowIndices);
-                for (var slot = 0; slot < reserved; slot++)
+                for (int slot = 0; slot < reserved; slot++)
                 {
                     var entity = sourceEntities[sourceSlot + slot];
                     ref var record = ref RecordAt(entity.Index);
@@ -634,35 +607,35 @@ public sealed class World
 
     private int MoveArchetypeBlocksTagged(Archetype sourceArchetype, TransitionEdge edge)
     {
-        var movedCount = 0;
+        int movedCount = 0;
         var targetArchetype = _archetypes[edge.TargetArchetypeId];
-        for (var sourceChunkIndex = sourceArchetype.ChunkCount - 1; sourceChunkIndex >= 0; sourceChunkIndex--)
+        for (int sourceChunkIndex = sourceArchetype.ChunkCount - 1; sourceChunkIndex >= 0; sourceChunkIndex--)
         {
             var sourceChunk = sourceArchetype.GetChunk(sourceChunkIndex);
-            var sourceCount = sourceChunk.Count;
+            int sourceCount = sourceChunk.Count;
             if (sourceCount == 0)
             {
                 continue;
             }
 
             var sourceEntities = sourceChunk.RawEntities;
-            var sourceChunkId = sourceChunk.GlobalId;
-            var sourceEnd = sourceCount;
+            int sourceChunkId = sourceChunk.GlobalId;
+            int sourceEnd = sourceCount;
             while (sourceEnd > 0)
             {
-                var targetChunkId = targetArchetype.HasAvailableChunk() ? -1 : AllocateChunkId();
-                var reserved = targetArchetype.ReserveRange(
+                int targetChunkId = targetArchetype.HasAvailableChunk() ? -1 : AllocateChunkId();
+                int reserved = targetArchetype.ReserveRange(
                     sourceEnd,
                     targetChunkId,
-                    out var targetChunkIndex,
+                    out int targetChunkIndex,
                     out var targetChunk);
-                var targetSlot = targetChunk.Count - reserved;
-                var sourceSlot = sourceEnd - reserved;
+                int targetSlot = targetChunk.Count - reserved;
+                int sourceSlot = sourceEnd - reserved;
 
                 Array.Copy(sourceEntities, sourceSlot, targetChunk.RawEntities, targetSlot, reserved);
-                for (var sourceComponentIndex = 0; sourceComponentIndex < edge.SourceToTargetRowIndices.Length; sourceComponentIndex++)
+                for (int sourceComponentIndex = 0; sourceComponentIndex < edge.SourceToTargetRowIndices.Length; sourceComponentIndex++)
                 {
-                    var targetComponentIndex = edge.SourceToTargetRowIndices[sourceComponentIndex];
+                    int targetComponentIndex = edge.SourceToTargetRowIndices[sourceComponentIndex];
                     if (targetComponentIndex < 0)
                     {
                         continue;
@@ -677,7 +650,7 @@ public sealed class World
                 }
 
                 targetChunk.InitializeRowsRange(targetSlot, reserved, edge.AddedTargetRowIndices);
-                for (var slot = 0; slot < reserved; slot++)
+                for (int slot = 0; slot < reserved; slot++)
                 {
                     var entity = sourceEntities[sourceSlot + slot];
                     _overlayTags.CopySlotTags(sourceChunkId, sourceSlot + slot, targetChunk.GlobalId, targetSlot + slot);
@@ -691,7 +664,7 @@ public sealed class World
                 movedCount += reserved;
             }
 
-            for (var slot = sourceCount - 1; slot >= 0; slot--)
+            for (int slot = sourceCount - 1; slot >= 0; slot--)
             {
                 _overlayTags.ClearSlot(sourceChunkId, slot);
             }
@@ -706,15 +679,15 @@ public sealed class World
     private int DestroyChunk(Archetype archetype, int chunkIndex)
     {
         var chunk = archetype.GetChunk(chunkIndex);
-        var count = chunk.Count;
+        int count = chunk.Count;
         if (count == 0)
         {
             return 0;
         }
 
         var entities = chunk.RawEntities;
-        var preserveOverlayTags = _overlayTags.HasAnyTags;
-        for (var slot = count - 1; slot >= 0; slot--)
+        bool preserveOverlayTags = _overlayTags.HasAnyTags;
+        for (int slot = count - 1; slot >= 0; slot--)
         {
             var entity = entities[slot];
             ref var record = ref RecordAt(entity.Index);
@@ -740,13 +713,13 @@ public sealed class World
         int[] matchingArchetypes)
     {
         var matches = new List<Entity>();
-        var scratch = RentChunkOverlayScratch();
+        ulong[] scratch = RentChunkOverlayScratch();
         try
         {
-            for (var matchingIndex = 0; matchingIndex < matchingArchetypes.Length; matchingIndex++)
+            for (int matchingIndex = 0; matchingIndex < matchingArchetypes.Length; matchingIndex++)
             {
                 var archetype = _archetypes[matchingArchetypes[matchingIndex]];
-                for (var activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
+                for (int activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
                 {
                     var chunk = archetype.GetActiveChunk(activeChunkIndex);
 
@@ -759,14 +732,14 @@ public sealed class World
                     var entities = chunk.Entities;
                     if (result == OverlayMaskResult.Full)
                     {
-                        for (var slot = 0; slot < entities.Length; slot++)
+                        for (int slot = 0; slot < entities.Length; slot++)
                         {
                             matches.Add(entities[slot]);
                         }
                     }
                     else
                     {
-                        for (var slot = 0; slot < entities.Length; slot++)
+                        for (int slot = 0; slot < entities.Length; slot++)
                         {
                             if ((scratch[slot >> 6] & (1UL << (slot & 63))) != 0)
                             {
@@ -790,9 +763,9 @@ public sealed class World
         ref var record = ref RecordAt(recordIndex);
         var archetype = _archetypes[record.Archetype];
         var chunk = archetype.GetChunk(record.Chunk);
-        var chunkId = chunk.GlobalId;
-        var preserveOverlayTags = _overlayTags.HasAnyTags;
-        var lastSlotIndex = chunk.Count - 1;
+        int chunkId = chunk.GlobalId;
+        bool preserveOverlayTags = _overlayTags.HasAnyTags;
+        int lastSlotIndex = chunk.Count - 1;
         var moved = archetype.RemoveEntity(record.Chunk, record.SlotIndex);
         if (preserveOverlayTags && record.SlotIndex != lastSlotIndex)
         {
@@ -824,22 +797,22 @@ public sealed class World
         var sourceArchetype = _archetypes[sourceRecord.Archetype];
         var targetArchetype = _archetypes[edge.TargetArchetypeId];
         var sourceChunk = sourceArchetype.GetChunk(sourceRecord.Chunk);
-        var sourceChunkId = sourceChunk.GlobalId;
-        var preserveOverlayTags = _overlayTags.HasAnyTags;
-        var sourceSlotIndex = sourceRecord.SlotIndex;
-        var sourceChunkIndex = sourceRecord.Chunk;
-        var targetChunkId = targetArchetype.HasAvailableChunk() ? -1 : AllocateChunkId();
+        int sourceChunkId = sourceChunk.GlobalId;
+        bool preserveOverlayTags = _overlayTags.HasAnyTags;
+        int sourceSlotIndex = sourceRecord.SlotIndex;
+        int sourceChunkIndex = sourceRecord.Chunk;
+        int targetChunkId = targetArchetype.HasAvailableChunk() ? -1 : AllocateChunkId();
         targetArchetype.AddEntity(
             new Entity(recordIndex, sourceRecord.Generation),
             targetChunkId,
-            out var targetChunkIndex,
-            out var targetSlotIndex,
-            out var reusedTargetSlot);
+            out int targetChunkIndex,
+            out int targetSlotIndex,
+            out bool reusedTargetSlot);
         var targetChunk = targetArchetype.GetChunk(targetChunkIndex);
 
-        for (var sourceIndex = 0; sourceIndex < edge.SourceToTargetRowIndices.Length; sourceIndex++)
+        for (int sourceIndex = 0; sourceIndex < edge.SourceToTargetRowIndices.Length; sourceIndex++)
         {
-            var targetIndex = edge.SourceToTargetRowIndices[sourceIndex];
+            int targetIndex = edge.SourceToTargetRowIndices[sourceIndex];
             if (targetIndex >= 0)
             {
                 sourceChunk.CopySlotTo(targetChunk, sourceSlotIndex, targetSlotIndex, sourceIndex, targetIndex);
@@ -855,7 +828,7 @@ public sealed class World
         {
             _overlayTags.CopySlotTags(sourceChunkId, sourceSlotIndex, targetChunk.GlobalId, targetSlotIndex);
         }
-        var lastSlotIndex = sourceChunk.Count - 1;
+        int lastSlotIndex = sourceChunk.Count - 1;
         var moved = sourceArchetype.RemoveEntity(sourceChunkIndex, sourceSlotIndex);
         if (preserveOverlayTags && sourceSlotIndex != lastSlotIndex)
         {
@@ -893,9 +866,9 @@ public sealed class World
         }
 
         var target = GetOrCreateArchetype(targetMask);
-        var mapping = new int[source.ComponentCount];
-        var copiedTargetRows = new bool[target.ComponentCount];
-        for (var i = 0; i < mapping.Length; i++)
+        int[] mapping = new int[source.ComponentCount];
+        bool[] copiedTargetRows = new bool[target.ComponentCount];
+        for (int i = 0; i < mapping.Length; i++)
         {
             mapping[i] = target.Mask.Rank(source.ComponentIds[i]);
             if (mapping[i] >= 0)
@@ -904,9 +877,9 @@ public sealed class World
             }
         }
 
-        var addedTargetRows = new int[target.ComponentCount];
-        var addedCount = 0;
-        for (var targetIndex = 0; targetIndex < copiedTargetRows.Length; targetIndex++)
+        int[] addedTargetRows = new int[target.ComponentCount];
+        int addedCount = 0;
+        for (int targetIndex = 0; targetIndex < copiedTargetRows.Length; targetIndex++)
         {
             if (!copiedTargetRows[targetIndex])
             {
@@ -928,7 +901,7 @@ public sealed class World
     {
         ref readonly var record = ref RecordAt(recordIndex);
         var archetype = _archetypes[record.Archetype];
-        if (!archetype.TryGetComponentIndex(componentId, out var componentIndex)
+        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex)
             || !_layouts.TryGet(componentId, out var layout)
             || !IsCompatibleComponentType<T>(layout))
         {
@@ -941,7 +914,7 @@ public sealed class World
 
     private Archetype GetOrCreateArchetype(ComponentMask mask)
     {
-        if (_archetypeByMask.TryGetValue(mask, out var existing))
+        if (_archetypeByMask.TryGetValue(mask, out int existing))
         {
             return _archetypes[existing];
         }
@@ -950,7 +923,7 @@ public sealed class World
         mask.CopyComponentIds(componentIds);
         var layouts = new ComponentLayout[componentIds.Length];
         var rowOperations = new ComponentRowOperations[componentIds.Length];
-        for (var i = 0; i < componentIds.Length; i++)
+        for (int i = 0; i < componentIds.Length; i++)
         {
             if (!_layouts.TryGet(componentIds[i], out var layout))
             {
@@ -982,7 +955,7 @@ public sealed class World
     private static bool TryBuildComponentMask(ReadOnlySpan<ComponentId> componentIds, out ComponentMask mask)
     {
         mask = default;
-        for (var i = 0; i < componentIds.Length; i++)
+        for (int i = 0; i < componentIds.Length; i++)
         {
             if (!componentIds[i].IsValid)
             {
@@ -1002,7 +975,7 @@ public sealed class World
             return _freeRecords[--_freeCount];
         }
 
-        var index = _records.Count;
+        int index = _records.Count;
         _records.Add(new EntityRecord { Generation = 0, Archetype = -1, Chunk = -1, SlotIndex = -1 });
         return index;
     }
@@ -1020,10 +993,7 @@ public sealed class World
     private int AllocateChunkId() => _nextChunkId++;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ref EntityRecord RecordAt(int recordIndex)
-    {
-        return ref CollectionsMarshal.AsSpan(_records)[recordIndex];
-    }
+    private ref EntityRecord RecordAt(int recordIndex) => ref CollectionsMarshal.AsSpan(_records)[recordIndex];
 
     private bool TryResolve(Entity entity, out int recordIndex)
     {
@@ -1110,7 +1080,7 @@ public sealed class World
             return;
         }
 
-        var capacity = Math.Max(required, _batchEdgeSlots.Length == 0 ? 4 : _batchEdgeSlots.Length * 2);
+        int capacity = Math.Max(required, _batchEdgeSlots.Length == 0 ? 4 : _batchEdgeSlots.Length * 2);
         Array.Resize(ref _batchEdgeSlots, capacity);
         Array.Resize(ref _batchEdgeStamps, capacity);
     }
@@ -1123,10 +1093,7 @@ public sealed class World
         }
     }
 
-    private static bool IsCompatibleComponentType<T>(ComponentLayout layout)
-    {
-        return layout.RuntimeType == typeof(T);
-    }
+    private static bool IsCompatibleComponentType<T>(ComponentLayout layout) => layout.RuntimeType == typeof(T);
 
     private readonly struct TransitionKey : IEquatable<TransitionKey>
     {
@@ -1189,7 +1156,7 @@ public sealed class World
 
         public int Compare(DestroyEntry x, DestroyEntry y)
         {
-            var result = x.Archetype.CompareTo(y.Archetype);
+            int result = x.Archetype.CompareTo(y.Archetype);
             if (result != 0) return result;
             result = x.Chunk.CompareTo(y.Chunk);
             return result != 0 ? result : y.SlotIndex.CompareTo(x.SlotIndex);

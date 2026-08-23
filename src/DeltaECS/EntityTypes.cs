@@ -48,10 +48,7 @@ public readonly struct ArchetypeHandle : IEquatable<ArchetypeHandle>
 
     internal World? Owner => _owner;
 
-    public bool Equals(ArchetypeHandle other)
-    {
-        return ReferenceEquals(_owner, other._owner) && _archetypeId == other._archetypeId;
-    }
+    public bool Equals(ArchetypeHandle other) => ReferenceEquals(_owner, other._owner) && _archetypeId == other._archetypeId;
 
     public override bool Equals(object? obj) => obj is ArchetypeHandle other && Equals(other);
 
@@ -110,13 +107,13 @@ public readonly struct Query
 
     public AccessRequest Access(ComponentId componentId, ReadAccessMode _)
     {
-        var rowIndex = ResolveComponentRow(componentId, expectedType: null, out var componentType);
+        int rowIndex = ResolveComponentRow(componentId, expectedType: null, out var componentType);
         return new AccessRequest(_cached, rowIndex, write: false, componentType);
     }
 
     public AccessRequest Access(ComponentId componentId, WriteAccessMode _)
     {
-        var rowIndex = ResolveComponentRow(componentId, expectedType: null, out var componentType);
+        int rowIndex = ResolveComponentRow(componentId, expectedType: null, out var componentType);
         _cached.RegisterWriteAccess();
         return new AccessRequest(_cached, rowIndex, write: true, componentType);
     }

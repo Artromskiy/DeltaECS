@@ -19,16 +19,8 @@ internal sealed class Chunk
         ComponentRowOperations[] rowOperations,
         int globalId)
     {
-        if (capacity <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(capacity));
-        }
-
-        if (layouts.Length == 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(layouts));
-        }
-
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(layouts.Length, nameof(layouts));
         if (rowOperations.Length != layouts.Length)
         {
             throw new ArgumentException("Each component row must have cached operations.", nameof(rowOperations));
@@ -40,14 +32,9 @@ internal sealed class Chunk
         _componentRows = new Array[layouts.Length];
         _rowOperations = rowOperations;
         _componentVersions = new uint[layouts.Length];
-        for (var index = 0; index < layouts.Length; index++)
+        for (int index = 0; index < layouts.Length; index++)
         {
-            var runtimeType = layouts[index].RuntimeType;
-            if (runtimeType is null)
-            {
-                throw new InvalidOperationException("ArrayRows requires a type-backed component layout. Use Register<T> or RegisterUnmanaged<T>.");
-            }
-
+            var runtimeType = layouts[index].RuntimeType ?? throw new InvalidOperationException("ArrayRows requires a type-backed component layout. Use Register<T> or RegisterUnmanaged<T>.");
             _componentRows[index] = Array.CreateInstance(runtimeType, capacity);
         }
     }
@@ -71,7 +58,7 @@ internal sealed class Chunk
             throw new InvalidOperationException("Chunk is full.");
         }
 
-        var slotIndex = _count++;
+        int slotIndex = _count++;
         reusedSlot = slotIndex < _highWaterMark;
         if (_count > _highWaterMark)
         {
@@ -89,7 +76,7 @@ internal sealed class Chunk
             throw new ArgumentOutOfRangeException(nameof(count));
         }
 
-        var start = _count;
+        int start = _count;
         _count += count;
         if (_count > _highWaterMark)
         {
@@ -106,7 +93,7 @@ internal sealed class Chunk
             throw new ArgumentOutOfRangeException(nameof(slotIndex));
         }
 
-        var lastSlotIndex = _count - 1;
+        int lastSlotIndex = _count - 1;
         var moved = _entities[lastSlotIndex];
         if (slotIndex < lastSlotIndex)
         {
@@ -121,13 +108,11 @@ internal sealed class Chunk
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Span<T> GetComponentRow<T>(int componentIndex)
-    {
+    public Span<T> GetComponentRow<T>(int componentIndex) =>
         // Component layout/type compatibility is validated before this
         // internal hot path is reached. Avoid repeating the array cast check
         // for every row requested by every chunk.
-        return Unsafe.As<T[]>(_componentRows.Ref(componentIndex)).AsSpan(0, _count);
-    }
+        Unsafe.As<T[]>(_componentRows.Ref(componentIndex)).AsSpan(0, _count);
 
     public Array GetRawComponentRow(int componentIndex) => _componentRows[componentIndex];
 
@@ -170,7 +155,7 @@ internal sealed class Chunk
 
     private void CopySlot(int sourceSlotIndex, int destinationSlotIndex)
     {
-        for (var componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
+        for (int componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
         {
             CopySlot(sourceSlotIndex, destinationSlotIndex, componentIndex);
         }
@@ -178,7 +163,7 @@ internal sealed class Chunk
 
     private void ClearReferenceRows(int slotIndex)
     {
-        for (var componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
+        for (int componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
         {
             ref readonly var operations = ref _rowOperations[componentIndex];
             if (operations.ContainsReferences)
@@ -190,7 +175,7 @@ internal sealed class Chunk
 
     public void InitializeSlot(int slotIndex)
     {
-        for (var componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
+        for (int componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
         {
             _rowOperations[componentIndex].ClearOne(_componentRows[componentIndex], slotIndex);
         }
@@ -198,16 +183,16 @@ internal sealed class Chunk
 
     public void InitializeRows(int slotIndex, ReadOnlySpan<int> componentIndices)
     {
-        for (var index = 0; index < componentIndices.Length; index++)
+        for (int index = 0; index < componentIndices.Length; index++)
         {
-            var componentIndex = componentIndices[index];
+            int componentIndex = componentIndices[index];
             _rowOperations[componentIndex].ClearOne(_componentRows[componentIndex], slotIndex);
         }
     }
 
     public void InitializeRowsRange(int slotIndex, int count, ReadOnlySpan<int> componentIndices)
     {
-        for (var index = 0; index < componentIndices.Length; index++)
+        for (int index = 0; index < componentIndices.Length; index++)
         {
             Array.Clear(_componentRows[componentIndices[index]], slotIndex, count);
         }
@@ -215,7 +200,7 @@ internal sealed class Chunk
 
     public void ClearAll()
     {
-        for (var componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
+        for (int componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
         {
             if (_rowOperations[componentIndex].ContainsReferences)
             {

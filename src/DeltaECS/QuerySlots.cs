@@ -49,7 +49,7 @@ public ref struct QuerySlots
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows.Ref(access.QueryComponentIndex);
+        int physicalRow = _plan.ComponentRows.Ref(access.QueryComponentIndex);
         return new ReadValues(_componentRows.Ref(physicalRow));
     }
 
@@ -61,7 +61,7 @@ public ref struct QuerySlots
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows.Ref(access.QueryComponentIndex);
+        int physicalRow = _plan.ComponentRows.Ref(access.QueryComponentIndex);
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
         return new WriteValues(_componentRows.Ref(physicalRow));
     }
@@ -74,7 +74,7 @@ public ref struct QuerySlots
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows.Ref(request.QueryComponentIndex);
+        int physicalRow = _plan.ComponentRows.Ref(request.QueryComponentIndex);
         return new ReadValues(_componentRows.Ref(physicalRow));
     }
 
@@ -86,7 +86,7 @@ public ref struct QuerySlots
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows.Ref(request.QueryComponentIndex);
+        int physicalRow = _plan.ComponentRows.Ref(request.QueryComponentIndex);
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
         return new WriteValues(_componentRows.Ref(physicalRow));
     }
@@ -100,7 +100,7 @@ public ref struct QuerySlots
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows.Ref(request.QueryComponentIndex);
+        int physicalRow = _plan.ComponentRows.Ref(request.QueryComponentIndex);
         return new ReadValues<T>(_chunk.GetComponentRow<T>(_componentRows, physicalRow));
     }
 
@@ -113,7 +113,7 @@ public ref struct QuerySlots
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows.Ref(request.QueryComponentIndex);
+        int physicalRow = _plan.ComponentRows.Ref(request.QueryComponentIndex);
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
         return new WriteValues<T>(_chunk.GetComponentRow<T>(_componentRows, physicalRow));
     }

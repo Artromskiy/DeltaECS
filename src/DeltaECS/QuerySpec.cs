@@ -50,17 +50,17 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
         hash.Add(AnyMask);
         hash.Add(NoneMask);
 
-        for (var i = 0; i < AllTags.Length; i++)
+        for (int i = 0; i < AllTags.Length; i++)
         {
             hash.Add(AllTags[i].Value);
         }
 
-        for (var i = 0; i < AnyTags.Length; i++)
+        for (int i = 0; i < AnyTags.Length; i++)
         {
             hash.Add(AnyTags[i].Value);
         }
 
-        for (var i = 0; i < NoneTags.Length; i++)
+        for (int i = 0; i < NoneTags.Length; i++)
         {
             hash.Add(NoneTags[i].Value);
         }
@@ -71,7 +71,7 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
     private static ComponentMask BuildMask(ComponentId[] ids)
     {
         var mask = default(ComponentMask);
-        for (var i = 0; i < ids.Length; i++)
+        for (int i = 0; i < ids.Length; i++)
         {
             if (!ids[i].IsValid)
             {
@@ -91,7 +91,7 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
             return Array.Empty<TagId>();
         }
 
-        for (var i = 0; i < ids.Length; i++)
+        for (int i = 0; i < ids.Length; i++)
         {
             if (!ids[i].IsValid)
             {
@@ -101,7 +101,7 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
 
         var set = new HashSet<TagId>(ids);
         var normalized = new TagId[set.Count];
-        var index = 0;
+        int index = 0;
         foreach (var tag in set)
         {
             normalized[index++] = tag;
@@ -133,7 +133,7 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
             return false;
         }
 
-        for (var i = 0; i < AllTags.Length; i++)
+        for (int i = 0; i < AllTags.Length; i++)
         {
             if (!AllTags[i].Equals(other.AllTags[i]))
             {
@@ -141,7 +141,7 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
             }
         }
 
-        for (var i = 0; i < AnyTags.Length; i++)
+        for (int i = 0; i < AnyTags.Length; i++)
         {
             if (!AnyTags[i].Equals(other.AnyTags[i]))
             {
@@ -149,7 +149,7 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
             }
         }
 
-        for (var i = 0; i < NoneTags.Length; i++)
+        for (int i = 0; i < NoneTags.Length; i++)
         {
             if (!NoneTags[i].Equals(other.NoneTags[i]))
             {

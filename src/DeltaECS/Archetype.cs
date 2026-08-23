@@ -60,8 +60,8 @@ internal sealed class Archetype
     {
         get
         {
-            var count = 0;
-            for (var i = 0; i < _chunks.Count; i++)
+            int count = 0;
+            for (int i = 0; i < _chunks.Count; i++)
             {
                 count += _chunks[i].Count;
             }
@@ -90,10 +90,10 @@ internal sealed class Archetype
         out int slotIndex,
         out bool reusedSlot)
     {
-        if (TryTakeAvailableChunk(out var availableIndex, out var available))
+        if (TryTakeAvailableChunk(out int availableIndex, out var available))
         {
             chunkIndex = availableIndex;
-            var wasEmpty = available.IsEmpty;
+            bool wasEmpty = available.IsEmpty;
             slotIndex = available.Add(entity, out reusedSlot);
             if (wasEmpty)
             {
@@ -122,12 +122,9 @@ internal sealed class Archetype
 
     public int ReserveRange(int count, int chunkId, out int chunkIndex, out Chunk chunk)
     {
-        if (count <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(count));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
 
-        if (TryTakeAvailableChunk(out var availableIndex, out var available))
+        if (TryTakeAvailableChunk(out int availableIndex, out var available))
         {
             chunkIndex = availableIndex;
             chunk = available;
@@ -141,8 +138,8 @@ internal sealed class Archetype
             _activeChunkPositions[chunkIndex] = -1;
         }
 
-        var wasEmpty = chunk.IsEmpty;
-        var reserved = Math.Min(count, chunk.Capacity - chunk.Count);
+        bool wasEmpty = chunk.IsEmpty;
+        int reserved = Math.Min(count, chunk.Capacity - chunk.Count);
         chunk.ReserveRange(reserved);
         if (wasEmpty && reserved > 0)
         {
@@ -184,7 +181,7 @@ internal sealed class Archetype
     {
         while (_availableChunkStack.Count != 0)
         {
-            var stackIndex = _availableChunkStack.Count - 1;
+            int stackIndex = _availableChunkStack.Count - 1;
             chunkIndex = _availableChunkStack[stackIndex];
             _availableChunkStack.RemoveAt(stackIndex);
             _availableChunkFlags[chunkIndex] = false;
@@ -215,7 +212,7 @@ internal sealed class Archetype
     {
         if (chunkIndex >= _availableChunkFlags.Length)
         {
-            var capacity = Math.Max(chunkIndex + 1, _availableChunkFlags.Length == 0 ? 4 : _availableChunkFlags.Length * 2);
+            int capacity = Math.Max(chunkIndex + 1, _availableChunkFlags.Length == 0 ? 4 : _availableChunkFlags.Length * 2);
             Array.Resize(ref _availableChunkFlags, capacity);
             Array.Resize(ref _activeChunkPositions, capacity);
         }
@@ -230,7 +227,7 @@ internal sealed class Archetype
 
         if (_activeChunkCount == _activeChunkIndices.Length)
         {
-            var capacity = Math.Max(4, _activeChunkIndices.Length * 2);
+            int capacity = Math.Max(4, _activeChunkIndices.Length * 2);
             Array.Resize(ref _activeChunkIndices, capacity);
             Array.Resize(ref _activeChunks, capacity);
         }
@@ -242,14 +239,14 @@ internal sealed class Archetype
 
     private void DeactivateChunk(int chunkIndex)
     {
-        var position = _activeChunkPositions[chunkIndex];
+        int position = _activeChunkPositions[chunkIndex];
         if (position < 0)
         {
             return;
         }
 
-        var lastPosition = --_activeChunkCount;
-        var movedChunkIndex = _activeChunkIndices[lastPosition];
+        int lastPosition = --_activeChunkCount;
+        int movedChunkIndex = _activeChunkIndices[lastPosition];
         if (position != lastPosition)
         {
             _activeChunkIndices[position] = movedChunkIndex;

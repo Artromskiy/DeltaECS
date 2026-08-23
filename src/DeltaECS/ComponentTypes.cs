@@ -53,7 +53,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
     public static ComponentMask From(ReadOnlySpan<ComponentId> componentIds)
     {
         var mask = default(ComponentMask);
-        for (var i = 0; i < componentIds.Length; i++)
+        for (int i = 0; i < componentIds.Length; i++)
         {
             mask = mask.Set(componentIds[i]);
         }
@@ -63,9 +63,9 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
 
     public ComponentMask Set(ComponentId componentId)
     {
-        var value = Validate(componentId);
-        var word = value >> 6;
-        var bit = 1UL << (value & 63);
+        int value = Validate(componentId);
+        int word = value >> 6;
+        ulong bit = 1UL << (value & 63);
         return word switch
         {
             0 => new ComponentMask(_word0 | bit, _word1, _word2, _word3),
@@ -82,7 +82,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
             return false;
         }
 
-        var bit = 1UL << (componentId.Value & 63);
+        ulong bit = 1UL << (componentId.Value & 63);
         return (GetWord(componentId.Value >> 6) & bit) != 0;
     }
 
@@ -100,15 +100,9 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
             | (_word2 & other._word2) | (_word3 & other._word3)) != 0;
     }
 
-    public ComponentMask Or(ComponentMask other)
-    {
-        return new ComponentMask(_word0 | other._word0, _word1 | other._word1, _word2 | other._word2, _word3 | other._word3);
-    }
+    public ComponentMask Or(ComponentMask other) => new ComponentMask(_word0 | other._word0, _word1 | other._word1, _word2 | other._word2, _word3 | other._word3);
 
-    public ComponentMask Except(ComponentMask other)
-    {
-        return new ComponentMask(_word0 & ~other._word0, _word1 & ~other._word1, _word2 & ~other._word2, _word3 & ~other._word3);
-    }
+    public ComponentMask Except(ComponentMask other) => new ComponentMask(_word0 & ~other._word0, _word1 & ~other._word1, _word2 & ~other._word2, _word3 & ~other._word3);
 
     public int Rank(ComponentId componentId)
     {
@@ -117,10 +111,10 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
             return -1;
         }
 
-        var value = componentId.Value;
-        var word = value >> 6;
-        var bit = value & 63;
-        var rank = word switch
+        int value = componentId.Value;
+        int word = value >> 6;
+        int bit = value & 63;
+        int rank = word switch
         {
             0 => 0,
             1 => BitOperations.PopCount(_word0),
@@ -128,7 +122,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
             _ => BitOperations.PopCount(_word0) + BitOperations.PopCount(_word1) + BitOperations.PopCount(_word2)
         };
 
-        var lowerBits = bit == 0 ? 0UL : GetWord(word) & ((1UL << bit) - 1UL);
+        ulong lowerBits = bit == 0 ? 0UL : GetWord(word) & ((1UL << bit) - 1UL);
         return rank + BitOperations.PopCount(lowerBits);
     }
 
@@ -164,7 +158,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
         {
             while (_wordIndex < 4)
             {
-                var word = _wordIndex switch
+                ulong word = _wordIndex switch
                 {
                     0 => _word0,
                     1 => _word1,
@@ -177,7 +171,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
                     continue;
                 }
 
-                var bit = BitOperations.TrailingZeroCount(word);
+                int bit = BitOperations.TrailingZeroCount(word);
                 switch (_wordIndex)
                 {
                     case 0:
@@ -209,7 +203,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
             throw new ArgumentException("Destination is too small.", nameof(destination));
         }
 
-        var offset = CopyWord(_word0, 0, destination, 0);
+        int offset = CopyWord(_word0, 0, destination, 0);
         offset = CopyWord(_word1, 64, destination, offset);
         offset = CopyWord(_word2, 128, destination, offset);
         CopyWord(_word3, 192, destination, offset);
@@ -244,7 +238,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
     {
         while (word != 0)
         {
-            var bit = BitOperations.TrailingZeroCount(word);
+            int bit = BitOperations.TrailingZeroCount(word);
             destination[offset++] = new ComponentId(baseValue + bit);
             word &= word - 1;
         }
@@ -320,10 +314,7 @@ public readonly struct ComponentLayout : IEquatable<ComponentLayout>
         ComponentStorageClass storageClass = ComponentStorageClass.Dense,
         int alignment = 1)
     {
-        if (runtimeType is null)
-        {
-            throw new ArgumentNullException(nameof(runtimeType));
-        }
+        ArgumentNullException.ThrowIfNull(runtimeType);
 
         if (alignment <= 0)
         {
@@ -349,10 +340,7 @@ public readonly struct ComponentLayout : IEquatable<ComponentLayout>
         int alignment,
         ComponentStorageClass storageClass)
     {
-        if (size <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(size));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size);
 
         if (alignment <= 0)
         {
@@ -382,20 +370,11 @@ public readonly struct ComponentLayout : IEquatable<ComponentLayout>
 
     public RuntimeTypeHandle RuntimeTypeHandle { get; }
 
-    public static int Align(int size, int alignment)
-    {
-        return (size + alignment - 1) / alignment * alignment;
-    }
+    public static int Align(int size, int alignment) => (size + alignment - 1) / alignment * alignment;
 
-    public bool Equals(ComponentLayout other)
-    {
-        return SchemaId == other.SchemaId && Size == other.Size && Alignment == other.Alignment && StorageClass == other.StorageClass && Stride == other.Stride && RuntimeType == other.RuntimeType;
-    }
+    public bool Equals(ComponentLayout other) => SchemaId == other.SchemaId && Size == other.Size && Alignment == other.Alignment && StorageClass == other.StorageClass && Stride == other.Stride && RuntimeType == other.RuntimeType;
 
     public override bool Equals(object? obj) => obj is ComponentLayout other && Equals(other);
 
-    public override int GetHashCode()
-    {
-        return HashCode.Combine(SchemaId.Value, Size, Alignment, (int)StorageClass, Stride, RuntimeType);
-    }
+    public override int GetHashCode() => HashCode.Combine(SchemaId.Value, Size, Alignment, (int)StorageClass, Stride, RuntimeType);
 }

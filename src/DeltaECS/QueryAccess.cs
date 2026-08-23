@@ -47,7 +47,7 @@ public ref struct QueryChunkCursor
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNext()
     {
-        var next = _index - 1;
+        int next = _index - 1;
         if (next < 0)
         {
             _index = -1;
@@ -65,7 +65,7 @@ public ref struct QueryChunkCursor
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _componentRows[access.QueryComponentIndex];
+        int physicalRow = _componentRows[access.QueryComponentIndex];
         return new ReadValues(_chunk.GetRawComponentRow(physicalRow));
     }
 
@@ -76,7 +76,7 @@ public ref struct QueryChunkCursor
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _componentRows[access.QueryComponentIndex];
+        int physicalRow = _componentRows[access.QueryComponentIndex];
         if (_writeTick == 0)
         {
             QueryThrowHelper.ThrowMissingWriteIntent();
@@ -105,7 +105,7 @@ public ref struct QueryChunkCursor
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _componentRows[request.QueryComponentIndex];
+        int physicalRow = _componentRows[request.QueryComponentIndex];
         if (_writeTick == 0)
         {
             QueryThrowHelper.ThrowMissingWriteIntent();
@@ -124,7 +124,7 @@ public ref struct QueryChunkCursor
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _componentRows[request.QueryComponentIndex];
+        int physicalRow = _componentRows[request.QueryComponentIndex];
         return new ReadValues<T>(_chunk.GetComponentRow<T>(physicalRow));
     }
 
@@ -137,7 +137,7 @@ public ref struct QueryChunkCursor
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _componentRows[request.QueryComponentIndex];
+        int physicalRow = _componentRows[request.QueryComponentIndex];
         if (_writeTick == 0)
         {
             QueryThrowHelper.ThrowMissingWriteIntent();
@@ -162,7 +162,7 @@ public ref struct QueryChunkCursor
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _componentRows[access.QueryComponentIndex];
+        int physicalRow = _componentRows[access.QueryComponentIndex];
         return new ReadValues(_chunk.GetRawComponentRow(physicalRow));
     }
 
@@ -173,7 +173,7 @@ public ref struct QueryChunkCursor
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _componentRows[access.QueryComponentIndex];
+        int physicalRow = _componentRows[access.QueryComponentIndex];
         if (_writeTick == 0)
         {
             QueryThrowHelper.ThrowMissingWriteIntent();
@@ -195,16 +195,10 @@ public ref struct ReadValues
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref readonly T Ref<T>(QueryChunkCursor cursor)
-    {
-        return ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), cursor.CurrentIndex);
-    }
+    public ref readonly T Ref<T>(QueryChunkCursor cursor) => ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), cursor.CurrentIndex);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref readonly T Ref<T>(QuerySlots slots)
-    {
-        return ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), slots.CurrentIndex);
-    }
+    public ref readonly T Ref<T>(QuerySlots slots) => ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), slots.CurrentIndex);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ref byte GetArrayDataReference(Array row)
@@ -222,16 +216,10 @@ public ref struct WriteValues
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T Ref<T>(QueryChunkCursor cursor)
-    {
-        return ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), cursor.CurrentIndex);
-    }
+    public ref T Ref<T>(QueryChunkCursor cursor) => ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), cursor.CurrentIndex);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T Ref<T>(QuerySlots slots)
-    {
-        return ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), slots.CurrentIndex);
-    }
+    public ref T Ref<T>(QuerySlots slots) => ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), slots.CurrentIndex);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ref byte GetArrayDataReference(Array row)
@@ -432,7 +420,7 @@ internal sealed class QueryPlan
 
         var matches = new List<int>(world.Archetypes.Count);
         var plans = new List<DenseArchetypePlan>(world.Archetypes.Count);
-        for (var archetypeId = 0; archetypeId < world.Archetypes.Count; archetypeId++)
+        for (int archetypeId = 0; archetypeId < world.Archetypes.Count; archetypeId++)
         {
             var archetype = world.Archetypes[archetypeId];
             if (!Matches(archetype))
@@ -440,8 +428,8 @@ internal sealed class QueryPlan
                 continue;
             }
 
-            var indices = new int[_description.AllMask.Count];
-            var componentIndex = 0;
+            int[] indices = new int[_description.AllMask.Count];
+            int componentIndex = 0;
             foreach (var componentId in _description.AllMask)
             {
                 indices[componentIndex++] = archetype.Mask.Rank(componentId);
