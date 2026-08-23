@@ -10,6 +10,7 @@ public ref struct QueryScope
     private readonly QueryPlan _query;
     private readonly DenseArchetypePlan[] _plans;
     private readonly uint _writeTick;
+    private readonly Stamp _writeStamp;
     private bool _disposed;
 
     internal QueryScope(World owner, in Query handle)
@@ -22,7 +23,7 @@ public ref struct QueryScope
         _owner = owner;
         _query = handle.Cached;
         _plans = _query.MatchingPlans(owner);
-        _writeTick = owner.GetQueryWriteTick(_query);
+        _writeTick = owner.GetQueryWriteTick(_query, out _writeStamp);
         _disposed = false;
         _owner.BeginQueryLease();
     }
@@ -32,7 +33,7 @@ public ref struct QueryScope
         get
         {
             EnsureActive();
-            return new QueryArchetypes(_plans, _query, _writeTick);
+            return new QueryArchetypes(_plans, _query, _writeTick, _writeStamp);
         }
     }
 

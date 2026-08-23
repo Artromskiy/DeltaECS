@@ -26,6 +26,7 @@ public sealed class World : IDisposable
     private int _nextChunkId;
     private int _activeChunkLeases;
     private int _archetypeVersion;
+    private MutationStampSource _mutationStamps;
     private bool _disposed;
 
     public World(
@@ -45,6 +46,8 @@ public sealed class World : IDisposable
     public int ArchetypeVersion => _archetypeVersion;
 
     public uint WorldTick { get; private set; }
+
+    public Stamp Stamp => _mutationStamps.Current;
 
     public int AliveEntityCount { get; private set; }
 
@@ -134,6 +137,12 @@ public sealed class World : IDisposable
 
     private int CreateBatch(Archetype archetype, Span<Entity> output)
     {
+        if (output.Length == 0)
+        {
+            return 0;
+        }
+
+        Stamp stamp = _mutationStamps.Next();
         for (int i = 0; i < output.Length; i++)
         {
             int recordIndex = AllocateRecord();
@@ -150,6 +159,7 @@ public sealed class World : IDisposable
             {
                 archetype.GetChunk(chunkIndex).InitializeSlot(slotIndex);
             }
+            archetype.GetChunk(chunkIndex).StampAll(slotIndex, stamp);
             record.Archetype = archetype.Id;
             record.Chunk = chunkIndex;
             record.SlotIndex = slotIndex;
@@ -181,6 +191,7 @@ public sealed class World : IDisposable
         }
 
         DestroyResolved(recordIndex);
+        _ = _mutationStamps.Next();
         return true;
     }
 
@@ -221,6 +232,11 @@ public sealed class World : IDisposable
             destroyed++;
         }
 
+        if (destroyed != 0)
+        {
+            _ = _mutationStamps.Next();
+        }
+
         return destroyed;
     }
 
@@ -255,8 +271,31 @@ public sealed class World : IDisposable
 
     public bool SetComponent<T>(Entity entity, ComponentId componentId, in T value)
     {
-        return TryResolve(entity, out int recordIndex)
-            && SetComponentUnchecked(recordIndex, componentId, value);
+        if (!TryResolve(entity, out int recordIndex))
+        {
+            return false;
+        }
+
+        return SetComponentUnchecked(recordIndex, componentId, value);
+    }
+
+    public bool TryGetComponentStamp(Entity entity, ComponentId componentId, out Stamp stamp)
+    {
+        stamp = default;
+        if (!TryResolve(entity, out int recordIndex))
+        {
+            return false;
+        }
+
+        ref readonly var record = ref RecordAt(recordIndex);
+        var archetype = _archetypes[record.Archetype];
+        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
+        {
+            return false;
+        }
+
+        stamp = archetype.GetChunk(record.Chunk).GetComponentStamp(componentIndex, record.SlotIndex);
+        return true;
     }
 
     public bool TryGetComponent<T>(Entity entity, ComponentId componentId, out T value)
@@ -320,6 +359,11 @@ public sealed class World : IDisposable
             }
         }
 
+        if (destroyed != 0)
+        {
+            _ = _mutationStamps.Next();
+        }
+
         return destroyed;
     }
 
@@ -336,7 +380,7 @@ public sealed class World : IDisposable
 
         var cached = handle.Cached;
         var plans = cached.MatchingPlans(this);
-        uint writeTick = QueryWriteTick(cached);
+        uint writeTick = QueryWriteTick(cached, out Stamp writeStamp);
         _activeChunkLeases++;
         try
         {
@@ -347,7 +391,7 @@ public sealed class World : IDisposable
                 for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
                 {
                     var chunk = archetype.GetActiveChunk(chunkIndex);
-                    var cursor = new QueryChunkCursor(cached, archetype.Id, chunk, plan.ComponentRows, writeTick);
+                    var cursor = new QueryChunkCursor(cached, archetype.Id, chunk, plan.ComponentRows, writeTick, writeStamp);
                     action(ref context, ref cursor);
                 }
             }
@@ -359,8 +403,17 @@ public sealed class World : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private uint QueryWriteTick(QueryPlan cached) =>
-        cached.HasWriteAccess ? AdvanceWorldTick() : 0;
+    private uint QueryWriteTick(QueryPlan cached, out Stamp writeStamp)
+    {
+        if (!cached.HasWriteAccess)
+        {
+            writeStamp = default;
+            return 0;
+        }
+
+        writeStamp = _mutationStamps.Next();
+        return AdvanceWorldTick();
+    }
 
     public int CollectAliveEntities(Span<Entity> destination)
     {
@@ -388,7 +441,8 @@ public sealed class World : IDisposable
 
     internal void EndQueryLease() => _activeChunkLeases--;
 
-    internal uint GetQueryWriteTick(QueryPlan cached) => QueryWriteTick(cached);
+    internal uint GetQueryWriteTick(QueryPlan cached, out Stamp writeStamp)
+        => QueryWriteTick(cached, out writeStamp);
 
     private uint AdvanceWorldTick()
     {
@@ -428,6 +482,7 @@ public sealed class World : IDisposable
 
         int edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
         int changed = 0;
+        Stamp operationStamp = default;
         for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
         {
             var entity = entities[entityIndex];
@@ -447,7 +502,12 @@ public sealed class World : IDisposable
                 continue;
             }
 
-            MoveEntity(recordIndex, edge);
+            if (operationStamp == default)
+            {
+                operationStamp = _mutationStamps.Next();
+            }
+
+            MoveEntity(recordIndex, edge, operationStamp);
             changed++;
         }
 
@@ -472,6 +532,7 @@ public sealed class World : IDisposable
         ReadOnlySpan<int> matchingArchetypes = cached.MatchingArchetypes(this);
         int edgeStamp = BeginBatchEdgeCache();
         int changed = 0;
+        Stamp operationStamp = default;
         for (int matchingIndex = 0; matchingIndex < matchingArchetypes.Length; matchingIndex++)
         {
             var sourceArchetype = _archetypes[matchingArchetypes[matchingIndex]];
@@ -481,16 +542,26 @@ public sealed class World : IDisposable
                 continue;
             }
 
-            changed += MoveArchetypeBlocks(sourceArchetype, edge);
+            if (sourceArchetype.EntityCount == 0)
+            {
+                continue;
+            }
+
+            if (operationStamp == default)
+            {
+                operationStamp = _mutationStamps.Next();
+            }
+
+            changed += MoveArchetypeBlocks(sourceArchetype, edge, operationStamp);
         }
 
         return changed;
     }
 
-    private int MoveArchetypeBlocks(Archetype sourceArchetype, TransitionEdge edge)
-        => MoveArchetypeBlocksDense(sourceArchetype, edge);
+    private int MoveArchetypeBlocks(Archetype sourceArchetype, TransitionEdge edge, Stamp operationStamp)
+        => MoveArchetypeBlocksDense(sourceArchetype, edge, operationStamp);
 
-    private int MoveArchetypeBlocksDense(Archetype sourceArchetype, TransitionEdge edge)
+    private int MoveArchetypeBlocksDense(Archetype sourceArchetype, TransitionEdge edge, Stamp operationStamp)
     {
         int movedCount = 0;
         var targetArchetype = _archetypes[edge.TargetArchetypeId];
@@ -531,9 +602,17 @@ public sealed class World : IDisposable
                         targetChunk.GetRawComponentRow(targetComponentIndex),
                         targetSlot,
                         reserved);
+                    sourceChunk.CopyStampRangeTo(
+                        targetChunk,
+                        sourceSlot,
+                        targetSlot,
+                        reserved,
+                        sourceComponentIndex,
+                        targetComponentIndex);
                 }
 
                 targetChunk.InitializeRowsRange(targetSlot, reserved, edge.AddedTargetRowIndices);
+                targetChunk.StampRowsRange(targetSlot, reserved, edge.AddedTargetRowIndices, operationStamp);
                 for (int slot = 0; slot < reserved; slot++)
                 {
                     var entity = sourceEntities[sourceSlot + slot];
@@ -602,7 +681,7 @@ public sealed class World : IDisposable
         AliveEntityCount--;
     }
 
-    private void MoveEntity(int recordIndex, TransitionEdge edge)
+    private void MoveEntity(int recordIndex, TransitionEdge edge, Stamp operationStamp)
     {
         ref var sourceRecord = ref RecordAt(recordIndex);
         var sourceArchetype = _archetypes[sourceRecord.Archetype];
@@ -631,6 +710,10 @@ public sealed class World : IDisposable
         if (reusedTargetSlot)
         {
             targetChunk.InitializeRows(targetSlotIndex, edge.AddedTargetRowIndices);
+        }
+        for (int i = 0; i < edge.AddedTargetRowIndices.Length; i++)
+        {
+            targetChunk.MarkComponentStamped(edge.AddedTargetRowIndices[i], targetSlotIndex, operationStamp);
         }
 
         var moved = sourceArchetype.RemoveEntity(sourceChunkIndex, sourceSlotIndex);
@@ -703,7 +786,9 @@ public sealed class World : IDisposable
             return false;
         }
 
-        archetype.GetChunk(record.Chunk).GetComponentRow<T>(componentIndex)[record.SlotIndex] = value;
+        var chunk = archetype.GetChunk(record.Chunk);
+        chunk.GetComponentRow<T>(componentIndex)[record.SlotIndex] = value;
+        chunk.MarkComponentStamped(componentIndex, record.SlotIndex, _mutationStamps.Next());
         return true;
     }
 

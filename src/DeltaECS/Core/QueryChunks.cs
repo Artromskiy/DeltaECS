@@ -9,14 +9,16 @@ public ref struct QueryChunks
     private readonly QueryPlan _query;
     private readonly ReadOnlySpan<DenseChunkPlan> _chunks;
     private readonly uint _writeTick;
+    private readonly Stamp _writeStamp;
     private int _index;
 
-    internal QueryChunks(DenseArchetypePlan plan, QueryPlan query, uint writeTick)
+    internal QueryChunks(DenseArchetypePlan plan, QueryPlan query, uint writeTick, Stamp writeStamp)
     {
         _plan = plan;
         _query = query;
         _chunks = plan.Chunks;
         _writeTick = writeTick;
+        _writeStamp = writeStamp;
         _index = -1;
     }
 
@@ -30,7 +32,7 @@ public ref struct QueryChunks
                 QueryThrowHelper.ThrowChunkIteratorNotPositioned();
             }
 
-            return new QueryChunk(_plan, _chunks.Ref(_index), _query, _writeTick);
+            return new QueryChunk(_plan, _chunks.Ref(_index), _query, _writeTick, _writeStamp);
         }
     }
 
@@ -53,13 +55,15 @@ public readonly ref struct QueryChunk
     private readonly DenseChunkPlan _chunk;
     private readonly QueryPlan _query;
     private readonly uint _writeTick;
+    private readonly Stamp _writeStamp;
 
-    internal QueryChunk(DenseArchetypePlan plan, DenseChunkPlan chunk, QueryPlan query, uint writeTick)
+    internal QueryChunk(DenseArchetypePlan plan, DenseChunkPlan chunk, QueryPlan query, uint writeTick, Stamp writeStamp)
     {
         _plan = plan;
         _chunk = chunk;
         _query = query;
         _writeTick = writeTick;
+        _writeStamp = writeStamp;
     }
 
     public int ArchetypeId => _plan.Archetype.Id;
@@ -70,5 +74,5 @@ public readonly ref struct QueryChunk
 
     public ReadOnlySpan<Entity> Entities => _chunk.Chunk.Entities;
 
-    public QuerySlots Slots => new(_plan, _chunk, _query, _writeTick);
+    public QuerySlots Slots => new(_plan, _chunk, _query, _writeTick, _writeStamp);
 }

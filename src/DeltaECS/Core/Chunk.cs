@@ -10,6 +10,7 @@ internal sealed class Chunk
     private readonly ComponentRowOperations[] _rowOperations;
     private NativeMemory<uint> _componentVersions;
     private NativeMemory<Entity> _entities;
+    private ComponentStampStorage _componentStamps;
     private int _count;
     private int _highWaterMark;
 
@@ -29,6 +30,7 @@ internal sealed class Chunk
         _capacity = capacity;
         GlobalId = globalId;
         _entities = new NativeMemory<Entity>(capacity);
+        _componentStamps = new ComponentStampStorage(layouts.Length, capacity);
         _componentRows = new Array[layouts.Length];
         _rowOperations = rowOperations;
         _componentVersions = new NativeMemory<uint>(layouts.Length);
@@ -99,10 +101,12 @@ internal sealed class Chunk
         {
             _entities[slotIndex] = moved;
             CopySlot(lastSlotIndex, slotIndex);
+            _componentStamps.CopySlot(lastSlotIndex, slotIndex);
         }
 
         _entities[lastSlotIndex] = Entity.Null;
         ClearReferenceRows(lastSlotIndex);
+        _componentStamps.ClearSlot(lastSlotIndex);
         _count = lastSlotIndex;
         return slotIndex < lastSlotIndex ? moved : Entity.Null;
     }
@@ -128,7 +132,22 @@ internal sealed class Chunk
     internal uint GetComponentVersion(int componentIndex) => _componentVersions[componentIndex];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void MarkComponentWritten(int componentIndex, uint worldTick) => _componentVersions[componentIndex] = worldTick;
+    internal void MarkComponentWritten(int componentIndex, uint worldTick, Stamp stamp)
+    {
+        _componentVersions[componentIndex] = worldTick;
+        _componentStamps.SetComponentRange(componentIndex, 0, _count, stamp);
+    }
+
+    internal Stamp GetComponentStamp(int componentIndex, int slotIndex)
+        => _componentStamps.Get(componentIndex, slotIndex);
+
+    internal void MarkComponentStamped(int componentIndex, int slotIndex, Stamp stamp)
+        => _componentStamps.Set(componentIndex, slotIndex, stamp);
+
+    internal void StampAll(int slotIndex, Stamp stamp) => _componentStamps.SetSlot(slotIndex, stamp);
+
+    internal void StampRowsRange(int slotIndex, int count, ReadOnlySpan<int> componentIndices, Stamp stamp)
+        => _componentStamps.SetRowsRange(slotIndex, count, componentIndices, stamp);
 
     internal void ClearComponentVersions() => _componentVersions.Clear();
 
@@ -140,6 +159,29 @@ internal sealed class Chunk
             target._componentRows[targetComponentIndex],
             targetSlotIndex,
             1);
+        _componentStamps.CopyComponentSlotTo(
+            ref target._componentStamps,
+            sourceSlotIndex,
+            targetSlotIndex,
+            sourceComponentIndex,
+            targetComponentIndex);
+    }
+
+    public void CopyStampRangeTo(
+        Chunk target,
+        int sourceSlotIndex,
+        int targetSlotIndex,
+        int count,
+        int sourceComponentIndex,
+        int targetComponentIndex)
+    {
+        _componentStamps.CopyComponentRangeTo(
+            ref target._componentStamps,
+            sourceSlotIndex,
+            targetSlotIndex,
+            count,
+            sourceComponentIndex,
+            targetComponentIndex);
     }
 
     public void CopySlot(int sourceSlotIndex, int destinationSlotIndex, int componentIndex)
@@ -211,12 +253,14 @@ internal sealed class Chunk
         }
 
         _entities.Span[.._count].Clear();
+        _componentStamps.ClearRange(0, _count);
         _count = 0;
     }
 
     internal void Dispose()
     {
         _componentVersions.Dispose();
+        _componentStamps.Dispose();
         _entities.Dispose();
     }
 }

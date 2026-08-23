@@ -11,16 +11,24 @@ public ref struct QueryChunkCursor
     private readonly Chunk _chunk;
     private readonly ReadOnlySpan<int> _componentRows;
     private readonly uint _writeTick;
+    private readonly Stamp _writeStamp;
     private readonly int _count;
     private int _index;
 
-    internal QueryChunkCursor(QueryPlan query, int archetypeId, Chunk chunk, ReadOnlySpan<int> componentRows, uint writeTick)
+    internal QueryChunkCursor(
+        QueryPlan query,
+        int archetypeId,
+        Chunk chunk,
+        ReadOnlySpan<int> componentRows,
+        uint writeTick,
+        Stamp writeStamp)
     {
         _query = query;
         ArchetypeId = archetypeId;
         _chunk = chunk;
         _componentRows = componentRows;
         _writeTick = writeTick;
+        _writeStamp = writeStamp;
         _count = chunk.Count;
         _index = -1;
     }
@@ -69,7 +77,7 @@ public ref struct QueryChunkCursor
             QueryThrowHelper.ThrowMissingWriteIntent();
         }
 
-        _chunk.MarkComponentWritten(physicalRow, _writeTick);
+        _chunk.MarkComponentWritten(physicalRow, _writeTick, _writeStamp);
         return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
     }
 
@@ -97,7 +105,7 @@ public ref struct QueryChunkCursor
             QueryThrowHelper.ThrowMissingWriteIntent();
         }
 
-        _chunk.MarkComponentWritten(physicalRow, _writeTick);
+        _chunk.MarkComponentWritten(physicalRow, _writeTick, _writeStamp);
         return new ObjectWriteValues(_chunk.GetRawComponentRow(physicalRow));
     }
 
@@ -136,7 +144,7 @@ public ref struct QueryChunkCursor
             QueryThrowHelper.ThrowMissingWriteIntent();
         }
 
-        _chunk.MarkComponentWritten(physicalRow, _writeTick);
+        _chunk.MarkComponentWritten(physicalRow, _writeTick, _writeStamp);
         return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
     }
 
@@ -153,7 +161,7 @@ public ref struct QueryChunkCursor
             QueryThrowHelper.ThrowMissingWriteIntent();
         }
 
-        _chunk.MarkComponentWritten(physicalRow, _writeTick);
+        _chunk.MarkComponentWritten(physicalRow, _writeTick, _writeStamp);
         return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
     }
 }

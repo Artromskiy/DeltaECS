@@ -8,13 +8,15 @@ public ref struct QueryArchetypes
     private readonly ReadOnlySpan<DenseArchetypePlan> _plans;
     private readonly QueryPlan _query;
     private readonly uint _writeTick;
+    private readonly Stamp _writeStamp;
     private int _index;
 
-    internal QueryArchetypes(DenseArchetypePlan[] plans, QueryPlan query, uint writeTick)
+    internal QueryArchetypes(DenseArchetypePlan[] plans, QueryPlan query, uint writeTick, Stamp writeStamp)
     {
         _plans = plans;
         _query = query;
         _writeTick = writeTick;
+        _writeStamp = writeStamp;
         _index = -1;
     }
 
@@ -28,7 +30,7 @@ public ref struct QueryArchetypes
                 QueryThrowHelper.ThrowArchetypeIteratorNotPositioned();
             }
 
-            return new QueryArchetype(_plans.Ref(_index), _query, _writeTick);
+            return new QueryArchetype(_plans.Ref(_index), _query, _writeTick, _writeStamp);
         }
     }
 
@@ -50,12 +52,14 @@ public readonly ref struct QueryArchetype
     private readonly DenseArchetypePlan _plan;
     private readonly QueryPlan _query;
     private readonly uint _writeTick;
+    private readonly Stamp _writeStamp;
 
-    internal QueryArchetype(DenseArchetypePlan plan, QueryPlan query, uint writeTick)
+    internal QueryArchetype(DenseArchetypePlan plan, QueryPlan query, uint writeTick, Stamp writeStamp)
     {
         _plan = plan;
         _query = query;
         _writeTick = writeTick;
+        _writeStamp = writeStamp;
     }
 
     public int ArchetypeId => _plan.Archetype.Id;
@@ -64,5 +68,5 @@ public readonly ref struct QueryArchetype
 
     public int ChunkCount => _plan.Archetype.ActiveChunkCount;
 
-    public QueryChunks Chunks => new(_plan, _query, _writeTick);
+    public QueryChunks Chunks => new(_plan, _query, _writeTick, _writeStamp);
 }

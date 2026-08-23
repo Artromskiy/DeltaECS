@@ -11,16 +11,18 @@ public ref struct QuerySlots
     private readonly Array[] _resolvedRowsByQuery;
     private readonly QueryPlan _query;
     private readonly uint _writeTick;
+    private readonly Stamp _writeStamp;
     private readonly int _count;
     private int _index;
 
-    internal QuerySlots(DenseArchetypePlan plan, DenseChunkPlan chunkPlan, QueryPlan query, uint writeTick)
+    internal QuerySlots(DenseArchetypePlan plan, DenseChunkPlan chunkPlan, QueryPlan query, uint writeTick, Stamp writeStamp)
     {
         _componentRowsByQuery = plan.ComponentRows;
         _chunk = chunkPlan.Chunk;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
         _query = query;
         _writeTick = writeTick;
+        _writeStamp = writeStamp;
         _count = chunkPlan.Chunk.Count;
         _index = -1;
     }
@@ -57,7 +59,7 @@ public ref struct QuerySlots
         }
 
         int physicalRow = _componentRowsByQuery.Ref(access.QueryComponentIndex);
-        _chunk.MarkComponentWritten(physicalRow, _writeTick);
+        _chunk.MarkComponentWritten(physicalRow, _writeTick, _writeStamp);
         return new WriteValues(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
     }
 
@@ -79,7 +81,7 @@ public ref struct QuerySlots
         }
 
         int physicalRow = _componentRowsByQuery.Ref(access.QueryComponentIndex);
-        _chunk.MarkComponentWritten(physicalRow, _writeTick);
+        _chunk.MarkComponentWritten(physicalRow, _writeTick, _writeStamp);
         return new ObjectWriteValues(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
     }
 
