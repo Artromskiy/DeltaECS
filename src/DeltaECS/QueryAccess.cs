@@ -187,41 +187,55 @@ public ref struct QueryChunkCursor
 /// <summary>Prepared read-only values for one component row in one current chunk.</summary>
 public ref struct ReadValues
 {
-    private readonly Array _row;
+    private readonly ref byte _data;
 
-    internal ReadValues(Array row) => _row = row;
+    internal ReadValues(Array row)
+    {
+        _data = ref GetArrayDataReference(row);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref readonly T Ref<T>(QueryChunkCursor cursor)
     {
-        return ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(Unsafe.As<T[]>(_row)), cursor.CurrentIndex);
+        return ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), cursor.CurrentIndex);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref readonly T Ref<T>(QuerySlots slots)
     {
-        return ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(Unsafe.As<T[]>(_row)), slots.CurrentIndex);
+        return ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), slots.CurrentIndex);
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ref byte GetArrayDataReference(Array row)
+        => ref MemoryMarshal.GetArrayDataReference(Unsafe.As<byte[]>(row));
 }
 
 /// <summary>Prepared writable values for one component row in one current chunk.</summary>
 public ref struct WriteValues
 {
-    private readonly Array _row;
+    private readonly ref byte _data;
 
-    internal WriteValues(Array row) => _row = row;
+    internal WriteValues(Array row)
+    {
+        _data = ref GetArrayDataReference(row);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T Ref<T>(QueryChunkCursor cursor)
     {
-        return ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(Unsafe.As<T[]>(_row)), cursor.CurrentIndex);
+        return ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), cursor.CurrentIndex);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T Ref<T>(QuerySlots slots)
     {
-        return ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(Unsafe.As<T[]>(_row)), slots.CurrentIndex);
+        return ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), slots.CurrentIndex);
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ref byte GetArrayDataReference(Array row)
+        => ref MemoryMarshal.GetArrayDataReference(Unsafe.As<byte[]>(row));
 }
 
 // Obsolete source-compatibility values. New L4 code uses non-generic values.Ref<T>(cursor).

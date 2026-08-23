@@ -32,7 +32,7 @@ public ref struct QueryChunks
                 QueryThrowHelper.ThrowChunkIteratorNotPositioned();
             }
 
-            return new QueryChunk(_plan, _chunks.Element(_index), _query, _writeTick);
+            return new QueryChunk(_plan, _chunks.Ref(_index), _query, _writeTick);
         }
     }
 

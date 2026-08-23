@@ -28,7 +28,7 @@ public ref struct QueryArchetypes
                 QueryThrowHelper.ThrowArchetypeIteratorNotPositioned();
             }
 
-            return new QueryArchetype(_plans.Element(_index), _query, _writeTick);
+            return new QueryArchetype(_plans.Ref(_index), _query, _writeTick);
         }
     }
 

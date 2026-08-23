@@ -49,8 +49,8 @@ public ref struct QuerySlots
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows.Element(access.QueryComponentIndex);
-        return new ReadValues(_componentRows[physicalRow]);
+        var physicalRow = _plan.ComponentRows.Ref(access.QueryComponentIndex);
+        return new ReadValues(_componentRows.Ref(physicalRow));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -61,9 +61,9 @@ public ref struct QuerySlots
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows.Element(access.QueryComponentIndex);
+        var physicalRow = _plan.ComponentRows.Ref(access.QueryComponentIndex);
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
-        return new WriteValues(_componentRows[physicalRow]);
+        return new WriteValues(_componentRows.Ref(physicalRow));
     }
 
     [Obsolete("Use AccessRequest with BindRead and non-generic values.")]
@@ -74,8 +74,8 @@ public ref struct QuerySlots
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows.Element(request.QueryComponentIndex);
-        return new ReadValues(_componentRows[physicalRow]);
+        var physicalRow = _plan.ComponentRows.Ref(request.QueryComponentIndex);
+        return new ReadValues(_componentRows.Ref(physicalRow));
     }
 
     [Obsolete("Use AccessRequest with BindWrite and non-generic values.")]
@@ -86,9 +86,9 @@ public ref struct QuerySlots
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows.Element(request.QueryComponentIndex);
+        var physicalRow = _plan.ComponentRows.Ref(request.QueryComponentIndex);
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
-        return new WriteValues(_componentRows[physicalRow]);
+        return new WriteValues(_componentRows.Ref(physicalRow));
     }
 
     // Obsolete source-compatibility path. The L4 path above is non-generic.
@@ -100,7 +100,7 @@ public ref struct QuerySlots
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows.Element(request.QueryComponentIndex);
+        var physicalRow = _plan.ComponentRows.Ref(request.QueryComponentIndex);
         return new ReadValues<T>(_chunk.GetComponentRow<T>(_componentRows, physicalRow));
     }
 
@@ -113,7 +113,7 @@ public ref struct QuerySlots
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        var physicalRow = _plan.ComponentRows.Element(request.QueryComponentIndex);
+        var physicalRow = _plan.ComponentRows.Ref(request.QueryComponentIndex);
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
         return new WriteValues<T>(_chunk.GetComponentRow<T>(_componentRows, physicalRow));
     }
