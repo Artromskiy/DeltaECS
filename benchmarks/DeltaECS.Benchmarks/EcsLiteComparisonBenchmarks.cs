@@ -25,15 +25,15 @@ public class EcsLiteComparisonBenchmarks
     private ComponentId _deltaVelocity;
     private ComponentId[] _deltaMovementPayload = [];
     private Entity[] _deltaMovementEntities = [];
-    private AccessRequest _deltaMovementPositionBinding;
-    private AccessRequest _deltaMovementVelocityBinding;
+    private WriteAccess _deltaMovementPositionBinding;
+    private ReadAccess _deltaMovementVelocityBinding;
 
     private World _deltaFilterWorld = null!;
     private Query _deltaFilterQuery;
     private ComponentId[] _deltaFilterPayload = [];
     private Entity[] _deltaFilterEntities = [];
-    private AccessRequest _deltaFilterPositionBinding;
-    private AccessRequest _deltaFilterVelocityBinding;
+    private ReadAccess _deltaFilterPositionBinding;
+    private ReadAccess _deltaFilterVelocityBinding;
 
     private World _deltaCreateDestroyWorld = null!;
     private Entity[] _deltaCreateDestroyEntities = [];
@@ -97,14 +97,34 @@ public class EcsLiteComparisonBenchmarks
     [BenchmarkCategory("DenseMovement")]
     public double DeltaECS_DenseMovement()
     {
-        var state = new MovementState
-        {
-            Position = _deltaMovementPositionBinding,
-            Velocity = _deltaMovementVelocityBinding
-        };
-        _deltaMovementWorld.Query(in _deltaMovementQuery, ref state, s_deltaMovement);
+        var checksum = 0d;
+        var count = 0;
 
-        return BenchmarkGuard.Check(state.Checksum, state.Count, Amount);
+        using var scope = _deltaMovementWorld.OpenQuery(in _deltaMovementQuery);
+        var positionAccess = scope.Bind(_deltaMovementPositionBinding);
+        var velocityAccess = scope.Bind(_deltaMovementVelocityBinding);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
+        {
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var slots = chunks.Current.Slots;
+                var positions = slots.Get(positionAccess);
+                var velocities = slots.Get(velocityAccess);
+                while (slots.MoveNext())
+                {
+                    ref var position = ref positions.Ref<DeltaPosition>(slots);
+                    ref readonly var velocity = ref velocities.Ref<DeltaVelocity>(slots);
+                    position.X += velocity.X * Dt;
+                    position.Y += velocity.Y * Dt;
+                    count++;
+                    checksum += position.X + position.Y;
+                }
+            }
+        }
+
+        return BenchmarkGuard.Check(checksum, count, Amount);
     }
 
     [Benchmark]
@@ -131,14 +151,32 @@ public class EcsLiteComparisonBenchmarks
     [BenchmarkCategory("QueryPlan")]
     public int DeltaECS_QueryPlanIteration()
     {
-        var state = new QueryState
-        {
-            Position = _deltaFilterPositionBinding,
-            Velocity = _deltaFilterVelocityBinding
-        };
-        _deltaFilterWorld.Query(in _deltaFilterQuery, ref state, s_deltaFilter);
+        var checksum = 0d;
+        var count = 0;
 
-        return BenchmarkGuard.Check(state.Count, state.Checksum, Amount);
+        using var scope = _deltaFilterWorld.OpenQuery(in _deltaFilterQuery);
+        var positionAccess = scope.Bind(_deltaFilterPositionBinding);
+        var velocityAccess = scope.Bind(_deltaFilterVelocityBinding);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
+        {
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var slots = chunks.Current.Slots;
+                var positions = slots.Get(positionAccess);
+                var velocities = slots.Get(velocityAccess);
+                while (slots.MoveNext())
+                {
+                    count++;
+                    checksum +=
+                        positions.Ref<DeltaFilterPosition>(slots).X
+                        + velocities.Ref<DeltaFilterVelocity>(slots).Y;
+                }
+            }
+        }
+
+        return BenchmarkGuard.Check(count, checksum, Amount);
     }
 
     [Benchmark]
@@ -645,49 +683,6 @@ public class EcsLiteComparisonBenchmarks
         var result = new ComponentId[payloadRows];
         Array.Copy(payload, 0, result, 0, payloadRows);
         return result;
-    }
-
-    private struct MovementState
-    {
-        public int Count;
-        public double Checksum;
-        public AccessRequest Position;
-        public AccessRequest Velocity;
-    }
-
-    private struct QueryState
-    {
-        public int Count;
-        public double Checksum;
-        public AccessRequest Position;
-        public AccessRequest Velocity;
-    }
-
-    private static readonly QueryAction<MovementState> s_deltaMovement = IterateDeltaMovement;
-    private static readonly QueryAction<QueryState> s_deltaFilter = IterateDeltaFilter;
-
-    private static void IterateDeltaMovement(ref MovementState state, ref QueryChunkCursor cursor)
-    {
-        var positions = cursor.GetWrite(state.Position);
-        var velocities = cursor.GetRead(state.Velocity);
-        while (cursor.MoveNext())
-        {
-            positions.Ref<DeltaPosition>(cursor).X += velocities.Ref<DeltaVelocity>(cursor).X * Dt;
-            positions.Ref<DeltaPosition>(cursor).Y += velocities.Ref<DeltaVelocity>(cursor).Y * Dt;
-            state.Count++;
-            state.Checksum += positions.Ref<DeltaPosition>(cursor).X + positions.Ref<DeltaPosition>(cursor).Y;
-        }
-    }
-
-    private static void IterateDeltaFilter(ref QueryState state, ref QueryChunkCursor cursor)
-    {
-        var positions = cursor.GetRead(state.Position);
-        var velocities = cursor.GetRead(state.Velocity);
-        while (cursor.MoveNext())
-        {
-            state.Count++;
-            state.Checksum += positions.Ref<DeltaFilterPosition>(cursor).X + velocities.Ref<DeltaFilterVelocity>(cursor).Y;
-        }
     }
 
     private static class BenchmarkGuard
