@@ -50,7 +50,7 @@ public ref struct QuerySlots
         }
 
         var physicalRow = _plan.ComponentRows.Element(access.QueryComponentIndex);
-        return new ReadValues(_componentRows[physicalRow]);
+        return new ReadValues(_componentRows.Element(physicalRow));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -63,7 +63,7 @@ public ref struct QuerySlots
 
         var physicalRow = _plan.ComponentRows.Element(access.QueryComponentIndex);
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
-        return new WriteValues(_componentRows[physicalRow]);
+        return new WriteValues(_componentRows.Element(physicalRow));
     }
 
     [Obsolete("Use AccessRequest with BindRead and non-generic values.")]
@@ -75,7 +75,7 @@ public ref struct QuerySlots
         }
 
         var physicalRow = _plan.ComponentRows.Element(request.QueryComponentIndex);
-        return new ReadValues(_componentRows[physicalRow]);
+        return new ReadValues(_componentRows.Element(physicalRow));
     }
 
     [Obsolete("Use AccessRequest with BindWrite and non-generic values.")]
@@ -88,7 +88,7 @@ public ref struct QuerySlots
 
         var physicalRow = _plan.ComponentRows.Element(request.QueryComponentIndex);
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
-        return new WriteValues(_componentRows[physicalRow]);
+        return new WriteValues(_componentRows.Element(physicalRow));
     }
 
     // Obsolete source-compatibility path. The L4 path above is non-generic.
