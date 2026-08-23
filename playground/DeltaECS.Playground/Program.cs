@@ -46,23 +46,30 @@ while (archetypes.MoveNext())
     }
 }
 
-Console.WriteLine("Callback/action query iteration:");
-var readPosition = query.AccessRead(positionId);
-var actionState = new ActionState
+Console.WriteLine("Second dense query iteration checksum:");
+var checksum = 0f;
+using var checksumScope = world.OpenQuery(in query);
+var checksumPosition = checksumScope.Bind(query.AccessWrite(positionId));
+var checksumVelocity = checksumScope.Bind(query.AccessRead(velocityId));
+var checksumArchetypes = checksumScope.Archetypes;
+
+while (checksumArchetypes.MoveNext())
 {
-    Position = readPosition,
-    Velocity = readVelocity
-};
-world.Query(in query, ref actionState, static (ref ActionState state, ref QueryChunkCursor cursor) =>
-{
-    var positions = cursor.GetWrite(state.Position);
-    var velocities = cursor.GetRead(state.Velocity);
-    while (cursor.MoveNext())
+    var chunks = checksumArchetypes.Current.Chunks;
+    while (chunks.MoveNext())
     {
-        state.Checksum += positions.Ref<Position>(cursor).X + velocities.Ref<Velocity>(cursor).X;
+        var slots = chunks.Current.Slots;
+        var positions = slots.Get(checksumPosition);
+        var velocities = slots.Get(checksumVelocity);
+
+        while (slots.MoveNext())
+        {
+            checksum += positions.Ref<Position>(slots).X + velocities.Ref<Velocity>(slots).X;
+        }
     }
-});
-Console.WriteLine($"  observable checksum: {actionState.Checksum}");
+}
+
+Console.WriteLine($"  observable checksum: {checksum}");
 Console.ReadLine();
 public struct Position
 {
@@ -74,11 +81,4 @@ public struct Velocity
 {
     public float X;
     public float Y;
-}
-
-public struct ActionState
-{
-    public AccessRequest Position;
-    public AccessRequest Velocity;
-    public float Checksum;
 }
