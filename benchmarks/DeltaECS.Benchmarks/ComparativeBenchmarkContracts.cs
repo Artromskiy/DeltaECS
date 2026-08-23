@@ -46,7 +46,7 @@ public static class ComparativeCapabilityManifest
     private static readonly string[] s_iteration =
     {
         "Iteration.Dense", "Iteration.Movement2Components", "Iteration.Movement4Components",
-        "Iteration.WideArchetypeNarrowQuery", "Iteration.SparseWorldQueryPlan", "Iteration.SparseWorldColdQuery"
+        "Iteration.WideArchetypeNarrowQuery", "Iteration.SparseWorldQueryPlan", "Iteration.QueryPlanConstruction"
     };
 
     private static readonly string[] s_atomic =
@@ -166,7 +166,7 @@ public static class ComparativeReportBuilder
         ("Iteration.Movement2Components", "Movement — 2 компонента"),
         ("Iteration.Movement4Components", "Movement — 4 компонента"),
         ("Iteration.SparseWorldQueryPlan", "Sparse world — cached query"),
-        ("Iteration.SparseWorldColdQuery", "Sparse world — cold query"),
+        ("Iteration.QueryPlanConstruction", "Query-plan construction"),
         ("Iteration.WideArchetypeNarrowQuery", "Wide archetype, narrow query")
     };
 
@@ -445,7 +445,7 @@ public static class ComparativeReportBuilder
             method.Contains("Movement4Components", StringComparison.OrdinalIgnoreCase) ? "Iteration.Movement4Components" :
             method.Contains("WideArchetypeNarrowQuery", StringComparison.OrdinalIgnoreCase) ? "Iteration.WideArchetypeNarrowQuery" :
             method.Contains("SparseWorldQueryPlan", StringComparison.OrdinalIgnoreCase) ? "Iteration.SparseWorldQueryPlan" :
-            method.Contains("SparseWorldColdQuery", StringComparison.OrdinalIgnoreCase) ? "Iteration.SparseWorldColdQuery" :
+            method.Contains("QueryPlanConstruction", StringComparison.OrdinalIgnoreCase) ? "Iteration.QueryPlanConstruction" :
             method.Contains("List_CreateBatch", StringComparison.OrdinalIgnoreCase) ? "Structural.List.CreateBatch" :
             method.Contains("List_DestroyBatch", StringComparison.OrdinalIgnoreCase) ? "Structural.List.DestroyBatch" :
             method.Contains("List_AddBatch", StringComparison.OrdinalIgnoreCase) ? "Structural.List.AddBatch" :
@@ -588,7 +588,7 @@ public static class ComparativeBenchmarkCatalog
         }
 
         var ecsCount = Enum.GetValues<ComparativeEcs>().Length;
-        foreach (var workload in new[] { "Iteration.Dense", "Iteration.Movement2Components", "Iteration.Movement4Components", "Iteration.WideArchetypeNarrowQuery", "Iteration.SparseWorldQueryPlan", "Iteration.SparseWorldColdQuery" })
+        foreach (var workload in new[] { "Iteration.Dense", "Iteration.Movement2Components", "Iteration.Movement4Components", "Iteration.WideArchetypeNarrowQuery", "Iteration.SparseWorldQueryPlan", "Iteration.QueryPlanConstruction" })
         {
             if (ComparativeCapabilityManifest.Rows.Count(row => row.Workload == workload) != ecsCount)
                 throw new InvalidOperationException($"Capability manifest is incomplete for {workload}.");
