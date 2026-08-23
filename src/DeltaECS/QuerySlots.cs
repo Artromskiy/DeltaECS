@@ -8,6 +8,7 @@ public ref struct QuerySlots
 {
     private readonly DenseArchetypePlan _plan;
     private readonly Chunk _chunk;
+    private readonly Array[] _componentRows;
     private readonly QueryPlan _query;
     private readonly uint _writeTick;
     private int _index;
@@ -16,6 +17,7 @@ public ref struct QuerySlots
     {
         _plan = plan;
         _chunk = chunk;
+        _componentRows = chunk.RawComponentRows;
         _query = query;
         _writeTick = writeTick;
         _index = chunk.Count;
@@ -48,7 +50,7 @@ public ref struct QuerySlots
         }
 
         var physicalRow = _plan.ComponentRows.Element(access.QueryComponentIndex);
-        return new ReadValues(_chunk.GetRawComponentRow(physicalRow));
+        return new ReadValues(_componentRows[physicalRow]);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -61,7 +63,7 @@ public ref struct QuerySlots
 
         var physicalRow = _plan.ComponentRows.Element(access.QueryComponentIndex);
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
-        return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
+        return new WriteValues(_componentRows[physicalRow]);
     }
 
     [Obsolete("Use AccessRequest with BindRead and non-generic values.")]
@@ -73,7 +75,7 @@ public ref struct QuerySlots
         }
 
         var physicalRow = _plan.ComponentRows.Element(request.QueryComponentIndex);
-        return new ReadValues(_chunk.GetRawComponentRow(physicalRow));
+        return new ReadValues(_componentRows[physicalRow]);
     }
 
     [Obsolete("Use AccessRequest with BindWrite and non-generic values.")]
@@ -86,7 +88,7 @@ public ref struct QuerySlots
 
         var physicalRow = _plan.ComponentRows.Element(request.QueryComponentIndex);
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
-        return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
+        return new WriteValues(_componentRows[physicalRow]);
     }
 
     // Obsolete source-compatibility path. The L4 path above is non-generic.
@@ -99,7 +101,7 @@ public ref struct QuerySlots
         }
 
         var physicalRow = _plan.ComponentRows.Element(request.QueryComponentIndex);
-        return new ReadValues<T>(_chunk.GetComponentRow<T>(physicalRow));
+        return new ReadValues<T>(_chunk.GetComponentRow<T>(_componentRows, physicalRow));
     }
 
     // Obsolete source-compatibility path. The L4 path above is non-generic.
@@ -113,7 +115,7 @@ public ref struct QuerySlots
 
         var physicalRow = _plan.ComponentRows.Element(request.QueryComponentIndex);
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
-        return new WriteValues<T>(_chunk.GetComponentRow<T>(physicalRow));
+        return new WriteValues<T>(_chunk.GetComponentRow<T>(_componentRows, physicalRow));
     }
 
     /// <summary>Compatibility generic call; the returned values object remains non-generic.</summary>
