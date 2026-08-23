@@ -27,11 +27,10 @@ internal sealed class Archetype
         ComponentId[] componentIds,
         int chunkCapacity)
     {
-        if (componentIds.Length == 0
-            || layouts.Length != componentIds.Length
+        if (layouts.Length != componentIds.Length
             || rowOperations.Length != componentIds.Length)
         {
-            throw new ArgumentException("Archetype must have matching non-empty component and layout arrays.");
+            throw new ArgumentException("Archetype must have matching component and layout arrays.");
         }
 
         _id = id;

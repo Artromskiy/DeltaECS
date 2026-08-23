@@ -20,6 +20,13 @@ Create, destroy, add and remove are immediate; the world has no mandatory
 command buffer/playback barrier. Batch APIs group by archetype/chunk rather
 than loop through public atomic operations.
 
+`World` implements the neutral `Delta.ECS.Integration.IEcsWorld` lifecycle and
+tooling boundary. Its `Update` method validates lifecycle state and a finite,
+non-negative delta, but intentionally performs no scheduling because this ECS
+kernel has no system scheduler. Runtime hosts remain responsible for invoking
+their systems. Integration structural and tooling operations are valid only
+between `Initialize` and `Shutdown`.
+
 ## Queries and changes
 
 Reusable `Query` values cache matching archetypes and row plans. Non-generic

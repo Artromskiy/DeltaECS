@@ -8,7 +8,7 @@ internal struct ComponentStampStorage : IDisposable
 
     public ComponentStampStorage(int componentCount, int capacity)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(componentCount);
+        ArgumentOutOfRangeException.ThrowIfNegative(componentCount);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
         _capacity = capacity;
         _componentCount = componentCount;

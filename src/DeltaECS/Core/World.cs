@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-public sealed class World : IDisposable
+public sealed partial class World : IDisposable
 {
     private const int DefaultChunkCapacity = 1024;
     private const int DefaultInitialCapacity = 1024;
@@ -738,11 +738,6 @@ public sealed class World : IDisposable
 
         var source = _archetypes[sourceArchetypeId];
         var targetMask = isAdd ? source.Mask.Or(changeMask) : source.Mask.Except(changeMask);
-        if (targetMask.IsEmpty)
-        {
-            throw new InvalidOperationException("An archetype cannot have zero dense components.");
-        }
-
         var target = GetOrCreateArchetype(targetMask);
         int[] mapping = new int[source.ComponentCount];
         bool[] copiedTargetRows = new bool[target.ComponentCount];

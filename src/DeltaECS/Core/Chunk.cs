@@ -21,7 +21,6 @@ internal sealed class Chunk
         int globalId)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(layouts.Length, nameof(layouts));
         if (rowOperations.Length != layouts.Length)
         {
             throw new ArgumentException("Each component row must have cached operations.", nameof(rowOperations));
