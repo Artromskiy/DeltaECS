@@ -15,7 +15,7 @@ public ref struct QueryChunks
     {
         _plan = plan;
         _query = query;
-        _chunks = new(plan.Archetype.ActiveChunks, 0, plan.Archetype.ActiveChunkCount);
+        _chunks = plan.Archetype.ActiveChunks;
         _writeTick = writeTick;
         _index = -1;
     }

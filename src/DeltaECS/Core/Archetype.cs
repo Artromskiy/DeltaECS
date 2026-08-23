@@ -54,7 +54,7 @@ internal sealed class Archetype
 
     public int ActiveChunkCount => _activeChunkCount;
 
-    internal Chunk[] ActiveChunks => _activeChunks;
+    internal ReadOnlySpan<Chunk> ActiveChunks => _activeChunks.AsSpan(0, _activeChunkCount);
 
     public int EntityCount
     {
