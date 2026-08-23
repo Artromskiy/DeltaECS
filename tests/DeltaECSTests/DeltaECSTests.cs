@@ -164,8 +164,10 @@ public sealed class DeltaECSDeliveryTests
                     var entities = chunk.Entities;
                     var slots = chunk.Slots;
                     var positions = slots.Get(preparedPosition);
+                    var expectedSlot = 0;
                     while (slots.MoveNext())
                     {
+                        Assert.That(slots.CurrentIndex, Is.EqualTo(expectedSlot++));
                         var entity = entities[slots.CurrentIndex];
                         ref var value = ref positions.Ref<Position>(slots);
                         Assert.That(value.X, Is.EqualTo(expected[entity]));
@@ -290,7 +292,7 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
-    public void ReverseIteration_HandlesEmptySingleFullChunks_AndOverlayHoles()
+    public void ForwardIteration_HandlesEmptySingleFullChunks_AndOverlayHoles()
     {
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
@@ -330,8 +332,10 @@ public sealed class DeltaECSDeliveryTests
             Assert.That(cursor.SlotCount, Is.EqualTo(4));
             var entities = cursor.Entities;
             var positions = cursor.GetRead(position);
+            var expectedSlot = 0;
             while (cursor.MoveNext())
             {
+                Assert.That(cursor.CurrentIndex, Is.EqualTo(expectedSlot++));
                 Assert.That(entities[cursor.CurrentIndex].IsAlive, Is.True);
                 Assert.That(positions.Ref<Position>(cursor).X, Is.EqualTo(cursor.CurrentIndex));
                 count++;

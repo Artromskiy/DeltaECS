@@ -50,10 +50,10 @@ Remaining proof:
 
 In a separately measured internal experiment, take row references once per
 chunk with `MemoryMarshal.GetReference` and advance with `Unsafe.Add`. Keep the
-reverse traversal semantics and observable checksum unchanged. This is unsafe
+ forward traversal semantics and observable checksum unchanged. This is unsafe
 internally and must be limited to a trusted dense packet; do not expose raw
 pointers or require unsafe code in the public API/user callback. A safe
-`Span<T>` reverse loop remains the compatibility path, but the JIT is not
+`Span<T>` forward loop remains the compatibility path, but the JIT is not
 required to eliminate its index check.
 
 Required proof: JIT disassembly must show the bounds checks disappear, and a

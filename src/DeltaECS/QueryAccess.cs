@@ -24,7 +24,7 @@ public ref struct QueryChunkCursor
         _writeTick = writeTick;
         _overlayMask = overlayResult == OverlayMaskResult.Partial ? overlayMask : null;
         _fullMask = overlayResult == OverlayMaskResult.Full;
-        _index = chunk.Count;
+        _index = -1;
     }
 
     public int SlotCount => _chunk.Count;
@@ -47,10 +47,10 @@ public ref struct QueryChunkCursor
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNext()
     {
-        int next = _index - 1;
-        if (next < 0)
+        int next = _index + 1;
+        if (next >= _chunk.Count)
         {
-            _index = -1;
+            _index = _chunk.Count;
             return false;
         }
 
@@ -201,6 +201,9 @@ public ref struct ReadValues
     public ref readonly T Ref<T>(QuerySlots slots) => ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), slots.CurrentIndex);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref readonly T Ref<T>(int slotIndex) => ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), slotIndex);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ref byte GetArrayDataReference(Array row)
         => ref MemoryMarshal.GetArrayDataReference(Unsafe.As<byte[]>(row));
 }
@@ -220,6 +223,9 @@ public ref struct WriteValues
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T Ref<T>(QuerySlots slots) => ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), slots.CurrentIndex);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T Ref<T>(int slotIndex) => ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), slotIndex);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ref byte GetArrayDataReference(Array row)

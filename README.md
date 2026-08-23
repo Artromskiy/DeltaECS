@@ -27,7 +27,7 @@ return `ReadOnlySpan<T>`; write rows return `Span<T>` and mark coarse row
 versions once per yielded chunk. Raw ordinal access remains internal.
 
 For explicit low-level traversal, `world.OpenQuery(in query)` exposes three
-independent nested loops: archetype, chunk and reverse slot. The callback
+independent nested loops: archetype, chunk and forward slot. The callback
 `World.Query` API remains responsible for tagged query execution; tagged
 callbacks must still check `IsActiveSlot` for partial chunks.
 

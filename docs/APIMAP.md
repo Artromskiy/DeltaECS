@@ -35,7 +35,7 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `ReadRequest<T>`, `WriteRequest<T>` | Query-bound typed access intent | `src/DeltaECS/QueryAccess.cs` |
 | `QueryScope` | Dense-only validation and structural lease owner | `src/DeltaECS/QueryScope.cs` |
 | `QueryArchetypes`, `QueryChunks`, `QuerySlots` | Independent dense traversal levels | `src/DeltaECS/QueryArchetypes.cs`, `QueryChunks.cs`, `QuerySlots.cs` |
-| `QueryChunkCursor` | Current chunk, reverse slot traversal, value access and tag mask | `src/DeltaECS/QueryAccess.cs` |
+| `QueryChunkCursor` | Current chunk, forward slot traversal, value access and tag mask | `src/DeltaECS/QueryAccess.cs` |
 | `ReadValues<T>`, `WriteValues<T>` | Safe typed indexers over prepared component access | `src/DeltaECS/QueryAccess.cs` |
 | `World.Query` | Callback-based query execution over `QueryChunkCursor` | `src/DeltaECS/World.cs` |
 

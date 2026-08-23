@@ -3,7 +3,7 @@ namespace Delta.ECS;
 using System;
 using System.Runtime.CompilerServices;
 
-/// <summary>Reverse dense slot iterator for one already-selected chunk.</summary>
+/// <summary>Forward dense slot iterator for one already-selected chunk.</summary>
 public ref struct QuerySlots
 {
     private readonly DenseArchetypePlan _plan;
@@ -20,7 +20,7 @@ public ref struct QuerySlots
         _componentRows = chunk.RawComponentRows;
         _query = query;
         _writeTick = writeTick;
-        _index = chunk.Count;
+        _index = -1;
     }
 
     public int CurrentIndex
@@ -32,12 +32,14 @@ public ref struct QuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNext()
     {
-        if (--_index < 0)
+        int next = _index + 1;
+        if (next >= _chunk.Count)
         {
-            _index = -1;
+            _index = _chunk.Count;
             return false;
         }
 
+        _index = next;
         return true;
     }
 

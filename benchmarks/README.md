@@ -192,7 +192,7 @@ For a JIT-only capture, reuse the same DLL and do not rebuild:
   --method '*Movement4Components*' \
   --filter '*DenseIterationMicroBenchmarks.Movement4Components*' \
   --no-build \
-  --output artifacts/jit-disasm/movement4-reverse.txt
+  --output artifacts/jit-disasm/movement4-forward.txt
 ```
 
 The helper sets `DOTNET_TieredCompilation=0`, `DOTNET_ReadyToRun=0` and
