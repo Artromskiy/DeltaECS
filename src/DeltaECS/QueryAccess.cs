@@ -66,7 +66,7 @@ public ref struct QueryChunkCursor
         }
 
         var physicalRow = _componentRows[access.QueryComponentIndex];
-        return new ReadValues(_chunk.GetRawComponentRow(physicalRow), access.RuntimeType);
+        return new ReadValues(_chunk.GetRawComponentRow(physicalRow));
     }
 
     public WriteValues Get(WriteAccess access)
@@ -83,8 +83,77 @@ public ref struct QueryChunkCursor
         }
 
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
-        return new WriteValues(_chunk.GetRawComponentRow(physicalRow), access.RuntimeType);
+        return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
     }
+
+    [Obsolete("Use AccessRequest with BindRead and non-generic values.")]
+    public ReadValues Get(ReadRequest request)
+    {
+        if (!ReferenceEquals(request.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        return new ReadValues(_chunk.GetRawComponentRow(_componentRows[request.QueryComponentIndex]));
+    }
+
+    [Obsolete("Use AccessRequest with BindWrite and non-generic values.")]
+    public WriteValues Get(WriteRequest request)
+    {
+        if (!ReferenceEquals(request.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        var physicalRow = _componentRows[request.QueryComponentIndex];
+        if (_writeTick == 0)
+        {
+            QueryThrowHelper.ThrowMissingWriteIntent();
+        }
+
+        _chunk.MarkComponentWritten(physicalRow, _writeTick);
+        return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
+    }
+
+    // Obsolete source-compatibility path. The L4 path above is non-generic.
+    [Obsolete("Use non-generic ReadAccess and values.Ref<T>(cursor).")]
+    public ReadValues<T> Get<T>(ReadRequest<T> request)
+    {
+        if (!ReferenceEquals(request.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        var physicalRow = _componentRows[request.QueryComponentIndex];
+        return new ReadValues<T>(_chunk.GetComponentRow<T>(physicalRow));
+    }
+
+    // Obsolete source-compatibility path. The L4 path above is non-generic.
+    [Obsolete("Use non-generic WriteAccess and values.Ref<T>(cursor).")]
+    public WriteValues<T> Get<T>(WriteRequest<T> request)
+    {
+        if (!ReferenceEquals(request.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        var physicalRow = _componentRows[request.QueryComponentIndex];
+        if (_writeTick == 0)
+        {
+            QueryThrowHelper.ThrowMissingWriteIntent();
+        }
+
+        _chunk.MarkComponentWritten(physicalRow, _writeTick);
+        return new WriteValues<T>(_chunk.GetComponentRow<T>(physicalRow));
+    }
+
+    /// <summary>Compatibility generic call; the returned values object remains non-generic.</summary>
+    [Obsolete("Use Get(ReadAccess); the generic argument is compatibility-only.")]
+    public ReadValues Get<T>(ReadAccess access) => Get(access);
+
+    /// <summary>Compatibility generic call; the returned values object remains non-generic.</summary>
+    [Obsolete("Use Get(WriteAccess); the generic argument is compatibility-only.")]
+    public WriteValues Get<T>(WriteAccess access) => Get(access);
 
     public ReadValues GetRead(AccessRequest access)
     {
@@ -94,7 +163,7 @@ public ref struct QueryChunkCursor
         }
 
         var physicalRow = _componentRows[access.QueryComponentIndex];
-        return new ReadValues(_chunk.GetRawComponentRow(physicalRow), access.RuntimeType);
+        return new ReadValues(_chunk.GetRawComponentRow(physicalRow));
     }
 
     public WriteValues GetWrite(AccessRequest access)
@@ -111,7 +180,7 @@ public ref struct QueryChunkCursor
         }
 
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
-        return new WriteValues(_chunk.GetRawComponentRow(physicalRow), access.RuntimeType);
+        return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
     }
 }
 
@@ -119,35 +188,19 @@ public ref struct QueryChunkCursor
 public ref struct ReadValues
 {
     private readonly Array _row;
-    private readonly Type _runtimeType;
 
-    internal ReadValues(Array row, Type runtimeType)
-    {
-        _row = row;
-        _runtimeType = runtimeType;
-    }
+    internal ReadValues(Array row) => _row = row;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref readonly T Ref<T>(QueryChunkCursor cursor)
     {
-        EnsureType<T>();
         return ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(Unsafe.As<T[]>(_row)), cursor.CurrentIndex);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref readonly T Ref<T>(QuerySlots slots)
     {
-        EnsureType<T>();
         return ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(Unsafe.As<T[]>(_row)), slots.CurrentIndex);
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private void EnsureType<T>()
-    {
-        if (_runtimeType != typeof(T))
-        {
-            QueryThrowHelper.ThrowAccessTypeMismatch();
-        }
     }
 }
 
@@ -155,35 +208,61 @@ public ref struct ReadValues
 public ref struct WriteValues
 {
     private readonly Array _row;
-    private readonly Type _runtimeType;
 
-    internal WriteValues(Array row, Type runtimeType)
-    {
-        _row = row;
-        _runtimeType = runtimeType;
-    }
+    internal WriteValues(Array row) => _row = row;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T Ref<T>(QueryChunkCursor cursor)
     {
-        EnsureType<T>();
         return ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(Unsafe.As<T[]>(_row)), cursor.CurrentIndex);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T Ref<T>(QuerySlots slots)
     {
-        EnsureType<T>();
         return ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(Unsafe.As<T[]>(_row)), slots.CurrentIndex);
     }
+}
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private void EnsureType<T>()
+// Obsolete source-compatibility values. New L4 code uses non-generic values.Ref<T>(cursor).
+[Obsolete("Use non-generic ReadValues and values.Ref<T>(cursor).")]
+public ref struct ReadValues<T>
+{
+    private readonly ReadOnlySpan<T> _row;
+
+    internal ReadValues(ReadOnlySpan<T> row) => _row = row;
+
+    public ref readonly T this[QueryChunkCursor cursor]
     {
-        if (_runtimeType != typeof(T))
-        {
-            QueryThrowHelper.ThrowAccessTypeMismatch();
-        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), cursor.CurrentIndex);
+    }
+
+    public ref readonly T this[QuerySlots slots]
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), slots.CurrentIndex);
+    }
+}
+
+// Obsolete source-compatibility values. New L4 code uses non-generic values.Ref<T>(cursor).
+[Obsolete("Use non-generic WriteValues and values.Ref<T>(cursor).")]
+public ref struct WriteValues<T>
+{
+    private readonly Span<T> _row;
+
+    internal WriteValues(Span<T> row) => _row = row;
+
+    public ref T this[QueryChunkCursor cursor]
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), cursor.CurrentIndex);
+    }
+
+    public ref T this[QuerySlots slots]
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_row), slots.CurrentIndex);
     }
 }
 
@@ -205,34 +284,94 @@ public readonly struct AccessRequest
 
 }
 
-/// <summary>Non-generic query access token for a read row.</summary>
-public readonly struct ReadAccess
+// Obsolete source-compatibility requests. New code uses AccessRequest.
+[Obsolete("Use non-generic AccessRequest.")]
+public readonly struct ReadRequest
 {
-    internal ReadAccess(QueryPlan query, int queryComponentIndex, Type runtimeType)
+    internal ReadRequest(AccessRequest request)
     {
-        Query = query;
-        QueryComponentIndex = queryComponentIndex;
-        RuntimeType = runtimeType;
+        Query = request.Query;
+        QueryComponentIndex = request.QueryComponentIndex;
     }
 
     internal QueryPlan? Query { get; }
     internal int QueryComponentIndex { get; }
-    internal Type RuntimeType { get; }
+
+    public static implicit operator ReadRequest(AccessRequest request) => new(request);
+}
+
+// Obsolete source-compatibility requests. New code uses AccessRequest.
+[Obsolete("Use non-generic AccessRequest.")]
+public readonly struct WriteRequest
+{
+    internal WriteRequest(AccessRequest request)
+    {
+        Query = request.Query;
+        QueryComponentIndex = request.QueryComponentIndex;
+    }
+
+    internal QueryPlan? Query { get; }
+    internal int QueryComponentIndex { get; }
+
+    public static implicit operator WriteRequest(AccessRequest request) => new(request);
+}
+
+/// <summary>Non-generic query access token for a read row.</summary>
+public readonly struct ReadAccess
+{
+    internal ReadAccess(QueryPlan query, int queryComponentIndex)
+    {
+        Query = query;
+        QueryComponentIndex = queryComponentIndex;
+    }
+
+    internal QueryPlan? Query { get; }
+    internal int QueryComponentIndex { get; }
 }
 
 /// <summary>Non-generic query access token for a write row.</summary>
 public readonly struct WriteAccess
 {
-    internal WriteAccess(QueryPlan query, int queryComponentIndex, Type runtimeType)
+    internal WriteAccess(QueryPlan query, int queryComponentIndex)
     {
         Query = query;
         QueryComponentIndex = queryComponentIndex;
-        RuntimeType = runtimeType;
     }
 
     internal QueryPlan? Query { get; }
     internal int QueryComponentIndex { get; }
-    internal Type RuntimeType { get; }
+}
+
+// Obsolete source-compatibility requests. Access<T> returns the non-generic AccessRequest.
+[Obsolete("Use non-generic AccessRequest.")]
+public readonly struct ReadRequest<T>
+{
+    internal ReadRequest(AccessRequest request)
+    {
+        Query = request.Query;
+        QueryComponentIndex = request.QueryComponentIndex;
+    }
+
+    internal QueryPlan? Query { get; }
+    internal int QueryComponentIndex { get; }
+
+    public static implicit operator ReadRequest<T>(AccessRequest request) => new(request);
+}
+
+// Obsolete source-compatibility requests. Access<T> returns the non-generic AccessRequest.
+[Obsolete("Use non-generic AccessRequest.")]
+public readonly struct WriteRequest<T>
+{
+    internal WriteRequest(AccessRequest request)
+    {
+        Query = request.Query;
+        QueryComponentIndex = request.QueryComponentIndex;
+    }
+
+    internal QueryPlan? Query { get; }
+    internal int QueryComponentIndex { get; }
+
+    public static implicit operator WriteRequest<T>(AccessRequest request) => new(request);
 }
 
 internal sealed class QueryPlan
