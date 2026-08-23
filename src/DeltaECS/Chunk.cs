@@ -8,8 +8,8 @@ internal sealed class Chunk
     private readonly int _capacity;
     private readonly Array[] _componentRows;
     private readonly ComponentRowOperations[] _rowOperations;
-    private readonly uint[] _componentVersions;
-    private readonly Entity[] _entities;
+    private NativeMemory<uint> _componentVersions;
+    private NativeMemory<Entity> _entities;
     private int _count;
     private int _highWaterMark;
 
@@ -28,10 +28,10 @@ internal sealed class Chunk
 
         _capacity = capacity;
         GlobalId = globalId;
-        _entities = new Entity[capacity];
+        _entities = new NativeMemory<Entity>(capacity);
         _componentRows = new Array[layouts.Length];
         _rowOperations = rowOperations;
-        _componentVersions = new uint[layouts.Length];
+        _componentVersions = new NativeMemory<uint>(layouts.Length);
         for (int index = 0; index < layouts.Length; index++)
         {
             var runtimeType = layouts[index].RuntimeType ?? throw new InvalidOperationException("ArrayRows requires a type-backed component layout. Use Register<T> or RegisterUnmanaged<T>.");
@@ -49,7 +49,7 @@ internal sealed class Chunk
 
     public bool IsEmpty => _count == 0;
 
-    public Span<Entity> Entities => new(_entities, 0, _count);
+    public Span<Entity> Entities => _entities.Span[.._count];
 
     public int Add(Entity entity, out bool reusedSlot)
     {
@@ -116,7 +116,7 @@ internal sealed class Chunk
 
     public Array GetRawComponentRow(int componentIndex) => _componentRows[componentIndex];
 
-    internal Entity[] RawEntities => _entities;
+    internal Span<Entity> RawEntities => _entities.Span;
 
     internal Array[] RawComponentRows => _componentRows;
 
@@ -125,12 +125,12 @@ internal sealed class Chunk
         => Unsafe.As<T[]>(componentRows.Ref(componentIndex)).AsSpan(0, _count);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal uint GetComponentVersion(int componentIndex) => _componentVersions.Ref(componentIndex);
+    internal uint GetComponentVersion(int componentIndex) => _componentVersions[componentIndex];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void MarkComponentWritten(int componentIndex, uint worldTick) => _componentVersions.Ref(componentIndex) = worldTick;
+    internal void MarkComponentWritten(int componentIndex, uint worldTick) => _componentVersions[componentIndex] = worldTick;
 
-    internal void ClearComponentVersions() => Array.Clear(_componentVersions, 0, _componentVersions.Length);
+    internal void ClearComponentVersions() => _componentVersions.Clear();
 
     public void CopySlotTo(Chunk target, int sourceSlotIndex, int targetSlotIndex, int sourceComponentIndex, int targetComponentIndex)
     {
@@ -208,7 +208,13 @@ internal sealed class Chunk
             }
         }
 
-        Array.Clear(_entities, 0, _count);
+        _entities.Span[.._count].Clear();
         _count = 0;
+    }
+
+    internal void Dispose()
+    {
+        _componentVersions.Dispose();
+        _entities.Dispose();
     }
 }
