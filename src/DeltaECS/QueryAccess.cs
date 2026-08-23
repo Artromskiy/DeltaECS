@@ -342,8 +342,9 @@ public readonly struct WriteAccess
     internal int QueryComponentIndex { get; }
 }
 
-// Obsolete source-compatibility requests. Access<T> returns the non-generic AccessRequest.
-[Obsolete("Use non-generic AccessRequest.")]
+// Obsolete source-compatibility requests. The L4 API returns AccessRequest;
+// the second conversion keeps the older request-based callers compiling.
+[Obsolete("Use non-generic WriteRequest.")]
 public readonly struct ReadRequest<T>
 {
     internal ReadRequest(AccessRequest request)
@@ -352,32 +353,6 @@ public readonly struct ReadRequest<T>
         QueryComponentIndex = request.QueryComponentIndex;
     }
 
-    internal QueryPlan? Query { get; }
-    internal int QueryComponentIndex { get; }
-
-    public static implicit operator ReadRequest<T>(AccessRequest request) => new(request);
-}
-
-// Obsolete source-compatibility requests. Access<T> returns the non-generic AccessRequest.
-[Obsolete("Use non-generic AccessRequest.")]
-public readonly struct WriteRequest<T>
-{
-    internal WriteRequest(AccessRequest request)
-    {
-        Query = request.Query;
-        QueryComponentIndex = request.QueryComponentIndex;
-    }
-
-    internal QueryPlan? Query { get; }
-    internal int QueryComponentIndex { get; }
-
-    public static implicit operator WriteRequest<T>(AccessRequest request) => new(request);
-}
-
-// Legacy compatibility path retained for old comparative/version callers only.
-[Obsolete("Use non-generic WriteRequest.")]
-public readonly struct ReadRequest<T>
-{
     internal ReadRequest(QueryPlan query, int queryComponentIndex)
     {
         Query = query;
@@ -387,14 +362,22 @@ public readonly struct ReadRequest<T>
     internal QueryPlan? Query { get; }
     internal int QueryComponentIndex { get; }
 
+    public static implicit operator ReadRequest<T>(AccessRequest request)
+        => new(request);
+
     public static implicit operator ReadRequest<T>(ReadRequest request)
         => new(request.Query!, request.QueryComponentIndex);
 }
 
-// Legacy compatibility path retained for old comparative/version callers only.
 [Obsolete("Use non-generic WriteRequest.")]
 public readonly struct WriteRequest<T>
 {
+    internal WriteRequest(AccessRequest request)
+    {
+        Query = request.Query;
+        QueryComponentIndex = request.QueryComponentIndex;
+    }
+
     internal WriteRequest(QueryPlan query, int queryComponentIndex)
     {
         Query = query;
@@ -403,6 +386,9 @@ public readonly struct WriteRequest<T>
 
     internal QueryPlan? Query { get; }
     internal int QueryComponentIndex { get; }
+
+    public static implicit operator WriteRequest<T>(AccessRequest request)
+        => new(request);
 
     public static implicit operator WriteRequest<T>(WriteRequest request)
         => new(request.Query!, request.QueryComponentIndex);

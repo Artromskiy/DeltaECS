@@ -22,8 +22,8 @@ var readVelocity = query.Access<Velocity>(velocityId, AccessMode.Read);
 Console.WriteLine("Dense archetype -> chunk -> slot iteration:");
 using var scope = world.OpenQuery(in query);
 
-var position = scope.Bind(writePosition);
-var velocity = scope.Bind(readVelocity);
+var position = scope.BindWrite(writePosition);
+var velocity = scope.BindRead(readVelocity);
 var archetypes = scope.Archetypes;
 
 while (archetypes.MoveNext())
