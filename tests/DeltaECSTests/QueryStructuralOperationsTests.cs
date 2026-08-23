@@ -131,9 +131,8 @@ public sealed class QueryStructuralOperationsTests
         Assert.Throws<ArgumentException>(() => world.AddComponents(in invalid, new[] { VelocityId }));
         Assert.Throws<ArgumentException>(() => world.RemoveComponents(in foreignQuery, new[] { VelocityId }));
         Assert.Throws<ArgumentException>(() => world.Destroy(in foreignQuery));
-        var activeLeaseState = 0;
-        Assert.Throws<InvalidOperationException>(() => world.Query(in query, ref activeLeaseState,
-            (ref int _, ref QueryChunkCursor _) => world.AddComponents(in query, new[] { VelocityId })));
+        using var scope = world.OpenQuery(in query);
+        Assert.Throws<InvalidOperationException>(() => world.AddComponents(in query, new[] { VelocityId }));
         Assert.That(world.IsAlive(entity), Is.True);
     }
 
@@ -193,59 +192,58 @@ public sealed class QueryStructuralOperationsTests
 
         Assert.That(world.AddComponents(in query, new[] { VelocityId }), Is.EqualTo(entities.Length));
 
-        var readChunkId = -1;
         var readBefore = world.WorldTick;
-        var readState = new ChangeTrackingCursorState(readPosition, isWrite: false);
-        world.Query(in query, ref readState, static (ref ChangeTrackingCursorState state, ref QueryChunkCursor cursor) =>
+        var readChunkId = -1;
+        using (var scope = world.OpenQuery(in query))
         {
-            if (cursor.SlotCount == 0)
+            var readAccess = scope.Bind(readPosition);
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
             {
-                return;
-            }
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    var chunk = chunks.Current;
+                    if (chunk.SlotCount == 0)
+                    {
+                        continue;
+                    }
 
-            state.ChunkId = cursor.GlobalChunkId;
-            _ = cursor.GetRead(state.ReadBinding);
-        });
-        readChunkId = readState.ChunkId;
+                    readChunkId = chunk.GlobalChunkId;
+                    var slots = chunk.Slots;
+                    _ = slots.Get(readAccess);
+                }
+            }
+        }
 
         Assert.That(readChunkId, Is.GreaterThanOrEqualTo(0));
         Assert.That(world.HasChangedSince(readChunkId, PositionId, readBefore), Is.False);
 
         var writeChunkId = -1;
-        var writeState = new ChangeTrackingCursorState(writePosition, isWrite: true);
-        world.Query(in query, ref writeState, static (ref ChangeTrackingCursorState state, ref QueryChunkCursor cursor) =>
+        using (var scope = world.OpenQuery(in query))
         {
-            if (cursor.SlotCount == 0)
+            var writeAccess = scope.Bind(writePosition);
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
             {
-                return;
-            }
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    var chunk = chunks.Current;
+                    if (chunk.SlotCount == 0)
+                    {
+                        continue;
+                    }
 
-            state.ChunkId = cursor.GlobalChunkId;
-            _ = cursor.GetWrite(state.WriteBinding);
-        });
-        writeChunkId = writeState.ChunkId;
-
-        Assert.That(writeChunkId, Is.EqualTo(readChunkId));
-        Assert.That(world.HasChangedSince(writeChunkId, PositionId, readBefore), Is.True);
-    }
-
-    private sealed class ChangeTrackingCursorState
-    {
-        public ChangeTrackingCursorState(AccessRequest binding, bool isWrite)
-        {
-            if (isWrite)
-            {
-                WriteBinding = binding;
-            }
-            else
-            {
-                ReadBinding = binding;
+                    writeChunkId = chunk.GlobalChunkId;
+                    var slots = chunk.Slots;
+                    _ = slots.Get(writeAccess);
+                }
             }
         }
 
-        public AccessRequest ReadBinding { get; }
-        public AccessRequest WriteBinding { get; }
-        public int ChunkId { get; set; } = -1;
+        Assert.That(writeChunkId, Is.EqualTo(readChunkId));
+        Assert.That(world.HasChangedSince(writeChunkId, PositionId, readBefore), Is.True);
     }
 
     [Test]
