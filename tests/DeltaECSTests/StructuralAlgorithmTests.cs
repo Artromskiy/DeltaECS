@@ -400,27 +400,36 @@ public sealed class StructuralAlgorithmTests
         var parentBinding = query.AccessRead(parentId);
         var local = query.AccessRead(localId);
         var worldTransform = query.AccessRead(worldId);
-        var cursorState = new HierarchyCursorState(parentBinding, local, worldTransform, observed);
-        world.Query(in query, ref cursorState, static (ref HierarchyCursorState state, ref QueryChunkCursor cursor) =>
+        using (var scope = world.OpenQuery(in query))
         {
-            var parents = cursor.GetRead(state.ParentBinding);
-            var locals = cursor.GetRead(state.LocalBinding);
-            var worlds = cursor.GetRead(state.WorldBinding);
-            while (cursor.MoveNext())
+            var preparedParent = scope.Bind(parentBinding);
+            var preparedLocal = scope.Bind(local);
+            var preparedWorld = scope.Bind(worldTransform);
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
             {
-                if (!cursor.IsActiveSlot(cursor.CurrentIndex))
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
                 {
-                    continue;
+                    var chunk = chunks.Current;
+                    var entitiesInChunk = chunk.Entities;
+                    var slots = chunk.Slots;
+                    var parents = slots.Get(preparedParent);
+                    var locals = slots.Get(preparedLocal);
+                    var worlds = slots.Get(preparedWorld);
+                    while (slots.MoveNext())
+                    {
+                        var entity = entitiesInChunk[slots.CurrentIndex];
+                        observed[entity] = new HierarchyObserved
+                        {
+                            Parent = parents.Ref<ParentLink>(slots).Parent,
+                            Local = locals.Ref<LocalTransform>(slots),
+                            World = worlds.Ref<WorldTransform>(slots)
+                        };
+                    }
                 }
-
-                state.Observed[cursor.Entities[cursor.CurrentIndex]] = new HierarchyObserved
-                {
-                    Parent = parents.Ref<ParentLink>(cursor).Parent,
-                    Local = locals.Ref<LocalTransform>(cursor),
-                    World = worlds.Ref<WorldTransform>(cursor)
-                };
             }
-        });
+        }
 
         Assert.That(observed.Count, Is.EqualTo(count));
         var topological = new List<int>(count);
@@ -464,26 +473,6 @@ public sealed class StructuralAlgorithmTests
         }
 
         Assert.That(observedChecksum, Is.EqualTo(checksum));
-    }
-
-    private sealed class HierarchyCursorState
-    {
-        public HierarchyCursorState(
-            AccessRequest parentBinding,
-            AccessRequest localBinding,
-            AccessRequest worldBinding,
-            Dictionary<Entity, HierarchyObserved> observed)
-        {
-            ParentBinding = parentBinding;
-            LocalBinding = localBinding;
-            WorldBinding = worldBinding;
-            Observed = observed;
-        }
-
-        public AccessRequest ParentBinding { get; }
-        public AccessRequest LocalBinding { get; }
-        public AccessRequest WorldBinding { get; }
-        public Dictionary<Entity, HierarchyObserved> Observed { get; }
     }
 
     private static void AssertTransitionModel(
