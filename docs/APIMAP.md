@@ -39,6 +39,7 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `ReadValues`, `WriteValues` | Non-generic prepared values; final `Ref<T>` must match the registered component type. Controlled pre-loop mismatch validation is selected correctness work. | `src/DeltaECS/QueryAccess.cs` |
 | `World.Query` | Callback-based query execution over `QueryChunkCursor` | `src/DeltaECS/World.cs` |
 | `World.ForEach` (planned) | Main high-level dense entry point; owns scope, validation, preparation and disposal | `src/DeltaECS/World.cs` |
+| `World.ForEach(ReadOnlySpan<Entity>, ...)` (planned) | Explicit ordered entity-list execution, optionally filtered by a prepared `Query` | `src/DeltaECS/List/README.md` |
 
 ## Query execution path
 
@@ -164,3 +165,29 @@ temporary query scope and validation internally. `World.OpenQuery` remains the
 advanced path for reusing prepared accesses across multiple passes or combining
 callback execution with explicit archetype/chunk/slot traversal. Both paths
 must call the same dense execution kernel.
+
+## Planned explicit-list execution
+
+List execution uses the same `World.ForEach` family as dense query execution rather
+than introducing another public selection type:
+
+```csharp
+world.ForEach(entities, action);
+world.ForEach(entities, in query, action);
+```
+
+The unfiltered overload visits every valid occurrence in the supplied
+`ReadOnlySpan<Entity>`. The filtered overload treats that span as the candidate set
+and applies `query` to each resolved entity; it never broadens execution to every
+entity matching the query in the world. Input order and duplicate occurrences are
+preserved. Invalid, stale and foreign handles follow the explicit-list policy used
+by structural APIs.
+
+The delegate/functor arity matrix remains source-generated. Both surfaces feed one
+type-erased list kernel that validates access once, resolves entity locations, and
+caches the most recently used archetype row plan. A future explicitly named
+unordered batch API may group candidates by archetype; `ForEach` must not reorder
+silently.
+
+Implementation files for this family belong in `src/DeltaECS/List`. Public entry
+points stay on `World`, and the folder must not grow a parallel query model.
