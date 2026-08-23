@@ -2,9 +2,7 @@ namespace Delta.ECS;
 
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-
-public sealed class ComponentLayoutRegistry
+public sealed partial class ComponentLayoutRegistry
 {
     private readonly Dictionary<SchemaId, int> _idsBySchema = new();
     private readonly List<ComponentLayout> _layouts = new();
@@ -12,7 +10,8 @@ public sealed class ComponentLayoutRegistry
 
     public int Count => _layouts.Count;
 
-    public ComponentId Register(ComponentLayout layout) => Register(layout, ComponentRowOperations.Fallback);
+    public ComponentId Register(ComponentLayout layout)
+        => Register(layout, ComponentRowOperations.ForRuntimeType(containsReferences: true));
 
     private ComponentId Register(ComponentLayout layout, ComponentRowOperations rowOperations)
     {
@@ -38,16 +37,6 @@ public sealed class ComponentLayoutRegistry
         _idsBySchema.Add(layout.SchemaId, id.Value);
 
         return id;
-    }
-
-    public ComponentId Register<T>(SchemaId schemaId, ComponentStorageClass storageClass = ComponentStorageClass.Dense) => Register(new ComponentLayout(schemaId, typeof(T), storageClass), ComponentRowOperations.For<T>());
-
-    public ComponentId RegisterUnmanaged<T>(SchemaId schemaId, ComponentStorageClass storageClass = ComponentStorageClass.Dense)
-        where T : unmanaged
-    {
-        return Register(
-            new ComponentLayout(schemaId, typeof(T), storageClass, Unsafe.SizeOf<T>()),
-            ComponentRowOperations.For<T>());
     }
 
     public bool TryGetId(SchemaId schemaId, out ComponentId componentId)

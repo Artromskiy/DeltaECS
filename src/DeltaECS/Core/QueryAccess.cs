@@ -11,20 +11,16 @@ public ref struct QueryChunkCursor
     private readonly Chunk _chunk;
     private readonly ReadOnlySpan<int> _componentRows;
     private readonly uint _writeTick;
-    private readonly ulong[]? _overlayMask;
-    private readonly bool _fullMask;
     private readonly int _count;
     private int _index;
 
-    internal QueryChunkCursor(QueryPlan query, int archetypeId, Chunk chunk, ReadOnlySpan<int> componentRows, uint writeTick, ulong[]? overlayMask, OverlayMaskResult overlayResult)
+    internal QueryChunkCursor(QueryPlan query, int archetypeId, Chunk chunk, ReadOnlySpan<int> componentRows, uint writeTick)
     {
         _query = query;
         ArchetypeId = archetypeId;
         _chunk = chunk;
         _componentRows = componentRows;
         _writeTick = writeTick;
-        _overlayMask = overlayResult == OverlayMaskResult.Partial ? overlayMask : null;
-        _fullMask = overlayResult == OverlayMaskResult.Full;
         _count = chunk.Count;
         _index = -1;
     }
@@ -34,17 +30,6 @@ public ref struct QueryChunkCursor
     public int ArchetypeId { get; }
     public int GlobalChunkId => _chunk.GlobalId;
     public ReadOnlySpan<Entity> Entities => _chunk.Entities;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool IsActiveSlot(int slotIndex)
-    {
-        if ((uint)slotIndex >= (uint)_count)
-        {
-            return false;
-        }
-
-        return _fullMask || (_overlayMask is not null && (_overlayMask[slotIndex >> 6] & (1UL << (slotIndex & 63))) != 0);
-    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNext()
@@ -145,54 +130,6 @@ public ref struct QueryChunkCursor
     }
 }
 
-/// <summary>Prepared read-only values for one component row in one current chunk.</summary>
-public ref struct ReadValues
-{
-    private readonly ref byte _data;
-
-    internal ReadValues(Array row)
-    {
-        _data = ref GetArrayDataReference(row);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref readonly T Ref<T>(QueryChunkCursor cursor) => ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), cursor.CurrentIndex);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref readonly T Ref<T>(QuerySlots slots) => ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), slots.CurrentIndex);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref readonly T Ref<T>(int slotIndex) => ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), slotIndex);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ref byte GetArrayDataReference(Array row)
-        => ref MemoryMarshal.GetArrayDataReference(Unsafe.As<byte[]>(row));
-}
-
-/// <summary>Prepared writable values for one component row in one current chunk.</summary>
-public ref struct WriteValues
-{
-    private readonly ref byte _data;
-
-    internal WriteValues(Array row)
-    {
-        _data = ref GetArrayDataReference(row);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T Ref<T>(QueryChunkCursor cursor) => ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), cursor.CurrentIndex);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T Ref<T>(QuerySlots slots) => ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), slots.CurrentIndex);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T Ref<T>(int slotIndex) => ref Unsafe.Add(ref Unsafe.As<byte, T>(ref _data), slotIndex);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ref byte GetArrayDataReference(Array row)
-        => ref MemoryMarshal.GetArrayDataReference(Unsafe.As<byte[]>(row));
-}
-
 /// <summary>Compatibility carrier for callback state that does not need static read/write typing.</summary>
 public readonly struct AccessRequest
 {
@@ -264,7 +201,6 @@ internal sealed class QueryPlan
 
     public QueryPlan(QuerySpec spec) => _description = spec;
 
-    public bool HasTags => !_description.AllTags.IsEmpty || !_description.AnyTags.IsEmpty || !_description.NoneTags.IsEmpty;
     public bool HasWriteAccess => _hasWriteAccess;
     public void RegisterWriteAccess() => _hasWriteAccess = true;
 

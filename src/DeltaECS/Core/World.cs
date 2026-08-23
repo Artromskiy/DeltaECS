@@ -1,7 +1,6 @@
 namespace Delta.ECS;
 
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -13,7 +12,6 @@ public sealed class World : IDisposable
 
     private readonly ComponentLayoutRegistry _layouts;
     private readonly int _chunkCapacity;
-    private readonly OverlayTagManager _overlayTags;
     private readonly List<Archetype> _archetypes = new();
     private readonly Dictionary<ComponentMask, int> _archetypeByMask = new();
     private readonly List<EntityRecord> _records = new();
@@ -42,7 +40,6 @@ public sealed class World : IDisposable
         _layouts = layouts ?? new ComponentLayoutRegistry();
         _chunkCapacity = chunkCapacity;
         _records.Capacity = initialEntityCapacity;
-        _overlayTags = new OverlayTagManager(chunkCapacity);
     }
 
     public int ArchetypeVersion => _archetypeVersion;
@@ -103,10 +100,7 @@ public sealed class World : IDisposable
 
     public Query CreateQuery(in QuerySpec spec) => new Query(this, GetOrCreateQuery(spec), spec);
 
-    /// <summary>
-    /// Creates a validated dense-only query scope with independent archetype,
-    /// chunk and slot iterators. Queries with tag predicates are rejected.
-    /// </summary>
+    /// <summary>Creates a validated dense query scope with independent iterators.</summary>
     public QueryScope OpenQuery(in Query handle) => new QueryScope(this, handle);
 
     public Entity Create(params ReadOnlySpan<ComponentId> componentIds)
@@ -287,49 +281,6 @@ public sealed class World : IDisposable
         return true;
     }
 
-    public void AddTag(Entity entity, TagId tag)
-    {
-        ValidateTag(tag);
-        if (TryResolve(entity, out int recordIndex))
-        {
-            ref readonly var record = ref RecordAt(recordIndex);
-            var archetype = _archetypes[record.Archetype];
-            _overlayTags.AddTag(archetype.GetChunkGlobalId(record.Chunk), record.SlotIndex, tag);
-        }
-    }
-
-    public void RemoveTag(Entity entity, TagId tag)
-    {
-        ValidateTag(tag);
-        if (TryResolve(entity, out int recordIndex))
-        {
-            ref readonly var record = ref RecordAt(recordIndex);
-            var archetype = _archetypes[record.Archetype];
-            _overlayTags.RemoveTag(archetype.GetChunkGlobalId(record.Chunk), record.SlotIndex, tag);
-        }
-    }
-
-    public bool HasTag(Entity entity, TagId tag)
-    {
-        ValidateTag(tag);
-        if (!TryResolve(entity, out int recordIndex))
-        {
-            return false;
-        }
-
-        ref readonly var record = ref RecordAt(recordIndex);
-        var archetype = _archetypes[record.Archetype];
-        return _overlayTags.HasTag(archetype.GetChunkGlobalId(record.Chunk), record.SlotIndex, tag);
-    }
-
-    private static void ValidateTag(TagId tag)
-    {
-        if (!tag.IsValid)
-        {
-            throw new ArgumentOutOfRangeException(nameof(tag), "TagId must be non-negative.");
-        }
-    }
-
     public void AddComponents(ComponentId[] componentIds, Entity entity)
     {
         Span<Entity> entities = stackalloc Entity[1];
@@ -359,12 +310,6 @@ public sealed class World : IDisposable
 
         var cached = query.Cached;
         ReadOnlySpan<int> archetypes = cached.MatchingArchetypes(this);
-        if (cached.HasTags)
-        {
-            var matches = CollectTaggedQueryEntities(query.Description, archetypes);
-            return DestroyBatch(CollectionsMarshal.AsSpan(matches));
-        }
-
         int destroyed = 0;
         for (int archetypeIndex = 0; archetypeIndex < archetypes.Length; archetypeIndex++)
         {
@@ -389,11 +334,9 @@ public sealed class World : IDisposable
             throw new ArgumentException("Query handle does not belong to this world.", nameof(handle));
         }
 
-        var query = handle.Description;
         var cached = handle.Cached;
         var plans = cached.MatchingPlans(this);
         uint writeTick = QueryWriteTick(cached);
-        ulong[]? scratch = cached.HasTags ? RentChunkOverlayScratch() : null;
         _activeChunkLeases++;
         try
         {
@@ -404,15 +347,7 @@ public sealed class World : IDisposable
                 for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
                 {
                     var chunk = archetype.GetActiveChunk(chunkIndex);
-                    var overlayResult = cached.HasTags
-                        ? _overlayTags.BuildMask(query, chunk.GlobalId, chunk.Count, scratch!)
-                        : OverlayMaskResult.Full;
-                    if (overlayResult == OverlayMaskResult.None)
-                    {
-                        continue;
-                    }
-
-                    var cursor = new QueryChunkCursor(cached, archetype.Id, chunk, plan.ComponentRows, writeTick, scratch, overlayResult);
+                    var cursor = new QueryChunkCursor(cached, archetype.Id, chunk, plan.ComponentRows, writeTick);
                     action(ref context, ref cursor);
                 }
             }
@@ -420,10 +355,6 @@ public sealed class World : IDisposable
         finally
         {
             _activeChunkLeases--;
-            if (scratch is not null)
-            {
-                ReturnChunkOverlayScratch(scratch);
-            }
         }
     }
 
@@ -453,17 +384,11 @@ public sealed class World : IDisposable
         return count;
     }
 
-    internal ulong[] RentChunkOverlayScratch() => ArrayPool<ulong>.Shared.Rent(_overlayTags.WordsPerChunk);
-
-    internal OverlayTagManager OverlayTags => _overlayTags;
-
     internal void BeginQueryLease() => _activeChunkLeases++;
 
     internal void EndQueryLease() => _activeChunkLeases--;
 
     internal uint GetQueryWriteTick(QueryPlan cached) => QueryWriteTick(cached);
-
-    internal void ReturnChunkOverlayScratch(ulong[] scratch) => ArrayPool<ulong>.Shared.Return(scratch, clearArray: true);
 
     private uint AdvanceWorldTick()
     {
@@ -545,12 +470,6 @@ public sealed class World : IDisposable
 
         var cached = query.Cached;
         ReadOnlySpan<int> matchingArchetypes = cached.MatchingArchetypes(this);
-        if (cached.HasTags)
-        {
-            var matches = CollectTaggedQueryEntities(query.Description, matchingArchetypes);
-            return ApplyComponents(isAdd, componentIds, CollectionsMarshal.AsSpan(matches));
-        }
-
         int edgeStamp = BeginBatchEdgeCache();
         int changed = 0;
         for (int matchingIndex = 0; matchingIndex < matchingArchetypes.Length; matchingIndex++)
@@ -569,11 +488,7 @@ public sealed class World : IDisposable
     }
 
     private int MoveArchetypeBlocks(Archetype sourceArchetype, TransitionEdge edge)
-    {
-        return _overlayTags.HasAnyTags
-            ? MoveArchetypeBlocksTagged(sourceArchetype, edge)
-            : MoveArchetypeBlocksDense(sourceArchetype, edge);
-    }
+        => MoveArchetypeBlocksDense(sourceArchetype, edge);
 
     private int MoveArchetypeBlocksDense(Archetype sourceArchetype, TransitionEdge edge)
     {
@@ -639,77 +554,6 @@ public sealed class World : IDisposable
         return movedCount;
     }
 
-    private int MoveArchetypeBlocksTagged(Archetype sourceArchetype, TransitionEdge edge)
-    {
-        int movedCount = 0;
-        var targetArchetype = _archetypes[edge.TargetArchetypeId];
-        for (int sourceChunkIndex = sourceArchetype.ChunkCount - 1; sourceChunkIndex >= 0; sourceChunkIndex--)
-        {
-            var sourceChunk = sourceArchetype.GetChunk(sourceChunkIndex);
-            int sourceCount = sourceChunk.Count;
-            if (sourceCount == 0)
-            {
-                continue;
-            }
-
-            var sourceEntities = sourceChunk.RawEntities;
-            int sourceChunkId = sourceChunk.GlobalId;
-            int sourceEnd = sourceCount;
-            while (sourceEnd > 0)
-            {
-                int targetChunkId = targetArchetype.HasAvailableChunk() ? -1 : AllocateChunkId();
-                int reserved = targetArchetype.ReserveRange(
-                    sourceEnd,
-                    targetChunkId,
-                    out int targetChunkIndex,
-                    out var targetChunk);
-                int targetSlot = targetChunk.Count - reserved;
-                int sourceSlot = sourceEnd - reserved;
-
-                sourceEntities.Slice(sourceSlot, reserved).CopyTo(targetChunk.RawEntities.Slice(targetSlot, reserved));
-                for (int sourceComponentIndex = 0; sourceComponentIndex < edge.SourceToTargetRowIndices.Length; sourceComponentIndex++)
-                {
-                    int targetComponentIndex = edge.SourceToTargetRowIndices[sourceComponentIndex];
-                    if (targetComponentIndex < 0)
-                    {
-                        continue;
-                    }
-
-                    Array.Copy(
-                        sourceChunk.GetRawComponentRow(sourceComponentIndex),
-                        sourceSlot,
-                        targetChunk.GetRawComponentRow(targetComponentIndex),
-                        targetSlot,
-                        reserved);
-                }
-
-                targetChunk.InitializeRowsRange(targetSlot, reserved, edge.AddedTargetRowIndices);
-                for (int slot = 0; slot < reserved; slot++)
-                {
-                    var entity = sourceEntities[sourceSlot + slot];
-                    _overlayTags.CopySlotTags(sourceChunkId, sourceSlot + slot, targetChunk.GlobalId, targetSlot + slot);
-                    ref var record = ref RecordAt(entity.Index);
-                    record.Archetype = targetArchetype.Id;
-                    record.Chunk = targetChunkIndex;
-                    record.SlotIndex = targetSlot + slot;
-                }
-
-                sourceEnd = sourceSlot;
-                movedCount += reserved;
-            }
-
-            for (int slot = sourceCount - 1; slot >= 0; slot--)
-            {
-                _overlayTags.ClearSlot(sourceChunkId, slot);
-            }
-
-            sourceChunk.ClearAll();
-            sourceArchetype.ReleaseChunk(sourceChunkIndex);
-        }
-
-        return movedCount;
-    }
-
     private int DestroyChunk(Archetype archetype, int chunkIndex)
     {
         var chunk = archetype.GetChunk(chunkIndex);
@@ -720,7 +564,6 @@ public sealed class World : IDisposable
         }
 
         var entities = chunk.RawEntities;
-        bool preserveOverlayTags = _overlayTags.HasAnyTags;
         for (int slot = count - 1; slot >= 0; slot--)
         {
             var entity = entities[slot];
@@ -730,10 +573,6 @@ public sealed class World : IDisposable
             record.SlotIndex = -1;
             record.Generation++;
             PushFree(entity.Index);
-            if (preserveOverlayTags)
-            {
-                _overlayTags.ClearSlot(chunk.GlobalId, slot);
-            }
         }
 
         chunk.ClearAll();
@@ -742,74 +581,12 @@ public sealed class World : IDisposable
         return count;
     }
 
-    private List<Entity> CollectTaggedQueryEntities(
-        QuerySpec query,
-        ReadOnlySpan<int> matchingArchetypes)
-    {
-        var matches = new List<Entity>();
-        ulong[] scratch = RentChunkOverlayScratch();
-        try
-        {
-            for (int matchingIndex = 0; matchingIndex < matchingArchetypes.Length; matchingIndex++)
-            {
-                var archetype = _archetypes[matchingArchetypes[matchingIndex]];
-                for (int activeChunkIndex = 0; activeChunkIndex < archetype.ActiveChunkCount; activeChunkIndex++)
-                {
-                    var chunk = archetype.GetActiveChunk(activeChunkIndex);
-
-                    var result = _overlayTags.BuildMask(query, chunk.GlobalId, chunk.Count, scratch);
-                    if (result == OverlayMaskResult.None)
-                    {
-                        continue;
-                    }
-
-                    var entities = chunk.Entities;
-                    if (result == OverlayMaskResult.Full)
-                    {
-                        for (int slot = 0; slot < entities.Length; slot++)
-                        {
-                            matches.Add(entities[slot]);
-                        }
-                    }
-                    else
-                    {
-                        for (int slot = 0; slot < entities.Length; slot++)
-                        {
-                            if ((scratch[slot >> 6] & (1UL << (slot & 63))) != 0)
-                            {
-                                matches.Add(entities[slot]);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        finally
-        {
-            ReturnChunkOverlayScratch(scratch);
-        }
-
-        return matches;
-    }
-
     private void DestroyResolved(int recordIndex)
     {
         ref var record = ref RecordAt(recordIndex);
         var archetype = _archetypes[record.Archetype];
         var chunk = archetype.GetChunk(record.Chunk);
-        int chunkId = chunk.GlobalId;
-        bool preserveOverlayTags = _overlayTags.HasAnyTags;
-        int lastSlotIndex = chunk.Count - 1;
         var moved = archetype.RemoveEntity(record.Chunk, record.SlotIndex);
-        if (preserveOverlayTags && record.SlotIndex != lastSlotIndex)
-        {
-            _overlayTags.MoveSlotBits(chunkId, lastSlotIndex, record.SlotIndex);
-        }
-
-        if (preserveOverlayTags)
-        {
-            _overlayTags.ClearSlot(chunkId, lastSlotIndex);
-        }
         if (moved.IsAlive)
         {
             ref var movedRecord = ref RecordAt(moved.Index);
@@ -831,8 +608,6 @@ public sealed class World : IDisposable
         var sourceArchetype = _archetypes[sourceRecord.Archetype];
         var targetArchetype = _archetypes[edge.TargetArchetypeId];
         var sourceChunk = sourceArchetype.GetChunk(sourceRecord.Chunk);
-        int sourceChunkId = sourceChunk.GlobalId;
-        bool preserveOverlayTags = _overlayTags.HasAnyTags;
         int sourceSlotIndex = sourceRecord.SlotIndex;
         int sourceChunkIndex = sourceRecord.Chunk;
         int targetChunkId = targetArchetype.HasAvailableChunk() ? -1 : AllocateChunkId();
@@ -858,21 +633,7 @@ public sealed class World : IDisposable
             targetChunk.InitializeRows(targetSlotIndex, edge.AddedTargetRowIndices);
         }
 
-        if (preserveOverlayTags)
-        {
-            _overlayTags.CopySlotTags(sourceChunkId, sourceSlotIndex, targetChunk.GlobalId, targetSlotIndex);
-        }
-        int lastSlotIndex = sourceChunk.Count - 1;
         var moved = sourceArchetype.RemoveEntity(sourceChunkIndex, sourceSlotIndex);
-        if (preserveOverlayTags && sourceSlotIndex != lastSlotIndex)
-        {
-            _overlayTags.MoveSlotBits(sourceChunkId, lastSlotIndex, sourceSlotIndex);
-        }
-
-        if (preserveOverlayTags)
-        {
-            _overlayTags.ClearSlot(sourceChunkId, lastSlotIndex);
-        }
         sourceRecord.Archetype = edge.TargetArchetypeId;
         sourceRecord.Chunk = targetChunkIndex;
         sourceRecord.SlotIndex = targetSlotIndex;

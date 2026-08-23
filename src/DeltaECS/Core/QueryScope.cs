@@ -21,13 +21,6 @@ public ref struct QueryScope
 
         _owner = owner;
         _query = handle.Cached;
-        if (_query.HasTags)
-        {
-            throw new ArgumentException(
-                "Dense query iteration does not accept tag predicates. Use the tagged query path.",
-                nameof(handle));
-        }
-
         _plans = _query.MatchingPlans(owner);
         _writeTick = owner.GetQueryWriteTick(_query);
         _disposed = false;

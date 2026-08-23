@@ -251,30 +251,6 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
     public static bool operator !=(ComponentMask left, ComponentMask right) => !left.Equals(right);
 }
 
-public readonly struct TagId : IEquatable<TagId>
-{
-    public int Value { get; }
-
-    public TagId(int value)
-    {
-        Value = value;
-    }
-
-    public bool IsValid => Value >= 0;
-
-    public static TagId Invalid => new(-1);
-
-    public bool Equals(TagId other) => Value == other.Value;
-
-    public override bool Equals(object? obj) => obj is TagId other && Equals(other);
-
-    public override int GetHashCode() => Value.GetHashCode();
-
-    public static bool operator ==(TagId left, TagId right) => left.Equals(right);
-
-    public static bool operator !=(TagId left, TagId right) => !left.Equals(right);
-}
-
 public readonly struct SchemaId : IEquatable<SchemaId>
 {
     public ulong Value { get; }
@@ -302,8 +278,7 @@ public readonly struct SchemaId : IEquatable<SchemaId>
 public enum ComponentStorageClass : byte
 {
     Dense = 0,
-    Overlay = 1,
-    Stream = 2
+    Stream = 1
 }
 
 public readonly struct ComponentLayout : IEquatable<ComponentLayout>

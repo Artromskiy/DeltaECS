@@ -134,22 +134,24 @@ internal sealed class Chunk
 
     public void CopySlotTo(Chunk target, int sourceSlotIndex, int targetSlotIndex, int sourceComponentIndex, int targetComponentIndex)
     {
-        _rowOperations[sourceComponentIndex].CopyOne(
+        Array.Copy(
             _componentRows[sourceComponentIndex],
             sourceSlotIndex,
             target._componentRows[targetComponentIndex],
-            targetSlotIndex);
+            targetSlotIndex,
+            1);
     }
 
     public void CopySlot(int sourceSlotIndex, int destinationSlotIndex, int componentIndex)
     {
         if (sourceSlotIndex != destinationSlotIndex)
         {
-            _rowOperations[componentIndex].CopyOne(
+            Array.Copy(
                 _componentRows[componentIndex],
                 sourceSlotIndex,
                 _componentRows[componentIndex],
-                destinationSlotIndex);
+                destinationSlotIndex,
+                1);
         }
     }
 
@@ -168,7 +170,7 @@ internal sealed class Chunk
             ref readonly var operations = ref _rowOperations[componentIndex];
             if (operations.ContainsReferences)
             {
-                operations.ClearOne(_componentRows[componentIndex], slotIndex);
+                Array.Clear(_componentRows[componentIndex], slotIndex, 1);
             }
         }
     }
@@ -177,7 +179,7 @@ internal sealed class Chunk
     {
         for (int componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
         {
-            _rowOperations[componentIndex].ClearOne(_componentRows[componentIndex], slotIndex);
+            Array.Clear(_componentRows[componentIndex], slotIndex, 1);
         }
     }
 
@@ -186,7 +188,7 @@ internal sealed class Chunk
         for (int index = 0; index < componentIndices.Length; index++)
         {
             int componentIndex = componentIndices[index];
-            _rowOperations[componentIndex].ClearOne(_componentRows[componentIndex], slotIndex);
+            Array.Clear(_componentRows[componentIndex], slotIndex, 1);
         }
     }
 

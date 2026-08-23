@@ -124,5 +124,3 @@ public readonly struct Query
     }
 
 }
-
-public delegate void QueryAction<TContext>(ref TContext context, ref QueryChunkCursor cursor);
