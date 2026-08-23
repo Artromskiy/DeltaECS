@@ -31,8 +31,8 @@ public class DefaultEcsComparisonBenchmarks
     private ComponentId[] _deltaMovementComponents = Array.Empty<ComponentId>();
     private Query _deltaMovementQuery;
     private DeltaEntity[] _deltaMovementEntities = Array.Empty<DeltaEntity>();
-    private AccessRequest _deltaPositionBinding;
-    private AccessRequest _deltaVelocityBinding;
+    private WriteAccess _deltaPositionBinding;
+    private ReadAccess _deltaVelocityBinding;
     private ComponentId[] _deltaTransitionComponents = Array.Empty<ComponentId>();
 
     private DefaultEcs.World _defaultMovementWorld = null!;
@@ -76,21 +76,30 @@ public class DefaultEcsComparisonBenchmarks
     [BenchmarkCategory("DenseMovement")]
     public double DeltaECS_Movement_PositionVelocity()
     {
-        var state = new MovementState { Count = 0, ExpectedCount = Amount, Dt = Dt, Position = _deltaPositionBinding, Velocity = _deltaVelocityBinding };
-        _deltaMovementWorld.Query(in _deltaMovementQuery, ref state, static (ref MovementState s, ref QueryChunkCursor cursor) =>
+        var state = new MovementState { Count = 0, ExpectedCount = Amount, Dt = Dt };
+        using var scope = _deltaMovementWorld.OpenQuery(in _deltaMovementQuery);
+        var positionAccess = scope.Bind(_deltaPositionBinding);
+        var velocityAccess = scope.Bind(_deltaVelocityBinding);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
         {
-            var positions = cursor.GetWrite(s.Position);
-            var velocities = cursor.GetRead(s.Velocity);
-            while (cursor.MoveNext())
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
             {
-                ref var position = ref positions.Ref<MovementPosition>(cursor);
-                ref readonly var velocity = ref velocities.Ref<MovementVelocity>(cursor);
-                position.X += velocity.X * s.Dt;
-                position.Y += velocity.Y * s.Dt;
-                s.Count++;
-                s.Checksum += position.X + position.Y;
+                var slots = chunks.Current.Slots;
+                var positions = slots.Get(positionAccess);
+                var velocities = slots.Get(velocityAccess);
+                while (slots.MoveNext())
+                {
+                    ref var position = ref positions.Ref<MovementPosition>(slots);
+                    ref readonly var velocity = ref velocities.Ref<MovementVelocity>(slots);
+                    position.X += velocity.X * state.Dt;
+                    position.Y += velocity.Y * state.Dt;
+                    state.Count++;
+                    state.Checksum += position.X + position.Y;
+                }
             }
-        });
+        }
 
         return BenchmarkGuard.Checksum(state.Count, state.ExpectedCount, state.Checksum);
     }
@@ -347,8 +356,6 @@ public class DefaultEcsComparisonBenchmarks
         public int ExpectedCount;
         public float Dt;
         public double Checksum;
-        public AccessRequest Position;
-        public AccessRequest Velocity;
     }
 
     private struct MovementPosition
