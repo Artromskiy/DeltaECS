@@ -8,20 +8,20 @@ public ref struct QuerySlots
 {
     private readonly int[] _componentRowsByQuery;
     private readonly Chunk _chunk;
-    private readonly Array[] _componentRows;
+    private readonly Array[] _resolvedRowsByQuery;
     private readonly QueryPlan _query;
     private readonly uint _writeTick;
     private readonly int _count;
     private int _index;
 
-    internal QuerySlots(DenseArchetypePlan plan, Chunk chunk, QueryPlan query, uint writeTick)
+    internal QuerySlots(DenseArchetypePlan plan, DenseChunkPlan chunkPlan, QueryPlan query, uint writeTick)
     {
         _componentRowsByQuery = plan.ComponentRows;
-        _chunk = chunk;
-        _componentRows = chunk.RawComponentRows;
+        _chunk = chunkPlan.Chunk;
+        _resolvedRowsByQuery = chunkPlan.ComponentRows;
         _query = query;
         _writeTick = writeTick;
-        _count = chunk.Count;
+        _count = chunkPlan.Chunk.Count;
         _index = -1;
     }
 
@@ -45,8 +45,7 @@ public ref struct QuerySlots
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        int physicalRow = _componentRowsByQuery.Ref(access.QueryComponentIndex);
-        return new ReadValues(_componentRows.Ref(physicalRow));
+        return new ReadValues(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -59,7 +58,7 @@ public ref struct QuerySlots
 
         int physicalRow = _componentRowsByQuery.Ref(access.QueryComponentIndex);
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
-        return new WriteValues(_componentRows.Ref(physicalRow));
+        return new WriteValues(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
     }
 
     public ObjectReadValues GetObject(ReadAccess access)
@@ -69,8 +68,7 @@ public ref struct QuerySlots
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        int physicalRow = _componentRowsByQuery.Ref(access.QueryComponentIndex);
-        return new ObjectReadValues(_componentRows.Ref(physicalRow));
+        return new ObjectReadValues(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
     }
 
     public ObjectWriteValues GetObject(WriteAccess access)
@@ -82,7 +80,7 @@ public ref struct QuerySlots
 
         int physicalRow = _componentRowsByQuery.Ref(access.QueryComponentIndex);
         _chunk.MarkComponentWritten(physicalRow, _writeTick);
-        return new ObjectWriteValues(_componentRows.Ref(physicalRow));
+        return new ObjectWriteValues(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
     }
 
 }

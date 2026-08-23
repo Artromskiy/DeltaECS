@@ -7,7 +7,7 @@ public ref struct QueryChunks
 {
     private readonly DenseArchetypePlan _plan;
     private readonly QueryPlan _query;
-    private readonly ReadOnlySpan<Chunk> _chunks;
+    private readonly ReadOnlySpan<DenseChunkPlan> _chunks;
     private readonly uint _writeTick;
     private int _index;
 
@@ -15,7 +15,7 @@ public ref struct QueryChunks
     {
         _plan = plan;
         _query = query;
-        _chunks = plan.Archetype.ActiveChunks;
+        _chunks = plan.Chunks;
         _writeTick = writeTick;
         _index = -1;
     }
@@ -50,11 +50,11 @@ public ref struct QueryChunks
 public readonly ref struct QueryChunk
 {
     private readonly DenseArchetypePlan _plan;
-    private readonly Chunk _chunk;
+    private readonly DenseChunkPlan _chunk;
     private readonly QueryPlan _query;
     private readonly uint _writeTick;
 
-    internal QueryChunk(DenseArchetypePlan plan, Chunk chunk, QueryPlan query, uint writeTick)
+    internal QueryChunk(DenseArchetypePlan plan, DenseChunkPlan chunk, QueryPlan query, uint writeTick)
     {
         _plan = plan;
         _chunk = chunk;
@@ -64,11 +64,11 @@ public readonly ref struct QueryChunk
 
     public int ArchetypeId => _plan.Archetype.Id;
 
-    public int GlobalChunkId => _chunk.GlobalId;
+    public int GlobalChunkId => _chunk.Chunk.GlobalId;
 
-    public int SlotCount => _chunk.Count;
+    public int SlotCount => _chunk.Chunk.Count;
 
-    public ReadOnlySpan<Entity> Entities => _chunk.Entities;
+    public ReadOnlySpan<Entity> Entities => _chunk.Chunk.Entities;
 
     public QuerySlots Slots => new(_plan, _chunk, _query, _writeTick);
 }

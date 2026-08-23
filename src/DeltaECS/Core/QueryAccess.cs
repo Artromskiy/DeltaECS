@@ -270,6 +270,11 @@ internal sealed class QueryPlan
     public DenseArchetypePlan[] MatchingPlans(World world)
     {
         MatchingArchetypes(world);
+        for (int index = 0; index < _matchingPlans.Length; index++)
+        {
+            _matchingPlans[index].RefreshChunks();
+        }
+
         return _matchingPlans;
     }
 
@@ -282,17 +287,58 @@ internal sealed class QueryPlan
         && !archetype.Mask.Intersects(_description.NoneMask);
 }
 
-internal readonly struct DenseArchetypePlan
+internal struct DenseArchetypePlan
 {
     public DenseArchetypePlan(Archetype archetype, int[] componentRows)
     {
         Archetype = archetype;
         ComponentRows = componentRows;
+        Chunks = Array.Empty<DenseChunkPlan>();
     }
 
     public Archetype Archetype { get; }
     public int[] ComponentRows { get; }
+    public DenseChunkPlan[] Chunks { get; private set; }
+
+    public void RefreshChunks()
+    {
+        var activeChunks = Archetype.ActiveChunks;
+        if (Chunks.Length == activeChunks.Length)
+        {
+            int index = 0;
+            for (; index < activeChunks.Length; index++)
+            {
+                if (!ReferenceEquals(Chunks[index].Chunk, activeChunks[index]))
+                {
+                    break;
+                }
+            }
+
+            if (index == activeChunks.Length)
+            {
+                return;
+            }
+        }
+
+        var chunks = new DenseChunkPlan[activeChunks.Length];
+        for (int chunkIndex = 0; chunkIndex < activeChunks.Length; chunkIndex++)
+        {
+            var chunk = activeChunks[chunkIndex];
+            var sourceRows = chunk.RawComponentRows;
+            var resolvedRows = new Array[ComponentRows.Length];
+            for (int queryRow = 0; queryRow < ComponentRows.Length; queryRow++)
+            {
+                resolvedRows[queryRow] = sourceRows[ComponentRows[queryRow]];
+            }
+
+            chunks[chunkIndex] = new DenseChunkPlan(chunk, resolvedRows);
+        }
+
+        Chunks = chunks;
+    }
 }
+
+internal readonly record struct DenseChunkPlan(Chunk Chunk, Array[] ComponentRows);
 
 internal static class QueryThrowHelper
 {
