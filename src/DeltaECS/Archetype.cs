@@ -8,15 +8,15 @@ internal sealed class Archetype
 {
     private readonly int _id;
     private readonly int _chunkCapacity;
-    private readonly ComponentId[] _componentIds;
+    private NativeMemory<ComponentId> _componentIds;
     private readonly ComponentLayout[] _layouts;
     private readonly ComponentRowOperations[] _rowOperations;
     private readonly List<Chunk> _chunks = new();
     private readonly List<int> _availableChunkStack = new();
-    private bool[] _availableChunkFlags = Array.Empty<bool>();
-    private int[] _activeChunkIndices = Array.Empty<int>();
+    private NativeMemory<bool> _availableChunkFlags = new(0);
+    private NativeMemory<int> _activeChunkIndices = new(0);
     private Chunk[] _activeChunks = Array.Empty<Chunk>();
-    private int[] _activeChunkPositions = Array.Empty<int>();
+    private NativeMemory<int> _activeChunkPositions = new(0);
     private int _activeChunkCount;
 
     public Archetype(
@@ -37,7 +37,7 @@ internal sealed class Archetype
         _id = id;
         Mask = mask;
         _chunkCapacity = chunkCapacity;
-        _componentIds = componentIds;
+        _componentIds = new NativeMemory<ComponentId>(componentIds);
         _layouts = layouts;
         _rowOperations = rowOperations;
     }
@@ -46,7 +46,7 @@ internal sealed class Archetype
 
     public ComponentMask Mask { get; }
 
-    public ReadOnlySpan<ComponentId> ComponentIds => _componentIds;
+    public ReadOnlySpan<ComponentId> ComponentIds => _componentIds.ReadOnlySpan;
 
     public int ComponentCount => _componentIds.Length;
 
@@ -213,8 +213,8 @@ internal sealed class Archetype
         if (chunkIndex >= _availableChunkFlags.Length)
         {
             int capacity = Math.Max(chunkIndex + 1, _availableChunkFlags.Length == 0 ? 4 : _availableChunkFlags.Length * 2);
-            Array.Resize(ref _availableChunkFlags, capacity);
-            Array.Resize(ref _activeChunkPositions, capacity);
+            _availableChunkFlags.Resize(capacity);
+            _activeChunkPositions.Resize(capacity);
         }
     }
 
@@ -228,7 +228,7 @@ internal sealed class Archetype
         if (_activeChunkCount == _activeChunkIndices.Length)
         {
             int capacity = Math.Max(4, _activeChunkIndices.Length * 2);
-            Array.Resize(ref _activeChunkIndices, capacity);
+            _activeChunkIndices.Resize(capacity);
             Array.Resize(ref _activeChunks, capacity);
         }
 
@@ -267,4 +267,17 @@ internal sealed class Archetype
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Chunk GetActiveChunk(int activeIndex) => _activeChunks[activeIndex];
+
+    internal void Dispose()
+    {
+        for (int index = 0; index < _chunks.Count; index++)
+        {
+            _chunks[index].Dispose();
+        }
+
+        _componentIds.Dispose();
+        _availableChunkFlags.Dispose();
+        _activeChunkIndices.Dispose();
+        _activeChunkPositions.Dispose();
+    }
 }
