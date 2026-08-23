@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-public sealed class World
+public sealed class World : IDisposable
 {
     private const int DefaultChunkCapacity = 1024;
     private const int DefaultInitialCapacity = 1024;
@@ -17,17 +17,18 @@ public sealed class World
     private readonly List<Archetype> _archetypes = new();
     private readonly Dictionary<ComponentMask, int> _archetypeByMask = new();
     private readonly List<EntityRecord> _records = new();
-    private int[] _freeRecords = new int[16];
+    private NativeMemory<int> _freeRecords = new(16);
     private int _freeCount;
     private readonly Dictionary<TransitionKey, TransitionEdge> _transitionCache = new();
     private readonly Dictionary<QuerySpec, QueryPlan> _queryCache = new(QuerySpec.Comparer);
-    private DestroyEntry[] _destroyScratch = new DestroyEntry[32];
+    private NativeMemory<DestroyEntry> _destroyScratch = new(32);
     private TransitionEdge[] _batchEdgeSlots = Array.Empty<TransitionEdge>();
-    private int[] _batchEdgeStamps = Array.Empty<int>();
+    private NativeMemory<int> _batchEdgeStamps = new(0);
     private int _batchEdgeStamp;
     private int _nextChunkId;
     private int _activeChunkLeases;
     private int _archetypeVersion;
+    private bool _disposed;
 
     public World(
         ComponentLayoutRegistry? layouts = null,
@@ -53,6 +54,37 @@ public sealed class World
     public ComponentLayoutRegistry Layouts => _layouts;
 
     internal List<Archetype> Archetypes => _archetypes;
+
+    /// <summary>
+    /// Releases native storage owned by this world and all of its archetypes.
+    /// A world is the sole owner of these buffers; callers must dispose the
+    /// world rather than copying or disposing individual storage fields.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        EnsureNoActiveLease("dispose the world");
+
+        _disposed = true;
+        foreach (var queryPlan in _queryCache.Values)
+        {
+            queryPlan.Dispose();
+        }
+
+        foreach (var archetype in _archetypes)
+        {
+            archetype.Dispose();
+        }
+
+        _freeRecords.Dispose();
+        _destroyScratch.Dispose();
+        _batchEdgeStamps.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     public ArchetypeHandle GetArchetype(params ComponentId[] componentIds) => ResolveArchetype(componentIds);
 
@@ -170,7 +202,7 @@ public sealed class World
             }
         }
 
-        Array.Sort(_destroyScratch, 0, count, DestroyEntryComparer.Instance);
+        _destroyScratch.Span[..count].Sort(DestroyEntryComparer.Instance);
         int destroyed = 0;
         for (int i = 0; i < count; i++)
         {
@@ -324,7 +356,7 @@ public sealed class World
         EnsureNoActiveLease("destroy entities");
 
         var cached = query.Cached;
-        int[] archetypes = cached.MatchingArchetypes(this);
+        ReadOnlySpan<int> archetypes = cached.MatchingArchetypes(this);
         if (cached.HasTags)
         {
             var matches = CollectTaggedQueryEntities(query.Description, archetypes);
@@ -510,7 +542,7 @@ public sealed class World
         }
 
         var cached = query.Cached;
-        int[] matchingArchetypes = cached.MatchingArchetypes(this);
+        ReadOnlySpan<int> matchingArchetypes = cached.MatchingArchetypes(this);
         if (cached.HasTags)
         {
             var matches = CollectTaggedQueryEntities(query.Description, matchingArchetypes);
@@ -567,7 +599,7 @@ public sealed class World
                 int targetSlot = targetChunk.Count - reserved;
                 int sourceSlot = sourceEnd - reserved;
 
-                Array.Copy(sourceEntities, sourceSlot, targetChunk.RawEntities, targetSlot, reserved);
+                sourceEntities.Slice(sourceSlot, reserved).CopyTo(targetChunk.RawEntities.Slice(targetSlot, reserved));
                 for (int sourceComponentIndex = 0; sourceComponentIndex < edge.SourceToTargetRowIndices.Length; sourceComponentIndex++)
                 {
                     int targetComponentIndex = edge.SourceToTargetRowIndices[sourceComponentIndex];
@@ -632,7 +664,7 @@ public sealed class World
                 int targetSlot = targetChunk.Count - reserved;
                 int sourceSlot = sourceEnd - reserved;
 
-                Array.Copy(sourceEntities, sourceSlot, targetChunk.RawEntities, targetSlot, reserved);
+                sourceEntities.Slice(sourceSlot, reserved).CopyTo(targetChunk.RawEntities.Slice(targetSlot, reserved));
                 for (int sourceComponentIndex = 0; sourceComponentIndex < edge.SourceToTargetRowIndices.Length; sourceComponentIndex++)
                 {
                     int targetComponentIndex = edge.SourceToTargetRowIndices[sourceComponentIndex];
@@ -710,7 +742,7 @@ public sealed class World
 
     private List<Entity> CollectTaggedQueryEntities(
         QuerySpec query,
-        int[] matchingArchetypes)
+        ReadOnlySpan<int> matchingArchetypes)
     {
         var matches = new List<Entity>();
         ulong[] scratch = RentChunkOverlayScratch();
@@ -984,7 +1016,7 @@ public sealed class World
     {
         if (_freeCount == _freeRecords.Length)
         {
-            Array.Resize(ref _freeRecords, Math.Max(4, _freeRecords.Length * 2));
+            _freeRecords.Resize(Math.Max(4, _freeRecords.Length * 2));
         }
 
         _freeRecords[_freeCount++] = recordIndex;
@@ -1040,7 +1072,7 @@ public sealed class World
         EnsureBatchEdgeCapacity(_archetypes.Count);
         if (_batchEdgeStamp == int.MaxValue)
         {
-            Array.Clear(_batchEdgeStamps, 0, _batchEdgeStamps.Length);
+            _batchEdgeStamps.Clear();
             _batchEdgeStamp = 1;
         }
         else
@@ -1082,14 +1114,14 @@ public sealed class World
 
         int capacity = Math.Max(required, _batchEdgeSlots.Length == 0 ? 4 : _batchEdgeSlots.Length * 2);
         Array.Resize(ref _batchEdgeSlots, capacity);
-        Array.Resize(ref _batchEdgeStamps, capacity);
+        _batchEdgeStamps.Resize(capacity);
     }
 
     private void EnsureDestroyScratch(int required)
     {
         if (required > _destroyScratch.Length)
         {
-            Array.Resize(ref _destroyScratch, Math.Max(required, _destroyScratch.Length * 2));
+            _destroyScratch.Resize(Math.Max(required, _destroyScratch.Length * 2));
         }
     }
 

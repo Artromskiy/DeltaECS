@@ -9,14 +9,14 @@ public ref struct QueryChunkCursor
 {
     private readonly QueryPlan _query;
     private readonly Chunk _chunk;
-    private readonly int[] _componentRows;
+    private readonly ReadOnlySpan<int> _componentRows;
     private readonly uint _writeTick;
     private readonly ulong[]? _overlayMask;
     private readonly bool _fullMask;
     private readonly int _count;
     private int _index;
 
-    internal QueryChunkCursor(QueryPlan query, int archetypeId, Chunk chunk, int[] componentRows, uint writeTick, ulong[]? overlayMask, OverlayMaskResult overlayResult)
+    internal QueryChunkCursor(QueryPlan query, int archetypeId, Chunk chunk, ReadOnlySpan<int> componentRows, uint writeTick, ulong[]? overlayMask, OverlayMaskResult overlayResult)
     {
         _query = query;
         ArchetypeId = archetypeId;
@@ -409,7 +409,7 @@ internal sealed class QueryPlan
 {
     private readonly QuerySpec _description;
     private int _version = -1;
-    private int[] _matchingArchetypes = Array.Empty<int>();
+    private NativeMemory<int> _matchingArchetypes = new(0);
     private DenseArchetypePlan[] _matchingPlans = Array.Empty<DenseArchetypePlan>();
     private bool _hasWriteAccess;
 
@@ -419,11 +419,11 @@ internal sealed class QueryPlan
     public bool HasWriteAccess => _hasWriteAccess;
     public void RegisterWriteAccess() => _hasWriteAccess = true;
 
-    public int[] MatchingArchetypes(World world)
+    public ReadOnlySpan<int> MatchingArchetypes(World world)
     {
         if (_version == world.ArchetypeVersion)
         {
-            return _matchingArchetypes;
+            return _matchingArchetypes.ReadOnlySpan;
         }
 
         var matches = new List<int>(world.Archetypes.Count);
@@ -447,10 +447,11 @@ internal sealed class QueryPlan
             plans.Add(new DenseArchetypePlan(archetype, indices));
         }
 
-        _matchingArchetypes = matches.ToArray();
+        _matchingArchetypes.Dispose();
+        _matchingArchetypes = new NativeMemory<int>(CollectionsMarshal.AsSpan(matches));
         _matchingPlans = plans.ToArray();
         _version = world.ArchetypeVersion;
-        return _matchingArchetypes;
+        return _matchingArchetypes.ReadOnlySpan;
     }
 
     public DenseArchetypePlan[] MatchingPlans(World world)
@@ -459,7 +460,9 @@ internal sealed class QueryPlan
         return _matchingPlans;
     }
 
-    public int[] ComponentRowIndices(int matchingIndex) => _matchingPlans[matchingIndex].ComponentRows;
+    public ReadOnlySpan<int> ComponentRowIndices(int matchingIndex) => _matchingPlans[matchingIndex].ComponentRows;
+
+    internal void Dispose() => _matchingArchetypes.Dispose();
 
     private bool Matches(Archetype archetype) => archetype.Mask.ContainsAll(_description.AllMask)
         && (_description.AnyMask.IsEmpty || archetype.Mask.Intersects(_description.AnyMask))
