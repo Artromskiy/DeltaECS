@@ -43,40 +43,11 @@ public ref struct QueryScope
         }
     }
 
-    public ReadAccess BindRead(AccessRequest access)
-    {
-        EnsureActive();
-        Validate(access.Query);
-        if (access.IsWrite)
-        {
-            QueryThrowHelper.ThrowAccessModeMismatch();
-        }
-
-        return new ReadAccess(_query, access.QueryComponentIndex);
-    }
-
     public ReadAccess Bind(ReadAccess access)
     {
         EnsureActive();
         Validate(access.Query);
         return access;
-    }
-
-    public WriteAccess BindWrite(AccessRequest access)
-    {
-        EnsureActive();
-        Validate(access.Query);
-        if (!access.IsWrite)
-        {
-            QueryThrowHelper.ThrowAccessModeMismatch();
-        }
-
-        if (_writeTick == 0)
-        {
-            QueryThrowHelper.ThrowMissingWriteIntent();
-        }
-
-        return new WriteAccess(_query, access.QueryComponentIndex);
     }
 
     public WriteAccess Bind(WriteAccess access)

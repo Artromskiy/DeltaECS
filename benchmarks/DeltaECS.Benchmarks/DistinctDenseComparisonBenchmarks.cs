@@ -78,14 +78,14 @@ public class DistinctDenseComparisonBenchmarks
 
         var queryDescription = QuerySpec.ForComponents(_deltaComponents);
         _deltaQuery = _deltaWorld.CreateQuery(in queryDescription);
-        _d0Binding = _deltaQuery.Access(_deltaComponents[0], AccessMode.Write);
-        _d1Binding = ComponentCount >= 2 ? _deltaQuery.Access(_deltaComponents[1], AccessMode.Write) : default;
-        _d2Binding = ComponentCount >= 4 ? _deltaQuery.Access(_deltaComponents[2], AccessMode.Write) : default;
-        _d3Binding = ComponentCount >= 4 ? _deltaQuery.Access(_deltaComponents[3], AccessMode.Write) : default;
-        _d4Binding = ComponentCount >= 8 ? _deltaQuery.Access(_deltaComponents[4], AccessMode.Write) : default;
-        _d5Binding = ComponentCount >= 8 ? _deltaQuery.Access(_deltaComponents[5], AccessMode.Write) : default;
-        _d6Binding = ComponentCount >= 8 ? _deltaQuery.Access(_deltaComponents[6], AccessMode.Write) : default;
-        _d7Binding = ComponentCount >= 8 ? _deltaQuery.Access(_deltaComponents[7], AccessMode.Write) : default;
+        _d0Binding = _deltaQuery.AccessWrite(_deltaComponents[0]);
+        _d1Binding = ComponentCount >= 2 ? _deltaQuery.AccessWrite(_deltaComponents[1]) : default;
+        _d2Binding = ComponentCount >= 4 ? _deltaQuery.AccessWrite(_deltaComponents[2]) : default;
+        _d3Binding = ComponentCount >= 4 ? _deltaQuery.AccessWrite(_deltaComponents[3]) : default;
+        _d4Binding = ComponentCount >= 8 ? _deltaQuery.AccessWrite(_deltaComponents[4]) : default;
+        _d5Binding = ComponentCount >= 8 ? _deltaQuery.AccessWrite(_deltaComponents[5]) : default;
+        _d6Binding = ComponentCount >= 8 ? _deltaQuery.AccessWrite(_deltaComponents[6]) : default;
+        _d7Binding = ComponentCount >= 8 ? _deltaQuery.AccessWrite(_deltaComponents[7]) : default;
         _legacy = new LegacyByteDenseReference(ComponentCount, Amount);
 
         _archWorld = Arch.Core.World.Create();

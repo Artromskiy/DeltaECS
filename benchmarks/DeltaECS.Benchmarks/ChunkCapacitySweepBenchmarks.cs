@@ -70,10 +70,10 @@ public class DenseCapacitySweepBenchmarks
 
         var spec = QuerySpec.ForComponents(_components);
         _query = _arrayWorld.CreateQuery(in spec);
-        _b0 = _query.Access(_components[0], AccessMode.Write); _b1 = _query.Access(_components[1], AccessMode.Write);
-        _b2 = _query.Access(_components[2], AccessMode.Write); _b3 = _query.Access(_components[3], AccessMode.Write);
-        _b4 = _query.Access(_components[4], AccessMode.Write); _b5 = _query.Access(_components[5], AccessMode.Write);
-        _b6 = _query.Access(_components[6], AccessMode.Write); _b7 = _query.Access(_components[7], AccessMode.Write);
+        _b0 = _query.AccessWrite(_components[0]); _b1 = _query.AccessWrite(_components[1]);
+        _b2 = _query.AccessWrite(_components[2]); _b3 = _query.AccessWrite(_components[3]);
+        _b4 = _query.AccessWrite(_components[4]); _b5 = _query.AccessWrite(_components[5]);
+        _b6 = _query.AccessWrite(_components[6]); _b7 = _query.AccessWrite(_components[7]);
         _legacy = new LegacyByteDenseReference(8, Amount, ChunkCapacity);
     }
 

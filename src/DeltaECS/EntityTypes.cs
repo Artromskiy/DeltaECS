@@ -69,21 +69,6 @@ internal struct EntityRecord
     public int SlotIndex;
 }
 
-public readonly struct ReadAccessMode
-{
-}
-
-public readonly struct WriteAccessMode
-{
-}
-
-public static class AccessMode
-{
-    public static ReadAccessMode Read => default;
-
-    public static WriteAccessMode Write => default;
-}
-
 public readonly struct Query
 {
     private readonly World _owner;
@@ -105,17 +90,17 @@ public readonly struct Query
 
     public bool IsValid => _owner is not null && _cached is not null;
 
-    public AccessRequest Access(ComponentId componentId, ReadAccessMode _)
+    public ReadAccess AccessRead(ComponentId componentId)
     {
         int rowIndex = ResolveComponentRow(componentId);
-        return new AccessRequest(_cached, rowIndex, write: false);
+        return new ReadAccess(_cached, rowIndex);
     }
 
-    public AccessRequest Access(ComponentId componentId, WriteAccessMode _)
+    public WriteAccess AccessWrite(ComponentId componentId)
     {
         int rowIndex = ResolveComponentRow(componentId);
         _cached.RegisterWriteAccess();
-        return new AccessRequest(_cached, rowIndex, write: true);
+        return new WriteAccess(_cached, rowIndex);
     }
 
     private int ResolveComponentRow(ComponentId componentId)

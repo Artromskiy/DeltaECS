@@ -9,7 +9,9 @@ Public namespace is `Delta.ECS`; project/assembly names remain `DeltaECS*`.
 - `Entity` is index + generation; `EntityRecord` resolves its location.
 - `ComponentId` is dense runtime identity; schema IDs are stable tooling
   identity; `Type` is cold registration metadata.
-- Archetypes use an opaque 256-bit mask whose public API can be widened later.
+- Archetypes currently use an opaque 256-bit mask. Registration beyond that
+  checked capacity is an implementation-limit error; widening is not promised
+  as ABI-compatible.
 - Chunks store one typed CLR array per component in `Array[]` SoA rows.
 - Different component IDs may use the same CLR type and retain separate rows.
 - Value, reference and structs-with-reference components share one row model.
@@ -34,17 +36,21 @@ callbacks must still check `IsActiveSlot` for partial chunks.
 
 The dense API has three deliberately separate stages: `QuerySpec` describes
 selection, `World.CreateQuery` returns the world-owned `Query`, and
-`query.Access(id, AccessMode.Read/Write)` declares component access. Inside an
-`OpenQuery` scope, `scope.BindRead(access)` or `scope.BindWrite(access)` validates
-that declaration once; `slots.Get(prepared)` then exposes a non-generic values
+`query.AccessRead(id)` or `query.AccessWrite(id)` declares component access and
+returns the corresponding non-generic `ReadAccess` or `WriteAccess` token. Inside an
+`OpenQuery` scope, `scope.Bind(access)` validates that declaration once;
+`slots.Get(prepared)` then exposes a non-generic values
 object whose terminal `Ref<T>` call provides the component reference.
+`T` must match the component type registered for the access token. Controlled
+pre-loop mismatch validation is selected correctness work; callers must not
+use a different `T` to reinterpret row storage.
 
 Queries without tag predicates may use the thinner independent dense path:
 
 ```csharp
 using var scope = world.OpenQuery(in query);
-var positionAccess = query.Access(positionId, AccessMode.Read);
-var position = scope.BindRead(positionAccess);
+var positionAccess = query.AccessRead(positionId);
+var position = scope.Bind(positionAccess);
 var archetypes = scope.Archetypes;
 while (archetypes.MoveNext())
 {

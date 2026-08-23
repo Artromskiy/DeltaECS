@@ -306,8 +306,8 @@ public class EcsLiteComparisonBenchmarks
 
         var queryDescription = QuerySpec.ForComponents(components);
         _deltaMovementQuery = _deltaMovementWorld.CreateQuery(in queryDescription);
-        _deltaMovementPositionBinding = _deltaMovementQuery.Access(_deltaPosition, AccessMode.Write);
-        _deltaMovementVelocityBinding = _deltaMovementQuery.Access(_deltaVelocity, AccessMode.Read);
+        _deltaMovementPositionBinding = _deltaMovementQuery.AccessWrite(_deltaPosition);
+        _deltaMovementVelocityBinding = _deltaMovementQuery.AccessRead(_deltaVelocity);
     }
 
     private void BuildDeltaFilterWorld()
@@ -321,8 +321,8 @@ public class EcsLiteComparisonBenchmarks
         _deltaFilterWorld = new World(layouts, initialEntityCapacity: Amount);
         var queryDescription = QuerySpec.ForComponents(components);
         _deltaFilterQuery = _deltaFilterWorld.CreateQuery(in queryDescription);
-        _deltaFilterPositionBinding = _deltaFilterQuery.Access(position, AccessMode.Read);
-        _deltaFilterVelocityBinding = _deltaFilterQuery.Access(velocity, AccessMode.Read);
+        _deltaFilterPositionBinding = _deltaFilterQuery.AccessRead(position);
+        _deltaFilterVelocityBinding = _deltaFilterQuery.AccessRead(velocity);
         _deltaFilterWorld.CreateBatch(components, _deltaFilterEntities);
 
         for (var entityIndex = 0; entityIndex < _deltaFilterEntities.Length; entityIndex++)

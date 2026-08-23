@@ -188,8 +188,8 @@ public sealed class QueryStructuralOperationsTests
         world.CreateBatch(new[] { PositionId }, entities);
         var spec = QuerySpec.ForComponents(PositionId);
         var query = world.CreateQuery(in spec);
-        var readPosition = query.Access(PositionId, AccessMode.Read);
-        var writePosition = query.Access(PositionId, AccessMode.Write);
+        var readPosition = query.AccessRead(PositionId);
+        var writePosition = query.AccessWrite(PositionId);
 
         Assert.That(world.AddComponents(in query, new[] { VelocityId }), Is.EqualTo(entities.Length));
 

@@ -146,8 +146,8 @@ public class AlgorithmicMovementBenchmarks
 
         var spec = QuerySpec.ForComponents(_deltaComponents);
         _deltaQuery = _deltaWorld.CreateQuery(in spec);
-        _deltaPositionBinding = _deltaQuery.Access(_deltaPosition, AccessMode.Write);
-        _deltaVelocityBinding = _deltaQuery.Access(_deltaVelocity, AccessMode.Read);
+        _deltaPositionBinding = _deltaQuery.AccessWrite(_deltaPosition);
+        _deltaVelocityBinding = _deltaQuery.AccessRead(_deltaVelocity);
     }
 
     private void SetupArch()

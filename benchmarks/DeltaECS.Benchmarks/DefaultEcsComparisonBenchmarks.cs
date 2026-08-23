@@ -252,8 +252,8 @@ public class DefaultEcsComparisonBenchmarks
 
         var queryDescription = QuerySpec.ForComponents(_deltaMovementComponents);
         _deltaMovementQuery = _deltaMovementWorld.CreateQuery(in queryDescription);
-        _deltaPositionBinding = _deltaMovementQuery.Access(_deltaPosition, AccessMode.Write);
-        _deltaVelocityBinding = _deltaMovementQuery.Access(_deltaVelocity, AccessMode.Read);
+        _deltaPositionBinding = _deltaMovementQuery.AccessWrite(_deltaPosition);
+        _deltaVelocityBinding = _deltaMovementQuery.AccessRead(_deltaVelocity);
     }
 
     private void SetupMovementDefault()

@@ -68,8 +68,8 @@ public class DeltaEcsTagFilteringBenchmarks
             Array.Empty<TagId>(),
             Array.Empty<TagId>());
         _query = _world.CreateQuery(in spec);
-        _writeBinding = _query.Access(_valueComponent, AccessMode.Write);
-        _readBinding = _query.Access(_valueComponent, AccessMode.Read);
+        _writeBinding = _query.AccessWrite(_valueComponent);
+        _readBinding = _query.AccessRead(_valueComponent);
     }
 
     /// <summary>Mask/query path plus a useful component update.</summary>

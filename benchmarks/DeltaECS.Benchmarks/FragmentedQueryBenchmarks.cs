@@ -71,7 +71,7 @@ public class DeltaOnlyFragmentedQueryBenchmarks
 
         var spec = QuerySpec.ForComponents(_required);
         _query = _world.CreateQuery(in spec);
-        _valueBinding = _query.Access(_required, AccessMode.Read);
+        _valueBinding = _query.AccessRead(_required);
     }
 
     [Benchmark]
@@ -117,7 +117,7 @@ public class DeltaOnlyFragmentedQueryBenchmarks
         var state = new FragmentQueryState();
         var spec = QuerySpec.ForComponents(_required);
         var coldQuery = _world.CreateQuery(in spec);
-        var valueBinding = coldQuery.Access(_required, AccessMode.Read);
+        var valueBinding = coldQuery.AccessRead(_required);
         state.Value = valueBinding;
         _world.Query(in coldQuery, ref state, static (ref FragmentQueryState s, ref QueryChunkCursor cursor) =>
         {

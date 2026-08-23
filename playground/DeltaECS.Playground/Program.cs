@@ -16,14 +16,14 @@ for (var i = 0; i < entities.Length; i++)
 
 var spec = QuerySpec.ForComponents(positionId, velocityId);
 var query = world.CreateQuery(in spec);
-var writePosition = query.Access(positionId, AccessMode.Write);
-var readVelocity = query.Access(velocityId, AccessMode.Read);
+var writePosition = query.AccessWrite(positionId);
+var readVelocity = query.AccessRead(velocityId);
 
 Console.WriteLine("Dense archetype -> chunk -> slot iteration:");
 using var scope = world.OpenQuery(in query);
 
-var position = scope.BindWrite(writePosition);
-var velocity = scope.BindRead(readVelocity);
+var position = scope.Bind(writePosition);
+var velocity = scope.Bind(readVelocity);
 var archetypes = scope.Archetypes;
 
 while (archetypes.MoveNext())
@@ -47,7 +47,7 @@ while (archetypes.MoveNext())
 }
 
 Console.WriteLine("Callback/action query iteration:");
-var readPosition = query.Access(positionId, AccessMode.Read);
+var readPosition = query.AccessRead(positionId);
 var actionState = new ActionState
 {
     Position = readPosition,

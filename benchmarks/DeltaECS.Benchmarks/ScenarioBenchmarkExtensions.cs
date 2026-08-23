@@ -73,7 +73,7 @@ public class SmallDenseScenarioBenchmarks
         _deltaQuery = _deltaWorld.CreateQuery(in spec);
         _deltaBindings = new AccessRequest[ComponentCount];
         for (var i = 0; i < ComponentCount; i++)
-            _deltaBindings[i] = _deltaQuery.Access(_deltaComponents[i], AccessMode.Write);
+            _deltaBindings[i] = _deltaQuery.AccessWrite(_deltaComponents[i]);
 
         var entities = new Entity[Amount];
         _deltaWorld.CreateBatch(_deltaComponents, entities);
@@ -420,8 +420,8 @@ public class WideArchetypeNarrowAccessBenchmarks
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
         var query = Delta.ECS.QuerySpec.ForComponents(_deltaComponents[0], _deltaComponents[1]);
         _deltaQuery = _deltaWorld.CreateQuery(in query);
-        _deltaPositionBinding = _deltaQuery.Access(_deltaComponents[0], AccessMode.Write);
-        _deltaVelocityBinding = _deltaQuery.Access(_deltaComponents[1], AccessMode.Read);
+        _deltaPositionBinding = _deltaQuery.AccessWrite(_deltaComponents[0]);
+        _deltaVelocityBinding = _deltaQuery.AccessRead(_deltaComponents[1]);
 
         var entities = new Entity[Amount];
         _deltaWorld.CreateBatch(_deltaComponents, entities);
@@ -516,8 +516,8 @@ public class WideArchetypeNarrowAccessComparisonBenchmarks
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
         var query = Delta.ECS.QuerySpec.ForComponents(_deltaComponents[0], _deltaComponents[1]);
         _deltaQuery = _deltaWorld.CreateQuery(in query);
-        _deltaPositionBinding = _deltaQuery.Access(_deltaComponents[0], AccessMode.Write);
-        _deltaVelocityBinding = _deltaQuery.Access(_deltaComponents[1], AccessMode.Read);
+        _deltaPositionBinding = _deltaQuery.AccessWrite(_deltaComponents[0]);
+        _deltaVelocityBinding = _deltaQuery.AccessRead(_deltaComponents[1]);
 
         var entities = new Entity[Amount];
         _deltaWorld.CreateBatch(_deltaComponents, entities);
@@ -734,8 +734,8 @@ public class SparseHeterogeneousQueryBenchmarks
             Array.Empty<TagId>(),
             Array.Empty<TagId>());
         var coldQuery = _deltaWorld.CreateQuery(in spec);
-        var positionBinding = coldQuery.Access(_deltaPosition, AccessMode.Write);
-        var velocityBinding = coldQuery.Access(_deltaVelocity, AccessMode.Read);
+        var positionBinding = coldQuery.AccessWrite(_deltaPosition);
+        var velocityBinding = coldQuery.AccessRead(_deltaVelocity);
         var state = new SparseState { Position = positionBinding, Velocity = velocityBinding };
         _deltaWorld.Query(in coldQuery, ref state, IterateDeltaMatches);
         return CheckResult(state, "DeltaECS cold query");
@@ -856,8 +856,8 @@ public class SparseHeterogeneousQueryBenchmarks
 
         var warmDescription = QuerySpec.ForComponents(_deltaPosition, _deltaVelocity);
         _deltaWarmQuery = _deltaWorld.CreateQuery(in warmDescription);
-        _deltaPositionBinding = _deltaWarmQuery.Access(_deltaPosition, AccessMode.Write);
-        _deltaVelocityBinding = _deltaWarmQuery.Access(_deltaVelocity, AccessMode.Read);
+        _deltaPositionBinding = _deltaWarmQuery.AccessWrite(_deltaPosition);
+        _deltaVelocityBinding = _deltaWarmQuery.AccessRead(_deltaVelocity);
     }
 
     private void SetupArch()

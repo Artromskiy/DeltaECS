@@ -31,8 +31,8 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `ComponentId`, `ComponentMask`, `ComponentLayout` | Dense component identity, matching mask, registered layout metadata | `src/DeltaECS/ComponentTypes.cs` |
 | `ComponentLayoutRegistry` | CLR type/storage registration and validation | `src/DeltaECS/ComponentLayoutRegistry.cs` |
 | `QuerySpec` | All/Any/None component and tag predicates | `src/DeltaECS/QuerySpec.cs` |
-| `Query` | World/query identity and non-generic access-request factory | `src/DeltaECS/EntityTypes.cs` |
-| `AccessRequest`, `ReadAccess`, `WriteAccess` | Query-bound type-erased access intent | `src/DeltaECS/QueryAccess.cs` |
+| `Query` | World/query identity and non-generic read/write access factory | `src/DeltaECS/EntityTypes.cs` |
+| `ReadAccess`, `WriteAccess` | Query-bound type-erased access intent | `src/DeltaECS/QueryAccess.cs` |
 | `QueryScope` | Dense-only validation and structural lease owner | `src/DeltaECS/QueryScope.cs` |
 | `QueryArchetypes`, `QueryChunks`, `QuerySlots` | Independent dense traversal levels | `src/DeltaECS/QueryArchetypes.cs`, `QueryChunks.cs`, `QuerySlots.cs` |
 | `QueryChunkCursor` | Current chunk, forward slot traversal, value access and tag mask | `src/DeltaECS/QueryAccess.cs` |
@@ -45,7 +45,7 @@ For independent dense iteration, read only this chain first:
 
 ```text
 World.OpenQuery(in Query)
-  -> QueryScope.BindRead/BindWrite(access request)
+  -> QueryScope.Bind(access)
   -> QueryArchetypes.MoveNext()
   -> QueryChunks.MoveNext()
   -> QuerySlots.Get(access)
@@ -63,7 +63,7 @@ The dense three-loop public shape is:
 
 ```csharp
 using var scope = world.OpenQuery(in query);
-var prepared = scope.BindRead(access);
+var prepared = scope.Bind(access);
 var archetypes = scope.Archetypes;
 while (archetypes.MoveNext())
 {
@@ -110,7 +110,7 @@ the query path proves to depend on their storage contract.
 - Active lease barrier: `World._activeChunkLeases`, lease helpers in
   `World.cs`, and `QueryScope.Dispose`/`World.Query`.
 - Write tracking: `QueryPlan.RegisterWriteAccess`, `World.QueryWriteTick`,
-  `QueryChunkCursor.GetWrite(AccessRequest)`, and
+  `QueryChunkCursor.GetWrite(WriteAccess)`, and
   `Chunk.MarkComponentWritten`.
 - Stale entity generation/location: `EntityRecord` and resolve helpers in
   `World.cs`.

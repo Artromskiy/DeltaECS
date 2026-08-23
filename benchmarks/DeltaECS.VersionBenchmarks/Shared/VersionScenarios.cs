@@ -75,13 +75,13 @@ public sealed class IterationScenario
 
         var denseDescription = QuerySpec.ForComponents(_dense);
         _denseQuery = _world.CreateQuery(in denseDescription);
-        _denseBinding = _denseQuery.Access(_dense, AccessMode.Read);
-        _positionBinding = _movement2Query.Access(_position, AccessMode.Write);
-        _velocityBinding = _movement2Query.Access(_velocity, AccessMode.Read);
-        _movementABinding = _movement4Query.Access(_movement4Ids[0], AccessMode.Write);
-        _movementBBinding = _movement4Query.Access(_movement4Ids[1], AccessMode.Write);
-        _movementCBinding = _movement4Query.Access(_movement4Ids[2], AccessMode.Write);
-        _movementDBinding = _movement4Query.Access(_movement4Ids[3], AccessMode.Read);
+        _denseBinding = _denseQuery.AccessRead(_dense);
+        _positionBinding = _movement2Query.AccessWrite(_position);
+        _velocityBinding = _movement2Query.AccessRead(_velocity);
+        _movementABinding = _movement4Query.AccessWrite(_movement4Ids[0]);
+        _movementBBinding = _movement4Query.AccessWrite(_movement4Ids[1]);
+        _movementCBinding = _movement4Query.AccessWrite(_movement4Ids[2]);
+        _movementDBinding = _movement4Query.AccessRead(_movement4Ids[3]);
         ResetMovements();
     }
 

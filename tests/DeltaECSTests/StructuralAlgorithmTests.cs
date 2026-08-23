@@ -397,9 +397,9 @@ public sealed class StructuralAlgorithmTests
         var observed = new Dictionary<Entity, HierarchyObserved>();
         var spec = QuerySpec.ForComponents(parentId, localId, worldId);
         var query = world.CreateQuery(in spec);
-        var parentBinding = query.Access(parentId, AccessMode.Read);
-        var local = query.Access(localId, AccessMode.Read);
-        var worldTransform = query.Access(worldId, AccessMode.Read);
+        var parentBinding = query.AccessRead(parentId);
+        var local = query.AccessRead(localId);
+        var worldTransform = query.AccessRead(worldId);
         var cursorState = new HierarchyCursorState(parentBinding, local, worldTransform, observed);
         world.Query(in query, ref cursorState, static (ref HierarchyCursorState state, ref QueryChunkCursor cursor) =>
         {

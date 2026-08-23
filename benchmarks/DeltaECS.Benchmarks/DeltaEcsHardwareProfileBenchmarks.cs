@@ -97,8 +97,8 @@ public class HardwareProfileBenchmarks
         _readBindings = new AccessRequest[ComponentCount];
         for (var i = 0; i < ComponentCount; i++)
         {
-            _writeBindings[i] = _query.Access(_components[i], AccessMode.Write);
-            _readBindings[i] = _query.Access(_components[i], AccessMode.Read);
+            _writeBindings[i] = _query.AccessWrite(_components[i]);
+            _readBindings[i] = _query.AccessRead(_components[i]);
         }
         _legacy = new LegacyProfileBackend(ComponentCount, Amount);
     }

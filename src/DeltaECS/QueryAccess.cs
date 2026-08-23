@@ -88,6 +88,17 @@ public ref struct QueryChunkCursor
         return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
     }
 
+    public ReadValues GetRead(ReadAccess access)
+    {
+        if (!ReferenceEquals(access.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        int physicalRow = _componentRows[access.QueryComponentIndex];
+        return new ReadValues(_chunk.GetRawComponentRow(physicalRow));
+    }
+
     public ReadValues GetRead(AccessRequest access)
     {
         if (access.IsWrite || !ReferenceEquals(access.Query, _query))
@@ -97,6 +108,23 @@ public ref struct QueryChunkCursor
 
         int physicalRow = _componentRows[access.QueryComponentIndex];
         return new ReadValues(_chunk.GetRawComponentRow(physicalRow));
+    }
+
+    public WriteValues GetWrite(WriteAccess access)
+    {
+        if (!ReferenceEquals(access.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        int physicalRow = _componentRows[access.QueryComponentIndex];
+        if (_writeTick == 0)
+        {
+            QueryThrowHelper.ThrowMissingWriteIntent();
+        }
+
+        _chunk.MarkComponentWritten(physicalRow, _writeTick);
+        return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
     }
 
     public WriteValues GetWrite(AccessRequest access)
@@ -165,7 +193,7 @@ public ref struct WriteValues
         => ref MemoryMarshal.GetArrayDataReference(Unsafe.As<byte[]>(row));
 }
 
-/// <summary>Non-generic access request used by the type-erased query core.</summary>
+/// <summary>Compatibility carrier for callback state that does not need static read/write typing.</summary>
 public readonly struct AccessRequest
 {
     internal AccessRequest(QueryPlan query, int queryComponentIndex, bool write)
@@ -178,6 +206,26 @@ public readonly struct AccessRequest
     internal QueryPlan? Query { get; }
     internal int QueryComponentIndex { get; }
     internal bool IsWrite { get; }
+
+    public static implicit operator AccessRequest(ReadAccess access)
+    {
+        if (access.Query is not { } query)
+        {
+            throw new InvalidOperationException("Cannot convert a default read access token.");
+        }
+
+        return new AccessRequest(query, access.QueryComponentIndex, write: false);
+    }
+
+    public static implicit operator AccessRequest(WriteAccess access)
+    {
+        if (access.Query is not { } query)
+        {
+            throw new InvalidOperationException("Cannot convert a default write access token.");
+        }
+
+        return new AccessRequest(query, access.QueryComponentIndex, write: true);
+    }
 }
 
 /// <summary>Non-generic query access token for a read row.</summary>

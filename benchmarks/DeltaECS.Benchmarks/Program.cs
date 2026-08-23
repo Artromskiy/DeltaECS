@@ -78,7 +78,7 @@ public class DeltaEcsVsArchBenchmarks
         _deltaQuery = _deltaWorld.CreateQuery(in spec);
         _deltaBindings = new AccessRequest[ComponentCount];
         for (var i = 0; i < ComponentCount; i++)
-            _deltaBindings[i] = _deltaQuery.Access(_deltaComponents[i], AccessMode.Write);
+            _deltaBindings[i] = _deltaQuery.AccessWrite(_deltaComponents[i]);
         _deltaCreated = new Entity[Amount];
         _deltaWorld.CreateBatch(_deltaComponents, _deltaCreated);
         for (var i = 0; i < _deltaCreated.Length; i++)
@@ -103,7 +103,7 @@ public class DeltaEcsVsArchBenchmarks
         _arrayQuery = _arrayWorld.CreateQuery(in arrayDescription);
         _arrayBindings = new AccessRequest[ComponentCount];
         for (var i = 0; i < ComponentCount; i++)
-            _arrayBindings[i] = _arrayQuery.Access(_arrayComponents[i], AccessMode.Write);
+            _arrayBindings[i] = _arrayQuery.AccessWrite(_arrayComponents[i]);
         _arrayCreated = new Entity[Amount];
         _arrayWorld.CreateBatch(_arrayComponents, _arrayCreated);
         for (var i = 0; i < _arrayCreated.Length; i++)
@@ -425,7 +425,7 @@ public class DeltaEcsManagedArrayBenchmarks
         _world = new World(layouts, initialEntityCapacity: Amount);
         var spec = QuerySpec.ForComponents(_component);
         _query = _world.CreateQuery(in spec);
-        _binding = _query.Access(_component, AccessMode.Read);
+        _binding = _query.AccessRead(_component);
         _entities = new Entity[Amount];
         _world.CreateBatch(new[] { _component }, _entities);
         for (var i = 0; i < _entities.Length; i++)
@@ -497,10 +497,10 @@ public class DeltaEcsHotPathProfileBenchmarks
         _world = new World(layouts, initialEntityCapacity: 100_000);
         var spec = QuerySpec.ForComponents(_first, _second);
         _query = _world.CreateQuery(in spec);
-        _firstBinding = _query.Access(_first, AccessMode.Read);
-        _secondReadBinding = _query.Access(_second, AccessMode.Read);
-        _firstWriteBinding = _query.Access(_first, AccessMode.Write);
-        _secondBinding = _query.Access(_second, AccessMode.Write);
+        _firstBinding = _query.AccessRead(_first);
+        _secondReadBinding = _query.AccessRead(_second);
+        _firstWriteBinding = _query.AccessWrite(_first);
+        _secondBinding = _query.AccessWrite(_second);
         _entities = new Entity[100_000];
         _world.CreateBatch(new[] { _first, _second }, _entities);
         for (var i = 0; i < _entities.Length; i++)
@@ -640,6 +640,7 @@ public static class Program
         }
 
         if (args.Length > 0 && (string.Equals(args[0], "iteration", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(args[0], "openquery", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(args[0], "structural-list", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(args[0], "structural-query", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(args[0], "structural-atomic", StringComparison.OrdinalIgnoreCase)))
