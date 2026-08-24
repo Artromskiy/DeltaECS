@@ -67,7 +67,7 @@ Every microbenchmark must document:
 | Field | Required value |
 |---|---|
 | Operation | Exact public or internal kernel operation under study |
-| Data shape | Entity count, chunk capacity, archetype/component width, tags |
+| Data shape | Entity count, chunk capacity, archetype/component width |
 | Baseline | Existing implementation or prior DeltaECS revision |
 | Correctness | Test or post-operation invariant that proves equivalent results |
 | Runtime | .NET version, architecture and GC mode |
@@ -156,6 +156,21 @@ runner and does not execute inside the measured benchmark process, so it does
 not affect the measurements. Direct microbenchmark DLL runs do not provide this
 runner heartbeat.
 
+For a long local iteration comparison at elevated priority, run:
+
+```bash
+cd /Users/rum/GitProjects/TheFurnace/DeltaECS
+benchmarks/run-sudo-iteration-comparison.sh
+```
+
+The script builds as the current user, requests `sudo` only for the measured
+runner, applies `nice -n -20`, emits the existing 30-second heartbeat and
+restores artifact ownership afterwards. Its defaults are 5 warmups, 15
+measurement iterations and 1 launch, targeting roughly 25-35 minutes on an
+Apple M4 Pro. Override them with `--warmups`, `--iterations` and `--launches`.
+The current unified matrix contains five ECS implementations total: DeltaECS,
+Arch, Friflo, DefaultEcs and LeoEcsLite.
+
 When a class or method is new, discover and smoke it once. Do not repeat these
 commands before every assembly edit:
 
@@ -192,7 +207,7 @@ For a JIT-only capture, reuse the same DLL and do not rebuild:
   --method '*Movement4Components*' \
   --filter '*DenseIterationMicroBenchmarks.Movement4Components*' \
   --no-build \
-  --output artifacts/jit-disasm/movement4-reverse.txt
+  --output artifacts/jit-disasm/movement4-forward.txt
 ```
 
 The helper sets `DOTNET_TieredCompilation=0`, `DOTNET_ReadyToRun=0` and
@@ -356,11 +371,10 @@ while (archetypes.MoveNext())
 }
 ```
 
-Tagged queries use `World.Query` with an action and
-`IsActiveSlot(cursor.CurrentIndex)`; `OpenQuery` intentionally rejects tag
-predicates. The microbenchmark catalog contains this dense path and the four
-direct structural operations below it; removed duplicate traversal fixtures are
-not part of discovery or measurement routes.
+Queries use the dense component path through `World.Query` or `OpenQuery`.
+The microbenchmark catalog contains this dense path and the four direct
+structural operations below it; removed duplicate traversal fixtures are not
+part of discovery or measurement routes.
 
 `DeltaECS.VersionBenchmarks` requires two checkouts and is intentionally not a
 normal solution-build project:

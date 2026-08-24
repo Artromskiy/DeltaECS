@@ -10,9 +10,9 @@ public sealed class ComponentRowOperationTests
     public void SwapBack_Copies_Value_ManagedStruct_And_Class_Rows()
     {
         var layouts = new ComponentLayoutRegistry();
-        var valueId = layouts.Register<int>(SchemaId.FromUInt64(10_001));
-        var managedStructId = layouts.Register<ManagedPayload>(SchemaId.FromUInt64(10_002));
-        var classId = layouts.Register<ReferencePayload>(SchemaId.FromUInt64(10_003));
+        var valueId = layouts.Register(typeof(int), SchemaId.FromUInt64(10_001));
+        var managedStructId = layouts.Register(typeof(ManagedPayload), SchemaId.FromUInt64(10_002));
+        var classId = layouts.Register(typeof(ReferencePayload), SchemaId.FromUInt64(10_003));
         var world = new World(layouts, chunkCapacity: 4);
         var archetype = world.GetArchetype(valueId, managedStructId, classId);
 
@@ -39,9 +39,9 @@ public sealed class ComponentRowOperationTests
     public void Reused_CreateSlot_Initializes_All_Rows_To_Default()
     {
         var layouts = new ComponentLayoutRegistry();
-        var valueId = layouts.Register<int>(SchemaId.FromUInt64(10_011));
-        var managedStructId = layouts.Register<ManagedPayload>(SchemaId.FromUInt64(10_012));
-        var classId = layouts.Register<ReferencePayload>(SchemaId.FromUInt64(10_013));
+        var valueId = layouts.Register(typeof(int), SchemaId.FromUInt64(10_011));
+        var managedStructId = layouts.Register(typeof(ManagedPayload), SchemaId.FromUInt64(10_012));
+        var classId = layouts.Register(typeof(ReferencePayload), SchemaId.FromUInt64(10_013));
         var world = new World(layouts, chunkCapacity: 1);
         var archetype = world.GetArchetype(valueId, managedStructId, classId);
 
@@ -67,9 +67,9 @@ public sealed class ComponentRowOperationTests
     public void Reused_TransitionSlot_Initializes_Only_Added_Rows()
     {
         var layouts = new ComponentLayoutRegistry();
-        var sharedId = layouts.Register<int>(SchemaId.FromUInt64(10_021));
-        var addedValueId = layouts.Register<int>(SchemaId.FromUInt64(10_022));
-        var addedReferenceId = layouts.Register<ReferencePayload>(SchemaId.FromUInt64(10_023));
+        var sharedId = layouts.Register(typeof(int), SchemaId.FromUInt64(10_021));
+        var addedValueId = layouts.Register(typeof(int), SchemaId.FromUInt64(10_022));
+        var addedReferenceId = layouts.Register(typeof(ReferencePayload), SchemaId.FromUInt64(10_023));
         var world = new World(layouts, chunkCapacity: 1);
 
         var oldTarget = world.Create(world.GetArchetype(sharedId, addedValueId, addedReferenceId));
@@ -96,8 +96,8 @@ public sealed class ComponentRowOperationTests
     public void SwapBack_Does_Not_Clear_Unmanaged_Tail_But_Clears_Reference_Tail()
     {
         var layouts = new ComponentLayoutRegistry();
-        var valueId = layouts.Register<int>(SchemaId.FromUInt64(10_031));
-        var referenceId = layouts.Register<ReferencePayload>(SchemaId.FromUInt64(10_032));
+        var valueId = layouts.Register(typeof(int), SchemaId.FromUInt64(10_031));
+        var referenceId = layouts.Register(typeof(ReferencePayload), SchemaId.FromUInt64(10_032));
         var world = new World(layouts, chunkCapacity: 4);
         var archetypeHandle = world.GetArchetype(valueId, referenceId);
         var removed = world.Create(archetypeHandle);
@@ -124,7 +124,7 @@ public sealed class ComponentRowOperationTests
     public void SwapBack_Updates_Moved_Record_And_Stale_Generation_Is_Rejected()
     {
         var layouts = new ComponentLayoutRegistry();
-        var id = layouts.Register<int>(SchemaId.FromUInt64(10_041));
+        var id = layouts.Register(typeof(int), SchemaId.FromUInt64(10_041));
         var world = new World(layouts, chunkCapacity: 2);
         var first = world.Create(new[] { id });
         var second = world.Create(new[] { id });
@@ -142,7 +142,7 @@ public sealed class ComponentRowOperationTests
     public void Invalid_Entity_Never_Returns_A_Component_Reference()
     {
         var layouts = new ComponentLayoutRegistry();
-        var id = layouts.Register<int>(SchemaId.FromUInt64(10_051));
+        var id = layouts.Register(typeof(int), SchemaId.FromUInt64(10_051));
         var world = new World(layouts);
         var invalid = new Entity(999_999, 0);
 

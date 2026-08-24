@@ -31,8 +31,8 @@ public class DefaultEcsComparisonBenchmarks
     private ComponentId[] _deltaMovementComponents = Array.Empty<ComponentId>();
     private Query _deltaMovementQuery;
     private DeltaEntity[] _deltaMovementEntities = Array.Empty<DeltaEntity>();
-    private WriteRequest<MovementPosition> _deltaPositionBinding;
-    private ReadRequest<MovementVelocity> _deltaVelocityBinding;
+    private WriteAccess _deltaPositionBinding;
+    private ReadAccess _deltaVelocityBinding;
     private ComponentId[] _deltaTransitionComponents = Array.Empty<ComponentId>();
 
     private DefaultEcs.World _defaultMovementWorld = null!;
@@ -76,21 +76,30 @@ public class DefaultEcsComparisonBenchmarks
     [BenchmarkCategory("DenseMovement")]
     public double DeltaECS_Movement_PositionVelocity()
     {
-        var state = new MovementState { Count = 0, ExpectedCount = Amount, Dt = Dt, Position = _deltaPositionBinding, Velocity = _deltaVelocityBinding };
-        _deltaMovementWorld.Query(in _deltaMovementQuery, ref state, static (ref MovementState s, ref QueryChunkCursor cursor) =>
+        var state = new MovementState { Count = 0, ExpectedCount = Amount, Dt = Dt };
+        using var scope = _deltaMovementWorld.OpenQuery(in _deltaMovementQuery);
+        var positionAccess = scope.Bind(_deltaPositionBinding);
+        var velocityAccess = scope.Bind(_deltaVelocityBinding);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
         {
-            var positions = cursor.Get<MovementPosition>(s.Position);
-            var velocities = cursor.Get<MovementVelocity>(s.Velocity);
-            while (cursor.MoveNext())
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
             {
-                ref var position = ref positions[cursor];
-                ref readonly var velocity = ref velocities[cursor];
-                position.X += velocity.X * s.Dt;
-                position.Y += velocity.Y * s.Dt;
-                s.Count++;
-                s.Checksum += position.X + position.Y;
+                var slots = chunks.Current.Slots;
+                var positions = slots.Get(positionAccess);
+                var velocities = slots.Get(velocityAccess);
+                while (slots.MoveNext())
+                {
+                    ref var position = ref positions.Ref<MovementPosition>(slots);
+                    ref readonly var velocity = ref velocities.Ref<MovementVelocity>(slots);
+                    position.X += velocity.X * state.Dt;
+                    position.Y += velocity.Y * state.Dt;
+                    state.Count++;
+                    state.Checksum += position.X + position.Y;
+                }
             }
-        });
+        }
 
         return BenchmarkGuard.Checksum(state.Count, state.ExpectedCount, state.Checksum);
     }
@@ -220,8 +229,8 @@ public class DefaultEcsComparisonBenchmarks
     private void SetupMovementDelta()
     {
         var layouts = new ComponentLayoutRegistry();
-        _deltaPosition = layouts.Register<MovementPosition>(new SchemaId(130_000));
-        _deltaVelocity = layouts.Register<MovementVelocity>(new SchemaId(130_001));
+        _deltaPosition = layouts.Register(typeof(MovementPosition), new SchemaId(130_000));
+        _deltaVelocity = layouts.Register(typeof(MovementVelocity), new SchemaId(130_001));
         _deltaPayloads = new ComponentId[PayloadRows];
         for (var i = 0; i < PayloadRows; i++)
         {
@@ -252,8 +261,8 @@ public class DefaultEcsComparisonBenchmarks
 
         var queryDescription = QuerySpec.ForComponents(_deltaMovementComponents);
         _deltaMovementQuery = _deltaMovementWorld.CreateQuery(in queryDescription);
-        _deltaPositionBinding = _deltaMovementQuery.Access<MovementPosition>(_deltaPosition, AccessMode.Write);
-        _deltaVelocityBinding = _deltaMovementQuery.Access<MovementVelocity>(_deltaVelocity, AccessMode.Read);
+        _deltaPositionBinding = _deltaMovementQuery.AccessWrite(_deltaPosition);
+        _deltaVelocityBinding = _deltaMovementQuery.AccessRead(_deltaVelocity);
     }
 
     private void SetupMovementDefault()
@@ -294,8 +303,8 @@ public class DefaultEcsComparisonBenchmarks
     private void SetupBatchDelta()
     {
         var layouts = new ComponentLayoutRegistry();
-        var first = layouts.Register<BatchValue>(new SchemaId(130_101));
-        var second = layouts.Register<BatchValue>(new SchemaId(130_102));
+        var first = layouts.Register(typeof(BatchValue), new SchemaId(130_101));
+        var second = layouts.Register(typeof(BatchValue), new SchemaId(130_102));
         _deltaBatchWorld = new World(layouts, initialEntityCapacity: Amount);
         _deltaBatchComponents = new[] { first, second };
         _deltaBatchEntities = new DeltaEntity[Amount];
@@ -310,8 +319,8 @@ public class DefaultEcsComparisonBenchmarks
     private void SetupTransitionDelta()
     {
         var layouts = new ComponentLayoutRegistry();
-        var baseComponent = layouts.Register<TransitionBase>(new SchemaId(130_201));
-        var transitionPayload = layouts.Register<TransitionPayload>(new SchemaId(130_202));
+        var baseComponent = layouts.Register(typeof(TransitionBase), new SchemaId(130_201));
+        var transitionPayload = layouts.Register(typeof(TransitionPayload), new SchemaId(130_202));
         _deltaTransitionWorld = new World(layouts, initialEntityCapacity: Amount);
         _deltaTransitionEntities = new DeltaEntity[Amount];
         _deltaTransitionWorld.CreateBatch(new[] { baseComponent }, _deltaTransitionEntities);
@@ -338,7 +347,7 @@ public class DefaultEcsComparisonBenchmarks
 
     private static ComponentId RegisterPayload(ComponentLayoutRegistry layouts, int index)
     {
-        return layouts.Register<MovementPayload>(new SchemaId((ulong)(130_300 + index)));
+        return layouts.Register(typeof(MovementPayload), new SchemaId((ulong)(130_300 + index)));
     }
 
     private struct MovementState
@@ -347,8 +356,6 @@ public class DefaultEcsComparisonBenchmarks
         public int ExpectedCount;
         public float Dt;
         public double Checksum;
-        public WriteRequest<MovementPosition> Position;
-        public ReadRequest<MovementVelocity> Velocity;
     }
 
     private struct MovementPosition

@@ -3,7 +3,7 @@
 This document records the isolated optimization sweep for
 `DenseIterationMicroBenchmarks.Movement4Components`.
 Each candidate started from `54e0b93`; a candidate was accepted only when its
-Release JIT result improved without a public API or tag-semantics change.
+Release JIT result improved without changing the measured public API.
 JIT size is evidence about generated code, not a cache-miss or throughput
 measurement.
 

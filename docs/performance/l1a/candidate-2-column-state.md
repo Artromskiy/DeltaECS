@@ -14,7 +14,7 @@
 
 `QuerySlots` now carries the chunk's `Array[]` component-row table and
 uses it directly for its once-per-chunk typed row resolution. Public API and
-tag paths are unchanged. JIT improved from the baseline 1408 B to 1400 B:
+query execution is unchanged. JIT improved from the baseline 1408 B to 1400 B:
 `ldr 96→94`, `str 21→20`, `ldp/stp 33→34`.
 
 The narrow BDN run was directional (default job, .NET 8.0.29, Apple M4 Pro,
@@ -25,7 +25,7 @@ run was made, so retain this candidate on JIT evidence pending final gates.
 ## Probe details
 
 - Mode: **release**
-- Method: `Delta.ECS.MicroBenchmarks.MicroBenchmarkKernels:IterateMovement4Dense(Delta.ECS.MicroBenchmarks.MicroWorld,byref,Delta.ECS.WriteRequest`1[Delta.ECS.MicroBenchmarks.Movement4A],Delta.ECS.WriteRequest`1[Delta.ECS.MicroBenchmarks.Movement4B],Delta.ECS.WriteRequest`1[Delta.ECS.MicroBenchmarks.Movement4C],Delta.ECS.ReadRequest`1[Delta.ECS.MicroBenchmarks.Movement4D]):int`
+- Method: historical L1A probe; its old generic request signature is no longer part of `ecs-next`.
 - Assembly: [l1a-c2.txt](vscode://file/Users/rum/GitProjects/TheFurnace-DeltaECS-L1A/artifacts/jit-disasm/l1a-c2.txt)
 - First emitted code block: **1400 B**
 - Reconstructed ARM64 instruction span: **1400 B**

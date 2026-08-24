@@ -13,7 +13,7 @@ public sealed class ComparativeBenchmarkContractTests
     {
         ComparativeBenchmarkCatalog.Validate();
         var expected = Enum.GetValues<ComparativeEcs>().Length;
-        foreach (var workload in new[] { "Iteration.Dense", "Iteration.Movement2Components", "Iteration.Movement4Components", "Iteration.WideArchetypeNarrowQuery", "Iteration.SparseWorldQueryPlan", "Iteration.SparseWorldColdQuery" })
+        foreach (var workload in new[] { "Iteration.Dense", "Iteration.Movement2Components", "Iteration.Movement4Components", "Iteration.WideArchetypeNarrowQuery", "Iteration.SparseWorldQueryPlan", "Iteration.QueryPlanConstruction" })
         {
             Assert.That(ComparativeCapabilityManifest.Rows.Count(row => row.Workload == workload), Is.EqualTo(expected), workload);
         }

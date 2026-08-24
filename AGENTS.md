@@ -1,7 +1,12 @@
 # DeltaECS agent guide
 
 Scope: standalone archetype ECS kernel, typed array rows, immediate structural
-changes, tags, queries and measured performance work.
+changes, dense queries and measured performance work.
+
+The current public API redesign is owned directly by the user. Do not select,
+delegate or implement API/query/performance tasks from repository TODOs unless
+the user explicitly assigns that bounded work. Preserve their active branch
+and dirty changes.
 
 - [README.md](README.md) — stable storage/API contract.
 - [TODO.md](TODO.md) — selected implementation work; always read before task
@@ -14,6 +19,8 @@ changes, tags, queries and measured performance work.
 - [docs/performance/README.md](docs/performance/README.md) — evidence and
   optimization candidates, not automatic tasks.
 - ADRs record decisions; generated benchmark reports are evidence, not TODOs.
+- [../HIGH_PRIORITY_TODO.md](../HIGH_PRIORITY_TODO.md) tracks independent
+  query correctness and integration boundaries.
 
 Do not add editor/render dependencies or mandatory command buffers. Public hot
 loops use validated typed bindings; raw row lookup stays internal.

@@ -19,7 +19,7 @@ public partial class ComparativeStructuralListBenchmarks
     [Params(100, 1_000, 10_000, 100_000)] public int Amount { get; set; }
     [Params(1, 4)] public int ChangeWidth { get; set; }
     private DeltaWorld _world = null!; private ComponentId[] _base = null!; private ComponentId[] _change = null!; private ComponentId[] _target = null!; private ComponentId[] _activeChange = null!; private DeltaEntity[] _entities = null!; private DeltaEntity[] _created = null!; private ArchetypeHandle _targetArchetype; private ListState _state;
-    [GlobalSetup] public void Setup() { var l = new ComponentLayoutRegistry(); _base = new[] { l.Register<StructuralBase>(new SchemaId(210_000)) }; _change = new[] { l.Register<StructuralA0>(new SchemaId(210_001)), l.Register<StructuralA1>(new SchemaId(210_002)), l.Register<StructuralA2>(new SchemaId(210_003)), l.Register<StructuralA3>(new SchemaId(210_004)) }; _world = new DeltaWorld(l, initialEntityCapacity: Amount * 2); _entities = new DeltaEntity[Amount]; _created = new DeltaEntity[Amount]; _activeChange = _change.AsSpan(0, ChangeWidth).ToArray(); _target = _base.Concat(_activeChange).ToArray(); _targetArchetype = _world.GetArchetype(_target); _world.CreateBatch(_base, _entities); _state = ListState.Base; SetupListFallbacks(); }
+    [GlobalSetup] public void Setup() { var l = new ComponentLayoutRegistry(); _base = new[] { l.Register(typeof(StructuralBase), new SchemaId(210_000)) }; _change = new[] { l.Register(typeof(StructuralA0), new SchemaId(210_001)), l.Register(typeof(StructuralA1), new SchemaId(210_002)), l.Register(typeof(StructuralA2), new SchemaId(210_003)), l.Register(typeof(StructuralA3), new SchemaId(210_004)) }; _world = new DeltaWorld(l, initialEntityCapacity: Amount * 2); _entities = new DeltaEntity[Amount]; _created = new DeltaEntity[Amount]; _activeChange = _change.AsSpan(0, ChangeWidth).ToArray(); _target = _base.Concat(_activeChange).ToArray(); _targetArchetype = _world.GetArchetype(_target); _world.CreateBatch(_base, _entities); _state = ListState.Base; SetupListFallbacks(); }
     [IterationSetup(Target = nameof(DeltaECS_List_CreateBatch))] public void PrepareCreate() => RestoreBase();
     [IterationSetup(Target = nameof(DeltaECS_List_DestroyBatch))] public void PrepareDestroy() => RestoreBase();
     [IterationSetup(Target = nameof(DeltaECS_List_AddBatch))] public void PrepareAdd() => RestoreBase();
@@ -42,7 +42,7 @@ public partial class ComparativeStructuralQueryBenchmarks
     [Params(100, 1_000, 10_000, 100_000)] public int Amount { get; set; }
     [Params(1, 4)] public int ChangeWidth { get; set; }
     private DeltaWorld _world = null!; private ComponentId _a, _b, _c; private ComponentId[] _change = null!; private ComponentId[] _activeChange = null!; private ComponentId[] _target = null!; private DeltaEntity[] _entities = null!; private DeltaEntity[] _nonMatches = null!; private DeltaEntity[] _created = null!; private ArchetypeHandle _targetArchetype; private Query _query; private QueryState _state;
-    [GlobalSetup] public void Setup() { var l = new ComponentLayoutRegistry(); _a = l.Register<QueryA>(new SchemaId(211_000)); _b = l.Register<QueryB>(new SchemaId(211_001)); _c = l.Register<QueryC>(new SchemaId(211_002)); _change = new[] { l.Register<QueryK0>(new SchemaId(211_003)), l.Register<QueryK1>(new SchemaId(211_004)), l.Register<QueryK2>(new SchemaId(211_005)), l.Register<QueryK3>(new SchemaId(211_006)) }; _activeChange = _change.AsSpan(0, ChangeWidth).ToArray(); _target = new[] { _a, _b }.Concat(_activeChange).ToArray(); _world = new DeltaWorld(l, initialEntityCapacity: Amount * 2); _entities = new DeltaEntity[Amount]; _nonMatches = new DeltaEntity[Amount]; _created = new DeltaEntity[Amount]; _targetArchetype = _world.GetArchetype(_target); _query = CreateQuery(); _state = QueryState.Empty; SetupQueryFallbacks(); }
+    [GlobalSetup] public void Setup() { var l = new ComponentLayoutRegistry(); _a = l.Register(typeof(QueryA), new SchemaId(211_000)); _b = l.Register(typeof(QueryB), new SchemaId(211_001)); _c = l.Register(typeof(QueryC), new SchemaId(211_002)); _change = new[] { l.Register(typeof(QueryK0), new SchemaId(211_003)), l.Register(typeof(QueryK1), new SchemaId(211_004)), l.Register(typeof(QueryK2), new SchemaId(211_005)), l.Register(typeof(QueryK3), new SchemaId(211_006)) }; _activeChange = _change.AsSpan(0, ChangeWidth).ToArray(); _target = new[] { _a, _b }.Concat(_activeChange).ToArray(); _world = new DeltaWorld(l, initialEntityCapacity: Amount * 2); _entities = new DeltaEntity[Amount]; _nonMatches = new DeltaEntity[Amount]; _created = new DeltaEntity[Amount]; _targetArchetype = _world.GetArchetype(_target); _query = CreateQuery(); _state = QueryState.Empty; SetupQueryFallbacks(); }
     [IterationSetup(Target = nameof(DeltaECS_Query_CreateBatch))] public void PrepareCreate() { RestoreEmpty(); }
     [IterationSetup(Target = nameof(DeltaECS_Query_DestroyBatch))] public void PrepareDestroy() { RestoreEmpty(); CreateQueryEntities(false); }
     [IterationSetup(Target = nameof(DeltaECS_Query_AddBatch))] public void PrepareAdd() { RestoreEmpty(); CreateQueryEntities(false); }
@@ -53,7 +53,7 @@ public partial class ComparativeStructuralQueryBenchmarks
     [Benchmark(Baseline = true), BenchmarkCategory("Structural.Query.AddBatch")] public int DeltaECS_Query_AddBatch() { var c = _world.AddComponents(in _query, _activeChange); _state = QueryState.Mixed; return c == ExpectedMatches ? c : throw new InvalidOperationException("query add selection mismatch"); }
     [Benchmark(Baseline = true), BenchmarkCategory("Structural.Query.RemoveBatch")] public int DeltaECS_Query_RemoveBatch() { var c = _world.RemoveComponents(in _query, _activeChange); _state = QueryState.Mixed; return c == ExpectedMatches ? c : throw new InvalidOperationException("query remove selection mismatch"); }
     private int ExpectedMatches => (Amount + ComparativeBenchmarkParameters.SparseMatchStride - 1) / ComparativeBenchmarkParameters.SparseMatchStride;
-    private Query CreateQuery() { var d = new QuerySpec(new[] { _a, _b }, Array.Empty<ComponentId>(), new[] { _c }, Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>()); return _world.CreateQuery(in d); }
+    private Query CreateQuery() { var d = new QuerySpec(new[] { _a, _b }, Array.Empty<ComponentId>(), new[] { _c }); return _world.CreateQuery(in d); }
     private void CreateQueryEntities(bool withChange) { var matchingIds = withChange ? _target : new[] { _a, _b }; var nonMatchingIds = withChange ? new[] { _a, _b, _c }.Concat(_activeChange).ToArray() : new[] { _a, _b, _c }; var nonMatchCount = 0; for (var i = 0; i < Amount; i++) { if (i % ComparativeBenchmarkParameters.SparseMatchStride == 0) _entities[i] = _world.Create(matchingIds); else _nonMatches[nonMatchCount++] = _entities[i] = _world.Create(nonMatchingIds); } _state = QueryState.Mixed; }
     private void RestoreEmpty() { if (_state == QueryState.Created) _world.DestroyBatch(_created); else if (_state == QueryState.Destroyed) _world.DestroyBatch(_nonMatches.AsSpan(0, Amount - ExpectedMatches)); else if (_state == QueryState.Mixed) _world.DestroyBatch(_entities); _state = QueryState.Empty; }
     private enum QueryState { Empty, Mixed, Destroyed, Created }
@@ -74,13 +74,13 @@ public class ComparativeStructuralAtomicBenchmarks
     public void Setup()
     {
         var layouts = new ComponentLayoutRegistry();
-        _deltaBase = layouts.Register<StructuralBase>(new SchemaId(220_000));
+        _deltaBase = layouts.Register(typeof(StructuralBase), new SchemaId(220_000));
         var added = new[]
         {
-            layouts.Register<StructuralA0>(new SchemaId(220_001)),
-            layouts.Register<StructuralA1>(new SchemaId(220_002)),
-            layouts.Register<StructuralA2>(new SchemaId(220_003)),
-            layouts.Register<StructuralA3>(new SchemaId(220_004))
+            layouts.Register(typeof(StructuralA0), new SchemaId(220_001)),
+            layouts.Register(typeof(StructuralA1), new SchemaId(220_002)),
+            layouts.Register(typeof(StructuralA2), new SchemaId(220_003)),
+            layouts.Register(typeof(StructuralA3), new SchemaId(220_004))
         };
         _deltaActive = added.AsSpan(0, ChangeWidth).ToArray();
         _delta = new DeltaWorld(layouts);

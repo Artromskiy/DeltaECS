@@ -1,0 +1,6 @@
+[
+  {"Method":"Movement4Components","Amount":100,"Mean":"5.435 us","Error":"0.2267 us","StdDev":"0.6468 us","Allocated":"736 B","Runtime":".NET 8.0.29 Arm64"},
+  {"Method":"Movement4Components","Amount":1000,"Mean":"42.239 us","Error":"1.8818 us","StdDev":"5.3689 us","Allocated":"736 B","Runtime":".NET 8.0.29 Arm64"},
+  {"Method":"Movement4Components","Amount":10000,"Mean":"78.424 us","Error":"7.8497 us","StdDev":"21.6203 us","Allocated":"736 B","Runtime":".NET 8.0.29 Arm64"},
+  {"Method":"Movement4Components","Amount":100000,"Mean":"235.530 us","Error":"14.6240 us","StdDev":"42.6590 us","Allocated":"736 B","Runtime":".NET 8.0.29 Arm64"}
+]

@@ -31,27 +31,27 @@ public sealed class IterationScenario
     private readonly ComponentId[] _movement4Ids;
     private readonly Entity[] _movement2Entities;
     private readonly Entity[] _movement4Entities;
-    private readonly ReadRequest<DenseValue> _denseBinding;
-    private readonly WriteRequest<Position> _positionBinding;
-    private readonly ReadRequest<Velocity> _velocityBinding;
-    private readonly WriteRequest<MovementA> _movementABinding;
-    private readonly WriteRequest<MovementB> _movementBBinding;
-    private readonly WriteRequest<MovementC> _movementCBinding;
-    private readonly ReadRequest<MovementD> _movementDBinding;
+    private readonly ReadAccess _denseBinding;
+    private readonly WriteAccess _positionBinding;
+    private readonly ReadAccess _velocityBinding;
+    private readonly WriteAccess _movementABinding;
+    private readonly WriteAccess _movementBBinding;
+    private readonly WriteAccess _movementCBinding;
+    private readonly ReadAccess _movementDBinding;
 
     public IterationScenario(int amount)
     {
         _amount = amount;
         var layouts = new ComponentLayoutRegistry();
-        _dense = layouts.Register<DenseValue>(new SchemaId(950_000));
-        _position = layouts.Register<Position>(new SchemaId(950_001));
-        _velocity = layouts.Register<Velocity>(new SchemaId(950_002));
+        _dense = layouts.Register(typeof(DenseValue), new SchemaId(950_000));
+        _position = layouts.Register(typeof(Position), new SchemaId(950_001));
+        _velocity = layouts.Register(typeof(Velocity), new SchemaId(950_002));
         _movement4Ids =
         [
-            layouts.Register<MovementA>(new SchemaId(950_003)),
-            layouts.Register<MovementB>(new SchemaId(950_004)),
-            layouts.Register<MovementC>(new SchemaId(950_005)),
-            layouts.Register<MovementD>(new SchemaId(950_006))
+            layouts.Register(typeof(MovementA), new SchemaId(950_003)),
+            layouts.Register(typeof(MovementB), new SchemaId(950_004)),
+            layouts.Register(typeof(MovementC), new SchemaId(950_005)),
+            layouts.Register(typeof(MovementD), new SchemaId(950_006))
         ];
 
         _world = new World(layouts, initialEntityCapacity: amount * 3);
@@ -75,13 +75,13 @@ public sealed class IterationScenario
 
         var denseDescription = QuerySpec.ForComponents(_dense);
         _denseQuery = _world.CreateQuery(in denseDescription);
-        _denseBinding = _denseQuery.Access<DenseValue>(_dense, AccessMode.Read);
-        _positionBinding = _movement2Query.Access<Position>(_position, AccessMode.Write);
-        _velocityBinding = _movement2Query.Access<Velocity>(_velocity, AccessMode.Read);
-        _movementABinding = _movement4Query.Access<MovementA>(_movement4Ids[0], AccessMode.Write);
-        _movementBBinding = _movement4Query.Access<MovementB>(_movement4Ids[1], AccessMode.Write);
-        _movementCBinding = _movement4Query.Access<MovementC>(_movement4Ids[2], AccessMode.Write);
-        _movementDBinding = _movement4Query.Access<MovementD>(_movement4Ids[3], AccessMode.Read);
+        _denseBinding = _denseQuery.AccessRead(_dense);
+        _positionBinding = _movement2Query.AccessWrite(_position);
+        _velocityBinding = _movement2Query.AccessRead(_velocity);
+        _movementABinding = _movement4Query.AccessWrite(_movement4Ids[0]);
+        _movementBBinding = _movement4Query.AccessWrite(_movement4Ids[1]);
+        _movementCBinding = _movement4Query.AccessWrite(_movement4Ids[2]);
+        _movementDBinding = _movement4Query.AccessRead(_movement4Ids[3]);
         ResetMovements();
     }
 
@@ -100,78 +100,92 @@ public sealed class IterationScenario
 
     public long DenseRead()
     {
-        var state = new DenseState { Component = _denseBinding };
-        _world.Query(in _denseQuery, ref state, static (ref DenseState current, ref QueryChunkCursor cursor) =>
+        long sum = 0;
+        using var scope = _world.OpenQuery(in _denseQuery);
+        var dense = scope.Bind(_denseBinding);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
         {
-            var row = cursor.Get(current.Component);
-            while (cursor.MoveNext()) current.Sum += row[cursor].Value;
-        });
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var slots = chunks.Current.Slots;
+                var row = slots.Get(dense);
+                while (slots.MoveNext())
+                {
+                    sum += row.Ref<DenseValue>(slots).Value;
+                }
+            }
+        }
 
         var expected = (long)_amount * (_amount + 1) / 2;
-        return state.Sum == expected ? state.Sum : throw new InvalidOperationException($"Dense checksum mismatch: {state.Sum} != {expected}.");
+        return sum == expected ? sum : throw new InvalidOperationException($"Dense checksum mismatch: {sum} != {expected}.");
     }
 
     public double Movement2()
     {
-        var state = new Movement2State { Position = _positionBinding, Velocity = _velocityBinding };
-        _world.Query(in _movement2Query, ref state, static (ref Movement2State current, ref QueryChunkCursor cursor) =>
+        double sum = 0;
+        using var scope = _world.OpenQuery(in _movement2Query);
+        var position = scope.Bind(_positionBinding);
+        var velocity = scope.Bind(_velocityBinding);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
         {
-            var positions = cursor.Get(current.Position);
-            var velocities = cursor.Get(current.Velocity);
-            while (cursor.MoveNext())
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
             {
-                ref var position = ref positions[cursor];
-                ref readonly var velocity = ref velocities[cursor];
-                position.X += velocity.X / 60f;
-                position.Y += velocity.Y / 60f;
-                current.Sum += position.X + position.Y;
+                var slots = chunks.Current.Slots;
+                var positions = slots.Get(position);
+                var velocities = slots.Get(velocity);
+                while (slots.MoveNext())
+                {
+                    ref var currentPosition = ref positions.Ref<Position>(slots);
+                    ref readonly var currentVelocity = ref velocities.Ref<Velocity>(slots);
+                    currentPosition.X += currentVelocity.X / 60f;
+                    currentPosition.Y += currentVelocity.Y / 60f;
+                    sum += currentPosition.X + currentPosition.Y;
+                }
             }
-        });
+        }
 
         // Movement benchmarks intentionally accumulate state across invocations so
         // BenchmarkDotNet can select a throughput invocation count. The dedicated
         // smoke resets both revisions and verifies that their returned checksums agree.
-        return state.Sum;
+        return sum;
     }
 
     public int Movement4()
     {
-        var state = new Movement4State
+        int sum = 0;
+        using var scope = _world.OpenQuery(in _movement4Query);
+        var aAccess = scope.Bind(_movementABinding);
+        var bAccess = scope.Bind(_movementBBinding);
+        var cAccess = scope.Bind(_movementCBinding);
+        var dAccess = scope.Bind(_movementDBinding);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
         {
-            A = _movementABinding,
-            B = _movementBBinding,
-            C = _movementCBinding,
-            D = _movementDBinding
-        };
-        _world.Query(in _movement4Query, ref state, static (ref Movement4State current, ref QueryChunkCursor cursor) =>
-        {
-            var a = cursor.Get(current.A);
-            var b = cursor.Get(current.B);
-            var c = cursor.Get(current.C);
-            var d = cursor.Get(current.D);
-            while (cursor.MoveNext())
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
             {
-                var updatedA = a[cursor].Value + d[cursor].Value;
-                var updatedB = b[cursor].Value + d[cursor].Value;
-                a[cursor].Value = updatedA;
-                b[cursor].Value = updatedB;
-                c[cursor].Value = (updatedA + updatedB) / 2;
-                current.Sum += a[cursor].Value + b[cursor].Value + c[cursor].Value + d[cursor].Value;
+                var slots = chunks.Current.Slots;
+                var a = slots.Get(aAccess);
+                var b = slots.Get(bAccess);
+                var c = slots.Get(cAccess);
+                var d = slots.Get(dAccess);
+                while (slots.MoveNext())
+                {
+                    var updatedA = a.Ref<MovementA>(slots).Value + d.Ref<MovementD>(slots).Value;
+                    var updatedB = b.Ref<MovementB>(slots).Value + d.Ref<MovementD>(slots).Value;
+                    a.Ref<MovementA>(slots).Value = updatedA;
+                    b.Ref<MovementB>(slots).Value = updatedB;
+                    c.Ref<MovementC>(slots).Value = (updatedA + updatedB) / 2;
+                    sum += a.Ref<MovementA>(slots).Value + b.Ref<MovementB>(slots).Value + c.Ref<MovementC>(slots).Value + d.Ref<MovementD>(slots).Value;
+                }
             }
-        });
+        }
 
-        return state.Sum;
-    }
-
-    private struct DenseState { public ReadRequest<DenseValue> Component; public long Sum; }
-    private struct Movement2State { public WriteRequest<Position> Position; public ReadRequest<Velocity> Velocity; public double Sum; }
-    private struct Movement4State
-    {
-        public WriteRequest<MovementA> A;
-        public WriteRequest<MovementB> B;
-        public WriteRequest<MovementC> C;
-        public ReadRequest<MovementD> D;
-        public int Sum;
+        return sum;
     }
 }
 
@@ -193,8 +207,8 @@ public sealed class AtomicScenario
     public void Reset()
     {
         var layouts = new ComponentLayoutRegistry();
-        var baseId = layouts.Register<StructuralBase>(new SchemaId(951_000));
-        _extra = layouts.Register<StructuralExtra>(new SchemaId(951_001));
+        var baseId = layouts.Register(typeof(StructuralBase), new SchemaId(951_000));
+        _extra = layouts.Register(typeof(StructuralExtra), new SchemaId(951_001));
         _extraIds = [_extra];
 
         _createWorld = new World(layouts);
@@ -269,8 +283,8 @@ public sealed class BatchScenario
     public void Reset()
     {
         var layouts = new ComponentLayoutRegistry();
-        var baseId = layouts.Register<StructuralBase>(new SchemaId(952_000));
-        var extra = layouts.Register<StructuralExtra>(new SchemaId(952_001));
+        var baseId = layouts.Register(typeof(StructuralBase), new SchemaId(952_000));
+        var extra = layouts.Register(typeof(StructuralExtra), new SchemaId(952_001));
         _extraIds = [extra];
 
         _createWorld = new World(layouts, initialEntityCapacity: _amount);

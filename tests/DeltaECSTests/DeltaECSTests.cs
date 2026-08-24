@@ -11,13 +11,6 @@ public sealed class DeltaECSDeliveryTests
     private static readonly ComponentId PositionId = new ComponentId(0);
     private static readonly ComponentId VelocityId = new ComponentId(1);
     private static readonly ComponentId HealthId = new ComponentId(2);
-    private static readonly TagId TagActive = new TagId(1);
-    private static readonly TagId TagVisible = new TagId(2);
-    private static readonly QueryAction<QueryState> s_cursorQuerySlots = QuerySlots;
-    private static readonly QueryAction<ArrayQueryState> s_readArrayRows = ReadArrayRows;
-    private static readonly QueryAction<LeaseMutationState> s_destroyDuringLease = DestroyDuringLease;
-    private static readonly QueryAction<ChunkIdState> s_collectChunkIds = CollectChunkIds;
-
     [SetUp]
     public void Setup()
     {
@@ -92,22 +85,33 @@ public sealed class DeltaECSDeliveryTests
         Assert.AreEqual(requested, world.AliveEntityCount);
 
         var query = world.CreateQuery(QuerySpec.ForComponents(PositionId, VelocityId));
-        var position = query.Access<Position>(PositionId, AccessMode.Write);
-        var velocity = query.Access<Velocity>(VelocityId, AccessMode.Write);
+        var position = query.AccessWrite(PositionId);
+        var velocity = query.AccessWrite(VelocityId);
         var sum = 0L;
-        world.Query(in query, ref sum, (ref long total, ref QueryChunkCursor cursor) =>
+        using (var scope = world.OpenQuery(in query))
         {
-            var pos = cursor.Get(position);
-            var vel = cursor.Get(velocity);
-            while (cursor.MoveNext())
+            var preparedPosition = scope.Bind(position);
+            var preparedVelocity = scope.Bind(velocity);
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
             {
-                ref var p = ref pos[cursor];
-                ref var v = ref vel[cursor];
-                p = new Position { X = cursor.CurrentIndex, Y = cursor.CurrentIndex * 2f };
-                v = new Velocity { X = 1, Y = 1 };
-                total += (long)p.X + (long)v.Y;
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    var slots = chunks.Current.Slots;
+                    var pos = slots.Get(preparedPosition);
+                    var vel = slots.Get(preparedVelocity);
+                    while (slots.MoveNext())
+                    {
+                        ref var p = ref pos.Ref<Position>(slots);
+                        ref var v = ref vel.Ref<Velocity>(slots);
+                        p = new Position { X = slots.CurrentIndex, Y = slots.CurrentIndex * 2f };
+                        v = new Velocity { X = 1, Y = 1 };
+                        sum += (long)p.X + (long)v.Y;
+                    }
+                }
             }
-        });
+        }
 
         Assert.Greater(sum, 0);
 
@@ -141,7 +145,7 @@ public sealed class DeltaECSDeliveryTests
         }
 
         var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
-        var position = query.Access<Position>(PositionId, AccessMode.Write);
+        var position = query.AccessWrite(PositionId);
         var before = world.WorldTick;
         var archetypeCount = 0;
         var chunkCount = 0;
@@ -164,10 +168,12 @@ public sealed class DeltaECSDeliveryTests
                     var entities = chunk.Entities;
                     var slots = chunk.Slots;
                     var positions = slots.Get(preparedPosition);
+                    var expectedSlot = 0;
                     while (slots.MoveNext())
                     {
+                        Assert.That(slots.CurrentIndex, Is.EqualTo(expectedSlot++));
                         var entity = entities[slots.CurrentIndex];
-                        ref var value = ref positions[slots];
+                        ref var value = ref positions.Ref<Position>(slots);
                         Assert.That(value.X, Is.EqualTo(expected[entity]));
                         value.X++;
                         slotCount++;
@@ -188,24 +194,41 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
-    public void QueryScope_Rejects_Tag_Predicates_At_Scope_Creation()
+    public void NonGenericAccessRequest_BindsRows_AndTracksOnlyWrites()
     {
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
-        var world = new World(layouts);
-        var tagged = new QuerySpec(
-            new[] { PositionId },
-            Array.Empty<ComponentId>(),
-            Array.Empty<ComponentId>(),
-            new[] { TagActive },
-            Array.Empty<TagId>(),
-            Array.Empty<TagId>());
-        var query = world.CreateQuery(in tagged);
+        var world = new World(layouts, chunkCapacity: 4);
+        var entity = world.Create(new[] { PositionId, VelocityId });
+        world.SetComponent(entity, PositionId, new Position { X = 1, Y = 2 });
+        world.SetComponent(entity, VelocityId, new Velocity { X = 3, Y = 4 });
 
-        Assert.Throws<ArgumentException>(() =>
+        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId, VelocityId));
+        var position = query.AccessWrite(PositionId);
+        var velocity = query.AccessRead(VelocityId);
+        var before = world.WorldTick;
+
+        using (var scope = world.OpenQuery(in query))
         {
-            using var _ = world.OpenQuery(in query);
-        });
+            var write = scope.Bind(position);
+            var read = scope.Bind(velocity);
+            var archetypes = scope.Archetypes;
+            Assert.That(archetypes.MoveNext(), Is.True);
+            var chunks = archetypes.Current.Chunks;
+            Assert.That(chunks.MoveNext(), Is.True);
+            var slots = chunks.Current.Slots;
+            var positions = slots.Get(write);
+            var velocities = slots.Get(read);
+            Assert.That(slots.MoveNext(), Is.True);
+            ref var p = ref positions.Ref<Position>(slots);
+            ref readonly var v = ref velocities.Ref<Velocity>(slots);
+            p.X += v.X;
+        }
+
+        Assert.That(world.TryGetComponent<Position>(entity, PositionId, out var result), Is.True);
+        Assert.That(result.X, Is.EqualTo(4));
+        Assert.That(world.HasChangedSince(0, PositionId, before), Is.True);
+        Assert.That(world.HasChangedSince(0, VelocityId, before), Is.False);
     }
 
     [Test]
@@ -226,57 +249,111 @@ public sealed class DeltaECSDeliveryTests
 
         var spec = QuerySpec.ForComponents(PositionId, VelocityId);
         var query = world.CreateQuery(in spec);
-        var position = query.Access<Position>(PositionId, AccessMode.Read);
-        var velocity = query.Access<Velocity>(VelocityId, AccessMode.Read);
+        var position = query.AccessRead(PositionId);
+        var velocity = query.AccessRead(VelocityId);
         var denseLeaseCount = 0;
-        world.Query(in query, ref denseLeaseCount, (ref int count, ref QueryChunkCursor cursor) =>
+        using (var scope = world.OpenQuery(in query))
         {
-            var entities = cursor.Entities;
-            var positions = cursor.Get(position);
-            var velocities = cursor.Get(velocity);
-            while (cursor.MoveNext())
+            var preparedPosition = scope.Bind(position);
+            var preparedVelocity = scope.Bind(velocity);
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
             {
-                var entity = entities[cursor.CurrentIndex];
-                Assert.That(expected.ContainsKey(entity), Is.True);
-                Assert.That(positions[cursor].X, Is.EqualTo(expected[entity]));
-                Assert.That(velocities[cursor].X, Is.EqualTo(expected[entity] + 10));
-                count++;
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    var chunk = chunks.Current;
+                    var entities = chunk.Entities;
+                    var slots = chunk.Slots;
+                    var positions = slots.Get(preparedPosition);
+                    var velocities = slots.Get(preparedVelocity);
+                    while (slots.MoveNext())
+                    {
+                        var entity = entities[slots.CurrentIndex];
+                        Assert.That(expected.ContainsKey(entity), Is.True);
+                        Assert.That(positions.Ref<Position>(slots).X, Is.EqualTo(expected[entity]));
+                        Assert.That(velocities.Ref<Velocity>(slots).X, Is.EqualTo(expected[entity] + 10));
+                        denseLeaseCount++;
+                    }
+                }
             }
-        });
+        }
 
-        var state = new AlignmentState(expected, position, velocity);
-        world.Query(in query, ref state, AssertAlignedRows);
+        var alignedCount = 0;
+        using (var scope = world.OpenQuery(in query))
+        {
+            var preparedPosition = scope.Bind(position);
+            var preparedVelocity = scope.Bind(velocity);
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
+            {
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    var chunk = chunks.Current;
+                    ReadOnlySpan<Entity> entities = chunk.Entities;
+                    var slots = chunk.Slots;
+                    var positions = slots.Get(preparedPosition);
+                    var velocities = slots.Get(preparedVelocity);
+                    while (slots.MoveNext())
+                    {
+                        var entity = entities[slots.CurrentIndex];
+                        Assert.That(expected.ContainsKey(entity), Is.True);
+                        Assert.That(positions.Ref<Position>(slots).X, Is.EqualTo(expected[entity]));
+                        Assert.That(velocities.Ref<Velocity>(slots).X, Is.EqualTo(expected[entity] + 10));
+                        alignedCount++;
+                    }
+                }
+            }
+        }
 
         Assert.That(denseLeaseCount, Is.EqualTo(created.Length));
-        Assert.That(state.Count, Is.EqualTo(created.Length));
+        Assert.That(alignedCount, Is.EqualTo(created.Length));
     }
 
     [Test]
-    public void ReverseIteration_HandlesEmptySingleFullChunks_AndOverlayHoles()
+    public void ForwardIteration_HandlesEmptySingleAndFullChunks()
     {
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
         var world = new World(layouts, chunkCapacity: 4);
         var spec = QuerySpec.ForComponents(PositionId);
         var emptyQuery = world.CreateQuery(in spec);
-        var position = emptyQuery.Access<Position>(PositionId, AccessMode.Read);
+        var position = emptyQuery.AccessRead(PositionId);
         var emptyChunkCount = 0;
-        world.Query(
-            in emptyQuery,
-            ref emptyChunkCount,
-            static (ref int count, ref QueryChunkCursor cursor) => count++);
+        using (var scope = world.OpenQuery(in emptyQuery))
+        {
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
+            {
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    emptyChunkCount++;
+                }
+            }
+        }
         Assert.That(emptyChunkCount, Is.EqualTo(0));
 
         var singleWorld = new World(layouts, chunkCapacity: 4);
         var single = singleWorld.Create(new[] { PositionId });
         var singleQuery = singleWorld.CreateQuery(QuerySpec.ForComponents(PositionId));
         var singleChunkCount = 0;
-        singleWorld.Query(in singleQuery, ref singleChunkCount, (ref int count, ref QueryChunkCursor cursor) =>
+        using (var scope = singleWorld.OpenQuery(in singleQuery))
         {
-            count++;
-            Assert.That(cursor.SlotCount, Is.EqualTo(1));
-            Assert.That(cursor.Entities[0], Is.EqualTo(single));
-        });
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
+            {
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    var chunk = chunks.Current;
+                    singleChunkCount++;
+                    Assert.That(chunk.SlotCount, Is.EqualTo(1));
+                    Assert.That(chunk.Entities[0], Is.EqualTo(single));
+                }
+            }
+        }
         Assert.That(singleChunkCount, Is.EqualTo(1));
 
         var created = new Entity[4];
@@ -287,204 +364,33 @@ public sealed class DeltaECSDeliveryTests
         }
 
         var fullChunkCount = 0;
-        world.Query(in emptyQuery, ref fullChunkCount, (ref int count, ref QueryChunkCursor cursor) =>
+        using (var scope = world.OpenQuery(in emptyQuery))
         {
-            Assert.That(cursor.SlotCount, Is.EqualTo(4));
-            var entities = cursor.Entities;
-            var positions = cursor.Get(position);
-            while (cursor.MoveNext())
+            var preparedPosition = scope.Bind(position);
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
             {
-                Assert.That(entities[cursor.CurrentIndex].IsAlive, Is.True);
-                Assert.That(positions[cursor].X, Is.EqualTo(cursor.CurrentIndex));
-                count++;
-            }
-        });
-
-        var tagged = new QuerySpec(
-            new[] { PositionId },
-            Array.Empty<ComponentId>(),
-            Array.Empty<ComponentId>(),
-            new[] { TagActive },
-            Array.Empty<TagId>(),
-            Array.Empty<TagId>());
-        world.AddTag(created[0], TagActive);
-        world.AddTag(created[2], TagActive);
-        var observed = new HashSet<Entity>();
-        var taggedQuery = world.CreateQuery(in tagged);
-        var taggedState = new OverlayQueryState(observed);
-        world.Query(in taggedQuery, ref taggedState, static (ref OverlayQueryState state, ref QueryChunkCursor cursor) =>
-        {
-            var entities = cursor.Entities;
-            while (cursor.MoveNext())
-            {
-                if (!cursor.IsActiveSlot(cursor.CurrentIndex))
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
                 {
-                    state.SawPartialChunk = true;
-                    continue;
+                    var chunk = chunks.Current;
+                    Assert.That(chunk.SlotCount, Is.EqualTo(4));
+                    var entities = chunk.Entities;
+                    var slots = chunk.Slots;
+                    var positions = slots.Get(preparedPosition);
+                    var expectedSlot = 0;
+                    while (slots.MoveNext())
+                    {
+                        Assert.That(slots.CurrentIndex, Is.EqualTo(expectedSlot++));
+                        Assert.That(entities[slots.CurrentIndex].IsAlive, Is.True);
+                        Assert.That(positions.Ref<Position>(slots).X, Is.EqualTo(slots.CurrentIndex));
+                        fullChunkCount++;
+                    }
                 }
-                Assert.That(state.Entities.Add(entities[cursor.CurrentIndex]), Is.True);
             }
-        });
-
-        Assert.That(fullChunkCount, Is.EqualTo(created.Length));
-        Assert.That(taggedState.SawPartialChunk, Is.True);
-        Assert.That(observed, Is.EquivalentTo(new[] { created[0], created[2] }));
-
-        foreach (var entity in created)
-        {
-            world.AddTag(entity, TagActive);
         }
 
-        var fullTaggedState = new OverlayQueryState(new HashSet<Entity>());
-        world.Query(in taggedQuery, ref fullTaggedState, static (ref OverlayQueryState state, ref QueryChunkCursor cursor) =>
-        {
-            var sawInactive = false;
-            while (cursor.MoveNext())
-            {
-                if (!cursor.IsActiveSlot(cursor.CurrentIndex))
-                {
-                    sawInactive = true;
-                    continue;
-                }
-
-                Assert.That(state.Entities.Add(cursor.Entities[cursor.CurrentIndex]), Is.True);
-            }
-            Assert.That(sawInactive, Is.False);
-        });
-
-        Assert.That(fullTaggedState.Entities, Is.EquivalentTo(created));
-    }
-
-    [Test]
-    public void TaggedQueries_Reuse_Scratch_And_Preserve_None_Full_Partial_Across_Action_Path()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        RegisterComponentLayouts(layouts);
-        var world = new World(layouts, chunkCapacity: 2);
-        var entities = new Entity[5];
-        world.CreateBatch(new[] { PositionId }, entities);
-        world.AddTag(entities[0], TagActive);
-        world.AddTag(entities[4], TagActive);
-
-        var tagged = new QuerySpec(
-            new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
-            new[] { TagActive }, Array.Empty<TagId>(), Array.Empty<TagId>());
-        var handle = world.CreateQuery(in tagged);
-
-        var actionSummary = new OverlaySummary();
-        world.Query(in handle, ref actionSummary, static (ref OverlaySummary state, ref QueryChunkCursor cursor) =>
-        {
-            state.Observe(ref cursor);
-        });
-        Assert.That(actionSummary.ActiveSlots, Is.EqualTo(2));
-        Assert.That(actionSummary.Chunks, Is.EqualTo(2));
-        Assert.That(actionSummary.SawPartial, Is.True);
-        Assert.That(actionSummary.SawFull, Is.True);
-
-        var callbackSummary = new OverlaySummary();
-        world.Query(in handle, ref callbackSummary, static (ref OverlaySummary state, ref QueryChunkCursor cursor) =>
-        {
-            state.Observe(ref cursor);
-        });
-        Assert.That(callbackSummary.ActiveSlots, Is.EqualTo(2));
-        Assert.That(callbackSummary.Chunks, Is.EqualTo(2));
-        Assert.That(callbackSummary.SawPartial, Is.True);
-        Assert.That(callbackSummary.SawFull, Is.True);
-
-        var repeatedSummary = new OverlaySummary();
-        world.Query(in handle, ref repeatedSummary, static (ref OverlaySummary state, ref QueryChunkCursor cursor) =>
-        {
-            state.Observe(ref cursor);
-        });
-
-        Assert.That(repeatedSummary.ActiveSlots, Is.EqualTo(2));
-        Assert.That(repeatedSummary.Chunks, Is.EqualTo(2));
-        Assert.That(repeatedSummary.SawPartial, Is.True);
-        Assert.That(repeatedSummary.SawFull, Is.True);
-
-        var missingAll = new QuerySpec(
-            new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
-            new[] { new TagId(404) }, Array.Empty<TagId>(), Array.Empty<TagId>());
-        var missingAny = new QuerySpec(
-            new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
-            Array.Empty<TagId>(), new[] { new TagId(405) }, Array.Empty<TagId>());
-        Assert.That(CountQuery(world, missingAll), Is.EqualTo(0));
-        Assert.That(CountQuery(world, missingAny), Is.EqualTo(0));
-
-        var missingNone = new QuerySpec(
-            new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
-            Array.Empty<TagId>(), Array.Empty<TagId>(), new[] { new TagId(406) });
-        var noneCount = CountQuery(world, missingNone);
-        Assert.That(noneCount, Is.EqualTo(entities.Length));
-    }
-
-    [Test]
-    public void Query_Supports_Tagged_Partial_And_Full_Chunks()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        RegisterComponentLayouts(layouts);
-        var world = new World(layouts, chunkCapacity: 2);
-        var entities = new Entity[5];
-        world.CreateBatch(new[] { PositionId }, entities);
-        world.AddTag(entities[0], TagActive);
-        world.AddTag(entities[4], TagActive);
-
-        var spec = new QuerySpec(
-            new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
-            new[] { TagActive }, Array.Empty<TagId>(), Array.Empty<TagId>());
-        var query = world.CreateQuery(in spec);
-        var position = query.Access<Position>(PositionId, AccessMode.Read);
-        var state = new CursorTaggedState(position);
-        world.Query(in query, ref state, static (ref CursorTaggedState current, ref QueryChunkCursor cursor) =>
-        {
-            var positions = cursor.Get(current.Position);
-            while (cursor.MoveNext())
-            {
-                if (!cursor.IsActiveSlot(cursor.CurrentIndex))
-                {
-                    continue;
-                }
-
-                current.ActiveCount++;
-                current.Sum += positions[cursor].X;
-            }
-        });
-
-        Assert.That(state.ActiveCount, Is.EqualTo(2));
-
-        var enumerated = 0;
-        world.Query(in query, ref enumerated, (ref int count, ref QueryChunkCursor cursor) =>
-        {
-            var rows = cursor.Get(position);
-            while (cursor.MoveNext())
-            {
-                if (cursor.IsActiveSlot(cursor.CurrentIndex))
-                {
-                    _ = rows[cursor];
-                    count++;
-                }
-            }
-        });
-
-        Assert.That(enumerated, Is.EqualTo(2));
-    }
-
-    [Test]
-    public void OverlayMask_Fills_Only_Configured_Words_And_Clears_Unused_Chunk_Bits()
-    {
-        var manager = new OverlayTagManager(chunkCapacity: 130);
-        var query = new QuerySpec(
-            Array.Empty<ComponentId>(), Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
-            Array.Empty<TagId>(), Array.Empty<TagId>(), new[] { new TagId(404) });
-        var scratch = new ulong[17];
-        Array.Fill(scratch, ulong.MaxValue);
-
-        var result = manager.BuildMask(query, chunkId: 0, chunkSize: 65, scratch);
-
-        Assert.That(result, Is.EqualTo(OverlayMaskResult.Full));
-        Assert.That(scratch[0], Is.EqualTo(ulong.MaxValue));
-        Assert.That(scratch[1], Is.EqualTo(1UL));
-        Assert.That(scratch[2], Is.EqualTo(0UL));
+        Assert.That(fullChunkCount, Is.EqualTo(created.Length));
     }
 
     [Test]
@@ -517,18 +423,18 @@ public sealed class DeltaECSDeliveryTests
         RegisterComponentLayouts(layouts);
         var world = new World(layouts);
 
-        var query = new QuerySpec(new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(), Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>());
+        var query = new QuerySpec(new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>());
 
         var initial = new Entity[1];
         world.CreateBatch(new[] { PositionId }, initial);
         var before = 0;
-        before = CountQuery(world, query);
+        before = CountDenseQuery(world, query);
 
         var withVelocity = new Entity[2];
         world.CreateBatch(new[] { PositionId, VelocityId }, withVelocity);
 
         var after = 0;
-        after = CountQuery(world, query);
+        after = CountDenseQuery(world, query);
 
         Assert.AreEqual(before + 2, after, $"before={before}, after={after}, alive={world.AliveEntityCount}");
     }
@@ -541,12 +447,12 @@ public sealed class DeltaECSDeliveryTests
         var world = new World(layouts);
 
         var all = new[] { PositionId };
-        var query = new QuerySpec(all, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(), Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>());
+        var query = new QuerySpec(all, Array.Empty<ComponentId>(), Array.Empty<ComponentId>());
         all[0] = VelocityId;
 
         world.Create(new[] { PositionId });
 
-        var count = CountQuery(world, query);
+        var count = CountDenseQuery(world, query);
         Assert.AreEqual(1, count);
     }
 
@@ -556,13 +462,11 @@ public sealed class DeltaECSDeliveryTests
         var query = new QuerySpec(
             new[] { new ComponentId(129), new ComponentId(7), PositionId, new ComponentId(193), new ComponentId(65), new ComponentId(7), ComponentId.Invalid },
             new[] { VelocityId, VelocityId, ComponentId.Invalid },
-            new[] { HealthId, HealthId },
-            Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>());
+            new[] { HealthId, HealthId });
         var equivalent = new QuerySpec(
             new[] { new ComponentId(65), new ComponentId(193), new ComponentId(129), PositionId, new ComponentId(7) },
             new[] { VelocityId },
-            new[] { HealthId },
-            Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>());
+            new[] { HealthId });
 
         Assert.That(query, Is.EqualTo(equivalent));
         Assert.That(query.GetHashCode(), Is.EqualTo(equivalent.GetHashCode()));
@@ -581,8 +485,7 @@ public sealed class DeltaECSDeliveryTests
         Assert.That(index, Is.EqualTo(expected.Length));
         Assert.Throws<ArgumentOutOfRangeException>(() => new QuerySpec(
             new[] { new ComponentId(ComponentMask.Capacity) },
-            Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
-            Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>()));
+            Array.Empty<ComponentId>(), Array.Empty<ComponentId>()));
     }
 
     [Test]
@@ -598,19 +501,16 @@ public sealed class DeltaECSDeliveryTests
 
         var all = QuerySpec.ForComponents(PositionId, VelocityId);
         var any = new QuerySpec(
-            Array.Empty<ComponentId>(), new[] { HealthId, VelocityId }, Array.Empty<ComponentId>(),
-            Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>());
+            Array.Empty<ComponentId>(), new[] { HealthId, VelocityId }, Array.Empty<ComponentId>());
         var none = new QuerySpec(
-            Array.Empty<ComponentId>(), Array.Empty<ComponentId>(), new[] { HealthId },
-            Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>());
+            Array.Empty<ComponentId>(), Array.Empty<ComponentId>(), new[] { HealthId });
         var combined = new QuerySpec(
-            new[] { PositionId }, new[] { VelocityId }, new[] { HealthId },
-            Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>());
+            new[] { PositionId }, new[] { VelocityId }, new[] { HealthId });
 
-        Assert.That(CountQuery(world, all), Is.EqualTo(1));
-        Assert.That(CountQuery(world, any), Is.EqualTo(3));
-        Assert.That(CountQuery(world, none), Is.EqualTo(3));
-        Assert.That(CountQuery(world, combined), Is.EqualTo(1));
+        Assert.That(CountDenseQuery(world, all), Is.EqualTo(1));
+        Assert.That(CountDenseQuery(world, any), Is.EqualTo(3));
+        Assert.That(CountDenseQuery(world, none), Is.EqualTo(3));
+        Assert.That(CountDenseQuery(world, combined), Is.EqualTo(1));
     }
 
     [Test]
@@ -621,8 +521,7 @@ public sealed class DeltaECSDeliveryTests
         var world = new World(layouts);
         world.Create(new[] { PositionId, VelocityId });
         var query = new QuerySpec(
-            new[] { VelocityId, PositionId, VelocityId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
-            Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>());
+            new[] { VelocityId, PositionId, VelocityId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>());
         var handle = world.CreateQuery(in query);
         var cached = handle.Cached;
 
@@ -634,7 +533,7 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
-    public void WriteRequest_Marks_Only_Yielded_Rows_And_ReadBinding_Does_Not_Mark()
+    public void WriteAccess_Marks_Only_Yielded_Rows_And_ReadBinding_Does_Not_Mark()
     {
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
@@ -643,40 +542,75 @@ public sealed class DeltaECSDeliveryTests
         var chunkId = -1;
         var spec = QuerySpec.ForComponents(PositionId);
         var query = world.CreateQuery(in spec);
-        var readPosition = query.Access<Position>(PositionId, AccessMode.Read);
-        var writePosition = query.Access<Position>(PositionId, AccessMode.Write);
+        var readPosition = query.AccessRead(PositionId);
+        var writePosition = query.AccessWrite(PositionId);
         var before = world.WorldTick;
 
-        world.Query(in query, ref chunkId, static (ref int id, ref QueryChunkCursor cursor) =>
+        using (var scope = world.OpenQuery(in query))
         {
-            if (id < 0)
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
             {
-                id = cursor.GlobalChunkId;
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    if (chunkId < 0)
+                    {
+                        chunkId = chunks.Current.GlobalChunkId;
+                    }
+                }
             }
-        });
+        }
         Assert.That(chunkId, Is.GreaterThanOrEqualTo(0));
         Assert.That(world.HasChangedSince(chunkId, PositionId, before), Is.False);
         Assert.That(world.HasChangedSince(chunkId, VelocityId, before), Is.False);
 
-        world.Query(in query, ref writePosition, static (ref WriteRequest<Position> binding, ref QueryChunkCursor cursor) =>
+        using (var scope = world.OpenQuery(in query))
         {
-            _ = cursor.Get(binding);
-        });
+            var prepared = scope.Bind(writePosition);
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
+            {
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    _ = chunks.Current.Slots.Get(prepared);
+                }
+            }
+        }
         var afterWrite = world.WorldTick;
         Assert.That(afterWrite, Is.GreaterThan(before));
         Assert.That(world.HasChangedSince(chunkId, PositionId, before), Is.True);
         Assert.That(world.HasChangedSince(chunkId, VelocityId, before), Is.False);
 
-        world.Query(in query, ref readPosition, static (ref ReadRequest<Position> binding, ref QueryChunkCursor cursor) =>
+        using (var scope = world.OpenQuery(in query))
         {
-            _ = cursor.Get(binding);
-        });
+            var prepared = scope.Bind(readPosition);
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
+            {
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    _ = chunks.Current.Slots.Get(prepared);
+                }
+            }
+        }
         Assert.That(world.HasChangedSince(chunkId, VelocityId, afterWrite), Is.False);
 
-        world.Query(in query, ref writePosition, static (ref WriteRequest<Position> binding, ref QueryChunkCursor cursor) =>
+        using (var scope = world.OpenQuery(in query))
         {
-            _ = cursor.Get(binding);
-        });
+            var prepared = scope.Bind(writePosition);
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
+            {
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    _ = chunks.Current.Slots.Get(prepared);
+                }
+            }
+        }
 
         Assert.That(world.WorldTick, Is.GreaterThan(afterWrite));
         Assert.That(world.HasChangedSince(chunkId, PositionId, afterWrite), Is.True);
@@ -694,10 +628,18 @@ public sealed class DeltaECSDeliveryTests
         var publicMethods = typeof(World).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
         Assert.That(publicMethods.Any(static method => method.Name == "Query"), Is.True);
         Assert.That(publicMethods.Any(static method => method.Name == "QueryChunks"), Is.False);
+
+        var publicInstance = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public;
+        Assert.That(typeof(Query).GetMethods(publicInstance).Any(static method => method.Name == "Access" && method.IsGenericMethod), Is.False);
+        Assert.That(typeof(QueryScope).GetMethods(publicInstance).Any(static method => method.Name.StartsWith("Bind", StringComparison.Ordinal) && method.IsGenericMethod), Is.False);
+        Assert.That(typeof(QueryChunkCursor).GetMethods(publicInstance).Any(static method => method.Name == "Get" && method.IsGenericMethod), Is.False);
+        Assert.That(typeof(QuerySlots).GetMethods(publicInstance).Any(static method => method.Name == "Get" && method.IsGenericMethod), Is.False);
+        Assert.That(assembly.GetType("Delta.ECS.ReadValues`1"), Is.Null);
+        Assert.That(assembly.GetType("Delta.ECS.WriteValues`1"), Is.Null);
     }
 
     [Test]
-    public void AccessRequests_Are_Typed_QueryBound_And_Precisely_Track_Writes()
+    public void AccessRequests_Are_NonGeneric_QueryBound_And_Precisely_Track_Writes()
     {
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
@@ -707,47 +649,129 @@ public sealed class DeltaECSDeliveryTests
 
         var spec = QuerySpec.ForComponents(PositionId, VelocityId);
         var query = world.CreateQuery(in spec);
-        var position = query.Access<Position>(PositionId, AccessMode.Write);
-        var velocity = query.Access<Velocity>(VelocityId, AccessMode.Read);
+        var position = query.AccessWrite(PositionId);
+        var velocity = query.AccessRead(VelocityId);
 
         Assert.That(query.Cached, Is.Not.Null);
 
         var cursorRows = 0;
-        world.Query(in query, ref cursorRows, (ref int rows, ref QueryChunkCursor cursor) =>
+        var writtenChunks = new HashSet<int>();
+        using (var scope = world.OpenQuery(in query))
         {
-            rows += cursor.SlotCount;
-        });
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
+            {
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    var chunk = chunks.Current;
+                    cursorRows += chunk.SlotCount;
+                }
+            }
+        }
         Assert.That(cursorRows, Is.EqualTo(2));
 
-        var state = new BoundRowState(position, velocity);
         var before = world.WorldTick;
-        world.Query(in query, ref state, ApplyBoundRows);
+        var rows = 0;
+        using (var scope = world.OpenQuery(in query))
+        {
+            var preparedPosition = scope.Bind(position);
+            var preparedVelocity = scope.Bind(velocity);
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
+            {
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    var chunk = chunks.Current;
+                    var slots = chunk.Slots;
+                    var positions = slots.Get(preparedPosition);
+                    var velocities = slots.Get(preparedVelocity);
+                    writtenChunks.Add(chunk.GlobalChunkId);
+                    while (slots.MoveNext())
+                    {
+                        ref var row = ref positions.Ref<Position>(slots);
+                        row.X += velocities.Ref<Velocity>(slots).X;
+                        rows++;
+                    }
+                }
+            }
+        }
 
-        Assert.That(state.Rows, Is.EqualTo(2));
-        Assert.That(state.Chunks.Count, Is.EqualTo(2));
-        foreach (var chunkId in state.Chunks)
+        Assert.That(rows, Is.EqualTo(2));
+        Assert.That(writtenChunks.Count, Is.EqualTo(2));
+        foreach (var chunkId in writtenChunks)
         {
             Assert.That(world.HasChangedSince(chunkId, PositionId, before), Is.True);
             Assert.That(world.HasChangedSince(chunkId, VelocityId, before), Is.False);
         }
 
         var simpleRows = 0;
-        world.Query(in query, ref simpleRows, (ref int rows, ref QueryChunkCursor cursor) =>
+        using (var scope = world.OpenQuery(in query))
         {
-            rows += cursor.SlotCount;
-        });
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
+            {
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    simpleRows += chunks.Current.SlotCount;
+                }
+            }
+        }
         Assert.That(simpleRows, Is.EqualTo(2));
 
-        var wrongType = Assert.Throws<ArgumentException>(() => query.Access<Velocity>(PositionId, AccessMode.Read));
-        Assert.That(wrongType!.Message, Does.Contain("registered"));
+        Assert.DoesNotThrow(() => query.AccessRead(PositionId));
 
         var anyDescription = new QuerySpec(
-            new[] { PositionId }, new[] { VelocityId }, Array.Empty<ComponentId>(),
-            Array.Empty<TagId>(), Array.Empty<TagId>(), Array.Empty<TagId>());
+            new[] { PositionId }, new[] { VelocityId }, Array.Empty<ComponentId>());
         var anyQuery = world.CreateQuery(in anyDescription);
-        Assert.Throws<ArgumentException>(() => anyQuery.Access<Velocity>(VelocityId, AccessMode.Read));
+        Assert.Throws<ArgumentException>(() => anyQuery.AccessRead(VelocityId));
 
-        Assert.DoesNotThrow(() => ExecuteReadWithWriteBinding(world, query, position));
+        Assert.DoesNotThrow(() => ExecuteDenseWriteAccess(world, query, position));
+    }
+
+    [Test]
+    public void NonGeneric_AccessBindGet_Uses_RefBoundary_And_Preserves_WriteTracking()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        var world = new World(layouts, chunkCapacity: 4);
+        world.Create(new[] { PositionId, VelocityId });
+
+        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId, VelocityId));
+        ReadAccess readRequest = query.AccessRead(VelocityId);
+        WriteAccess writeRequest = query.AccessWrite(PositionId);
+        var before = world.WorldTick;
+        var sum = 0f;
+
+        using (var scope = world.OpenQuery(in query))
+        {
+            var read = scope.Bind(readRequest);
+            var write = scope.Bind(writeRequest);
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
+            {
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    var slots = chunks.Current.Slots;
+                    var positions = slots.Get(write);
+                    var velocities = slots.Get(read);
+                    while (slots.MoveNext())
+                    {
+                        ref var position = ref positions.Ref<Position>(slots);
+                        ref readonly var velocity = ref velocities.Ref<Velocity>(slots);
+                        position.X += velocity.X + 1;
+                        sum += position.X;
+                    }
+                }
+            }
+        }
+
+        Assert.That(sum, Is.GreaterThan(0));
+        Assert.That(world.HasChangedSince(0, PositionId, before), Is.True);
+        Assert.That(world.HasChangedSince(0, VelocityId, before), Is.False);
     }
 
     [Test]
@@ -760,22 +784,38 @@ public sealed class DeltaECSDeliveryTests
 
         var spec = QuerySpec.ForComponents(VelocityId);
         var query = world.CreateQuery(in spec);
-        var velocity = query.Access<Velocity>(VelocityId, AccessMode.Read);
+        var velocity = query.AccessRead(VelocityId);
 
         var firstRows = 0;
-        world.Query(in query, ref firstRows, (ref int rows, ref QueryChunkCursor cursor) =>
+        using (var scope = world.OpenQuery(in query))
         {
-            rows += cursor.SlotCount;
-        });
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
+            {
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    firstRows += chunks.Current.SlotCount;
+                }
+            }
+        }
 
         // The new archetype stores Velocity at physical row 1 instead of row 0.
         world.Create(new[] { PositionId, VelocityId });
 
         var secondRows = 0;
-        world.Query(in query, ref secondRows, (ref int rows, ref QueryChunkCursor cursor) =>
+        using (var scope = world.OpenQuery(in query))
         {
-            rows += cursor.SlotCount;
-        });
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
+            {
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    secondRows += chunks.Current.SlotCount;
+                }
+            }
+        }
 
         Assert.That(firstRows, Is.EqualTo(1));
         Assert.That(secondRows, Is.EqualTo(2));
@@ -792,50 +832,20 @@ public sealed class DeltaECSDeliveryTests
         var query = world.CreateQuery(in spec);
         var otherDescription = QuerySpec.ForComponents(PositionId);
         var otherQuery = world.CreateQuery(in otherDescription);
-        var mismatchedBinding = otherQuery.Access<Position>(PositionId, AccessMode.Read);
+        var mismatchedBinding = otherQuery.AccessRead(PositionId);
 
-        Assert.Throws<InvalidOperationException>(() => world.Query(in query, ref mismatchedBinding, static (ref ReadRequest<Position> binding, ref QueryChunkCursor cursor) =>
-        {
-            _ = cursor.Get(binding);
-        }));
+        Assert.Throws<InvalidOperationException>(() => BindReadAccess(world, query, mismatchedBinding));
 
         var foreignWorld = new World(layouts);
         foreignWorld.Create(new[] { PositionId, VelocityId });
         var foreignQuery = foreignWorld.CreateQuery(QuerySpec.ForComponents(PositionId, VelocityId));
-        var foreignBinding = foreignQuery.Access<Position>(PositionId, AccessMode.Read);
+        var foreignBinding = foreignQuery.AccessRead(PositionId);
 
-        Assert.Throws<InvalidOperationException>(() => world.Query(in query, ref foreignBinding, static (ref ReadRequest<Position> binding, ref QueryChunkCursor cursor) =>
-        {
-            _ = cursor.Get(binding);
-        }));
+        Assert.Throws<InvalidOperationException>(() => BindReadAccess(world, query, foreignBinding));
 
-        var defaultBinding = default(ReadRequest<Position>);
+        var defaultBinding = default(ReadAccess);
         Assert.That(defaultBinding.Query, Is.Null);
-        Assert.Throws<InvalidOperationException>(() => world.Query(in query, ref defaultBinding, static (ref ReadRequest<Position> binding, ref QueryChunkCursor cursor) =>
-        {
-            _ = cursor.Get(binding);
-        }));
-    }
-
-    [Test]
-    public void Invalid_TagId_Is_Rejected_By_World_And_Query_Contracts()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        RegisterComponentLayouts(layouts);
-        var world = new World(layouts);
-        var entity = world.Create(new[] { PositionId });
-        var invalid = new TagId(-1);
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => world.AddTag(entity, invalid));
-        Assert.Throws<ArgumentOutOfRangeException>(() => world.RemoveTag(entity, invalid));
-        Assert.Throws<ArgumentOutOfRangeException>(() => world.HasTag(entity, invalid));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new QuerySpec(
-            new[] { PositionId },
-            Array.Empty<ComponentId>(),
-            Array.Empty<ComponentId>(),
-            new[] { invalid },
-            Array.Empty<TagId>(),
-            Array.Empty<TagId>()));
+        Assert.Throws<InvalidOperationException>(() => BindReadAccess(world, query, defaultBinding));
     }
 
     [Test]
@@ -893,12 +903,12 @@ public sealed class DeltaECSDeliveryTests
         }
 
         var query = world.CreateQuery(QuerySpec.ForComponents(PositionId, VelocityId));
-        var position = query.Access<Position>(PositionId, AccessMode.Write);
-        var velocity = query.Access<Velocity>(VelocityId, AccessMode.Read);
-        var state = new QueryState { Position = position, Velocity = velocity };
+        var position = query.AccessWrite(PositionId);
+        var velocity = query.AccessRead(VelocityId);
         for (var warmup = 0; warmup < 3; warmup++)
         {
-            world.Query(in query, ref state, s_cursorQuerySlots);
+            var warmupSum = 0f;
+            RunDenseMovement(world, in query, position, velocity, ref warmupSum);
         }
 
         for (var i = 0; i < entities.Length; i++)
@@ -907,18 +917,18 @@ public sealed class DeltaECSDeliveryTests
             world.SetComponent(entities[i], VelocityId, new Velocity { X = 1, Y = 2 });
         }
 
-        state = new QueryState { Position = position, Velocity = velocity };
-        world.Query(in query, ref state, s_cursorQuerySlots);
-        world.Query(in query, ref state, s_cursorQuerySlots);
+        var sum = 0f;
+        RunDenseMovement(world, in query, position, velocity, ref sum);
+        RunDenseMovement(world, in query, position, velocity, ref sum);
         var firstMeasuredAfter = GC.GetAllocatedBytesForCurrentThread();
-        world.Query(in query, ref state, s_cursorQuerySlots);
+        RunDenseMovement(world, in query, position, velocity, ref sum);
         var after = GC.GetAllocatedBytesForCurrentThread();
 
         // VSTest's current-thread allocation counter reports a one-time 24-byte
         // host artifact for this isolated sample; the BDN MemoryDiagnoser is the
         // authoritative per-operation allocation gate for the same cached loop.
         Assert.That(after - firstMeasuredAfter, Is.LessThanOrEqualTo(24));
-        Assert.That(state.Sum, Is.EqualTo(60f));
+        Assert.That(sum, Is.EqualTo(60f));
         Assert.That(world.TryGetComponent<Position>(entities[0], PositionId, out var actualPosition));
         Assert.That(actualPosition.X, Is.EqualTo(3f));
         Assert.That(actualPosition.Y, Is.EqualTo(6f));
@@ -928,12 +938,12 @@ public sealed class DeltaECSDeliveryTests
     public void Registry_Deduplicates_EqualSchema_AndRejects_ConflictingLayout()
     {
         var layouts = new ComponentLayoutRegistry();
-        var first = layouts.Register<Position>(new SchemaId(10_001));
-        var duplicate = layouts.Register<Position>(new SchemaId(10_001));
+        var first = layouts.Register(typeof(Position), new SchemaId(10_001));
+        var duplicate = layouts.Register(typeof(Position), new SchemaId(10_001));
 
         Assert.AreEqual(first, duplicate);
         Assert.AreEqual(1, layouts.Count);
-        Assert.Throws<InvalidOperationException>(() => layouts.Register<Velocity>(new SchemaId(10_001)));
+        Assert.Throws<InvalidOperationException>(() => layouts.Register(typeof(Velocity), new SchemaId(10_001)));
         Assert.AreEqual(1, layouts.Count);
     }
 
@@ -941,34 +951,57 @@ public sealed class DeltaECSDeliveryTests
     public void ArrayRows_ManagedStruct_UsesIndependentVirtualRows_AndCachedIndices()
     {
         var layouts = new ComponentLayoutRegistry();
-        var localId = layouts.Register<NamedRef>(new SchemaId(10_101));
-        var worldId = layouts.Register<NamedRef>(new SchemaId(10_102));
+        var localId = layouts.Register(typeof(NamedRef), new SchemaId(10_101));
+        var worldId = layouts.Register(typeof(NamedRef), new SchemaId(10_102));
         var world = new World(layouts, chunkCapacity: 4);
         var query = world.CreateQuery(QuerySpec.ForComponents(localId, worldId));
-        var local = query.Access<NamedRef>(localId, AccessMode.Read);
-        var worldRow = query.Access<NamedRef>(worldId, AccessMode.Read);
+        var local = query.AccessRead(localId);
+        var worldRow = query.AccessRead(worldId);
         var entity = world.Create(new[] { localId, worldId });
 
         world.SetComponent(entity, localId, new NamedRef { Name = "local", Id = 1 });
         world.SetComponent(entity, worldId, new NamedRef { Name = "world", Id = 2 });
 
-        var state = new ArrayQueryState { FirstRow = local, SecondRow = worldRow };
-        world.Query(in query, ref state, s_readArrayRows);
+        NamedRef first = default;
+        NamedRef second = default;
+        var count = 0;
+        using (var scope = world.OpenQuery(in query))
+        {
+            var preparedLocal = scope.Bind(local);
+            var preparedWorld = scope.Bind(worldRow);
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
+            {
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    var slots = chunks.Current.Slots;
+                    var firstRows = slots.Get(preparedLocal);
+                    var secondRows = slots.Get(preparedWorld);
+                    while (slots.MoveNext())
+                    {
+                        first = firstRows.Ref<NamedRef>(slots);
+                        second = secondRows.Ref<NamedRef>(slots);
+                        count++;
+                    }
+                }
+            }
+        }
 
-        Assert.AreEqual(1, state.Count);
-        Assert.AreEqual("local", state.First.Name);
-        Assert.AreEqual("world", state.Second.Name);
-        Assert.AreEqual(1, state.First.Id);
-        Assert.AreEqual(2, state.Second.Id);
-        Assert.AreNotEqual(state.First.Name, state.Second.Name);
+        Assert.AreEqual(1, count);
+        Assert.AreEqual("local", first.Name);
+        Assert.AreEqual("world", second.Name);
+        Assert.AreEqual(1, first.Id);
+        Assert.AreEqual(2, second.Id);
+        Assert.AreNotEqual(first.Name, second.Name);
     }
 
     [Test]
     public void ArrayRows_ReferenceComponent_UsesTheSameTypedRowAndSurvivesTransition()
     {
         var layouts = new ComponentLayoutRegistry();
-        var referenceId = layouts.Register<ReferenceComponent>(new SchemaId(10_151));
-        var markerId = layouts.Register<RefMarker>(new SchemaId(10_152));
+        var referenceId = layouts.Register(typeof(ReferenceComponent), new SchemaId(10_151));
+        var markerId = layouts.Register(typeof(RefMarker), new SchemaId(10_152));
         var world = new World(layouts, chunkCapacity: 4);
         var entity = world.Create(new[] { referenceId });
         var component = new ReferenceComponent { Value = 42 };
@@ -978,17 +1011,26 @@ public sealed class DeltaECSDeliveryTests
         Assert.That(actual, Is.SameAs(component));
 
         var query = world.CreateQuery(QuerySpec.ForComponents(referenceId));
-        var reference = query.Access<ReferenceComponent>(referenceId, AccessMode.Write);
-        var referenceState = new ReferenceRowState(reference, component);
-        world.Query(in query, ref referenceState, static (ref ReferenceRowState current, ref QueryChunkCursor cursor) =>
+        var reference = query.AccessWrite(referenceId);
+        using (var scope = world.OpenQuery(in query))
         {
-            var row = cursor.Get(current.Binding);
-            while (cursor.MoveNext())
+            var preparedReference = scope.Bind(reference);
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
             {
-                Assert.That(row[cursor], Is.SameAs(current.Expected));
-                row[cursor].Value++;
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    var slots = chunks.Current.Slots;
+                    var rows = slots.Get(preparedReference);
+                    while (slots.MoveNext())
+                    {
+                        Assert.That(rows.Ref<ReferenceComponent>(slots), Is.SameAs(component));
+                        rows.Ref<ReferenceComponent>(slots).Value++;
+                    }
+                }
             }
-        });
+        }
 
         world.AddComponents(new[] { markerId }, entity);
 
@@ -1003,9 +1045,9 @@ public sealed class DeltaECSDeliveryTests
     public void ArrayRows_Transitions_PreserveMappedRows_And_ClearDestroyedReferences()
     {
         var layouts = new ComponentLayoutRegistry();
-        var localId = layouts.Register<NamedRef>(new SchemaId(10_201));
-        var worldId = layouts.Register<NamedRef>(new SchemaId(10_202));
-        var markerId = layouts.Register<RefMarker>(new SchemaId(10_203));
+        var localId = layouts.Register(typeof(NamedRef), new SchemaId(10_201));
+        var worldId = layouts.Register(typeof(NamedRef), new SchemaId(10_202));
+        var markerId = layouts.Register(typeof(RefMarker), new SchemaId(10_203));
         var world = new World(layouts, chunkCapacity: 4);
         var entity = world.Create(new[] { localId, worldId });
 
@@ -1033,14 +1075,15 @@ public sealed class DeltaECSDeliveryTests
     public void ArrayRows_StaleHandle_AndLeaseMutation_AreRejected()
     {
         var layouts = new ComponentLayoutRegistry();
-        var id = layouts.Register<NamedRef>(new SchemaId(10_301));
+        var id = layouts.Register(typeof(NamedRef), new SchemaId(10_301));
         var world = new World(layouts);
         var entity = world.Create(new[] { id });
         var spec = QuerySpec.ForComponents(id);
         var query = world.CreateQuery(in spec);
-        var state = new LeaseMutationState { World = world, Entity = entity };
-
-        Assert.Throws<InvalidOperationException>(() => world.Query(in query, ref state, s_destroyDuringLease));
+        using (var scope = world.OpenQuery(in query))
+        {
+            Assert.Throws<InvalidOperationException>(() => world.Destroy(entity));
+        }
         Assert.True(world.IsAlive(entity));
         Assert.True(world.Destroy(entity));
         Assert.False(world.IsAlive(entity));
@@ -1076,66 +1119,7 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
-    public void OverlayTags_Filter_With_All_Any_None_Without_ArchetypeChange()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        RegisterComponentLayouts(layouts);
-        var world = new World(layouts);
-
-        var entities = new Entity[64];
-        for (var i = 0; i < entities.Length; i++)
-        {
-            entities[i] = world.Create(new[] { PositionId });
-            if ((i & 1) == 0)
-            {
-                world.AddTag(entities[i], TagActive);
-            }
-
-            if ((i & 3) == 0)
-            {
-                world.AddTag(entities[i], TagVisible);
-            }
-        }
-
-        var even = new QuerySpec(
-            new[] { PositionId },
-            Array.Empty<ComponentId>(),
-            Array.Empty<ComponentId>(),
-            new[] { TagActive },
-            Array.Empty<TagId>(),
-            Array.Empty<TagId>());
-
-        var visibleEven = new QuerySpec(
-            new[] { PositionId },
-            Array.Empty<ComponentId>(),
-            Array.Empty<ComponentId>(),
-            new[] { TagActive },
-            Array.Empty<TagId>(),
-            new[] { TagVisible });
-
-        var visibleOnly = new QuerySpec(
-            new[] { PositionId },
-            Array.Empty<ComponentId>(),
-            Array.Empty<ComponentId>(),
-            Array.Empty<TagId>(),
-            new[] { TagVisible },
-            Array.Empty<TagId>());
-
-        var c1 = 0;
-        var c2 = 0;
-        var c3 = 0;
-
-        c1 = CountQuery(world, even);
-        c2 = CountQuery(world, visibleEven);
-        c3 = CountQuery(world, visibleOnly);
-
-        Assert.AreEqual(32, c1);
-        Assert.AreEqual(16, c2);
-        Assert.AreEqual(16, c3);
-    }
-
-    [Test]
-    public void RandomizedInvariants_WithTransitionsAndTags()
+    public void RandomizedInvariants_WithTransitions()
     {
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
@@ -1147,7 +1131,7 @@ public sealed class DeltaECSDeliveryTests
         var allEntities = new List<Entity>();
         for (var step = 0; step < 2_000; step++)
         {
-            var action = random.Next(5);
+            var action = random.Next(4);
             var snapshot = new Entity[allEntities.Count + 16];
             var snapshotCount = world.CollectAliveEntities(snapshot);
 
@@ -1176,8 +1160,6 @@ public sealed class DeltaECSDeliveryTests
                         Position = new Position { X = random.NextSingle() * 100f, Y = random.NextSingle() * 100f },
                         Velocity = useVelocity ? new Velocity { X = random.NextSingle() * 2f, Y = random.NextSingle() * 2f } : null,
                         Health = useHealth ? new Health { Value = random.Next(0, 100) } : null,
-                        TagA = random.NextDouble() > 0.7,
-                        TagB = random.NextDouble() > 0.7
                     };
 
                     world.SetComponent(entity, PositionId, state.Position);
@@ -1189,16 +1171,6 @@ public sealed class DeltaECSDeliveryTests
                     if (state.Health.HasValue)
                     {
                         world.SetComponent(entity, HealthId, state.Health.Value);
-                    }
-
-                    if (state.TagA)
-                    {
-                        world.AddTag(entity, TagActive);
-                    }
-
-                    if (state.TagB)
-                    {
-                        world.AddTag(entity, TagVisible);
                     }
 
                     model[entity.Index] = state;
@@ -1241,25 +1213,6 @@ public sealed class DeltaECSDeliveryTests
             {
                 var index = random.Next(allEntities.Count);
                 var entity = allEntities[index];
-                if (random.NextDouble() > 0.5)
-                {
-                    world.AddTag(entity, TagActive);
-                    var updated = model[entity.Index];
-                    updated.TagA = true;
-                    model[entity.Index] = updated;
-                }
-                else
-                {
-                    world.RemoveTag(entity, TagActive);
-                    var updated = model[entity.Index];
-                    updated.TagA = false;
-                    model[entity.Index] = updated;
-                }
-            }
-            else if (action == 4 && allEntities.Count > 0)
-            {
-                var index = random.Next(allEntities.Count);
-                var entity = allEntities[index];
                 if (world.IsAlive(entity))
                 {
                     var newPosition = new Position { X = random.NextSingle(), Y = random.NextSingle() };
@@ -1282,34 +1235,81 @@ public sealed class DeltaECSDeliveryTests
 
     private static void RegisterComponentLayouts(ComponentLayoutRegistry layouts)
     {
-        layouts.Register<Position>(new SchemaId(1));
-        layouts.Register<Velocity>(new SchemaId(2));
-        layouts.Register<Health>(new SchemaId(3));
+        layouts.Register(typeof(Position), new SchemaId(1));
+        layouts.Register(typeof(Velocity), new SchemaId(2));
+        layouts.Register(typeof(Health), new SchemaId(3));
     }
 
-    private static int CountActiveSlots(ref QueryChunkCursor cursor)
+    private static int CountDenseQuery(World world, in QuerySpec query)
     {
+        var handle = world.CreateQuery(in query);
         var count = 0;
-        while (cursor.MoveNext())
+        using (var scope = world.OpenQuery(in handle))
         {
-            if (cursor.IsActiveSlot(cursor.CurrentIndex))
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
             {
-                count++;
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    count += chunks.Current.SlotCount;
+                }
             }
         }
 
         return count;
     }
 
-    private static int CountQuery(World world, in QuerySpec query)
+    private static void BindReadAccess(World world, Query query, ReadAccess access)
     {
-        var handle = world.CreateQuery(in query);
-        var count = 0;
-        world.Query(in handle, ref count, static (ref int state, ref QueryChunkCursor cursor) =>
+        using var scope = world.OpenQuery(in query);
+        _ = scope.Bind(access);
+    }
+
+    private static void ExecuteDenseWriteAccess(World world, Query query, WriteAccess access)
+    {
+        using var scope = world.OpenQuery(in query);
+        var prepared = scope.Bind(access);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
         {
-            state += CountActiveSlots(ref cursor);
-        });
-        return count;
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                _ = chunks.Current.Slots.Get(prepared);
+            }
+        }
+    }
+
+    private static void RunDenseMovement(
+        World world,
+        in Query query,
+        WriteAccess position,
+        ReadAccess velocity,
+        ref float sum)
+    {
+        using var scope = world.OpenQuery(in query);
+        var preparedPosition = scope.Bind(position);
+        var preparedVelocity = scope.Bind(velocity);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
+        {
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var slots = chunks.Current.Slots;
+                var positions = slots.Get(preparedPosition);
+                var velocities = slots.Get(preparedVelocity);
+                while (slots.MoveNext())
+                {
+                    ref var currentPosition = ref positions.Ref<Position>(slots);
+                    ref readonly var currentVelocity = ref velocities.Ref<Velocity>(slots);
+                    currentPosition.X += currentVelocity.X;
+                    currentPosition.Y += currentVelocity.Y;
+                    sum += currentPosition.X;
+                }
+            }
+        }
     }
 
     private static void ValidateInvariant(World world, Dictionary<int, EntityState> model)
@@ -1334,9 +1334,6 @@ public sealed class DeltaECSDeliveryTests
             Assert.That(Math.Abs(expected.Position.X - position.X) < 1e-5f, $"Mismatch Position.X for entity {entity}");
             Assert.That(Math.Abs(expected.Position.Y - position.Y) < 1e-5f, $"Mismatch Position.Y for entity {entity}");
 
-            Assert.AreEqual(expected.TagA, world.HasTag(entity, TagActive));
-            Assert.AreEqual(expected.TagB, world.HasTag(entity, TagVisible));
-
             if (expected.Velocity.HasValue)
             {
                 Assert.True(world.TryGetComponent<Velocity>(entity, VelocityId, out var velocity));
@@ -1359,138 +1356,30 @@ public sealed class DeltaECSDeliveryTests
         }
     }
 
-    private struct QueryState
-    {
-        public float Sum;
-        public WriteRequest<Position> Position;
-        public ReadRequest<Velocity> Velocity;
-    }
-
-    private struct BoundRowState
-    {
-        public BoundRowState(WriteRequest<Position> position, ReadRequest<Velocity> velocity)
-        {
-            Position = position;
-            Velocity = velocity;
-            Rows = 0;
-            Chunks = new HashSet<int>();
-        }
-
-        public WriteRequest<Position> Position;
-        public ReadRequest<Velocity> Velocity;
-        public int Rows;
-        public HashSet<int> Chunks;
-    }
-
-    private static void ApplyBoundRows(ref BoundRowState state, ref QueryChunkCursor cursor)
-    {
-        var positions = cursor.Get(state.Position);
-        var velocities = cursor.Get(state.Velocity);
-        state.Chunks.Add(cursor.GlobalChunkId);
-        while (cursor.MoveNext())
-        {
-            positions[cursor].X += velocities[cursor].X;
-            state.Rows++;
-        }
-    }
-
-    private static void ExecuteReadWithWriteBinding(
-        World world,
-        Query query,
-        WriteRequest<Position> position)
-    {
-        var state = new BoundRowState(position, default);
-        world.Query(in query, ref state, static (ref BoundRowState current, ref QueryChunkCursor cursor) =>
-        {
-            _ = cursor.Get(current.Position);
-        });
-    }
-
-    private struct AlignmentState
-    {
-        public AlignmentState(
-            Dictionary<Entity, int> expected,
-            ReadRequest<Position> position,
-            ReadRequest<Velocity> velocity)
-        {
-            Expected = expected;
-            Position = position;
-            Velocity = velocity;
-            Count = 0;
-        }
-
-        public Dictionary<Entity, int> Expected;
-        public ReadRequest<Position> Position;
-        public ReadRequest<Velocity> Velocity;
-        public int Count;
-    }
-
-    private static void AssertAlignedRows(ref AlignmentState state, ref QueryChunkCursor cursor)
-    {
-        ReadOnlySpan<Entity> entities = cursor.Entities;
-        var positions = cursor.Get(state.Position);
-        var velocities = cursor.Get(state.Velocity);
-        while (cursor.MoveNext())
-        {
-            var entity = entities[cursor.CurrentIndex];
-            Assert.That(state.Expected.ContainsKey(entity), Is.True);
-            Assert.That(positions[cursor].X, Is.EqualTo(state.Expected[entity]));
-            Assert.That(velocities[cursor].X, Is.EqualTo(state.Expected[entity] + 10));
-            state.Count++;
-        }
-    }
-
-    private static void QuerySlots(ref QueryState state, ref QueryChunkCursor cursor)
-    {
-        var positions = cursor.Get(state.Position);
-        var velocities = cursor.Get(state.Velocity);
-        while (cursor.MoveNext())
-        {
-            positions[cursor].X += velocities[cursor].X;
-            positions[cursor].Y += velocities[cursor].Y;
-            state.Sum += positions[cursor].X;
-        }
-    }
-
-    private static void ReadArrayRows(ref ArrayQueryState state, ref QueryChunkCursor cursor)
-    {
-        var first = cursor.Get(state.FirstRow);
-        var second = cursor.Get(state.SecondRow);
-        while (cursor.MoveNext())
-        {
-            if (!cursor.IsActiveSlot(cursor.CurrentIndex))
-            {
-                continue;
-            }
-
-            state.First = first[cursor];
-            state.Second = second[cursor];
-            state.Count++;
-        }
-    }
-
-    private static void DestroyDuringLease(ref LeaseMutationState state, ref QueryChunkCursor cursor)
-    {
-        state.World.Destroy(state.Entity);
-    }
-
     private static HashSet<int> CollectChunkIds(World world)
     {
         var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
-        var state = new ChunkIdState(new HashSet<int>());
-        world.Query(in query, ref state, s_collectChunkIds);
-        return state.ChunkIds;
-    }
+        var chunkIds = new HashSet<int>();
+        using (var scope = world.OpenQuery(in query))
+        {
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
+            {
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    chunkIds.Add(chunks.Current.GlobalChunkId);
+                }
+            }
+        }
 
-    private static void CollectChunkIds(ref ChunkIdState state, ref QueryChunkCursor cursor)
-    {
-        state.ChunkIds.Add(cursor.GlobalChunkId);
+        return chunkIds;
     }
 
     private static WeakReference<RefPayload> CreateDestroyedReference()
     {
         var layouts = new ComponentLayoutRegistry();
-        var id = layouts.Register<RefMarker>(new SchemaId(10_401));
+        var id = layouts.Register(typeof(RefMarker), new SchemaId(10_401));
         var world = new World(layouts);
         var entity = world.Create(new[] { id });
         var payload = new RefPayload(42);
@@ -1512,102 +1401,7 @@ public sealed class DeltaECSDeliveryTests
         public Position Position;
         public Velocity? Velocity;
         public Health? Health;
-        public bool TagA;
-        public bool TagB;
         public int ArchetypeKey;
     }
 
-    private struct ArrayQueryState
-    {
-        public int Count;
-        public NamedRef First;
-        public NamedRef Second;
-        public ReadRequest<NamedRef> FirstRow;
-        public ReadRequest<NamedRef> SecondRow;
-    }
-
-    private struct OverlayQueryState
-    {
-        public OverlayQueryState(HashSet<Entity> entities)
-        {
-            Entities = entities;
-            SawPartialChunk = false;
-        }
-
-        public HashSet<Entity> Entities;
-        public bool SawPartialChunk;
-    }
-
-    private struct CursorTaggedState
-    {
-        public CursorTaggedState(ReadRequest<Position> position)
-        {
-            Position = position;
-        }
-
-        public ReadRequest<Position> Position;
-        public int ActiveCount;
-        public float Sum;
-    }
-
-    private sealed class OverlaySummary
-    {
-        public int ActiveSlots;
-        public int Chunks;
-        public bool SawPartial;
-        public bool SawFull;
-
-        public void Observe(ref QueryChunkCursor cursor)
-        {
-            Chunks++;
-            var chunkActive = 0;
-            while (cursor.MoveNext())
-            {
-                if (cursor.IsActiveSlot(cursor.CurrentIndex))
-                {
-                    chunkActive++;
-                }
-            }
-
-            ActiveSlots += chunkActive;
-            if (chunkActive == cursor.SlotCount)
-            {
-                SawFull = true;
-            }
-            else
-            {
-                SawPartial = true;
-            }
-        }
-    }
-
-    private readonly struct ReferenceRowState
-    {
-        public ReferenceRowState(
-            WriteRequest<ReferenceComponent> binding,
-            ReferenceComponent expected)
-        {
-            Binding = binding;
-            Expected = expected;
-        }
-
-        public WriteRequest<ReferenceComponent> Binding { get; }
-        public ReferenceComponent Expected { get; }
-    }
-
-    private struct LeaseMutationState
-    {
-        public World World;
-        public Entity Entity;
-    }
-
-    private struct ChunkIdState
-    {
-        public HashSet<int> ChunkIds;
-
-        public ChunkIdState(HashSet<int> chunkIds)
-        {
-            ChunkIds = chunkIds;
-        }
-    }
 }

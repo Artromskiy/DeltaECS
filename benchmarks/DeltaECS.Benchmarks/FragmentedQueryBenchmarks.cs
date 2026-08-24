@@ -24,7 +24,7 @@ public class DeltaOnlyFragmentedQueryBenchmarks
     private World _world = null!;
     private Query _query;
     private ComponentId _required;
-    private ReadRequest<FragmentValue> _valueBinding;
+    private ReadAccess _valueBinding;
     private int _expectedMatches;
 
     [GlobalSetup]
@@ -42,7 +42,7 @@ public class DeltaOnlyFragmentedQueryBenchmarks
         var components = new ComponentId[12];
         for (var i = 0; i < components.Length; i++)
         {
-            components[i] = layouts.Register<FragmentValue>(new SchemaId((ulong)(61_000 + i)));
+            components[i] = layouts.Register(typeof(FragmentValue), new SchemaId((ulong)(61_000 + i)));
         }
 
         _required = components[0];
@@ -71,70 +71,99 @@ public class DeltaOnlyFragmentedQueryBenchmarks
 
         var spec = QuerySpec.ForComponents(_required);
         _query = _world.CreateQuery(in spec);
-        _valueBinding = _query.Access<FragmentValue>(_required, AccessMode.Read);
+        _valueBinding = _query.AccessRead(_required);
     }
 
     [Benchmark]
     public int DeltaOnly_QueryAndIteration()
     {
-        var state = new FragmentQueryState { Value = _valueBinding };
-        _world.Query(in _query, ref state, static (ref FragmentQueryState s, ref QueryChunkCursor cursor) =>
+        var matches = 0;
+        var checksum = 0;
+        using var scope = _world.OpenQuery(in _query);
+        var value = scope.Bind(_valueBinding);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
         {
-            var values = cursor.Get<FragmentValue>(s.Value);
-            while (cursor.MoveNext())
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
             {
-                s.Matches++;
-                s.Checksum += values[cursor].Value;
+                var slots = chunks.Current.Slots;
+                var values = slots.Get(value);
+                while (slots.MoveNext())
+                {
+                    matches++;
+                    checksum += values.Ref<FragmentValue>(slots).Value;
+                }
             }
-        });
-
-        if (state.Matches != _expectedMatches)
-        {
-            throw new InvalidOperationException($"Fragmented query matched {state.Matches}, expected {_expectedMatches} ({MatchingPercent}% of {ArchetypeSignatures} signatures).");
         }
 
-        return state.Checksum;
+        if (matches != _expectedMatches)
+        {
+            throw new InvalidOperationException($"Fragmented query matched {matches}, expected {_expectedMatches} ({MatchingPercent}% of {ArchetypeSignatures} signatures).");
+        }
+
+        return checksum;
     }
 
     [Benchmark]
     public int DeltaOnly_QueryChunkDispatch()
     {
-        var state = new FragmentQueryState { Value = _valueBinding };
-        _world.Query(in _query, ref state, static (ref FragmentQueryState s, ref QueryChunkCursor cursor) =>
-        { while (cursor.MoveNext()) s.Matches++; });
-
-        if (state.Matches != _expectedMatches)
+        var matches = 0;
+        using var scope = _world.OpenQuery(in _query);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
         {
-            throw new InvalidOperationException($"Fragmented query dispatched {state.Matches}, expected {_expectedMatches} ({MatchingPercent}% of {ArchetypeSignatures} signatures).");
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var slots = chunks.Current.Slots;
+                while (slots.MoveNext())
+                {
+                    matches++;
+                }
+            }
         }
 
-        return state.Matches;
+        if (matches != _expectedMatches)
+        {
+            throw new InvalidOperationException($"Fragmented query dispatched {matches}, expected {_expectedMatches} ({MatchingPercent}% of {ArchetypeSignatures} signatures).");
+        }
+
+        return matches;
     }
 
     [Benchmark]
     public int DeltaOnly_ColdPlan()
     {
-        var state = new FragmentQueryState();
         var spec = QuerySpec.ForComponents(_required);
         var coldQuery = _world.CreateQuery(in spec);
-        var valueBinding = coldQuery.Access<FragmentValue>(_required, AccessMode.Read);
-        state.Value = valueBinding;
-        _world.Query(in coldQuery, ref state, static (ref FragmentQueryState s, ref QueryChunkCursor cursor) =>
+        var valueBinding = coldQuery.AccessRead(_required);
+        var matches = 0;
+        var checksum = 0;
+        using var scope = _world.OpenQuery(in coldQuery);
+        var value = scope.Bind(valueBinding);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
         {
-            var values = cursor.Get<FragmentValue>(s.Value);
-            while (cursor.MoveNext())
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
             {
-                s.Matches++;
-                s.Checksum += values[cursor].Value;
+                var slots = chunks.Current.Slots;
+                var values = slots.Get(value);
+                while (slots.MoveNext())
+                {
+                    matches++;
+                    checksum += values.Ref<FragmentValue>(slots).Value;
+                }
             }
-        });
-
-        if (state.Matches != _expectedMatches)
-        {
-            throw new InvalidOperationException($"Fragmented cold query matched {state.Matches}, expected {_expectedMatches} ({MatchingPercent}% of {ArchetypeSignatures} signatures).");
         }
 
-        return state.Checksum;
+        if (matches != _expectedMatches)
+        {
+            throw new InvalidOperationException($"Fragmented cold query matched {matches}, expected {_expectedMatches} ({MatchingPercent}% of {ArchetypeSignatures} signatures).");
+        }
+
+        return checksum;
     }
 
     private static ComponentId[] BuildSignature(ComponentId[] components, int mask)
@@ -166,10 +195,4 @@ public class DeltaOnlyFragmentedQueryBenchmarks
         public int Value;
     }
 
-    private struct FragmentQueryState
-    {
-        public int Matches;
-        public int Checksum;
-        public ReadRequest<FragmentValue> Value;
-    }
 }

@@ -8,6 +8,7 @@ internal static class MicroBenchmarkCatalog
     public static readonly Type[] Types =
     [
         typeof(DenseIterationMicroBenchmarks),
+        typeof(Movement4OrderMicroBenchmarks),
         typeof(AddMicroBenchmarks),
         typeof(RemoveMicroBenchmarks),
         typeof(CreateMicroBenchmarks),
@@ -17,6 +18,11 @@ internal static class MicroBenchmarkCatalog
 
 [MemoryDiagnoser]
 public class DenseIterationMicroBenchmarks : DenseIterationMicroBenchmarkImplementation
+{
+}
+
+[MemoryDiagnoser]
+public class Movement4OrderMicroBenchmarks : Movement4OrderMicroBenchmarkImplementation
 {
 }
 

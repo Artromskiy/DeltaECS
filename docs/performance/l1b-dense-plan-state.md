@@ -23,7 +23,7 @@ throughput claim.
 
 Variant 6 carries the validated `QueryPlan` directly through the dense
 iterator state and removes the unused query owner from `DenseArchetypePlan`.
-No public API or tag path was changed.
+No public API or query execution path was changed.
 
 ## Winner BDN probe
 
@@ -48,7 +48,7 @@ baseline comparison for this sweep is the JIT probe above.
 - DeltaECS solution Release build: passed.
 - DeltaECS tests: 66 passed, 0 failed.
 - `git diff --check`: passed before report commit.
-- No public API changes, tags, or benchmark suite-wide run.
+- No benchmark suite-wide run.
 
 Raw ignored JIT/BDN artifacts are under `artifacts/jit-disasm/l1b-*` and
 `artifacts/bdn/l1b-v6-winner` in the isolated worktree.

@@ -12,7 +12,7 @@ public sealed class ActiveChunkTests
     public void EmptyChunks_Are_Excluded_And_Reused_Chunks_Rejoin_The_Active_List()
     {
         var layouts = new ComponentLayoutRegistry();
-        layouts.Register<Position>(new SchemaId(1));
+        layouts.Register(typeof(Position), new SchemaId(1));
         var world = new World(layouts, chunkCapacity: 2);
         var handle = world.GetArchetype(PositionId);
         var entities = new Entity[6];
@@ -36,21 +36,59 @@ public sealed class ActiveChunkTests
 
         var replacement = new Entity[2];
         Assert.That(world.CreateBatch(handle, replacement), Is.EqualTo(2));
+        Assert.That(world.SetComponent(replacement[0], PositionId, new Position { X = 11 }), Is.True);
+        Assert.That(world.SetComponent(replacement[1], PositionId, new Position { X = 13 }), Is.True);
         Assert.That(archetype.ActiveChunkCount, Is.EqualTo(3));
         AssertActiveChunks(archetype);
 
         queriedSlots = CountQueriedSlots(world, queryHandle);
         Assert.That(queriedSlots, Is.EqualTo(6));
+        Assert.That(SumPositions(world, queryHandle), Is.EqualTo(24));
     }
 
     private static int CountQueriedSlots(World world, in Query query)
     {
         var count = 0;
-        world.Query(in query, ref count, static (ref int state, ref QueryChunkCursor cursor) =>
+        using var scope = world.OpenQuery(in query);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
         {
-            state += cursor.SlotCount;
-        });
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var slots = chunks.Current.Slots;
+                while (slots.MoveNext())
+                {
+                    count++;
+                }
+            }
+        }
+
         return count;
+    }
+
+    private static float SumPositions(World world, in Query query)
+    {
+        float sum = 0;
+        var access = query.AccessRead(PositionId);
+        using var scope = world.OpenQuery(in query);
+        var prepared = scope.Bind(access);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
+        {
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var slots = chunks.Current.Slots;
+                var positions = slots.Get(prepared);
+                while (slots.MoveNext())
+                {
+                    sum += positions.Ref<Position>(slots).X;
+                }
+            }
+        }
+
+        return sum;
     }
 
     private static void AssertActiveChunks(Archetype archetype)

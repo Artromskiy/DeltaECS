@@ -11,7 +11,7 @@ ECS storage structures were changed.
 
 | # | Candidate | Release/JIT result | Decision | Commit |
 |---:|---|---|---|---|
-| 1 | Local `SlotCount` cache in `IsActiveSlot` | 1408 B, 16 `blr`; Release build passed | reject: no JIT change | `de4b573` |
+| 1 | Local `SlotCount` cache in the retired filtered-slot path | 1408 B, 16 `blr`; Release build passed | reject: no JIT change | `de4b573` |
 | 2 | Local current slot/index cache in row indexers | 1408 B, 16 `blr`; Release build passed | reject: no JIT change | `fab6d7a` |
 | 3 | Store query/column references directly in slot iterator | 1408 B, 16 `blr`; Release build passed | reject: no JIT change | `60f3aa2` |
 | 4 | `readonly`/`in` binding helpers | Release compile failed with span escape errors CS8166/CS8347 | reject: invalid candidate | `1ea954f` |

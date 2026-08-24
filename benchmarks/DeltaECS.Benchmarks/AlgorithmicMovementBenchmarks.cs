@@ -31,8 +31,8 @@ public class AlgorithmicMovementBenchmarks
     private ComponentId _deltaVelocity;
     private ComponentId[] _deltaComponents = Array.Empty<ComponentId>();
     private Query _deltaQuery;
-    private WriteRequest<DeltaPosition> _deltaPositionBinding;
-    private ReadRequest<DeltaVelocity> _deltaVelocityBinding;
+    private WriteAccess _deltaPositionBinding;
+    private ReadAccess _deltaVelocityBinding;
     private LegacyMovementReference _legacy = null!;
 
     private Arch.Core.World _archWorld = null!;
@@ -41,15 +41,6 @@ public class AlgorithmicMovementBenchmarks
 
     private EntityStore _frifloWorld = null!;
     private ArchetypeQuery<FrifloPosition, FrifloVelocity> _frifloQuery = null!;
-
-    private struct DeltaState
-    {
-        public float Dt;
-        public int Count;
-        public double Checksum;
-        public WriteRequest<DeltaPosition> Position;
-        public ReadRequest<DeltaVelocity> Velocity;
-    }
 
     [GlobalSetup]
     public void Setup()
@@ -63,23 +54,33 @@ public class AlgorithmicMovementBenchmarks
     [Benchmark(Baseline = true)]
     public double DeltaECS_Movement()
     {
-        var state = new DeltaState { Dt = Dt, Position = _deltaPositionBinding, Velocity = _deltaVelocityBinding };
-        _deltaWorld.Query(in _deltaQuery, ref state, static (ref DeltaState s, ref QueryChunkCursor cursor) =>
+        double checksum = 0;
+        var count = 0;
+        using var scope = _deltaWorld.OpenQuery(in _deltaQuery);
+        var positionAccess = scope.Bind(_deltaPositionBinding);
+        var velocityAccess = scope.Bind(_deltaVelocityBinding);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
         {
-            var positions = cursor.Get(s.Position);
-            var velocities = cursor.Get(s.Velocity);
-            while (cursor.MoveNext())
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
             {
-                ref var position = ref positions[cursor];
-                ref readonly var velocity = ref velocities[cursor];
-                position.X += velocity.X * s.Dt;
-                position.Y += velocity.Y * s.Dt;
-                s.Count++;
-                s.Checksum += position.X + position.Y;
+                var slots = chunks.Current.Slots;
+                var positions = slots.Get(positionAccess);
+                var velocities = slots.Get(velocityAccess);
+                while (slots.MoveNext())
+                {
+                    ref var position = ref positions.Ref<DeltaPosition>(slots);
+                    ref readonly var velocity = ref velocities.Ref<DeltaVelocity>(slots);
+                    position.X += velocity.X * Dt;
+                    position.Y += velocity.Y * Dt;
+                    count++;
+                    checksum += position.X + position.Y;
+                }
             }
-        });
+        }
 
-        return MovementGuard.Checksum(state.Checksum, state.Count, Amount);
+        return MovementGuard.Checksum(checksum, count, Amount);
     }
 
     [Benchmark]
@@ -124,8 +125,8 @@ public class AlgorithmicMovementBenchmarks
     private void SetupDelta()
     {
         var layouts = new ComponentLayoutRegistry();
-        _deltaPosition = layouts.Register<DeltaPosition>(new SchemaId(60_000));
-        _deltaVelocity = layouts.Register<DeltaVelocity>(new SchemaId(60_001));
+        _deltaPosition = layouts.Register(typeof(DeltaPosition), new SchemaId(60_000));
+        _deltaVelocity = layouts.Register(typeof(DeltaVelocity), new SchemaId(60_001));
         _deltaComponents = new ComponentId[2 + PayloadRows];
         _deltaComponents[0] = _deltaPosition;
         _deltaComponents[1] = _deltaVelocity;
@@ -146,8 +147,8 @@ public class AlgorithmicMovementBenchmarks
 
         var spec = QuerySpec.ForComponents(_deltaComponents);
         _deltaQuery = _deltaWorld.CreateQuery(in spec);
-        _deltaPositionBinding = _deltaQuery.Access<DeltaPosition>(_deltaPosition, AccessMode.Write);
-        _deltaVelocityBinding = _deltaQuery.Access<DeltaVelocity>(_deltaVelocity, AccessMode.Read);
+        _deltaPositionBinding = _deltaQuery.AccessWrite(_deltaPosition);
+        _deltaVelocityBinding = _deltaQuery.AccessRead(_deltaVelocity);
     }
 
     private void SetupArch()
@@ -210,12 +211,12 @@ public class AlgorithmicMovementBenchmarks
 
     private static ComponentId RegisterDeltaPayload(ComponentLayoutRegistry layouts, int index) => index switch
     {
-        0 => layouts.Register<DeltaPayload>(new SchemaId(60_010)),
-        1 => layouts.Register<DeltaPayload>(new SchemaId(60_011)),
-        2 => layouts.Register<DeltaPayload>(new SchemaId(60_012)),
-        3 => layouts.Register<DeltaPayload>(new SchemaId(60_013)),
-        4 => layouts.Register<DeltaPayload>(new SchemaId(60_014)),
-        _ => layouts.Register<DeltaPayload>(new SchemaId(60_015))
+        0 => layouts.Register(typeof(DeltaPayload), new SchemaId(60_010)),
+        1 => layouts.Register(typeof(DeltaPayload), new SchemaId(60_011)),
+        2 => layouts.Register(typeof(DeltaPayload), new SchemaId(60_012)),
+        3 => layouts.Register(typeof(DeltaPayload), new SchemaId(60_013)),
+        4 => layouts.Register(typeof(DeltaPayload), new SchemaId(60_014)),
+        _ => layouts.Register(typeof(DeltaPayload), new SchemaId(60_015))
     };
 
     private void SetDeltaPayload(Entity entity, int seed)

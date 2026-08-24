@@ -11,15 +11,13 @@ public sealed class QueryStructuralOperationsTests
     private static readonly ComponentId PositionId = new(0);
     private static readonly ComponentId VelocityId = new(1);
     private static readonly ComponentId HealthId = new(2);
-    private static readonly TagId ActiveTag = new(77);
-
     [Test]
-    public void QueryAddRemove_UsesSnapshot_MultipleArchetypes_AndPreservesTags()
+    public void QueryAddRemove_UsesSnapshot_MultipleArchetypes()
     {
         var layouts = CreateLayouts();
-        var extraA = layouts.Register<int>(new SchemaId(20));
-        var extraB = layouts.Register<int>(new SchemaId(21));
-        var extraC = layouts.Register<int>(new SchemaId(22));
+        var extraA = layouts.Register(typeof(int), new SchemaId(20));
+        var extraB = layouts.Register(typeof(int), new SchemaId(21));
+        var extraC = layouts.Register(typeof(int), new SchemaId(22));
         var world = new World(layouts, chunkCapacity: 2);
 
         var first = new Entity[3];
@@ -27,14 +25,12 @@ public sealed class QueryStructuralOperationsTests
         var existingTarget = world.Create(new[] { PositionId, VelocityId, extraA, extraB, extraC });
         world.CreateBatch(new[] { PositionId }, first);
         world.CreateBatch(new[] { PositionId, HealthId }, second);
-        world.AddTag(first[0], ActiveTag);
 
         var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
         var added = world.AddComponents(in query, new[] { VelocityId, extraA, extraB, extraC });
 
         Assert.That(added, Is.EqualTo(first.Length + second.Length));
         Assert.That(world.IsAlive(existingTarget), Is.True);
-        Assert.That(world.HasTag(first[0], ActiveTag), Is.True);
         foreach (var entity in first)
         {
             AssertAddedComponents(world, entity, VelocityId, extraA, extraB, extraC);
@@ -49,7 +45,6 @@ public sealed class QueryStructuralOperationsTests
         var removed = world.RemoveComponents(in query, new[] { VelocityId, extraA, extraB, extraC });
         Assert.That(removed, Is.EqualTo(first.Length + second.Length + 1));
         Assert.That(world.TryGetComponent<Velocity>(existingTarget, VelocityId, out _), Is.False);
-        Assert.That(world.HasTag(first[0], ActiveTag), Is.True);
         foreach (var entity in first)
         {
             AssertRemovedComponents(world, entity, VelocityId, extraA, extraB, extraC);
@@ -88,36 +83,6 @@ public sealed class QueryStructuralOperationsTests
     }
 
     [Test]
-    public void TaggedQueryStructuralOperations_FallbackToExactPartialHoles()
-    {
-        var layouts = CreateLayouts();
-        var world = new World(layouts, chunkCapacity: 4);
-        var entities = new Entity[4];
-        world.CreateBatch(new[] { PositionId }, entities);
-        world.AddTag(entities[0], ActiveTag);
-        world.AddTag(entities[2], ActiveTag);
-        var spec = new QuerySpec(
-            new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>(),
-            new[] { ActiveTag }, Array.Empty<TagId>(), Array.Empty<TagId>());
-        var query = world.CreateQuery(in spec);
-
-        Assert.That(world.AddComponents(in query, new[] { VelocityId }), Is.EqualTo(2));
-        Assert.That(world.TryGetComponent<Velocity>(entities[0], VelocityId, out _), Is.True);
-        Assert.That(world.TryGetComponent<Velocity>(entities[2], VelocityId, out _), Is.True);
-        Assert.That(world.TryGetComponent<Velocity>(entities[1], VelocityId, out _), Is.False);
-        Assert.That(world.TryGetComponent<Velocity>(entities[3], VelocityId, out _), Is.False);
-        Assert.That(world.HasTag(entities[0], ActiveTag), Is.True);
-        Assert.That(world.HasTag(entities[2], ActiveTag), Is.True);
-
-        Assert.That(world.Destroy(in query), Is.EqualTo(2));
-        Assert.That(world.AliveEntityCount, Is.EqualTo(2));
-        Assert.That(world.IsAlive(entities[0]), Is.False);
-        Assert.That(world.IsAlive(entities[2]), Is.False);
-        Assert.That(world.IsAlive(entities[1]), Is.True);
-        Assert.That(world.IsAlive(entities[3]), Is.True);
-    }
-
-    [Test]
     public void QueryStructuralOperations_Reject_DefaultForeignAndActiveLeaseHandles()
     {
         var layouts = CreateLayouts();
@@ -131,9 +96,8 @@ public sealed class QueryStructuralOperationsTests
         Assert.Throws<ArgumentException>(() => world.AddComponents(in invalid, new[] { VelocityId }));
         Assert.Throws<ArgumentException>(() => world.RemoveComponents(in foreignQuery, new[] { VelocityId }));
         Assert.Throws<ArgumentException>(() => world.Destroy(in foreignQuery));
-        var activeLeaseState = 0;
-        Assert.Throws<InvalidOperationException>(() => world.Query(in query, ref activeLeaseState,
-            (ref int _, ref QueryChunkCursor _) => world.AddComponents(in query, new[] { VelocityId })));
+        using var scope = world.OpenQuery(in query);
+        Assert.Throws<InvalidOperationException>(() => world.AddComponents(in query, new[] { VelocityId }));
         Assert.That(world.IsAlive(entity), Is.True);
     }
 
@@ -160,12 +124,11 @@ public sealed class QueryStructuralOperationsTests
     }
 
     [Test]
-    public void QueryStructuralOperations_ExplicitNoOps_PreserveEntitiesRecordsAndTags()
+    public void QueryStructuralOperations_ExplicitNoOps_PreserveEntitiesAndRecords()
     {
         var layouts = CreateLayouts();
         var world = new World(layouts);
         var entity = world.Create(new[] { PositionId });
-        world.AddTag(entity, ActiveTag);
         var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
         var versionBefore = world.ArchetypeVersion;
 
@@ -174,7 +137,6 @@ public sealed class QueryStructuralOperationsTests
 
         Assert.That(world.ArchetypeVersion, Is.EqualTo(versionBefore));
         Assert.That(world.IsAlive(entity), Is.True);
-        Assert.That(world.HasTag(entity, ActiveTag), Is.True);
         Assert.That(world.TryGetComponent<Position>(entity, PositionId, out _), Is.True);
         Assert.That(world.TryGetComponent<Velocity>(entity, VelocityId, out _), Is.False);
     }
@@ -188,62 +150,63 @@ public sealed class QueryStructuralOperationsTests
         world.CreateBatch(new[] { PositionId }, entities);
         var spec = QuerySpec.ForComponents(PositionId);
         var query = world.CreateQuery(in spec);
-        var readPosition = query.Access<Position>(PositionId, AccessMode.Read);
-        var writePosition = query.Access<Position>(PositionId, AccessMode.Write);
+        var readPosition = query.AccessRead(PositionId);
+        var writePosition = query.AccessWrite(PositionId);
 
         Assert.That(world.AddComponents(in query, new[] { VelocityId }), Is.EqualTo(entities.Length));
 
-        var readChunkId = -1;
         var readBefore = world.WorldTick;
-        var readState = new ChangeTrackingCursorState(readPosition);
-        world.Query(in query, ref readState, static (ref ChangeTrackingCursorState state, ref QueryChunkCursor cursor) =>
+        var readChunkId = -1;
+        using (var scope = world.OpenQuery(in query))
         {
-            if (cursor.SlotCount == 0)
+            var readAccess = scope.Bind(readPosition);
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
             {
-                return;
-            }
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    var chunk = chunks.Current;
+                    if (chunk.SlotCount == 0)
+                    {
+                        continue;
+                    }
 
-            state.ChunkId = cursor.GlobalChunkId;
-            _ = cursor.Get(state.ReadBinding);
-        });
-        readChunkId = readState.ChunkId;
+                    readChunkId = chunk.GlobalChunkId;
+                    var slots = chunk.Slots;
+                    _ = slots.Get(readAccess);
+                }
+            }
+        }
 
         Assert.That(readChunkId, Is.GreaterThanOrEqualTo(0));
         Assert.That(world.HasChangedSince(readChunkId, PositionId, readBefore), Is.False);
 
         var writeChunkId = -1;
-        var writeState = new ChangeTrackingCursorState(writePosition);
-        world.Query(in query, ref writeState, static (ref ChangeTrackingCursorState state, ref QueryChunkCursor cursor) =>
+        using (var scope = world.OpenQuery(in query))
         {
-            if (cursor.SlotCount == 0)
+            var writeAccess = scope.Bind(writePosition);
+            var archetypes = scope.Archetypes;
+            while (archetypes.MoveNext())
             {
-                return;
-            }
+                var chunks = archetypes.Current.Chunks;
+                while (chunks.MoveNext())
+                {
+                    var chunk = chunks.Current;
+                    if (chunk.SlotCount == 0)
+                    {
+                        continue;
+                    }
 
-            state.ChunkId = cursor.GlobalChunkId;
-            _ = cursor.Get(state.WriteBinding);
-        });
-        writeChunkId = writeState.ChunkId;
+                    writeChunkId = chunk.GlobalChunkId;
+                    var slots = chunk.Slots;
+                    _ = slots.Get(writeAccess);
+                }
+            }
+        }
 
         Assert.That(writeChunkId, Is.EqualTo(readChunkId));
         Assert.That(world.HasChangedSince(writeChunkId, PositionId, readBefore), Is.True);
-    }
-
-    private sealed class ChangeTrackingCursorState
-    {
-        public ChangeTrackingCursorState(ReadRequest<Position> binding)
-        {
-            ReadBinding = binding;
-        }
-
-        public ChangeTrackingCursorState(WriteRequest<Position> binding)
-        {
-            WriteBinding = binding;
-        }
-
-        public ReadRequest<Position> ReadBinding { get; }
-        public WriteRequest<Position> WriteBinding { get; }
-        public int ChunkId { get; set; } = -1;
     }
 
     [Test]
@@ -260,8 +223,8 @@ public sealed class QueryStructuralOperationsTests
     private static List<WeakReference<ReferenceComponent>> CreateAndDestroyReferenceRows()
     {
         var layouts = CreateLayouts();
-        var referenceId = layouts.Register<ReferenceComponent>(new SchemaId(30));
-        var markerId = layouts.Register<RefMarker>(new SchemaId(31));
+        var referenceId = layouts.Register(typeof(ReferenceComponent), new SchemaId(30));
+        var markerId = layouts.Register(typeof(RefMarker), new SchemaId(31));
         var world = new World(layouts, chunkCapacity: 2);
         var entities = new Entity[4];
         world.CreateBatch(new[] { referenceId }, entities);
@@ -290,9 +253,9 @@ public sealed class QueryStructuralOperationsTests
     private static ComponentLayoutRegistry CreateLayouts()
     {
         var layouts = new ComponentLayoutRegistry();
-        layouts.Register<Position>(new SchemaId(1));
-        layouts.Register<Velocity>(new SchemaId(2));
-        layouts.Register<Health>(new SchemaId(3));
+        layouts.Register(typeof(Position), new SchemaId(1));
+        layouts.Register(typeof(Velocity), new SchemaId(2));
+        layouts.Register(typeof(Health), new SchemaId(3));
         return layouts;
     }
 
