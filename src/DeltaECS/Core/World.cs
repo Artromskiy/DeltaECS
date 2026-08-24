@@ -125,7 +125,6 @@ public sealed partial class World : IDisposable
             throw new InvalidOperationException("Component list is empty or invalid.");
         }
 
-        ValidateComponentLayouts(mask);
         Stamp stamp = _mutationStamps.Next();
         var archetype = GetOrCreateArchetype(mask);
         return CreateBatch(archetype, output, stamp);
@@ -528,8 +527,6 @@ public sealed partial class World : IDisposable
             return 0;
         }
 
-        ValidateComponentLayouts(changeMask);
-
         int edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
         int changed = 0;
         Stamp operationStamp = default;
@@ -581,8 +578,6 @@ public sealed partial class World : IDisposable
         {
             return 0;
         }
-
-        ValidateComponentLayouts(changeMask);
 
         var cached = query.Cached;
         ReadOnlySpan<int> matchingArchetypes = cached.MatchingArchetypes(this);
@@ -884,7 +879,7 @@ public sealed partial class World : IDisposable
         return archetype;
     }
 
-    private static bool TryBuildComponentMask(ReadOnlySpan<ComponentId> componentIds, out ComponentMask mask)
+    private bool TryBuildComponentMask(ReadOnlySpan<ComponentId> componentIds, out ComponentMask mask)
     {
         mask = default;
         for (int i = 0; i < componentIds.Length; i++)
@@ -894,23 +889,17 @@ public sealed partial class World : IDisposable
                 continue;
             }
 
+            if (!_layouts.TryGet(componentIds[i], out _))
+            {
+                throw new ArgumentException(
+                    $"Component {componentIds[i].Value} is not registered in this world.",
+                    nameof(componentIds));
+            }
+
             mask = mask.Set(componentIds[i]);
         }
 
         return !mask.IsEmpty;
-    }
-
-    private void ValidateComponentLayouts(ComponentMask mask)
-    {
-        foreach (ComponentId componentId in mask)
-        {
-            if (!_layouts.TryGet(componentId, out _))
-            {
-                throw new ArgumentException(
-                    $"Component {componentId.Value} is not registered in this world.",
-                    nameof(mask));
-            }
-        }
     }
 
     private int AllocateRecord()
