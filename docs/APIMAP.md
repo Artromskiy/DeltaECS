@@ -1,512 +1,173 @@
 # DeltaECS API and source map
 
-This is a navigation map for contributors and agents. It is not a second
-public contract or a work queue. Stable behavior belongs in `README.md`,
-selected work belongs in `TODO.md`, and deferred ideas belong in `IDEAS.md`.
+This file is a contributor navigation map. It is intentionally smaller than
+the public contract: stable behavior belongs in the root `README.md`, and
+folder-specific API details belong in the README beside the source.
 
 ## Fast read order
 
-1. Read the root and project `AGENTS.md` files.
-2. Read `TODO.md` only when selecting or continuing implementation work.
-3. Read `README.md` for the public contract and `WORKFLOW.md` before build,
-   test, or benchmark commands.
-4. Use this map to select the smallest source slice.
-5. Read tests only after locating the source path, and only the test class
-   covering that path. Do not scan the whole test project first.
+1. Read the repository and project `AGENTS.md` files.
+2. Read `README.md` for stable behavior and `WORKFLOW.md` before commands.
+3. Use the folder map below to choose the smallest source slice.
+4. Read the nearest focused test only after locating the implementation.
 
-Useful navigation commands:
+Useful searches:
 
 ```bash
 rg -n "public |internal |Query|OpenQuery|Access|MoveNext" src/DeltaECS
 rg -n "<relevant API or invariant>" tests/DeltaECSTests
 ```
 
-## Folder API documentation
+## Folder map
 
-- [Core](../src/DeltaECS/Core/README.md)
-- [Generic boundaries](../src/DeltaECS/Generic/README.md)
-- [Delegate callbacks](../src/DeltaECS/Delegate/README.md)
-- [Struct functors](../src/DeltaECS/Functor/README.md)
-- [Ordered sequences](../src/DeltaECS/Sequence/README.md)
-- [Integration contract](../src/DeltaECS/API/README.md)
-- [Mutation stamps](../src/DeltaECS/Stamps/README.md)
-- [Consumer source generator](../src/DeltaECS.Generators/README.md)
+| Folder | Responsibility | Documentation |
+|---|---|---|
+| `Core` | World, identity, storage-facing structural operations and explicit query traversal | [Core API](../src/DeltaECS/Core/README.md) |
+| `Generic` | CLR-type registration and single-component convenience operations | [Generic API](../src/DeltaECS/Generic/README.md) |
+| `Delegate` | Delegate callback contracts and zero-component callback entry points | [Delegate API](../src/DeltaECS/Delegate/README.md) |
+| `Functor` | Marker contracts and generated functor runtime bridge | [Functor API](../src/DeltaECS/Functor/README.md) |
+| `Sequence` | Ordered execution over an explicit entity span | [Sequence API](../src/DeltaECS/Sequence/README.md) |
+| `API` | Neutral integration contract implemented by `World` | [Integration API](../src/DeltaECS/API/README.md) |
+| `Stamps` | World and component revision values | [Stamp contract](../src/DeltaECS/Stamps/README.md) |
+| `Properties` | Assembly metadata; no consumer API | — |
+
+The consumer source generator is documented in
+[DeltaECS.Generators/README.md](../src/DeltaECS.Generators/README.md).
 
 ## Public API map
 
-| API | Purpose | First source file |
+| Type or entry point | Role | Source |
 |---|---|---|
-| `World` | World ownership, entity lifecycle, structural changes, query entry points | `src/DeltaECS/Core/World.cs` |
-| `Entity` | Entity index/generation value and stale-handle identity | `src/DeltaECS/Core/EntityTypes.cs` |
-| `ArchetypeHandle` | World-owned archetype identity used by create paths | `src/DeltaECS/Core/EntityTypes.cs` |
-| `ComponentId`, `ComponentMask`, `ComponentLayout` | Component identity, matching mask, registered layout metadata | `src/DeltaECS/Core/ComponentTypes.cs` |
-| `ComponentLayoutRegistry` | CLR type/storage registration and validation | `src/DeltaECS/Core/ComponentLayoutRegistry.cs` |
-| `QuerySpec` | All/Any/None component predicates | `src/DeltaECS/Core/QuerySpec.cs` |
-| `Query` | World/query identity and non-generic read/write access factory | `src/DeltaECS/Core/EntityTypes.cs` |
-| `ReadAccess`, `WriteAccess` | Query-bound type-erased access intent | `src/DeltaECS/Core/QueryAccess.cs` |
-| `QueryScope` | Component-query validation and structural lease owner | `src/DeltaECS/Core/QueryScope.cs` |
-| `QueryArchetypes`, `QueryChunks`, `QuerySlots` | Independent archetype/chunk/slot traversal levels | `src/DeltaECS/Core/QueryArchetypes.cs`, `QueryChunks.cs`, `QuerySlots.cs` |
-| `ReadRow`, `WriteRow` | Non-generic prepared component rows; final `Ref<T>` must match the registered component type. Controlled pre-loop mismatch validation is selected correctness work. | `src/DeltaECS/Core/Rows.cs`, `src/DeltaECS/Generic/Rows.cs` |
-| `World.Create<T>/Add<T>/Remove<T>/TryGet<T>/Get<T>/Set<T>` | Thin typed single-item boundary over existing structural/component operations | `src/DeltaECS/Generic/World.Generic.cs` |
-| `World.ForEach` / `ForEachEntity` | Handwritten zero-component delegates plus consumer-side generated delegate/functor extensions; functors use four stable marker interfaces and concrete `Invoke` signatures | `src/DeltaECS/Delegate/ForEachZeroArity.cs`, `src/DeltaECS.Generators/DemandDrivenForEachGenerator.cs`, `src/DeltaECS/Delegate/ForEachDelegates.cs`, `src/DeltaECS/Functor/ForEachFunctorContracts.cs`, `src/DeltaECS/Functor/GeneratedForEachFunctorRuntime.cs` |
-| `World.From(ReadOnlySpan<Entity>)` | Ordered non-owning sequence facade | `src/DeltaECS/Sequence/EntitySequence.cs` |
-| `World.ForEachEntity(ReadOnlySpan<Entity>, ...)` | Ordered entity-only or entity-bearing sequence execution, optionally filtered by `Query` | `src/DeltaECS/Sequence/World.Sequence.cs`, `src/DeltaECS/Sequence/SequenceComponentRuntime.cs` |
+| `World` | World ownership, entity lifecycle, structural operations and query entry points | `src/DeltaECS/Core/World.cs` and partials |
+| `Entity` | Index/generation entity handle | `src/DeltaECS/Core/EntityTypes.cs` |
+| `ComponentId`, `ComponentMask` | World-local identity and query matching | `src/DeltaECS/Core/ComponentTypes.cs` |
+| `ComponentLayout`, `SchemaId` | Registered CLR layout and stable schema identity | `src/DeltaECS/Core/ComponentTypes.cs` |
+| `ComponentLayoutRegistry` | Non-generic layout registration and lookup | `src/DeltaECS/Core/ComponentLayoutRegistry.cs` |
+| `QuerySpec` | `All`/`Any`/`None` selection masks | `src/DeltaECS/Core/QuerySpec.cs` |
+| `Query` | World-owned cached query and access factory | `src/DeltaECS/Core/EntityTypes.cs` |
+| `ReadAccess`, `WriteAccess` | Non-generic query access declarations | `src/DeltaECS/Core/QueryAccess.cs` |
+| `QueryScope` | One validated query execution and its structural lease | `src/DeltaECS/Core/QueryScope.cs` |
+| `QueryArchetypes`, `QueryChunks`, `QuerySlots` | Independent traversal levels | `src/DeltaECS/Core/QueryArchetypes.cs`, `QueryChunks.cs`, `QuerySlots.cs` |
+| `ReadRow`, `WriteRow` | Non-generic row values; terminal `Ref<T>` is the typed boundary | `src/DeltaECS/Core/Rows.cs`, `src/DeltaECS/Generic/Rows.cs` |
+| `WorldQuery` | Allocation-free fluent query facade | `src/DeltaECS/Core/WorldQuery.cs` |
+| `World.Create<T>`, `Add<T>`, `Remove<T>`, `TryGet<T>`, `Get<T>`, `Set<T>` | Single-component typed conveniences over core operations | `src/DeltaECS/Generic/World.Generic.cs` |
+| `World.ForEach`, `ForEachEntity` | Delegate callback entry points, including handwritten zero-component forms | `src/DeltaECS/Delegate/ForEachZeroArity.cs` |
+| `IForEach*` | Stable functor marker contracts | `src/DeltaECS/Functor/ForEachFunctorContracts.cs` |
+| `World.From` and `ForEachEntity` | Ordered entity-sequence entry points and terminals | `src/DeltaECS/Sequence/World.Sequence.cs`, `EntitySequence.cs` |
+| `IEcsWorld` | Neutral lifecycle, structural and object-value integration contract | `src/DeltaECS/API/IntegrationContracts.cs` |
+| `Stamp` | Opaque 64-bit revision value | `src/DeltaECS/Stamps/Stamp.cs` |
 
-## Query execution path
+## Explicit query traversal
 
-For independent component iteration, read only this chain first:
+Read this chain for the three-loop API:
 
 ```text
 World.OpenQuery(in Query)
-  -> QueryScope.Bind(access)
+  -> QueryScope.Bind(ReadAccess/WriteAccess)
+  -> QueryScope.Archetypes
   -> QueryArchetypes.MoveNext()
+  -> QueryArchetypes.Current.Chunks
   -> QueryChunks.MoveNext()
+  -> QueryChunks.Current.Slots
   -> QuerySlots.GetRow(access)
   -> QuerySlots.MoveNext()
-  -> ReadRow/WriteRow.Ref<T>(iterator)
-  -> Chunk.GetComponentRow<T>(physicalRow)
+  -> ReadRow/WriteRow.Ref<T>(slots)
 ```
 
-`QueryPlan` and `ArchetypePlan` live in `QueryAccess.cs`. They own query
-matching and the query-row to archetype-row plan. Read them when the issue is
-archetype matching, new-archetype refresh, or access row resolution; do not
-start with tests or structural move code.
-
-Generated callbacks enter through this chain:
-
-```text
-consumer World.ForEach<...>(Query, ...)
-  -> consumer analyzer emits only the requested extension/contracts
-  -> generated boundary resolves primary or explicit ComponentId values
-  -> public runtime bridge validates Query/ComponentId/T once
-  -> type-erased World traversal
-  -> generated invoker resolves values once per chunk
-  -> delegate or constrained struct-functor call per slot
-```
-
-The generator runs in the consumer assembly. It owns only callback-shape
-repetition and extension glue; it does not generate storage, archetype
-matching, query plans or structural kernels. `World.ForEach(...)` remains the
-source spelling even when the selected member is an extension. The generator
-supports arities 0..256, matching the component-mask capacity; above 256 it
-reports a diagnostic. A no-ID component
-parameter resolves the first/primary registry registration for its CLR type.
-Explicit `ComponentId` parameters are required when selecting a secondary
-registration of that type.
-
-The generated component types exist at the callback/ref boundary only. The
-runtime bridge, query/access declarations, plans, iterators and row containers
-are non-generic and shared by all generated demands.
-
-The three-loop public shape is:
+The public shape is:
 
 ```csharp
 using var scope = world.OpenQuery(in query);
-var prepared = scope.Bind(access);
+var positionAccess = query.AccessWrite(positionId);
+var position = scope.Bind(positionAccess);
 var archetypes = scope.Archetypes;
+
 while (archetypes.MoveNext())
 {
     var chunks = archetypes.Current.Chunks;
     while (chunks.MoveNext())
     {
         var slots = chunks.Current.Slots;
-        var row = slots.GetRow(prepared);
+        var positions = slots.GetRow(position);
         while (slots.MoveNext())
         {
-            _ = row.Ref<Component>(slots);
+            ref Position value = ref positions.Ref<Position>(slots);
+            value.X++;
         }
     }
 }
 ```
 
-## Structural and storage paths
+`QueryScope` validates query ownership and owns the active structural lease.
+The child iterators are borrowed stack-only views. `Bind` performs scope-level
+ownership validation; row resolution then uses the access declaration and the
+current chunk's prepared row table. `ReadRow`, `WriteRow` and the iterators
+must not escape the scope.
 
-Use these slices only for structural or storage work:
+## Generated callback path
 
-- Entity record resolve, create, destroy, add/remove, query structural changes:
-  `World.cs`.
-- Archetype ownership, active chunk list, chunk reuse and active chunk swap-back:
-  `Archetype.cs`.
-- Entity rows, component rows, row versions, swap-back and reference clearing:
-  `Chunk.cs` and `ComponentRowOperations.cs`.
-- Component transition/cache types are near the bottom of `World.cs`; inspect
-  only when the task explicitly concerns transitions.
+The analyzer runs in the consumer assembly and emits only callback shapes
+observed by that consumer. It supports:
 
-Do not read `Archetype.cs` or `Chunk.cs` for a pure query API naming task unless
-the query path proves to depend on their storage contract.
+- no context or one caller-provided context;
+- callbacks with or without `Entity`;
+- zero-component callbacks and component arities up to the 256-bit mask limit;
+- `in T` reads and `ref T` writes;
+- primary component lookup or explicit `ComponentId` selection;
+- delegate and struct-functor forms.
 
-## Lifetime and validation map
+The generated callback is a convenience surface over the same type-erased
+query plan, access declarations and chunk traversal used by `OpenQuery`. CLR
+component types appear at registration and at the callback/ref boundary; they
+are not carried by query, access, plan or iterator storage. See the generator
+README for lambda inference and diagnostics.
 
-- Query ownership/mask validation: `Query` in `EntityTypes.cs` and
-  `QuerySlots.GetRow` in `QuerySlots.cs`.
-- Query plan refresh: `QueryPlan.MatchingPlans` in `QueryAccess.cs`.
-- Active lease barrier: `World._activeChunkLeases`, lease helpers in
-  `World.cs`, and `QueryScope.Dispose`/generated `ForEach` execution.
-- Write tracking: `QueryPlan.RegisterWriteAccess`, `World.QueryWriteTick`,
-  `QuerySlots.GetRow(WriteAccess)`, and
-  `Chunk.MarkComponentWritten`.
-- Stale entity generation/location: `EntityRecord` and resolve helpers in
-  `World.cs`.
+## Ordered sequence path
 
-When investigating an exception, follow this order: ownership → query plan →
-component layout/type → chunk/row lifetime → structural storage. This avoids
-opening unrelated test fixtures first.
+`World.From(ReadOnlySpan<Entity>)` creates a non-owning ordered facade.
+`Where(in Query)` narrows that candidate span; it does not enumerate all
+entities matching the query. Callback terminals preserve input order and
+duplicates while skipping stale or foreign handles. `Add`, `Remove` and
+`Destroy` forward to the existing structural batch kernels.
 
-## Targeted test map
+## Structural and storage navigation
 
-Tests are evidence for a source path, not the starting point for navigation.
-Open only the relevant class:
+- Entity resolution and structural transitions: `src/DeltaECS/Core/World.cs`.
+- Archetype ownership and active chunks: `src/DeltaECS/Core/Archetype.cs`.
+- Component rows, swap-back and reference clearing: `src/DeltaECS/Core/Chunk.cs`.
+- Layout registration: `src/DeltaECS/Core/ComponentLayoutRegistry.cs`.
+- Query matching and physical row plans: `src/DeltaECS/Core/QueryAccess.cs`.
+
+Do not start a pure API/documentation task in structural tests. For storage
+work, inspect the focused test class after locating the source method.
+
+## Lifetime, revision and integration rules
+
+- Structural mutation is rejected while a conflicting query scope is active.
+- Read and write access intent is declared before row traversal; write rows are
+  marked according to the current query write session.
+- `Entity` and `ComponentId` are compact world-local core values. `SchemaId`
+  is the stable cross-world identity used by integration consumers.
+- `Stamp` values are opaque equality tokens, not wall-clock timestamps or
+  arithmetic counters exposed to consumers.
+- `IEcsWorld` is a neutral local .NET boundary. It uses the core `Entity` and
+  `ComponentId` types and exposes object snapshots only for integration work.
+
+See the [integration README](../src/DeltaECS/API/README.md) and
+[stamp README](../src/DeltaECS/Stamps/README.md) for their complete contracts.
+
+## Focused test map
 
 | Concern | Test file |
 |---|---|
-| Public lifecycle, queries, cursor rows and leases | `tests/DeltaECSTests/DeltaECSTests.cs` |
-| Component row defaults, references and stale entities | `tests/DeltaECSTests/ComponentRowOperationTests.cs` |
-| Query Add/Remove/Destroy structural semantics | `tests/DeltaECSTests/QueryStructuralOperationsTests.cs` |
-| Active chunk reuse and direct active traversal | `tests/DeltaECSTests/ActiveChunkTests.cs` |
-| Block transition correctness and records | `tests/DeltaECSTests/StructuralAlgorithmTests.cs` |
-| Comparative benchmark catalog/report contracts only | `tests/DeltaECSTests/ComparativeBenchmarkContractTests.cs` |
+| Lifecycle, queries, rows and leases | `tests/DeltaECSTests/DeltaECSTests.cs` |
+| Row defaults, managed references and stale entities | `tests/DeltaECSTests/ComponentRowOperationTests.cs` |
+| Query structural operations | `tests/DeltaECSTests/QueryStructuralOperationsTests.cs` |
+| Active chunk reuse | `tests/DeltaECSTests/ActiveChunkTests.cs` |
+| Structural transitions and records | `tests/DeltaECSTests/StructuralAlgorithmTests.cs` |
 | Generic single-item boundary | `tests/DeltaECSTests/GenericSingleItemApiTests.cs` |
-| Ordered sequence facade and terminals | `tests/DeltaECSTests/SequenceExecutionTests.cs` |
-| Generated consumer-demand compilation | `tests/DeltaECS.Generators.Tests/DemandDrivenForEachGeneratorTests.cs`, `tests/DeltaECS.Generators.Consumer/` |
+| Ordered sequence facade | `tests/DeltaECSTests/SequenceExecutionTests.cs` |
+| Consumer source generation | `tests/DeltaECS.Generators.Tests/DemandDrivenForEachGeneratorTests.cs`, `tests/DeltaECS.Generators.Consumer/` |
 
-For a source change, first locate the relevant method with `rg`, then read the
-nearest test method and its setup helpers. Benchmark source is not a substitute
-for a production correctness test.
-
-## Compatibility boundaries
-
-- `Chunk.GetComponentRow<T>(int)` is an internal storage primitive, not a
-  public user API. Do not remove it while migrating public cursor access.
-- `World.OpenQuery` exposes the explicit three-loop form.
-- Generated consumer-side `World.ForEach` extensions are the convenience
-  callback/functor surface and reuse `QuerySlots` internally. The old fixed
-  1–4 producer-owned matrix is not the target architecture.
-- Do not reintroduce removed ordinal/public unsafe row APIs without an explicit
-  API decision and a benchmark contract update.
-
-## Integration and tooling contract
-
-This is the neutral world boundary for engine/editor integration, implemented
-by `World`. It is separate from the component query API. Runtime, structural and
-object-based tooling operations belong to one `IEcsWorld`. Callers must not
-combine world-local IDs obtained from different worlds.
-
-The IDs below are the canonical core types, not integration-specific
-duplicates.
-`Stamp` is defined by the separate revision contract with a 64-bit payload. It
-is opaque and only supports equality comparison. It is not a timestamp,
-sequence number or value that callers may order or add.
-
-```csharp
-namespace Delta.ECS;
-
-public readonly struct Entity
-{
-    public int Index { get; }
-    public int Generation { get; }
-}
-
-public readonly struct Stamp
-{
-    public ulong Value { get; }
-}
-
-public readonly struct ComponentId
-{
-    public int Value { get; }
-}
-
-public readonly struct SchemaId
-{
-    public ulong Value { get; }
-}
-```
-
-The integration interfaces use those core values directly:
-
-```csharp
-using System;
-using Delta.ECS;
-
-namespace Delta.ECS.Integration;
-
-[Flags]
-public enum ComponentCapabilities
-{
-    None = 0,
-    Read = 1,
-    Write = 2
-}
-
-public readonly record struct ComponentDescriptor(
-    ComponentId Id,
-    SchemaId Schema,
-    string Name,
-    Type ValueType,
-    ComponentCapabilities Capabilities,
-    bool AllowsNull);
-
-public readonly record struct ComponentSnapshot(
-    object? Value,
-    Stamp Stamp);
-
-public readonly record struct ComponentCatalog(
-    ReadOnlyMemory<ComponentDescriptor> Components,
-    Stamp Stamp);
-
-public enum EcsReadErrorCode
-{
-    None,
-    EntityNotAlive,
-    ComponentUnknown,
-    ComponentMissing,
-    Unsupported
-}
-
-public readonly record struct EcsReadError(
-    EcsReadErrorCode Code);
-
-public enum EcsWriteErrorCode
-{
-    None,
-    EntityNotAlive,
-    ComponentUnknown,
-    ComponentMissing,
-    StaleStamp,
-    InvalidValue,
-    Unsupported
-}
-
-public readonly record struct EcsWriteError(
-    EcsWriteErrorCode Code);
-
-public interface IEcsWorld
-{
-    Stamp Stamp { get; }
-
-    ComponentCatalog Catalog { get; }
-
-    void Initialize();
-    void Update(float deltaSeconds);
-    void Shutdown();
-
-    bool IsAlive(Entity entity);
-
-    Entity Create(
-        ReadOnlySpan<ComponentId> components);
-
-    bool Destroy(
-        Entity entity);
-
-    bool Add(
-        Entity entity,
-        ReadOnlySpan<ComponentId> components);
-
-    bool Remove(
-        Entity entity,
-        ReadOnlySpan<ComponentId> components);
-
-    bool TryGetComponents(
-        Entity entity,
-        Span<ComponentId> destination,
-        out int totalCount);
-
-    bool TryRead(
-        Entity entity,
-        ComponentId component,
-        out ComponentSnapshot snapshot,
-        out EcsReadError error);
-
-    bool TryWrite(
-        Entity entity,
-        ComponentId component,
-        object? value,
-        Stamp expectedStamp,
-        out Stamp writtenStamp,
-        out EcsWriteError error);
-}
-```
-
-### Identity and catalog rules
-
-- `Entity`, `ComponentId`, `SchemaId` and `Stamp` are core `Delta.ECS`
-  values used directly by the integration contract. The world API does not
-  define parallel ID wrappers or convert their numeric payloads.
-- `Entity` remains world-local and `ComponentId` remains registry-local.
-  Passing either value to a different `IEcsWorld` is a caller contract
-  violation. Because the compact IDs do not carry world/registry identity, a
-  coincident numeric value cannot be diagnosed as foreign by the receiver.
-- `SchemaId` is the stable identity used to map a component across world
-  instances or persisted tooling state. Numeric `ComponentId` values must not
-  be persisted.
-- No default/invalid ID sentinel is part of this contract. Entity validity is
-  checked with `IsAlive`; component validity is membership in
-  `Catalog.Components`.
-- `Catalog` is an immutable snapshot whose `Components` are sorted by
-  `ComponentId`. `Catalog.Stamp` changes whenever the snapshot changes. A
-  consumer caches the snapshot and reacquires it when that stamp differs;
-  memory from an old catalog stamp must not be used after observing a new
-  stamp.
-- Registration is append-only at world safe points. Existing component IDs,
-  schema IDs and descriptors are never reassigned. `Name` is display metadata,
-  not identity; `Schema` must be unique.
-- `IEcsWorld.Stamp` and `IEcsWorld.Catalog.Stamp` are independent equality
-  domains and must not be compared with each other.
-- `ValueType` is the exact tooling-facing CLR type returned by `TryRead` and
-  accepted by `TryWrite`. It may be the storage component type or a DTO
-  selected by a registered value converter. `AllowsNull` describes null
-  acceptance independently of `Type.IsValueType`. `Capabilities` tells tools
-  whether object snapshots and writes are supported before they attempt them.
-
-### Lifecycle and threading
-
-`Initialize`, zero or more `Update` calls, and `Shutdown` form one lifecycle.
-Lifecycle misuse is a programming error and may throw
-`InvalidOperationException`; state-dependent entity/component failures use the
-documented boolean/error results instead. `deltaSeconds` must be finite and
-non-negative.
-
-The world is a safe-point, single-owner-thread API. Runtime update,
-structural operations and tooling access must not execute concurrently. The
-optimistic stamp check and successful write are one indivisible world
-operation; this contract does not promise general multi-threaded access.
-
-### Structural semantics
-
-- `Create` accepts zero or more known components. An empty span creates a
-  zero-component entity. IDs absent from the target registry are argument
-  errors. Duplicate IDs are canonicalized before one entity is created.
-- `Add` and `Remove` validate the complete input before mutation and are
-  all-or-nothing. They return `true` only when the entity's component set
-  changed. Empty input and a complete no-op return `false` and do not advance
-  stamps.
-- `Destroy` returns `true` only when the supplied generation was alive and was
-  destroyed. Stale or unknown entities return `false`.
-- Added components receive their registered default value. Removed reference
-  values are released according to the core storage contract.
-- `TryGetComponents` returns `false`, sets `totalCount` to zero and does not
-  modify `destination` for a non-alive entity. For a live entity it returns
-  `true`, writes the ascending-`ComponentId` prefix that fits, and reports the
-  total required count. A live zero-component entity therefore returns
-  `true` with `totalCount == 0`.
-
-Every successful atomic structural call creates at most one mutation stamp.
-Archetype moves preserve the exact stamps of surviving components; newly added
-component slots receive the structural mutation stamp. Swap-back moves values
-and their exact stamps together and does not create an extra stamp.
-
-### Tooling read/write semantics
-
-`TryRead` returns the exact stamp for the selected entity/component pair. On
-success it sets `error.Code` to `None`. On failure it returns a default
-snapshot, performs no mutation and reports the symmetric read error:
-
-| Code | Meaning |
-|---|---|
-| `EntityNotAlive` | Index/generation is not alive in this world. |
-| `ComponentUnknown` | ID is absent from this world's catalog. |
-| `ComponentMissing` | ID is known but absent from the entity. |
-| `Unsupported` | The descriptor does not advertise `Read`. |
-
-`ComponentSnapshot.Value` must have the descriptor's `ValueType`. Value-type
-components are boxed snapshots. Reference-type components may preserve the
-stored object identity; neither `object?` nor a `ref readonly` access path makes
-the referenced object immutable. Mutating such an object directly bypasses
-stamps and write validation and is the caller's responsibility. `TryWrite` is
-the tracked tooling-write path. A backend may still register a per-component
-converter that returns a detached DTO or serialized snapshot when isolation is
-required, but mutable reference components are not `Unsupported` merely for
-being mutable references.
-
-`TryWrite` uses `expectedStamp` only as the exact entity/component stamp from a
-previous `TryRead` or successful `TryWrite`; `IEcsWorld.Stamp` is not a
-substitute. On success the world writes one value, advances its mutation
-stamp, returns that exact value through `writtenStamp`, sets `error.Code` to
-`None`, and returns `true`. On failure `writtenStamp` is default, no mutation
-occurs, and the error has this meaning:
-
-| Code | Meaning |
-|---|---|
-| `EntityNotAlive` | Index/generation is not alive in this world. |
-| `ComponentUnknown` | ID is absent from this world's catalog. |
-| `ComponentMissing` | ID is known but absent from the entity. |
-| `StaleStamp` | The exact component stamp differs from `expectedStamp`. |
-| `InvalidValue` | Nullability or exact CLR type does not match the descriptor. |
-| `Unsupported` | The descriptor does not advertise `Write`. |
-
-For non-null values, runtime type equality with the tooling-facing `ValueType`
-is required; the world does not perform implicit numeric, enum or inheritance
-conversions. A registered value converter may explicitly map that value to a
-different storage CLR type. Without such a converter, a reference value is
-stored using normal component assignment semantics and may retain
-caller-visible identity.
-
-Stamp comparison is deliberately pull-based and consumer-local. A renderer,
-editor or other tool stores its own last observed stamps; reading changes for
-one consumer never consumes them for another.
-
-## API layers and demand-driven callback API
-
-The implemented structural API is non-generic: entity lifecycle and component
-set operations use `Entity`, `ComponentId` and spans. The query chain is
-also non-generic from `QuerySpec` through `Query`, access tokens, scope,
-archetype/chunk/slot iterators and row containers. A CLR component type appears
-only at registration, the single-item `World.Set<T>`/
-`World.TryGet<T>` boundary, or the terminal `ReadRow.Ref<T>` /
-`WriteRow.Ref<T>` call. Generated callback state does not leak into query,
-access, storage or iterator types.
-
-The `World.ForEach` callback/functor family is source-generated in the consumer
-assembly and covers every requested combination of:
-
-- no context or one caller-provided `TContext`;
-- no entity or current `Entity` argument;
-- zero components (the explicit entity-only form), or any practical arity up
-  to the 256-component mask capacity;
-- any read/write pattern, with `in T` read arguments and `ref T` write
-  arguments;
-- either independent primary-ID resolution from the component type, or
-  explicit `ComponentId` selection for secondary registrations of that type.
-
-The delegate and struct-functor families share one type-erased query
-validation, access preparation and query execution kernel. `World.ForEach`
-owns the temporary lease internally. The consumer generator emits extension
-methods and callback contracts only for observed calls; it cannot add instance
-members to a previously compiled `World`, so the source spelling is preserved
-while the binary boundary changes from removed fixed-matrix instance methods to
-consumer-generated extensions. The generated component types stop at the
-callback/ref boundary; query/access/value/iterator state and the execution
-kernel remain non-generic. `World.OpenQuery` remains the advanced path for
-explicit three-loop execution and reusable prepared accesses.
-
-## Explicit-sequence execution
-
-Sequence execution uses the same `World.ForEach` family as world-query
-query execution rather than introducing another public selection type:
-
-```csharp
-world.ForEachEntity(entities, action);
-world.ForEachEntity(entities, in query, action);
-```
-
-The unfiltered overload visits every valid occurrence in the supplied
-`ReadOnlySpan<Entity>`. The filtered overload treats that span as the candidate set
-and applies `query` to each resolved entity; it never broadens execution to every
-entity matching the query in the world. Input order and duplicate occurrences are
-preserved. Invalid, stale and foreign handles follow the explicit-sequence policy used
-by structural APIs.
-
-The delegate/functor demand is source-generated in the consumer assembly. Both
-surfaces feed one type-erased sequence kernel that validates access once,
-resolves entity locations, and caches the most recently used archetype row plan.
-It does not call public single-item component APIs per entity. A future explicitly named
-unordered batch API may group candidates by archetype; `ForEach` must not reorder
-silently.
-
-The fluent spelling is
-`world.From(entities).Where(in query).ForEachEntity(action)`. It is an ordered
-facade over the same `ReadOnlySpan<Entity>` candidate set and callback matrix,
-not a generic query/storage object.
-
-Implementation files for this family belong in `src/DeltaECS/Sequence`. Public entry
-points stay on `World`, and the folder must not grow a parallel query model.
+The root `README.md` is the stable contract; `TODO.md` selects work and
+`IDEAS.md` records proposals that have not been selected.

@@ -90,9 +90,9 @@ API merely to make a benchmark easier to write.
 
 Use fixture names that describe domain work, not an implementation trick:
 `Movement2Components`, `Movement4Components`, `Add`, `Remove`, `Create` and
-`Destroy`. The current microbenchmark catalog has no legacy or parallel
-implementation variants; a future variant must be added as a separate,
-explicitly named scaffold entry.
+`Destroy`. The current microbenchmark catalog contains one current
+implementation. A future alternative must be added as a separate, explicitly
+named scaffold entry.
 
 ## Assembly-guided loop
 

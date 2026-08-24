@@ -16,8 +16,8 @@ ReadAccess/WriteAccess -> ReadRow/WriteRow -> Ref<T>
 `ReadAccess`/`WriteAccess`, `Bind`, and `slots.GetRow`; no generic access
 path remains.
 
-The existing comparative and version benchmark projects are deliberately left
-on their legacy callers. They are not part of this L4 migration.
+The existing comparative and version benchmark projects are separate suites;
+they are not part of this focused L4 measurement.
 
 ## Reproduction
 

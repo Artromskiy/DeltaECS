@@ -1,34 +1,29 @@
-# ADR-0003: Direct ArrayRows and stable schema registration
+# ADR-0003: Array rows and stable schema registration
 
 ## Context
 
-The legacy byte backend cannot represent a struct containing references without
-unsafe raw-byte semantics. The first ArrayRows experiment also treated every
-repeat registration as a new ID, which broke stable schema lookup.
+Chunks need to support value types, direct references and structs containing
+references without changing the type-erased component identity model. Schema
+registration must also remain stable when a layout is requested more than once.
 
 ## Decision
 
-- `ComponentLayout(Type)` is metadata for direct `Array.CreateInstance` only.
-  It does not call `Buffer.ByteLength` or `Marshal.SizeOf`; its byte `Size` and
-  `Stride` are zero because those values have no meaning for managed ArrayRows
-  elements.
-- `ComponentLayoutRegistry.Register` deduplicates an existing `SchemaId` only
-  when the complete layout matches, including runtime type. A mismatch throws.
-- `Register<T>` is the generic registration convenience for all supported
-  ArrayRows element types. The registry automatically determines whether the
-  type contains references and selects the corresponding row cleanup behavior.
-- Production chunks store direct `Array[]` rows only. The legacy `byte[][]`
-  implementation is benchmark-only reference code. ArrayRows casts each row to
-  `T[]` once per chunk view and then returns a span; it never uses
-  `Array.GetValue` or `Array.SetValue`.
-- Transition copy maps source component indices to target component indices by
-  `ComponentId`. Array `CopySlot`, remove-swap-back, and destroy clear the
-  released slot, so reference fields do not remain live in inactive storage.
+- `ComponentLayout` is metadata for creating a CLR component array. Its byte
+  size and stride fields are not used as managed-array allocation contracts.
+- `ComponentLayoutRegistry.Register` reuses an existing `SchemaId` only when
+  the complete layout, including runtime type, matches. A mismatch throws.
+- `Register<T>` is a convenience boundary. The registry records `typeof(T)`
+  and determines whether the type contains managed references for row cleanup.
+- Production chunks store direct `Array[]` component rows. A row is resolved to
+  a typed reference only at the terminal `ReadRow.Ref<T>` or `WriteRow.Ref<T>`
+  boundary.
+- Component copy, remove-swap and destruction clear released slots according
+  to the registered row operations, so references do not remain live in
+  inactive storage.
 
 ## Consequences
 
-The ArrayRows backend supports value types, managed-field structs, direct class
-references, and virtual components with the same element type while retaining
-the type-erased identity model. The byte backend remains available for honest
-A/B benchmarks. Type-backed layouts cannot be used with ByteRows, and the
-ArrayRows `Size`/`Stride` properties are not byte allocation contracts.
+The storage model supports value types, managed-field structs, class
+references and multiple component IDs backed by the same CLR type. Component
+identity remains `ComponentId`; CLR type and schema metadata are registration
+data rather than query or transition identity.

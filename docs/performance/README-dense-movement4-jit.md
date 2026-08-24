@@ -1,59 +1,40 @@
-# Dense Movement4 JIT: Hot-Loop Review
+# Dense Movement4 JIT evidence
 
-Профиль: `ecs-next`, `Movement4`, Release AArch64 JIT.
+This note is an assembly-review record for the current dense query path. It is
+not a public API description; use [APIMAP](../APIMAP.md) and the folder
+READMEs for that.
 
-## Главное
+## Current code path
 
-В настоящем slot-loop нет `blr`, `bhs` или object/`Array[]` lookup. Для одной
-entity тело цикла содержит 29 инструкций:
+The production traversal is implemented by:
 
-| Инструкция | Количество | Роль |
-|---|---:|---|
-| `sbfiz` | 1 | Масштабирование slot index для 4-байтовых значений |
-| `add` | 12 | Адресная арифметика и вычисления |
-| `ldr` | 10 | Чтение A/B/C/D и checksum |
-| `str` | 3 | Запись A/B/C |
-| `asr` | 1 | Деление среднего на 2 |
-| `sub` | 1 | Reverse slot decrement |
-| `tbz` | 1 | Предсказуемая проверка окончания slot-loop |
+- `src/DeltaECS/Core/QueryScope.cs` for the execution lease;
+- `src/DeltaECS/Core/QueryArchetypes.cs` and `QueryChunks.cs` for outer loops;
+- `src/DeltaECS/Core/QuerySlots.cs` for slot state and row preparation;
+- `src/DeltaECS/Core/Rows.cs` and `src/DeltaECS/Generic/Rows.cs` for the final
+  `Ref<T>` endpoint;
+- `benchmarks/DeltaECS.MicroBenchmarks/MicroBenchmarkImplementations.cs` for
+  the observable Movement4 checksum.
 
-Главный перспективный вариант — заранее подготовленные advancing refs для
-каждой component-column, обновляемые только при смене chunk. Тогда в slot-loop
-можно убрать повторное масштабирование индекса и часть адресной арифметики.
+Row-array selection occurs at the chunk boundary. The slot loop performs the
+component arithmetic and checksum; query ownership, plan refresh and write
+tracking are outside that loop or at its chunk boundary.
 
-## Участки кода и assembly
+## How to interpret a report
 
-| Операция | Исходный код | Assembly | Оценка |
-|---|---|---|---|
-| Reverse slot-loop | [MicroBenchmarkImplementations.cs:149](../../benchmarks/DeltaECS.MicroBenchmarks/MicroBenchmarkImplementations.cs:149) | [`sub` + `tbz`](../../artifacts/jit-disasm/ecs-next-movement4-full.txt:130918) | Одна предсказуемая ветка; это не bounds-check |
-| Получение A/B/C/D | [MicroBenchmarkImplementations.cs:151](../../benchmarks/DeltaECS.MicroBenchmarks/MicroBenchmarkImplementations.cs:151) | [`sbfiz` и четыре адресных `add`](../../artifacts/jit-disasm/ecs-next-movement4-full.txt:130890) | P1-кандидат: advancing refs |
-| Чтение и checksum | [MicroBenchmarkImplementations.cs:158](../../benchmarks/DeltaECS.MicroBenchmarks/MicroBenchmarkImplementations.cs:158) | Десять `ldr` и три `str` начинаются здесь: [`ldr`](../../artifacts/jit-disasm/ecs-next-movement4-full.txt:130895) | Часть чтений повторяется из-за checksum |
-| Row resolution | [MicroBenchmarkImplementations.cs:145](../../benchmarks/DeltaECS.MicroBenchmarks/MicroBenchmarkImplementations.cs:145) | `Array[] → physicalRow → data ref` на chunk: [chunk setup](../../artifacts/jit-disasm/ecs-next-movement4-full.txt:130845) | Не выполняется для каждой entity |
-| Write tracking | [QuerySlots.cs:64](../../src/DeltaECS/QuerySlots.cs:64) | Stores версий до slot-loop: [store](../../artifacts/jit-disasm/ecs-next-movement4-full.txt:130856) | Внутри entity-loop ветки нет |
-| `Ref<T>` | [QueryAccess.cs:204](../../src/DeltaECS/QueryAccess.cs:204) | Заинлайнен в адресную арифметику | `Ref<T>(int)` JIT не улучшил |
-| Query setup/validation | [MicroBenchmarkImplementations.cs:133](../../benchmarks/DeltaECS.MicroBenchmarks/MicroBenchmarkImplementations.cs:133) | `blr` находятся до цикла: [пример](../../artifacts/jit-disasm/ecs-next-movement4-full.txt:130675) | Не считать hot-loop overhead |
-| Prologue/epilogue | — | `ldp/stp`: [prologue](../../artifacts/jit-disasm/ecs-next-movement4-full.txt:130650) | Не относится к entity throughput |
+Review the generated driver and slot-loop blocks separately. `blr`, setup
+loads, prologue pair operations and lifetime helpers in the driver are not
+per-entity instructions. A slot-loop branch may be the loop back-edge rather
+than a bounds check. Code size and instruction counts do not prove cache
+behavior or throughput.
 
-## Проверенные эксперименты
+Use the reproducible commands in
+[benchmarks/README.md](../../benchmarks/README.md). A Release report omits
+source-line mapping; a Debug/checked-JIT report may provide approximate IL to
+Portable PDB mapping when a matching checked JIT is available.
 
-| Вариант | JIT-результат | Решение |
-|---|---|---|
-| P1: пакет прямых row references на chunk | JIT и счётчики без изменений; 100k регрессировал | Отклонён |
-| P2: `Ref<T>(int index)` вместо передачи `QuerySlots` | Scalar replacement сделал код побайтно идентичным | Отклонён |
+## Pending experiments
 
-Передача `QuerySlots` по значению уже устраняется JIT. Простое изменение
-сигнатуры не создаёт нового выигрыша.
-
-## Следующий осмысленный эксперимент
-
-Сделать trusted dense iterator с четырьмя внутренними advancing refs:
-
-1. при переходе на chunk один раз получить базовые refs компонентных рядов;
-2. в slot-loop читать текущие refs;
-3. после `MoveNext()` сдвигать refs на предыдущий элемент;
-4. сохранить внешний safe API и запрет structural mutation во время scope.
-
-Отдельно можно проверить хранение вычисленных `a`, `b`, `c`, `d` в локальных
-значениях перед checksum. Это уменьшит повторные `ldr`, но является оптимизацией
-benchmark/user kernel, а не ECS storage path, поэтому её нельзя смешивать с
-оценкой row-access API.
+The only open dense-loop experiments are an internal trusted row packet and a
+possible AArch64 adjacent-load experiment. Both must preserve the safe public
+three-loop API and require paired correctness, JIT and throughput evidence.

@@ -1,120 +1,83 @@
-# DeltaECS performance ideas
+# DeltaECS performance notes
 
-This document records candidate hot-path work. Ideas here are not implemented
-or measured unless a section says otherwise. Any change must preserve the
-validated public cursor API, dense query semantics, lifetime barriers,
-and the benchmark comparison contract.
+This is the single index for performance work. It describes the current
+execution path and records measured ideas; it is not a task list. A candidate
+becomes implementation work only after an explicit decision and a reproducible
+workload.
 
-## Current evidence
+## Current dense execution
 
-- The cursor resolves each typed row once per visited chunk and exposes it
-  through the safe cursor indexer.
-- Dense query execution prepares a pooled direct `Array[]` row packet once per
-  query invocation and fills it once per visited chunk; write access still uses
-  the cached physical row index for precise dirty tracking.
-- Cursor ownership is checked when resolving the row, while slot traversal is
-  performed by `MoveNext` and the resolved-row indexer.
-- Prior JIT inspection showed bounds checks remain in the entity loop when rows
-  are accessed as `Span<T>[i]`. No new measurement is implied by this note.
-
-## Implemented: query-bound prepared row access
-
-The query creates typed access requests and validates them before execution.
-Dense execution prepares a compact per-chunk row packet:
+The public low-level path is:
 
 ```text
-Query/QueryPlan
-    access request token -> query row
-ArchetypePlan
-    access-request token -> physical component row
-Chunk execution
-    prepared query row -> direct component array
+QuerySpec -> Query -> QueryScope
+  -> QueryArchetypes -> QueryChunks -> QuerySlots
+  -> ReadRow/WriteRow.Ref<T>
 ```
 
-The cursor uses the prepared packet for row data and rejects foreign/default
-bindings during `Resolve`. This removes the physical component-row lookup from
-Movement2, Movement4, and other multi-row workloads.
+`QueryPlan` caches matching archetypes and maps query component ordinals to
+physical component rows. `ArchetypePlan.RefreshChunks` prepares a
+`ChunkPlan` for every active chunk. Each `ChunkPlan` stores direct `Array`
+references in query order, so `QuerySlots.GetRow` resolves one row per chunk,
+not once per entity. Write access marks the physical component row through the
+same chunk boundary and the query write session.
 
-The implementation uses an `ArrayPool<Array>` scratch packet owned by the
-query/enumerator, so it does not allocate or return a packet per chunk.
+`QueryScope` is the owner of the structural lease. `QueryArchetypes`,
+`QueryChunks` and `QuerySlots` are borrowed stack-only views. Their values are
+valid only while the scope is active; structural mutation cannot invalidate a
+row while that lease is held.
 
-Remaining proof:
+The generated delegate and functor surfaces enter the same type-erased plan and
+row preparation. They change callback syntax, not storage or matching.
 
-- foreign and default access requests still fail before row access;
-- archetype plan refresh after a new archetype remains correct;
-- read/write dirty tracking remains precise;
-- JIT output shows the hot path loading the prepared row directly.
+## Accepted internal improvements
 
-## Candidate 2: remove inner-loop bounds checks
+- Active archetypes maintain a dense direct `Chunk[]` view for traversal while
+  structural index tables remain separate.
+- Query plans refresh only when the world's archetype version changes.
+- Component row arrays are resolved once at the chunk boundary and reused by
+  the slot loop.
+- The public row endpoint is `ReadRow.Ref<T>` or `WriteRow.Ref<T>`; no raw
+  pointer or ordinal row API is exposed to consumers.
 
-In a separately measured internal experiment, take row references once per
-chunk with `MemoryMarshal.GetReference` and advance with `Unsafe.Add`. Keep the
- forward traversal semantics and observable checksum unchanged. This is unsafe
-internally and must be limited to a trusted dense packet; do not expose raw
-pointers or require unsafe code in the public API/user callback. A safe
-`Span<T>` forward loop remains the compatibility path, but the JIT is not
-required to eliminate its index check.
+These statements describe the current source. Code size alone is not a
+throughput claim; measurements must use the benchmark protocol below.
 
-Required proof: JIT disassembly must show the bounds checks disappear, and a
-small Release microbenchmark must beat the normal span-indexed loop without
-changing the result.
+## Deferred experiments
 
-## Candidate 3: adjacent component loads and `ldp`
+### Remove slot-loop checks internally
 
-The dense probe currently loads adjacent fields of a component with separate
-`ldr` instructions. Test whether a sufficiently visible row/element shape lets
-the AArch64 JIT combine those loads into `ldp` without changing the public
-binding API or introducing user-facing unsafe code. This is only an assembly
-experiment: do not add explicit assembly or assume that `ldp` is faster until
-the generated code and a narrow probe confirm it on the target CPU.
+Test a trusted internal row packet that obtains a row reference with
+`MemoryMarshal.GetReference` and advances with `Unsafe.Add`. The external API
+must remain safe and unchanged. Accept only if the result checksum is equal,
+the Release JIT shows fewer loop checks, and a paired benchmark improves on
+the same machine and runtime.
 
-## Implemented: direct active chunk references
+### Adjacent component loads
 
-The active-chunk path currently performs:
+Check whether a visible row layout lets the AArch64 JIT form `ldp`/`stp` pairs.
+Do not infer a benefit from instruction spelling alone; compare the complete
+hot loop and measure throughput.
 
-```text
-active index -> chunk index -> List<Chunk> -> Chunk
-```
+### Trusted callback kernel
 
-The active list now keeps a parallel dense `Chunk[]` alongside the reverse
-position/index arrays. Dense query traversal reads the chunk directly
-instead of resolving `active index -> chunk index -> List<Chunk> -> Chunk`.
-The physical `_chunks` list and index-based structural paths remain unchanged.
+The generator already removes callback-shape repetition from the runtime. A
+future internal kernel may reduce chunk-level bookkeeping, but it must preserve
+scope ownership and the generated callback contract.
 
-The remaining question is measured impact in sparse and full active-list cases;
-the extra reference array and maintenance may outweigh the gain when every
-chunk is active.
+## Measurement rules
 
-## Candidate 4: trusted dense execution path
+- Keep setup, world creation, query construction, reset and report formatting
+  outside the measured method.
+- Return a checksum, count or other observable result to prevent dead-code
+  elimination.
+- Compare the same entity count, component width, runtime, architecture and
+  GC mode. Use paired runs for short operations.
+- Review the JIT driver separately from the slot loop. Calls, branches and
+  loads in setup or prologue are not slot-loop cost.
+- Instruction count does not reveal cache misses. Use hardware counters when
+  making a cache claim.
 
-The cursor path still invokes a delegate for each chunk. A future internal
-execution packet could validate lifetime once per query and further reduce
-per-chunk execution bookkeeping.
-
-## Benchmark fairness note
-
-Comparative callbacks should accumulate checksums in a local variable and write
-the result to state once per callback/chunk. Repeated writes such as
-`current.Sum += ...` inside Delta callbacks must not be compared with local
-accumulators in competitor callbacks. This is benchmark infrastructure, not an
-ECS kernel optimization, and should be corrected before interpreting movement
-ratios.
-
-## Rejected: exact-order entity-list transitions
-
-An add/remove experiment detected when the input sequence was the complete
-physical archetype order and moved it through a specialized block kernel. It
-was rejected because the large `75–82%` gain existed only for that synthetic
-shape. Shuffled full lists, partial ordered lists, mixed archetypes,
-duplicates and stale handles ranged from `−3.8%` to `+2.6%`, with unchanged
-fallback allocations. Do not repeat the exact-order shortcut unless a public
-contract explicitly guarantees that input shape; optimize the general
-transition kernel instead.
-
-## Order of work
-
-1. Fix benchmark accumulator parity.
-2. Measure the prepared row packet against the current binding path.
-3. Test `MemoryMarshal.GetReference` + `Unsafe.Add` using JIT disassembly.
-4. Measure direct active chunk references and trusted dense execution only if
-   the previous changes leave chunk-boundary overhead dominant.
+The runnable procedure is in [benchmarks/README.md](../../benchmarks/README.md).
+The comparative suite is manual evidence; the microbenchmark project is the
+focused source for dense iteration and structural kernels.
