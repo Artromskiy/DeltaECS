@@ -39,7 +39,7 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `ReadValues`, `WriteValues` | Non-generic prepared values; final `Ref<T>` must match the registered component type. Controlled pre-loop mismatch validation is selected correctness work. | `src/DeltaECS/Core/Values.cs`, `src/DeltaECS/Generic/Values.cs` |
 | `World.Query` | Callback-based query execution over `QueryChunkCursor` | `src/DeltaECS/Core/World.cs` |
 | `World.Create<T>/Add<T>/Remove<T>/TryGet<T>/Get<T>/Set<T>` | Thin typed single-item boundary over existing structural/component operations | `src/DeltaECS/Generic/World.Generic.cs` |
-| generated `World.ForEach` | Consumer-side demand-driven delegate/functor extensions, arities 0..256 and arbitrary requested read/write patterns | `src/DeltaECS.Generators/DemandDrivenForEachGenerator.cs`, `src/DeltaECS/Delegate/ForEachContracts.cs`, `src/DeltaECS/Delegate/GeneratedForEachRuntime.cs` |
+| generated `World.ForEach` / `ForEachEntity` | Consumer-side demand-driven delegate/functor extensions, arities 0..256 and arbitrary requested read/write patterns; zero-component forms are valid | `src/DeltaECS.Generators/DemandDrivenForEachGenerator.cs`, `src/DeltaECS/Delegate/ForEachContracts.cs`, `src/DeltaECS/Delegate/GeneratedForEachRuntime.cs` |
 | `World.Entities(ReadOnlySpan<Entity>)` | Ordered non-owning sequence facade | `src/DeltaECS/Sequence/EntitySequence.cs` |
 | `World.ForEachEntity(ReadOnlySpan<Entity>, ...)` | Ordered entity-only or entity-bearing sequence execution, optionally filtered by `Query` | `src/DeltaECS/Sequence/World.Sequence.cs`, `src/DeltaECS/Sequence/SequenceComponentRuntime.cs` |
 

@@ -33,7 +33,9 @@ whole world. Stale, destroyed and foreign entities follow the same rejection rul
 as existing explicit-sequence structural operations.
 
 Typed component callbacks use the same consumer-demand generator as dense
-`World.ForEach`, up to the 256-component mask capacity. Reads are `in T`,
+`World.ForEach`, from zero components up to the 256-component mask capacity.
+Zero-component `ForEachEntity` callbacks receive only the entity; zero-component
+`ForEach` callbacks receive neither an entity nor component values. Reads are `in T`,
 writes are `ref T`, and an explicit generated tag such as
 The generator infers the access pattern from `in T` and `ref T` callback
 parameters or a functor's `Invoke` method; no marker argument is required. The

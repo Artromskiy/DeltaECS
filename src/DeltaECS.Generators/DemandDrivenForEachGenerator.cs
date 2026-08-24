@@ -14,7 +14,7 @@ namespace Delta.ECS.Generators;
 [Generator]
 public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 {
-    private const int FirstDemandArity = 1;
+    private const int FirstDemandArity = 0;
     private const int MaxArity = 256;
 
     private static readonly DiagnosticDescriptor Unsupported = new(
@@ -29,6 +29,14 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         "DECSGEN002",
         "ForEach arity is too large",
         "ForEach arity {0} exceeds the supported demand-driven limit of {1}",
+        "ForEach",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor AmbiguousFunctor = new(
+        "DECSGEN003",
+        "Ambiguous ForEach functor",
+        "Functor '{0}' has multiple Invoke overloads for arity {1} with different access patterns ({2}); use one Invoke overload for this arity",
         "ForEach",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -102,8 +110,14 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         shape = null;
         diagnostic = null;
         if (invocation.Expression is not MemberAccessExpressionSyntax member
-            || member.Name.Identifier.ValueText is not ("ForEach" or "ForEachEntity")
-            || member.Name is not GenericNameSyntax genericName)
+            || member.Name.Identifier.ValueText is not ("ForEach" or "ForEachEntity"))
+        {
+            return false;
+        }
+
+        GenericNameSyntax? genericName = member.Name as GenericNameSyntax;
+        bool hasLambda = invocation.ArgumentList.Arguments.Any(static argument => argument.Expression is LambdaExpressionSyntax);
+        if (genericName is null && !hasLambda && model.GetSymbolInfo(invocation).Symbol is not null)
         {
             return false;
         }
@@ -115,16 +129,15 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return false;
         }
 
-        int genericCount = genericName.TypeArgumentList.Arguments.Count;
+        int genericCount = genericName?.TypeArgumentList.Arguments.Count ?? 0;
         var arguments = invocation.ArgumentList.Arguments;
         bool namedEntity = member.Name.Identifier.ValueText == "ForEachEntity";
-        bool hasLambda = arguments.Any(static argument => argument.Expression is LambdaExpressionSyntax);
         int refArgumentCount = arguments.Count(static argument => argument.RefKindKeyword.IsKind(SyntaxKind.RefKeyword));
         bool isFunctor = !hasLambda;
         bool hasContext = isFunctor ? refArgumentCount >= 2 : refArgumentCount >= 1;
-        int prefixCount = (isFunctor ? (hasContext ? 2 : 1) : (hasContext ? 1 : 0));
-        int componentCount = genericCount - prefixCount;
-        if (componentCount < FirstDemandArity)
+        int prefixCount = isFunctor ? (hasContext ? 2 : 1) : (hasContext ? 1 : 0);
+        int componentCount = genericName is null ? 0 : genericCount - prefixCount;
+        if (componentCount < FirstDemandArity || componentCount < 0)
         {
             return false;
         }
@@ -135,14 +148,35 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return false;
         }
 
-        string? accessPattern = isFunctor
-            ? InferFunctorPattern(
+        string? accessPattern;
+        if (isFunctor)
+        {
+            TypeSyntax? functorType = genericName is null
+                ? null
+                : genericName.TypeArgumentList.Arguments[hasContext ? 1 : 0];
+            accessPattern = InferFunctorPattern(
                 model,
-                genericName.TypeArgumentList.Arguments[hasContext ? 1 : 0],
+                functorType,
+                arguments,
                 componentCount,
                 hasContext,
-                namedEntity)
-            : InferPattern(arguments, componentCount, hasContext);
+                namedEntity,
+                out string? ambiguousPatterns);
+            if (ambiguousPatterns is not null)
+            {
+                diagnostic = Diagnostic.Create(
+                    AmbiguousFunctor,
+                    invocation.GetLocation(),
+                    functorType?.ToString() ?? arguments.Last().Expression.ToString(),
+                    componentCount,
+                    ambiguousPatterns);
+                return false;
+            }
+        }
+        else
+        {
+            accessPattern = InferPattern(arguments, componentCount, hasContext);
+        }
 
         if (accessPattern is null || accessPattern.Length != componentCount || accessPattern.Any(static c => c is not ('R' or 'W')))
         {
@@ -158,10 +192,11 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         bool sequence = receiver is ReceiverKind.EntitySequence or ReceiverKind.FilteredEntitySequence;
-        var typeArguments = genericName.TypeArgumentList.Arguments
+        var typeArguments = genericName?.TypeArgumentList.Arguments
             .Select(static argument => argument.ToString())
-            .ToArray();
-        int componentStart = prefixCount;
+            .ToArray()
+            ?? Array.Empty<string>();
+        int componentStart = genericName is null ? 0 : prefixCount;
         var components = typeArguments.Skip(componentStart).ToArray();
 
         shape = new Shape(
@@ -231,39 +266,67 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
     private static string? InferFunctorPattern(
         SemanticModel model,
-        TypeSyntax functorType,
+        TypeSyntax? functorType,
+        SeparatedSyntaxList<ArgumentSyntax> arguments,
         int componentCount,
         bool hasContext,
-        bool hasEntity)
+        bool hasEntity,
+        out string? ambiguousPatterns)
     {
-        ITypeSymbol? type = model.GetTypeInfo(functorType).Type;
+        ambiguousPatterns = null;
+        ITypeSymbol? type = functorType is not null
+            ? model.GetTypeInfo(functorType).Type
+            : model.GetTypeInfo(arguments.Last().Expression).Type;
         if (type is null)
         {
             return null;
         }
 
         int prefixCount = (hasContext ? 1 : 0) + (hasEntity ? 1 : 0);
-        IMethodSymbol? invoke = type.GetMembers("Invoke")
+        IMethodSymbol[] matchingInvokes = type.GetMembers("Invoke")
             .OfType<IMethodSymbol>()
-            .FirstOrDefault(method => method.Parameters.Length == componentCount + prefixCount);
-        if (invoke is null)
+            .Where(method => method.Parameters.Length == componentCount + prefixCount)
+            .ToArray();
+        if (matchingInvokes.Length == 0)
         {
             return null;
         }
 
-        var pattern = new char[componentCount];
-        for (int index = 0; index < componentCount; index++)
+        var patterns = new HashSet<string>(StringComparer.Ordinal);
+        foreach (IMethodSymbol invoke in matchingInvokes)
         {
-            RefKind refKind = invoke.Parameters[index + prefixCount].RefKind;
-            if (refKind is not (RefKind.In or RefKind.Ref))
+            var pattern = new char[componentCount];
+            bool supported = true;
+            for (int index = 0; index < componentCount; index++)
             {
-                return null;
+                RefKind refKind = invoke.Parameters[index + prefixCount].RefKind;
+                if (refKind is not (RefKind.In or RefKind.Ref))
+                {
+                    supported = false;
+                    break;
+                }
+
+                pattern[index] = refKind == RefKind.In ? 'R' : 'W';
             }
 
-            pattern[index] = refKind == RefKind.In ? 'R' : 'W';
+            if (supported)
+            {
+                patterns.Add(new string(pattern));
+            }
         }
 
-        return new string(pattern);
+        if (patterns.Count == 0)
+        {
+            return null;
+        }
+
+        if (patterns.Count > 1)
+        {
+            ambiguousPatterns = string.Join(", ", patterns.OrderBy(static pattern => pattern, StringComparer.Ordinal));
+            return null;
+        }
+
+        return patterns.Single();
     }
 
     private static bool LambdaHasEntity(
@@ -324,7 +387,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         source.AppendLine("using System;");
         source.AppendLine("namespace Delta.ECS;");
         source.AppendLine();
-        if (renderContracts)
+        if (renderContracts && shape.Components.Length > 0)
         {
             RenderContracts(source, shape);
         }
@@ -338,22 +401,22 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string generic = GenericTypes(shape.Components.Length);
         string parameters = RefParameters(shape.Pattern);
         string suffix = IsAllWrite(shape.Pattern) ? string.Empty : "_" + shape.Pattern;
-        source.Append("public delegate void ForEachAction").Append(suffix).Append('<').Append(generic).Append(">(")
+        source.Append("public delegate void ").Append(TypeWithGenericArgs("ForEachAction" + suffix, generic)).Append('(')
             .Append(parameters).AppendLine(");");
-        source.Append("public delegate void ForEachEntityAction").Append(suffix).Append('<').Append(generic).Append(">(Entity entity, ")
-            .Append(parameters).AppendLine(");");
-        source.Append("public delegate void ForEachContextAction").Append(suffix).Append("<TContext, ").Append(generic).Append(">(ref TContext context, ")
-            .Append(parameters).AppendLine(");");
-        source.Append("public delegate void ForEachContextEntityAction").Append(suffix).Append("<TContext, ").Append(generic).Append(">(ref TContext context, Entity entity, ")
-            .Append(parameters).AppendLine(");");
-        source.Append("public interface IForEach").Append(suffix).Append('<').Append(generic).Append("> { void Invoke(")
+        source.Append("public delegate void ").Append(TypeWithGenericArgs("ForEachEntityAction" + suffix, generic)).Append('(')
+            .Append(JoinParameters("Entity entity", parameters)).AppendLine(");");
+        source.Append("public delegate void ").Append(TypeWithGenericArgs("ForEachContextAction" + suffix, JoinGeneric("TContext", generic))).Append('(')
+            .Append(JoinParameters("ref TContext context", parameters)).AppendLine(");");
+        source.Append("public delegate void ").Append(TypeWithGenericArgs("ForEachContextEntityAction" + suffix, JoinGeneric("TContext", generic))).Append('(')
+            .Append(JoinParameters("ref TContext context, Entity entity", parameters)).AppendLine(");");
+        source.Append("public interface ").Append(TypeWithGenericArgs("IForEach" + suffix, generic)).Append(" { void Invoke(")
             .Append(parameters).AppendLine("); }");
-        source.Append("public interface IForEachEntity").Append(suffix).Append('<').Append(generic).Append("> { void Invoke(Entity entity, ")
-            .Append(parameters).AppendLine("); }");
-        source.Append("public interface IForEachContext").Append(suffix).Append("<TContext, ").Append(generic).Append("> { void Invoke(ref TContext context, ")
-            .Append(parameters).AppendLine("); }");
-        source.Append("public interface IForEachContextEntity").Append(suffix).Append("<TContext, ").Append(generic).Append("> { void Invoke(ref TContext context, Entity entity, ")
-            .Append(parameters).AppendLine("); }");
+        source.Append("public interface ").Append(TypeWithGenericArgs("IForEachEntity" + suffix, generic)).Append(" { void Invoke(")
+            .Append(JoinParameters("Entity entity", parameters)).AppendLine("); }");
+        source.Append("public interface ").Append(TypeWithGenericArgs("IForEachContext" + suffix, JoinGeneric("TContext", generic))).Append(" { void Invoke(")
+            .Append(JoinParameters("ref TContext context", parameters)).AppendLine("); }");
+        source.Append("public interface ").Append(TypeWithGenericArgs("IForEachContextEntity" + suffix, JoinGeneric("TContext", generic))).Append(" { void Invoke(")
+            .Append(JoinParameters("ref TContext context, Entity entity", parameters)).AppendLine("); }");
     }
 
     private static void RenderInvoker(StringBuilder source, Shape shape)
@@ -361,13 +424,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string generic = GenericTypes(shape.Components.Length);
         string name = InvokerName(shape);
         string actionType = ActionType(shape);
-        string stateGeneric = shape.HasContext && shape.IsFunctor
-            ? $"<TContext, TFunctor, {generic}>"
-            : shape.IsFunctor
-                ? $"<TFunctor, {generic}>"
-                : shape.HasContext
-                    ? $"<TContext, {generic}>"
-                    : $"<{generic}>";
+        string stateGeneric = StateGeneric(shape, generic);
         source.Append("internal struct ").Append(name).Append(stateGeneric).AppendLine(" : IGeneratedForEachInvoker, IGeneratedSequenceInvoker");
         if (shape.IsFunctor)
         {
@@ -396,21 +453,28 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         source.Append("    internal ").Append(ConstructorName(name)).Append('(');
+        var constructorParameters = new List<string>();
         if (shape.HasContext)
         {
-            source.Append("TContext context, ");
+            constructorParameters.Add("TContext context");
         }
 
         if (shape.IsFunctor)
         {
-            source.Append("TFunctor functor, ");
+            constructorParameters.Add("TFunctor functor");
         }
         else
         {
-            source.Append(actionType).Append(" action, ");
+            constructorParameters.Add(actionType + " action");
         }
 
-        source.Append(AccessParameters(shape.Pattern)).AppendLine(")");
+        string accessParameters = AccessParameters(shape.Pattern);
+        if (accessParameters.Length > 0)
+        {
+            constructorParameters.Add(accessParameters);
+        }
+
+        source.Append(string.Join(", ", constructorParameters)).AppendLine(")");
         source.AppendLine("    {");
         if (shape.HasContext)
         {
@@ -481,31 +545,31 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
     private static void AppendInvocation(StringBuilder source, Shape shape, string valuesPrefix, string cursor, bool sequence)
     {
-        string? context = shape.HasContext ? "ref _context, " : null;
-        string entity = shape.HasEntity
-            ? (sequence ? "cursor.Entity, " : "cursor.Entities[cursor.CurrentIndex], ")
-            : string.Empty;
+        var invocationArguments = new List<string>();
+        if (shape.HasContext)
+        {
+            invocationArguments.Add("ref _context");
+        }
+
+        if (shape.HasEntity)
+        {
+            invocationArguments.Add(sequence ? "cursor.Entity" : "cursor.Entities[cursor.CurrentIndex]");
+        }
         if (shape.IsFunctor)
         {
-            source.Append("_functor.Invoke(").Append(context ?? string.Empty).Append(entity);
+            source.Append("_functor.Invoke(");
         }
         else
         {
-            source.Append("_action(").Append(context ?? string.Empty).Append(entity);
+            source.Append("_action(");
         }
 
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
-            if (index > 0)
-            {
-                source.Append(", ");
-            }
-
-            source.Append(shape.Pattern[index] == 'R' ? "in " : "ref ").Append(valuesPrefix).Append(index).Append(".Ref<")
-                .Append("T").Append(index + 1).Append(">(").Append(cursor).Append(')');
+            invocationArguments.Add((shape.Pattern[index] == 'R' ? "in " : "ref ") + valuesPrefix + index + ".Ref<T" + (index + 1) + ">(" + cursor + ")");
         }
 
-        source.Append(')');
+        source.Append(string.Join(", ", invocationArguments)).Append(')');
     }
 
     private static void RenderExtensions(StringBuilder source, Shape shape)
@@ -524,8 +588,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string query = shape.Sequence ? string.Empty : ", in Query query";
         string contextParameter = shape.HasContext ? ", ref TContext context" : string.Empty;
         string genericPrefix = shape.IsFunctor
-            ? (shape.HasContext ? $"<TContext, TFunctor, {generic}>" : $"<TFunctor, {generic}>")
-            : (shape.HasContext ? $"<TContext, {generic}>" : $"<{generic}>");
+            ? TypeParameterList(shape.HasContext ? JoinGeneric("TContext", "TFunctor", generic) : JoinGeneric("TFunctor", generic))
+            : TypeParameterList(shape.HasContext ? JoinGeneric("TContext", generic) : generic);
         source.Append("public static class ").Append(className).AppendLine();
         source.AppendLine("{");
         RenderExtensionMethod(source, shape, prefix, query, contextParameter, ids, callback, name, stateGeneric, genericPrefix, setup, accessArguments);
@@ -588,13 +652,20 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         body.Append("    ").Append(setup);
-        body.Append("    ").Append("var invoker = new ").Append(invokerName).Append(stateGeneric).Append('(');
+        var constructorArguments = new List<string>();
         if (shape.HasContext)
         {
-            body.Append("context, ");
+            constructorArguments.Add("context");
         }
 
-        body.Append(callbackName).Append(", ").Append(accesses).AppendLine(");");
+        constructorArguments.Add(callbackName);
+        if (accesses.Length > 0)
+        {
+            constructorArguments.Add(accesses.ToString());
+        }
+
+        body.Append("    ").Append("var invoker = new ").Append(invokerName).Append(stateGeneric).Append('(')
+            .Append(string.Join(", ", constructorArguments)).AppendLine(");");
         body.Append("    ").Append(invoke).AppendLine();
         if (shape.HasContext)
         {
@@ -734,10 +805,12 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string suffix = IsAllWrite(shape.Pattern) ? string.Empty : "_" + shape.Pattern;
         if (shape.HasContext)
         {
-            return shape.HasEntity ? $"ForEachContextEntityAction{suffix}<TContext, {generic}>" : $"ForEachContextAction{suffix}<TContext, {generic}>";
+            return TypeWithGenericArgs(
+                shape.HasEntity ? "ForEachContextEntityAction" + suffix : "ForEachContextAction" + suffix,
+                JoinGeneric("TContext", generic));
         }
 
-        return shape.HasEntity ? $"ForEachEntityAction{suffix}<{generic}>" : $"ForEachAction{suffix}<{generic}>";
+        return TypeWithGenericArgs(shape.HasEntity ? "ForEachEntityAction" + suffix : "ForEachAction" + suffix, generic);
     }
 
     private static string FunctorInterface(Shape shape)
@@ -746,14 +819,23 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string suffix = IsAllWrite(shape.Pattern) ? string.Empty : "_" + shape.Pattern;
         if (shape.HasContext)
         {
-            return shape.HasEntity ? $"IForEachContextEntity{suffix}<TContext, {generic}>" : $"IForEachContext{suffix}<TContext, {generic}>";
+            return TypeWithGenericArgs(
+                shape.HasEntity ? "IForEachContextEntity" + suffix : "IForEachContext" + suffix,
+                JoinGeneric("TContext", generic));
         }
 
-        return shape.HasEntity ? $"IForEachEntity{suffix}<{generic}>" : $"IForEach{suffix}<{generic}>";
+        return TypeWithGenericArgs(shape.HasEntity ? "IForEachEntity" + suffix : "IForEach" + suffix, generic);
     }
 
     private static string StateGeneric(Shape shape, string generic)
-        => shape.HasContext && shape.IsFunctor ? $"<TContext, TFunctor, {generic}>" : shape.IsFunctor ? $"<TFunctor, {generic}>" : shape.HasContext ? $"<TContext, {generic}>" : $"<{generic}>";
+        => TypeParameterList(
+            shape.HasContext && shape.IsFunctor
+                ? JoinGeneric("TContext", "TFunctor", generic)
+                : shape.IsFunctor
+                    ? JoinGeneric("TFunctor", generic)
+                    : shape.HasContext
+                        ? JoinGeneric("TContext", generic)
+                        : generic);
 
     private static string InvokerName(Shape shape) => "DemandForEachInvoker_" + StableName(shape.Key);
 
@@ -767,6 +849,18 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         return string.Join(", ", result);
     }
+
+    private static string JoinGeneric(params string[] values)
+        => string.Join(", ", values.Where(static value => !string.IsNullOrEmpty(value)));
+
+    private static string TypeWithGenericArgs(string name, string generic)
+        => string.IsNullOrEmpty(generic) ? name : name + "<" + generic + ">";
+
+    private static string TypeParameterList(string generic)
+        => string.IsNullOrEmpty(generic) ? string.Empty : "<" + generic + ">";
+
+    private static string JoinParameters(string prefix, string parameters)
+        => string.IsNullOrEmpty(parameters) ? prefix : prefix + ", " + parameters;
 
     private static string ConstructorName(string name)
     {

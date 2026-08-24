@@ -40,6 +40,30 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void AmbiguousFunctorInvokePatternsReportDiagnostic()
+    {
+        GeneratorDriverRunResult run = RunGenerator(AmbiguousFunctorSource);
+
+        var diagnostics = run.Diagnostics
+            .Where(static diagnostic => diagnostic.Id == "DECSGEN003")
+            .ToArray();
+
+        Assert.That(diagnostics, Has.Length.EqualTo(1));
+        Assert.That(
+            diagnostics[0].GetMessage(CultureInfo.InvariantCulture),
+            Does.Contain("R")
+                .And.Contain("W"));
+    }
+
+    [Test]
+    public void FunctorInvokePatternsWithDifferentAritiesRemainValid()
+    {
+        GeneratorDriverRunResult run = RunGenerator(DifferentArityFunctorSource);
+
+        Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN003"), Is.Empty);
+    }
+
+    [Test]
     public void DemandDrivenGenerationCoversArityOneFourFiveAndEight()
     {
         string generated = GeneratedText(RunGenerator());
@@ -144,6 +168,14 @@ public sealed class DemandDrivenForEachGeneratorTests
         public readonly struct Query { }
         public readonly struct ReadAccess { }
         public readonly struct WriteAccess { }
+        public delegate void ForEachAction();
+        public delegate void ForEachEntityAction(Entity entity);
+        public delegate void ForEachContextAction<TContext>(ref TContext context);
+        public delegate void ForEachContextEntityAction<TContext>(ref TContext context, Entity entity);
+        public interface IForEach { void Invoke(); }
+        public interface IForEachEntity { void Invoke(Entity entity); }
+        public interface IForEachContext<TContext> { void Invoke(ref TContext context); }
+        public interface IForEachContextEntity<TContext> { void Invoke(ref TContext context, Entity entity); }
         public sealed class ComponentLayoutRegistry
         {
             public ComponentId GetId(Type type) => default;
@@ -209,6 +241,10 @@ public sealed class DemandDrivenForEachGeneratorTests
         struct T7 { public int Value; }
         struct T8 { public int Value; }
         struct Context { public int Value; }
+        struct EmptyFunctor : IForEach
+        {
+            public void Invoke() { }
+        }
         struct Functor : IForEachContextEntity_RWRW<Context, T1, T2, T3, T4>
         {
             public void Invoke(ref Context context, Entity entity, in T1 a, ref T2 b, in T3 c, ref T4 d) { context.Value += entity.Index + a.Value + c.Value; b.Value++; d.Value++; }
@@ -217,17 +253,60 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public static void Use(World world, Query query, ComponentId c1, ComponentId c2, ComponentId c3, ComponentId c4, ComponentId c5, ComponentId c6, ComponentId c7, ComponentId c8)
             {
+                world.ForEach(in query, static () => { });
+                world.ForEachEntity(in query, static (Entity entity) => { _ = entity; });
+                var context = new Context();
+                world.ForEach<Context>(in query, ref context, static (ref Context value) => value.Value++);
+                var emptyFunctor = new EmptyFunctor();
+                world.ForEach<EmptyFunctor>(in query, ref emptyFunctor);
                 world.ForEach<T1>(in query, static (ref T1 value) => value.Value++);
                 world.ForEach<T1, T2, T3, T4>(in query, static (in T1 a, ref T2 b, in T3 c, ref T4 d) => { b.Value += a.Value; d.Value += c.Value; });
                 world.ForEach<T1, T2, T3, T4, T5>(in query, c1, c2, c3, c4, c5, static (in T1 a, ref T2 b, in T3 c, ref T4 d, ref T5 e) => { b.Value += a.Value; d.Value += c.Value; e.Value++; });
                 world.ForEach<T1, T2, T3, T4, T5, T6, T7, T8>(in query, static (ref T1 a, in T2 b, ref T3 c, in T4 d, ref T5 e, in T6 f, ref T7 g, in T8 h) => { a.Value += b.Value; c.Value += d.Value; e.Value += f.Value; g.Value += h.Value; });
-                var context = new Context();
                 var functor = new Functor();
                 world.ForEachEntity<Context, Functor, T1, T2, T3, T4>(in query, ref context, ref functor);
                 EntitySequence sequence = new();
                 sequence.ForEachEntity<T1>(static (Entity entity, ref T1 value) => value.Value += entity.Index);
                 FilteredEntitySequence filtered = new();
                 filtered.ForEachEntity<T1, T2>(static (Entity entity, in T1 a, ref T2 b) => b.Value += a.Value + entity.Index);
+            }
+        }
+        """;
+
+    private const string AmbiguousFunctorSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        struct AmbiguousFunctor
+        {
+            public void Invoke(Entity entity, in T1 value) { }
+            public void Invoke(Entity entity, ref T1 value) { }
+        }
+        static class Consumer
+        {
+            public static void Use(World world, Query query)
+            {
+                var functor = new AmbiguousFunctor();
+                world.ForEachEntity<AmbiguousFunctor, T1>(in query, ref functor);
+            }
+        }
+        """;
+
+    private const string DifferentArityFunctorSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        struct T2 { public int Value; }
+        struct MultiArityFunctor
+        {
+            public void Invoke(Entity entity, ref T1 first) { }
+            public void Invoke(Entity entity, in T1 first, ref T2 second) { }
+        }
+        static class Consumer
+        {
+            public static void Use(World world, Query query)
+            {
+                var functor = new MultiArityFunctor();
+                world.ForEachEntity<MultiArityFunctor, T1>(in query, ref functor);
+                world.ForEachEntity<MultiArityFunctor, T1, T2>(in query, ref functor);
             }
         }
         """;
