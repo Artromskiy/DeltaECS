@@ -14,7 +14,7 @@ namespace Delta.ECS.Generators;
 [Generator]
 public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 {
-    private const int FirstDemandArity = 0;
+    private const int FirstDemandArity = 1;
     private const int MaxArity = 256;
 
     private static readonly DiagnosticDescriptor Unsupported = new(

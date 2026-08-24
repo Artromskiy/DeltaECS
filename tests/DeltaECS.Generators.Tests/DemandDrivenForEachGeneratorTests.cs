@@ -211,6 +211,14 @@ public sealed class DemandDrivenForEachGeneratorTests
         public sealed partial class World
         {
             public ComponentLayoutRegistry Layouts { get; } = new();
+            public void ForEach(in Query query, ForEachAction action) { }
+            public void ForEachEntity(in Query query, ForEachEntityAction action) { }
+            public void ForEach<TContext>(in Query query, ref TContext context, ForEachContextAction<TContext> action) { }
+            public void ForEachEntity<TContext>(in Query query, ref TContext context, ForEachContextEntityAction<TContext> action) { }
+            public void ForEach<TFunctor>(in Query query, ref TFunctor functor) where TFunctor : struct, IForEach { }
+            public void ForEachEntity<TFunctor>(in Query query, ref TFunctor functor) where TFunctor : struct, IForEachEntity { }
+            public void ForEach<TContext, TFunctor>(in Query query, ref TContext context, ref TFunctor functor) where TFunctor : struct, IForEachContext<TContext> { }
+            public void ForEachEntity<TContext, TFunctor>(in Query query, ref TContext context, ref TFunctor functor) where TFunctor : struct, IForEachContextEntity<TContext> { }
             public void ExecuteGeneratedForEach<TInvoker>(in Query query, ref TInvoker invoker, bool hasWrites)
                 where TInvoker : struct, IGeneratedForEachInvoker { }
             public void ExecuteGeneratedSequence<TInvoker>(ReadOnlySpan<Entity> entities, in Query query, ref TInvoker invoker, bool hasWrites)

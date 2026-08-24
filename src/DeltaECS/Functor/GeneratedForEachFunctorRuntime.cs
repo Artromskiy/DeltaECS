@@ -4,14 +4,14 @@ using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-/// <summary>Compiler-support contract for generated dense-query invokers.</summary>
+/// <summary>Compiler-support contract for generated dense-query functor invokers.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public interface IGeneratedForEachInvoker
 {
     void Invoke(ref QueryChunkCursor cursor);
 }
 
-/// <summary>Compiler-support contract for generated entity-sequence invokers.</summary>
+/// <summary>Compiler-support contract for generated entity-sequence functor invokers.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public interface IGeneratedSequenceInvoker
 {
