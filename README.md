@@ -72,6 +72,44 @@ while (archetypes.MoveNext())
 }
 ```
 
+### API layers and planned callback matrix
+
+The implemented structural surface is deliberately non-generic. Entity and
+component-set operations (`Create`, `CreateBatch`, `Destroy`, `DestroyBatch`,
+`AddComponents` and `RemoveComponents`) use `Entity`, `ComponentId` and spans;
+they do not carry a CLR component type through the structural kernel. The
+query selection, access tokens, scope and archetype/chunk/slot traversal are
+also non-generic. `ReadValues` and `WriteValues` become typed only at the
+terminal `Ref<T>` call.
+
+Generic types are limited to narrow boundaries: component registration and the
+single-item `SetComponent<T>`/`TryGetComponent<T>` operations, plus the final
+row reference. The implemented `World.Query<TContext>` compatibility callback
+uses `TContext` for caller state; its query, access and cursor state remains
+type-erased. No generic component type is carried by `Query`, an access token,
+or any traversal iterator.
+
+The planned `World.ForEach` family is the default high-level entry point. Its
+generated delegate and future struct-functor overloads cover one matrix:
+
+| Callback axis | Planned forms |
+|---|---|
+| Context | no context, or one caller-provided `TContext` |
+| Entity argument | no entity, or current `Entity` |
+| Component arity | zero components (explicit entity-only form), then 1, 2, 3 or 4 typed components |
+| Selection | world-wide dense query, or an ordered `ReadOnlySpan<Entity>` sequence optionally filtered by `Query` |
+
+The matrix is source-generated rather than handwritten. Each overload is a
+thin boundary over the same type-erased validation, access preparation and
+dense execution kernel. The generated callback/functor layer is not yet
+implemented; the current public contract is the explicit three-loop API above
+and the compatibility `World.Query<TContext>` cursor path.
+
+An ordered sequence may also gain a fluent facade, planned as
+`world.Entities(entities).Where(in query).ForEach(action)`. It must preserve
+input order and duplicate occurrences, and must remain an adapter over the
+same sequence kernel rather than becoming a second query or storage model.
+
 The planned high-level execution entry point is `World.ForEach`. It will own
 query scope creation, validation, access preparation and disposal internally,
 so the common user API does not expose scope management. Explicit

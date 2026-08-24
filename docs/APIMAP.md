@@ -25,20 +25,21 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 
 | API | Purpose | First source file |
 |---|---|---|
-| `World` | World ownership, entity lifecycle, structural changes, query entry points | `src/DeltaECS/World.cs` |
-| `Entity` | Entity index/generation value and stale-handle identity | `src/DeltaECS/EntityTypes.cs` |
-| `ArchetypeHandle` | World-owned archetype identity used by create paths | `src/DeltaECS/EntityTypes.cs` |
-| `ComponentId`, `ComponentMask`, `ComponentLayout` | Dense component identity, matching mask, registered layout metadata | `src/DeltaECS/ComponentTypes.cs` |
-| `ComponentLayoutRegistry` | CLR type/storage registration and validation | `src/DeltaECS/ComponentLayoutRegistry.cs` |
+| `World` | World ownership, entity lifecycle, structural changes, query entry points | `src/DeltaECS/Core/World.cs` |
+| `Entity` | Entity index/generation value and stale-handle identity | `src/DeltaECS/Core/EntityTypes.cs` |
+| `ArchetypeHandle` | World-owned archetype identity used by create paths | `src/DeltaECS/Core/EntityTypes.cs` |
+| `ComponentId`, `ComponentMask`, `ComponentLayout` | Dense component identity, matching mask, registered layout metadata | `src/DeltaECS/Core/ComponentTypes.cs` |
+| `ComponentLayoutRegistry` | CLR type/storage registration and validation | `src/DeltaECS/Core/ComponentLayoutRegistry.cs` |
 | `QuerySpec` | All/Any/None component predicates | `src/DeltaECS/Core/QuerySpec.cs` |
-| `Query` | World/query identity and non-generic read/write access factory | `src/DeltaECS/EntityTypes.cs` |
-| `ReadAccess`, `WriteAccess` | Query-bound type-erased access intent | `src/DeltaECS/QueryAccess.cs` |
-| `QueryScope` | Dense-only validation and structural lease owner | `src/DeltaECS/QueryScope.cs` |
-| `QueryArchetypes`, `QueryChunks`, `QuerySlots` | Independent dense traversal levels | `src/DeltaECS/QueryArchetypes.cs`, `QueryChunks.cs`, `QuerySlots.cs` |
-| `QueryChunkCursor` | Current chunk, forward slot traversal and value access | `src/DeltaECS/QueryAccess.cs` |
-| `ReadValues`, `WriteValues` | Non-generic prepared values; final `Ref<T>` must match the registered component type. Controlled pre-loop mismatch validation is selected correctness work. | `src/DeltaECS/QueryAccess.cs` |
-| `World.Query` | Callback-based query execution over `QueryChunkCursor` | `src/DeltaECS/World.cs` |
-| `World.ForEach` (planned) | Main high-level dense entry point; owns scope, validation, preparation and disposal | `src/DeltaECS/World.cs` |
+| `Query` | World/query identity and non-generic read/write access factory | `src/DeltaECS/Core/EntityTypes.cs` |
+| `ReadAccess`, `WriteAccess` | Query-bound type-erased access intent | `src/DeltaECS/Core/QueryAccess.cs` |
+| `QueryScope` | Dense-only validation and structural lease owner | `src/DeltaECS/Core/QueryScope.cs` |
+| `QueryArchetypes`, `QueryChunks`, `QuerySlots` | Independent dense traversal levels | `src/DeltaECS/Core/QueryArchetypes.cs`, `QueryChunks.cs`, `QuerySlots.cs` |
+| `QueryChunkCursor` | Current chunk, forward slot traversal and value access | `src/DeltaECS/Core/QueryAccess.cs` |
+| `ReadValues`, `WriteValues` | Non-generic prepared values; final `Ref<T>` must match the registered component type. Controlled pre-loop mismatch validation is selected correctness work. | `src/DeltaECS/Core/Values.cs`, `src/DeltaECS/Generic/Values.cs` |
+| `World.Query` | Callback-based query execution over `QueryChunkCursor` | `src/DeltaECS/Core/World.cs` |
+| `World.ForEach` (planned) | Main high-level dense entry point; owns scope, validation, preparation and disposal | `src/DeltaECS/Core/World.cs` |
+| `World.Entities(ReadOnlySpan<Entity>)` (planned) | Ordered fluent sequence facade feeding the generated callback matrix | `src/DeltaECS/Sequence/README.md` |
 | `World.ForEach(ReadOnlySpan<Entity>, ...)` (planned) | Explicit ordered entity-sequence execution, optionally filtered by a prepared `Query` | `src/DeltaECS/Sequence/README.md` |
 
 ## Query execution path
@@ -405,32 +406,36 @@ Stamp comparison is deliberately pull-based and consumer-local. A renderer,
 editor or other tool stores its own last observed stamps; reading changes for
 one consumer never consumes them for another.
 
-## Planned generated callback API
+## API layers and planned generated callback API
 
-The planned callback surface covers every combination of:
+The implemented structural API is non-generic: entity lifecycle and component
+set operations use `Entity`, `ComponentId` and spans. The dense query chain is
+also non-generic from `QuerySpec` through `Query`, access tokens, scope,
+archetype/chunk/slot iterators and row containers. A CLR component type appears
+only at registration, the single-item `World.SetComponent<T>`/
+`World.TryGetComponent<T>` boundary, or the terminal `ReadValues.Ref<T>` /
+`WriteValues.Ref<T>` call. The existing `World.Query<TContext>` callback is a
+compatibility boundary for caller state; `TContext` does not leak into query,
+access, storage or cursor types.
 
-- no context or `TState` context;
+The planned `World.ForEach` callback/functor matrix is source-generated and
+covers every combination of:
+
+- no context or one caller-provided `TContext`;
 - no entity or current `Entity` argument;
-- zero or more explicitly typed component arguments.
+- zero components (the explicit entity-only form), or 1, 2, 3 and 4 typed
+  component arguments.
 
-For each supported component arity, source generation will emit the overloads
-instead of maintaining a handwritten variadic matrix. The zero-component case
-is an explicit entity-only path. Generic types are used at the component and
-final `ref T` boundaries; query, access, iteration and storage state remain
-type-erased. A separate future struct-functor family may provide the same
-matrix through `where TFunctor : struct, IQueryFunctor` for static dispatch and
-inlining. Neither family is implemented yet.
-
-`World.ForEach` is the planned default user-facing entry point. It owns the
-temporary query scope and validation internally. `World.OpenQuery` remains the
-advanced path for reusing prepared accesses across multiple passes or combining
-callback execution with explicit archetype/chunk/slot traversal. Both paths
-must call the same dense execution kernel.
+The delegate and future struct-functor families share one type-erased query
+validation, access preparation and dense execution kernel. `World.ForEach`
+owns the temporary scope and disposal internally. Neither generated family is
+implemented yet; `World.OpenQuery` remains the implemented advanced path for
+the explicit three-loop API and for reusing prepared accesses.
 
 ## Planned explicit-sequence execution
 
-Sequence execution uses the same `World.ForEach` family as dense query execution rather
-than introducing another public selection type:
+Sequence execution is planned to use the same `World.ForEach` family as dense
+query execution rather than introducing another public selection type:
 
 ```csharp
 world.ForEach(entities, action);
@@ -449,6 +454,12 @@ type-erased sequence kernel that validates access once, resolves entity location
 caches the most recently used archetype row plan. A future explicitly named
 unordered batch API may group candidates by archetype; `ForEach` must not reorder
 silently.
+
+A planned fluent spelling is
+`world.Entities(entities).Where(in query).ForEach(action)`. It is an ordered
+facade over the same `ReadOnlySpan<Entity>` candidate set and callback matrix,
+not a generic query/storage object. The facade and sequence execution are not
+implemented in the current source tree.
 
 Implementation files for this family belong in `src/DeltaECS/Sequence`. Public entry
 points stay on `World`, and the folder must not grow a parallel query model.
