@@ -143,28 +143,35 @@ public sealed partial class World : IDisposable
         }
 
         Stamp stamp = _mutationStamps.Next();
-        for (int i = 0; i < output.Length; i++)
+        int outputIndex = 0;
+        while (outputIndex < output.Length)
         {
-            int recordIndex = AllocateRecord();
-            ref var record = ref RecordAt(recordIndex);
-            var entity = new Entity(recordIndex, record.Generation);
             int chunkId = archetype.HasAvailableChunk() ? -1 : AllocateChunkId();
-            archetype.AddEntity(
-                entity,
+            int reserved = archetype.ReserveRange(
+                output.Length - outputIndex,
                 chunkId,
                 out int chunkIndex,
-                out int slotIndex,
-                out bool reusedSlot);
-            if (reusedSlot)
+                out var chunk,
+                out int reusedCount);
+            int slotIndex = chunk.Count - reserved;
+            if (reusedCount != 0)
             {
-                archetype.GetChunk(chunkIndex).InitializeSlot(slotIndex);
+                chunk.InitializeSlotRange(slotIndex, reusedCount);
             }
-            archetype.GetChunk(chunkIndex).StampAll(slotIndex, stamp);
-            record.Archetype = archetype.Id;
-            record.Chunk = chunkIndex;
-            record.SlotIndex = slotIndex;
-            output[i] = entity;
-            AliveEntityCount++;
+
+            chunk.StampAllRange(slotIndex, reserved, stamp);
+            for (int reservedIndex = 0; reservedIndex < reserved; reservedIndex++)
+            {
+                int recordIndex = AllocateRecord();
+                ref var record = ref RecordAt(recordIndex);
+                var entity = new Entity(recordIndex, record.Generation);
+                record.Archetype = archetype.Id;
+                record.Chunk = chunkIndex;
+                record.SlotIndex = slotIndex + reservedIndex;
+                chunk.RawEntities[slotIndex + reservedIndex] = entity;
+                output[outputIndex++] = entity;
+                AliveEntityCount++;
+            }
         }
 
         return output.Length;
@@ -576,7 +583,8 @@ public sealed partial class World : IDisposable
                     sourceEnd,
                     targetChunkId,
                     out int targetChunkIndex,
-                    out var targetChunk);
+                    out var targetChunk,
+                    out _);
                 int targetSlot = targetChunk.Count - reserved;
                 int sourceSlot = sourceEnd - reserved;
 

@@ -36,6 +36,19 @@ internal struct ComponentStampStorage : IDisposable
         }
     }
 
+    public void SetSlotRange(int slotIndex, int count, Stamp stamp)
+    {
+        if (slotIndex < 0 || count < 0 || slotIndex > _capacity - count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(slotIndex));
+        }
+
+        for (int componentIndex = 0; componentIndex < _componentCount; componentIndex++)
+        {
+            _values.Span.Slice(Offset(componentIndex, slotIndex), count).Fill(stamp);
+        }
+    }
+
     public void SetRowsRange(int slotIndex, int count, ReadOnlySpan<int> componentIndices, Stamp stamp)
     {
         for (int index = 0; index < componentIndices.Length; index++)

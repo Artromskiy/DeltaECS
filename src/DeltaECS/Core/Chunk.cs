@@ -70,7 +70,7 @@ internal sealed class Chunk
         return slotIndex;
     }
 
-    public int ReserveRange(int count)
+    public int ReserveRange(int count, out int reusedCount)
     {
         if (count < 0 || _count + count > _capacity)
         {
@@ -78,6 +78,7 @@ internal sealed class Chunk
         }
 
         int start = _count;
+        reusedCount = Math.Max(0, Math.Min(count, _highWaterMark - start));
         _count += count;
         if (_count > _highWaterMark)
         {
@@ -144,6 +145,9 @@ internal sealed class Chunk
         => _componentStamps.Set(componentIndex, slotIndex, stamp);
 
     internal void StampAll(int slotIndex, Stamp stamp) => _componentStamps.SetSlot(slotIndex, stamp);
+
+    internal void StampAllRange(int slotIndex, int count, Stamp stamp)
+        => _componentStamps.SetSlotRange(slotIndex, count, stamp);
 
     internal void StampRowsRange(int slotIndex, int count, ReadOnlySpan<int> componentIndices, Stamp stamp)
         => _componentStamps.SetRowsRange(slotIndex, count, componentIndices, stamp);
@@ -217,10 +221,18 @@ internal sealed class Chunk
     }
 
     public void InitializeSlot(int slotIndex)
+        => InitializeSlotRange(slotIndex, 1);
+
+    internal void InitializeSlotRange(int slotIndex, int count)
     {
+        if (count == 0)
+        {
+            return;
+        }
+
         for (int componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
         {
-            Array.Clear(_componentRows[componentIndex], slotIndex, 1);
+            Array.Clear(_componentRows[componentIndex], slotIndex, count);
         }
     }
 

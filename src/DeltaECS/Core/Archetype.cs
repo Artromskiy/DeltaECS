@@ -119,7 +119,7 @@ internal sealed class Archetype
         }
     }
 
-    public int ReserveRange(int count, int chunkId, out int chunkIndex, out Chunk chunk)
+    public int ReserveRange(int count, int chunkId, out int chunkIndex, out Chunk chunk, out int reusedCount)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
 
@@ -139,7 +139,7 @@ internal sealed class Archetype
 
         bool wasEmpty = chunk.IsEmpty;
         int reserved = Math.Min(count, chunk.Capacity - chunk.Count);
-        chunk.ReserveRange(reserved);
+        chunk.ReserveRange(reserved, out reusedCount);
         if (wasEmpty && reserved > 0)
         {
             ActivateChunk(chunkIndex);
