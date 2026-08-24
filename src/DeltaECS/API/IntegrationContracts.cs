@@ -73,15 +73,15 @@ public interface IEcsWorld
 
     void Shutdown();
 
-    bool IsAlive(EntityId entity);
+    bool IsAlive(Entity entity);
 
-    EntityId Create(ReadOnlySpan<ComponentId> components);
+    Entity Create(ReadOnlySpan<ComponentId> components);
 
-    bool Destroy(EntityId entity);
+    bool Destroy(Entity entity);
 
-    bool Add(EntityId entity, ReadOnlySpan<ComponentId> components);
+    bool Add(Entity entity, ReadOnlySpan<ComponentId> components);
 
-    bool Remove(EntityId entity, ReadOnlySpan<ComponentId> components);
+    bool Remove(Entity entity, ReadOnlySpan<ComponentId> components);
 
     /// <summary>
     /// Reports the full component count and writes the ascending prefix that
@@ -89,18 +89,18 @@ public interface IEcsWorld
     /// succeeds with a total count of zero.
     /// </summary>
     bool TryGetComponents(
-        EntityId entity,
+        Entity entity,
         Span<ComponentId> destination,
         out int totalCount);
 
     bool TryRead(
-        EntityId entity,
+        Entity entity,
         ComponentId component,
         out ComponentSnapshot snapshot,
         out EcsReadError error);
 
     bool TryWrite(
-        EntityId entity,
+        Entity entity,
         ComponentId component,
         object? value,
         Stamp expectedStamp,

@@ -144,6 +144,267 @@ for a production correctness test.
 - Do not reintroduce removed ordinal/public unsafe row APIs without an explicit
   API decision and a benchmark contract update.
 
+## Integration and tooling contract
+
+This is the neutral world boundary for engine/editor integration, implemented
+by `World`. It is separate from the dense query API. Runtime, structural and
+object-based tooling operations belong to one `IEcsWorld`. Callers must not
+combine world-local IDs obtained from different worlds.
+
+The IDs below are the canonical core types, not integration-specific
+duplicates.
+`Stamp` is defined by the separate revision contract with a 64-bit payload. It
+is opaque and only supports equality comparison. It is not a timestamp,
+sequence number or value that callers may order or add.
+
+```csharp
+namespace Delta.ECS;
+
+public readonly struct Entity
+{
+    public int Index { get; }
+    public int Generation { get; }
+}
+
+public readonly struct Stamp
+{
+    public ulong Value { get; }
+}
+
+public readonly struct ComponentId
+{
+    public int Value { get; }
+}
+
+public readonly struct SchemaId
+{
+    public ulong Value { get; }
+}
+```
+
+The integration interfaces use those core values directly:
+
+```csharp
+using System;
+using Delta.ECS;
+
+namespace Delta.ECS.Integration;
+
+[Flags]
+public enum ComponentCapabilities
+{
+    None = 0,
+    Read = 1,
+    Write = 2
+}
+
+public readonly record struct ComponentDescriptor(
+    ComponentId Id,
+    SchemaId Schema,
+    string Name,
+    Type ValueType,
+    ComponentCapabilities Capabilities,
+    bool AllowsNull);
+
+public readonly record struct ComponentSnapshot(
+    object? Value,
+    Stamp Stamp);
+
+public readonly record struct ComponentCatalog(
+    ReadOnlyMemory<ComponentDescriptor> Components,
+    Stamp Stamp);
+
+public enum EcsReadErrorCode
+{
+    None,
+    EntityNotAlive,
+    ComponentUnknown,
+    ComponentMissing,
+    Unsupported
+}
+
+public readonly record struct EcsReadError(
+    EcsReadErrorCode Code);
+
+public enum EcsWriteErrorCode
+{
+    None,
+    EntityNotAlive,
+    ComponentUnknown,
+    ComponentMissing,
+    StaleStamp,
+    InvalidValue,
+    Unsupported
+}
+
+public readonly record struct EcsWriteError(
+    EcsWriteErrorCode Code);
+
+public interface IEcsWorld
+{
+    Stamp Stamp { get; }
+
+    ComponentCatalog Catalog { get; }
+
+    void Initialize();
+    void Update(float deltaSeconds);
+    void Shutdown();
+
+    bool IsAlive(Entity entity);
+
+    Entity Create(
+        ReadOnlySpan<ComponentId> components);
+
+    bool Destroy(
+        Entity entity);
+
+    bool Add(
+        Entity entity,
+        ReadOnlySpan<ComponentId> components);
+
+    bool Remove(
+        Entity entity,
+        ReadOnlySpan<ComponentId> components);
+
+    bool TryGetComponents(
+        Entity entity,
+        Span<ComponentId> destination,
+        out int totalCount);
+
+    bool TryRead(
+        Entity entity,
+        ComponentId component,
+        out ComponentSnapshot snapshot,
+        out EcsReadError error);
+
+    bool TryWrite(
+        Entity entity,
+        ComponentId component,
+        object? value,
+        Stamp expectedStamp,
+        out Stamp writtenStamp,
+        out EcsWriteError error);
+}
+```
+
+### Identity and catalog rules
+
+- `Entity`, `ComponentId`, `SchemaId` and `Stamp` are core `Delta.ECS`
+  values used directly by the integration contract. The world API does not
+  define parallel ID wrappers or convert their numeric payloads.
+- `Entity` remains world-local and `ComponentId` remains registry-local.
+  Passing either value to a different `IEcsWorld` is a caller contract
+  violation. Because the compact IDs do not carry world/registry identity, a
+  coincident numeric value cannot be diagnosed as foreign by the receiver.
+- `SchemaId` is the stable identity used to map a component across world
+  instances or persisted tooling state. Numeric `ComponentId` values must not
+  be persisted.
+- No default/invalid ID sentinel is part of this contract. Entity validity is
+  checked with `IsAlive`; component validity is membership in
+  `Catalog.Components`.
+- `Catalog` is an immutable snapshot whose `Components` are sorted by
+  `ComponentId`. `Catalog.Stamp` changes whenever the snapshot changes. A
+  consumer caches the snapshot and reacquires it when that stamp differs;
+  memory from an old catalog stamp must not be used after observing a new
+  stamp.
+- Registration is append-only at world safe points. Existing component IDs,
+  schema IDs and descriptors are never reassigned. `Name` is display metadata,
+  not identity; `Schema` must be unique.
+- `IEcsWorld.Stamp` and `IEcsWorld.Catalog.Stamp` are independent equality
+  domains and must not be compared with each other.
+- `ValueType` is the exact tooling-facing CLR type returned by `TryRead` and
+  accepted by `TryWrite`. It may be the storage component type or a DTO
+  selected by a registered value converter. `AllowsNull` describes null
+  acceptance independently of `Type.IsValueType`. `Capabilities` tells tools
+  whether object snapshots and writes are supported before they attempt them.
+
+### Lifecycle and threading
+
+`Initialize`, zero or more `Update` calls, and `Shutdown` form one lifecycle.
+Lifecycle misuse is a programming error and may throw
+`InvalidOperationException`; state-dependent entity/component failures use the
+documented boolean/error results instead. `deltaSeconds` must be finite and
+non-negative.
+
+The world is a safe-point, single-owner-thread API. Runtime update,
+structural operations and tooling access must not execute concurrently. The
+optimistic stamp check and successful write are one indivisible world
+operation; this contract does not promise general multi-threaded access.
+
+### Structural semantics
+
+- `Create` accepts zero or more known components. An empty span creates a
+  zero-component entity. IDs absent from the target registry are argument
+  errors. Duplicate IDs are canonicalized before one entity is created.
+- `Add` and `Remove` validate the complete input before mutation and are
+  all-or-nothing. They return `true` only when the entity's component set
+  changed. Empty input and a complete no-op return `false` and do not advance
+  stamps.
+- `Destroy` returns `true` only when the supplied generation was alive and was
+  destroyed. Stale or unknown entities return `false`.
+- Added components receive their registered default value. Removed reference
+  values are released according to the core storage contract.
+- `TryGetComponents` returns `false`, sets `totalCount` to zero and does not
+  modify `destination` for a non-alive entity. For a live entity it returns
+  `true`, writes the ascending-`ComponentId` prefix that fits, and reports the
+  total required count. A live zero-component entity therefore returns
+  `true` with `totalCount == 0`.
+
+Every successful atomic structural call creates at most one mutation stamp.
+Archetype moves preserve the exact stamps of surviving components; newly added
+component slots receive the structural mutation stamp. Swap-back moves values
+and their exact stamps together and does not create an extra stamp.
+
+### Tooling read/write semantics
+
+`TryRead` returns the exact stamp for the selected entity/component pair. On
+success it sets `error.Code` to `None`. On failure it returns a default
+snapshot, performs no mutation and reports the symmetric read error:
+
+| Code | Meaning |
+|---|---|
+| `EntityNotAlive` | Index/generation is not alive in this world. |
+| `ComponentUnknown` | ID is absent from this world's catalog. |
+| `ComponentMissing` | ID is known but absent from the entity. |
+| `Unsupported` | The descriptor does not advertise `Read`. |
+
+`ComponentSnapshot.Value` must have the descriptor's `ValueType`. Value-type
+components are boxed snapshots. Reference-type components may preserve the
+stored object identity; neither `object?` nor a `ref readonly` access path makes
+the referenced object immutable. Mutating such an object directly bypasses
+stamps and write validation and is the caller's responsibility. `TryWrite` is
+the tracked tooling-write path. A backend may still register a per-component
+converter that returns a detached DTO or serialized snapshot when isolation is
+required, but mutable reference components are not `Unsupported` merely for
+being mutable references.
+
+`TryWrite` uses `expectedStamp` only as the exact entity/component stamp from a
+previous `TryRead` or successful `TryWrite`; `IEcsWorld.Stamp` is not a
+substitute. On success the world writes one value, advances its mutation
+stamp, returns that exact value through `writtenStamp`, sets `error.Code` to
+`None`, and returns `true`. On failure `writtenStamp` is default, no mutation
+occurs, and the error has this meaning:
+
+| Code | Meaning |
+|---|---|
+| `EntityNotAlive` | Index/generation is not alive in this world. |
+| `ComponentUnknown` | ID is absent from this world's catalog. |
+| `ComponentMissing` | ID is known but absent from the entity. |
+| `StaleStamp` | The exact component stamp differs from `expectedStamp`. |
+| `InvalidValue` | Nullability or exact CLR type does not match the descriptor. |
+| `Unsupported` | The descriptor does not advertise `Write`. |
+
+For non-null values, runtime type equality with the tooling-facing `ValueType`
+is required; the world does not perform implicit numeric, enum or inheritance
+conversions. A registered value converter may explicitly map that value to a
+different storage CLR type. Without such a converter, a reference value is
+stored using normal component assignment semantics and may retain
+caller-visible identity.
+
+Stamp comparison is deliberately pull-based and consumer-local. A renderer,
+editor or other tool stores its own last observed stamps; reading changes for
+one consumer never consumes them for another.
+
 ## Planned generated callback API
 
 The planned callback surface covers every combination of:

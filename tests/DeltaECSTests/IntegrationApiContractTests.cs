@@ -9,11 +9,11 @@ using NUnit.Framework;
 public sealed class IntegrationApiContractTests
 {
     [Test]
-    public void EntityId_UsesIndexAndGenerationIdentity()
+    public void EntityUsesIndexAndGenerationIdentity()
     {
-        var first = new EntityId(7, 3);
-        var same = new EntityId(7, 3);
-        var nextGeneration = new EntityId(7, 4);
+        var first = new Entity(7, 3);
+        var same = new Entity(7, 3);
+        var nextGeneration = new Entity(7, 4);
 
         Assert.Multiple(() =>
         {

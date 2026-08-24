@@ -51,14 +51,14 @@ public sealed partial class World : IEcsWorld
         _integrationLifecycle = IntegrationLifecycleState.Shutdown;
     }
 
-    bool IEcsWorld.IsAlive(EntityId entity)
+    bool IEcsWorld.IsAlive(Entity entity)
     {
         EnsureIntegrationActive();
         EnsureNoActiveLease("inspect entities through the integration API");
-        return TryConvertEntity(entity, out var storageEntity) && IsAlive(storageEntity);
+        return IsAlive(entity);
     }
 
-    EntityId IEcsWorld.Create(ReadOnlySpan<ComponentId> components)
+    Entity IEcsWorld.Create(ReadOnlySpan<ComponentId> components)
     {
         EnsureIntegrationActive();
         EnsureNoActiveLease("create entities");
@@ -68,31 +68,30 @@ public sealed partial class World : IEcsWorld
         var archetype = GetOrCreateArchetype(mask);
         Span<Entity> created = stackalloc Entity[1];
         _ = CreateBatch(archetype, created);
-        return ToEntityId(created[0]);
+        return created[0];
     }
 
-    bool IEcsWorld.Destroy(EntityId entity)
+    bool IEcsWorld.Destroy(Entity entity)
     {
         EnsureIntegrationActive();
-        return TryConvertEntity(entity, out var storageEntity) && Destroy(storageEntity);
+        return Destroy(entity);
     }
 
-    bool IEcsWorld.Add(EntityId entity, ReadOnlySpan<ComponentId> components)
+    bool IEcsWorld.Add(Entity entity, ReadOnlySpan<ComponentId> components)
         => ApplyIntegrationComponents(entity, components, isAdd: true);
 
-    bool IEcsWorld.Remove(EntityId entity, ReadOnlySpan<ComponentId> components)
+    bool IEcsWorld.Remove(Entity entity, ReadOnlySpan<ComponentId> components)
         => ApplyIntegrationComponents(entity, components, isAdd: false);
 
     bool IEcsWorld.TryGetComponents(
-        EntityId entity,
+        Entity entity,
         Span<ComponentId> destination,
         out int totalCount)
     {
         EnsureIntegrationActive();
         EnsureNoActiveLease("inspect entities through the integration API");
         totalCount = 0;
-        if (!TryConvertEntity(entity, out var storageEntity)
-            || !TryResolve(storageEntity, out int recordIndex))
+        if (!TryResolve(entity, out int recordIndex))
         {
             return false;
         }
@@ -105,7 +104,7 @@ public sealed partial class World : IEcsWorld
     }
 
     bool IEcsWorld.TryRead(
-        EntityId entity,
+        Entity entity,
         ComponentId component,
         out ComponentSnapshot snapshot,
         out EcsReadError error)
@@ -114,8 +113,7 @@ public sealed partial class World : IEcsWorld
         EnsureNoActiveLease("read components through the integration API");
         snapshot = default;
 
-        if (!TryConvertEntity(entity, out var storageEntity)
-            || !TryResolve(storageEntity, out int recordIndex))
+        if (!TryResolve(entity, out int recordIndex))
         {
             error = new EcsReadError(EcsReadErrorCode.EntityNotAlive);
             return false;
@@ -150,7 +148,7 @@ public sealed partial class World : IEcsWorld
     }
 
     bool IEcsWorld.TryWrite(
-        EntityId entity,
+        Entity entity,
         ComponentId component,
         object? value,
         Stamp expectedStamp,
@@ -161,8 +159,7 @@ public sealed partial class World : IEcsWorld
         EnsureNoActiveLease("write components through the integration API");
         writtenStamp = default;
 
-        if (!TryConvertEntity(entity, out var storageEntity)
-            || !TryResolve(storageEntity, out int recordIndex))
+        if (!TryResolve(entity, out int recordIndex))
         {
             error = new EcsWriteError(EcsWriteErrorCode.EntityNotAlive);
             return false;
@@ -212,20 +209,20 @@ public sealed partial class World : IEcsWorld
     }
 
     private bool ApplyIntegrationComponents(
-        EntityId entity,
+        Entity entity,
         ReadOnlySpan<ComponentId> components,
         bool isAdd)
     {
         EnsureIntegrationActive();
         EnsureNoActiveLease(isAdd ? "add components" : "remove components");
         ValidateStructuralComponents(components);
-        if (components.IsEmpty || !TryConvertEntity(entity, out var storageEntity))
+        if (components.IsEmpty || !IsAlive(entity))
         {
             return false;
         }
 
         Span<Entity> entities = stackalloc Entity[1];
-        entities[0] = storageEntity;
+        entities[0] = entity;
         return ApplyComponents(isAdd, components.ToArray(), entities) != 0;
     }
 
@@ -300,28 +297,6 @@ public sealed partial class World : IEcsWorld
 
     private static bool AllowsNull(Type valueType)
         => !valueType.IsValueType || Nullable.GetUnderlyingType(valueType) is not null;
-
-    private static bool TryConvertEntity(EntityId entity, out Entity storageEntity)
-    {
-        if (entity.Index > int.MaxValue || entity.Generation > int.MaxValue)
-        {
-            storageEntity = Entity.Null;
-            return false;
-        }
-
-        storageEntity = new Entity((int)entity.Index, (int)entity.Generation);
-        return true;
-    }
-
-    private static EntityId ToEntityId(Entity entity)
-    {
-        if (entity.Index < 0 || entity.Generation < 0)
-        {
-            throw new InvalidOperationException("Storage returned an invalid entity identity.");
-        }
-
-        return new EntityId((uint)entity.Index, (uint)entity.Generation);
-    }
 
     private enum IntegrationLifecycleState
     {

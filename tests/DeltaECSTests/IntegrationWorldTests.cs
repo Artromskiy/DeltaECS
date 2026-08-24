@@ -79,14 +79,13 @@ public sealed class IntegrationWorldTests
         IEcsWorld world = storage;
         world.Initialize();
 
-        EntityId entity = world.Create(ReadOnlySpan<ComponentId>.Empty);
-        var storageEntity = new Entity((int)entity.Index, (int)entity.Generation);
+        Entity entity = world.Create(ReadOnlySpan<ComponentId>.Empty);
         ComponentId[] destination = [positionId];
 
         Assert.Multiple(() =>
         {
             Assert.That(world.IsAlive(entity), Is.True);
-            Assert.That(storage.IsAlive(storageEntity), Is.True);
+            Assert.That(storage.IsAlive(entity), Is.True);
             Assert.That(world.TryGetComponents(entity, destination, out int emptyCount), Is.True);
             Assert.That(emptyCount, Is.Zero);
             Assert.That(destination[0], Is.EqualTo(positionId));
@@ -115,7 +114,7 @@ public sealed class IntegrationWorldTests
         {
             Assert.That(world.Destroy(entity), Is.False);
             Assert.That(world.IsAlive(entity), Is.False);
-            Assert.That(world.IsAlive(new EntityId(uint.MaxValue, uint.MaxValue)), Is.False);
+            Assert.That(world.IsAlive(new Entity(int.MaxValue, int.MaxValue)), Is.False);
             Assert.That(world.TryGetComponents(entity, destination, out int deadCount), Is.False);
             Assert.That(deadCount, Is.Zero);
             Assert.That(destination[0], Is.EqualTo(positionId));
@@ -135,7 +134,7 @@ public sealed class IntegrationWorldTests
         IEcsWorld world = storage;
         world.Initialize();
         Assert.Throws<ArgumentException>(() => world.Create(new[] { unknownId }));
-        EntityId entity = world.Create(stackalloc[] { positionId });
+        Entity entity = world.Create(stackalloc[] { positionId });
         Stamp before = world.Stamp;
 
         Assert.Throws<ArgumentException>(() => world.Add(entity, new[] { velocityId, unknownId }));
@@ -161,7 +160,7 @@ public sealed class IntegrationWorldTests
         using var storage = new World(layouts);
         IEcsWorld world = storage;
         world.Initialize();
-        EntityId entity = world.Create(stackalloc[] { positionId });
+        Entity entity = world.Create(stackalloc[] { positionId });
 
         Assert.That(world.TryRead(entity, positionId, out ComponentSnapshot initial, out EcsReadError readError), Is.True);
         Assert.Multiple(() =>
@@ -224,7 +223,7 @@ public sealed class IntegrationWorldTests
         using var storage = new World(layouts);
         IEcsWorld world = storage;
         world.Initialize();
-        EntityId entity = world.Create(stackalloc[] { referenceId });
+        Entity entity = world.Create(stackalloc[] { referenceId });
         Assert.That(world.TryRead(entity, referenceId, out ComponentSnapshot empty, out _), Is.True);
         Assert.That(empty.Value, Is.Null);
 
