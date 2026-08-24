@@ -20,10 +20,10 @@ public sealed class StructuralAlgorithmTests
         var valueId = layouts.Register(typeof(DestroyValue), new SchemaId(30_001));
         var world = new World(layouts, chunkCapacity: 7);
         var entities = new Entity[96];
-        world.CreateBatch(new[] { valueId }, entities);
+        world.Create(new[] { valueId }, entities);
         for (var i = 0; i < entities.Length; i++)
         {
-            world.SetComponent(entities[i], valueId, new DestroyValue { Value = 100_000 + i });
+            world.Set(entities[i], valueId, new DestroyValue { Value = 100_000 + i });
         }
 
         var stale = entities[3];
@@ -52,7 +52,7 @@ public sealed class StructuralAlgorithmTests
         // A stale handle and a duplicate must not affect the exact count.
         requested.Add(stale);
         requested.Add(stale);
-        var destroyed = world.DestroyBatch(CollectionsMarshalCompat.AsSpan(requested));
+        var destroyed = world.Destroy(CollectionsMarshalCompat.AsSpan(requested));
 
         Assert.That(destroyed, Is.EqualTo(expectedDestroyed.Count));
         Assert.That(world.AliveEntityCount, Is.EqualTo(entities.Length - 1 - expectedDestroyed.Count));
@@ -65,7 +65,7 @@ public sealed class StructuralAlgorithmTests
                 continue;
             }
 
-            Assert.That(world.TryGetComponent<DestroyValue>(entity, valueId, out var value), Is.True);
+            Assert.That(world.TryGet<DestroyValue>(entity, valueId, out var value), Is.True);
             Assert.That(value.Value, Is.EqualTo(100_000 + entity.Index));
         }
     }
@@ -77,13 +77,13 @@ public sealed class StructuralAlgorithmTests
         var valueId = layouts.Register(typeof(DestroyValue), new SchemaId(30_002));
         var world = new World(layouts, chunkCapacity: 5);
         var old = new Entity[64];
-        world.CreateBatch(new[] { valueId }, old);
+        world.Create(new[] { valueId }, old);
 
-        Assert.That(world.DestroyBatch(old), Is.EqualTo(old.Length));
+        Assert.That(world.Destroy(old), Is.EqualTo(old.Length));
         Assert.That(world.AliveEntityCount, Is.Zero);
 
         var recreated = new Entity[old.Length];
-        world.CreateBatch(new[] { valueId }, recreated);
+        world.Create(new[] { valueId }, recreated);
         var oldByIndex = new Dictionary<int, Entity>();
         foreach (var entity in old)
         {
@@ -106,7 +106,7 @@ public sealed class StructuralAlgorithmTests
         var valueId = layouts.Register(typeof(DestroyValue), new SchemaId(30_003));
         var world = new World(layouts, chunkCapacity: 257);
         var entities = new Entity[10_000];
-        world.CreateBatch(new[] { valueId }, entities);
+        world.Create(new[] { valueId }, entities);
 
         var requested = new List<Entity>(5_500);
         var expected = new HashSet<Entity>();
@@ -120,7 +120,7 @@ public sealed class StructuralAlgorithmTests
             }
         }
 
-        Assert.That(world.DestroyBatch(CollectionsMarshalCompat.AsSpan(requested)), Is.EqualTo(expected.Count));
+        Assert.That(world.Destroy(CollectionsMarshalCompat.AsSpan(requested)), Is.EqualTo(expected.Count));
         Assert.That(world.AliveEntityCount, Is.EqualTo(entities.Length - expected.Count));
         foreach (var entity in entities)
         {
@@ -152,9 +152,9 @@ public sealed class StructuralAlgorithmTests
                 HasVelocity = true,
                 HasHealth = true
             };
-            world.SetComponent(entity, positionId, state.Position);
-            world.SetComponent(entity, velocityId, state.Velocity);
-            world.SetComponent(entity, healthId, state.Health);
+            world.Set(entity, positionId, state.Position);
+            world.Set(entity, velocityId, state.Velocity);
+            world.Set(entity, healthId, state.Health);
             model.Add(entity, state);
             entities.Add(entity);
         }
@@ -180,7 +180,7 @@ public sealed class StructuralAlgorithmTests
                     HasVelocity = false,
                     HasHealth = false
                 };
-                world.SetComponent(entity, positionId, state.Position);
+                world.Set(entity, positionId, state.Position);
                 entities.Add(entity);
                 model.Add(entity, state);
             }
@@ -285,9 +285,9 @@ public sealed class StructuralAlgorithmTests
             };
 
             var parent = parentIndices[i] < 0 ? Entity.Null : entities[parentIndices[i]];
-            Assert.That(world.SetComponent(entities[i], parentId, new ParentLink { Parent = parent }), Is.True);
-            Assert.That(world.SetComponent(entities[i], localId, expectedLocal[i]), Is.True);
-            Assert.That(world.SetComponent(entities[i], worldId, expectedWorld[i]), Is.True);
+            Assert.That(world.Set(entities[i], parentId, new ParentLink { Parent = parent }), Is.True);
+            Assert.That(world.Set(entities[i], localId, expectedLocal[i]), Is.True);
+            Assert.That(world.Set(entities[i], worldId, expectedWorld[i]), Is.True);
         }
 
         var observed = new Dictionary<Entity, HierarchyObserved>();
@@ -310,9 +310,9 @@ public sealed class StructuralAlgorithmTests
                     var chunk = chunks.Current;
                     var entitiesInChunk = chunk.Entities;
                     var slots = chunk.Slots;
-                    var parents = slots.Get(preparedParent);
-                    var locals = slots.Get(preparedLocal);
-                    var worlds = slots.Get(preparedWorld);
+                    var parents = slots.GetRow(preparedParent);
+                    var locals = slots.GetRow(preparedLocal);
+                    var worlds = slots.GetRow(preparedWorld);
                     while (slots.MoveNext())
                     {
                         var entity = entitiesInChunk[slots.CurrentIndex];
@@ -386,16 +386,16 @@ public sealed class StructuralAlgorithmTests
         {
             var entity = alive[i];
             Assert.That(model.TryGetValue(entity, out var expected), Is.True);
-            Assert.That(world.TryGetComponent<TransitionPosition>(entity, positionId, out var position), Is.True);
+            Assert.That(world.TryGet<TransitionPosition>(entity, positionId, out var position), Is.True);
             Assert.That(position.Value, Is.EqualTo(expected.Position.Value));
-            Assert.That(world.TryGetComponent<TransitionVelocity>(entity, velocityId, out var velocity), Is.EqualTo(expected.HasVelocity),
+            Assert.That(world.TryGet<TransitionVelocity>(entity, velocityId, out var velocity), Is.EqualTo(expected.HasVelocity),
                 $"velocity presence mismatch for {entity}; expected={expected.HasVelocity}, position={expected.Position.Value}");
             if (expected.HasVelocity)
             {
                 Assert.That(velocity.Value, Is.EqualTo(expected.Velocity.Value));
             }
 
-            Assert.That(world.TryGetComponent<TransitionHealth>(entity, healthId, out var health), Is.EqualTo(expected.HasHealth),
+            Assert.That(world.TryGet<TransitionHealth>(entity, healthId, out var health), Is.EqualTo(expected.HasHealth),
                 $"health presence mismatch for {entity}; expected={expected.HasHealth}");
             if (expected.HasHealth)
             {

@@ -14,9 +14,9 @@ public sealed class ActiveChunkTests
         var layouts = new ComponentLayoutRegistry();
         layouts.Register(typeof(Position), new SchemaId(1));
         var world = new World(layouts, chunkCapacity: 2);
-        var handle = world.GetArchetype(PositionId);
+        var handle = world.GetOrCreateArchetype(PositionId);
         var entities = new Entity[6];
-        world.CreateBatch(handle, entities);
+        world.Create(handle, entities);
 
         var archetype = world.Archetypes[handle.ArchetypeId];
         Assert.That(archetype.ChunkCount, Is.EqualTo(3));
@@ -35,9 +35,9 @@ public sealed class ActiveChunkTests
         Assert.That(queriedSlots, Is.EqualTo(4));
 
         var replacement = new Entity[2];
-        Assert.That(world.CreateBatch(handle, replacement), Is.EqualTo(2));
-        Assert.That(world.SetComponent(replacement[0], PositionId, new Position { X = 11 }), Is.True);
-        Assert.That(world.SetComponent(replacement[1], PositionId, new Position { X = 13 }), Is.True);
+        Assert.That(world.Create(handle, replacement), Is.EqualTo(2));
+        Assert.That(world.Set(replacement[0], PositionId, new Position { X = 11 }), Is.True);
+        Assert.That(world.Set(replacement[1], PositionId, new Position { X = 13 }), Is.True);
         Assert.That(archetype.ActiveChunkCount, Is.EqualTo(3));
         AssertActiveChunks(archetype);
 
@@ -80,7 +80,7 @@ public sealed class ActiveChunkTests
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var positions = slots.Get(prepared);
+                var positions = slots.GetRow(prepared);
                 while (slots.MoveNext())
                 {
                     sum += positions.Ref<Position>(slots).X;

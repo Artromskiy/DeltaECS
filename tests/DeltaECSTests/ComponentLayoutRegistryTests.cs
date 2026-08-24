@@ -14,10 +14,10 @@ public sealed class ComponentLayoutRegistryTests
         var layouts = new ComponentLayoutRegistry();
 
         Assert.That(layouts.TryGetPrimary<MissingComponent>(out ComponentId missing), Is.False);
-        Assert.That(layouts.TryGetId(typeof(MissingComponent), out ComponentId missingByType), Is.False);
+        Assert.That(layouts.TryGetPrimary(typeof(MissingComponent), out ComponentId missingByType), Is.False);
         Assert.That(missing, Is.EqualTo(ComponentId.Invalid));
         Assert.That(missingByType, Is.EqualTo(ComponentId.Invalid));
-        Assert.Throws<KeyNotFoundException>(() => layouts.GetId(typeof(MissingComponent)));
+        Assert.Throws<KeyNotFoundException>(() => layouts.GetPrimary(typeof(MissingComponent)));
     }
 
     [Test]
@@ -28,7 +28,7 @@ public sealed class ComponentLayoutRegistryTests
         var second = layouts.Register<Position>(new SchemaId(70_002));
 
         Assert.That(layouts.GetPrimary<Position>(), Is.EqualTo(first));
-        Assert.That(layouts.GetId(typeof(Position)), Is.EqualTo(first));
+        Assert.That(layouts.GetPrimary(typeof(Position)), Is.EqualTo(first));
         Assert.That(second, Is.Not.EqualTo(first));
         Assert.That(layouts.TryGetId(new SchemaId(70_002), out ComponentId explicitSecond), Is.True);
         Assert.That(explicitSecond, Is.EqualTo(second));

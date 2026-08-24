@@ -5,7 +5,7 @@ public sealed partial class World
     public void ForEach(in Query query, ForEachAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        Query(in query, ref action, static (ref ForEachAction callback, ref QueryChunkCursor cursor) =>
+        Execute(in query, ref action, static (ref ForEachAction callback, ref QueryChunkCursor cursor) =>
         {
             while (cursor.MoveNext())
             {
@@ -17,7 +17,7 @@ public sealed partial class World
     public void ForEachEntity(in Query query, ForEachEntityAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        Query(in query, ref action, static (ref ForEachEntityAction callback, ref QueryChunkCursor cursor) =>
+        Execute(in query, ref action, static (ref ForEachEntityAction callback, ref QueryChunkCursor cursor) =>
         {
             while (cursor.MoveNext())
             {
@@ -33,7 +33,7 @@ public sealed partial class World
     {
         ArgumentNullException.ThrowIfNull(action);
         var state = new ContextActionState<TContext>(context, action);
-        Query(in query, ref state, static (ref ContextActionState<TContext> state, ref QueryChunkCursor cursor) =>
+        Execute(in query, ref state, static (ref ContextActionState<TContext> state, ref QueryChunkCursor cursor) =>
         {
             while (cursor.MoveNext())
             {
@@ -50,7 +50,7 @@ public sealed partial class World
     {
         ArgumentNullException.ThrowIfNull(action);
         var state = new ContextEntityActionState<TContext>(context, action);
-        Query(in query, ref state, static (ref ContextEntityActionState<TContext> state, ref QueryChunkCursor cursor) =>
+        Execute(in query, ref state, static (ref ContextEntityActionState<TContext> state, ref QueryChunkCursor cursor) =>
         {
             while (cursor.MoveNext())
             {

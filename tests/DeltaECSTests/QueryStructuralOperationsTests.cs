@@ -23,8 +23,8 @@ public sealed class QueryStructuralOperationsTests
         var first = new Entity[3];
         var second = new Entity[2];
         var existingTarget = world.Create(new[] { PositionId, VelocityId, extraA, extraB, extraC });
-        world.CreateBatch(new[] { PositionId }, first);
-        world.CreateBatch(new[] { PositionId, HealthId }, second);
+        world.Create(new[] { PositionId }, first);
+        world.Create(new[] { PositionId, HealthId }, second);
 
         var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
         var added = world.AddComponents(in query, new[] { VelocityId, extraA, extraB, extraC });
@@ -39,12 +39,12 @@ public sealed class QueryStructuralOperationsTests
         foreach (var entity in second)
         {
             AssertAddedComponents(world, entity, VelocityId, extraA, extraB, extraC);
-            Assert.That(world.TryGetComponent<Health>(entity, HealthId, out _), Is.True);
+            Assert.That(world.TryGet<Health>(entity, HealthId, out _), Is.True);
         }
 
         var removed = world.RemoveComponents(in query, new[] { VelocityId, extraA, extraB, extraC });
         Assert.That(removed, Is.EqualTo(first.Length + second.Length + 1));
-        Assert.That(world.TryGetComponent<Velocity>(existingTarget, VelocityId, out _), Is.False);
+        Assert.That(world.TryGet<Velocity>(existingTarget, VelocityId, out _), Is.False);
         foreach (var entity in first)
         {
             AssertRemovedComponents(world, entity, VelocityId, extraA, extraB, extraC);
@@ -53,7 +53,7 @@ public sealed class QueryStructuralOperationsTests
         foreach (var entity in second)
         {
             AssertRemovedComponents(world, entity, VelocityId, extraA, extraB, extraC);
-            Assert.That(world.TryGetComponent<Health>(entity, HealthId, out _), Is.True);
+            Assert.That(world.TryGet<Health>(entity, HealthId, out _), Is.True);
         }
     }
 
@@ -64,7 +64,7 @@ public sealed class QueryStructuralOperationsTests
         var world = new World(layouts, chunkCapacity: 2);
         var destroyed = new Entity[5];
         var survivor = world.Create(new[] { HealthId });
-        world.CreateBatch(new[] { PositionId }, destroyed);
+        world.Create(new[] { PositionId }, destroyed);
 
         var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
         Assert.That(world.Destroy(in query), Is.EqualTo(destroyed.Length));
@@ -120,7 +120,7 @@ public sealed class QueryStructuralOperationsTests
         Assert.That(world.ArchetypeVersion, Is.EqualTo(archetypeVersionBefore));
         Assert.That(world.WorldTick, Is.EqualTo(worldTickBefore));
         Assert.That(world.IsAlive(entity), Is.True);
-        Assert.That(world.TryGetComponent<Position>(entity, PositionId, out _), Is.True);
+        Assert.That(world.TryGet<Position>(entity, PositionId, out _), Is.True);
     }
 
     [Test]
@@ -137,8 +137,8 @@ public sealed class QueryStructuralOperationsTests
 
         Assert.That(world.ArchetypeVersion, Is.EqualTo(versionBefore));
         Assert.That(world.IsAlive(entity), Is.True);
-        Assert.That(world.TryGetComponent<Position>(entity, PositionId, out _), Is.True);
-        Assert.That(world.TryGetComponent<Velocity>(entity, VelocityId, out _), Is.False);
+        Assert.That(world.TryGet<Position>(entity, PositionId, out _), Is.True);
+        Assert.That(world.TryGet<Velocity>(entity, VelocityId, out _), Is.False);
     }
 
     [Test]
@@ -147,7 +147,7 @@ public sealed class QueryStructuralOperationsTests
         var layouts = CreateLayouts();
         var world = new World(layouts, chunkCapacity: 2);
         var entities = new Entity[3];
-        world.CreateBatch(new[] { PositionId }, entities);
+        world.Create(new[] { PositionId }, entities);
         var spec = QuerySpec.ForComponents(PositionId);
         var query = world.CreateQuery(in spec);
         var readPosition = query.AccessRead(PositionId);
@@ -174,7 +174,7 @@ public sealed class QueryStructuralOperationsTests
 
                     readChunkId = chunk.GlobalChunkId;
                     var slots = chunk.Slots;
-                    _ = slots.Get(readAccess);
+                    _ = slots.GetRow(readAccess);
                 }
             }
         }
@@ -200,7 +200,7 @@ public sealed class QueryStructuralOperationsTests
 
                     writeChunkId = chunk.GlobalChunkId;
                     var slots = chunk.Slots;
-                    _ = slots.Get(writeAccess);
+                    _ = slots.GetRow(writeAccess);
                 }
             }
         }
@@ -227,7 +227,7 @@ public sealed class QueryStructuralOperationsTests
         var markerId = layouts.Register(typeof(RefMarker), new SchemaId(31));
         var world = new World(layouts, chunkCapacity: 2);
         var entities = new Entity[4];
-        world.CreateBatch(new[] { referenceId }, entities);
+        world.Create(new[] { referenceId }, entities);
         var weakReferences = new List<WeakReference<ReferenceComponent>>();
         var values = new ReferenceComponent[entities.Length];
         for (var i = 0; i < entities.Length; i++)
@@ -235,14 +235,14 @@ public sealed class QueryStructuralOperationsTests
             var value = new ReferenceComponent { Value = i + 10 };
             values[i] = value;
             weakReferences.Add(new WeakReference<ReferenceComponent>(value));
-            Assert.That(world.SetComponent(entities[i], referenceId, value), Is.True);
+            Assert.That(world.Set(entities[i], referenceId, value), Is.True);
         }
 
         var query = world.CreateQuery(QuerySpec.ForComponents(referenceId));
         Assert.That(world.AddComponents(in query, new[] { markerId }), Is.EqualTo(entities.Length));
         for (var i = 0; i < entities.Length; i++)
         {
-            Assert.That(world.TryGetComponent<ReferenceComponent>(entities[i], referenceId, out var actual), Is.True);
+            Assert.That(world.TryGet<ReferenceComponent>(entities[i], referenceId, out var actual), Is.True);
             Assert.That(actual, Is.SameAs(values[i]));
         }
 
@@ -261,19 +261,19 @@ public sealed class QueryStructuralOperationsTests
 
     private static void AssertAddedComponents(World world, Entity entity, ComponentId velocityId, params ComponentId[] ids)
     {
-        Assert.That(world.TryGetComponent<Velocity>(entity, velocityId, out _), Is.True);
+        Assert.That(world.TryGet<Velocity>(entity, velocityId, out _), Is.True);
         foreach (var id in ids)
         {
-            Assert.That(world.TryGetComponent<int>(entity, id, out _), Is.True);
+            Assert.That(world.TryGet<int>(entity, id, out _), Is.True);
         }
     }
 
     private static void AssertRemovedComponents(World world, Entity entity, ComponentId velocityId, params ComponentId[] ids)
     {
-        Assert.That(world.TryGetComponent<Velocity>(entity, velocityId, out _), Is.False);
+        Assert.That(world.TryGet<Velocity>(entity, velocityId, out _), Is.False);
         foreach (var id in ids)
         {
-            Assert.That(world.TryGetComponent<int>(entity, id, out _), Is.False);
+            Assert.That(world.TryGet<int>(entity, id, out _), Is.False);
         }
     }
 

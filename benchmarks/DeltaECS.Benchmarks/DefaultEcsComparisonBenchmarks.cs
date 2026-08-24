@@ -87,8 +87,8 @@ public class DefaultEcsComparisonBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var positions = slots.Get(positionAccess);
-                var velocities = slots.Get(velocityAccess);
+                var positions = slots.GetRow(positionAccess);
+                var velocities = slots.GetRow(velocityAccess);
                 while (slots.MoveNext())
                 {
                     ref var position = ref positions.Ref<MovementPosition>(slots);
@@ -127,8 +127,8 @@ public class DefaultEcsComparisonBenchmarks
     [BenchmarkCategory("CreateDestroy")]
     public int DeltaECS_Batch_CreateDestroy()
     {
-        var created = _deltaBatchWorld.CreateBatch(_deltaBatchComponents, _deltaBatchEntities);
-        var destroyed = _deltaBatchWorld.DestroyBatch(_deltaBatchEntities);
+        var created = _deltaBatchWorld.Create(_deltaBatchComponents, _deltaBatchEntities);
+        var destroyed = _deltaBatchWorld.Destroy(_deltaBatchEntities);
         if (created != Amount || destroyed != Amount || _deltaBatchWorld.AliveEntityCount != 0)
         {
             throw new InvalidOperationException($"Delta batch lifecycle mismatch: created={created}, destroyed={destroyed}, alive={_deltaBatchWorld.AliveEntityCount}.");
@@ -178,14 +178,14 @@ public class DefaultEcsComparisonBenchmarks
     {
         _deltaTransitionWorld.AddComponents(_deltaTransitionComponents, _deltaTransitionEntities);
 
-        if (!_deltaTransitionWorld.TryGetComponent(_deltaTransitionEntities[0], _deltaTransitionComponents[0], out TransitionPayload _))
+        if (!_deltaTransitionWorld.TryGet(_deltaTransitionEntities[0], _deltaTransitionComponents[0], out TransitionPayload _))
         {
             throw new InvalidOperationException("Delta transition add did not produce the payload component.");
         }
 
         _deltaTransitionWorld.RemoveComponents(_deltaTransitionComponents, _deltaTransitionEntities);
 
-        if (_deltaTransitionWorld.TryGetComponent(_deltaTransitionEntities[0], _deltaTransitionComponents[0], out TransitionPayload _))
+        if (_deltaTransitionWorld.TryGet(_deltaTransitionEntities[0], _deltaTransitionComponents[0], out TransitionPayload _))
         {
             throw new InvalidOperationException("Delta transition remove left the payload component present.");
         }
@@ -247,15 +247,15 @@ public class DefaultEcsComparisonBenchmarks
 
         _deltaMovementWorld = new World(layouts, initialEntityCapacity: Amount);
         _deltaMovementEntities = new DeltaEntity[Amount];
-        _deltaMovementWorld.CreateBatch(_deltaMovementComponents, _deltaMovementEntities);
+        _deltaMovementWorld.Create(_deltaMovementComponents, _deltaMovementEntities);
 
         for (var i = 0; i < _deltaMovementEntities.Length; i++)
         {
-            _deltaMovementWorld.SetComponent(_deltaMovementEntities[i], _deltaPosition, new MovementPosition { X = 1f, Y = 2f });
-            _deltaMovementWorld.SetComponent(_deltaMovementEntities[i], _deltaVelocity, new MovementVelocity { X = 3f, Y = 4f });
+            _deltaMovementWorld.Set(_deltaMovementEntities[i], _deltaPosition, new MovementPosition { X = 1f, Y = 2f });
+            _deltaMovementWorld.Set(_deltaMovementEntities[i], _deltaVelocity, new MovementVelocity { X = 3f, Y = 4f });
             for (var payloadIndex = 0; payloadIndex < PayloadRows; payloadIndex++)
             {
-                _deltaMovementWorld.SetComponent(_deltaMovementEntities[i], _deltaPayloads[payloadIndex], new MovementPayload());
+                _deltaMovementWorld.Set(_deltaMovementEntities[i], _deltaPayloads[payloadIndex], new MovementPayload());
             }
         }
 
@@ -323,11 +323,11 @@ public class DefaultEcsComparisonBenchmarks
         var transitionPayload = layouts.Register(typeof(TransitionPayload), new SchemaId(130_202));
         _deltaTransitionWorld = new World(layouts, initialEntityCapacity: Amount);
         _deltaTransitionEntities = new DeltaEntity[Amount];
-        _deltaTransitionWorld.CreateBatch(new[] { baseComponent }, _deltaTransitionEntities);
+        _deltaTransitionWorld.Create(new[] { baseComponent }, _deltaTransitionEntities);
         _deltaTransitionComponents = new[] { transitionPayload };
         for (var i = 0; i < Amount; i++)
         {
-            _deltaTransitionWorld.SetComponent(_deltaTransitionEntities[i], baseComponent, new TransitionBase { A = 1 });
+            _deltaTransitionWorld.Set(_deltaTransitionEntities[i], baseComponent, new TransitionBase { A = 1 });
         }
     }
 

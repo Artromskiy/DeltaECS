@@ -198,7 +198,7 @@ public sealed partial class World
 
         EnsureSequenceScratch(entities.Length);
         int count = CopyMatchingSequenceEntities(entities, in query, _sequenceScratch.Span);
-        return DestroyBatch(_sequenceScratch.ReadOnlySpan[..count]);
+        return Destroy(_sequenceScratch.ReadOnlySpan[..count]);
     }
 
     private int ApplyFilteredSequenceComponents(

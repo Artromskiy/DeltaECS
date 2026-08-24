@@ -58,8 +58,15 @@ public sealed class ComparativeBenchmarkContractTests
             Assert.That(ordinalAccess.IsMatch(File.ReadAllText(source)), Is.False, source);
         }
 
-        var publicCursorMethods = typeof(QueryChunkCursor).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
-        Assert.That(publicCursorMethods.Any(method => method.Name == "GetRow"), Is.False);
+        var publicGetRowMethods = typeof(QueryChunkCursor)
+            .GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)
+            .Where(method => method.Name == nameof(QueryChunkCursor.GetRow))
+            .ToArray();
+        Assert.That(
+            publicGetRowMethods.All(method => method.GetParameters() is [{ ParameterType: var type }]
+                && (type == typeof(ReadAccess) || type == typeof(WriteAccess))),
+            Is.True,
+            "QueryChunkCursor.GetRow must stay access-token based and must not expose ordinal row lookup.");
     }
 
     private static string FindBenchmarkRoot()

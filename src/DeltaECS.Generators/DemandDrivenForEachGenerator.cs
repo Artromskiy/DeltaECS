@@ -517,8 +517,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         source.AppendLine("    {");
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
-            source.Append("        var values").Append(index).Append(" = cursor.").Append(shape.Pattern[index] == 'R' ? "GetRead" : "GetWrite")
-                .Append("(_access").Append(index).AppendLine(");");
+            source.Append("        var values").Append(index).Append(" = cursor.GetRow(_access").Append(index).AppendLine(");");
         }
         source.AppendLine("        while (cursor.MoveNext())");
         source.AppendLine("        {");
@@ -535,7 +534,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         source.AppendLine("    {");
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
-            source.Append("        var values").Append(index).Append(" = cursor.Get(_access").Append(index).AppendLine(");");
+            source.Append("        var values").Append(index).Append(" = cursor.GetRow(_access").Append(index).AppendLine(");");
         }
         source.Append("        ");
         AppendInvocation(source, shape, "values", "cursor.Slot", sequence: true);
@@ -738,7 +737,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string owner = shape.Sequence ? "sequence.GeneratedWorld" : "world";
         for (int index = 0; index < shape.Components.Length; index++)
         {
-            result[index] = owner + ".Layouts.GetId(typeof(T" + (index + 1) + "))";
+            result[index] = owner + ".Layouts.GetPrimary(typeof(T" + (index + 1) + "))";
         }
 
         return string.Join(", ", result);

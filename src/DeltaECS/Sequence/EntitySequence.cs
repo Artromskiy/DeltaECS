@@ -49,7 +49,7 @@ public readonly ref partial struct EntitySequence
 
     public int Remove(ComponentId[] componentIds) => _world.RemoveComponents(componentIds, _entities);
 
-    public int Destroy() => _world.DestroyBatch(_entities);
+    public int Destroy() => _world.Destroy(_entities);
 }
 
 /// <summary>

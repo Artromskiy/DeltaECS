@@ -53,7 +53,7 @@ internal sealed class MicroWorld
     public Entity[] CreateMoving(int amount)
     {
         var entities = new Entity[amount];
-        World.CreateBatch(Moving, entities);
+        World.Create(Moving, entities);
         ResetMoving(entities);
         return entities;
     }
@@ -62,15 +62,15 @@ internal sealed class MicroWorld
     {
         for (var i = 0; i < entities.Length; i++)
         {
-            World.SetComponent(entities[i], Position, new Position { X = i, Y = i + 1 });
-            World.SetComponent(entities[i], Velocity, new Velocity { X = 1, Y = 2 });
+            World.Set(entities[i], Position, new Position { X = i, Y = i + 1 });
+            World.Set(entities[i], Velocity, new Velocity { X = 1, Y = 2 });
         }
     }
 
     public Entity[] CreateMovement4(int amount)
     {
         var entities = new Entity[amount];
-        World.CreateBatch(Movement4, entities);
+        World.Create(Movement4, entities);
         ResetMovement4(entities);
         return entities;
     }
@@ -79,10 +79,10 @@ internal sealed class MicroWorld
     {
         for (var i = 0; i < entities.Length; i++)
         {
-            World.SetComponent(entities[i], Movement4A, new Movement4A { Value = 1 });
-            World.SetComponent(entities[i], Movement4B, new Movement4B { Value = 2 });
-            World.SetComponent(entities[i], Movement4C, new Movement4C { Value = 3 });
-            World.SetComponent(entities[i], Movement4D, new Movement4D { Value = 4 });
+            World.Set(entities[i], Movement4A, new Movement4A { Value = 1 });
+            World.Set(entities[i], Movement4B, new Movement4B { Value = 2 });
+            World.Set(entities[i], Movement4C, new Movement4C { Value = 3 });
+            World.Set(entities[i], Movement4D, new Movement4D { Value = 4 });
         }
     }
 }
@@ -105,8 +105,8 @@ internal static class MicroBenchmarkKernels
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var positions = slots.Get(preparedPosition);
-                var velocities = slots.Get(preparedVelocity);
+                var positions = slots.GetRow(preparedPosition);
+                var velocities = slots.GetRow(preparedVelocity);
                 while (slots.MoveNext())
                 {
                     ref var p = ref positions.Ref<Position>(slots);
@@ -142,10 +142,10 @@ internal static class MicroBenchmarkKernels
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var a = slots.Get(preparedA);
-                var b = slots.Get(preparedB);
-                var c = slots.Get(preparedC);
-                var d = slots.Get(preparedD);
+                var a = slots.GetRow(preparedA);
+                var b = slots.GetRow(preparedB);
+                var c = slots.GetRow(preparedC);
+                var d = slots.GetRow(preparedD);
                 while (slots.MoveNext())
                 {
                     ref var rowA = ref a.Ref<Movement4A>(slots);
@@ -185,10 +185,10 @@ internal static class MicroBenchmarkKernels
             {
                 var chunk = chunks.Current;
                 var slots = chunk.Slots;
-                var a = slots.Get(preparedA);
-                var b = slots.Get(preparedB);
-                var c = slots.Get(preparedC);
-                var d = slots.Get(preparedD);
+                var a = slots.GetRow(preparedA);
+                var b = slots.GetRow(preparedB);
+                var c = slots.GetRow(preparedC);
+                var d = slots.GetRow(preparedD);
                 var slotCount = chunk.SlotCount;
                 for (var slot = 0; slot < slotCount; slot++)
                 {
@@ -229,10 +229,10 @@ internal static class MicroBenchmarkKernels
             {
                 var chunk = chunks.Current;
                 var slots = chunk.Slots;
-                var a = slots.Get(preparedA);
-                var b = slots.Get(preparedB);
-                var c = slots.Get(preparedC);
-                var d = slots.Get(preparedD);
+                var a = slots.GetRow(preparedA);
+                var b = slots.GetRow(preparedB);
+                var c = slots.GetRow(preparedC);
+                var d = slots.GetRow(preparedD);
                 for (var slot = chunk.SlotCount - 1; slot >= 0; slot--)
                 {
                     ref var rowA = ref a.Ref<Movement4A>(slot);
@@ -267,10 +267,6 @@ public class DenseIterationMicroBenchmarkImplementation
     private WriteAccess _movement4B;
     private WriteAccess _movement4C;
     private ReadAccess _movement4D;
-    private WriteAccess _movement4AErased;
-    private WriteAccess _movement4BErased;
-    private WriteAccess _movement4CErased;
-    private ReadAccess _movement4DErased;
 
     [GlobalSetup]
     public void Setup()
@@ -294,10 +290,6 @@ public class DenseIterationMicroBenchmarkImplementation
         _movement4B = _movement4Query.AccessWrite(_fixture.Movement4B);
         _movement4C = _movement4Query.AccessWrite(_fixture.Movement4C);
         _movement4D = _movement4Query.AccessRead(_fixture.Movement4D);
-        _movement4AErased = _movement4Query.AccessWrite(_fixture.Movement4A);
-        _movement4BErased = _movement4Query.AccessWrite(_fixture.Movement4B);
-        _movement4CErased = _movement4Query.AccessWrite(_fixture.Movement4C);
-        _movement4DErased = _movement4Query.AccessRead(_fixture.Movement4D);
     }
 
     [IterationSetup(Target = nameof(Movement2Components))]
@@ -305,9 +297,6 @@ public class DenseIterationMicroBenchmarkImplementation
 
     [IterationSetup(Target = nameof(Movement4Components))]
     public void ResetMovement4() => _fixture.ResetMovement4(_movement4Entities);
-
-    [IterationSetup(Target = nameof(Movement4ComponentsGenericCompatibility))]
-    public void ResetMovement4GenericCompatibility() => _fixture.ResetMovement4(_movement4Entities);
 
     [Benchmark]
     public int Movement2Components() =>
@@ -319,21 +308,6 @@ public class DenseIterationMicroBenchmarkImplementation
 
     [Benchmark]
     public int Movement4Components() =>
-        MicroBenchmarkKernels.IterateMovement4Dense(
-            _fixture,
-            in _movement4Query,
-            _movement4AErased,
-            _movement4BErased,
-            _movement4CErased,
-            _movement4DErased);
-
-    /// <summary>
-    /// Paired compatibility path: generic Access&lt;T&gt; calls perform their type
-    /// check during setup and return the same non-generic AccessRequest core.
-    /// The measured dense loop is intentionally identical to the type-erased path.
-    /// </summary>
-    [Benchmark]
-    public int Movement4ComponentsGenericCompatibility() =>
         MicroBenchmarkKernels.IterateMovement4Dense(
             _fixture,
             in _movement4Query,
@@ -517,7 +491,7 @@ internal sealed class StructuralBatchFixture
         _changeComponents = [MicroWorld.Auxiliary, MicroWorld.Reference, MicroWorld.Movement4A, MicroWorld.Movement4B];
         _targetComponents = [.. _baseComponents, .. _changeComponents];
         _nonMatchingComponents = [.. _baseComponents, MicroWorld.Movement4C];
-        TargetArchetype = MicroWorld.World.GetArchetype(_targetComponents);
+        TargetArchetype = MicroWorld.World.GetOrCreateArchetype(_targetComponents);
         Output = new Entity[amount];
         Entities = new Entity[amount];
     }
@@ -542,13 +516,13 @@ internal sealed class StructuralBatchFixture
         }
 
         var source = operation == StructuralBatchOperation.Remove ? _targetComponents : _baseComponents;
-        MicroWorld.World.CreateBatch(source, Entities);
+        MicroWorld.World.Create(source, Entities);
 
         if (operation == StructuralBatchOperation.Destroy)
         {
             // Prime the world-owned destroy scratch outside the measured call.
-            _ = MicroWorld.World.DestroyBatch(Entities);
-            MicroWorld.World.CreateBatch(source, Entities);
+            _ = MicroWorld.World.Destroy(Entities);
+            MicroWorld.World.Create(source, Entities);
         }
     }
 
@@ -591,8 +565,8 @@ internal sealed class StructuralBatchFixture
     public int RunList(StructuralBatchOperation operation)
         => operation switch
         {
-            StructuralBatchOperation.Create => MicroWorld.World.CreateBatch(TargetArchetype, Output),
-            StructuralBatchOperation.Destroy => MicroWorld.World.DestroyBatch(Entities),
+            StructuralBatchOperation.Create => MicroWorld.World.Create(TargetArchetype, Output),
+            StructuralBatchOperation.Destroy => MicroWorld.World.Destroy(Entities),
             StructuralBatchOperation.Add => MicroWorld.World.AddComponents(_changeComponents, Entities),
             StructuralBatchOperation.Remove => MicroWorld.World.RemoveComponents(_changeComponents, Entities),
             _ => throw new ArgumentOutOfRangeException(nameof(operation))
@@ -603,7 +577,7 @@ internal sealed class StructuralBatchFixture
         var query = Query;
         return operation switch
         {
-            StructuralBatchOperation.Create => MicroWorld.World.CreateBatch(TargetArchetype, Output),
+            StructuralBatchOperation.Create => MicroWorld.World.Create(TargetArchetype, Output),
             StructuralBatchOperation.Destroy => MicroWorld.World.Destroy(in query),
             StructuralBatchOperation.Add => MicroWorld.World.AddComponents(in query, _changeComponents),
             StructuralBatchOperation.Remove => MicroWorld.World.RemoveComponents(in query, _changeComponents),

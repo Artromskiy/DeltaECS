@@ -135,7 +135,7 @@ public sealed class StampInvariantTests
 
         Span<Entity> batch = stackalloc Entity[3];
         Stamp beforeBatch = storage.Stamp;
-        Assert.That(storage.CreateBatch(new[] { PositionId, VelocityId }, batch), Is.EqualTo(3));
+        Assert.That(storage.Create(new[] { PositionId, VelocityId }, batch), Is.EqualTo(3));
         Assert.That(storage.Stamp, Is.EqualTo(new Stamp(beforeBatch.Value + 1)));
         foreach (Entity entity in batch)
         {
@@ -155,7 +155,7 @@ public sealed class StampInvariantTests
         using var world = new World(layouts, chunkCapacity: 2);
         Entity single = world.Create(PositionId);
         Entity[] listed = new Entity[4];
-        world.CreateBatch(new[] { PositionId }, listed);
+        world.Create(new[] { PositionId }, listed);
         Entity existingTarget = world.Create(PositionId, VelocityId);
 
         Stamp beforeSingleAdd = world.Stamp;
@@ -197,7 +197,7 @@ public sealed class StampInvariantTests
         Assert.That(world.Stamp, Is.EqualTo(new Stamp(beforeSingleDestroy.Value + 1)));
 
         Stamp beforeListDestroy = world.Stamp;
-        Assert.That(world.DestroyBatch(listed), Is.EqualTo(listed.Length));
+        Assert.That(world.Destroy(listed), Is.EqualTo(listed.Length));
         Assert.That(world.Stamp, Is.EqualTo(new Stamp(beforeListDestroy.Value + 1)));
 
         Entity queryDestroyA = world.Create(PositionId);
@@ -231,9 +231,9 @@ public sealed class StampInvariantTests
         world.RemoveComponents(new[] { VelocityId }, entity);
         world.AddComponents(new[] { PositionId }, entity);
         Assert.That(world.RemoveComponents(Array.Empty<ComponentId>(), new[] { entity }), Is.Zero);
-        Assert.That(world.DestroyBatch(new[] { Entity.Null, new Entity(999, 0) }), Is.Zero);
-        Assert.That(world.SetComponent(entity, new ComponentId(200), new Position()), Is.False);
-        Assert.That(world.SetComponent(foreignEntity, PositionId, new Position()), Is.False);
+        Assert.That(world.Destroy(new[] { Entity.Null, new Entity(999, 0) }), Is.Zero);
+        Assert.That(world.Set(entity, new ComponentId(200), new Position()), Is.False);
+        Assert.That(world.Set(foreignEntity, PositionId, new Position()), Is.False);
         Assert.That(world.Destroy(foreignEntity), Is.False);
         Assert.That(world.TryGetComponentStamp(foreignEntity, PositionId, out Stamp foreignStamp), Is.False);
         Assert.That(foreignStamp, Is.EqualTo(default(Stamp)));
@@ -258,8 +258,8 @@ public sealed class StampInvariantTests
         var layouts = CreateLayouts();
         using var world = new World(layouts, chunkCapacity: 2);
         Entity entity = world.Create(PositionId, HealthId);
-        Assert.That(world.SetComponent(entity, PositionId, new Position { X = 7 }), Is.True);
-        Assert.That(world.SetComponent(entity, HealthId, new Health { Value = 9 }), Is.True);
+        Assert.That(world.Set(entity, PositionId, new Position { X = 7 }), Is.True);
+        Assert.That(world.Set(entity, HealthId, new Health { Value = 9 }), Is.True);
         Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp positionBefore), Is.True);
         Assert.That(world.TryGetComponentStamp(entity, HealthId, out Stamp healthBefore), Is.True);
 
@@ -298,20 +298,20 @@ public sealed class StampInvariantTests
         using var world = new World(layouts, chunkCapacity: 2);
         Entity[] positionOnly = new Entity[5];
         Entity[] positionHealth = new Entity[3];
-        world.CreateBatch(new[] { PositionId }, positionOnly);
-        world.CreateBatch(new[] { PositionId, HealthId }, positionHealth);
+        world.Create(new[] { PositionId }, positionOnly);
+        world.Create(new[] { PositionId, HealthId }, positionHealth);
         var before = new Dictionary<Entity, (Stamp Position, Stamp Health)>();
         foreach (Entity entity in positionOnly)
         {
-            Assert.That(world.SetComponent(entity, PositionId, new Position { X = entity.Index }), Is.True);
+            Assert.That(world.Set(entity, PositionId, new Position { X = entity.Index }), Is.True);
             Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp position), Is.True);
             before.Add(entity, (position, default));
         }
 
         foreach (Entity entity in positionHealth)
         {
-            Assert.That(world.SetComponent(entity, PositionId, new Position { X = entity.Index }), Is.True);
-            Assert.That(world.SetComponent(entity, HealthId, new Health { Value = entity.Index }), Is.True);
+            Assert.That(world.Set(entity, PositionId, new Position { X = entity.Index }), Is.True);
+            Assert.That(world.Set(entity, HealthId, new Health { Value = entity.Index }), Is.True);
             Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp position), Is.True);
             Assert.That(world.TryGetComponentStamp(entity, HealthId, out Stamp health), Is.True);
             before.Add(entity, (position, health));
@@ -355,11 +355,11 @@ public sealed class StampInvariantTests
         using var world = new World(layouts, chunkCapacity: 2);
         Entity[] positionOnly = new Entity[3];
         Entity[] positionVelocity = new Entity[4];
-        world.CreateBatch(new[] { PositionId }, positionOnly);
-        world.CreateBatch(new[] { PositionId, VelocityId }, positionVelocity);
+        world.Create(new[] { PositionId }, positionOnly);
+        world.Create(new[] { PositionId, VelocityId }, positionVelocity);
         foreach (Entity entity in positionOnly.Concat(positionVelocity))
         {
-            Assert.That(world.SetComponent(entity, PositionId, new Position { X = entity.Index }), Is.True);
+            Assert.That(world.Set(entity, PositionId, new Position { X = entity.Index }), Is.True);
         }
 
         var positionQuery = world.CreateQuery(QuerySpec.ForComponents(PositionId));
@@ -376,7 +376,7 @@ public sealed class StampInvariantTests
                 while (chunks.MoveNext())
                 {
                     var slots = chunks.Current.Slots;
-                    ReadValues values = slots.Get(bound);
+                    ReadRow values = slots.GetRow(bound);
                     while (slots.MoveNext())
                     {
                         _ = values.Ref<Position>(slots);
@@ -408,7 +408,7 @@ public sealed class StampInvariantTests
                 while (chunks.MoveNext())
                 {
                     var slots = chunks.Current.Slots;
-                    WriteValues values = slots.Get(bound);
+                    WriteRow values = slots.GetRow(bound);
                     while (slots.MoveNext())
                     {
                         ref Position position = ref values.Ref<Position>(slots);
@@ -441,15 +441,15 @@ public sealed class StampInvariantTests
         Entity first = world.Create(PositionId);
         Entity second = world.Create(PositionId);
         Entity third = world.Create(PositionId);
-        Assert.That(world.SetComponent(second, PositionId, new Position { X = 2 }), Is.True);
-        Assert.That(world.SetComponent(third, PositionId, new Position { X = 3 }), Is.True);
+        Assert.That(world.Set(second, PositionId, new Position { X = 2 }), Is.True);
+        Assert.That(world.Set(third, PositionId, new Position { X = 3 }), Is.True);
         Assert.That(world.TryGetComponentStamp(second, PositionId, out Stamp secondBefore), Is.True);
         Assert.That(world.TryGetComponentStamp(third, PositionId, out Stamp thirdBefore), Is.True);
 
         Stamp beforeDestroy = world.Stamp;
         Assert.That(world.Destroy(first), Is.True);
         Assert.That(world.Stamp, Is.EqualTo(new Stamp(beforeDestroy.Value + 1)));
-        Assert.That(world.TryGetComponent<Position>(second, PositionId, out Position secondValue), Is.True);
+        Assert.That(world.TryGet<Position>(second, PositionId, out Position secondValue), Is.True);
         Assert.That(world.TryGetComponentStamp(second, PositionId, out Stamp secondAfter), Is.True);
         Assert.That(secondValue.X, Is.EqualTo(2));
         Assert.That(secondAfter, Is.EqualTo(secondBefore));
@@ -458,12 +458,12 @@ public sealed class StampInvariantTests
 
         Entity fourth = world.Create(PositionId);
         Entity fifth = world.Create(PositionId);
-        Assert.That(world.SetComponent(fourth, PositionId, new Position { X = 4 }), Is.True);
-        Assert.That(world.SetComponent(fifth, PositionId, new Position { X = 5 }), Is.True);
+        Assert.That(world.Set(fourth, PositionId, new Position { X = 4 }), Is.True);
+        Assert.That(world.Set(fifth, PositionId, new Position { X = 5 }), Is.True);
         Assert.That(world.TryGetComponentStamp(fourth, PositionId, out Stamp fourthBefore), Is.True);
         Assert.That(world.TryGetComponentStamp(fifth, PositionId, out Stamp fifthBefore), Is.True);
         Stamp beforeBatchDestroy = world.Stamp;
-        Assert.That(world.DestroyBatch(new[] { fourth, Entity.Null, fifth }), Is.EqualTo(2));
+        Assert.That(world.Destroy(new[] { fourth, Entity.Null, fifth }), Is.EqualTo(2));
         Assert.That(world.Stamp, Is.EqualTo(new Stamp(beforeBatchDestroy.Value + 1)));
         Assert.That(world.TryGetComponentStamp(fourth, PositionId, out _), Is.False);
         Assert.That(world.TryGetComponentStamp(fifth, PositionId, out _), Is.False);
@@ -477,7 +477,7 @@ public sealed class StampInvariantTests
         var layouts = CreateLayouts();
         using var world = new World(layouts, chunkCapacity: 4);
         Entity[] entities = new Entity[4];
-        Assert.That(world.CreateBatch(new[] { PositionId }, entities), Is.EqualTo(entities.Length));
+        Assert.That(world.Create(new[] { PositionId }, entities), Is.EqualTo(entities.Length));
 
         Entity stale = entities[0];
         Assert.That(world.Destroy(stale), Is.True);
@@ -487,16 +487,16 @@ public sealed class StampInvariantTests
 
         Entity[] duplicateInput = { replacement, replacement, stale };
         Stamp beforeDuplicate = world.Stamp;
-        Assert.That(world.DestroyBatch(duplicateInput), Is.EqualTo(1));
+        Assert.That(world.Destroy(duplicateInput), Is.EqualTo(1));
         Assert.That(world.Stamp, Is.EqualTo(new Stamp(beforeDuplicate.Value + 1)));
         Assert.That(world.IsAlive(replacement), Is.False);
         Assert.That(world.IsAlive(stale), Is.False);
 
         using var wholeWorld = new World(layouts, chunkCapacity: 4);
         Entity[] fullChunk = new Entity[4];
-        Assert.That(wholeWorld.CreateBatch(new[] { PositionId }, fullChunk), Is.EqualTo(fullChunk.Length));
+        Assert.That(wholeWorld.Create(new[] { PositionId }, fullChunk), Is.EqualTo(fullChunk.Length));
         Stamp beforeWholeChunk = wholeWorld.Stamp;
-        Assert.That(wholeWorld.DestroyBatch(fullChunk), Is.EqualTo(fullChunk.Length));
+        Assert.That(wholeWorld.Destroy(fullChunk), Is.EqualTo(fullChunk.Length));
         Assert.That(wholeWorld.Stamp, Is.EqualTo(new Stamp(beforeWholeChunk.Value + 1)));
         foreach (Entity entity in fullChunk)
         {
@@ -504,10 +504,10 @@ public sealed class StampInvariantTests
         }
 
         Entity[] fallback = new Entity[4];
-        Assert.That(wholeWorld.CreateBatch(new[] { PositionId }, fallback), Is.EqualTo(fallback.Length));
+        Assert.That(wholeWorld.Create(new[] { PositionId }, fallback), Is.EqualTo(fallback.Length));
         Entity[] unsortedSubset = { fallback[3], fallback[1] };
         Stamp beforeFallback = wholeWorld.Stamp;
-        Assert.That(wholeWorld.DestroyBatch(unsortedSubset), Is.EqualTo(unsortedSubset.Length));
+        Assert.That(wholeWorld.Destroy(unsortedSubset), Is.EqualTo(unsortedSubset.Length));
         Assert.That(wholeWorld.Stamp, Is.EqualTo(new Stamp(beforeFallback.Value + 1)));
         Assert.Multiple(() =>
         {
@@ -536,7 +536,7 @@ public sealed class StampInvariantTests
 
         Stamp beforeStaleOperations = world.Stamp;
         Assert.That(world.Destroy(stale), Is.False);
-        Assert.That(world.SetComponent(stale, PositionId, new Position()), Is.False);
+        Assert.That(world.Set(stale, PositionId, new Position()), Is.False);
         Assert.That(world.TryGetComponentStamp(stale, PositionId, out Stamp hidden), Is.False);
         Assert.That(hidden, Is.EqualTo(default(Stamp)));
         Assert.That(world.Stamp, Is.EqualTo(beforeStaleOperations));
@@ -550,7 +550,7 @@ public sealed class StampInvariantTests
         ComponentId referenceId = layouts.Register(typeof(ReferenceComponent), new SchemaId(61_101));
         using var world = new World(layouts, chunkCapacity: 2);
         Entity[] entities = new Entity[3];
-        world.CreateBatch(new[] { referenceId }, entities);
+        world.Create(new[] { referenceId }, entities);
         var values = new ReferenceComponent[entities.Length];
         var valuesByEntity = new Dictionary<Entity, ReferenceComponent>();
         var stamps = new Stamp[entities.Length];
@@ -558,7 +558,7 @@ public sealed class StampInvariantTests
         {
             values[index] = new ReferenceComponent { Value = index + 1 };
             valuesByEntity.Add(entities[index], values[index]);
-            Assert.That(world.SetComponent(entities[index], referenceId, values[index]), Is.True);
+            Assert.That(world.Set(entities[index], referenceId, values[index]), Is.True);
             Assert.That(world.TryGetComponentStamp(entities[index], referenceId, out stamps[index]), Is.True);
         }
 
@@ -568,7 +568,7 @@ public sealed class StampInvariantTests
         Assert.That(moveStamp, Is.EqualTo(new Stamp(beforeMove.Value + 1)));
         for (int index = 0; index < entities.Length; index++)
         {
-            Assert.That(world.TryGetComponent<ReferenceComponent>(entities[index], referenceId, out ReferenceComponent? actual), Is.True);
+            Assert.That(world.TryGet<ReferenceComponent>(entities[index], referenceId, out ReferenceComponent? actual), Is.True);
             Assert.That(actual, Is.SameAs(values[index]));
             Assert.That(world.TryGetComponentStamp(entities[index], referenceId, out Stamp stamp), Is.True);
             Assert.That(stamp, Is.EqualTo(stamps[index]));
@@ -613,7 +613,7 @@ public sealed class StampInvariantTests
         Assert.That(world.Stamp, Is.EqualTo(new Stamp(beforeRemove.Value + 1)));
         for (int index = 0; index < entities.Length; index++)
         {
-            Assert.That(world.TryGetComponent<ReferenceComponent>(entities[index], referenceId, out ReferenceComponent? actual), Is.True);
+            Assert.That(world.TryGet<ReferenceComponent>(entities[index], referenceId, out ReferenceComponent? actual), Is.True);
             Assert.That(actual, Is.SameAs(values[index]));
             Assert.That(world.TryGetComponentStamp(entities[index], referenceId, out Stamp stamp), Is.True);
             Assert.That(stamp, Is.EqualTo(queryStamp));
@@ -678,13 +678,13 @@ public sealed class StampInvariantTests
         _ = emptyQuery.AccessWrite(PositionId);
         int callbackCount = 0;
         Stamp beforeCallback = world.Stamp;
-        world.Query(in emptyQuery, ref callbackCount, static (ref int count, ref QueryChunkCursor cursor) =>
+        world.Execute(in emptyQuery, ref callbackCount, static (ref int count, ref QueryChunkCursor cursor) =>
         {
             count++;
             _ = cursor;
         });
         Assert.That(callbackCount, Is.Zero);
-        Assert.That(world.Stamp, Is.EqualTo(beforeCallback), "World.Query must not reserve a stamp when no chunk callback runs.");
+        Assert.That(world.Stamp, Is.EqualTo(beforeCallback), "World.Execute must not reserve a stamp when no chunk callback runs.");
     }
 
     [Test]
@@ -702,7 +702,7 @@ public sealed class StampInvariantTests
             _ = scope.Bind(write);
             var archetypes = scope.Archetypes;
             Assert.That(archetypes.MoveNext(), Is.True);
-            // Deliberately do not descend to a chunk, iterate a slot, or obtain WriteValues.
+            // Deliberately do not descend to a chunk, iterate a slot, or obtain WriteRow.
         }
 
         Assert.That(world.Stamp, Is.EqualTo(before));
@@ -721,7 +721,7 @@ public sealed class StampInvariantTests
         int callbackCount = 0;
         Stamp before = world.Stamp;
 
-        world.Query(in query, ref callbackCount, static (ref int count, ref QueryChunkCursor cursor) =>
+        world.Execute(in query, ref callbackCount, static (ref int count, ref QueryChunkCursor cursor) =>
         {
             count++;
             // Deliberately do not request a row from the write cursor.
@@ -741,14 +741,14 @@ public sealed class StampInvariantTests
         var layouts = CreateLayouts();
         using var world = new World(layouts, chunkCapacity: 2);
         Entity[] entities = new Entity[5];
-        world.CreateBatch(new[] { PositionId }, entities);
+        world.Create(new[] { PositionId }, entities);
         var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
         var state = new QueryWriteState(query.AccessWrite(PositionId));
 
         Stamp beforeFirstWrite = world.Stamp;
-        world.Query(in query, ref state, static (ref QueryWriteState callbackState, ref QueryChunkCursor cursor) =>
+        world.Execute(in query, ref state, static (ref QueryWriteState callbackState, ref QueryChunkCursor cursor) =>
         {
-            WriteValues values = cursor.GetWrite(callbackState.Access);
+            WriteRow values = cursor.GetRow(callbackState.Access);
             while (cursor.MoveNext())
             {
                 values.Ref<Position>(cursor).X++;
@@ -765,7 +765,7 @@ public sealed class StampInvariantTests
             Assert.That(stamp, Is.EqualTo(firstWrite));
         }
 
-        world.Query(in query, ref state, static (ref QueryWriteState callbackState, ref QueryChunkCursor cursor) =>
+        world.Execute(in query, ref state, static (ref QueryWriteState callbackState, ref QueryChunkCursor cursor) =>
         {
             callbackState.CallbackCount++;
             _ = cursor.SlotCount;
@@ -774,9 +774,9 @@ public sealed class StampInvariantTests
         Assert.That(state.CallbackCount, Is.EqualTo(3));
 
         state.Count = 0;
-        world.Query(in query, ref state, static (ref QueryWriteState callbackState, ref QueryChunkCursor cursor) =>
+        world.Execute(in query, ref state, static (ref QueryWriteState callbackState, ref QueryChunkCursor cursor) =>
         {
-            WriteValues values = cursor.GetWrite(callbackState.Access);
+            WriteRow values = cursor.GetRow(callbackState.Access);
             while (cursor.MoveNext())
             {
                 values.Ref<Position>(cursor).X++;
@@ -810,7 +810,7 @@ public sealed class StampInvariantTests
         var chunkPlan = new ChunkPlan(chunk, new[] { chunk.GetRawComponentRow(0) });
         var slots = new QuerySlots(plan, chunkPlan, query.Cached, writeTick: 1, writeStamp: new Stamp(before.Value + 1));
 
-        _ = slots.Get(write);
+        _ = slots.GetRow(write);
         Assert.That(world.Stamp, Is.EqualTo(before));
         Assert.That(chunk.GetComponentStamp(0, 0), Is.EqualTo(default(Stamp)));
     }
@@ -879,15 +879,15 @@ public sealed class StampInvariantTests
         var layouts = CreateLayouts();
         using var world = new World(layouts);
         Entity entity = world.Create(PositionId);
-        Assert.That(world.SetComponent(entity, PositionId, new Position { X = 7 }), Is.True);
+        Assert.That(world.Set(entity, PositionId, new Position { X = 7 }), Is.True);
         Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp beforeStamp), Is.True);
         Stamp exhausted = ExhaustWorldStamp(world);
 
-        Assert.Throws<InvalidOperationException>(() => world.SetComponent(entity, PositionId, new Position { X = 99 }));
+        Assert.Throws<InvalidOperationException>(() => world.Set(entity, PositionId, new Position { X = 99 }));
         Assert.Multiple(() =>
         {
             Assert.That(world.Stamp, Is.EqualTo(exhausted));
-            Assert.That(world.TryGetComponent(entity, PositionId, out Position value), Is.True);
+            Assert.That(world.TryGet(entity, PositionId, out Position value), Is.True);
             Assert.That(value.X, Is.EqualTo(7));
             Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp afterStamp), Is.True);
             Assert.That(afterStamp, Is.EqualTo(beforeStamp));
@@ -916,7 +916,7 @@ public sealed class StampInvariantTests
         bool writeRejected = false;
         try
         {
-            _ = slots.Get(bound);
+            _ = slots.GetRow(bound);
         }
         catch (InvalidOperationException)
         {
@@ -1040,7 +1040,7 @@ public sealed class StampInvariantTests
         ComponentId[] components = RandomComponents(random);
         Entity[] created = new Entity[count];
         Stamp before = world.Stamp;
-        Assert.That(world.CreateBatch(components, created), Is.EqualTo(count), $"create at step {step}");
+        Assert.That(world.Create(components, created), Is.EqualTo(count), $"create at step {step}");
         Stamp operationStamp = world.Stamp;
         Assert.That(operationStamp, Is.EqualTo(new Stamp(before.Value + 1)), $"create stamp at step {step}");
         foreach (Entity entity in created)
@@ -1063,10 +1063,10 @@ public sealed class StampInvariantTests
         Stamp before = world.Stamp;
         bool expected = model.Components.Contains(component);
         bool actual = component == PositionId
-            ? world.SetComponent(entity, component, new Position { X = step })
+            ? world.Set(entity, component, new Position { X = step })
             : component == VelocityId
-                ? world.SetComponent(entity, component, new Velocity { X = step })
-                : world.SetComponent(entity, component, new Health { Value = step });
+                ? world.Set(entity, component, new Velocity { X = step })
+                : world.Set(entity, component, new Health { Value = step });
         Assert.That(actual, Is.EqualTo(expected), $"set at step {step}");
         if (expected)
         {
@@ -1163,7 +1163,7 @@ public sealed class StampInvariantTests
         candidates.CopyTo(mixed, 0);
         mixed[^1] = stale.Count == 0 ? Entity.Null : stale[random.Next(stale.Count)];
         Stamp before = world.Stamp;
-        Assert.That(world.DestroyBatch(mixed), Is.EqualTo(candidates.Length), $"batch destroy at step {step}");
+        Assert.That(world.Destroy(mixed), Is.EqualTo(candidates.Length), $"batch destroy at step {step}");
         Assert.That(world.Stamp, Is.EqualTo(new Stamp(before.Value + 1)), $"batch destroy stamp at step {step}");
         foreach (Entity candidate in candidates)
         {
@@ -1242,7 +1242,7 @@ public sealed class StampInvariantTests
         using var world = new World(layouts);
         Entity entity = world.Create(PositionId);
         Stamp exhausted = ExhaustWorldStamp(world);
-        Assert.Throws<InvalidOperationException>(() => world.DestroyBatch(new[] { entity }));
+        Assert.Throws<InvalidOperationException>(() => world.Destroy(new[] { entity }));
         Assert.That(world.Stamp, Is.EqualTo(exhausted));
         Assert.That(world.IsAlive(entity), Is.True, "DestroyBatch mutates before exhausting the stamp source.");
     }

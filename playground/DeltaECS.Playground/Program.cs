@@ -4,14 +4,14 @@ var layouts = new ComponentLayoutRegistry();
 var positionId = layouts.Register<Position>(new SchemaId(1));
 var velocityId = layouts.Register(typeof(Velocity), new SchemaId(2));
 var world = new World(layouts, chunkCapacity: 4);
-var archetype = world.GetArchetype(positionId, velocityId);
+var archetype = world.GetOrCreateArchetype(positionId, velocityId);
 
 var entities = new Entity[8];
-world.CreateBatch(archetype, entities);
+world.Create(archetype, entities);
 for (var i = 0; i < entities.Length; i++)
 {
-    world.SetComponent(entities[i], positionId, new Position { X = i, Y = 0 });
-    world.SetComponent(entities[i], velocityId, new Velocity { X = 1, Y = 0.5f });
+    world.Set(entities[i], positionId, new Position { X = i, Y = 0 });
+    world.Set(entities[i], velocityId, new Velocity { X = 1, Y = 0.5f });
 }
 
 var spec = QuerySpec.ForComponents(positionId, velocityId);
@@ -32,8 +32,8 @@ while (archetypes.MoveNext())
     while (chunks.MoveNext())
     {
         var slots = chunks.Current.Slots;
-        var positions = slots.Get(position);
-        var velocities = slots.Get(velocity);
+        var positions = slots.GetRow(position);
+        var velocities = slots.GetRow(velocity);
 
         while (slots.MoveNext())
         {
@@ -59,8 +59,8 @@ while (checksumArchetypes.MoveNext())
     while (chunks.MoveNext())
     {
         var slots = chunks.Current.Slots;
-        var positions = slots.Get(checksumPosition);
-        var velocities = slots.Get(checksumVelocity);
+        var positions = slots.GetRow(checksumPosition);
+        var velocities = slots.GetRow(checksumVelocity);
 
         while (slots.MoveNext())
         {

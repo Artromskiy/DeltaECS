@@ -5,7 +5,7 @@ public sealed partial class World
     public void ForEach<TFunctor>(in Query query, ref TFunctor functor)
         where TFunctor : struct, IForEach
     {
-        Query(in query, ref functor, static (ref TFunctor value, ref QueryChunkCursor cursor) =>
+        Execute(in query, ref functor, static (ref TFunctor value, ref QueryChunkCursor cursor) =>
         {
             while (cursor.MoveNext())
             {
@@ -17,7 +17,7 @@ public sealed partial class World
     public void ForEachEntity<TFunctor>(in Query query, ref TFunctor functor)
         where TFunctor : struct, IForEachEntity
     {
-        Query(in query, ref functor, static (ref TFunctor value, ref QueryChunkCursor cursor) =>
+        Execute(in query, ref functor, static (ref TFunctor value, ref QueryChunkCursor cursor) =>
         {
             while (cursor.MoveNext())
             {
@@ -33,7 +33,7 @@ public sealed partial class World
         where TFunctor : struct, IForEachContext<TContext>
     {
         var state = new ContextFunctorState<TContext, TFunctor>(context, functor);
-        Query(in query, ref state, static (ref ContextFunctorState<TContext, TFunctor> state, ref QueryChunkCursor cursor) =>
+        Execute(in query, ref state, static (ref ContextFunctorState<TContext, TFunctor> state, ref QueryChunkCursor cursor) =>
         {
             while (cursor.MoveNext())
             {
@@ -51,7 +51,7 @@ public sealed partial class World
         where TFunctor : struct, IForEachContextEntity<TContext>
     {
         var state = new ContextEntityFunctorState<TContext, TFunctor>(context, functor);
-        Query(in query, ref state, static (ref ContextEntityFunctorState<TContext, TFunctor> state, ref QueryChunkCursor cursor) =>
+        Execute(in query, ref state, static (ref ContextEntityFunctorState<TContext, TFunctor> state, ref QueryChunkCursor cursor) =>
         {
             while (cursor.MoveNext())
             {

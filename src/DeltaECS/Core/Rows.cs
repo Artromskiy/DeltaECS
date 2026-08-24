@@ -2,16 +2,16 @@ namespace Delta.ECS;
 
 using System;
 
-public ref partial struct ReadValues
+public ref partial struct ReadRow
 {
     private readonly ref byte _data;
-    internal ReadValues(Array row) => _data = ref ArrayAccess.DataReference(row);
+    internal ReadRow(Array row) => _data = ref ArrayAccess.DataReference(row);
 }
 
-public ref partial struct WriteValues
+public ref partial struct WriteRow
 {
     private readonly ref byte _data;
-    internal WriteValues(Array row) => _data = ref ArrayAccess.DataReference(row);
+    internal WriteRow(Array row) => _data = ref ArrayAccess.DataReference(row);
 }
 
 public readonly ref struct ObjectReadValues

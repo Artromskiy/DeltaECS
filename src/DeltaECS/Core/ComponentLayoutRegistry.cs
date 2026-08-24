@@ -100,7 +100,7 @@ public sealed partial class ComponentLayoutRegistry
     /// Tries to resolve the primary component registration for a CLR type.
     /// Later registrations of the same type remain addressable by their explicit ids.
     /// </summary>
-    public bool TryGetId(Type runtimeType, out ComponentId componentId)
+    public bool TryGetPrimary(Type runtimeType, out ComponentId componentId)
     {
         ArgumentNullException.ThrowIfNull(runtimeType);
         if (_primaryIdsByType.TryGetValue(runtimeType, out componentId))
@@ -113,9 +113,9 @@ public sealed partial class ComponentLayoutRegistry
     }
 
     /// <summary>Gets the primary component registration for a CLR type.</summary>
-    public ComponentId GetId(Type runtimeType)
+    public ComponentId GetPrimary(Type runtimeType)
     {
-        if (TryGetId(runtimeType, out ComponentId componentId))
+        if (TryGetPrimary(runtimeType, out ComponentId componentId))
         {
             return componentId;
         }

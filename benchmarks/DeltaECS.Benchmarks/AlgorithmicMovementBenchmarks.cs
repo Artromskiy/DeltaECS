@@ -66,8 +66,8 @@ public class AlgorithmicMovementBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var positions = slots.Get(positionAccess);
-                var velocities = slots.Get(velocityAccess);
+                var positions = slots.GetRow(positionAccess);
+                var velocities = slots.GetRow(velocityAccess);
                 while (slots.MoveNext())
                 {
                     ref var position = ref positions.Ref<DeltaPosition>(slots);
@@ -137,11 +137,11 @@ public class AlgorithmicMovementBenchmarks
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
         var entities = new Entity[Amount];
-        _deltaWorld.CreateBatch(_deltaComponents, entities);
+        _deltaWorld.Create(_deltaComponents, entities);
         for (var i = 0; i < entities.Length; i++)
         {
-            _deltaWorld.SetComponent(entities[i], _deltaPosition, new DeltaPosition { X = 1, Y = 2 });
-            _deltaWorld.SetComponent(entities[i], _deltaVelocity, new DeltaVelocity { X = 3, Y = 4 });
+            _deltaWorld.Set(entities[i], _deltaPosition, new DeltaPosition { X = 1, Y = 2 });
+            _deltaWorld.Set(entities[i], _deltaVelocity, new DeltaVelocity { X = 3, Y = 4 });
             SetDeltaPayload(entities[i], i);
         }
 
@@ -223,7 +223,7 @@ public class AlgorithmicMovementBenchmarks
     {
         for (var i = 0; i < PayloadRows; i++)
         {
-            _deltaWorld.SetComponent(entity, _deltaComponents[2 + i], new DeltaPayload { Value = seed });
+            _deltaWorld.Set(entity, _deltaComponents[2 + i], new DeltaPayload { Value = seed });
         }
     }
 

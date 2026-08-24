@@ -362,7 +362,7 @@ while (archetypes.MoveNext())
     while (chunks.MoveNext())
     {
         var slots = chunks.Current.Slots;
-        var values = slots.Get(prepared);
+        var values = slots.GetRow(prepared);
         while (slots.MoveNext())
         {
             ref readonly Value value = ref values[slots];
@@ -371,7 +371,7 @@ while (archetypes.MoveNext())
 }
 ```
 
-Queries use the dense component path through `World.Query` or `OpenQuery`.
+Queries use the component path through `World.Execute` or `OpenQuery`.
 The microbenchmark catalog contains this dense path and the four direct
 structural operations below it; removed duplicate traversal fixtures are not
 part of discovery or measurement routes.

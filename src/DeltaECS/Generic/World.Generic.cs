@@ -19,7 +19,7 @@ public sealed partial class World
     {
         if (!IsRegisteredType<T>(componentId)
             || !IsAlive(entity)
-            || TryGetComponent<T>(entity, componentId, out _))
+            || TryGetCore<T>(entity, componentId, out _))
         {
             return false;
         }
@@ -34,18 +34,18 @@ public sealed partial class World
     {
         if (!IsRegisteredType<T>(componentId)
             || !IsAlive(entity)
-            || !TryGetComponent<T>(entity, componentId, out _))
+            || !TryGetCore<T>(entity, componentId, out _))
         {
             return false;
         }
 
         RemoveComponents(new[] { componentId }, entity);
-        return !TryGetComponent<T>(entity, componentId, out _);
+        return !TryGetCore<T>(entity, componentId, out _);
     }
 
     /// <summary>Reads one component when the entity owns a matching component row.</summary>
     public bool TryGet<T>(Entity entity, ComponentId componentId, out T value)
-        => TryGetComponent(entity, componentId, out value);
+        => TryGetCore(entity, componentId, out value);
 
     /// <summary>
     /// Reads one component, throwing when the entity is stale, missing the row,
@@ -65,7 +65,7 @@ public sealed partial class World
 
     /// <summary>Writes one component value and reports whether the row was updated.</summary>
     public bool Set<T>(Entity entity, ComponentId componentId, in T value)
-        => SetComponent(entity, componentId, in value);
+        => SetCore(entity, componentId, in value);
 
     private bool IsRegisteredType<T>(ComponentId componentId)
     {

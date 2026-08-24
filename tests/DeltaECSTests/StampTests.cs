@@ -38,7 +38,7 @@ public sealed class StampTests
         Assert.That(world.TryGetComponentStamp(first, velocityId, out Stamp firstVelocityBefore), Is.True);
         Assert.That(world.TryGetComponentStamp(second, positionId, out Stamp secondPositionBefore), Is.True);
 
-        Assert.That(world.SetComponent(first, positionId, new Position(10)), Is.True);
+        Assert.That(world.Set(first, positionId, new Position(10)), Is.True);
 
         Assert.That(world.TryGetComponentStamp(first, positionId, out Stamp firstPositionAfter), Is.True);
         Assert.That(world.TryGetComponentStamp(first, velocityId, out Stamp firstVelocityAfter), Is.True);
@@ -60,7 +60,7 @@ public sealed class StampTests
         ComponentId velocityId = layouts.Register(typeof(Velocity), new SchemaId(40_012));
         using var world = new World(layouts, chunkCapacity: 2);
         Entity entity = world.Create(positionId);
-        Assert.That(world.SetComponent(entity, positionId, new Position(7)), Is.True);
+        Assert.That(world.Set(entity, positionId, new Position(7)), Is.True);
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionBefore), Is.True);
 
         world.AddComponents(new[] { velocityId }, entity);
@@ -93,11 +93,11 @@ public sealed class StampTests
         ComponentId velocityId = layouts.Register(typeof(Velocity), new SchemaId(40_017));
         using var world = new World(layouts, chunkCapacity: 2);
         Span<Entity> entities = stackalloc Entity[3];
-        Assert.That(world.CreateBatch(stackalloc[] { positionId }, entities), Is.EqualTo(entities.Length));
+        Assert.That(world.Create(stackalloc[] { positionId }, entities), Is.EqualTo(entities.Length));
         var preserved = new Stamp[entities.Length];
         for (int index = 0; index < entities.Length; index++)
         {
-            Assert.That(world.SetComponent(entities[index], positionId, new Position(index)), Is.True);
+            Assert.That(world.Set(entities[index], positionId, new Position(index)), Is.True);
             Assert.That(world.TryGetComponentStamp(entities[index], positionId, out preserved[index]), Is.True);
         }
 
@@ -125,12 +125,12 @@ public sealed class StampTests
         using var world = new World(layouts, chunkCapacity: 2);
         Entity removed = world.Create(positionId);
         Entity survivor = world.Create(positionId);
-        Assert.That(world.SetComponent(survivor, positionId, new Position(99)), Is.True);
+        Assert.That(world.Set(survivor, positionId, new Position(99)), Is.True);
         Assert.That(world.TryGetComponentStamp(survivor, positionId, out Stamp before), Is.True);
 
         Assert.That(world.Destroy(removed), Is.True);
 
-        Assert.That(world.TryGetComponent(survivor, positionId, out Position value), Is.True);
+        Assert.That(world.TryGet(survivor, positionId, out Position value), Is.True);
         Assert.That(world.TryGetComponentStamp(survivor, positionId, out Stamp after), Is.True);
         Assert.Multiple(() =>
         {
@@ -172,7 +172,7 @@ public sealed class StampTests
         world.AddComponents(new[] { positionId }, entity);
         world.RemoveComponents(new[] { velocityId }, entity);
         Assert.That(world.Destroy(Entity.Null), Is.False);
-        Assert.That(world.SetComponent(entity, velocityId, new Velocity(1)), Is.False);
+        Assert.That(world.Set(entity, velocityId, new Velocity(1)), Is.False);
 
         Assert.That(world.Stamp, Is.EqualTo(before));
     }
@@ -201,8 +201,8 @@ public sealed class StampTests
                 while (chunks.MoveNext())
                 {
                     var slots = chunks.Current.Slots;
-                    WriteValues positions = slots.Get(position);
-                    ReadValues velocities = slots.Get(velocity);
+                    WriteRow positions = slots.GetRow(position);
+                    ReadRow velocities = slots.GetRow(velocity);
                     while (slots.MoveNext())
                     {
                         ref Position current = ref positions.Ref<Position>(slots);

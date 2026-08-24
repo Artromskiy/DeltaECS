@@ -12,7 +12,7 @@ dotnet run --project playground/DeltaECS.Playground/DeltaECS.Playground.csproj -
 The sample demonstrates both retained query surfaces:
 
 - `World.OpenQuery` with independent archetype, chunk and slot loops;
-- `World.Query` with a callback/action.
+- `World.Execute` with a callback/action.
 
 Add temporary components, queries and experiments to `Program.cs`. Keep
 performance measurements in the benchmark projects instead.

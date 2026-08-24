@@ -104,7 +104,7 @@ public sealed class DemandDrivenForEachGeneratorTests
     {
         string generated = GeneratedText(RunGenerator());
 
-        Assert.That(generated, Does.Contain("GetId(typeof(T1))"));
+        Assert.That(generated, Does.Contain("GetPrimary(typeof(T1))"));
         Assert.That(generated, Does.Not.Contain("ResolveComponentIds"));
         Assert.That(generated, Does.Not.Contain("AllMask.Count != destination.Length"));
     }
@@ -178,9 +178,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         public interface IForEachContextEntity<TContext> { void Invoke(ref TContext context, Entity entity); }
         public sealed class ComponentLayoutRegistry
         {
-            public ComponentId GetId(Type type) => default;
+            public ComponentId GetPrimary(Type type) => default;
         }
-        public ref struct ReadValues
+        public ref struct ReadRow
         {
             public ref T Ref<T>(QueryChunkCursor cursor) => throw new NotImplementedException();
             public ref T Ref<T>(int index) => throw new NotImplementedException();
@@ -190,15 +190,15 @@ public sealed class DemandDrivenForEachGeneratorTests
             public ReadOnlySpan<Entity> Entities => default;
             public int CurrentIndex => 0;
             public bool MoveNext() => false;
-            public ReadValues GetRead(ReadAccess access) => default;
-            public ReadValues GetWrite(WriteAccess access) => default;
+            public ReadRow GetRow(ReadAccess access) => default;
+            public ReadRow GetRow(WriteAccess access) => default;
         }
         public ref struct GeneratedSequenceCursor
         {
             public Entity Entity => default;
             public int Slot => 0;
-            public ReadValues Get(ReadAccess access) => default;
-            public ReadValues Get(WriteAccess access) => default;
+            public ReadRow GetRow(ReadAccess access) => default;
+            public ReadRow GetRow(WriteAccess access) => default;
         }
         public interface IGeneratedForEachInvoker { void Invoke(ref QueryChunkCursor cursor); }
         public interface IGeneratedSequenceInvoker { void Invoke(ref GeneratedSequenceCursor cursor); }

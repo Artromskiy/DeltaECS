@@ -77,13 +77,13 @@ public class HardwareProfileBenchmarks
 
         _world = new World(layouts, initialEntityCapacity: Amount);
         var entities = new Entity[Amount];
-        _world.CreateBatch(_components, entities);
+        _world.Create(_components, entities);
         for (var i = 0; i < Amount; i++)
         {
             var entity = entities[i];
             for (var componentIndex = 0; componentIndex < _components.Length; componentIndex++)
             {
-                _world.SetComponent(entity, _components[componentIndex], new ProfileValue { X = 1, Y = 2 });
+                _world.Set(entity, _components[componentIndex], new ProfileValue { X = 1, Y = 2 });
             }
         }
 
@@ -214,7 +214,7 @@ public class HardwareProfileBenchmarks
                 {
                     case 1:
                     {
-                        var c0 = slots.Get(w0);
+                        var c0 = slots.GetRow(w0);
                         while (slots.MoveNext())
                         {
                             ref var p0 = ref c0.Ref<ProfileValue>(slots);
@@ -226,8 +226,8 @@ public class HardwareProfileBenchmarks
                     }
                     case 2:
                     {
-                        var c0 = slots.Get(w0);
-                        var c1 = slots.Get(w1);
+                        var c0 = slots.GetRow(w0);
+                        var c1 = slots.GetRow(w1);
                         while (slots.MoveNext())
                         {
                             ref var p0 = ref c0.Ref<ProfileValue>(slots);
@@ -241,10 +241,10 @@ public class HardwareProfileBenchmarks
                     }
                     case 4:
                     {
-                        var c0 = slots.Get(w0);
-                        var c1 = slots.Get(w1);
-                        var c2 = slots.Get(w2);
-                        var c3 = slots.Get(w3);
+                        var c0 = slots.GetRow(w0);
+                        var c1 = slots.GetRow(w1);
+                        var c2 = slots.GetRow(w2);
+                        var c3 = slots.GetRow(w3);
                         while (slots.MoveNext())
                         {
                             ref var p0 = ref c0.Ref<ProfileValue>(slots);
@@ -263,14 +263,14 @@ public class HardwareProfileBenchmarks
                     }
                     case 8:
                     {
-                        var c0 = slots.Get(w0);
-                        var c1 = slots.Get(w1);
-                        var c2 = slots.Get(w2);
-                        var c3 = slots.Get(w3);
-                        var c4 = slots.Get(w4);
-                        var c5 = slots.Get(w5);
-                        var c6 = slots.Get(w6);
-                        var c7 = slots.Get(w7);
+                        var c0 = slots.GetRow(w0);
+                        var c1 = slots.GetRow(w1);
+                        var c2 = slots.GetRow(w2);
+                        var c3 = slots.GetRow(w3);
+                        var c4 = slots.GetRow(w4);
+                        var c5 = slots.GetRow(w5);
+                        var c6 = slots.GetRow(w6);
+                        var c7 = slots.GetRow(w7);
                         while (slots.MoveNext())
                         {
                             ref var p0 = ref c0.Ref<ProfileValue>(slots);
@@ -337,7 +337,7 @@ public class HardwareProfileBenchmarks
                 {
                     case 1:
                     {
-                        var c0 = slots.Get(w0);
+                        var c0 = slots.GetRow(w0);
                         while (slots.MoveNext())
                         {
                             ref var p0 = ref c0.Ref<ProfileValue>(slots);
@@ -349,8 +349,8 @@ public class HardwareProfileBenchmarks
                     }
                     case 2:
                     {
-                        var c0 = slots.Get(w0);
-                        var c1 = slots.Get(w1);
+                        var c0 = slots.GetRow(w0);
+                        var c1 = slots.GetRow(w1);
                         while (slots.MoveNext())
                         {
                             ref var p0 = ref c0.Ref<ProfileValue>(slots);
@@ -364,10 +364,10 @@ public class HardwareProfileBenchmarks
                     }
                     case 4:
                     {
-                        var c0 = slots.Get(w0);
-                        var c1 = slots.Get(w1);
-                        var c2 = slots.Get(w2);
-                        var c3 = slots.Get(w3);
+                        var c0 = slots.GetRow(w0);
+                        var c1 = slots.GetRow(w1);
+                        var c2 = slots.GetRow(w2);
+                        var c3 = slots.GetRow(w3);
                         while (slots.MoveNext())
                         {
                             ref var p0 = ref c0.Ref<ProfileValue>(slots);
@@ -386,14 +386,14 @@ public class HardwareProfileBenchmarks
                     }
                     case 8:
                     {
-                        var c0 = slots.Get(w0);
-                        var c1 = slots.Get(w1);
-                        var c2 = slots.Get(w2);
-                        var c3 = slots.Get(w3);
-                        var c4 = slots.Get(w4);
-                        var c5 = slots.Get(w5);
-                        var c6 = slots.Get(w6);
-                        var c7 = slots.Get(w7);
+                        var c0 = slots.GetRow(w0);
+                        var c1 = slots.GetRow(w1);
+                        var c2 = slots.GetRow(w2);
+                        var c3 = slots.GetRow(w3);
+                        var c4 = slots.GetRow(w4);
+                        var c5 = slots.GetRow(w5);
+                        var c6 = slots.GetRow(w6);
+                        var c7 = slots.GetRow(w7);
                         while (slots.MoveNext())
                         {
                             ref var p0 = ref c0.Ref<ProfileValue>(slots);
@@ -460,27 +460,27 @@ public class HardwareProfileBenchmarks
                 switch (state.ComponentCount)
                 {
                     case 1:
-                        _ = slots.Get(r0);
+                        _ = slots.GetRow(r0);
                         break;
                     case 2:
-                        _ = slots.Get(r0);
-                        _ = slots.Get(r1);
+                        _ = slots.GetRow(r0);
+                        _ = slots.GetRow(r1);
                         break;
                     case 4:
-                        _ = slots.Get(r0);
-                        _ = slots.Get(r1);
-                        _ = slots.Get(r2);
-                        _ = slots.Get(r3);
+                        _ = slots.GetRow(r0);
+                        _ = slots.GetRow(r1);
+                        _ = slots.GetRow(r2);
+                        _ = slots.GetRow(r3);
                         break;
                     case 8:
-                        _ = slots.Get(r0);
-                        _ = slots.Get(r1);
-                        _ = slots.Get(r2);
-                        _ = slots.Get(r3);
-                        _ = slots.Get(r4);
-                        _ = slots.Get(r5);
-                        _ = slots.Get(r6);
-                        _ = slots.Get(r7);
+                        _ = slots.GetRow(r0);
+                        _ = slots.GetRow(r1);
+                        _ = slots.GetRow(r2);
+                        _ = slots.GetRow(r3);
+                        _ = slots.GetRow(r4);
+                        _ = slots.GetRow(r5);
+                        _ = slots.GetRow(r6);
+                        _ = slots.GetRow(r7);
                         break;
                     default:
                         throw new ArgumentOutOfRangeException(nameof(state.ComponentCount));

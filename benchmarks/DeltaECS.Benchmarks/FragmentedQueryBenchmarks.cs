@@ -65,7 +65,7 @@ public class DeltaOnlyFragmentedQueryBenchmarks
             var entity = _world.Create(signature);
             for (var componentIndex = 0; componentIndex < signature.Length; componentIndex++)
             {
-                _world.SetComponent(entity, signature[componentIndex], new FragmentValue { Value = signatureIndex + 1 });
+                _world.Set(entity, signature[componentIndex], new FragmentValue { Value = signatureIndex + 1 });
             }
         }
 
@@ -88,7 +88,7 @@ public class DeltaOnlyFragmentedQueryBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var values = slots.Get(value);
+                var values = slots.GetRow(value);
                 while (slots.MoveNext())
                 {
                     matches++;
@@ -149,7 +149,7 @@ public class DeltaOnlyFragmentedQueryBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var values = slots.Get(value);
+                var values = slots.GetRow(value);
                 while (slots.MoveNext())
                 {
                     matches++;

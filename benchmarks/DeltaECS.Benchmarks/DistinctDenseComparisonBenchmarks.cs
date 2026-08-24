@@ -63,7 +63,7 @@ public class DistinctDenseComparisonBenchmarks
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
         _deltaEntities = new DeltaEntity[Amount];
-        _deltaWorld.CreateBatch(_deltaComponents, _deltaEntities);
+        _deltaWorld.Create(_deltaComponents, _deltaEntities);
         for (var i = 0; i < _deltaEntities.Length; i++)
         {
             SetDeltaValues(_deltaEntities[i]);
@@ -128,7 +128,7 @@ public class DistinctDenseComparisonBenchmarks
                 {
                     case 1:
                     {
-                        var c0 = slots.Get(d0);
+                        var c0 = slots.GetRow(d0);
                         while (slots.MoveNext())
                         {
                             ref var value = ref c0.Ref<D0>(slots);
@@ -139,8 +139,8 @@ public class DistinctDenseComparisonBenchmarks
                     }
                     case 2:
                     {
-                        var c0 = slots.Get(d0);
-                        var c1 = slots.Get(d1);
+                        var c0 = slots.GetRow(d0);
+                        var c1 = slots.GetRow(d1);
                         while (slots.MoveNext())
                         {
                             ref var value0 = ref c0.Ref<D0>(slots);
@@ -153,10 +153,10 @@ public class DistinctDenseComparisonBenchmarks
                     }
                     case 4:
                     {
-                        var c0 = slots.Get(d0);
-                        var c1 = slots.Get(d1);
-                        var c2 = slots.Get(d2);
-                        var c3 = slots.Get(d3);
+                        var c0 = slots.GetRow(d0);
+                        var c1 = slots.GetRow(d1);
+                        var c2 = slots.GetRow(d2);
+                        var c3 = slots.GetRow(d3);
                         while (slots.MoveNext())
                         {
                             ref var value0 = ref c0.Ref<D0>(slots);
@@ -173,14 +173,14 @@ public class DistinctDenseComparisonBenchmarks
                     }
                     case 8:
                     {
-                        var c0 = slots.Get(d0);
-                        var c1 = slots.Get(d1);
-                        var c2 = slots.Get(d2);
-                        var c3 = slots.Get(d3);
-                        var c4 = slots.Get(d4);
-                        var c5 = slots.Get(d5);
-                        var c6 = slots.Get(d6);
-                        var c7 = slots.Get(d7);
+                        var c0 = slots.GetRow(d0);
+                        var c1 = slots.GetRow(d1);
+                        var c2 = slots.GetRow(d2);
+                        var c3 = slots.GetRow(d3);
+                        var c4 = slots.GetRow(d4);
+                        var c5 = slots.GetRow(d5);
+                        var c6 = slots.GetRow(d6);
+                        var c7 = slots.GetRow(d7);
                         while (slots.MoveNext())
                         {
                             ref var value0 = ref c0.Ref<D0>(slots);
@@ -237,19 +237,19 @@ public class DistinctDenseComparisonBenchmarks
 
     private void SetDeltaValues(DeltaEntity entity)
     {
-        if (ComponentCount >= 1) _deltaWorld.SetComponent(entity, _deltaComponents[0], new D0 { X = 1, Y = 2 });
-        if (ComponentCount >= 2) _deltaWorld.SetComponent(entity, _deltaComponents[1], new D1 { X = 1, Y = 2 });
+        if (ComponentCount >= 1) _deltaWorld.Set(entity, _deltaComponents[0], new D0 { X = 1, Y = 2 });
+        if (ComponentCount >= 2) _deltaWorld.Set(entity, _deltaComponents[1], new D1 { X = 1, Y = 2 });
         if (ComponentCount >= 4)
         {
-            _deltaWorld.SetComponent(entity, _deltaComponents[2], new D2 { X = 1, Y = 2 });
-            _deltaWorld.SetComponent(entity, _deltaComponents[3], new D3 { X = 1, Y = 2 });
+            _deltaWorld.Set(entity, _deltaComponents[2], new D2 { X = 1, Y = 2 });
+            _deltaWorld.Set(entity, _deltaComponents[3], new D3 { X = 1, Y = 2 });
         }
         if (ComponentCount >= 8)
         {
-            _deltaWorld.SetComponent(entity, _deltaComponents[4], new D4 { X = 1, Y = 2 });
-            _deltaWorld.SetComponent(entity, _deltaComponents[5], new D5 { X = 1, Y = 2 });
-            _deltaWorld.SetComponent(entity, _deltaComponents[6], new D6 { X = 1, Y = 2 });
-            _deltaWorld.SetComponent(entity, _deltaComponents[7], new D7 { X = 1, Y = 2 });
+            _deltaWorld.Set(entity, _deltaComponents[4], new D4 { X = 1, Y = 2 });
+            _deltaWorld.Set(entity, _deltaComponents[5], new D5 { X = 1, Y = 2 });
+            _deltaWorld.Set(entity, _deltaComponents[6], new D6 { X = 1, Y = 2 });
+            _deltaWorld.Set(entity, _deltaComponents[7], new D7 { X = 1, Y = 2 });
         }
     }
 

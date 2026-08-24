@@ -36,8 +36,8 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `QueryScope` | Dense-only validation and structural lease owner | `src/DeltaECS/Core/QueryScope.cs` |
 | `QueryArchetypes`, `QueryChunks`, `QuerySlots` | Independent dense traversal levels | `src/DeltaECS/Core/QueryArchetypes.cs`, `QueryChunks.cs`, `QuerySlots.cs` |
 | `QueryChunkCursor` | Current chunk, forward slot traversal and value access | `src/DeltaECS/Core/QueryAccess.cs` |
-| `ReadValues`, `WriteValues` | Non-generic prepared values; final `Ref<T>` must match the registered component type. Controlled pre-loop mismatch validation is selected correctness work. | `src/DeltaECS/Core/Values.cs`, `src/DeltaECS/Generic/Values.cs` |
-| `World.Query` | Callback-based query execution over `QueryChunkCursor` | `src/DeltaECS/Core/World.cs` |
+| `ReadRow`, `WriteRow` | Non-generic prepared component rows; final `Ref<T>` must match the registered component type. Controlled pre-loop mismatch validation is selected correctness work. | `src/DeltaECS/Core/Rows.cs`, `src/DeltaECS/Generic/Rows.cs` |
+| `World.Execute` | Callback-based query execution over `QueryChunkCursor` | `src/DeltaECS/Core/World.cs` |
 | `World.Create<T>/Add<T>/Remove<T>/TryGet<T>/Get<T>/Set<T>` | Thin typed single-item boundary over existing structural/component operations | `src/DeltaECS/Generic/World.Generic.cs` |
 | `World.ForEach` / `ForEachEntity` | Handwritten zero-component overloads plus consumer-side generated delegate/functor extensions for arities 1..256 and arbitrary requested read/write patterns | `src/DeltaECS/Delegate/ForEachZeroArity.cs`, `src/DeltaECS/Functor/ForEachFunctorZeroArity.cs`, `src/DeltaECS.Generators/DemandDrivenForEachGenerator.cs`, `src/DeltaECS/Delegate/ForEachDelegates.cs`, `src/DeltaECS/Functor/ForEachFunctorContracts.cs`, `src/DeltaECS/Functor/GeneratedForEachFunctorRuntime.cs` |
 | `World.Entities(ReadOnlySpan<Entity>)` | Ordered non-owning sequence facade | `src/DeltaECS/Sequence/EntitySequence.cs` |
@@ -54,7 +54,7 @@ World.OpenQuery(in Query)
   -> QueryChunks.MoveNext()
   -> QuerySlots.Get(access)
   -> QuerySlots.MoveNext()
-  -> ReadValues/WriteValues.Ref<T>(iterator)
+  -> ReadRow/WriteRow.Ref<T>(iterator)
   -> Chunk.GetComponentRow<T>(physicalRow)
 ```
 
@@ -101,7 +101,7 @@ while (archetypes.MoveNext())
     while (chunks.MoveNext())
     {
         var slots = chunks.Current.Slots;
-        var row = slots.Get(prepared);
+        var row = slots.GetRow(prepared);
         while (slots.MoveNext())
         {
             _ = row.Ref<Component>(slots);
@@ -129,12 +129,12 @@ the query path proves to depend on their storage contract.
 ## Lifetime and validation map
 
 - Query ownership/mask validation: `Query` in `EntityTypes.cs` and
-  `QueryChunkCursor.GetRead/GetWrite` in `QueryAccess.cs`.
+  `QueryChunkCursor.GetRow` in `QueryAccess.cs`.
 - Query plan refresh: `QueryPlan.MatchingPlans` in `QueryAccess.cs`.
 - Active lease barrier: `World._activeChunkLeases`, lease helpers in
-  `World.cs`, and `QueryScope.Dispose`/`World.Query`.
+  `World.cs`, and `QueryScope.Dispose`/`World.Execute`.
 - Write tracking: `QueryPlan.RegisterWriteAccess`, `World.QueryWriteTick`,
-  `QueryChunkCursor.GetWrite(WriteAccess)`, and
+  `QueryChunkCursor.GetRow(WriteAccess)`, and
   `Chunk.MarkComponentWritten`.
 - Stale entity generation/location: `EntityRecord` and resolve helpers in
   `World.cs`.
@@ -168,10 +168,10 @@ for a production correctness test.
 
 - `Chunk.GetComponentRow<T>(int)` is an internal storage primitive, not a
   public user API. Do not remove it while migrating public cursor access.
-- `World.Query` is the callback surface for dense component queries;
+- `World.Execute` is the callback surface for component queries;
   `World.OpenQuery` exposes the explicit three-loop form.
 - Generated consumer-side `World.ForEach` extensions are the convenience
-  callback/functor surface; `World.Query<TContext>` remains the lower-level
+  callback/functor surface; `World.Execute<TContext>` remains the lower-level
   cursor callback. The old fixed 1–4 producer-owned matrix is not the target
   architecture.
 - Do not reintroduce removed ordinal/public unsafe row APIs without an explicit
@@ -444,9 +444,9 @@ The implemented structural API is non-generic: entity lifecycle and component
 set operations use `Entity`, `ComponentId` and spans. The dense query chain is
 also non-generic from `QuerySpec` through `Query`, access tokens, scope,
 archetype/chunk/slot iterators and row containers. A CLR component type appears
-only at registration, the single-item `World.SetComponent<T>`/
-`World.TryGetComponent<T>` boundary, or the terminal `ReadValues.Ref<T>` /
-`WriteValues.Ref<T>` call. The existing `World.Query<TContext>` callback is a
+only at registration, the single-item `World.Set<T>`/
+`World.TryGet<T>` boundary, or the terminal `ReadRow.Ref<T>` /
+`WriteRow.Ref<T>` call. The existing `World.Execute<TContext>` callback is a
 compatibility boundary for caller state; `TContext` does not leak into query,
 access, storage or cursor types.
 

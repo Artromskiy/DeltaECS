@@ -20,8 +20,8 @@ public sealed class PublicApiShapeTests
         typeof(ReadAccess),
         typeof(WriteAccess),
         typeof(QueryChunkCursor),
-        typeof(ReadValues),
-        typeof(WriteValues),
+        typeof(ReadRow),
+        typeof(WriteRow),
         typeof(ObjectReadValues),
         typeof(ObjectWriteValues)
     ];
@@ -32,9 +32,9 @@ public sealed class PublicApiShapeTests
         Assert.Multiple(() =>
         {
             Assert.That(PublicInstanceMethod(typeof(World), nameof(World.Create), typeof(ReadOnlySpan<ComponentId>)).IsGenericMethod, Is.False);
-            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.CreateBatch), typeof(ReadOnlySpan<ComponentId>), typeof(Span<Entity>)).IsGenericMethod, Is.False);
+            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.Create), typeof(ReadOnlySpan<ComponentId>), typeof(Span<Entity>)).IsGenericMethod, Is.False);
             Assert.That(PublicInstanceMethod(typeof(World), nameof(World.Destroy), typeof(Entity)).IsGenericMethod, Is.False);
-            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.DestroyBatch), typeof(ReadOnlySpan<Entity>)).IsGenericMethod, Is.False);
+            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.Destroy), typeof(ReadOnlySpan<Entity>)).IsGenericMethod, Is.False);
             Assert.That(PublicInstanceMethod(typeof(World), nameof(World.AddComponents), typeof(ComponentId[]), typeof(ReadOnlySpan<Entity>)).IsGenericMethod, Is.False);
             Assert.That(PublicInstanceMethod(typeof(World), nameof(World.RemoveComponents), typeof(ComponentId[]), typeof(ReadOnlySpan<Entity>)).IsGenericMethod, Is.False);
         });
@@ -51,10 +51,10 @@ public sealed class PublicApiShapeTests
             .Where(static method => method.IsGenericMethod)
             .ToArray();
         var nonTerminalGenericMethods = genericMethods
-            .Where(static method => method.Name != nameof(ReadValues.Ref))
+            .Where(static method => method.Name != nameof(ReadRow.Ref))
             .ToArray();
         var invalidTerminalMethods = genericMethods
-            .Where(static method => method.Name == nameof(ReadValues.Ref))
+            .Where(static method => method.Name == nameof(ReadRow.Ref))
             .Where(static method => method.GetGenericArguments().Length != 1)
             .ToArray();
 
@@ -64,7 +64,7 @@ public sealed class PublicApiShapeTests
             Assert.That(
                 nonTerminalGenericMethods,
                 Is.Empty,
-                "Only terminal ReadValues.Ref<T>/WriteValues.Ref<T> may be generic: "
+                "Only terminal ReadRow.Ref<T>/WriteRow.Ref<T> may be generic: "
                     + string.Join(", ", nonTerminalGenericMethods.Select(static method => method.ToString())));
             Assert.That(invalidTerminalMethods, Is.Empty);
             Assert.That(genericMethods, Is.Not.Empty, "The typed row boundary must remain present.");
@@ -81,8 +81,8 @@ public sealed class PublicApiShapeTests
         var archetypeMoveNext = PublicInstanceMethod(typeof(QueryArchetypes), nameof(QueryArchetypes.MoveNext));
         var chunkMoveNext = PublicInstanceMethod(typeof(QueryChunks), nameof(QueryChunks.MoveNext));
         var slotMoveNext = PublicInstanceMethod(typeof(QuerySlots), nameof(QuerySlots.MoveNext));
-        var getRead = PublicInstanceMethod(typeof(QuerySlots), nameof(QuerySlots.Get), typeof(ReadAccess));
-        var getWrite = PublicInstanceMethod(typeof(QuerySlots), nameof(QuerySlots.Get), typeof(WriteAccess));
+        var getRead = PublicInstanceMethod(typeof(QuerySlots), nameof(QuerySlots.GetRow), typeof(ReadAccess));
+        var getWrite = PublicInstanceMethod(typeof(QuerySlots), nameof(QuerySlots.GetRow), typeof(WriteAccess));
 
         Assert.Multiple(() =>
         {
@@ -98,8 +98,8 @@ public sealed class PublicApiShapeTests
             Assert.That(typeof(QueryChunks).GetProperty(nameof(QueryChunks.Current))?.PropertyType, Is.EqualTo(typeof(QueryChunk)));
             Assert.That(slotMoveNext.ReturnType, Is.EqualTo(typeof(bool)));
             Assert.That(typeof(QueryChunk).GetProperty(nameof(QueryChunk.Slots))?.PropertyType, Is.EqualTo(typeof(QuerySlots)));
-            Assert.That(getRead.ReturnType, Is.EqualTo(typeof(ReadValues)));
-            Assert.That(getWrite.ReturnType, Is.EqualTo(typeof(WriteValues)));
+            Assert.That(getRead.ReturnType, Is.EqualTo(typeof(ReadRow)));
+            Assert.That(getWrite.ReturnType, Is.EqualTo(typeof(WriteRow)));
         });
     }
 

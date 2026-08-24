@@ -14,19 +14,19 @@ public sealed class ComponentRowOperationTests
         var managedStructId = layouts.Register(typeof(ManagedPayload), SchemaId.FromUInt64(10_002));
         var classId = layouts.Register(typeof(ReferencePayload), SchemaId.FromUInt64(10_003));
         var world = new World(layouts, chunkCapacity: 4);
-        var archetype = world.GetArchetype(valueId, managedStructId, classId);
+        var archetype = world.GetOrCreateArchetype(valueId, managedStructId, classId);
 
         var removed = world.Create(archetype);
         var survivor = world.Create(archetype);
         var reference = new ReferencePayload("survivor");
-        world.SetComponent(survivor, valueId, 42);
-        world.SetComponent(survivor, managedStructId, new ManagedPayload("managed"));
-        world.SetComponent(survivor, classId, reference);
+        world.Set(survivor, valueId, 42);
+        world.Set(survivor, managedStructId, new ManagedPayload("managed"));
+        world.Set(survivor, classId, reference);
 
         Assert.That(world.Destroy(removed), Is.True);
-        Assert.That(world.TryGetComponent(survivor, valueId, out int value), Is.True);
-        Assert.That(world.TryGetComponent(survivor, managedStructId, out ManagedPayload managed), Is.True);
-        Assert.That(world.TryGetComponent(survivor, classId, out ReferencePayload? actualReference), Is.True);
+        Assert.That(world.TryGet(survivor, valueId, out int value), Is.True);
+        Assert.That(world.TryGet(survivor, managedStructId, out ManagedPayload managed), Is.True);
+        Assert.That(world.TryGet(survivor, classId, out ReferencePayload? actualReference), Is.True);
         Assert.Multiple(() =>
         {
             Assert.That(value, Is.EqualTo(42));
@@ -43,18 +43,18 @@ public sealed class ComponentRowOperationTests
         var managedStructId = layouts.Register(typeof(ManagedPayload), SchemaId.FromUInt64(10_012));
         var classId = layouts.Register(typeof(ReferencePayload), SchemaId.FromUInt64(10_013));
         var world = new World(layouts, chunkCapacity: 1);
-        var archetype = world.GetArchetype(valueId, managedStructId, classId);
+        var archetype = world.GetOrCreateArchetype(valueId, managedStructId, classId);
 
         var old = world.Create(archetype);
-        world.SetComponent(old, valueId, 99);
-        world.SetComponent(old, managedStructId, new ManagedPayload("old"));
-        world.SetComponent(old, classId, new ReferencePayload("old"));
+        world.Set(old, valueId, 99);
+        world.Set(old, managedStructId, new ManagedPayload("old"));
+        world.Set(old, classId, new ReferencePayload("old"));
         world.Destroy(old);
 
         var current = world.Create(archetype);
-        world.TryGetComponent(current, valueId, out int value);
-        world.TryGetComponent(current, managedStructId, out ManagedPayload managed);
-        world.TryGetComponent(current, classId, out ReferencePayload? reference);
+        world.TryGet(current, valueId, out int value);
+        world.TryGet(current, managedStructId, out ManagedPayload managed);
+        world.TryGet(current, classId, out ReferencePayload? reference);
         Assert.Multiple(() =>
         {
             Assert.That(value, Is.Zero);
@@ -72,18 +72,18 @@ public sealed class ComponentRowOperationTests
         var addedReferenceId = layouts.Register(typeof(ReferencePayload), SchemaId.FromUInt64(10_023));
         var world = new World(layouts, chunkCapacity: 1);
 
-        var oldTarget = world.Create(world.GetArchetype(sharedId, addedValueId, addedReferenceId));
-        world.SetComponent(oldTarget, addedValueId, 123);
-        world.SetComponent(oldTarget, addedReferenceId, new ReferencePayload("old"));
+        var oldTarget = world.Create(world.GetOrCreateArchetype(sharedId, addedValueId, addedReferenceId));
+        world.Set(oldTarget, addedValueId, 123);
+        world.Set(oldTarget, addedReferenceId, new ReferencePayload("old"));
         world.Destroy(oldTarget);
 
-        var source = world.Create(world.GetArchetype(sharedId));
-        world.SetComponent(source, sharedId, 77);
+        var source = world.Create(world.GetOrCreateArchetype(sharedId));
+        world.Set(source, sharedId, 77);
         world.AddComponents(new[] { addedValueId, addedReferenceId }, source);
 
-        world.TryGetComponent(source, sharedId, out int shared);
-        world.TryGetComponent(source, addedValueId, out int addedValue);
-        world.TryGetComponent(source, addedReferenceId, out ReferencePayload? addedReference);
+        world.TryGet(source, sharedId, out int shared);
+        world.TryGet(source, addedValueId, out int addedValue);
+        world.TryGet(source, addedReferenceId, out ReferencePayload? addedReference);
         Assert.Multiple(() =>
         {
             Assert.That(shared, Is.EqualTo(77));
@@ -99,13 +99,13 @@ public sealed class ComponentRowOperationTests
         var valueId = layouts.Register(typeof(int), SchemaId.FromUInt64(10_031));
         var referenceId = layouts.Register(typeof(ReferencePayload), SchemaId.FromUInt64(10_032));
         var world = new World(layouts, chunkCapacity: 4);
-        var archetypeHandle = world.GetArchetype(valueId, referenceId);
+        var archetypeHandle = world.GetOrCreateArchetype(valueId, referenceId);
         var removed = world.Create(archetypeHandle);
         var survivor = world.Create(archetypeHandle);
         var survivorReference = new ReferencePayload("survivor");
-        world.SetComponent(removed, valueId, 11);
-        world.SetComponent(survivor, valueId, 22);
-        world.SetComponent(survivor, referenceId, survivorReference);
+        world.Set(removed, valueId, 11);
+        world.Set(survivor, valueId, 22);
+        world.Set(survivor, referenceId, survivorReference);
 
         Assert.That(world.Destroy(removed), Is.True);
         var archetype = world.Archetypes[archetypeHandle.ArchetypeId];
@@ -128,14 +128,14 @@ public sealed class ComponentRowOperationTests
         var world = new World(layouts, chunkCapacity: 2);
         var first = world.Create(new[] { id });
         var second = world.Create(new[] { id });
-        world.SetComponent(second, id, 42);
+        world.Set(second, id, 42);
 
         Assert.That(world.Destroy(first), Is.True);
-        Assert.That(world.TryGetComponent(second, id, out int value), Is.True);
+        Assert.That(world.TryGet(second, id, out int value), Is.True);
         Assert.That(value, Is.EqualTo(42));
         Assert.That(world.Destroy(second), Is.True);
         Assert.That(world.IsAlive(second), Is.False);
-        Assert.That(world.TryGetComponent(second, id, out int _), Is.False);
+        Assert.That(world.TryGet(second, id, out int _), Is.False);
     }
 
     [Test]
@@ -147,7 +147,7 @@ public sealed class ComponentRowOperationTests
         var invalid = new Entity(999_999, 0);
 
         Assert.That(world.IsAlive(invalid), Is.False);
-        Assert.That(world.TryGetComponent(invalid, id, out int _), Is.False);
+        Assert.That(world.TryGet(invalid, id, out int _), Is.False);
     }
 
     private readonly struct ManagedPayload

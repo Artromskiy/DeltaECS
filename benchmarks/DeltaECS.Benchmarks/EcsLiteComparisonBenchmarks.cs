@@ -110,8 +110,8 @@ public class EcsLiteComparisonBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var positions = slots.Get(positionAccess);
-                var velocities = slots.Get(velocityAccess);
+                var positions = slots.GetRow(positionAccess);
+                var velocities = slots.GetRow(velocityAccess);
                 while (slots.MoveNext())
                 {
                     ref var position = ref positions.Ref<DeltaPosition>(slots);
@@ -164,8 +164,8 @@ public class EcsLiteComparisonBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var positions = slots.Get(positionAccess);
-                var velocities = slots.Get(velocityAccess);
+                var positions = slots.GetRow(positionAccess);
+                var velocities = slots.GetRow(velocityAccess);
                 while (slots.MoveNext())
                 {
                     count++;
@@ -201,13 +201,13 @@ public class EcsLiteComparisonBenchmarks
     [BenchmarkCategory("CreateDestroy")]
     public int DeltaECS_BatchCreateAndDestroy()
     {
-        var created = _deltaCreateDestroyWorld.CreateBatch(_deltaCreateDestroyComponents, _deltaCreateDestroyEntities);
+        var created = _deltaCreateDestroyWorld.Create(_deltaCreateDestroyComponents, _deltaCreateDestroyEntities);
         if (created != Amount)
         {
             throw new InvalidOperationException($"Expected to create {Amount}, got {created}.");
         }
 
-        var destroyed = _deltaCreateDestroyWorld.DestroyBatch(_deltaCreateDestroyEntities);
+        var destroyed = _deltaCreateDestroyWorld.Destroy(_deltaCreateDestroyEntities);
         if (destroyed != Amount)
         {
             throw new InvalidOperationException($"Expected to destroy {Amount}, got {destroyed}.");
@@ -328,17 +328,17 @@ public class EcsLiteComparisonBenchmarks
         var components = MergeComponents(_deltaPosition, _deltaVelocity, _deltaMovementPayload, PayloadRows);
 
         _deltaMovementWorld = new World(layouts, initialEntityCapacity: Amount);
-        _deltaMovementWorld.CreateBatch(components, _deltaMovementEntities);
+        _deltaMovementWorld.Create(components, _deltaMovementEntities);
 
         for (var entityIndex = 0; entityIndex < _deltaMovementEntities.Length; entityIndex++)
         {
             var entity = _deltaMovementEntities[entityIndex];
-            _deltaMovementWorld.SetComponent(entity, _deltaPosition, new DeltaPosition { X = 1f, Y = 2f });
-            _deltaMovementWorld.SetComponent(entity, _deltaVelocity, new DeltaVelocity { X = 3f, Y = 4f });
+            _deltaMovementWorld.Set(entity, _deltaPosition, new DeltaPosition { X = 1f, Y = 2f });
+            _deltaMovementWorld.Set(entity, _deltaVelocity, new DeltaVelocity { X = 3f, Y = 4f });
 
             for (var payloadIndex = 0; payloadIndex < PayloadRows; payloadIndex++)
             {
-                _deltaMovementWorld.SetComponent(entity, components[2 + payloadIndex], new DeltaPayload { Value = entityIndex });
+                _deltaMovementWorld.Set(entity, components[2 + payloadIndex], new DeltaPayload { Value = entityIndex });
             }
         }
 
@@ -361,17 +361,17 @@ public class EcsLiteComparisonBenchmarks
         _deltaFilterQuery = _deltaFilterWorld.CreateQuery(in queryDescription);
         _deltaFilterPositionBinding = _deltaFilterQuery.AccessRead(position);
         _deltaFilterVelocityBinding = _deltaFilterQuery.AccessRead(velocity);
-        _deltaFilterWorld.CreateBatch(components, _deltaFilterEntities);
+        _deltaFilterWorld.Create(components, _deltaFilterEntities);
 
         for (var entityIndex = 0; entityIndex < _deltaFilterEntities.Length; entityIndex++)
         {
             var entity = _deltaFilterEntities[entityIndex];
-            _deltaFilterWorld.SetComponent(entity, position, new DeltaFilterPosition { X = 1f, Y = 2f });
-            _deltaFilterWorld.SetComponent(entity, velocity, new DeltaFilterVelocity { X = 3f, Y = 4f });
+            _deltaFilterWorld.Set(entity, position, new DeltaFilterPosition { X = 1f, Y = 2f });
+            _deltaFilterWorld.Set(entity, velocity, new DeltaFilterVelocity { X = 3f, Y = 4f });
 
             for (var payloadIndex = 0; payloadIndex < PayloadRows; payloadIndex++)
             {
-                _deltaFilterWorld.SetComponent(entity, components[2 + payloadIndex], new DeltaPayload { Value = entityIndex });
+                _deltaFilterWorld.Set(entity, components[2 + payloadIndex], new DeltaPayload { Value = entityIndex });
             }
         }
     }
@@ -396,12 +396,12 @@ public class EcsLiteComparisonBenchmarks
         _deltaTransitionWorld = new World(layouts, initialEntityCapacity: Amount);
 
         var baseComponents = new[] { position, velocity };
-        _deltaTransitionWorld.CreateBatch(baseComponents, _deltaTransitionEntities);
+        _deltaTransitionWorld.Create(baseComponents, _deltaTransitionEntities);
         for (var i = 0; i < _deltaTransitionEntities.Length; i++)
         {
             var entity = _deltaTransitionEntities[i];
-            _deltaTransitionWorld.SetComponent(entity, position, new DeltaTransitionPosition { X = 1f, Y = 2f });
-            _deltaTransitionWorld.SetComponent(entity, velocity, new DeltaTransitionVelocity { X = 3f, Y = 4f });
+            _deltaTransitionWorld.Set(entity, position, new DeltaTransitionPosition { X = 1f, Y = 2f });
+            _deltaTransitionWorld.Set(entity, velocity, new DeltaTransitionVelocity { X = 3f, Y = 4f });
         }
     }
 

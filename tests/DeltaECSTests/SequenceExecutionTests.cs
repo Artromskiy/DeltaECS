@@ -14,7 +14,7 @@ public sealed class SequenceExecutionTests
         var valueId = layouts.Register(typeof(int), new SchemaId(60_001));
         using var world = new World(layouts);
         var created = new Entity[4];
-        world.CreateBatch(new[] { valueId }, created);
+        world.Create(new[] { valueId }, created);
         Entity stale = created[1];
         Assert.That(world.Destroy(stale), Is.True);
 
@@ -66,9 +66,9 @@ public sealed class SequenceExecutionTests
         var candidates = new[] { unmarked, marked, marked, stale };
         Assert.That(world.Entities(candidates).Where(in query).Add(new[] { velocityId }), Is.EqualTo(1));
         Stamp afterAdd = world.Stamp;
-        Assert.That(world.TryGetComponent<short>(marked, velocityId, out _), Is.True);
-        Assert.That(world.TryGetComponent<short>(unmarked, velocityId, out _), Is.False);
-        Assert.That(world.TryGetComponent<short>(outsideCandidateSequence, velocityId, out _), Is.False);
+        Assert.That(world.TryGet<short>(marked, velocityId, out _), Is.True);
+        Assert.That(world.TryGet<short>(unmarked, velocityId, out _), Is.False);
+        Assert.That(world.TryGet<short>(outsideCandidateSequence, velocityId, out _), Is.False);
         Assert.That(world.TryGetComponentStamp(marked, positionId, out Stamp markedPositionAfterAdd), Is.True);
         Assert.That(world.TryGetComponentStamp(marked, velocityId, out Stamp markedVelocityAfterAdd), Is.True);
         Assert.That(markedPositionAfterAdd, Is.EqualTo(markedPositionBefore));
@@ -76,7 +76,7 @@ public sealed class SequenceExecutionTests
 
         Assert.That(world.Entities(candidates).Where(in query).Remove(new[] { velocityId }), Is.EqualTo(1));
         Stamp afterRemove = world.Stamp;
-        Assert.That(world.TryGetComponent<short>(marked, velocityId, out _), Is.False);
+        Assert.That(world.TryGet<short>(marked, velocityId, out _), Is.False);
         Assert.That(world.TryGetComponentStamp(marked, positionId, out Stamp markedPositionAfterRemove), Is.True);
         Assert.That(markedPositionAfterRemove, Is.EqualTo(markedPositionBefore));
         Assert.That(afterRemove, Is.Not.EqualTo(afterAdd));

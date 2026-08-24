@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-/// <summary>Short-lived chunk access used only by <see cref="World.Query{TContext}"/>.</summary>
+/// <summary>Short-lived chunk access used only by <see cref="World.Execute{TContext}"/>.</summary>
 public ref struct QueryChunkCursor
 {
     private readonly QueryPlan _query;
@@ -54,7 +54,7 @@ public ref struct QueryChunkCursor
         return true;
     }
 
-    public ReadValues Get(ReadAccess access)
+    public ReadRow GetRow(ReadAccess access)
     {
         _writeSession.EnsureActive(_sessionGeneration);
         if (!ReferenceEquals(access.Query, _query))
@@ -63,10 +63,10 @@ public ref struct QueryChunkCursor
         }
 
         int physicalRow = _componentRows[access.QueryComponentIndex];
-        return new ReadValues(_chunk.GetRawComponentRow(physicalRow));
+        return new ReadRow(_chunk.GetRawComponentRow(physicalRow));
     }
 
-    public WriteValues Get(WriteAccess access)
+    public WriteRow GetRow(WriteAccess access)
     {
         if (!ReferenceEquals(access.Query, _query))
         {
@@ -76,7 +76,7 @@ public ref struct QueryChunkCursor
         int physicalRow = _componentRows[access.QueryComponentIndex];
         AcquireWrite(out uint writeTick, out Stamp writeStamp);
         _chunk.MarkComponentWritten(physicalRow, writeTick, writeStamp);
-        return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
+        return new WriteRow(_chunk.GetRawComponentRow(physicalRow));
     }
 
     public ObjectReadValues GetObject(ReadAccess access)
@@ -104,94 +104,9 @@ public ref struct QueryChunkCursor
         return new ObjectWriteValues(_chunk.GetRawComponentRow(physicalRow));
     }
 
-    public ReadValues GetRead(ReadAccess access)
-    {
-        _writeSession.EnsureActive(_sessionGeneration);
-        if (!ReferenceEquals(access.Query, _query))
-        {
-            QueryThrowHelper.ThrowAccessMismatch();
-        }
-
-        int physicalRow = _componentRows[access.QueryComponentIndex];
-        return new ReadValues(_chunk.GetRawComponentRow(physicalRow));
-    }
-
-    public ReadValues GetRead(AccessRequest access)
-    {
-        _writeSession.EnsureActive(_sessionGeneration);
-        if (access.IsWrite || !ReferenceEquals(access.Query, _query))
-        {
-            QueryThrowHelper.ThrowAccessMismatch();
-        }
-
-        int physicalRow = _componentRows[access.QueryComponentIndex];
-        return new ReadValues(_chunk.GetRawComponentRow(physicalRow));
-    }
-
-    public WriteValues GetWrite(WriteAccess access)
-    {
-        if (!ReferenceEquals(access.Query, _query))
-        {
-            QueryThrowHelper.ThrowAccessMismatch();
-        }
-
-        int physicalRow = _componentRows[access.QueryComponentIndex];
-        AcquireWrite(out uint writeTick, out Stamp writeStamp);
-        _chunk.MarkComponentWritten(physicalRow, writeTick, writeStamp);
-        return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
-    }
-
-    public WriteValues GetWrite(AccessRequest access)
-    {
-        if (!access.IsWrite || !ReferenceEquals(access.Query, _query))
-        {
-            QueryThrowHelper.ThrowAccessMismatch();
-        }
-
-        int physicalRow = _componentRows[access.QueryComponentIndex];
-        AcquireWrite(out uint writeTick, out Stamp writeStamp);
-        _chunk.MarkComponentWritten(physicalRow, writeTick, writeStamp);
-        return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
-    }
-
     private void AcquireWrite(out uint writeTick, out Stamp writeStamp)
     {
         _writeSession.Acquire(_sessionGeneration, out writeTick, out writeStamp);
-    }
-}
-
-/// <summary>Compatibility carrier for callback state that does not need static read/write typing.</summary>
-public readonly struct AccessRequest
-{
-    internal AccessRequest(QueryPlan query, int queryComponentIndex, bool write)
-    {
-        Query = query;
-        QueryComponentIndex = queryComponentIndex;
-        IsWrite = write;
-    }
-
-    internal QueryPlan? Query { get; }
-    internal int QueryComponentIndex { get; }
-    internal bool IsWrite { get; }
-
-    public static implicit operator AccessRequest(ReadAccess access)
-    {
-        if (access.Query is not { } query)
-        {
-            throw new InvalidOperationException("Cannot convert a default read access token.");
-        }
-
-        return new AccessRequest(query, access.QueryComponentIndex, write: false);
-    }
-
-    public static implicit operator AccessRequest(WriteAccess access)
-    {
-        if (access.Query is not { } query)
-        {
-            throw new InvalidOperationException("Cannot convert a default write access token.");
-        }
-
-        return new AccessRequest(query, access.QueryComponentIndex, write: true);
     }
 }
 

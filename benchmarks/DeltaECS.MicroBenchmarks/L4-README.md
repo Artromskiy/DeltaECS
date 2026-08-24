@@ -8,13 +8,13 @@ from the comparative/version benchmark migration.
 The dense path is:
 
 ```text
-ReadAccess/WriteAccess -> ReadValues/WriteValues -> Ref<T>
+ReadAccess/WriteAccess -> ReadRow/WriteRow -> Ref<T>
 ```
 
 `T` is present only at component registration and the terminal
 `values.Ref<T>(slots)` operation. The benchmark uses non-generic
-`ReadAccess`/`WriteAccess`, `Bind`, and `slots.Get`; no generic access path
-remains. `AccessRequest` is retained only for callback-state compatibility.
+`ReadAccess`/`WriteAccess`, `Bind`, and `slots.GetRow`; no generic access
+path remains.
 
 The existing comparative and version benchmark projects are deliberately left
 on their legacy callers. They are not part of this L4 migration.

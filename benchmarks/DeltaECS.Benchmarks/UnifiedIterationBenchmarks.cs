@@ -44,9 +44,9 @@ public class ComparativeDenseIterationBenchmarks
         _deltaValue = layouts.Register(typeof(UnifiedDeltaValue), new SchemaId(200_000));
         _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount);
         var deltaEntities = new DeltaEntity[Amount];
-        _delta.CreateBatch(new[] { _deltaValue }, deltaEntities);
+        _delta.Create(new[] { _deltaValue }, deltaEntities);
         for (var i = 0; i < Amount; i++)
-            _delta.SetComponent(deltaEntities[i], _deltaValue, new UnifiedDeltaValue { Value = i + 1 });
+            _delta.Set(deltaEntities[i], _deltaValue, new UnifiedDeltaValue { Value = i + 1 });
         var spec = QuerySpec.ForComponents(_deltaValue);
         _deltaQuery = _delta.CreateQuery(in spec);
         _deltaValueBinding = _deltaQuery.AccessRead(_deltaValue);
@@ -101,7 +101,7 @@ public class ComparativeDenseIterationBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var values = slots.Get(valueAccess);
+                var values = slots.GetRow(valueAccess);
                 while (slots.MoveNext())
                 {
                     sum += values.Ref<UnifiedDeltaValue>(slots).Value;
@@ -158,7 +158,7 @@ public class ComparativeMovement2ComponentsBenchmarks
         _deltaVelocity = layouts.Register(typeof(MoveDeltaVelocity), new SchemaId(201_001));
         _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount);
         _deltaEntities = new DeltaEntity[Amount];
-        _delta.CreateBatch(new[] { _deltaPosition, _deltaVelocity }, _deltaEntities);
+        _delta.Create(new[] { _deltaPosition, _deltaVelocity }, _deltaEntities);
         var deltaDescription = QuerySpec.ForComponents(_deltaPosition, _deltaVelocity);
         _deltaQuery = _delta.CreateQuery(in deltaDescription);
         _deltaPositionBinding = _deltaQuery.AccessWrite(_deltaPosition);
@@ -209,8 +209,8 @@ public class ComparativeMovement2ComponentsBenchmarks
     {
         for (var i = 0; i < Amount; i++)
         {
-            _delta.SetComponent(_deltaEntities[i], _deltaPosition, new MoveDeltaPosition { X = 1, Y = 2 });
-            _delta.SetComponent(_deltaEntities[i], _deltaVelocity, new MoveDeltaVelocity { X = 3, Y = 4 });
+            _delta.Set(_deltaEntities[i], _deltaPosition, new MoveDeltaPosition { X = 1, Y = 2 });
+            _delta.Set(_deltaEntities[i], _deltaVelocity, new MoveDeltaVelocity { X = 3, Y = 4 });
         }
     }
 
@@ -285,8 +285,8 @@ public class ComparativeMovement2ComponentsBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var positions = slots.Get(positionAccess);
-                var velocities = slots.Get(velocityAccess);
+                var positions = slots.GetRow(positionAccess);
+                var velocities = slots.GetRow(velocityAccess);
                 while (slots.MoveNext())
                 {
                     ref var position = ref positions.Ref<MoveDeltaPosition>(slots);
@@ -315,8 +315,8 @@ public class ComparativeMovement2ComponentsBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var positions = slots.Get(positionAccess);
-                var velocities = slots.Get(velocityAccess);
+                var positions = slots.GetRow(positionAccess);
+                var velocities = slots.GetRow(velocityAccess);
                 while (slots.MoveNext())
                 {
                     ref var position = ref positions.Ref<MoveDeltaPosition>(slots);
@@ -360,7 +360,7 @@ public class ComparativeMovement4ComponentsBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        var layouts = new ComponentLayoutRegistry(); _deltaIds = new[] { layouts.Register(typeof(DistinctDelta0), new SchemaId(202_000)), layouts.Register(typeof(DistinctDelta1), new SchemaId(202_001)), layouts.Register(typeof(DistinctDelta2), new SchemaId(202_002)), layouts.Register(typeof(DistinctDelta3), new SchemaId(202_003)) }; _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); _deltaEntities = new DeltaEntity[Amount]; _delta.CreateBatch(_deltaIds, _deltaEntities); for (var i = 0; i < Amount; i++) { _delta.SetComponent(_deltaEntities[i], _deltaIds[0], new DistinctDelta0 { Value = 1 }); _delta.SetComponent(_deltaEntities[i], _deltaIds[1], new DistinctDelta1 { Value = 2 }); _delta.SetComponent(_deltaEntities[i], _deltaIds[2], new DistinctDelta2 { Value = 3 }); _delta.SetComponent(_deltaEntities[i], _deltaIds[3], new DistinctDelta3 { Value = 4 }); }
+        var layouts = new ComponentLayoutRegistry(); _deltaIds = new[] { layouts.Register(typeof(DistinctDelta0), new SchemaId(202_000)), layouts.Register(typeof(DistinctDelta1), new SchemaId(202_001)), layouts.Register(typeof(DistinctDelta2), new SchemaId(202_002)), layouts.Register(typeof(DistinctDelta3), new SchemaId(202_003)) }; _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); _deltaEntities = new DeltaEntity[Amount]; _delta.Create(_deltaIds, _deltaEntities); for (var i = 0; i < Amount; i++) { _delta.Set(_deltaEntities[i], _deltaIds[0], new DistinctDelta0 { Value = 1 }); _delta.Set(_deltaEntities[i], _deltaIds[1], new DistinctDelta1 { Value = 2 }); _delta.Set(_deltaEntities[i], _deltaIds[2], new DistinctDelta2 { Value = 3 }); _delta.Set(_deltaEntities[i], _deltaIds[3], new DistinctDelta3 { Value = 4 }); }
         var d = QuerySpec.ForComponents(_deltaIds); _deltaQuery = _delta.CreateQuery(in d); _delta0Binding = _deltaQuery.AccessWrite(_deltaIds[0]); _delta1Binding = _deltaQuery.AccessWrite(_deltaIds[1]); _delta2Binding = _deltaQuery.AccessWrite(_deltaIds[2]); _delta3Binding = _deltaQuery.AccessRead(_deltaIds[3]);
         _arch = Arch.Core.World.Create(); _archTypes = new ArchComponentType[] { typeof(DistinctArch0), typeof(DistinctArch1), typeof(DistinctArch2), typeof(DistinctArch3) }; _arch.Reserve(_archTypes, Amount); _archQuery = new Arch.Core.QueryDescription { All = _archTypes }; _archEntities = new Arch.Core.Entity[Amount]; for (var i = 0; i < Amount; i++) { _archEntities[i] = _arch.Create(_archTypes); _arch.Set(_archEntities[i], new DistinctArch0 { Value = 1 }); _arch.Set(_archEntities[i], new DistinctArch1 { Value = 2 }); _arch.Set(_archEntities[i], new DistinctArch2 { Value = 3 }); _arch.Set(_archEntities[i], new DistinctArch3 { Value = 4 }); }
         _friflo = new EntityStore(); _frifloEntities = new FrifloEntity[Amount]; for (var i = 0; i < Amount; i++) _frifloEntities[i] = _friflo.CreateEntity(new DistinctFriflo0 { Value = 1 }, new DistinctFriflo1 { Value = 2 }, new DistinctFriflo2 { Value = 3 }, new DistinctFriflo3 { Value = 4 }); _frifloQuery = _friflo.Query<DistinctFriflo0, DistinctFriflo1, DistinctFriflo2, DistinctFriflo3>();
@@ -383,10 +383,10 @@ public class ComparativeMovement4ComponentsBenchmarks
     {
         for (var i = 0; i < Amount; i++)
         {
-            _delta.SetComponent(_deltaEntities[i], _deltaIds[0], new DistinctDelta0 { Value = 1 });
-            _delta.SetComponent(_deltaEntities[i], _deltaIds[1], new DistinctDelta1 { Value = 2 });
-            _delta.SetComponent(_deltaEntities[i], _deltaIds[2], new DistinctDelta2 { Value = 3 });
-            _delta.SetComponent(_deltaEntities[i], _deltaIds[3], new DistinctDelta3 { Value = 4 });
+            _delta.Set(_deltaEntities[i], _deltaIds[0], new DistinctDelta0 { Value = 1 });
+            _delta.Set(_deltaEntities[i], _deltaIds[1], new DistinctDelta1 { Value = 2 });
+            _delta.Set(_deltaEntities[i], _deltaIds[2], new DistinctDelta2 { Value = 3 });
+            _delta.Set(_deltaEntities[i], _deltaIds[3], new DistinctDelta3 { Value = 4 });
         }
     }
 
@@ -465,10 +465,10 @@ public class ComparativeMovement4ComponentsBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var a = slots.Get(aAccess);
-                var b = slots.Get(bAccess);
-                var c = slots.Get(cAccess);
-                var d = slots.Get(dAccess);
+                var a = slots.GetRow(aAccess);
+                var b = slots.GetRow(bAccess);
+                var c = slots.GetRow(cAccess);
+                var d = slots.GetRow(dAccess);
                 while (slots.MoveNext())
                 {
                     ref var rowA = ref a.Ref<DistinctDelta0>(slots);
@@ -503,10 +503,10 @@ public class ComparativeMovement4ComponentsBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var a = slots.Get(aAccess);
-                var b = slots.Get(bAccess);
-                var c = slots.Get(cAccess);
-                var d = slots.Get(dAccess);
+                var a = slots.GetRow(aAccess);
+                var b = slots.GetRow(bAccess);
+                var c = slots.GetRow(cAccess);
+                var d = slots.GetRow(dAccess);
                 while (slots.MoveNext())
                 {
                     ref var rowA = ref a.Ref<DistinctDelta0>(slots);
@@ -549,7 +549,7 @@ public class ComparativeWideArchetypeNarrowQueryBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        var layouts = new ComponentLayoutRegistry(); _deltaIds = new[] { layouts.Register(typeof(WideDelta0), new SchemaId(203_000)), layouts.Register(typeof(WideDelta1), new SchemaId(203_001)), layouts.Register(typeof(WideDelta2), new SchemaId(203_002)), layouts.Register(typeof(WideDelta3), new SchemaId(203_003)), layouts.Register(typeof(WideDelta4), new SchemaId(203_004)), layouts.Register(typeof(WideDelta5), new SchemaId(203_005)), layouts.Register(typeof(WideDelta6), new SchemaId(203_006)), layouts.Register(typeof(WideDelta7), new SchemaId(203_007)) }; _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); var de = new DeltaEntity[Amount]; _delta.CreateBatch(_deltaIds, de); for (var i = 0; i < Amount; i++) { _delta.SetComponent(de[i], _deltaIds[0], new WideDelta0 { Value = 1 }); _delta.SetComponent(de[i], _deltaIds[7], new WideDelta7 { Value = 8 }); }
+        var layouts = new ComponentLayoutRegistry(); _deltaIds = new[] { layouts.Register(typeof(WideDelta0), new SchemaId(203_000)), layouts.Register(typeof(WideDelta1), new SchemaId(203_001)), layouts.Register(typeof(WideDelta2), new SchemaId(203_002)), layouts.Register(typeof(WideDelta3), new SchemaId(203_003)), layouts.Register(typeof(WideDelta4), new SchemaId(203_004)), layouts.Register(typeof(WideDelta5), new SchemaId(203_005)), layouts.Register(typeof(WideDelta6), new SchemaId(203_006)), layouts.Register(typeof(WideDelta7), new SchemaId(203_007)) }; _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); var de = new DeltaEntity[Amount]; _delta.Create(_deltaIds, de); for (var i = 0; i < Amount; i++) { _delta.Set(de[i], _deltaIds[0], new WideDelta0 { Value = 1 }); _delta.Set(de[i], _deltaIds[7], new WideDelta7 { Value = 8 }); }
         var d = QuerySpec.ForComponents(_deltaIds[0], _deltaIds[7]); _deltaQuery = _delta.CreateQuery(in d); _delta0Binding = _deltaQuery.AccessRead(_deltaIds[0]); _delta7Binding = _deltaQuery.AccessRead(_deltaIds[7]);
         _arch = Arch.Core.World.Create(); _archTypes = new ArchComponentType[] { typeof(WideArch0), typeof(WideArch1), typeof(WideArch2), typeof(WideArch3), typeof(WideArch4), typeof(WideArch5), typeof(WideArch6), typeof(WideArch7) }; _arch.Reserve(_archTypes, Amount); _archQuery = new Arch.Core.QueryDescription { All = new ArchComponentType[] { _archTypes[0], _archTypes[7] } }; for (var i = 0; i < Amount; i++) { var e = _arch.Create(_archTypes); _arch.Set(e, new WideArch0 { Value = 1 }); _arch.Set(e, new WideArch7 { Value = 8 }); }
         _friflo = new EntityStore(); for (var i = 0; i < Amount; i++) _friflo.CreateEntity(new WideFriflo0 { Value = 1 }, new WideFriflo1(), new WideFriflo2(), new WideFriflo3(), new WideFriflo4(), new WideFriflo5(), new WideFriflo6(), new WideFriflo7 { Value = 8 }); _frifloQuery = _friflo.Query<WideFriflo0, WideFriflo7>();
@@ -574,8 +574,8 @@ public class ComparativeWideArchetypeNarrowQueryBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var a = slots.Get(aAccess);
-                var z = slots.Get(zAccess);
+                var a = slots.GetRow(aAccess);
+                var z = slots.GetRow(zAccess);
                 while (slots.MoveNext())
                 {
                     sum += a.Ref<WideDelta0>(slots).Value + z.Ref<WideDelta7>(slots).Value;
@@ -645,8 +645,8 @@ public class ComparativeSparseQueryBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var aRow = slots.Get(aAccess);
-                var bRow = slots.Get(bAccess);
+                var aRow = slots.GetRow(aAccess);
+                var bRow = slots.GetRow(bAccess);
                 while (slots.MoveNext())
                 {
                     _ = aRow.Ref<SparseDeltaA>(slots);

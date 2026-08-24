@@ -57,19 +57,19 @@ public sealed class IterationScenario
         _world = new World(layouts, initialEntityCapacity: amount * 3);
 
         var denseEntities = new Entity[amount];
-        _world.CreateBatch([_dense], denseEntities);
+        _world.Create([_dense], denseEntities);
         for (var i = 0; i < amount; i++)
         {
-            _world.SetComponent(denseEntities[i], _dense, new DenseValue { Value = i + 1 });
+            _world.Set(denseEntities[i], _dense, new DenseValue { Value = i + 1 });
         }
 
         _movement2Entities = new Entity[amount];
-        _world.CreateBatch([_position, _velocity], _movement2Entities);
+        _world.Create([_position, _velocity], _movement2Entities);
         var movement2Description = QuerySpec.ForComponents(_position, _velocity);
         _movement2Query = _world.CreateQuery(in movement2Description);
 
         _movement4Entities = new Entity[amount];
-        _world.CreateBatch(_movement4Ids, _movement4Entities);
+        _world.Create(_movement4Ids, _movement4Entities);
         var movement4Description = QuerySpec.ForComponents(_movement4Ids);
         _movement4Query = _world.CreateQuery(in movement4Description);
 
@@ -89,12 +89,12 @@ public sealed class IterationScenario
     {
         for (var i = 0; i < _amount; i++)
         {
-            _world.SetComponent(_movement2Entities[i], _position, new Position { X = 1, Y = 2 });
-            _world.SetComponent(_movement2Entities[i], _velocity, new Velocity { X = 3, Y = 4 });
-            _world.SetComponent(_movement4Entities[i], _movement4Ids[0], new MovementA { Value = 1 });
-            _world.SetComponent(_movement4Entities[i], _movement4Ids[1], new MovementB { Value = 2 });
-            _world.SetComponent(_movement4Entities[i], _movement4Ids[2], new MovementC { Value = 3 });
-            _world.SetComponent(_movement4Entities[i], _movement4Ids[3], new MovementD { Value = 4 });
+            _world.Set(_movement2Entities[i], _position, new Position { X = 1, Y = 2 });
+            _world.Set(_movement2Entities[i], _velocity, new Velocity { X = 3, Y = 4 });
+            _world.Set(_movement4Entities[i], _movement4Ids[0], new MovementA { Value = 1 });
+            _world.Set(_movement4Entities[i], _movement4Ids[1], new MovementB { Value = 2 });
+            _world.Set(_movement4Entities[i], _movement4Ids[2], new MovementC { Value = 3 });
+            _world.Set(_movement4Entities[i], _movement4Ids[3], new MovementD { Value = 4 });
         }
     }
 
@@ -110,7 +110,7 @@ public sealed class IterationScenario
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var row = slots.Get(dense);
+                var row = slots.GetRow(dense);
                 while (slots.MoveNext())
                 {
                     sum += row.Ref<DenseValue>(slots).Value;
@@ -135,8 +135,8 @@ public sealed class IterationScenario
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var positions = slots.Get(position);
-                var velocities = slots.Get(velocity);
+                var positions = slots.GetRow(position);
+                var velocities = slots.GetRow(velocity);
                 while (slots.MoveNext())
                 {
                     ref var currentPosition = ref positions.Ref<Position>(slots);
@@ -169,10 +169,10 @@ public sealed class IterationScenario
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var a = slots.Get(aAccess);
-                var b = slots.Get(bAccess);
-                var c = slots.Get(cAccess);
-                var d = slots.Get(dAccess);
+                var a = slots.GetRow(aAccess);
+                var b = slots.GetRow(bAccess);
+                var c = slots.GetRow(cAccess);
+                var d = slots.GetRow(dAccess);
                 while (slots.MoveNext())
                 {
                     var updatedA = a.Ref<MovementA>(slots).Value + d.Ref<MovementD>(slots).Value;
@@ -212,7 +212,7 @@ public sealed class AtomicScenario
         _extraIds = [_extra];
 
         _createWorld = new World(layouts);
-        _createArchetype = _createWorld.GetArchetype(baseId);
+        _createArchetype = _createWorld.GetOrCreateArchetype(baseId);
 
         _destroyWorld = new World(layouts);
         _destroyEntity = _destroyWorld.Create([baseId]);
@@ -246,7 +246,7 @@ public sealed class AtomicScenario
     private int Add()
     {
         _addWorld.AddComponents(_extraIds, _addEntity);
-        return _addWorld.TryGetComponent<StructuralExtra>(_addEntity, _extra, out _)
+        return _addWorld.TryGet<StructuralExtra>(_addEntity, _extra, out _)
             ? 1
             : throw new InvalidOperationException("Atomic add failed.");
     }
@@ -254,7 +254,7 @@ public sealed class AtomicScenario
     private int Remove()
     {
         _removeWorld.RemoveComponents(_extraIds, _removeEntity);
-        return !_removeWorld.TryGetComponent<StructuralExtra>(_removeEntity, _extra, out _)
+        return !_removeWorld.TryGet<StructuralExtra>(_removeEntity, _extra, out _)
             ? 1
             : throw new InvalidOperationException("Atomic remove failed.");
     }
@@ -288,26 +288,26 @@ public sealed class BatchScenario
         _extraIds = [extra];
 
         _createWorld = new World(layouts, initialEntityCapacity: _amount);
-        _createArchetype = _createWorld.GetArchetype(baseId);
+        _createArchetype = _createWorld.GetOrCreateArchetype(baseId);
         _createOutput = new Entity[_amount];
 
         _destroyWorld = new World(layouts, initialEntityCapacity: _amount);
         _destroyEntities = new Entity[_amount];
-        _destroyWorld.CreateBatch([baseId], _destroyEntities);
+        _destroyWorld.Create([baseId], _destroyEntities);
 
         _addWorld = new World(layouts, initialEntityCapacity: _amount);
         _addEntities = new Entity[_amount];
-        _addWorld.CreateBatch([baseId], _addEntities);
+        _addWorld.Create([baseId], _addEntities);
 
         _removeWorld = new World(layouts, initialEntityCapacity: _amount);
         _removeEntities = new Entity[_amount];
-        _removeWorld.CreateBatch([baseId, extra], _removeEntities);
+        _removeWorld.Create([baseId, extra], _removeEntities);
     }
 
     public int Run(BatchOperation operation) => operation switch
     {
-        BatchOperation.Create => _createWorld.CreateBatch(_createArchetype, _createOutput),
-        BatchOperation.Destroy => _destroyWorld.DestroyBatch(_destroyEntities),
+        BatchOperation.Create => _createWorld.Create(_createArchetype, _createOutput),
+        BatchOperation.Destroy => _destroyWorld.Destroy(_destroyEntities),
         BatchOperation.Add => _addWorld.AddComponents(_extraIds, _addEntities),
         BatchOperation.Remove => _removeWorld.RemoveComponents(_extraIds, _removeEntities),
         _ => throw new ArgumentOutOfRangeException(nameof(operation))

@@ -51,7 +51,7 @@ public ref struct GeneratedSequenceCursor
     public Entity Entity { get; }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ReadValues Get(ReadAccess access)
+    public ReadRow GetRow(ReadAccess access)
     {
         _writeSession.EnsureActive(_sessionGeneration);
         if (!ReferenceEquals(access.Query, _query))
@@ -60,11 +60,11 @@ public ref struct GeneratedSequenceCursor
         }
 
         int physicalRow = _componentRows[access.QueryComponentIndex];
-        return new ReadValues(_chunk.GetRawComponentRow(physicalRow));
+        return new ReadRow(_chunk.GetRawComponentRow(physicalRow));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public WriteValues Get(WriteAccess access)
+    public WriteRow GetRow(WriteAccess access)
     {
         if (!ReferenceEquals(access.Query, _query))
         {
@@ -74,7 +74,7 @@ public ref struct GeneratedSequenceCursor
         int physicalRow = _componentRows[access.QueryComponentIndex];
         _writeSession.Acquire(_sessionGeneration, out uint writeTick, out Stamp writeStamp);
         _chunk.MarkComponentWritten(physicalRow, Slot, writeTick, writeStamp);
-        return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
+        return new WriteRow(_chunk.GetRawComponentRow(physicalRow));
     }
 }
 

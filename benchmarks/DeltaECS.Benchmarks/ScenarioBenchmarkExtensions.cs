@@ -67,12 +67,12 @@ public class SmallDenseScenarioBenchmarks
             _deltaBindings[i] = _deltaQuery.AccessWrite(_deltaComponents[i]);
 
         var entities = new Entity[Amount];
-        _deltaWorld.CreateBatch(_deltaComponents, entities);
+        _deltaWorld.Create(_deltaComponents, entities);
         for (var i = 0; i < entities.Length; i++)
         {
             for (var componentIndex = 0; componentIndex < _deltaComponents.Length; componentIndex++)
             {
-                _deltaWorld.SetComponent(entities[i], _deltaComponents[componentIndex], new SmallDenseValue { X = 1f, Y = 2f });
+                _deltaWorld.Set(entities[i], _deltaComponents[componentIndex], new SmallDenseValue { X = 1f, Y = 2f });
             }
         }
 
@@ -163,7 +163,7 @@ public class SmallDenseScenarioBenchmarks
                 {
                     case 1:
                     {
-                        var c0 = slots.Get(_deltaBindings[0]);
+                        var c0 = slots.GetRow(_deltaBindings[0]);
                         while (slots.MoveNext())
                         {
                             ref var value = ref c0.Ref<SmallDenseValue>(slots);
@@ -175,8 +175,8 @@ public class SmallDenseScenarioBenchmarks
                     }
                     case 2:
                     {
-                        var c0 = slots.Get(_deltaBindings[0]);
-                        var c1 = slots.Get(_deltaBindings[1]);
+                        var c0 = slots.GetRow(_deltaBindings[0]);
+                        var c1 = slots.GetRow(_deltaBindings[1]);
                         while (slots.MoveNext())
                         {
                             ref var v0 = ref c0.Ref<SmallDenseValue>(slots);
@@ -190,10 +190,10 @@ public class SmallDenseScenarioBenchmarks
                     }
                     case 4:
                     {
-                        var c0 = slots.Get(_deltaBindings[0]);
-                        var c1 = slots.Get(_deltaBindings[1]);
-                        var c2 = slots.Get(_deltaBindings[2]);
-                        var c3 = slots.Get(_deltaBindings[3]);
+                        var c0 = slots.GetRow(_deltaBindings[0]);
+                        var c1 = slots.GetRow(_deltaBindings[1]);
+                        var c2 = slots.GetRow(_deltaBindings[2]);
+                        var c3 = slots.GetRow(_deltaBindings[3]);
                         while (slots.MoveNext())
                         {
                             ref var v0 = ref c0.Ref<SmallDenseValue>(slots);
@@ -211,14 +211,14 @@ public class SmallDenseScenarioBenchmarks
                     }
                     case 8:
                     {
-                        var c0 = slots.Get(_deltaBindings[0]);
-                        var c1 = slots.Get(_deltaBindings[1]);
-                        var c2 = slots.Get(_deltaBindings[2]);
-                        var c3 = slots.Get(_deltaBindings[3]);
-                        var c4 = slots.Get(_deltaBindings[4]);
-                        var c5 = slots.Get(_deltaBindings[5]);
-                        var c6 = slots.Get(_deltaBindings[6]);
-                        var c7 = slots.Get(_deltaBindings[7]);
+                        var c0 = slots.GetRow(_deltaBindings[0]);
+                        var c1 = slots.GetRow(_deltaBindings[1]);
+                        var c2 = slots.GetRow(_deltaBindings[2]);
+                        var c3 = slots.GetRow(_deltaBindings[3]);
+                        var c4 = slots.GetRow(_deltaBindings[4]);
+                        var c5 = slots.GetRow(_deltaBindings[5]);
+                        var c6 = slots.GetRow(_deltaBindings[6]);
+                        var c7 = slots.GetRow(_deltaBindings[7]);
                         while (slots.MoveNext())
                         {
                             ref var v0 = ref c0.Ref<SmallDenseValue>(slots);
@@ -426,12 +426,12 @@ public class WideArchetypeNarrowAccessBenchmarks
         _deltaVelocityBinding = _deltaQuery.AccessRead(_deltaComponents[1]);
 
         var entities = new Entity[Amount];
-        _deltaWorld.CreateBatch(_deltaComponents, entities);
+        _deltaWorld.Create(_deltaComponents, entities);
         for (var i = 0; i < entities.Length; i++)
         {
             for (var componentIndex = 0; componentIndex < ArchetypeWidth; componentIndex++)
             {
-                _deltaWorld.SetComponent(entities[i], _deltaComponents[componentIndex], new WideDenseValue { X = 1f, Y = 2f + componentIndex });
+                _deltaWorld.Set(entities[i], _deltaComponents[componentIndex], new WideDenseValue { X = 1f, Y = 2f + componentIndex });
             }
         }
 
@@ -452,8 +452,8 @@ public class WideArchetypeNarrowAccessBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var positions = slots.Get(positionAccess);
-                var velocities = slots.Get(velocityAccess);
+                var positions = slots.GetRow(positionAccess);
+                var velocities = slots.GetRow(velocityAccess);
                 while (slots.MoveNext())
                 {
                     ref var pos = ref positions.Ref<WideDenseValue>(slots);
@@ -524,12 +524,12 @@ public class WideArchetypeNarrowAccessComparisonBenchmarks
         _deltaVelocityBinding = _deltaQuery.AccessRead(_deltaComponents[1]);
 
         var entities = new Entity[Amount];
-        _deltaWorld.CreateBatch(_deltaComponents, entities);
+        _deltaWorld.Create(_deltaComponents, entities);
         for (var i = 0; i < entities.Length; i++)
         {
             for (var componentIndex = 0; componentIndex < ArchetypeWidth; componentIndex++)
             {
-                _deltaWorld.SetComponent(entities[i], _deltaComponents[componentIndex], new WideDenseValue { X = 1f, Y = 2f + componentIndex });
+                _deltaWorld.Set(entities[i], _deltaComponents[componentIndex], new WideDenseValue { X = 1f, Y = 2f + componentIndex });
             }
         }
 
@@ -585,8 +585,8 @@ public class WideArchetypeNarrowAccessComparisonBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var positions = slots.Get(positionAccess);
-                var velocities = slots.Get(velocityAccess);
+                var positions = slots.GetRow(positionAccess);
+                var velocities = slots.GetRow(velocityAccess);
                 while (slots.MoveNext())
                 {
                     ref var pos = ref positions.Ref<WideDenseValue>(slots);
@@ -848,7 +848,7 @@ public class SparseHeterogeneousQueryBenchmarks
                 var value = component == _deltaVelocity
                     ? new SparseValue { X = 3f, Y = 4f }
                     : new SparseValue { X = 1f, Y = 2f };
-                _deltaWorld.SetComponent(entity, component, value);
+                _deltaWorld.Set(entity, component, value);
             }
         }
 
@@ -1003,8 +1003,8 @@ public class SparseHeterogeneousQueryBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var positions = slots.Get(position);
-                var velocities = slots.Get(velocity);
+                var positions = slots.GetRow(position);
+                var velocities = slots.GetRow(velocity);
                 while (slots.MoveNext())
                 {
                     ref var positionValue = ref positions.Ref<SparseValue>(slots);

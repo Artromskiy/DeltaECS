@@ -73,12 +73,12 @@ public class DeltaEcsVsArchBenchmarks
         for (var i = 0; i < ComponentCount; i++)
             _deltaBindings[i] = _deltaQuery.AccessWrite(_deltaComponents[i]);
         _deltaCreated = new Entity[Amount];
-        _deltaWorld.CreateBatch(_deltaComponents, _deltaCreated);
+        _deltaWorld.Create(_deltaComponents, _deltaCreated);
         for (var i = 0; i < _deltaCreated.Length; i++)
         {
             for (var componentIndex = 0; componentIndex < _deltaComponents.Length; componentIndex++)
             {
-                _deltaWorld.SetComponent(_deltaCreated[i], _deltaComponents[componentIndex], new Value { X = 1f, Y = 2f });
+                _deltaWorld.Set(_deltaCreated[i], _deltaComponents[componentIndex], new Value { X = 1f, Y = 2f });
             }
         }
 
@@ -98,12 +98,12 @@ public class DeltaEcsVsArchBenchmarks
         for (var i = 0; i < ComponentCount; i++)
             _arrayBindings[i] = _arrayQuery.AccessWrite(_arrayComponents[i]);
         _arrayCreated = new Entity[Amount];
-        _arrayWorld.CreateBatch(_arrayComponents, _arrayCreated);
+        _arrayWorld.Create(_arrayComponents, _arrayCreated);
         for (var i = 0; i < _arrayCreated.Length; i++)
         {
             for (var componentIndex = 0; componentIndex < _arrayComponents.Length; componentIndex++)
             {
-                _arrayWorld.SetComponent(_arrayCreated[i], _arrayComponents[componentIndex], new Value { X = 1f, Y = 2f });
+                _arrayWorld.Set(_arrayCreated[i], _arrayComponents[componentIndex], new Value { X = 1f, Y = 2f });
             }
         }
 
@@ -224,7 +224,7 @@ public class DeltaEcsVsArchBenchmarks
                 {
                     case 1:
                     {
-                        var c0 = slots.Get(b0);
+                        var c0 = slots.GetRow(b0);
                         while (slots.MoveNext())
                         {
                             Update(ref c0.Ref<Value>(slots));
@@ -234,8 +234,8 @@ public class DeltaEcsVsArchBenchmarks
                     }
                     case 2:
                     {
-                        var c0 = slots.Get(b0);
-                        var c1 = slots.Get(b1);
+                        var c0 = slots.GetRow(b0);
+                        var c1 = slots.GetRow(b1);
                         while (slots.MoveNext())
                         {
                             Update(ref c0.Ref<Value>(slots));
@@ -246,10 +246,10 @@ public class DeltaEcsVsArchBenchmarks
                     }
                     case 4:
                     {
-                        var c0 = slots.Get(b0);
-                        var c1 = slots.Get(b1);
-                        var c2 = slots.Get(b2);
-                        var c3 = slots.Get(b3);
+                        var c0 = slots.GetRow(b0);
+                        var c1 = slots.GetRow(b1);
+                        var c2 = slots.GetRow(b2);
+                        var c3 = slots.GetRow(b3);
                         while (slots.MoveNext())
                         {
                             Update(ref c0.Ref<Value>(slots));
@@ -262,14 +262,14 @@ public class DeltaEcsVsArchBenchmarks
                     }
                     case 8:
                     {
-                        var c0 = slots.Get(b0);
-                        var c1 = slots.Get(b1);
-                        var c2 = slots.Get(b2);
-                        var c3 = slots.Get(b3);
-                        var c4 = slots.Get(b4);
-                        var c5 = slots.Get(b5);
-                        var c6 = slots.Get(b6);
-                        var c7 = slots.Get(b7);
+                        var c0 = slots.GetRow(b0);
+                        var c1 = slots.GetRow(b1);
+                        var c2 = slots.GetRow(b2);
+                        var c3 = slots.GetRow(b3);
+                        var c4 = slots.GetRow(b4);
+                        var c5 = slots.GetRow(b5);
+                        var c6 = slots.GetRow(b6);
+                        var c7 = slots.GetRow(b7);
                         while (slots.MoveNext())
                         {
                             Update(ref c0.Ref<Value>(slots));
@@ -342,8 +342,8 @@ public class DeltaEcsBatchBenchmarks
     [Benchmark]
     public void BatchCreateDestroy()
     {
-        _world.CreateBatch(_createComponents, _entities);
-        _world.DestroyBatch(_entities);
+        _world.Create(_createComponents, _entities);
+        _world.Destroy(_entities);
     }
 
 }
@@ -374,7 +374,7 @@ public class DeltaEcsTransitionBenchmarks
         _transitionComponents = new[] { second };
         _world = new World(layouts, initialEntityCapacity: Amount);
         _entities = new Entity[Amount];
-        _world.CreateBatch(new[] { first }, _entities);
+        _world.Create(new[] { first }, _entities);
     }
 
     [Benchmark]
@@ -414,10 +414,10 @@ public class DeltaEcsManagedArrayBenchmarks
         _query = _world.CreateQuery(in spec);
         _binding = _query.AccessRead(_component);
         _entities = new Entity[Amount];
-        _world.CreateBatch(new[] { _component }, _entities);
+        _world.Create(new[] { _component }, _entities);
         for (var i = 0; i < _entities.Length; i++)
         {
-            _world.SetComponent(_entities[i], _component, new ManagedValue { Name = "managed", Value = i });
+            _world.Set(_entities[i], _component, new ManagedValue { Name = "managed", Value = i });
         }
     }
 
@@ -434,7 +434,7 @@ public class DeltaEcsManagedArrayBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var values = slots.Get(binding);
+                var values = slots.GetRow(binding);
                 while (slots.MoveNext())
                 {
                     sum += values.Ref<ManagedValue>(slots).Value;
@@ -480,11 +480,11 @@ public class DeltaEcsHotPathProfileBenchmarks
         _firstWriteBinding = _query.AccessWrite(_first);
         _secondBinding = _query.AccessWrite(_second);
         _entities = new Entity[100_000];
-        _world.CreateBatch(new[] { _first, _second }, _entities);
+        _world.Create(new[] { _first, _second }, _entities);
         for (var i = 0; i < _entities.Length; i++)
         {
-            _world.SetComponent(_entities[i], _first, new Value { X = 1, Y = 2 });
-            _world.SetComponent(_entities[i], _second, new Value { X = 1, Y = 2 });
+            _world.Set(_entities[i], _first, new Value { X = 1, Y = 2 });
+            _world.Set(_entities[i], _second, new Value { X = 1, Y = 2 });
         }
     }
 
@@ -520,8 +520,8 @@ public class DeltaEcsHotPathProfileBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                _ = slots.Get(first);
-                _ = slots.Get(second);
+                _ = slots.GetRow(first);
+                _ = slots.GetRow(second);
                 chunksCount++;
             }
         }
@@ -543,8 +543,8 @@ public class DeltaEcsHotPathProfileBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var first = slots.Get(firstBinding);
-                var second = slots.Get(secondBinding);
+                var first = slots.GetRow(firstBinding);
+                var second = slots.GetRow(secondBinding);
                 while (slots.MoveNext())
                 {
                     first.Ref<Value>(slots).X += first.Ref<Value>(slots).Y;

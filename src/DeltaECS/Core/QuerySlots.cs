@@ -57,7 +57,7 @@ public ref struct QuerySlots
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ReadValues Get(ReadAccess access)
+    public ReadRow GetRow(ReadAccess access)
     {
         _writeSession.EnsureActive(_sessionGeneration);
         if (!ReferenceEquals(access.Query, _query))
@@ -65,11 +65,11 @@ public ref struct QuerySlots
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        return new ReadValues(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
+        return new ReadRow(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public WriteValues Get(WriteAccess access)
+    public WriteRow GetRow(WriteAccess access)
     {
         if (!ReferenceEquals(access.Query, _query))
         {
@@ -79,7 +79,7 @@ public ref struct QuerySlots
         _writeSession.Acquire(_sessionGeneration, out uint writeTick, out Stamp writeStamp);
         int physicalRow = _componentRowsByQuery.Ref(access.QueryComponentIndex);
         _chunk.MarkComponentWritten(physicalRow, writeTick, writeStamp);
-        return new WriteValues(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
+        return new WriteRow(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
     }
 
     public ObjectReadValues GetObject(ReadAccess access)

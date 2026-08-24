@@ -32,11 +32,11 @@ between `Initialize` and `Shutdown`.
 Reusable `Query` values cache matching archetypes and row plans. Non-generic
 access requests validate world/query ownership outside the entity loop. The
 component type is supplied only at registration and at the terminal
-`ReadValues.Ref<T>`/`WriteValues.Ref<T>` call. Raw ordinal access remains
+`ReadRow.Ref<T>`/`WriteRow.Ref<T>` call. Raw ordinal access remains
 internal.
 
 For explicit low-level traversal, `world.OpenQuery(in query)` exposes three
-independent nested loops: archetype, chunk and forward slot. `World.Query` is
+independent nested loops: archetype, chunk and forward slot. `World.Execute` is
 the callback form of the same dense component selection.
 
 The dense API has three deliberately separate stages: `QuerySpec` describes
@@ -44,8 +44,8 @@ selection, `World.CreateQuery` returns the world-owned `Query`, and
 `query.AccessRead(id)` or `query.AccessWrite(id)` declares component access and
 returns the corresponding non-generic `ReadAccess` or `WriteAccess` token. Inside an
 `OpenQuery` scope, `scope.Bind(access)` validates that declaration once;
-`slots.Get(prepared)` then exposes a non-generic values
-object whose terminal `Ref<T>` call provides the component reference.
+`slots.GetRow(prepared)` then exposes a non-generic component row whose
+terminal `Ref<T>` call provides the component reference.
 `T` must match the component type registered for the access token. Controlled
 pre-loop mismatch validation is selected correctness work; callers must not
 use a different `T` to reinterpret row storage.
@@ -63,7 +63,7 @@ while (archetypes.MoveNext())
     while (chunks.MoveNext())
     {
         var slots = chunks.Current.Slots;
-        var row = slots.Get(position);
+        var row = slots.GetRow(position);
         while (slots.MoveNext())
         {
             _ = row.Ref<Position>(slots);

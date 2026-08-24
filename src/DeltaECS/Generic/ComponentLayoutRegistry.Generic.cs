@@ -12,9 +12,9 @@ public sealed partial class ComponentLayoutRegistry
 
     /// <summary>Tries to resolve the primary component registration for <typeparamref name="T"/>.</summary>
     public bool TryGetPrimary<T>(out ComponentId componentId)
-        => TryGetId(typeof(T), out componentId);
+        => TryGetPrimary(typeof(T), out componentId);
 
     /// <summary>Gets the primary component registration for <typeparamref name="T"/>.</summary>
     public ComponentId GetPrimary<T>()
-        => GetId(typeof(T));
+        => GetPrimary(typeof(T));
 }

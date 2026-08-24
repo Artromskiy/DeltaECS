@@ -42,16 +42,16 @@ public sealed class DeltaECSDeliveryTests
         RegisterComponentLayouts(layouts);
         var world = new World(layouts);
 
-        var first = world.GetArchetype(VelocityId, PositionId, PositionId);
+        var first = world.GetOrCreateArchetype(VelocityId, PositionId, PositionId);
         var version = world.ArchetypeVersion;
-        var same = world.ResolveArchetype(PositionId, VelocityId);
+        var same = world.GetOrCreateArchetype(PositionId, VelocityId);
 
         Assert.That(first.IsValid, Is.True);
         Assert.That(first, Is.EqualTo(same));
         Assert.That(world.ArchetypeVersion, Is.EqualTo(version));
 
         var entities = new Entity[2];
-        Assert.That(world.CreateBatch(first, entities), Is.EqualTo(2));
+        Assert.That(world.Create(first, entities), Is.EqualTo(2));
         Assert.That(world.Create(first).IsAlive, Is.True);
         Assert.That(world.AliveEntityCount, Is.EqualTo(3));
     }
@@ -63,12 +63,12 @@ public sealed class DeltaECSDeliveryTests
         RegisterComponentLayouts(layouts);
         var world = new World(layouts);
         var foreignWorld = new World(layouts);
-        var handle = world.GetArchetype(PositionId);
+        var handle = world.GetOrCreateArchetype(PositionId);
 
         Assert.Throws<ArgumentException>(() => foreignWorld.Create(handle));
         Assert.Throws<ArgumentException>(() => world.Create(ArchetypeHandle.Invalid));
-        Assert.Throws<ArgumentException>(() => foreignWorld.CreateBatch(handle, new Entity[1]));
-        Assert.Throws<ArgumentException>(() => world.CreateBatch(ArchetypeHandle.Invalid, new Entity[1]));
+        Assert.Throws<ArgumentException>(() => foreignWorld.Create(handle, new Entity[1]));
+        Assert.Throws<ArgumentException>(() => world.Create(ArchetypeHandle.Invalid, new Entity[1]));
         Assert.That(ArchetypeHandle.Invalid.IsValid, Is.False);
     }
 
@@ -81,7 +81,7 @@ public sealed class DeltaECSDeliveryTests
 
         var requested = 2_000;
         var created = new Entity[requested];
-        world.CreateBatch(new[] { PositionId, VelocityId }, created);
+        world.Create(new[] { PositionId, VelocityId }, created);
         Assert.AreEqual(requested, world.AliveEntityCount);
 
         var query = world.CreateQuery(QuerySpec.ForComponents(PositionId, VelocityId));
@@ -99,8 +99,8 @@ public sealed class DeltaECSDeliveryTests
                 while (chunks.MoveNext())
                 {
                     var slots = chunks.Current.Slots;
-                    var pos = slots.Get(preparedPosition);
-                    var vel = slots.Get(preparedVelocity);
+                    var pos = slots.GetRow(preparedPosition);
+                    var vel = slots.GetRow(preparedVelocity);
                     while (slots.MoveNext())
                     {
                         ref var p = ref pos.Ref<Position>(slots);
@@ -115,7 +115,7 @@ public sealed class DeltaECSDeliveryTests
 
         Assert.Greater(sum, 0);
 
-        world.DestroyBatch(created);
+        world.Destroy(created);
         Assert.AreEqual(0, world.AliveEntityCount);
     }
 
@@ -127,21 +127,21 @@ public sealed class DeltaECSDeliveryTests
         var world = new World(layouts, chunkCapacity: 2);
         var positionOnly = new Entity[3];
         var positionVelocity = new Entity[4];
-        world.CreateBatch(new[] { PositionId }, positionOnly);
-        world.CreateBatch(new[] { PositionId, VelocityId }, positionVelocity);
+        world.Create(new[] { PositionId }, positionOnly);
+        world.Create(new[] { PositionId, VelocityId }, positionVelocity);
 
         var expected = new Dictionary<Entity, int>();
         var nextValue = 0;
         foreach (var entity in positionOnly)
         {
             expected[entity] = nextValue;
-            world.SetComponent(entity, PositionId, new Position { X = nextValue++ });
+            world.Set(entity, PositionId, new Position { X = nextValue++ });
         }
 
         foreach (var entity in positionVelocity)
         {
             expected[entity] = nextValue;
-            world.SetComponent(entity, PositionId, new Position { X = nextValue++ });
+            world.Set(entity, PositionId, new Position { X = nextValue++ });
         }
 
         var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
@@ -167,7 +167,7 @@ public sealed class DeltaECSDeliveryTests
                     writtenChunks.Add(chunk.GlobalChunkId);
                     var entities = chunk.Entities;
                     var slots = chunk.Slots;
-                    var positions = slots.Get(preparedPosition);
+                    var positions = slots.GetRow(preparedPosition);
                     var expectedSlot = 0;
                     while (slots.MoveNext())
                     {
@@ -200,8 +200,8 @@ public sealed class DeltaECSDeliveryTests
         RegisterComponentLayouts(layouts);
         var world = new World(layouts, chunkCapacity: 4);
         var entity = world.Create(new[] { PositionId, VelocityId });
-        world.SetComponent(entity, PositionId, new Position { X = 1, Y = 2 });
-        world.SetComponent(entity, VelocityId, new Velocity { X = 3, Y = 4 });
+        world.Set(entity, PositionId, new Position { X = 1, Y = 2 });
+        world.Set(entity, VelocityId, new Velocity { X = 3, Y = 4 });
 
         var query = world.CreateQuery(QuerySpec.ForComponents(PositionId, VelocityId));
         var position = query.AccessWrite(PositionId);
@@ -217,15 +217,15 @@ public sealed class DeltaECSDeliveryTests
             var chunks = archetypes.Current.Chunks;
             Assert.That(chunks.MoveNext(), Is.True);
             var slots = chunks.Current.Slots;
-            var positions = slots.Get(write);
-            var velocities = slots.Get(read);
+            var positions = slots.GetRow(write);
+            var velocities = slots.GetRow(read);
             Assert.That(slots.MoveNext(), Is.True);
             ref var p = ref positions.Ref<Position>(slots);
             ref readonly var v = ref velocities.Ref<Velocity>(slots);
             p.X += v.X;
         }
 
-        Assert.That(world.TryGetComponent<Position>(entity, PositionId, out var result), Is.True);
+        Assert.That(world.TryGet<Position>(entity, PositionId, out var result), Is.True);
         Assert.That(result.X, Is.EqualTo(4));
         Assert.That(world.HasChangedSince(0, PositionId, before), Is.True);
         Assert.That(world.HasChangedSince(0, VelocityId, before), Is.False);
@@ -238,13 +238,13 @@ public sealed class DeltaECSDeliveryTests
         RegisterComponentLayouts(layouts);
         var world = new World(layouts, chunkCapacity: 4);
         var created = new Entity[5];
-        world.CreateBatch(new[] { PositionId, VelocityId }, created);
+        world.Create(new[] { PositionId, VelocityId }, created);
         var expected = new Dictionary<Entity, int>();
         for (var i = 0; i < created.Length; i++)
         {
             expected.Add(created[i], i);
-            world.SetComponent(created[i], PositionId, new Position { X = i, Y = -i });
-            world.SetComponent(created[i], VelocityId, new Velocity { X = i + 10, Y = i + 20 });
+            world.Set(created[i], PositionId, new Position { X = i, Y = -i });
+            world.Set(created[i], VelocityId, new Velocity { X = i + 10, Y = i + 20 });
         }
 
         var spec = QuerySpec.ForComponents(PositionId, VelocityId);
@@ -265,8 +265,8 @@ public sealed class DeltaECSDeliveryTests
                     var chunk = chunks.Current;
                     var entities = chunk.Entities;
                     var slots = chunk.Slots;
-                    var positions = slots.Get(preparedPosition);
-                    var velocities = slots.Get(preparedVelocity);
+                    var positions = slots.GetRow(preparedPosition);
+                    var velocities = slots.GetRow(preparedVelocity);
                     while (slots.MoveNext())
                     {
                         var entity = entities[slots.CurrentIndex];
@@ -293,8 +293,8 @@ public sealed class DeltaECSDeliveryTests
                     var chunk = chunks.Current;
                     ReadOnlySpan<Entity> entities = chunk.Entities;
                     var slots = chunk.Slots;
-                    var positions = slots.Get(preparedPosition);
-                    var velocities = slots.Get(preparedVelocity);
+                    var positions = slots.GetRow(preparedPosition);
+                    var velocities = slots.GetRow(preparedVelocity);
                     while (slots.MoveNext())
                     {
                         var entity = entities[slots.CurrentIndex];
@@ -357,10 +357,10 @@ public sealed class DeltaECSDeliveryTests
         Assert.That(singleChunkCount, Is.EqualTo(1));
 
         var created = new Entity[4];
-        world.CreateBatch(new[] { PositionId }, created);
+        world.Create(new[] { PositionId }, created);
         for (var i = 0; i < created.Length; i++)
         {
-            world.SetComponent(created[i], PositionId, new Position { X = i, Y = 0 });
+            world.Set(created[i], PositionId, new Position { X = i, Y = 0 });
         }
 
         var fullChunkCount = 0;
@@ -377,7 +377,7 @@ public sealed class DeltaECSDeliveryTests
                     Assert.That(chunk.SlotCount, Is.EqualTo(4));
                     var entities = chunk.Entities;
                     var slots = chunk.Slots;
-                    var positions = slots.Get(preparedPosition);
+                    var positions = slots.GetRow(preparedPosition);
                     var expectedSlot = 0;
                     while (slots.MoveNext())
                     {
@@ -400,19 +400,19 @@ public sealed class DeltaECSDeliveryTests
         RegisterComponentLayouts(layouts);
         var world = new World(layouts, chunkCapacity: 2);
         var entities = new Entity[5];
-        world.CreateBatch(new[] { PositionId }, entities);
+        world.Create(new[] { PositionId }, entities);
 
         Assert.That(world.AddComponents(new[] { VelocityId }, entities), Is.EqualTo(entities.Length));
         foreach (var entity in entities)
         {
-            Assert.That(world.TryGetComponent<Velocity>(entity, VelocityId, out _), Is.True);
+            Assert.That(world.TryGet<Velocity>(entity, VelocityId, out _), Is.True);
         }
 
         Assert.That(world.AddComponents(new[] { VelocityId }, entities), Is.EqualTo(0));
         Assert.That(world.RemoveComponents(new[] { VelocityId }, entities), Is.EqualTo(entities.Length));
         foreach (var entity in entities)
         {
-            Assert.That(world.TryGetComponent<Velocity>(entity, VelocityId, out _), Is.False);
+            Assert.That(world.TryGet<Velocity>(entity, VelocityId, out _), Is.False);
         }
     }
 
@@ -426,12 +426,12 @@ public sealed class DeltaECSDeliveryTests
         var query = new QuerySpec(new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>());
 
         var initial = new Entity[1];
-        world.CreateBatch(new[] { PositionId }, initial);
+        world.Create(new[] { PositionId }, initial);
         var before = 0;
         before = CountDenseQuery(world, query);
 
         var withVelocity = new Entity[2];
-        world.CreateBatch(new[] { PositionId, VelocityId }, withVelocity);
+        world.Create(new[] { PositionId, VelocityId }, withVelocity);
 
         var after = 0;
         after = CountDenseQuery(world, query);
@@ -574,7 +574,7 @@ public sealed class DeltaECSDeliveryTests
                 var chunks = archetypes.Current.Chunks;
                 while (chunks.MoveNext())
                 {
-                    _ = chunks.Current.Slots.Get(prepared);
+                    _ = chunks.Current.Slots.GetRow(prepared);
                 }
             }
         }
@@ -592,7 +592,7 @@ public sealed class DeltaECSDeliveryTests
                 var chunks = archetypes.Current.Chunks;
                 while (chunks.MoveNext())
                 {
-                    _ = chunks.Current.Slots.Get(prepared);
+                    _ = chunks.Current.Slots.GetRow(prepared);
                 }
             }
         }
@@ -607,7 +607,7 @@ public sealed class DeltaECSDeliveryTests
                 var chunks = archetypes.Current.Chunks;
                 while (chunks.MoveNext())
                 {
-                    _ = chunks.Current.Slots.Get(prepared);
+                    _ = chunks.Current.Slots.GetRow(prepared);
                 }
             }
         }
@@ -626,7 +626,7 @@ public sealed class DeltaECSDeliveryTests
         Assert.That(assembly.GetType("Delta.ECS.DenseChunkScope"), Is.Null);
 
         var publicMethods = typeof(World).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
-        Assert.That(publicMethods.Any(static method => method.Name == "Query"), Is.True);
+        Assert.That(publicMethods.Any(static method => method.Name == "Execute"), Is.True);
         Assert.That(publicMethods.Any(static method => method.Name == "QueryChunks"), Is.False);
 
         var publicInstance = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public;
@@ -634,8 +634,8 @@ public sealed class DeltaECSDeliveryTests
         Assert.That(typeof(QueryScope).GetMethods(publicInstance).Any(static method => method.Name.StartsWith("Bind", StringComparison.Ordinal) && method.IsGenericMethod), Is.False);
         Assert.That(typeof(QueryChunkCursor).GetMethods(publicInstance).Any(static method => method.Name == "Get" && method.IsGenericMethod), Is.False);
         Assert.That(typeof(QuerySlots).GetMethods(publicInstance).Any(static method => method.Name == "Get" && method.IsGenericMethod), Is.False);
-        Assert.That(assembly.GetType("Delta.ECS.ReadValues`1"), Is.Null);
-        Assert.That(assembly.GetType("Delta.ECS.WriteValues`1"), Is.Null);
+        Assert.That(assembly.GetType("Delta.ECS.ReadRow`1"), Is.Null);
+        Assert.That(assembly.GetType("Delta.ECS.WriteRow`1"), Is.Null);
     }
 
     [Test]
@@ -685,8 +685,8 @@ public sealed class DeltaECSDeliveryTests
                 {
                     var chunk = chunks.Current;
                     var slots = chunk.Slots;
-                    var positions = slots.Get(preparedPosition);
-                    var velocities = slots.Get(preparedVelocity);
+                    var positions = slots.GetRow(preparedPosition);
+                    var velocities = slots.GetRow(preparedVelocity);
                     writtenChunks.Add(chunk.GlobalChunkId);
                     while (slots.MoveNext())
                     {
@@ -756,8 +756,8 @@ public sealed class DeltaECSDeliveryTests
                 while (chunks.MoveNext())
                 {
                     var slots = chunks.Current.Slots;
-                    var positions = slots.Get(write);
-                    var velocities = slots.Get(read);
+                    var positions = slots.GetRow(write);
+                    var velocities = slots.GetRow(read);
                     while (slots.MoveNext())
                     {
                         ref var position = ref positions.Ref<Position>(slots);
@@ -863,7 +863,7 @@ public sealed class DeltaECSDeliveryTests
         var world = new World(layouts, chunkCapacity: 4);
 
         var initial = new Entity[16];
-        world.CreateBatch(new[] { PositionId }, initial);
+        world.Create(new[] { PositionId }, initial);
 
         var baseline = CollectChunkIds(world);
 
@@ -876,7 +876,7 @@ public sealed class DeltaECSDeliveryTests
         Assert.LessOrEqual(afterDestroy.Count, baseline.Count);
 
         var replacement = new Entity[8];
-        world.CreateBatch(new[] { PositionId }, replacement);
+        world.Create(new[] { PositionId }, replacement);
         var afterRecycle = CollectChunkIds(world);
 
         foreach (var id in afterRecycle)
@@ -895,11 +895,11 @@ public sealed class DeltaECSDeliveryTests
         RegisterComponentLayouts(layouts);
         var world = new World(layouts, chunkCapacity: 4);
         var entities = new Entity[5];
-        world.CreateBatch(new[] { PositionId, VelocityId }, entities);
+        world.Create(new[] { PositionId, VelocityId }, entities);
         for (var i = 0; i < entities.Length; i++)
         {
-            world.SetComponent(entities[i], PositionId, new Position { X = i, Y = 0 });
-            world.SetComponent(entities[i], VelocityId, new Velocity { X = 1, Y = 2 });
+            world.Set(entities[i], PositionId, new Position { X = i, Y = 0 });
+            world.Set(entities[i], VelocityId, new Velocity { X = 1, Y = 2 });
         }
 
         var query = world.CreateQuery(QuerySpec.ForComponents(PositionId, VelocityId));
@@ -913,8 +913,8 @@ public sealed class DeltaECSDeliveryTests
 
         for (var i = 0; i < entities.Length; i++)
         {
-            world.SetComponent(entities[i], PositionId, new Position { X = i, Y = 0 });
-            world.SetComponent(entities[i], VelocityId, new Velocity { X = 1, Y = 2 });
+            world.Set(entities[i], PositionId, new Position { X = i, Y = 0 });
+            world.Set(entities[i], VelocityId, new Velocity { X = 1, Y = 2 });
         }
 
         var sum = 0f;
@@ -929,7 +929,7 @@ public sealed class DeltaECSDeliveryTests
         // authoritative per-operation allocation gate for the same cached loop.
         Assert.That(after - firstMeasuredAfter, Is.LessThanOrEqualTo(24));
         Assert.That(sum, Is.EqualTo(60f));
-        Assert.That(world.TryGetComponent<Position>(entities[0], PositionId, out var actualPosition));
+        Assert.That(world.TryGet<Position>(entities[0], PositionId, out var actualPosition));
         Assert.That(actualPosition.X, Is.EqualTo(3f));
         Assert.That(actualPosition.Y, Is.EqualTo(6f));
     }
@@ -959,8 +959,8 @@ public sealed class DeltaECSDeliveryTests
         var worldRow = query.AccessRead(worldId);
         var entity = world.Create(new[] { localId, worldId });
 
-        world.SetComponent(entity, localId, new NamedRef { Name = "local", Id = 1 });
-        world.SetComponent(entity, worldId, new NamedRef { Name = "world", Id = 2 });
+        world.Set(entity, localId, new NamedRef { Name = "local", Id = 1 });
+        world.Set(entity, worldId, new NamedRef { Name = "world", Id = 2 });
 
         NamedRef first = default;
         NamedRef second = default;
@@ -976,8 +976,8 @@ public sealed class DeltaECSDeliveryTests
                 while (chunks.MoveNext())
                 {
                     var slots = chunks.Current.Slots;
-                    var firstRows = slots.Get(preparedLocal);
-                    var secondRows = slots.Get(preparedWorld);
+                    var firstRows = slots.GetRow(preparedLocal);
+                    var secondRows = slots.GetRow(preparedWorld);
                     while (slots.MoveNext())
                     {
                         first = firstRows.Ref<NamedRef>(slots);
@@ -1006,8 +1006,8 @@ public sealed class DeltaECSDeliveryTests
         var entity = world.Create(new[] { referenceId });
         var component = new ReferenceComponent { Value = 42 };
 
-        Assert.That(world.SetComponent(entity, referenceId, component), Is.True);
-        Assert.That(world.TryGetComponent(entity, referenceId, out ReferenceComponent actual), Is.True);
+        Assert.That(world.Set(entity, referenceId, component), Is.True);
+        Assert.That(world.TryGet(entity, referenceId, out ReferenceComponent actual), Is.True);
         Assert.That(actual, Is.SameAs(component));
 
         var query = world.CreateQuery(QuerySpec.ForComponents(referenceId));
@@ -1022,7 +1022,7 @@ public sealed class DeltaECSDeliveryTests
                 while (chunks.MoveNext())
                 {
                     var slots = chunks.Current.Slots;
-                    var rows = slots.Get(preparedReference);
+                    var rows = slots.GetRow(preparedReference);
                     while (slots.MoveNext())
                     {
                         Assert.That(rows.Ref<ReferenceComponent>(slots), Is.SameAs(component));
@@ -1034,11 +1034,11 @@ public sealed class DeltaECSDeliveryTests
 
         world.AddComponents(new[] { markerId }, entity);
 
-        Assert.That(world.TryGetComponent(entity, referenceId, out actual), Is.True);
+        Assert.That(world.TryGet(entity, referenceId, out actual), Is.True);
         Assert.That(actual, Is.SameAs(component));
         Assert.That(actual.Value, Is.EqualTo(43));
         Assert.That(world.Destroy(entity), Is.True);
-        Assert.That(world.TryGetComponent(entity, referenceId, out ReferenceComponent _), Is.False);
+        Assert.That(world.TryGet(entity, referenceId, out ReferenceComponent _), Is.False);
     }
 
     [Test]
@@ -1051,18 +1051,18 @@ public sealed class DeltaECSDeliveryTests
         var world = new World(layouts, chunkCapacity: 4);
         var entity = world.Create(new[] { localId, worldId });
 
-        world.SetComponent(entity, localId, new NamedRef { Name = "local", Id = 11 });
-        world.SetComponent(entity, worldId, new NamedRef { Name = "world", Id = 22 });
+        world.Set(entity, localId, new NamedRef { Name = "local", Id = 11 });
+        world.Set(entity, worldId, new NamedRef { Name = "world", Id = 22 });
         world.AddComponents(new[] { markerId }, entity);
 
-        Assert.True(world.TryGetComponent(entity, localId, out NamedRef localAfterAdd));
-        Assert.True(world.TryGetComponent(entity, worldId, out NamedRef worldAfterAdd));
+        Assert.True(world.TryGet(entity, localId, out NamedRef localAfterAdd));
+        Assert.True(world.TryGet(entity, worldId, out NamedRef worldAfterAdd));
         Assert.AreEqual(11, localAfterAdd.Id);
         Assert.AreEqual(22, worldAfterAdd.Id);
 
         world.RemoveComponents(new[] { markerId }, entity);
-        Assert.True(world.TryGetComponent(entity, localId, out NamedRef localAfterRemove));
-        Assert.True(world.TryGetComponent(entity, worldId, out NamedRef worldAfterRemove));
+        Assert.True(world.TryGet(entity, localId, out NamedRef localAfterRemove));
+        Assert.True(world.TryGet(entity, worldId, out NamedRef worldAfterRemove));
         Assert.AreEqual("local", localAfterRemove.Name);
         Assert.AreEqual("world", worldAfterRemove.Name);
 
@@ -1098,23 +1098,23 @@ public sealed class DeltaECSDeliveryTests
         var world = new World(layouts);
 
         var first = world.Create(new[] { PositionId, VelocityId });
-        world.SetComponent(first, PositionId, new Position { X = 10, Y = 11 });
-        world.SetComponent(first, VelocityId, new Velocity { X = 20, Y = 21 });
+        world.Set(first, PositionId, new Position { X = 10, Y = 11 });
+        world.Set(first, VelocityId, new Velocity { X = 20, Y = 21 });
 
         world.AddComponents(new[] { HealthId }, first);
 
-        Assert.True(world.TryGetComponent<Position>(first, PositionId, out var posAfterAdd));
-        Assert.True(world.TryGetComponent<Velocity>(first, VelocityId, out var velAfterAdd));
-        Assert.True(world.TryGetComponent<Health>(first, HealthId, out var healthAfterAdd));
+        Assert.True(world.TryGet<Position>(first, PositionId, out var posAfterAdd));
+        Assert.True(world.TryGet<Velocity>(first, VelocityId, out var velAfterAdd));
+        Assert.True(world.TryGet<Health>(first, HealthId, out var healthAfterAdd));
         Assert.AreEqual(10, posAfterAdd.X);
         Assert.AreEqual(21, velAfterAdd.Y);
         Assert.AreEqual(0, healthAfterAdd.Value);
 
         world.RemoveComponents(new[] { VelocityId }, first);
 
-        Assert.True(world.TryGetComponent<Position>(first, PositionId, out var posAfterRemove));
-        Assert.True(world.TryGetComponent<Health>(first, HealthId, out _));
-        Assert.False(world.TryGetComponent<Velocity>(first, VelocityId, out _));
+        Assert.True(world.TryGet<Position>(first, PositionId, out var posAfterRemove));
+        Assert.True(world.TryGet<Health>(first, HealthId, out _));
+        Assert.False(world.TryGet<Velocity>(first, VelocityId, out _));
         Assert.AreEqual(10, posAfterRemove.X);
     }
 
@@ -1162,15 +1162,15 @@ public sealed class DeltaECSDeliveryTests
                         Health = useHealth ? new Health { Value = random.Next(0, 100) } : null,
                     };
 
-                    world.SetComponent(entity, PositionId, state.Position);
+                    world.Set(entity, PositionId, state.Position);
                     if (state.Velocity.HasValue)
                     {
-                        world.SetComponent(entity, VelocityId, state.Velocity.Value);
+                        world.Set(entity, VelocityId, state.Velocity.Value);
                     }
 
                     if (state.Health.HasValue)
                     {
-                        world.SetComponent(entity, HealthId, state.Health.Value);
+                        world.Set(entity, HealthId, state.Health.Value);
                     }
 
                     model[entity.Index] = state;
@@ -1216,7 +1216,7 @@ public sealed class DeltaECSDeliveryTests
                 if (world.IsAlive(entity))
                 {
                     var newPosition = new Position { X = random.NextSingle(), Y = random.NextSingle() };
-                    world.SetComponent(entity, PositionId, newPosition);
+                    world.Set(entity, PositionId, newPosition);
 
                     var updated = model[entity.Index];
                     updated.Position = newPosition;
@@ -1276,7 +1276,7 @@ public sealed class DeltaECSDeliveryTests
             var chunks = archetypes.Current.Chunks;
             while (chunks.MoveNext())
             {
-                _ = chunks.Current.Slots.Get(prepared);
+                _ = chunks.Current.Slots.GetRow(prepared);
             }
         }
     }
@@ -1298,8 +1298,8 @@ public sealed class DeltaECSDeliveryTests
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var positions = slots.Get(preparedPosition);
-                var velocities = slots.Get(preparedVelocity);
+                var positions = slots.GetRow(preparedPosition);
+                var velocities = slots.GetRow(preparedVelocity);
                 while (slots.MoveNext())
                 {
                     ref var currentPosition = ref positions.Ref<Position>(slots);
@@ -1330,28 +1330,28 @@ public sealed class DeltaECSDeliveryTests
             Assert.True(model.ContainsKey(entity.Index));
 
             var expected = model[entity.Index];
-            Assert.True(world.TryGetComponent<Position>(entity, PositionId, out var position));
+            Assert.True(world.TryGet<Position>(entity, PositionId, out var position));
             Assert.That(Math.Abs(expected.Position.X - position.X) < 1e-5f, $"Mismatch Position.X for entity {entity}");
             Assert.That(Math.Abs(expected.Position.Y - position.Y) < 1e-5f, $"Mismatch Position.Y for entity {entity}");
 
             if (expected.Velocity.HasValue)
             {
-                Assert.True(world.TryGetComponent<Velocity>(entity, VelocityId, out var velocity));
+                Assert.True(world.TryGet<Velocity>(entity, VelocityId, out var velocity));
                 Assert.AreEqual(expected.Velocity.Value.X, velocity.X, 1e-5f);
             }
             else
             {
-                Assert.False(world.TryGetComponent<Velocity>(entity, VelocityId, out _));
+                Assert.False(world.TryGet<Velocity>(entity, VelocityId, out _));
             }
 
             if (expected.Health.HasValue)
             {
-                Assert.True(world.TryGetComponent<Health>(entity, HealthId, out var health));
+                Assert.True(world.TryGet<Health>(entity, HealthId, out var health));
                 Assert.AreEqual(expected.Health.Value.Value, health.Value);
             }
             else
             {
-                Assert.False(world.TryGetComponent<Health>(entity, HealthId, out _));
+                Assert.False(world.TryGet<Health>(entity, HealthId, out _));
             }
         }
     }
@@ -1383,7 +1383,7 @@ public sealed class DeltaECSDeliveryTests
         var world = new World(layouts);
         var entity = world.Create(new[] { id });
         var payload = new RefPayload(42);
-        world.SetComponent(entity, id, new RefMarker { Payload = payload, Value = 42 });
+        world.Set(entity, id, new RefMarker { Payload = payload, Value = 42 });
         var weak = new WeakReference<RefPayload>(payload);
         world.Destroy(entity);
         return weak;

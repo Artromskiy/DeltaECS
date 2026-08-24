@@ -90,12 +90,7 @@ public sealed partial class World : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public ArchetypeHandle GetArchetype(params ReadOnlySpan<ComponentId> componentIds) => ResolveArchetype(componentIds);
-
-    public ArchetypeHandle GetArchetype(ComponentId first, ComponentId second)
-        => GetArchetype(stackalloc[] { first, second });
-
-    public ArchetypeHandle ResolveArchetype(params ReadOnlySpan<ComponentId> componentIds)
+    public ArchetypeHandle GetOrCreateArchetype(params ReadOnlySpan<ComponentId> componentIds)
     {
         if (!TryBuildComponentMask(componentIds, out var mask))
         {
@@ -105,6 +100,9 @@ public sealed partial class World : IDisposable
         return new ArchetypeHandle(this, GetOrCreateArchetype(mask).Id);
     }
 
+    public ArchetypeHandle GetOrCreateArchetype(ComponentId first, ComponentId second)
+        => GetOrCreateArchetype(stackalloc[] { first, second });
+
     public Query CreateQuery(in QuerySpec spec) => new Query(this, GetOrCreateQuery(spec), spec);
 
     /// <summary>Creates a validated query scope with independent iterators.</summary>
@@ -113,10 +111,10 @@ public sealed partial class World : IDisposable
     public Entity Create(params ReadOnlySpan<ComponentId> componentIds)
     {
         Span<Entity> entities = stackalloc Entity[1];
-        return CreateBatch(componentIds, entities) == 0 ? Entity.Null : entities[0];
+        return Create(componentIds, entities) == 0 ? Entity.Null : entities[0];
     }
 
-    public int CreateBatch(ReadOnlySpan<ComponentId> componentIds, Span<Entity> output)
+    public int Create(ReadOnlySpan<ComponentId> componentIds, Span<Entity> output)
     {
         if (output.Length == 0)
         {
@@ -136,10 +134,10 @@ public sealed partial class World : IDisposable
     public Entity Create(ArchetypeHandle handle)
     {
         Span<Entity> entities = stackalloc Entity[1];
-        return CreateBatch(handle, entities) == 0 ? Entity.Null : entities[0];
+        return Create(handle, entities) == 0 ? Entity.Null : entities[0];
     }
 
-    public int CreateBatch(ArchetypeHandle handle, Span<Entity> output)
+    public int Create(ArchetypeHandle handle, Span<Entity> output)
     {
         if (output.Length == 0)
         {
@@ -216,7 +214,7 @@ public sealed partial class World : IDisposable
         return true;
     }
 
-    public int DestroyBatch(ReadOnlySpan<Entity> entities)
+    public int Destroy(ReadOnlySpan<Entity> entities)
     {
         EnsureNoActiveLease("destroy entities");
         EnsureDestroyScratch(entities.Length);
@@ -370,7 +368,7 @@ public sealed partial class World : IDisposable
         return false;
     }
 
-    public bool SetComponent<T>(Entity entity, ComponentId componentId, in T value)
+    private bool SetCore<T>(Entity entity, ComponentId componentId, in T value)
     {
         if (!TryResolve(entity, out int recordIndex))
         {
@@ -399,7 +397,7 @@ public sealed partial class World : IDisposable
         return true;
     }
 
-    public bool TryGetComponent<T>(Entity entity, ComponentId componentId, out T value)
+    private bool TryGetCore<T>(Entity entity, ComponentId componentId, out T value)
     {
         if (!TryResolve(entity, out int recordIndex))
         {
@@ -479,7 +477,7 @@ public sealed partial class World : IDisposable
     /// Executes a query through the experimental Version 1 cursor path.
     /// The cursor is valid only for the callback invocation and must not be retained.
     /// </summary>
-    public void Query<TContext>(in Query handle, ref TContext context, QueryAction<TContext> action)
+    public void Execute<TContext>(in Query handle, ref TContext context, QueryChunkAction<TContext> action)
     {
         if (!ReferenceEquals(handle.Owner, this) || !handle.IsValid)
         {

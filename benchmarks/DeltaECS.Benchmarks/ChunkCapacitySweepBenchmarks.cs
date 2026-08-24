@@ -41,17 +41,17 @@ public class DenseCapacitySweepBenchmarks
 
         _arrayWorld = new World(layouts, initialEntityCapacity: Amount, chunkCapacity: ChunkCapacity);
         var entities = new Entity[Amount];
-        _arrayWorld.CreateBatch(_components, entities);
+        _arrayWorld.Create(_components, entities);
         for (var i = 0; i < entities.Length; i++)
         {
-            _arrayWorld.SetComponent(entities[i], _components[0], new S0 { X = 1, Y = 2 });
-            _arrayWorld.SetComponent(entities[i], _components[1], new S1 { X = 1, Y = 2 });
-            _arrayWorld.SetComponent(entities[i], _components[2], new S2 { X = 1, Y = 2 });
-            _arrayWorld.SetComponent(entities[i], _components[3], new S3 { X = 1, Y = 2 });
-            _arrayWorld.SetComponent(entities[i], _components[4], new S4 { X = 1, Y = 2 });
-            _arrayWorld.SetComponent(entities[i], _components[5], new S5 { X = 1, Y = 2 });
-            _arrayWorld.SetComponent(entities[i], _components[6], new S6 { X = 1, Y = 2 });
-            _arrayWorld.SetComponent(entities[i], _components[7], new S7 { X = 1, Y = 2 });
+            _arrayWorld.Set(entities[i], _components[0], new S0 { X = 1, Y = 2 });
+            _arrayWorld.Set(entities[i], _components[1], new S1 { X = 1, Y = 2 });
+            _arrayWorld.Set(entities[i], _components[2], new S2 { X = 1, Y = 2 });
+            _arrayWorld.Set(entities[i], _components[3], new S3 { X = 1, Y = 2 });
+            _arrayWorld.Set(entities[i], _components[4], new S4 { X = 1, Y = 2 });
+            _arrayWorld.Set(entities[i], _components[5], new S5 { X = 1, Y = 2 });
+            _arrayWorld.Set(entities[i], _components[6], new S6 { X = 1, Y = 2 });
+            _arrayWorld.Set(entities[i], _components[7], new S7 { X = 1, Y = 2 });
         }
 
         var spec = QuerySpec.ForComponents(_components);
@@ -74,14 +74,14 @@ public class DenseCapacitySweepBenchmarks
             while (chunks.MoveNext())
             {
                 var slots = chunks.Current.Slots;
-                var c0 = slots.Get(_b0);
-                var c1 = slots.Get(_b1);
-                var c2 = slots.Get(_b2);
-                var c3 = slots.Get(_b3);
-                var c4 = slots.Get(_b4);
-                var c5 = slots.Get(_b5);
-                var c6 = slots.Get(_b6);
-                var c7 = slots.Get(_b7);
+                var c0 = slots.GetRow(_b0);
+                var c1 = slots.GetRow(_b1);
+                var c2 = slots.GetRow(_b2);
+                var c3 = slots.GetRow(_b3);
+                var c4 = slots.GetRow(_b4);
+                var c5 = slots.GetRow(_b5);
+                var c6 = slots.GetRow(_b6);
+                var c7 = slots.GetRow(_b7);
                 while (slots.MoveNext())
                 {
                     c0.Ref<S0>(slots).X += c0.Ref<S0>(slots).Y; c1.Ref<S1>(slots).X += c1.Ref<S1>(slots).Y; c2.Ref<S2>(slots).X += c2.Ref<S2>(slots).Y; c3.Ref<S3>(slots).X += c3.Ref<S3>(slots).Y;
