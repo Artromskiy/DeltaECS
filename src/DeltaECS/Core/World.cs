@@ -483,6 +483,20 @@ public sealed partial class World : IDisposable
         ReadOnlySpan<ArchetypePlan> plans = cached.MatchingPlans(this);
         uint writeTick = 0;
         Stamp writeStamp = default;
+        if (hasWrites)
+        {
+            for (int planIndex = 0; planIndex < plans.Length; planIndex++)
+            {
+                if (plans[planIndex].Chunks.Length == 0)
+                {
+                    continue;
+                }
+
+                writeTick = ReserveQueryWrite(out writeStamp);
+                break;
+            }
+        }
+
         BeginQueryLease();
         try
         {
@@ -492,13 +506,8 @@ public sealed partial class World : IDisposable
                 ReadOnlySpan<ChunkPlan> chunks = plan.Chunks;
                 for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
                 {
-                    if (hasWrites && writeTick == 0)
-                    {
-                        writeTick = ReserveQueryWrite(out writeStamp);
-                    }
-
                     var slots = new GeneratedQuerySlots(plan, chunks[chunkIndex], writeTick, writeStamp);
-                    invoker.Invoke(ref slots);
+                    ExecuteGeneratedChunk(ref invoker, ref slots);
                 }
             }
         }
@@ -506,6 +515,13 @@ public sealed partial class World : IDisposable
         {
             EndQueryLease();
         }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void ExecuteGeneratedChunk<TInvoker>(ref TInvoker invoker, ref GeneratedQuerySlots slots)
+        where TInvoker : struct, IGeneratedForEachInvoker
+    {
+        invoker.Invoke(ref slots);
     }
 
     internal uint ReserveQueryWrite(out Stamp writeStamp)
