@@ -7,16 +7,20 @@ public ref struct QueryArchetypes
 {
     private readonly ReadOnlySpan<ArchetypePlan> _plans;
     private readonly QueryPlan _query;
-    private readonly uint _writeTick;
-    private readonly Stamp _writeStamp;
+    private readonly QueryWriteSession _writeSession;
+    private readonly int _sessionGeneration;
     private int _index;
 
-    internal QueryArchetypes(ArchetypePlan[] plans, QueryPlan query, uint writeTick, Stamp writeStamp)
+    internal QueryArchetypes(
+        ArchetypePlan[] plans,
+        QueryPlan query,
+        QueryWriteSession writeSession,
+        int sessionGeneration)
     {
         _plans = plans;
         _query = query;
-        _writeTick = writeTick;
-        _writeStamp = writeStamp;
+        _writeSession = writeSession;
+        _sessionGeneration = sessionGeneration;
         _index = -1;
     }
 
@@ -30,13 +34,14 @@ public ref struct QueryArchetypes
                 QueryThrowHelper.ThrowArchetypeIteratorNotPositioned();
             }
 
-            return new QueryArchetype(_plans.Ref(_index), _query, _writeTick, _writeStamp);
+            return new QueryArchetype(_plans.Ref(_index), _query, _writeSession, _sessionGeneration);
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNext()
     {
+        _writeSession.EnsureActive(_sessionGeneration);
         if ((uint)++_index >= (uint)_plans.Length)
         {
             return false;
@@ -51,15 +56,15 @@ public readonly ref struct QueryArchetype
 {
     private readonly ArchetypePlan _plan;
     private readonly QueryPlan _query;
-    private readonly uint _writeTick;
-    private readonly Stamp _writeStamp;
+    private readonly QueryWriteSession _writeSession;
+    private readonly int _sessionGeneration;
 
-    internal QueryArchetype(ArchetypePlan plan, QueryPlan query, uint writeTick, Stamp writeStamp)
+    internal QueryArchetype(ArchetypePlan plan, QueryPlan query, QueryWriteSession writeSession, int sessionGeneration)
     {
         _plan = plan;
         _query = query;
-        _writeTick = writeTick;
-        _writeStamp = writeStamp;
+        _writeSession = writeSession;
+        _sessionGeneration = sessionGeneration;
     }
 
     public int ArchetypeId => _plan.Archetype.Id;
@@ -68,5 +73,5 @@ public readonly ref struct QueryArchetype
 
     public int ChunkCount => _plan.Archetype.ActiveChunkCount;
 
-    public QueryChunks Chunks => new(_plan, _query, _writeTick, _writeStamp);
+    public QueryChunks Chunks => new(_plan, _query, _writeSession, _sessionGeneration);
 }

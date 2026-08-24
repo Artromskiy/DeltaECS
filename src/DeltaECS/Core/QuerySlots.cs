@@ -10,10 +10,27 @@ public ref struct QuerySlots
     private readonly Chunk _chunk;
     private readonly Array[] _resolvedRowsByQuery;
     private readonly QueryPlan _query;
-    private readonly uint _writeTick;
-    private readonly Stamp _writeStamp;
+    private readonly QueryWriteSession _writeSession;
+    private readonly int _sessionGeneration;
     private readonly int _count;
     private int _index;
+
+    internal QuerySlots(
+        ArchetypePlan plan,
+        ChunkPlan chunkPlan,
+        QueryPlan query,
+        QueryWriteSession writeSession,
+        int sessionGeneration)
+    {
+        _componentRowsByQuery = plan.ComponentRows;
+        _chunk = chunkPlan.Chunk;
+        _resolvedRowsByQuery = chunkPlan.ComponentRows;
+        _query = query;
+        _writeSession = writeSession;
+        _sessionGeneration = sessionGeneration;
+        _count = chunkPlan.Chunk.Count;
+        _index = -1;
+    }
 
     internal QuerySlots(ArchetypePlan plan, ChunkPlan chunkPlan, QueryPlan query, uint writeTick, Stamp writeStamp)
     {
@@ -21,8 +38,8 @@ public ref struct QuerySlots
         _chunk = chunkPlan.Chunk;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
         _query = query;
-        _writeTick = writeTick;
-        _writeStamp = writeStamp;
+        _writeSession = new QueryWriteSession();
+        _sessionGeneration = _writeSession.Reset(writeTick, writeStamp);
         _count = chunkPlan.Chunk.Count;
         _index = -1;
     }
@@ -42,6 +59,7 @@ public ref struct QuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ReadValues Get(ReadAccess access)
     {
+        _writeSession.EnsureActive(_sessionGeneration);
         if (!ReferenceEquals(access.Query, _query))
         {
             QueryThrowHelper.ThrowAccessMismatch();
@@ -58,13 +76,15 @@ public ref struct QuerySlots
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
+        _writeSession.Acquire(_sessionGeneration, out uint writeTick, out Stamp writeStamp);
         int physicalRow = _componentRowsByQuery.Ref(access.QueryComponentIndex);
-        _chunk.MarkComponentWritten(physicalRow, _writeTick, _writeStamp);
+        _chunk.MarkComponentWritten(physicalRow, writeTick, writeStamp);
         return new WriteValues(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
     }
 
     public ObjectReadValues GetObject(ReadAccess access)
     {
+        _writeSession.EnsureActive(_sessionGeneration);
         if (!ReferenceEquals(access.Query, _query))
         {
             QueryThrowHelper.ThrowAccessMismatch();
@@ -80,8 +100,9 @@ public ref struct QuerySlots
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
+        _writeSession.Acquire(_sessionGeneration, out uint writeTick, out Stamp writeStamp);
         int physicalRow = _componentRowsByQuery.Ref(access.QueryComponentIndex);
-        _chunk.MarkComponentWritten(physicalRow, _writeTick, _writeStamp);
+        _chunk.MarkComponentWritten(physicalRow, writeTick, writeStamp);
         return new ObjectWriteValues(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
     }
 

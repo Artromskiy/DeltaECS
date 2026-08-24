@@ -3,6 +3,8 @@ using Delta.ECS;
 using Delta.ECS.Integration;
 using NUnit.Framework;
 
+#pragma warning disable CA5394 // Seeded pseudo-random input is intentional for deterministic state-machine testing.
+
 namespace Delta.ECS.Tests;
 
 [TestFixture]
@@ -687,6 +689,65 @@ public sealed class StampInvariantTests
     }
 
     [Test]
+    public void ReusedWorldQueryWriteSessionStampsEveryChunkOnceAndDoesNotLeakAcrossQueries()
+    {
+        var layouts = CreateLayouts();
+        using var world = new World(layouts, chunkCapacity: 2);
+        Entity[] entities = new Entity[5];
+        world.CreateBatch(new[] { PositionId }, entities);
+        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var state = new QueryWriteState(query.AccessWrite(PositionId));
+
+        Stamp beforeFirstWrite = world.Stamp;
+        world.Query(in query, ref state, static (ref QueryWriteState callbackState, ref QueryChunkCursor cursor) =>
+        {
+            WriteValues values = cursor.GetWrite(callbackState.Access);
+            while (cursor.MoveNext())
+            {
+                values.Ref<Position>(cursor).X++;
+                callbackState.Count++;
+            }
+        });
+
+        Stamp firstWrite = world.Stamp;
+        Assert.That(firstWrite, Is.EqualTo(new Stamp(beforeFirstWrite.Value + 1)));
+        Assert.That(state.Count, Is.EqualTo(entities.Length));
+        foreach (Entity entity in entities)
+        {
+            Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp stamp), Is.True);
+            Assert.That(stamp, Is.EqualTo(firstWrite));
+        }
+
+        world.Query(in query, ref state, static (ref QueryWriteState callbackState, ref QueryChunkCursor cursor) =>
+        {
+            callbackState.CallbackCount++;
+            _ = cursor.SlotCount;
+        });
+        Assert.That(world.Stamp, Is.EqualTo(firstWrite));
+        Assert.That(state.CallbackCount, Is.EqualTo(3));
+
+        state.Count = 0;
+        world.Query(in query, ref state, static (ref QueryWriteState callbackState, ref QueryChunkCursor cursor) =>
+        {
+            WriteValues values = cursor.GetWrite(callbackState.Access);
+            while (cursor.MoveNext())
+            {
+                values.Ref<Position>(cursor).X++;
+                callbackState.Count++;
+            }
+        });
+
+        Stamp secondWrite = world.Stamp;
+        Assert.That(secondWrite, Is.EqualTo(new Stamp(firstWrite.Value + 1)));
+        Assert.That(state.Count, Is.EqualTo(entities.Length));
+        foreach (Entity entity in entities)
+        {
+            Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp stamp), Is.True);
+            Assert.That(stamp, Is.EqualTo(secondWrite));
+        }
+    }
+
+    [Test]
     public void WriteGetOnAnEmptyChunkDoesNotCreateAStampOrAComponentStamp()
     {
         var layouts = CreateLayouts();
@@ -697,7 +758,7 @@ public sealed class StampInvariantTests
         var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
         WriteAccess write = query.AccessWrite(PositionId);
         var archetype = world.Archetypes[0];
-        var plan = new ArchetypePlan(archetype, new[] { 0 });
+        var plan = new ArchetypePlan(archetype, QueryRowZero);
         var chunk = archetype.GetChunk(0);
         var chunkPlan = new ChunkPlan(chunk, new[] { chunk.GetRawComponentRow(0) });
         var slots = new QuerySlots(plan, chunkPlan, query.Cached, writeTick: 1, writeStamp: new Stamp(before.Value + 1));
@@ -766,6 +827,114 @@ public sealed class StampInvariantTests
     }
 
     [Test]
+    public void ExhaustedStampSourceDoesNotMutateBeforeSetThrows()
+    {
+        var layouts = CreateLayouts();
+        using var world = new World(layouts);
+        Entity entity = world.Create(PositionId);
+        Assert.That(world.SetComponent(entity, PositionId, new Position { X = 7 }), Is.True);
+        Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp beforeStamp), Is.True);
+        Stamp exhausted = ExhaustWorldStamp(world);
+
+        Assert.Throws<InvalidOperationException>(() => world.SetComponent(entity, PositionId, new Position { X = 99 }));
+        Assert.Multiple(() =>
+        {
+            Assert.That(world.Stamp, Is.EqualTo(exhausted));
+            Assert.That(world.TryGetComponent(entity, PositionId, out Position value), Is.True);
+            Assert.That(value.X, Is.EqualTo(7));
+            Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp afterStamp), Is.True);
+            Assert.That(afterStamp, Is.EqualTo(beforeStamp));
+        });
+    }
+
+    [Test]
+    public void ExhaustedStampSourceDoesNotMutateBeforeLazyQueryWriteThrows()
+    {
+        var layouts = CreateLayouts();
+        using var world = new World(layouts);
+        Entity entity = world.Create(PositionId);
+        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
+        WriteAccess write = query.AccessWrite(PositionId);
+        Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp beforeStamp), Is.True);
+
+        using var scope = world.OpenQuery(in query);
+        WriteAccess bound = scope.Bind(write);
+        var archetypes = scope.Archetypes;
+        Assert.That(archetypes.MoveNext(), Is.True);
+        var chunks = archetypes.Current.Chunks;
+        Assert.That(chunks.MoveNext(), Is.True);
+        var slots = chunks.Current.Slots;
+        Stamp exhausted = ExhaustWorldStamp(world);
+
+        bool writeRejected = false;
+        try
+        {
+            _ = slots.Get(bound);
+        }
+        catch (InvalidOperationException)
+        {
+            writeRejected = true;
+        }
+
+        Assert.That(writeRejected, Is.True);
+        Assert.That(world.Stamp, Is.EqualTo(exhausted));
+        Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp afterStamp), Is.True);
+        Assert.That(afterStamp, Is.EqualTo(beforeStamp));
+    }
+
+    [Test]
+    public void QueryScopeCopiesCannotDoubleReleaseOrReuseAStaleExecutionSession()
+    {
+        var layouts = CreateLayouts();
+        using var world = new World(layouts);
+        _ = world.Create(PositionId);
+        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
+        _ = query.AccessWrite(PositionId);
+        var firstScope = world.OpenQuery(in query);
+        var copiedScope = firstScope;
+        var staleArchetypes = firstScope.Archetypes;
+
+        firstScope.Dispose();
+        copiedScope.Dispose();
+
+        using var secondScope = world.OpenQuery(in query);
+        var secondArchetypes = secondScope.Archetypes;
+        Assert.That(secondArchetypes.MoveNext(), Is.True);
+        bool staleRejected = false;
+        try
+        {
+            _ = staleArchetypes.MoveNext();
+        }
+        catch (InvalidOperationException)
+        {
+            staleRejected = true;
+        }
+
+        Assert.That(staleRejected, Is.True);
+    }
+
+    [Test]
+    public void UnknownStructuralComponentsFailBeforeConsumingAStampOrCreatingAnArchetype()
+    {
+        var layouts = CreateLayouts();
+        using var world = new World(layouts);
+        Entity entity = world.Create(PositionId);
+        Stamp before = world.Stamp;
+        int archetypeVersion = world.ArchetypeVersion;
+        var unknown = new ComponentId(200);
+
+        Assert.Throws<ArgumentException>(() => world.Create(unknown));
+        Assert.Throws<ArgumentException>(() => world.AddComponents(new[] { unknown }, entity));
+        Assert.Throws<ArgumentException>(() => world.RemoveComponents(new[] { unknown }, entity));
+        Assert.Multiple(() =>
+        {
+            Assert.That(world.Stamp, Is.EqualTo(before));
+            Assert.That(world.ArchetypeVersion, Is.EqualTo(archetypeVersion));
+            Assert.That(world.IsAlive(entity), Is.True);
+        });
+    }
+
+    [Test]
     public void ExhaustedStampSourceDoesNotMutateBeforeDestroyEntityThrows()
         => AssertDestroyExhaustionIsAtomic();
 
@@ -791,129 +960,168 @@ public sealed class StampInvariantTests
             int operation = random.Next(8);
             if (operation == 0 || states.Count == 0)
             {
-                int count = random.Next(1, 4);
-                ComponentId[] components = RandomComponents(random);
-                Entity[] created = new Entity[count];
-                Stamp before = world.Stamp;
-                Assert.That(world.CreateBatch(components, created), Is.EqualTo(count), $"create at step {step}");
-                Stamp operationStamp = world.Stamp;
-                Assert.That(operationStamp, Is.EqualTo(new Stamp(before.Value + 1)), $"create stamp at step {step}");
-                for (int index = 0; index < count; index++)
-                {
-                    var model = new ModelEntity(components.Distinct());
-                    foreach (ComponentId component in model.Components)
-                    {
-                        model.Stamps[component] = operationStamp;
-                    }
-
-                    states.Add(created[index], model);
-                }
+                ApplyRandomCreate(world, random, states, step);
             }
             else if (operation == 1)
             {
-                Entity entity = Pick(states.Keys, random);
-                ModelEntity model = states[entity];
-                ComponentId component = PickComponent(random);
-                Stamp before = world.Stamp;
-                bool expected = model.Components.Contains(component);
-                bool actual = component == PositionId
-                    ? world.SetComponent(entity, component, new Position { X = step })
-                    : component == VelocityId
-                        ? world.SetComponent(entity, component, new Velocity { X = step })
-                        : world.SetComponent(entity, component, new Health { Value = step });
-                Assert.That(actual, Is.EqualTo(expected), $"set at step {step}");
-                if (expected)
-                {
-                    model.Stamps[component] = world.Stamp;
-                    Assert.That(world.Stamp, Is.EqualTo(new Stamp(before.Value + 1)), $"set stamp at step {step}");
-                }
-                else
-                {
-                    Assert.That(world.Stamp, Is.EqualTo(before), $"set no-op stamp at step {step}");
-                }
+                ApplyRandomSet(world, random, states, step);
             }
             else if (operation == 2 || operation == 3)
             {
-                Entity[] candidates = PickDistinct(states.Keys, random, random.Next(1, Math.Min(3, states.Count) + 1));
-                ComponentId component = PickComponent(random);
-                bool isAdd = operation == 2;
-                Stamp before = world.Stamp;
-                int expectedChanged = 0;
-                foreach (Entity candidate in candidates)
-                {
-                    ModelEntity model = states[candidate];
-                    bool changes = isAdd ? model.Components.Add(component) : model.Components.Remove(component);
-                    if (changes)
-                    {
-                        expectedChanged++;
-                    }
-                }
-
-                int actualChanged = isAdd
-                    ? world.AddComponents(new[] { component }, candidates)
-                    : world.RemoveComponents(new[] { component }, candidates);
-                Assert.That(actualChanged, Is.EqualTo(expectedChanged), $"list structural count at step {step}");
-                if (expectedChanged != 0)
-                {
-                    Stamp operationStamp = world.Stamp;
-                    Assert.That(operationStamp, Is.EqualTo(new Stamp(before.Value + 1)), $"list structural stamp at step {step}");
-                    foreach (Entity candidate in candidates)
-                    {
-                        ModelEntity model = states[candidate];
-                        if (isAdd && model.Components.Contains(component))
-                        {
-                            if (!model.Stamps.ContainsKey(component))
-                            {
-                                model.Stamps[component] = operationStamp;
-                            }
-                        }
-                        else if (!isAdd)
-                        {
-                            model.Stamps.Remove(component);
-                        }
-                    }
-                }
-                else
-                {
-                    Assert.That(world.Stamp, Is.EqualTo(before), $"list structural no-op stamp at step {step}");
-                }
+                ApplyRandomComponentChange(world, random, states, step, isAdd: operation == 2);
             }
             else if (operation == 4)
             {
-                Entity entity = Pick(states.Keys, random);
-                Stamp before = world.Stamp;
-                Assert.That(world.Destroy(entity), Is.True, $"destroy at step {step}");
-                Assert.That(world.Stamp, Is.EqualTo(new Stamp(before.Value + 1)), $"destroy stamp at step {step}");
-                stale.Add(entity);
-                states.Remove(entity);
+                ApplyRandomDestroy(world, random, states, stale, step);
             }
             else if (operation == 5)
             {
-                Entity entity = stale.Count == 0 || random.Next(2) == 0
-                    ? new Entity(10_000 + step, 0)
-                    : stale[random.Next(stale.Count)];
-                Stamp before = world.Stamp;
-                Assert.That(world.Destroy(entity), Is.False, $"stale destroy at step {step}");
-                Assert.That(world.Stamp, Is.EqualTo(before), $"stale destroy stamp at step {step}");
+                ApplyRandomStaleDestroy(world, random, stale, step);
             }
             else
             {
-                Entity[] candidates = PickDistinct(states.Keys, random, random.Next(1, Math.Min(3, states.Count) + 1));
-                Entity[] mixed = new Entity[candidates.Length + 1];
-                candidates.CopyTo(mixed, 0);
-                mixed[^1] = stale.Count == 0 ? Entity.Null : stale[random.Next(stale.Count)];
-                Stamp before = world.Stamp;
-                int expectedDestroyed = candidates.Length;
-                Assert.That(world.DestroyBatch(mixed), Is.EqualTo(expectedDestroyed), $"batch destroy at step {step}");
-                Assert.That(world.Stamp, Is.EqualTo(new Stamp(before.Value + 1)), $"batch destroy stamp at step {step}");
-                foreach (Entity candidate in candidates)
-                {
-                    stale.Add(candidate);
-                    states.Remove(candidate);
-                }
+                ApplyRandomDestroyBatch(world, random, states, stale, step);
             }
 
             AssertModel(world, states, step);
+        }
+    }
+
+    private static void ApplyRandomCreate(World world, Random random, Dictionary<Entity, ModelEntity> states, int step)
+    {
+        int count = random.Next(1, 4);
+        ComponentId[] components = RandomComponents(random);
+        Entity[] created = new Entity[count];
+        Stamp before = world.Stamp;
+        Assert.That(world.CreateBatch(components, created), Is.EqualTo(count), $"create at step {step}");
+        Stamp operationStamp = world.Stamp;
+        Assert.That(operationStamp, Is.EqualTo(new Stamp(before.Value + 1)), $"create stamp at step {step}");
+        foreach (Entity entity in created)
+        {
+            var model = new ModelEntity(components.Distinct());
+            foreach (ComponentId component in model.Components)
+            {
+                model.Stamps[component] = operationStamp;
+            }
+
+            states.Add(entity, model);
+        }
+    }
+
+    private static void ApplyRandomSet(World world, Random random, Dictionary<Entity, ModelEntity> states, int step)
+    {
+        Entity entity = Pick(states.Keys, random);
+        ModelEntity model = states[entity];
+        ComponentId component = PickComponent(random);
+        Stamp before = world.Stamp;
+        bool expected = model.Components.Contains(component);
+        bool actual = component == PositionId
+            ? world.SetComponent(entity, component, new Position { X = step })
+            : component == VelocityId
+                ? world.SetComponent(entity, component, new Velocity { X = step })
+                : world.SetComponent(entity, component, new Health { Value = step });
+        Assert.That(actual, Is.EqualTo(expected), $"set at step {step}");
+        if (expected)
+        {
+            model.Stamps[component] = world.Stamp;
+            Assert.That(world.Stamp, Is.EqualTo(new Stamp(before.Value + 1)), $"set stamp at step {step}");
+            return;
+        }
+
+        Assert.That(world.Stamp, Is.EqualTo(before), $"set no-op stamp at step {step}");
+    }
+
+    private static void ApplyRandomComponentChange(
+        World world,
+        Random random,
+        Dictionary<Entity, ModelEntity> states,
+        int step,
+        bool isAdd)
+    {
+        Entity[] candidates = PickDistinct(states.Keys, random, random.Next(1, Math.Min(3, states.Count) + 1));
+        ComponentId component = PickComponent(random);
+        Stamp before = world.Stamp;
+        int expectedChanged = 0;
+        foreach (Entity candidate in candidates)
+        {
+            ModelEntity model = states[candidate];
+            bool changes = isAdd ? model.Components.Add(component) : model.Components.Remove(component);
+            if (changes)
+            {
+                expectedChanged++;
+            }
+        }
+
+        ComponentId[] change = [component];
+        int actualChanged = isAdd
+            ? world.AddComponents(change, candidates)
+            : world.RemoveComponents(change, candidates);
+        Assert.That(actualChanged, Is.EqualTo(expectedChanged), $"list structural count at step {step}");
+        if (expectedChanged == 0)
+        {
+            Assert.That(world.Stamp, Is.EqualTo(before), $"list structural no-op stamp at step {step}");
+            return;
+        }
+
+        Stamp operationStamp = world.Stamp;
+        Assert.That(operationStamp, Is.EqualTo(new Stamp(before.Value + 1)), $"list structural stamp at step {step}");
+        foreach (Entity candidate in candidates)
+        {
+            ModelEntity model = states[candidate];
+            if (isAdd && model.Components.Contains(component))
+            {
+                model.Stamps.TryAdd(component, operationStamp);
+            }
+            else if (!isAdd)
+            {
+                model.Stamps.Remove(component);
+            }
+        }
+    }
+
+    private static void ApplyRandomDestroy(
+        World world,
+        Random random,
+        Dictionary<Entity, ModelEntity> states,
+        List<Entity> stale,
+        int step)
+    {
+        Entity entity = Pick(states.Keys, random);
+        Stamp before = world.Stamp;
+        Assert.That(world.Destroy(entity), Is.True, $"destroy at step {step}");
+        Assert.That(world.Stamp, Is.EqualTo(new Stamp(before.Value + 1)), $"destroy stamp at step {step}");
+        stale.Add(entity);
+        states.Remove(entity);
+    }
+
+    private static void ApplyRandomStaleDestroy(World world, Random random, List<Entity> stale, int step)
+    {
+        Entity entity = stale.Count == 0 || random.Next(2) == 0
+            ? new Entity(10_000 + step, 0)
+            : stale[random.Next(stale.Count)];
+        Stamp before = world.Stamp;
+        Assert.That(world.Destroy(entity), Is.False, $"stale destroy at step {step}");
+        Assert.That(world.Stamp, Is.EqualTo(before), $"stale destroy stamp at step {step}");
+    }
+
+    private static void ApplyRandomDestroyBatch(
+        World world,
+        Random random,
+        Dictionary<Entity, ModelEntity> states,
+        List<Entity> stale,
+        int step)
+    {
+        Entity[] candidates = PickDistinct(states.Keys, random, random.Next(1, Math.Min(3, states.Count) + 1));
+        Entity[] mixed = new Entity[candidates.Length + 1];
+        candidates.CopyTo(mixed, 0);
+        mixed[^1] = stale.Count == 0 ? Entity.Null : stale[random.Next(stale.Count)];
+        Stamp before = world.Stamp;
+        Assert.That(world.DestroyBatch(mixed), Is.EqualTo(candidates.Length), $"batch destroy at step {step}");
+        Assert.That(world.Stamp, Is.EqualTo(new Stamp(before.Value + 1)), $"batch destroy stamp at step {step}");
+        foreach (Entity candidate in candidates)
+        {
+            stale.Add(candidate);
+            states.Remove(candidate);
         }
     }
 
@@ -929,6 +1137,7 @@ public sealed class StampInvariantTests
     private static readonly ComponentId PositionId = new(0);
     private static readonly ComponentId VelocityId = new(1);
     private static readonly ComponentId HealthId = new(2);
+    private static readonly int[] QueryRowZero = [0];
 
     private static ComponentId[] RandomComponents(Random random)
     {
@@ -1041,11 +1250,23 @@ public sealed class StampInvariantTests
     {
         public ModelEntity(IEnumerable<ComponentId> components)
         {
-            Components = new HashSet<ComponentId>(components);
-            Stamps = new Dictionary<ComponentId, Stamp>();
+            Components = [.. components];
+            Stamps = [];
         }
 
         public HashSet<ComponentId> Components { get; }
         public Dictionary<ComponentId, Stamp> Stamps { get; }
+    }
+
+    private struct QueryWriteState
+    {
+        public QueryWriteState(WriteAccess access)
+        {
+            Access = access;
+        }
+
+        public WriteAccess Access;
+        public int CallbackCount;
+        public int Count;
     }
 }

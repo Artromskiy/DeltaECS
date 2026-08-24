@@ -65,9 +65,10 @@ public sealed partial class World : IEcsWorld
         ValidateStructuralComponents(components);
 
         var mask = ComponentMask.From(components);
+        Stamp stamp = _mutationStamps.Next();
         var archetype = GetOrCreateArchetype(mask);
         Span<Entity> created = stackalloc Entity[1];
-        _ = CreateBatch(archetype, created);
+        _ = CreateBatch(archetype, created, stamp);
         return created[0];
     }
 

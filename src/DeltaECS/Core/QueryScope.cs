@@ -9,9 +9,8 @@ public ref struct QueryScope
     private readonly World _owner;
     private readonly QueryPlan _query;
     private readonly ArchetypePlan[] _plans;
-    private readonly uint _writeTick;
-    private readonly Stamp _writeStamp;
-    private bool _disposed;
+    private readonly QueryWriteSession _writeSession;
+    private readonly int _sessionGeneration;
 
     internal QueryScope(World owner, in Query handle)
     {
@@ -23,8 +22,7 @@ public ref struct QueryScope
         _owner = owner;
         _query = handle.Cached;
         _plans = _query.MatchingPlans(owner);
-        _writeTick = owner.GetQueryWriteTick(_query, out _writeStamp);
-        _disposed = false;
+        _writeSession = owner.RentQueryWriteSession(_query, out _sessionGeneration);
         _owner.BeginQueryLease();
     }
 
@@ -33,7 +31,7 @@ public ref struct QueryScope
         get
         {
             EnsureActive();
-            return new QueryArchetypes(_plans, _query, _writeTick, _writeStamp);
+            return new QueryArchetypes(_plans, _query, _writeSession, _sessionGeneration);
         }
     }
 
@@ -48,23 +46,17 @@ public ref struct QueryScope
     {
         EnsureActive();
         Validate(access.Query);
-        if (_writeTick == 0)
-        {
-            QueryThrowHelper.ThrowMissingWriteIntent();
-        }
-
         return access;
     }
 
     public void Dispose()
     {
-        if (_disposed || _owner is null)
+        if (_owner is null)
         {
             return;
         }
 
-        _disposed = true;
-        _owner.EndQueryLease();
+        _owner.ReturnQueryWriteSession(_writeSession, _sessionGeneration);
     }
 
     private void Validate(QueryPlan? query)
@@ -77,9 +69,11 @@ public ref struct QueryScope
 
     private void EnsureActive()
     {
-        if (_disposed || _owner is null)
+        if (_owner is null)
         {
             throw new InvalidOperationException("The query scope has been disposed.");
         }
+
+        _writeSession.EnsureActive(_sessionGeneration);
     }
 }

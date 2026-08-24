@@ -25,6 +25,7 @@ public sealed partial class World : IDisposable
     private int _batchEdgeStamp;
     private int _nextChunkId;
     private int _activeChunkLeases;
+    private QueryWriteSession? _queryWriteSessionPool;
     private int _archetypeVersion;
     private MutationStampSource _mutationStamps;
     private bool _disposed;
@@ -119,8 +120,15 @@ public sealed partial class World : IDisposable
             return 0;
         }
 
-        var handle = ResolveArchetype(componentIds);
-        return CreateBatch(handle, output);
+        if (!TryBuildComponentMask(componentIds, out var mask))
+        {
+            throw new InvalidOperationException("Component list is empty or invalid.");
+        }
+
+        ValidateComponentLayouts(mask);
+        Stamp stamp = _mutationStamps.Next();
+        var archetype = GetOrCreateArchetype(mask);
+        return CreateBatch(archetype, output, stamp);
     }
 
     public Entity Create(ArchetypeHandle handle)
@@ -131,18 +139,22 @@ public sealed partial class World : IDisposable
 
     public int CreateBatch(ArchetypeHandle handle, Span<Entity> output)
     {
+        if (output.Length == 0)
+        {
+            return 0;
+        }
+
         var archetype = ResolveArchetype(handle);
-        return CreateBatch(archetype, output);
+        return CreateBatch(archetype, output, _mutationStamps.Next());
     }
 
-    private int CreateBatch(Archetype archetype, Span<Entity> output)
+    private int CreateBatch(Archetype archetype, Span<Entity> output, Stamp stamp)
     {
         if (output.Length == 0)
         {
             return 0;
         }
 
-        Stamp stamp = _mutationStamps.Next();
         int outputIndex = 0;
         while (outputIndex < output.Length)
         {
@@ -197,8 +209,8 @@ public sealed partial class World : IDisposable
             return false;
         }
 
-        DestroyResolved(recordIndex);
         _ = _mutationStamps.Next();
+        DestroyResolved(recordIndex);
         return true;
     }
 
@@ -216,6 +228,12 @@ public sealed partial class World : IDisposable
             }
         }
 
+        if (count == 0)
+        {
+            return 0;
+        }
+
+        _ = _mutationStamps.Next();
         _destroyScratch.Span[..count].Sort(DestroyEntryComparer.Instance);
         EnsureFreeRecordCapacity(_freeCount + count);
         int destroyed = 0;
@@ -233,11 +251,6 @@ public sealed partial class World : IDisposable
 
             DestroyResolved(entry.RecordIndex);
             destroyed++;
-        }
-
-        if (destroyed != 0)
-        {
-            _ = _mutationStamps.Next();
         }
 
         return destroyed;
@@ -353,18 +366,25 @@ public sealed partial class World : IDisposable
         var cached = query.Cached;
         ReadOnlySpan<int> archetypes = cached.MatchingArchetypes(this);
         int destroyed = 0;
+        bool stampReserved = false;
         for (int archetypeIndex = 0; archetypeIndex < archetypes.Length; archetypeIndex++)
         {
             var archetype = _archetypes[archetypes[archetypeIndex]];
             for (int chunkIndex = archetype.ChunkCount - 1; chunkIndex >= 0; chunkIndex--)
             {
+                if (archetype.GetChunk(chunkIndex).Count == 0)
+                {
+                    continue;
+                }
+
+                if (!stampReserved)
+                {
+                    _ = _mutationStamps.Next();
+                    stampReserved = true;
+                }
+
                 destroyed += DestroyChunk(archetype, chunkIndex);
             }
-        }
-
-        if (destroyed != 0)
-        {
-            _ = _mutationStamps.Next();
         }
 
         return destroyed;
@@ -383,7 +403,7 @@ public sealed partial class World : IDisposable
 
         var cached = handle.Cached;
         var plans = cached.MatchingPlans(this);
-        uint writeTick = QueryWriteTick(cached, out Stamp writeStamp);
+        QueryWriteSession writeSession = RentQueryWriteSession(cached, out int sessionGeneration);
         _activeChunkLeases++;
         try
         {
@@ -394,26 +414,25 @@ public sealed partial class World : IDisposable
                 for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
                 {
                     var chunk = archetype.GetActiveChunk(chunkIndex);
-                    var cursor = new QueryChunkCursor(cached, archetype.Id, chunk, plan.ComponentRows, writeTick, writeStamp);
+                    var cursor = new QueryChunkCursor(
+                        cached,
+                        archetype.Id,
+                        chunk,
+                        plan.ComponentRows,
+                        writeSession,
+                        sessionGeneration);
                     action(ref context, ref cursor);
                 }
             }
         }
         finally
         {
-            _activeChunkLeases--;
+            ReturnQueryWriteSession(writeSession, sessionGeneration);
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private uint QueryWriteTick(QueryPlan cached, out Stamp writeStamp)
+    internal uint ReserveQueryWrite(out Stamp writeStamp)
     {
-        if (!cached.HasWriteAccess)
-        {
-            writeStamp = default;
-            return 0;
-        }
-
         writeStamp = _mutationStamps.Next();
         return AdvanceWorldTick();
     }
@@ -444,8 +463,34 @@ public sealed partial class World : IDisposable
 
     internal void EndQueryLease() => _activeChunkLeases--;
 
-    internal uint GetQueryWriteTick(QueryPlan cached, out Stamp writeStamp)
-        => QueryWriteTick(cached, out writeStamp);
+    internal QueryWriteSession RentQueryWriteSession(QueryPlan query, out int generation)
+    {
+        QueryWriteSession session;
+        if (_queryWriteSessionPool is { } pooled)
+        {
+            session = pooled;
+            _queryWriteSessionPool = pooled.Next;
+        }
+        else
+        {
+            session = new QueryWriteSession();
+        }
+
+        generation = session.Reset(this, query.HasWriteAccess);
+        return session;
+    }
+
+    internal void ReturnQueryWriteSession(QueryWriteSession session, int generation)
+    {
+        if (!session.TryRelease(generation))
+        {
+            return;
+        }
+
+        _activeChunkLeases--;
+        session.Next = _queryWriteSessionPool;
+        _queryWriteSessionPool = session;
+    }
 
     private uint AdvanceWorldTick()
     {
@@ -483,6 +528,8 @@ public sealed partial class World : IDisposable
             return 0;
         }
 
+        ValidateComponentLayouts(changeMask);
+
         int edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
         int changed = 0;
         Stamp operationStamp = default;
@@ -496,11 +543,11 @@ public sealed partial class World : IDisposable
 
             ref readonly var record = ref RecordAt(recordIndex);
             int sourceArchetypeId = record.Archetype;
-            var edge = edgeStamp == 0
-                ? GetTransitionEdge(sourceArchetypeId, changeMask, isAdd)
-                : GetBatchTransitionEdge(sourceArchetypeId, changeMask, isAdd, edgeStamp);
-
-            if (edge.TargetArchetypeId == sourceArchetypeId)
+            var sourceArchetype = _archetypes[sourceArchetypeId];
+            ComponentMask targetMask = isAdd
+                ? sourceArchetype.Mask.Or(changeMask)
+                : sourceArchetype.Mask.Except(changeMask);
+            if (targetMask == sourceArchetype.Mask)
             {
                 continue;
             }
@@ -509,6 +556,10 @@ public sealed partial class World : IDisposable
             {
                 operationStamp = _mutationStamps.Next();
             }
+
+            var edge = edgeStamp == 0
+                ? GetTransitionEdge(sourceArchetypeId, changeMask, isAdd, targetMask)
+                : GetBatchTransitionEdge(sourceArchetypeId, changeMask, isAdd, targetMask, edgeStamp);
 
             MoveEntity(recordIndex, edge, operationStamp);
             changed++;
@@ -531,6 +582,8 @@ public sealed partial class World : IDisposable
             return 0;
         }
 
+        ValidateComponentLayouts(changeMask);
+
         var cached = query.Cached;
         ReadOnlySpan<int> matchingArchetypes = cached.MatchingArchetypes(this);
         int edgeStamp = BeginBatchEdgeCache();
@@ -539,8 +592,10 @@ public sealed partial class World : IDisposable
         for (int matchingIndex = 0; matchingIndex < matchingArchetypes.Length; matchingIndex++)
         {
             var sourceArchetype = _archetypes[matchingArchetypes[matchingIndex]];
-            var edge = GetBatchTransitionEdge(sourceArchetype.Id, changeMask, isAdd, edgeStamp);
-            if (edge.TargetArchetypeId == sourceArchetype.Id)
+            ComponentMask targetMask = isAdd
+                ? sourceArchetype.Mask.Or(changeMask)
+                : sourceArchetype.Mask.Except(changeMask);
+            if (targetMask == sourceArchetype.Mask)
             {
                 continue;
             }
@@ -555,6 +610,7 @@ public sealed partial class World : IDisposable
                 operationStamp = _mutationStamps.Next();
             }
 
+            var edge = GetBatchTransitionEdge(sourceArchetype.Id, changeMask, isAdd, targetMask, edgeStamp);
             changed += MoveArchetypeBlocks(sourceArchetype, edge, operationStamp);
         }
 
@@ -730,7 +786,11 @@ public sealed partial class World : IDisposable
         }
     }
 
-    private TransitionEdge GetTransitionEdge(int sourceArchetypeId, ComponentMask changeMask, bool isAdd)
+    private TransitionEdge GetTransitionEdge(
+        int sourceArchetypeId,
+        ComponentMask changeMask,
+        bool isAdd,
+        ComponentMask targetMask)
     {
         var key = new TransitionKey(sourceArchetypeId, changeMask, isAdd);
         if (_transitionCache.TryGetValue(key, out var edge))
@@ -739,7 +799,6 @@ public sealed partial class World : IDisposable
         }
 
         var source = _archetypes[sourceArchetypeId];
-        var targetMask = isAdd ? source.Mask.Or(changeMask) : source.Mask.Except(changeMask);
         var target = GetOrCreateArchetype(targetMask);
         int[] mapping = new int[source.ComponentCount];
         bool[] copiedTargetRows = new bool[target.ComponentCount];
@@ -784,8 +843,9 @@ public sealed partial class World : IDisposable
         }
 
         var chunk = archetype.GetChunk(record.Chunk);
+        Stamp stamp = _mutationStamps.Next();
         chunk.GetComponentRow<T>(componentIndex)[record.SlotIndex] = value;
-        chunk.MarkComponentStamped(componentIndex, record.SlotIndex, _mutationStamps.Next());
+        chunk.MarkComponentStamped(componentIndex, record.SlotIndex, stamp);
         return true;
     }
 
@@ -838,6 +898,19 @@ public sealed partial class World : IDisposable
         }
 
         return !mask.IsEmpty;
+    }
+
+    private void ValidateComponentLayouts(ComponentMask mask)
+    {
+        foreach (ComponentId componentId in mask)
+        {
+            if (!_layouts.TryGet(componentId, out _))
+            {
+                throw new ArgumentException(
+                    $"Component {componentId.Value} is not registered in this world.",
+                    nameof(mask));
+            }
+        }
     }
 
     private int AllocateRecord()
@@ -933,6 +1006,7 @@ public sealed partial class World : IDisposable
         int sourceArchetypeId,
         ComponentMask changeMask,
         bool isAdd,
+        ComponentMask targetMask,
         int stamp)
     {
         if ((uint)sourceArchetypeId >= (uint)_batchEdgeStamps.Length)
@@ -945,7 +1019,7 @@ public sealed partial class World : IDisposable
             return _batchEdgeSlots[sourceArchetypeId];
         }
 
-        var edge = GetTransitionEdge(sourceArchetypeId, changeMask, isAdd);
+        var edge = GetTransitionEdge(sourceArchetypeId, changeMask, isAdd, targetMask);
         _batchEdgeSlots[sourceArchetypeId] = edge;
         _batchEdgeStamps[sourceArchetypeId] = stamp;
         return edge;

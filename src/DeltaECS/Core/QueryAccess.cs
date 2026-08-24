@@ -1,6 +1,7 @@
 namespace Delta.ECS;
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -10,8 +11,8 @@ public ref struct QueryChunkCursor
     private readonly QueryPlan _query;
     private readonly Chunk _chunk;
     private readonly ReadOnlySpan<int> _componentRows;
-    private readonly uint _writeTick;
-    private readonly Stamp _writeStamp;
+    private readonly QueryWriteSession _writeSession;
+    private readonly int _sessionGeneration;
     private readonly int _count;
     private int _index;
 
@@ -20,15 +21,15 @@ public ref struct QueryChunkCursor
         int archetypeId,
         Chunk chunk,
         ReadOnlySpan<int> componentRows,
-        uint writeTick,
-        Stamp writeStamp)
+        QueryWriteSession writeSession,
+        int sessionGeneration)
     {
         _query = query;
         ArchetypeId = archetypeId;
         _chunk = chunk;
         _componentRows = componentRows;
-        _writeTick = writeTick;
-        _writeStamp = writeStamp;
+        _writeSession = writeSession;
+        _sessionGeneration = sessionGeneration;
         _count = chunk.Count;
         _index = -1;
     }
@@ -55,6 +56,7 @@ public ref struct QueryChunkCursor
 
     public ReadValues Get(ReadAccess access)
     {
+        _writeSession.EnsureActive(_sessionGeneration);
         if (!ReferenceEquals(access.Query, _query))
         {
             QueryThrowHelper.ThrowAccessMismatch();
@@ -72,17 +74,14 @@ public ref struct QueryChunkCursor
         }
 
         int physicalRow = _componentRows[access.QueryComponentIndex];
-        if (_writeTick == 0)
-        {
-            QueryThrowHelper.ThrowMissingWriteIntent();
-        }
-
-        _chunk.MarkComponentWritten(physicalRow, _writeTick, _writeStamp);
+        AcquireWrite(out uint writeTick, out Stamp writeStamp);
+        _chunk.MarkComponentWritten(physicalRow, writeTick, writeStamp);
         return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
     }
 
     public ObjectReadValues GetObject(ReadAccess access)
     {
+        _writeSession.EnsureActive(_sessionGeneration);
         if (!ReferenceEquals(access.Query, _query))
         {
             QueryThrowHelper.ThrowAccessMismatch();
@@ -100,17 +99,14 @@ public ref struct QueryChunkCursor
         }
 
         int physicalRow = _componentRows[access.QueryComponentIndex];
-        if (_writeTick == 0)
-        {
-            QueryThrowHelper.ThrowMissingWriteIntent();
-        }
-
-        _chunk.MarkComponentWritten(physicalRow, _writeTick, _writeStamp);
+        AcquireWrite(out uint writeTick, out Stamp writeStamp);
+        _chunk.MarkComponentWritten(physicalRow, writeTick, writeStamp);
         return new ObjectWriteValues(_chunk.GetRawComponentRow(physicalRow));
     }
 
     public ReadValues GetRead(ReadAccess access)
     {
+        _writeSession.EnsureActive(_sessionGeneration);
         if (!ReferenceEquals(access.Query, _query))
         {
             QueryThrowHelper.ThrowAccessMismatch();
@@ -122,6 +118,7 @@ public ref struct QueryChunkCursor
 
     public ReadValues GetRead(AccessRequest access)
     {
+        _writeSession.EnsureActive(_sessionGeneration);
         if (access.IsWrite || !ReferenceEquals(access.Query, _query))
         {
             QueryThrowHelper.ThrowAccessMismatch();
@@ -139,12 +136,8 @@ public ref struct QueryChunkCursor
         }
 
         int physicalRow = _componentRows[access.QueryComponentIndex];
-        if (_writeTick == 0)
-        {
-            QueryThrowHelper.ThrowMissingWriteIntent();
-        }
-
-        _chunk.MarkComponentWritten(physicalRow, _writeTick, _writeStamp);
+        AcquireWrite(out uint writeTick, out Stamp writeStamp);
+        _chunk.MarkComponentWritten(physicalRow, writeTick, writeStamp);
         return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
     }
 
@@ -156,13 +149,14 @@ public ref struct QueryChunkCursor
         }
 
         int physicalRow = _componentRows[access.QueryComponentIndex];
-        if (_writeTick == 0)
-        {
-            QueryThrowHelper.ThrowMissingWriteIntent();
-        }
-
-        _chunk.MarkComponentWritten(physicalRow, _writeTick, _writeStamp);
+        AcquireWrite(out uint writeTick, out Stamp writeStamp);
+        _chunk.MarkComponentWritten(physicalRow, writeTick, writeStamp);
         return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
+    }
+
+    private void AcquireWrite(out uint writeTick, out Stamp writeStamp)
+    {
+        _writeSession.Acquire(_sessionGeneration, out writeTick, out writeStamp);
     }
 }
 
@@ -357,7 +351,12 @@ internal static class QueryThrowHelper
     public static void ThrowAccessTypeMismatch() => throw new InvalidOperationException("The row access type does not match the registered component type.");
 
     [MethodImpl(MethodImplOptions.NoInlining)]
+    [DoesNotReturn]
     public static void ThrowMissingWriteIntent() => throw new InvalidOperationException("The query did not register its write row access.");
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    [DoesNotReturn]
+    public static void ThrowDisposedQueryExecution() => throw new InvalidOperationException("The query execution has ended.");
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     public static void ThrowAccessModeMismatch() => throw new InvalidOperationException("The access mode does not match the requested row operation.");
