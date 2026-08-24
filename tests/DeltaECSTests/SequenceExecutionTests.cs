@@ -197,8 +197,7 @@ public sealed class SequenceExecutionTests
         Assert.That(velocityAfterRead, Is.EqualTo(velocityBefore));
 
         var functor = new SequenceMovementFunctor();
-        world.Entities(candidates).Where(in query).ForEachEntity<SequenceMovementFunctor, SequencePosition, SequenceVelocity>(
-            ref functor);
+        world.Entities(candidates).Where(in query).ForEachEntity(ref functor);
 
         Assert.That(functor.Count, Is.EqualTo(2));
         Assert.That(world.Get<SequenceVelocity>(entity, velocityId).Value, Is.EqualTo(10));
@@ -252,7 +251,7 @@ public sealed class SequenceExecutionTests
         Assert.That(world.Stamp, Is.EqualTo(before));
     }
 
-    private struct EntityCollector : IForEachEntity
+    internal struct EntityCollector : IForEachEntity
     {
         public EntityCollector() => Entities = [];
 
@@ -261,7 +260,7 @@ public sealed class SequenceExecutionTests
         public void Invoke(Entity entity) => Entities.Add(entity);
     }
 
-    private struct ContextCollector : IForEachContextEntity<int>
+    internal struct ContextCollector : IForEachContextEntity<int>
     {
         public Entity Last { get; private set; }
 
@@ -272,7 +271,7 @@ public sealed class SequenceExecutionTests
         }
     }
 
-    private struct SequenceMovementFunctor : IForEachEntity_RW<SequencePosition, SequenceVelocity>
+    internal struct SequenceMovementFunctor : IForEachEntity
     {
         public int Count { get; private set; }
 
@@ -284,9 +283,9 @@ public sealed class SequenceExecutionTests
         }
     }
 
-    private readonly record struct SequencePosition(int Value);
+    internal readonly record struct SequencePosition(int Value);
 
-    private struct SequenceVelocity
+    internal struct SequenceVelocity
     {
         public int Value;
     }

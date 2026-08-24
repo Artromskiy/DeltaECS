@@ -33,22 +33,6 @@ public sealed partial class World
         ExecuteSequence(entities, ref context, query, hasFilter: true, action);
     }
 
-    public void ForEachEntity<TFunctor>(ReadOnlySpan<Entity> entities, ref TFunctor functor)
-        where TFunctor : struct, IForEachEntity
-        => ExecuteSequence(entities, ref functor, default, hasFilter: false);
-
-    public void ForEachEntity<TFunctor>(ReadOnlySpan<Entity> entities, in Query query, ref TFunctor functor)
-        where TFunctor : struct, IForEachEntity
-        => ExecuteSequence(entities, ref functor, query, hasFilter: true);
-
-    public void ForEachEntity<TContext, TFunctor>(ReadOnlySpan<Entity> entities, ref TContext context, ref TFunctor functor)
-        where TFunctor : struct, IForEachContextEntity<TContext>
-        => ExecuteSequence(entities, ref context, ref functor, default, hasFilter: false);
-
-    public void ForEachEntity<TContext, TFunctor>(ReadOnlySpan<Entity> entities, in Query query, ref TContext context, ref TFunctor functor)
-        where TFunctor : struct, IForEachContextEntity<TContext>
-        => ExecuteSequence(entities, ref context, ref functor, query, hasFilter: true);
-
     private void ExecuteSequence(
         ReadOnlySpan<Entity> entities,
         Query query,
@@ -105,67 +89,6 @@ public sealed partial class World
             }
 
             action(ref context, entity);
-        }
-    }
-
-    private void ExecuteSequence<TFunctor>(
-        ReadOnlySpan<Entity> entities,
-        ref TFunctor functor,
-        Query query,
-        bool hasFilter)
-        where TFunctor : struct, IForEachEntity
-    {
-        if (hasFilter)
-        {
-            ValidateQuery(in query);
-        }
-
-        for (int index = 0; index < entities.Length; index++)
-        {
-            Entity entity = entities[index];
-            if (!TryResolve(entity, out int recordIndex))
-            {
-                continue;
-            }
-
-            ref readonly var record = ref RecordAt(recordIndex);
-            if (hasFilter && !MatchesSequenceQuery(record.Archetype, in query))
-            {
-                continue;
-            }
-
-            functor.Invoke(entity);
-        }
-    }
-
-    private void ExecuteSequence<TContext, TFunctor>(
-        ReadOnlySpan<Entity> entities,
-        ref TContext context,
-        ref TFunctor functor,
-        Query query,
-        bool hasFilter)
-        where TFunctor : struct, IForEachContextEntity<TContext>
-    {
-        if (hasFilter)
-        {
-            ValidateQuery(in query);
-        }
-
-        for (int index = 0; index < entities.Length; index++)
-        {
-            Entity entity = entities[index];
-            if (!TryResolve(entity, out int recordIndex))
-            {
-                continue;
-            }
-
-            ref readonly var record = ref RecordAt(recordIndex);
-            if (hasFilter && !MatchesSequenceQuery(record.Archetype, in query))
-            {
-                continue;
-            }
-
-            functor.Invoke(ref context, entity);
         }
     }
 

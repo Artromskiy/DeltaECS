@@ -14,7 +14,7 @@ public struct Extra { public int Value; }
 
 public struct ConsumerContext { public int Value; }
 
-public struct ContextEntityFunctor : IForEachContextEntity_RWRW<ConsumerContext, Position, Velocity, Acceleration, Lifetime>
+public struct ContextEntityFunctor : IForEachContextEntity<ConsumerContext>
 {
     public void Invoke(
         ref ConsumerContext context,
@@ -30,7 +30,7 @@ public struct ContextEntityFunctor : IForEachContextEntity_RWRW<ConsumerContext,
     }
 }
 
-public struct SequenceFunctor : IForEachEntity_RWRW<Position, Velocity, Acceleration, Lifetime>
+public struct SequenceFunctor : IForEachEntity
 {
     public void Invoke(
         Entity entity,
@@ -175,15 +175,11 @@ public static class ConsumerProof
             });
 
         var functor = new ContextEntityFunctor();
-        world.ForEachEntity<ConsumerContext, ContextEntityFunctor, Position, Velocity, Acceleration, Lifetime>(
-            in query,
-            ref context,
-            ref functor);
+        world.ForEachEntity(in query, ref context, ref functor);
 
         Entity[] entities = Array.Empty<Entity>();
         EntitySequence sequence = world.Entities(entities);
         var sequenceFunctor = new SequenceFunctor();
-        sequence.ForEachEntity<SequenceFunctor, Position, Velocity, Acceleration, Lifetime>(
-            ref sequenceFunctor);
+        sequence.ForEachEntity(ref sequenceFunctor);
     }
 }

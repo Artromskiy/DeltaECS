@@ -1,21 +1,23 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Delta.ECS;
 
+[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Source generator marker contract.")]
 public interface IForEachEntity
 {
-    void Invoke(Entity entity);
 }
 
+[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Source generator marker contract.")]
 public interface IForEach
 {
-    void Invoke();
 }
 
+[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Source generator marker contract.")]
 public interface IForEachContext<TContext>
 {
-    void Invoke(ref TContext context);
 }
 
+[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Source generator marker contract.")]
 public interface IForEachContextEntity<TContext>
 {
-    void Invoke(ref TContext context, Entity entity);
 }

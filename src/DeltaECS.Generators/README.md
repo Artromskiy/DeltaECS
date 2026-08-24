@@ -4,13 +4,18 @@ The analyzer emits only the `ForEach` and `ForEachEntity` shapes requested by a
 consumer compilation. It does not generate storage, queries, archetypes or
 structural kernels.
 
-- Zero-component delegate and functor overloads are handwritten in DeltaECS.
+- Zero-component delegate overloads are handwritten in DeltaECS. Functor
+  overloads, including zero-component forms, are generated from concrete
+  marker implementations.
 - Component-bearing arities start at one and may extend to 256.
 - `in T` parameters declare reads; `ref T` parameters declare writes.
 - Calls may include an `Entity`, mutable caller context, primary registrations,
   or explicit `ComponentId` arguments.
 - Generated extensions live in the consumer assembly while execution enters a
   shared non-generic DeltaECS runtime bridge.
+- Functors implement only `IForEach`, `IForEachEntity`,
+  `IForEachContext<TContext>`, or `IForEachContextEntity<TContext>`; generated
+  interface names never contain component types or read/write patterns.
 
 The generator reports diagnostics for unsupported arity, ambiguous functor
 `Invoke` shapes, invalid ref kinds and calls whose requested component pattern

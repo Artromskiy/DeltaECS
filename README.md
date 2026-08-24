@@ -117,7 +117,11 @@ actually makes and emits only the requested callback shapes:
 Read arguments are passed as `in T`; write arguments are passed as `ref T`.
 The component type is validated against the registered `ComponentId` before
 execution; row resolution occurs once per chunk, outside the entity loop.
-Functors are structs constrained by the generated `IForEach*` interfaces.
+Functors implement one of four stable marker interfaces: `IForEach`,
+`IForEachEntity`, `IForEachContext<TContext>`, or
+`IForEachContextEntity<TContext>`. The generator derives component types and
+read/write intent from the concrete `Invoke` signature; it does not generate
+pattern-specific functor interfaces.
 No-ID calls resolve each component type independently through its registry
 primary `ComponentId`; they do not infer IDs from the query's `All` mask, so a
 query may contain additional required components. If one CLR type has multiple
