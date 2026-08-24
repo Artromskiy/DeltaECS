@@ -235,23 +235,106 @@ public sealed partial class World : IDisposable
         }
 
         _ = _mutationStamps.Next();
+
+        if (count == 1)
+        {
+            // A single valid handle needs neither sorting nor a second
+            // record/lifetime validation: no mutation has happened yet.
+            DestroyResolved(_destroyScratch[0].RecordIndex);
+            return 1;
+        }
+
+        if (IsAscendingDestroyOrder(count))
+        {
+            EnsureFreeRecordCapacity(_freeCount + count);
+            return DestroyAscendingBatch(count);
+        }
+
         _destroyScratch.Span[..count].Sort(DestroyEntryComparer.Instance);
         EnsureFreeRecordCapacity(_freeCount + count);
         int destroyed = 0;
-        for (int i = 0; i < count; i++)
+        int groupStart = 0;
+        while (groupStart < count)
         {
-            var entry = _destroyScratch[i];
-            ref readonly var record = ref RecordAt(entry.RecordIndex);
-            if (record.Generation != entry.Entity.Generation
-                || record.Archetype != entry.Archetype
-                || record.Chunk != entry.Chunk
-                || record.SlotIndex != entry.SlotIndex)
+            var first = _destroyScratch[groupStart];
+            int groupEnd = groupStart + 1;
+            while (groupEnd < count)
             {
-                continue;
+                var next = _destroyScratch[groupEnd];
+                if (next.Archetype != first.Archetype || next.Chunk != first.Chunk)
+                {
+                    break;
+                }
+
+                groupEnd++;
             }
 
-            DestroyResolved(entry.RecordIndex);
-            destroyed++;
+            int groupCount = groupEnd - groupStart;
+            var archetype = _archetypes[first.Archetype];
+            var chunk = archetype.GetChunk(first.Chunk);
+            if (groupCount == chunk.Count && IsCompleteDestroyChunk(groupStart, groupCount))
+            {
+                destroyed += DestroyChunk(archetype, first.Chunk);
+            }
+            else
+            {
+                for (int index = groupStart; index < groupEnd; index++)
+                {
+                    var entry = _destroyScratch[index];
+                    if (IsCurrentDestroyEntry(entry))
+                    {
+                        DestroyResolved(entry.RecordIndex);
+                        destroyed++;
+                    }
+                }
+            }
+
+            groupStart = groupEnd;
+        }
+
+        return destroyed;
+    }
+
+    private int DestroyAscendingBatch(int count)
+    {
+        int destroyed = 0;
+        int groupEnd = count;
+        while (groupEnd > 0)
+        {
+            var last = _destroyScratch[groupEnd - 1];
+            int groupStart = groupEnd - 1;
+            while (groupStart > 0)
+            {
+                var previous = _destroyScratch[groupStart - 1];
+                if (previous.Archetype != last.Archetype || previous.Chunk != last.Chunk)
+                {
+                    break;
+                }
+
+                groupStart--;
+            }
+
+            int groupCount = groupEnd - groupStart;
+            var archetype = _archetypes[last.Archetype];
+            var chunk = archetype.GetChunk(last.Chunk);
+            if (groupCount == chunk.Count && IsCompleteAscendingDestroyChunk(groupStart, groupCount))
+            {
+                destroyed += DestroyChunk(archetype, last.Chunk);
+            }
+            else
+            {
+                for (int index = groupEnd - 1; index >= groupStart; index--)
+                {
+                    var entry = _destroyScratch[index];
+                    if (IsCurrentDestroyEntry(entry))
+                    {
+                        DestroyResolved(entry.RecordIndex);
+                        destroyed++;
+                    }
+                }
+            }
+
+            groupEnd = groupStart;
         }
 
         return destroyed;
@@ -752,11 +835,67 @@ public sealed partial class World : IDisposable
         return count;
     }
 
+    private bool IsCompleteDestroyChunk(int start, int count)
+    {
+        for (int index = 0; index < count; index++)
+        {
+            var entry = _destroyScratch[start + index];
+            if (entry.SlotIndex != count - index - 1 || !IsCurrentDestroyEntry(entry))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private bool IsCompleteAscendingDestroyChunk(int start, int count)
+    {
+        for (int index = 0; index < count; index++)
+        {
+            var entry = _destroyScratch[start + index];
+            if (entry.SlotIndex != index || !IsCurrentDestroyEntry(entry))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private bool IsAscendingDestroyOrder(int count)
+    {
+        for (int index = 1; index < count; index++)
+        {
+            var previous = _destroyScratch[index - 1];
+            var current = _destroyScratch[index];
+            if (current.Archetype < previous.Archetype
+                || (current.Archetype == previous.Archetype && current.Chunk < previous.Chunk)
+                || (current.Archetype == previous.Archetype
+                    && current.Chunk == previous.Chunk
+                    && current.SlotIndex < previous.SlotIndex))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool IsCurrentDestroyEntry(DestroyEntry entry)
+    {
+        ref readonly var record = ref RecordAt(entry.RecordIndex);
+        return record.Generation == entry.Entity.Generation
+            && record.Archetype == entry.Archetype
+            && record.Chunk == entry.Chunk
+            && record.SlotIndex == entry.SlotIndex;
+    }
+
     private void DestroyResolved(int recordIndex)
     {
         ref var record = ref RecordAt(recordIndex);
         var archetype = _archetypes[record.Archetype];
-        var chunk = archetype.GetChunk(record.Chunk);
         var moved = archetype.RemoveEntity(record.Chunk, record.SlotIndex);
         if (moved.IsAlive)
         {

@@ -472,6 +472,53 @@ public sealed class StampInvariantTests
     }
 
     [Test]
+    public void DestroyBatchHandlesDuplicatesStaleEntriesWholeChunksAndFallbackOrder()
+    {
+        var layouts = CreateLayouts();
+        using var world = new World(layouts, chunkCapacity: 4);
+        Entity[] entities = new Entity[4];
+        Assert.That(world.CreateBatch(new[] { PositionId }, entities), Is.EqualTo(entities.Length));
+
+        Entity stale = entities[0];
+        Assert.That(world.Destroy(stale), Is.True);
+        Entity replacement = world.Create(PositionId);
+        Assert.That(replacement.Index, Is.EqualTo(stale.Index));
+        Assert.That(replacement.Generation, Is.EqualTo(stale.Generation + 1));
+
+        Entity[] duplicateInput = { replacement, replacement, stale };
+        Stamp beforeDuplicate = world.Stamp;
+        Assert.That(world.DestroyBatch(duplicateInput), Is.EqualTo(1));
+        Assert.That(world.Stamp, Is.EqualTo(new Stamp(beforeDuplicate.Value + 1)));
+        Assert.That(world.IsAlive(replacement), Is.False);
+        Assert.That(world.IsAlive(stale), Is.False);
+
+        using var wholeWorld = new World(layouts, chunkCapacity: 4);
+        Entity[] fullChunk = new Entity[4];
+        Assert.That(wholeWorld.CreateBatch(new[] { PositionId }, fullChunk), Is.EqualTo(fullChunk.Length));
+        Stamp beforeWholeChunk = wholeWorld.Stamp;
+        Assert.That(wholeWorld.DestroyBatch(fullChunk), Is.EqualTo(fullChunk.Length));
+        Assert.That(wholeWorld.Stamp, Is.EqualTo(new Stamp(beforeWholeChunk.Value + 1)));
+        foreach (Entity entity in fullChunk)
+        {
+            Assert.That(wholeWorld.IsAlive(entity), Is.False);
+        }
+
+        Entity[] fallback = new Entity[4];
+        Assert.That(wholeWorld.CreateBatch(new[] { PositionId }, fallback), Is.EqualTo(fallback.Length));
+        Entity[] unsortedSubset = { fallback[3], fallback[1] };
+        Stamp beforeFallback = wholeWorld.Stamp;
+        Assert.That(wholeWorld.DestroyBatch(unsortedSubset), Is.EqualTo(unsortedSubset.Length));
+        Assert.That(wholeWorld.Stamp, Is.EqualTo(new Stamp(beforeFallback.Value + 1)));
+        Assert.Multiple(() =>
+        {
+            Assert.That(wholeWorld.IsAlive(fallback[0]), Is.True);
+            Assert.That(wholeWorld.IsAlive(fallback[1]), Is.False);
+            Assert.That(wholeWorld.IsAlive(fallback[2]), Is.True);
+            Assert.That(wholeWorld.IsAlive(fallback[3]), Is.False);
+        });
+    }
+
+    [Test]
     public void DestroyedEntitiesCannotUseOldStampsAfterGenerationReuse()
     {
         var layouts = CreateLayouts();
