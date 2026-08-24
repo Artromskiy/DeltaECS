@@ -72,51 +72,50 @@ while (archetypes.MoveNext())
 }
 ```
 
-### API layers and planned callback matrix
+### API layers and generated callback matrix
 
-The implemented structural surface is deliberately non-generic. Entity and
-component-set operations (`Create`, `CreateBatch`, `Destroy`, `DestroyBatch`,
-`AddComponents` and `RemoveComponents`) use `Entity`, `ComponentId` and spans;
-they do not carry a CLR component type through the structural kernel. The
-query selection, access tokens, scope and archetype/chunk/slot traversal are
-also non-generic. `ReadValues` and `WriteValues` become typed only at the
-terminal `Ref<T>` call.
+The structural kernels remain type-erased: component-set operations use
+`Entity`, `ComponentId` and spans, while query selection, access tokens and
+archetype/chunk/slot traversal remain non-generic. Thin single-item helpers
+`Create<T>`, `Add<T>`, `Remove<T>`, `TryGet<T>`, `Get<T>` and `Set<T>` validate
+the component type and delegate to those existing kernels; they do not create
+a typed storage or query layer.
 
-Generic types are limited to narrow boundaries: component registration and the
-single-item `SetComponent<T>`/`TryGetComponent<T>` operations, plus the final
-row reference. The implemented `World.Query<TContext>` compatibility callback
-uses `TContext` for caller state; its query, access and cursor state remains
-type-erased. No generic component type is carried by `Query`, an access token,
-or any traversal iterator.
+`World.ForEach` is the generated high-level dense entry point. Delegate and
+struct-functor overloads cover the same deterministic matrix:
 
-The planned `World.ForEach` family is the default high-level entry point. Its
-generated delegate and future struct-functor overloads cover one matrix:
-
-| Callback axis | Planned forms |
+| Callback axis | Implemented forms |
 |---|---|
 | Context | no context, or one caller-provided `TContext` |
 | Entity argument | no entity, or current `Entity` |
-| Component arity | zero components (explicit entity-only form), then 1, 2, 3 or 4 typed components |
-| Selection | world-wide dense query, or an ordered `ReadOnlySpan<Entity>` sequence optionally filtered by `Query` |
+| Component arity | zero components, then 1, 2, 3 or 4 typed component refs |
+| Dense selection | prepared `Query`, with explicit component IDs or exact `All`-mask inference |
 
-The matrix is source-generated rather than handwritten. Each overload is a
-thin boundary over the same type-erased validation, access preparation and
-dense execution kernel. The generated callback/functor layer is not yet
-implemented; the current public contract is the explicit three-loop API above
-and the compatibility `World.Query<TContext>` cursor path.
+All component callback arguments currently declare write intent and are
+passed as writable refs. The type parameter is validated against the
+registered `ComponentId` before execution; row resolution occurs once per
+chunk, outside the entity loop. Functors are structs constrained by the
+generated `IForEach*` interfaces. The generator emits arities 0..4; production
+contains no handwritten variadic overload copies.
 
-An ordered sequence may also gain a fluent facade, planned as
-`world.Entities(entities).Where(in query).ForEach(action)`. It must preserve
-input order and duplicate occurrences, and must remain an adapter over the
-same sequence kernel rather than becoming a second query or storage model.
+Ordered entity-only execution is available both directly and through the
+non-owning fluent facade:
 
-The planned high-level execution entry point is `World.ForEach`. It will own
-query scope creation, validation, access preparation and disposal internally,
-so the common user API does not expose scope management. Explicit
-`OpenQuery` remains an advanced path for reusing prepared accesses across
-several passes or combining `ForEach` with lower-level traversal. Both paths
-must share the same dense execution kernel; the choice must not change the
-hot-loop work.
+```csharp
+world.ForEach(entities, action);
+world.Entities(entities).Where(in query).ForEach(action);
+```
+
+It preserves input order and duplicate occurrences, skips stale entities and
+uses the same generated entity delegate/functor contracts. Structural
+`Add`/`Remove`/`Destroy` terminals forward to the existing batch kernels.
+Typed component callbacks over an explicit entity sequence are intentionally
+not a second row kernel; use a prepared dense query or the single-item helpers.
+
+Generated dense `ForEach` owns query validation and access preparation.
+Explicit `OpenQuery` remains the advanced path for direct three-loop traversal.
+Both routes use the existing type-erased query plan and chunk cursor; no
+generic component type is carried by `Query`, an access token or an iterator.
 
 The root scope validates ownership and owns the lease. The archetype, chunk and
 slot iterators contain only their own traversal state; dense `MoveNext` methods

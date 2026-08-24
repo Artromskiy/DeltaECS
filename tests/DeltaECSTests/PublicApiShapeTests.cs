@@ -26,32 +26,18 @@ public sealed class PublicApiShapeTests
         typeof(ObjectWriteValues)
     ];
 
-    private static readonly string[] StructuralMethodNames =
-    [
-        nameof(World.GetArchetype),
-        nameof(World.ResolveArchetype),
-        nameof(World.Create),
-        nameof(World.CreateBatch),
-        nameof(World.Destroy),
-        nameof(World.DestroyBatch),
-        nameof(World.AddComponents),
-        nameof(World.RemoveComponents)
-    ];
-
     [Test]
-    public void StructuralSurfaceRemainsNonGeneric()
+    public void TypeErasedStructuralKernelOverloadsRemainAvailable()
     {
-        var genericMethods = typeof(World)
-            .GetMethods(BindingFlags.Public | BindingFlags.Instance)
-            .Where(static method => StructuralMethodNames.Contains(method.Name))
-            .Where(static method => method.IsGenericMethod)
-            .ToArray();
-
-        Assert.That(
-            genericMethods,
-            Is.Empty,
-            "Structural methods must not carry component type parameters: "
-                + string.Join(", ", genericMethods.Select(static method => method.ToString())));
+        Assert.Multiple(() =>
+        {
+            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.Create), typeof(ReadOnlySpan<ComponentId>)).IsGenericMethod, Is.False);
+            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.CreateBatch), typeof(ReadOnlySpan<ComponentId>), typeof(Span<Entity>)).IsGenericMethod, Is.False);
+            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.Destroy), typeof(Entity)).IsGenericMethod, Is.False);
+            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.DestroyBatch), typeof(ReadOnlySpan<Entity>)).IsGenericMethod, Is.False);
+            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.AddComponents), typeof(ComponentId[]), typeof(ReadOnlySpan<Entity>)).IsGenericMethod, Is.False);
+            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.RemoveComponents), typeof(ComponentId[]), typeof(ReadOnlySpan<Entity>)).IsGenericMethod, Is.False);
+        });
     }
 
     [Test]

@@ -8,7 +8,7 @@ using NUnit.Framework;
 public sealed class GenericSingleItemApiTests
 {
     [Test]
-    public void TypedCreate_Get_Set_And_TryGet_UseTheExistingComponentRows()
+    public void TypedCreateGetSetAndTryGetUseTheExistingComponentRows()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_001));
@@ -24,7 +24,7 @@ public sealed class GenericSingleItemApiTests
     }
 
     [Test]
-    public void TypedAddAndRemove_AreSingleComponentStructuralTransitions()
+    public void TypedAddAndRemoveAreSingleComponentStructuralTransitions()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_011));
@@ -42,7 +42,7 @@ public sealed class GenericSingleItemApiTests
     }
 
     [Test]
-    public void StaleAndMismatchedHandles_DoNotMutateThroughTheGenericBoundary()
+    public void StaleAndMismatchedHandlesDoNotMutateThroughTheGenericBoundary()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_021));

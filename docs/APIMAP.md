@@ -38,9 +38,10 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `QueryChunkCursor` | Current chunk, forward slot traversal and value access | `src/DeltaECS/Core/QueryAccess.cs` |
 | `ReadValues`, `WriteValues` | Non-generic prepared values; final `Ref<T>` must match the registered component type. Controlled pre-loop mismatch validation is selected correctness work. | `src/DeltaECS/Core/Values.cs`, `src/DeltaECS/Generic/Values.cs` |
 | `World.Query` | Callback-based query execution over `QueryChunkCursor` | `src/DeltaECS/Core/World.cs` |
-| `World.ForEach` (planned) | Main high-level dense entry point; owns scope, validation, preparation and disposal | `src/DeltaECS/Core/World.cs` |
-| `World.Entities(ReadOnlySpan<Entity>)` (planned) | Ordered fluent sequence facade feeding the generated callback matrix | `src/DeltaECS/Sequence/README.md` |
-| `World.ForEach(ReadOnlySpan<Entity>, ...)` (planned) | Explicit ordered entity-sequence execution, optionally filtered by a prepared `Query` | `src/DeltaECS/Sequence/README.md` |
+| `World.Create<T>/Add<T>/Remove<T>/TryGet<T>/Get<T>/Set<T>` | Thin typed single-item boundary over existing structural/component operations | `src/DeltaECS/Generic/World.Generic.cs` |
+| generated `World.ForEach` | Delegate and struct-functor dense matrix, arities 0..4 | `src/DeltaECS.Generators/ForEachGenerator.cs`, `src/DeltaECS/Delegate/ForEachRuntime.cs` |
+| `World.Entities(ReadOnlySpan<Entity>)` | Ordered non-owning sequence facade | `src/DeltaECS/Sequence/EntitySequence.cs` |
+| `World.ForEach(ReadOnlySpan<Entity>, ...)` | Ordered entity-only sequence execution, optionally filtered by `Query` | `src/DeltaECS/Sequence/World.Sequence.cs` |
 
 ## Query execution path
 
@@ -61,6 +62,19 @@ World.OpenQuery(in Query)
 matching and the query-row to archetype-row plan. Read them when the issue is
 archetype matching, new-archetype refresh, or access row resolution; do not
 start with tests or structural move code.
+
+Generated dense callbacks enter through this chain:
+
+```text
+World.ForEach<...>(Query, ...)
+  -> ForEachRuntime validates Query/ComponentId/T once
+  -> existing World.Query type-erased traversal
+  -> generated invoker resolves values once per chunk
+  -> delegate or constrained struct-functor call per slot
+```
+
+The generator project owns only API repetition. It does not generate storage,
+archetype matching or structural kernels.
 
 The dense three-loop public shape is:
 
@@ -129,6 +143,9 @@ Open only the relevant class:
 | Active chunk reuse and direct active traversal | `tests/DeltaECSTests/ActiveChunkTests.cs` |
 | Block transition correctness and records | `tests/DeltaECSTests/StructuralAlgorithmTests.cs` |
 | Comparative benchmark catalog/report contracts only | `tests/DeltaECSTests/ComparativeBenchmarkContractTests.cs` |
+| Generic single-item boundary | `tests/DeltaECSTests/GenericSingleItemApiTests.cs` |
+| Ordered sequence facade and terminals | `tests/DeltaECSTests/SequenceExecutionTests.cs` |
+| Generated matrix determinism/compilation | `tests/DeltaECS.Generators.Tests/ForEachGeneratorTests.cs` |
 
 For a source change, first locate the relevant method with `rg`, then read the
 nearest test method and its setup helpers. Benchmark source is not a substitute
@@ -140,8 +157,8 @@ for a production correctness test.
   public user API. Do not remove it while migrating public cursor access.
 - `World.Query` is the callback surface for dense component queries;
   `World.OpenQuery` exposes the explicit three-loop form.
-- `QueryAction<TContext>` is the callback surface. Do not infer that a
-  callback benchmark represents the only supported query execution style.
+- Generated `World.ForEach` is the convenience callback/functor surface;
+  `World.Query<TContext>` remains the lower-level cursor callback.
 - Do not reintroduce removed ordinal/public unsafe row APIs without an explicit
   API decision and a benchmark contract update.
 

@@ -8,7 +8,7 @@ namespace Delta.ECS.Tests;
 public sealed class SequenceExecutionTests
 {
     [Test]
-    public void SequenceForEach_PreservesOrderAndDuplicates_AndSkipsStale()
+    public void SequenceForEachPreservesOrderAndDuplicatesAndSkipsStale()
     {
         var layouts = new ComponentLayoutRegistry();
         var valueId = layouts.Register(typeof(int), new SchemaId(60_001));
@@ -26,7 +26,7 @@ public sealed class SequenceExecutionTests
     }
 
     [Test]
-    public void SequenceWhere_FiltersOnlyTheCandidateSequence()
+    public void SequenceWhereFiltersOnlyTheCandidateSequence()
     {
         var layouts = new ComponentLayoutRegistry();
         var positionId = layouts.Register(typeof(int), new SchemaId(60_002));
@@ -47,7 +47,7 @@ public sealed class SequenceExecutionTests
     }
 
     [Test]
-    public void SequenceStructuralTerminals_ForwardBatchSemantics_AndHonorFilter()
+    public void SequenceStructuralTerminalsForwardBatchSemanticsAndHonorFilter()
     {
         var layouts = new ComponentLayoutRegistry();
         var positionId = layouts.Register(typeof(int), new SchemaId(60_004));
@@ -73,5 +73,53 @@ public sealed class SequenceExecutionTests
         Assert.That(world.Entities(candidates).Where(in query).Destroy(), Is.EqualTo(1));
         Assert.That(world.IsAlive(marked), Is.False);
         Assert.That(world.IsAlive(unmarked), Is.True);
+    }
+
+    [Test]
+    public void SequenceFunctorFormsPreserveOrderFilterAndCallerState()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        var markerId = layouts.Register(typeof(byte), new SchemaId(60_007));
+        var otherId = layouts.Register(typeof(short), new SchemaId(60_008));
+        using var world = new World(layouts);
+        var first = world.Create(otherId);
+        var second = world.Create(markerId);
+        var third = world.Create(markerId);
+        var query = world.CreateQuery(QuerySpec.ForComponents(markerId));
+        var candidates = new[] { third, first, second, third };
+
+        var collector = new EntityCollector();
+        world.Entities(candidates).Where(in query).ForEach(ref collector);
+
+        var context = 10;
+        var contextCollector = new ContextCollector();
+        world.Entities(candidates).Where(in query).ForEach(ref context, ref contextCollector);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(collector.Entities, Is.EqualTo(new[] { third, second, third }));
+            Assert.That(context, Is.EqualTo(13));
+            Assert.That(contextCollector.Last, Is.EqualTo(third));
+        });
+    }
+
+    private struct EntityCollector : IForEachEntity
+    {
+        public EntityCollector() => Entities = [];
+
+        public readonly List<Entity> Entities { get; }
+
+        public void Invoke(Entity entity) => Entities.Add(entity);
+    }
+
+    private struct ContextCollector : IForEachContextEntity<int>
+    {
+        public Entity Last { get; private set; }
+
+        public void Invoke(ref int context, Entity entity)
+        {
+            context++;
+            Last = entity;
+        }
     }
 }

@@ -1,4 +1,3 @@
-using Delta.ECS.Generators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using NUnit.Framework;
@@ -50,9 +49,37 @@ public sealed class ForEachGeneratorTests
         Assert.That(secondValue.Value, Is.EqualTo(1));
     }
 
+    [Test]
+    public void GeneratedFunctorForEachExecutesDenseRowsAndCopiesStateBack()
+    {
+        using var world = new Delta.ECS.World(chunkCapacity: 2);
+        var positionId = world.Layouts.Register<RuntimePosition>(new Delta.ECS.SchemaId(2));
+        var first = world.Create(positionId);
+        var second = world.Create(positionId);
+        var query = world.CreateQuery(Delta.ECS.QuerySpec.ForComponents(positionId));
+        var functor = new RuntimeFunctor();
+
+        world.ForEach<RuntimeFunctor, RuntimePosition>(in query, positionId, ref functor);
+
+        Assert.That(functor.Count, Is.EqualTo(2));
+        Assert.That(world.Get<RuntimePosition>(first, positionId).Value, Is.EqualTo(1));
+        Assert.That(world.Get<RuntimePosition>(second, positionId).Value, Is.EqualTo(1));
+    }
+
     private struct RuntimePosition
     {
         public int Value;
+    }
+
+    private struct RuntimeFunctor : Delta.ECS.IForEach<RuntimePosition>
+    {
+        public int Count { get; private set; }
+
+        public void Invoke(ref RuntimePosition position)
+        {
+            position.Value++;
+            Count++;
+        }
     }
 
     private static GeneratorDriverRunResult RunGenerator()
