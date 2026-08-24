@@ -247,6 +247,26 @@ public sealed class SequenceExecutionTests
         });
     }
 
+    [Test]
+    public void EmptyAndStaleOnlyTypedWriteSequencesDoNotAdvanceStamp()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        var velocityId = layouts.Register<SequenceVelocity>(new SchemaId(60_016));
+        using var world = new World(layouts);
+        Entity stale = world.Create(velocityId);
+        Assert.That(world.Destroy(stale), Is.True);
+        Stamp before = world.Stamp;
+
+        world.Entities(Array.Empty<Entity>()).ForEach<SequenceVelocity>(
+            velocityId,
+            static (ref SequenceVelocity velocity) => velocity.Value++);
+        world.Entities(new[] { stale }).ForEach<SequenceVelocity>(
+            velocityId,
+            static (ref SequenceVelocity velocity) => velocity.Value++);
+
+        Assert.That(world.Stamp, Is.EqualTo(before));
+    }
+
     private struct EntityCollector : IForEachEntity
     {
         public EntityCollector() => Entities = [];

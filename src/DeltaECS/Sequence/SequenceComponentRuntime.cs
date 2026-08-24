@@ -12,8 +12,8 @@ internal ref struct SequenceElementCursor
     private readonly QueryPlan _query;
     private readonly Chunk _chunk;
     private readonly ReadOnlySpan<int> _componentRows;
-    private readonly uint _writeTick;
-    private readonly Stamp _writeStamp;
+    private readonly QueryWriteSession _writeSession;
+    private readonly int _sessionGeneration;
 
     internal SequenceElementCursor(
         QueryPlan query,
@@ -21,14 +21,14 @@ internal ref struct SequenceElementCursor
         Chunk chunk,
         int slot,
         Entity entity,
-        uint writeTick,
-        Stamp writeStamp)
+        QueryWriteSession writeSession,
+        int sessionGeneration)
     {
         _query = query;
         _chunk = chunk;
         _componentRows = plan.ComponentRows;
-        _writeTick = writeTick;
-        _writeStamp = writeStamp;
+        _writeSession = writeSession;
+        _sessionGeneration = sessionGeneration;
         Slot = slot;
         Entity = entity;
     }
@@ -39,6 +39,7 @@ internal ref struct SequenceElementCursor
 
     internal ReadValues Get(ReadAccess access)
     {
+        _writeSession.EnsureActive(_sessionGeneration);
         if (!ReferenceEquals(access.Query, _query))
         {
             QueryThrowHelper.ThrowAccessMismatch();
@@ -55,13 +56,9 @@ internal ref struct SequenceElementCursor
             QueryThrowHelper.ThrowAccessMismatch();
         }
 
-        if (_writeTick == 0)
-        {
-            QueryThrowHelper.ThrowMissingWriteIntent();
-        }
-
         int physicalRow = _componentRows[access.QueryComponentIndex];
-        _chunk.MarkComponentWritten(physicalRow, Slot, _writeTick, _writeStamp);
+        _writeSession.Acquire(_sessionGeneration, out uint writeTick, out Stamp writeStamp);
+        _chunk.MarkComponentWritten(physicalRow, Slot, writeTick, writeStamp);
         return new WriteValues(_chunk.GetRawComponentRow(physicalRow));
     }
 }
@@ -80,8 +77,7 @@ public sealed partial class World
         ValidateQuery(in query);
         QueryPlan cached = query.Cached;
         _ = cached.MatchingPlans(this);
-        uint writeTick = 0;
-        Stamp writeStamp = default;
+        QueryWriteSession writeSession = RentQueryWriteSession(hasWrites, out int sessionGeneration);
         BeginQueryLease();
         try
         {
@@ -107,19 +103,21 @@ public sealed partial class World
                     lastArchetype = record.Archetype;
                 }
 
-                if (hasWrites && writeTick == 0)
-                {
-                    writeTick = QueryWriteTick(hasWriteAccess: true, out writeStamp);
-                }
-
                 Chunk chunk = plan.Archetype.GetChunk(record.Chunk);
-                var cursor = new SequenceElementCursor(cached, plan, chunk, record.SlotIndex, entity, writeTick, writeStamp);
+                var cursor = new SequenceElementCursor(
+                    cached,
+                    plan,
+                    chunk,
+                    record.SlotIndex,
+                    entity,
+                    writeSession,
+                    sessionGeneration);
                 invoker.Invoke(ref cursor);
             }
         }
         finally
         {
-            EndQueryLease();
+            ReturnQueryWriteSession(writeSession, sessionGeneration);
         }
     }
 }

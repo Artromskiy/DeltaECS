@@ -9,10 +9,7 @@ public sealed partial class World
     {
         EnsureRegisteredType<T>(componentId);
         Entity entity = Create(componentId);
-        if (!SetComponent(entity, componentId, in value))
-        {
-            throw new InvalidOperationException("The created component could not be initialized.");
-        }
+        InitializeComponentValue(entity, componentId, in value);
 
         return entity;
     }
@@ -28,7 +25,8 @@ public sealed partial class World
         }
 
         AddComponents(new[] { componentId }, entity);
-        return SetComponent(entity, componentId, in value);
+        InitializeComponentValue(entity, componentId, in value);
+        return true;
     }
 
     /// <summary>Removes one typed component from an alive entity.</summary>
@@ -90,5 +88,22 @@ public sealed partial class World
                 $"Component {componentId} is registered as {layout.RuntimeType}, not {typeof(T)}.",
                 nameof(componentId));
         }
+    }
+
+    private void InitializeComponentValue<T>(Entity entity, ComponentId componentId, in T value)
+    {
+        if (!TryResolve(entity, out int recordIndex))
+        {
+            throw new InvalidOperationException("The structural operation did not produce a live entity.");
+        }
+
+        ref readonly var record = ref RecordAt(recordIndex);
+        var archetype = _archetypes[record.Archetype];
+        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
+        {
+            throw new InvalidOperationException("The structural operation did not produce the requested component row.");
+        }
+
+        archetype.GetChunk(record.Chunk).GetComponentRow<T>(componentIndex)[record.SlotIndex] = value;
     }
 }

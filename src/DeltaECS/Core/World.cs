@@ -439,6 +439,7 @@ public sealed partial class World : IDisposable
         var cached = handle.Cached;
         var plans = cached.MatchingPlans(this);
         QueryWriteSession writeSession = RentQueryWriteSession(hasWrites, out int sessionGeneration);
+        BeginQueryLease();
         try
         {
             for (int planIndex = 0; planIndex < plans.Length; planIndex++)
