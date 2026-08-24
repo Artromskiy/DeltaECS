@@ -35,6 +35,16 @@ public ref struct QueryScope
         }
     }
 
+    /// <summary>Iterates every active chunk across all matching archetypes.</summary>
+    public QueryChunks Chunks
+    {
+        get
+        {
+            EnsureActive();
+            return new QueryChunks(_plans, _query, _writeSession, _sessionGeneration);
+        }
+    }
+
     public ReadAccess Bind(ReadAccess access)
     {
         EnsureActive();

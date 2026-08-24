@@ -194,6 +194,58 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
+    public void QueryScopeChunksFlattenMatchingArchetypesWithoutChangingSlotSemantics()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        using var world = new World(layouts, chunkCapacity: 2);
+        var positionOnly = new Entity[3];
+        var positionVelocity = new Entity[4];
+        world.Create([PositionId], positionOnly);
+        world.Create([PositionId, VelocityId], positionVelocity);
+
+        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var position = query.AccessWrite(PositionId);
+        var before = world.WorldTick;
+        var chunkCount = 0;
+        var slotCount = 0;
+        var archetypeIds = new HashSet<int>();
+
+        using (var scope = world.OpenQuery(in query))
+        {
+            var preparedPosition = scope.Bind(position);
+            var chunks = scope.Chunks;
+            while (chunks.MoveNext())
+            {
+                chunkCount++;
+                var chunk = chunks.Current;
+                archetypeIds.Add(chunk.ArchetypeId);
+                var slots = chunk.Slots;
+                var positions = slots.GetRow(preparedPosition);
+                while (slots.MoveNext())
+                {
+                    positions.Ref<Position>(slots).X++;
+                    slotCount++;
+                }
+            }
+        }
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(archetypeIds, Has.Count.EqualTo(2));
+            Assert.That(chunkCount, Is.EqualTo(4));
+            Assert.That(slotCount, Is.EqualTo(7));
+        });
+
+        using var verifyScope = world.OpenQuery(in query);
+        var verifyChunks = verifyScope.Chunks;
+        while (verifyChunks.MoveNext())
+        {
+            Assert.That(world.HasChangedSince(verifyChunks.Current.GlobalChunkId, PositionId, before), Is.True);
+        }
+    }
+
+    [Test]
     public void NonGenericAccessRequest_BindsRows_AndTracksOnlyWrites()
     {
         var layouts = new ComponentLayoutRegistry();

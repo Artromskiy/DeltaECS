@@ -1,5 +1,7 @@
 namespace Delta.ECS;
 
+using System.Runtime.CompilerServices;
+
 internal struct ComponentStampStorage : IDisposable
 {
     private readonly int _capacity;
@@ -39,13 +41,19 @@ internal struct ComponentStampStorage : IDisposable
         ValidateRange(componentIndex, slotIndex, count);
         if (slotIndex == 0)
         {
-            _uniformStamps[componentIndex] = stamp;
-            _uniformCounts[componentIndex] = count;
+            SetComponentPrefixTrusted(componentIndex, count, stamp);
             return;
         }
 
         Materialize(componentIndex);
         _values.Span.Slice(Offset(componentIndex, slotIndex), count).Fill(stamp);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void SetComponentPrefixTrusted(int componentIndex, int count, Stamp stamp)
+    {
+        _uniformStamps[componentIndex] = stamp;
+        _uniformCounts[componentIndex] = count;
     }
 
     public void SetSlot(int slotIndex, Stamp stamp)

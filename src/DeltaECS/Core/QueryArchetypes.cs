@@ -73,5 +73,5 @@ public readonly ref struct QueryArchetype
 
     public int ChunkCount => _plan.Archetype.ActiveChunkCount;
 
-    public QueryChunks Chunks => new(_plan, _query, _writeSession, _sessionGeneration);
+    public QueryArchetypeChunks Chunks => new(_plan, _query, _writeSession, _sessionGeneration);
 }

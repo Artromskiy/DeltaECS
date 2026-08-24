@@ -54,9 +54,10 @@ component type is supplied only at registration and at the terminal
 `ReadRow.Ref<T>`/`WriteRow.Ref<T>` call. Raw ordinal access remains
 internal.
 
-For explicit low-level traversal, `world.OpenQuery(in query)` exposes three
-independent nested loops: archetype, chunk and forward slot. Generated
-`ForEach` delegate and functor overloads provide the callback form.
+For explicit traversal, `world.OpenQuery(in query)` exposes a primary
+two-level chunk/slot path. The lower-level archetype/chunk/slot path remains
+available when callers need archetype boundaries. Generated `ForEach` delegate
+and functor overloads provide the callback form.
 
 The query API has three deliberately separate stages: `QuerySpec` describes
 selection, `World.CreateQuery` returns the world-owned `Query`, and
@@ -69,7 +70,26 @@ terminal `Ref<T>` call provides the component reference.
 pre-loop mismatch validation is selected correctness work; callers must not
 use a different `T` to reinterpret row storage.
 
-Queries use the independent three-level path:
+The primary explicit path flattens matching archetypes into the chunk iterator:
+
+```csharp
+using var scope = world.OpenQuery(in query);
+var positionAccess = query.AccessRead(positionId);
+var position = scope.Bind(positionAccess);
+var chunks = scope.Chunks;
+while (chunks.MoveNext())
+{
+    var slots = chunks.Current.Slots;
+    var row = slots.GetRow(position);
+    while (slots.MoveNext())
+    {
+        _ = row.Ref<Position>(slots);
+    }
+}
+```
+
+Use the independent three-level path when archetype metadata or boundaries are
+part of the algorithm:
 
 ```csharp
 using var scope = world.OpenQuery(in query);

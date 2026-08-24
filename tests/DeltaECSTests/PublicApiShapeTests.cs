@@ -15,6 +15,7 @@ public sealed class PublicApiShapeTests
         typeof(QueryArchetypes),
         typeof(QueryArchetype),
         typeof(QueryChunks),
+        typeof(QueryArchetypeChunks),
         typeof(QueryChunk),
         typeof(QuerySlots),
         typeof(ReadAccess),
@@ -79,6 +80,7 @@ public sealed class PublicApiShapeTests
         var bindWrite = PublicInstanceMethod(typeof(QueryScope), nameof(QueryScope.Bind), typeof(WriteAccess));
         var archetypeMoveNext = PublicInstanceMethod(typeof(QueryArchetypes), nameof(QueryArchetypes.MoveNext));
         var chunkMoveNext = PublicInstanceMethod(typeof(QueryChunks), nameof(QueryChunks.MoveNext));
+        var archetypeChunkMoveNext = PublicInstanceMethod(typeof(QueryArchetypeChunks), nameof(QueryArchetypeChunks.MoveNext));
         var slotMoveNext = PublicInstanceMethod(typeof(QuerySlots), nameof(QuerySlots.MoveNext));
         var getRead = PublicInstanceMethod(typeof(QuerySlots), nameof(QuerySlots.GetRow), typeof(ReadAccess));
         var getWrite = PublicInstanceMethod(typeof(QuerySlots), nameof(QuerySlots.GetRow), typeof(WriteAccess));
@@ -88,13 +90,16 @@ public sealed class PublicApiShapeTests
             Assert.That(createQuery.ReturnType, Is.EqualTo(typeof(Query)));
             Assert.That(openQuery.ReturnType, Is.EqualTo(typeof(QueryScope)));
             Assert.That(typeof(QueryScope).GetProperty(nameof(QueryScope.Archetypes))?.PropertyType, Is.EqualTo(typeof(QueryArchetypes)));
+            Assert.That(typeof(QueryScope).GetProperty(nameof(QueryScope.Chunks))?.PropertyType, Is.EqualTo(typeof(QueryChunks)));
             Assert.That(bindRead.ReturnType, Is.EqualTo(typeof(ReadAccess)));
             Assert.That(bindWrite.ReturnType, Is.EqualTo(typeof(WriteAccess)));
             Assert.That(archetypeMoveNext.ReturnType, Is.EqualTo(typeof(bool)));
             Assert.That(typeof(QueryArchetypes).GetProperty(nameof(QueryArchetypes.Current))?.PropertyType, Is.EqualTo(typeof(QueryArchetype)));
             Assert.That(chunkMoveNext.ReturnType, Is.EqualTo(typeof(bool)));
-            Assert.That(typeof(QueryArchetype).GetProperty(nameof(QueryArchetype.Chunks))?.PropertyType, Is.EqualTo(typeof(QueryChunks)));
+            Assert.That(archetypeChunkMoveNext.ReturnType, Is.EqualTo(typeof(bool)));
+            Assert.That(typeof(QueryArchetype).GetProperty(nameof(QueryArchetype.Chunks))?.PropertyType, Is.EqualTo(typeof(QueryArchetypeChunks)));
             Assert.That(typeof(QueryChunks).GetProperty(nameof(QueryChunks.Current))?.PropertyType, Is.EqualTo(typeof(QueryChunk)));
+            Assert.That(typeof(QueryArchetypeChunks).GetProperty(nameof(QueryArchetypeChunks.Current))?.PropertyType, Is.EqualTo(typeof(QueryChunk)));
             Assert.That(slotMoveNext.ReturnType, Is.EqualTo(typeof(bool)));
             Assert.That(typeof(QueryChunk).GetProperty(nameof(QueryChunk.Slots))?.PropertyType, Is.EqualTo(typeof(QuerySlots)));
             Assert.That(getRead.ReturnType, Is.EqualTo(typeof(ReadRow)));

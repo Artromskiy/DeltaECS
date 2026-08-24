@@ -138,6 +138,13 @@ internal sealed class Chunk
         _componentStamps.SetComponentRange(componentIndex, 0, _count, stamp);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void MarkComponentWrittenTrusted(int componentIndex, uint worldTick, Stamp stamp)
+    {
+        _componentVersions[componentIndex] = worldTick;
+        _componentStamps.SetComponentPrefixTrusted(componentIndex, _count, stamp);
+    }
+
     internal void MarkComponentWritten(int componentIndex, int slotIndex, uint worldTick, Stamp stamp)
     {
         _componentVersions[componentIndex] = worldTick;

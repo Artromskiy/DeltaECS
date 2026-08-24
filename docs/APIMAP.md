@@ -45,7 +45,8 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `Query` | World/query identity and non-generic read/write access factory | `src/DeltaECS/Core/EntityTypes.cs` |
 | `ReadAccess`, `WriteAccess` | Query-bound type-erased access intent | `src/DeltaECS/Core/QueryAccess.cs` |
 | `QueryScope` | Component-query validation and structural lease owner | `src/DeltaECS/Core/QueryScope.cs` |
-| `QueryArchetypes`, `QueryChunks`, `QuerySlots` | Independent archetype/chunk/slot traversal levels | `src/DeltaECS/Core/QueryArchetypes.cs`, `QueryChunks.cs`, `QuerySlots.cs` |
+| `QueryChunks`, `QuerySlots` | Primary flattened chunk/slot traversal | `src/DeltaECS/Core/QueryChunks.cs`, `QuerySlots.cs` |
+| `QueryArchetypes`, `QueryArchetypeChunks` | Low-level archetype boundaries and per-archetype chunks | `src/DeltaECS/Core/QueryArchetypes.cs`, `QueryChunks.cs` |
 | `ReadRow`, `WriteRow` | Non-generic prepared component rows; final `Ref<T>` must match the registered component type. Controlled pre-loop mismatch validation is selected correctness work. | `src/DeltaECS/Core/Rows.cs`, `src/DeltaECS/Generic/Rows.cs` |
 | `World.Create<T>/Add<T>/Remove<T>/TryGet<T>/Get<T>/Set<T>` | Thin typed single-item boundary over existing structural/component operations | `src/DeltaECS/Generic/World.Generic.cs` |
 | `World.ForEach` / `ForEachEntity` | Handwritten zero-component delegates plus consumer-side generated delegate/functor extensions; functors use four stable marker interfaces and concrete `Invoke` signatures | `src/DeltaECS/Delegate/ForEachZeroArity.cs`, `src/DeltaECS.Generators/DemandDrivenForEachGenerator.cs`, `src/DeltaECS/Delegate/ForEachDelegates.cs`, `src/DeltaECS/Functor/ForEachFunctorContracts.cs`, `src/DeltaECS/Functor/GeneratedForEachFunctorRuntime.cs` |
@@ -59,8 +60,8 @@ For independent component iteration, read only this chain first:
 ```text
 World.OpenQuery(in Query)
   -> QueryScope.Bind(access)
-  -> QueryArchetypes.MoveNext()
-  -> QueryChunks.MoveNext()
+  -> QueryScope.Chunks
+  -> QueryChunks.MoveNext() [internally advances matching archetypes]
   -> QuerySlots.GetRow(access)
   -> QuerySlots.MoveNext()
   -> ReadRow/WriteRow.Ref<T>(iterator)
@@ -98,7 +99,24 @@ The generated component types exist at the callback/ref boundary only. The
 runtime bridge, query/access declarations, plans, iterators and row containers
 are non-generic and shared by all generated demands.
 
-The three-loop public shape is:
+The primary two-loop public shape is:
+
+```csharp
+using var scope = world.OpenQuery(in query);
+var prepared = scope.Bind(access);
+var chunks = scope.Chunks;
+while (chunks.MoveNext())
+{
+    var slots = chunks.Current.Slots;
+    var row = slots.GetRow(prepared);
+    while (slots.MoveNext())
+    {
+        _ = row.Ref<Component>(slots);
+    }
+}
+```
+
+The low-level three-loop shape is:
 
 ```csharp
 using var scope = world.OpenQuery(in query);
@@ -177,7 +195,8 @@ for a production correctness test.
 
 - `Chunk.GetComponentRow<T>(int)` is an internal storage primitive, not a
   public user API. Do not remove it while migrating public cursor access.
-- `World.OpenQuery` exposes the explicit three-loop form.
+- `World.OpenQuery` exposes both the primary two-loop `scope.Chunks` form and
+  the low-level three-loop `scope.Archetypes` form.
 - Generated consumer-side `World.ForEach` extensions are the convenience
   callback/functor surface and reuse `QuerySlots` internally. The old fixed
   1–4 producer-owned matrix is not the target architecture.

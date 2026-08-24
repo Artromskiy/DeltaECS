@@ -56,7 +56,7 @@ public ref struct GeneratedQuerySlots
     public WriteRow GetGeneratedWriteRow(int queryComponentIndex)
     {
         int physicalRow = _componentRowsByQuery.Ref(queryComponentIndex);
-        _chunk.MarkComponentWritten(physicalRow, _writeTick, _writeStamp);
+        _chunk.MarkComponentWrittenTrusted(physicalRow, _writeTick, _writeStamp);
         return new WriteRow(_resolvedRowsByQuery.Ref(queryComponentIndex));
     }
 }
