@@ -1,0 +1,87 @@
+namespace Delta.ECS;
+
+public sealed partial class World
+{
+    /// <summary>
+    /// Creates an entity containing one component and initializes its value.
+    /// </summary>
+    public Entity Create<T>(ComponentId componentId, in T value)
+    {
+        EnsureRegisteredType<T>(componentId);
+        Entity entity = Create(componentId);
+        if (!SetComponent(entity, componentId, in value))
+        {
+            throw new InvalidOperationException("The created component could not be initialized.");
+        }
+
+        return entity;
+    }
+
+    /// <summary>Adds one typed component to an alive entity and initializes its value.</summary>
+    public bool Add<T>(Entity entity, ComponentId componentId, in T value)
+    {
+        if (!IsRegisteredType<T>(componentId)
+            || !IsAlive(entity)
+            || TryGetComponent<T>(entity, componentId, out _))
+        {
+            return false;
+        }
+
+        AddComponents(new[] { componentId }, entity);
+        return SetComponent(entity, componentId, in value);
+    }
+
+    /// <summary>Removes one typed component from an alive entity.</summary>
+    public bool Remove<T>(Entity entity, ComponentId componentId)
+    {
+        if (!IsRegisteredType<T>(componentId)
+            || !IsAlive(entity)
+            || !TryGetComponent<T>(entity, componentId, out _))
+        {
+            return false;
+        }
+
+        RemoveComponents(new[] { componentId }, entity);
+        return !TryGetComponent<T>(entity, componentId, out _);
+    }
+
+    /// <summary>Reads one component when the entity owns a matching component row.</summary>
+    public bool TryGet<T>(Entity entity, ComponentId componentId, out T value)
+        => TryGetComponent(entity, componentId, out value);
+
+    /// <summary>
+    /// Reads one component, throwing when the entity is stale, missing the row,
+    /// or the requested type does not match the registered component type.
+    /// </summary>
+    public T Get<T>(Entity entity, ComponentId componentId)
+    {
+        if (!TryGet(entity, componentId, out T value))
+        {
+            throw new InvalidOperationException(
+                $"Entity {entity} does not contain a component of type {typeof(T)} for {componentId}.");
+        }
+
+        return value;
+    }
+
+    /// <summary>Writes one component value and reports whether the row was updated.</summary>
+    public bool Set<T>(Entity entity, ComponentId componentId, in T value)
+        => SetComponent(entity, componentId, in value);
+
+    private bool IsRegisteredType<T>(ComponentId componentId)
+    {
+        return _layouts.TryGet(componentId, out var layout)
+            && layout.RuntimeType == typeof(T);
+    }
+
+    private void EnsureRegisteredType<T>(ComponentId componentId)
+    {
+        if (!_layouts.TryGet(componentId, out var layout)
+            || layout.RuntimeType != typeof(T))
+        {
+            throw new ArgumentException(
+                $"Component {componentId} is registered as {layout.RuntimeType}, not {typeof(T)}.",
+                nameof(componentId));
+        }
+    }
+}
