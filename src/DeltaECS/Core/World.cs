@@ -542,7 +542,7 @@ public sealed partial class World : IDisposable
                 continue;
             }
 
-            if (sourceArchetype.EntityCount == 0)
+            if (sourceArchetype.ActiveChunkCount == 0)
             {
                 continue;
             }
