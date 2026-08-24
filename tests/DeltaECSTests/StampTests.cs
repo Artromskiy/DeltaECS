@@ -101,7 +101,7 @@ public sealed class StampTests
             Assert.That(world.TryGetComponentStamp(entities[index], positionId, out preserved[index]), Is.True);
         }
 
-        var query = world.CreateQuery(QuerySpec.ForComponents(positionId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(positionId));
         Assert.That(world.AddComponents(in query, new[] { velocityId }), Is.EqualTo(entities.Length));
         Stamp operationStamp = world.Stamp;
 
@@ -185,7 +185,7 @@ public sealed class StampTests
         ComponentId velocityId = layouts.Register(typeof(Velocity), new SchemaId(40_052));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId, velocityId);
-        var query = world.CreateQuery(QuerySpec.ForComponents(positionId, velocityId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
         WriteAccess positionAccess = query.AccessWrite(positionId);
         ReadAccess velocityAccess = query.AccessRead(velocityId);
         Assert.That(world.TryGetComponentStamp(entity, velocityId, out Stamp velocityBefore), Is.True);

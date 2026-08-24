@@ -105,7 +105,7 @@ public static class GeneratedForEachRuntime
     public static Query CreateSequenceQuery(World world, ReadOnlySpan<ComponentId> components)
     {
         ArgumentNullException.ThrowIfNull(world);
-        var spec = QuerySpec.ForComponents(components);
+        var spec = QuerySpec.WhereAll(components);
         return world.CreateQuery(in spec);
     }
 

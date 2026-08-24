@@ -84,7 +84,7 @@ public sealed class DeltaECSDeliveryTests
         world.Create(new[] { PositionId, VelocityId }, created);
         Assert.AreEqual(requested, world.AliveEntityCount);
 
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId, VelocityId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId, VelocityId));
         var position = query.AccessWrite(PositionId);
         var velocity = query.AccessWrite(VelocityId);
         var sum = 0L;
@@ -144,7 +144,7 @@ public sealed class DeltaECSDeliveryTests
             world.Set(entity, PositionId, new Position { X = nextValue++ });
         }
 
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         var position = query.AccessWrite(PositionId);
         var before = world.WorldTick;
         var archetypeCount = 0;
@@ -203,7 +203,7 @@ public sealed class DeltaECSDeliveryTests
         world.Set(entity, PositionId, new Position { X = 1, Y = 2 });
         world.Set(entity, VelocityId, new Velocity { X = 3, Y = 4 });
 
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId, VelocityId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId, VelocityId));
         var position = query.AccessWrite(PositionId);
         var velocity = query.AccessRead(VelocityId);
         var before = world.WorldTick;
@@ -247,7 +247,7 @@ public sealed class DeltaECSDeliveryTests
             world.Set(created[i], VelocityId, new Velocity { X = i + 10, Y = i + 20 });
         }
 
-        var spec = QuerySpec.ForComponents(PositionId, VelocityId);
+        var spec = QuerySpec.WhereAll(PositionId, VelocityId);
         var query = world.CreateQuery(in spec);
         var position = query.AccessRead(PositionId);
         var velocity = query.AccessRead(VelocityId);
@@ -317,7 +317,7 @@ public sealed class DeltaECSDeliveryTests
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
         var world = new World(layouts, chunkCapacity: 4);
-        var spec = QuerySpec.ForComponents(PositionId);
+        var spec = QuerySpec.WhereAll(PositionId);
         var emptyQuery = world.CreateQuery(in spec);
         var position = emptyQuery.AccessRead(PositionId);
         var emptyChunkCount = 0;
@@ -337,7 +337,7 @@ public sealed class DeltaECSDeliveryTests
 
         var singleWorld = new World(layouts, chunkCapacity: 4);
         var single = singleWorld.Create(new[] { PositionId });
-        var singleQuery = singleWorld.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var singleQuery = singleWorld.CreateQuery(QuerySpec.WhereAll(PositionId));
         var singleChunkCount = 0;
         using (var scope = singleWorld.OpenQuery(in singleQuery))
         {
@@ -499,7 +499,7 @@ public sealed class DeltaECSDeliveryTests
         world.Create(new[] { VelocityId });
         world.Create(new[] { HealthId });
 
-        var all = QuerySpec.ForComponents(PositionId, VelocityId);
+        var all = QuerySpec.WhereAll(PositionId, VelocityId);
         var any = new QuerySpec(
             Array.Empty<ComponentId>(), new[] { HealthId, VelocityId }, Array.Empty<ComponentId>());
         var none = new QuerySpec(
@@ -540,7 +540,7 @@ public sealed class DeltaECSDeliveryTests
         var world = new World(layouts, chunkCapacity: 4);
         var entity = world.Create(new[] { PositionId, VelocityId });
         var chunkId = -1;
-        var spec = QuerySpec.ForComponents(PositionId);
+        var spec = QuerySpec.WhereAll(PositionId);
         var query = world.CreateQuery(in spec);
         var readPosition = query.AccessRead(PositionId);
         var writePosition = query.AccessWrite(PositionId);
@@ -646,7 +646,7 @@ public sealed class DeltaECSDeliveryTests
         world.Create(new[] { PositionId, VelocityId });
         world.Create(new[] { PositionId, VelocityId, HealthId });
 
-        var spec = QuerySpec.ForComponents(PositionId, VelocityId);
+        var spec = QuerySpec.WhereAll(PositionId, VelocityId);
         var query = world.CreateQuery(in spec);
         var position = query.AccessWrite(PositionId);
         var velocity = query.AccessRead(VelocityId);
@@ -738,7 +738,7 @@ public sealed class DeltaECSDeliveryTests
         var world = new World(layouts, chunkCapacity: 4);
         world.Create(new[] { PositionId, VelocityId });
 
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId, VelocityId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId, VelocityId));
         ReadAccess readRequest = query.AccessRead(VelocityId);
         WriteAccess writeRequest = query.AccessWrite(PositionId);
         var before = world.WorldTick;
@@ -781,7 +781,7 @@ public sealed class DeltaECSDeliveryTests
         var world = new World(layouts, chunkCapacity: 2);
         world.Create(new[] { VelocityId });
 
-        var spec = QuerySpec.ForComponents(VelocityId);
+        var spec = QuerySpec.WhereAll(VelocityId);
         var query = world.CreateQuery(in spec);
         var velocity = query.AccessRead(VelocityId);
 
@@ -827,9 +827,9 @@ public sealed class DeltaECSDeliveryTests
         RegisterComponentLayouts(layouts);
         var world = new World(layouts);
         world.Create(new[] { PositionId, VelocityId });
-        var spec = QuerySpec.ForComponents(PositionId, VelocityId);
+        var spec = QuerySpec.WhereAll(PositionId, VelocityId);
         var query = world.CreateQuery(in spec);
-        var otherDescription = QuerySpec.ForComponents(PositionId);
+        var otherDescription = QuerySpec.WhereAll(PositionId);
         var otherQuery = world.CreateQuery(in otherDescription);
         var mismatchedBinding = otherQuery.AccessRead(PositionId);
 
@@ -837,7 +837,7 @@ public sealed class DeltaECSDeliveryTests
 
         var foreignWorld = new World(layouts);
         foreignWorld.Create(new[] { PositionId, VelocityId });
-        var foreignQuery = foreignWorld.CreateQuery(QuerySpec.ForComponents(PositionId, VelocityId));
+        var foreignQuery = foreignWorld.CreateQuery(QuerySpec.WhereAll(PositionId, VelocityId));
         var foreignBinding = foreignQuery.AccessRead(PositionId);
 
         Assert.Throws<InvalidOperationException>(() => BindReadAccess(world, query, foreignBinding));
@@ -901,7 +901,7 @@ public sealed class DeltaECSDeliveryTests
             world.Set(entities[i], VelocityId, new Velocity { X = 1, Y = 2 });
         }
 
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId, VelocityId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId, VelocityId));
         var position = query.AccessWrite(PositionId);
         var velocity = query.AccessRead(VelocityId);
         for (var warmup = 0; warmup < 3; warmup++)
@@ -953,7 +953,7 @@ public sealed class DeltaECSDeliveryTests
         var localId = layouts.Register(typeof(NamedRef), new SchemaId(10_101));
         var worldId = layouts.Register(typeof(NamedRef), new SchemaId(10_102));
         var world = new World(layouts, chunkCapacity: 4);
-        var query = world.CreateQuery(QuerySpec.ForComponents(localId, worldId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(localId, worldId));
         var local = query.AccessRead(localId);
         var worldRow = query.AccessRead(worldId);
         var entity = world.Create(new[] { localId, worldId });
@@ -1009,7 +1009,7 @@ public sealed class DeltaECSDeliveryTests
         Assert.That(world.TryGet(entity, referenceId, out ReferenceComponent actual), Is.True);
         Assert.That(actual, Is.SameAs(component));
 
-        var query = world.CreateQuery(QuerySpec.ForComponents(referenceId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(referenceId));
         var reference = query.AccessWrite(referenceId);
         using (var scope = world.OpenQuery(in query))
         {
@@ -1077,7 +1077,7 @@ public sealed class DeltaECSDeliveryTests
         var id = layouts.Register(typeof(NamedRef), new SchemaId(10_301));
         var world = new World(layouts);
         var entity = world.Create(new[] { id });
-        var spec = QuerySpec.ForComponents(id);
+        var spec = QuerySpec.WhereAll(id);
         var query = world.CreateQuery(in spec);
         using (var scope = world.OpenQuery(in query))
         {
@@ -1357,7 +1357,7 @@ public sealed class DeltaECSDeliveryTests
 
     private static HashSet<int> CollectChunkIds(World world)
     {
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         var chunkIds = new HashSet<int>();
         using (var scope = world.OpenQuery(in query))
         {

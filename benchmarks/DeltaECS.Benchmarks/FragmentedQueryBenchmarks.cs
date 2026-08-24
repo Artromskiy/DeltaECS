@@ -69,7 +69,7 @@ public class DeltaOnlyFragmentedQueryBenchmarks
             }
         }
 
-        var spec = QuerySpec.ForComponents(_required);
+        var spec = QuerySpec.WhereAll(_required);
         _query = _world.CreateQuery(in spec);
         _valueBinding = _query.AccessRead(_required);
     }
@@ -135,7 +135,7 @@ public class DeltaOnlyFragmentedQueryBenchmarks
     [Benchmark]
     public int DeltaOnly_ColdPlan()
     {
-        var spec = QuerySpec.ForComponents(_required);
+        var spec = QuerySpec.WhereAll(_required);
         var coldQuery = _world.CreateQuery(in spec);
         var valueBinding = coldQuery.AccessRead(_required);
         var matches = 0;

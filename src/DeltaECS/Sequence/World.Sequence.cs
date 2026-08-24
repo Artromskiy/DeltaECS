@@ -7,7 +7,7 @@ public sealed partial class World
 {
     /// <summary>Creates a non-owning ordered view over explicit entity candidates.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public EntitySequence Entities(ReadOnlySpan<Entity> entities) => new(this, entities);
+    public EntitySequence From(ReadOnlySpan<Entity> entities) => new(this, entities);
 
     public void ForEachEntity(ReadOnlySpan<Entity> entities, ForEachEntityAction action)
     {

@@ -33,7 +33,7 @@ public readonly ref partial struct EntitySequence
         => _world.ForEachEntity(_entities, ref context, action);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public FilteredEntitySequence Where(in Query query) => new(_world, _entities, query);
+    public FilteredEntitySequence Query(in Query query) => new(_world, _entities, query);
 
     public int Add(ComponentId[] componentIds) => _world.AddComponents(componentIds, _entities);
 

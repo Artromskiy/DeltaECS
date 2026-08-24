@@ -291,7 +291,7 @@ public sealed class StructuralAlgorithmTests
         }
 
         var observed = new Dictionary<Entity, HierarchyObserved>();
-        var spec = QuerySpec.ForComponents(parentId, localId, worldId);
+        var spec = QuerySpec.WhereAll(parentId, localId, worldId);
         var query = world.CreateQuery(in spec);
         var parentBinding = query.AccessRead(parentId);
         var local = query.AccessRead(localId);
@@ -503,7 +503,7 @@ public sealed class StructuralAlgorithmTests
 
     // Span<T> cannot be obtained from List<T> on all target SDKs.  Keep the
     // conversion in one test-only helper so tests remain compatible with the
-    // net8 SDK used by CI.
+    // net10 SDK used by CI.
     private static class CollectionsMarshalCompat
     {
         public static Entity[] AsSpan(List<Entity> values) => values.ToArray();

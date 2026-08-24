@@ -53,7 +53,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--method", required=True, help="DOTNET_JitDisasm pattern")
     parser.add_argument("--filter", help="BenchmarkDotNet filter; defaults to --method")
     parser.add_argument("--project", help="Probe project passed to run-jit-disasm.sh")
-    parser.add_argument("--framework", default="net8.0", help="Target framework; defaults to net8.0")
+    parser.add_argument("--framework", default="net10.0", help="Target framework; defaults to net10.0")
     parser.add_argument("--job", default="dry", help="BDN job; dry is the default")
     parser.add_argument(
         "--mode",

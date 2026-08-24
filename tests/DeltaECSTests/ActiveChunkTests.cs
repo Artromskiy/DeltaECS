@@ -29,7 +29,7 @@ public sealed class ActiveChunkTests
         Assert.That(archetype.ActiveChunkCount, Is.EqualTo(2));
         AssertActiveChunks(archetype);
 
-        var query = QuerySpec.ForComponents(PositionId);
+        var query = QuerySpec.WhereAll(PositionId);
         var queryHandle = world.CreateQuery(in query);
         var queriedSlots = CountQueriedSlots(world, queryHandle);
         Assert.That(queriedSlots, Is.EqualTo(4));

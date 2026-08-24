@@ -275,12 +275,12 @@ public class DenseIterationMicroBenchmarkImplementation
         _movement2Entities = _fixture.CreateMoving(Amount);
         _movement4Entities = _fixture.CreateMovement4(Amount);
 
-        var movement2 = QuerySpec.ForComponents(_fixture.Position, _fixture.Velocity);
+        var movement2 = QuerySpec.WhereAll(_fixture.Position, _fixture.Velocity);
         _movement2Query = _fixture.World.CreateQuery(in movement2);
         _movement2Position = _movement2Query.AccessWrite(_fixture.Position);
         _movement2Velocity = _movement2Query.AccessRead(_fixture.Velocity);
 
-        var movement4 = QuerySpec.ForComponents(
+        var movement4 = QuerySpec.WhereAll(
             _fixture.Movement4A,
             _fixture.Movement4B,
             _fixture.Movement4C,
@@ -336,7 +336,7 @@ public class Movement4OrderMicroBenchmarkImplementation
         _fixture = new MicroWorld(initialEntityCapacity: Amount);
         _entities = _fixture.CreateMovement4(Amount);
 
-        var description = QuerySpec.ForComponents(
+        var description = QuerySpec.WhereAll(
             _fixture.Movement4A,
             _fixture.Movement4B,
             _fixture.Movement4C,
@@ -645,7 +645,7 @@ internal static class MicroContractSmoke
     {
         var fixture = new MicroWorld(chunkCapacity: 4);
         var movement2Entities = fixture.CreateMoving(8);
-        var movement2Description = QuerySpec.ForComponents(fixture.Position, fixture.Velocity);
+        var movement2Description = QuerySpec.WhereAll(fixture.Position, fixture.Velocity);
         var movement2Query = fixture.World.CreateQuery(in movement2Description);
         var movement2Position = movement2Query.AccessWrite(fixture.Position);
         var movement2Velocity = movement2Query.AccessRead(fixture.Velocity);
@@ -660,7 +660,7 @@ internal static class MicroContractSmoke
 
         fixture.ResetMoving(movement2Entities);
         var movement4Entities = fixture.CreateMovement4(8);
-        var movement4Description = QuerySpec.ForComponents(
+        var movement4Description = QuerySpec.WhereAll(
             fixture.Movement4A,
             fixture.Movement4B,
             fixture.Movement4C,

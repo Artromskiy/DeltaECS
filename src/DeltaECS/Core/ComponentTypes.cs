@@ -28,6 +28,13 @@ public readonly struct ComponentId : IEquatable<ComponentId>, IComparable<Compon
 
     public static bool operator !=(ComponentId left, ComponentId right) => !left.Equals(right);
 
+    public static bool operator <(ComponentId left, ComponentId right) => left.CompareTo(right) < 0;
+
+    public static bool operator <=(ComponentId left, ComponentId right) => left.CompareTo(right) <= 0;
+
+    public static bool operator >(ComponentId left, ComponentId right) => left.CompareTo(right) > 0;
+
+    public static bool operator >=(ComponentId left, ComponentId right) => left.CompareTo(right) >= 0;
     public override string ToString() => Value.ToString();
 }
 
@@ -100,9 +107,9 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
             | (_word2 & other._word2) | (_word3 & other._word3)) != 0;
     }
 
-    public ComponentMask Or(ComponentMask other) => new ComponentMask(_word0 | other._word0, _word1 | other._word1, _word2 | other._word2, _word3 | other._word3);
+    public ComponentMask Or(ComponentMask other) => new(_word0 | other._word0, _word1 | other._word1, _word2 | other._word2, _word3 | other._word3);
 
-    public ComponentMask Except(ComponentMask other) => new ComponentMask(_word0 & ~other._word0, _word1 & ~other._word1, _word2 & ~other._word2, _word3 & ~other._word3);
+    public ComponentMask Except(ComponentMask other) => new(_word0 & ~other._word0, _word1 & ~other._word1, _word2 & ~other._word2, _word3 & ~other._word3);
 
     public int Rank(ComponentId componentId)
     {

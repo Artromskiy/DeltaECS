@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 project="$repo_root/benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj"
-runner="$repo_root/benchmarks/DeltaECS.Benchmarks/bin/Release/net8.0/DeltaECS.Benchmarks.dll"
+runner="$repo_root/benchmarks/DeltaECS.Benchmarks/bin/Release/net10.0/DeltaECS.Benchmarks.dll"
 
 warmup_count=5
 iteration_count=15

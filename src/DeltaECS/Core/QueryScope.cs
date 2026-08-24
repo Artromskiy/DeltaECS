@@ -12,7 +12,7 @@ public ref struct QueryScope
     private readonly QueryWriteSession _writeSession;
     private readonly int _sessionGeneration;
 
-    internal QueryScope(World owner, in Query handle)
+    internal QueryScope(World owner, Query handle)
     {
         if (!ReferenceEquals(handle.Owner, owner) || !handle.IsValid)
         {

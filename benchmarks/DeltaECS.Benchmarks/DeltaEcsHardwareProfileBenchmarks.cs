@@ -87,7 +87,7 @@ public class HardwareProfileBenchmarks
             }
         }
 
-        var spec = QuerySpec.ForComponents(_components);
+        var spec = QuerySpec.WhereAll(_components);
         _query = _world.CreateQuery(in spec);
         _writeBindings = new WriteAccess[ComponentCount];
         _readBindings = new ReadAccess[ComponentCount];
@@ -213,90 +213,90 @@ public class HardwareProfileBenchmarks
                 switch (state.ComponentCount)
                 {
                     case 1:
-                    {
-                        var c0 = slots.GetRow(w0);
-                        while (slots.MoveNext())
                         {
-                            ref var p0 = ref c0.Ref<ProfileValue>(slots);
-                            p0.X += p0.Y;
-                            state.Checksum += BitConverter.SingleToInt32Bits(p0.X);
-                        }
+                            var c0 = slots.GetRow(w0);
+                            while (slots.MoveNext())
+                            {
+                                ref var p0 = ref c0.Ref<ProfileValue>(slots);
+                                p0.X += p0.Y;
+                                state.Checksum += BitConverter.SingleToInt32Bits(p0.X);
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                     case 2:
-                    {
-                        var c0 = slots.GetRow(w0);
-                        var c1 = slots.GetRow(w1);
-                        while (slots.MoveNext())
                         {
-                            ref var p0 = ref c0.Ref<ProfileValue>(slots);
-                            ref var p1 = ref c1.Ref<ProfileValue>(slots);
-                            p0.X += p0.Y;
-                            p1.X += p1.Y;
-                            state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
-                        }
+                            var c0 = slots.GetRow(w0);
+                            var c1 = slots.GetRow(w1);
+                            while (slots.MoveNext())
+                            {
+                                ref var p0 = ref c0.Ref<ProfileValue>(slots);
+                                ref var p1 = ref c1.Ref<ProfileValue>(slots);
+                                p0.X += p0.Y;
+                                p1.X += p1.Y;
+                                state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                     case 4:
-                    {
-                        var c0 = slots.GetRow(w0);
-                        var c1 = slots.GetRow(w1);
-                        var c2 = slots.GetRow(w2);
-                        var c3 = slots.GetRow(w3);
-                        while (slots.MoveNext())
                         {
-                            ref var p0 = ref c0.Ref<ProfileValue>(slots);
-                            ref var p1 = ref c1.Ref<ProfileValue>(slots);
-                            ref var p2 = ref c2.Ref<ProfileValue>(slots);
-                            ref var p3 = ref c3.Ref<ProfileValue>(slots);
-                            p0.X += p0.Y;
-                            p1.X += p1.Y;
-                            p2.X += p2.Y;
-                            p3.X += p3.Y;
-                            state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
-                            state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
-                        }
+                            var c0 = slots.GetRow(w0);
+                            var c1 = slots.GetRow(w1);
+                            var c2 = slots.GetRow(w2);
+                            var c3 = slots.GetRow(w3);
+                            while (slots.MoveNext())
+                            {
+                                ref var p0 = ref c0.Ref<ProfileValue>(slots);
+                                ref var p1 = ref c1.Ref<ProfileValue>(slots);
+                                ref var p2 = ref c2.Ref<ProfileValue>(slots);
+                                ref var p3 = ref c3.Ref<ProfileValue>(slots);
+                                p0.X += p0.Y;
+                                p1.X += p1.Y;
+                                p2.X += p2.Y;
+                                p3.X += p3.Y;
+                                state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
+                                state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                     case 8:
-                    {
-                        var c0 = slots.GetRow(w0);
-                        var c1 = slots.GetRow(w1);
-                        var c2 = slots.GetRow(w2);
-                        var c3 = slots.GetRow(w3);
-                        var c4 = slots.GetRow(w4);
-                        var c5 = slots.GetRow(w5);
-                        var c6 = slots.GetRow(w6);
-                        var c7 = slots.GetRow(w7);
-                        while (slots.MoveNext())
                         {
-                            ref var p0 = ref c0.Ref<ProfileValue>(slots);
-                            ref var p1 = ref c1.Ref<ProfileValue>(slots);
-                            ref var p2 = ref c2.Ref<ProfileValue>(slots);
-                            ref var p3 = ref c3.Ref<ProfileValue>(slots);
-                            ref var p4 = ref c4.Ref<ProfileValue>(slots);
-                            ref var p5 = ref c5.Ref<ProfileValue>(slots);
-                            ref var p6 = ref c6.Ref<ProfileValue>(slots);
-                            ref var p7 = ref c7.Ref<ProfileValue>(slots);
-                            p0.X += p0.Y;
-                            p1.X += p1.Y;
-                            p2.X += p2.Y;
-                            p3.X += p3.Y;
-                            p4.X += p4.Y;
-                            p5.X += p5.Y;
-                            p6.X += p6.Y;
-                            p7.X += p7.Y;
-                            state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
-                            state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
-                            state.Checksum += BitConverter.SingleToInt32Bits(p4.X) + BitConverter.SingleToInt32Bits(p5.X);
-                            state.Checksum += BitConverter.SingleToInt32Bits(p6.X) + BitConverter.SingleToInt32Bits(p7.X);
-                        }
+                            var c0 = slots.GetRow(w0);
+                            var c1 = slots.GetRow(w1);
+                            var c2 = slots.GetRow(w2);
+                            var c3 = slots.GetRow(w3);
+                            var c4 = slots.GetRow(w4);
+                            var c5 = slots.GetRow(w5);
+                            var c6 = slots.GetRow(w6);
+                            var c7 = slots.GetRow(w7);
+                            while (slots.MoveNext())
+                            {
+                                ref var p0 = ref c0.Ref<ProfileValue>(slots);
+                                ref var p1 = ref c1.Ref<ProfileValue>(slots);
+                                ref var p2 = ref c2.Ref<ProfileValue>(slots);
+                                ref var p3 = ref c3.Ref<ProfileValue>(slots);
+                                ref var p4 = ref c4.Ref<ProfileValue>(slots);
+                                ref var p5 = ref c5.Ref<ProfileValue>(slots);
+                                ref var p6 = ref c6.Ref<ProfileValue>(slots);
+                                ref var p7 = ref c7.Ref<ProfileValue>(slots);
+                                p0.X += p0.Y;
+                                p1.X += p1.Y;
+                                p2.X += p2.Y;
+                                p3.X += p3.Y;
+                                p4.X += p4.Y;
+                                p5.X += p5.Y;
+                                p6.X += p6.Y;
+                                p7.X += p7.Y;
+                                state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
+                                state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
+                                state.Checksum += BitConverter.SingleToInt32Bits(p4.X) + BitConverter.SingleToInt32Bits(p5.X);
+                                state.Checksum += BitConverter.SingleToInt32Bits(p6.X) + BitConverter.SingleToInt32Bits(p7.X);
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                     default:
                         throw new ArgumentOutOfRangeException(nameof(state.ComponentCount));
                 }
@@ -336,90 +336,90 @@ public class HardwareProfileBenchmarks
                 switch (state.ComponentCount)
                 {
                     case 1:
-                    {
-                        var c0 = slots.GetRow(w0);
-                        while (slots.MoveNext())
                         {
-                            ref var p0 = ref c0.Ref<ProfileValue>(slots);
-                            p0.X += p0.Y;
-                            state.Checksum += BitConverter.SingleToInt32Bits(p0.X);
-                        }
+                            var c0 = slots.GetRow(w0);
+                            while (slots.MoveNext())
+                            {
+                                ref var p0 = ref c0.Ref<ProfileValue>(slots);
+                                p0.X += p0.Y;
+                                state.Checksum += BitConverter.SingleToInt32Bits(p0.X);
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                     case 2:
-                    {
-                        var c0 = slots.GetRow(w0);
-                        var c1 = slots.GetRow(w1);
-                        while (slots.MoveNext())
                         {
-                            ref var p0 = ref c0.Ref<ProfileValue>(slots);
-                            p0.X += p0.Y;
-                            ref var p1 = ref c1.Ref<ProfileValue>(slots);
-                            p1.X += p1.Y;
-                            state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
-                        }
+                            var c0 = slots.GetRow(w0);
+                            var c1 = slots.GetRow(w1);
+                            while (slots.MoveNext())
+                            {
+                                ref var p0 = ref c0.Ref<ProfileValue>(slots);
+                                p0.X += p0.Y;
+                                ref var p1 = ref c1.Ref<ProfileValue>(slots);
+                                p1.X += p1.Y;
+                                state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                     case 4:
-                    {
-                        var c0 = slots.GetRow(w0);
-                        var c1 = slots.GetRow(w1);
-                        var c2 = slots.GetRow(w2);
-                        var c3 = slots.GetRow(w3);
-                        while (slots.MoveNext())
                         {
-                            ref var p0 = ref c0.Ref<ProfileValue>(slots);
-                            p0.X += p0.Y;
-                            ref var p1 = ref c1.Ref<ProfileValue>(slots);
-                            p1.X += p1.Y;
-                            ref var p2 = ref c2.Ref<ProfileValue>(slots);
-                            p2.X += p2.Y;
-                            ref var p3 = ref c3.Ref<ProfileValue>(slots);
-                            p3.X += p3.Y;
-                            state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
-                            state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
-                        }
+                            var c0 = slots.GetRow(w0);
+                            var c1 = slots.GetRow(w1);
+                            var c2 = slots.GetRow(w2);
+                            var c3 = slots.GetRow(w3);
+                            while (slots.MoveNext())
+                            {
+                                ref var p0 = ref c0.Ref<ProfileValue>(slots);
+                                p0.X += p0.Y;
+                                ref var p1 = ref c1.Ref<ProfileValue>(slots);
+                                p1.X += p1.Y;
+                                ref var p2 = ref c2.Ref<ProfileValue>(slots);
+                                p2.X += p2.Y;
+                                ref var p3 = ref c3.Ref<ProfileValue>(slots);
+                                p3.X += p3.Y;
+                                state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
+                                state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                     case 8:
-                    {
-                        var c0 = slots.GetRow(w0);
-                        var c1 = slots.GetRow(w1);
-                        var c2 = slots.GetRow(w2);
-                        var c3 = slots.GetRow(w3);
-                        var c4 = slots.GetRow(w4);
-                        var c5 = slots.GetRow(w5);
-                        var c6 = slots.GetRow(w6);
-                        var c7 = slots.GetRow(w7);
-                        while (slots.MoveNext())
                         {
-                            ref var p0 = ref c0.Ref<ProfileValue>(slots);
-                            p0.X += p0.Y;
-                            ref var p1 = ref c1.Ref<ProfileValue>(slots);
-                            p1.X += p1.Y;
-                            ref var p2 = ref c2.Ref<ProfileValue>(slots);
-                            p2.X += p2.Y;
-                            ref var p3 = ref c3.Ref<ProfileValue>(slots);
-                            p3.X += p3.Y;
-                            ref var p4 = ref c4.Ref<ProfileValue>(slots);
-                            p4.X += p4.Y;
-                            ref var p5 = ref c5.Ref<ProfileValue>(slots);
-                            p5.X += p5.Y;
-                            ref var p6 = ref c6.Ref<ProfileValue>(slots);
-                            p6.X += p6.Y;
-                            ref var p7 = ref c7.Ref<ProfileValue>(slots);
-                            p7.X += p7.Y;
-                            state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
-                            state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
-                            state.Checksum += BitConverter.SingleToInt32Bits(p4.X) + BitConverter.SingleToInt32Bits(p5.X);
-                            state.Checksum += BitConverter.SingleToInt32Bits(p6.X) + BitConverter.SingleToInt32Bits(p7.X);
-                        }
+                            var c0 = slots.GetRow(w0);
+                            var c1 = slots.GetRow(w1);
+                            var c2 = slots.GetRow(w2);
+                            var c3 = slots.GetRow(w3);
+                            var c4 = slots.GetRow(w4);
+                            var c5 = slots.GetRow(w5);
+                            var c6 = slots.GetRow(w6);
+                            var c7 = slots.GetRow(w7);
+                            while (slots.MoveNext())
+                            {
+                                ref var p0 = ref c0.Ref<ProfileValue>(slots);
+                                p0.X += p0.Y;
+                                ref var p1 = ref c1.Ref<ProfileValue>(slots);
+                                p1.X += p1.Y;
+                                ref var p2 = ref c2.Ref<ProfileValue>(slots);
+                                p2.X += p2.Y;
+                                ref var p3 = ref c3.Ref<ProfileValue>(slots);
+                                p3.X += p3.Y;
+                                ref var p4 = ref c4.Ref<ProfileValue>(slots);
+                                p4.X += p4.Y;
+                                ref var p5 = ref c5.Ref<ProfileValue>(slots);
+                                p5.X += p5.Y;
+                                ref var p6 = ref c6.Ref<ProfileValue>(slots);
+                                p6.X += p6.Y;
+                                ref var p7 = ref c7.Ref<ProfileValue>(slots);
+                                p7.X += p7.Y;
+                                state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
+                                state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
+                                state.Checksum += BitConverter.SingleToInt32Bits(p4.X) + BitConverter.SingleToInt32Bits(p5.X);
+                                state.Checksum += BitConverter.SingleToInt32Bits(p6.X) + BitConverter.SingleToInt32Bits(p7.X);
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                     default:
                         throw new ArgumentOutOfRangeException(nameof(state.ComponentCount));
                 }

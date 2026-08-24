@@ -26,7 +26,7 @@ public sealed class QueryStructuralOperationsTests
         world.Create(new[] { PositionId }, first);
         world.Create(new[] { PositionId, HealthId }, second);
 
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         var added = world.AddComponents(in query, new[] { VelocityId, extraA, extraB, extraC });
 
         Assert.That(added, Is.EqualTo(first.Length + second.Length));
@@ -66,7 +66,7 @@ public sealed class QueryStructuralOperationsTests
         var survivor = world.Create(new[] { HealthId });
         world.Create(new[] { PositionId }, destroyed);
 
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         Assert.That(world.Destroy(in query), Is.EqualTo(destroyed.Length));
         Assert.That(world.AliveEntityCount, Is.EqualTo(1));
         Assert.That(world.IsAlive(survivor), Is.True);
@@ -89,8 +89,8 @@ public sealed class QueryStructuralOperationsTests
         var world = new World(layouts);
         var foreign = new World(layouts);
         var entity = world.Create(new[] { PositionId });
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
-        var foreignQuery = foreign.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
+        var foreignQuery = foreign.CreateQuery(QuerySpec.WhereAll(PositionId));
         var invalid = default(Query);
 
         Assert.Throws<ArgumentException>(() => world.AddComponents(in invalid, new[] { VelocityId }));
@@ -107,7 +107,7 @@ public sealed class QueryStructuralOperationsTests
         var layouts = CreateLayouts();
         var world = new World(layouts);
         var entity = world.Create(new[] { PositionId });
-        var query = world.CreateQuery(QuerySpec.ForComponents(VelocityId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(VelocityId));
         var aliveBefore = world.AliveEntityCount;
         var archetypeVersionBefore = world.ArchetypeVersion;
         var worldTickBefore = world.WorldTick;
@@ -129,7 +129,7 @@ public sealed class QueryStructuralOperationsTests
         var layouts = CreateLayouts();
         var world = new World(layouts);
         var entity = world.Create(new[] { PositionId });
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         var versionBefore = world.ArchetypeVersion;
 
         Assert.That(world.AddComponents(in query, new[] { PositionId }), Is.EqualTo(0));
@@ -148,7 +148,7 @@ public sealed class QueryStructuralOperationsTests
         var world = new World(layouts, chunkCapacity: 2);
         var entities = new Entity[3];
         world.Create(new[] { PositionId }, entities);
-        var spec = QuerySpec.ForComponents(PositionId);
+        var spec = QuerySpec.WhereAll(PositionId);
         var query = world.CreateQuery(in spec);
         var readPosition = query.AccessRead(PositionId);
         var writePosition = query.AccessWrite(PositionId);
@@ -238,7 +238,7 @@ public sealed class QueryStructuralOperationsTests
             Assert.That(world.Set(entities[i], referenceId, value), Is.True);
         }
 
-        var query = world.CreateQuery(QuerySpec.ForComponents(referenceId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(referenceId));
         Assert.That(world.AddComponents(in query, new[] { markerId }), Is.EqualTo(entities.Length));
         for (var i = 0; i < entities.Length; i++)
         {

@@ -175,9 +175,9 @@ When a class or method is new, discover and smoke it once. Do not repeat these
 commands before every assembly edit:
 
 ```bash
-dotnet benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/DeltaECS.MicroBenchmarks.dll \
+dotnet benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net10.0/DeltaECS.MicroBenchmarks.dll \
   --list flat
-dotnet benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/DeltaECS.MicroBenchmarks.dll \
+dotnet benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net10.0/DeltaECS.MicroBenchmarks.dll \
   contract-smoke
 ```
 
@@ -185,7 +185,7 @@ Always quote filters so the shell does not expand `*`:
 
 ```bash
 env NuGetAudit=false RestoreIgnoreFailedSources=true \
-dotnet benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net8.0/DeltaECS.MicroBenchmarks.dll \
+dotnet benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net10.0/DeltaECS.MicroBenchmarks.dll \
   --filter '*DenseIterationMicroBenchmarks.Movement4Components*' \
   --artifacts artifacts/micro/movement4
 ```

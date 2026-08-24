@@ -152,7 +152,27 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         const bool isFunctor = false;
         bool hasContext = refArgumentCount >= 1;
         int prefixCount = hasContext ? 1 : 0;
-        int componentCount = genericName is null ? 0 : genericCount - prefixCount;
+        bool implicitComponents = genericName is null;
+        LambdaExpressionSyntax? lambda = Lambda(arguments);
+        ParameterSyntax[] lambdaParameters = LambdaParameters(lambda);
+        int lambdaParameterCount = lambdaParameters.Length;
+        if (implicitComponents
+            && namedEntity
+            && lambdaParameterCount == prefixCount + 1
+            && lambdaParameters[prefixCount].Type is null)
+        {
+            return false;
+        }
+
+        bool hasEntity = namedEntity && lambdaParameterCount > prefixCount
+            && IsEntityParameter(model, lambdaParameters[prefixCount]);
+        int componentCount = implicitComponents
+            ? lambdaParameterCount - prefixCount - (hasEntity ? 1 : 0)
+            : genericCount - prefixCount;
+        if (implicitComponents && namedEntity && componentCount == 0)
+        {
+            return false;
+        }
         if (componentCount < FirstDemandArity || componentCount < 0)
         {
             return false;
@@ -165,7 +185,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         string? accessPattern;
-        accessPattern = InferPattern(arguments, componentCount, hasContext);
+        accessPattern = InferPattern(arguments, componentCount, hasContext, hasEntity);
 
         if (accessPattern is null || accessPattern.Length != componentCount || accessPattern.Any(static c => c is not ('R' or 'W')))
         {
@@ -184,15 +204,20 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         var typeArguments = genericName?.TypeArgumentList.Arguments
             .Select(static argument => argument.ToString())
             .ToArray()
-            ?? Array.Empty<string>();
+            ?? LambdaComponentTypes(model, lambda, prefixCount, hasEntity);
         int componentStart = genericName is null ? 0 : prefixCount;
         var components = typeArguments.Skip(componentStart).ToArray();
+        if (components.Length != componentCount)
+        {
+            diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
+            return false;
+        }
 
         shape = new Shape(
             receiver,
             sequence,
             explicitIds,
-            namedEntity || LambdaHasEntity(model, arguments, componentCount, hasContext, isFunctor),
+            hasEntity || LambdaHasEntity(model, arguments, componentCount, hasContext, isFunctor),
             hasContext,
             isFunctor,
             accessPattern,
@@ -389,10 +414,56 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         return count;
     }
 
+    private static LambdaExpressionSyntax? Lambda(SeparatedSyntaxList<ArgumentSyntax> arguments)
+        => arguments
+            .Select(static argument => argument.Expression)
+            .OfType<LambdaExpressionSyntax>()
+            .FirstOrDefault();
+
+    private static ParameterSyntax[] LambdaParameters(LambdaExpressionSyntax? lambda)
+        => lambda switch
+        {
+            SimpleLambdaExpressionSyntax simple => new[] { simple.Parameter },
+            ParenthesizedLambdaExpressionSyntax parenthesized => parenthesized.ParameterList.Parameters.ToArray(),
+            _ => Array.Empty<ParameterSyntax>()
+        };
+
+    private static bool IsEntityParameter(SemanticModel model, ParameterSyntax parameter)
+    {
+        ITypeSymbol? type = parameter.Type is null ? null : model.GetTypeInfo(parameter.Type).Type;
+        return type?.Name == "Entity" && type.ContainingNamespace.ToDisplayString() == "Delta.ECS";
+    }
+
+    private static string[] LambdaComponentTypes(
+        SemanticModel model,
+        LambdaExpressionSyntax? lambda,
+        int prefixCount,
+        bool hasEntity)
+    {
+        ParameterSyntax[] parameters = LambdaParameters(lambda);
+        int start = prefixCount + (hasEntity ? 1 : 0);
+        var result = new string[Math.Max(0, parameters.Length - start)];
+        for (int index = 0; index < result.Length; index++)
+        {
+            ITypeSymbol? type = parameters[index + start].Type is { } syntax
+                ? model.GetTypeInfo(syntax).Type
+                : null;
+            if (type is null)
+            {
+                return Array.Empty<string>();
+            }
+
+            result[index] = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        }
+
+        return result;
+    }
+
     private static string? InferPattern(
         SeparatedSyntaxList<ArgumentSyntax> arguments,
         int componentCount,
-        bool hasContext)
+        bool hasContext,
+        bool hasEntity)
     {
         LambdaExpressionSyntax? lambda = arguments
             .Select(static argument => argument.Expression)
@@ -403,17 +474,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return new string('W', componentCount);
         }
 
-        var parameters = lambda switch
-        {
-            SimpleLambdaExpressionSyntax simple => new[] { simple.Parameter },
-            ParenthesizedLambdaExpressionSyntax parenthesized => parenthesized.ParameterList.Parameters.ToArray(),
-            _ => Array.Empty<ParameterSyntax>()
-        };
-        int start = hasContext ? 1 : 0;
-        if (parameters.Length == componentCount + start + 1)
-        {
-            start++;
-        }
+        var parameters = LambdaParameters(lambda);
+        int start = (hasContext ? 1 : 0) + (hasEntity ? 1 : 0);
 
         var result = new char[componentCount];
         for (int index = 0; index < componentCount; index++)
@@ -471,6 +533,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         return name switch
         {
             "global::Delta.ECS.World" => ReceiverKind.World,
+            "global::Delta.ECS.WorldQuery" => ReceiverKind.WorldQuery,
             "global::Delta.ECS.EntitySequence" => ReceiverKind.EntitySequence,
             "global::Delta.ECS.FilteredEntitySequence" => ReceiverKind.FilteredEntitySequence,
             _ => ReceiverKind.None
@@ -668,9 +731,13 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string name = InvokerName(shape);
         string stateGeneric = StateGeneric(shape, generic);
         string callback = ActionType(shape);
-        string receiver = shape.Sequence ? (shape.Receiver == ReceiverKind.FilteredEntitySequence ? "FilteredEntitySequence" : "EntitySequence") : "World";
-        string prefix = shape.Sequence ? $"this {receiver} sequence" : "this World world";
-        string query = shape.Sequence ? string.Empty : ", in Query query";
+        string receiver = shape.Sequence
+            ? (shape.Receiver == ReceiverKind.FilteredEntitySequence ? "FilteredEntitySequence" : "EntitySequence")
+            : shape.Receiver == ReceiverKind.WorldQuery ? "WorldQuery" : "World";
+        string prefix = shape.Sequence
+            ? $"this {receiver} sequence"
+            : shape.Receiver == ReceiverKind.WorldQuery ? "this WorldQuery pipeline" : "this World world";
+        string query = shape.Sequence || shape.Receiver == ReceiverKind.WorldQuery ? string.Empty : ", in Query query";
         string contextParameter = shape.HasContext
             ? ", ref " + (shape.IsFunctor ? shape.ContextType : "TContext") + " context"
             : string.Empty;
@@ -730,7 +797,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         string invoke = shape.Sequence
             ? "sequence.GeneratedWorld.ExecuteGeneratedSequence(sequence.GeneratedEntities, in query, ref invoker, hasWrites: " + BoolHasWrites(shape.Pattern) + ");"
-            : "world.ExecuteGeneratedForEach(in query, ref invoker, hasWrites: " + BoolHasWrites(shape.Pattern) + ");";
+            : shape.Receiver == ReceiverKind.WorldQuery
+                ? "pipeline.GeneratedWorld.ExecuteGeneratedForEach(in query, ref invoker, hasWrites: " + BoolHasWrites(shape.Pattern) + ");"
+                : "world.ExecuteGeneratedForEach(in query, ref invoker, hasWrites: " + BoolHasWrites(shape.Pattern) + ");";
         var body = new StringBuilder();
         body.AppendLine("{");
         if (hasAction)
@@ -794,8 +863,14 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         {
             query = "Query query = GeneratedForEachRuntime.CreateSequenceQuery(sequence.GeneratedWorld, stackalloc ComponentId[] { " + ids + " });";
         }
+        else if (shape.Receiver == ReceiverKind.WorldQuery)
+        {
+            query = "Query query = pipeline.GeneratedQuery;";
+        }
 
-        string owner = shape.Sequence ? "sequence.GeneratedWorld" : "world";
+        string owner = shape.Sequence
+            ? "sequence.GeneratedWorld"
+            : shape.Receiver == ReceiverKind.WorldQuery ? "pipeline.GeneratedWorld" : "world";
         var result = new StringBuilder();
         if (query.Length > 0)
         {
@@ -822,7 +897,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
     private static string PrimaryArguments(Shape shape)
     {
         var result = new string[shape.Components.Length];
-        string owner = shape.Sequence ? "sequence.GeneratedWorld" : "world";
+        string owner = shape.Sequence
+            ? "sequence.GeneratedWorld"
+            : shape.Receiver == ReceiverKind.WorldQuery ? "pipeline.GeneratedWorld" : "world";
         for (int index = 0; index < shape.Components.Length; index++)
         {
             string componentType = shape.IsFunctor ? shape.Components[index] : "T" + (index + 1);
@@ -962,6 +1039,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
     {
         None,
         World,
+        WorldQuery,
         EntitySequence,
         FilteredEntitySequence
     }

@@ -69,7 +69,7 @@ public class DistinctDenseComparisonBenchmarks
             SetDeltaValues(_deltaEntities[i]);
         }
 
-        var queryDescription = QuerySpec.ForComponents(_deltaComponents);
+        var queryDescription = QuerySpec.WhereAll(_deltaComponents);
         _deltaQuery = _deltaWorld.CreateQuery(in queryDescription);
         _d0Binding = _deltaQuery.AccessWrite(_deltaComponents[0]);
         _d1Binding = ComponentCount >= 2 ? _deltaQuery.AccessWrite(_deltaComponents[1]) : default;
@@ -127,82 +127,82 @@ public class DistinctDenseComparisonBenchmarks
                 switch (ComponentCount)
                 {
                     case 1:
-                    {
-                        var c0 = slots.GetRow(d0);
-                        while (slots.MoveNext())
                         {
-                            ref var value = ref c0.Ref<D0>(slots);
-                            value.X += value.Y;
-                        }
+                            var c0 = slots.GetRow(d0);
+                            while (slots.MoveNext())
+                            {
+                                ref var value = ref c0.Ref<D0>(slots);
+                                value.X += value.Y;
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                     case 2:
-                    {
-                        var c0 = slots.GetRow(d0);
-                        var c1 = slots.GetRow(d1);
-                        while (slots.MoveNext())
                         {
-                            ref var value0 = ref c0.Ref<D0>(slots);
-                            ref var value1 = ref c1.Ref<D1>(slots);
-                            value0.X += value0.Y;
-                            value1.X += value1.Y;
-                        }
+                            var c0 = slots.GetRow(d0);
+                            var c1 = slots.GetRow(d1);
+                            while (slots.MoveNext())
+                            {
+                                ref var value0 = ref c0.Ref<D0>(slots);
+                                ref var value1 = ref c1.Ref<D1>(slots);
+                                value0.X += value0.Y;
+                                value1.X += value1.Y;
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                     case 4:
-                    {
-                        var c0 = slots.GetRow(d0);
-                        var c1 = slots.GetRow(d1);
-                        var c2 = slots.GetRow(d2);
-                        var c3 = slots.GetRow(d3);
-                        while (slots.MoveNext())
                         {
-                            ref var value0 = ref c0.Ref<D0>(slots);
-                            ref var value1 = ref c1.Ref<D1>(slots);
-                            ref var value2 = ref c2.Ref<D2>(slots);
-                            ref var value3 = ref c3.Ref<D3>(slots);
-                            value0.X += value0.Y;
-                            value1.X += value1.Y;
-                            value2.X += value2.Y;
-                            value3.X += value3.Y;
-                        }
+                            var c0 = slots.GetRow(d0);
+                            var c1 = slots.GetRow(d1);
+                            var c2 = slots.GetRow(d2);
+                            var c3 = slots.GetRow(d3);
+                            while (slots.MoveNext())
+                            {
+                                ref var value0 = ref c0.Ref<D0>(slots);
+                                ref var value1 = ref c1.Ref<D1>(slots);
+                                ref var value2 = ref c2.Ref<D2>(slots);
+                                ref var value3 = ref c3.Ref<D3>(slots);
+                                value0.X += value0.Y;
+                                value1.X += value1.Y;
+                                value2.X += value2.Y;
+                                value3.X += value3.Y;
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                     case 8:
-                    {
-                        var c0 = slots.GetRow(d0);
-                        var c1 = slots.GetRow(d1);
-                        var c2 = slots.GetRow(d2);
-                        var c3 = slots.GetRow(d3);
-                        var c4 = slots.GetRow(d4);
-                        var c5 = slots.GetRow(d5);
-                        var c6 = slots.GetRow(d6);
-                        var c7 = slots.GetRow(d7);
-                        while (slots.MoveNext())
                         {
-                            ref var value0 = ref c0.Ref<D0>(slots);
-                            ref var value1 = ref c1.Ref<D1>(slots);
-                            ref var value2 = ref c2.Ref<D2>(slots);
-                            ref var value3 = ref c3.Ref<D3>(slots);
-                            ref var value4 = ref c4.Ref<D4>(slots);
-                            ref var value5 = ref c5.Ref<D5>(slots);
-                            ref var value6 = ref c6.Ref<D6>(slots);
-                            ref var value7 = ref c7.Ref<D7>(slots);
-                            value0.X += value0.Y;
-                            value1.X += value1.Y;
-                            value2.X += value2.Y;
-                            value3.X += value3.Y;
-                            value4.X += value4.Y;
-                            value5.X += value5.Y;
-                            value6.X += value6.Y;
-                            value7.X += value7.Y;
-                        }
+                            var c0 = slots.GetRow(d0);
+                            var c1 = slots.GetRow(d1);
+                            var c2 = slots.GetRow(d2);
+                            var c3 = slots.GetRow(d3);
+                            var c4 = slots.GetRow(d4);
+                            var c5 = slots.GetRow(d5);
+                            var c6 = slots.GetRow(d6);
+                            var c7 = slots.GetRow(d7);
+                            while (slots.MoveNext())
+                            {
+                                ref var value0 = ref c0.Ref<D0>(slots);
+                                ref var value1 = ref c1.Ref<D1>(slots);
+                                ref var value2 = ref c2.Ref<D2>(slots);
+                                ref var value3 = ref c3.Ref<D3>(slots);
+                                ref var value4 = ref c4.Ref<D4>(slots);
+                                ref var value5 = ref c5.Ref<D5>(slots);
+                                ref var value6 = ref c6.Ref<D6>(slots);
+                                ref var value7 = ref c7.Ref<D7>(slots);
+                                value0.X += value0.Y;
+                                value1.X += value1.Y;
+                                value2.X += value2.Y;
+                                value3.X += value3.Y;
+                                value4.X += value4.Y;
+                                value5.X += value5.Y;
+                                value6.X += value6.Y;
+                                value7.X += value7.Y;
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                 }
             }
         }
@@ -332,44 +332,44 @@ internal sealed class LegacyByteDenseReference
             switch (rows.Length)
             {
                 case 1:
-                {
-                    var row0 = MemoryMarshal.Cast<byte, LegacyValue>(rows[0].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                    for (var i = size - 1; i >= 0; i--) row0[i].X += row0[i].Y;
-                    break;
-                }
-                case 2:
-                {
-                    var row0 = MemoryMarshal.Cast<byte, LegacyValue>(rows[0].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                    var row1 = MemoryMarshal.Cast<byte, LegacyValue>(rows[1].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                    for (var i = size - 1; i >= 0; i--) { row0[i].X += row0[i].Y; row1[i].X += row1[i].Y; }
-                    break;
-                }
-                case 4:
-                {
-                    var row0 = MemoryMarshal.Cast<byte, LegacyValue>(rows[0].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                    var row1 = MemoryMarshal.Cast<byte, LegacyValue>(rows[1].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                    var row2 = MemoryMarshal.Cast<byte, LegacyValue>(rows[2].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                    var row3 = MemoryMarshal.Cast<byte, LegacyValue>(rows[3].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                    for (var i = size - 1; i >= 0; i--) { row0[i].X += row0[i].Y; row1[i].X += row1[i].Y; row2[i].X += row2[i].Y; row3[i].X += row3[i].Y; }
-                    break;
-                }
-                case 8:
-                {
-                    var row0 = MemoryMarshal.Cast<byte, LegacyValue>(rows[0].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                    var row1 = MemoryMarshal.Cast<byte, LegacyValue>(rows[1].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                    var row2 = MemoryMarshal.Cast<byte, LegacyValue>(rows[2].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                    var row3 = MemoryMarshal.Cast<byte, LegacyValue>(rows[3].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                    var row4 = MemoryMarshal.Cast<byte, LegacyValue>(rows[4].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                    var row5 = MemoryMarshal.Cast<byte, LegacyValue>(rows[5].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                    var row6 = MemoryMarshal.Cast<byte, LegacyValue>(rows[6].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                    var row7 = MemoryMarshal.Cast<byte, LegacyValue>(rows[7].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
-                    for (var i = size - 1; i >= 0; i--)
                     {
-                        row0[i].X += row0[i].Y; row1[i].X += row1[i].Y; row2[i].X += row2[i].Y; row3[i].X += row3[i].Y;
-                        row4[i].X += row4[i].Y; row5[i].X += row5[i].Y; row6[i].X += row6[i].Y; row7[i].X += row7[i].Y;
+                        var row0 = MemoryMarshal.Cast<byte, LegacyValue>(rows[0].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                        for (var i = size - 1; i >= 0; i--) row0[i].X += row0[i].Y;
+                        break;
                     }
-                    break;
-                }
+                case 2:
+                    {
+                        var row0 = MemoryMarshal.Cast<byte, LegacyValue>(rows[0].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                        var row1 = MemoryMarshal.Cast<byte, LegacyValue>(rows[1].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                        for (var i = size - 1; i >= 0; i--) { row0[i].X += row0[i].Y; row1[i].X += row1[i].Y; }
+                        break;
+                    }
+                case 4:
+                    {
+                        var row0 = MemoryMarshal.Cast<byte, LegacyValue>(rows[0].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                        var row1 = MemoryMarshal.Cast<byte, LegacyValue>(rows[1].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                        var row2 = MemoryMarshal.Cast<byte, LegacyValue>(rows[2].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                        var row3 = MemoryMarshal.Cast<byte, LegacyValue>(rows[3].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                        for (var i = size - 1; i >= 0; i--) { row0[i].X += row0[i].Y; row1[i].X += row1[i].Y; row2[i].X += row2[i].Y; row3[i].X += row3[i].Y; }
+                        break;
+                    }
+                case 8:
+                    {
+                        var row0 = MemoryMarshal.Cast<byte, LegacyValue>(rows[0].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                        var row1 = MemoryMarshal.Cast<byte, LegacyValue>(rows[1].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                        var row2 = MemoryMarshal.Cast<byte, LegacyValue>(rows[2].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                        var row3 = MemoryMarshal.Cast<byte, LegacyValue>(rows[3].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                        var row4 = MemoryMarshal.Cast<byte, LegacyValue>(rows[4].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                        var row5 = MemoryMarshal.Cast<byte, LegacyValue>(rows[5].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                        var row6 = MemoryMarshal.Cast<byte, LegacyValue>(rows[6].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                        var row7 = MemoryMarshal.Cast<byte, LegacyValue>(rows[7].AsSpan(0, size * Unsafe.SizeOf<LegacyValue>()));
+                        for (var i = size - 1; i >= 0; i--)
+                        {
+                            row0[i].X += row0[i].Y; row1[i].X += row1[i].Y; row2[i].X += row2[i].Y; row3[i].X += row3[i].Y;
+                            row4[i].X += row4[i].Y; row5[i].X += row5[i].Y; row6[i].X += row6[i].Y; row7[i].X += row7[i].Y;
+                        }
+                        break;
+                    }
             }
         }
     }
