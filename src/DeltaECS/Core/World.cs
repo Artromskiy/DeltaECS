@@ -103,7 +103,7 @@ public sealed partial class World : IDisposable
 
     public Query CreateQuery(in QuerySpec spec) => new Query(this, GetOrCreateQuery(spec), spec);
 
-    /// <summary>Creates a validated dense query scope with independent iterators.</summary>
+    /// <summary>Creates a validated query scope with independent iterators.</summary>
     public QueryScope OpenQuery(in Query handle) => new QueryScope(this, handle);
 
     public Entity Create(params ReadOnlySpan<ComponentId> componentIds)
@@ -368,7 +368,7 @@ public sealed partial class World : IDisposable
     }
 
     /// <summary>
-    /// Executes a dense query through the experimental Version 1 cursor path.
+    /// Executes a query through the experimental Version 1 cursor path.
     /// The cursor is valid only for the callback invocation and must not be retained.
     /// </summary>
     public void Query<TContext>(in Query handle, ref TContext context, QueryAction<TContext> action)
@@ -559,9 +559,6 @@ public sealed partial class World : IDisposable
     }
 
     private int MoveArchetypeBlocks(Archetype sourceArchetype, TransitionEdge edge, Stamp operationStamp)
-        => MoveArchetypeBlocksDense(sourceArchetype, edge, operationStamp);
-
-    private int MoveArchetypeBlocksDense(Archetype sourceArchetype, TransitionEdge edge, Stamp operationStamp)
     {
         int movedCount = 0;
         var targetArchetype = _archetypes[edge.TargetArchetypeId];

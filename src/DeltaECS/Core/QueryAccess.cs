@@ -4,7 +4,7 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-/// <summary>Short-lived dense chunk access used only by <see cref="World.Query{TContext}"/>.</summary>
+/// <summary>Short-lived chunk access used only by <see cref="World.Query{TContext}"/>.</summary>
 public ref struct QueryChunkCursor
 {
     private readonly QueryPlan _query;
@@ -232,7 +232,7 @@ internal sealed class QueryPlan
     private readonly QuerySpec _description;
     private int _version = -1;
     private NativeMemory<int> _matchingArchetypes = new(0);
-    private DenseArchetypePlan[] _matchingPlans = Array.Empty<DenseArchetypePlan>();
+    private ArchetypePlan[] _matchingPlans = Array.Empty<ArchetypePlan>();
     private bool _hasWriteAccess;
 
     public QueryPlan(QuerySpec spec) => _description = spec;
@@ -248,7 +248,7 @@ internal sealed class QueryPlan
         }
 
         var matches = new List<int>(world.Archetypes.Count);
-        var plans = new List<DenseArchetypePlan>(world.Archetypes.Count);
+        var plans = new List<ArchetypePlan>(world.Archetypes.Count);
         for (int archetypeId = 0; archetypeId < world.Archetypes.Count; archetypeId++)
         {
             var archetype = world.Archetypes[archetypeId];
@@ -265,7 +265,7 @@ internal sealed class QueryPlan
             }
 
             matches.Add(archetypeId);
-            plans.Add(new DenseArchetypePlan(archetype, indices));
+            plans.Add(new ArchetypePlan(archetype, indices));
         }
 
         _matchingArchetypes.Dispose();
@@ -275,7 +275,7 @@ internal sealed class QueryPlan
         return _matchingArchetypes.ReadOnlySpan;
     }
 
-    public DenseArchetypePlan[] MatchingPlans(World world)
+    public ArchetypePlan[] MatchingPlans(World world)
     {
         MatchingArchetypes(world);
         for (int index = 0; index < _matchingPlans.Length; index++)
@@ -295,18 +295,18 @@ internal sealed class QueryPlan
         && !archetype.Mask.Intersects(_description.NoneMask);
 }
 
-internal struct DenseArchetypePlan
+internal struct ArchetypePlan
 {
-    public DenseArchetypePlan(Archetype archetype, int[] componentRows)
+    public ArchetypePlan(Archetype archetype, int[] componentRows)
     {
         Archetype = archetype;
         ComponentRows = componentRows;
-        Chunks = Array.Empty<DenseChunkPlan>();
+        Chunks = Array.Empty<ChunkPlan>();
     }
 
     public Archetype Archetype { get; }
     public int[] ComponentRows { get; }
-    public DenseChunkPlan[] Chunks { get; private set; }
+    public ChunkPlan[] Chunks { get; private set; }
 
     public void RefreshChunks()
     {
@@ -328,7 +328,7 @@ internal struct DenseArchetypePlan
             }
         }
 
-        var chunks = new DenseChunkPlan[activeChunks.Length];
+        var chunks = new ChunkPlan[activeChunks.Length];
         for (int chunkIndex = 0; chunkIndex < activeChunks.Length; chunkIndex++)
         {
             var chunk = activeChunks[chunkIndex];
@@ -339,14 +339,14 @@ internal struct DenseArchetypePlan
                 resolvedRows[queryRow] = sourceRows[ComponentRows[queryRow]];
             }
 
-            chunks[chunkIndex] = new DenseChunkPlan(chunk, resolvedRows);
+            chunks[chunkIndex] = new ChunkPlan(chunk, resolvedRows);
         }
 
         Chunks = chunks;
     }
 }
 
-internal readonly record struct DenseChunkPlan(Chunk Chunk, Array[] ComponentRows);
+internal readonly record struct ChunkPlan(Chunk Chunk, Array[] ComponentRows);
 
 internal static class QueryThrowHelper
 {

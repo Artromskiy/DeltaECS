@@ -25,7 +25,7 @@ Dense execution prepares a compact per-chunk row packet:
 ```text
 Query/QueryPlan
     access request token -> query row
-DenseArchetypePlan
+ArchetypePlan
     access-request token -> physical component row
 Chunk execution
     prepared query row -> direct component array

@@ -1,14 +1,14 @@
 namespace Delta.ECS;
 
 /// <summary>
-/// Owns one validated dense query execution and its structural lease.
+/// Owns one validated query execution and its structural lease.
 /// Child iterators are trusted stack-only views and do not own the lease.
 /// </summary>
 public ref struct QueryScope
 {
     private readonly World _owner;
     private readonly QueryPlan _query;
-    private readonly DenseArchetypePlan[] _plans;
+    private readonly ArchetypePlan[] _plans;
     private readonly uint _writeTick;
     private readonly Stamp _writeStamp;
     private bool _disposed;
@@ -79,7 +79,7 @@ public ref struct QueryScope
     {
         if (_disposed || _owner is null)
         {
-            throw new InvalidOperationException("The dense query scope has been disposed.");
+            throw new InvalidOperationException("The query scope has been disposed.");
         }
     }
 }

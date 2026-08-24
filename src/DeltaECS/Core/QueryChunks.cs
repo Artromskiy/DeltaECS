@@ -2,17 +2,17 @@ namespace Delta.ECS;
 
 using System.Runtime.CompilerServices;
 
-/// <summary>Independent iterator over the active chunks of one dense archetype.</summary>
+/// <summary>Independent iterator over the active chunks of one archetype.</summary>
 public ref struct QueryChunks
 {
-    private readonly DenseArchetypePlan _plan;
+    private readonly ArchetypePlan _plan;
     private readonly QueryPlan _query;
-    private readonly ReadOnlySpan<DenseChunkPlan> _chunks;
+    private readonly ReadOnlySpan<ChunkPlan> _chunks;
     private readonly uint _writeTick;
     private readonly Stamp _writeStamp;
     private int _index;
 
-    internal QueryChunks(DenseArchetypePlan plan, QueryPlan query, uint writeTick, Stamp writeStamp)
+    internal QueryChunks(ArchetypePlan plan, QueryPlan query, uint writeTick, Stamp writeStamp)
     {
         _plan = plan;
         _query = query;
@@ -48,16 +48,16 @@ public ref struct QueryChunks
     }
 }
 
-/// <summary>Current dense chunk without archetype- or query-iterator state.</summary>
+/// <summary>Current chunk without archetype- or query-iterator state.</summary>
 public readonly ref struct QueryChunk
 {
-    private readonly DenseArchetypePlan _plan;
-    private readonly DenseChunkPlan _chunk;
+    private readonly ArchetypePlan _plan;
+    private readonly ChunkPlan _chunk;
     private readonly QueryPlan _query;
     private readonly uint _writeTick;
     private readonly Stamp _writeStamp;
 
-    internal QueryChunk(DenseArchetypePlan plan, DenseChunkPlan chunk, QueryPlan query, uint writeTick, Stamp writeStamp)
+    internal QueryChunk(ArchetypePlan plan, ChunkPlan chunk, QueryPlan query, uint writeTick, Stamp writeStamp)
     {
         _plan = plan;
         _chunk = chunk;

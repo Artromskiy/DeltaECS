@@ -3,7 +3,7 @@ namespace Delta.ECS;
 using System;
 using System.Runtime.CompilerServices;
 
-/// <summary>Forward dense slot iterator for one already-selected chunk.</summary>
+/// <summary>Forward slot iterator for one already-selected chunk.</summary>
 public ref struct QuerySlots
 {
     private readonly int[] _componentRowsByQuery;
@@ -15,7 +15,7 @@ public ref struct QuerySlots
     private readonly int _count;
     private int _index;
 
-    internal QuerySlots(DenseArchetypePlan plan, DenseChunkPlan chunkPlan, QueryPlan query, uint writeTick, Stamp writeStamp)
+    internal QuerySlots(ArchetypePlan plan, ChunkPlan chunkPlan, QueryPlan query, uint writeTick, Stamp writeStamp)
     {
         _componentRowsByQuery = plan.ComponentRows;
         _chunk = chunkPlan.Chunk;

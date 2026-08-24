@@ -2,16 +2,16 @@ namespace Delta.ECS;
 
 using System.Runtime.CompilerServices;
 
-/// <summary>Independent dense iterator over the query's matching archetypes.</summary>
+/// <summary>Independent iterator over the query's matching archetypes.</summary>
 public ref struct QueryArchetypes
 {
-    private readonly ReadOnlySpan<DenseArchetypePlan> _plans;
+    private readonly ReadOnlySpan<ArchetypePlan> _plans;
     private readonly QueryPlan _query;
     private readonly uint _writeTick;
     private readonly Stamp _writeStamp;
     private int _index;
 
-    internal QueryArchetypes(DenseArchetypePlan[] plans, QueryPlan query, uint writeTick, Stamp writeStamp)
+    internal QueryArchetypes(ArchetypePlan[] plans, QueryPlan query, uint writeTick, Stamp writeStamp)
     {
         _plans = plans;
         _query = query;
@@ -46,15 +46,15 @@ public ref struct QueryArchetypes
     }
 }
 
-/// <summary>Current matching archetype and its dense row plan.</summary>
+/// <summary>Current matching archetype and its row plan.</summary>
 public readonly ref struct QueryArchetype
 {
-    private readonly DenseArchetypePlan _plan;
+    private readonly ArchetypePlan _plan;
     private readonly QueryPlan _query;
     private readonly uint _writeTick;
     private readonly Stamp _writeStamp;
 
-    internal QueryArchetype(DenseArchetypePlan plan, QueryPlan query, uint writeTick, Stamp writeStamp)
+    internal QueryArchetype(ArchetypePlan plan, QueryPlan query, uint writeTick, Stamp writeStamp)
     {
         _plan = plan;
         _query = query;

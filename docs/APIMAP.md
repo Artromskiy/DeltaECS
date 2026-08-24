@@ -56,7 +56,7 @@ World.OpenQuery(in Query)
   -> Chunk.GetComponentRow<T>(physicalRow)
 ```
 
-`QueryPlan` and `DenseArchetypePlan` live in `QueryAccess.cs`. They own query
+`QueryPlan` and `ArchetypePlan` live in `QueryAccess.cs`. They own query
 matching and the query-row to archetype-row plan. Read them when the issue is
 archetype matching, new-archetype refresh, or access row resolution; do not
 start with tests or structural move code.
