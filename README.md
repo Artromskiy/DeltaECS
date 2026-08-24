@@ -13,7 +13,7 @@ storage model:
 |---|---|---|
 | Core | entities, component IDs, structural operations, queries and explicit traversal | [Core API](src/DeltaECS/Core/README.md) |
 | Generic | typed registration, single-item helpers and terminal row refs | [Generic API](src/DeltaECS/Generic/README.md) |
-| Delegate | `Execute` and delegate `ForEach` callbacks | [Delegate API](src/DeltaECS/Delegate/README.md) |
+| Delegate | Delegate `ForEach` callbacks | [Delegate API](src/DeltaECS/Delegate/README.md) |
 | Functor | struct-based `ForEach` callbacks | [Functor API](src/DeltaECS/Functor/README.md) |
 | Sequence | ordered execution over explicit entity candidates | [Sequence API](src/DeltaECS/Sequence/README.md) |
 | Integration | neutral runtime/editor `IEcsWorld` boundary | [Integration API](src/DeltaECS/API/README.md) |
@@ -153,20 +153,17 @@ plans, iterators and row containers remain type-erased. The runtime/storage
 kernel is shared by all generated shapes and contains no handwritten
 variadic 1–4 matrix.
 
-The source-compatible spelling remains `world.ForEach(...)`, but the generated
-member is an extension method when the call is emitted for a consumer
-assembly. A consumer must reference the DeltaECS analyzer/source-generator;
-the generator cannot add instance members to a previously compiled `World`.
-This is source-compatible API evolution, not a promise that an old binary
-compiled against removed fixed-matrix instance methods will resolve the new
-extension.
+The source spelling remains `world.ForEach(...)`, but a component-bearing
+member is emitted as an extension method in the consumer assembly. A consumer
+must reference the DeltaECS analyzer/source-generator; the generator cannot add
+instance members to a previously compiled `World`.
 
 Ordered sequence execution is available both directly and through the
 non-owning fluent facade:
 
 ```csharp
 world.ForEachEntity(entities, action);
-world.Entities(entities).Where(in query).ForEachEntity(action);
+world.From(entities).Where(in query).ForEachEntity(action);
 ```
 
 It preserves input order and duplicate occurrences, skips stale entities and
@@ -179,15 +176,16 @@ state used by world-query execution; it does not loop through public single-item
 
 Generated `ForEach` owns query validation and access preparation.
 Explicit `OpenQuery` remains the advanced path for direct three-loop traversal.
-Both routes use the existing type-erased query plan and chunk cursor; no
+Both routes use the existing type-erased query plan and chunk traversal; no
 generic component type is carried by `Query`, an access token or an iterator.
 The generator has a documented maximum generated arity of 256, matching the
 component-mask capacity. Calls above that limit produce a diagnostic instead
 of silently falling back to a handwritten matrix.
 
 The root scope validates ownership and owns the lease. The archetype, chunk and
-slot iterators contain only their own traversal state; their `MoveNext` methods
-contain no world or lifetime branch.
+slot iterators are borrowed views over that execution; outer advancement and
+row access validate the active session as required. They do not own a second
+lease or structural state.
 
 Structural mutation is invalid while a conflicting row lease is active. This
 is a local lifetime rule, not a global barrier. External consumers keep their

@@ -342,7 +342,7 @@ public class EcsLiteComparisonBenchmarks
             }
         }
 
-        var queryDescription = QuerySpec.ForComponents(components);
+        var queryDescription = QuerySpec.WhereAll(components);
         _deltaMovementQuery = _deltaMovementWorld.CreateQuery(in queryDescription);
         _deltaMovementPositionBinding = _deltaMovementQuery.AccessWrite(_deltaPosition);
         _deltaMovementVelocityBinding = _deltaMovementQuery.AccessRead(_deltaVelocity);
@@ -357,7 +357,7 @@ public class EcsLiteComparisonBenchmarks
         var components = MergeComponents(position, velocity, _deltaFilterPayload, PayloadRows);
 
         _deltaFilterWorld = new World(layouts, initialEntityCapacity: Amount);
-        var queryDescription = QuerySpec.ForComponents(components);
+        var queryDescription = QuerySpec.WhereAll(components);
         _deltaFilterQuery = _deltaFilterWorld.CreateQuery(in queryDescription);
         _deltaFilterPositionBinding = _deltaFilterQuery.AccessRead(position);
         _deltaFilterVelocityBinding = _deltaFilterQuery.AccessRead(velocity);

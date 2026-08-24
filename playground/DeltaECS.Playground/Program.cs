@@ -2,75 +2,35 @@ using Delta.ECS;
 
 var layouts = new ComponentLayoutRegistry();
 var positionId = layouts.Register<Position>(new SchemaId(1));
-var velocityId = layouts.Register(typeof(Velocity), new SchemaId(2));
-var world = new World(layouts, chunkCapacity: 4);
-var archetype = world.GetOrCreateArchetype(positionId, velocityId);
+var velocityId = layouts.Register<Velocity>(new SchemaId(2));
+using var world = new World(layouts, chunkCapacity: 4);
 
 var entities = new Entity[8];
+var archetype = world.GetOrCreateArchetype(positionId, velocityId);
 world.Create(archetype, entities);
+
 for (var i = 0; i < entities.Length; i++)
 {
-    world.Set(entities[i], positionId, new Position { X = i, Y = 0 });
+    world.Set(entities[i], positionId, new Position { X = i });
     world.Set(entities[i], velocityId, new Velocity { X = 1, Y = 0.5f });
 }
 
-var spec = QuerySpec.ForComponents(positionId, velocityId);
+var spec = QuerySpec.WhereAll(positionId, velocityId);
 var query = world.CreateQuery(in spec);
-var writePosition = query.AccessWrite(positionId);
-var readVelocity = query.AccessRead(velocityId);
 
-Console.WriteLine("Dense archetype -> chunk -> slot iteration:");
-using var scope = world.OpenQuery(in query);
-
-var position = scope.Bind(writePosition);
-var velocity = scope.Bind(readVelocity);
-var archetypes = scope.Archetypes;
-
-while (archetypes.MoveNext())
+// Query pipeline: component types are inferred from the lambda parameters.
+world.Where(spec).ForEach(static (ref Position position, in Velocity velocity) =>
 {
-    var chunks = archetypes.Current.Chunks;
-    while (chunks.MoveNext())
-    {
-        var slots = chunks.Current.Slots;
-        var positions = slots.GetRow(position);
-        var velocities = slots.GetRow(velocity);
+    position.X += velocity.X;
+    position.Y += velocity.Y;
+});
+// Ordered sequence API: filter the supplied entities, then run an entity callback.
+world.From(entities).Query(query).ForEachEntity(static entity => Console.WriteLine($"updated {entity}"));
+world.ForEach(in query, (ref Position p) => { });
 
-        while (slots.MoveNext())
-        {
-            ref var p = ref positions.Ref<Position>(slots);
-            ref readonly var v = ref velocities.Ref<Velocity>(slots);
-            p.X += v.X;
-            p.Y += v.Y;
-            Console.WriteLine($"  slot {slots.CurrentIndex}: ({p.X}, {p.Y})");
-        }
-    }
-}
+var functor = new Functor();
+world.ForEach(in query, ref functor);
 
-Console.WriteLine("Second dense query iteration checksum:");
-var checksum = 0f;
-using var checksumScope = world.OpenQuery(in query);
-var checksumPosition = checksumScope.Bind(query.AccessWrite(positionId));
-var checksumVelocity = checksumScope.Bind(query.AccessRead(velocityId));
-var checksumArchetypes = checksumScope.Archetypes;
-
-while (checksumArchetypes.MoveNext())
-{
-    var chunks = checksumArchetypes.Current.Chunks;
-    while (chunks.MoveNext())
-    {
-        var slots = chunks.Current.Slots;
-        var positions = slots.GetRow(checksumPosition);
-        var velocities = slots.GetRow(checksumVelocity);
-
-        while (slots.MoveNext())
-        {
-            checksum += positions.Ref<Position>(slots).X + velocities.Ref<Velocity>(slots).X;
-        }
-    }
-}
-
-Console.WriteLine($"  observable checksum: {checksum}");
-Console.ReadLine();
 public struct Position
 {
     public float X;
@@ -81,4 +41,9 @@ public struct Velocity
 {
     public float X;
     public float Y;
+}
+
+struct Functor : IForEach
+{
+    public void Invoke(ref Position p) => _ = p;
 }

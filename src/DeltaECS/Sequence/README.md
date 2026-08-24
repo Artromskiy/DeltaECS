@@ -11,8 +11,8 @@ Direct and fluent spellings share the same implementation:
 world.ForEachEntity(entities, action);
 world.ForEachEntity(entities, in query, action);
 
-world.Entities(entities).ForEachEntity(action);
-world.Entities(entities).Where(in query).ForEachEntity(action);
+world.From(entities).ForEachEntity(action);
+world.From(entities).Where(in query).ForEachEntity(action);
 ```
 
 The query overload treats the sequence as candidates and filters only those
@@ -29,7 +29,7 @@ Component-bearing delegate and functor overloads use the same consumer-demand
 generator as world-wide `ForEach`:
 
 ```csharp
-world.Entities(entities).Where(in query)
+world.From(entities).Where(in query)
     .ForEachEntity<Position, Velocity>(
         static (Entity entity, ref Position position, in Velocity velocity) =>
         {
@@ -48,9 +48,9 @@ primary registrations and explicit component IDs.
 ## Structural terminals
 
 ```csharp
-int added = world.Entities(entities).Add(componentIds);
-int removed = world.Entities(entities).Where(in query).Remove(componentIds);
-int destroyed = world.Entities(entities).Destroy();
+int added = world.From(entities).Add(componentIds);
+int removed = world.From(entities).Where(in query).Remove(componentIds);
+int destroyed = world.From(entities).Destroy();
 ```
 
 `Add`, `Remove`, and `Destroy` forward to the world batch kernels. Filtered

@@ -98,6 +98,30 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void ImplicitLambdaComponentTypesGenerateTheSameShape()
+    {
+        const string source = """
+            namespace Delta.ECS;
+            struct Position { public int Value; }
+            struct Velocity { public int Value; }
+            static class Consumer
+            {
+                public static void Use(FilteredEntitySequence sequence)
+                {
+                    sequence.ForEach(static (ref Position position, in Velocity velocity) =>
+                        position.Value += velocity.Value);
+                }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGenerator(source);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty);
+        Assert.That(generated, Does.Contain("ForEachAction_WR<T1, T2>"));
+    }
+
+    [Test]
     public void DemandDrivenGenerationIsNotLimitedToLegacySixteenComponentMatrix()
     {
         const int arity = 32;
@@ -260,6 +284,11 @@ public sealed class DemandDrivenForEachGeneratorTests
             public ReadOnlySpan<Entity> GeneratedEntities => default;
             public Query GeneratedQuery => default;
         }
+        public readonly ref struct WorldQuery
+        {
+            public World GeneratedWorld => new();
+            public Query GeneratedQuery => default;
+        }
         """;
 
     private const string ConsumerSource = """
@@ -302,6 +331,8 @@ public sealed class DemandDrivenForEachGeneratorTests
                 sequence.ForEachEntity<T1>(static (Entity entity, ref T1 value) => value.Value += entity.Index);
                 FilteredEntitySequence filtered = new();
                 filtered.ForEachEntity<T1, T2>(static (Entity entity, in T1 a, ref T2 b) => b.Value += a.Value + entity.Index);
+                WorldQuery pipeline = new();
+                pipeline.ForEach(static (ref T1 a, in T2 b) => a.Value += b.Value);
             }
         }
         """;

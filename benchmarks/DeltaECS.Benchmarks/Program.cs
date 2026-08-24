@@ -67,7 +67,7 @@ public class DeltaEcsVsArchBenchmarks
         }
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
-        var spec = QuerySpec.ForComponents(_deltaComponents);
+        var spec = QuerySpec.WhereAll(_deltaComponents);
         _deltaQuery = _deltaWorld.CreateQuery(in spec);
         _deltaBindings = new WriteAccess[ComponentCount];
         for (var i = 0; i < ComponentCount; i++)
@@ -92,7 +92,7 @@ public class DeltaEcsVsArchBenchmarks
         _arrayWorld = new World(
             arrayLayouts,
             initialEntityCapacity: Amount);
-        var arrayDescription = QuerySpec.ForComponents(_arrayComponents);
+        var arrayDescription = QuerySpec.WhereAll(_arrayComponents);
         _arrayQuery = _arrayWorld.CreateQuery(in arrayDescription);
         _arrayBindings = new WriteAccess[ComponentCount];
         for (var i = 0; i < ComponentCount; i++)
@@ -223,67 +223,67 @@ public class DeltaEcsVsArchBenchmarks
                 switch (componentCount)
                 {
                     case 1:
-                    {
-                        var c0 = slots.GetRow(b0);
-                        while (slots.MoveNext())
                         {
-                            Update(ref c0.Ref<Value>(slots));
-                        }
+                            var c0 = slots.GetRow(b0);
+                            while (slots.MoveNext())
+                            {
+                                Update(ref c0.Ref<Value>(slots));
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                     case 2:
-                    {
-                        var c0 = slots.GetRow(b0);
-                        var c1 = slots.GetRow(b1);
-                        while (slots.MoveNext())
                         {
-                            Update(ref c0.Ref<Value>(slots));
-                            Update(ref c1.Ref<Value>(slots));
-                        }
+                            var c0 = slots.GetRow(b0);
+                            var c1 = slots.GetRow(b1);
+                            while (slots.MoveNext())
+                            {
+                                Update(ref c0.Ref<Value>(slots));
+                                Update(ref c1.Ref<Value>(slots));
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                     case 4:
-                    {
-                        var c0 = slots.GetRow(b0);
-                        var c1 = slots.GetRow(b1);
-                        var c2 = slots.GetRow(b2);
-                        var c3 = slots.GetRow(b3);
-                        while (slots.MoveNext())
                         {
-                            Update(ref c0.Ref<Value>(slots));
-                            Update(ref c1.Ref<Value>(slots));
-                            Update(ref c2.Ref<Value>(slots));
-                            Update(ref c3.Ref<Value>(slots));
-                        }
+                            var c0 = slots.GetRow(b0);
+                            var c1 = slots.GetRow(b1);
+                            var c2 = slots.GetRow(b2);
+                            var c3 = slots.GetRow(b3);
+                            while (slots.MoveNext())
+                            {
+                                Update(ref c0.Ref<Value>(slots));
+                                Update(ref c1.Ref<Value>(slots));
+                                Update(ref c2.Ref<Value>(slots));
+                                Update(ref c3.Ref<Value>(slots));
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                     case 8:
-                    {
-                        var c0 = slots.GetRow(b0);
-                        var c1 = slots.GetRow(b1);
-                        var c2 = slots.GetRow(b2);
-                        var c3 = slots.GetRow(b3);
-                        var c4 = slots.GetRow(b4);
-                        var c5 = slots.GetRow(b5);
-                        var c6 = slots.GetRow(b6);
-                        var c7 = slots.GetRow(b7);
-                        while (slots.MoveNext())
                         {
-                            Update(ref c0.Ref<Value>(slots));
-                            Update(ref c1.Ref<Value>(slots));
-                            Update(ref c2.Ref<Value>(slots));
-                            Update(ref c3.Ref<Value>(slots));
-                            Update(ref c4.Ref<Value>(slots));
-                            Update(ref c5.Ref<Value>(slots));
-                            Update(ref c6.Ref<Value>(slots));
-                            Update(ref c7.Ref<Value>(slots));
-                        }
+                            var c0 = slots.GetRow(b0);
+                            var c1 = slots.GetRow(b1);
+                            var c2 = slots.GetRow(b2);
+                            var c3 = slots.GetRow(b3);
+                            var c4 = slots.GetRow(b4);
+                            var c5 = slots.GetRow(b5);
+                            var c6 = slots.GetRow(b6);
+                            var c7 = slots.GetRow(b7);
+                            while (slots.MoveNext())
+                            {
+                                Update(ref c0.Ref<Value>(slots));
+                                Update(ref c1.Ref<Value>(slots));
+                                Update(ref c2.Ref<Value>(slots));
+                                Update(ref c3.Ref<Value>(slots));
+                                Update(ref c4.Ref<Value>(slots));
+                                Update(ref c5.Ref<Value>(slots));
+                                Update(ref c6.Ref<Value>(slots));
+                                Update(ref c7.Ref<Value>(slots));
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                     default:
                         throw new ArgumentOutOfRangeException(nameof(componentCount));
                 }
@@ -410,7 +410,7 @@ public class DeltaEcsManagedArrayBenchmarks
         var layouts = new ComponentLayoutRegistry();
         _component = layouts.Register(typeof(ManagedValue), new SchemaId(31_001));
         _world = new World(layouts, initialEntityCapacity: Amount);
-        var spec = QuerySpec.ForComponents(_component);
+        var spec = QuerySpec.WhereAll(_component);
         _query = _world.CreateQuery(in spec);
         _binding = _query.AccessRead(_component);
         _entities = new Entity[Amount];
@@ -473,7 +473,7 @@ public class DeltaEcsHotPathProfileBenchmarks
         _first = layouts.Register(typeof(Value), new SchemaId(20_001));
         _second = layouts.Register(typeof(Value), new SchemaId(20_002));
         _world = new World(layouts, initialEntityCapacity: 100_000);
-        var spec = QuerySpec.ForComponents(_first, _second);
+        var spec = QuerySpec.WhereAll(_first, _second);
         _query = _world.CreateQuery(in spec);
         _firstBinding = _query.AccessRead(_first);
         _secondReadBinding = _query.AccessRead(_second);

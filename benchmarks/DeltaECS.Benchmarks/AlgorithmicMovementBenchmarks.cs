@@ -145,7 +145,7 @@ public class AlgorithmicMovementBenchmarks
             SetDeltaPayload(entities[i], i);
         }
 
-        var spec = QuerySpec.ForComponents(_deltaComponents);
+        var spec = QuerySpec.WhereAll(_deltaComponents);
         _deltaQuery = _deltaWorld.CreateQuery(in spec);
         _deltaPositionBinding = _deltaQuery.AccessWrite(_deltaPosition);
         _deltaVelocityBinding = _deltaQuery.AccessRead(_deltaVelocity);

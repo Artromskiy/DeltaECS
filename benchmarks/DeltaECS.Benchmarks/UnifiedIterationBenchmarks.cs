@@ -47,7 +47,7 @@ public class ComparativeDenseIterationBenchmarks
         _delta.Create(new[] { _deltaValue }, deltaEntities);
         for (var i = 0; i < Amount; i++)
             _delta.Set(deltaEntities[i], _deltaValue, new UnifiedDeltaValue { Value = i + 1 });
-        var spec = QuerySpec.ForComponents(_deltaValue);
+        var spec = QuerySpec.WhereAll(_deltaValue);
         _deltaQuery = _delta.CreateQuery(in spec);
         _deltaValueBinding = _deltaQuery.AccessRead(_deltaValue);
 
@@ -159,7 +159,7 @@ public class ComparativeMovement2ComponentsBenchmarks
         _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount);
         _deltaEntities = new DeltaEntity[Amount];
         _delta.Create(new[] { _deltaPosition, _deltaVelocity }, _deltaEntities);
-        var deltaDescription = QuerySpec.ForComponents(_deltaPosition, _deltaVelocity);
+        var deltaDescription = QuerySpec.WhereAll(_deltaPosition, _deltaVelocity);
         _deltaQuery = _delta.CreateQuery(in deltaDescription);
         _deltaPositionBinding = _deltaQuery.AccessWrite(_deltaPosition);
         _deltaVelocityBinding = _deltaQuery.AccessRead(_deltaVelocity);
@@ -361,7 +361,7 @@ public class ComparativeMovement4ComponentsBenchmarks
     public void Setup()
     {
         var layouts = new ComponentLayoutRegistry(); _deltaIds = new[] { layouts.Register(typeof(DistinctDelta0), new SchemaId(202_000)), layouts.Register(typeof(DistinctDelta1), new SchemaId(202_001)), layouts.Register(typeof(DistinctDelta2), new SchemaId(202_002)), layouts.Register(typeof(DistinctDelta3), new SchemaId(202_003)) }; _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); _deltaEntities = new DeltaEntity[Amount]; _delta.Create(_deltaIds, _deltaEntities); for (var i = 0; i < Amount; i++) { _delta.Set(_deltaEntities[i], _deltaIds[0], new DistinctDelta0 { Value = 1 }); _delta.Set(_deltaEntities[i], _deltaIds[1], new DistinctDelta1 { Value = 2 }); _delta.Set(_deltaEntities[i], _deltaIds[2], new DistinctDelta2 { Value = 3 }); _delta.Set(_deltaEntities[i], _deltaIds[3], new DistinctDelta3 { Value = 4 }); }
-        var d = QuerySpec.ForComponents(_deltaIds); _deltaQuery = _delta.CreateQuery(in d); _delta0Binding = _deltaQuery.AccessWrite(_deltaIds[0]); _delta1Binding = _deltaQuery.AccessWrite(_deltaIds[1]); _delta2Binding = _deltaQuery.AccessWrite(_deltaIds[2]); _delta3Binding = _deltaQuery.AccessRead(_deltaIds[3]);
+        var d = QuerySpec.WhereAll(_deltaIds); _deltaQuery = _delta.CreateQuery(in d); _delta0Binding = _deltaQuery.AccessWrite(_deltaIds[0]); _delta1Binding = _deltaQuery.AccessWrite(_deltaIds[1]); _delta2Binding = _deltaQuery.AccessWrite(_deltaIds[2]); _delta3Binding = _deltaQuery.AccessRead(_deltaIds[3]);
         _arch = Arch.Core.World.Create(); _archTypes = new ArchComponentType[] { typeof(DistinctArch0), typeof(DistinctArch1), typeof(DistinctArch2), typeof(DistinctArch3) }; _arch.Reserve(_archTypes, Amount); _archQuery = new Arch.Core.QueryDescription { All = _archTypes }; _archEntities = new Arch.Core.Entity[Amount]; for (var i = 0; i < Amount; i++) { _archEntities[i] = _arch.Create(_archTypes); _arch.Set(_archEntities[i], new DistinctArch0 { Value = 1 }); _arch.Set(_archEntities[i], new DistinctArch1 { Value = 2 }); _arch.Set(_archEntities[i], new DistinctArch2 { Value = 3 }); _arch.Set(_archEntities[i], new DistinctArch3 { Value = 4 }); }
         _friflo = new EntityStore(); _frifloEntities = new FrifloEntity[Amount]; for (var i = 0; i < Amount; i++) _frifloEntities[i] = _friflo.CreateEntity(new DistinctFriflo0 { Value = 1 }, new DistinctFriflo1 { Value = 2 }, new DistinctFriflo2 { Value = 3 }, new DistinctFriflo3 { Value = 4 }); _frifloQuery = _friflo.Query<DistinctFriflo0, DistinctFriflo1, DistinctFriflo2, DistinctFriflo3>();
         _default = new DefaultWorld(); _defaultEntities = new DefaultEcs.Entity[Amount]; for (var i = 0; i < Amount; i++) { _defaultEntities[i] = _default.CreateEntity(); SetDefault(_defaultEntities[i]); }
@@ -550,7 +550,7 @@ public class ComparativeWideArchetypeNarrowQueryBenchmarks
     public void Setup()
     {
         var layouts = new ComponentLayoutRegistry(); _deltaIds = new[] { layouts.Register(typeof(WideDelta0), new SchemaId(203_000)), layouts.Register(typeof(WideDelta1), new SchemaId(203_001)), layouts.Register(typeof(WideDelta2), new SchemaId(203_002)), layouts.Register(typeof(WideDelta3), new SchemaId(203_003)), layouts.Register(typeof(WideDelta4), new SchemaId(203_004)), layouts.Register(typeof(WideDelta5), new SchemaId(203_005)), layouts.Register(typeof(WideDelta6), new SchemaId(203_006)), layouts.Register(typeof(WideDelta7), new SchemaId(203_007)) }; _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); var de = new DeltaEntity[Amount]; _delta.Create(_deltaIds, de); for (var i = 0; i < Amount; i++) { _delta.Set(de[i], _deltaIds[0], new WideDelta0 { Value = 1 }); _delta.Set(de[i], _deltaIds[7], new WideDelta7 { Value = 8 }); }
-        var d = QuerySpec.ForComponents(_deltaIds[0], _deltaIds[7]); _deltaQuery = _delta.CreateQuery(in d); _delta0Binding = _deltaQuery.AccessRead(_deltaIds[0]); _delta7Binding = _deltaQuery.AccessRead(_deltaIds[7]);
+        var d = QuerySpec.WhereAll(_deltaIds[0], _deltaIds[7]); _deltaQuery = _delta.CreateQuery(in d); _delta0Binding = _deltaQuery.AccessRead(_deltaIds[0]); _delta7Binding = _deltaQuery.AccessRead(_deltaIds[7]);
         _arch = Arch.Core.World.Create(); _archTypes = new ArchComponentType[] { typeof(WideArch0), typeof(WideArch1), typeof(WideArch2), typeof(WideArch3), typeof(WideArch4), typeof(WideArch5), typeof(WideArch6), typeof(WideArch7) }; _arch.Reserve(_archTypes, Amount); _archQuery = new Arch.Core.QueryDescription { All = new ArchComponentType[] { _archTypes[0], _archTypes[7] } }; for (var i = 0; i < Amount; i++) { var e = _arch.Create(_archTypes); _arch.Set(e, new WideArch0 { Value = 1 }); _arch.Set(e, new WideArch7 { Value = 8 }); }
         _friflo = new EntityStore(); for (var i = 0; i < Amount; i++) _friflo.CreateEntity(new WideFriflo0 { Value = 1 }, new WideFriflo1(), new WideFriflo2(), new WideFriflo3(), new WideFriflo4(), new WideFriflo5(), new WideFriflo6(), new WideFriflo7 { Value = 8 }); _frifloQuery = _friflo.Query<WideFriflo0, WideFriflo7>();
         _default = new DefaultWorld(); _defaultEntities = new DefaultEcs.Entity[Amount]; for (var i = 0; i < Amount; i++) { var e = _defaultEntities[i] = _default.CreateEntity(); e.Set(new WideDefault0 { Value = 1 }); e.Set(new WideDefault7 { Value = 8 }); e.Set<WideDefault1>(); e.Set<WideDefault2>(); e.Set<WideDefault3>(); e.Set<WideDefault4>(); e.Set<WideDefault5>(); e.Set<WideDefault6>(); }

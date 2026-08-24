@@ -65,15 +65,15 @@ public sealed class IterationScenario
 
         _movement2Entities = new Entity[amount];
         _world.Create([_position, _velocity], _movement2Entities);
-        var movement2Description = QuerySpec.ForComponents(_position, _velocity);
+        var movement2Description = QuerySpec.WhereAll(_position, _velocity);
         _movement2Query = _world.CreateQuery(in movement2Description);
 
         _movement4Entities = new Entity[amount];
         _world.Create(_movement4Ids, _movement4Entities);
-        var movement4Description = QuerySpec.ForComponents(_movement4Ids);
+        var movement4Description = QuerySpec.WhereAll(_movement4Ids);
         _movement4Query = _world.CreateQuery(in movement4Description);
 
-        var denseDescription = QuerySpec.ForComponents(_dense);
+        var denseDescription = QuerySpec.WhereAll(_dense);
         _denseQuery = _world.CreateQuery(in denseDescription);
         _denseBinding = _denseQuery.AccessRead(_dense);
         _positionBinding = _movement2Query.AccessWrite(_position);

@@ -80,12 +80,12 @@ public static class ConsumerProof
         world.Set(primary, lifetimeId, new Lifetime { Value = 4 });
         world.Set(secondary, secondaryPositionId, new Position { Value = 5 });
 
-        Query allNine = world.CreateQuery(QuerySpec.ForComponents(stackalloc[]
+        Query allNine = world.CreateQuery(QuerySpec.WhereAll(stackalloc[]
         {
             positionId, velocityId, accelerationId, lifetimeId, massId,
             sixId, sevenId, eightId, extraId
         }));
-        Query secondaryFive = world.CreateQuery(QuerySpec.ForComponents(
+        Query secondaryFive = world.CreateQuery(QuerySpec.WhereAll(
             secondaryPositionId, velocityId, accelerationId, lifetimeId, massId));
 
         // Arity 1, no ID: resolves the primary registration by CLR type.
@@ -139,11 +139,11 @@ public static class ConsumerProof
             });
 
         Entity[] entities = { primary, secondary };
-        EntitySequence sequence = world.Entities(entities);
+        EntitySequence sequence = world.From(entities);
         sequence.ForEachEntity<Position>(
             static (Entity entity, ref Position position) => position.Value += entity.Index);
 
-        FilteredEntitySequence filtered = sequence.Where(in allNine);
+        FilteredEntitySequence filtered = sequence.Query(in allNine);
         filtered.ForEachEntity<Position, Velocity>(
             static (Entity entity, in Position position, ref Velocity velocity) =>
                 velocity.Value += position.Value + entity.Index);
@@ -178,7 +178,7 @@ public static class ConsumerProof
         world.ForEachEntity(in query, ref context, ref functor);
 
         Entity[] entities = Array.Empty<Entity>();
-        EntitySequence sequence = world.Entities(entities);
+        EntitySequence sequence = world.From(entities);
         var sequenceFunctor = new SequenceFunctor();
         sequence.ForEachEntity(ref sequenceFunctor);
     }

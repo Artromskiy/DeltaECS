@@ -9,6 +9,15 @@ structural kernels.
   marker implementations.
 - Component-bearing arities start at one and may extend to 256.
 - `in T` parameters declare reads; `ref T` parameters declare writes.
+- Component-bearing callbacks may omit the method type list when lambda
+  parameters are explicitly typed; the generator infers the component types
+  from `ref T`/`in T` parameters. For example:
+
+  ```csharp
+  sequence.ForEach(static (ref Position position, in Velocity velocity) =>
+      position.X += velocity.X);
+  ```
+
 - Calls may include an `Entity`, mutable caller context, primary registrations,
   or explicit `ComponentId` arguments.
 - Generated extensions live in the consumer assembly while execution enters a

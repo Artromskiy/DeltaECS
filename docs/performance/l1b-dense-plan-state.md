@@ -1,54 +1,23 @@
-# L1-B dense-plan/state sweep
+# Dense plan-state evidence
 
-Date: 2026-08-22  
-Repository baseline: `54e0b93`  
-Worktree: `/Users/rum/GitProjects/TheFurnace-DeltaECS-L1B`  
-Runtime: .NET 8.0.29, Arm64 RyuJIT AdvSIMD, Apple M4 Pro, macOS 26.5.2
+This archived probe compared small internal representations of dense query
+plan state. The public three-loop API and the storage contract were unchanged.
 
-The probe was the same Release/JIT capture for
-`DenseIterationMicroBenchmarks.Movement4Components`, with
-`DOTNET_TieredCompilation=0`, `DOTNET_ReadyToRun=0`, and the first emitted ARM64
-code block reported by `jit-report.py`. Code size is a JIT signal, not a
-throughput claim.
+## JIT result
 
-| Variant | Commit | JIT size | `blr` | `bl` | Branch | `ldr` | `str` | Decision |
-|---|---:|---:|---:|---:|---:|---:|---:|---|
-| Baseline | `54e0b93` | 1408 B | 16 | 3 | 39 | 96 | 21 | reference |
-| 1. `ref readonly DenseArchetypePlan` access | `e3dd5ed` | compile error | — | — | — | — | — | reject: `CS8170`/`CS8347` from ref-struct escape rules |
-| 2. Flat plan rows array reuse | `dd159a5` | 1508 B | 16 | 4 | 39 | 104 | 26 | reject |
-| 3. Direct row-index plan lookup | `437ca78` | 1448 B | 16 | 4 | 39 | 98 | 23 | reject |
-| 4. Cache component row indexes per archetype | `215fd3b` | 1408 B | 16 | 3 | 39 | 96 | 21 | no JIT effect; reject |
-| 5. Direct current chunk/slot state fields | `4f4745e` | 1412 B | 16 | 3 | 39 | 97 | 21 | reject |
-| 6. Reduce owner/spec indirections | `002c0f6` | **1160 B** | **12** | 3 | **35** | **76** | 14 | **winner** |
+The useful variant carried the already validated `QueryPlan` directly through
+the dense iterator state and removed an unused owner indirection. In the probe
+it reduced the first emitted ARM64 block from 1408 B to 1160 B, with:
 
-Variant 6 carries the validated `QueryPlan` directly through the dense
-iterator state and removes the unused query owner from `DenseArchetypePlan`.
-No public API or query execution path was changed.
+| Metric | Probe baseline | Variant |
+|---|---:|---:|
+| `blr` | 16 | 12 |
+| `bl` | 3 | 3 |
+| aggregate branch | 39 | 35 |
+| `ldr` | 96 | 76 |
+| `str` | 21 | 14 |
 
-## Winner BDN probe
-
-Only the winner received a BDN run, using the default job and the existing
-`InvocationCount=1` benchmark contract. Results are directional because the
-operation is short and BDN reported `MinIterationTime` warnings.
-
-| Amount | Mean | Allocated |
-|---:|---:|---:|
-| 100 | 4.083 us | 736 B |
-| 1000 | 29.116 us | 736 B |
-| 10000 | 43.970 us | 736 B |
-| 100000 | 198.328 us | 736 B |
-
-The baseline commit has an earlier same-method BDN record of 252.969 us at
-100000 entities in `artifacts/jit-disasm/movement4-independent-release.md`.
-That is supporting context rather than a paired statistical run; the exact
-baseline comparison for this sweep is the JIT probe above.
-
-## Gates
-
-- DeltaECS solution Release build: passed.
-- DeltaECS tests: 66 passed, 0 failed.
-- `git diff --check`: passed before report commit.
-- No benchmark suite-wide run.
-
-Raw ignored JIT/BDN artifacts are under `artifacts/jit-disasm/l1b-*` and
-`artifacts/bdn/l1b-v6-winner` in the isolated worktree.
+The result is assembly evidence, not a general throughput claim. Reproduce
+the current source with the narrow JIT and BenchmarkDotNet commands in
+[benchmarks/README.md](../../benchmarks/README.md) before making a regression
+decision.

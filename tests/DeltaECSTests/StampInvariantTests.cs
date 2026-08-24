@@ -173,7 +173,7 @@ public sealed class StampInvariantTests
             Assert.That(velocity, Is.EqualTo(world.Stamp));
         }
 
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         Stamp beforeQueryAdd = world.Stamp;
         Assert.That(world.AddComponents(in query, new[] { HealthId }), Is.EqualTo(listed.Length + 2));
         Assert.That(world.Stamp, Is.EqualTo(new Stamp(beforeQueryAdd.Value + 1)));
@@ -202,7 +202,7 @@ public sealed class StampInvariantTests
 
         Entity queryDestroyA = world.Create(PositionId);
         Entity queryDestroyB = world.Create(PositionId, VelocityId);
-        var destroyQuery = world.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var destroyQuery = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         Stamp beforeQueryDestroy = world.Stamp;
         Assert.That(world.Destroy(in destroyQuery), Is.EqualTo(3));
         Assert.That(world.Stamp, Is.EqualTo(new Stamp(beforeQueryDestroy.Value + 1)));
@@ -223,8 +223,8 @@ public sealed class StampInvariantTests
         Entity entity = world.Create(PositionId);
         _ = foreign.Create(PositionId);
         Entity foreignEntity = foreign.Create(PositionId);
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
-        var foreignQuery = foreign.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
+        var foreignQuery = foreign.CreateQuery(QuerySpec.WhereAll(PositionId));
         Stamp before = world.Stamp;
 
         world.AddComponents(Array.Empty<ComponentId>(), entity);
@@ -317,7 +317,7 @@ public sealed class StampInvariantTests
             before.Add(entity, (position, health));
         }
 
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         Stamp beforeAdd = world.Stamp;
         Assert.That(world.AddComponents(in query, new[] { VelocityId }), Is.EqualTo(8));
         Stamp addStamp = world.Stamp;
@@ -362,7 +362,7 @@ public sealed class StampInvariantTests
             Assert.That(world.Set(entity, PositionId, new Position { X = entity.Index }), Is.True);
         }
 
-        var positionQuery = world.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var positionQuery = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         ReadAccess readPosition = positionQuery.AccessRead(PositionId);
         Stamp beforeRead = world.Stamp;
         int readCount = 0;
@@ -574,7 +574,7 @@ public sealed class StampInvariantTests
             Assert.That(stamp, Is.EqualTo(stamps[index]));
         }
 
-        var query = world.CreateQuery(QuerySpec.ForComponents(referenceId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(referenceId));
         WriteAccess writeReference = query.AccessWrite(referenceId);
         Stamp beforeQueryWrite = world.Stamp;
         using (var scope = world.OpenQuery(in query))
@@ -653,7 +653,7 @@ public sealed class StampInvariantTests
     {
         var layouts = CreateLayouts();
         using var world = new World(layouts, chunkCapacity: 2);
-        var emptyQuery = world.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var emptyQuery = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         WriteAccess write = emptyQuery.AccessWrite(PositionId);
         Stamp beforeScope = world.Stamp;
 
@@ -675,7 +675,7 @@ public sealed class StampInvariantTests
         var layouts = CreateLayouts();
         using var world = new World(layouts, chunkCapacity: 2);
         Entity entity = world.Create(PositionId);
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         WriteAccess write = query.AccessWrite(PositionId);
         Stamp before = world.Stamp;
 
@@ -700,7 +700,7 @@ public sealed class StampInvariantTests
         Entity entity = world.Create(PositionId);
         Assert.That(world.Destroy(entity), Is.True);
         Stamp before = world.Stamp;
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         WriteAccess write = query.AccessWrite(PositionId);
         var archetype = world.Archetypes[0];
         var plan = new ArchetypePlan(archetype, QueryRowZero);
@@ -798,7 +798,7 @@ public sealed class StampInvariantTests
         var layouts = CreateLayouts();
         using var world = new World(layouts);
         Entity entity = world.Create(PositionId);
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         WriteAccess write = query.AccessWrite(PositionId);
         Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp beforeStamp), Is.True);
 
@@ -833,7 +833,7 @@ public sealed class StampInvariantTests
         var layouts = CreateLayouts();
         using var world = new World(layouts);
         _ = world.Create(PositionId);
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         _ = query.AccessWrite(PositionId);
         var firstScope = world.OpenQuery(in query);
         var copiedScope = firstScope;
@@ -1150,7 +1150,7 @@ public sealed class StampInvariantTests
         var layouts = CreateLayouts();
         using var world = new World(layouts);
         Entity entity = world.Create(PositionId);
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         Stamp exhausted = ExhaustWorldStamp(world);
         Assert.Throws<InvalidOperationException>(() => world.Destroy(in query));
         Assert.That(world.Stamp, Is.EqualTo(exhausted));

@@ -60,7 +60,7 @@ public class SmallDenseScenarioBenchmarks
         }
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
-        var spec = Delta.ECS.QuerySpec.ForComponents(_deltaComponents);
+        var spec = Delta.ECS.QuerySpec.WhereAll(_deltaComponents);
         _deltaQuery = _deltaWorld.CreateQuery(in spec);
         _deltaBindings = new WriteAccess[ComponentCount];
         for (var i = 0; i < ComponentCount; i++)
@@ -162,87 +162,87 @@ public class SmallDenseScenarioBenchmarks
                 switch (ComponentCount)
                 {
                     case 1:
-                    {
-                        var c0 = slots.GetRow(_deltaBindings[0]);
-                        while (slots.MoveNext())
                         {
-                            ref var value = ref c0.Ref<SmallDenseValue>(slots);
-                            value.X += value.Y;
-                            checksum += value.X + value.Y;
-                        }
+                            var c0 = slots.GetRow(_deltaBindings[0]);
+                            while (slots.MoveNext())
+                            {
+                                ref var value = ref c0.Ref<SmallDenseValue>(slots);
+                                value.X += value.Y;
+                                checksum += value.X + value.Y;
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                     case 2:
-                    {
-                        var c0 = slots.GetRow(_deltaBindings[0]);
-                        var c1 = slots.GetRow(_deltaBindings[1]);
-                        while (slots.MoveNext())
                         {
-                            ref var v0 = ref c0.Ref<SmallDenseValue>(slots);
-                            ref var v1 = ref c1.Ref<SmallDenseValue>(slots);
-                            v0.X += v0.Y;
-                            v1.X += v1.Y;
-                            checksum += v0.X + v1.X + v0.Y + v1.Y;
-                        }
+                            var c0 = slots.GetRow(_deltaBindings[0]);
+                            var c1 = slots.GetRow(_deltaBindings[1]);
+                            while (slots.MoveNext())
+                            {
+                                ref var v0 = ref c0.Ref<SmallDenseValue>(slots);
+                                ref var v1 = ref c1.Ref<SmallDenseValue>(slots);
+                                v0.X += v0.Y;
+                                v1.X += v1.Y;
+                                checksum += v0.X + v1.X + v0.Y + v1.Y;
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                     case 4:
-                    {
-                        var c0 = slots.GetRow(_deltaBindings[0]);
-                        var c1 = slots.GetRow(_deltaBindings[1]);
-                        var c2 = slots.GetRow(_deltaBindings[2]);
-                        var c3 = slots.GetRow(_deltaBindings[3]);
-                        while (slots.MoveNext())
                         {
-                            ref var v0 = ref c0.Ref<SmallDenseValue>(slots);
-                            ref var v1 = ref c1.Ref<SmallDenseValue>(slots);
-                            ref var v2 = ref c2.Ref<SmallDenseValue>(slots);
-                            ref var v3 = ref c3.Ref<SmallDenseValue>(slots);
-                            v0.X += v0.Y;
-                            v1.X += v1.Y;
-                            v2.X += v2.Y;
-                            v3.X += v3.Y;
-                            checksum += v0.X + v1.X + v2.X + v3.X + v0.Y + v1.Y + v2.Y + v3.Y;
-                        }
+                            var c0 = slots.GetRow(_deltaBindings[0]);
+                            var c1 = slots.GetRow(_deltaBindings[1]);
+                            var c2 = slots.GetRow(_deltaBindings[2]);
+                            var c3 = slots.GetRow(_deltaBindings[3]);
+                            while (slots.MoveNext())
+                            {
+                                ref var v0 = ref c0.Ref<SmallDenseValue>(slots);
+                                ref var v1 = ref c1.Ref<SmallDenseValue>(slots);
+                                ref var v2 = ref c2.Ref<SmallDenseValue>(slots);
+                                ref var v3 = ref c3.Ref<SmallDenseValue>(slots);
+                                v0.X += v0.Y;
+                                v1.X += v1.Y;
+                                v2.X += v2.Y;
+                                v3.X += v3.Y;
+                                checksum += v0.X + v1.X + v2.X + v3.X + v0.Y + v1.Y + v2.Y + v3.Y;
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                     case 8:
-                    {
-                        var c0 = slots.GetRow(_deltaBindings[0]);
-                        var c1 = slots.GetRow(_deltaBindings[1]);
-                        var c2 = slots.GetRow(_deltaBindings[2]);
-                        var c3 = slots.GetRow(_deltaBindings[3]);
-                        var c4 = slots.GetRow(_deltaBindings[4]);
-                        var c5 = slots.GetRow(_deltaBindings[5]);
-                        var c6 = slots.GetRow(_deltaBindings[6]);
-                        var c7 = slots.GetRow(_deltaBindings[7]);
-                        while (slots.MoveNext())
                         {
-                            ref var v0 = ref c0.Ref<SmallDenseValue>(slots);
-                            ref var v1 = ref c1.Ref<SmallDenseValue>(slots);
-                            ref var v2 = ref c2.Ref<SmallDenseValue>(slots);
-                            ref var v3 = ref c3.Ref<SmallDenseValue>(slots);
-                            ref var v4 = ref c4.Ref<SmallDenseValue>(slots);
-                            ref var v5 = ref c5.Ref<SmallDenseValue>(slots);
-                            ref var v6 = ref c6.Ref<SmallDenseValue>(slots);
-                            ref var v7 = ref c7.Ref<SmallDenseValue>(slots);
-                            v0.X += v0.Y;
-                            v1.X += v1.Y;
-                            v2.X += v2.Y;
-                            v3.X += v3.Y;
-                            v4.X += v4.Y;
-                            v5.X += v5.Y;
-                            v6.X += v6.Y;
-                            v7.X += v7.Y;
-                            checksum += v0.X + v1.X + v2.X + v3.X + v4.X + v5.X + v6.X + v7.X;
-                            checksum += v0.Y + v1.Y + v2.Y + v3.Y + v4.Y + v5.Y + v6.Y + v7.Y;
-                        }
+                            var c0 = slots.GetRow(_deltaBindings[0]);
+                            var c1 = slots.GetRow(_deltaBindings[1]);
+                            var c2 = slots.GetRow(_deltaBindings[2]);
+                            var c3 = slots.GetRow(_deltaBindings[3]);
+                            var c4 = slots.GetRow(_deltaBindings[4]);
+                            var c5 = slots.GetRow(_deltaBindings[5]);
+                            var c6 = slots.GetRow(_deltaBindings[6]);
+                            var c7 = slots.GetRow(_deltaBindings[7]);
+                            while (slots.MoveNext())
+                            {
+                                ref var v0 = ref c0.Ref<SmallDenseValue>(slots);
+                                ref var v1 = ref c1.Ref<SmallDenseValue>(slots);
+                                ref var v2 = ref c2.Ref<SmallDenseValue>(slots);
+                                ref var v3 = ref c3.Ref<SmallDenseValue>(slots);
+                                ref var v4 = ref c4.Ref<SmallDenseValue>(slots);
+                                ref var v5 = ref c5.Ref<SmallDenseValue>(slots);
+                                ref var v6 = ref c6.Ref<SmallDenseValue>(slots);
+                                ref var v7 = ref c7.Ref<SmallDenseValue>(slots);
+                                v0.X += v0.Y;
+                                v1.X += v1.Y;
+                                v2.X += v2.Y;
+                                v3.X += v3.Y;
+                                v4.X += v4.Y;
+                                v5.X += v5.Y;
+                                v6.X += v6.Y;
+                                v7.X += v7.Y;
+                                checksum += v0.X + v1.X + v2.X + v3.X + v4.X + v5.X + v6.X + v7.X;
+                                checksum += v0.Y + v1.Y + v2.Y + v3.Y + v4.Y + v5.Y + v6.Y + v7.Y;
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                     default:
                         throw new ArgumentOutOfRangeException(nameof(ComponentCount));
                 }
@@ -420,7 +420,7 @@ public class WideArchetypeNarrowAccessBenchmarks
         }
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
-        var query = Delta.ECS.QuerySpec.ForComponents(_deltaComponents[0], _deltaComponents[1]);
+        var query = Delta.ECS.QuerySpec.WhereAll(_deltaComponents[0], _deltaComponents[1]);
         _deltaQuery = _deltaWorld.CreateQuery(in query);
         _deltaPositionBinding = _deltaQuery.AccessWrite(_deltaComponents[0]);
         _deltaVelocityBinding = _deltaQuery.AccessRead(_deltaComponents[1]);
@@ -518,7 +518,7 @@ public class WideArchetypeNarrowAccessComparisonBenchmarks
         }
 
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
-        var query = Delta.ECS.QuerySpec.ForComponents(_deltaComponents[0], _deltaComponents[1]);
+        var query = Delta.ECS.QuerySpec.WhereAll(_deltaComponents[0], _deltaComponents[1]);
         _deltaQuery = _deltaWorld.CreateQuery(in query);
         _deltaPositionBinding = _deltaQuery.AccessWrite(_deltaComponents[0]);
         _deltaVelocityBinding = _deltaQuery.AccessRead(_deltaComponents[1]);
@@ -852,7 +852,7 @@ public class SparseHeterogeneousQueryBenchmarks
             }
         }
 
-        var warmDescription = QuerySpec.ForComponents(_deltaPosition, _deltaVelocity);
+        var warmDescription = QuerySpec.WhereAll(_deltaPosition, _deltaVelocity);
         _deltaWarmQuery = _deltaWorld.CreateQuery(in warmDescription);
         _deltaPositionBinding = _deltaWarmQuery.AccessWrite(_deltaPosition);
         _deltaVelocityBinding = _deltaWarmQuery.AccessRead(_deltaVelocity);

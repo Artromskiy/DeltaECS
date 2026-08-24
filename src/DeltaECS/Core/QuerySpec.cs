@@ -65,16 +65,31 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
     {
     }
 
-    public static QuerySpec ForComponents(params ReadOnlySpan<ComponentId> components) => new(components);
+    private QuerySpec(ComponentMask allMask, ComponentMask anyMask, ComponentMask noneMask)
+    {
+        _allMask = allMask;
+        _anyMask = anyMask;
+        _noneMask = noneMask;
+        Hash = ComputeHash();
+    }
 
-    public static QuerySpec ForComponents(ComponentId first, ComponentId second)
-        => ForComponents(stackalloc[] { first, second });
+    public static QuerySpec WhereAll(params ReadOnlySpan<ComponentId> components)
+        => new(components, ReadOnlySpan<ComponentId>.Empty, ReadOnlySpan<ComponentId>.Empty);
 
-    public static QuerySpec ForComponents(ComponentId first, ComponentId second, ComponentId third)
-        => ForComponents(stackalloc[] { first, second, third });
+    public static QuerySpec WhereAny(params ReadOnlySpan<ComponentId> components)
+        => new(ReadOnlySpan<ComponentId>.Empty, components, ReadOnlySpan<ComponentId>.Empty);
 
-    public static QuerySpec ForComponents(ComponentId first, ComponentId second, ComponentId third, ComponentId fourth)
-        => ForComponents(stackalloc[] { first, second, third, fourth });
+    public static QuerySpec WhereNone(params ReadOnlySpan<ComponentId> components)
+        => new(ReadOnlySpan<ComponentId>.Empty, ReadOnlySpan<ComponentId>.Empty, components);
+
+    internal QuerySpec AddAll(ComponentMask mask)
+        => new(_allMask.Or(mask), _anyMask, _noneMask);
+
+    internal QuerySpec AddAny(ComponentMask mask)
+        => new(_allMask, _anyMask.Or(mask), _noneMask);
+
+    internal QuerySpec AddNone(ComponentMask mask)
+        => new(_allMask, _anyMask, _noneMask.Or(mask));
 
     public static IEqualityComparer<QuerySpec> Comparer { get; } = new QuerySpecComparer();
 }

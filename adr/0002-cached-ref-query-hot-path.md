@@ -1,38 +1,35 @@
-# ADR-0002: Cached chunk execution for dense iteration
+# ADR-0002: Prepared chunk rows for dense queries
 
 ## Context
 
-The class lease API allocated a lease object per non-empty chunk. The ref-state
-callback removed that allocation, but callback dispatch and per-chunk lease
-cleanup remained in the dense benchmark hot path.
+Dense query execution must keep storage and traversal type-erased while
+avoiding repeated archetype matching and physical row lookup in the slot loop.
+The public API also needs one clear owner for the structural mutation lease.
 
 ## Decision
 
-- Keep the class lease and ref-state callback APIs for general and filtered query
-  access.
-- Add `World.QueryChunks`, a synchronous ref-struct enumerator that holds one
-  mutation lease for its lifetime and exposes cached component-row indices.
-- Build query masks and source-archetype row mappings once when a `QueryHandle`
-  is populated. Cached row-index access uses Debug-only assertions in Release
-  hot loops; public ComponentId lookup remains checked.
-- Keep storage type-erased: the cursor only carries ComponentId-derived row
-  indices and `Array[]` rows. Typed casts happen once per requested row per
-  chunk at the benchmark/use site.
-- Keep benchmark-only specialization at the use site for 1/2/4/8 rows. Do not
-  add generic component pools, reflection, scheduler, or source generation.
+- `World.CreateQuery(in QuerySpec)` returns a world-owned `Query` whose cached
+  `QueryPlan` tracks matching archetypes and query-to-component row positions.
+- The plan refreshes matching archetypes when the world's archetype version
+  changes. Each `ArchetypePlan` refreshes active chunks and resolves its
+  requested `Array[]` rows into `ChunkPlan` values once per chunk.
+- `World.OpenQuery(in Query)` creates a stack-only `QueryScope`. The scope owns
+  the structural lease; `QueryArchetypes`, `QueryChunks` and `QuerySlots` are
+  borrowed traversal views.
+- `Query.AccessRead` and `Query.AccessWrite` validate the requested component
+  against the query and register write intent before traversal. `ReadRow` and
+  `WriteRow` remain non-generic until the terminal `Ref<T>` call.
+- Generated delegate and functor callbacks use the same query plan, access
+  declarations and chunk-row preparation. They are a convenience surface, not
+  a second storage or traversal model.
 
 ## Consequences
 
-The direct cursor reduced the 10K/1 distinct-type lane from `3.983 us` to
-`2.999 us` in the measured BDN run and reports no allocation in that lane. The
-full gate is still open: Array remains slower than legacy in several lanes and
-reports `1 B` in the 100K/8 group. The remaining measured bottleneck is typed
-Array-row access and chunk traversal, not query matching or callback dispatch.
+Physical row resolution is performed at the chunk boundary rather than for
+each slot. The scope lifetime prevents structural changes from invalidating
+borrowed row values. The callback generator may specialize callback shapes,
+but query plans, storage and traversal remain shared and type-erased.
 
-The enumerator must be disposed synchronously and cannot outlive the world
-mutation lease. `MoveNext` disposes only the current pooled overlay mask; the
-enumerator owns the outer mutation lease. Tag-filtered queries retain the same
-overlay correctness rules.
-
-Darwin PMU counters and BDN disassembly diagnostics were unavailable in this
-environment. No hardware-counter or assembly-level limit is claimed.
+The implementation does not claim a throughput result from code size alone.
+Assembly observations and BenchmarkDotNet measurements belong in the separate
+performance documentation and must use the same workload and runtime.

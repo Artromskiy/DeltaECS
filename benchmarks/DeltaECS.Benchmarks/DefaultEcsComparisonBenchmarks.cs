@@ -259,7 +259,7 @@ public class DefaultEcsComparisonBenchmarks
             }
         }
 
-        var queryDescription = QuerySpec.ForComponents(_deltaMovementComponents);
+        var queryDescription = QuerySpec.WhereAll(_deltaMovementComponents);
         _deltaMovementQuery = _deltaMovementWorld.CreateQuery(in queryDescription);
         _deltaPositionBinding = _deltaMovementQuery.AccessWrite(_deltaPosition);
         _deltaVelocityBinding = _deltaMovementQuery.AccessRead(_deltaVelocity);

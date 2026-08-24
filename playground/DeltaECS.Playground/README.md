@@ -9,8 +9,8 @@ Run it from the repository root:
 dotnet run --project playground/DeltaECS.Playground/DeltaECS.Playground.csproj -c Release
 ```
 
-The sample demonstrates `World.OpenQuery` with independent archetype, chunk
-and slot loops. Generated `ForEach` overloads are the callback surface.
+The sample demonstrates two compact entry points: a generated component
+callback and an ordered, query-filtered entity sequence.
 
 Add temporary components, queries and experiments to `Program.cs`. Keep
 performance measurements in the benchmark projects instead.

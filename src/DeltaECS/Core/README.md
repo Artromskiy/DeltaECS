@@ -86,6 +86,29 @@ are borrowed `ref struct` values and must not escape their execution scope.
 Generated `ForEach` APIs reuse `QuerySlots` internally and are documented in
 `Delegate` and `Functor`.
 
+## Query pipeline
+
+For compact query code, `WorldQuery` defers query creation until execution:
+
+```csharp
+world
+    .WhereAll(positionId, velocityId)
+    .WhereNone(disabledId)
+    .ForEach(static (ref Position position, in Velocity velocity) =>
+        position.X += velocity.X);
+
+using var scope = world
+    .Query(QuerySpec.WhereAll(positionId, velocityId))
+    .Open();
+```
+
+`WorldQuery` is an allocation-free `ref struct` facade. Generated `ForEach`
+extensions use the pipeline as their receiver; `Add`, `Remove` and `Destroy`
+are terminal operations on the facade itself. `World.From` is the fluent entry
+point for `EntitySequence`, whose `Where` method provides optional query
+filtering. The two pipeline facades are intentionally independent; neither
+introduces interface dispatch into execution.
+
 For type-erased tooling inside a query execution, `GetObject` returns
 `ObjectReadValues` or `ObjectWriteValues`. Their `Get`/`Set` methods operate on
 the current slot and validate object writes against the registered CLR type.

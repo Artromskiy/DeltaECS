@@ -54,7 +54,7 @@ public class DenseCapacitySweepBenchmarks
             _arrayWorld.Set(entities[i], _components[7], new S7 { X = 1, Y = 2 });
         }
 
-        var spec = QuerySpec.ForComponents(_components);
+        var spec = QuerySpec.WhereAll(_components);
         _query = _arrayWorld.CreateQuery(in spec);
         _b0 = _query.AccessWrite(_components[0]); _b1 = _query.AccessWrite(_components[1]);
         _b2 = _query.AccessWrite(_components[2]); _b3 = _query.AccessWrite(_components[3]);

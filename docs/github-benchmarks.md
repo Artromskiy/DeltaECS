@@ -23,9 +23,9 @@ batch capabilities are retained as `Supported=false`, `Mode=Unsupported`, and
 `∞` mean/ratio rows. Complete output is retained as the `ecs-benchmarks-*`
 artifact for 30 days.
 
-The new matrix compares DeltaECS, Arch, Friflo.Engine.ECS, DefaultEcs, and
-LeoECS Lite. Legacy is intentionally excluded from `full-comparison`; older
-Legacy-containing classes remain only on their historical focused routes.
+The current matrix compares DeltaECS, Arch, Friflo.Engine.ECS, DefaultEcs and
+LeoECS Lite. Additional focused routes are kept separate from
+`full-comparison` so each report has one unambiguous scenario matrix.
 
 GitHub-hosted runners are shared and their CPU model may change between jobs.
 Use a single run to compare DeltaECS with the other ECS implementations because

@@ -16,8 +16,8 @@ ReadAccess/WriteAccess -> ReadRow/WriteRow -> Ref<T>
 `ReadAccess`/`WriteAccess`, `Bind`, and `slots.GetRow`; no generic access
 path remains.
 
-The existing comparative and version benchmark projects are deliberately left
-on their legacy callers. They are not part of this L4 migration.
+The existing comparative and version benchmark projects are separate suites;
+they are not part of this focused L4 measurement.
 
 ## Reproduction
 
@@ -37,7 +37,7 @@ current directory:
 ```sh
 cd /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks
 env NuGetAudit=false RestoreIgnoreFailedSources=true \
-  dotnet bin/Release/net8.0/DeltaECS.MicroBenchmarks.dll \
+  dotnet bin/Release/net10.0/DeltaECS.MicroBenchmarks.dll \
   --filter '*DenseIterationMicroBenchmarks.Movement4Components*' \
   --exporters json csv markdown \
   --artifacts ../../artifacts/l4-bdn
@@ -53,7 +53,7 @@ cd /Users/rum/GitProjects/TheFurnace/DeltaECS
 ./benchmarks/run-jit-disasm.sh \
   --method '*Movement4Components*' \
   --filter '*DenseIterationMicroBenchmarks*' \
-  --configuration Release --framework net8.0 --no-build \
+  --configuration Release --framework net10.0 --no-build \
   --output artifacts/l4-jit.txt
 
 python3 -B benchmarks/jit-report.py \

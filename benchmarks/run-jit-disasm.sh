@@ -6,7 +6,7 @@ repo_root=$(cd "$script_dir/.." && pwd)
 
 project="$repo_root/benchmarks/DeltaECS.MicroBenchmarks/DeltaECS.MicroBenchmarks.csproj"
 configuration="Release"
-target_framework="net8.0"
+target_framework="net10.0"
 method_pattern=""
 benchmark_filter=""
 benchmark_job="dry"
@@ -25,7 +25,7 @@ Options:
   --filter <pattern>       BenchmarkDotNet filter; defaults to the method pattern
   --project <path>         Probe project; defaults to DeltaECS.MicroBenchmarks
   --configuration <name>   Build configuration; defaults to Release
-  --framework <tfm>        Target framework; defaults to net8.0
+  --framework <tfm>        Target framework; defaults to net10.0
   --job <name>             BenchmarkDotNet job; defaults to dry
   --output <path>          Output file; defaults to artifacts/jit-disasm/<pattern>.txt
   --jit-dump               Include the Debug/Checked JIT dump in the output
