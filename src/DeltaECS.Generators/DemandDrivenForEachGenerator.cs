@@ -887,7 +887,13 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         {
             result.Append("var access").Append(index).Append(" = GeneratedForEachRuntime.Access")
                 .Append(shape.Pattern[index] == 'R' ? "Read" : "Write")
-                .Append('(').Append(owner).Append(", in query, ").Append(ComponentArgument(ids, index)).Append(", typeof(")
+                .Append('(').Append(owner).Append(", in query, ");
+            if (shape.ExplicitIds)
+            {
+                result.Append(ComponentArgument(ids, index)).Append(", ");
+            }
+
+            result.Append("typeof(")
                 .Append(shape.IsFunctor ? shape.Components[index] : "T" + (index + 1)).AppendLine(") ); ");
         }
 
