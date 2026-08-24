@@ -69,7 +69,7 @@ public interface IEcsWorld
 
     void Initialize();
 
-    void Update(float deltaSeconds);
+    void Update();
 
     void Shutdown();
 

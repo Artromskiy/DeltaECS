@@ -31,16 +31,12 @@ public sealed partial class World : IEcsWorld
         _integrationLifecycle = IntegrationLifecycleState.Initialized;
     }
 
-    void IEcsWorld.Update(float deltaSeconds)
+    void IEcsWorld.Update()
     {
         EnsureIntegrationActive();
         EnsureNoActiveLease("update the integration world");
-        if (!float.IsFinite(deltaSeconds) || deltaSeconds < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(deltaSeconds), "Update delta must be finite and non-negative.");
-        }
 
-        // World has no scheduler. Integration Update is intentionally a
+        // World has no scheduler or time source. Integration Update is a
         // lifecycle-validated safe point and performs no systems work.
     }
 

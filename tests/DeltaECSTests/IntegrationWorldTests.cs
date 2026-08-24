@@ -13,21 +13,17 @@ public sealed class IntegrationWorldTests
         using var storage = new World();
         IEcsWorld world = storage;
 
-        Assert.Throws<InvalidOperationException>(() => world.Update(0));
+        Assert.Throws<InvalidOperationException>(world.Update);
         world.Initialize();
         Stamp before = world.Stamp;
 
-        world.Update(0);
-        world.Update(1.0f / 60.0f);
+        world.Update();
 
         Assert.That(world.Stamp, Is.EqualTo(before));
-        Assert.Throws<ArgumentOutOfRangeException>(() => world.Update(float.NaN));
-        Assert.Throws<ArgumentOutOfRangeException>(() => world.Update(float.PositiveInfinity));
-        Assert.Throws<ArgumentOutOfRangeException>(() => world.Update(-0.01f));
         Assert.Throws<InvalidOperationException>(world.Initialize);
 
         world.Shutdown();
-        Assert.Throws<InvalidOperationException>(() => world.Update(0));
+        Assert.Throws<InvalidOperationException>(world.Update);
         Assert.Throws<InvalidOperationException>(world.Shutdown);
     }
 

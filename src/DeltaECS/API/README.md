@@ -33,4 +33,5 @@ Reference components may preserve object identity; mutating a returned object
 directly bypasses ECS write tracking and is the caller's responsibility.
 
 Integration operations are valid between `Initialize` and `Shutdown`. A host
-owns scheduling; `World.Update` does not introduce an ECS system scheduler.
+owns scheduling and all time domains; parameterless `World.Update` is only a
+lifecycle safe point and does not introduce an ECS system scheduler or clock.
