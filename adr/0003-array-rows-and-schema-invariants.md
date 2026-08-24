@@ -14,9 +14,9 @@ repeat registration as a new ID, which broke stable schema lookup.
   elements.
 - `ComponentLayoutRegistry.Register` deduplicates an existing `SchemaId` only
   when the complete layout matches, including runtime type. A mismatch throws.
-- `Register<T>` is the minimal cold registration convenience for ArrayRows
-  element types, including reference types. `RegisterUnmanaged<T>` remains the
-  constrained convenience for unmanaged element types.
+- `Register<T>` is the generic registration convenience for all supported
+  ArrayRows element types. The registry automatically determines whether the
+  type contains references and selects the corresponding row cleanup behavior.
 - Production chunks store direct `Array[]` rows only. The legacy `byte[][]`
   implementation is benchmark-only reference code. ArrayRows casts each row to
   `T[]` once per chunk view and then returns a span; it never uses

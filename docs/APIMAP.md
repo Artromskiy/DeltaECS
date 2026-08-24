@@ -49,7 +49,7 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `ReadRow`, `WriteRow` | Non-generic prepared component rows; final `Ref<T>` must match the registered component type. Controlled pre-loop mismatch validation is selected correctness work. | `src/DeltaECS/Core/Rows.cs`, `src/DeltaECS/Generic/Rows.cs` |
 | `World.Create<T>/Add<T>/Remove<T>/TryGet<T>/Get<T>/Set<T>` | Thin typed single-item boundary over existing structural/component operations | `src/DeltaECS/Generic/World.Generic.cs` |
 | `World.ForEach` / `ForEachEntity` | Handwritten zero-component delegates plus consumer-side generated delegate/functor extensions; functors use four stable marker interfaces and concrete `Invoke` signatures | `src/DeltaECS/Delegate/ForEachZeroArity.cs`, `src/DeltaECS.Generators/DemandDrivenForEachGenerator.cs`, `src/DeltaECS/Delegate/ForEachDelegates.cs`, `src/DeltaECS/Functor/ForEachFunctorContracts.cs`, `src/DeltaECS/Functor/GeneratedForEachFunctorRuntime.cs` |
-| `World.Entities(ReadOnlySpan<Entity>)` | Ordered non-owning sequence facade | `src/DeltaECS/Sequence/EntitySequence.cs` |
+| `World.From(ReadOnlySpan<Entity>)` | Ordered non-owning sequence facade | `src/DeltaECS/Sequence/EntitySequence.cs` |
 | `World.ForEachEntity(ReadOnlySpan<Entity>, ...)` | Ordered entity-only or entity-bearing sequence execution, optionally filtered by `Query` | `src/DeltaECS/Sequence/World.Sequence.cs`, `src/DeltaECS/Sequence/SequenceComponentRuntime.cs` |
 
 ## Query execution path
@@ -504,7 +504,7 @@ unordered batch API may group candidates by archetype; `ForEach` must not reorde
 silently.
 
 The fluent spelling is
-`world.Entities(entities).Where(in query).ForEachEntity(action)`. It is an ordered
+`world.From(entities).Where(in query).ForEachEntity(action)`. It is an ordered
 facade over the same `ReadOnlySpan<Entity>` candidate set and callback matrix,
 not a generic query/storage object.
 

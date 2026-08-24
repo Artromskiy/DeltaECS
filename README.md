@@ -146,7 +146,7 @@ non-owning fluent facade:
 
 ```csharp
 world.ForEachEntity(entities, action);
-world.Entities(entities).Where(in query).ForEachEntity(action);
+world.From(entities).Where(in query).ForEachEntity(action);
 ```
 
 It preserves input order and duplicate occurrences, skips stale entities and
