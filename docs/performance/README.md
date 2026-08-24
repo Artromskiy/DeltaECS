@@ -100,6 +100,17 @@ accumulators in competitor callbacks. This is benchmark infrastructure, not an
 ECS kernel optimization, and should be corrected before interpreting movement
 ratios.
 
+## Rejected: exact-order entity-list transitions
+
+An add/remove experiment detected when the input sequence was the complete
+physical archetype order and moved it through a specialized block kernel. It
+was rejected because the large `75–82%` gain existed only for that synthetic
+shape. Shuffled full lists, partial ordered lists, mixed archetypes,
+duplicates and stale handles ranged from `−3.8%` to `+2.6%`, with unchanged
+fallback allocations. Do not repeat the exact-order shortcut unless a public
+contract explicitly guarantees that input shape; optimize the general
+transition kernel instead.
+
 ## Order of work
 
 1. Fix benchmark accumulator parity.
