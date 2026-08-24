@@ -26,21 +26,21 @@ public readonly ref partial struct EntitySequence
     public ReadOnlySpan<Entity> GeneratedEntities => _entities;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void ForEach(ForEachEntityAction action) => _world.ForEach(_entities, action);
+    public void ForEachEntity(ForEachEntityAction action) => _world.ForEachEntity(_entities, action);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void ForEach<TContext>(ref TContext context, ForEachContextEntityAction<TContext> action)
-        => _world.ForEach(_entities, ref context, action);
+    public void ForEachEntity<TContext>(ref TContext context, ForEachContextEntityAction<TContext> action)
+        => _world.ForEachEntity(_entities, ref context, action);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void ForEach<TFunctor>(ref TFunctor functor)
+    public void ForEachEntity<TFunctor>(ref TFunctor functor)
         where TFunctor : struct, IForEachEntity
-        => _world.ForEach(_entities, ref functor);
+        => _world.ForEachEntity(_entities, ref functor);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void ForEach<TContext, TFunctor>(ref TContext context, ref TFunctor functor)
+    public void ForEachEntity<TContext, TFunctor>(ref TContext context, ref TFunctor functor)
         where TFunctor : struct, IForEachContextEntity<TContext>
-        => _world.ForEach(_entities, ref context, ref functor);
+        => _world.ForEachEntity(_entities, ref context, ref functor);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public FilteredEntitySequence Where(in Query query) => new(_world, _entities, query);
@@ -80,21 +80,21 @@ public readonly ref partial struct FilteredEntitySequence
     public Query GeneratedQuery => _query;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void ForEach(ForEachEntityAction action) => _world.ForEach(_entities, in _query, action);
+    public void ForEachEntity(ForEachEntityAction action) => _world.ForEachEntity(_entities, in _query, action);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void ForEach<TContext>(ref TContext context, ForEachContextEntityAction<TContext> action)
-        => _world.ForEach(_entities, in _query, ref context, action);
+    public void ForEachEntity<TContext>(ref TContext context, ForEachContextEntityAction<TContext> action)
+        => _world.ForEachEntity(_entities, in _query, ref context, action);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void ForEach<TFunctor>(ref TFunctor functor)
+    public void ForEachEntity<TFunctor>(ref TFunctor functor)
         where TFunctor : struct, IForEachEntity
-        => _world.ForEach(_entities, in _query, ref functor);
+        => _world.ForEachEntity(_entities, in _query, ref functor);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void ForEach<TContext, TFunctor>(ref TContext context, ref TFunctor functor)
+    public void ForEachEntity<TContext, TFunctor>(ref TContext context, ref TFunctor functor)
         where TFunctor : struct, IForEachContextEntity<TContext>
-        => _world.ForEach(_entities, in _query, ref context, ref functor);
+        => _world.ForEachEntity(_entities, in _query, ref context, ref functor);
 
     public int Add(ComponentId[] componentIds) => _world.AddComponents(_entities, in _query, componentIds);
 

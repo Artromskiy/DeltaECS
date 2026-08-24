@@ -1,11 +1,5 @@
 namespace Delta.ECS;
 
-/// <summary>Selects a ForEach form that supplies the current entity.</summary>
-public readonly record struct ForEachEntityTag
-{
-    public static ForEachEntityTag Instance => default;
-}
-
 public delegate void ForEachEntityAction(Entity entity);
 
 public delegate void ForEachAction();

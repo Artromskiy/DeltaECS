@@ -9,43 +9,43 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntitySequence Entities(ReadOnlySpan<Entity> entities) => new(this, entities);
 
-    public void ForEach(ReadOnlySpan<Entity> entities, ForEachEntityAction action)
+    public void ForEachEntity(ReadOnlySpan<Entity> entities, ForEachEntityAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
         ExecuteSequence(entities, default, hasFilter: false, action);
     }
 
-    public void ForEach(ReadOnlySpan<Entity> entities, in Query query, ForEachEntityAction action)
+    public void ForEachEntity(ReadOnlySpan<Entity> entities, in Query query, ForEachEntityAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
         ExecuteSequence(entities, query, hasFilter: true, action);
     }
 
-    public void ForEach<TContext>(ReadOnlySpan<Entity> entities, ref TContext context, ForEachContextEntityAction<TContext> action)
+    public void ForEachEntity<TContext>(ReadOnlySpan<Entity> entities, ref TContext context, ForEachContextEntityAction<TContext> action)
     {
         ArgumentNullException.ThrowIfNull(action);
         ExecuteSequence(entities, ref context, default, hasFilter: false, action);
     }
 
-    public void ForEach<TContext>(ReadOnlySpan<Entity> entities, in Query query, ref TContext context, ForEachContextEntityAction<TContext> action)
+    public void ForEachEntity<TContext>(ReadOnlySpan<Entity> entities, in Query query, ref TContext context, ForEachContextEntityAction<TContext> action)
     {
         ArgumentNullException.ThrowIfNull(action);
         ExecuteSequence(entities, ref context, query, hasFilter: true, action);
     }
 
-    public void ForEach<TFunctor>(ReadOnlySpan<Entity> entities, ref TFunctor functor)
+    public void ForEachEntity<TFunctor>(ReadOnlySpan<Entity> entities, ref TFunctor functor)
         where TFunctor : struct, IForEachEntity
         => ExecuteSequence(entities, ref functor, default, hasFilter: false);
 
-    public void ForEach<TFunctor>(ReadOnlySpan<Entity> entities, in Query query, ref TFunctor functor)
+    public void ForEachEntity<TFunctor>(ReadOnlySpan<Entity> entities, in Query query, ref TFunctor functor)
         where TFunctor : struct, IForEachEntity
         => ExecuteSequence(entities, ref functor, query, hasFilter: true);
 
-    public void ForEach<TContext, TFunctor>(ReadOnlySpan<Entity> entities, ref TContext context, ref TFunctor functor)
+    public void ForEachEntity<TContext, TFunctor>(ReadOnlySpan<Entity> entities, ref TContext context, ref TFunctor functor)
         where TFunctor : struct, IForEachContextEntity<TContext>
         => ExecuteSequence(entities, ref context, ref functor, default, hasFilter: false);
 
-    public void ForEach<TContext, TFunctor>(ReadOnlySpan<Entity> entities, in Query query, ref TContext context, ref TFunctor functor)
+    public void ForEachEntity<TContext, TFunctor>(ReadOnlySpan<Entity> entities, in Query query, ref TContext context, ref TFunctor functor)
         where TFunctor : struct, IForEachContextEntity<TContext>
         => ExecuteSequence(entities, ref context, ref functor, query, hasFilter: true);
 

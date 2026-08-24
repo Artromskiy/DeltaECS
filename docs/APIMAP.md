@@ -41,7 +41,7 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `World.Create<T>/Add<T>/Remove<T>/TryGet<T>/Get<T>/Set<T>` | Thin typed single-item boundary over existing structural/component operations | `src/DeltaECS/Generic/World.Generic.cs` |
 | generated `World.ForEach` | Consumer-side demand-driven delegate/functor extensions, arities 0..256 and arbitrary requested read/write patterns | `src/DeltaECS.Generators/DemandDrivenForEachGenerator.cs`, `src/DeltaECS/Delegate/ForEachContracts.cs`, `src/DeltaECS/Delegate/GeneratedForEachRuntime.cs` |
 | `World.Entities(ReadOnlySpan<Entity>)` | Ordered non-owning sequence facade | `src/DeltaECS/Sequence/EntitySequence.cs` |
-| `World.ForEach(ReadOnlySpan<Entity>, ...)` | Ordered entity-only or typed sequence execution, optionally filtered by `Query` | `src/DeltaECS/Sequence/World.Sequence.cs`, `src/DeltaECS/Sequence/SequenceComponentRuntime.cs` |
+| `World.ForEachEntity(ReadOnlySpan<Entity>, ...)` | Ordered entity-only or entity-bearing sequence execution, optionally filtered by `Query` | `src/DeltaECS/Sequence/World.Sequence.cs`, `src/DeltaECS/Sequence/SequenceComponentRuntime.cs` |
 
 ## Query execution path
 
@@ -479,8 +479,8 @@ Sequence execution uses the same `World.ForEach` family as dense
 query execution rather than introducing another public selection type:
 
 ```csharp
-world.ForEach(entities, action);
-world.ForEach(entities, in query, action);
+world.ForEachEntity(entities, action);
+world.ForEachEntity(entities, in query, action);
 ```
 
 The unfiltered overload visits every valid occurrence in the supplied
@@ -498,7 +498,7 @@ unordered batch API may group candidates by archetype; `ForEach` must not reorde
 silently.
 
 The fluent spelling is
-`world.Entities(entities).Where(in query).ForEach(action)`. It is an ordered
+`world.Entities(entities).Where(in query).ForEachEntity(action)`. It is an ordered
 facade over the same `ReadOnlySpan<Entity>` candidate set and callback matrix,
 not a generic query/storage object.
 

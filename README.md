@@ -122,8 +122,8 @@ Ordered sequence execution is available both directly and through the
 non-owning fluent facade:
 
 ```csharp
-world.ForEach(entities, action);
-world.Entities(entities).Where(in query).ForEach(action);
+world.ForEachEntity(entities, action);
+world.Entities(entities).Where(in query).ForEachEntity(action);
 ```
 
 It preserves input order and duplicate occurrences, skips stale entities and

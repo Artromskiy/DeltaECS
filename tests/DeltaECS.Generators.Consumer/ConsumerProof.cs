@@ -102,8 +102,7 @@ public static class ConsumerProof
             {
                 velocity.Value += position.Value + acceleration.Value;
                 lifetime.Value++;
-            },
-            ForEachAccessTag_RWRW.Instance);
+            });
 
         // Arity 5, explicit secondary registration of Position.
         world.ForEach<Position, Velocity, Acceleration, Lifetime, Mass>(
@@ -119,8 +118,7 @@ public static class ConsumerProof
                 velocity.Value += position.Value + acceleration.Value;
                 lifetime.Value++;
                 mass.Value++;
-            },
-            ForEachAccessTag_RWRWW.Instance);
+            });
 
         // Arity 8, no IDs, with an additional All component in the query.
         world.ForEach<Position, Velocity, Acceleration, Lifetime, Mass, ComponentSix, ComponentSeven, ComponentEight>(
@@ -138,19 +136,17 @@ public static class ConsumerProof
                 position.Value += velocity.Value + lifetime.Value + six.Value + eight.Value;
                 acceleration.Value += mass.Value;
                 seven.Value++;
-            },
-            ForEachAccessTag_WRWRWRWR.Instance);
+            });
 
         Entity[] entities = { primary, secondary };
         EntitySequence sequence = world.Entities(entities);
-        sequence.ForEach<Position>(
+        sequence.ForEachEntity<Position>(
             static (Entity entity, ref Position position) => position.Value += entity.Index);
 
         FilteredEntitySequence filtered = sequence.Where(in allNine);
-        filtered.ForEach<Position, Velocity>(
+        filtered.ForEachEntity<Position, Velocity>(
             static (Entity entity, in Position position, ref Velocity velocity) =>
-                velocity.Value += position.Value + entity.Index,
-            ForEachAccessTag_RW.Instance);
+                velocity.Value += position.Value + entity.Index);
 
         return world.Get<Position>(primary, positionId).Value
             + world.Get<Velocity>(primary, velocityId).Value
@@ -176,23 +172,18 @@ public static class ConsumerProof
                 velocity.Value += position.Value + acceleration.Value;
                 lifetime.Value += state.Value;
                 state.Value++;
-            },
-            ForEachAccessTag_RWRW.Instance);
+            });
 
         var functor = new ContextEntityFunctor();
-        world.ForEach<ConsumerContext, ContextEntityFunctor, Position, Velocity, Acceleration, Lifetime>(
+        world.ForEachEntity<ConsumerContext, ContextEntityFunctor, Position, Velocity, Acceleration, Lifetime>(
             in query,
             ref context,
-            ref functor,
-            ForEachEntityTag.Instance,
-            ForEachAccessTag_RWRW.Instance);
+            ref functor);
 
         Entity[] entities = Array.Empty<Entity>();
         EntitySequence sequence = world.Entities(entities);
         var sequenceFunctor = new SequenceFunctor();
-        sequence.ForEach<SequenceFunctor, Position, Velocity, Acceleration, Lifetime>(
-            ref sequenceFunctor,
-            ForEachEntityTag.Instance,
-            ForEachAccessTag_RWRW.Instance);
+        sequence.ForEachEntity<SequenceFunctor, Position, Velocity, Acceleration, Lifetime>(
+            ref sequenceFunctor);
     }
 }

@@ -21,6 +21,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(first, Does.Contain("ForEachAction_RWRW<T1, T2, T3, T4>"));
         Assert.That(first, Does.Contain("ForEachAction_RWRWW<T1, T2, T3, T4, T5>"));
         Assert.That(first, Does.Contain("ForEachAction_WRWRWRWR<T1, T2, T3, T4, T5, T6, T7, T8>"));
+        Assert.That(first, Does.Contain("ForEachEntityAction<T1>"));
         Assert.That(first, Does.Not.Contain("dynamic"));
     }
 
@@ -143,7 +144,6 @@ public sealed class DemandDrivenForEachGeneratorTests
         public readonly struct Query { }
         public readonly struct ReadAccess { }
         public readonly struct WriteAccess { }
-        public readonly struct ForEachEntityTag { public static ForEachEntityTag Instance => default; }
         public sealed class ComponentLayoutRegistry
         {
             public ComponentId GetId(Type type) => default;
@@ -218,16 +218,16 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static void Use(World world, Query query, ComponentId c1, ComponentId c2, ComponentId c3, ComponentId c4, ComponentId c5, ComponentId c6, ComponentId c7, ComponentId c8)
             {
                 world.ForEach<T1>(in query, static (ref T1 value) => value.Value++);
-                world.ForEach<T1, T2, T3, T4>(in query, static (in T1 a, ref T2 b, in T3 c, ref T4 d) => { b.Value += a.Value; d.Value += c.Value; }, ForEachAccessTag_RWRW.Instance);
-                world.ForEach<T1, T2, T3, T4, T5>(in query, c1, c2, c3, c4, c5, static (in T1 a, ref T2 b, in T3 c, ref T4 d, ref T5 e) => { b.Value += a.Value; d.Value += c.Value; e.Value++; }, ForEachAccessTag_RWRWW.Instance);
-                world.ForEach<T1, T2, T3, T4, T5, T6, T7, T8>(in query, static (ref T1 a, in T2 b, ref T3 c, in T4 d, ref T5 e, in T6 f, ref T7 g, in T8 h) => { a.Value += b.Value; c.Value += d.Value; e.Value += f.Value; g.Value += h.Value; }, ForEachAccessTag_WRWRWRWR.Instance);
+                world.ForEach<T1, T2, T3, T4>(in query, static (in T1 a, ref T2 b, in T3 c, ref T4 d) => { b.Value += a.Value; d.Value += c.Value; });
+                world.ForEach<T1, T2, T3, T4, T5>(in query, c1, c2, c3, c4, c5, static (in T1 a, ref T2 b, in T3 c, ref T4 d, ref T5 e) => { b.Value += a.Value; d.Value += c.Value; e.Value++; });
+                world.ForEach<T1, T2, T3, T4, T5, T6, T7, T8>(in query, static (ref T1 a, in T2 b, ref T3 c, in T4 d, ref T5 e, in T6 f, ref T7 g, in T8 h) => { a.Value += b.Value; c.Value += d.Value; e.Value += f.Value; g.Value += h.Value; });
                 var context = new Context();
                 var functor = new Functor();
-                world.ForEach<Context, Functor, T1, T2, T3, T4>(in query, ref context, ref functor, ForEachEntityTag.Instance, ForEachAccessTag_RWRW.Instance);
+                world.ForEachEntity<Context, Functor, T1, T2, T3, T4>(in query, ref context, ref functor);
                 EntitySequence sequence = new();
-                sequence.ForEach<T1>(static (Entity entity, ref T1 value) => value.Value += entity.Index);
+                sequence.ForEachEntity<T1>(static (Entity entity, ref T1 value) => value.Value += entity.Index);
                 FilteredEntitySequence filtered = new();
-                filtered.ForEach<T1, T2>(static (Entity entity, in T1 a, ref T2 b) => b.Value += a.Value + entity.Index, ForEachAccessTag_RW.Instance);
+                filtered.ForEachEntity<T1, T2>(static (Entity entity, in T1 a, ref T2 b) => b.Value += a.Value + entity.Index);
             }
         }
         """;

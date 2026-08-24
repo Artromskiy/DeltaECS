@@ -10,15 +10,15 @@ a second query object or expose storage adapters.
 The selected API family is:
 
 ```csharp
-world.ForEach(entities, action);
-world.ForEach(entities, in query, action);
+world.ForEachEntity(entities, action);
+world.ForEachEntity(entities, in query, action);
 ```
 
 The fluent facade is:
 
 ```csharp
-world.Entities(entities).ForEach(action);
-world.Entities(entities).Where(in query).ForEach(action);
+world.Entities(entities).ForEachEntity(action);
+world.Entities(entities).Where(in query).ForEachEntity(action);
 ```
 
 Both spellings use the generated entity delegate contracts, with and without
@@ -35,8 +35,9 @@ as existing explicit-sequence structural operations.
 Typed component callbacks use the same consumer-demand generator as dense
 `World.ForEach`, up to the 256-component mask capacity. Reads are `in T`,
 writes are `ref T`, and an explicit generated tag such as
-`ForEachAccessTag_RW.Instance` selects every non-all-write signature without
-ambiguous lambda overloads. The sequence kernel validates access once, resolves
+The generator infers the access pattern from `in T` and `ref T` callback
+parameters or a functor's `Invoke` method; no marker argument is required. The
+sequence kernel validates access once, resolves
 entity records directly, caches the last archetype row plan and accesses chunk
 rows without public atomic `TryGet`/`Set` calls or a second storage model.
 

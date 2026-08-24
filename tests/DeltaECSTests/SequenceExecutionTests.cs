@@ -20,7 +20,7 @@ public sealed class SequenceExecutionTests
 
         var candidates = new[] { created[3], created[0], created[3], stale };
         var visited = new List<Entity>();
-        world.Entities(candidates).ForEach(entity => visited.Add(entity));
+        world.Entities(candidates).ForEachEntity(entity => visited.Add(entity));
 
         Assert.That(visited, Is.EqualTo(new[] { created[3], created[0], created[3] }));
     }
@@ -40,7 +40,7 @@ public sealed class SequenceExecutionTests
         var candidates = new[] { positionOnly, marked, markerOnly, marked };
         var visited = new List<Entity>();
 
-        world.Entities(candidates).Where(in query).ForEach(entity => visited.Add(entity));
+        world.Entities(candidates).Where(in query).ForEachEntity(entity => visited.Add(entity));
 
         Assert.That(visited, Is.EqualTo(new[] { marked, markerOnly, marked }));
         Assert.That(visited, Does.Not.Contain(outsideCandidateSequence));
@@ -107,11 +107,11 @@ public sealed class SequenceExecutionTests
         var candidates = new[] { third, first, second, third };
 
         var collector = new EntityCollector();
-        world.Entities(candidates).Where(in query).ForEach(ref collector);
+        world.Entities(candidates).Where(in query).ForEachEntity(ref collector);
 
         var context = 10;
         var contextCollector = new ContextCollector();
-        world.Entities(candidates).Where(in query).ForEach(ref context, ref contextCollector);
+        world.Entities(candidates).Where(in query).ForEachEntity(ref context, ref contextCollector);
 
         Assert.Multiple(() =>
         {
@@ -141,14 +141,13 @@ public sealed class SequenceExecutionTests
         var candidates = new[] { third, first, third };
         var context = new List<Entity>();
 
-        world.Entities(candidates).Where(in query).ForEach<List<Entity>, SequencePosition, SequenceVelocity>(
+        world.Entities(candidates).Where(in query).ForEachEntity<List<Entity>, SequencePosition, SequenceVelocity>(
             ref context,
             static (ref List<Entity> visited, Entity entity, in SequencePosition position, ref SequenceVelocity velocity) =>
             {
                 visited.Add(entity);
                 velocity.Value += position.Value;
-            },
-            ForEachAccessTag_RW.Instance);
+            });
 
         Assert.That(context, Is.EqualTo(candidates));
         Assert.That(world.Get<SequenceVelocity>(first, velocityId).Value, Is.EqualTo(1));
@@ -188,8 +187,7 @@ public sealed class SequenceExecutionTests
         world.Entities(candidates).Where(in query).ForEach<int, SequencePosition, SequenceVelocity>(
             ref sum,
             static (ref int total, in SequencePosition position, in SequenceVelocity velocity) =>
-                total += position.Value + velocity.Value,
-            ForEachAccessTag_RR.Instance);
+                total += position.Value + velocity.Value);
 
         Assert.That(sum, Is.EqualTo(10));
         Assert.That(world.Stamp, Is.EqualTo(beforeRead));
@@ -199,10 +197,8 @@ public sealed class SequenceExecutionTests
         Assert.That(velocityAfterRead, Is.EqualTo(velocityBefore));
 
         var functor = new SequenceMovementFunctor();
-        world.Entities(candidates).Where(in query).ForEach<SequenceMovementFunctor, SequencePosition, SequenceVelocity>(
-            ref functor,
-            ForEachEntityTag.Instance,
-            ForEachAccessTag_RW.Instance);
+        world.Entities(candidates).Where(in query).ForEachEntity<SequenceMovementFunctor, SequencePosition, SequenceVelocity>(
+            ref functor);
 
         Assert.That(functor.Count, Is.EqualTo(2));
         Assert.That(world.Get<SequenceVelocity>(entity, velocityId).Value, Is.EqualTo(10));
@@ -229,8 +225,7 @@ public sealed class SequenceExecutionTests
 
         world.Entities(candidates).Where(in query).ForEach<SequencePosition, SequenceVelocity>(
             static (in SequencePosition position, ref SequenceVelocity velocity) =>
-                velocity.Value += position.Value,
-            ForEachAccessTag_RW.Instance);
+                velocity.Value += position.Value);
 
         Assert.Multiple(() =>
         {
