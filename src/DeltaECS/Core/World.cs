@@ -2,6 +2,7 @@ namespace Delta.ECS;
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -515,23 +516,25 @@ public sealed partial class World : IDisposable
         }
     }
 
-    internal void ExecuteForEach<TInvoker>(in Query handle, ref TInvoker invoker, bool hasWrites)
-        where TInvoker : struct, IForEachInvoker
+    /// <summary>Executes a compiler-generated dense-query invoker.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public void ExecuteGeneratedForEach<TInvoker>(in Query handle, ref TInvoker invoker, bool hasWrites)
+        where TInvoker : struct, IGeneratedForEachInvoker
     {
         ValidateQuery(in handle);
         var cached = handle.Cached;
-        var plans = cached.MatchingPlans(this);
+        ReadOnlySpan<ArchetypePlan> plans = cached.MatchingPlans(this);
         QueryWriteSession writeSession = RentQueryWriteSession(hasWrites, out int sessionGeneration);
         BeginQueryLease();
         try
         {
             for (int planIndex = 0; planIndex < plans.Length; planIndex++)
             {
-                var plan = plans[planIndex];
-                var archetype = plan.Archetype;
+                ArchetypePlan plan = plans[planIndex];
+                Archetype archetype = plan.Archetype;
                 for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
                 {
-                    var chunk = archetype.GetActiveChunk(chunkIndex);
+                    Chunk chunk = archetype.GetActiveChunk(chunkIndex);
                     var cursor = new QueryChunkCursor(
                         cached,
                         archetype.Id,

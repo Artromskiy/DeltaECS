@@ -39,7 +39,7 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `ReadValues`, `WriteValues` | Non-generic prepared values; final `Ref<T>` must match the registered component type. Controlled pre-loop mismatch validation is selected correctness work. | `src/DeltaECS/Core/Values.cs`, `src/DeltaECS/Generic/Values.cs` |
 | `World.Query` | Callback-based query execution over `QueryChunkCursor` | `src/DeltaECS/Core/World.cs` |
 | `World.Create<T>/Add<T>/Remove<T>/TryGet<T>/Get<T>/Set<T>` | Thin typed single-item boundary over existing structural/component operations | `src/DeltaECS/Generic/World.Generic.cs` |
-| generated `World.ForEach` | Delegate and struct-functor dense/sequence matrix, arities 0..4 with explicit read/write patterns | `src/DeltaECS.Generators/ForEachGenerator.cs`, `src/DeltaECS/Delegate/ForEachRuntime.cs`, `src/DeltaECS/Sequence/SequenceComponentRuntime.cs` |
+| generated `World.ForEach` | Consumer-side demand-driven delegate/functor extensions, arities 0..256 and arbitrary requested read/write patterns | `src/DeltaECS.Generators/DemandDrivenForEachGenerator.cs`, `src/DeltaECS/Delegate/ForEachContracts.cs`, `src/DeltaECS/Delegate/GeneratedForEachRuntime.cs` |
 | `World.Entities(ReadOnlySpan<Entity>)` | Ordered non-owning sequence facade | `src/DeltaECS/Sequence/EntitySequence.cs` |
 | `World.ForEach(ReadOnlySpan<Entity>, ...)` | Ordered entity-only or typed sequence execution, optionally filtered by `Query` | `src/DeltaECS/Sequence/World.Sequence.cs`, `src/DeltaECS/Sequence/SequenceComponentRuntime.cs` |
 
@@ -66,15 +66,28 @@ start with tests or structural move code.
 Generated dense callbacks enter through this chain:
 
 ```text
-World.ForEach<...>(Query, ...)
-  -> ForEachRuntime validates Query/ComponentId/T once
-  -> World.ExecuteForEach type-erased traversal
+consumer World.ForEach<...>(Query, ...)
+  -> consumer analyzer emits only the requested extension/contracts
+  -> generated boundary resolves primary or explicit ComponentId values
+  -> public runtime bridge validates Query/ComponentId/T once
+  -> type-erased World traversal
   -> generated invoker resolves values once per chunk
   -> delegate or constrained struct-functor call per slot
 ```
 
-The generator project owns only API repetition. It does not generate storage,
-archetype matching or structural kernels.
+The generator runs in the consumer assembly. It owns only callback-shape
+repetition and extension glue; it does not generate storage, archetype
+matching, query plans or structural kernels. `World.ForEach(...)` remains the
+source spelling even when the selected member is an extension. The generator
+supports arities 0..256, matching the component-mask capacity; above 256 it
+reports a diagnostic. A no-ID component
+parameter resolves the first/primary registry registration for its CLR type.
+Explicit `ComponentId` parameters are required when selecting a secondary
+registration of that type.
+
+The generated component types exist at the callback/ref boundary only. The
+runtime bridge, query/access declarations, plans, iterators and row containers
+are non-generic and shared by all generated demands.
 
 The dense three-loop public shape is:
 
@@ -145,7 +158,7 @@ Open only the relevant class:
 | Comparative benchmark catalog/report contracts only | `tests/DeltaECSTests/ComparativeBenchmarkContractTests.cs` |
 | Generic single-item boundary | `tests/DeltaECSTests/GenericSingleItemApiTests.cs` |
 | Ordered sequence facade and terminals | `tests/DeltaECSTests/SequenceExecutionTests.cs` |
-| Generated matrix determinism/compilation | `tests/DeltaECS.Generators.Tests/ForEachGeneratorTests.cs` |
+| Generated consumer-demand compilation | `tests/DeltaECS.Generators.Tests/DemandDrivenForEachGeneratorTests.cs`, `tests/DeltaECS.Generators.Consumer/` |
 
 For a source change, first locate the relevant method with `rg`, then read the
 nearest test method and its setup helpers. Benchmark source is not a substitute
@@ -157,8 +170,10 @@ for a production correctness test.
   public user API. Do not remove it while migrating public cursor access.
 - `World.Query` is the callback surface for dense component queries;
   `World.OpenQuery` exposes the explicit three-loop form.
-- Generated `World.ForEach` is the convenience callback/functor surface;
-  `World.Query<TContext>` remains the lower-level cursor callback.
+- Generated consumer-side `World.ForEach` extensions are the convenience
+  callback/functor surface; `World.Query<TContext>` remains the lower-level
+  cursor callback. The old fixed 1–4 producer-owned matrix is not the target
+  architecture.
 - Do not reintroduce removed ordinal/public unsafe row APIs without an explicit
   API decision and a benchmark contract update.
 
@@ -423,7 +438,7 @@ Stamp comparison is deliberately pull-based and consumer-local. A renderer,
 editor or other tool stores its own last observed stamps; reading changes for
 one consumer never consumes them for another.
 
-## API layers and generated callback API
+## API layers and demand-driven callback API
 
 The implemented structural API is non-generic: entity lifecycle and component
 set operations use `Entity`, `ComponentId` and spans. The dense query chain is
@@ -435,23 +450,28 @@ only at registration, the single-item `World.SetComponent<T>`/
 compatibility boundary for caller state; `TContext` does not leak into query,
 access, storage or cursor types.
 
-The implemented `World.ForEach` callback/functor matrix is source-generated and
-covers every combination of:
+The `World.ForEach` callback/functor family is source-generated in the consumer
+assembly and covers every requested combination of:
 
 - no context or one caller-provided `TContext`;
 - no entity or current `Entity` argument;
-- zero components (the explicit entity-only form), or 1, 2, 3 and 4 typed
-  component arguments;
-- every read/write bitmask for component arities 1..4, with `in T` read
-  arguments and `ref T` write arguments.
+- zero components (the explicit entity-only form), or any practical arity up
+  to the 256-component mask capacity;
+- any read/write pattern, with `in T` read arguments and `ref T` write
+  arguments;
+- either independent primary-ID resolution from the component type, or
+  explicit `ComponentId` selection for secondary registrations of that type.
 
 The delegate and struct-functor families share one type-erased query
 validation, access preparation and dense execution kernel. `World.ForEach`
-owns the temporary lease internally. Generated access tags such as
-`ForEachAccessTag_RW` make non-all-write lambda/functor contracts explicit
-without introducing generic query/access/value objects. `World.OpenQuery`
-remains the advanced path for explicit three-loop execution and reusable
-prepared accesses.
+owns the temporary lease internally. The consumer generator emits extension
+methods and callback contracts only for observed calls; it cannot add instance
+members to a previously compiled `World`, so the source spelling is preserved
+while the binary boundary changes from removed fixed-matrix instance methods to
+consumer-generated extensions. The generated component types stop at the
+callback/ref boundary; query/access/value/iterator state and the execution
+kernel remain non-generic. `World.OpenQuery` remains the advanced path for
+explicit three-loop execution and reusable prepared accesses.
 
 ## Explicit-sequence execution
 
@@ -470,10 +490,10 @@ entity matching the query in the world. Input order and duplicate occurrences ar
 preserved. Invalid, stale and foreign handles follow the explicit-sequence policy used
 by structural APIs.
 
-The delegate/functor arity matrix is source-generated. Both surfaces feed one
-type-erased sequence kernel that validates access once, resolves entity locations, and
-caches the most recently used archetype row plan. It does not call public
-single-item component APIs per entity. A future explicitly named
+The delegate/functor demand is source-generated in the consumer assembly. Both
+surfaces feed one type-erased sequence kernel that validates access once,
+resolves entity locations, and caches the most recently used archetype row plan.
+It does not call public single-item component APIs per entity. A future explicitly named
 unordered batch API may group candidates by archetype; `ForEach` must not reorder
 silently.
 

@@ -72,7 +72,7 @@ while (archetypes.MoveNext())
 }
 ```
 
-### API layers and generated callback matrix
+### API layers and demand-driven callback generation
 
 The structural kernels remain type-erased: component-set operations use
 `Entity`, `ComponentId` and spans, while query selection, access tokens and
@@ -81,25 +81,42 @@ archetype/chunk/slot traversal remain non-generic. Thin single-item helpers
 the component type and delegate to those existing kernels; they do not create
 a typed storage or query layer.
 
-`World.ForEach` is the generated high-level dense entry point. Delegate and
-struct-functor overloads cover the same deterministic matrix:
+`World.ForEach` is the high-level dense entry point. Its delegate and
+struct-functor overloads are generated on demand in the consumer assembly by
+the DeltaECS analyzer. The generator inspects the calls that the consumer
+actually makes and emits only the requested callback shapes:
 
 | Callback axis | Implemented forms |
 |---|---|
 | Context | no context, or one caller-provided `TContext` |
 | Entity argument | no entity, or current `Entity` |
-| Component arity | zero components, then 1, 2, 3 or 4 typed component arguments |
-| Component access | every deterministic read/write bitmask for arities 1..4 |
-| Dense selection | prepared `Query`, with explicit component IDs or exact `All`-mask inference |
+| Component arity | zero components and any practical arity up to the 256-component mask capacity |
+| Component access | any read/write pattern for the requested arity |
+| Component ID form | no-ID primary registration, or explicit IDs for secondary registrations of the same CLR type |
+| Dense selection | prepared `Query`; the generator emits extension methods in the consumer assembly |
 
 Read arguments are passed as `in T`; write arguments are passed as `ref T`.
-Non-all-write overloads take the generated access tag matching that signature,
-for example `ForEachAccessTag_RW.Instance`, so lambda overload resolution is
-unambiguous. The component type is validated against the registered
-`ComponentId` before execution; row resolution occurs once per chunk, outside
-the entity loop. Functors are structs constrained by the generated
-`IForEach*` interfaces. Production contains no handwritten variadic copies,
-and query/access/value state remains type-erased.
+The component type is validated against the registered `ComponentId` before
+execution; row resolution occurs once per chunk, outside the entity loop.
+Functors are structs constrained by the generated `IForEach*` interfaces.
+No-ID calls resolve each component type independently through its registry
+primary `ComponentId`; they do not infer IDs from the query's `All` mask, so a
+query may contain additional required components. If one CLR type has multiple
+registrations, the secondary row is selected with the explicit-ID form.
+
+The generated callback/ref boundary is the only place where component types
+are carried through the callback shape. `Query`, access declarations, scopes,
+plans, iterators and row containers remain type-erased. The runtime/storage
+kernel is shared by all generated shapes and contains no handwritten
+variadic 1–4 matrix.
+
+The source-compatible spelling remains `world.ForEach(...)`, but the generated
+member is an extension method when the call is emitted for a consumer
+assembly. A consumer must reference the DeltaECS analyzer/source-generator;
+the generator cannot add instance members to a previously compiled `World`.
+This is source-compatible API evolution, not a promise that an old binary
+compiled against removed fixed-matrix instance methods will resolve the new
+extension.
 
 Ordered sequence execution is available both directly and through the
 non-owning fluent facade:
@@ -121,6 +138,9 @@ Generated dense `ForEach` owns query validation and access preparation.
 Explicit `OpenQuery` remains the advanced path for direct three-loop traversal.
 Both routes use the existing type-erased query plan and chunk cursor; no
 generic component type is carried by `Query`, an access token or an iterator.
+The generator has a documented maximum generated arity of 256, matching the
+component-mask capacity. Calls above that limit produce a diagnostic instead
+of silently falling back to a handwritten matrix.
 
 The root scope validates ownership and owns the lease. The archetype, chunk and
 slot iterators contain only their own traversal state; dense `MoveNext` methods

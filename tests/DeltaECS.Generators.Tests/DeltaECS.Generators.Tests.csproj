@@ -15,6 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\DeltaECS\DeltaECS.csproj" />
     <ProjectReference Include="..\..\src\DeltaECS.Generators\DeltaECS.Generators.csproj" />
+    <ProjectReference Include="..\DeltaECS.Generators.Consumer\DeltaECS.Generators.Consumer.csproj" />
   </ItemGroup>
 
   <ItemGroup>

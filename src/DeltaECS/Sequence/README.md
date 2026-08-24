@@ -32,13 +32,13 @@ input and applies `query` as a filter and access contract; it does not enumerate
 whole world. Stale, destroyed and foreign entities follow the same rejection rules
 as existing explicit-sequence structural operations.
 
-Typed component callbacks use the generated arity 1..4 read/write matrix shared
-with dense `World.ForEach`. Reads are `in T`, writes are `ref T`, and an
-explicit generated tag such as `ForEachAccessTag_RW.Instance` selects every
-non-all-write signature without ambiguous lambda overloads. The sequence
-kernel validates access once, resolves entity records directly, caches the
-last archetype row plan and accesses chunk rows without public atomic
-`TryGet`/`Set` calls or a second storage model.
+Typed component callbacks use the same consumer-demand generator as dense
+`World.ForEach`, up to the 256-component mask capacity. Reads are `in T`,
+writes are `ref T`, and an explicit generated tag such as
+`ForEachAccessTag_RW.Instance` selects every non-all-write signature without
+ambiguous lambda overloads. The sequence kernel validates access once, resolves
+entity records directly, caches the last archetype row plan and accesses chunk
+rows without public atomic `TryGet`/`Set` calls or a second storage model.
 
 Structural terminals are `Add`, `Remove` and `Destroy`. Filtered terminals
 copy matching candidates into reusable world-owned scratch and then call the

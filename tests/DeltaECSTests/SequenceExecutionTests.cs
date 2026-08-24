@@ -143,8 +143,6 @@ public sealed class SequenceExecutionTests
 
         world.Entities(candidates).Where(in query).ForEach<List<Entity>, SequencePosition, SequenceVelocity>(
             ref context,
-            positionId,
-            velocityId,
             static (ref List<Entity> visited, Entity entity, in SequencePosition position, ref SequenceVelocity velocity) =>
             {
                 visited.Add(entity);
@@ -189,8 +187,6 @@ public sealed class SequenceExecutionTests
 
         world.Entities(candidates).Where(in query).ForEach<int, SequencePosition, SequenceVelocity>(
             ref sum,
-            positionId,
-            velocityId,
             static (ref int total, in SequencePosition position, in SequenceVelocity velocity) =>
                 total += position.Value + velocity.Value,
             ForEachAccessTag_RR.Instance);
@@ -204,8 +200,6 @@ public sealed class SequenceExecutionTests
 
         var functor = new SequenceMovementFunctor();
         world.Entities(candidates).Where(in query).ForEach<SequenceMovementFunctor, SequencePosition, SequenceVelocity>(
-            positionId,
-            velocityId,
             ref functor,
             ForEachEntityTag.Instance,
             ForEachAccessTag_RW.Instance);
@@ -234,8 +228,6 @@ public sealed class SequenceExecutionTests
         var candidates = new[] { marked, plain, marked, plain };
 
         world.Entities(candidates).Where(in query).ForEach<SequencePosition, SequenceVelocity>(
-            positionId,
-            velocityId,
             static (in SequencePosition position, ref SequenceVelocity velocity) =>
                 velocity.Value += position.Value,
             ForEachAccessTag_RW.Instance);
@@ -258,10 +250,8 @@ public sealed class SequenceExecutionTests
         Stamp before = world.Stamp;
 
         world.Entities(Array.Empty<Entity>()).ForEach<SequenceVelocity>(
-            velocityId,
             static (ref SequenceVelocity velocity) => velocity.Value++);
         world.Entities(new[] { stale }).ForEach<SequenceVelocity>(
-            velocityId,
             static (ref SequenceVelocity velocity) => velocity.Value++);
 
         Assert.That(world.Stamp, Is.EqualTo(before));

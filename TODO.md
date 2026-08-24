@@ -22,10 +22,22 @@
 - [x] Standardize structural APIs without expanding `IEcsWorld`: preserve the
   stable non-generic iteration path, complete the generic single-entity
   boundary and keep generic types out of storage and query plans.
-- [x] Generate the `World.ForEach` delegate and struct-functor matrices for
-  component arities, with and without context, with and without `Entity`, plus
-  the entity-only form. Generated variants must share the same execution
-  kernels and deterministic source-generation tests.
+- [x] Replace the fixed producer-owned `World.ForEach` 1–4 matrix with a
+  demand-driven consumer-assembly source generator. Preserve the outer
+  `world.ForEach(...)` spelling through generated extension methods; the
+  analyzer must emit only the callback shapes actually used by the consumer.
+  Support the entity-only form, with/without context, with/without `Entity`,
+  delegate and struct-functor callbacks, and arbitrary requested read/write
+  patterns up to the 256-component mask capacity.
+- [x] Complete the no-ID component form: resolve every generic component type
+  independently to its registry primary `ComponentId`, even when the query
+  contains additional required components. Keep explicit-ID overloads for
+  secondary registrations of the same CLR type.
+- [x] Remove the obsolete fixed 1–4 generated matrix after all consumers are
+  migrated. Keep the runtime/storage/query path type-erased; generic types may
+  appear only in registration and at the generated callback/ref boundary.
+  Prove consumer-assembly analyzer execution with a separate fixture and
+  deterministic source-generation coverage, then run the normal Release gates.
 - [x] Define and validate the `Sequence` surface for ordered entity spans,
   including non-generic, generic, delegate and functor terminals where each
   form is justified. Fluent builders remain allocation-free facades over the

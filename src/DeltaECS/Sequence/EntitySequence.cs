@@ -19,6 +19,12 @@ public readonly ref partial struct EntitySequence
 
     public int Count => _entities.Length;
 
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public World GeneratedWorld => _world;
+
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public ReadOnlySpan<Entity> GeneratedEntities => _entities;
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void ForEach(ForEachEntityAction action) => _world.ForEach(_entities, action);
 
@@ -63,6 +69,15 @@ public readonly ref partial struct FilteredEntitySequence
     }
 
     public int Count => _entities.Length;
+
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public World GeneratedWorld => _world;
+
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public ReadOnlySpan<Entity> GeneratedEntities => _entities;
+
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public Query GeneratedQuery => _query;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void ForEach(ForEachEntityAction action) => _world.ForEach(_entities, in _query, action);
