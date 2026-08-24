@@ -51,6 +51,24 @@ public sealed partial class World
         context = invoker.Context;
     }
 
+    /// <summary>
+    /// Entry point for a functor that processes matching entities without components.
+    /// Generated component-bearing forms support any arity, for example
+    /// <code>world.ForEachEntity(in query, functor);</code>
+    /// </summary>
+    public void ForEachEntity<T>(in Query query, T action) where T : IForEachEntity
+    {
+    }
+
+    /// <summary>
+    /// Entry point for a functor that processes matching components.
+    /// Generated forms support any arity, for example
+    /// <code>world.ForEach(in query, functor);</code>
+    /// </summary>
+    public void ForEach<T>(in Query query, T action) where T : IForEach
+    {
+    }
+
     private struct ActionInvoker : IGeneratedForEachInvoker
     {
         private readonly ForEachAction _action;

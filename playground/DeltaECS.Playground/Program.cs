@@ -26,8 +26,10 @@ world.Where(spec).ForEach(static (ref Position position, in Velocity velocity) =
 });
 // Ordered sequence API: filter the supplied entities, then run an entity callback.
 world.From(entities).Query(query).ForEachEntity(static entity => Console.WriteLine($"updated {entity}"));
-world.ForEach(in query).ForEach()
-//world.ForEach(in query)
+world.ForEach(in query, (ref Position p) => { });
+
+var functor = new Functor();
+world.ForEach(in query, ref functor);
 
 public struct Position
 {
@@ -39,4 +41,9 @@ public struct Velocity
 {
     public float X;
     public float Y;
+}
+
+struct Functor : IForEach
+{
+    public void Invoke(ref Position p) => _ = p;
 }
