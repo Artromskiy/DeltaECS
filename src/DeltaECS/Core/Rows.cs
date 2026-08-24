@@ -22,7 +22,6 @@ public readonly ref struct ObjectReadValues
 
     public object? Get(QuerySlots slots) => _row.GetValue(slots.CurrentIndex);
 
-    public object? Get(QueryChunkCursor cursor) => _row.GetValue(cursor.CurrentIndex);
 }
 
 public readonly ref struct ObjectWriteValues
@@ -39,7 +38,6 @@ public readonly ref struct ObjectWriteValues
 
     public void Set(QuerySlots slots, object? value) => Set(slots.CurrentIndex, value);
 
-    public void Set(QueryChunkCursor cursor, object? value) => Set(cursor.CurrentIndex, value);
 
     private void Set(int index, object? value)
     {

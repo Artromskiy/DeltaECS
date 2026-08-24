@@ -473,47 +473,6 @@ public sealed partial class World : IDisposable
         return destroyed;
     }
 
-    /// <summary>
-    /// Executes a query through the experimental Version 1 cursor path.
-    /// The cursor is valid only for the callback invocation and must not be retained.
-    /// </summary>
-    public void Execute<TContext>(in Query handle, ref TContext context, QueryChunkAction<TContext> action)
-    {
-        if (!ReferenceEquals(handle.Owner, this) || !handle.IsValid)
-        {
-            throw new ArgumentException("Query handle does not belong to this world.", nameof(handle));
-        }
-
-        var cached = handle.Cached;
-        var plans = cached.MatchingPlans(this);
-        QueryWriteSession writeSession = RentQueryWriteSession(cached, out int sessionGeneration);
-        _activeChunkLeases++;
-        try
-        {
-            for (int planIndex = 0; planIndex < plans.Length; planIndex++)
-            {
-                var plan = plans[planIndex];
-                var archetype = plan.Archetype;
-                for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
-                {
-                    var chunk = archetype.GetActiveChunk(chunkIndex);
-                    var cursor = new QueryChunkCursor(
-                        cached,
-                        archetype.Id,
-                        chunk,
-                        plan.ComponentRows,
-                        writeSession,
-                        sessionGeneration);
-                    action(ref context, ref cursor);
-                }
-            }
-        }
-        finally
-        {
-            ReturnQueryWriteSession(writeSession, sessionGeneration);
-        }
-    }
-
     /// <summary>Executes a compiler-generated dense-query invoker.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public void ExecuteGeneratedForEach<TInvoker>(in Query handle, ref TInvoker invoker, bool hasWrites)
@@ -529,18 +488,11 @@ public sealed partial class World : IDisposable
             for (int planIndex = 0; planIndex < plans.Length; planIndex++)
             {
                 ArchetypePlan plan = plans[planIndex];
-                Archetype archetype = plan.Archetype;
-                for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
+                ReadOnlySpan<ChunkPlan> chunks = plan.Chunks;
+                for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
                 {
-                    Chunk chunk = archetype.GetActiveChunk(chunkIndex);
-                    var cursor = new QueryChunkCursor(
-                        cached,
-                        archetype.Id,
-                        chunk,
-                        plan.ComponentRows,
-                        writeSession,
-                        sessionGeneration);
-                    invoker.Invoke(ref cursor);
+                    var slots = new QuerySlots(plan, chunks[chunkIndex], cached, writeSession, sessionGeneration);
+                    invoker.Invoke(ref slots);
                 }
             }
         }

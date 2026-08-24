@@ -182,13 +182,12 @@ public sealed class DemandDrivenForEachGeneratorTests
         }
         public ref struct ReadRow
         {
-            public ref T Ref<T>(QueryChunkCursor cursor) => throw new NotImplementedException();
+            public ref T Ref<T>(QuerySlots slots) => throw new NotImplementedException();
             public ref T Ref<T>(int index) => throw new NotImplementedException();
         }
-        public ref struct QueryChunkCursor
+        public ref struct QuerySlots
         {
-            public ReadOnlySpan<Entity> Entities => default;
-            public int CurrentIndex => 0;
+            public Entity CurrentEntity => default;
             public bool MoveNext() => false;
             public ReadRow GetRow(ReadAccess access) => default;
             public ReadRow GetRow(WriteAccess access) => default;
@@ -200,7 +199,7 @@ public sealed class DemandDrivenForEachGeneratorTests
             public ReadRow GetRow(ReadAccess access) => default;
             public ReadRow GetRow(WriteAccess access) => default;
         }
-        public interface IGeneratedForEachInvoker { void Invoke(ref QueryChunkCursor cursor); }
+        public interface IGeneratedForEachInvoker { void Invoke(ref QuerySlots slots); }
         public interface IGeneratedSequenceInvoker { void Invoke(ref GeneratedSequenceCursor cursor); }
         public static class GeneratedForEachRuntime
         {

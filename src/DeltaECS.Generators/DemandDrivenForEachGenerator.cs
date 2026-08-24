@@ -513,16 +513,16 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
     private static void RenderDenseInvoke(StringBuilder source, Shape shape)
     {
-        source.AppendLine("    public void Invoke(ref QueryChunkCursor cursor)");
+        source.AppendLine("    public void Invoke(ref QuerySlots slots)");
         source.AppendLine("    {");
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
-            source.Append("        var values").Append(index).Append(" = cursor.GetRow(_access").Append(index).AppendLine(");");
+            source.Append("        var values").Append(index).Append(" = slots.GetRow(_access").Append(index).AppendLine(");");
         }
-        source.AppendLine("        while (cursor.MoveNext())");
+        source.AppendLine("        while (slots.MoveNext())");
         source.AppendLine("        {");
         source.Append("            ");
-        AppendInvocation(source, shape, "values", "cursor", sequence: false);
+        AppendInvocation(source, shape, "values", "slots", sequence: false);
         source.AppendLine(";");
         source.AppendLine("        }");
         source.AppendLine("    }");
@@ -552,7 +552,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         if (shape.HasEntity)
         {
-            invocationArguments.Add(sequence ? "cursor.Entity" : "cursor.Entities[cursor.CurrentIndex]");
+            invocationArguments.Add(sequence ? "cursor.Entity" : "slots.CurrentEntity");
         }
         if (shape.IsFunctor)
         {

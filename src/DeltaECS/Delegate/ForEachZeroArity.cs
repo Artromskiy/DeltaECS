@@ -5,82 +5,102 @@ public sealed partial class World
     public void ForEach(in Query query, ForEachAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        Execute(in query, ref action, static (ref ForEachAction callback, ref QueryChunkCursor cursor) =>
-        {
-            while (cursor.MoveNext())
-            {
-                callback();
-            }
-        });
+        var invoker = new ActionInvoker(action);
+        ExecuteGeneratedForEach(in query, ref invoker, hasWrites: false);
     }
 
     public void ForEachEntity(in Query query, ForEachEntityAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        Execute(in query, ref action, static (ref ForEachEntityAction callback, ref QueryChunkCursor cursor) =>
-        {
-            while (cursor.MoveNext())
-            {
-                callback(cursor.Entities[cursor.CurrentIndex]);
-            }
-        });
+        var invoker = new EntityActionInvoker(action);
+        ExecuteGeneratedForEach(in query, ref invoker, hasWrites: false);
     }
 
-    public void ForEach<TContext>(
-        in Query query,
-        ref TContext context,
-        ForEachContextAction<TContext> action)
+    public void ForEach<TContext>(in Query query, ref TContext context, ForEachContextAction<TContext> action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        var state = new ContextActionState<TContext>(context, action);
-        Execute(in query, ref state, static (ref ContextActionState<TContext> state, ref QueryChunkCursor cursor) =>
-        {
-            while (cursor.MoveNext())
-            {
-                state.Action(ref state.Context);
-            }
-        });
-        context = state.Context;
+        var invoker = new ContextActionInvoker<TContext>(context, action);
+        ExecuteGeneratedForEach(in query, ref invoker, hasWrites: false);
+        context = invoker.Context;
     }
 
-    public void ForEachEntity<TContext>(
-        in Query query,
-        ref TContext context,
-        ForEachContextEntityAction<TContext> action)
+    public void ForEachEntity<TContext>(in Query query, ref TContext context, ForEachContextEntityAction<TContext> action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        var state = new ContextEntityActionState<TContext>(context, action);
-        Execute(in query, ref state, static (ref ContextEntityActionState<TContext> state, ref QueryChunkCursor cursor) =>
-        {
-            while (cursor.MoveNext())
-            {
-                state.Action(ref state.Context, cursor.Entities[cursor.CurrentIndex]);
-            }
-        });
-        context = state.Context;
+        var invoker = new ContextEntityActionInvoker<TContext>(context, action);
+        ExecuteGeneratedForEach(in query, ref invoker, hasWrites: false);
+        context = invoker.Context;
     }
 
-    private struct ContextActionState<TContext>
+    private struct ActionInvoker : IGeneratedForEachInvoker
     {
-        public ContextActionState(TContext context, ForEachContextAction<TContext> action)
+        private readonly ForEachAction _action;
+
+        public ActionInvoker(ForEachAction action) => _action = action;
+
+        public void Invoke(ref QuerySlots slots)
+        {
+            while (slots.MoveNext())
+            {
+                _action();
+            }
+        }
+    }
+
+    private struct EntityActionInvoker : IGeneratedForEachInvoker
+    {
+        private readonly ForEachEntityAction _action;
+
+        public EntityActionInvoker(ForEachEntityAction action) => _action = action;
+
+        public void Invoke(ref QuerySlots slots)
+        {
+            while (slots.MoveNext())
+            {
+                _action(slots.CurrentEntity);
+            }
+        }
+    }
+
+    private struct ContextActionInvoker<TContext> : IGeneratedForEachInvoker
+    {
+        private readonly ForEachContextAction<TContext> _action;
+
+        public ContextActionInvoker(TContext context, ForEachContextAction<TContext> action)
         {
             Context = context;
-            Action = action;
+            _action = action;
         }
 
         public TContext Context;
-        public ForEachContextAction<TContext> Action;
+
+        public void Invoke(ref QuerySlots slots)
+        {
+            while (slots.MoveNext())
+            {
+                _action(ref Context);
+            }
+        }
     }
 
-    private struct ContextEntityActionState<TContext>
+    private struct ContextEntityActionInvoker<TContext> : IGeneratedForEachInvoker
     {
-        public ContextEntityActionState(TContext context, ForEachContextEntityAction<TContext> action)
+        private readonly ForEachContextEntityAction<TContext> _action;
+
+        public ContextEntityActionInvoker(TContext context, ForEachContextEntityAction<TContext> action)
         {
             Context = context;
-            Action = action;
+            _action = action;
         }
 
         public TContext Context;
-        public ForEachContextEntityAction<TContext> Action;
+
+        public void Invoke(ref QuerySlots slots)
+        {
+            while (slots.MoveNext())
+            {
+                _action(ref Context, slots.CurrentEntity);
+            }
+        }
     }
 }

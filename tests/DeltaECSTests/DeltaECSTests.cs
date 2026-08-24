@@ -626,13 +626,12 @@ public sealed class DeltaECSDeliveryTests
         Assert.That(assembly.GetType("Delta.ECS.DenseChunkScope"), Is.Null);
 
         var publicMethods = typeof(World).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
-        Assert.That(publicMethods.Any(static method => method.Name == "Execute"), Is.True);
+        Assert.That(publicMethods.Any(static method => method.Name == "Execute"), Is.False);
         Assert.That(publicMethods.Any(static method => method.Name == "QueryChunks"), Is.False);
 
         var publicInstance = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public;
         Assert.That(typeof(Query).GetMethods(publicInstance).Any(static method => method.Name == "Access" && method.IsGenericMethod), Is.False);
         Assert.That(typeof(QueryScope).GetMethods(publicInstance).Any(static method => method.Name.StartsWith("Bind", StringComparison.Ordinal) && method.IsGenericMethod), Is.False);
-        Assert.That(typeof(QueryChunkCursor).GetMethods(publicInstance).Any(static method => method.Name == "Get" && method.IsGenericMethod), Is.False);
         Assert.That(typeof(QuerySlots).GetMethods(publicInstance).Any(static method => method.Name == "Get" && method.IsGenericMethod), Is.False);
         Assert.That(assembly.GetType("Delta.ECS.ReadRow`1"), Is.Null);
         Assert.That(assembly.GetType("Delta.ECS.WriteRow`1"), Is.Null);

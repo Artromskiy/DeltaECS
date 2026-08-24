@@ -670,24 +670,6 @@ public sealed class StampInvariantTests
     }
 
     [Test]
-    public void EmptyWorldQueryDoesNotAdvanceWithoutAChunkWrite()
-    {
-        var layouts = CreateLayouts();
-        using var world = new World(layouts, chunkCapacity: 2);
-        var emptyQuery = world.CreateQuery(QuerySpec.ForComponents(PositionId));
-        _ = emptyQuery.AccessWrite(PositionId);
-        int callbackCount = 0;
-        Stamp beforeCallback = world.Stamp;
-        world.Execute(in emptyQuery, ref callbackCount, static (ref int count, ref QueryChunkCursor cursor) =>
-        {
-            count++;
-            _ = cursor;
-        });
-        Assert.That(callbackCount, Is.Zero);
-        Assert.That(world.Stamp, Is.EqualTo(beforeCallback), "World.Execute must not reserve a stamp when no chunk callback runs.");
-    }
-
-    [Test]
     public void BoundWriteScopeWithoutIterationDoesNotAdvanceWithoutAWrite()
     {
         var layouts = CreateLayouts();
@@ -708,90 +690,6 @@ public sealed class StampInvariantTests
         Assert.That(world.Stamp, Is.EqualTo(before));
         Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp stamp), Is.True);
         Assert.That(stamp, Is.EqualTo(before));
-    }
-
-    [Test]
-    public void WorldQueryCallbackWithoutWriteAccessDoesNotAdvanceWithoutAWrite()
-    {
-        var layouts = CreateLayouts();
-        using var world = new World(layouts, chunkCapacity: 2);
-        Entity entity = world.Create(PositionId);
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
-        WriteAccess write = query.AccessWrite(PositionId);
-        int callbackCount = 0;
-        Stamp before = world.Stamp;
-
-        world.Execute(in query, ref callbackCount, static (ref int count, ref QueryChunkCursor cursor) =>
-        {
-            count++;
-            // Deliberately do not request a row from the write cursor.
-            _ = cursor.SlotCount;
-        });
-
-        _ = write;
-        Assert.That(callbackCount, Is.EqualTo(1));
-        Assert.That(world.Stamp, Is.EqualTo(before));
-        Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp stamp), Is.True);
-        Assert.That(stamp, Is.EqualTo(before));
-    }
-
-    [Test]
-    public void ReusedWorldQueryWriteSessionStampsEveryChunkOnceAndDoesNotLeakAcrossQueries()
-    {
-        var layouts = CreateLayouts();
-        using var world = new World(layouts, chunkCapacity: 2);
-        Entity[] entities = new Entity[5];
-        world.Create(new[] { PositionId }, entities);
-        var query = world.CreateQuery(QuerySpec.ForComponents(PositionId));
-        var state = new QueryWriteState(query.AccessWrite(PositionId));
-
-        Stamp beforeFirstWrite = world.Stamp;
-        world.Execute(in query, ref state, static (ref QueryWriteState callbackState, ref QueryChunkCursor cursor) =>
-        {
-            WriteRow values = cursor.GetRow(callbackState.Access);
-            while (cursor.MoveNext())
-            {
-                values.Ref<Position>(cursor).X++;
-                callbackState.Count++;
-            }
-        });
-
-        Stamp firstWrite = world.Stamp;
-        Assert.That(firstWrite, Is.EqualTo(new Stamp(beforeFirstWrite.Value + 1)));
-        Assert.That(state.Count, Is.EqualTo(entities.Length));
-        foreach (Entity entity in entities)
-        {
-            Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp stamp), Is.True);
-            Assert.That(stamp, Is.EqualTo(firstWrite));
-        }
-
-        world.Execute(in query, ref state, static (ref QueryWriteState callbackState, ref QueryChunkCursor cursor) =>
-        {
-            callbackState.CallbackCount++;
-            _ = cursor.SlotCount;
-        });
-        Assert.That(world.Stamp, Is.EqualTo(firstWrite));
-        Assert.That(state.CallbackCount, Is.EqualTo(3));
-
-        state.Count = 0;
-        world.Execute(in query, ref state, static (ref QueryWriteState callbackState, ref QueryChunkCursor cursor) =>
-        {
-            WriteRow values = cursor.GetRow(callbackState.Access);
-            while (cursor.MoveNext())
-            {
-                values.Ref<Position>(cursor).X++;
-                callbackState.Count++;
-            }
-        });
-
-        Stamp secondWrite = world.Stamp;
-        Assert.That(secondWrite, Is.EqualTo(new Stamp(firstWrite.Value + 1)));
-        Assert.That(state.Count, Is.EqualTo(entities.Length));
-        foreach (Entity entity in entities)
-        {
-            Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp stamp), Is.True);
-            Assert.That(stamp, Is.EqualTo(secondWrite));
-        }
     }
 
     [Test]
@@ -1305,15 +1203,4 @@ public sealed class StampInvariantTests
         public Dictionary<ComponentId, Stamp> Stamps { get; }
     }
 
-    private struct QueryWriteState
-    {
-        public QueryWriteState(WriteAccess access)
-        {
-            Access = access;
-        }
-
-        public WriteAccess Access;
-        public int CallbackCount;
-        public int Count;
-    }
 }

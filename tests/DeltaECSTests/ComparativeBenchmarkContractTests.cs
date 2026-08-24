@@ -46,7 +46,7 @@ public sealed class ComparativeBenchmarkContractTests
     }
 
     [Test]
-    public void Benchmark_sources_use_cursor_row_access()
+    public void Benchmark_sources_use_slot_row_access()
     {
         var benchmarkRoot = FindBenchmarkRoot();
         var ordinalAccess = new Regex(@"GetComponentRow<[^>]+>\(\s*\d+\s*\)", RegexOptions.CultureInvariant);
@@ -58,15 +58,7 @@ public sealed class ComparativeBenchmarkContractTests
             Assert.That(ordinalAccess.IsMatch(File.ReadAllText(source)), Is.False, source);
         }
 
-        var publicGetRowMethods = typeof(QueryChunkCursor)
-            .GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)
-            .Where(method => method.Name == nameof(QueryChunkCursor.GetRow))
-            .ToArray();
-        Assert.That(
-            publicGetRowMethods.All(method => method.GetParameters() is [{ ParameterType: var type }]
-                && (type == typeof(ReadAccess) || type == typeof(WriteAccess))),
-            Is.True,
-            "QueryChunkCursor.GetRow must stay access-token based and must not expose ordinal row lookup.");
+        Assert.That(typeof(World).Assembly.GetType("Delta.ECS.QueryChunkCursor"), Is.Null);
     }
 
     private static string FindBenchmarkRoot()

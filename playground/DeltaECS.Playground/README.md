@@ -9,10 +9,8 @@ Run it from the repository root:
 dotnet run --project playground/DeltaECS.Playground/DeltaECS.Playground.csproj -c Release
 ```
 
-The sample demonstrates both retained query surfaces:
-
-- `World.OpenQuery` with independent archetype, chunk and slot loops;
-- `World.Execute` with a callback/action.
+The sample demonstrates `World.OpenQuery` with independent archetype, chunk
+and slot loops. Generated `ForEach` overloads are the callback surface.
 
 Add temporary components, queries and experiments to `Program.cs`. Keep
 performance measurements in the benchmark projects instead.

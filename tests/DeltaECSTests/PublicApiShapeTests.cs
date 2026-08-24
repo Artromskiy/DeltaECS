@@ -19,7 +19,6 @@ public sealed class PublicApiShapeTests
         typeof(QuerySlots),
         typeof(ReadAccess),
         typeof(WriteAccess),
-        typeof(QueryChunkCursor),
         typeof(ReadRow),
         typeof(WriteRow),
         typeof(ObjectReadValues),

@@ -371,7 +371,8 @@ while (archetypes.MoveNext())
 }
 ```
 
-Queries use the component path through `World.Execute` or `OpenQuery`.
+Queries use the component path through `OpenQuery`; generated `ForEach`
+overloads reuse the same slot iterator internally.
 The microbenchmark catalog contains this dense path and the four direct
 structural operations below it; removed duplicate traversal fixtures are not
 part of discovery or measurement routes.

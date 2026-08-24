@@ -1,13 +1,32 @@
 # DeltaECS
 
-Standalone archetype ECS kernel focused on dense iteration, immediate
+Standalone archetype ECS kernel focused on fast component iteration, immediate
 structural changes, batch operations and predictable memory use.
 Public namespace is `Delta.ECS`; project/assembly names remain `DeltaECS*`.
+
+## API organization
+
+The implementation is split by API role while sharing one archetype/chunk
+storage model:
+
+| Area | Public role | Details |
+|---|---|---|
+| Core | entities, component IDs, structural operations, queries and explicit traversal | [Core API](src/DeltaECS/Core/README.md) |
+| Generic | typed registration, single-item helpers and terminal row refs | [Generic API](src/DeltaECS/Generic/README.md) |
+| Delegate | `Execute` and delegate `ForEach` callbacks | [Delegate API](src/DeltaECS/Delegate/README.md) |
+| Functor | struct-based `ForEach` callbacks | [Functor API](src/DeltaECS/Functor/README.md) |
+| Sequence | ordered execution over explicit entity candidates | [Sequence API](src/DeltaECS/Sequence/README.md) |
+| Integration | neutral runtime/editor `IEcsWorld` boundary | [Integration API](src/DeltaECS/API/README.md) |
+| Stamps | world/catalog/component mutation revisions | [Stamp contract](src/DeltaECS/Stamps/README.md) |
+
+The [source API index](src/DeltaECS/README.md) maps folders, and the
+[consumer generator README](src/DeltaECS.Generators/README.md) explains
+demand-driven component callback generation.
 
 ## Storage
 
 - `Entity` is index + generation; `EntityRecord` resolves its location.
-- `ComponentId` is dense runtime identity; schema IDs are stable tooling
+- `ComponentId` is compact runtime identity; schema IDs are stable tooling
   identity; `Type` is cold registration metadata.
 - Archetypes currently use an opaque 256-bit mask. Registration beyond that
   checked capacity is an implementation-limit error; widening is not promised
@@ -36,10 +55,10 @@ component type is supplied only at registration and at the terminal
 internal.
 
 For explicit low-level traversal, `world.OpenQuery(in query)` exposes three
-independent nested loops: archetype, chunk and forward slot. `World.Execute` is
-the callback form of the same dense component selection.
+independent nested loops: archetype, chunk and forward slot. Generated
+`ForEach` delegate and functor overloads provide the callback form.
 
-The dense API has three deliberately separate stages: `QuerySpec` describes
+The query API has three deliberately separate stages: `QuerySpec` describes
 selection, `World.CreateQuery` returns the world-owned `Query`, and
 `query.AccessRead(id)` or `query.AccessWrite(id)` declares component access and
 returns the corresponding non-generic `ReadAccess` or `WriteAccess` token. Inside an
@@ -50,7 +69,7 @@ terminal `Ref<T>` call provides the component reference.
 pre-loop mismatch validation is selected correctness work; callers must not
 use a different `T` to reinterpret row storage.
 
-Queries use the thinner independent dense path:
+Queries use the independent three-level path:
 
 ```csharp
 using var scope = world.OpenQuery(in query);
@@ -81,7 +100,7 @@ archetype/chunk/slot traversal remain non-generic. Thin single-item helpers
 the component type and delegate to those existing kernels; they do not create
 a typed storage or query layer.
 
-`World.ForEach` is the high-level dense entry point. Its delegate and
+`World.ForEach` is the high-level component-query entry point. Its delegate and
 struct-functor overloads are generated on demand in the consumer assembly by
 the DeltaECS analyzer. The generator inspects the calls that the consumer
 actually makes and emits only the requested callback shapes:
@@ -93,7 +112,7 @@ actually makes and emits only the requested callback shapes:
 | Component arity | zero components and any practical arity up to the 256-component mask capacity |
 | Component access | any read/write pattern for the requested arity |
 | Component ID form | no-ID primary registration, or explicit IDs for secondary registrations of the same CLR type |
-| Dense selection | prepared `Query`; the generator emits extension methods in the consumer assembly |
+| Selection | prepared `Query`; the generator emits extension methods in the consumer assembly |
 
 Read arguments are passed as `in T`; write arguments are passed as `ref T`.
 The component type is validated against the registered `ComponentId` before
@@ -130,11 +149,11 @@ It preserves input order and duplicate occurrences, skips stale entities and
 uses the same generated delegate/functor matrix, including typed mixed
 read/write callbacks. Typed sequence execution resolves entity records
 directly, caches the last archetype row plan and invokes the same generated
-state used by dense execution; it does not loop through public single-item
+state used by world-query execution; it does not loop through public single-item
 `TryGet`/`Set` calls and does not introduce another storage model. Structural
 `Add`/`Remove`/`Destroy` terminals forward to the existing batch kernels.
 
-Generated dense `ForEach` owns query validation and access preparation.
+Generated `ForEach` owns query validation and access preparation.
 Explicit `OpenQuery` remains the advanced path for direct three-loop traversal.
 Both routes use the existing type-erased query plan and chunk cursor; no
 generic component type is carried by `Query`, an access token or an iterator.
@@ -143,7 +162,7 @@ component-mask capacity. Calls above that limit produce a diagnostic instead
 of silently falling back to a handwritten matrix.
 
 The root scope validates ownership and owns the lease. The archetype, chunk and
-slot iterators contain only their own traversal state; dense `MoveNext` methods
+slot iterators contain only their own traversal state; their `MoveNext` methods
 contain no world or lifetime branch.
 
 Structural mutation is invalid while a conflicting row lease is active. This

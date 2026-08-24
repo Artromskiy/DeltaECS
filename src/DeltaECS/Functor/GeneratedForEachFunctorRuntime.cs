@@ -8,7 +8,7 @@ using System.Runtime.CompilerServices;
 [EditorBrowsable(EditorBrowsableState.Never)]
 public interface IGeneratedForEachInvoker
 {
-    void Invoke(ref QueryChunkCursor cursor);
+    void Invoke(ref QuerySlots slots);
 }
 
 /// <summary>Compiler-support contract for generated entity-sequence functor invokers.</summary>

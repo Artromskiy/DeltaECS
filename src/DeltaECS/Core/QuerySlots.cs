@@ -50,6 +50,12 @@ public ref struct QuerySlots
         get => _index;
     }
 
+    public Entity CurrentEntity
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _chunk.Entities[_index];
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNext()
     {

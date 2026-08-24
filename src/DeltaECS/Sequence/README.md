@@ -1,57 +1,61 @@
-# Sequence execution API
+# Sequence API
 
-Status: implemented for ordered entity-only and typed component execution,
-query filtering, and structural batch terminals.
+Sequence execution processes an explicit ordered `ReadOnlySpan<Entity>`. It is
+not query-wide archetype traversal and it does not own or copy the input span.
 
-This folder is reserved for the type-erased implementation of explicit entity-sequence
-execution. Public entry points remain on `World`; sequence execution must not introduce
-a second query object or expose storage adapters.
+## Entry points
 
-The selected API family is:
+Direct and fluent spellings share the same implementation:
 
 ```csharp
 world.ForEachEntity(entities, action);
 world.ForEachEntity(entities, in query, action);
-```
 
-The fluent facade is:
-
-```csharp
 world.Entities(entities).ForEachEntity(action);
 world.Entities(entities).Where(in query).ForEachEntity(action);
 ```
 
-Both spellings use the generated entity delegate contracts, with and without
-caller context. Struct functors use `IForEachEntity` or
-`IForEachContextEntity<TContext>`. The facade is non-generic selection state
-and does not expose a second query, row or storage adapter.
+The query overload treats the sequence as candidates and filters only those
+entities. It does not enumerate every entity matching the query. Valid entries
+retain input order and duplicate occurrences; stale, destroyed and foreign
+handles are skipped.
 
-`entities` is a `ReadOnlySpan<Entity>`. The first overload executes against every
-valid entity in the supplied order. The second treats the sequence as the candidate
-input and applies `query` as a filter and access contract; it does not enumerate the
-whole world. Stale, destroyed and foreign entities follow the same rejection rules
-as existing explicit-sequence structural operations.
+`EntitySequence` and `FilteredEntitySequence` are borrowed `ref struct` facades.
+They cannot escape the lifetime of their input span.
 
-Typed component callbacks use the same consumer-demand generator as dense
-`World.ForEach` for one through 256 components. Zero-component `ForEach` and
-`ForEachEntity` callbacks are handwritten runtime overloads: entity callbacks
-receive only the entity, while `ForEach` callbacks receive neither an entity nor
-component values. Reads are `in T`, writes are `ref T`. The generator infers the
-access pattern from `in T` and `ref T` callback parameters or a functor's `Invoke`
-method; no marker argument is required. The
-sequence kernel validates access once, resolves
-entity records directly, caches the last archetype row plan and accesses chunk
-rows without public atomic `TryGet`/`Set` calls or a second storage model.
+## Typed callbacks
 
-Structural terminals are `Add`, `Remove` and `Destroy`. Filtered terminals
-copy matching candidates into reusable world-owned scratch and then call the
-existing batch kernels; the facade performs no per-call pool rent and does not
-loop through public atomic operations.
+Component-bearing delegate and functor overloads use the same consumer-demand
+generator as world-wide `ForEach`:
 
-Performance constraints:
+```csharp
+world.Entities(entities).Where(in query)
+    .ForEachEntity<Position, Velocity>(
+        static (Entity entity, ref Position position, in Velocity velocity) =>
+        {
+            position.X += velocity.X;
+        });
+```
 
-- no LINQ, reflection, adapter dispatch or per-entity allocation;
-- validate query/access declarations once before sequence traversal;
-- preserve sequence order and duplicate occurrences unless a separately named
-  unordered batch API is introduced;
-- do not silently convert sequence execution into query-wide archetype traversal.
+Reads are `in T`; writes are `ref T`. Entity records are resolved directly and
+the last archetype row plan is cached. Sequence execution does not loop through
+public atomic `TryGet`/`Set` calls and does not introduce a second storage model.
+
+Zero-component delegate and struct-functor forms are handwritten. Generated
+component-bearing forms support context, entity/no-entity callback shapes,
+primary registrations and explicit component IDs.
+
+## Structural terminals
+
+```csharp
+int added = world.Entities(entities).Add(componentIds);
+int removed = world.Entities(entities).Where(in query).Remove(componentIds);
+int destroyed = world.Entities(entities).Destroy();
+```
+
+`Add`, `Remove`, and `Destroy` forward to the world batch kernels. Filtered
+terminals collect matching candidates in reusable world-owned scratch before
+calling those kernels; they do not rent a new array per call.
+
+Sequence APIs preserve order for callbacks. Structural terminals return the
+number of entities actually changed or destroyed.
