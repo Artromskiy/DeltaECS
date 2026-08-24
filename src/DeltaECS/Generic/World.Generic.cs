@@ -55,6 +55,7 @@ public sealed partial class World
     /// </summary>
     public T Get<T>(Entity entity, ComponentId componentId)
     {
+        EnsureRegisteredType<T>(componentId);
         if (!TryGet(entity, componentId, out T value))
         {
             throw new InvalidOperationException(
@@ -76,8 +77,14 @@ public sealed partial class World
 
     private void EnsureRegisteredType<T>(ComponentId componentId)
     {
-        if (!_layouts.TryGet(componentId, out var layout)
-            || layout.RuntimeType != typeof(T))
+        if (!_layouts.TryGet(componentId, out var layout))
+        {
+            throw new ArgumentException(
+                $"Component {componentId} is not registered in this world.",
+                nameof(componentId));
+        }
+
+        if (layout.RuntimeType != typeof(T))
         {
             throw new ArgumentException(
                 $"Component {componentId} is registered as {layout.RuntimeType}, not {typeof(T)}.",

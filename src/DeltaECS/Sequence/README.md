@@ -1,7 +1,7 @@
 # Sequence execution API
 
-Status: implemented for ordered entity-only execution and structural batch
-terminals.
+Status: implemented for ordered entity-only and typed component execution,
+query filtering, and structural batch terminals.
 
 This folder is reserved for the type-erased implementation of explicit entity-sequence
 execution. Public entry points remain on `World`; sequence execution must not introduce
@@ -14,7 +14,7 @@ world.ForEach(entities, action);
 world.ForEach(entities, in query, action);
 ```
 
-The fluent facade is planned as:
+The fluent facade is:
 
 ```csharp
 world.Entities(entities).ForEach(action);
@@ -32,14 +32,18 @@ input and applies `query` as a filter and access contract; it does not enumerate
 whole world. Stale, destroyed and foreign entities follow the same rejection rules
 as existing explicit-sequence structural operations.
 
-Typed component callback arities belong to dense `World.ForEach(in query, ...)`.
-They are not projected onto explicit sequences because doing so would require
-a second component-row execution kernel. Sequence component access uses the
-single-item `TryGet<T>/Get<T>/Set<T>` boundary when needed.
+Typed component callbacks use the generated arity 1..4 read/write matrix shared
+with dense `World.ForEach`. Reads are `in T`, writes are `ref T`, and an
+explicit generated tag such as `ForEachAccessTag_RW.Instance` selects every
+non-all-write signature without ambiguous lambda overloads. The sequence
+kernel validates access once, resolves entity records directly, caches the
+last archetype row plan and accesses chunk rows without public atomic
+`TryGet`/`Set` calls or a second storage model.
 
 Structural terminals are `Add`, `Remove` and `Destroy`. Filtered terminals
-first retain only matching candidates and then call the existing batch
-kernels; the facade does not loop through public atomic operations.
+copy matching candidates into reusable world-owned scratch and then call the
+existing batch kernels; the facade performs no per-call pool rent and does not
+loop through public atomic operations.
 
 Performance constraints:
 

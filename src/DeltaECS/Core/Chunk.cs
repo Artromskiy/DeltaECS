@@ -138,6 +138,12 @@ internal sealed class Chunk
         _componentStamps.SetComponentRange(componentIndex, 0, _count, stamp);
     }
 
+    internal void MarkComponentWritten(int componentIndex, int slotIndex, uint worldTick, Stamp stamp)
+    {
+        _componentVersions[componentIndex] = worldTick;
+        _componentStamps.Set(componentIndex, slotIndex, stamp);
+    }
+
     internal Stamp GetComponentStamp(int componentIndex, int slotIndex)
         => _componentStamps.Get(componentIndex, slotIndex);
 

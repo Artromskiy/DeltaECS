@@ -60,19 +60,37 @@ public sealed class SequenceExecutionTests
         var stale = world.Create(new[] { positionId, markerId });
         Assert.That(world.Destroy(stale), Is.True);
         var query = world.CreateQuery(QuerySpec.ForComponents(markerId));
+        Assert.That(world.TryGetComponentStamp(marked, positionId, out Stamp markedPositionBefore), Is.True);
+        Assert.That(world.TryGetComponentStamp(unmarked, positionId, out Stamp unmarkedPositionBefore), Is.True);
 
         var candidates = new[] { unmarked, marked, marked, stale };
         Assert.That(world.Entities(candidates).Where(in query).Add(new[] { velocityId }), Is.EqualTo(1));
+        Stamp afterAdd = world.Stamp;
         Assert.That(world.TryGetComponent<short>(marked, velocityId, out _), Is.True);
         Assert.That(world.TryGetComponent<short>(unmarked, velocityId, out _), Is.False);
         Assert.That(world.TryGetComponent<short>(outsideCandidateSequence, velocityId, out _), Is.False);
+        Assert.That(world.TryGetComponentStamp(marked, positionId, out Stamp markedPositionAfterAdd), Is.True);
+        Assert.That(world.TryGetComponentStamp(marked, velocityId, out Stamp markedVelocityAfterAdd), Is.True);
+        Assert.That(markedPositionAfterAdd, Is.EqualTo(markedPositionBefore));
+        Assert.That(markedVelocityAfterAdd, Is.EqualTo(afterAdd));
 
         Assert.That(world.Entities(candidates).Where(in query).Remove(new[] { velocityId }), Is.EqualTo(1));
+        Stamp afterRemove = world.Stamp;
         Assert.That(world.TryGetComponent<short>(marked, velocityId, out _), Is.False);
+        Assert.That(world.TryGetComponentStamp(marked, positionId, out Stamp markedPositionAfterRemove), Is.True);
+        Assert.That(markedPositionAfterRemove, Is.EqualTo(markedPositionBefore));
+        Assert.That(afterRemove, Is.Not.EqualTo(afterAdd));
 
         Assert.That(world.Entities(candidates).Where(in query).Destroy(), Is.EqualTo(1));
         Assert.That(world.IsAlive(marked), Is.False);
         Assert.That(world.IsAlive(unmarked), Is.True);
+        Assert.That(world.TryGetComponentStamp(unmarked, positionId, out Stamp unmarkedPositionAfter), Is.True);
+        Assert.That(unmarkedPositionAfter, Is.EqualTo(unmarkedPositionBefore));
+
+        Stamp afterDestroy = world.Stamp;
+        Assert.That(world.Entities(candidates).Where(in query).Destroy(), Is.Zero);
+        Assert.That(world.Entities(candidates).Where(in query).Add(new[] { velocityId }), Is.Zero);
+        Assert.That(world.Stamp, Is.EqualTo(afterDestroy));
     }
 
     [Test]
@@ -103,6 +121,132 @@ public sealed class SequenceExecutionTests
         });
     }
 
+    [Test]
+    public void TypedSequenceMixedReadWritePreservesOrderAndExactStamps()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        var positionId = layouts.Register<SequencePosition>(new SchemaId(60_009));
+        var velocityId = layouts.Register<SequenceVelocity>(new SchemaId(60_010));
+        using var world = new World(layouts, chunkCapacity: 2);
+        var first = world.Create(positionId, velocityId);
+        var second = world.Create(positionId, velocityId);
+        var third = world.Create(positionId, velocityId);
+        Assert.That(world.Set(first, positionId, new SequencePosition(1)), Is.True);
+        Assert.That(world.Set(second, positionId, new SequencePosition(2)), Is.True);
+        Assert.That(world.Set(third, positionId, new SequencePosition(3)), Is.True);
+        Assert.That(world.TryGetComponentStamp(first, positionId, out Stamp firstPosition), Is.True);
+        Assert.That(world.TryGetComponentStamp(third, positionId, out Stamp thirdPosition), Is.True);
+        Assert.That(world.TryGetComponentStamp(second, velocityId, out Stamp untouchedVelocity), Is.True);
+        var query = world.CreateQuery(QuerySpec.ForComponents(positionId, velocityId));
+        var candidates = new[] { third, first, third };
+        var context = new List<Entity>();
+
+        world.Entities(candidates).Where(in query).ForEach<List<Entity>, SequencePosition, SequenceVelocity>(
+            ref context,
+            positionId,
+            velocityId,
+            static (ref List<Entity> visited, Entity entity, in SequencePosition position, ref SequenceVelocity velocity) =>
+            {
+                visited.Add(entity);
+                velocity.Value += position.Value;
+            },
+            ForEachAccessTag_RW.Instance);
+
+        Assert.That(context, Is.EqualTo(candidates));
+        Assert.That(world.Get<SequenceVelocity>(first, velocityId).Value, Is.EqualTo(1));
+        Assert.That(world.Get<SequenceVelocity>(second, velocityId).Value, Is.Zero);
+        Assert.That(world.Get<SequenceVelocity>(third, velocityId).Value, Is.EqualTo(6));
+        Assert.That(world.TryGetComponentStamp(first, positionId, out Stamp firstPositionAfter), Is.True);
+        Assert.That(world.TryGetComponentStamp(third, positionId, out Stamp thirdPositionAfter), Is.True);
+        Assert.That(world.TryGetComponentStamp(first, velocityId, out Stamp firstVelocityAfter), Is.True);
+        Assert.That(world.TryGetComponentStamp(third, velocityId, out Stamp thirdVelocityAfter), Is.True);
+        Assert.That(world.TryGetComponentStamp(second, velocityId, out Stamp untouchedVelocityAfter), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(firstPositionAfter, Is.EqualTo(firstPosition));
+            Assert.That(thirdPositionAfter, Is.EqualTo(thirdPosition));
+            Assert.That(firstVelocityAfter, Is.EqualTo(world.Stamp));
+            Assert.That(thirdVelocityAfter, Is.EqualTo(world.Stamp));
+            Assert.That(untouchedVelocityAfter, Is.EqualTo(untouchedVelocity));
+        });
+    }
+
+    [Test]
+    public void TypedSequenceReadOnlyDoesNotAdvanceStampsAndFunctorMatchesDelegateContract()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        var positionId = layouts.Register<SequencePosition>(new SchemaId(60_011));
+        var velocityId = layouts.Register<SequenceVelocity>(new SchemaId(60_012));
+        using var world = new World(layouts);
+        var entity = world.Create(positionId, velocityId);
+        Assert.That(world.Set(entity, positionId, new SequencePosition(5)), Is.True);
+        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionBefore), Is.True);
+        Assert.That(world.TryGetComponentStamp(entity, velocityId, out Stamp velocityBefore), Is.True);
+        Stamp beforeRead = world.Stamp;
+        var query = world.CreateQuery(QuerySpec.ForComponents(positionId, velocityId));
+        var candidates = new[] { entity, entity };
+        int sum = 0;
+
+        world.Entities(candidates).Where(in query).ForEach<int, SequencePosition, SequenceVelocity>(
+            ref sum,
+            positionId,
+            velocityId,
+            static (ref int total, in SequencePosition position, in SequenceVelocity velocity) =>
+                total += position.Value + velocity.Value,
+            ForEachAccessTag_RR.Instance);
+
+        Assert.That(sum, Is.EqualTo(10));
+        Assert.That(world.Stamp, Is.EqualTo(beforeRead));
+        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionAfterRead), Is.True);
+        Assert.That(world.TryGetComponentStamp(entity, velocityId, out Stamp velocityAfterRead), Is.True);
+        Assert.That(positionAfterRead, Is.EqualTo(positionBefore));
+        Assert.That(velocityAfterRead, Is.EqualTo(velocityBefore));
+
+        var functor = new SequenceMovementFunctor();
+        world.Entities(candidates).Where(in query).ForEach<SequenceMovementFunctor, SequencePosition, SequenceVelocity>(
+            positionId,
+            velocityId,
+            ref functor,
+            ForEachEntityTag.Instance,
+            ForEachAccessTag_RW.Instance);
+
+        Assert.That(functor.Count, Is.EqualTo(2));
+        Assert.That(world.Get<SequenceVelocity>(entity, velocityId).Value, Is.EqualTo(10));
+        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionAfterWrite), Is.True);
+        Assert.That(world.TryGetComponentStamp(entity, velocityId, out Stamp velocityAfterWrite), Is.True);
+        Assert.That(positionAfterWrite, Is.EqualTo(positionBefore));
+        Assert.That(velocityAfterWrite, Is.EqualTo(world.Stamp));
+    }
+
+    [Test]
+    public void TypedSequenceRefreshesPlansAndCachesAlternatingArchetypes()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        var positionId = layouts.Register<SequencePosition>(new SchemaId(60_013));
+        var velocityId = layouts.Register<SequenceVelocity>(new SchemaId(60_014));
+        var markerId = layouts.Register(typeof(byte), new SchemaId(60_015));
+        using var world = new World(layouts, chunkCapacity: 1);
+        var query = world.CreateQuery(QuerySpec.ForComponents(positionId, velocityId));
+        var plain = world.Create(positionId, velocityId);
+        var marked = world.Create(positionId, velocityId, markerId);
+        Assert.That(world.Set(plain, positionId, new SequencePosition(2)), Is.True);
+        Assert.That(world.Set(marked, positionId, new SequencePosition(3)), Is.True);
+        var candidates = new[] { marked, plain, marked, plain };
+
+        world.Entities(candidates).Where(in query).ForEach<SequencePosition, SequenceVelocity>(
+            positionId,
+            velocityId,
+            static (in SequencePosition position, ref SequenceVelocity velocity) =>
+                velocity.Value += position.Value,
+            ForEachAccessTag_RW.Instance);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(world.Get<SequenceVelocity>(plain, velocityId).Value, Is.EqualTo(4));
+            Assert.That(world.Get<SequenceVelocity>(marked, velocityId).Value, Is.EqualTo(6));
+        });
+    }
+
     private struct EntityCollector : IForEachEntity
     {
         public EntityCollector() => Entities = [];
@@ -121,5 +265,24 @@ public sealed class SequenceExecutionTests
             context++;
             Last = entity;
         }
+    }
+
+    private struct SequenceMovementFunctor : IForEachEntity_RW<SequencePosition, SequenceVelocity>
+    {
+        public int Count { get; private set; }
+
+        public void Invoke(Entity entity, in SequencePosition position, ref SequenceVelocity velocity)
+        {
+            _ = entity;
+            velocity.Value += position.Value;
+            Count++;
+        }
+    }
+
+    private readonly record struct SequencePosition(int Value);
+
+    private struct SequenceVelocity
+    {
+        public int Value;
     }
 }

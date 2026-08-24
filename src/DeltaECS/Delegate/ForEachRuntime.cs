@@ -10,7 +10,41 @@ internal interface IForEachInvoker
 
 internal static class ForEachRuntime
 {
+    internal static ReadAccess AccessRead<T>(World world, in Query query, ComponentId component)
+    {
+        int queryRow = ValidateComponent<T>(world, in query, component);
+        return new ReadAccess(query.Cached, queryRow);
+    }
+
     internal static WriteAccess AccessWrite<T>(World world, in Query query, ComponentId component)
+    {
+        int queryRow = ValidateComponent<T>(world, in query, component);
+        return new WriteAccess(query.Cached, queryRow);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void Execute<TInvoker>(World world, in Query query, ref TInvoker invoker, bool hasWrites)
+        where TInvoker : struct, IForEachInvoker
+    {
+        world.ExecuteForEach(in query, ref invoker, hasWrites);
+    }
+
+    internal static void ResolveComponentIds(in Query query, Span<ComponentId> destination)
+    {
+        if (!query.IsValid)
+        {
+            throw new ArgumentException("Query handle does not belong to this world.", nameof(query));
+        }
+
+        if (query.Description.AllMask.Count != destination.Length)
+        {
+            throw new ArgumentException("A query-only ForEach overload requires exactly the callback components in its All mask.", nameof(query));
+        }
+
+        query.Description.AllMask.CopyComponentIds(destination);
+    }
+
+    private static int ValidateComponent<T>(World world, in Query query, ComponentId component)
     {
         if (!ReferenceEquals(query.Owner, world) || !query.IsValid)
         {
@@ -23,24 +57,11 @@ internal static class ForEachRuntime
             throw new ArgumentException($"Component {component} is not registered as {typeof(T)}.", nameof(component));
         }
 
-        return query.AccessWrite(component);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static void Execute<TInvoker>(World world, in Query query, ref TInvoker invoker)
-        where TInvoker : struct, IForEachInvoker
-    {
-        world.Query(in query, ref invoker, static (ref TInvoker state, ref QueryChunkCursor cursor) =>
-            state.Invoke(ref cursor));
-    }
-
-    internal static void ResolveComponentIds(in Query query, Span<ComponentId> destination)
-    {
-        if (query.Description.AllMask.Count != destination.Length)
+        if (!query.Description.AllMask.Contains(component))
         {
-            throw new ArgumentException("A query-only ForEach overload requires exactly the callback components in its All mask.", nameof(query));
+            throw new ArgumentException("A ForEach component must be guaranteed by the query All mask.", nameof(component));
         }
 
-        query.Description.AllMask.CopyComponentIds(destination);
+        return query.Description.AllMask.Rank(component);
     }
 }

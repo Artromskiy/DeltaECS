@@ -88,17 +88,20 @@ struct-functor overloads cover the same deterministic matrix:
 |---|---|
 | Context | no context, or one caller-provided `TContext` |
 | Entity argument | no entity, or current `Entity` |
-| Component arity | zero components, then 1, 2, 3 or 4 typed component refs |
+| Component arity | zero components, then 1, 2, 3 or 4 typed component arguments |
+| Component access | every deterministic read/write bitmask for arities 1..4 |
 | Dense selection | prepared `Query`, with explicit component IDs or exact `All`-mask inference |
 
-All component callback arguments currently declare write intent and are
-passed as writable refs. The type parameter is validated against the
-registered `ComponentId` before execution; row resolution occurs once per
-chunk, outside the entity loop. Functors are structs constrained by the
-generated `IForEach*` interfaces. The generator emits arities 0..4; production
-contains no handwritten variadic overload copies.
+Read arguments are passed as `in T`; write arguments are passed as `ref T`.
+Non-all-write overloads take the generated access tag matching that signature,
+for example `ForEachAccessTag_RW.Instance`, so lambda overload resolution is
+unambiguous. The component type is validated against the registered
+`ComponentId` before execution; row resolution occurs once per chunk, outside
+the entity loop. Functors are structs constrained by the generated
+`IForEach*` interfaces. Production contains no handwritten variadic copies,
+and query/access/value state remains type-erased.
 
-Ordered entity-only execution is available both directly and through the
+Ordered sequence execution is available both directly and through the
 non-owning fluent facade:
 
 ```csharp
@@ -107,10 +110,12 @@ world.Entities(entities).Where(in query).ForEach(action);
 ```
 
 It preserves input order and duplicate occurrences, skips stale entities and
-uses the same generated entity delegate/functor contracts. Structural
+uses the same generated delegate/functor matrix, including typed mixed
+read/write callbacks. Typed sequence execution resolves entity records
+directly, caches the last archetype row plan and invokes the same generated
+state used by dense execution; it does not loop through public single-item
+`TryGet`/`Set` calls and does not introduce another storage model. Structural
 `Add`/`Remove`/`Destroy` terminals forward to the existing batch kernels.
-Typed component callbacks over an explicit entity sequence are intentionally
-not a second row kernel; use a prepared dense query or the single-item helpers.
 
 Generated dense `ForEach` owns query validation and access preparation.
 Explicit `OpenQuery` remains the advanced path for direct three-loop traversal.

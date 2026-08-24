@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 /// <summary>
 /// An ordered, non-owning view over an explicit entity sequence.
 /// </summary>
-public readonly ref struct EntitySequence
+public readonly ref partial struct EntitySequence
 {
     private readonly World _world;
     private readonly ReadOnlySpan<Entity> _entities;
@@ -49,7 +49,7 @@ public readonly ref struct EntitySequence
 /// <summary>
 /// An ordered entity sequence narrowed by a prepared query filter.
 /// </summary>
-public readonly ref struct FilteredEntitySequence
+public readonly ref partial struct FilteredEntitySequence
 {
     private readonly World _world;
     private readonly ReadOnlySpan<Entity> _entities;

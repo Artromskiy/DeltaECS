@@ -20,6 +20,7 @@ public sealed partial class World : IDisposable
     private readonly Dictionary<TransitionKey, TransitionEdge> _transitionCache = new();
     private readonly Dictionary<QuerySpec, QueryPlan> _queryCache = new(QuerySpec.Comparer);
     private NativeMemory<DestroyEntry> _destroyScratch = new(32);
+    private NativeMemory<Entity> _sequenceScratch = new(0);
     private TransitionEdge[] _batchEdgeSlots = Array.Empty<TransitionEdge>();
     private NativeMemory<int> _batchEdgeStamps = new(0);
     private int _batchEdgeStamp;
@@ -83,6 +84,7 @@ public sealed partial class World : IDisposable
 
         _freeRecords.Dispose();
         _destroyScratch.Dispose();
+        _sequenceScratch.Dispose();
         _batchEdgeStamps.Dispose();
         GC.SuppressFinalize(this);
     }
@@ -430,6 +432,39 @@ public sealed partial class World : IDisposable
         }
     }
 
+    internal void ExecuteForEach<TInvoker>(in Query handle, ref TInvoker invoker, bool hasWrites)
+        where TInvoker : struct, IForEachInvoker
+    {
+        ValidateQuery(in handle);
+        var cached = handle.Cached;
+        var plans = cached.MatchingPlans(this);
+        QueryWriteSession writeSession = RentQueryWriteSession(hasWrites, out int sessionGeneration);
+        try
+        {
+            for (int planIndex = 0; planIndex < plans.Length; planIndex++)
+            {
+                var plan = plans[planIndex];
+                var archetype = plan.Archetype;
+                for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
+                {
+                    var chunk = archetype.GetActiveChunk(chunkIndex);
+                    var cursor = new QueryChunkCursor(
+                        cached,
+                        archetype.Id,
+                        chunk,
+                        plan.ComponentRows,
+                        writeSession,
+                        sessionGeneration);
+                    invoker.Invoke(ref cursor);
+                }
+            }
+        }
+        finally
+        {
+            ReturnQueryWriteSession(writeSession, sessionGeneration);
+        }
+    }
+
     internal uint ReserveQueryWrite(out Stamp writeStamp)
     {
         writeStamp = _mutationStamps.Next();
@@ -463,6 +498,9 @@ public sealed partial class World : IDisposable
     internal void EndQueryLease() => _activeChunkLeases--;
 
     internal QueryWriteSession RentQueryWriteSession(QueryPlan query, out int generation)
+        => RentQueryWriteSession(query.HasWriteAccess, out generation);
+
+    internal QueryWriteSession RentQueryWriteSession(bool writeEnabled, out int generation)
     {
         QueryWriteSession session;
         if (_queryWriteSessionPool is { } pooled)
@@ -475,7 +513,7 @@ public sealed partial class World : IDisposable
             session = new QueryWriteSession();
         }
 
-        generation = session.Reset(this, query.HasWriteAccess);
+        generation = session.Reset(this, writeEnabled);
         return session;
     }
 

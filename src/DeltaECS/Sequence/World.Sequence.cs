@@ -1,7 +1,6 @@
 namespace Delta.ECS;
 
 using System;
-using System.Buffers;
 using System.Runtime.CompilerServices;
 
 public sealed partial class World
@@ -197,16 +196,9 @@ public sealed partial class World
             return 0;
         }
 
-        Entity[] rented = ArrayPool<Entity>.Shared.Rent(entities.Length);
-        try
-        {
-            int count = CopyMatchingSequenceEntities(entities, in query, rented);
-            return DestroyBatch(rented.AsSpan(0, count));
-        }
-        finally
-        {
-            ArrayPool<Entity>.Shared.Return(rented);
-        }
+        EnsureSequenceScratch(entities.Length);
+        int count = CopyMatchingSequenceEntities(entities, in query, _sequenceScratch.Span);
+        return DestroyBatch(_sequenceScratch.ReadOnlySpan[..count]);
     }
 
     private int ApplyFilteredSequenceComponents(
@@ -221,24 +213,17 @@ public sealed partial class World
             return 0;
         }
 
-        Entity[] rented = ArrayPool<Entity>.Shared.Rent(entities.Length);
-        try
-        {
-            int count = CopyMatchingSequenceEntities(entities, in query, rented);
-            return isAdd
-                ? AddComponents(componentIds, rented.AsSpan(0, count))
-                : RemoveComponents(componentIds, rented.AsSpan(0, count));
-        }
-        finally
-        {
-            ArrayPool<Entity>.Shared.Return(rented);
-        }
+        EnsureSequenceScratch(entities.Length);
+        int count = CopyMatchingSequenceEntities(entities, in query, _sequenceScratch.Span);
+        return isAdd
+            ? AddComponents(componentIds, _sequenceScratch.ReadOnlySpan[..count])
+            : RemoveComponents(componentIds, _sequenceScratch.ReadOnlySpan[..count]);
     }
 
     private int CopyMatchingSequenceEntities(
         ReadOnlySpan<Entity> entities,
         in Query query,
-        Entity[] destination)
+        Span<Entity> destination)
     {
         int count = 0;
         for (int index = 0; index < entities.Length; index++)
@@ -257,5 +242,13 @@ public sealed partial class World
         }
 
         return count;
+    }
+
+    private void EnsureSequenceScratch(int length)
+    {
+        if (_sequenceScratch.Length < length)
+        {
+            _sequenceScratch.Resize(length);
+        }
     }
 }

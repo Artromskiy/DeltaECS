@@ -39,9 +39,9 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `ReadValues`, `WriteValues` | Non-generic prepared values; final `Ref<T>` must match the registered component type. Controlled pre-loop mismatch validation is selected correctness work. | `src/DeltaECS/Core/Values.cs`, `src/DeltaECS/Generic/Values.cs` |
 | `World.Query` | Callback-based query execution over `QueryChunkCursor` | `src/DeltaECS/Core/World.cs` |
 | `World.Create<T>/Add<T>/Remove<T>/TryGet<T>/Get<T>/Set<T>` | Thin typed single-item boundary over existing structural/component operations | `src/DeltaECS/Generic/World.Generic.cs` |
-| generated `World.ForEach` | Delegate and struct-functor dense matrix, arities 0..4 | `src/DeltaECS.Generators/ForEachGenerator.cs`, `src/DeltaECS/Delegate/ForEachRuntime.cs` |
+| generated `World.ForEach` | Delegate and struct-functor dense/sequence matrix, arities 0..4 with explicit read/write patterns | `src/DeltaECS.Generators/ForEachGenerator.cs`, `src/DeltaECS/Delegate/ForEachRuntime.cs`, `src/DeltaECS/Sequence/SequenceComponentRuntime.cs` |
 | `World.Entities(ReadOnlySpan<Entity>)` | Ordered non-owning sequence facade | `src/DeltaECS/Sequence/EntitySequence.cs` |
-| `World.ForEach(ReadOnlySpan<Entity>, ...)` | Ordered entity-only sequence execution, optionally filtered by `Query` | `src/DeltaECS/Sequence/World.Sequence.cs` |
+| `World.ForEach(ReadOnlySpan<Entity>, ...)` | Ordered entity-only or typed sequence execution, optionally filtered by `Query` | `src/DeltaECS/Sequence/World.Sequence.cs`, `src/DeltaECS/Sequence/SequenceComponentRuntime.cs` |
 
 ## Query execution path
 
@@ -68,7 +68,7 @@ Generated dense callbacks enter through this chain:
 ```text
 World.ForEach<...>(Query, ...)
   -> ForEachRuntime validates Query/ComponentId/T once
-  -> existing World.Query type-erased traversal
+  -> World.ExecuteForEach type-erased traversal
   -> generated invoker resolves values once per chunk
   -> delegate or constrained struct-functor call per slot
 ```
@@ -423,7 +423,7 @@ Stamp comparison is deliberately pull-based and consumer-local. A renderer,
 editor or other tool stores its own last observed stamps; reading changes for
 one consumer never consumes them for another.
 
-## API layers and planned generated callback API
+## API layers and generated callback API
 
 The implemented structural API is non-generic: entity lifecycle and component
 set operations use `Entity`, `ComponentId` and spans. The dense query chain is
@@ -435,23 +435,27 @@ only at registration, the single-item `World.SetComponent<T>`/
 compatibility boundary for caller state; `TContext` does not leak into query,
 access, storage or cursor types.
 
-The planned `World.ForEach` callback/functor matrix is source-generated and
+The implemented `World.ForEach` callback/functor matrix is source-generated and
 covers every combination of:
 
 - no context or one caller-provided `TContext`;
 - no entity or current `Entity` argument;
 - zero components (the explicit entity-only form), or 1, 2, 3 and 4 typed
-  component arguments.
+  component arguments;
+- every read/write bitmask for component arities 1..4, with `in T` read
+  arguments and `ref T` write arguments.
 
-The delegate and future struct-functor families share one type-erased query
+The delegate and struct-functor families share one type-erased query
 validation, access preparation and dense execution kernel. `World.ForEach`
-owns the temporary scope and disposal internally. Neither generated family is
-implemented yet; `World.OpenQuery` remains the implemented advanced path for
-the explicit three-loop API and for reusing prepared accesses.
+owns the temporary lease internally. Generated access tags such as
+`ForEachAccessTag_RW` make non-all-write lambda/functor contracts explicit
+without introducing generic query/access/value objects. `World.OpenQuery`
+remains the advanced path for explicit three-loop execution and reusable
+prepared accesses.
 
-## Planned explicit-sequence execution
+## Explicit-sequence execution
 
-Sequence execution is planned to use the same `World.ForEach` family as dense
+Sequence execution uses the same `World.ForEach` family as dense
 query execution rather than introducing another public selection type:
 
 ```csharp
@@ -466,17 +470,17 @@ entity matching the query in the world. Input order and duplicate occurrences ar
 preserved. Invalid, stale and foreign handles follow the explicit-sequence policy used
 by structural APIs.
 
-The delegate/functor arity matrix remains source-generated. Both surfaces feed one
+The delegate/functor arity matrix is source-generated. Both surfaces feed one
 type-erased sequence kernel that validates access once, resolves entity locations, and
-caches the most recently used archetype row plan. A future explicitly named
+caches the most recently used archetype row plan. It does not call public
+single-item component APIs per entity. A future explicitly named
 unordered batch API may group candidates by archetype; `ForEach` must not reorder
 silently.
 
-A planned fluent spelling is
+The fluent spelling is
 `world.Entities(entities).Where(in query).ForEach(action)`. It is an ordered
 facade over the same `ReadOnlySpan<Entity>` candidate set and callback matrix,
-not a generic query/storage object. The facade and sequence execution are not
-implemented in the current source tree.
+not a generic query/storage object.
 
 Implementation files for this family belong in `src/DeltaECS/Sequence`. Public entry
 points stay on `World`, and the folder must not grow a parallel query model.

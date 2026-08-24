@@ -227,6 +227,7 @@ internal sealed class QueryPlan
     private int _version = -1;
     private NativeMemory<int> _matchingArchetypes = new(0);
     private ArchetypePlan[] _matchingPlans = Array.Empty<ArchetypePlan>();
+    private int[] _planIndicesByArchetype = Array.Empty<int>();
     private bool _hasWriteAccess;
 
     public QueryPlan(QuerySpec spec) => _description = spec;
@@ -265,6 +266,13 @@ internal sealed class QueryPlan
         _matchingArchetypes.Dispose();
         _matchingArchetypes = new NativeMemory<int>(CollectionsMarshal.AsSpan(matches));
         _matchingPlans = plans.ToArray();
+        _planIndicesByArchetype = new int[world.Archetypes.Count];
+        Array.Fill(_planIndicesByArchetype, -1);
+        for (int planIndex = 0; planIndex < _matchingPlans.Length; planIndex++)
+        {
+            _planIndicesByArchetype[_matchingPlans[planIndex].Archetype.Id] = planIndex;
+        }
+
         _version = world.ArchetypeVersion;
         return _matchingArchetypes.ReadOnlySpan;
     }
@@ -281,6 +289,22 @@ internal sealed class QueryPlan
     }
 
     public ReadOnlySpan<int> ComponentRowIndices(int matchingIndex) => _matchingPlans[matchingIndex].ComponentRows;
+
+    public bool TryGetPlan(int archetypeId, out ArchetypePlan plan)
+    {
+        if ((uint)archetypeId < (uint)_planIndicesByArchetype.Length)
+        {
+            int planIndex = _planIndicesByArchetype[archetypeId];
+            if (planIndex >= 0)
+            {
+                plan = _matchingPlans[planIndex];
+                return true;
+            }
+        }
+
+        plan = default;
+        return false;
+    }
 
     internal void Dispose() => _matchingArchetypes.Dispose();
 
