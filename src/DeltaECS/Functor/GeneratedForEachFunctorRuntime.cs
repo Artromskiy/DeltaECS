@@ -8,6 +8,7 @@ using System.Runtime.CompilerServices;
 [EditorBrowsable(EditorBrowsableState.Never)]
 public interface IGeneratedForEachInvoker
 {
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     void Invoke(ref GeneratedQuerySlots slots);
 }
 
