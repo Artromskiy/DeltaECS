@@ -76,8 +76,6 @@ public sealed class PublicApiShapeTests
     {
         var createQuery = PublicInstanceMethod(typeof(World), nameof(World.CreateQuery), typeof(QuerySpec).MakeByRefType());
         var openQuery = PublicInstanceMethod(typeof(World), nameof(World.OpenQuery), typeof(Query).MakeByRefType());
-        var bindRead = PublicInstanceMethod(typeof(QueryScope), nameof(QueryScope.Bind), typeof(ReadAccess));
-        var bindWrite = PublicInstanceMethod(typeof(QueryScope), nameof(QueryScope.Bind), typeof(WriteAccess));
         var archetypeMoveNext = PublicInstanceMethod(typeof(QueryArchetypes), nameof(QueryArchetypes.MoveNext));
         var chunkMoveNext = PublicInstanceMethod(typeof(QueryChunks), nameof(QueryChunks.MoveNext));
         var archetypeChunkMoveNext = PublicInstanceMethod(typeof(QueryArchetypeChunks), nameof(QueryArchetypeChunks.MoveNext));
@@ -91,8 +89,11 @@ public sealed class PublicApiShapeTests
             Assert.That(openQuery.ReturnType, Is.EqualTo(typeof(QueryScope)));
             Assert.That(typeof(QueryScope).GetProperty(nameof(QueryScope.Archetypes))?.PropertyType, Is.EqualTo(typeof(QueryArchetypes)));
             Assert.That(typeof(QueryScope).GetProperty(nameof(QueryScope.Chunks))?.PropertyType, Is.EqualTo(typeof(QueryChunks)));
-            Assert.That(bindRead.ReturnType, Is.EqualTo(typeof(ReadAccess)));
-            Assert.That(bindWrite.ReturnType, Is.EqualTo(typeof(WriteAccess)));
+            Assert.That(
+                typeof(QueryScope).GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                    .Any(static method => method.Name == "Bind"),
+                Is.False,
+                "QueryScope must not expose a redundant Bind validation layer.");
             Assert.That(archetypeMoveNext.ReturnType, Is.EqualTo(typeof(bool)));
             Assert.That(typeof(QueryArchetypes).GetProperty(nameof(QueryArchetypes.Current))?.PropertyType, Is.EqualTo(typeof(QueryArchetype)));
             Assert.That(chunkMoveNext.ReturnType, Is.EqualTo(typeof(bool)));

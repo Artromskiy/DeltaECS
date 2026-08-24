@@ -97,8 +97,8 @@ internal static class MicroBenchmarkKernels
     {
         var checksum = 0;
         using var scope = fixture.World.OpenQuery(in query);
-        var preparedPosition = scope.Bind(position);
-        var preparedVelocity = scope.Bind(velocity);
+        var preparedPosition = position;
+        var preparedVelocity = velocity;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -132,10 +132,10 @@ internal static class MicroBenchmarkKernels
     {
         var checksum = 0;
         using var scope = fixture.World.OpenQuery(in query);
-        var preparedA = scope.Bind(aBinding);
-        var preparedB = scope.Bind(bBinding);
-        var preparedC = scope.Bind(cBinding);
-        var preparedD = scope.Bind(dBinding);
+        var preparedA = aBinding;
+        var preparedB = bBinding;
+        var preparedC = cBinding;
+        var preparedD = dBinding;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -174,10 +174,10 @@ internal static class MicroBenchmarkKernels
     {
         var checksum = 0;
         using var scope = fixture.World.OpenQuery(in query);
-        var preparedA = scope.Bind(aBinding);
-        var preparedB = scope.Bind(bBinding);
-        var preparedC = scope.Bind(cBinding);
-        var preparedD = scope.Bind(dBinding);
+        var preparedA = aBinding;
+        var preparedB = bBinding;
+        var preparedC = cBinding;
+        var preparedD = dBinding;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -218,10 +218,10 @@ internal static class MicroBenchmarkKernels
     {
         var checksum = 0;
         using var scope = fixture.World.OpenQuery(in query);
-        var preparedA = scope.Bind(aBinding);
-        var preparedB = scope.Bind(bBinding);
-        var preparedC = scope.Bind(cBinding);
-        var preparedD = scope.Bind(dBinding);
+        var preparedA = aBinding;
+        var preparedB = bBinding;
+        var preparedC = cBinding;
+        var preparedD = dBinding;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -403,7 +403,7 @@ public class GeneratedFunctorMovement4MicroBenchmarkImplementation
     {
         _fixture = new MicroWorld(initialEntityCapacity: Amount);
         _entities = _fixture.CreateMovement4(Amount);
-        var description = QuerySpec.ForComponents(
+        var description = QuerySpec.WhereAll(
             _fixture.Movement4A,
             _fixture.Movement4B,
             _fixture.Movement4C,

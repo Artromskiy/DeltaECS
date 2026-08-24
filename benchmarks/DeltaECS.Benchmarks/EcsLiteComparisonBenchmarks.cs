@@ -101,8 +101,8 @@ public class EcsLiteComparisonBenchmarks
         var count = 0;
 
         using var scope = _deltaMovementWorld.OpenQuery(in _deltaMovementQuery);
-        var positionAccess = scope.Bind(_deltaMovementPositionBinding);
-        var velocityAccess = scope.Bind(_deltaMovementVelocityBinding);
+        var positionAccess = _deltaMovementPositionBinding;
+        var velocityAccess = _deltaMovementVelocityBinding;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -155,8 +155,8 @@ public class EcsLiteComparisonBenchmarks
         var count = 0;
 
         using var scope = _deltaFilterWorld.OpenQuery(in _deltaFilterQuery);
-        var positionAccess = scope.Bind(_deltaFilterPositionBinding);
-        var velocityAccess = scope.Bind(_deltaFilterVelocityBinding);
+        var positionAccess = _deltaFilterPositionBinding;
+        var velocityAccess = _deltaFilterVelocityBinding;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {

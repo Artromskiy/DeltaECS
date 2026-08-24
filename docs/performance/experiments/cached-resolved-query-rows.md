@@ -16,7 +16,7 @@ plan.
 
 - `Query.AccessRead` and `Query.AccessWrite` validate the component against the
   query's `All` mask before a scope is opened.
-- `QueryScope.Bind` validates query ownership and the scope owns the active
+- `QueryScope` validates query ownership and owns the active
   structural lease.
 - `ArchetypePlan.RefreshChunks` rebuilds the direct row table when the active
   chunk set changes.

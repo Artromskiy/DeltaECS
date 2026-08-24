@@ -348,13 +348,11 @@ heartbeat and total elapsed time; the heartbeat is outside the measured process.
 
 The microbenchmark dense path uses `World.OpenQuery(in query)` and keeps the
 archetype, chunk and slot traversal explicit. Typed access requests are created
-in setup; dense access requests are prepared once per scope and values are obtained once
-when a chunk is selected, not in the slot loop:
+in setup; values are obtained once when a chunk is selected, not in the slot loop:
 
 ```csharp
 using var scope = world.OpenQuery(in query);
 // access is created in GlobalSetup.
-var prepared = scope.Bind(access);
 var archetypes = scope.Archetypes;
 while (archetypes.MoveNext())
 {
@@ -362,7 +360,7 @@ while (archetypes.MoveNext())
     while (chunks.MoveNext())
     {
         var slots = chunks.Current.Slots;
-        var values = slots.GetRow(prepared);
+        var values = slots.GetRow(access);
         while (slots.MoveNext())
         {
             ref readonly Value value = ref values[slots];

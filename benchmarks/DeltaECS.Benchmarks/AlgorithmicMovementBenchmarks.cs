@@ -57,8 +57,8 @@ public class AlgorithmicMovementBenchmarks
         double checksum = 0;
         var count = 0;
         using var scope = _deltaWorld.OpenQuery(in _deltaQuery);
-        var positionAccess = scope.Bind(_deltaPositionBinding);
-        var velocityAccess = scope.Bind(_deltaVelocityBinding);
+        var positionAccess = _deltaPositionBinding;
+        var velocityAccess = _deltaVelocityBinding;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {

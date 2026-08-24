@@ -63,7 +63,6 @@ Read this chain for the three-loop API:
 
 ```text
 World.OpenQuery(in Query)
-  -> QueryScope.Bind(ReadAccess/WriteAccess)
   -> QueryScope.Archetypes
   -> QueryArchetypes.MoveNext()
   -> QueryArchetypes.Current.Chunks
@@ -79,7 +78,7 @@ The public shape is:
 ```csharp
 using var scope = world.OpenQuery(in query);
 var positionAccess = query.AccessWrite(positionId);
-var position = scope.Bind(positionAccess);
+var position = positionAccess;
 var archetypes = scope.Archetypes;
 
 while (archetypes.MoveNext())

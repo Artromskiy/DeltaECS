@@ -192,8 +192,8 @@ public sealed class StampTests
 
         using (var scope = world.OpenQuery(in query))
         {
-            WriteAccess position = scope.Bind(positionAccess);
-            ReadAccess velocity = scope.Bind(velocityAccess);
+            WriteAccess position = positionAccess;
+            ReadAccess velocity = velocityAccess;
             var archetypes = scope.Archetypes;
             while (archetypes.MoveNext())
             {
@@ -237,7 +237,7 @@ public sealed class StampTests
             Assert.That(world.Set(entities[index], velocityId, new Velocity(1)), Is.True);
         }
 
-        var query = world.CreateQuery(QuerySpec.ForComponents(positionId, velocityId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
         var functor = new StampWriteFunctor();
         world.ForEach(in query, ref functor);
         Stamp generatedStamp = world.Stamp;

@@ -368,7 +368,7 @@ public sealed class StampInvariantTests
         int readCount = 0;
         using (var scope = world.OpenQuery(in positionQuery))
         {
-            ReadAccess bound = scope.Bind(readPosition);
+            ReadAccess bound = readPosition;
             var archetypes = scope.Archetypes;
             while (archetypes.MoveNext())
             {
@@ -400,7 +400,7 @@ public sealed class StampInvariantTests
         Stamp beforeWrite = world.Stamp;
         using (var scope = world.OpenQuery(in positionQuery))
         {
-            WriteAccess bound = scope.Bind(writePosition);
+            WriteAccess bound = writePosition;
             var archetypes = scope.Archetypes;
             while (archetypes.MoveNext())
             {
@@ -579,7 +579,7 @@ public sealed class StampInvariantTests
         Stamp beforeQueryWrite = world.Stamp;
         using (var scope = world.OpenQuery(in query))
         {
-            WriteAccess bound = scope.Bind(writeReference);
+            WriteAccess bound = writeReference;
             var archetypes = scope.Archetypes;
             while (archetypes.MoveNext())
             {
@@ -659,7 +659,7 @@ public sealed class StampInvariantTests
 
         using (var scope = world.OpenQuery(in emptyQuery))
         {
-            WriteAccess bound = scope.Bind(write);
+            WriteAccess bound = write;
             var archetypes = scope.Archetypes;
             Assert.That(archetypes.MoveNext(), Is.False);
             _ = bound;
@@ -681,7 +681,7 @@ public sealed class StampInvariantTests
 
         using (var scope = world.OpenQuery(in query))
         {
-            _ = scope.Bind(write);
+            _ = write;
             var archetypes = scope.Archetypes;
             Assert.That(archetypes.MoveNext(), Is.True);
             // Deliberately do not descend to a chunk, iterate a slot, or obtain WriteRow.
@@ -803,7 +803,7 @@ public sealed class StampInvariantTests
         Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp beforeStamp), Is.True);
 
         using var scope = world.OpenQuery(in query);
-        WriteAccess bound = scope.Bind(write);
+        WriteAccess bound = write;
         var archetypes = scope.Archetypes;
         Assert.That(archetypes.MoveNext(), Is.True);
         var chunks = archetypes.Current.Chunks;

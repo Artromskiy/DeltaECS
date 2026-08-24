@@ -72,7 +72,7 @@ public sealed class ActiveChunkTests
         float sum = 0;
         var access = query.AccessRead(PositionId);
         using var scope = world.OpenQuery(in query);
-        var prepared = scope.Bind(access);
+        var prepared = access;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {

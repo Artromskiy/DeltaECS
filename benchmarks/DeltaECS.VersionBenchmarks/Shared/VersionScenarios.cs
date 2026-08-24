@@ -102,7 +102,7 @@ public sealed class IterationScenario
     {
         long sum = 0;
         using var scope = _world.OpenQuery(in _denseQuery);
-        var dense = scope.Bind(_denseBinding);
+        var dense = _denseBinding;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -126,8 +126,8 @@ public sealed class IterationScenario
     {
         double sum = 0;
         using var scope = _world.OpenQuery(in _movement2Query);
-        var position = scope.Bind(_positionBinding);
-        var velocity = scope.Bind(_velocityBinding);
+        var position = _positionBinding;
+        var velocity = _velocityBinding;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -158,10 +158,10 @@ public sealed class IterationScenario
     {
         int sum = 0;
         using var scope = _world.OpenQuery(in _movement4Query);
-        var aAccess = scope.Bind(_movementABinding);
-        var bAccess = scope.Bind(_movementBBinding);
-        var cAccess = scope.Bind(_movementCBinding);
-        var dAccess = scope.Bind(_movementDBinding);
+        var aAccess = _movementABinding;
+        var bAccess = _movementBBinding;
+        var cAccess = _movementCBinding;
+        var dAccess = _movementDBinding;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {

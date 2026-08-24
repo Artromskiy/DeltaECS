@@ -55,8 +55,8 @@ var writePosition = query.AccessWrite(positionId);
 var readVelocity = query.AccessRead(velocityId);
 
 using var scope = world.OpenQuery(in query);
-var position = scope.Bind(writePosition);
-var velocity = scope.Bind(readVelocity);
+var position = writePosition;
+var velocity = readVelocity;
 var archetypes = scope.Archetypes;
 
 while (archetypes.MoveNext())

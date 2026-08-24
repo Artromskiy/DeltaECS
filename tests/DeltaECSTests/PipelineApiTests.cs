@@ -23,7 +23,7 @@ public sealed class PipelineApiTests
 
         Assert.That(world.Get<PipelinePosition>(entity, positionId).Value, Is.EqualTo(3));
 
-        using var scope = world.WhereAll(positionId, velocityId).Open();
+        using var scope = world.Where(QuerySpec.WhereAll(positionId, velocityId)).Open();
         var archetypes = scope.Archetypes;
         Assert.That(archetypes.MoveNext(), Is.True);
     }

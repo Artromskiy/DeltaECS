@@ -204,14 +204,14 @@ public class DeltaEcsVsArchBenchmarks
     private static void IterateDelta(World world, in Query query, WriteAccess[] bindings, int componentCount)
     {
         using var scope = world.OpenQuery(in query);
-        var b0 = scope.Bind(bindings[0]);
-        var b1 = componentCount >= 2 ? scope.Bind(bindings[1]) : default;
-        var b2 = componentCount >= 4 ? scope.Bind(bindings[2]) : default;
-        var b3 = componentCount >= 4 ? scope.Bind(bindings[3]) : default;
-        var b4 = componentCount >= 8 ? scope.Bind(bindings[4]) : default;
-        var b5 = componentCount >= 8 ? scope.Bind(bindings[5]) : default;
-        var b6 = componentCount >= 8 ? scope.Bind(bindings[6]) : default;
-        var b7 = componentCount >= 8 ? scope.Bind(bindings[7]) : default;
+        var b0 = bindings[0];
+        var b1 = componentCount >= 2 ? bindings[1] : default;
+        var b2 = componentCount >= 4 ? bindings[2] : default;
+        var b3 = componentCount >= 4 ? bindings[3] : default;
+        var b4 = componentCount >= 8 ? bindings[4] : default;
+        var b5 = componentCount >= 8 ? bindings[5] : default;
+        var b6 = componentCount >= 8 ? bindings[6] : default;
+        var b7 = componentCount >= 8 ? bindings[7] : default;
         var archetypes = scope.Archetypes;
 
         while (archetypes.MoveNext())
@@ -426,7 +426,7 @@ public class DeltaEcsManagedArrayBenchmarks
     {
         var sum = 0;
         using var scope = _world.OpenQuery(in _query);
-        var binding = scope.Bind(_binding);
+        var binding = _binding;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -511,8 +511,8 @@ public class DeltaEcsHotPathProfileBenchmarks
     {
         var chunksCount = 0;
         using var scope = _world.OpenQuery(in _query);
-        var first = scope.Bind(_firstBinding);
-        var second = scope.Bind(_secondReadBinding);
+        var first = _firstBinding;
+        var second = _secondReadBinding;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -534,8 +534,8 @@ public class DeltaEcsHotPathProfileBenchmarks
     {
         var chunksCount = 0;
         using var scope = _world.OpenQuery(in _query);
-        var firstBinding = scope.Bind(_firstWriteBinding);
-        var secondBinding = scope.Bind(_secondBinding);
+        var firstBinding = _firstWriteBinding;
+        var secondBinding = _secondBinding;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {

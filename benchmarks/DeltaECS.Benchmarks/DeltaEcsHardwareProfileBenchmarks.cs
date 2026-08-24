@@ -194,14 +194,14 @@ public class HardwareProfileBenchmarks
         var w6 = default(WriteAccess);
         var w7 = default(WriteAccess);
 
-        if (state.ComponentCount > 0) w0 = scope.Bind(state.WriteBindings[0]);
-        if (state.ComponentCount > 1) w1 = scope.Bind(state.WriteBindings[1]);
-        if (state.ComponentCount > 2) w2 = scope.Bind(state.WriteBindings[2]);
-        if (state.ComponentCount > 3) w3 = scope.Bind(state.WriteBindings[3]);
-        if (state.ComponentCount > 4) w4 = scope.Bind(state.WriteBindings[4]);
-        if (state.ComponentCount > 5) w5 = scope.Bind(state.WriteBindings[5]);
-        if (state.ComponentCount > 6) w6 = scope.Bind(state.WriteBindings[6]);
-        if (state.ComponentCount > 7) w7 = scope.Bind(state.WriteBindings[7]);
+        if (state.ComponentCount > 0) w0 = state.WriteBindings[0];
+        if (state.ComponentCount > 1) w1 = state.WriteBindings[1];
+        if (state.ComponentCount > 2) w2 = state.WriteBindings[2];
+        if (state.ComponentCount > 3) w3 = state.WriteBindings[3];
+        if (state.ComponentCount > 4) w4 = state.WriteBindings[4];
+        if (state.ComponentCount > 5) w5 = state.WriteBindings[5];
+        if (state.ComponentCount > 6) w6 = state.WriteBindings[6];
+        if (state.ComponentCount > 7) w7 = state.WriteBindings[7];
 
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
@@ -317,14 +317,14 @@ public class HardwareProfileBenchmarks
         var w6 = default(WriteAccess);
         var w7 = default(WriteAccess);
 
-        if (state.ComponentCount > 0) w0 = scope.Bind(state.WriteBindings[0]);
-        if (state.ComponentCount > 1) w1 = scope.Bind(state.WriteBindings[1]);
-        if (state.ComponentCount > 2) w2 = scope.Bind(state.WriteBindings[2]);
-        if (state.ComponentCount > 3) w3 = scope.Bind(state.WriteBindings[3]);
-        if (state.ComponentCount > 4) w4 = scope.Bind(state.WriteBindings[4]);
-        if (state.ComponentCount > 5) w5 = scope.Bind(state.WriteBindings[5]);
-        if (state.ComponentCount > 6) w6 = scope.Bind(state.WriteBindings[6]);
-        if (state.ComponentCount > 7) w7 = scope.Bind(state.WriteBindings[7]);
+        if (state.ComponentCount > 0) w0 = state.WriteBindings[0];
+        if (state.ComponentCount > 1) w1 = state.WriteBindings[1];
+        if (state.ComponentCount > 2) w2 = state.WriteBindings[2];
+        if (state.ComponentCount > 3) w3 = state.WriteBindings[3];
+        if (state.ComponentCount > 4) w4 = state.WriteBindings[4];
+        if (state.ComponentCount > 5) w5 = state.WriteBindings[5];
+        if (state.ComponentCount > 6) w6 = state.WriteBindings[6];
+        if (state.ComponentCount > 7) w7 = state.WriteBindings[7];
 
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
@@ -440,14 +440,14 @@ public class HardwareProfileBenchmarks
         var r6 = default(ReadAccess);
         var r7 = default(ReadAccess);
 
-        if (state.ComponentCount > 0) r0 = scope.Bind(state.ReadBindings[0]);
-        if (state.ComponentCount > 1) r1 = scope.Bind(state.ReadBindings[1]);
-        if (state.ComponentCount > 2) r2 = scope.Bind(state.ReadBindings[2]);
-        if (state.ComponentCount > 3) r3 = scope.Bind(state.ReadBindings[3]);
-        if (state.ComponentCount > 4) r4 = scope.Bind(state.ReadBindings[4]);
-        if (state.ComponentCount > 5) r5 = scope.Bind(state.ReadBindings[5]);
-        if (state.ComponentCount > 6) r6 = scope.Bind(state.ReadBindings[6]);
-        if (state.ComponentCount > 7) r7 = scope.Bind(state.ReadBindings[7]);
+        if (state.ComponentCount > 0) r0 = state.ReadBindings[0];
+        if (state.ComponentCount > 1) r1 = state.ReadBindings[1];
+        if (state.ComponentCount > 2) r2 = state.ReadBindings[2];
+        if (state.ComponentCount > 3) r3 = state.ReadBindings[3];
+        if (state.ComponentCount > 4) r4 = state.ReadBindings[4];
+        if (state.ComponentCount > 5) r5 = state.ReadBindings[5];
+        if (state.ComponentCount > 6) r6 = state.ReadBindings[6];
+        if (state.ComponentCount > 7) r7 = state.ReadBindings[7];
 
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())

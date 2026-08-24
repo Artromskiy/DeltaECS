@@ -20,8 +20,9 @@ not update component versions, and query access could be validated too late.
   semantic version without adding checks to the dense iteration loop.
 - `QuerySpec` stores normalized `All`, `Any` and `None` component masks.
   `Query` validates ownership, component registration and `All`-mask
-  membership when an access token is created; `QueryScope.Bind` validates that
-  the token belongs to the active scope before traversal.
+  membership when an access token is created; `QuerySlots.GetRow` and
+  `QuerySlots.GetObject` validate that the token belongs to the active scope
+  before resolving storage.
 - `QueryScope` owns the structural lease and its archetype, chunk and slot
   iterators are borrowed views. A disposed scope or a row access from another
   query cannot be used to read or write storage.

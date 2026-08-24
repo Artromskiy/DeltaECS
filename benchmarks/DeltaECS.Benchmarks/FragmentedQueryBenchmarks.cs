@@ -80,7 +80,7 @@ public class DeltaOnlyFragmentedQueryBenchmarks
         var matches = 0;
         var checksum = 0;
         using var scope = _world.OpenQuery(in _query);
-        var value = scope.Bind(_valueBinding);
+        var value = _valueBinding;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -141,7 +141,7 @@ public class DeltaOnlyFragmentedQueryBenchmarks
         var matches = 0;
         var checksum = 0;
         using var scope = _world.OpenQuery(in coldQuery);
-        var value = scope.Bind(valueBinding);
+        var value = valueBinding;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {

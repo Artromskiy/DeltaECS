@@ -63,8 +63,8 @@ The query API has three deliberately separate stages: `QuerySpec` describes
 selection, `World.CreateQuery` returns the world-owned `Query`, and
 `query.AccessRead(id)` or `query.AccessWrite(id)` declares component access and
 returns the corresponding non-generic `ReadAccess` or `WriteAccess` token. Inside an
-`OpenQuery` scope, `scope.Bind(access)` validates that declaration once;
-`slots.GetRow(prepared)` then exposes a non-generic component row whose
+`OpenQuery` scope, `slots.GetRow(access)` validates that declaration against
+the active scope and exposes a non-generic component row whose
 terminal `Ref<T>` call provides the component reference.
 `T` must match the component type registered for the access token. Controlled
 pre-loop mismatch validation is selected correctness work; callers must not
@@ -75,7 +75,7 @@ The primary explicit path flattens matching archetypes into the chunk iterator:
 ```csharp
 using var scope = world.OpenQuery(in query);
 var positionAccess = query.AccessRead(positionId);
-var position = scope.Bind(positionAccess);
+var position = positionAccess;
 var chunks = scope.Chunks;
 while (chunks.MoveNext())
 {
@@ -94,7 +94,7 @@ part of the algorithm:
 ```csharp
 using var scope = world.OpenQuery(in query);
 var positionAccess = query.AccessRead(positionId);
-var position = scope.Bind(positionAccess);
+var position = positionAccess;
 var archetypes = scope.Archetypes;
 while (archetypes.MoveNext())
 {

@@ -108,14 +108,14 @@ public class DistinctDenseComparisonBenchmarks
     public void DeltaECS_Array_DistinctTypes()
     {
         using var scope = _deltaWorld.OpenQuery(in _deltaQuery);
-        var d0 = scope.Bind(_d0Binding);
-        var d1 = ComponentCount >= 2 ? scope.Bind(_d1Binding) : default;
-        var d2 = ComponentCount >= 4 ? scope.Bind(_d2Binding) : default;
-        var d3 = ComponentCount >= 4 ? scope.Bind(_d3Binding) : default;
-        var d4 = ComponentCount >= 8 ? scope.Bind(_d4Binding) : default;
-        var d5 = ComponentCount >= 8 ? scope.Bind(_d5Binding) : default;
-        var d6 = ComponentCount >= 8 ? scope.Bind(_d6Binding) : default;
-        var d7 = ComponentCount >= 8 ? scope.Bind(_d7Binding) : default;
+        var d0 = _d0Binding;
+        var d1 = ComponentCount >= 2 ? _d1Binding : default;
+        var d2 = ComponentCount >= 4 ? _d2Binding : default;
+        var d3 = ComponentCount >= 4 ? _d3Binding : default;
+        var d4 = ComponentCount >= 8 ? _d4Binding : default;
+        var d5 = ComponentCount >= 8 ? _d5Binding : default;
+        var d6 = ComponentCount >= 8 ? _d6Binding : default;
+        var d7 = ComponentCount >= 8 ? _d7Binding : default;
         var archetypes = scope.Archetypes;
 
         while (archetypes.MoveNext())

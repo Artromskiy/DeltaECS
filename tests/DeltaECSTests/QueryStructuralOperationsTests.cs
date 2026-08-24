@@ -159,7 +159,7 @@ public sealed class QueryStructuralOperationsTests
         var readChunkId = -1;
         using (var scope = world.OpenQuery(in query))
         {
-            var readAccess = scope.Bind(readPosition);
+            var readAccess = readPosition;
             var archetypes = scope.Archetypes;
             while (archetypes.MoveNext())
             {
@@ -185,7 +185,7 @@ public sealed class QueryStructuralOperationsTests
         var writeChunkId = -1;
         using (var scope = world.OpenQuery(in query))
         {
-            var writeAccess = scope.Bind(writePosition);
+            var writeAccess = writePosition;
             var archetypes = scope.Archetypes;
             while (archetypes.MoveNext())
             {

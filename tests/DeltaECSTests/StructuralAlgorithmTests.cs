@@ -298,9 +298,9 @@ public sealed class StructuralAlgorithmTests
         var worldTransform = query.AccessRead(worldId);
         using (var scope = world.OpenQuery(in query))
         {
-            var preparedParent = scope.Bind(parentBinding);
-            var preparedLocal = scope.Bind(local);
-            var preparedWorld = scope.Bind(worldTransform);
+            var preparedParent = parentBinding;
+            var preparedLocal = local;
+            var preparedWorld = worldTransform;
             var archetypes = scope.Archetypes;
             while (archetypes.MoveNext())
             {

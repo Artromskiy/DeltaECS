@@ -78,8 +78,8 @@ public class DefaultEcsComparisonBenchmarks
     {
         var state = new MovementState { Count = 0, ExpectedCount = Amount, Dt = Dt };
         using var scope = _deltaMovementWorld.OpenQuery(in _deltaMovementQuery);
-        var positionAccess = scope.Bind(_deltaPositionBinding);
-        var velocityAccess = scope.Bind(_deltaVelocityBinding);
+        var positionAccess = _deltaPositionBinding;
+        var velocityAccess = _deltaVelocityBinding;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {

@@ -147,11 +147,6 @@ public class SmallDenseScenarioBenchmarks
     {
         var checksum = 0d;
         using var scope = _deltaWorld.OpenQuery(in _deltaQuery);
-        for (var i = 0; i < _deltaBindings.Length; i++)
-        {
-            scope.Bind(_deltaBindings[i]);
-        }
-
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -443,8 +438,8 @@ public class WideArchetypeNarrowAccessBenchmarks
     {
         var checksum = 0d;
         using var scope = _deltaWorld.OpenQuery(in _deltaQuery);
-        var positionAccess = scope.Bind(_deltaPositionBinding);
-        var velocityAccess = scope.Bind(_deltaVelocityBinding);
+        var positionAccess = _deltaPositionBinding;
+        var velocityAccess = _deltaVelocityBinding;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -576,8 +571,8 @@ public class WideArchetypeNarrowAccessComparisonBenchmarks
     {
         var checksum = 0d;
         using var scope = _deltaWorld.OpenQuery(in _deltaQuery);
-        var positionAccess = scope.Bind(_deltaPositionBinding);
-        var velocityAccess = scope.Bind(_deltaVelocityBinding);
+        var positionAccess = _deltaPositionBinding;
+        var velocityAccess = _deltaVelocityBinding;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -994,8 +989,8 @@ public class SparseHeterogeneousQueryBenchmarks
     {
         var state = new SparseState();
         using var scope = _deltaWorld.OpenQuery(in query);
-        var position = scope.Bind(positionAccess);
-        var velocity = scope.Bind(velocityAccess);
+        var position = positionAccess;
+        var velocity = velocityAccess;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {

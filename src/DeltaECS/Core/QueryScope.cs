@@ -45,20 +45,6 @@ public ref struct QueryScope
         }
     }
 
-    public ReadAccess Bind(ReadAccess access)
-    {
-        EnsureActive();
-        Validate(access.Query);
-        return access;
-    }
-
-    public WriteAccess Bind(WriteAccess access)
-    {
-        EnsureActive();
-        Validate(access.Query);
-        return access;
-    }
-
     public void Dispose()
     {
         if (_owner is null)
@@ -67,14 +53,6 @@ public ref struct QueryScope
         }
 
         _owner.ReturnQueryWriteSession(_writeSession, _sessionGeneration);
-    }
-
-    private void Validate(QueryPlan? query)
-    {
-        if (!ReferenceEquals(query, _query))
-        {
-            QueryThrowHelper.ThrowAccessMismatch();
-        }
     }
 
     private void EnsureActive()

@@ -91,7 +91,7 @@ public class ComparativeDenseIterationBenchmarks
     public long DeltaECS_Dense()
     {
         using var scope = _delta.OpenQuery(in _deltaQuery);
-        var valueAccess = scope.Bind(_deltaValueBinding);
+        var valueAccess = _deltaValueBinding;
         var archetypes = scope.Archetypes;
         long sum = 0;
 
@@ -274,8 +274,8 @@ public class ComparativeMovement2ComponentsBenchmarks
     public double DeltaECS_Movement2Components()
     {
         using var scope = _delta.OpenQuery(in _deltaQuery);
-        var positionAccess = scope.Bind(_deltaPositionBinding);
-        var velocityAccess = scope.Bind(_deltaVelocityBinding);
+        var positionAccess = _deltaPositionBinding;
+        var velocityAccess = _deltaVelocityBinding;
         var archetypes = scope.Archetypes;
         double sum = 0;
 
@@ -304,8 +304,8 @@ public class ComparativeMovement2ComponentsBenchmarks
     internal double RunOpenQueryMovement2Components()
     {
         using var scope = _delta.OpenQuery(in _deltaQuery);
-        var positionAccess = scope.Bind(_deltaPositionBinding);
-        var velocityAccess = scope.Bind(_deltaVelocityBinding);
+        var positionAccess = _deltaPositionBinding;
+        var velocityAccess = _deltaVelocityBinding;
         var archetypes = scope.Archetypes;
         double sum = 0;
 
@@ -452,10 +452,10 @@ public class ComparativeMovement4ComponentsBenchmarks
     public int DeltaECS_Movement4Components()
     {
         using var scope = _delta.OpenQuery(in _deltaQuery);
-        var aAccess = scope.Bind(_delta0Binding);
-        var bAccess = scope.Bind(_delta1Binding);
-        var cAccess = scope.Bind(_delta2Binding);
-        var dAccess = scope.Bind(_delta3Binding);
+        var aAccess = _delta0Binding;
+        var bAccess = _delta1Binding;
+        var cAccess = _delta2Binding;
+        var dAccess = _delta3Binding;
         var archetypes = scope.Archetypes;
         var sum = 0;
 
@@ -490,10 +490,10 @@ public class ComparativeMovement4ComponentsBenchmarks
     internal int RunOpenQueryMovement4Components()
     {
         using var scope = _delta.OpenQuery(in _deltaQuery);
-        var aAccess = scope.Bind(_delta0Binding);
-        var bAccess = scope.Bind(_delta1Binding);
-        var cAccess = scope.Bind(_delta2Binding);
-        var dAccess = scope.Bind(_delta3Binding);
+        var aAccess = _delta0Binding;
+        var bAccess = _delta1Binding;
+        var cAccess = _delta2Binding;
+        var dAccess = _delta3Binding;
         var archetypes = scope.Archetypes;
         var sum = 0;
 
@@ -563,8 +563,8 @@ public class ComparativeWideArchetypeNarrowQueryBenchmarks
     public int DeltaECS_WideArchetypeNarrowQuery()
     {
         using var scope = _delta.OpenQuery(in _deltaQuery);
-        var aAccess = scope.Bind(_delta0Binding);
-        var zAccess = scope.Bind(_delta7Binding);
+        var aAccess = _delta0Binding;
+        var zAccess = _delta7Binding;
         var archetypes = scope.Archetypes;
         var sum = 0;
 
@@ -634,8 +634,8 @@ public class ComparativeSparseQueryBenchmarks
     private int DeltaQuery(Query query, ReadAccess a, ReadAccess b)
     {
         using var scope = _delta.OpenQuery(in query);
-        var aAccess = scope.Bind(a);
-        var bAccess = scope.Bind(b);
+        var aAccess = a;
+        var bAccess = b;
         var archetypes = scope.Archetypes;
         var count = 0;
 
