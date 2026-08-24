@@ -12,7 +12,9 @@ internal static class MicroBenchmarkCatalog
         typeof(AddMicroBenchmarks),
         typeof(RemoveMicroBenchmarks),
         typeof(CreateMicroBenchmarks),
-        typeof(DestroyMicroBenchmarks)
+        typeof(DestroyMicroBenchmarks),
+        typeof(ListStructuralBatchMicroBenchmarks),
+        typeof(QueryStructuralBatchMicroBenchmarks)
     ];
 }
 
@@ -43,5 +45,15 @@ public class CreateMicroBenchmarks : CreateMicroBenchmarkImplementation
 
 [MemoryDiagnoser]
 public class DestroyMicroBenchmarks : DestroyMicroBenchmarkImplementation
+{
+}
+
+[MemoryDiagnoser]
+public class ListStructuralBatchMicroBenchmarks : ListStructuralBatchMicroBenchmarkImplementation
+{
+}
+
+[MemoryDiagnoser]
+public class QueryStructuralBatchMicroBenchmarks : QueryStructuralBatchMicroBenchmarkImplementation
 {
 }

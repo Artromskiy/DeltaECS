@@ -412,7 +412,7 @@ public class AddMicroBenchmarkImplementation
         _entity = _fixture.World.Create([_fixture.Position, _fixture.Velocity]);
         _change = ChangeWidth == 1
             ? [_fixture.Auxiliary]
-            : [_fixture.Auxiliary, _fixture.Reference];
+            : [_fixture.Auxiliary, _fixture.Reference, _fixture.Movement4A, _fixture.Movement4B];
     }
 
     [Benchmark]
@@ -439,7 +439,7 @@ public class RemoveMicroBenchmarkImplementation
         _fixture = new MicroWorld();
         _change = ChangeWidth == 1
             ? [_fixture.Auxiliary]
-            : [_fixture.Auxiliary, _fixture.Reference];
+            : [_fixture.Auxiliary, _fixture.Reference, _fixture.Movement4A, _fixture.Movement4B];
 
         var components = new ComponentId[2 + _change.Length];
         components[0] = _fixture.Position;
@@ -493,6 +493,157 @@ public class DestroyMicroBenchmarkImplementation
     [Benchmark]
     [InvocationCount(1)]
     public int Destroy() => _fixture.World.Destroy(_entity) ? 1 : 0;
+}
+
+public enum StructuralBatchOperation
+{
+    Create,
+    Destroy,
+    Add,
+    Remove
+}
+
+internal sealed class StructuralBatchFixture
+{
+    private readonly ComponentId[] _baseComponents;
+    private readonly ComponentId[] _changeComponents;
+    private readonly ComponentId[] _targetComponents;
+    private readonly ComponentId[] _nonMatchingComponents;
+
+    public StructuralBatchFixture(int amount)
+    {
+        MicroWorld = new MicroWorld(chunkCapacity: 64, initialEntityCapacity: amount * 2);
+        _baseComponents = [MicroWorld.Position, MicroWorld.Velocity];
+        _changeComponents = [MicroWorld.Auxiliary, MicroWorld.Reference, MicroWorld.Movement4A, MicroWorld.Movement4B];
+        _targetComponents = [.. _baseComponents, .. _changeComponents];
+        _nonMatchingComponents = [.. _baseComponents, MicroWorld.Movement4C];
+        TargetArchetype = MicroWorld.World.GetArchetype(_targetComponents);
+        Output = new Entity[amount];
+        Entities = new Entity[amount];
+    }
+
+    public MicroWorld MicroWorld { get; }
+
+    public Entity[] Entities { get; }
+
+    public Entity[] Output { get; }
+
+    public ArchetypeHandle TargetArchetype { get; }
+
+    public Query Query { get; private set; }
+
+    public int ExpectedQueryMatches { get; private set; }
+
+    public void PrepareList(StructuralBatchOperation operation)
+    {
+        if (operation == StructuralBatchOperation.Create)
+        {
+            return;
+        }
+
+        var source = operation == StructuralBatchOperation.Remove ? _targetComponents : _baseComponents;
+        MicroWorld.World.CreateBatch(source, Entities);
+    }
+
+    public void PrepareQuery(StructuralBatchOperation operation)
+    {
+        var spec = new QuerySpec(
+            _baseComponents,
+            Array.Empty<ComponentId>(),
+            [MicroWorld.Movement4C]);
+        Query = MicroWorld.World.CreateQuery(in spec);
+
+        if (operation == StructuralBatchOperation.Create)
+        {
+            return;
+        }
+
+        var matching = operation == StructuralBatchOperation.Remove ? _targetComponents : _baseComponents;
+        var nonMatching = operation == StructuralBatchOperation.Remove
+            ? [.. _targetComponents, MicroWorld.Movement4C]
+            : _nonMatchingComponents;
+        ExpectedQueryMatches = (Entities.Length + 3) / 4;
+        for (int index = 0; index < Entities.Length; index++)
+        {
+            Entities[index] = MicroWorld.World.Create(index % 4 == 0 ? matching : nonMatching);
+        }
+    }
+
+    public int RunList(StructuralBatchOperation operation)
+        => operation switch
+        {
+            StructuralBatchOperation.Create => MicroWorld.World.CreateBatch(TargetArchetype, Output),
+            StructuralBatchOperation.Destroy => MicroWorld.World.DestroyBatch(Entities),
+            StructuralBatchOperation.Add => MicroWorld.World.AddComponents(_changeComponents, Entities),
+            StructuralBatchOperation.Remove => MicroWorld.World.RemoveComponents(_changeComponents, Entities),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation))
+        };
+
+    public int RunQuery(StructuralBatchOperation operation)
+    {
+        var query = Query;
+        return operation switch
+        {
+            StructuralBatchOperation.Create => MicroWorld.World.CreateBatch(TargetArchetype, Output),
+            StructuralBatchOperation.Destroy => MicroWorld.World.Destroy(in query),
+            StructuralBatchOperation.Add => MicroWorld.World.AddComponents(in query, _changeComponents),
+            StructuralBatchOperation.Remove => MicroWorld.World.RemoveComponents(in query, _changeComponents),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation))
+        };
+    }
+}
+
+public class ListStructuralBatchMicroBenchmarkImplementation
+{
+    [Params(8, 256, 4096)]
+    public int Amount { get; set; }
+
+    [Params(StructuralBatchOperation.Create, StructuralBatchOperation.Destroy, StructuralBatchOperation.Add, StructuralBatchOperation.Remove)]
+    public StructuralBatchOperation Operation { get; set; }
+
+    private StructuralBatchFixture _fixture = null!;
+
+    [IterationSetup]
+    public void Reset()
+    {
+        _fixture = new StructuralBatchFixture(Amount);
+        _fixture.PrepareList(Operation);
+    }
+
+    [Benchmark]
+    [InvocationCount(1)]
+    public int Run()
+    {
+        int count = _fixture.RunList(Operation);
+        return count == Amount ? count : throw new InvalidOperationException("list structural count mismatch");
+    }
+}
+
+public class QueryStructuralBatchMicroBenchmarkImplementation
+{
+    [Params(8, 256, 4096)]
+    public int Amount { get; set; }
+
+    [Params(StructuralBatchOperation.Create, StructuralBatchOperation.Destroy, StructuralBatchOperation.Add, StructuralBatchOperation.Remove)]
+    public StructuralBatchOperation Operation { get; set; }
+
+    private StructuralBatchFixture _fixture = null!;
+
+    [IterationSetup]
+    public void Reset()
+    {
+        _fixture = new StructuralBatchFixture(Amount);
+        _fixture.PrepareQuery(Operation);
+    }
+
+    [Benchmark]
+    [InvocationCount(1)]
+    public int Run()
+    {
+        int count = _fixture.RunQuery(Operation);
+        int expected = Operation == StructuralBatchOperation.Create ? Amount : _fixture.ExpectedQueryMatches;
+        return count == expected ? count : throw new InvalidOperationException("query structural count mismatch");
+    }
 }
 
 internal static class MicroContractSmoke
