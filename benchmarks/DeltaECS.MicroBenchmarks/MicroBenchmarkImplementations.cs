@@ -543,6 +543,13 @@ internal sealed class StructuralBatchFixture
 
         var source = operation == StructuralBatchOperation.Remove ? _targetComponents : _baseComponents;
         MicroWorld.World.CreateBatch(source, Entities);
+
+        if (operation == StructuralBatchOperation.Destroy)
+        {
+            // Prime the world-owned destroy scratch outside the measured call.
+            _ = MicroWorld.World.DestroyBatch(Entities);
+            MicroWorld.World.CreateBatch(source, Entities);
+        }
     }
 
     public void PrepareQuery(StructuralBatchOperation operation)
@@ -566,6 +573,18 @@ internal sealed class StructuralBatchFixture
         for (int index = 0; index < Entities.Length; index++)
         {
             Entities[index] = MicroWorld.World.Create(index % 4 == 0 ? matching : nonMatching);
+        }
+
+        if (operation == StructuralBatchOperation.Destroy)
+        {
+            // Query destroy has no entity-list scratch, but reset the exact
+            // matching/non-matching shape after a setup-only warm operation.
+            var query = Query;
+            _ = MicroWorld.World.Destroy(in query);
+            for (int index = 0; index < Entities.Length; index++)
+            {
+                Entities[index] = MicroWorld.World.Create(index % 4 == 0 ? matching : nonMatching);
+            }
         }
     }
 
@@ -595,7 +614,7 @@ internal sealed class StructuralBatchFixture
 
 public class ListStructuralBatchMicroBenchmarkImplementation
 {
-    [Params(8, 256, 4096)]
+    [Params(1, 8, 256, 4096)]
     public int Amount { get; set; }
 
     [Params(StructuralBatchOperation.Create, StructuralBatchOperation.Destroy, StructuralBatchOperation.Add, StructuralBatchOperation.Remove)]
@@ -621,7 +640,7 @@ public class ListStructuralBatchMicroBenchmarkImplementation
 
 public class QueryStructuralBatchMicroBenchmarkImplementation
 {
-    [Params(8, 256, 4096)]
+    [Params(1, 8, 256, 4096)]
     public int Amount { get; set; }
 
     [Params(StructuralBatchOperation.Create, StructuralBatchOperation.Destroy, StructuralBatchOperation.Add, StructuralBatchOperation.Remove)]
