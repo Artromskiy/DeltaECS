@@ -210,17 +210,13 @@ public sealed partial class World : IDisposable
         }
 
         _destroyScratch.Span[..count].Sort(DestroyEntryComparer.Instance);
+        EnsureFreeRecordCapacity(_freeCount + count);
         int destroyed = 0;
         for (int i = 0; i < count; i++)
         {
             var entry = _destroyScratch[i];
-            if (!TryResolve(entry.Entity, out int recordIndex))
-            {
-                continue;
-            }
-
-            ref readonly var record = ref RecordAt(recordIndex);
-            if (recordIndex != entry.RecordIndex
+            ref readonly var record = ref RecordAt(entry.RecordIndex);
+            if (record.Generation != entry.Entity.Generation
                 || record.Archetype != entry.Archetype
                 || record.Chunk != entry.Chunk
                 || record.SlotIndex != entry.SlotIndex)
@@ -228,7 +224,7 @@ public sealed partial class World : IDisposable
                 continue;
             }
 
-            DestroyResolved(recordIndex);
+            DestroyResolved(entry.RecordIndex);
             destroyed++;
         }
 
@@ -640,6 +636,7 @@ public sealed partial class World : IDisposable
         }
 
         var entities = chunk.RawEntities;
+        EnsureFreeRecordCapacity(_freeCount + count);
         for (int slot = count - 1; slot >= 0; slot--)
         {
             var entity = entities[slot];
@@ -648,7 +645,7 @@ public sealed partial class World : IDisposable
             record.Chunk = -1;
             record.SlotIndex = -1;
             record.Generation++;
-            PushFree(entity.Index);
+            _freeRecords[_freeCount++] = entity.Index;
         }
 
         chunk.ClearAll();
@@ -849,12 +846,18 @@ public sealed partial class World : IDisposable
 
     private void PushFree(int recordIndex)
     {
-        if (_freeCount == _freeRecords.Length)
+        EnsureFreeRecordCapacity(_freeCount + 1);
+        _freeRecords[_freeCount++] = recordIndex;
+    }
+
+    private void EnsureFreeRecordCapacity(int required)
+    {
+        if (required <= _freeRecords.Length)
         {
-            _freeRecords.Resize(Math.Max(4, _freeRecords.Length * 2));
+            return;
         }
 
-        _freeRecords[_freeCount++] = recordIndex;
+        _freeRecords.Resize(Math.Max(required, _freeRecords.Length == 0 ? 4 : _freeRecords.Length * 2));
     }
 
     private int AllocateChunkId() => _nextChunkId++;
