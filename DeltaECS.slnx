@@ -6,4 +6,5 @@
   <Project Path="src/DeltaECS.Generators/DeltaECS.Generators.csproj" />
   <Project Path="tests/DeltaECSTests/DeltaECSTests.csproj" />
   <Project Path="tests/DeltaECS.Generators.Tests/DeltaECS.Generators.Tests.csproj" />
+  <Project Path="tests/DeltaECS.Generators.Consumer/DeltaECS.Generators.Consumer.csproj" />
 </Solution>

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using NUnit.Framework;
@@ -21,6 +22,54 @@ public sealed class ForEachGeneratorTests
         Assert.That(first, Does.Contain("ForEach(in Query query, ForEachEntityAction action)"));
         Assert.That(first, Does.Contain("ForEachEntityTag"));
         Assert.That(first, Does.Not.Contain("dynamic"));
+    }
+
+    [Test]
+    public void DiagnosticsAreDeterministic()
+    {
+        var first = RunGenerator().Diagnostics
+            .Select(static diagnostic => (diagnostic.Id, diagnostic.Severity, Message: diagnostic.GetMessage(CultureInfo.InvariantCulture)))
+            .ToArray();
+        var second = RunGenerator().Diagnostics
+            .Select(static diagnostic => (diagnostic.Id, diagnostic.Severity, Message: diagnostic.GetMessage(CultureInfo.InvariantCulture)))
+            .ToArray();
+
+        Assert.That(second, Is.EqualTo(first));
+    }
+
+    [Test]
+    public void SupportedArityAndAccessMatrixIsGenerated()
+    {
+        string generated = RunGenerator().GeneratedTrees.Single().GetText().ToString();
+
+        Assert.That(generated, Does.Contain("ForEach<T1>"));
+        Assert.That(generated, Does.Contain("ForEach<T1, T2, T3, T4>"));
+
+        foreach (string pattern in AccessPatterns(1).Concat(AccessPatterns(4)))
+        {
+            string suffix = pattern.All(static character => character == 'W') ? string.Empty : "_" + pattern;
+            Assert.That(generated, Does.Contain($"ForEachAction{suffix}<"), pattern);
+            Assert.That(generated, Does.Contain($"ForEachContextEntityAction{suffix}<"), pattern);
+            Assert.That(generated, Does.Contain($"IForEach{suffix}<"), pattern);
+        }
+    }
+
+    [Test, Explicit("Enable after demand-driven arity generation lands in the production generator.")]
+    public void DemandDrivenGenerationCoversArityFiveAndEight()
+    {
+        string generated = RunGenerator().GeneratedTrees.Single().GetText().ToString();
+
+        Assert.That(generated, Does.Contain("ForEachAction<T1, T2, T3, T4, T5>"));
+        Assert.That(generated, Does.Contain("ForEachAction<T1, T2, T3, T4, T5, T6, T7, T8>"));
+    }
+
+    [Test, Explicit("Enable after the primary registry resolver and demand-driven no-ID path land together.")]
+    public void NoIdGenerationUsesPrimaryRegistryIdsWithAnExtraQueryComponent()
+    {
+        string generated = RunGenerator().GeneratedTrees.Single().GetText().ToString();
+
+        Assert.That(generated, Does.Contain("GetPrimary<T1>"));
+        Assert.That(generated, Does.Not.Contain("AllMask.Count != destination.Length"));
     }
 
     [Test]
@@ -142,6 +191,20 @@ public sealed class ForEachGeneratorTests
         return driver.GetRunResult();
     }
 
+    private static IEnumerable<string> AccessPatterns(int arity)
+    {
+        for (int bits = 0; bits < 1 << arity; bits++)
+        {
+            var pattern = new char[arity];
+            for (int index = 0; index < arity; index++)
+            {
+                pattern[index] = (bits & (1 << index)) == 0 ? 'R' : 'W';
+            }
+
+            yield return new string(pattern);
+        }
+    }
+
     private static CSharpCompilation CreateCompilation(IEnumerable<string> sources)
     {
         var references = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
@@ -162,6 +225,11 @@ public sealed class ForEachGeneratorTests
         public readonly struct Query { }
         public readonly struct ReadAccess { }
         public readonly struct WriteAccess { }
+        public sealed class ComponentLayoutRegistry
+        {
+            public bool TryGetPrimary<T>(out ComponentId componentId) { componentId = default; return true; }
+            public ComponentId GetPrimary<T>() => default;
+        }
         public ref struct ReadValues
         {
             public ref T Ref<T>(QueryChunkCursor cursor) => throw new NotImplementedException();
@@ -194,6 +262,7 @@ public sealed class ForEachGeneratorTests
         }
         public sealed partial class World
         {
+            public ComponentLayoutRegistry Layouts { get; } = new();
             internal Query CreateSequenceQuery(ReadOnlySpan<ComponentId> components) => default;
             internal void ExecuteSequenceComponents<TInvoker>(ReadOnlySpan<Entity> entities, in Query query, ref TInvoker invoker, bool hasWrites)
                 where TInvoker : struct, ISequenceInvoker { }
