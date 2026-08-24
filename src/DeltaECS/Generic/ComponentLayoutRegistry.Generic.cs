@@ -9,4 +9,12 @@ public sealed partial class ComponentLayoutRegistry
             typeof(T),
             schemaId,
             RuntimeHelpers.IsReferenceOrContainsReferences<T>());
+
+    /// <summary>Tries to resolve the primary component registration for <typeparamref name="T"/>.</summary>
+    public bool TryGetPrimary<T>(out ComponentId componentId)
+        => TryGetId(typeof(T), out componentId);
+
+    /// <summary>Gets the primary component registration for <typeparamref name="T"/>.</summary>
+    public ComponentId GetPrimary<T>()
+        => GetId(typeof(T));
 }

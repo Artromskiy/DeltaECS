@@ -13,6 +13,7 @@ public sealed partial class ComponentLayoutRegistry
         ?? throw new MissingMethodException(nameof(RuntimeHelpers.IsReferenceOrContainsReferences));
 
     private readonly Dictionary<SchemaId, int> _idsBySchema = new();
+    private readonly Dictionary<Type, ComponentId> _primaryIdsByType = new();
     private readonly Dictionary<Type, bool> _containsReferencesByType = new();
     private readonly List<ComponentLayout> _layouts = new();
     private readonly List<ComponentRowOperations> _rowOperations = new();
@@ -75,6 +76,10 @@ public sealed partial class ComponentLayoutRegistry
         _layouts.Add(layout);
         _rowOperations.Add(rowOperations);
         _idsBySchema.Add(layout.SchemaId, id.Value);
+        if (layout.RuntimeType is { } runtimeType)
+        {
+            _primaryIdsByType.TryAdd(runtimeType, id);
+        }
 
         return id;
     }
@@ -89,6 +94,33 @@ public sealed partial class ComponentLayoutRegistry
 
         componentId = ComponentId.Invalid;
         return false;
+    }
+
+    /// <summary>
+    /// Tries to resolve the primary component registration for a CLR type.
+    /// Later registrations of the same type remain addressable by their explicit ids.
+    /// </summary>
+    public bool TryGetId(Type runtimeType, out ComponentId componentId)
+    {
+        ArgumentNullException.ThrowIfNull(runtimeType);
+        if (_primaryIdsByType.TryGetValue(runtimeType, out componentId))
+        {
+            return true;
+        }
+
+        componentId = ComponentId.Invalid;
+        return false;
+    }
+
+    /// <summary>Gets the primary component registration for a CLR type.</summary>
+    public ComponentId GetId(Type runtimeType)
+    {
+        if (TryGetId(runtimeType, out ComponentId componentId))
+        {
+            return componentId;
+        }
+
+        throw new KeyNotFoundException($"The component type {runtimeType} is not registered.");
     }
 
     public ComponentLayout Get(ComponentId id)
