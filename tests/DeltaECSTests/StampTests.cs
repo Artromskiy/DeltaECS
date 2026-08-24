@@ -222,7 +222,56 @@ public sealed class StampTests
         });
     }
 
-    private readonly record struct Position(int Value);
+    [Test]
+    public void GeneratedWholeChunkWriteMaterializesExactEntityStampsOnDemand()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register(typeof(Position), new SchemaId(40_061));
+        ComponentId velocityId = layouts.Register(typeof(Velocity), new SchemaId(40_062));
+        using var world = new World(layouts, chunkCapacity: 4);
+        var entities = new Entity[3];
+        world.Create([positionId, velocityId], entities);
+        for (int index = 0; index < entities.Length; index++)
+        {
+            Assert.That(world.Set(entities[index], positionId, new Position(index)), Is.True);
+            Assert.That(world.Set(entities[index], velocityId, new Velocity(1)), Is.True);
+        }
 
-    private readonly record struct Velocity(int Value);
+        var query = world.CreateQuery(QuerySpec.ForComponents(positionId, velocityId));
+        var functor = new StampWriteFunctor();
+        world.ForEach(in query, ref functor);
+        Stamp generatedStamp = world.Stamp;
+
+        foreach (Entity entity in entities)
+        {
+            Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp stamp), Is.True);
+            Assert.That(stamp, Is.EqualTo(generatedStamp));
+        }
+
+        Assert.That(world.Set(entities[1], positionId, new Position(42)), Is.True);
+        Stamp pointStamp = world.Stamp;
+        Assert.That(world.TryGetComponentStamp(entities[0], positionId, out Stamp firstStamp), Is.True);
+        Assert.That(world.TryGetComponentStamp(entities[1], positionId, out Stamp secondStamp), Is.True);
+        Assert.That(world.TryGetComponentStamp(entities[2], positionId, out Stamp thirdStamp), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(firstStamp, Is.EqualTo(generatedStamp));
+            Assert.That(secondStamp, Is.EqualTo(pointStamp));
+            Assert.That(thirdStamp, Is.EqualTo(generatedStamp));
+        });
+
+        Assert.That(world.Destroy(entities[0]), Is.True);
+        Assert.That(world.TryGetComponentStamp(entities[2], positionId, out Stamp movedStamp), Is.True);
+        Assert.That(movedStamp, Is.EqualTo(generatedStamp));
+    }
+
+    internal struct StampWriteFunctor : IForEach
+    {
+        public void Invoke(ref Position position, in Velocity velocity)
+            => position = new Position(position.Value + velocity.Value);
+    }
+
+    internal readonly record struct Position(int Value);
+
+    internal readonly record struct Velocity(int Value);
 }

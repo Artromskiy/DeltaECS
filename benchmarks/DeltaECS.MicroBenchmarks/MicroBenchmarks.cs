@@ -9,6 +9,7 @@ internal static class MicroBenchmarkCatalog
     [
         typeof(DenseIterationMicroBenchmarks),
         typeof(Movement4OrderMicroBenchmarks),
+        typeof(GeneratedFunctorMovement4MicroBenchmarks),
         typeof(AddMicroBenchmarks),
         typeof(RemoveMicroBenchmarks),
         typeof(CreateMicroBenchmarks),
@@ -25,6 +26,11 @@ public class DenseIterationMicroBenchmarks : DenseIterationMicroBenchmarkImpleme
 
 [MemoryDiagnoser]
 public class Movement4OrderMicroBenchmarks : Movement4OrderMicroBenchmarkImplementation
+{
+}
+
+[MemoryDiagnoser]
+public class GeneratedFunctorMovement4MicroBenchmarks : GeneratedFunctorMovement4MicroBenchmarkImplementation
 {
 }
 

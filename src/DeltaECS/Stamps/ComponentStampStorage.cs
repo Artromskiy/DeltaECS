@@ -5,6 +5,8 @@ internal struct ComponentStampStorage : IDisposable
     private readonly int _capacity;
     private readonly int _componentCount;
     private NativeMemory<Stamp> _values;
+    private NativeMemory<Stamp> _uniformStamps;
+    private NativeMemory<int> _uniformCounts;
 
     public ComponentStampStorage(int componentCount, int capacity)
     {
@@ -13,17 +15,36 @@ internal struct ComponentStampStorage : IDisposable
         _capacity = capacity;
         _componentCount = componentCount;
         _values = new NativeMemory<Stamp>(checked(componentCount * capacity));
+        _uniformStamps = new NativeMemory<Stamp>(componentCount);
+        _uniformCounts = new NativeMemory<int>(componentCount);
     }
 
     public readonly Stamp Get(int componentIndex, int slotIndex)
-        => _values[Offset(componentIndex, slotIndex)];
+    {
+        int offset = Offset(componentIndex, slotIndex);
+        return slotIndex < _uniformCounts.ReadOnlySpan[componentIndex]
+            ? _uniformStamps.ReadOnlySpan[componentIndex]
+            : _values.ReadOnlySpan[offset];
+    }
 
     public void Set(int componentIndex, int slotIndex, Stamp stamp)
-        => _values[Offset(componentIndex, slotIndex)] = stamp;
+    {
+        int offset = Offset(componentIndex, slotIndex);
+        Materialize(componentIndex);
+        _values[offset] = stamp;
+    }
 
     public void SetComponentRange(int componentIndex, int slotIndex, int count, Stamp stamp)
     {
         ValidateRange(componentIndex, slotIndex, count);
+        if (slotIndex == 0)
+        {
+            _uniformStamps[componentIndex] = stamp;
+            _uniformCounts[componentIndex] = count;
+            return;
+        }
+
+        Materialize(componentIndex);
         _values.Span.Slice(Offset(componentIndex, slotIndex), count).Fill(stamp);
     }
 
@@ -32,7 +53,7 @@ internal struct ComponentStampStorage : IDisposable
         ValidateSlot(slotIndex);
         for (int componentIndex = 0; componentIndex < _componentCount; componentIndex++)
         {
-            _values[Offset(componentIndex, slotIndex)] = stamp;
+            Set(componentIndex, slotIndex, stamp);
         }
     }
 
@@ -45,7 +66,7 @@ internal struct ComponentStampStorage : IDisposable
 
         for (int componentIndex = 0; componentIndex < _componentCount; componentIndex++)
         {
-            _values.Span.Slice(Offset(componentIndex, slotIndex), count).Fill(stamp);
+            SetComponentRange(componentIndex, slotIndex, count, stamp);
         }
     }
 
@@ -77,8 +98,13 @@ internal struct ComponentStampStorage : IDisposable
     {
         ValidateRange(sourceComponentIndex, sourceSlotIndex, count);
         target.ValidateRange(targetComponentIndex, targetSlotIndex, count);
-        _values.ReadOnlySpan.Slice(Offset(sourceComponentIndex, sourceSlotIndex), count)
-            .CopyTo(target._values.Span.Slice(target.Offset(targetComponentIndex, targetSlotIndex), count));
+        for (int index = 0; index < count; index++)
+        {
+            target.Set(
+                targetComponentIndex,
+                targetSlotIndex + index,
+                Get(sourceComponentIndex, sourceSlotIndex + index));
+        }
     }
 
     public void CopySlot(int sourceSlotIndex, int targetSlotIndex)
@@ -96,7 +122,7 @@ internal struct ComponentStampStorage : IDisposable
         ValidateSlot(slotIndex);
         for (int componentIndex = 0; componentIndex < _componentCount; componentIndex++)
         {
-            _values[Offset(componentIndex, slotIndex)] = default;
+            Set(componentIndex, slotIndex, default);
         }
     }
 
@@ -109,12 +135,29 @@ internal struct ComponentStampStorage : IDisposable
 
         for (int componentIndex = 0; componentIndex < _componentCount; componentIndex++)
         {
-            ValidateRange(componentIndex, slotIndex, count);
-            _values.Span.Slice(Offset(componentIndex, slotIndex), count).Clear();
+            SetComponentRange(componentIndex, slotIndex, count, default);
         }
     }
 
-    public void Dispose() => _values.Dispose();
+    public void Dispose()
+    {
+        _values.Dispose();
+        _uniformStamps.Dispose();
+        _uniformCounts.Dispose();
+    }
+
+    private void Materialize(int componentIndex)
+    {
+        int count = _uniformCounts[componentIndex];
+        if (count == 0)
+        {
+            return;
+        }
+
+        int offset = checked(componentIndex * _capacity);
+        _values.Span.Slice(offset, count).Fill(_uniformStamps[componentIndex]);
+        _uniformCounts[componentIndex] = 0;
+    }
 
     private readonly int Offset(int componentIndex, int slotIndex)
     {

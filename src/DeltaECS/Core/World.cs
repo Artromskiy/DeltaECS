@@ -481,7 +481,8 @@ public sealed partial class World : IDisposable
         ValidateQuery(in handle);
         var cached = handle.Cached;
         ReadOnlySpan<ArchetypePlan> plans = cached.MatchingPlans(this);
-        QueryWriteSession writeSession = RentQueryWriteSession(hasWrites, out int sessionGeneration);
+        uint writeTick = 0;
+        Stamp writeStamp = default;
         BeginQueryLease();
         try
         {
@@ -491,14 +492,19 @@ public sealed partial class World : IDisposable
                 ReadOnlySpan<ChunkPlan> chunks = plan.Chunks;
                 for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
                 {
-                    var slots = new QuerySlots(plan, chunks[chunkIndex], cached, writeSession, sessionGeneration);
+                    if (hasWrites && writeTick == 0)
+                    {
+                        writeTick = ReserveQueryWrite(out writeStamp);
+                    }
+
+                    var slots = new GeneratedQuerySlots(plan, chunks[chunkIndex], writeTick, writeStamp);
                     invoker.Invoke(ref slots);
                 }
             }
         }
         finally
         {
-            ReturnQueryWriteSession(writeSession, sessionGeneration);
+            EndQueryLease();
         }
     }
 

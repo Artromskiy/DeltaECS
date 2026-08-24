@@ -65,7 +65,7 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN003"), Is.Empty);
         Assert.That(generated, Does.Contain("ref global::Delta.ECS.SimpleFunctor functor"));
-        Assert.That(generated, Does.Contain("Ref<global::Delta.ECS.T1>(slots)"));
+        Assert.That(generated, Does.Contain("Ref<global::Delta.ECS.T1>(index)"));
         Assert.That(generated, Does.Not.Contain("IForEachEntity_W"));
     }
 
@@ -214,19 +214,27 @@ public sealed class DemandDrivenForEachGeneratorTests
             public ReadRow GetRow(ReadAccess access) => default;
             public ReadRow GetRow(WriteAccess access) => default;
         }
+        public ref struct GeneratedQuerySlots
+        {
+            public Entity CurrentEntity => default;
+            public int CurrentIndex => 0;
+            public bool MoveNext() => false;
+            public ReadRow GetGeneratedReadRow(int queryComponentIndex) => default;
+            public ReadRow GetGeneratedWriteRow(int queryComponentIndex) => default;
+        }
         public ref struct GeneratedSequenceCursor
         {
             public Entity Entity => default;
             public int Slot => 0;
-            public ReadRow GetRow(ReadAccess access) => default;
-            public ReadRow GetRow(WriteAccess access) => default;
+            public ReadRow GetReadRow(int queryComponentIndex) => default;
+            public ReadRow GetWriteRow(int queryComponentIndex) => default;
         }
-        public interface IGeneratedForEachInvoker { void Invoke(ref QuerySlots slots); }
+        public interface IGeneratedForEachInvoker { void Invoke(ref GeneratedQuerySlots slots); }
         public interface IGeneratedSequenceInvoker { void Invoke(ref GeneratedSequenceCursor cursor); }
         public static class GeneratedForEachRuntime
         {
-            public static ReadAccess AccessRead(World world, in Query query, ComponentId component, Type runtimeType) => default;
-            public static WriteAccess AccessWrite(World world, in Query query, ComponentId component, Type runtimeType) => default;
+            public static int AccessRead(World world, in Query query, ComponentId component, Type runtimeType) => default;
+            public static int AccessWrite(World world, in Query query, ComponentId component, Type runtimeType) => default;
             public static Query CreateSequenceQuery(World world, ReadOnlySpan<ComponentId> components) => default;
         }
         public sealed partial class World

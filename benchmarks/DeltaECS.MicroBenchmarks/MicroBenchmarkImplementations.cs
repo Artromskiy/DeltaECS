@@ -1,5 +1,6 @@
 using BenchmarkDotNet.Attributes;
 using Delta.ECS;
+using System.Runtime.CompilerServices;
 
 namespace Delta.ECS.MicroBenchmarks;
 
@@ -368,6 +369,58 @@ public class Movement4OrderMicroBenchmarkImplementation
         _b,
         _c,
         _d);
+}
+
+internal record struct GeneratedMovement4Functor : IForEach
+{
+    public int Checksum { get; set; }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Invoke(
+        ref Movement4A a,
+        ref Movement4B b,
+        ref Movement4C c,
+        in Movement4D d)
+    {
+        a.Value += d.Value;
+        b.Value += a.Value;
+        c.Value += b.Value;
+        Checksum += a.Value + b.Value + c.Value + d.Value;
+    }
+}
+
+public class GeneratedFunctorMovement4MicroBenchmarkImplementation
+{
+    [Params(1_000_000)]
+    public int Amount { get; set; }
+
+    private MicroWorld _fixture = null!;
+    private Entity[] _entities = null!;
+    private Query _query;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _fixture = new MicroWorld(initialEntityCapacity: Amount);
+        _entities = _fixture.CreateMovement4(Amount);
+        var description = QuerySpec.ForComponents(
+            _fixture.Movement4A,
+            _fixture.Movement4B,
+            _fixture.Movement4C,
+            _fixture.Movement4D);
+        _query = _fixture.World.CreateQuery(in description);
+    }
+
+    [IterationSetup]
+    public void Reset() => _fixture.ResetMovement4(_entities);
+
+    [Benchmark]
+    public int Movement4GeneratedFunctor()
+    {
+        var functor = new GeneratedMovement4Functor();
+        _fixture.World.ForEach(in _query, ref functor);
+        return functor.Checksum;
+    }
 }
 
 public class AddMicroBenchmarkImplementation

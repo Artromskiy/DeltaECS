@@ -38,7 +38,7 @@ public sealed partial class World
 
         public ActionInvoker(ForEachAction action) => _action = action;
 
-        public void Invoke(ref QuerySlots slots)
+        public void Invoke(ref GeneratedQuerySlots slots)
         {
             while (slots.MoveNext())
             {
@@ -53,7 +53,7 @@ public sealed partial class World
 
         public EntityActionInvoker(ForEachEntityAction action) => _action = action;
 
-        public void Invoke(ref QuerySlots slots)
+        public void Invoke(ref GeneratedQuerySlots slots)
         {
             while (slots.MoveNext())
             {
@@ -74,7 +74,7 @@ public sealed partial class World
 
         public TContext Context;
 
-        public void Invoke(ref QuerySlots slots)
+        public void Invoke(ref GeneratedQuerySlots slots)
         {
             while (slots.MoveNext())
             {
@@ -95,7 +95,7 @@ public sealed partial class World
 
         public TContext Context;
 
-        public void Invoke(ref QuerySlots slots)
+        public void Invoke(ref GeneratedQuerySlots slots)
         {
             while (slots.MoveNext())
             {

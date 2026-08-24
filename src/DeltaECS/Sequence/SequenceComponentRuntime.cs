@@ -44,7 +44,6 @@ public sealed partial class World
 
                 Chunk chunk = plan.Archetype.GetChunk(record.Chunk);
                 var cursor = new GeneratedSequenceCursor(
-                    cached,
                     plan,
                     chunk,
                     record.SlotIndex,

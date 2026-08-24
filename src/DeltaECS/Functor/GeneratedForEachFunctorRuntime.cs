@@ -8,7 +8,7 @@ using System.Runtime.CompilerServices;
 [EditorBrowsable(EditorBrowsableState.Never)]
 public interface IGeneratedForEachInvoker
 {
-    void Invoke(ref QuerySlots slots);
+    void Invoke(ref GeneratedQuerySlots slots);
 }
 
 /// <summary>Compiler-support contract for generated entity-sequence functor invokers.</summary>
@@ -22,14 +22,12 @@ public interface IGeneratedSequenceInvoker
 [EditorBrowsable(EditorBrowsableState.Never)]
 public ref struct GeneratedSequenceCursor
 {
-    private readonly QueryPlan _query;
     private readonly Chunk _chunk;
     private readonly ReadOnlySpan<int> _componentRows;
     private readonly QueryWriteSession _writeSession;
     private readonly int _sessionGeneration;
 
     internal GeneratedSequenceCursor(
-        QueryPlan query,
         ArchetypePlan plan,
         Chunk chunk,
         int slot,
@@ -37,7 +35,6 @@ public ref struct GeneratedSequenceCursor
         QueryWriteSession writeSession,
         int sessionGeneration)
     {
-        _query = query;
         _chunk = chunk;
         _componentRows = plan.ComponentRows;
         _writeSession = writeSession;
@@ -51,27 +48,17 @@ public ref struct GeneratedSequenceCursor
     public Entity Entity { get; }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ReadRow GetRow(ReadAccess access)
+    public ReadRow GetReadRow(int queryComponentIndex)
     {
         _writeSession.EnsureActive(_sessionGeneration);
-        if (!ReferenceEquals(access.Query, _query))
-        {
-            QueryThrowHelper.ThrowAccessMismatch();
-        }
-
-        int physicalRow = _componentRows[access.QueryComponentIndex];
+        int physicalRow = _componentRows[queryComponentIndex];
         return new ReadRow(_chunk.GetRawComponentRow(physicalRow));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public WriteRow GetRow(WriteAccess access)
+    public WriteRow GetWriteRow(int queryComponentIndex)
     {
-        if (!ReferenceEquals(access.Query, _query))
-        {
-            QueryThrowHelper.ThrowAccessMismatch();
-        }
-
-        int physicalRow = _componentRows[access.QueryComponentIndex];
+        int physicalRow = _componentRows[queryComponentIndex];
         _writeSession.Acquire(_sessionGeneration, out uint writeTick, out Stamp writeStamp);
         _chunk.MarkComponentWritten(physicalRow, Slot, writeTick, writeStamp);
         return new WriteRow(_chunk.GetRawComponentRow(physicalRow));
@@ -82,24 +69,22 @@ public ref struct GeneratedSequenceCursor
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static class GeneratedForEachRuntime
 {
-    public static ReadAccess AccessRead(
+    public static int AccessRead(
         World world,
         in Query query,
         ComponentId component,
         Type runtimeType)
     {
-        int queryRow = ValidateComponent(world, in query, component, runtimeType);
-        return new ReadAccess(query.Cached, queryRow);
+        return ValidateComponent(world, in query, component, runtimeType);
     }
 
-    public static WriteAccess AccessWrite(
+    public static int AccessWrite(
         World world,
         in Query query,
         ComponentId component,
         Type runtimeType)
     {
-        int queryRow = ValidateComponent(world, in query, component, runtimeType);
-        return new WriteAccess(query.Cached, queryRow);
+        return ValidateComponent(world, in query, component, runtimeType);
     }
 
     public static Query CreateSequenceQuery(World world, ReadOnlySpan<ComponentId> components)

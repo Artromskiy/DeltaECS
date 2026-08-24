@@ -533,8 +533,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
-            source.Append("    private readonly ").Append(shape.Pattern[index] == 'R' ? "ReadAccess" : "WriteAccess")
-                .Append(" _access").Append(index).AppendLine(";");
+            source.Append("    private readonly int _access").Append(index).AppendLine(";");
         }
 
         source.Append("    internal ").Append(ConstructorName(name)).Append('(');
@@ -598,19 +597,24 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
     private static void RenderDenseInvoke(StringBuilder source, Shape shape)
     {
-        source.AppendLine("    public void Invoke(ref QuerySlots slots)");
+        source.AppendLine("    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        source.AppendLine("    public void Invoke(ref GeneratedQuerySlots slots)");
         source.AppendLine("    {");
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
-            source.Append("        var values").Append(index).Append(" = slots.GetRow(_access").Append(index).AppendLine(");");
+            source.Append("        var values").Append(index).Append(" = slots.GetGenerated")
+                .Append(shape.Pattern[index] == 'R' ? "Read" : "Write")
+                .Append("Row(_access").Append(index).AppendLine(");");
         }
         source.AppendLine("        while (slots.MoveNext())");
         source.AppendLine("        {");
+        source.AppendLine("            int index = slots.CurrentIndex;");
         source.Append("            ");
-        AppendInvocation(source, shape, "values", "slots", sequence: false);
+        AppendInvocation(source, shape, "values", "index", sequence: false);
         source.AppendLine(";");
         source.AppendLine("        }");
         source.AppendLine("    }");
+
     }
 
     private static void RenderSequenceInvoke(StringBuilder source, Shape shape)
@@ -619,7 +623,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         source.AppendLine("    {");
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
-            source.Append("        var values").Append(index).Append(" = cursor.GetRow(_access").Append(index).AppendLine(");");
+            source.Append("        var values").Append(index).Append(" = cursor.Get")
+                .Append(shape.Pattern[index] == 'R' ? "Read" : "Write")
+                .Append("Row(_access").Append(index).AppendLine(");");
         }
         source.Append("        ");
         AppendInvocation(source, shape, "values", "cursor.Slot", sequence: true);
@@ -881,7 +887,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         var result = new string[pattern.Length];
         for (int index = 0; index < pattern.Length; index++)
         {
-            result[index] = (pattern[index] == 'R' ? "ReadAccess" : "WriteAccess") + " access" + index;
+            result[index] = "int access" + index;
         }
 
         return string.Join(", ", result);
