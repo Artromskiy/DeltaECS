@@ -156,6 +156,21 @@ runner and does not execute inside the measured benchmark process, so it does
 not affect the measurements. Direct microbenchmark DLL runs do not provide this
 runner heartbeat.
 
+For a long local iteration comparison at elevated priority, run:
+
+```bash
+cd /Users/rum/GitProjects/TheFurnace/DeltaECS
+benchmarks/run-sudo-iteration-comparison.sh
+```
+
+The script builds as the current user, requests `sudo` only for the measured
+runner, applies `nice -n -20`, emits the existing 30-second heartbeat and
+restores artifact ownership afterwards. Its defaults are 5 warmups, 15
+measurement iterations and 1 launch, targeting roughly 25-35 minutes on an
+Apple M4 Pro. Override them with `--warmups`, `--iterations` and `--launches`.
+The current unified matrix contains five ECS implementations total: DeltaECS,
+Arch, Friflo, DefaultEcs and LeoEcsLite.
+
 When a class or method is new, discover and smoke it once. Do not repeat these
 commands before every assembly edit:
 
