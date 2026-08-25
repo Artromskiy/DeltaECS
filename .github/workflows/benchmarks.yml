@@ -129,8 +129,8 @@ jobs:
 
       - name: Run comparative contract and discovery smoke
         run: |
-          dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net8.0/DeltaECS.Benchmarks.dll contract-smoke
-          dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net8.0/DeltaECS.Benchmarks.dll \
+          dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net10.0/DeltaECS.Benchmarks.dll contract-smoke
+          dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net10.0/DeltaECS.Benchmarks.dll \
             full-comparison \
             --list flat \
             --filter '*'
@@ -224,7 +224,7 @@ jobs:
               exit 1
               ;;
           esac
-          dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net8.0/DeltaECS.Benchmarks.dll \
+          dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net10.0/DeltaECS.Benchmarks.dll \
             "${benchmark_args[@]}"
 
       - name: Add results to workflow summary
@@ -378,8 +378,8 @@ jobs:
       - name: Run version contract smoke
         working-directory: harness
         run: |
-          dotnet benchmarks/DeltaECS.VersionBenchmarks/bin/Release/net8.0/DeltaECS.VersionBenchmarks.dll smoke
-          dotnet benchmarks/DeltaECS.VersionBenchmarks/bin/Release/net8.0/DeltaECS.VersionBenchmarks.dll \
+          dotnet benchmarks/DeltaECS.VersionBenchmarks/bin/Release/net10.0/DeltaECS.VersionBenchmarks.dll smoke
+          dotnet benchmarks/DeltaECS.VersionBenchmarks/bin/Release/net10.0/DeltaECS.VersionBenchmarks.dll \
             --list flat --filter '*'
 
       - name: Record runner and version information
@@ -430,7 +430,7 @@ jobs:
               exit 1
               ;;
           esac
-          dotnet benchmarks/DeltaECS.VersionBenchmarks/bin/Release/net8.0/DeltaECS.VersionBenchmarks.dll \
+          dotnet benchmarks/DeltaECS.VersionBenchmarks/bin/Release/net10.0/DeltaECS.VersionBenchmarks.dll \
             "${benchmark_args[@]}"
 
       - name: Add version results to workflow summary
