@@ -95,30 +95,18 @@ internal static class MicroBenchmarkKernels
         WriteAccess position,
         ReadAccess velocity)
     {
+        _ = position;
+        _ = velocity;
         var checksum = 0;
-        using var scope = fixture.World.OpenQuery(in query);
-        var preparedPosition = position;
-        var preparedVelocity = velocity;
-        var archetypes = scope.Archetypes;
-        while (archetypes.MoveNext())
-        {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
+        fixture.World.ForEach(
+            in query,
+            ref checksum,
+            static (ref int sum, ref Position p, in Velocity v) =>
             {
-                var slots = chunks.Current.Slots;
-                var positions = slots.GetRow(preparedPosition);
-                var velocities = slots.GetRow(preparedVelocity);
-                while (slots.MoveNext())
-                {
-                    ref var p = ref positions.Ref<Position>(slots);
-                    ref readonly var v = ref velocities.Ref<Velocity>(slots);
-                    p.X += v.X;
-                    p.Y += v.Y;
-                    checksum += p.X + p.Y;
-                }
-            }
-        }
-
+                p.X += v.X;
+                p.Y += v.Y;
+                sum += p.X + p.Y;
+            });
         return checksum;
     }
 
@@ -130,37 +118,21 @@ internal static class MicroBenchmarkKernels
         WriteAccess cBinding,
         ReadAccess dBinding)
     {
+        _ = aBinding;
+        _ = bBinding;
+        _ = cBinding;
+        _ = dBinding;
         var checksum = 0;
-        using var scope = fixture.World.OpenQuery(in query);
-        var preparedA = aBinding;
-        var preparedB = bBinding;
-        var preparedC = cBinding;
-        var preparedD = dBinding;
-        var archetypes = scope.Archetypes;
-        while (archetypes.MoveNext())
-        {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
+        fixture.World.ForEach(
+            in query,
+            ref checksum,
+            static (ref int sum, ref Movement4A a, ref Movement4B b, ref Movement4C c, in Movement4D d) =>
             {
-                var slots = chunks.Current.Slots;
-                var a = slots.GetRow(preparedA);
-                var b = slots.GetRow(preparedB);
-                var c = slots.GetRow(preparedC);
-                var d = slots.GetRow(preparedD);
-                while (slots.MoveNext())
-                {
-                    ref var rowA = ref a.Ref<Movement4A>(slots);
-                    ref var rowB = ref b.Ref<Movement4B>(slots);
-                    ref var rowC = ref c.Ref<Movement4C>(slots);
-                    ref readonly var rowD = ref d.Ref<Movement4D>(slots);
-                    rowA.Value += rowD.Value;
-                    rowB.Value += rowD.Value;
-                    rowC.Value = (rowA.Value + rowB.Value) / 2;
-                    checksum += rowA.Value + rowB.Value + rowC.Value + rowD.Value;
-                }
-            }
-        }
-
+                a.Value += d.Value;
+                b.Value += d.Value;
+                c.Value = (a.Value + b.Value) / 2;
+                sum += a.Value + b.Value + c.Value + d.Value;
+            });
         return checksum;
     }
 
