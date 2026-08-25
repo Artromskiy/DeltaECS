@@ -254,7 +254,7 @@ public class ComparativeMovement2ComponentsBenchmarks
 
     [GlobalCleanup] public void Cleanup() { _defaultQuery?.Dispose(); _default?.Dispose(); }
 
-    [Benchmark(Baseline = true), InvocationCount(1)]
+    [Benchmark(Baseline = true)]
     public double DeltaECS_Movement2Components()
     {
         double sum = 0;
@@ -268,7 +268,7 @@ public class ComparativeMovement2ComponentsBenchmarks
         return sum;
     }
 
-    internal double RunOpenQueryMovement2Components()
+    internal double RunBeginScopeMovement2Components()
     {
         double sum = 0;
         _delta.ForEach(in _deltaQuery, ref sum, static (ref double checksum, ref MoveDeltaPosition position, in MoveDeltaVelocity velocity) =>
@@ -398,7 +398,7 @@ public class ComparativeMovement4ComponentsBenchmarks
 
     public void ResetLeoRawMovement4() => ResetLeoMovement4();
     [GlobalCleanup] public void Cleanup() { _defaultQuery?.Dispose(); _default?.Dispose(); }
-    [Benchmark(Baseline = true), InvocationCount(1)]
+    [Benchmark(Baseline = true)]
     public int DeltaECS_Movement4Components()
     {
         var sum = 0;
@@ -414,7 +414,7 @@ public class ComparativeMovement4ComponentsBenchmarks
 
         return sum;
     }
-    internal int RunOpenQueryMovement4Components()
+    internal int RunBeginScopeMovement4Components()
     {
         var sum = 0;
         _delta.ForEach(in _deltaQuery, ref sum, static (ref int checksum, ref DistinctDelta0 rowA, ref DistinctDelta1 rowB, ref DistinctDelta2 rowC, in DistinctDelta3 rowD) =>
@@ -512,11 +512,11 @@ public class ComparativeSparseQueryBenchmarks
     [Benchmark, BenchmarkCategory("Iteration.SparseWorldQueryPlan")] public int FrifloEngineECS_SparseWorldQueryPlan() => FrifloQuery(_frifloQuery);
     [Benchmark, BenchmarkCategory("Iteration.SparseWorldQueryPlan")] public int DefaultEcs_SparseWorldQueryPlan() => DefaultQuery(_defaultQuery.GetEntities());
     [Benchmark, BenchmarkCategory("Iteration.SparseWorldQueryPlan")] public int LeoEcsLite_SparseWorldQueryPlan() => LeoQuery(_leoQuery);
-    [Benchmark(Baseline = true), InvocationCount(1), BenchmarkCategory("Iteration.QueryPlanConstruction")] public int DeltaECS_QueryPlanConstruction() { var d = new QuerySpec(new[] { _deltaA, _deltaB }, Array.Empty<ComponentId>(), new[] { _deltaC }); var query = _delta.CreateQuery(in d); var a = query.AccessRead(_deltaA); var b = query.AccessRead(_deltaB); return DeltaQuery(query, a, b); }
-    [Benchmark, InvocationCount(1), BenchmarkCategory("Iteration.QueryPlanConstruction")] public int Arch_QueryPlanConstruction() { var d = new Arch.Core.QueryDescription { All = new ArchComponentType[] { _archMatchTypes[0], _archMatchTypes[1] }, None = new ArchComponentType[] { _archCType } }; return ArchQuery(d); }
-    [Benchmark, InvocationCount(1), BenchmarkCategory("Iteration.QueryPlanConstruction")] public int FrifloEngineECS_QueryPlanConstruction() => FrifloQuery(CreateFrifloQuery());
-    [Benchmark, InvocationCount(1), BenchmarkCategory("Iteration.QueryPlanConstruction")] public int DefaultEcs_QueryPlanConstruction() { using var q = CreateDefaultQuery(); return DefaultQuery(q.GetEntities()); }
-    [Benchmark, InvocationCount(1), BenchmarkCategory("Iteration.QueryPlanConstruction")] public int LeoEcsLite_QueryPlanConstruction() => LeoQuery(_leo.Filter<SparseLeoA>().Inc<SparseLeoB>().Exc<SparseLeoC>().End());
+    [Benchmark(Baseline = true), BenchmarkCategory("Iteration.QueryPlanConstruction")] public int DeltaECS_QueryPlanConstruction() { var d = new QuerySpec(new[] { _deltaA, _deltaB }, Array.Empty<ComponentId>(), new[] { _deltaC }); var query = _delta.CreateQuery(in d); var a = query.AccessRead(_deltaA); var b = query.AccessRead(_deltaB); return DeltaQuery(query, a, b); }
+    [Benchmark, BenchmarkCategory("Iteration.QueryPlanConstruction")] public int Arch_QueryPlanConstruction() { var d = new Arch.Core.QueryDescription { All = new ArchComponentType[] { _archMatchTypes[0], _archMatchTypes[1] }, None = new ArchComponentType[] { _archCType } }; return ArchQuery(d); }
+    [Benchmark, BenchmarkCategory("Iteration.QueryPlanConstruction")] public int FrifloEngineECS_QueryPlanConstruction() => FrifloQuery(CreateFrifloQuery());
+    [Benchmark, BenchmarkCategory("Iteration.QueryPlanConstruction")] public int DefaultEcs_QueryPlanConstruction() { using var q = CreateDefaultQuery(); return DefaultQuery(q.GetEntities()); }
+    [Benchmark, BenchmarkCategory("Iteration.QueryPlanConstruction")] public int LeoEcsLite_QueryPlanConstruction() => LeoQuery(_leo.Filter<SparseLeoA>().Inc<SparseLeoB>().Exc<SparseLeoC>().End());
 
     private int DeltaQuery(Query query, ReadAccess a, ReadAccess b)
     {
