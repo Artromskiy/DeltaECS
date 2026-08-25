@@ -1,0 +1,591 @@
+// Validating benchmarks:
+// ***** BenchmarkRunner: Start   *****
+// ***** Found 1 benchmark(s) in total *****
+// ***** Building 1 exe(s) in Parallel: Start   *****
+// start dotnet  restore /p:UseSharedCompilation=false /p:BuildInParallel=false /m:1 /p:Deterministic=true /p:Optimize=true in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net10.0/9b66a456-ee2a-4f39-a634-c74c7c92edee
+// command took 2.6 sec and exited with 0
+// start dotnet  build -c Release --no-restore /p:UseSharedCompilation=false /p:BuildInParallel=false /m:1 /p:Deterministic=true /p:Optimize=true in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net10.0/9b66a456-ee2a-4f39-a634-c74c7c92edee
+// command took 9.49 sec and exited with 0
+// ***** Done, took 00:00:12 (12.32 sec)   *****
+// Found 1 benchmarks:
+//   GeneratedFunctorMovement4MicroBenchmarks.Movement4GeneratedFunctor: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=1000000]
+
+// **************************
+// Benchmark: GeneratedFunctorMovement4MicroBenchmarks.Movement4GeneratedFunctor: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=1000000]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet 9b66a456-ee2a-4f39-a634-c74c7c92edee.dll --anonymousPipes 118 119 --benchmarkName "Delta.ECS.MicroBenchmarks.GeneratedFunctorMovement4MicroBenchmarks.Movement4GeneratedFunctor(Amount: 1000000)" --job Dry --benchmarkId 0 in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net10.0/9b66a456-ee2a-4f39-a634-c74c7c92edee/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.13.12
+// Runtime=.NET 10.0.9 (10.0.926.27113), Arm64 RyuJIT AdvSIMD
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AdvSIMD,AES,CRC32,DP,RDM,SHA1,SHA256 VectorSize=128
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 8931834.00 ns, 8.9318 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 8931834.00 ns, 8.9318 ms/op
+// GC:  0 0 0 736 1
+// Threading:  0 0 1
+
+// AfterAll
+; Assembly listing for method Delta.ECS.QueryPlan:MatchingArchetypes(Delta.ECS.World):System.ReadOnlySpan`1[int]:this (FullOpts)
+; Emitting BLENDED_CODE for generic ARM64 on Apple
+; FullOpts code
+; optimized code
+; fp based frame
+; fully interruptible
+; No PGO data
+; 0 inlinees with PGO data; 38 single block inlinees; 13 inlinees without PGO data
+G_M000_IG01:
+            stp     fp, lr, [sp, #0xD1FFAB1E]!
+            stp     x19, x20, [sp, #0xF0]
+            stp     x21, x22, [sp, #0xD1FFAB1E]
+            stp     x23, x24, [sp, #0xD1FFAB1E]
+            stp     x25, x26, [sp, #0xD1FFAB1E]
+            stp     x27, x28, [sp, #0xD1FFAB1E]
+            mov     fp, sp
+            add     x9, fp, #104
+            movi    v16.16b, #0
+            stp     q16, q16, [x9]
+            stp     q16, q16, [x9, #0x20]
+            stp     q16, q16, [x9, #0x40]
+            stp     q16, q16, [x9, #0x60]
+            mov     x19, x0
+            mov     x20, x1
+ 
+G_M000_IG02:
+            add     x0, fp, #48
+            bl      CORINFO_HELP_INIT_PINVOKE_FRAME
+            mov     x21, x0
+            mov     x0, sp
+            str     x0, [fp, #0x48]
+            mov     x0, fp
+            str     x0, [fp, #0x58]
+            ldr     w0, [x19, #0x20]
+            ldr     w1, [x20, #0x64]
+            cmp     w0, w1
+            beq     G_M000_IG24
+ 
+G_M000_IG03:
+            ldr     x0, [x20, #0x10]
+            ldr     w22, [x0, #0x10]
+            cbnz    w22, G_M000_IG05
+            movz    x0, #0xD1FFAB1E
+            movk    x0, #0xD1FFAB1E LSL #16
+            movk    x0, #1 LSL #32
+            ldapr   w0, [x0]
+            tbz     w0, #0, G_M000_IG31
+ 
+G_M000_IG04:
+            movz    x1, #0xD1FFAB1E
+            movk    x1, #0xD1FFAB1E LSL #16
+            movk    x1, #1 LSL #32
+            ldr     x23, [x1]
+            b       G_M000_IG06
+            align   [0 bytes for IG20]
+            align   [0 bytes]
+            align   [0 bytes]
+            align   [0 bytes]
+ 
+G_M000_IG05:
+            sxtw    x1, w22
+            movz    x0, #0xD1FFAB1E
+            movk    x0, #0xD1FFAB1E LSL #16
+            movk    x0, #1 LSL #32
+            bl      CORINFO_HELP_NEWARR_1_VC
+            mov     x23, x0
+ 
+G_M000_IG06:
+            str     x23, [fp, #0x18]
+            mov     w24, wzr
+            mov     w25, wzr
+            b       G_M000_IG13
+ 
+G_M000_IG07:
+            cmp     w25, w1
+            bhs     G_M000_IG33
+            ldr     x0, [x0, #0x08]
+            ldr     w1, [x0, #0x08]
+            cmp     w25, w1
+            bhs     G_M000_IG36
+            add     x0, x0, #16
+            ldr     x26, [x0, w25, UXTW #3]
+            mov     x0, x19
+            mov     x1, x26
+            movz    x2, #0xD1FFAB1E
+            movk    x2, #0xD1FFAB1E LSL #16
+            movk    x2, #1 LSL #32
+            ldr     x2, [x2]
+            blr     x2
+            cbz     w0, G_M000_IG12
+ 
+G_M000_IG08:
+            ldp     x0, x1, [x19, #0x30]
+            stp     x0, x1, [fp, #0xC8]
+            ldp     x0, x1, [x19, #0x40]
+            stp     x0, x1, [fp, #0xD8]
+            ldr     x1, [fp, #0xC8]
+            mov     v16.d[0], x1
+            cnt     v16.8b, v16.8b
+            addv    b16, v16.8b
+            umov    w1, v16.b[0]
+            ldr     x0, [fp, #0xD0]
+            mov     v16.d[0], x0
+            cnt     v16.8b, v16.8b
+            addv    b16, v16.8b
+            umov    w0, v16.b[0]
+            add     w1, w1, w0
+            ldr     x0, [fp, #0xD8]
+            mov     v16.d[0], x0
+            cnt     v16.8b, v16.8b
+            addv    b16, v16.8b
+            umov    w0, v16.b[0]
+            add     w1, w1, w0
+            ldr     x0, [fp, #0xE0]
+            mov     v16.d[0], x0
+            cnt     v16.8b, v16.8b
+            addv    b16, v16.8b
+            umov    w0, v16.b[0]
+            add     w27, w1, w0
+            sxtw    x1, w27
+            movz    x0, #0xD1FFAB1E
+            movk    x0, #0xD1FFAB1E LSL #16
+            movk    x0, #1 LSL #32
+            bl      CORINFO_HELP_NEWARR_1_VC
+            mov     x28, x0
+            str     wzr, [fp, #0xEC]
+            ldp     x0, x2, [x19, #0x30]
+            stp     x0, x2, [fp, #0xC8]
+            ldp     x0, x2, [x19, #0x40]
+            stp     x0, x2, [fp, #0xD8]
+            ldp     x0, x2, [fp, #0xC8]
+            ldp     x3, x4, [fp, #0xD8]
+            stp     x0, x2, [fp, #0xA0]
+            stp     x3, x4, [fp, #0xB0]
+            str     xzr, [fp, #0xC0]
+            add     x0, fp, #160
+            movz    x2, #0xD1FFAB1E
+            movk    x2, #0xD1FFAB1E LSL #16
+            movk    x2, #1 LSL #32
+            ldr     x2, [x2]
+            blr     x2
+            cbz     w0, G_M000_IG10
+ 
+G_M000_IG09:
+            ldr     w1, [fp, #0xC4]
+            ldr     w2, [fp, #0xEC]
+            sxtw    w3, w2
+            str     w3, [fp, #0x7C]
+            add     w2, w3, #1
+            str     w2, [fp, #0xEC]
+            ldp     x0, x4, [x26, #0x80]
+            stp     x0, x4, [fp, #0xC8]
+            ldp     x0, x4, [x26, #0x90]
+            stp     x0, x4, [fp, #0xD8]
+            add     x0, fp, #200
+            movz    x4, #0xD1FFAB1E
+            movk    x4, #0xD1FFAB1E LSL #16
+            movk    x4, #1 LSL #32
+            ldr     x4, [x4]
+            blr     x4
+            ldr     w3, [fp, #0x7C]
+            cmp     w3, w27
+            bhs     G_M000_IG36
+            add     x1, x28, #16
+            str     w0, [x1, w3, UXTW #2]
+            add     x0, fp, #160
+            movz    x1, #0xD1FFAB1E
+            movk    x1, #0xD1FFAB1E LSL #16
+            movk    x1, #1 LSL #32
+            ldr     x1, [x1]
+            blr     x1
+            cbnz    w0, G_M000_IG09
+ 
+G_M000_IG10:
+            movz    x0, #0xD1FFAB1E
+            movk    x0, #0xD1FFAB1E LSL #16
+            movk    x0, #1 LSL #32
+            ldapr   w0, [x0]
+            tbz     w0, #0, G_M000_IG32
+ 
+G_M000_IG11:
+            movz    x14, #0xD1FFAB1E
+            movk    x14, #0xD1FFAB1E LSL #16
+            movk    x14, #1 LSL #32
+            ldr     x0, [x14]
+            add     w14, w24, #1
+            sxtw    w27, w14
+            ldr     w14, [x23, #0x08]
+            cmp     w24, w14
+            bhs     G_M000_IG36
+            ubfiz   x14, x24, #5, #32
+            add     x14, x14, #16
+            add     x1, x23, x14
+            str     w25, [x1]
+            add     x14, x1, #8
+            mov     x15, x26
+            bl      CORINFO_HELP_ASSIGN_REF
+            add     x14, x1, #16
+            mov     x15, x28
+            bl      CORINFO_HELP_ASSIGN_REF
+            add     x14, x1, #24
+            mov     x15, x0
+            bl      CORINFO_HELP_ASSIGN_REF
+            mov     w24, w27
+ 
+G_M000_IG12:
+            add     w25, w25, #1
+ 
+G_M000_IG13:
+            ldr     x0, [x20, #0x10]
+            ldr     w1, [x0, #0x10]
+            cmp     w25, w1
+            blt     G_M000_IG07
+ 
+G_M000_IG14:
+            str     x19, [fp, #0x28]
+            add     x25, x19, #152
+            str     x25, [fp, #0x10]
+            ldr     x0, [x25]
+            cbz     x0, G_M000_IG19
+            str     x20, [fp, #0x20]
+            ldr     x0, [x25]
+            movz    x1, #0xD1FFAB1E
+            movk    x1, #0xD1FFAB1E LSL #16
+            movk    x1, #1 LSL #32
+            str     x1, [fp, #0x40]
+            adr     x1, [G_M000_IG17]
+            str     x1, [fp, #0x50]
+            add     x1, fp, #48
+            str     x1, [x21, #0x08]
+            strb    wzr, [x21, #0x04]
+ 
+G_M000_IG15:
+            movz    x1, #0xD1FFAB1E
+            movk    x1, #0xD1FFAB1E LSL #16
+            movk    x1, #1 LSL #32
+ 
+G_M000_IG16:
+            blr     x1
+ 
+G_M000_IG17:
+            mov     w0, #1
+            strb    w0, [x21, #0x04]
+            movz    x0, #0xD1FFAB1E
+            movk    x0, #0xD1FFAB1E LSL #16
+            movk    x0, #1 LSL #32
+            ldr     w0, [x0]
+            cmp     w0, #0
+            beq     G_M000_IG18
+            bl      CORINFO_HELP_STOP_FOR_GC
+ 
+G_M000_IG18:
+            ldr     x0, [fp, #0x38]
+            str     x0, [x21, #0x08]
+            ldr     x25, [fp, #0x10]
+            str     xzr, [x25]
+            ldp     x23, x20, [fp, #0x18]
+ 
+G_M000_IG19:
+            str     wzr, [x25, #0x08]
+            ldr     x19, [fp, #0x28]
+            str     w24, [x19, #0x24]
+            cbz     w24, G_M000_IG30
+            tbnz    w24, #31, G_M000_IG34
+            mov     w0, w24
+            mov     x1, #4
+            umulh   x2, x0, x1
+            mul     x21, x0, x1
+            cmp     x2, #0
+            bne     G_M000_IG37
+            mov     x0, x21
+            movz    x1, #0xD1FFAB1E
+            movk    x1, #0xD1FFAB1E LSL #16
+            movk    x1, #1 LSL #32
+            ldr     x1, [x1]
+            blr     x1
+            mov     x25, x0
+            mov     x1, x21
+            movz    x2, #0xD1FFAB1E
+            movk    x2, #0xD1FFAB1E LSL #16
+            movk    x2, #1 LSL #32
+            ldr     x2, [x2]
+            blr     x2
+            str     x25, [x19, #0x98]
+            str     w24, [x19, #0xA0]
+            mov     w1, w24
+            movz    x0, #0xD1FFAB1E
+            movk    x0, #0xD1FFAB1E LSL #16
+            movk    x0, #1 LSL #32
+            bl      CORINFO_HELP_NEWARR_1_VC
+            mov     x15, x0
+            add     x14, x19, #8
+            bl      CORINFO_HELP_ASSIGN_REF
+            sxtw    x1, w22
+            movz    x0, #0xD1FFAB1E
+            movk    x0, #0xD1FFAB1E LSL #16
+            movk    x0, #1 LSL #32
+            bl      CORINFO_HELP_NEWARR_1_VC
+            mov     x15, x0
+            add     x14, x19, #16
+            bl      CORINFO_HELP_ASSIGN_REF
+            ldr     x0, [x19, #0x10]
+            movn    w1, #0
+            movz    x2, #0xD1FFAB1E
+            movk    x2, #0xD1FFAB1E LSL #16
+            movk    x2, #1 LSL #32
+            ldr     x2, [x2]
+            blr     x2
+            mov     w0, wzr
+            cmp     w24, #0
+            ble     G_M000_IG23
+            cbz     x23, G_M000_IG27
+            ldr     w14, [x23, #0x08]
+            cmp     w14, w24
+            blt     G_M000_IG27
+ 
+G_M000_IG20:
+            ubfiz   x14, x0, #5, #32
+            add     x14, x14, #16
+            add     x1, x23, x14
+            ldr     w2, [x1]
+ 
+G_M000_IG21:
+            ldp     q16, q17, [x1]
+            stp     q16, q17, [fp, #0x80]
+ 
+G_M000_IG22:
+            ldr     x14, [x19, #0x98]
+            str     w2, [x14, w0, SXTW #2]
+            ldr     x3, [x19, #0x08]
+            ldr     w14, [x3, #0x08]
+            cmp     w0, w14
+            bhs     G_M000_IG36
+            mov     w14, #24
+            mov     x13, #16
+            umaddl  x14, w0, w14, x13
+            add     x14, x3, x14
+            add     x13, fp, #136
+            bl      CORINFO_HELP_ASSIGN_BYREF
+            bl      CORINFO_HELP_ASSIGN_BYREF
+            bl      CORINFO_HELP_ASSIGN_BYREF
+            ldr     x4, [x19, #0x10]
+            ldr     w1, [x4, #0x08]
+            cmp     w2, w1
+            bhs     G_M000_IG36
+            add     x3, x4, #16
+            str     w0, [x3, w2, UXTW #2]
+            add     w0, w0, #1
+            cmp     w0, w24
+            blt     G_M000_IG20
+ 
+G_M000_IG23:
+            ldr     w0, [x20, #0x64]
+            str     w0, [x19, #0x20]
+            add     x0, x19, #152
+            ldr     x1, [x0]
+            ldr     w0, [x0, #0x08]
+            tbnz    w0, #31, G_M000_IG35
+            str     x1, [fp, #0x68]
+            str     w0, [fp, #0x70]
+            b       G_M000_IG25
+ 
+G_M000_IG24:
+            add     x0, x19, #152
+            ldr     x1, [x0]
+            ldr     w0, [x0, #0x08]
+            tbnz    w0, #31, G_M000_IG35
+            str     x1, [fp, #0x68]
+            str     w0, [fp, #0x70]
+ 
+G_M000_IG25:
+            ldp     x0, x1, [fp, #0x68]
+ 
+G_M000_IG26:
+            ldp     x27, x28, [sp, #0xD1FFAB1E]
+            ldp     x25, x26, [sp, #0xD1FFAB1E]
+            ldp     x23, x24, [sp, #0xD1FFAB1E]
+            ldp     x21, x22, [sp, #0xD1FFAB1E]
+            ldp     x19, x20, [sp, #0xF0]
+            ldp     fp, lr, [sp], #0xD1FFAB1E
+            ret     lr
+ 
+G_M000_IG27:
+            ldr     w2, [x23, #0x08]
+            cmp     w0, w2
+            bhs     G_M000_IG36
+            ubfiz   x14, x0, #5, #32
+            add     x14, x14, #16
+            add     x1, x23, x14
+            ldr     w2, [x1]
+ 
+G_M000_IG28:
+            ldp     q16, q17, [x1]
+            stp     q16, q17, [fp, #0x80]
+ 
+G_M000_IG29:
+            ldr     x14, [x19, #0x98]
+            str     w2, [x14, w0, UXTW #2]
+            ldr     x3, [x19, #0x08]
+            ldr     w14, [x3, #0x08]
+            cmp     w0, w14
+            bhs     G_M000_IG36
+            mov     w14, #24
+            mov     x13, #16
+            umaddl  x14, w0, w14, x13
+            add     x14, x3, x14
+            add     x13, fp, #136
+            bl      CORINFO_HELP_ASSIGN_BYREF
+            bl      CORINFO_HELP_ASSIGN_BYREF
+            bl      CORINFO_HELP_ASSIGN_BYREF
+            ldr     x4, [x19, #0x10]
+            ldr     w1, [x4, #0x08]
+            cmp     w2, w1
+            bhs     G_M000_IG36
+            add     x1, x4, #16
+            str     w0, [x1, w2, UXTW #2]
+            add     w0, w0, #1
+            cmp     w0, w24
+            blt     G_M000_IG27
+            b       G_M000_IG23
+ 
+G_M000_IG30:
+            str     xzr, [x19, #0x98]
+            str     wzr, [x19, #0xA0]
+            movz    x0, #0xD1FFAB1E
+            movk    x0, #0xD1FFAB1E LSL #16
+            movk    x0, #1 LSL #32
+            str     x0, [x19, #0x08]
+            movz    x0, #0xD1FFAB1E
+            movk    x0, #0xD1FFAB1E LSL #16
+            movk    x0, #1 LSL #32
+            str     x0, [x19, #0x10]
+            b       G_M000_IG23
+ 
+G_M000_IG31:
+            movz    x0, #0xD1FFAB1E
+            movk    x0, #0xD1FFAB1E LSL #16
+            movk    x0, #1 LSL #32
+            bl      CORINFO_HELP_GET_GCSTATIC_BASE
+            b       G_M000_IG04
+ 
+G_M000_IG32:
+            movz    x0, #0xD1FFAB1E
+            movk    x0, #0xD1FFAB1E LSL #16
+            movk    x0, #1 LSL #32
+            bl      CORINFO_HELP_GET_GCSTATIC_BASE
+            b       G_M000_IG11
+ 
+G_M000_IG33:
+            movz    x0, #0xD1FFAB1E
+            movk    x0, #0xD1FFAB1E LSL #16
+            movk    x0, #1 LSL #32
+            ldr     x0, [x0]
+            blr     x0
+            brk     #0
+ 
+G_M000_IG34:
+            mov     w0, #0xD1FFAB1E
+            movz    x1, #0xD1FFAB1E
+            movk    x1, #0xD1FFAB1E LSL #16
+            movk    x1, #1 LSL #32
+            movz    x2, #0xD1FFAB1E
+            movk    x2, #0xD1FFAB1E LSL #16
+            movk    x2, #1 LSL #32
+            ldr     x2, [x2]
+            blr     x2
+            mov     x1, x0
+            mov     w0, w24
+            movz    x2, #0xD1FFAB1E
+            movk    x2, #0xD1FFAB1E LSL #16
+            movk    x2, #1 LSL #32
+            ldr     x2, [x2]
+            blr     x2
+            brk     #0
+ 
+G_M000_IG35:
+            movz    x0, #0xD1FFAB1E
+            movk    x0, #0xD1FFAB1E LSL #16
+            movk    x0, #1 LSL #32
+            ldr     x0, [x0]
+            blr     x0
+            brk     #0
+ 
+G_M000_IG36:
+            bl      CORINFO_HELP_RNGCHKFAIL
+            brk     #0
+ 
+G_M000_IG37:
+            bl      CORINFO_HELP_OVERFLOW
+            brk     #0
+ 
+; Total bytes of code 1620
+// Benchmark Process 15900 has exited with code 0.
+
+Mean = 8.932 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 8.932 ms, Q1 = 8.932 ms, Median = 8.932 ms, Q3 = 8.932 ms, Max = 8.932 ms
+IQR = 0.000 ms, LowerFence = 8.932 ms, UpperFence = 8.932 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 0 (0,0 %) benchmark(s) to run. Estimated finish 2026-08-25 14:39 (0h 0m from now) **
+// ***** BenchmarkRunner: Finish  *****
+
+// * Export *
+  BenchmarkDotNet.Artifacts/results/Delta.ECS.MicroBenchmarks.GeneratedFunctorMovement4MicroBenchmarks-report.csv
+  BenchmarkDotNet.Artifacts/results/Delta.ECS.MicroBenchmarks.GeneratedFunctorMovement4MicroBenchmarks-report-github.md
+  BenchmarkDotNet.Artifacts/results/Delta.ECS.MicroBenchmarks.GeneratedFunctorMovement4MicroBenchmarks-report.html
+
+// * Detailed results *
+GeneratedFunctorMovement4MicroBenchmarks.Movement4GeneratedFunctor: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=1000000]
+Runtime = .NET 10.0.9 (10.0.926.27113), Arm64 RyuJIT AdvSIMD; GC = Concurrent Workstation
+Mean = 8.932 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 8.932 ms, Q1 = 8.932 ms, Median = 8.932 ms, Q3 = 8.932 ms, Max = 8.932 ms
+IQR = 0.000 ms, LowerFence = 8.932 ms, UpperFence = 8.932 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[8.932 ms ; 8.932 ms) | @
+---------------------------------------------------
+
+// * Summary *
+
+BenchmarkDotNet v0.13.12, macOS 26.5.2 (25F84) [Darwin 25.5.0]
+Apple M4 Pro, 1 CPU, 14 logical and 14 physical cores
+.NET SDK 10.0.301
+  [Host] : .NET 10.0.9 (10.0.926.27113), Arm64 RyuJIT AdvSIMD
+  Dry    : .NET 10.0.9 (10.0.926.27113), Arm64 RyuJIT AdvSIMD
+
+Job=Dry  IterationCount=1  LaunchCount=1  
+RunStrategy=ColdStart  UnrollFactor=1  WarmupCount=1  
+
+| Method                    | Amount  | Mean     | Error | Allocated |
+|-------------------------- |-------- |---------:|------:|----------:|
+| Movement4GeneratedFunctor | 1000000 | 8.932 ms |    NA |         - |
+
+// * Warnings *
+MinIterationTime
+  GeneratedFunctorMovement4MicroBenchmarks.Movement4GeneratedFunctor: Dry -> The minimum observed iteration time is 8.9318 ms which is very small. It's recommended to increase it to at least 100.0000 ms using more operations.
+
+// * Legends *
+  Amount    : Value of the 'Amount' parameter
+  Mean      : Arithmetic mean of all measurements
+  Error     : Half of 99.9% confidence interval
+  Allocated : Allocated memory per single operation (managed only, inclusive, 1KB = 1024B)
+  1 ms      : 1 Millisecond (0.001 sec)
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:00:00 (0.67 sec), executed benchmarks: 1
+
+Global total time: 00:00:13 (13.34 sec), executed benchmarks: 1
+// * Artifacts cleanup *
+Artifacts cleanup is finished

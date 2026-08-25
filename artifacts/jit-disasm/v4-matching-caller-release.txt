@@ -1,0 +1,351 @@
+// Validating benchmarks:
+// ***** BenchmarkRunner: Start   *****
+// ***** Found 1 benchmark(s) in total *****
+// ***** Building 1 exe(s) in Parallel: Start   *****
+// start dotnet  restore /p:UseSharedCompilation=false /p:BuildInParallel=false /m:1 /p:Deterministic=true /p:Optimize=true in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net10.0/4e2126db-e2ab-408b-a933-dd436cf5bc05
+// command took 2.54 sec and exited with 0
+// start dotnet  build -c Release --no-restore /p:UseSharedCompilation=false /p:BuildInParallel=false /m:1 /p:Deterministic=true /p:Optimize=true in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net10.0/4e2126db-e2ab-408b-a933-dd436cf5bc05
+// command took 13.18 sec and exited with 0
+// ***** Done, took 00:00:15 (15.91 sec)   *****
+// Found 1 benchmarks:
+//   GeneratedFunctorMovement4MicroBenchmarks.Movement4GeneratedFunctor: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=1000000]
+
+// **************************
+// Benchmark: GeneratedFunctorMovement4MicroBenchmarks.Movement4GeneratedFunctor: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=1000000]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet 4e2126db-e2ab-408b-a933-dd436cf5bc05.dll --anonymousPipes 118 119 --benchmarkName "Delta.ECS.MicroBenchmarks.GeneratedFunctorMovement4MicroBenchmarks.Movement4GeneratedFunctor(Amount: 1000000)" --job Dry --benchmarkId 0 in /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net10.0/4e2126db-e2ab-408b-a933-dd436cf5bc05/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.13.12
+// Runtime=.NET 10.0.9 (10.0.926.27113), Arm64 RyuJIT AdvSIMD
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AdvSIMD,AES,CRC32,DP,RDM,SHA1,SHA256 VectorSize=128
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 7113042.00 ns, 7.1130 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 7113042.00 ns, 7.1130 ms/op
+// GC:  0 0 0 736 1
+// Threading:  0 0 1
+
+// AfterAll
+; Assembly listing for method Delta.ECS.World:ExecuteGeneratedForEach[Delta.ECS.DemandForEachInvoker_30E1DA14](byref,byref,bool):this (FullOpts)
+; Emitting BLENDED_CODE for generic ARM64 on Apple
+; FullOpts code
+; optimized code
+; fp based frame
+; fully interruptible
+; No PGO data
+; 0 inlinees with PGO data; 56 single block inlinees; 2 inlinees without PGO data
+G_M000_IG01:
+            stp     fp, lr, [sp, #-0x50]!
+            stp     x19, x20, [sp, #0x20]
+            stp     x21, x22, [sp, #0x30]
+            stp     x23, x24, [sp, #0x40]
+            mov     fp, sp
+            str     x0, [fp, #0x18]
+            mov     x20, x1
+            mov     x19, x2
+            mov     w21, w3
+ 
+G_M000_IG02:
+            mov     x1, x20
+            movz    x2, #0xD1FFAB1E
+            movk    x2, #0xD1FFAB1E LSL #16
+            movk    x2, #1 LSL #32
+            ldr     x2, [x2]
+            blr     x2
+            ldr     x0, [x20, #0x08]
+            ldr     x1, [fp, #0x18]
+            movz    x2, #0xD1FFAB1E
+            movk    x2, #0xD1FFAB1E LSL #16
+            movk    x2, #1 LSL #32
+            ldr     x2, [x2]
+            ldr     wzr, [x0]
+            blr     x2
+            mov     x20, x0
+            mov     w22, w1
+            mov     w23, wzr
+            mov     x24, xzr
+            tst     w21, #255
+            beq     G_M000_IG05
+ 
+G_M000_IG03:
+            cmp     w22, #0
+            ble     G_M000_IG05
+            mov     x0, xzr
+            sxtw    w1, w22
+            align   [0 bytes for IG04]
+            align   [0 bytes]
+            align   [0 bytes]
+            align   [0 bytes]
+ 
+G_M000_IG04:
+            add     x2, x20, x0
+            ldr     x2, [x2, #0x10]
+            ldr     w2, [x2, #0x08]
+            cbnz    w2, G_M000_IG06
+            add     x0, x0, #24
+            sub     w1, w1, #1
+            cbnz    w1, G_M000_IG04
+ 
+G_M000_IG05:
+            ldr     x0, [fp, #0x18]
+            ldr     w1, [x0, #0x60]
+            add     w1, w1, #1
+            str     w1, [x0, #0x60]
+            b       G_M000_IG07
+ 
+G_M000_IG06:
+            ldr     x1, [fp, #0x18]
+            ldrsb   wzr, [x1]
+            add     x0, x1, #216
+            movz    x2, #0xD1FFAB1E
+            movk    x2, #0xD1FFAB1E LSL #16
+            movk    x2, #1 LSL #32
+            ldr     x2, [x2]
+            blr     x2
+            mov     x24, x0
+            ldr     x0, [fp, #0x18]
+            movz    x1, #0xD1FFAB1E
+            movk    x1, #0xD1FFAB1E LSL #16
+            movk    x1, #1 LSL #32
+            ldr     x1, [x1]
+            blr     x1
+            sxtw    w23, w0
+            b       G_M000_IG05
+            align   [0 bytes for IG13]
+            align   [0 bytes]
+            align   [0 bytes]
+            align   [0 bytes]
+ 
+G_M000_IG07:
+            mov     w1, wzr
+            cmp     w1, w22
+            bge     G_M000_IG16
+ 
+G_M000_IG08:
+            mov     w2, #24
+            umull   x2, w1, w2
+            add     x2, x20, x2
+            ldp     xzr, x3, [x2]
+            ldr     x2, [x2, #0x10]
+            cbz     x2, G_M000_IG10
+ 
+G_M000_IG09:
+            add     x4, x2, #16
+            ldr     w2, [x2, #0x08]
+            b       G_M000_IG11
+ 
+G_M000_IG10:
+            mov     x4, xzr
+            mov     w2, wzr
+ 
+G_M000_IG11:
+            mov     x5, xzr
+            add     w2, w2, #1
+            b       G_M000_IG14
+ 
+G_M000_IG12:
+            add     x6, x4, x5
+            ldp     x7, x6, [x6]
+            add     x5, x5, #16
+            ldr     w8, [x7, #0x1C]
+            ldr     w9, [x19, #0x04]
+            ldrsb   wzr, [x3]
+            add     x10, x3, #16
+            ldr     w10, [x10, w9, SXTW #2]
+            ldr     x11, [x7, #0x28]
+            sxtw    x10, w10
+            str     w23, [x11, x10, LSL #2]
+            add     x11, x7, #72
+            mov     x13, x11
+            ldr     w14, [x7, #0x1C]
+            ldr     x12, [x13, #0x18]
+            str     x24, [x12, x10, LSL #3]
+            ldr     x13, [x13, #0x28]
+            str     w14, [x13, x10, LSL #2]
+            ldrsb   wzr, [x6]
+            add     x10, x6, #16
+            ldr     x9, [x10, w9, SXTW #3]
+            ldrsb   wzr, [x9], #0x10
+            ldr     w10, [x19, #0x08]
+            add     x13, x3, #16
+            ldr     w13, [x13, w10, SXTW #2]
+            ldr     x14, [x7, #0x28]
+            sxtw    x13, w13
+            str     w23, [x14, x13, LSL #2]
+            mov     x14, x11
+            ldr     w12, [x7, #0x1C]
+            ldr     x15, [x14, #0x18]
+            str     x24, [x15, x13, LSL #3]
+            ldr     x14, [x14, #0x28]
+            str     w12, [x14, x13, LSL #2]
+            add     x13, x6, #16
+            ldr     x10, [x13, w10, SXTW #3]
+            ldrsb   wzr, [x10], #0x10
+            ldr     w13, [x19, #0x0C]
+            add     x14, x3, #16
+            ldr     w14, [x14, w13, SXTW #2]
+            ldr     x12, [x7, #0x28]
+            sxtw    x14, w14
+            str     w23, [x12, x14, LSL #2]
+            ldr     w7, [x7, #0x1C]
+            ldr     x12, [x11, #0x18]
+            str     x24, [x12, x14, LSL #3]
+            ldr     x11, [x11, #0x28]
+            str     w7, [x11, x14, LSL #2]
+            add     x7, x6, #16
+            ldr     x7, [x7, w13, SXTW #3]
+            ldrsb   wzr, [x7], #0x10
+            ldr     w11, [x19, #0x10]
+            add     x6, x6, #16
+            ldr     x6, [x6, w11, SXTW #3]
+            ldrsb   wzr, [x6], #0x10
+            mov     w11, wzr
+            mov     w13, wzr
+            cmp     w8, #0
+            ble     G_M000_IG14
+ 
+G_M000_IG13:
+            sbfiz   x11, x11, #2, #32
+            add     x14, x9, x11
+            add     x12, x10, x11
+            add     x15, x7, x11
+            add     x11, x6, x11
+            ldr     wip0, [x14]
+            ldr     w21, [x11]
+            add     wip0, wip0, w21
+            str     wip0, [x14]
+            ldr     wip0, [x12]
+            ldr     w21, [x14]
+            add     wip0, wip0, w21
+            str     wip0, [x12]
+            ldr     wip0, [x15]
+            ldr     w21, [x12]
+            add     wip0, wip0, w21
+            str     wip0, [x15]
+            ldr     wip0, [x19]
+            ldr     w14, [x14]
+            add     w14, wip0, w14
+            ldr     w12, [x12]
+            add     w14, w14, w12
+            ldr     w12, [x15]
+            add     w14, w14, w12
+            ldr     w11, [x11]
+            add     w11, w14, w11
+            str     w11, [x19]
+            add     w11, w13, #1
+            sxtw    w13, w11
+            cmp     w13, w8
+            blt     G_M000_IG13
+ 
+G_M000_IG14:
+            sub     w2, w2, #1
+            cbnz    w2, G_M000_IG12
+ 
+G_M000_IG15:
+            add     w1, w1, #1
+            cmp     w1, w22
+            blt     G_M000_IG08
+ 
+G_M000_IG16:
+            ldr     w1, [x0, #0x60]
+            sub     w1, w1, #1
+            str     w1, [x0, #0x60]
+ 
+G_M000_IG17:
+            ldp     x23, x24, [sp, #0x40]
+            ldp     x21, x22, [sp, #0x30]
+            ldp     x19, x20, [sp, #0x20]
+            ldp     fp, lr, [sp], #0x50
+            ret     lr
+ 
+G_M000_IG18:
+            stp     fp, lr, [sp, #-0x40]!
+            stp     x19, x20, [sp, #0x10]
+            stp     x21, x22, [sp, #0x20]
+            stp     x23, x24, [sp, #0x30]
+ 
+G_M000_IG19:
+            ldr     x0, [fp, #0x18]
+            ldr     w1, [x0, #0x60]
+            sub     w1, w1, #1
+            str     w1, [x0, #0x60]
+ 
+G_M000_IG20:
+            ldp     x23, x24, [sp, #0x30]
+            ldp     x21, x22, [sp, #0x20]
+            ldp     x19, x20, [sp, #0x10]
+            ldp     fp, lr, [sp], #0x40
+            ret     lr
+ 
+; Total bytes of code 780
+// Benchmark Process 16007 has exited with code 0.
+
+Mean = 7.113 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 7.113 ms, Q1 = 7.113 ms, Median = 7.113 ms, Q3 = 7.113 ms, Max = 7.113 ms
+IQR = 0.000 ms, LowerFence = 7.113 ms, UpperFence = 7.113 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 0 (0,0 %) benchmark(s) to run. Estimated finish 2026-08-25 14:39 (0h 0m from now) **
+// ***** BenchmarkRunner: Finish  *****
+
+// * Export *
+  BenchmarkDotNet.Artifacts/results/Delta.ECS.MicroBenchmarks.GeneratedFunctorMovement4MicroBenchmarks-report.csv
+  BenchmarkDotNet.Artifacts/results/Delta.ECS.MicroBenchmarks.GeneratedFunctorMovement4MicroBenchmarks-report-github.md
+  BenchmarkDotNet.Artifacts/results/Delta.ECS.MicroBenchmarks.GeneratedFunctorMovement4MicroBenchmarks-report.html
+
+// * Detailed results *
+GeneratedFunctorMovement4MicroBenchmarks.Movement4GeneratedFunctor: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Amount=1000000]
+Runtime = .NET 10.0.9 (10.0.926.27113), Arm64 RyuJIT AdvSIMD; GC = Concurrent Workstation
+Mean = 7.113 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 7.113 ms, Q1 = 7.113 ms, Median = 7.113 ms, Q3 = 7.113 ms, Max = 7.113 ms
+IQR = 0.000 ms, LowerFence = 7.113 ms, UpperFence = 7.113 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[7.113 ms ; 7.113 ms) | @
+---------------------------------------------------
+
+// * Summary *
+
+BenchmarkDotNet v0.13.12, macOS 26.5.2 (25F84) [Darwin 25.5.0]
+Apple M4 Pro, 1 CPU, 14 logical and 14 physical cores
+.NET SDK 10.0.301
+  [Host] : .NET 10.0.9 (10.0.926.27113), Arm64 RyuJIT AdvSIMD
+  Dry    : .NET 10.0.9 (10.0.926.27113), Arm64 RyuJIT AdvSIMD
+
+Job=Dry  IterationCount=1  LaunchCount=1  
+RunStrategy=ColdStart  UnrollFactor=1  WarmupCount=1  
+
+| Method                    | Amount  | Mean     | Error | Allocated |
+|-------------------------- |-------- |---------:|------:|----------:|
+| Movement4GeneratedFunctor | 1000000 | 7.113 ms |    NA |         - |
+
+// * Warnings *
+MinIterationTime
+  GeneratedFunctorMovement4MicroBenchmarks.Movement4GeneratedFunctor: Dry -> The minimum observed iteration time is 7.1130 ms which is very small. It's recommended to increase it to at least 100.0000 ms using more operations.
+
+// * Legends *
+  Amount    : Value of the 'Amount' parameter
+  Mean      : Arithmetic mean of all measurements
+  Error     : Half of 99.9% confidence interval
+  Allocated : Allocated memory per single operation (managed only, inclusive, 1KB = 1024B)
+  1 ms      : 1 Millisecond (0.001 sec)
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:00:00 (0.65 sec), executed benchmarks: 1
+
+Global total time: 00:00:16 (16.85 sec), executed benchmarks: 1
+// * Artifacts cleanup *
+Artifacts cleanup is finished
