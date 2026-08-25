@@ -90,24 +90,8 @@ public class ComparativeDenseIterationBenchmarks
     [Benchmark(Baseline = true)]
     public long DeltaECS_Dense()
     {
-        using var scope = _delta.OpenQuery(in _deltaQuery);
-        var valueAccess = _deltaValueBinding;
-        var archetypes = scope.Archetypes;
         long sum = 0;
-
-        while (archetypes.MoveNext())
-        {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
-            {
-                var slots = chunks.Current.Slots;
-                var values = slots.GetRow(valueAccess);
-                while (slots.MoveNext())
-                {
-                    sum += values.Ref<UnifiedDeltaValue>(slots).Value;
-                }
-            }
-        }
+        _delta.ForEach<long, UnifiedDeltaValue>(in _deltaQuery, ref sum, static (ref long checksum, in UnifiedDeltaValue value) => checksum += value.Value);
 
         return Checksum(sum, (long)Amount * (Amount + 1) / 2, "dense");
     }
@@ -273,60 +257,26 @@ public class ComparativeMovement2ComponentsBenchmarks
     [Benchmark(Baseline = true), InvocationCount(1)]
     public double DeltaECS_Movement2Components()
     {
-        using var scope = _delta.OpenQuery(in _deltaQuery);
-        var positionAccess = _deltaPositionBinding;
-        var velocityAccess = _deltaVelocityBinding;
-        var archetypes = scope.Archetypes;
         double sum = 0;
-
-        while (archetypes.MoveNext())
+        _delta.ForEach<double, MoveDeltaPosition, MoveDeltaVelocity>(in _deltaQuery, ref sum, static (ref double checksum, ref MoveDeltaPosition position, in MoveDeltaVelocity velocity) =>
         {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
-            {
-                var slots = chunks.Current.Slots;
-                var positions = slots.GetRow(positionAccess);
-                var velocities = slots.GetRow(velocityAccess);
-                while (slots.MoveNext())
-                {
-                    ref var position = ref positions.Ref<MoveDeltaPosition>(slots);
-                    ref readonly var velocity = ref velocities.Ref<MoveDeltaVelocity>(slots);
-                    position.X += velocity.X / 60f;
-                    position.Y += velocity.Y / 60f;
-                    sum += position.X + position.Y;
-                }
-            }
-        }
+            position.X += velocity.X / 60f;
+            position.Y += velocity.Y / 60f;
+            checksum += position.X + position.Y;
+        });
 
         return sum;
     }
 
     internal double RunOpenQueryMovement2Components()
     {
-        using var scope = _delta.OpenQuery(in _deltaQuery);
-        var positionAccess = _deltaPositionBinding;
-        var velocityAccess = _deltaVelocityBinding;
-        var archetypes = scope.Archetypes;
         double sum = 0;
-
-        while (archetypes.MoveNext())
+        _delta.ForEach<double, MoveDeltaPosition, MoveDeltaVelocity>(in _deltaQuery, ref sum, static (ref double checksum, ref MoveDeltaPosition position, in MoveDeltaVelocity velocity) =>
         {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
-            {
-                var slots = chunks.Current.Slots;
-                var positions = slots.GetRow(positionAccess);
-                var velocities = slots.GetRow(velocityAccess);
-                while (slots.MoveNext())
-                {
-                    ref var position = ref positions.Ref<MoveDeltaPosition>(slots);
-                    ref readonly var velocity = ref velocities.Ref<MoveDeltaVelocity>(slots);
-                    position.X += velocity.X / 60f;
-                    position.Y += velocity.Y / 60f;
-                    sum += position.X + position.Y;
-                }
-            }
-        }
+            position.X += velocity.X / 60f;
+            position.Y += velocity.Y / 60f;
+            checksum += position.X + position.Y;
+        });
 
         return sum;
     }
@@ -451,77 +401,31 @@ public class ComparativeMovement4ComponentsBenchmarks
     [Benchmark(Baseline = true), InvocationCount(1)]
     public int DeltaECS_Movement4Components()
     {
-        using var scope = _delta.OpenQuery(in _deltaQuery);
-        var aAccess = _delta0Binding;
-        var bAccess = _delta1Binding;
-        var cAccess = _delta2Binding;
-        var dAccess = _delta3Binding;
-        var archetypes = scope.Archetypes;
         var sum = 0;
-
-        while (archetypes.MoveNext())
+        _delta.ForEach<int, DistinctDelta0, DistinctDelta1, DistinctDelta2, DistinctDelta3>(in _deltaQuery, ref sum, static (ref int checksum, ref DistinctDelta0 rowA, ref DistinctDelta1 rowB, ref DistinctDelta2 rowC, in DistinctDelta3 rowD) =>
         {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
-            {
-                var slots = chunks.Current.Slots;
-                var a = slots.GetRow(aAccess);
-                var b = slots.GetRow(bAccess);
-                var c = slots.GetRow(cAccess);
-                var d = slots.GetRow(dAccess);
-                while (slots.MoveNext())
-                {
-                    ref var rowA = ref a.Ref<DistinctDelta0>(slots);
-                    ref var rowB = ref b.Ref<DistinctDelta1>(slots);
-                    ref var rowC = ref c.Ref<DistinctDelta2>(slots);
-                    ref readonly var rowD = ref d.Ref<DistinctDelta3>(slots);
-                    var updatedA = rowA.Value + rowD.Value;
-                    var updatedB = rowB.Value + rowD.Value;
-                    rowA.Value = updatedA;
-                    rowB.Value = updatedB;
-                    rowC.Value = (updatedA + updatedB) / 2;
-                    sum += rowA.Value + rowB.Value + rowC.Value + rowD.Value;
-                }
-            }
-        }
+            var updatedA = rowA.Value + rowD.Value;
+            var updatedB = rowB.Value + rowD.Value;
+            rowA.Value = updatedA;
+            rowB.Value = updatedB;
+            rowC.Value = (updatedA + updatedB) / 2;
+            checksum += rowA.Value + rowB.Value + rowC.Value + rowD.Value;
+        });
 
         return sum;
     }
     internal int RunOpenQueryMovement4Components()
     {
-        using var scope = _delta.OpenQuery(in _deltaQuery);
-        var aAccess = _delta0Binding;
-        var bAccess = _delta1Binding;
-        var cAccess = _delta2Binding;
-        var dAccess = _delta3Binding;
-        var archetypes = scope.Archetypes;
         var sum = 0;
-
-        while (archetypes.MoveNext())
+        _delta.ForEach<int, DistinctDelta0, DistinctDelta1, DistinctDelta2, DistinctDelta3>(in _deltaQuery, ref sum, static (ref int checksum, ref DistinctDelta0 rowA, ref DistinctDelta1 rowB, ref DistinctDelta2 rowC, in DistinctDelta3 rowD) =>
         {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
-            {
-                var slots = chunks.Current.Slots;
-                var a = slots.GetRow(aAccess);
-                var b = slots.GetRow(bAccess);
-                var c = slots.GetRow(cAccess);
-                var d = slots.GetRow(dAccess);
-                while (slots.MoveNext())
-                {
-                    ref var rowA = ref a.Ref<DistinctDelta0>(slots);
-                    ref var rowB = ref b.Ref<DistinctDelta1>(slots);
-                    ref var rowC = ref c.Ref<DistinctDelta2>(slots);
-                    ref readonly var rowD = ref d.Ref<DistinctDelta3>(slots);
-                    var updatedA = rowA.Value + rowD.Value;
-                    var updatedB = rowB.Value + rowD.Value;
-                    rowA.Value = updatedA;
-                    rowB.Value = updatedB;
-                    rowC.Value = (updatedA + updatedB) / 2;
-                    sum += rowA.Value + rowB.Value + rowC.Value + rowD.Value;
-                }
-            }
-        }
+            var updatedA = rowA.Value + rowD.Value;
+            var updatedB = rowB.Value + rowD.Value;
+            rowA.Value = updatedA;
+            rowB.Value = updatedB;
+            rowC.Value = (updatedA + updatedB) / 2;
+            checksum += rowA.Value + rowB.Value + rowC.Value + rowD.Value;
+        });
 
         return sum;
     }
@@ -562,26 +466,9 @@ public class ComparativeWideArchetypeNarrowQueryBenchmarks
     [Benchmark(Baseline = true)]
     public int DeltaECS_WideArchetypeNarrowQuery()
     {
-        using var scope = _delta.OpenQuery(in _deltaQuery);
-        var aAccess = _delta0Binding;
-        var zAccess = _delta7Binding;
-        var archetypes = scope.Archetypes;
         var sum = 0;
-
-        while (archetypes.MoveNext())
-        {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
-            {
-                var slots = chunks.Current.Slots;
-                var a = slots.GetRow(aAccess);
-                var z = slots.GetRow(zAccess);
-                while (slots.MoveNext())
-                {
-                    sum += a.Ref<WideDelta0>(slots).Value + z.Ref<WideDelta7>(slots).Value;
-                }
-            }
-        }
+        _delta.ForEach<int, WideDelta0, WideDelta7>(in _deltaQuery, ref sum,
+            (ForEachContextAction_RR<int, WideDelta0, WideDelta7>)(static (ref int checksum, in WideDelta0 a, in WideDelta7 z) => checksum += a.Value + z.Value));
 
         return Check(sum, Amount * 9);
     }
@@ -633,28 +520,9 @@ public class ComparativeSparseQueryBenchmarks
 
     private int DeltaQuery(Query query, ReadAccess a, ReadAccess b)
     {
-        using var scope = _delta.OpenQuery(in query);
-        var aAccess = a;
-        var bAccess = b;
-        var archetypes = scope.Archetypes;
         var count = 0;
-
-        while (archetypes.MoveNext())
-        {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
-            {
-                var slots = chunks.Current.Slots;
-                var aRow = slots.GetRow(aAccess);
-                var bRow = slots.GetRow(bAccess);
-                while (slots.MoveNext())
-                {
-                    _ = aRow.Ref<SparseDeltaA>(slots);
-                    _ = bRow.Ref<SparseDeltaB>(slots);
-                    count++;
-                }
-            }
-        }
+        _delta.ForEach<int, SparseDeltaA, SparseDeltaB>(in query, ref count,
+            (ForEachContextAction_RR<int, SparseDeltaA, SparseDeltaB>)(static (ref int matches, in SparseDeltaA _, in SparseDeltaB _) => matches++));
 
         return Check(count);
     }

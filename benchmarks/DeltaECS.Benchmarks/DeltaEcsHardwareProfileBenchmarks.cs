@@ -184,246 +184,146 @@ public class HardwareProfileBenchmarks
     private void IterateEntityMajor()
     {
         ref var state = ref _profileState;
-        using var scope = _world.OpenQuery(in _query);
-        var w0 = default(WriteAccess);
-        var w1 = default(WriteAccess);
-        var w2 = default(WriteAccess);
-        var w3 = default(WriteAccess);
-        var w4 = default(WriteAccess);
-        var w5 = default(WriteAccess);
-        var w6 = default(WriteAccess);
-        var w7 = default(WriteAccess);
-
-        if (state.ComponentCount > 0) w0 = state.WriteBindings[0];
-        if (state.ComponentCount > 1) w1 = state.WriteBindings[1];
-        if (state.ComponentCount > 2) w2 = state.WriteBindings[2];
-        if (state.ComponentCount > 3) w3 = state.WriteBindings[3];
-        if (state.ComponentCount > 4) w4 = state.WriteBindings[4];
-        if (state.ComponentCount > 5) w5 = state.WriteBindings[5];
-        if (state.ComponentCount > 6) w6 = state.WriteBindings[6];
-        if (state.ComponentCount > 7) w7 = state.WriteBindings[7];
-
-        var archetypes = scope.Archetypes;
-        while (archetypes.MoveNext())
+        switch (state.ComponentCount)
         {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
-            {
-                var slots = chunks.Current.Slots;
-                switch (state.ComponentCount)
+            case 1:
+                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[0], static (ref ProfileState profile, ref ProfileValue p0) =>
                 {
-                    case 1:
-                        {
-                            var c0 = slots.GetRow(w0);
-                            while (slots.MoveNext())
-                            {
-                                ref var p0 = ref c0.Ref<ProfileValue>(slots);
-                                p0.X += p0.Y;
-                                state.Checksum += BitConverter.SingleToInt32Bits(p0.X);
-                            }
-
-                            break;
-                        }
-                    case 2:
-                        {
-                            var c0 = slots.GetRow(w0);
-                            var c1 = slots.GetRow(w1);
-                            while (slots.MoveNext())
-                            {
-                                ref var p0 = ref c0.Ref<ProfileValue>(slots);
-                                ref var p1 = ref c1.Ref<ProfileValue>(slots);
-                                p0.X += p0.Y;
-                                p1.X += p1.Y;
-                                state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
-                            }
-
-                            break;
-                        }
-                    case 4:
-                        {
-                            var c0 = slots.GetRow(w0);
-                            var c1 = slots.GetRow(w1);
-                            var c2 = slots.GetRow(w2);
-                            var c3 = slots.GetRow(w3);
-                            while (slots.MoveNext())
-                            {
-                                ref var p0 = ref c0.Ref<ProfileValue>(slots);
-                                ref var p1 = ref c1.Ref<ProfileValue>(slots);
-                                ref var p2 = ref c2.Ref<ProfileValue>(slots);
-                                ref var p3 = ref c3.Ref<ProfileValue>(slots);
-                                p0.X += p0.Y;
-                                p1.X += p1.Y;
-                                p2.X += p2.Y;
-                                p3.X += p3.Y;
-                                state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
-                                state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
-                            }
-
-                            break;
-                        }
-                    case 8:
-                        {
-                            var c0 = slots.GetRow(w0);
-                            var c1 = slots.GetRow(w1);
-                            var c2 = slots.GetRow(w2);
-                            var c3 = slots.GetRow(w3);
-                            var c4 = slots.GetRow(w4);
-                            var c5 = slots.GetRow(w5);
-                            var c6 = slots.GetRow(w6);
-                            var c7 = slots.GetRow(w7);
-                            while (slots.MoveNext())
-                            {
-                                ref var p0 = ref c0.Ref<ProfileValue>(slots);
-                                ref var p1 = ref c1.Ref<ProfileValue>(slots);
-                                ref var p2 = ref c2.Ref<ProfileValue>(slots);
-                                ref var p3 = ref c3.Ref<ProfileValue>(slots);
-                                ref var p4 = ref c4.Ref<ProfileValue>(slots);
-                                ref var p5 = ref c5.Ref<ProfileValue>(slots);
-                                ref var p6 = ref c6.Ref<ProfileValue>(slots);
-                                ref var p7 = ref c7.Ref<ProfileValue>(slots);
-                                p0.X += p0.Y;
-                                p1.X += p1.Y;
-                                p2.X += p2.Y;
-                                p3.X += p3.Y;
-                                p4.X += p4.Y;
-                                p5.X += p5.Y;
-                                p6.X += p6.Y;
-                                p7.X += p7.Y;
-                                state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
-                                state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
-                                state.Checksum += BitConverter.SingleToInt32Bits(p4.X) + BitConverter.SingleToInt32Bits(p5.X);
-                                state.Checksum += BitConverter.SingleToInt32Bits(p6.X) + BitConverter.SingleToInt32Bits(p7.X);
-                            }
-
-                            break;
-                        }
-                    default:
-                        throw new ArgumentOutOfRangeException(nameof(state.ComponentCount));
-                }
-            }
+                    p0.X += p0.Y;
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p0.X);
+                });
+                break;
+            case 2:
+                _world.ForEach<ProfileState, ProfileValue, ProfileValue>(in _query, ref state, _components[0], _components[1], static (ref ProfileState profile, ref ProfileValue p0, ref ProfileValue p1) =>
+                {
+                    p0.X += p0.Y;
+                    p1.X += p1.Y;
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
+                });
+                break;
+            case 4:
+                _world.ForEach<ProfileState, ProfileValue, ProfileValue, ProfileValue, ProfileValue>(in _query, ref state, _components[0], _components[1], _components[2], _components[3], static (ref ProfileState profile, ref ProfileValue p0, ref ProfileValue p1, ref ProfileValue p2, ref ProfileValue p3) =>
+                {
+                    p0.X += p0.Y;
+                    p1.X += p1.Y;
+                    p2.X += p2.Y;
+                    p3.X += p3.Y;
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
+                });
+                break;
+            case 8:
+                _world.ForEach<ProfileState, ProfileValue, ProfileValue, ProfileValue, ProfileValue, ProfileValue, ProfileValue, ProfileValue, ProfileValue>(in _query, ref state, _components[0], _components[1], _components[2], _components[3], _components[4], _components[5], _components[6], _components[7], static (ref ProfileState profile, ref ProfileValue p0, ref ProfileValue p1, ref ProfileValue p2, ref ProfileValue p3, ref ProfileValue p4, ref ProfileValue p5, ref ProfileValue p6, ref ProfileValue p7) =>
+                {
+                    p0.X += p0.Y;
+                    p1.X += p1.Y;
+                    p2.X += p2.Y;
+                    p3.X += p3.Y;
+                    p4.X += p4.Y;
+                    p5.X += p5.Y;
+                    p6.X += p6.Y;
+                    p7.X += p7.Y;
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p4.X) + BitConverter.SingleToInt32Bits(p5.X);
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p6.X) + BitConverter.SingleToInt32Bits(p7.X);
+                });
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(state.ComponentCount));
         }
     }
 
     private void IterateRowMajor()
     {
         ref var state = ref _profileState;
-        using var scope = _world.OpenQuery(in _query);
-        var w0 = default(WriteAccess);
-        var w1 = default(WriteAccess);
-        var w2 = default(WriteAccess);
-        var w3 = default(WriteAccess);
-        var w4 = default(WriteAccess);
-        var w5 = default(WriteAccess);
-        var w6 = default(WriteAccess);
-        var w7 = default(WriteAccess);
-
-        if (state.ComponentCount > 0) w0 = state.WriteBindings[0];
-        if (state.ComponentCount > 1) w1 = state.WriteBindings[1];
-        if (state.ComponentCount > 2) w2 = state.WriteBindings[2];
-        if (state.ComponentCount > 3) w3 = state.WriteBindings[3];
-        if (state.ComponentCount > 4) w4 = state.WriteBindings[4];
-        if (state.ComponentCount > 5) w5 = state.WriteBindings[5];
-        if (state.ComponentCount > 6) w6 = state.WriteBindings[6];
-        if (state.ComponentCount > 7) w7 = state.WriteBindings[7];
-
-        var archetypes = scope.Archetypes;
-        while (archetypes.MoveNext())
+        switch (state.ComponentCount)
         {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
-            {
-                var slots = chunks.Current.Slots;
-                switch (state.ComponentCount)
+            case 1:
+                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[0], static (ref ProfileState profile, ref ProfileValue p0) =>
                 {
-                    case 1:
-                        {
-                            var c0 = slots.GetRow(w0);
-                            while (slots.MoveNext())
-                            {
-                                ref var p0 = ref c0.Ref<ProfileValue>(slots);
-                                p0.X += p0.Y;
-                                state.Checksum += BitConverter.SingleToInt32Bits(p0.X);
-                            }
-
-                            break;
-                        }
-                    case 2:
-                        {
-                            var c0 = slots.GetRow(w0);
-                            var c1 = slots.GetRow(w1);
-                            while (slots.MoveNext())
-                            {
-                                ref var p0 = ref c0.Ref<ProfileValue>(slots);
-                                p0.X += p0.Y;
-                                ref var p1 = ref c1.Ref<ProfileValue>(slots);
-                                p1.X += p1.Y;
-                                state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
-                            }
-
-                            break;
-                        }
-                    case 4:
-                        {
-                            var c0 = slots.GetRow(w0);
-                            var c1 = slots.GetRow(w1);
-                            var c2 = slots.GetRow(w2);
-                            var c3 = slots.GetRow(w3);
-                            while (slots.MoveNext())
-                            {
-                                ref var p0 = ref c0.Ref<ProfileValue>(slots);
-                                p0.X += p0.Y;
-                                ref var p1 = ref c1.Ref<ProfileValue>(slots);
-                                p1.X += p1.Y;
-                                ref var p2 = ref c2.Ref<ProfileValue>(slots);
-                                p2.X += p2.Y;
-                                ref var p3 = ref c3.Ref<ProfileValue>(slots);
-                                p3.X += p3.Y;
-                                state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
-                                state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
-                            }
-
-                            break;
-                        }
-                    case 8:
-                        {
-                            var c0 = slots.GetRow(w0);
-                            var c1 = slots.GetRow(w1);
-                            var c2 = slots.GetRow(w2);
-                            var c3 = slots.GetRow(w3);
-                            var c4 = slots.GetRow(w4);
-                            var c5 = slots.GetRow(w5);
-                            var c6 = slots.GetRow(w6);
-                            var c7 = slots.GetRow(w7);
-                            while (slots.MoveNext())
-                            {
-                                ref var p0 = ref c0.Ref<ProfileValue>(slots);
-                                p0.X += p0.Y;
-                                ref var p1 = ref c1.Ref<ProfileValue>(slots);
-                                p1.X += p1.Y;
-                                ref var p2 = ref c2.Ref<ProfileValue>(slots);
-                                p2.X += p2.Y;
-                                ref var p3 = ref c3.Ref<ProfileValue>(slots);
-                                p3.X += p3.Y;
-                                ref var p4 = ref c4.Ref<ProfileValue>(slots);
-                                p4.X += p4.Y;
-                                ref var p5 = ref c5.Ref<ProfileValue>(slots);
-                                p5.X += p5.Y;
-                                ref var p6 = ref c6.Ref<ProfileValue>(slots);
-                                p6.X += p6.Y;
-                                ref var p7 = ref c7.Ref<ProfileValue>(slots);
-                                p7.X += p7.Y;
-                                state.Checksum += BitConverter.SingleToInt32Bits(p0.X) + BitConverter.SingleToInt32Bits(p1.X);
-                                state.Checksum += BitConverter.SingleToInt32Bits(p2.X) + BitConverter.SingleToInt32Bits(p3.X);
-                                state.Checksum += BitConverter.SingleToInt32Bits(p4.X) + BitConverter.SingleToInt32Bits(p5.X);
-                                state.Checksum += BitConverter.SingleToInt32Bits(p6.X) + BitConverter.SingleToInt32Bits(p7.X);
-                            }
-
-                            break;
-                        }
-                    default:
-                        throw new ArgumentOutOfRangeException(nameof(state.ComponentCount));
-                }
-            }
+                    p0.X += p0.Y;
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p0.X);
+                });
+                break;
+            case 2:
+                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[0], static (ref ProfileState profile, ref ProfileValue p0) =>
+                {
+                    p0.X += p0.Y;
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p0.X);
+                });
+                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[1], static (ref ProfileState profile, ref ProfileValue p1) =>
+                {
+                    p1.X += p1.Y;
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p1.X);
+                });
+                break;
+            case 4:
+                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[0], static (ref ProfileState profile, ref ProfileValue p0) =>
+                {
+                    p0.X += p0.Y;
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p0.X);
+                });
+                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[1], static (ref ProfileState profile, ref ProfileValue p1) =>
+                {
+                    p1.X += p1.Y;
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p1.X);
+                });
+                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[2], static (ref ProfileState profile, ref ProfileValue p2) =>
+                {
+                    p2.X += p2.Y;
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p2.X);
+                });
+                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[3], static (ref ProfileState profile, ref ProfileValue p3) =>
+                {
+                    p3.X += p3.Y;
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p3.X);
+                });
+                break;
+            case 8:
+                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[0], static (ref ProfileState profile, ref ProfileValue p0) =>
+                {
+                    p0.X += p0.Y;
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p0.X);
+                });
+                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[1], static (ref ProfileState profile, ref ProfileValue p1) =>
+                {
+                    p1.X += p1.Y;
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p1.X);
+                });
+                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[2], static (ref ProfileState profile, ref ProfileValue p2) =>
+                {
+                    p2.X += p2.Y;
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p2.X);
+                });
+                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[3], static (ref ProfileState profile, ref ProfileValue p3) =>
+                {
+                    p3.X += p3.Y;
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p3.X);
+                });
+                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[4], static (ref ProfileState profile, ref ProfileValue p4) =>
+                {
+                    p4.X += p4.Y;
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p4.X);
+                });
+                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[5], static (ref ProfileState profile, ref ProfileValue p5) =>
+                {
+                    p5.X += p5.Y;
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p5.X);
+                });
+                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[6], static (ref ProfileState profile, ref ProfileValue p6) =>
+                {
+                    p6.X += p6.Y;
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p6.X);
+                });
+                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[7], static (ref ProfileState profile, ref ProfileValue p7) =>
+                {
+                    p7.X += p7.Y;
+                    profile.Checksum += BitConverter.SingleToInt32Bits(p7.X);
+                });
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(state.ComponentCount));
         }
     }
 
