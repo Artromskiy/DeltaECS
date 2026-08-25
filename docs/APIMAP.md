@@ -110,7 +110,7 @@ observed by that consumer. It supports:
 - no context or one caller-provided context;
 - callbacks with or without `Entity`;
 - zero-component callbacks and component arities up to the 256-bit mask limit;
-- `in T` reads and `ref T` writes;
+- `ref readonly T`, `in T`, and by-value `T` reads, plus `ref T` writes;
 - primary component lookup or explicit `ComponentId` selection;
 - delegate and struct-functor forms.
 

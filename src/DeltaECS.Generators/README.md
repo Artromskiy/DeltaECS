@@ -8,14 +8,22 @@ structural kernels.
   overloads, including zero-component forms, are generated from concrete
   marker implementations.
 - Component-bearing arities start at one and may extend to 256.
-- `in T` parameters declare reads; `ref T` parameters declare writes.
+- Component parameters use four access literals in generated callback names:
+  `R` for `ref readonly T`, `W` for `ref T`, `I` for `in T`, and `V` for a
+  by-value `T` copy. `W` is the only writing mode; the other three use a read
+  row.
 - Component-bearing callbacks may omit the method type list when lambda
   parameters are explicitly typed; the generator infers the component types
-  from `ref T`/`in T` parameters. For example:
+  from `ref readonly T`/`ref T`/`in T`/`T` parameters. For example:
 
   ```csharp
   sequence.ForEach(static (ref Position position, in Velocity velocity) =>
       position.X += velocity.X);
+
+  world.ForEach(in query,
+      static (ref readonly Position position, ref Velocity velocity,
+              in Acceleration acceleration, Scale scale) =>
+      velocity.Value += position.Value + acceleration.Value + scale.Value);
   ```
 
 - Calls may include an `Entity`, mutable caller context, primary registrations,

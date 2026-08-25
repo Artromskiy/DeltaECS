@@ -134,7 +134,10 @@ actually makes and emits only the requested callback shapes:
 | Component ID form | no-ID primary registration, or explicit IDs for secondary registrations of the same CLR type |
 | Selection | prepared `Query`; the generator emits extension methods in the consumer assembly |
 
-Read arguments are passed as `in T`; write arguments are passed as `ref T`.
+Component callback parameters support four modes: `ref readonly T` (`R`),
+`ref T` (`W`), `in T` (`I`), and by-value `T` (`V`). Only `ref T` is a write;
+the other modes read the component. The generated callback shape uses these
+letters in its internal delegate name.
 The component type is validated against the registered `ComponentId` before
 execution; row resolution occurs once per chunk, outside the entity loop.
 Functors implement one of four stable marker interfaces: `IForEach`,

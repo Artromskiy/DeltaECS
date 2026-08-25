@@ -18,9 +18,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(second, Is.EqualTo(first));
         Assert.That(first, Does.Contain("DemandForEachExtensions_"));
         Assert.That(first, Does.Contain("ForEachAction<T1>"));
-        Assert.That(first, Does.Contain("ForEachAction_RWRW<T1, T2, T3, T4>"));
-        Assert.That(first, Does.Contain("ForEachAction_RWRWW<T1, T2, T3, T4, T5>"));
-        Assert.That(first, Does.Contain("ForEachAction_WRWRWRWR<T1, T2, T3, T4, T5, T6, T7, T8>"));
+        Assert.That(first, Does.Contain("ForEachAction_IWIW<T1, T2, T3, T4>"));
+        Assert.That(first, Does.Contain("ForEachAction_IWIWW<T1, T2, T3, T4, T5>"));
+        Assert.That(first, Does.Contain("ForEachAction_WIWIWIWI<T1, T2, T3, T4, T5, T6, T7, T8>"));
         Assert.That(first, Does.Contain("ForEachEntityAction<T1>"));
         Assert.That(first, Does.Not.Contain("interface IForEach_"));
         Assert.That(first, Does.Not.Contain("interface IForEachEntity_"));
@@ -53,7 +53,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(diagnostics, Has.Length.EqualTo(1));
         Assert.That(
             diagnostics[0].GetMessage(CultureInfo.InvariantCulture),
-            Does.Contain("R")
+            Does.Contain("I")
                 .And.Contain("W"));
     }
 
@@ -91,9 +91,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(RunGenerator());
 
         Assert.That(generated, Does.Contain("ForEachAction<T1>"));
-        Assert.That(generated, Does.Contain("ForEachAction_RWRW<T1, T2, T3, T4>"));
-        Assert.That(generated, Does.Contain("ForEachAction_RWRWW<T1, T2, T3, T4, T5>"));
-        Assert.That(generated, Does.Contain("ForEachAction_WRWRWRWR<T1, T2, T3, T4, T5, T6, T7, T8>"));
+        Assert.That(generated, Does.Contain("ForEachAction_IWIW<T1, T2, T3, T4>"));
+        Assert.That(generated, Does.Contain("ForEachAction_IWIWW<T1, T2, T3, T4, T5>"));
+        Assert.That(generated, Does.Contain("ForEachAction_WIWIWIWI<T1, T2, T3, T4, T5, T6, T7, T8>"));
         Assert.That(generated, Does.Not.Contain("ForEachAction<T1, T2, T3, T4, T5, T6, T7, T8, T9>"));
     }
 
@@ -118,7 +118,39 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(run);
 
         Assert.That(run.Diagnostics, Is.Empty);
-        Assert.That(generated, Does.Contain("ForEachAction_WR<T1, T2>"));
+        Assert.That(generated, Does.Contain("ForEachAction_WI<global::Delta.ECS.Position, global::Delta.ECS.Velocity>"));
+    }
+
+    [Test]
+    public void RefReadonlyInAndValueParametersGenerateDistinctModes()
+    {
+        const string source = """
+            namespace Delta.ECS;
+            struct Position { public int Value; }
+            struct Velocity { public int Value; }
+            struct Acceleration { public int Value; }
+            struct Scale { public int Value; }
+            static class Consumer
+            {
+                public static void Use(World world, Query query)
+                {
+                    world.ForEach<Position, Velocity, Acceleration, Scale>(in query,
+                        static (ref readonly Position position, ref Velocity velocity, in Acceleration acceleration, Scale scale) =>
+                        {
+                            velocity.Value += position.Value + acceleration.Value + scale.Value;
+                        });
+                }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGenerator(source);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty);
+        Assert.That(generated, Does.Contain("ForEachAction_RWIV<T1, T2, T3, T4>"));
+        Assert.That(generated, Does.Contain("ref readonly T1 component0"));
+        Assert.That(generated, Does.Contain("in T3 component2"));
+        Assert.That(generated, Does.Contain("T4 component3"));
     }
 
     [Test]
@@ -315,6 +347,10 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public void Invoke(ref Context context, Entity entity, in T1 a, ref T2 b, in T3 c, ref T4 d) { context.Value += entity.Index + a.Value + c.Value; b.Value++; d.Value++; }
         }
+        struct AllModesFunctor : IForEach
+        {
+            public void Invoke(ref readonly T1 a, ref T2 b, in T3 c, T4 d) { b.Value += a.Value + c.Value + d.Value; }
+        }
         static class Consumer
         {
             public static void Use(World world, Query query, ComponentId c1, ComponentId c2, ComponentId c3, ComponentId c4, ComponentId c5, ComponentId c6, ComponentId c7, ComponentId c8)
@@ -325,6 +361,8 @@ public sealed class DemandDrivenForEachGeneratorTests
                 world.ForEach<Context>(in query, ref context, static (ref Context value) => value.Value++);
                 var emptyFunctor = new EmptyFunctor();
                 world.ForEach(in query, ref emptyFunctor);
+                var allModesFunctor = new AllModesFunctor();
+                world.ForEach(in query, ref allModesFunctor);
                 world.ForEach<T1>(in query, static (ref T1 value) => value.Value++);
                 world.ForEach<T1, T2, T3, T4>(in query, static (in T1 a, ref T2 b, in T3 c, ref T4 d) => { b.Value += a.Value; d.Value += c.Value; });
                 world.ForEach<T1, T2, T3, T4, T5>(in query, c1, c2, c3, c4, c5, static (in T1 a, ref T2 b, in T3 c, ref T4 d, ref T5 e) => { b.Value += a.Value; d.Value += c.Value; e.Value++; });
