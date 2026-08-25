@@ -19,7 +19,6 @@ namespace Delta.ECS.Benchmarks;
     HardwareCounter.LlcMisses,
     HardwareCounter.BranchInstructionRetired,
     HardwareCounter.BranchMispredictsRetired)]
-[SimpleJob]
 public class HardwareProfileBenchmarks
 {
     private const int TargetProfileMilliseconds = 1200;

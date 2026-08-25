@@ -11,7 +11,6 @@ using Delta.ECS;
 namespace Delta.ECS.Benchmarks;
 
 [MemoryDiagnoser]
-[SimpleJob]
 public class DeltaEcsVsArchBenchmarks
 {
     [Params(10_000, 100_000)]
@@ -258,7 +257,6 @@ public class DeltaEcsVsArchBenchmarks
 }
 
 [MemoryDiagnoser]
-[SimpleJob]
 public class DeltaEcsBatchBenchmarks
 {
     [Params(1_000, 100_000)]
@@ -295,7 +293,6 @@ public class DeltaEcsBatchBenchmarks
 }
 
 [MemoryDiagnoser]
-[SimpleJob]
 public class DeltaEcsTransitionBenchmarks
 {
     [Params(1_000, 100_000)]
@@ -332,7 +329,6 @@ public class DeltaEcsTransitionBenchmarks
 }
 
 [MemoryDiagnoser]
-[SimpleJob]
 public class DeltaEcsManagedArrayBenchmarks
 {
     [Params(10_000, 100_000)]
@@ -379,7 +375,6 @@ public class DeltaEcsManagedArrayBenchmarks
 }
 
 [MemoryDiagnoser]
-[SimpleJob]
 public class DeltaEcsHotPathProfileBenchmarks
 {
     private World _world = null!;

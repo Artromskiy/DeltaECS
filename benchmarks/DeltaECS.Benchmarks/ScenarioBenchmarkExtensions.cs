@@ -11,7 +11,6 @@ using FrifloEntity = Friflo.Engine.ECS.Entity;
 namespace Delta.ECS.Benchmarks;
 
 [MemoryDiagnoser]
-[ShortRunJob]
 [BenchmarkCategory("SmallDense")]
 public class SmallDenseScenarioBenchmarks
 {
@@ -326,7 +325,6 @@ public class SmallDenseScenarioBenchmarks
 }
 
 [MemoryDiagnoser]
-[SimpleJob]
 [BenchmarkCategory("WideArchetypeNarrow")]
 public class WideArchetypeNarrowAccessBenchmarks
 {
@@ -402,7 +400,6 @@ public class WideArchetypeNarrowAccessBenchmarks
 }
 
 [MemoryDiagnoser]
-[SimpleJob]
 [BenchmarkCategory("WideArchetypeNarrow")]
 public class WideArchetypeNarrowAccessComparisonBenchmarks
 {
@@ -560,7 +557,6 @@ public class WideArchetypeNarrowAccessComparisonBenchmarks
 }
 
 [MemoryDiagnoser]
-[ShortRunJob]
 [BenchmarkCategory("SparseHeterogeneousQuery")]
 public class SparseHeterogeneousQueryBenchmarks
 {

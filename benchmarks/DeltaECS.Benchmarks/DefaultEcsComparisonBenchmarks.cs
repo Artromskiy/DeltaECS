@@ -13,7 +13,6 @@ namespace Delta.ECS.Benchmarks;
 /// Setups are done once in <see cref="GlobalSetup"/>; only hot loop work is measured.
 /// </summary>
 [MemoryDiagnoser]
-[ShortRunJob]
 public class DefaultEcsComparisonBenchmarks
 {
     private const float Dt = 1.0f / 60.0f;

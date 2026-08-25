@@ -11,7 +11,6 @@ namespace Delta.ECS.Benchmarks;
 /// same deterministic arbitrary-signature construction and comparison here.
 /// </summary>
 [MemoryDiagnoser]
-[ShortRunJob]
 [BenchmarkCategory("DeltaOnlyFeatureLane", "FragmentedQuery")]
 public class DeltaOnlyFragmentedQueryBenchmarks
 {

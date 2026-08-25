@@ -15,7 +15,6 @@ namespace Delta.ECS.Benchmarks;
 /// only the components it declares.
 /// </summary>
 [MemoryDiagnoser]
-[ShortRunJob]
 public class AlgorithmicMovementBenchmarks
 {
     private const float Dt = 1.0f / 60.0f;
