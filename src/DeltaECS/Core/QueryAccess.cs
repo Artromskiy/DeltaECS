@@ -1,7 +1,6 @@
 namespace Delta.ECS;
 
 using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -39,9 +38,7 @@ internal sealed class QueryPlan
     private NativeMemory<int> _matchingArchetypes = new(0);
     private ArchetypePlan[] _matchingPlans = Array.Empty<ArchetypePlan>();
     private int[] _planIndicesByArchetype = Array.Empty<int>();
-    private ArchetypePlan _singleMatchingPlan;
-    private int _singleMatchingArchetype = -1;
-    private int _matchingPlanCount;
+    private int _matchingCount;
     private Dictionary<Type, ComponentId>? _primaryComponentIdsByType;
     private bool _hasWriteAccess;
 
@@ -70,14 +67,13 @@ internal sealed class QueryPlan
     {
         if (_version == world.ArchetypeVersion)
         {
-            return MatchingArchetypeSpan();
+            return _matchingArchetypes.ReadOnlySpan;
         }
 
-        List<int>? matches = null;
-        List<ArchetypePlan>? plans = null;
+        int archetypeCount = world.Archetypes.Count;
+        int[] matches = archetypeCount == 0 ? Array.Empty<int>() : new int[archetypeCount];
+        ArchetypePlan[] plans = archetypeCount == 0 ? Array.Empty<ArchetypePlan>() : new ArchetypePlan[archetypeCount];
         int matchingCount = 0;
-        int singleMatchingArchetype = -1;
-        ArchetypePlan singleMatchingPlan = default;
         for (int archetypeId = 0; archetypeId < world.Archetypes.Count; archetypeId++)
         {
             var archetype = world.Archetypes[archetypeId];
@@ -94,99 +90,53 @@ internal sealed class QueryPlan
             }
 
             var plan = new ArchetypePlan(archetype, indices);
-            if (matchingCount == 0)
-            {
-                singleMatchingArchetype = archetypeId;
-                singleMatchingPlan = plan;
-            }
-            else if (matchingCount == 1)
-            {
-                matches = new List<int>(world.Archetypes.Count)
-                {
-                    singleMatchingArchetype,
-                    archetypeId
-                };
-                plans = new List<ArchetypePlan>(world.Archetypes.Count)
-                {
-                    singleMatchingPlan,
-                    plan
-                };
-            }
-            else
-            {
-                if (matches is null || plans is null)
-                {
-                    throw new InvalidOperationException("Query plan storage was not initialized.");
-                }
-
-                matches.Add(archetypeId);
-                plans.Add(plan);
-            }
-
-            matchingCount++;
+            matches[matchingCount] = archetypeId;
+            plans[matchingCount++] = plan;
         }
 
         _matchingArchetypes.Dispose();
-        _matchingArchetypes = new NativeMemory<int>(0);
-        _matchingPlans = Array.Empty<ArchetypePlan>();
-        _planIndicesByArchetype = Array.Empty<int>();
-        _singleMatchingArchetype = singleMatchingArchetype;
-        _singleMatchingPlan = singleMatchingPlan;
-        _matchingPlanCount = matchingCount;
-        if (matchingCount > 1)
+        _matchingCount = matchingCount;
+        if (matchingCount == 0)
         {
-            if (matches is null || plans is null)
-            {
-                throw new InvalidOperationException("Query plan storage was not initialized.");
-            }
-
-            _matchingArchetypes = new NativeMemory<int>(CollectionsMarshal.AsSpan(matches));
-            _matchingPlans = plans.ToArray();
-            _planIndicesByArchetype = new int[world.Archetypes.Count];
+            _matchingArchetypes = new NativeMemory<int>(0);
+            _matchingPlans = Array.Empty<ArchetypePlan>();
+            _planIndicesByArchetype = Array.Empty<int>();
+        }
+        else
+        {
+            _matchingArchetypes = new NativeMemory<int>(matches.AsSpan(0, matchingCount));
+            _matchingPlans = plans;
+            _planIndicesByArchetype = new int[archetypeCount];
             Array.Fill(_planIndicesByArchetype, -1);
-            for (int planIndex = 0; planIndex < _matchingPlans.Length; planIndex++)
+            for (int planIndex = 0; planIndex < matchingCount; planIndex++)
             {
                 _planIndicesByArchetype[_matchingPlans[planIndex].Archetype.Id] = planIndex;
             }
         }
 
         _version = world.ArchetypeVersion;
-        return MatchingArchetypeSpan();
+        return _matchingArchetypes.ReadOnlySpan;
     }
 
     public ReadOnlySpan<ArchetypePlan> MatchingPlans(World world)
     {
         MatchingArchetypes(world);
-        if (_matchingPlanCount == 1)
-        {
-            _singleMatchingPlan.RefreshChunks();
-            return MatchingPlanSpan();
-        }
-
-        for (int index = 0; index < _matchingPlans.Length; index++)
+        for (int index = 0; index < _matchingCount; index++)
         {
             _matchingPlans[index].RefreshChunks();
         }
 
-        return MatchingPlanSpan();
+        return _matchingPlans.AsSpan(0, _matchingCount);
     }
 
-    public ReadOnlySpan<int> ComponentRowIndices(int matchingIndex) => MatchingPlanSpan()[matchingIndex].ComponentRows;
+    public ReadOnlySpan<int> ComponentRowIndices(int matchingIndex) => _matchingPlans[matchingIndex].ComponentRows;
 
     public bool TryGetPlan(int archetypeId, out ArchetypePlan plan)
     {
-        if (_matchingPlanCount == 1)
-        {
-            if (_singleMatchingArchetype == archetypeId)
-            {
-                plan = _singleMatchingPlan;
-                return true;
-            }
-        }
-        else if ((uint)archetypeId < (uint)_planIndicesByArchetype.Length)
+        if ((uint)archetypeId < (uint)_planIndicesByArchetype.Length)
         {
             int planIndex = _planIndicesByArchetype[archetypeId];
-            if (planIndex >= 0)
+            if ((uint)planIndex < (uint)_matchingCount)
             {
                 plan = _matchingPlans[planIndex];
                 return true;
@@ -198,36 +148,6 @@ internal sealed class QueryPlan
     }
 
     internal void Dispose() => _matchingArchetypes.Dispose();
-
-    private ReadOnlySpan<int> MatchingArchetypeSpan()
-    {
-        if (_matchingPlanCount == 0)
-        {
-            return ReadOnlySpan<int>.Empty;
-        }
-
-        if (_matchingPlanCount == 1)
-        {
-            return MemoryMarshal.CreateReadOnlySpan(ref _singleMatchingArchetype, 1);
-        }
-
-        return _matchingArchetypes.ReadOnlySpan;
-    }
-
-    private ReadOnlySpan<ArchetypePlan> MatchingPlanSpan()
-    {
-        if (_matchingPlanCount == 0)
-        {
-            return ReadOnlySpan<ArchetypePlan>.Empty;
-        }
-
-        if (_matchingPlanCount == 1)
-        {
-            return MemoryMarshal.CreateReadOnlySpan(ref _singleMatchingPlan, 1);
-        }
-
-        return _matchingPlans;
-    }
 
     private bool Matches(Archetype archetype) => archetype.Mask.ContainsAll(_description.AllMask)
         && (_description.AnyMask.IsEmpty || archetype.Mask.Intersects(_description.AnyMask))
