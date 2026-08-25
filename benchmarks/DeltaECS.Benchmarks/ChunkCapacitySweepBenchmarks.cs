@@ -66,7 +66,7 @@ public class DenseCapacitySweepBenchmarks
     [Benchmark(Baseline = true)]
     public void DeltaECS_Array()
     {
-        _arrayWorld.ForEach<S0, S1, S2, S3, S4, S5, S6, S7>(
+        _arrayWorld.ForEach(
             in _query,
             static (ref S0 c0, ref S1 c1, ref S2 c2, ref S3 c3,
                 ref S4 c4, ref S5 c5, ref S6 c6, ref S7 c7) =>

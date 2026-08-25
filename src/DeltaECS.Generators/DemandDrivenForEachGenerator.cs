@@ -126,8 +126,13 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return false;
         }
 
+        if (TryReadDelegateCastShape(model, invocation, member, out shape))
+        {
+            return true;
+        }
+
         GenericNameSyntax? genericName = member.Name as GenericNameSyntax;
-        bool hasLambda = invocation.ArgumentList.Arguments.Any(static argument => argument.Expression is LambdaExpressionSyntax);
+        bool hasLambda = invocation.ArgumentList.Arguments.Any(static argument => ContainsLambda(argument.Expression));
         if (!hasLambda)
         {
             return TryReadFunctorShape(model, invocation, member, out shape, out diagnostic);
@@ -224,6 +229,78 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             components,
             functorType: null,
             contextType: null);
+        return true;
+    }
+
+    private static bool TryReadDelegateCastShape(
+        SemanticModel model,
+        InvocationExpressionSyntax invocation,
+        MemberAccessExpressionSyntax member,
+        out Shape? shape)
+    {
+        shape = null;
+        ArgumentSyntax? lambdaArgument = invocation.ArgumentList.Arguments
+            .FirstOrDefault(static argument => argument.Expression is CastExpressionSyntax);
+        if (lambdaArgument?.Expression is not CastExpressionSyntax cast
+            || cast.Type is not GenericNameSyntax delegateType)
+        {
+            return false;
+        }
+
+        string delegateName = delegateType.Identifier.ValueText;
+        bool hasContext = delegateName.StartsWith("ForEachContext", StringComparison.Ordinal);
+        bool hasEntity = delegateName.Contains("Entity", StringComparison.Ordinal);
+        string baseName = hasContext
+            ? hasEntity ? "ForEachContextEntityAction" : "ForEachContextAction"
+            : hasEntity ? "ForEachEntityAction" : "ForEachAction";
+        if (!delegateName.StartsWith(baseName, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        string suffix = delegateName.Substring(baseName.Length);
+        string[] genericArguments = delegateType.TypeArgumentList.Arguments
+            .Select(static argument => argument.ToString())
+            .ToArray();
+        int prefixCount = hasContext ? 1 : 0;
+        int componentCount = genericArguments.Length - prefixCount;
+        if (componentCount < FirstDemandArity || componentCount > MaxArity)
+        {
+            return false;
+        }
+
+        string pattern = suffix.Length == 0
+            ? new string('W', componentCount)
+            : suffix.Substring(1);
+        if (pattern.Length != componentCount || pattern.Any(static value => value is not ('R' or 'W')))
+        {
+            return false;
+        }
+
+        ReceiverKind receiver = ReceiverKindFrom(model.GetTypeInfo(member.Expression).Type);
+        if (receiver == ReceiverKind.None)
+        {
+            return false;
+        }
+
+        int componentIdCount = CountComponentIds(model, invocation.ArgumentList.Arguments);
+        if (componentIdCount != 0 && componentIdCount != componentCount)
+        {
+            return false;
+        }
+
+        bool sequence = receiver is ReceiverKind.EntitySequence or ReceiverKind.FilteredEntitySequence;
+        shape = new Shape(
+            receiver,
+            sequence,
+            componentIdCount != 0,
+            hasEntity,
+            hasContext,
+            isFunctor: false,
+            pattern,
+            genericArguments.Skip(prefixCount).ToArray(),
+            functorType: null,
+            contextType: hasContext ? genericArguments[0] : null);
         return true;
     }
 
@@ -416,9 +493,12 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
     private static LambdaExpressionSyntax? Lambda(SeparatedSyntaxList<ArgumentSyntax> arguments)
         => arguments
-            .Select(static argument => argument.Expression)
+            .SelectMany(static argument => argument.Expression.DescendantNodesAndSelf())
             .OfType<LambdaExpressionSyntax>()
             .FirstOrDefault();
+
+    private static bool ContainsLambda(ExpressionSyntax expression)
+        => expression.DescendantNodesAndSelf().OfType<LambdaExpressionSyntax>().Any();
 
     private static ParameterSyntax[] LambdaParameters(LambdaExpressionSyntax? lambda)
         => lambda switch

@@ -77,16 +77,16 @@ public class DefaultEcsComparisonBenchmarks
     public double DeltaECS_Movement_PositionVelocity()
     {
         var state = new MovementState { Count = 0, ExpectedCount = Amount, Dt = Dt };
-        _deltaMovementWorld.ForEach<MovementState, MovementPosition, MovementVelocity>(
+        _deltaMovementWorld.ForEach(
             in _deltaMovementQuery,
             ref state,
-            static (ref MovementState context, ref MovementPosition position, in MovementVelocity velocity) =>
+            (ForEachContextAction_WR<MovementState, MovementPosition, MovementVelocity>)(static (ref MovementState context, ref MovementPosition position, in MovementVelocity velocity) =>
             {
                 position.X += velocity.X * context.Dt;
                 position.Y += velocity.Y * context.Dt;
                 context.Count++;
                 context.Checksum += position.X + position.Y;
-            });
+            }));
 
         return BenchmarkGuard.Checksum(state.Count, state.ExpectedCount, state.Checksum);
     }

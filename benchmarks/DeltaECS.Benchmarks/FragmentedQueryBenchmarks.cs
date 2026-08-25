@@ -78,15 +78,15 @@ public class DeltaOnlyFragmentedQueryBenchmarks
     public int DeltaOnly_QueryAndIteration()
     {
         var context = new QueryContext();
-        _world.ForEach<QueryContext, FragmentValue>(
+        _world.ForEach(
             in _query,
             ref context,
             _required,
-            static (ref QueryContext state, in FragmentValue value) =>
+            (ForEachContextAction_R<QueryContext, FragmentValue>)(static (ref QueryContext state, in FragmentValue value) =>
             {
                 state.Matches++;
                 state.Checksum += value.Value;
-            });
+            }));
 
         if (context.Matches != _expectedMatches)
         {
@@ -117,15 +117,15 @@ public class DeltaOnlyFragmentedQueryBenchmarks
         var coldQuery = _world.CreateQuery(in spec);
         var valueBinding = coldQuery.AccessRead(_required);
         var context = new QueryContext();
-        _world.ForEach<QueryContext, FragmentValue>(
+        _world.ForEach(
             in coldQuery,
             ref context,
             _required,
-            static (ref QueryContext state, in FragmentValue value) =>
+            (ForEachContextAction_R<QueryContext, FragmentValue>)(static (ref QueryContext state, in FragmentValue value) =>
             {
                 state.Matches++;
                 state.Checksum += value.Value;
-            });
+            }));
 
         if (context.Matches != _expectedMatches)
         {

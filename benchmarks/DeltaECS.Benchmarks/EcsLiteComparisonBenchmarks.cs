@@ -98,16 +98,16 @@ public class EcsLiteComparisonBenchmarks
     public double DeltaECS_DenseMovement()
     {
         var context = new IterationContext();
-        _deltaMovementWorld.ForEach<IterationContext, DeltaPosition, DeltaVelocity>(
+        _deltaMovementWorld.ForEach(
             in _deltaMovementQuery,
             ref context,
-            static (ref IterationContext state, ref DeltaPosition position, in DeltaVelocity velocity) =>
+            (ForEachContextAction_WR<IterationContext, DeltaPosition, DeltaVelocity>)(static (ref IterationContext state, ref DeltaPosition position, in DeltaVelocity velocity) =>
             {
                 position.X += velocity.X * Dt;
                 position.Y += velocity.Y * Dt;
                 state.Count++;
                 state.Checksum += position.X + position.Y;
-            });
+            }));
 
         return BenchmarkGuard.Check(context.Checksum, context.Count, Amount);
     }
@@ -137,14 +137,14 @@ public class EcsLiteComparisonBenchmarks
     public int DeltaECS_QueryPlanIteration()
     {
         var context = new IterationContext();
-        _deltaFilterWorld.ForEach<IterationContext, DeltaFilterPosition, DeltaFilterVelocity>(
+        _deltaFilterWorld.ForEach(
             in _deltaFilterQuery,
             ref context,
-            static (ref IterationContext state, in DeltaFilterPosition position, in DeltaFilterVelocity velocity) =>
+            (ForEachContextAction_RR<IterationContext, DeltaFilterPosition, DeltaFilterVelocity>)(static (ref IterationContext state, in DeltaFilterPosition position, in DeltaFilterVelocity velocity) =>
             {
                 state.Count++;
                 state.Checksum += position.X + velocity.Y;
-            });
+            }));
 
         return BenchmarkGuard.Check(context.Count, context.Checksum, Amount);
     }

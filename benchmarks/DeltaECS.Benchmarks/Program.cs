@@ -198,20 +198,20 @@ public class DeltaEcsVsArchBenchmarks
         switch (componentCount)
         {
             case 1:
-                world.ForEach<Value>(in query, components[0], static (ref Value value) =>
+                world.ForEach(in query, components[0], static (ref Value value) =>
                 {
                     Update(ref value);
                 });
                 break;
             case 2:
-                world.ForEach<Value, Value>(in query, components[0], components[1], static (ref Value c0, ref Value c1) =>
+                world.ForEach(in query, components[0], components[1], static (ref Value c0, ref Value c1) =>
                 {
                     Update(ref c0);
                     Update(ref c1);
                 });
                 break;
             case 4:
-                world.ForEach<Value, Value, Value, Value>(in query, components[0], components[1], components[2], components[3], static (ref Value c0, ref Value c1, ref Value c2, ref Value c3) =>
+                world.ForEach(in query, components[0], components[1], components[2], components[3], static (ref Value c0, ref Value c1, ref Value c2, ref Value c3) =>
                 {
                     Update(ref c0);
                     Update(ref c1);
@@ -220,7 +220,7 @@ public class DeltaEcsVsArchBenchmarks
                 });
                 break;
             case 8:
-                world.ForEach<Value, Value, Value, Value, Value, Value, Value, Value>(in query, components[0], components[1], components[2], components[3], components[4], components[5], components[6], components[7], static (ref Value c0, ref Value c1, ref Value c2, ref Value c3, ref Value c4, ref Value c5, ref Value c6, ref Value c7) =>
+                world.ForEach(in query, components[0], components[1], components[2], components[3], components[4], components[5], components[6], components[7], static (ref Value c0, ref Value c1, ref Value c2, ref Value c3, ref Value c4, ref Value c5, ref Value c6, ref Value c7) =>
                 {
                     Update(ref c0);
                     Update(ref c1);
@@ -369,10 +369,10 @@ public class DeltaEcsManagedArrayBenchmarks
     public void ManagedArrayDenseIteration()
     {
         var sum = 0;
-        _world.ForEach<ManagedValue>(in _query, (in ManagedValue value) =>
+        _world.ForEach(in _query, (ForEachAction_R<ManagedValue>)((in ManagedValue value) =>
         {
             sum += value.Value;
-        });
+        }));
 
         GC.KeepAlive(sum);
     }
@@ -460,7 +460,7 @@ public class DeltaEcsHotPathProfileBenchmarks
     [Benchmark]
     public void QueryPlanSlotLoop()
     {
-        _world.ForEach<Value, Value>(in _query, _first, _second, static (ref Value first, ref Value second) =>
+        _world.ForEach(in _query, _first, _second, static (ref Value first, ref Value second) =>
         {
             first.X += first.Y;
             second.X += second.Y;

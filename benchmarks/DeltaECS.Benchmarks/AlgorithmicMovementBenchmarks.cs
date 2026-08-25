@@ -55,16 +55,16 @@ public class AlgorithmicMovementBenchmarks
     public double DeltaECS_Movement()
     {
         var context = new MovementContext();
-        _deltaWorld.ForEach<MovementContext, DeltaPosition, DeltaVelocity>(
+        _deltaWorld.ForEach(
             in _deltaQuery,
             ref context,
-            static (ref MovementContext state, ref DeltaPosition position, in DeltaVelocity velocity) =>
+            (ForEachContextAction_WR<MovementContext, DeltaPosition, DeltaVelocity>)(static (ref MovementContext state, ref DeltaPosition position, in DeltaVelocity velocity) =>
             {
                 position.X += velocity.X * Dt;
                 position.Y += velocity.Y * Dt;
                 state.Count++;
                 state.Checksum += position.X + position.Y;
-            });
+            }));
 
         return MovementGuard.Checksum(context.Checksum, context.Count, Amount);
     }

@@ -187,14 +187,14 @@ public class HardwareProfileBenchmarks
         switch (state.ComponentCount)
         {
             case 1:
-                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[0], static (ref ProfileState profile, ref ProfileValue p0) =>
+                _world.ForEach(in _query, ref state, _components[0], static (ref ProfileState profile, ref ProfileValue p0) =>
                 {
                     p0.X += p0.Y;
                     profile.Checksum += BitConverter.SingleToInt32Bits(p0.X);
                 });
                 break;
             case 2:
-                _world.ForEach<ProfileState, ProfileValue, ProfileValue>(in _query, ref state, _components[0], _components[1], static (ref ProfileState profile, ref ProfileValue p0, ref ProfileValue p1) =>
+                _world.ForEach(in _query, ref state, _components[0], _components[1], static (ref ProfileState profile, ref ProfileValue p0, ref ProfileValue p1) =>
                 {
                     p0.X += p0.Y;
                     p1.X += p1.Y;
@@ -202,7 +202,7 @@ public class HardwareProfileBenchmarks
                 });
                 break;
             case 4:
-                _world.ForEach<ProfileState, ProfileValue, ProfileValue, ProfileValue, ProfileValue>(in _query, ref state, _components[0], _components[1], _components[2], _components[3], static (ref ProfileState profile, ref ProfileValue p0, ref ProfileValue p1, ref ProfileValue p2, ref ProfileValue p3) =>
+                _world.ForEach(in _query, ref state, _components[0], _components[1], _components[2], _components[3], static (ref ProfileState profile, ref ProfileValue p0, ref ProfileValue p1, ref ProfileValue p2, ref ProfileValue p3) =>
                 {
                     p0.X += p0.Y;
                     p1.X += p1.Y;
@@ -213,7 +213,7 @@ public class HardwareProfileBenchmarks
                 });
                 break;
             case 8:
-                _world.ForEach<ProfileState, ProfileValue, ProfileValue, ProfileValue, ProfileValue, ProfileValue, ProfileValue, ProfileValue, ProfileValue>(in _query, ref state, _components[0], _components[1], _components[2], _components[3], _components[4], _components[5], _components[6], _components[7], static (ref ProfileState profile, ref ProfileValue p0, ref ProfileValue p1, ref ProfileValue p2, ref ProfileValue p3, ref ProfileValue p4, ref ProfileValue p5, ref ProfileValue p6, ref ProfileValue p7) =>
+                _world.ForEach(in _query, ref state, _components[0], _components[1], _components[2], _components[3], _components[4], _components[5], _components[6], _components[7], static (ref ProfileState profile, ref ProfileValue p0, ref ProfileValue p1, ref ProfileValue p2, ref ProfileValue p3, ref ProfileValue p4, ref ProfileValue p5, ref ProfileValue p6, ref ProfileValue p7) =>
                 {
                     p0.X += p0.Y;
                     p1.X += p1.Y;
@@ -240,83 +240,83 @@ public class HardwareProfileBenchmarks
         switch (state.ComponentCount)
         {
             case 1:
-                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[0], static (ref ProfileState profile, ref ProfileValue p0) =>
+                _world.ForEach(in _query, ref state, _components[0], static (ref ProfileState profile, ref ProfileValue p0) =>
                 {
                     p0.X += p0.Y;
                     profile.Checksum += BitConverter.SingleToInt32Bits(p0.X);
                 });
                 break;
             case 2:
-                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[0], static (ref ProfileState profile, ref ProfileValue p0) =>
+                _world.ForEach(in _query, ref state, _components[0], static (ref ProfileState profile, ref ProfileValue p0) =>
                 {
                     p0.X += p0.Y;
                     profile.Checksum += BitConverter.SingleToInt32Bits(p0.X);
                 });
-                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[1], static (ref ProfileState profile, ref ProfileValue p1) =>
+                _world.ForEach(in _query, ref state, _components[1], static (ref ProfileState profile, ref ProfileValue p1) =>
                 {
                     p1.X += p1.Y;
                     profile.Checksum += BitConverter.SingleToInt32Bits(p1.X);
                 });
                 break;
             case 4:
-                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[0], static (ref ProfileState profile, ref ProfileValue p0) =>
+                _world.ForEach(in _query, ref state, _components[0], static (ref ProfileState profile, ref ProfileValue p0) =>
                 {
                     p0.X += p0.Y;
                     profile.Checksum += BitConverter.SingleToInt32Bits(p0.X);
                 });
-                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[1], static (ref ProfileState profile, ref ProfileValue p1) =>
+                _world.ForEach(in _query, ref state, _components[1], static (ref ProfileState profile, ref ProfileValue p1) =>
                 {
                     p1.X += p1.Y;
                     profile.Checksum += BitConverter.SingleToInt32Bits(p1.X);
                 });
-                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[2], static (ref ProfileState profile, ref ProfileValue p2) =>
+                _world.ForEach(in _query, ref state, _components[2], static (ref ProfileState profile, ref ProfileValue p2) =>
                 {
                     p2.X += p2.Y;
                     profile.Checksum += BitConverter.SingleToInt32Bits(p2.X);
                 });
-                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[3], static (ref ProfileState profile, ref ProfileValue p3) =>
+                _world.ForEach(in _query, ref state, _components[3], static (ref ProfileState profile, ref ProfileValue p3) =>
                 {
                     p3.X += p3.Y;
                     profile.Checksum += BitConverter.SingleToInt32Bits(p3.X);
                 });
                 break;
             case 8:
-                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[0], static (ref ProfileState profile, ref ProfileValue p0) =>
+                _world.ForEach(in _query, ref state, _components[0], static (ref ProfileState profile, ref ProfileValue p0) =>
                 {
                     p0.X += p0.Y;
                     profile.Checksum += BitConverter.SingleToInt32Bits(p0.X);
                 });
-                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[1], static (ref ProfileState profile, ref ProfileValue p1) =>
+                _world.ForEach(in _query, ref state, _components[1], static (ref ProfileState profile, ref ProfileValue p1) =>
                 {
                     p1.X += p1.Y;
                     profile.Checksum += BitConverter.SingleToInt32Bits(p1.X);
                 });
-                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[2], static (ref ProfileState profile, ref ProfileValue p2) =>
+                _world.ForEach(in _query, ref state, _components[2], static (ref ProfileState profile, ref ProfileValue p2) =>
                 {
                     p2.X += p2.Y;
                     profile.Checksum += BitConverter.SingleToInt32Bits(p2.X);
                 });
-                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[3], static (ref ProfileState profile, ref ProfileValue p3) =>
+                _world.ForEach(in _query, ref state, _components[3], static (ref ProfileState profile, ref ProfileValue p3) =>
                 {
                     p3.X += p3.Y;
                     profile.Checksum += BitConverter.SingleToInt32Bits(p3.X);
                 });
-                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[4], static (ref ProfileState profile, ref ProfileValue p4) =>
+                _world.ForEach(in _query, ref state, _components[4], static (ref ProfileState profile, ref ProfileValue p4) =>
                 {
                     p4.X += p4.Y;
                     profile.Checksum += BitConverter.SingleToInt32Bits(p4.X);
                 });
-                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[5], static (ref ProfileState profile, ref ProfileValue p5) =>
+                _world.ForEach(in _query, ref state, _components[5], static (ref ProfileState profile, ref ProfileValue p5) =>
                 {
                     p5.X += p5.Y;
                     profile.Checksum += BitConverter.SingleToInt32Bits(p5.X);
                 });
-                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[6], static (ref ProfileState profile, ref ProfileValue p6) =>
+                _world.ForEach(in _query, ref state, _components[6], static (ref ProfileState profile, ref ProfileValue p6) =>
                 {
                     p6.X += p6.Y;
                     profile.Checksum += BitConverter.SingleToInt32Bits(p6.X);
                 });
-                _world.ForEach<ProfileState, ProfileValue>(in _query, ref state, _components[7], static (ref ProfileState profile, ref ProfileValue p7) =>
+                _world.ForEach(in _query, ref state, _components[7], static (ref ProfileState profile, ref ProfileValue p7) =>
                 {
                     p7.X += p7.Y;
                     profile.Checksum += BitConverter.SingleToInt32Bits(p7.X);

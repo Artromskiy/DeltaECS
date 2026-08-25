@@ -110,26 +110,26 @@ public class DistinctDenseComparisonBenchmarks
         switch (ComponentCount)
         {
             case 1:
-                _deltaWorld.ForEach<D0>(in _deltaQuery, static (ref D0 c0) => c0.X += c0.Y);
+                _deltaWorld.ForEach(in _deltaQuery, (ForEachAction<D0>)(static (ref D0 c0) => c0.X += c0.Y));
                 break;
             case 2:
-                _deltaWorld.ForEach<D0, D1>(in _deltaQuery, static (ref D0 c0, ref D1 c1) =>
+                _deltaWorld.ForEach(in _deltaQuery, (ForEachAction<D0, D1>)(static (ref D0 c0, ref D1 c1) =>
                 {
                     c0.X += c0.Y;
                     c1.X += c1.Y;
-                });
+                }));
                 break;
             case 4:
-                _deltaWorld.ForEach<D0, D1, D2, D3>(in _deltaQuery, static (ref D0 c0, ref D1 c1, ref D2 c2, ref D3 c3) =>
+                _deltaWorld.ForEach(in _deltaQuery, (ForEachAction<D0, D1, D2, D3>)(static (ref D0 c0, ref D1 c1, ref D2 c2, ref D3 c3) =>
                 {
                     c0.X += c0.Y;
                     c1.X += c1.Y;
                     c2.X += c2.Y;
                     c3.X += c3.Y;
-                });
+                }));
                 break;
             case 8:
-                _deltaWorld.ForEach<D0, D1, D2, D3, D4, D5, D6, D7>(in _deltaQuery, static (ref D0 c0, ref D1 c1, ref D2 c2, ref D3 c3,
+                _deltaWorld.ForEach(in _deltaQuery, (ForEachAction<D0, D1, D2, D3, D4, D5, D6, D7>)(static (ref D0 c0, ref D1 c1, ref D2 c2, ref D3 c3,
                     ref D4 c4, ref D5 c5, ref D6 c6, ref D7 c7) =>
                 {
                     c0.X += c0.Y;
@@ -140,7 +140,7 @@ public class DistinctDenseComparisonBenchmarks
                     c5.X += c5.Y;
                     c6.X += c6.Y;
                     c7.X += c7.Y;
-                });
+                }));
                 break;
         }
     }

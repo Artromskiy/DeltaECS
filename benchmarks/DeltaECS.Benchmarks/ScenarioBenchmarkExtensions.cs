@@ -145,14 +145,14 @@ public class SmallDenseScenarioBenchmarks
         switch (ComponentCount)
         {
             case 1:
-                _deltaWorld.ForEach<SmallDenseValue>(in _deltaQuery, _deltaComponents[0], (ref SmallDenseValue value) =>
+                _deltaWorld.ForEach(in _deltaQuery, _deltaComponents[0], (ref SmallDenseValue value) =>
                 {
                     value.X += value.Y;
                     checksum += value.X + value.Y;
                 });
                 break;
             case 2:
-                _deltaWorld.ForEach<SmallDenseValue, SmallDenseValue>(in _deltaQuery, _deltaComponents[0], _deltaComponents[1], (ref SmallDenseValue v0, ref SmallDenseValue v1) =>
+                _deltaWorld.ForEach(in _deltaQuery, _deltaComponents[0], _deltaComponents[1], (ref SmallDenseValue v0, ref SmallDenseValue v1) =>
                 {
                     v0.X += v0.Y;
                     v1.X += v1.Y;
@@ -160,7 +160,7 @@ public class SmallDenseScenarioBenchmarks
                 });
                 break;
             case 4:
-                _deltaWorld.ForEach<SmallDenseValue, SmallDenseValue, SmallDenseValue, SmallDenseValue>(in _deltaQuery, _deltaComponents[0], _deltaComponents[1], _deltaComponents[2], _deltaComponents[3], (ref SmallDenseValue v0, ref SmallDenseValue v1, ref SmallDenseValue v2, ref SmallDenseValue v3) =>
+                _deltaWorld.ForEach(in _deltaQuery, _deltaComponents[0], _deltaComponents[1], _deltaComponents[2], _deltaComponents[3], (ref SmallDenseValue v0, ref SmallDenseValue v1, ref SmallDenseValue v2, ref SmallDenseValue v3) =>
                 {
                     v0.X += v0.Y;
                     v1.X += v1.Y;
@@ -170,7 +170,7 @@ public class SmallDenseScenarioBenchmarks
                 });
                 break;
             case 8:
-                _deltaWorld.ForEach<SmallDenseValue, SmallDenseValue, SmallDenseValue, SmallDenseValue, SmallDenseValue, SmallDenseValue, SmallDenseValue, SmallDenseValue>(in _deltaQuery, _deltaComponents[0], _deltaComponents[1], _deltaComponents[2], _deltaComponents[3], _deltaComponents[4], _deltaComponents[5], _deltaComponents[6], _deltaComponents[7], (ref SmallDenseValue v0, ref SmallDenseValue v1, ref SmallDenseValue v2, ref SmallDenseValue v3, ref SmallDenseValue v4, ref SmallDenseValue v5, ref SmallDenseValue v6, ref SmallDenseValue v7) =>
+                _deltaWorld.ForEach(in _deltaQuery, _deltaComponents[0], _deltaComponents[1], _deltaComponents[2], _deltaComponents[3], _deltaComponents[4], _deltaComponents[5], _deltaComponents[6], _deltaComponents[7], (ref SmallDenseValue v0, ref SmallDenseValue v1, ref SmallDenseValue v2, ref SmallDenseValue v3, ref SmallDenseValue v4, ref SmallDenseValue v5, ref SmallDenseValue v6, ref SmallDenseValue v7) =>
                 {
                     v0.X += v0.Y;
                     v1.X += v1.Y;
@@ -377,12 +377,12 @@ public class WideArchetypeNarrowAccessBenchmarks
     public double DeltaECS_NarrowAccess()
     {
         var checksum = 0d;
-        _deltaWorld.ForEach<WideDenseValue, WideDenseValue>(in _deltaQuery, _deltaComponents[0], _deltaComponents[1], (ref WideDenseValue pos, in WideDenseValue vel) =>
+        _deltaWorld.ForEach(in _deltaQuery, _deltaComponents[0], _deltaComponents[1], (ForEachAction_WR<WideDenseValue, WideDenseValue>)((ref WideDenseValue pos, in WideDenseValue vel) =>
         {
             pos.X += vel.X;
             pos.Y += vel.Y;
             checksum += pos.X + pos.Y;
-        });
+        }));
 
         return checksum;
     }
@@ -490,12 +490,12 @@ public class WideArchetypeNarrowAccessComparisonBenchmarks
     public double DeltaECS_ComparisonNarrow()
     {
         var checksum = 0d;
-        _deltaWorld.ForEach<WideDenseValue, WideDenseValue>(in _deltaQuery, _deltaComponents[0], _deltaComponents[1], (ref WideDenseValue pos, in WideDenseValue vel) =>
+        _deltaWorld.ForEach(in _deltaQuery, _deltaComponents[0], _deltaComponents[1], (ForEachAction_WR<WideDenseValue, WideDenseValue>)((ref WideDenseValue pos, in WideDenseValue vel) =>
         {
             pos.X += vel.X;
             pos.Y += vel.Y;
             checksum += pos.X + pos.Y;
-        });
+        }));
 
         return checksum;
     }
@@ -886,13 +886,13 @@ public class SparseHeterogeneousQueryBenchmarks
     private SparseState IterateDeltaMatches(in Query query, ComponentId position, ComponentId velocity)
     {
         var state = new SparseState();
-        _deltaWorld.ForEach<SparseValue, SparseValue>(in query, position, velocity, (ref SparseValue positionValue, in SparseValue velocityValue) =>
+        _deltaWorld.ForEach(in query, position, velocity, (ForEachAction_WR<SparseValue, SparseValue>)((ref SparseValue positionValue, in SparseValue velocityValue) =>
         {
             positionValue.X += velocityValue.X;
             positionValue.Y += velocityValue.Y;
             state.Count++;
             state.Checksum += positionValue.X + positionValue.Y;
-        });
+        }));
 
         return state;
     }
