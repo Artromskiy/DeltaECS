@@ -146,11 +146,14 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
-    public void NoIdGenerationUsesPrimaryRegistryLookupWithExtraQueryComponent()
+    public void NoIdGenerationUsesCachedPrimaryRouteWithExtraQueryComponent()
     {
         string generated = GeneratedText(RunGenerator());
 
-        Assert.That(generated, Does.Contain("GetPrimary(typeof(T1))"));
+        Assert.That(generated, Does.Contain("AccessRead(world, in query, typeof(T1)"));
+        Assert.That(generated, Does.Contain("AccessWrite(world, in query, typeof(T2)"));
+        Assert.That(generated, Does.Not.Contain("AccessRead(world, in query, world.Layouts.GetPrimary"));
+        Assert.That(generated, Does.Not.Contain("AccessWrite(world, in query, world.Layouts.GetPrimary"));
         Assert.That(generated, Does.Not.Contain("ResolveComponentIds"));
         Assert.That(generated, Does.Not.Contain("AllMask.Count != destination.Length"));
     }
@@ -259,6 +262,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public static int AccessRead(World world, in Query query, ComponentId component, Type runtimeType) => default;
             public static int AccessWrite(World world, in Query query, ComponentId component, Type runtimeType) => default;
+            public static int AccessRead(World world, in Query query, Type runtimeType) => default;
+            public static int AccessWrite(World world, in Query query, Type runtimeType) => default;
             public static Query CreateSequenceQuery(World world, ReadOnlySpan<ComponentId> components) => default;
         }
         public sealed partial class World

@@ -1,6 +1,7 @@
 namespace Delta.ECS;
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -38,12 +39,29 @@ internal sealed class QueryPlan
     private NativeMemory<int> _matchingArchetypes = new(0);
     private ArchetypePlan[] _matchingPlans = Array.Empty<ArchetypePlan>();
     private int[] _planIndicesByArchetype = Array.Empty<int>();
+    private Dictionary<Type, ComponentId>? _primaryComponentIdsByType;
     private bool _hasWriteAccess;
 
     public QueryPlan(QuerySpec spec) => _description = spec;
 
     public bool HasWriteAccess => _hasWriteAccess;
     public void RegisterWriteAccess() => _hasWriteAccess = true;
+
+    internal int PrimaryRouteResolutionCount { get; private set; }
+
+    internal ComponentId ResolvePrimaryComponent(World world, Type runtimeType)
+    {
+        if (_primaryComponentIdsByType is { } cached
+            && cached.TryGetValue(runtimeType, out ComponentId componentId))
+        {
+            return componentId;
+        }
+
+        componentId = world.Layouts.GetPrimary(runtimeType);
+        (_primaryComponentIdsByType ??= new Dictionary<Type, ComponentId>()).Add(runtimeType, componentId);
+        PrimaryRouteResolutionCount++;
+        return componentId;
+    }
 
     public ReadOnlySpan<int> MatchingArchetypes(World world)
     {
