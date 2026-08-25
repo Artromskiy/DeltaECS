@@ -66,29 +66,14 @@ public class DenseCapacitySweepBenchmarks
     [Benchmark(Baseline = true)]
     public void DeltaECS_Array()
     {
-        using var scope = _arrayWorld.OpenQuery(in _query);
-        var archetypes = scope.Archetypes;
-        while (archetypes.MoveNext())
-        {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
+        _arrayWorld.ForEach<S0, S1, S2, S3, S4, S5, S6, S7>(
+            in _query,
+            static (ref S0 c0, ref S1 c1, ref S2 c2, ref S3 c3,
+                ref S4 c4, ref S5 c5, ref S6 c6, ref S7 c7) =>
             {
-                var slots = chunks.Current.Slots;
-                var c0 = slots.GetRow(_b0);
-                var c1 = slots.GetRow(_b1);
-                var c2 = slots.GetRow(_b2);
-                var c3 = slots.GetRow(_b3);
-                var c4 = slots.GetRow(_b4);
-                var c5 = slots.GetRow(_b5);
-                var c6 = slots.GetRow(_b6);
-                var c7 = slots.GetRow(_b7);
-                while (slots.MoveNext())
-                {
-                    c0.Ref<S0>(slots).X += c0.Ref<S0>(slots).Y; c1.Ref<S1>(slots).X += c1.Ref<S1>(slots).Y; c2.Ref<S2>(slots).X += c2.Ref<S2>(slots).Y; c3.Ref<S3>(slots).X += c3.Ref<S3>(slots).Y;
-                    c4.Ref<S4>(slots).X += c4.Ref<S4>(slots).Y; c5.Ref<S5>(slots).X += c5.Ref<S5>(slots).Y; c6.Ref<S6>(slots).X += c6.Ref<S6>(slots).Y; c7.Ref<S7>(slots).X += c7.Ref<S7>(slots).Y;
-                }
-            }
-        }
+                c0.X += c0.Y; c1.X += c1.Y; c2.X += c2.Y; c3.X += c3.Y;
+                c4.X += c4.Y; c5.X += c5.Y; c6.X += c6.Y; c7.X += c7.Y;
+            });
     }
 
     [Benchmark]

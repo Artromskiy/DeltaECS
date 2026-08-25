@@ -107,104 +107,41 @@ public class DistinctDenseComparisonBenchmarks
     [Benchmark(Baseline = true)]
     public void DeltaECS_Array_DistinctTypes()
     {
-        using var scope = _deltaWorld.OpenQuery(in _deltaQuery);
-        var d0 = _d0Binding;
-        var d1 = ComponentCount >= 2 ? _d1Binding : default;
-        var d2 = ComponentCount >= 4 ? _d2Binding : default;
-        var d3 = ComponentCount >= 4 ? _d3Binding : default;
-        var d4 = ComponentCount >= 8 ? _d4Binding : default;
-        var d5 = ComponentCount >= 8 ? _d5Binding : default;
-        var d6 = ComponentCount >= 8 ? _d6Binding : default;
-        var d7 = ComponentCount >= 8 ? _d7Binding : default;
-        var archetypes = scope.Archetypes;
-
-        while (archetypes.MoveNext())
+        switch (ComponentCount)
         {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
-            {
-                var slots = chunks.Current.Slots;
-                switch (ComponentCount)
+            case 1:
+                _deltaWorld.ForEach<D0>(in _deltaQuery, static (ref D0 c0) => c0.X += c0.Y);
+                break;
+            case 2:
+                _deltaWorld.ForEach<D0, D1>(in _deltaQuery, static (ref D0 c0, ref D1 c1) =>
                 {
-                    case 1:
-                        {
-                            var c0 = slots.GetRow(d0);
-                            while (slots.MoveNext())
-                            {
-                                ref var value = ref c0.Ref<D0>(slots);
-                                value.X += value.Y;
-                            }
-
-                            break;
-                        }
-                    case 2:
-                        {
-                            var c0 = slots.GetRow(d0);
-                            var c1 = slots.GetRow(d1);
-                            while (slots.MoveNext())
-                            {
-                                ref var value0 = ref c0.Ref<D0>(slots);
-                                ref var value1 = ref c1.Ref<D1>(slots);
-                                value0.X += value0.Y;
-                                value1.X += value1.Y;
-                            }
-
-                            break;
-                        }
-                    case 4:
-                        {
-                            var c0 = slots.GetRow(d0);
-                            var c1 = slots.GetRow(d1);
-                            var c2 = slots.GetRow(d2);
-                            var c3 = slots.GetRow(d3);
-                            while (slots.MoveNext())
-                            {
-                                ref var value0 = ref c0.Ref<D0>(slots);
-                                ref var value1 = ref c1.Ref<D1>(slots);
-                                ref var value2 = ref c2.Ref<D2>(slots);
-                                ref var value3 = ref c3.Ref<D3>(slots);
-                                value0.X += value0.Y;
-                                value1.X += value1.Y;
-                                value2.X += value2.Y;
-                                value3.X += value3.Y;
-                            }
-
-                            break;
-                        }
-                    case 8:
-                        {
-                            var c0 = slots.GetRow(d0);
-                            var c1 = slots.GetRow(d1);
-                            var c2 = slots.GetRow(d2);
-                            var c3 = slots.GetRow(d3);
-                            var c4 = slots.GetRow(d4);
-                            var c5 = slots.GetRow(d5);
-                            var c6 = slots.GetRow(d6);
-                            var c7 = slots.GetRow(d7);
-                            while (slots.MoveNext())
-                            {
-                                ref var value0 = ref c0.Ref<D0>(slots);
-                                ref var value1 = ref c1.Ref<D1>(slots);
-                                ref var value2 = ref c2.Ref<D2>(slots);
-                                ref var value3 = ref c3.Ref<D3>(slots);
-                                ref var value4 = ref c4.Ref<D4>(slots);
-                                ref var value5 = ref c5.Ref<D5>(slots);
-                                ref var value6 = ref c6.Ref<D6>(slots);
-                                ref var value7 = ref c7.Ref<D7>(slots);
-                                value0.X += value0.Y;
-                                value1.X += value1.Y;
-                                value2.X += value2.Y;
-                                value3.X += value3.Y;
-                                value4.X += value4.Y;
-                                value5.X += value5.Y;
-                                value6.X += value6.Y;
-                                value7.X += value7.Y;
-                            }
-
-                            break;
-                        }
-                }
-            }
+                    c0.X += c0.Y;
+                    c1.X += c1.Y;
+                });
+                break;
+            case 4:
+                _deltaWorld.ForEach<D0, D1, D2, D3>(in _deltaQuery, static (ref D0 c0, ref D1 c1, ref D2 c2, ref D3 c3) =>
+                {
+                    c0.X += c0.Y;
+                    c1.X += c1.Y;
+                    c2.X += c2.Y;
+                    c3.X += c3.Y;
+                });
+                break;
+            case 8:
+                _deltaWorld.ForEach<D0, D1, D2, D3, D4, D5, D6, D7>(in _deltaQuery, static (ref D0 c0, ref D1 c1, ref D2 c2, ref D3 c3,
+                    ref D4 c4, ref D5 c5, ref D6 c6, ref D7 c7) =>
+                {
+                    c0.X += c0.Y;
+                    c1.X += c1.Y;
+                    c2.X += c2.Y;
+                    c3.X += c3.Y;
+                    c4.X += c4.Y;
+                    c5.X += c5.Y;
+                    c6.X += c6.Y;
+                    c7.X += c7.Y;
+                });
+                break;
         }
     }
 

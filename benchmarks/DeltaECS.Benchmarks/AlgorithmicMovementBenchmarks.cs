@@ -54,33 +54,19 @@ public class AlgorithmicMovementBenchmarks
     [Benchmark(Baseline = true)]
     public double DeltaECS_Movement()
     {
-        double checksum = 0;
-        var count = 0;
-        using var scope = _deltaWorld.OpenQuery(in _deltaQuery);
-        var positionAccess = _deltaPositionBinding;
-        var velocityAccess = _deltaVelocityBinding;
-        var archetypes = scope.Archetypes;
-        while (archetypes.MoveNext())
-        {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
+        var context = new MovementContext();
+        _deltaWorld.ForEach<MovementContext, DeltaPosition, DeltaVelocity>(
+            in _deltaQuery,
+            ref context,
+            static (ref MovementContext state, ref DeltaPosition position, in DeltaVelocity velocity) =>
             {
-                var slots = chunks.Current.Slots;
-                var positions = slots.GetRow(positionAccess);
-                var velocities = slots.GetRow(velocityAccess);
-                while (slots.MoveNext())
-                {
-                    ref var position = ref positions.Ref<DeltaPosition>(slots);
-                    ref readonly var velocity = ref velocities.Ref<DeltaVelocity>(slots);
-                    position.X += velocity.X * Dt;
-                    position.Y += velocity.Y * Dt;
-                    count++;
-                    checksum += position.X + position.Y;
-                }
-            }
-        }
+                position.X += velocity.X * Dt;
+                position.Y += velocity.Y * Dt;
+                state.Count++;
+                state.Checksum += position.X + position.Y;
+            });
 
-        return MovementGuard.Checksum(checksum, count, Amount);
+        return MovementGuard.Checksum(context.Checksum, context.Count, Amount);
     }
 
     [Benchmark]
@@ -263,6 +249,12 @@ public class AlgorithmicMovementBenchmarks
     private static double s_frifloChecksum;
     private static int s_archCount;
     private static int s_frifloCount;
+
+    private struct MovementContext
+    {
+        public double Checksum;
+        public int Count;
+    }
 
     private struct DeltaPosition { public float X; public float Y; }
     private struct DeltaVelocity { public float X; public float Y; }

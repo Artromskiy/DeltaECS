@@ -97,34 +97,19 @@ public class EcsLiteComparisonBenchmarks
     [BenchmarkCategory("DenseMovement")]
     public double DeltaECS_DenseMovement()
     {
-        var checksum = 0d;
-        var count = 0;
-
-        using var scope = _deltaMovementWorld.OpenQuery(in _deltaMovementQuery);
-        var positionAccess = _deltaMovementPositionBinding;
-        var velocityAccess = _deltaMovementVelocityBinding;
-        var archetypes = scope.Archetypes;
-        while (archetypes.MoveNext())
-        {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
+        var context = new IterationContext();
+        _deltaMovementWorld.ForEach<IterationContext, DeltaPosition, DeltaVelocity>(
+            in _deltaMovementQuery,
+            ref context,
+            static (ref IterationContext state, ref DeltaPosition position, in DeltaVelocity velocity) =>
             {
-                var slots = chunks.Current.Slots;
-                var positions = slots.GetRow(positionAccess);
-                var velocities = slots.GetRow(velocityAccess);
-                while (slots.MoveNext())
-                {
-                    ref var position = ref positions.Ref<DeltaPosition>(slots);
-                    ref readonly var velocity = ref velocities.Ref<DeltaVelocity>(slots);
-                    position.X += velocity.X * Dt;
-                    position.Y += velocity.Y * Dt;
-                    count++;
-                    checksum += position.X + position.Y;
-                }
-            }
-        }
+                position.X += velocity.X * Dt;
+                position.Y += velocity.Y * Dt;
+                state.Count++;
+                state.Checksum += position.X + position.Y;
+            });
 
-        return BenchmarkGuard.Check(checksum, count, Amount);
+        return BenchmarkGuard.Check(context.Checksum, context.Count, Amount);
     }
 
     [Benchmark]
@@ -151,32 +136,17 @@ public class EcsLiteComparisonBenchmarks
     [BenchmarkCategory("QueryPlan")]
     public int DeltaECS_QueryPlanIteration()
     {
-        var checksum = 0d;
-        var count = 0;
-
-        using var scope = _deltaFilterWorld.OpenQuery(in _deltaFilterQuery);
-        var positionAccess = _deltaFilterPositionBinding;
-        var velocityAccess = _deltaFilterVelocityBinding;
-        var archetypes = scope.Archetypes;
-        while (archetypes.MoveNext())
-        {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
+        var context = new IterationContext();
+        _deltaFilterWorld.ForEach<IterationContext, DeltaFilterPosition, DeltaFilterVelocity>(
+            in _deltaFilterQuery,
+            ref context,
+            static (ref IterationContext state, in DeltaFilterPosition position, in DeltaFilterVelocity velocity) =>
             {
-                var slots = chunks.Current.Slots;
-                var positions = slots.GetRow(positionAccess);
-                var velocities = slots.GetRow(velocityAccess);
-                while (slots.MoveNext())
-                {
-                    count++;
-                    checksum +=
-                        positions.Ref<DeltaFilterPosition>(slots).X
-                        + velocities.Ref<DeltaFilterVelocity>(slots).Y;
-                }
-            }
-        }
+                state.Count++;
+                state.Checksum += position.X + velocity.Y;
+            });
 
-        return BenchmarkGuard.Check(count, checksum, Amount);
+        return BenchmarkGuard.Check(context.Count, context.Checksum, Amount);
     }
 
     [Benchmark]
@@ -746,6 +716,12 @@ public class EcsLiteComparisonBenchmarks
     {
         public float X;
         public float Y;
+    }
+
+    private struct IterationContext
+    {
+        public int Count;
+        public double Checksum;
     }
 
 #pragma warning disable CS0649 // Structural benchmark components are intentionally default-initialized.
