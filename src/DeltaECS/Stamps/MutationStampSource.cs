@@ -4,9 +4,9 @@ internal struct MutationStampSource
 {
     private ulong _value;
 
-    public readonly Stamp Current => new(_value);
+    internal readonly Stamp Current => new(_value);
 
-    public Stamp Next()
+    internal Stamp Next()
     {
         if (_value == ulong.MaxValue)
         {

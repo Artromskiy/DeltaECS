@@ -53,7 +53,7 @@ public ref struct QuerySlots
     public Entity CurrentEntity
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _chunk.Entities[_index];
+        get => _chunk.RawEntities.Ref(_index);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

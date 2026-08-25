@@ -10,7 +10,7 @@ internal struct ComponentStampStorage : IDisposable
     private NativeMemory<Stamp> _uniformStamps;
     private NativeMemory<int> _uniformCounts;
 
-    public ComponentStampStorage(int componentCount, int capacity)
+    internal ComponentStampStorage(int componentCount, int capacity)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(componentCount);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
@@ -21,7 +21,7 @@ internal struct ComponentStampStorage : IDisposable
         _uniformCounts = new NativeMemory<int>(componentCount);
     }
 
-    public readonly Stamp Get(int componentIndex, int slotIndex)
+    internal readonly Stamp Get(int componentIndex, int slotIndex)
     {
         int offset = Offset(componentIndex, slotIndex);
         return slotIndex < _uniformCounts.ReadOnlySpan[componentIndex]
@@ -29,14 +29,14 @@ internal struct ComponentStampStorage : IDisposable
             : _values.ReadOnlySpan[offset];
     }
 
-    public void Set(int componentIndex, int slotIndex, Stamp stamp)
+    internal void Set(int componentIndex, int slotIndex, Stamp stamp)
     {
         int offset = Offset(componentIndex, slotIndex);
         Materialize(componentIndex);
         _values[offset] = stamp;
     }
 
-    public void SetComponentRange(int componentIndex, int slotIndex, int count, Stamp stamp)
+    internal void SetComponentRange(int componentIndex, int slotIndex, int count, Stamp stamp)
     {
         ValidateRange(componentIndex, slotIndex, count);
         if (slotIndex == 0)
@@ -56,7 +56,7 @@ internal struct ComponentStampStorage : IDisposable
         _uniformCounts[componentIndex] = count;
     }
 
-    public void SetSlot(int slotIndex, Stamp stamp)
+    internal void SetSlot(int slotIndex, Stamp stamp)
     {
         ValidateSlot(slotIndex);
         for (int componentIndex = 0; componentIndex < _componentCount; componentIndex++)
@@ -65,7 +65,7 @@ internal struct ComponentStampStorage : IDisposable
         }
     }
 
-    public void SetSlotRange(int slotIndex, int count, Stamp stamp)
+    internal void SetSlotRange(int slotIndex, int count, Stamp stamp)
     {
         if (slotIndex < 0 || count < 0 || slotIndex > _capacity - count)
         {
@@ -78,7 +78,7 @@ internal struct ComponentStampStorage : IDisposable
         }
     }
 
-    public void SetRowsRange(int slotIndex, int count, ReadOnlySpan<int> componentIndices, Stamp stamp)
+    internal void SetRowsRange(int slotIndex, int count, ReadOnlySpan<int> componentIndices, Stamp stamp)
     {
         for (int index = 0; index < componentIndices.Length; index++)
         {
@@ -86,7 +86,7 @@ internal struct ComponentStampStorage : IDisposable
         }
     }
 
-    public readonly void CopyComponentSlotTo(
+    internal readonly void CopyComponentSlotTo(
         ref ComponentStampStorage target,
         int sourceSlotIndex,
         int targetSlotIndex,
@@ -96,7 +96,7 @@ internal struct ComponentStampStorage : IDisposable
         target.Set(targetComponentIndex, targetSlotIndex, Get(sourceComponentIndex, sourceSlotIndex));
     }
 
-    public readonly void CopyComponentRangeTo(
+    internal readonly void CopyComponentRangeTo(
         ref ComponentStampStorage target,
         int sourceSlotIndex,
         int targetSlotIndex,
@@ -115,7 +115,7 @@ internal struct ComponentStampStorage : IDisposable
         }
     }
 
-    public void CopySlot(int sourceSlotIndex, int targetSlotIndex)
+    internal void CopySlot(int sourceSlotIndex, int targetSlotIndex)
     {
         ValidateSlot(sourceSlotIndex);
         ValidateSlot(targetSlotIndex);
@@ -125,7 +125,7 @@ internal struct ComponentStampStorage : IDisposable
         }
     }
 
-    public void ClearSlot(int slotIndex)
+    internal void ClearSlot(int slotIndex)
     {
         ValidateSlot(slotIndex);
         for (int componentIndex = 0; componentIndex < _componentCount; componentIndex++)
@@ -134,7 +134,7 @@ internal struct ComponentStampStorage : IDisposable
         }
     }
 
-    public void ClearRange(int slotIndex, int count)
+    internal void ClearRange(int slotIndex, int count)
     {
         if (count == 0)
         {
@@ -147,12 +147,14 @@ internal struct ComponentStampStorage : IDisposable
         }
     }
 
-    public void Dispose()
+    internal void Dispose()
     {
         _values.Dispose();
         _uniformStamps.Dispose();
         _uniformCounts.Dispose();
     }
+
+    void IDisposable.Dispose() => Dispose();
 
     private void Materialize(int componentIndex)
     {

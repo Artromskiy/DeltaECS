@@ -23,6 +23,11 @@ passing a relative `ErrorLog` property directly to `dotnet build`:
 starts. Roslyn otherwise resolves a relative SARIF path separately for every
 project and can fail when that project-local directory does not exist.
 
+Internal boundary rule: every member declared inside an `internal` type must be
+explicitly marked `internal` (or `private`). This marks the point where
+validation has already completed and prevents accidentally exposing trusted
+runtime operations as public API.
+
 To choose another report location:
 
 ```bash

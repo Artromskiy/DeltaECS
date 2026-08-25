@@ -9,33 +9,33 @@ internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
     private nint _address;
     private int _length;
 
-    public NativeMemory(int length)
+    internal NativeMemory(int length)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(length);
         _length = length;
         _address = Allocate(length);
     }
 
-    public NativeMemory(ReadOnlySpan<T> source)
+    internal NativeMemory(ReadOnlySpan<T> source)
     {
         _length = source.Length;
         _address = Allocate(_length);
         source.CopyTo(Span);
     }
 
-    public int Length => _length;
+    internal int Length => _length;
 
-    public ref T this[int index]
+    internal ref T this[int index]
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => ref Unsafe.Add(ref *(T*)_address, index);
     }
 
-    public Span<T> Span => new((void*)_address, _length);
+    internal Span<T> Span => new((void*)_address, _length);
 
-    public ReadOnlySpan<T> ReadOnlySpan => Span;
+    internal ReadOnlySpan<T> ReadOnlySpan => Span;
 
-    public void Resize(int length)
+    internal void Resize(int length)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(length);
         if (length == _length) return;
@@ -48,16 +48,18 @@ internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
         _length = length;
     }
 
-    public void Clear()
+    internal void Clear()
     {
         if (_length != 0) RuntimeNativeMemory.Clear((void*)_address, ByteLength(_length));
     }
 
-    public void Dispose()
+    internal void Dispose()
     {
         if (_address != 0) ReleaseBuffer();
         _length = 0;
     }
+
+    void IDisposable.Dispose() => Dispose();
 
     private static nint Allocate(int length)
     {

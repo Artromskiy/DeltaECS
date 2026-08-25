@@ -41,7 +41,7 @@ internal sealed class QueryPlan
     private Dictionary<Type, ComponentId>? _primaryComponentIdsByType;
     private bool _hasWriteAccess;
 
-    public QueryPlan(World world, QuerySpec spec)
+    internal QueryPlan(World world, QuerySpec spec)
     {
         _description = spec;
         _weakReference = new WeakReference<QueryPlan>(this);
@@ -51,9 +51,9 @@ internal sealed class QueryPlan
         }
     }
 
-    public bool HasWriteAccess => _hasWriteAccess;
+    internal bool HasWriteAccess => _hasWriteAccess;
     internal WeakReference<QueryPlan> WeakReference => _weakReference;
-    public void RegisterWriteAccess() => _hasWriteAccess = true;
+    internal void RegisterWriteAccess() => _hasWriteAccess = true;
 
     internal int PrimaryRouteResolutionCount { get; private set; }
 
@@ -71,13 +71,13 @@ internal sealed class QueryPlan
         return componentId;
     }
 
-    public ReadOnlySpan<int> MatchingArchetypes() => _matchingArchetypes.AsSpan(0, _matchingCount);
+    internal ReadOnlySpan<int> MatchingArchetypes() => _matchingArchetypes.AsSpan(0, _matchingCount);
 
-    public ReadOnlySpan<ArchetypePlan> MatchingPlans() => _matchingPlans.AsSpan(0, _matchingCount);
+    internal ReadOnlySpan<ArchetypePlan> MatchingPlans() => _matchingPlans.AsSpan(0, _matchingCount);
 
-    public ReadOnlySpan<int> ComponentRowIndices(int matchingIndex) => _matchingPlans[matchingIndex].ComponentRows;
+    internal ReadOnlySpan<int> ComponentRowIndices(int matchingIndex) => _matchingPlans[matchingIndex].ComponentRows;
 
-    public bool TryGetPlan(int archetypeId, out ArchetypePlan plan)
+    internal bool TryGetPlan(int archetypeId, out ArchetypePlan plan)
     {
         if ((uint)archetypeId < (uint)_planIndicesByArchetype.Length)
         {
@@ -164,7 +164,7 @@ internal sealed class QueryPlan
 
 internal struct ArchetypePlan
 {
-    public ArchetypePlan(Archetype archetype, int[] componentRows)
+    internal ArchetypePlan(Archetype archetype, int[] componentRows)
     {
         Archetype = archetype;
         ComponentRows = componentRows;
@@ -175,9 +175,9 @@ internal struct ArchetypePlan
         }
     }
 
-    public Archetype Archetype { get; }
-    public int[] ComponentRows { get; }
-    public ReadOnlySpan<ChunkPlan> Chunks => _chunks.AsSpan(0, _chunkCount);
+    internal Archetype Archetype { get; }
+    internal int[] ComponentRows { get; }
+    internal ReadOnlySpan<ChunkPlan> Chunks => _chunks.AsSpan(0, _chunkCount);
 
     private ChunkPlan[] _chunks;
     private int _chunkCount;
@@ -221,32 +221,52 @@ internal struct ArchetypePlan
     }
 }
 
-internal readonly record struct ChunkPlan(Chunk Chunk, Array[] ComponentRows);
+internal readonly struct ChunkPlan
+{
+    internal ChunkPlan(Chunk chunk, Array[] componentRows)
+    {
+        Chunk = chunk;
+        ComponentRows = componentRows;
+    }
 
-internal readonly record struct QueryPlanLink(WeakReference<QueryPlan> Query, int PlanIndex);
+    internal Chunk Chunk { get; }
+    internal Array[] ComponentRows { get; }
+}
+
+internal readonly struct QueryPlanLink
+{
+    internal QueryPlanLink(WeakReference<QueryPlan> query, int planIndex)
+    {
+        Query = query;
+        PlanIndex = planIndex;
+    }
+
+    internal WeakReference<QueryPlan> Query { get; }
+    internal int PlanIndex { get; }
+}
 
 internal static class QueryThrowHelper
 {
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public static void ThrowAccessMismatch() => throw new InvalidOperationException("The row access does not belong to this query or world.");
+    internal static void ThrowAccessMismatch() => throw new InvalidOperationException("The row access does not belong to this query or world.");
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public static void ThrowAccessTypeMismatch() => throw new InvalidOperationException("The row access type does not match the registered component type.");
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    [DoesNotReturn]
-    public static void ThrowMissingWriteIntent() => throw new InvalidOperationException("The query did not register its write row access.");
+    internal static void ThrowAccessTypeMismatch() => throw new InvalidOperationException("The row access type does not match the registered component type.");
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     [DoesNotReturn]
-    public static void ThrowDisposedQueryExecution() => throw new InvalidOperationException("The query execution has ended.");
+    internal static void ThrowMissingWriteIntent() => throw new InvalidOperationException("The query did not register its write row access.");
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public static void ThrowAccessModeMismatch() => throw new InvalidOperationException("The access mode does not match the requested row operation.");
+    [DoesNotReturn]
+    internal static void ThrowDisposedQueryExecution() => throw new InvalidOperationException("The query execution has ended.");
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public static void ThrowArchetypeIteratorNotPositioned() => throw new InvalidOperationException("The archetype iterator is not positioned on an archetype.");
+    internal static void ThrowAccessModeMismatch() => throw new InvalidOperationException("The access mode does not match the requested row operation.");
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public static void ThrowChunkIteratorNotPositioned() => throw new InvalidOperationException("The chunk iterator is not positioned on a chunk.");
+    internal static void ThrowArchetypeIteratorNotPositioned() => throw new InvalidOperationException("The archetype iterator is not positioned on an archetype.");
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowChunkIteratorNotPositioned() => throw new InvalidOperationException("The chunk iterator is not positioned on a chunk.");
 }

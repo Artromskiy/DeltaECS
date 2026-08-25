@@ -14,7 +14,7 @@ internal sealed class Chunk
     private int _count;
     private int _highWaterMark;
 
-    public Chunk(
+    internal Chunk(
         int capacity,
         ComponentLayout[] layouts,
         ComponentRowOperations[] rowOperations,
@@ -40,19 +40,19 @@ internal sealed class Chunk
         }
     }
 
-    public int GlobalId { get; }
+    internal int GlobalId { get; }
 
-    public int Capacity => _capacity;
+    internal int Capacity => _capacity;
 
-    public int Count => _count;
+    internal int Count => _count;
 
-    public bool IsFull => _count >= _capacity;
+    internal bool IsFull => _count >= _capacity;
 
-    public bool IsEmpty => _count == 0;
+    internal bool IsEmpty => _count == 0;
 
-    public Span<Entity> Entities => _entities.Span[.._count];
+    internal Span<Entity> Entities => _entities.Span[.._count];
 
-    public int Add(Entity entity, out bool reusedSlot)
+    internal int Add(Entity entity, out bool reusedSlot)
     {
         if (IsFull)
         {
@@ -70,7 +70,7 @@ internal sealed class Chunk
         return slotIndex;
     }
 
-    public int ReserveRange(int count, out int reusedCount)
+    internal int ReserveRange(int count, out int reusedCount)
     {
         if (count < 0 || _count + count > _capacity)
         {
@@ -88,7 +88,7 @@ internal sealed class Chunk
         return start;
     }
 
-    public Entity RemoveSwapBack(int slotIndex)
+    internal Entity RemoveSwapBack(int slotIndex)
     {
         if (slotIndex < 0 || slotIndex >= _count)
         {
@@ -118,7 +118,10 @@ internal sealed class Chunk
         // for every row requested by every chunk.
         Unsafe.As<T[]>(_componentRows.Ref(componentIndex)).AsSpan(0, _count);
 
-    public Array GetRawComponentRow(int componentIndex) => _componentRows[componentIndex];
+    internal Array GetRawComponentRow(int componentIndex) => _componentRows[componentIndex];
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Array GetRawComponentRowTrusted(int componentIndex) => _componentRows.Ref(componentIndex);
 
     internal Span<Entity> RawEntities => _entities.Span;
 
@@ -167,12 +170,12 @@ internal sealed class Chunk
 
     internal void ClearComponentVersions() => _componentVersions.Clear();
 
-    public void CopySlotTo(Chunk target, int sourceSlotIndex, int targetSlotIndex, int sourceComponentIndex, int targetComponentIndex)
+    internal void CopySlotTo(Chunk target, int sourceSlotIndex, int targetSlotIndex, int sourceComponentIndex, int targetComponentIndex)
     {
         Array.Copy(
-            _componentRows[sourceComponentIndex],
+            GetRawComponentRowTrusted(sourceComponentIndex),
             sourceSlotIndex,
-            target._componentRows[targetComponentIndex],
+            target.GetRawComponentRowTrusted(targetComponentIndex),
             targetSlotIndex,
             1);
         _componentStamps.CopyComponentSlotTo(
@@ -183,7 +186,7 @@ internal sealed class Chunk
             targetComponentIndex);
     }
 
-    public void CopyStampRangeTo(
+    internal void CopyStampRangeTo(
         Chunk target,
         int sourceSlotIndex,
         int targetSlotIndex,
@@ -200,14 +203,14 @@ internal sealed class Chunk
             targetComponentIndex);
     }
 
-    public void CopySlot(int sourceSlotIndex, int destinationSlotIndex, int componentIndex)
+    internal void CopySlot(int sourceSlotIndex, int destinationSlotIndex, int componentIndex)
     {
         if (sourceSlotIndex != destinationSlotIndex)
         {
             Array.Copy(
-                _componentRows[componentIndex],
+                GetRawComponentRowTrusted(componentIndex),
                 sourceSlotIndex,
-                _componentRows[componentIndex],
+                GetRawComponentRowTrusted(componentIndex),
                 destinationSlotIndex,
                 1);
         }
@@ -233,7 +236,7 @@ internal sealed class Chunk
         }
     }
 
-    public void InitializeSlot(int slotIndex)
+    internal void InitializeSlot(int slotIndex)
         => InitializeSlotRange(slotIndex, 1);
 
     internal void InitializeSlotRange(int slotIndex, int count)
@@ -249,7 +252,7 @@ internal sealed class Chunk
         }
     }
 
-    public void InitializeRows(int slotIndex, ReadOnlySpan<int> componentIndices)
+    internal void InitializeRows(int slotIndex, ReadOnlySpan<int> componentIndices)
     {
         for (int index = 0; index < componentIndices.Length; index++)
         {
@@ -258,7 +261,7 @@ internal sealed class Chunk
         }
     }
 
-    public void InitializeRowsRange(int slotIndex, int count, ReadOnlySpan<int> componentIndices)
+    internal void InitializeRowsRange(int slotIndex, int count, ReadOnlySpan<int> componentIndices)
     {
         for (int index = 0; index < componentIndices.Length; index++)
         {
@@ -266,7 +269,7 @@ internal sealed class Chunk
         }
     }
 
-    public void ClearAll()
+    internal void ClearAll()
     {
         for (int componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
         {

@@ -87,7 +87,7 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
 
 internal sealed class QuerySpecComparer : IEqualityComparer<QuerySpec>
 {
-    public bool Equals(QuerySpec x, QuerySpec y) => x.Equals(y);
+    bool IEqualityComparer<QuerySpec>.Equals(QuerySpec x, QuerySpec y) => x.Equals(y);
 
-    public int GetHashCode(QuerySpec obj) => obj.GetHashCode();
+    int IEqualityComparer<QuerySpec>.GetHashCode(QuerySpec obj) => obj.GetHashCode();
 }

@@ -20,7 +20,7 @@ internal sealed class Archetype
     private readonly List<QueryPlanLink> _queryPlans = new();
     private int _activeChunkCount;
 
-    public Archetype(
+    internal Archetype(
         int id,
         ComponentMask mask,
         ComponentLayout[] layouts,
@@ -42,17 +42,17 @@ internal sealed class Archetype
         _rowOperations = rowOperations;
     }
 
-    public int Id => _id;
+    internal int Id => _id;
 
-    public ComponentMask Mask { get; }
+    internal ComponentMask Mask { get; }
 
-    public ReadOnlySpan<ComponentId> ComponentIds => _componentIds.ReadOnlySpan;
+    internal ReadOnlySpan<ComponentId> ComponentIds => _componentIds.ReadOnlySpan;
 
-    public int ComponentCount => _componentIds.Length;
+    internal int ComponentCount => _componentIds.Length;
 
-    public int ChunkCount => _chunks.Count;
+    internal int ChunkCount => _chunks.Count;
 
-    public int ActiveChunkCount => _activeChunkCount;
+    internal int ActiveChunkCount => _activeChunkCount;
 
     internal ReadOnlySpan<Chunk> ActiveChunks => _activeChunks.AsSpan(0, _activeChunkCount);
 
@@ -62,7 +62,7 @@ internal sealed class Archetype
         _queryPlans.Add(new QueryPlanLink(query.WeakReference, planIndex));
     }
 
-    public int EntityCount
+    internal int EntityCount
     {
         get
         {
@@ -76,20 +76,20 @@ internal sealed class Archetype
         }
     }
 
-    public bool Contains(ComponentId componentId) => Mask.Contains(componentId);
+    internal bool Contains(ComponentId componentId) => Mask.Contains(componentId);
 
-    public bool TryGetComponentIndex(ComponentId componentId, out int index)
+    internal bool TryGetComponentIndex(ComponentId componentId, out int index)
     {
         index = Mask.Rank(componentId);
         return index >= 0;
     }
 
-    public ref readonly ComponentLayout GetLayout(int index) => ref _layouts[index];
+    internal ref readonly ComponentLayout GetLayout(int index) => ref _layouts[index];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool HasAvailableChunk() => _availableChunkStack.Count != 0;
+    internal bool HasAvailableChunk() => _availableChunkStack.Count != 0;
 
-    public void AddEntity(
+    internal void AddEntity(
         Entity entity,
         int chunkId,
         out int chunkIndex,
@@ -126,7 +126,7 @@ internal sealed class Archetype
         }
     }
 
-    public int ReserveRange(int count, int chunkId, out int chunkIndex, out Chunk chunk, out int reusedCount)
+    internal int ReserveRange(int count, int chunkId, out int chunkIndex, out Chunk chunk, out int reusedCount)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
 
@@ -160,7 +160,7 @@ internal sealed class Archetype
         return reserved;
     }
 
-    public Entity RemoveEntity(int chunkIndex, int slotIndex)
+    internal Entity RemoveEntity(int chunkIndex, int slotIndex)
     {
         var chunk = _chunks[chunkIndex];
         var moved = chunk.RemoveSwapBack(slotIndex);
@@ -173,7 +173,7 @@ internal sealed class Archetype
         return moved;
     }
 
-    public void ReleaseChunk(int chunkIndex)
+    internal void ReleaseChunk(int chunkIndex)
     {
         if (_chunks[chunkIndex].IsEmpty)
         {
@@ -320,13 +320,13 @@ internal sealed class Archetype
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public int GetChunkGlobalId(int chunkIndex) => _chunks[chunkIndex].GlobalId;
+    internal int GetChunkGlobalId(int chunkIndex) => _chunks[chunkIndex].GlobalId;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Chunk GetChunk(int chunkIndex) => _chunks[chunkIndex];
+    internal Chunk GetChunk(int chunkIndex) => _chunks[chunkIndex];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Chunk GetActiveChunk(int activeIndex) => _activeChunks[activeIndex];
+    internal Chunk GetActiveChunk(int activeIndex) => _activeChunks[activeIndex];
 
     internal void Dispose()
     {

@@ -63,10 +63,10 @@ public readonly struct ArchetypeHandle : IEquatable<ArchetypeHandle>
 
 internal struct EntityRecord
 {
-    public int Generation;
-    public int Archetype;
-    public int Chunk;
-    public int SlotIndex;
+    internal int Generation;
+    internal int Archetype;
+    internal int Chunk;
+    internal int SlotIndex;
 }
 
 public readonly struct Query

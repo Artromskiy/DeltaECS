@@ -6,8 +6,8 @@ internal readonly partial struct ComponentRowOperations
     private ComponentRowOperations(bool containsReferences)
         => ContainsReferences = containsReferences;
 
-    public bool ContainsReferences { get; }
+    internal bool ContainsReferences { get; }
 
-    public static ComponentRowOperations ForRuntimeType(bool containsReferences)
+    internal static ComponentRowOperations ForRuntimeType(bool containsReferences)
         => new(containsReferences);
 }

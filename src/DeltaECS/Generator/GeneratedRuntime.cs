@@ -52,17 +52,17 @@ public ref struct GeneratedSequenceCursor
     public ReadRow GetReadRow(int queryComponentIndex)
     {
         _writeSession.EnsureActive(_sessionGeneration);
-        int physicalRow = _componentRows[queryComponentIndex];
-        return new ReadRow(_chunk.GetRawComponentRow(physicalRow));
+        int physicalRow = _componentRows.Ref(queryComponentIndex);
+        return new ReadRow(_chunk.GetRawComponentRowTrusted(physicalRow));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public WriteRow GetWriteRow(int queryComponentIndex)
     {
-        int physicalRow = _componentRows[queryComponentIndex];
+        int physicalRow = _componentRows.Ref(queryComponentIndex);
         _writeSession.Acquire(_sessionGeneration, out uint writeTick, out Stamp writeStamp);
         _chunk.MarkComponentWritten(physicalRow, Slot, writeTick, writeStamp);
-        return new WriteRow(_chunk.GetRawComponentRow(physicalRow));
+        return new WriteRow(_chunk.GetRawComponentRowTrusted(physicalRow));
     }
 }
 
