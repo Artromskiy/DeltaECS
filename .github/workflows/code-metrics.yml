@@ -49,14 +49,7 @@ jobs:
           set -uo pipefail
           mkdir -p artifacts/code-metrics
           set +e
-          dotnet build DeltaECS.slnx \
-            -c Release \
-            --no-restore \
-            --disable-build-servers \
-            -m:1 \
-            /p:UseSharedCompilation=false \
-            /p:AnalysisMode=AllEnabledByDefault \
-            /p:ErrorLog="$GITHUB_WORKSPACE/artifacts/code-metrics/diagnostics.sarif,version=2.1" \
+          ./eng/code-metrics.sh \
             2>&1 | tee artifacts/code-metrics/build.log
           status=${PIPESTATUS[0]}
           set -e

@@ -26,7 +26,7 @@ world.ForEach(in query, static (ref Position position, in Velocity velocity) =>
 });
 
 world.From(entities).Where(in query).ForEachEntity(static entity => Console.WriteLine($"updated {entity}"));
-world.ForEach<Position>(in query, Test);
+//world.ForEach<Position>(in query, Test);
 world.ForEach(in query, (ref Position p) => { });
 
 var functor = new Functor();
