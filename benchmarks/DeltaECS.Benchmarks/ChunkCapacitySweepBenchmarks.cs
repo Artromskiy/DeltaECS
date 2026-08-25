@@ -18,14 +18,14 @@ public class DenseCapacitySweepBenchmarks
     private WriteAccess _b4; private WriteAccess _b5; private WriteAccess _b6; private WriteAccess _b7;
     private LegacyByteDenseReference _legacy = null!;
 
-    private struct S0 { public float X; public float Y; }
-    private struct S1 { public float X; public float Y; }
-    private struct S2 { public float X; public float Y; }
-    private struct S3 { public float X; public float Y; }
-    private struct S4 { public float X; public float Y; }
-    private struct S5 { public float X; public float Y; }
-    private struct S6 { public float X; public float Y; }
-    private struct S7 { public float X; public float Y; }
+    internal struct S0 { public float X; public float Y; }
+    internal struct S1 { public float X; public float Y; }
+    internal struct S2 { public float X; public float Y; }
+    internal struct S3 { public float X; public float Y; }
+    internal struct S4 { public float X; public float Y; }
+    internal struct S5 { public float X; public float Y; }
+    internal struct S6 { public float X; public float Y; }
+    internal struct S7 { public float X; public float Y; }
 
     [GlobalSetup]
     public void Setup()

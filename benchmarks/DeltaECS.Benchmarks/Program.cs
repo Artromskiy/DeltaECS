@@ -33,7 +33,7 @@ public class DeltaEcsVsArchBenchmarks
     private ComponentType[] _archComponents = Array.Empty<ComponentType>();
     private Arch.Core.QueryDescription _archQuery;
 
-    private struct Value
+    internal struct Value
     {
         public float X;
         public float Y;
@@ -343,7 +343,7 @@ public class DeltaEcsManagedArrayBenchmarks
     private Query _query;
     private Entity[] _entities = Array.Empty<Entity>();
 
-    private struct ManagedValue
+    internal struct ManagedValue
     {
         public string? Name;
         public int Value;
@@ -369,10 +369,10 @@ public class DeltaEcsManagedArrayBenchmarks
     public void ManagedArrayDenseIteration()
     {
         var sum = 0;
-        _world.ForEach(in _query, (ForEachAction_R<ManagedValue>)((in ManagedValue value) =>
+        _world.ForEach(in _query, (in ManagedValue value) =>
         {
             sum += value.Value;
-        }));
+        });
 
         GC.KeepAlive(sum);
     }
@@ -390,7 +390,7 @@ public class DeltaEcsHotPathProfileBenchmarks
     private ReadAccess _secondReadBinding;
     private Entity[] _entities = Array.Empty<Entity>();
 
-    private struct Value
+    internal struct Value
     {
         public float X;
         public float Y;

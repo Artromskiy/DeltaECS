@@ -110,26 +110,26 @@ public class DistinctDenseComparisonBenchmarks
         switch (ComponentCount)
         {
             case 1:
-                _deltaWorld.ForEach(in _deltaQuery, (ForEachAction<D0>)(static (ref D0 c0) => c0.X += c0.Y));
+                _deltaWorld.ForEach(in _deltaQuery, static (ref D0 c0) => c0.X += c0.Y);
                 break;
             case 2:
-                _deltaWorld.ForEach(in _deltaQuery, (ForEachAction<D0, D1>)(static (ref D0 c0, ref D1 c1) =>
+                _deltaWorld.ForEach(in _deltaQuery, static (ref D0 c0, ref D1 c1) =>
                 {
                     c0.X += c0.Y;
                     c1.X += c1.Y;
-                }));
+                });
                 break;
             case 4:
-                _deltaWorld.ForEach(in _deltaQuery, (ForEachAction<D0, D1, D2, D3>)(static (ref D0 c0, ref D1 c1, ref D2 c2, ref D3 c3) =>
+                _deltaWorld.ForEach(in _deltaQuery, static (ref D0 c0, ref D1 c1, ref D2 c2, ref D3 c3) =>
                 {
                     c0.X += c0.Y;
                     c1.X += c1.Y;
                     c2.X += c2.Y;
                     c3.X += c3.Y;
-                }));
+                });
                 break;
             case 8:
-                _deltaWorld.ForEach(in _deltaQuery, (ForEachAction<D0, D1, D2, D3, D4, D5, D6, D7>)(static (ref D0 c0, ref D1 c1, ref D2 c2, ref D3 c3,
+                _deltaWorld.ForEach(in _deltaQuery, static (ref D0 c0, ref D1 c1, ref D2 c2, ref D3 c3,
                     ref D4 c4, ref D5 c5, ref D6 c6, ref D7 c7) =>
                 {
                     c0.X += c0.Y;
@@ -140,7 +140,7 @@ public class DistinctDenseComparisonBenchmarks
                     c5.X += c5.Y;
                     c6.X += c6.Y;
                     c7.X += c7.Y;
-                }));
+                });
                 break;
         }
     }
@@ -209,14 +209,14 @@ public class DistinctDenseComparisonBenchmarks
         }
     }
 
-    private struct D0 { public float X; public float Y; }
-    private struct D1 { public float X; public float Y; }
-    private struct D2 { public float X; public float Y; }
-    private struct D3 { public float X; public float Y; }
-    private struct D4 { public float X; public float Y; }
-    private struct D5 { public float X; public float Y; }
-    private struct D6 { public float X; public float Y; }
-    private struct D7 { public float X; public float Y; }
+    internal struct D0 { public float X; public float Y; }
+    internal struct D1 { public float X; public float Y; }
+    internal struct D2 { public float X; public float Y; }
+    internal struct D3 { public float X; public float Y; }
+    internal struct D4 { public float X; public float Y; }
+    internal struct D5 { public float X; public float Y; }
+    internal struct D6 { public float X; public float Y; }
+    internal struct D7 { public float X; public float Y; }
     private struct A0 { public float X; public float Y; }
     private struct A1 { public float X; public float Y; }
     private struct A2 { public float X; public float Y; }

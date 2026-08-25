@@ -80,13 +80,13 @@ public class DefaultEcsComparisonBenchmarks
         _deltaMovementWorld.ForEach(
             in _deltaMovementQuery,
             ref state,
-            (ForEachContextAction_WR<MovementState, MovementPosition, MovementVelocity>)(static (ref MovementState context, ref MovementPosition position, in MovementVelocity velocity) =>
+            static (ref MovementState context, ref MovementPosition position, in MovementVelocity velocity) =>
             {
                 position.X += velocity.X * context.Dt;
                 position.Y += velocity.Y * context.Dt;
                 context.Count++;
                 context.Checksum += position.X + position.Y;
-            }));
+            });
 
         return BenchmarkGuard.Checksum(state.Count, state.ExpectedCount, state.Checksum);
     }
@@ -337,7 +337,7 @@ public class DefaultEcsComparisonBenchmarks
         return layouts.Register(typeof(MovementPayload), new SchemaId((ulong)(130_300 + index)));
     }
 
-    private struct MovementState
+    internal struct MovementState
     {
         public int Count;
         public int ExpectedCount;
@@ -345,13 +345,13 @@ public class DefaultEcsComparisonBenchmarks
         public double Checksum;
     }
 
-    private struct MovementPosition
+    internal struct MovementPosition
     {
         public float X;
         public float Y;
     }
 
-    private struct MovementVelocity
+    internal struct MovementVelocity
     {
         public float X;
         public float Y;

@@ -58,13 +58,13 @@ public class AlgorithmicMovementBenchmarks
         _deltaWorld.ForEach(
             in _deltaQuery,
             ref context,
-            (ForEachContextAction_WR<MovementContext, DeltaPosition, DeltaVelocity>)(static (ref MovementContext state, ref DeltaPosition position, in DeltaVelocity velocity) =>
+            static (ref MovementContext state, ref DeltaPosition position, in DeltaVelocity velocity) =>
             {
                 position.X += velocity.X * Dt;
                 position.Y += velocity.Y * Dt;
                 state.Count++;
                 state.Checksum += position.X + position.Y;
-            }));
+            });
 
         return MovementGuard.Checksum(context.Checksum, context.Count, Amount);
     }
@@ -250,14 +250,14 @@ public class AlgorithmicMovementBenchmarks
     private static int s_archCount;
     private static int s_frifloCount;
 
-    private struct MovementContext
+    internal struct MovementContext
     {
         public double Checksum;
         public int Count;
     }
 
-    private struct DeltaPosition { public float X; public float Y; }
-    private struct DeltaVelocity { public float X; public float Y; }
+    internal struct DeltaPosition { public float X; public float Y; }
+    internal struct DeltaVelocity { public float X; public float Y; }
     private struct DeltaPayload { public int Value; }
 
     private struct ArchPosition { public float X; public float Y; }

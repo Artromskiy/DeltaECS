@@ -41,13 +41,13 @@ public class HardwareProfileBenchmarks
     private int _iterations;
     private ProfileState _profileState;
 
-    private struct ProfileValue
+    internal struct ProfileValue
     {
         public float X;
         public float Y;
     }
 
-    private struct ProfileState
+    internal struct ProfileState
     {
         public int ComponentCount;
         public long Checksum;

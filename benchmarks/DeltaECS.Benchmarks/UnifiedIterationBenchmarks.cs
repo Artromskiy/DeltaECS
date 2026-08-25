@@ -91,7 +91,7 @@ public class ComparativeDenseIterationBenchmarks
     public long DeltaECS_Dense()
     {
         long sum = 0;
-        _delta.ForEach(in _deltaQuery, ref sum, (ForEachContextAction_R<long, UnifiedDeltaValue>)(static (ref long checksum, in UnifiedDeltaValue value) => checksum += value.Value));
+        _delta.ForEach(in _deltaQuery, ref sum, static (ref long checksum, in UnifiedDeltaValue value) => checksum += value.Value);
 
         return Checksum(sum, (long)Amount * (Amount + 1) / 2, "dense");
     }
@@ -258,12 +258,12 @@ public class ComparativeMovement2ComponentsBenchmarks
     public double DeltaECS_Movement2Components()
     {
         double sum = 0;
-        _delta.ForEach(in _deltaQuery, ref sum, (ForEachContextAction_WR<double, MoveDeltaPosition, MoveDeltaVelocity>)(static (ref double checksum, ref MoveDeltaPosition position, in MoveDeltaVelocity velocity) =>
+        _delta.ForEach(in _deltaQuery, ref sum, static (ref double checksum, ref MoveDeltaPosition position, in MoveDeltaVelocity velocity) =>
         {
             position.X += velocity.X / 60f;
             position.Y += velocity.Y / 60f;
             checksum += position.X + position.Y;
-        }));
+        });
 
         return sum;
     }
@@ -271,12 +271,12 @@ public class ComparativeMovement2ComponentsBenchmarks
     internal double RunOpenQueryMovement2Components()
     {
         double sum = 0;
-        _delta.ForEach(in _deltaQuery, ref sum, (ForEachContextAction_WR<double, MoveDeltaPosition, MoveDeltaVelocity>)(static (ref double checksum, ref MoveDeltaPosition position, in MoveDeltaVelocity velocity) =>
+        _delta.ForEach(in _deltaQuery, ref sum, static (ref double checksum, ref MoveDeltaPosition position, in MoveDeltaVelocity velocity) =>
         {
             position.X += velocity.X / 60f;
             position.Y += velocity.Y / 60f;
             checksum += position.X + position.Y;
-        }));
+        });
 
         return sum;
     }
@@ -402,7 +402,7 @@ public class ComparativeMovement4ComponentsBenchmarks
     public int DeltaECS_Movement4Components()
     {
         var sum = 0;
-        _delta.ForEach(in _deltaQuery, ref sum, (ForEachContextAction_WWWR<int, DistinctDelta0, DistinctDelta1, DistinctDelta2, DistinctDelta3>)(static (ref int checksum, ref DistinctDelta0 rowA, ref DistinctDelta1 rowB, ref DistinctDelta2 rowC, in DistinctDelta3 rowD) =>
+        _delta.ForEach(in _deltaQuery, ref sum, static (ref int checksum, ref DistinctDelta0 rowA, ref DistinctDelta1 rowB, ref DistinctDelta2 rowC, in DistinctDelta3 rowD) =>
         {
             var updatedA = rowA.Value + rowD.Value;
             var updatedB = rowB.Value + rowD.Value;
@@ -410,14 +410,14 @@ public class ComparativeMovement4ComponentsBenchmarks
             rowB.Value = updatedB;
             rowC.Value = (updatedA + updatedB) / 2;
             checksum += rowA.Value + rowB.Value + rowC.Value + rowD.Value;
-        }));
+        });
 
         return sum;
     }
     internal int RunOpenQueryMovement4Components()
     {
         var sum = 0;
-        _delta.ForEach(in _deltaQuery, ref sum, (ForEachContextAction_WWWR<int, DistinctDelta0, DistinctDelta1, DistinctDelta2, DistinctDelta3>)(static (ref int checksum, ref DistinctDelta0 rowA, ref DistinctDelta1 rowB, ref DistinctDelta2 rowC, in DistinctDelta3 rowD) =>
+        _delta.ForEach(in _deltaQuery, ref sum, static (ref int checksum, ref DistinctDelta0 rowA, ref DistinctDelta1 rowB, ref DistinctDelta2 rowC, in DistinctDelta3 rowD) =>
         {
             var updatedA = rowA.Value + rowD.Value;
             var updatedB = rowB.Value + rowD.Value;
@@ -425,7 +425,7 @@ public class ComparativeMovement4ComponentsBenchmarks
             rowB.Value = updatedB;
             rowC.Value = (updatedA + updatedB) / 2;
             checksum += rowA.Value + rowB.Value + rowC.Value + rowD.Value;
-        }));
+        });
 
         return sum;
     }
@@ -468,7 +468,7 @@ public class ComparativeWideArchetypeNarrowQueryBenchmarks
     {
         var sum = 0;
         _delta.ForEach(in _deltaQuery, ref sum,
-            (ForEachContextAction_RR<int, WideDelta0, WideDelta7>)(static (ref int checksum, in WideDelta0 a, in WideDelta7 z) => checksum += a.Value + z.Value));
+            static (ref int checksum, in WideDelta0 a, in WideDelta7 z) => checksum += a.Value + z.Value);
 
         return Check(sum, Amount * 9);
     }
@@ -522,7 +522,7 @@ public class ComparativeSparseQueryBenchmarks
     {
         var count = 0;
         _delta.ForEach(in query, ref count,
-            (ForEachContextAction_RR<int, SparseDeltaA, SparseDeltaB>)(static (ref int matches, in SparseDeltaA _, in SparseDeltaB _) => matches++));
+            static (ref int matches, in SparseDeltaA _, in SparseDeltaB _) => matches++);
 
         return Check(count);
     }

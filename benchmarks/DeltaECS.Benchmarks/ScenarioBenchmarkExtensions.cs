@@ -300,7 +300,7 @@ public class SmallDenseScenarioBenchmarks
         return x + y;
     }
 
-    private struct SmallDenseValue
+    internal struct SmallDenseValue
     {
         public float X;
         public float Y;
@@ -377,12 +377,12 @@ public class WideArchetypeNarrowAccessBenchmarks
     public double DeltaECS_NarrowAccess()
     {
         var checksum = 0d;
-        _deltaWorld.ForEach(in _deltaQuery, _deltaComponents[0], _deltaComponents[1], (ForEachAction_WR<WideDenseValue, WideDenseValue>)((ref WideDenseValue pos, in WideDenseValue vel) =>
+        _deltaWorld.ForEach(in _deltaQuery, _deltaComponents[0], _deltaComponents[1], (ref WideDenseValue pos, in WideDenseValue vel) =>
         {
             pos.X += vel.X;
             pos.Y += vel.Y;
             checksum += pos.X + pos.Y;
-        }));
+        });
 
         return checksum;
     }
@@ -393,7 +393,7 @@ public class WideArchetypeNarrowAccessBenchmarks
         return _legacy.IteratePositionVelocity();
     }
 
-    private struct WideDenseValue
+    internal struct WideDenseValue
     {
         public float X;
         public float Y;
@@ -490,12 +490,12 @@ public class WideArchetypeNarrowAccessComparisonBenchmarks
     public double DeltaECS_ComparisonNarrow()
     {
         var checksum = 0d;
-        _deltaWorld.ForEach(in _deltaQuery, _deltaComponents[0], _deltaComponents[1], (ForEachAction_WR<WideDenseValue, WideDenseValue>)((ref WideDenseValue pos, in WideDenseValue vel) =>
+        _deltaWorld.ForEach(in _deltaQuery, _deltaComponents[0], _deltaComponents[1], (ref WideDenseValue pos, in WideDenseValue vel) =>
         {
             pos.X += vel.X;
             pos.Y += vel.Y;
             checksum += pos.X + pos.Y;
-        }));
+        });
 
         return checksum;
     }
@@ -534,7 +534,7 @@ public class WideArchetypeNarrowAccessComparisonBenchmarks
         return _legacy.IteratePositionVelocity();
     }
 
-    private struct WideDenseValue
+    internal struct WideDenseValue
     {
         public float X;
         public float Y;
@@ -588,7 +588,7 @@ public class SparseHeterogeneousQueryBenchmarks
 
     private LegacySparseReference _legacy = null!;
 
-    private struct SparseState
+    internal struct SparseState
     {
         public int Count;
         public double Checksum;
@@ -886,13 +886,13 @@ public class SparseHeterogeneousQueryBenchmarks
     private SparseState IterateDeltaMatches(in Query query, ComponentId position, ComponentId velocity)
     {
         var state = new SparseState();
-        _deltaWorld.ForEach(in query, position, velocity, (ForEachAction_WR<SparseValue, SparseValue>)((ref SparseValue positionValue, in SparseValue velocityValue) =>
+        _deltaWorld.ForEach(in query, position, velocity, (ref SparseValue positionValue, in SparseValue velocityValue) =>
         {
             positionValue.X += velocityValue.X;
             positionValue.Y += velocityValue.Y;
             state.Count++;
             state.Checksum += positionValue.X + positionValue.Y;
-        }));
+        });
 
         return state;
     }
@@ -907,7 +907,7 @@ public class SparseHeterogeneousQueryBenchmarks
         return state.Checksum;
     }
 
-    private struct SparseValue
+    internal struct SparseValue
     {
         public float X;
         public float Y;

@@ -82,11 +82,11 @@ public class DeltaOnlyFragmentedQueryBenchmarks
             in _query,
             ref context,
             _required,
-            (ForEachContextAction_R<QueryContext, FragmentValue>)(static (ref QueryContext state, in FragmentValue value) =>
+            static (ref QueryContext state, in FragmentValue value) =>
             {
                 state.Matches++;
                 state.Checksum += value.Value;
-            }));
+            });
 
         if (context.Matches != _expectedMatches)
         {
@@ -121,11 +121,11 @@ public class DeltaOnlyFragmentedQueryBenchmarks
             in coldQuery,
             ref context,
             _required,
-            (ForEachContextAction_R<QueryContext, FragmentValue>)(static (ref QueryContext state, in FragmentValue value) =>
+            static (ref QueryContext state, in FragmentValue value) =>
             {
                 state.Matches++;
                 state.Checksum += value.Value;
-            }));
+            });
 
         if (context.Matches != _expectedMatches)
         {
@@ -159,12 +159,12 @@ public class DeltaOnlyFragmentedQueryBenchmarks
         return signature;
     }
 
-    private struct FragmentValue
+    internal struct FragmentValue
     {
         public int Value;
     }
 
-    private struct QueryContext
+    internal struct QueryContext
     {
         public int Matches;
         public int Checksum;

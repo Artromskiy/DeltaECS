@@ -101,13 +101,13 @@ public class EcsLiteComparisonBenchmarks
         _deltaMovementWorld.ForEach(
             in _deltaMovementQuery,
             ref context,
-            (ForEachContextAction_WR<IterationContext, DeltaPosition, DeltaVelocity>)(static (ref IterationContext state, ref DeltaPosition position, in DeltaVelocity velocity) =>
+            static (ref IterationContext state, ref DeltaPosition position, in DeltaVelocity velocity) =>
             {
                 position.X += velocity.X * Dt;
                 position.Y += velocity.Y * Dt;
                 state.Count++;
                 state.Checksum += position.X + position.Y;
-            }));
+            });
 
         return BenchmarkGuard.Check(context.Checksum, context.Count, Amount);
     }
@@ -140,11 +140,11 @@ public class EcsLiteComparisonBenchmarks
         _deltaFilterWorld.ForEach(
             in _deltaFilterQuery,
             ref context,
-            (ForEachContextAction_RR<IterationContext, DeltaFilterPosition, DeltaFilterVelocity>)(static (ref IterationContext state, in DeltaFilterPosition position, in DeltaFilterVelocity velocity) =>
+            static (ref IterationContext state, in DeltaFilterPosition position, in DeltaFilterVelocity velocity) =>
             {
                 state.Count++;
                 state.Checksum += position.X + velocity.Y;
-            }));
+            });
 
         return BenchmarkGuard.Check(context.Count, context.Checksum, Amount);
     }
@@ -689,13 +689,13 @@ public class EcsLiteComparisonBenchmarks
         }
     }
 
-    private struct DeltaPosition
+    internal struct DeltaPosition
     {
         public float X;
         public float Y;
     }
 
-    private struct DeltaVelocity
+    internal struct DeltaVelocity
     {
         public float X;
         public float Y;
@@ -706,19 +706,19 @@ public class EcsLiteComparisonBenchmarks
         public int Value;
     }
 
-    private struct DeltaFilterPosition
+    internal struct DeltaFilterPosition
     {
         public float X;
         public float Y;
     }
 
-    private struct DeltaFilterVelocity
+    internal struct DeltaFilterVelocity
     {
         public float X;
         public float Y;
     }
 
-    private struct IterationContext
+    internal struct IterationContext
     {
         public int Count;
         public double Checksum;
