@@ -26,18 +26,18 @@ public readonly ref partial struct EntitySequence
     public ReadOnlySpan<Entity> GeneratedEntities => _entities;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void ForEachEntity(ForEachEntityAction action) => _world.ForEachEntity(_entities, action);
+    public void ForEachEntity(ForEachEntityAction action) => _world.ExecuteSequence(_entities, action);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void ForEachEntity<TContext>(ref TContext context, ForEachContextEntityAction<TContext> action)
-        => _world.ForEachEntity(_entities, ref context, action);
+        => _world.ExecuteSequence(_entities, ref context, action);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public FilteredEntitySequence Query(in Query query) => new(_world, _entities, query);
+    public FilteredEntitySequence Where(in Query query) => new(_world, _entities, query);
 
-    public int Add(ComponentId[] componentIds) => _world.AddComponents(componentIds, _entities);
+    public int Add(ComponentId[] componentIds) => _world.Add(componentIds, _entities);
 
-    public int Remove(ComponentId[] componentIds) => _world.RemoveComponents(componentIds, _entities);
+    public int Remove(ComponentId[] componentIds) => _world.Remove(componentIds, _entities);
 
     public int Destroy() => _world.Destroy(_entities);
 }
@@ -70,15 +70,15 @@ public readonly ref partial struct FilteredEntitySequence
     public Query GeneratedQuery => _query;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void ForEachEntity(ForEachEntityAction action) => _world.ForEachEntity(_entities, in _query, action);
+    public void ForEachEntity(ForEachEntityAction action) => _world.ExecuteSequence(_entities, in _query, action);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void ForEachEntity<TContext>(ref TContext context, ForEachContextEntityAction<TContext> action)
-        => _world.ForEachEntity(_entities, in _query, ref context, action);
+        => _world.ExecuteSequence(_entities, in _query, ref context, action);
 
-    public int Add(ComponentId[] componentIds) => _world.AddComponents(_entities, in _query, componentIds);
+    public int Add(ComponentId[] componentIds) => _world.Add(_entities, in _query, componentIds);
 
-    public int Remove(ComponentId[] componentIds) => _world.RemoveComponents(_entities, in _query, componentIds);
+    public int Remove(ComponentId[] componentIds) => _world.Remove(_entities, in _query, componentIds);
 
     public int Destroy() => _world.Destroy(_entities, in _query);
 }

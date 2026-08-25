@@ -5,12 +5,9 @@ not query-wide archetype traversal and it does not own or copy the input span.
 
 ## Entry points
 
-Direct and fluent spellings share the same implementation:
+The public entry point is `World.From(entities)`:
 
 ```csharp
-world.ForEachEntity(entities, action);
-world.ForEachEntity(entities, in query, action);
-
 world.From(entities).ForEachEntity(action);
 world.From(entities).Where(in query).ForEachEntity(action);
 ```

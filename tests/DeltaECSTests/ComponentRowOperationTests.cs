@@ -79,7 +79,7 @@ public sealed class ComponentRowOperationTests
 
         var source = world.Create(world.GetOrCreateArchetype(sharedId));
         world.Set(source, sharedId, 77);
-        world.AddComponents(new[] { addedValueId, addedReferenceId }, source);
+        world.Add(new[] { addedValueId, addedReferenceId }, source);
 
         world.TryGet(source, sharedId, out int shared);
         world.TryGet(source, addedValueId, out int addedValue);

@@ -18,14 +18,14 @@ for (var i = 0; i < entities.Length; i++)
 var spec = QuerySpec.WhereAll(positionId, velocityId);
 var query = world.CreateQuery(in spec);
 
-// Query pipeline: component types are inferred from the lambda parameters.
-world.Where(spec).ForEach(static (ref Position position, in Velocity velocity) =>
+// Explicit Query is required before generated callbacks execute.
+world.ForEach(in query, static (ref Position position, in Velocity velocity) =>
 {
     position.X += velocity.X;
     position.Y += velocity.Y;
 });
 // Ordered sequence API: filter the supplied entities, then run an entity callback.
-world.From(entities).Query(query).ForEachEntity(static entity => Console.WriteLine($"updated {entity}"));
+world.From(entities).Where(in query).ForEachEntity(static entity => Console.WriteLine($"updated {entity}"));
 world.ForEach(in query, (ref Position p) => { });
 
 var functor = new Functor();

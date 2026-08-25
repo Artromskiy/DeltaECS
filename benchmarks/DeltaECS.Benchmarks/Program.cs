@@ -380,8 +380,8 @@ public class DeltaEcsTransitionBenchmarks
     [Benchmark]
     public void BatchAddRemoveTransition()
     {
-        _world.AddComponents(_transitionComponents, _entities);
-        _world.RemoveComponents(_transitionComponents, _entities);
+        _world.Add(_transitionComponents, _entities);
+        _world.Remove(_transitionComponents, _entities);
     }
 }
 

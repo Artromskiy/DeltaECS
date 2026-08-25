@@ -176,14 +176,14 @@ public class DefaultEcsComparisonBenchmarks
     [BenchmarkCategory("Structural")]
     public int DeltaECS_Batch_AddRemoveTransition()
     {
-        _deltaTransitionWorld.AddComponents(_deltaTransitionComponents, _deltaTransitionEntities);
+        _deltaTransitionWorld.Add(_deltaTransitionComponents, _deltaTransitionEntities);
 
         if (!_deltaTransitionWorld.TryGet(_deltaTransitionEntities[0], _deltaTransitionComponents[0], out TransitionPayload _))
         {
             throw new InvalidOperationException("Delta transition add did not produce the payload component.");
         }
 
-        _deltaTransitionWorld.RemoveComponents(_deltaTransitionComponents, _deltaTransitionEntities);
+        _deltaTransitionWorld.Remove(_deltaTransitionComponents, _deltaTransitionEntities);
 
         if (_deltaTransitionWorld.TryGet(_deltaTransitionEntities[0], _deltaTransitionComponents[0], out TransitionPayload _))
         {

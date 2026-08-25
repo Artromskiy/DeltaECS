@@ -9,25 +9,25 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntitySequence From(ReadOnlySpan<Entity> entities) => new(this, entities);
 
-    public void ForEachEntity(ReadOnlySpan<Entity> entities, ForEachEntityAction action)
+    internal void ExecuteSequence(ReadOnlySpan<Entity> entities, ForEachEntityAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
         ExecuteSequence(entities, default, hasFilter: false, action);
     }
 
-    public void ForEachEntity(ReadOnlySpan<Entity> entities, in Query query, ForEachEntityAction action)
+    internal void ExecuteSequence(ReadOnlySpan<Entity> entities, in Query query, ForEachEntityAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
         ExecuteSequence(entities, query, hasFilter: true, action);
     }
 
-    public void ForEachEntity<TContext>(ReadOnlySpan<Entity> entities, ref TContext context, ForEachContextEntityAction<TContext> action)
+    internal void ExecuteSequence<TContext>(ReadOnlySpan<Entity> entities, ref TContext context, ForEachContextEntityAction<TContext> action)
     {
         ArgumentNullException.ThrowIfNull(action);
         ExecuteSequence(entities, ref context, default, hasFilter: false, action);
     }
 
-    public void ForEachEntity<TContext>(ReadOnlySpan<Entity> entities, in Query query, ref TContext context, ForEachContextEntityAction<TContext> action)
+    internal void ExecuteSequence<TContext>(ReadOnlySpan<Entity> entities, in Query query, ref TContext context, ForEachContextEntityAction<TContext> action)
     {
         ArgumentNullException.ThrowIfNull(action);
         ExecuteSequence(entities, ref context, query, hasFilter: true, action);
@@ -101,12 +101,12 @@ public sealed partial class World
             && !mask.Intersects(description.NoneMask);
     }
 
-    internal int AddComponents(ReadOnlySpan<Entity> entities, in Query query, ComponentId[] componentIds)
+    internal int Add(ReadOnlySpan<Entity> entities, in Query query, ComponentId[] componentIds)
     {
         return ApplyFilteredSequenceComponents(entities, in query, componentIds, isAdd: true);
     }
 
-    internal int RemoveComponents(ReadOnlySpan<Entity> entities, in Query query, ComponentId[] componentIds)
+    internal int Remove(ReadOnlySpan<Entity> entities, in Query query, ComponentId[] componentIds)
     {
         return ApplyFilteredSequenceComponents(entities, in query, componentIds, isAdd: false);
     }
@@ -139,8 +139,8 @@ public sealed partial class World
         EnsureSequenceScratch(entities.Length);
         int count = CopyMatchingSequenceEntities(entities, in query, _sequenceScratch.Span);
         return isAdd
-            ? AddComponents(componentIds, _sequenceScratch.ReadOnlySpan[..count])
-            : RemoveComponents(componentIds, _sequenceScratch.ReadOnlySpan[..count]);
+            ? Add(componentIds, _sequenceScratch.ReadOnlySpan[..count])
+            : Remove(componentIds, _sequenceScratch.ReadOnlySpan[..count]);
     }
 
     private int CopyMatchingSequenceEntities(

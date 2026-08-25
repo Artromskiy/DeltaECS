@@ -49,7 +49,6 @@ The consumer source generator is documented in
 | `QueryScope` | One validated query execution and its structural lease | `src/DeltaECS/Core/QueryScope.cs` |
 | `QueryArchetypes`, `QueryChunks`, `QuerySlots` | Independent traversal levels | `src/DeltaECS/Core/QueryArchetypes.cs`, `QueryChunks.cs`, `QuerySlots.cs` |
 | `ReadRow`, `WriteRow` | Non-generic row values; terminal `Ref<T>` is the typed boundary | `src/DeltaECS/Core/Rows.cs`, `src/DeltaECS/Generic/Rows.cs` |
-| `WorldQuery` | Allocation-free fluent query facade | `src/DeltaECS/Core/WorldQuery.cs` |
 | `World.Create<T>`, `Add<T>`, `Remove<T>`, `TryGet<T>`, `Get<T>`, `Set<T>` | Single-component typed conveniences over core operations | `src/DeltaECS/Generic/World.Generic.cs` |
 | `World.ForEach`, `ForEachEntity` | Delegate callback entry points, including handwritten zero-component forms | `src/DeltaECS/Delegate/ForEachZeroArity.cs` |
 | `IForEach*` | Stable functor marker contracts | `src/DeltaECS/Functor/ForEachFunctorContracts.cs` |

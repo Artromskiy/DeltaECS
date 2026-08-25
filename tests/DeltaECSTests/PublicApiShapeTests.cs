@@ -35,8 +35,8 @@ public sealed class PublicApiShapeTests
             Assert.That(PublicInstanceMethod(typeof(World), nameof(World.Create), typeof(ReadOnlySpan<ComponentId>), typeof(Span<Entity>)).IsGenericMethod, Is.False);
             Assert.That(PublicInstanceMethod(typeof(World), nameof(World.Destroy), typeof(Entity)).IsGenericMethod, Is.False);
             Assert.That(PublicInstanceMethod(typeof(World), nameof(World.Destroy), typeof(ReadOnlySpan<Entity>)).IsGenericMethod, Is.False);
-            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.AddComponents), typeof(ComponentId[]), typeof(ReadOnlySpan<Entity>)).IsGenericMethod, Is.False);
-            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.RemoveComponents), typeof(ComponentId[]), typeof(ReadOnlySpan<Entity>)).IsGenericMethod, Is.False);
+            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.Add), typeof(ComponentId[]), typeof(ReadOnlySpan<Entity>)).IsGenericMethod, Is.False);
+            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.Remove), typeof(ComponentId[]), typeof(ReadOnlySpan<Entity>)).IsGenericMethod, Is.False);
         });
     }
 

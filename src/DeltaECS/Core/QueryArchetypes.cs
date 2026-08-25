@@ -12,7 +12,7 @@ public ref struct QueryArchetypes
     private int _index;
 
     internal QueryArchetypes(
-        ArchetypePlan[] plans,
+        ReadOnlySpan<ArchetypePlan> plans,
         QueryPlan query,
         QueryWriteSession writeSession,
         int sessionGeneration)

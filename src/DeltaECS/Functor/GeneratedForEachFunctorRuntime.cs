@@ -118,13 +118,6 @@ public static class GeneratedForEachRuntime
         return ValidateComponent(world, in query, component, runtimeType);
     }
 
-    public static Query CreateSequenceQuery(World world, ReadOnlySpan<ComponentId> components)
-    {
-        ArgumentNullException.ThrowIfNull(world);
-        var spec = QuerySpec.WhereAll(components);
-        return world.CreateQuery(in spec);
-    }
-
     private static int ValidateComponent(
         World world,
         in Query query,

@@ -241,9 +241,9 @@ public class EcsLiteComparisonBenchmarks
     [BenchmarkCategory("Structural")]
     public int DeltaECS_StructuralAddAndRemove()
     {
-        _deltaTransitionWorld.AddComponents(_deltaTransitionPayloadRows, _deltaTransitionEntities);
+        _deltaTransitionWorld.Add(_deltaTransitionPayloadRows, _deltaTransitionEntities);
 
-        _deltaTransitionWorld.RemoveComponents(_deltaTransitionPayloadRows, _deltaTransitionEntities);
+        _deltaTransitionWorld.Remove(_deltaTransitionPayloadRows, _deltaTransitionEntities);
 
         return BenchmarkGuard.Check(_deltaTransitionWorld.AliveEntityCount, Amount);
     }

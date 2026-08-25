@@ -82,15 +82,6 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
     public static QuerySpec WhereNone(params ReadOnlySpan<ComponentId> components)
         => new(ReadOnlySpan<ComponentId>.Empty, ReadOnlySpan<ComponentId>.Empty, components);
 
-    internal QuerySpec AddAll(ComponentMask mask)
-        => new(_allMask.Or(mask), _anyMask, _noneMask);
-
-    internal QuerySpec AddAny(ComponentMask mask)
-        => new(_allMask, _anyMask.Or(mask), _noneMask);
-
-    internal QuerySpec AddNone(ComponentMask mask)
-        => new(_allMask, _anyMask, _noneMask.Or(mask));
-
     public static IEqualityComparer<QuerySpec> Comparer { get; } = new QuerySpecComparer();
 }
 

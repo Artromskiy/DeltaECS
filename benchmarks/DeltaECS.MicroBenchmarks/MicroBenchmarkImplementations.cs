@@ -446,7 +446,7 @@ public class AddMicroBenchmarkImplementation
     [InvocationCount(1)]
     public int Add()
     {
-        _fixture.World.AddComponents(_change, _entity);
+        _fixture.World.Add(_change, _entity);
         return _entity.Index;
     }
 }
@@ -479,7 +479,7 @@ public class RemoveMicroBenchmarkImplementation
     [InvocationCount(1)]
     public int Remove()
     {
-        _fixture.World.RemoveComponents(_change, _entity);
+        _fixture.World.Remove(_change, _entity);
         return _entity.Index;
     }
 }
@@ -620,8 +620,8 @@ internal sealed class StructuralBatchFixture
         {
             StructuralBatchOperation.Create => MicroWorld.World.Create(TargetArchetype, Output),
             StructuralBatchOperation.Destroy => MicroWorld.World.Destroy(Entities),
-            StructuralBatchOperation.Add => MicroWorld.World.AddComponents(_changeComponents, Entities),
-            StructuralBatchOperation.Remove => MicroWorld.World.RemoveComponents(_changeComponents, Entities),
+            StructuralBatchOperation.Add => MicroWorld.World.Add(_changeComponents, Entities),
+            StructuralBatchOperation.Remove => MicroWorld.World.Remove(_changeComponents, Entities),
             _ => throw new ArgumentOutOfRangeException(nameof(operation))
         };
 
@@ -632,8 +632,8 @@ internal sealed class StructuralBatchFixture
         {
             StructuralBatchOperation.Create => MicroWorld.World.Create(TargetArchetype, Output),
             StructuralBatchOperation.Destroy => MicroWorld.World.Destroy(in query),
-            StructuralBatchOperation.Add => MicroWorld.World.AddComponents(in query, _changeComponents),
-            StructuralBatchOperation.Remove => MicroWorld.World.RemoveComponents(in query, _changeComponents),
+            StructuralBatchOperation.Add => MicroWorld.World.Add(in query, _changeComponents),
+            StructuralBatchOperation.Remove => MicroWorld.World.Remove(in query, _changeComponents),
             _ => throw new ArgumentOutOfRangeException(nameof(operation))
         };
     }
@@ -757,14 +757,28 @@ internal static class MicroContractSmoke
             throw new InvalidOperationException("Reverse Movement4 checksum mismatch.");
 
         var structural = fixture.World.Create([fixture.Position, fixture.Velocity]);
-        fixture.World.AddComponents([fixture.Auxiliary], structural);
-        fixture.World.RemoveComponents([fixture.Auxiliary], structural);
+        fixture.World.Add([fixture.Auxiliary], structural);
+        fixture.World.Remove([fixture.Auxiliary], structural);
         if (!fixture.World.Destroy(structural))
             throw new InvalidOperationException("Destroy invariant failed.");
 
         var created = fixture.World.Create([fixture.Position]);
         if (!created.IsAlive)
             throw new InvalidOperationException("Create invariant failed.");
+
+        var apiComparison = new Movement4ApiComparisonMicroBenchmarkImplementation { Amount = 8 };
+        apiComparison.Setup();
+        var expectedApiComparison = apiComparison.ThreeWhile();
+        if (apiComparison.TwoWhile() != expectedApiComparison)
+            throw new InvalidOperationException("Two-while Movement4 checksum mismatch.");
+        if (apiComparison.Functor() != expectedApiComparison)
+            throw new InvalidOperationException("Functor Movement4 checksum mismatch.");
+        if (apiComparison.Delegate() != expectedApiComparison)
+            throw new InvalidOperationException("Delegate Movement4 checksum mismatch.");
+        if (apiComparison.DelegateContext() != expectedApiComparison)
+            throw new InvalidOperationException("Delegate-context Movement4 checksum mismatch.");
+        if (apiComparison.FunctorContext() != expectedApiComparison)
+            throw new InvalidOperationException("Functor-context Movement4 checksum mismatch.");
 
         Console.WriteLine("Micro contract smoke passed: dense Movement2/Movement4 plus Add/Remove/Create/Destroy.");
     }

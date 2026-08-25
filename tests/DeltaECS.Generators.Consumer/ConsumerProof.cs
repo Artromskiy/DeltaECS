@@ -143,7 +143,7 @@ public static class ConsumerProof
         sequence.ForEachEntity<Position>(
             static (Entity entity, ref Position position) => position.Value += entity.Index);
 
-        FilteredEntitySequence filtered = sequence.Query(in allNine);
+        FilteredEntitySequence filtered = sequence.Where(in allNine);
         filtered.ForEachEntity<Position, Velocity>(
             static (Entity entity, in Position position, ref Velocity velocity) =>
                 velocity.Value += position.Value + entity.Index);

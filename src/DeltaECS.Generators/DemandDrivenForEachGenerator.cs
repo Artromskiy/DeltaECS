@@ -533,7 +533,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         return name switch
         {
             "global::Delta.ECS.World" => ReceiverKind.World,
-            "global::Delta.ECS.WorldQuery" => ReceiverKind.WorldQuery,
             "global::Delta.ECS.EntitySequence" => ReceiverKind.EntitySequence,
             "global::Delta.ECS.FilteredEntitySequence" => ReceiverKind.FilteredEntitySequence,
             _ => ReceiverKind.None
@@ -739,11 +738,11 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string callback = ActionType(shape);
         string receiver = shape.Sequence
             ? (shape.Receiver == ReceiverKind.FilteredEntitySequence ? "FilteredEntitySequence" : "EntitySequence")
-            : shape.Receiver == ReceiverKind.WorldQuery ? "WorldQuery" : "World";
+            : "World";
         string prefix = shape.Sequence
             ? $"this {receiver} sequence"
-            : shape.Receiver == ReceiverKind.WorldQuery ? "this WorldQuery pipeline" : "this World world";
-        string query = shape.Sequence || shape.Receiver == ReceiverKind.WorldQuery ? string.Empty : ", in Query query";
+            : "this World world";
+        string query = shape.Sequence ? string.Empty : ", in Query query";
         string contextParameter = shape.HasContext
             ? ", ref " + (shape.IsFunctor ? shape.ContextType : "TContext") + " context"
             : string.Empty;
@@ -803,9 +802,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         string invoke = shape.Sequence
             ? "sequence.GeneratedWorld.ExecuteGeneratedSequence(sequence.GeneratedEntities, in query, ref invoker, hasWrites: " + BoolHasWrites(shape.Pattern) + ");"
-            : shape.Receiver == ReceiverKind.WorldQuery
-                ? "pipeline.GeneratedWorld.ExecuteGeneratedForEach(in query, ref invoker, hasWrites: " + BoolHasWrites(shape.Pattern) + ");"
-                : "world.ExecuteGeneratedForEach(in query, ref invoker, hasWrites: " + BoolHasWrites(shape.Pattern) + ");";
+            : "world.ExecuteGeneratedForEach(in query, ref invoker, hasWrites: " + BoolHasWrites(shape.Pattern) + ");";
         var body = new StringBuilder();
         body.AppendLine("{");
         if (hasAction)
@@ -867,16 +864,11 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
         else if (shape.Receiver == ReceiverKind.EntitySequence)
         {
-            query = "Query query = GeneratedForEachRuntime.CreateSequenceQuery(sequence.GeneratedWorld, stackalloc ComponentId[] { " + ids + " });";
+            query = "Query query = sequence.GeneratedWorld.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { " + ids + " }));";
         }
-        else if (shape.Receiver == ReceiverKind.WorldQuery)
-        {
-            query = "Query query = pipeline.GeneratedQuery;";
-        }
-
         string owner = shape.Sequence
             ? "sequence.GeneratedWorld"
-            : shape.Receiver == ReceiverKind.WorldQuery ? "pipeline.GeneratedWorld" : "world";
+            : "world";
         var result = new StringBuilder();
         if (query.Length > 0)
         {
@@ -911,7 +903,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         var result = new string[shape.Components.Length];
         string owner = shape.Sequence
             ? "sequence.GeneratedWorld"
-            : shape.Receiver == ReceiverKind.WorldQuery ? "pipeline.GeneratedWorld" : "world";
+            : "world";
         for (int index = 0; index < shape.Components.Length; index++)
         {
             string componentType = shape.IsFunctor ? shape.Components[index] : "T" + (index + 1);
@@ -1051,7 +1043,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
     {
         None,
         World,
-        WorldQuery,
         EntitySequence,
         FilteredEntitySequence
     }
