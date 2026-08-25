@@ -190,7 +190,7 @@ public sealed class StampTests
         ReadAccess velocityAccess = query.AccessRead(velocityId);
         Assert.That(world.TryGetComponentStamp(entity, velocityId, out Stamp velocityBefore), Is.True);
 
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             WriteAccess position = positionAccess;
             ReadAccess velocity = velocityAccess;

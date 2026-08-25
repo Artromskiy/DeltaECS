@@ -366,7 +366,7 @@ public sealed class StampInvariantTests
         ReadAccess readPosition = positionQuery.AccessRead(PositionId);
         Stamp beforeRead = world.Stamp;
         int readCount = 0;
-        using (var scope = world.OpenQuery(in positionQuery))
+        using (var scope = world.BeginScope(in positionQuery))
         {
             ReadAccess bound = readPosition;
             var archetypes = scope.Archetypes;
@@ -398,7 +398,7 @@ public sealed class StampInvariantTests
         }
 
         Stamp beforeWrite = world.Stamp;
-        using (var scope = world.OpenQuery(in positionQuery))
+        using (var scope = world.BeginScope(in positionQuery))
         {
             WriteAccess bound = writePosition;
             var archetypes = scope.Archetypes;
@@ -577,7 +577,7 @@ public sealed class StampInvariantTests
         var query = world.CreateQuery(QuerySpec.WhereAll(referenceId));
         WriteAccess writeReference = query.AccessWrite(referenceId);
         Stamp beforeQueryWrite = world.Stamp;
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             WriteAccess bound = writeReference;
             var archetypes = scope.Archetypes;
@@ -657,7 +657,7 @@ public sealed class StampInvariantTests
         WriteAccess write = emptyQuery.AccessWrite(PositionId);
         Stamp beforeScope = world.Stamp;
 
-        using (var scope = world.OpenQuery(in emptyQuery))
+        using (var scope = world.BeginScope(in emptyQuery))
         {
             WriteAccess bound = write;
             var archetypes = scope.Archetypes;
@@ -679,7 +679,7 @@ public sealed class StampInvariantTests
         WriteAccess write = query.AccessWrite(PositionId);
         Stamp before = world.Stamp;
 
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             _ = write;
             var archetypes = scope.Archetypes;
@@ -802,7 +802,7 @@ public sealed class StampInvariantTests
         WriteAccess write = query.AccessWrite(PositionId);
         Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp beforeStamp), Is.True);
 
-        using var scope = world.OpenQuery(in query);
+        using var scope = world.BeginScope(in query);
         WriteAccess bound = write;
         var archetypes = scope.Archetypes;
         Assert.That(archetypes.MoveNext(), Is.True);
@@ -835,14 +835,14 @@ public sealed class StampInvariantTests
         _ = world.Create(PositionId);
         var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         _ = query.AccessWrite(PositionId);
-        var firstScope = world.OpenQuery(in query);
+        var firstScope = world.BeginScope(in query);
         var copiedScope = firstScope;
         var staleArchetypes = firstScope.Archetypes;
 
         firstScope.Dispose();
         copiedScope.Dispose();
 
-        using var secondScope = world.OpenQuery(in query);
+        using var secondScope = world.BeginScope(in query);
         var secondArchetypes = secondScope.Archetypes;
         Assert.That(secondArchetypes.MoveNext(), Is.True);
         bool staleRejected = false;

@@ -14,7 +14,7 @@ folder-specific API details belong in the README beside the source.
 Useful searches:
 
 ```bash
-rg -n "public |internal |Query|OpenQuery|Access|MoveNext" src/DeltaECS
+rg -n "public |internal |Query|BeginScope|Access|MoveNext" src/DeltaECS
 rg -n "<relevant API or invariant>" tests/DeltaECSTests
 ```
 
@@ -61,7 +61,7 @@ The consumer source generator is documented in
 Read this chain for the three-loop API:
 
 ```text
-World.OpenQuery(in Query)
+World.BeginScope(in Query)
   -> QueryScope.Archetypes
   -> QueryArchetypes.MoveNext()
   -> QueryArchetypes.Current.Chunks
@@ -75,7 +75,7 @@ World.OpenQuery(in Query)
 The public shape is:
 
 ```csharp
-using var scope = world.OpenQuery(in query);
+using var scope = world.BeginScope(in query);
 var positionAccess = query.AccessWrite(positionId);
 var position = positionAccess;
 var archetypes = scope.Archetypes;
@@ -115,7 +115,7 @@ observed by that consumer. It supports:
 - delegate and struct-functor forms.
 
 The generated callback is a convenience surface over the same type-erased
-query plan, access declarations and chunk traversal used by `OpenQuery`. CLR
+query plan, access declarations and chunk traversal used by `BeginScope`. CLR
 component types appear at registration and at the callback/ref boundary; they
 are not carried by query, access, plan or iterator storage. See the generator
 README for lambda inference and diagnostics.

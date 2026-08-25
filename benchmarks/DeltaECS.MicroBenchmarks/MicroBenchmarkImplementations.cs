@@ -145,7 +145,7 @@ internal static class MicroBenchmarkKernels
         ReadAccess dBinding)
     {
         var checksum = 0;
-        using var scope = fixture.World.OpenQuery(in query);
+        using var scope = fixture.World.BeginScope(in query);
         var preparedA = aBinding;
         var preparedB = bBinding;
         var preparedC = cBinding;
@@ -189,7 +189,7 @@ internal static class MicroBenchmarkKernels
         ReadAccess dBinding)
     {
         var checksum = 0;
-        using var scope = fixture.World.OpenQuery(in query);
+        using var scope = fixture.World.BeginScope(in query);
         var preparedA = aBinding;
         var preparedB = bBinding;
         var preparedC = cBinding;
@@ -415,7 +415,6 @@ public class AddMicroBenchmarkImplementation
     }
 
     [Benchmark]
-    [InvocationCount(1)]
     public int Add()
     {
         _fixture.World.Add(_change, _entity);
@@ -448,7 +447,6 @@ public class RemoveMicroBenchmarkImplementation
     }
 
     [Benchmark]
-    [InvocationCount(1)]
     public int Remove()
     {
         _fixture.World.Remove(_change, _entity);
@@ -469,7 +467,6 @@ public class CreateMicroBenchmarkImplementation
     }
 
     [Benchmark]
-    [InvocationCount(1)]
     public int Create()
     {
         var entity = _fixture.World.Create(_components);
@@ -490,7 +487,6 @@ public class DestroyMicroBenchmarkImplementation
     }
 
     [Benchmark]
-    [InvocationCount(1)]
     public int Destroy() => _fixture.World.Destroy(_entity) ? 1 : 0;
 }
 
@@ -629,7 +625,6 @@ public class ListStructuralBatchMicroBenchmarkImplementation
     }
 
     [Benchmark]
-    [InvocationCount(1)]
     public int Run()
     {
         int count = _fixture.RunList(Operation);
@@ -655,7 +650,6 @@ public class QueryStructuralBatchMicroBenchmarkImplementation
     }
 
     [Benchmark]
-    [InvocationCount(1)]
     public int Run()
     {
         int count = _fixture.RunQuery(Operation);

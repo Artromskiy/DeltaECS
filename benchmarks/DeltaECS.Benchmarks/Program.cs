@@ -11,7 +11,6 @@ using Delta.ECS;
 namespace Delta.ECS.Benchmarks;
 
 [MemoryDiagnoser]
-[SimpleJob]
 public class DeltaEcsVsArchBenchmarks
 {
     [Params(10_000, 100_000)]
@@ -258,7 +257,6 @@ public class DeltaEcsVsArchBenchmarks
 }
 
 [MemoryDiagnoser]
-[SimpleJob]
 public class DeltaEcsBatchBenchmarks
 {
     [Params(1_000, 100_000)]
@@ -295,7 +293,6 @@ public class DeltaEcsBatchBenchmarks
 }
 
 [MemoryDiagnoser]
-[SimpleJob]
 public class DeltaEcsTransitionBenchmarks
 {
     [Params(1_000, 100_000)]
@@ -332,7 +329,6 @@ public class DeltaEcsTransitionBenchmarks
 }
 
 [MemoryDiagnoser]
-[SimpleJob]
 public class DeltaEcsManagedArrayBenchmarks
 {
     [Params(10_000, 100_000)]
@@ -379,7 +375,6 @@ public class DeltaEcsManagedArrayBenchmarks
 }
 
 [MemoryDiagnoser]
-[SimpleJob]
 public class DeltaEcsHotPathProfileBenchmarks
 {
     private World _world = null!;
@@ -420,7 +415,7 @@ public class DeltaEcsHotPathProfileBenchmarks
     public void QueryPlanDispatchOnly()
     {
         var chunksCount = 0;
-        using var scope = _world.OpenQuery(in _query);
+        using var scope = _world.BeginScope(in _query);
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -438,7 +433,7 @@ public class DeltaEcsHotPathProfileBenchmarks
     public void QueryPlanComponentRowLookup()
     {
         var chunksCount = 0;
-        using var scope = _world.OpenQuery(in _query);
+        using var scope = _world.BeginScope(in _query);
         var first = _firstBinding;
         var second = _secondReadBinding;
         var archetypes = scope.Archetypes;

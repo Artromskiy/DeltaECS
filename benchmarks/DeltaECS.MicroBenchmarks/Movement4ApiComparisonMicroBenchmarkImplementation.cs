@@ -55,7 +55,7 @@ internal static class Movement4ApiComparisonKernels
         ReadAccess dAccess)
     {
         var checksum = 0;
-        using var scope = fixture.World.OpenQuery(in query);
+        using var scope = fixture.World.BeginScope(in query);
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -90,7 +90,7 @@ internal static class Movement4ApiComparisonKernels
         ReadAccess dAccess)
     {
         var checksum = 0;
-        using var scope = fixture.World.OpenQuery(in query);
+        using var scope = fixture.World.BeginScope(in query);
         var chunks = scope.Chunks;
         while (chunks.MoveNext())
         {

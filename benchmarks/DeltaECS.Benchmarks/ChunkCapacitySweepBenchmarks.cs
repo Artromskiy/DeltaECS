@@ -4,7 +4,6 @@ using Delta.ECS;
 namespace Delta.ECS.Benchmarks;
 
 [MemoryDiagnoser]
-[SimpleJob]
 public class DenseCapacitySweepBenchmarks
 {
     [Params(1024, 2048, 4096, 8192)]

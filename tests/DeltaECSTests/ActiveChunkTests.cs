@@ -49,7 +49,7 @@ public sealed class ActiveChunkTests
     private static int CountQueriedSlots(World world, in Query query)
     {
         var count = 0;
-        using var scope = world.OpenQuery(in query);
+        using var scope = world.BeginScope(in query);
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -71,7 +71,7 @@ public sealed class ActiveChunkTests
     {
         float sum = 0;
         var access = query.AccessRead(PositionId);
-        using var scope = world.OpenQuery(in query);
+        using var scope = world.BeginScope(in query);
         var prepared = access;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())

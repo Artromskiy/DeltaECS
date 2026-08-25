@@ -105,8 +105,8 @@ public sealed partial class World : IDisposable
 
     public Query CreateQuery(in QuerySpec spec) => new Query(this, GetOrCreateQuery(spec), spec);
 
-    /// <summary>Creates a validated query scope with independent iterators.</summary>
-    public QueryScope OpenQuery(in Query handle) => new QueryScope(this, handle);
+    /// <summary>Begins a validated query execution scope with independent iterators.</summary>
+    public QueryScope BeginScope(in Query handle) => new QueryScope(this, handle);
 
     public Entity Create(params ReadOnlySpan<ComponentId> componentIds)
     {

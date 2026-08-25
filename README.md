@@ -54,7 +54,7 @@ component type is supplied only at registration and at the terminal
 `ReadRow.Ref<T>`/`WriteRow.Ref<T>` call. Raw ordinal access remains
 internal.
 
-For explicit traversal, `world.OpenQuery(in query)` exposes a primary
+For explicit traversal, `world.BeginScope(in query)` exposes a primary
 two-level chunk/slot path. The lower-level archetype/chunk/slot path remains
 available when callers need archetype boundaries. Generated `ForEach` delegate
 and functor overloads provide the callback form.
@@ -63,7 +63,7 @@ The query API has three deliberately separate stages: `QuerySpec` describes
 selection, `World.CreateQuery` returns the world-owned `Query`, and
 `query.AccessRead(id)` or `query.AccessWrite(id)` declares component access and
 returns the corresponding non-generic `ReadAccess` or `WriteAccess` token. Inside an
-`OpenQuery` scope, `slots.GetRow(access)` validates that declaration against
+scope started by `BeginScope`, `slots.GetRow(access)` validates that declaration against
 the active scope and exposes a non-generic component row whose
 terminal `Ref<T>` call provides the component reference.
 `T` must match the component type registered for the access token. Controlled
@@ -73,7 +73,7 @@ use a different `T` to reinterpret row storage.
 The primary explicit path flattens matching archetypes into the chunk iterator:
 
 ```csharp
-using var scope = world.OpenQuery(in query);
+using var scope = world.BeginScope(in query);
 var positionAccess = query.AccessRead(positionId);
 var position = positionAccess;
 var chunks = scope.Chunks;
@@ -92,7 +92,7 @@ Use the independent three-level path when archetype metadata or boundaries are
 part of the algorithm:
 
 ```csharp
-using var scope = world.OpenQuery(in query);
+using var scope = world.BeginScope(in query);
 var positionAccess = query.AccessRead(positionId);
 var position = positionAccess;
 var archetypes = scope.Archetypes;
@@ -176,7 +176,7 @@ state used by world-query execution; it does not loop through public single-item
 `Add`/`Remove`/`Destroy` terminals forward to the existing batch kernels.
 
 Generated `ForEach` owns query validation and access preparation.
-Explicit `OpenQuery` remains the advanced path for direct three-loop traversal.
+Explicit `BeginScope` remains the advanced path for direct three-loop traversal.
 Both routes use the existing type-erased query plan and chunk traversal; no
 generic component type is carried by `Query`, an access token or an iterator.
 The generator has a documented maximum generated arity of 256, matching the

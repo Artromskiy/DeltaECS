@@ -88,7 +88,7 @@ public sealed class DeltaECSDeliveryTests
         var position = query.AccessWrite(PositionId);
         var velocity = query.AccessWrite(VelocityId);
         var sum = 0L;
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var preparedPosition = position;
             var preparedVelocity = velocity;
@@ -152,7 +152,7 @@ public sealed class DeltaECSDeliveryTests
         var slotCount = 0;
         var writtenChunks = new List<int>();
 
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var preparedPosition = position;
             var archetypes = scope.Archetypes;
@@ -211,7 +211,7 @@ public sealed class DeltaECSDeliveryTests
         var slotCount = 0;
         var archetypeIds = new HashSet<int>();
 
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var preparedPosition = position;
             var chunks = scope.Chunks;
@@ -237,7 +237,7 @@ public sealed class DeltaECSDeliveryTests
             Assert.That(slotCount, Is.EqualTo(7));
         });
 
-        using var verifyScope = world.OpenQuery(in query);
+        using var verifyScope = world.BeginScope(in query);
         var verifyChunks = verifyScope.Chunks;
         while (verifyChunks.MoveNext())
         {
@@ -260,7 +260,7 @@ public sealed class DeltaECSDeliveryTests
         var velocity = query.AccessRead(VelocityId);
         var before = world.WorldTick;
 
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var write = position;
             var read = velocity;
@@ -304,7 +304,7 @@ public sealed class DeltaECSDeliveryTests
         var position = query.AccessRead(PositionId);
         var velocity = query.AccessRead(VelocityId);
         var denseLeaseCount = 0;
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var preparedPosition = position;
             var preparedVelocity = velocity;
@@ -332,7 +332,7 @@ public sealed class DeltaECSDeliveryTests
         }
 
         var alignedCount = 0;
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var preparedPosition = position;
             var preparedVelocity = velocity;
@@ -373,7 +373,7 @@ public sealed class DeltaECSDeliveryTests
         var emptyQuery = world.CreateQuery(in spec);
         var position = emptyQuery.AccessRead(PositionId);
         var emptyChunkCount = 0;
-        using (var scope = world.OpenQuery(in emptyQuery))
+        using (var scope = world.BeginScope(in emptyQuery))
         {
             var archetypes = scope.Archetypes;
             while (archetypes.MoveNext())
@@ -391,7 +391,7 @@ public sealed class DeltaECSDeliveryTests
         var single = singleWorld.Create(new[] { PositionId });
         var singleQuery = singleWorld.CreateQuery(QuerySpec.WhereAll(PositionId));
         var singleChunkCount = 0;
-        using (var scope = singleWorld.OpenQuery(in singleQuery))
+        using (var scope = singleWorld.BeginScope(in singleQuery))
         {
             var archetypes = scope.Archetypes;
             while (archetypes.MoveNext())
@@ -416,7 +416,7 @@ public sealed class DeltaECSDeliveryTests
         }
 
         var fullChunkCount = 0;
-        using (var scope = world.OpenQuery(in emptyQuery))
+        using (var scope = world.BeginScope(in emptyQuery))
         {
             var preparedPosition = position;
             var archetypes = scope.Archetypes;
@@ -598,7 +598,7 @@ public sealed class DeltaECSDeliveryTests
         var writePosition = query.AccessWrite(PositionId);
         var before = world.WorldTick;
 
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var archetypes = scope.Archetypes;
             while (archetypes.MoveNext())
@@ -617,7 +617,7 @@ public sealed class DeltaECSDeliveryTests
         Assert.That(world.HasChangedSince(chunkId, PositionId, before), Is.False);
         Assert.That(world.HasChangedSince(chunkId, VelocityId, before), Is.False);
 
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var prepared = writePosition;
             var archetypes = scope.Archetypes;
@@ -635,7 +635,7 @@ public sealed class DeltaECSDeliveryTests
         Assert.That(world.HasChangedSince(chunkId, PositionId, before), Is.True);
         Assert.That(world.HasChangedSince(chunkId, VelocityId, before), Is.False);
 
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var prepared = readPosition;
             var archetypes = scope.Archetypes;
@@ -650,7 +650,7 @@ public sealed class DeltaECSDeliveryTests
         }
         Assert.That(world.HasChangedSince(chunkId, VelocityId, afterWrite), Is.False);
 
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var prepared = writePosition;
             var archetypes = scope.Archetypes;
@@ -707,7 +707,7 @@ public sealed class DeltaECSDeliveryTests
 
         var cursorRows = 0;
         var writtenChunks = new HashSet<int>();
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var archetypes = scope.Archetypes;
             while (archetypes.MoveNext())
@@ -724,7 +724,7 @@ public sealed class DeltaECSDeliveryTests
 
         var before = world.WorldTick;
         var rows = 0;
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var preparedPosition = position;
             var preparedVelocity = velocity;
@@ -758,7 +758,7 @@ public sealed class DeltaECSDeliveryTests
         }
 
         var simpleRows = 0;
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var archetypes = scope.Archetypes;
             while (archetypes.MoveNext())
@@ -796,7 +796,7 @@ public sealed class DeltaECSDeliveryTests
         var before = world.WorldTick;
         var sum = 0f;
 
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var read = readRequest;
             var write = writeRequest;
@@ -838,7 +838,7 @@ public sealed class DeltaECSDeliveryTests
         var velocity = query.AccessRead(VelocityId);
 
         var firstRows = 0;
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var archetypes = scope.Archetypes;
             while (archetypes.MoveNext())
@@ -855,7 +855,7 @@ public sealed class DeltaECSDeliveryTests
         world.Create(new[] { PositionId, VelocityId });
 
         var secondRows = 0;
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var archetypes = scope.Archetypes;
             while (archetypes.MoveNext())
@@ -1016,7 +1016,7 @@ public sealed class DeltaECSDeliveryTests
         NamedRef first = default;
         NamedRef second = default;
         var count = 0;
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var preparedLocal = local;
             var preparedWorld = worldRow;
@@ -1063,7 +1063,7 @@ public sealed class DeltaECSDeliveryTests
 
         var query = world.CreateQuery(QuerySpec.WhereAll(referenceId));
         var reference = query.AccessWrite(referenceId);
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var preparedReference = reference;
             var archetypes = scope.Archetypes;
@@ -1131,7 +1131,7 @@ public sealed class DeltaECSDeliveryTests
         var entity = world.Create(new[] { id });
         var spec = QuerySpec.WhereAll(id);
         var query = world.CreateQuery(in spec);
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             Assert.Throws<InvalidOperationException>(() => world.Destroy(entity));
         }
@@ -1295,7 +1295,7 @@ public sealed class DeltaECSDeliveryTests
     {
         var handle = world.CreateQuery(in query);
         var count = 0;
-        using (var scope = world.OpenQuery(in handle))
+        using (var scope = world.BeginScope(in handle))
         {
             var archetypes = scope.Archetypes;
             while (archetypes.MoveNext())
@@ -1313,7 +1313,7 @@ public sealed class DeltaECSDeliveryTests
 
     private static void ExecuteDenseReadAccess(World world, Query query, ReadAccess access)
     {
-        using var scope = world.OpenQuery(in query);
+        using var scope = world.BeginScope(in query);
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {
@@ -1333,7 +1333,7 @@ public sealed class DeltaECSDeliveryTests
 
     private static void ExecuteDenseWriteAccess(World world, Query query, WriteAccess access)
     {
-        using var scope = world.OpenQuery(in query);
+        using var scope = world.BeginScope(in query);
         var prepared = access;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
@@ -1353,7 +1353,7 @@ public sealed class DeltaECSDeliveryTests
         ReadAccess velocity,
         ref float sum)
     {
-        using var scope = world.OpenQuery(in query);
+        using var scope = world.BeginScope(in query);
         var preparedPosition = position;
         var preparedVelocity = velocity;
         var archetypes = scope.Archetypes;
@@ -1425,7 +1425,7 @@ public sealed class DeltaECSDeliveryTests
     {
         var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         var chunkIds = new HashSet<int>();
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var archetypes = scope.Archetypes;
             while (archetypes.MoveNext())

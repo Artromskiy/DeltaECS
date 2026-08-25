@@ -19,7 +19,6 @@ namespace Delta.ECS.Benchmarks;
     HardwareCounter.LlcMisses,
     HardwareCounter.BranchInstructionRetired,
     HardwareCounter.BranchMispredictsRetired)]
-[SimpleJob]
 public class HardwareProfileBenchmarks
 {
     private const int TargetProfileMilliseconds = 1200;
@@ -330,7 +329,7 @@ public class HardwareProfileBenchmarks
     private void LookupOnly()
     {
         ref var state = ref _profileState;
-        using var scope = _world.OpenQuery(in _query);
+        using var scope = _world.BeginScope(in _query);
         var r0 = default(ReadAccess);
         var r1 = default(ReadAccess);
         var r2 = default(ReadAccess);
@@ -394,7 +393,7 @@ public class HardwareProfileBenchmarks
     private void DispatchOnly()
     {
         ref var state = ref _profileState;
-        using var scope = _world.OpenQuery(in _query);
+        using var scope = _world.BeginScope(in _query);
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
         {

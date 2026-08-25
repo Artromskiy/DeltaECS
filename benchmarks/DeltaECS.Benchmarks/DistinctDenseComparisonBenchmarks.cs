@@ -10,7 +10,6 @@ using ArchComponentType = Arch.Core.Utils.ComponentType;
 namespace Delta.ECS.Benchmarks;
 
 [MemoryDiagnoser]
-[SimpleJob]
 public class DistinctDenseComparisonBenchmarks
 {
     [Params(10_000, 100_000)]

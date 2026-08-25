@@ -6,7 +6,6 @@ using Leopotam.EcsLite;
 namespace Delta.ECS.Benchmarks;
 
 [MemoryDiagnoser]
-[ShortRunJob]
 [GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
 [CategoriesColumn]
 public class EcsLiteComparisonBenchmarks

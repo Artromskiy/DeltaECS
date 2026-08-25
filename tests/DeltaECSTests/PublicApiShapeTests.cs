@@ -75,7 +75,7 @@ public sealed class PublicApiShapeTests
     public void ExplicitQueryPathPreservesThreeLoopPublicShape()
     {
         var createQuery = PublicInstanceMethod(typeof(World), nameof(World.CreateQuery), typeof(QuerySpec).MakeByRefType());
-        var openQuery = PublicInstanceMethod(typeof(World), nameof(World.OpenQuery), typeof(Query).MakeByRefType());
+        var beginScope = PublicInstanceMethod(typeof(World), nameof(World.BeginScope), typeof(Query).MakeByRefType());
         var archetypeMoveNext = PublicInstanceMethod(typeof(QueryArchetypes), nameof(QueryArchetypes.MoveNext));
         var chunkMoveNext = PublicInstanceMethod(typeof(QueryChunks), nameof(QueryChunks.MoveNext));
         var archetypeChunkMoveNext = PublicInstanceMethod(typeof(QueryArchetypeChunks), nameof(QueryArchetypeChunks.MoveNext));
@@ -86,7 +86,11 @@ public sealed class PublicApiShapeTests
         Assert.Multiple(() =>
         {
             Assert.That(createQuery.ReturnType, Is.EqualTo(typeof(Query)));
-            Assert.That(openQuery.ReturnType, Is.EqualTo(typeof(QueryScope)));
+            Assert.That(beginScope.ReturnType, Is.EqualTo(typeof(QueryScope)));
+            Assert.That(
+                typeof(World).GetMethod("OpenQuery", BindingFlags.Public | BindingFlags.Instance),
+                Is.Null,
+                "The renamed scope entry point must not leave the misleading OpenQuery API behind.");
             Assert.That(typeof(QueryScope).GetProperty(nameof(QueryScope.Archetypes))?.PropertyType, Is.EqualTo(typeof(QueryArchetypes)));
             Assert.That(typeof(QueryScope).GetProperty(nameof(QueryScope.Chunks))?.PropertyType, Is.EqualTo(typeof(QueryChunks)));
             Assert.That(

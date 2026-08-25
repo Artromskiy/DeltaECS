@@ -96,7 +96,7 @@ public sealed class QueryStructuralOperationsTests
         Assert.Throws<ArgumentException>(() => world.Add(in invalid, new[] { VelocityId }));
         Assert.Throws<ArgumentException>(() => world.Remove(in foreignQuery, new[] { VelocityId }));
         Assert.Throws<ArgumentException>(() => world.Destroy(in foreignQuery));
-        using var scope = world.OpenQuery(in query);
+        using var scope = world.BeginScope(in query);
         Assert.Throws<InvalidOperationException>(() => world.Add(in query, new[] { VelocityId }));
         Assert.That(world.IsAlive(entity), Is.True);
     }
@@ -157,7 +157,7 @@ public sealed class QueryStructuralOperationsTests
 
         var readBefore = world.WorldTick;
         var readChunkId = -1;
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var readAccess = readPosition;
             var archetypes = scope.Archetypes;
@@ -183,7 +183,7 @@ public sealed class QueryStructuralOperationsTests
         Assert.That(world.HasChangedSince(readChunkId, PositionId, readBefore), Is.False);
 
         var writeChunkId = -1;
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var writeAccess = writePosition;
             var archetypes = scope.Archetypes;

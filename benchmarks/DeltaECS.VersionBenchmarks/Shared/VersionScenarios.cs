@@ -101,7 +101,7 @@ public sealed class IterationScenario
     public long DenseRead()
     {
         long sum = 0;
-        using var scope = _world.OpenQuery(in _denseQuery);
+        using var scope = _world.BeginScope(in _denseQuery);
         var dense = _denseBinding;
         var archetypes = scope.Archetypes;
         while (archetypes.MoveNext())
@@ -125,7 +125,7 @@ public sealed class IterationScenario
     public double Movement2()
     {
         double sum = 0;
-        using var scope = _world.OpenQuery(in _movement2Query);
+        using var scope = _world.BeginScope(in _movement2Query);
         var position = _positionBinding;
         var velocity = _velocityBinding;
         var archetypes = scope.Archetypes;
@@ -157,7 +157,7 @@ public sealed class IterationScenario
     public int Movement4()
     {
         int sum = 0;
-        using var scope = _world.OpenQuery(in _movement4Query);
+        using var scope = _world.BeginScope(in _movement4Query);
         var aAccess = _movementABinding;
         var bAccess = _movementBBinding;
         var cAccess = _movementCBinding;

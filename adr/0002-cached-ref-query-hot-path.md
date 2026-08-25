@@ -13,7 +13,7 @@ The public API also needs one clear owner for the structural mutation lease.
 - The plan refreshes matching archetypes when the world's archetype version
   changes. Each `ArchetypePlan` refreshes active chunks and resolves its
   requested `Array[]` rows into `ChunkPlan` values once per chunk.
-- `World.OpenQuery(in Query)` creates a stack-only `QueryScope`. The scope owns
+- `World.BeginScope(in Query)` creates a stack-only `QueryScope`. The scope owns
   the structural lease; `QueryArchetypes`, `QueryChunks` and `QuerySlots` are
   borrowed traversal views.
 - `Query.AccessRead` and `Query.AccessWrite` validate the requested component

@@ -296,7 +296,7 @@ public sealed class StructuralAlgorithmTests
         var parentBinding = query.AccessRead(parentId);
         var local = query.AccessRead(localId);
         var worldTransform = query.AccessRead(worldId);
-        using (var scope = world.OpenQuery(in query))
+        using (var scope = world.BeginScope(in query))
         {
             var preparedParent = parentBinding;
             var preparedLocal = local;
