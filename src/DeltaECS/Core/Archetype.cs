@@ -17,6 +17,7 @@ internal sealed class Archetype
     private NativeMemory<int> _activeChunkIndices = new(0);
     private Chunk[] _activeChunks = Array.Empty<Chunk>();
     private NativeMemory<int> _activeChunkPositions = new(0);
+    private readonly List<QueryPlanLink> _queryPlans = new();
     private int _activeChunkCount;
 
     public Archetype(
@@ -54,6 +55,12 @@ internal sealed class Archetype
     public int ActiveChunkCount => _activeChunkCount;
 
     internal ReadOnlySpan<Chunk> ActiveChunks => _activeChunks.AsSpan(0, _activeChunkCount);
+
+    internal void Attach(QueryPlan query, int planIndex)
+    {
+        CompactDeadQueryPlanLinks();
+        _queryPlans.Add(new QueryPlanLink(query.WeakReference, planIndex));
+    }
 
     public int EntityCount
     {
@@ -233,7 +240,22 @@ internal sealed class Archetype
 
         _activeChunkPositions[chunkIndex] = _activeChunkCount;
         _activeChunkIndices[_activeChunkCount] = chunkIndex;
-        _activeChunks[_activeChunkCount++] = _chunks[chunkIndex];
+        int activePosition = _activeChunkCount;
+        var chunk = _chunks[chunkIndex];
+        _activeChunks[_activeChunkCount++] = chunk;
+        for (int index = 0; index < _queryPlans.Count;)
+        {
+            QueryPlanLink link = _queryPlans[index];
+            if (link.Query.TryGetTarget(out QueryPlan? query))
+            {
+                query.OnChunkActivated(link.PlanIndex, chunk, activePosition);
+                index++;
+            }
+            else
+            {
+                RemoveQueryPlanLink(index);
+            }
+        }
     }
 
     private void DeactivateChunk(int chunkIndex)
@@ -256,6 +278,45 @@ internal sealed class Archetype
         _activeChunkIndices[lastPosition] = -1;
         _activeChunks[lastPosition] = null!;
         _activeChunkPositions[chunkIndex] = -1;
+        for (int index = 0; index < _queryPlans.Count;)
+        {
+            QueryPlanLink link = _queryPlans[index];
+            if (link.Query.TryGetTarget(out QueryPlan? query))
+            {
+                query.OnChunkDeactivated(link.PlanIndex, position, lastPosition);
+                index++;
+            }
+            else
+            {
+                RemoveQueryPlanLink(index);
+            }
+        }
+    }
+
+    private void RemoveQueryPlanLink(int index)
+    {
+        int lastIndex = _queryPlans.Count - 1;
+        if (index != lastIndex)
+        {
+            _queryPlans[index] = _queryPlans[lastIndex];
+        }
+
+        _queryPlans.RemoveAt(lastIndex);
+    }
+
+    private void CompactDeadQueryPlanLinks()
+    {
+        for (int index = 0; index < _queryPlans.Count;)
+        {
+            if (_queryPlans[index].Query.TryGetTarget(out _))
+            {
+                index++;
+            }
+            else
+            {
+                RemoveQueryPlanLink(index);
+            }
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -278,5 +339,6 @@ internal sealed class Archetype
         _availableChunkFlags.Dispose();
         _activeChunkIndices.Dispose();
         _activeChunkPositions.Dispose();
+        _queryPlans.Clear();
     }
 }

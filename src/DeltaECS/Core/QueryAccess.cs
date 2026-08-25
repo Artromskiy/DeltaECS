@@ -33,17 +33,26 @@ public readonly struct WriteAccess
 internal sealed class QueryPlan
 {
     private readonly QuerySpec _description;
-    private int _version = -1;
-    private NativeMemory<int> _matchingArchetypes = new(0);
+    private readonly WeakReference<QueryPlan> _weakReference;
+    private int[] _matchingArchetypes = Array.Empty<int>();
     private ArchetypePlan[] _matchingPlans = Array.Empty<ArchetypePlan>();
     private int[] _planIndicesByArchetype = Array.Empty<int>();
     private int _matchingCount;
     private Dictionary<Type, ComponentId>? _primaryComponentIdsByType;
     private bool _hasWriteAccess;
 
-    public QueryPlan(QuerySpec spec) => _description = spec;
+    public QueryPlan(World world, QuerySpec spec)
+    {
+        _description = spec;
+        _weakReference = new WeakReference<QueryPlan>(this);
+        for (int archetypeId = 0; archetypeId < world.Archetypes.Count; archetypeId++)
+        {
+            OnArchetypeCreated(world.Archetypes[archetypeId]);
+        }
+    }
 
     public bool HasWriteAccess => _hasWriteAccess;
+    internal WeakReference<QueryPlan> WeakReference => _weakReference;
     public void RegisterWriteAccess() => _hasWriteAccess = true;
 
     internal int PrimaryRouteResolutionCount { get; private set; }
@@ -62,66 +71,9 @@ internal sealed class QueryPlan
         return componentId;
     }
 
-    public ReadOnlySpan<int> MatchingArchetypes(World world)
-    {
-        if (_version == world.ArchetypeVersion)
-        {
-            return _matchingArchetypes.ReadOnlySpan[.._matchingCount];
-        }
+    public ReadOnlySpan<int> MatchingArchetypes() => _matchingArchetypes.AsSpan(0, _matchingCount);
 
-        int archetypeCount = world.Archetypes.Count;
-        if (_matchingArchetypes.Length != archetypeCount)
-        {
-            _matchingArchetypes.Resize(archetypeCount);
-        }
-
-        if (_matchingPlans.Length != archetypeCount)
-        {
-            _matchingPlans = new ArchetypePlan[archetypeCount];
-        }
-
-        if (_planIndicesByArchetype.Length != archetypeCount)
-        {
-            _planIndicesByArchetype = new int[archetypeCount];
-        }
-
-        Array.Fill(_planIndicesByArchetype, -1);
-        int matchingCount = 0;
-        for (int archetypeId = 0; archetypeId < world.Archetypes.Count; archetypeId++)
-        {
-            var archetype = world.Archetypes[archetypeId];
-            if (!Matches(archetype))
-            {
-                continue;
-            }
-
-            int[] indices = new int[_description.AllMask.Count];
-            int componentIndex = 0;
-            foreach (var componentId in _description.AllMask)
-            {
-                indices[componentIndex++] = archetype.Mask.Rank(componentId);
-            }
-
-            _matchingArchetypes[matchingCount] = archetypeId;
-            _matchingPlans[matchingCount] = new ArchetypePlan(archetype, indices);
-            _planIndicesByArchetype[archetypeId] = matchingCount++;
-        }
-
-        _matchingCount = matchingCount;
-        _version = world.ArchetypeVersion;
-        return _matchingArchetypes.ReadOnlySpan[..matchingCount];
-    }
-
-    public ReadOnlySpan<ArchetypePlan> MatchingPlans(World world)
-    {
-        MatchingArchetypes(world);
-        for (int index = 0; index < _matchingCount; index++)
-        {
-            _matchingPlans[index].RefreshChunks();
-        }
-
-        return _matchingPlans.AsSpan(0, _matchingCount);
-    }
+    public ReadOnlySpan<ArchetypePlan> MatchingPlans() => _matchingPlans.AsSpan(0, _matchingCount);
 
     public ReadOnlySpan<int> ComponentRowIndices(int matchingIndex) => _matchingPlans[matchingIndex].ComponentRows;
 
@@ -141,7 +93,69 @@ internal sealed class QueryPlan
         return false;
     }
 
-    internal void Dispose() => _matchingArchetypes.Dispose();
+    internal void OnArchetypeCreated(Archetype archetype)
+    {
+        EnsureArchetypeCapacity(archetype.Id + 1);
+        if (!Matches(archetype))
+        {
+            return;
+        }
+
+        int[] indices = new int[_description.AllMask.Count];
+        int componentIndex = 0;
+        foreach (var componentId in _description.AllMask)
+        {
+            indices[componentIndex++] = archetype.Mask.Rank(componentId);
+        }
+
+        EnsureMatchingCapacity(_matchingCount + 1);
+        int planIndex = _matchingCount;
+        var plan = new ArchetypePlan(archetype, indices);
+        _matchingArchetypes[_matchingCount] = archetype.Id;
+        _matchingPlans[_matchingCount] = plan;
+        _planIndicesByArchetype[archetype.Id] = _matchingCount++;
+        archetype.Attach(this, planIndex);
+    }
+
+    internal void OnChunkActivated(int planIndex, Chunk chunk, int activePosition)
+        => _matchingPlans[planIndex].OnChunkActivated(chunk, activePosition);
+
+    internal void OnChunkDeactivated(int planIndex, int activePosition, int lastPosition)
+        => _matchingPlans[planIndex].OnChunkDeactivated(activePosition, lastPosition);
+
+    internal void Dispose()
+    {
+        _matchingArchetypes = Array.Empty<int>();
+        _matchingPlans = Array.Empty<ArchetypePlan>();
+        _planIndicesByArchetype = Array.Empty<int>();
+        _matchingCount = 0;
+        _primaryComponentIdsByType?.Clear();
+    }
+
+    private void EnsureArchetypeCapacity(int required)
+    {
+        if (required <= _planIndicesByArchetype.Length)
+        {
+            return;
+        }
+
+        int previousLength = _planIndicesByArchetype.Length;
+        int capacity = Math.Max(required, previousLength == 0 ? 4 : previousLength * 2);
+        Array.Resize(ref _planIndicesByArchetype, capacity);
+        Array.Fill(_planIndicesByArchetype, -1, previousLength, capacity - previousLength);
+    }
+
+    private void EnsureMatchingCapacity(int required)
+    {
+        if (required <= _matchingPlans.Length)
+        {
+            return;
+        }
+
+        int capacity = Math.Max(required, _matchingPlans.Length == 0 ? 4 : _matchingPlans.Length * 2);
+        Array.Resize(ref _matchingArchetypes, capacity);
+        Array.Resize(ref _matchingPlans, capacity);
+    }
 
     private bool Matches(Archetype archetype) => archetype.Mask.ContainsAll(_description.AllMask)
         && (_description.AnyMask.IsEmpty || archetype.Mask.Intersects(_description.AnyMask))
@@ -154,58 +168,62 @@ internal struct ArchetypePlan
     {
         Archetype = archetype;
         ComponentRows = componentRows;
-        Chunks = Array.Empty<ChunkPlan>();
+        _chunks = Array.Empty<ChunkPlan>();
+        for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
+        {
+            OnChunkActivated(archetype.GetActiveChunk(chunkIndex), chunkIndex);
+        }
     }
 
     public Archetype Archetype { get; }
     public int[] ComponentRows { get; }
-    public ChunkPlan[] Chunks { get; private set; }
+    public ReadOnlySpan<ChunkPlan> Chunks => _chunks.AsSpan(0, _chunkCount);
 
-    public void RefreshChunks()
+    private ChunkPlan[] _chunks;
+    private int _chunkCount;
+
+    internal void OnChunkActivated(Chunk chunk, int activePosition)
     {
-        var activeChunks = Archetype.ActiveChunks;
-        if (Archetype.EntityCount == 0 || activeChunks.Length == 0)
+        if (activePosition != _chunkCount)
         {
-            Chunks = Array.Empty<ChunkPlan>();
-            return;
+            throw new InvalidOperationException("Chunk plan activation order is out of sync with its archetype.");
         }
 
-        if (Chunks.Length == activeChunks.Length)
+        if (_chunkCount == _chunks.Length)
         {
-            int index = 0;
-            for (; index < activeChunks.Length; index++)
-            {
-                if (!ReferenceEquals(Chunks[index].Chunk, activeChunks[index]))
-                {
-                    break;
-                }
-            }
-
-            if (index == activeChunks.Length)
-            {
-                return;
-            }
+            Array.Resize(ref _chunks, Math.Max(4, _chunks.Length * 2));
         }
 
-        var chunks = new ChunkPlan[activeChunks.Length];
-        for (int chunkIndex = 0; chunkIndex < activeChunks.Length; chunkIndex++)
+        var sourceRows = chunk.RawComponentRows;
+        var resolvedRows = new Array[ComponentRows.Length];
+        for (int queryRow = 0; queryRow < ComponentRows.Length; queryRow++)
         {
-            var chunk = activeChunks[chunkIndex];
-            var sourceRows = chunk.RawComponentRows;
-            var resolvedRows = new Array[ComponentRows.Length];
-            for (int queryRow = 0; queryRow < ComponentRows.Length; queryRow++)
-            {
-                resolvedRows[queryRow] = sourceRows[ComponentRows[queryRow]];
-            }
-
-            chunks[chunkIndex] = new ChunkPlan(chunk, resolvedRows);
+            resolvedRows[queryRow] = sourceRows[ComponentRows[queryRow]];
         }
 
-        Chunks = chunks;
+        _chunks[_chunkCount++] = new ChunkPlan(chunk, resolvedRows);
+    }
+
+    internal void OnChunkDeactivated(int activePosition, int lastPosition)
+    {
+        if ((uint)activePosition >= (uint)_chunkCount || lastPosition != _chunkCount - 1)
+        {
+            throw new InvalidOperationException("Chunk plan deactivation order is out of sync with its archetype.");
+        }
+
+        if (activePosition != lastPosition)
+        {
+            _chunks[activePosition] = _chunks[lastPosition];
+        }
+
+        _chunks[lastPosition] = default;
+        _chunkCount--;
     }
 }
 
 internal readonly record struct ChunkPlan(Chunk Chunk, Array[] ComponentRows);
+
+internal readonly record struct QueryPlanLink(WeakReference<QueryPlan> Query, int PlanIndex);
 
 internal static class QueryThrowHelper
 {

@@ -577,7 +577,7 @@ public sealed class DeltaECSDeliveryTests
         var handle = world.CreateQuery(in query);
         var cached = handle.Cached;
 
-        Assert.That(cached.MatchingArchetypes(world).Length, Is.EqualTo(1));
+        Assert.That(cached.MatchingArchetypes().Length, Is.EqualTo(1));
         var rowPlan = cached.ComponentRowIndices(0);
         Assert.That(rowPlan.Length, Is.EqualTo(2));
         Assert.That(rowPlan[0], Is.EqualTo(0));

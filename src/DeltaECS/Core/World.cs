@@ -19,7 +19,8 @@ public sealed partial class World : IDisposable
     private NativeMemory<int> _freeRecords = new(16);
     private int _freeCount;
     private readonly Dictionary<TransitionKey, TransitionEdge> _transitionCache = new();
-    private readonly Dictionary<QuerySpec, QueryPlan> _queryCache = new(QuerySpec.Comparer);
+    private readonly Dictionary<QuerySpec, WeakReference<QueryPlan>> _queryCache = new(QuerySpec.Comparer);
+    private int _queryCacheSweepCountdown = 64;
     private NativeMemory<DestroyEntry> _destroyScratch = new(32);
     private NativeMemory<Entity> _sequenceScratch = new(0);
     private TransitionEdge[] _batchEdgeSlots = Array.Empty<TransitionEdge>();
@@ -73,10 +74,15 @@ public sealed partial class World : IDisposable
         EnsureNoActiveLease("dispose the world");
 
         _disposed = true;
-        foreach (var queryPlan in _queryCache.Values)
+        foreach (var weakQueryPlan in _queryCache.Values)
         {
-            queryPlan.Dispose();
+            if (weakQueryPlan.TryGetTarget(out QueryPlan? queryPlan))
+            {
+                queryPlan.Dispose();
+            }
         }
+
+        _queryCache.Clear();
 
         foreach (var archetype in _archetypes)
         {
@@ -447,7 +453,7 @@ public sealed partial class World : IDisposable
         EnsureNoActiveLease("destroy entities");
 
         var cached = query.Cached;
-        ReadOnlySpan<int> archetypes = cached.MatchingArchetypes(this);
+        ReadOnlySpan<int> archetypes = cached.MatchingArchetypes();
         int destroyed = 0;
         bool stampReserved = false;
         for (int archetypeIndex = 0; archetypeIndex < archetypes.Length; archetypeIndex++)
@@ -480,7 +486,7 @@ public sealed partial class World : IDisposable
     {
         ValidateQuery(in handle);
         var cached = handle.Cached;
-        ReadOnlySpan<ArchetypePlan> plans = cached.MatchingPlans(this);
+        ReadOnlySpan<ArchetypePlan> plans = cached.MatchingPlans();
         uint writeTick = 0;
         Stamp writeStamp = default;
         if (hasWrites)
@@ -670,7 +676,7 @@ public sealed partial class World : IDisposable
         }
 
         var cached = query.Cached;
-        ReadOnlySpan<int> matchingArchetypes = cached.MatchingArchetypes(this);
+        ReadOnlySpan<int> matchingArchetypes = cached.MatchingArchetypes();
         int edgeStamp = BeginBatchEdgeCache();
         int changed = 0;
         Stamp operationStamp = default;
@@ -1022,6 +1028,27 @@ public sealed partial class World : IDisposable
         _archetypeByMask.Add(mask, archetype.Id);
         _archetypes.Add(archetype);
         _archetypeVersion++;
+        List<QuerySpec>? deadQueries = null;
+        foreach (var entry in _queryCache)
+        {
+            if (entry.Value.TryGetTarget(out QueryPlan? queryPlan))
+            {
+                queryPlan.OnArchetypeCreated(archetype);
+            }
+            else
+            {
+                (deadQueries ??= new List<QuerySpec>()).Add(entry.Key);
+            }
+        }
+
+        if (deadQueries is not null)
+        {
+            for (int index = 0; index < deadQueries.Count; index++)
+            {
+                _queryCache.Remove(deadQueries[index]);
+            }
+        }
+
         return archetype;
     }
 
@@ -1095,14 +1122,43 @@ public sealed partial class World : IDisposable
 
     private QueryPlan GetOrCreateQuery(QuerySpec spec)
     {
-        if (_queryCache.TryGetValue(spec, out var cached))
+        if (--_queryCacheSweepCountdown == 0)
+        {
+            SweepDeadQueryPlans();
+            _queryCacheSweepCountdown = 64;
+        }
+
+        if (_queryCache.TryGetValue(spec, out WeakReference<QueryPlan>? weakQueryPlan)
+            && weakQueryPlan.TryGetTarget(out QueryPlan? cached))
         {
             return cached;
         }
 
-        cached = new QueryPlan(spec);
-        _queryCache.Add(spec, cached);
+        cached = new QueryPlan(this, spec);
+        _queryCache[spec] = cached.WeakReference;
         return cached;
+    }
+
+    private void SweepDeadQueryPlans()
+    {
+        List<QuerySpec>? deadQueries = null;
+        foreach (var entry in _queryCache)
+        {
+            if (!entry.Value.TryGetTarget(out _))
+            {
+                (deadQueries ??= new List<QuerySpec>()).Add(entry.Key);
+            }
+        }
+
+        if (deadQueries is null)
+        {
+            return;
+        }
+
+        for (int index = 0; index < deadQueries.Count; index++)
+        {
+            _queryCache.Remove(deadQueries[index]);
+        }
     }
 
     private void EnsureNoActiveLease(string operation)

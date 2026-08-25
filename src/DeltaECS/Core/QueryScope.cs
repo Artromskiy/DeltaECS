@@ -21,7 +21,7 @@ public ref struct QueryScope
 
         _owner = owner;
         _query = handle.Cached;
-        _plans = _query.MatchingPlans(owner);
+        _plans = _query.MatchingPlans();
         _writeSession = owner.RentQueryWriteSession(_query, out _sessionGeneration);
         _owner.BeginQueryLease();
     }

@@ -15,7 +15,7 @@ public sealed partial class World
     {
         ValidateQuery(in query);
         QueryPlan cached = query.Cached;
-        _ = cached.MatchingPlans(this);
+        _ = cached.MatchingPlans();
         QueryWriteSession writeSession = RentQueryWriteSession(hasWrites, out int sessionGeneration);
         BeginQueryLease();
         try
