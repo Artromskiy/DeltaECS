@@ -187,7 +187,7 @@ public sealed class StructuralAlgorithmTests
 
             var selected = SelectUnique(entities, random, random.Next(1, Math.Min(28, entities.Count) + 1));
             var addVelocity = (step & 1) == 0;
-            world.AddComponents(addVelocity ? new[] { velocityId } : new[] { healthId }, CollectionsMarshalCompat.AsSpan(selected));
+            world.Add(addVelocity ? new[] { velocityId } : new[] { healthId }, CollectionsMarshalCompat.AsSpan(selected));
             foreach (var entity in selected)
             {
                 var state = model[entity];
@@ -213,7 +213,7 @@ public sealed class StructuralAlgorithmTests
             {
                 var second = SelectUnique(entities, random, random.Next(1, Math.Min(19, entities.Count) + 1));
                 var removeVelocity = (step % 4) == 0;
-                world.RemoveComponents(removeVelocity ? new[] { velocityId } : new[] { healthId }, CollectionsMarshalCompat.AsSpan(second));
+                world.Remove(removeVelocity ? new[] { velocityId } : new[] { healthId }, CollectionsMarshalCompat.AsSpan(second));
                 foreach (var entity in second)
                 {
                     var state = model[entity];

@@ -8,7 +8,7 @@ public ref struct QueryScope
 {
     private readonly World _owner;
     private readonly QueryPlan _query;
-    private readonly ArchetypePlan[] _plans;
+    private readonly ReadOnlySpan<ArchetypePlan> _plans;
     private readonly QueryWriteSession _writeSession;
     private readonly int _sessionGeneration;
 

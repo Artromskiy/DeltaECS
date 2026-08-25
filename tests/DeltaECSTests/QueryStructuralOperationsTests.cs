@@ -27,7 +27,7 @@ public sealed class QueryStructuralOperationsTests
         world.Create(new[] { PositionId, HealthId }, second);
 
         var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
-        var added = world.AddComponents(in query, new[] { VelocityId, extraA, extraB, extraC });
+        var added = world.Add(in query, new[] { VelocityId, extraA, extraB, extraC });
 
         Assert.That(added, Is.EqualTo(first.Length + second.Length));
         Assert.That(world.IsAlive(existingTarget), Is.True);
@@ -42,7 +42,7 @@ public sealed class QueryStructuralOperationsTests
             Assert.That(world.TryGet<Health>(entity, HealthId, out _), Is.True);
         }
 
-        var removed = world.RemoveComponents(in query, new[] { VelocityId, extraA, extraB, extraC });
+        var removed = world.Remove(in query, new[] { VelocityId, extraA, extraB, extraC });
         Assert.That(removed, Is.EqualTo(first.Length + second.Length + 1));
         Assert.That(world.TryGet<Velocity>(existingTarget, VelocityId, out _), Is.False);
         foreach (var entity in first)
@@ -93,11 +93,11 @@ public sealed class QueryStructuralOperationsTests
         var foreignQuery = foreign.CreateQuery(QuerySpec.WhereAll(PositionId));
         var invalid = default(Query);
 
-        Assert.Throws<ArgumentException>(() => world.AddComponents(in invalid, new[] { VelocityId }));
-        Assert.Throws<ArgumentException>(() => world.RemoveComponents(in foreignQuery, new[] { VelocityId }));
+        Assert.Throws<ArgumentException>(() => world.Add(in invalid, new[] { VelocityId }));
+        Assert.Throws<ArgumentException>(() => world.Remove(in foreignQuery, new[] { VelocityId }));
         Assert.Throws<ArgumentException>(() => world.Destroy(in foreignQuery));
         using var scope = world.OpenQuery(in query);
-        Assert.Throws<InvalidOperationException>(() => world.AddComponents(in query, new[] { VelocityId }));
+        Assert.Throws<InvalidOperationException>(() => world.Add(in query, new[] { VelocityId }));
         Assert.That(world.IsAlive(entity), Is.True);
     }
 
@@ -112,8 +112,8 @@ public sealed class QueryStructuralOperationsTests
         var archetypeVersionBefore = world.ArchetypeVersion;
         var worldTickBefore = world.WorldTick;
 
-        Assert.That(world.AddComponents(in query, new[] { HealthId }), Is.EqualTo(0));
-        Assert.That(world.RemoveComponents(in query, new[] { PositionId }), Is.EqualTo(0));
+        Assert.That(world.Add(in query, new[] { HealthId }), Is.EqualTo(0));
+        Assert.That(world.Remove(in query, new[] { PositionId }), Is.EqualTo(0));
         Assert.That(world.Destroy(in query), Is.EqualTo(0));
 
         Assert.That(world.AliveEntityCount, Is.EqualTo(aliveBefore));
@@ -132,8 +132,8 @@ public sealed class QueryStructuralOperationsTests
         var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         var versionBefore = world.ArchetypeVersion;
 
-        Assert.That(world.AddComponents(in query, new[] { PositionId }), Is.EqualTo(0));
-        Assert.That(world.RemoveComponents(in query, new[] { VelocityId }), Is.EqualTo(0));
+        Assert.That(world.Add(in query, new[] { PositionId }), Is.EqualTo(0));
+        Assert.That(world.Remove(in query, new[] { VelocityId }), Is.EqualTo(0));
 
         Assert.That(world.ArchetypeVersion, Is.EqualTo(versionBefore));
         Assert.That(world.IsAlive(entity), Is.True);
@@ -153,7 +153,7 @@ public sealed class QueryStructuralOperationsTests
         var readPosition = query.AccessRead(PositionId);
         var writePosition = query.AccessWrite(PositionId);
 
-        Assert.That(world.AddComponents(in query, new[] { VelocityId }), Is.EqualTo(entities.Length));
+        Assert.That(world.Add(in query, new[] { VelocityId }), Is.EqualTo(entities.Length));
 
         var readBefore = world.WorldTick;
         var readChunkId = -1;
@@ -239,7 +239,7 @@ public sealed class QueryStructuralOperationsTests
         }
 
         var query = world.CreateQuery(QuerySpec.WhereAll(referenceId));
-        Assert.That(world.AddComponents(in query, new[] { markerId }), Is.EqualTo(entities.Length));
+        Assert.That(world.Add(in query, new[] { markerId }), Is.EqualTo(entities.Length));
         for (var i = 0; i < entities.Length; i++)
         {
             Assert.That(world.TryGet<ReferenceComponent>(entities[i], referenceId, out var actual), Is.True);

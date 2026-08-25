@@ -73,10 +73,40 @@ public static class GeneratedForEachRuntime
     public static int AccessRead(
         World world,
         in Query query,
+        Type runtimeType)
+    {
+        ComponentId component = ResolvePrimaryComponent(world, in query, runtimeType);
+        return ValidateComponent(world, in query, component, runtimeType);
+    }
+
+    public static int AccessWrite(
+        World world,
+        in Query query,
+        Type runtimeType)
+    {
+        ComponentId component = ResolvePrimaryComponent(world, in query, runtimeType);
+        return ValidateComponent(world, in query, component, runtimeType);
+    }
+
+    public static int AccessRead(
+        World world,
+        in Query query,
         ComponentId component,
         Type runtimeType)
     {
         return ValidateComponent(world, in query, component, runtimeType);
+    }
+
+    private static ComponentId ResolvePrimaryComponent(World world, in Query query, Type runtimeType)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        ArgumentNullException.ThrowIfNull(runtimeType);
+        if (!ReferenceEquals(query.Owner, world) || !query.IsValid)
+        {
+            throw new ArgumentException("Query handle does not belong to this world.", nameof(query));
+        }
+
+        return query.Cached.ResolvePrimaryComponent(world, runtimeType);
     }
 
     public static int AccessWrite(
@@ -86,13 +116,6 @@ public static class GeneratedForEachRuntime
         Type runtimeType)
     {
         return ValidateComponent(world, in query, component, runtimeType);
-    }
-
-    public static Query CreateSequenceQuery(World world, ReadOnlySpan<ComponentId> components)
-    {
-        ArgumentNullException.ThrowIfNull(world);
-        var spec = QuerySpec.WhereAll(components);
-        return world.CreateQuery(in spec);
     }
 
     private static int ValidateComponent(

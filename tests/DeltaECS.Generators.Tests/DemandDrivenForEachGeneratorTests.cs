@@ -146,11 +146,14 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
-    public void NoIdGenerationUsesPrimaryRegistryLookupWithExtraQueryComponent()
+    public void NoIdGenerationUsesCachedPrimaryRouteWithExtraQueryComponent()
     {
         string generated = GeneratedText(RunGenerator());
 
-        Assert.That(generated, Does.Contain("GetPrimary(typeof(T1))"));
+        Assert.That(generated, Does.Contain("AccessRead(world, in query, typeof(T1)"));
+        Assert.That(generated, Does.Contain("AccessWrite(world, in query, typeof(T2)"));
+        Assert.That(generated, Does.Not.Contain("AccessRead(world, in query, world.Layouts.GetPrimary"));
+        Assert.That(generated, Does.Not.Contain("AccessWrite(world, in query, world.Layouts.GetPrimary"));
         Assert.That(generated, Does.Not.Contain("ResolveComponentIds"));
         Assert.That(generated, Does.Not.Contain("AllMask.Count != destination.Length"));
     }
@@ -211,6 +214,10 @@ public sealed class DemandDrivenForEachGeneratorTests
         using System;
         public readonly struct Entity { public int Index { get; } }
         public readonly struct ComponentId { }
+        public readonly struct QuerySpec
+        {
+            public static QuerySpec WhereAll(ReadOnlySpan<ComponentId> components) => default;
+        }
         public readonly struct Query { }
         public readonly struct ReadAccess { }
         public readonly struct WriteAccess { }
@@ -259,11 +266,13 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public static int AccessRead(World world, in Query query, ComponentId component, Type runtimeType) => default;
             public static int AccessWrite(World world, in Query query, ComponentId component, Type runtimeType) => default;
-            public static Query CreateSequenceQuery(World world, ReadOnlySpan<ComponentId> components) => default;
+            public static int AccessRead(World world, in Query query, Type runtimeType) => default;
+            public static int AccessWrite(World world, in Query query, Type runtimeType) => default;
         }
         public sealed partial class World
         {
             public ComponentLayoutRegistry Layouts { get; } = new();
+            public Query CreateQuery(in QuerySpec spec) => default;
             public void ForEach(in Query query, ForEachAction action) { }
             public void ForEachEntity(in Query query, ForEachEntityAction action) { }
             public void ForEach<TContext>(in Query query, ref TContext context, ForEachContextAction<TContext> action) { }
@@ -282,11 +291,6 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public World GeneratedWorld => new();
             public ReadOnlySpan<Entity> GeneratedEntities => default;
-            public Query GeneratedQuery => default;
-        }
-        public readonly ref struct WorldQuery
-        {
-            public World GeneratedWorld => new();
             public Query GeneratedQuery => default;
         }
         """;
@@ -331,8 +335,6 @@ public sealed class DemandDrivenForEachGeneratorTests
                 sequence.ForEachEntity<T1>(static (Entity entity, ref T1 value) => value.Value += entity.Index);
                 FilteredEntitySequence filtered = new();
                 filtered.ForEachEntity<T1, T2>(static (Entity entity, in T1 a, ref T2 b) => b.Value += a.Value + entity.Index);
-                WorldQuery pipeline = new();
-                pipeline.ForEach(static (ref T1 a, in T2 b) => a.Value += b.Value);
             }
         }
         """;

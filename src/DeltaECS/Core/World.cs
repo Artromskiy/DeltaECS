@@ -419,27 +419,27 @@ public sealed partial class World : IDisposable
         return true;
     }
 
-    public void AddComponents(ComponentId[] componentIds, Entity entity)
+    public void Add(ComponentId[] componentIds, Entity entity)
     {
         Span<Entity> entities = stackalloc Entity[1];
         entities[0] = entity;
         _ = ApplyComponents(true, componentIds, entities);
     }
 
-    public int AddComponents(ComponentId[] componentIds, ReadOnlySpan<Entity> entities) => ApplyComponents(true, componentIds, entities);
+    public int Add(ComponentId[] componentIds, ReadOnlySpan<Entity> entities) => ApplyComponents(true, componentIds, entities);
 
-    public void RemoveComponents(ComponentId[] componentIds, Entity entity)
+    public void Remove(ComponentId[] componentIds, Entity entity)
     {
         Span<Entity> entities = stackalloc Entity[1];
         entities[0] = entity;
         _ = ApplyComponents(false, componentIds, entities);
     }
 
-    public int RemoveComponents(ComponentId[] componentIds, ReadOnlySpan<Entity> entities) => ApplyComponents(false, componentIds, entities);
+    public int Remove(ComponentId[] componentIds, ReadOnlySpan<Entity> entities) => ApplyComponents(false, componentIds, entities);
 
-    public int AddComponents(in Query query, ComponentId[] componentIds) => ApplyQueryComponents(query, true, componentIds);
+    public int Add(in Query query, ComponentId[] componentIds) => ApplyQueryComponents(query, true, componentIds);
 
-    public int RemoveComponents(in Query query, ComponentId[] componentIds) => ApplyQueryComponents(query, false, componentIds);
+    public int Remove(in Query query, ComponentId[] componentIds) => ApplyQueryComponents(query, false, componentIds);
 
     public int Destroy(in Query query)
     {
@@ -507,7 +507,7 @@ public sealed partial class World : IDisposable
                 for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
                 {
                     var slots = new GeneratedQuerySlots(plan, chunks[chunkIndex], writeTick, writeStamp);
-                    ExecuteGeneratedChunk(ref invoker, ref slots);
+                    invoker.Invoke(ref slots);
                 }
             }
         }
@@ -515,13 +515,6 @@ public sealed partial class World : IDisposable
         {
             EndQueryLease();
         }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void ExecuteGeneratedChunk<TInvoker>(ref TInvoker invoker, ref GeneratedQuerySlots slots)
-        where TInvoker : struct, IGeneratedForEachInvoker
-    {
-        invoker.Invoke(ref slots);
     }
 
     internal uint ReserveQueryWrite(out Stamp writeStamp)

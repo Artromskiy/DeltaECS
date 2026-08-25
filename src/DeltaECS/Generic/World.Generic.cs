@@ -24,7 +24,7 @@ public sealed partial class World
             return false;
         }
 
-        AddComponents(new[] { componentId }, entity);
+        Add(new[] { componentId }, entity);
         InitializeComponentValue(entity, componentId, in value);
         return true;
     }
@@ -39,7 +39,7 @@ public sealed partial class World
             return false;
         }
 
-        RemoveComponents(new[] { componentId }, entity);
+        Remove(new[] { componentId }, entity);
         return !TryGetCore<T>(entity, componentId, out _);
     }
 

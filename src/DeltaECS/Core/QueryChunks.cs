@@ -14,7 +14,7 @@ public ref struct QueryChunks
     private int _chunkIndex;
 
     internal QueryChunks(
-        ArchetypePlan[] plans,
+        ReadOnlySpan<ArchetypePlan> plans,
         QueryPlan query,
         QueryWriteSession writeSession,
         int sessionGeneration)

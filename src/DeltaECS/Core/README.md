@@ -34,9 +34,9 @@ int created = world.Create(moving, destination);
 bool destroyed = world.Destroy(entity);
 int destroyedCount = world.Destroy(entities);
 
-world.AddComponents(componentIds, entity);
-int added = world.AddComponents(componentIds, entities);
-int queryAdded = world.AddComponents(in query, componentIds);
+world.Add(componentIds, entity);
+int added = world.Add(componentIds, entities);
+int queryAdded = world.Add(in query, componentIds);
 ```
 
 Structural changes are immediate. Mutation is rejected while a conflicting
@@ -86,28 +86,20 @@ are borrowed `ref struct` values and must not escape their execution scope.
 Generated `ForEach` APIs reuse `QuerySlots` internally and are documented in
 `Delegate` and `Functor`.
 
-## Query pipeline
+## Generated callback execution
 
-For compact query code, `WorldQuery` defers query creation until execution:
+Generated `ForEach` callbacks execute against an explicit world-owned `Query`:
 
 ```csharp
-world
-    .WhereAll(positionId, velocityId)
-    .WhereNone(disabledId)
-    .ForEach(static (ref Position position, in Velocity velocity) =>
+var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+world.ForEach(in query,
+    static (ref Position position, in Velocity velocity) =>
         position.X += velocity.X);
-
-using var scope = world
-    .Query(QuerySpec.WhereAll(positionId, velocityId))
-    .Open();
 ```
 
-`WorldQuery` is an allocation-free `ref struct` facade. Generated `ForEach`
-extensions use the pipeline as their receiver; `Add`, `Remove` and `Destroy`
-are terminal operations on the facade itself. `World.From` is the fluent entry
-point for `EntitySequence`, whose `Where` method provides optional query
-filtering. The two pipeline facades are intentionally independent; neither
-introduces interface dispatch into execution.
+There is no deferred `QuerySpec` facade. `World.From(entities)` is the
+separate fluent entry point for ordered entity sequences; its `Where(in Query)`
+method applies an existing query filter.
 
 For type-erased tooling inside a query execution, `GetObject` returns
 `ObjectReadValues` or `ObjectWriteValues`. Their `Get`/`Set` methods operate on

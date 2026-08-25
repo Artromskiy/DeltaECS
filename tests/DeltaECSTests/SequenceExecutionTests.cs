@@ -40,7 +40,7 @@ public sealed class SequenceExecutionTests
         var candidates = new[] { positionOnly, marked, markerOnly, marked };
         var visited = new List<Entity>();
 
-        world.From(candidates).Query(in query).ForEachEntity(entity => visited.Add(entity));
+        world.From(candidates).Where(in query).ForEachEntity(entity => visited.Add(entity));
 
         Assert.That(visited, Is.EqualTo(new[] { marked, markerOnly, marked }));
         Assert.That(visited, Does.Not.Contain(outsideCandidateSequence));
@@ -64,7 +64,7 @@ public sealed class SequenceExecutionTests
         Assert.That(world.TryGetComponentStamp(unmarked, positionId, out Stamp unmarkedPositionBefore), Is.True);
 
         var candidates = new[] { unmarked, marked, marked, stale };
-        Assert.That(world.From(candidates).Query(in query).Add(new[] { velocityId }), Is.EqualTo(1));
+        Assert.That(world.From(candidates).Where(in query).Add(new[] { velocityId }), Is.EqualTo(1));
         Stamp afterAdd = world.Stamp;
         Assert.That(world.TryGet<short>(marked, velocityId, out _), Is.True);
         Assert.That(world.TryGet<short>(unmarked, velocityId, out _), Is.False);
@@ -74,22 +74,22 @@ public sealed class SequenceExecutionTests
         Assert.That(markedPositionAfterAdd, Is.EqualTo(markedPositionBefore));
         Assert.That(markedVelocityAfterAdd, Is.EqualTo(afterAdd));
 
-        Assert.That(world.From(candidates).Query(in query).Remove(new[] { velocityId }), Is.EqualTo(1));
+        Assert.That(world.From(candidates).Where(in query).Remove(new[] { velocityId }), Is.EqualTo(1));
         Stamp afterRemove = world.Stamp;
         Assert.That(world.TryGet<short>(marked, velocityId, out _), Is.False);
         Assert.That(world.TryGetComponentStamp(marked, positionId, out Stamp markedPositionAfterRemove), Is.True);
         Assert.That(markedPositionAfterRemove, Is.EqualTo(markedPositionBefore));
         Assert.That(afterRemove, Is.Not.EqualTo(afterAdd));
 
-        Assert.That(world.From(candidates).Query(in query).Destroy(), Is.EqualTo(1));
+        Assert.That(world.From(candidates).Where(in query).Destroy(), Is.EqualTo(1));
         Assert.That(world.IsAlive(marked), Is.False);
         Assert.That(world.IsAlive(unmarked), Is.True);
         Assert.That(world.TryGetComponentStamp(unmarked, positionId, out Stamp unmarkedPositionAfter), Is.True);
         Assert.That(unmarkedPositionAfter, Is.EqualTo(unmarkedPositionBefore));
 
         Stamp afterDestroy = world.Stamp;
-        Assert.That(world.From(candidates).Query(in query).Destroy(), Is.Zero);
-        Assert.That(world.From(candidates).Query(in query).Add(new[] { velocityId }), Is.Zero);
+        Assert.That(world.From(candidates).Where(in query).Destroy(), Is.Zero);
+        Assert.That(world.From(candidates).Where(in query).Add(new[] { velocityId }), Is.Zero);
         Assert.That(world.Stamp, Is.EqualTo(afterDestroy));
     }
 
@@ -107,11 +107,11 @@ public sealed class SequenceExecutionTests
         var candidates = new[] { third, first, second, third };
 
         var collector = new EntityCollector();
-        world.From(candidates).Query(in query).ForEachEntity(ref collector);
+        world.From(candidates).Where(in query).ForEachEntity(ref collector);
 
         var context = 10;
         var contextCollector = new ContextCollector();
-        world.From(candidates).Query(in query).ForEachEntity(ref context, ref contextCollector);
+        world.From(candidates).Where(in query).ForEachEntity(ref context, ref contextCollector);
 
         Assert.Multiple(() =>
         {
@@ -141,7 +141,7 @@ public sealed class SequenceExecutionTests
         var candidates = new[] { third, first, third };
         var context = new List<Entity>();
 
-        world.From(candidates).Query(in query).ForEachEntity<List<Entity>, SequencePosition, SequenceVelocity>(
+        world.From(candidates).Where(in query).ForEachEntity<List<Entity>, SequencePosition, SequenceVelocity>(
             ref context,
             static (ref List<Entity> visited, Entity entity, in SequencePosition position, ref SequenceVelocity velocity) =>
             {
@@ -184,7 +184,7 @@ public sealed class SequenceExecutionTests
         var candidates = new[] { entity, entity };
         int sum = 0;
 
-        world.From(candidates).Query(in query).ForEach<int, SequencePosition, SequenceVelocity>(
+        world.From(candidates).Where(in query).ForEach<int, SequencePosition, SequenceVelocity>(
             ref sum,
             static (ref int total, in SequencePosition position, in SequenceVelocity velocity) =>
                 total += position.Value + velocity.Value);
@@ -197,7 +197,7 @@ public sealed class SequenceExecutionTests
         Assert.That(velocityAfterRead, Is.EqualTo(velocityBefore));
 
         var functor = new SequenceMovementFunctor();
-        world.From(candidates).Query(in query).ForEachEntity(ref functor);
+        world.From(candidates).Where(in query).ForEachEntity(ref functor);
 
         Assert.That(functor.Count, Is.EqualTo(2));
         Assert.That(world.Get<SequenceVelocity>(entity, velocityId).Value, Is.EqualTo(10));
@@ -222,7 +222,7 @@ public sealed class SequenceExecutionTests
         Assert.That(world.Set(marked, positionId, new SequencePosition(3)), Is.True);
         var candidates = new[] { marked, plain, marked, plain };
 
-        world.From(candidates).Query(in query).ForEach<SequencePosition, SequenceVelocity>(
+        world.From(candidates).Where(in query).ForEach<SequencePosition, SequenceVelocity>(
             static (in SequencePosition position, ref SequenceVelocity velocity) =>
                 velocity.Value += position.Value);
 

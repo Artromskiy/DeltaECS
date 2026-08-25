@@ -63,7 +63,7 @@ public sealed class StampTests
         Assert.That(world.Set(entity, positionId, new Position(7)), Is.True);
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionBefore), Is.True);
 
-        world.AddComponents(new[] { velocityId }, entity);
+        world.Add(new[] { velocityId }, entity);
 
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionAfterAdd), Is.True);
         Assert.That(world.TryGetComponentStamp(entity, velocityId, out Stamp velocityAfterAdd), Is.True);
@@ -74,7 +74,7 @@ public sealed class StampTests
             Assert.That(velocityAfterAdd, Is.EqualTo(addStamp));
         });
 
-        world.RemoveComponents(new[] { velocityId }, entity);
+        world.Remove(new[] { velocityId }, entity);
 
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionAfterRemove), Is.True);
         Assert.Multiple(() =>
@@ -102,7 +102,7 @@ public sealed class StampTests
         }
 
         var query = world.CreateQuery(QuerySpec.WhereAll(positionId));
-        Assert.That(world.AddComponents(in query, new[] { velocityId }), Is.EqualTo(entities.Length));
+        Assert.That(world.Add(in query, new[] { velocityId }), Is.EqualTo(entities.Length));
         Stamp operationStamp = world.Stamp;
 
         for (int index = 0; index < entities.Length; index++)
@@ -169,8 +169,8 @@ public sealed class StampTests
         Entity entity = world.Create(positionId);
         Stamp before = world.Stamp;
 
-        world.AddComponents(new[] { positionId }, entity);
-        world.RemoveComponents(new[] { velocityId }, entity);
+        world.Add(new[] { positionId }, entity);
+        world.Remove(new[] { velocityId }, entity);
         Assert.That(world.Destroy(Entity.Null), Is.False);
         Assert.That(world.Set(entity, velocityId, new Velocity(1)), Is.False);
 

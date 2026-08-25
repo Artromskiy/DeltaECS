@@ -158,11 +158,9 @@ member is emitted as an extension method in the consumer assembly. A consumer
 must reference the DeltaECS analyzer/source-generator; the generator cannot add
 instance members to a previously compiled `World`.
 
-Ordered sequence execution is available both directly and through the
-non-owning fluent facade:
+Ordered sequence execution uses the non-owning fluent facade:
 
 ```csharp
-world.ForEachEntity(entities, action);
 world.From(entities).Where(in query).ForEachEntity(action);
 ```
 

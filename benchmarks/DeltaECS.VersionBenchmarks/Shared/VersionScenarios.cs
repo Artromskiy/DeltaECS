@@ -245,7 +245,7 @@ public sealed class AtomicScenario
 
     private int Add()
     {
-        _addWorld.AddComponents(_extraIds, _addEntity);
+        _addWorld.Add(_extraIds, _addEntity);
         return _addWorld.TryGet<StructuralExtra>(_addEntity, _extra, out _)
             ? 1
             : throw new InvalidOperationException("Atomic add failed.");
@@ -253,7 +253,7 @@ public sealed class AtomicScenario
 
     private int Remove()
     {
-        _removeWorld.RemoveComponents(_extraIds, _removeEntity);
+        _removeWorld.Remove(_extraIds, _removeEntity);
         return !_removeWorld.TryGet<StructuralExtra>(_removeEntity, _extra, out _)
             ? 1
             : throw new InvalidOperationException("Atomic remove failed.");
@@ -308,8 +308,8 @@ public sealed class BatchScenario
     {
         BatchOperation.Create => _createWorld.Create(_createArchetype, _createOutput),
         BatchOperation.Destroy => _destroyWorld.Destroy(_destroyEntities),
-        BatchOperation.Add => _addWorld.AddComponents(_extraIds, _addEntities),
-        BatchOperation.Remove => _removeWorld.RemoveComponents(_extraIds, _removeEntities),
+        BatchOperation.Add => _addWorld.Add(_extraIds, _addEntities),
+        BatchOperation.Remove => _removeWorld.Remove(_extraIds, _removeEntities),
         _ => throw new ArgumentOutOfRangeException(nameof(operation))
     };
 }

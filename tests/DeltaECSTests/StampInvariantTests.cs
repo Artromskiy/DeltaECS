@@ -159,13 +159,13 @@ public sealed class StampInvariantTests
         Entity existingTarget = world.Create(PositionId, VelocityId);
 
         Stamp beforeSingleAdd = world.Stamp;
-        world.AddComponents(new[] { VelocityId }, single);
+        world.Add(new[] { VelocityId }, single);
         Assert.That(world.Stamp, Is.EqualTo(new Stamp(beforeSingleAdd.Value + 1)));
         Assert.That(world.TryGetComponentStamp(single, VelocityId, out Stamp singleVelocity), Is.True);
         Assert.That(singleVelocity, Is.EqualTo(world.Stamp));
 
         Stamp beforeListAdd = world.Stamp;
-        Assert.That(world.AddComponents(new[] { VelocityId }, listed), Is.EqualTo(listed.Length));
+        Assert.That(world.Add(new[] { VelocityId }, listed), Is.EqualTo(listed.Length));
         Assert.That(world.Stamp, Is.EqualTo(new Stamp(beforeListAdd.Value + 1)));
         foreach (Entity entity in listed)
         {
@@ -175,21 +175,21 @@ public sealed class StampInvariantTests
 
         var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         Stamp beforeQueryAdd = world.Stamp;
-        Assert.That(world.AddComponents(in query, new[] { HealthId }), Is.EqualTo(listed.Length + 2));
+        Assert.That(world.Add(in query, new[] { HealthId }), Is.EqualTo(listed.Length + 2));
         Assert.That(world.Stamp, Is.EqualTo(new Stamp(beforeQueryAdd.Value + 1)));
         Assert.That(world.TryGetComponentStamp(existingTarget, HealthId, out Stamp existingHealth), Is.True);
         Assert.That(existingHealth, Is.EqualTo(world.Stamp));
 
         Stamp beforeSingleRemove = world.Stamp;
-        world.RemoveComponents(new[] { HealthId }, single);
+        world.Remove(new[] { HealthId }, single);
         Assert.That(world.Stamp, Is.EqualTo(new Stamp(beforeSingleRemove.Value + 1)));
 
         Stamp beforeListRemove = world.Stamp;
-        Assert.That(world.RemoveComponents(new[] { VelocityId }, listed), Is.EqualTo(listed.Length));
+        Assert.That(world.Remove(new[] { VelocityId }, listed), Is.EqualTo(listed.Length));
         Assert.That(world.Stamp, Is.EqualTo(new Stamp(beforeListRemove.Value + 1)));
 
         Stamp beforeQueryRemove = world.Stamp;
-        Assert.That(world.RemoveComponents(in query, new[] { HealthId }), Is.EqualTo(listed.Length + 1));
+        Assert.That(world.Remove(in query, new[] { HealthId }), Is.EqualTo(listed.Length + 1));
         Assert.That(world.Stamp, Is.EqualTo(new Stamp(beforeQueryRemove.Value + 1)));
 
         Stamp beforeSingleDestroy = world.Stamp;
@@ -227,10 +227,10 @@ public sealed class StampInvariantTests
         var foreignQuery = foreign.CreateQuery(QuerySpec.WhereAll(PositionId));
         Stamp before = world.Stamp;
 
-        world.AddComponents(Array.Empty<ComponentId>(), entity);
-        world.RemoveComponents(new[] { VelocityId }, entity);
-        world.AddComponents(new[] { PositionId }, entity);
-        Assert.That(world.RemoveComponents(Array.Empty<ComponentId>(), new[] { entity }), Is.Zero);
+        world.Add(Array.Empty<ComponentId>(), entity);
+        world.Remove(new[] { VelocityId }, entity);
+        world.Add(new[] { PositionId }, entity);
+        Assert.That(world.Remove(Array.Empty<ComponentId>(), new[] { entity }), Is.Zero);
         Assert.That(world.Destroy(new[] { Entity.Null, new Entity(999, 0) }), Is.Zero);
         Assert.That(world.Set(entity, new ComponentId(200), new Position()), Is.False);
         Assert.That(world.Set(foreignEntity, PositionId, new Position()), Is.False);
@@ -241,14 +241,14 @@ public sealed class StampInvariantTests
         Assert.That(nullStamp, Is.EqualTo(default(Stamp)));
         Assert.That(world.Stamp, Is.EqualTo(before));
 
-        Assert.Throws<ArgumentException>(() => world.AddComponents(in foreignQuery, new[] { VelocityId }));
+        Assert.Throws<ArgumentException>(() => world.Add(in foreignQuery, new[] { VelocityId }));
         Query invalidQuery = default;
-        Assert.Throws<ArgumentException>(() => world.RemoveComponents(in invalidQuery, new[] { VelocityId }));
+        Assert.Throws<ArgumentException>(() => world.Remove(in invalidQuery, new[] { VelocityId }));
         Assert.Throws<ArgumentException>(() => world.Destroy(in foreignQuery));
         Assert.That(world.Stamp, Is.EqualTo(before));
 
-        Assert.That(world.AddComponents(in query, new[] { PositionId }), Is.Zero);
-        Assert.That(world.RemoveComponents(in query, new[] { VelocityId }), Is.Zero);
+        Assert.That(world.Add(in query, new[] { PositionId }), Is.Zero);
+        Assert.That(world.Remove(in query, new[] { VelocityId }), Is.Zero);
         Assert.That(world.Stamp, Is.EqualTo(before));
     }
 
@@ -264,7 +264,7 @@ public sealed class StampInvariantTests
         Assert.That(world.TryGetComponentStamp(entity, HealthId, out Stamp healthBefore), Is.True);
 
         Stamp beforeAdd = world.Stamp;
-        world.AddComponents(new[] { VelocityId }, entity);
+        world.Add(new[] { VelocityId }, entity);
         Stamp addStamp = world.Stamp;
         Assert.That(addStamp, Is.EqualTo(new Stamp(beforeAdd.Value + 1)));
         Assert.Multiple(() =>
@@ -278,7 +278,7 @@ public sealed class StampInvariantTests
         });
 
         Stamp beforeRemove = world.Stamp;
-        world.RemoveComponents(new[] { HealthId }, entity);
+        world.Remove(new[] { HealthId }, entity);
         Stamp removeStamp = world.Stamp;
         Assert.That(removeStamp, Is.EqualTo(new Stamp(beforeRemove.Value + 1)));
         Assert.Multiple(() =>
@@ -319,7 +319,7 @@ public sealed class StampInvariantTests
 
         var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         Stamp beforeAdd = world.Stamp;
-        Assert.That(world.AddComponents(in query, new[] { VelocityId }), Is.EqualTo(8));
+        Assert.That(world.Add(in query, new[] { VelocityId }), Is.EqualTo(8));
         Stamp addStamp = world.Stamp;
         Assert.That(addStamp, Is.EqualTo(new Stamp(beforeAdd.Value + 1)));
         foreach (var pair in before)
@@ -338,7 +338,7 @@ public sealed class StampInvariantTests
         }
 
         Stamp beforeRemove = world.Stamp;
-        Assert.That(world.RemoveComponents(in query, new[] { VelocityId }), Is.EqualTo(8));
+        Assert.That(world.Remove(in query, new[] { VelocityId }), Is.EqualTo(8));
         Assert.That(world.Stamp, Is.EqualTo(new Stamp(beforeRemove.Value + 1)));
         foreach (var pair in before)
         {
@@ -563,7 +563,7 @@ public sealed class StampInvariantTests
         }
 
         Stamp beforeMove = world.Stamp;
-        world.AddComponents(new[] { PositionId }, entities);
+        world.Add(new[] { PositionId }, entities);
         Stamp moveStamp = world.Stamp;
         Assert.That(moveStamp, Is.EqualTo(new Stamp(beforeMove.Value + 1)));
         for (int index = 0; index < entities.Length; index++)
@@ -609,7 +609,7 @@ public sealed class StampInvariantTests
         }
 
         Stamp beforeRemove = world.Stamp;
-        world.RemoveComponents(new[] { PositionId }, entities);
+        world.Remove(new[] { PositionId }, entities);
         Assert.That(world.Stamp, Is.EqualTo(new Stamp(beforeRemove.Value + 1)));
         for (int index = 0; index < entities.Length; index++)
         {
@@ -741,7 +741,7 @@ public sealed class StampInvariantTests
         Stamp before = ExhaustWorldStamp(world);
         int archetypeVersion = world.ArchetypeVersion;
 
-        Assert.Throws<InvalidOperationException>(() => world.AddComponents(new[] { VelocityId }, entity));
+        Assert.Throws<InvalidOperationException>(() => world.Add(new[] { VelocityId }, entity));
         Assert.Multiple(() =>
         {
             Assert.That(world.Stamp, Is.EqualTo(before));
@@ -761,7 +761,7 @@ public sealed class StampInvariantTests
         Stamp before = ExhaustWorldStamp(world);
         int archetypeVersion = world.ArchetypeVersion;
 
-        Assert.Throws<InvalidOperationException>(() => world.RemoveComponents(new[] { PositionId }, entity));
+        Assert.Throws<InvalidOperationException>(() => world.Remove(new[] { PositionId }, entity));
         Assert.Multiple(() =>
         {
             Assert.That(world.Stamp, Is.EqualTo(before));
@@ -869,8 +869,8 @@ public sealed class StampInvariantTests
         var unknown = new ComponentId(200);
 
         Assert.Throws<ArgumentException>(() => world.Create(unknown));
-        Assert.Throws<ArgumentException>(() => world.AddComponents(new[] { unknown }, entity));
-        Assert.Throws<ArgumentException>(() => world.RemoveComponents(new[] { unknown }, entity));
+        Assert.Throws<ArgumentException>(() => world.Add(new[] { unknown }, entity));
+        Assert.Throws<ArgumentException>(() => world.Remove(new[] { unknown }, entity));
         Assert.Multiple(() =>
         {
             Assert.That(world.Stamp, Is.EqualTo(before));
@@ -999,8 +999,8 @@ public sealed class StampInvariantTests
 
         ComponentId[] change = [component];
         int actualChanged = isAdd
-            ? world.AddComponents(change, candidates)
-            : world.RemoveComponents(change, candidates);
+            ? world.Add(change, candidates)
+            : world.Remove(change, candidates);
         Assert.That(actualChanged, Is.EqualTo(expectedChanged), $"list structural count at step {step}");
         if (expectedChanged == 0)
         {
