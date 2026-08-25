@@ -23,12 +23,10 @@ public class DeltaEcsVsArchBenchmarks
     private World _deltaWorld = null!;
     private ComponentId[] _deltaComponents = Array.Empty<ComponentId>();
     private Query _deltaQuery;
-    private WriteAccess[] _deltaBindings = Array.Empty<WriteAccess>();
     private Entity[] _deltaCreated = Array.Empty<Entity>();
     private World _arrayWorld = null!;
     private ComponentId[] _arrayComponents = Array.Empty<ComponentId>();
     private Query _arrayQuery;
-    private WriteAccess[] _arrayBindings = Array.Empty<WriteAccess>();
     private Entity[] _arrayCreated = Array.Empty<Entity>();
 
     private Arch.Core.World _archWorld = null!;
@@ -69,9 +67,6 @@ public class DeltaEcsVsArchBenchmarks
         _deltaWorld = new World(layouts, initialEntityCapacity: Amount);
         var spec = QuerySpec.WhereAll(_deltaComponents);
         _deltaQuery = _deltaWorld.CreateQuery(in spec);
-        _deltaBindings = new WriteAccess[ComponentCount];
-        for (var i = 0; i < ComponentCount; i++)
-            _deltaBindings[i] = _deltaQuery.AccessWrite(_deltaComponents[i]);
         _deltaCreated = new Entity[Amount];
         _deltaWorld.Create(_deltaComponents, _deltaCreated);
         for (var i = 0; i < _deltaCreated.Length; i++)
@@ -94,9 +89,6 @@ public class DeltaEcsVsArchBenchmarks
             initialEntityCapacity: Amount);
         var arrayDescription = QuerySpec.WhereAll(_arrayComponents);
         _arrayQuery = _arrayWorld.CreateQuery(in arrayDescription);
-        _arrayBindings = new WriteAccess[ComponentCount];
-        for (var i = 0; i < ComponentCount; i++)
-            _arrayBindings[i] = _arrayQuery.AccessWrite(_arrayComponents[i]);
         _arrayCreated = new Entity[Amount];
         _arrayWorld.Create(_arrayComponents, _arrayCreated);
         for (var i = 0; i < _arrayCreated.Length; i++)
@@ -122,13 +114,13 @@ public class DeltaEcsVsArchBenchmarks
     [Benchmark]
     public void DeltaECS_DenseIteration()
     {
-        IterateDelta(_deltaWorld, in _deltaQuery, _deltaBindings, ComponentCount);
+        IterateDelta(_deltaWorld, in _deltaQuery, _deltaComponents, ComponentCount);
     }
 
     [Benchmark(Baseline = true)]
     public void DeltaECS_Array_DenseIteration()
     {
-        IterateDelta(_arrayWorld, in _arrayQuery, _arrayBindings, ComponentCount);
+        IterateDelta(_arrayWorld, in _arrayQuery, _arrayComponents, ComponentCount);
     }
 
     [Benchmark]
@@ -201,93 +193,47 @@ public class DeltaEcsVsArchBenchmarks
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void IterateDelta(World world, in Query query, WriteAccess[] bindings, int componentCount)
+    private static void IterateDelta(World world, in Query query, ComponentId[] components, int componentCount)
     {
-        using var scope = world.OpenQuery(in query);
-        var b0 = bindings[0];
-        var b1 = componentCount >= 2 ? bindings[1] : default;
-        var b2 = componentCount >= 4 ? bindings[2] : default;
-        var b3 = componentCount >= 4 ? bindings[3] : default;
-        var b4 = componentCount >= 8 ? bindings[4] : default;
-        var b5 = componentCount >= 8 ? bindings[5] : default;
-        var b6 = componentCount >= 8 ? bindings[6] : default;
-        var b7 = componentCount >= 8 ? bindings[7] : default;
-        var archetypes = scope.Archetypes;
-
-        while (archetypes.MoveNext())
+        switch (componentCount)
         {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
-            {
-                var slots = chunks.Current.Slots;
-                switch (componentCount)
+            case 1:
+                world.ForEach<Value>(in query, components[0], static (ref Value value) =>
                 {
-                    case 1:
-                        {
-                            var c0 = slots.GetRow(b0);
-                            while (slots.MoveNext())
-                            {
-                                Update(ref c0.Ref<Value>(slots));
-                            }
-
-                            break;
-                        }
-                    case 2:
-                        {
-                            var c0 = slots.GetRow(b0);
-                            var c1 = slots.GetRow(b1);
-                            while (slots.MoveNext())
-                            {
-                                Update(ref c0.Ref<Value>(slots));
-                                Update(ref c1.Ref<Value>(slots));
-                            }
-
-                            break;
-                        }
-                    case 4:
-                        {
-                            var c0 = slots.GetRow(b0);
-                            var c1 = slots.GetRow(b1);
-                            var c2 = slots.GetRow(b2);
-                            var c3 = slots.GetRow(b3);
-                            while (slots.MoveNext())
-                            {
-                                Update(ref c0.Ref<Value>(slots));
-                                Update(ref c1.Ref<Value>(slots));
-                                Update(ref c2.Ref<Value>(slots));
-                                Update(ref c3.Ref<Value>(slots));
-                            }
-
-                            break;
-                        }
-                    case 8:
-                        {
-                            var c0 = slots.GetRow(b0);
-                            var c1 = slots.GetRow(b1);
-                            var c2 = slots.GetRow(b2);
-                            var c3 = slots.GetRow(b3);
-                            var c4 = slots.GetRow(b4);
-                            var c5 = slots.GetRow(b5);
-                            var c6 = slots.GetRow(b6);
-                            var c7 = slots.GetRow(b7);
-                            while (slots.MoveNext())
-                            {
-                                Update(ref c0.Ref<Value>(slots));
-                                Update(ref c1.Ref<Value>(slots));
-                                Update(ref c2.Ref<Value>(slots));
-                                Update(ref c3.Ref<Value>(slots));
-                                Update(ref c4.Ref<Value>(slots));
-                                Update(ref c5.Ref<Value>(slots));
-                                Update(ref c6.Ref<Value>(slots));
-                                Update(ref c7.Ref<Value>(slots));
-                            }
-
-                            break;
-                        }
-                    default:
-                        throw new ArgumentOutOfRangeException(nameof(componentCount));
-                }
-            }
+                    Update(ref value);
+                });
+                break;
+            case 2:
+                world.ForEach<Value, Value>(in query, components[0], components[1], static (ref Value c0, ref Value c1) =>
+                {
+                    Update(ref c0);
+                    Update(ref c1);
+                });
+                break;
+            case 4:
+                world.ForEach<Value, Value, Value, Value>(in query, components[0], components[1], components[2], components[3], static (ref Value c0, ref Value c1, ref Value c2, ref Value c3) =>
+                {
+                    Update(ref c0);
+                    Update(ref c1);
+                    Update(ref c2);
+                    Update(ref c3);
+                });
+                break;
+            case 8:
+                world.ForEach<Value, Value, Value, Value, Value, Value, Value, Value>(in query, components[0], components[1], components[2], components[3], components[4], components[5], components[6], components[7], static (ref Value c0, ref Value c1, ref Value c2, ref Value c3, ref Value c4, ref Value c5, ref Value c6, ref Value c7) =>
+                {
+                    Update(ref c0);
+                    Update(ref c1);
+                    Update(ref c2);
+                    Update(ref c3);
+                    Update(ref c4);
+                    Update(ref c5);
+                    Update(ref c6);
+                    Update(ref c7);
+                });
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(componentCount));
         }
     }
 
@@ -395,7 +341,6 @@ public class DeltaEcsManagedArrayBenchmarks
     private World _world = null!;
     private ComponentId _component;
     private Query _query;
-    private ReadAccess _binding;
     private Entity[] _entities = Array.Empty<Entity>();
 
     private struct ManagedValue
@@ -412,7 +357,6 @@ public class DeltaEcsManagedArrayBenchmarks
         _world = new World(layouts, initialEntityCapacity: Amount);
         var spec = QuerySpec.WhereAll(_component);
         _query = _world.CreateQuery(in spec);
-        _binding = _query.AccessRead(_component);
         _entities = new Entity[Amount];
         _world.Create(new[] { _component }, _entities);
         for (var i = 0; i < _entities.Length; i++)
@@ -425,22 +369,10 @@ public class DeltaEcsManagedArrayBenchmarks
     public void ManagedArrayDenseIteration()
     {
         var sum = 0;
-        using var scope = _world.OpenQuery(in _query);
-        var binding = _binding;
-        var archetypes = scope.Archetypes;
-        while (archetypes.MoveNext())
+        _world.ForEach<ManagedValue>(in _query, (in ManagedValue value) =>
         {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
-            {
-                var slots = chunks.Current.Slots;
-                var values = slots.GetRow(binding);
-                while (slots.MoveNext())
-                {
-                    sum += values.Ref<ManagedValue>(slots).Value;
-                }
-            }
-        }
+            sum += value.Value;
+        });
 
         GC.KeepAlive(sum);
     }
@@ -456,8 +388,6 @@ public class DeltaEcsHotPathProfileBenchmarks
     private Query _query;
     private ReadAccess _firstBinding;
     private ReadAccess _secondReadBinding;
-    private WriteAccess _firstWriteBinding;
-    private WriteAccess _secondBinding;
     private Entity[] _entities = Array.Empty<Entity>();
 
     private struct Value
@@ -477,8 +407,6 @@ public class DeltaEcsHotPathProfileBenchmarks
         _query = _world.CreateQuery(in spec);
         _firstBinding = _query.AccessRead(_first);
         _secondReadBinding = _query.AccessRead(_second);
-        _firstWriteBinding = _query.AccessWrite(_first);
-        _secondBinding = _query.AccessWrite(_second);
         _entities = new Entity[100_000];
         _world.Create(new[] { _first, _second }, _entities);
         for (var i = 0; i < _entities.Length; i++)
@@ -532,30 +460,11 @@ public class DeltaEcsHotPathProfileBenchmarks
     [Benchmark]
     public void QueryPlanSlotLoop()
     {
-        var chunksCount = 0;
-        using var scope = _world.OpenQuery(in _query);
-        var firstBinding = _firstWriteBinding;
-        var secondBinding = _secondBinding;
-        var archetypes = scope.Archetypes;
-        while (archetypes.MoveNext())
+        _world.ForEach<Value, Value>(in _query, _first, _second, static (ref Value first, ref Value second) =>
         {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
-            {
-                var slots = chunks.Current.Slots;
-                var first = slots.GetRow(firstBinding);
-                var second = slots.GetRow(secondBinding);
-                while (slots.MoveNext())
-                {
-                    first.Ref<Value>(slots).X += first.Ref<Value>(slots).Y;
-                    second.Ref<Value>(slots).X += second.Ref<Value>(slots).Y;
-                }
-
-                chunksCount++;
-            }
-        }
-
-        GC.KeepAlive(chunksCount);
+            first.X += first.Y;
+            second.X += second.Y;
+        });
     }
 }
 
