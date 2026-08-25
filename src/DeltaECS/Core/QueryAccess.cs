@@ -3,7 +3,6 @@ namespace Delta.ECS;
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 /// <summary>Non-generic query access token for a read row.</summary>
 public readonly struct ReadAccess
@@ -71,8 +70,9 @@ internal sealed class QueryPlan
         }
 
         int archetypeCount = world.Archetypes.Count;
-        int[] matches = archetypeCount == 0 ? Array.Empty<int>() : new int[archetypeCount];
-        ArchetypePlan[] plans = archetypeCount == 0 ? Array.Empty<ArchetypePlan>() : new ArchetypePlan[archetypeCount];
+        (int ArchetypeId, ArchetypePlan Plan)[] matches = archetypeCount == 0
+            ? Array.Empty<(int ArchetypeId, ArchetypePlan Plan)>()
+            : new (int ArchetypeId, ArchetypePlan Plan)[archetypeCount];
         int matchingCount = 0;
         for (int archetypeId = 0; archetypeId < world.Archetypes.Count; archetypeId++)
         {
@@ -90,8 +90,7 @@ internal sealed class QueryPlan
             }
 
             var plan = new ArchetypePlan(archetype, indices);
-            matches[matchingCount] = archetypeId;
-            plans[matchingCount++] = plan;
+            matches[matchingCount++] = (archetypeId, plan);
         }
 
         _matchingArchetypes.Dispose();
@@ -104,13 +103,16 @@ internal sealed class QueryPlan
         }
         else
         {
-            _matchingArchetypes = new NativeMemory<int>(matches.AsSpan(0, matchingCount));
-            _matchingPlans = plans;
+            _matchingArchetypes = new NativeMemory<int>(matchingCount);
+            _matchingPlans = new ArchetypePlan[matchingCount];
             _planIndicesByArchetype = new int[archetypeCount];
             Array.Fill(_planIndicesByArchetype, -1);
             for (int planIndex = 0; planIndex < matchingCount; planIndex++)
             {
-                _planIndicesByArchetype[_matchingPlans[planIndex].Archetype.Id] = planIndex;
+                var match = matches[planIndex];
+                _matchingArchetypes[planIndex] = match.ArchetypeId;
+                _matchingPlans[planIndex] = match.Plan;
+                _planIndicesByArchetype[match.ArchetypeId] = planIndex;
             }
         }
 
