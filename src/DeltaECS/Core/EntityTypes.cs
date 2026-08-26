@@ -92,35 +92,24 @@ public readonly struct Query
 
     public ReadAccess AccessRead(ComponentId componentId)
     {
-        int rowIndex = ResolveComponentRow(componentId);
+        EnsureValid();
+        int rowIndex = _cached.ResolveReadRoute(componentId);
         return new ReadAccess(_cached, rowIndex);
     }
 
     public WriteAccess AccessWrite(ComponentId componentId)
     {
-        int rowIndex = ResolveComponentRow(componentId);
-        _cached.RegisterWriteAccess();
+        EnsureValid();
+        int rowIndex = _cached.UpgradeReadRouteToWrite(_cached.ResolveReadRoute(componentId));
         return new WriteAccess(_cached, rowIndex);
     }
 
-    private int ResolveComponentRow(ComponentId componentId)
+    private void EnsureValid()
     {
         if (!IsValid)
         {
             throw new InvalidOperationException("Cannot bind a row from an invalid query handle.");
         }
-
-        if (!_description.AllMask.Contains(componentId))
-        {
-            throw new ArgumentException("A row access must target a component guaranteed by the query All mask.", nameof(componentId));
-        }
-
-        if (!_owner.Layouts.TryGet(componentId, out _))
-        {
-            throw new ArgumentException("The component is not registered in the query's world.", nameof(componentId));
-        }
-
-        return _description.AllMask.Rank(componentId);
     }
 
 }

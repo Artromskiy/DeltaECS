@@ -75,8 +75,8 @@ public static class GeneratedForEachRuntime
         in Query query,
         Type runtimeType)
     {
-        ComponentId component = ResolvePrimaryComponent(world, in query, runtimeType);
-        return ValidateComponent(world, in query, component, runtimeType);
+        QueryPlan plan = ValidateQuery(world, in query, runtimeType);
+        return plan.ResolvePrimaryReadRoute(runtimeType);
     }
 
     public static int AccessWrite(
@@ -84,8 +84,8 @@ public static class GeneratedForEachRuntime
         in Query query,
         Type runtimeType)
     {
-        ComponentId component = ResolvePrimaryComponent(world, in query, runtimeType);
-        return ValidateComponent(world, in query, component, runtimeType);
+        QueryPlan plan = ValidateQuery(world, in query, runtimeType);
+        return plan.UpgradeReadRouteToWrite(plan.ResolvePrimaryReadRoute(runtimeType));
     }
 
     public static int AccessRead(
@@ -94,10 +94,11 @@ public static class GeneratedForEachRuntime
         ComponentId component,
         Type runtimeType)
     {
-        return ValidateComponent(world, in query, component, runtimeType);
+        QueryPlan plan = ValidateQuery(world, in query, runtimeType);
+        return plan.ResolveReadRoute(component, runtimeType);
     }
 
-    private static ComponentId ResolvePrimaryComponent(World world, in Query query, Type runtimeType)
+    private static QueryPlan ValidateQuery(World world, in Query query, Type runtimeType)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(runtimeType);
@@ -106,7 +107,7 @@ public static class GeneratedForEachRuntime
             throw new ArgumentException("Query handle does not belong to this world.", nameof(query));
         }
 
-        return query.Cached.ResolvePrimaryComponent(world, runtimeType);
+        return query.Cached;
     }
 
     public static int AccessWrite(
@@ -115,37 +116,8 @@ public static class GeneratedForEachRuntime
         ComponentId component,
         Type runtimeType)
     {
-        return ValidateComponent(world, in query, component, runtimeType);
-    }
-
-    private static int ValidateComponent(
-        World world,
-        in Query query,
-        ComponentId component,
-        Type runtimeType)
-    {
-        ArgumentNullException.ThrowIfNull(world);
-        ArgumentNullException.ThrowIfNull(runtimeType);
-        if (!ReferenceEquals(query.Owner, world) || !query.IsValid)
-        {
-            throw new ArgumentException("Query handle does not belong to this world.", nameof(query));
-        }
-
-        if (!world.Layouts.TryGet(component, out ComponentLayout layout)
-            || layout.RuntimeType != runtimeType)
-        {
-            throw new ArgumentException(
-                $"Component {component} is not registered as {runtimeType}.",
-                nameof(component));
-        }
-
-        if (!query.Description.AllMask.Contains(component))
-        {
-            throw new ArgumentException(
-                "A ForEach component must be guaranteed by the query All mask.",
-                nameof(component));
-        }
-
-        return query.Description.AllMask.Rank(component);
+        QueryPlan plan = ValidateQuery(world, in query, runtimeType);
+        int readRoute = plan.ResolveReadRoute(component, runtimeType);
+        return plan.UpgradeReadRouteToWrite(readRoute);
     }
 }
