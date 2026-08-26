@@ -45,14 +45,6 @@ throughput claim; measurements must use the benchmark protocol below.
 
 ## Deferred experiments
 
-### Remove slot-loop checks internally
-
-Test a trusted internal row packet that obtains a row reference with
-`MemoryMarshal.GetReference` and advances with `Unsafe.Add`. The external API
-must remain safe and unchanged. Accept only if the result checksum is equal,
-the Release JIT shows fewer loop checks, and a paired benchmark improves on
-the same machine and runtime.
-
 ### Adjacent component loads
 
 Check whether a visible row layout lets the AArch64 JIT form `ldp`/`stp` pairs.
