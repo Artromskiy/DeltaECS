@@ -37,14 +37,21 @@ internal sealed class QueryPlan
     private int[] _matchingArchetypes = Array.Empty<int>();
     private ArchetypePlan[] _matchingPlans = Array.Empty<ArchetypePlan>();
     private int[] _planIndicesByArchetype = Array.Empty<int>();
+    private readonly int[] _readRoutesByComponent;
+    private readonly Type?[] _readRouteTypesByComponent;
+    private readonly Dictionary<Type, int> _primaryReadRoutesByType;
     private int _matchingCount;
-    private Dictionary<Type, ComponentId>? _primaryComponentIdsByType;
     private bool _hasWriteAccess;
 
     internal QueryPlan(World world, QuerySpec spec)
     {
         _description = spec;
         _weakReference = new WeakReference<QueryPlan>(this);
+        _readRoutesByComponent = new int[world.Layouts.Count];
+        _readRouteTypesByComponent = new Type?[world.Layouts.Count];
+        _primaryReadRoutesByType = new Dictionary<Type, int>(_description.AllMask.Count);
+        Array.Fill(_readRoutesByComponent, -1);
+        PrepareReadRoutes(world, spec);
         for (int archetypeId = 0; archetypeId < world.Archetypes.Count; archetypeId++)
         {
             OnArchetypeCreated(world.Archetypes[archetypeId]);
@@ -53,22 +60,54 @@ internal sealed class QueryPlan
 
     internal bool HasWriteAccess => _hasWriteAccess;
     internal WeakReference<QueryPlan> WeakReference => _weakReference;
-    internal void RegisterWriteAccess() => _hasWriteAccess = true;
+    internal int PreparedPrimaryReadRouteCount { get; private set; }
 
-    internal int PrimaryRouteResolutionCount { get; private set; }
-
-    internal ComponentId ResolvePrimaryComponent(World world, Type runtimeType)
+    internal int ResolveReadRoute(ComponentId component)
     {
-        if (_primaryComponentIdsByType is { } cached
-            && cached.TryGetValue(runtimeType, out ComponentId componentId))
+        if (component.IsValid
+            && (uint)component.Value < (uint)_readRoutesByComponent.Length)
         {
-            return componentId;
+            int route = _readRoutesByComponent[component.Value];
+            if (route >= 0)
+            {
+                return route;
+            }
         }
 
-        componentId = world.Layouts.GetPrimary(runtimeType);
-        (_primaryComponentIdsByType ??= new Dictionary<Type, ComponentId>()).Add(runtimeType, componentId);
-        PrimaryRouteResolutionCount++;
-        return componentId;
+        throw new ArgumentException(
+            "A row access must target a registered component guaranteed by the query All mask.",
+            nameof(component));
+    }
+
+    internal int ResolveReadRoute(ComponentId component, Type runtimeType)
+    {
+        int route = ResolveReadRoute(component);
+        if (!ReferenceEquals(_readRouteTypesByComponent[component.Value], runtimeType))
+        {
+            throw new ArgumentException(
+                $"Component {component} is not registered as {runtimeType}.",
+                nameof(component));
+        }
+
+        return route;
+    }
+
+    internal int ResolvePrimaryReadRoute(Type runtimeType)
+    {
+        if (_primaryReadRoutesByType.TryGetValue(runtimeType, out int route))
+        {
+            return route;
+        }
+
+        throw new ArgumentException(
+            $"The primary component for {runtimeType} is not guaranteed by the query All mask.",
+            nameof(runtimeType));
+    }
+
+    internal int UpgradeReadRouteToWrite(int route)
+    {
+        _hasWriteAccess = true;
+        return route;
     }
 
     internal ReadOnlySpan<int> MatchingArchetypes() => _matchingArchetypes.AsSpan(0, _matchingCount);
@@ -129,7 +168,35 @@ internal sealed class QueryPlan
         _matchingPlans = Array.Empty<ArchetypePlan>();
         _planIndicesByArchetype = Array.Empty<int>();
         _matchingCount = 0;
-        _primaryComponentIdsByType?.Clear();
+        _primaryReadRoutesByType.Clear();
+    }
+
+    private void PrepareReadRoutes(World world, QuerySpec spec)
+    {
+        int route = 0;
+        foreach (ComponentId component in spec.AllMask)
+        {
+            if (!world.Layouts.TryGet(component, out ComponentLayout layout))
+            {
+                throw new ArgumentException(
+                    $"Query component {component} is not registered in the query's world.",
+                    nameof(spec));
+            }
+
+            _readRoutesByComponent[component.Value] = route;
+            if (layout.RuntimeType is { } runtimeType)
+            {
+                _readRouteTypesByComponent[component.Value] = runtimeType;
+                if (world.Layouts.TryGetPrimary(runtimeType, out ComponentId primary)
+                    && primary == component)
+                {
+                    _primaryReadRoutesByType.Add(runtimeType, route);
+                    PreparedPrimaryReadRouteCount++;
+                }
+            }
+
+            route++;
+        }
     }
 
     private void EnsureArchetypeCapacity(int required)
