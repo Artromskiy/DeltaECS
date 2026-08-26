@@ -213,7 +213,7 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         Assert.That(generated, Does.Contain("ExecuteClosed_"));
         Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenDense(world, in query"));
-        Assert.That(generated, Does.Contain("while (execution.MoveNext(out var slots))"));
+        Assert.That(generated, Does.Contain("while (execution.MoveNextTrusted(out var slots))"));
         Assert.That(generated, Does.Contain("ref T1 row0 = ref slots.GetGeneratedWriteReference<T1>(access0)"));
         Assert.That(generated, Does.Contain("for (int index = 0; index < count; index++)"));
         Assert.That(generated, Does.Contain("ref T1 component0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row0, index)"));
@@ -324,6 +324,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         public ref struct GeneratedDenseExecution
         {
             public bool MoveNext(out GeneratedQuerySlots slots) { slots = default; return false; }
+            public bool MoveNextTrusted(out GeneratedQuerySlots slots) { slots = default; return false; }
             public void Dispose() { }
         }
         public ref struct GeneratedSequenceCursor

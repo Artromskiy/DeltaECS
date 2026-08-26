@@ -49,11 +49,23 @@ public ref struct GeneratedDenseExecution
             QueryThrowHelper.ThrowDisposedQueryExecution();
         }
 
+        return MoveNextTrusted(out slots);
+    }
+
+    /// <summary>Advances a validated generated execution without repeating the lifetime guard.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool MoveNextTrusted(out GeneratedQuerySlots slots)
+    {
         int nextChunk = _chunkIndex + 1;
         if ((uint)nextChunk < (uint)_chunkCount)
         {
             _chunkIndex = nextChunk;
-            slots = CreateSlots();
+            slots = new GeneratedQuerySlots(
+                _plans.Ref(_planIndex),
+                _chunks.Ref(_chunkIndex),
+                _writeTick,
+                _writeStamp);
             return true;
         }
 
@@ -68,12 +80,17 @@ public ref struct GeneratedDenseExecution
             }
 
             _chunkIndex = 0;
-            slots = CreateSlots();
+            slots = new GeneratedQuerySlots(
+                plan,
+                _chunks.Ref(_chunkIndex),
+                _writeTick,
+                _writeStamp);
             return true;
         }
 
-        _chunks = Array.Empty<ChunkPlan>();
+        _planIndex = _plans.Length;
         _chunkCount = 0;
+        _chunkIndex = -1;
         slots = default;
         return false;
     }
@@ -91,10 +108,6 @@ public ref struct GeneratedDenseExecution
         _owner = null;
         _chunks = Array.Empty<ChunkPlan>();
     }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private GeneratedQuerySlots CreateSlots()
-        => new(_plans.Ref(_planIndex), _chunks.Ref(_chunkIndex), _writeTick, _writeStamp);
 }
 
 /// <summary>Compiler-support cursor used by generated entity-sequence code.</summary>

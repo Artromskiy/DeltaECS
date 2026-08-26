@@ -938,7 +938,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         source.Append("        using var execution = GeneratedForEachRuntime.OpenDense(world, in query, hasWrites: ")
             .Append(BoolHasWrites(shape.Pattern)).AppendLine(");");
         source.Append("        ").Append(AccessSetup(shape, ids, closed: true, prepared: true));
-        source.AppendLine("        while (execution.MoveNext(out var slots))");
+        source.AppendLine("        while (execution.MoveNextTrusted(out var slots))");
         source.AppendLine("        {");
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
