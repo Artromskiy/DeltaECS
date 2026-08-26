@@ -50,9 +50,9 @@ linked focused report.
 | Singleton destroy through chunk kernel | [destroy evidence](../destroy-kernels-v1.md) | Slower/noisy than direct atomic destroy |
 | Query-specific destroy helper/active-chunk variants | [destroy evidence](../destroy-kernels-v1.md) | Neutral to slower across tested sizes |
 | Aggressive inlining of structural helpers | [destroy evidence](../destroy-kernels-v1.md) | No repeatable benefit |
-| Compact linear primary-route cache | `877fa90`; [evidence](compact-primary-route-cache.md) | Functor was up to 14.7% faster, but Delegate regressed 7.6% to 22.2%; lookup JIT grew 572 B to 620 B |
+| Compact linear primary-route cache | `877fa90`; [evidence](compact-primary-route-cache.md) | Rejected; experiment branch `perf/compact-primary-route-cache` deleted. Functor was up to 14.7% faster, but Delegate regressed 7.6% to 22.2%; lookup JIT grew 572 B to 620 B |
 | Unconditional flat active-chunk view | `6cc65a1`; [evidence](flat-active-chunk-view.md) | TwoWhile improved 26% to 32% for 1k to 10M, but regressed 92.7% at 100/single chunk; Functor was neutral |
-| Non-inlined generated row-preparation helper | `ee92c97`; [evidence](arity-trusted-chunk-kernel.md) | Added one `blr` per chunk and grew total emitted code; Functor regressed 49% to 62%, Delegate 6% to 9% |
+| Non-inlined generated row-preparation helper | `ee92c97`; [evidence](arity-trusted-chunk-kernel.md) | Rejected; experiment branch `perf/arity-trusted-chunk-kernel` deleted. Added one `blr` per chunk and grew total emitted code; Functor regressed 49% to 62%, Delegate 6% to 9% |
 
 ## Inconclusive or superseded evidence
 
