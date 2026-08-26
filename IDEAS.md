@@ -27,6 +27,18 @@ Evidence and candidate order live in
 [docs/performance/README.md](docs/performance/README.md). Promote one candidate
 at a time with accumulator parity, JIT capture and an unchanged public API.
 
+### Prepared generated access routes
+
+Generated dense callbacks can fetch read/write access objects from routes
+prepared when the query plan is created, after `OpenDense` has established the
+query/lifetime boundary. This removes the old runtime-type resolver chain from
+the generated access path without exposing an unchecked public operation.
+
+The first implementation is recorded in
+[prepared-generated-access evidence](docs/performance/experiments/prepared-generated-access.md).
+The profiler confirms the changed call tree, but its calibration is weak and
+no paired BDN result exists yet; do not treat this as an accepted speedup.
+
 ## One-time chunk traversal selection
 
 A flat active-chunk view was substantially faster for the public two-loop path

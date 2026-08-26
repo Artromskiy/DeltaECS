@@ -185,8 +185,8 @@ public sealed class DemandDrivenForEachGeneratorTests
     {
         string generated = GeneratedText(RunGenerator());
 
-        Assert.That(generated, Does.Contain("CreateReadAccess(world, in query, typeof(T1)"));
-        Assert.That(generated, Does.Contain("CreateWriteAccess(world, in query, typeof(T2)"));
+        Assert.That(generated, Does.Contain("GetPreparedReadAccess(in query, typeof(T1)"));
+        Assert.That(generated, Does.Contain("GetPreparedWriteAccess(in query, typeof(T2)"));
         Assert.That(generated, Does.Not.Contain("AccessRead(world, in query, world.Layouts.GetPrimary"));
         Assert.That(generated, Does.Not.Contain("AccessWrite(world, in query, world.Layouts.GetPrimary"));
         Assert.That(generated, Does.Not.Contain("ResolveComponentIds"));
@@ -342,6 +342,10 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static WriteAccess CreateWriteAccess(World world, in Query query, Type runtimeType) => default;
             public static ReadAccess CreateReadAccess(World world, in Query query, ComponentId component, Type runtimeType) => default;
             public static WriteAccess CreateWriteAccess(World world, in Query query, ComponentId component, Type runtimeType) => default;
+            public static ReadAccess GetPreparedReadAccess(in Query query, Type runtimeType) => default;
+            public static WriteAccess GetPreparedWriteAccess(in Query query, Type runtimeType) => default;
+            public static ReadAccess GetPreparedReadAccess(in Query query, ComponentId component, Type runtimeType) => default;
+            public static WriteAccess GetPreparedWriteAccess(in Query query, ComponentId component, Type runtimeType) => default;
             public static int AccessRead(World world, in Query query, ComponentId component, Type runtimeType) => default;
             public static int AccessWrite(World world, in Query query, ComponentId component, Type runtimeType) => default;
             public static int AccessRead(World world, in Query query, Type runtimeType) => default;

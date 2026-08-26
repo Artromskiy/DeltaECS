@@ -40,6 +40,10 @@ internal sealed class QueryPlan
     private readonly int[] _readRoutesByComponent;
     private readonly Type?[] _readRouteTypesByComponent;
     private readonly Dictionary<Type, int> _primaryReadRoutesByType;
+    private readonly ReadAccess[] _preparedReadAccessesByComponent;
+    private readonly WriteAccess[] _preparedWriteAccessesByComponent;
+    private readonly Dictionary<Type, ReadAccess> _preparedPrimaryReadAccessesByType;
+    private readonly Dictionary<Type, WriteAccess> _preparedPrimaryWriteAccessesByType;
     private int _matchingCount;
     private bool _hasWriteAccess;
 
@@ -49,7 +53,11 @@ internal sealed class QueryPlan
         _weakReference = new WeakReference<QueryPlan>(this);
         _readRoutesByComponent = new int[world.Layouts.Count];
         _readRouteTypesByComponent = new Type?[world.Layouts.Count];
+        _preparedReadAccessesByComponent = new ReadAccess[world.Layouts.Count];
+        _preparedWriteAccessesByComponent = new WriteAccess[world.Layouts.Count];
         _primaryReadRoutesByType = new Dictionary<Type, int>(_description.AllMask.Count);
+        _preparedPrimaryReadAccessesByType = new Dictionary<Type, ReadAccess>(_description.AllMask.Count);
+        _preparedPrimaryWriteAccessesByType = new Dictionary<Type, WriteAccess>(_description.AllMask.Count);
         Array.Fill(_readRoutesByComponent, -1);
         PrepareReadRoutes(world, spec);
         for (int archetypeId = 0; archetypeId < world.Archetypes.Count; archetypeId++)
@@ -108,6 +116,46 @@ internal sealed class QueryPlan
     {
         _hasWriteAccess = true;
         return route;
+    }
+
+    internal ReadAccess GetPreparedPrimaryReadAccess(Type runtimeType)
+    {
+        if (_preparedPrimaryReadAccessesByType.TryGetValue(runtimeType, out ReadAccess access))
+        {
+            return access;
+        }
+
+        throw new ArgumentException(
+            $"The primary component for {runtimeType} is not guaranteed by the query All mask.",
+            nameof(runtimeType));
+    }
+
+    internal WriteAccess GetPreparedPrimaryWriteAccess(Type runtimeType)
+    {
+        _hasWriteAccess = true;
+        if (_preparedPrimaryWriteAccessesByType.TryGetValue(runtimeType, out WriteAccess access))
+        {
+            return access;
+        }
+
+        throw new ArgumentException(
+            $"The primary component for {runtimeType} is not guaranteed by the query All mask.",
+            nameof(runtimeType));
+    }
+
+    internal ReadAccess GetPreparedReadAccess(ComponentId component, Type runtimeType)
+    {
+        ResolveReadRoute(component);
+        ValidatePreparedRuntimeType(component, runtimeType);
+        return _preparedReadAccessesByComponent[component.Value];
+    }
+
+    internal WriteAccess GetPreparedWriteAccess(ComponentId component, Type runtimeType)
+    {
+        ResolveReadRoute(component);
+        ValidatePreparedRuntimeType(component, runtimeType);
+        _hasWriteAccess = true;
+        return _preparedWriteAccessesByComponent[component.Value];
     }
 
     internal ReadOnlySpan<int> MatchingArchetypes() => _matchingArchetypes.AsSpan(0, _matchingCount);
@@ -169,6 +217,22 @@ internal sealed class QueryPlan
         _planIndicesByArchetype = Array.Empty<int>();
         _matchingCount = 0;
         _primaryReadRoutesByType.Clear();
+        _preparedPrimaryReadAccessesByType.Clear();
+        _preparedPrimaryWriteAccessesByType.Clear();
+        Array.Clear(_preparedReadAccessesByComponent);
+        Array.Clear(_preparedWriteAccessesByComponent);
+        Array.Fill(_readRoutesByComponent, -1);
+        Array.Clear(_readRouteTypesByComponent);
+    }
+
+    private void ValidatePreparedRuntimeType(ComponentId component, Type runtimeType)
+    {
+        if (!ReferenceEquals(_readRouteTypesByComponent[component.Value], runtimeType))
+        {
+            throw new ArgumentException(
+                $"Component {component} is not registered as {runtimeType}.",
+                nameof(component));
+        }
     }
 
     private void PrepareReadRoutes(World world, QuerySpec spec)
@@ -184,6 +248,8 @@ internal sealed class QueryPlan
             }
 
             _readRoutesByComponent[component.Value] = route;
+            _preparedReadAccessesByComponent[component.Value] = new ReadAccess(this, route);
+            _preparedWriteAccessesByComponent[component.Value] = new WriteAccess(this, route);
             if (layout.RuntimeType is { } runtimeType)
             {
                 _readRouteTypesByComponent[component.Value] = runtimeType;
@@ -191,6 +257,8 @@ internal sealed class QueryPlan
                     && primary == component)
                 {
                     _primaryReadRoutesByType.Add(runtimeType, route);
+                    _preparedPrimaryReadAccessesByType.Add(runtimeType, _preparedReadAccessesByComponent[component.Value]);
+                    _preparedPrimaryWriteAccessesByType.Add(runtimeType, _preparedWriteAccessesByComponent[component.Value]);
                     PreparedPrimaryReadRouteCount++;
                 }
             }

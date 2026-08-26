@@ -228,6 +228,46 @@ public static class GeneratedForEachRuntime
         return new WriteAccess(plan, plan.UpgradeReadRouteToWrite(route));
     }
 
+    /// <summary>
+    /// Returns a cached primary read access after the generated dense scope has
+    /// validated the query. This is compiler support and must not be called
+    /// without the preceding <see cref="OpenDense"/> validation.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static ReadAccess GetPreparedReadAccess(in Query query, Type runtimeType)
+        => query.Cached.GetPreparedPrimaryReadAccess(runtimeType);
+
+    /// <summary>
+    /// Returns a cached primary write access after the generated dense scope has
+    /// validated the query. This is compiler support and must not be called
+    /// without the preceding <see cref="OpenDense"/> validation.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static WriteAccess GetPreparedWriteAccess(in Query query, Type runtimeType)
+        => query.Cached.GetPreparedPrimaryWriteAccess(runtimeType);
+
+    /// <summary>
+    /// Returns a cached explicit-component read access after dense scope
+    /// validation. The component/type contract remains checked by the plan.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static ReadAccess GetPreparedReadAccess(
+        in Query query,
+        ComponentId component,
+        Type runtimeType)
+        => query.Cached.GetPreparedReadAccess(component, runtimeType);
+
+    /// <summary>
+    /// Returns a cached explicit-component write access after dense scope
+    /// validation. The component/type contract remains checked by the plan.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static WriteAccess GetPreparedWriteAccess(
+        in Query query,
+        ComponentId component,
+        Type runtimeType)
+        => query.Cached.GetPreparedWriteAccess(component, runtimeType);
+
     public static int AccessRead(
         World world,
         in Query query,

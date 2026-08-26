@@ -854,11 +854,17 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string generic = shape.ImplicitComponents ? string.Empty : GenericTypes(shape.Components.Length);
         string ids = shape.ExplicitIds ? ComponentParameters(shape.Components.Length) : string.Empty;
         string idArguments = shape.ExplicitIds ? ComponentNames(shape.Components.Length) : PrimaryArguments(shape);
+        string closedIdArguments = shape.ExplicitIds ? ClosedComponentNames(shape.Components.Length) : string.Empty;
         string accessArguments = AccessArguments(shape.Pattern);
-        string setup = AccessSetup(shape, idArguments, closed: !shape.Sequence);
+        string setup = shape.Sequence
+            ? AccessSetup(shape, idArguments, closed: false)
+            : string.Empty;
         string name = InvokerName(shape);
         string stateGeneric = StateGeneric(shape, generic);
         string callback = ActionType(shape);
+        string componentParameters = shape.ExplicitIds
+            ? ", " + ClosedComponentParameters(shape.Components.Length)
+            : string.Empty;
         string receiver = shape.Sequence
             ? (shape.Receiver == ReceiverKind.FilteredEntitySequence ? "FilteredEntitySequence" : "EntitySequence")
             : "World";
@@ -878,7 +884,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         if (!shape.Sequence)
         {
             closedMethodName = "ExecuteClosed_" + StableName(shape.Key);
-            RenderClosedDenseMethod(source, shape, closedMethodName);
+            RenderClosedDenseMethod(source, shape, closedMethodName, closedIdArguments, componentParameters);
         }
 
         RenderExtensionMethod(
@@ -903,7 +909,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
     private static void RenderClosedDenseMethod(
         StringBuilder source,
         Shape shape,
-        string methodName)
+        string methodName,
+        string ids,
+        string componentParameters)
     {
         string generic = shape.IsFunctor || shape.ImplicitComponents ? string.Empty : GenericTypes(shape.Components.Length);
         string genericPrefix = TypeParameterList(
@@ -918,19 +926,18 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string callbackParameter = shape.IsFunctor
             ? ", ref " + shape.FunctorType + " functor"
             : ", " + ActionType(shape) + " action";
-        string accessParameters = ClosedAccessParameters(shape.Pattern);
-        string accessParameterSuffix = accessParameters.Length == 0 ? string.Empty : ", " + accessParameters;
 
         source.AppendLine("    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]");
         source.Append("    private static void ").Append(methodName).Append(genericPrefix)
             .Append("(World world, in Query query")
+            .Append(componentParameters)
             .Append(contextParameter)
             .Append(callbackParameter)
-            .Append(accessParameterSuffix)
             .AppendLine(")");
         source.AppendLine("    {");
         source.Append("        using var execution = GeneratedForEachRuntime.OpenDense(world, in query, hasWrites: ")
             .Append(BoolHasWrites(shape.Pattern)).AppendLine(");");
+        source.Append("        ").Append(AccessSetup(shape, ids, closed: true, prepared: true));
         source.AppendLine("        while (execution.MoveNext(out var slots))");
         source.AppendLine("        {");
         for (int index = 0; index < shape.Pattern.Length; index++)
@@ -1061,13 +1068,18 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         else
         {
             var closedArguments = new List<string> { "world", "in query" };
+            if (shape.ExplicitIds)
+            {
+                closedArguments.Add(ComponentNames(shape.Components.Length));
+            }
+
             if (shape.HasContext)
             {
                 closedArguments.Add("ref context");
             }
 
             closedArguments.Add(shape.IsFunctor ? "ref functor" : "action");
-            if (accesses.Length > 0)
+            if (accesses.Length > 0 && closedMethodName is null)
             {
                 closedArguments.Add(accesses.ToString());
             }
@@ -1162,7 +1174,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
     }
 
-    private static string AccessSetup(Shape shape, string ids, bool closed)
+    private static string AccessSetup(Shape shape, string ids, bool closed, bool prepared = false)
     {
         string query = string.Empty;
         if (shape.Receiver == ReceiverKind.FilteredEntitySequence)
@@ -1185,7 +1197,11 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
             result.Append("var access").Append(index).Append(" = GeneratedForEachRuntime.");
-            if (closed)
+            if (prepared)
+            {
+                result.Append("GetPrepared").Append(IsWrite(shape.Pattern[index]) ? "Write" : "Read").Append("Access");
+            }
+            else if (closed)
             {
                 result.Append("Create").Append(IsWrite(shape.Pattern[index]) ? "Write" : "Read").Append("Access");
             }
@@ -1194,7 +1210,13 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 result.Append("Access").Append(IsWrite(shape.Pattern[index]) ? "Write" : "Read");
             }
 
-            result.Append('(').Append(owner).Append(", in query, ");
+            result.Append('(');
+            if (!prepared)
+            {
+                result.Append(owner).Append(", ");
+            }
+
+            result.Append("in query, ");
             if (shape.ExplicitIds)
             {
                 result.Append(ComponentArgument(ids, index)).Append(", ");
@@ -1256,6 +1278,28 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         for (int index = 0; index < arity; index++)
         {
             result[index] = "component" + index;
+        }
+
+        return string.Join(", ", result);
+    }
+
+    private static string ClosedComponentNames(int arity)
+    {
+        var result = new string[arity];
+        for (int index = 0; index < arity; index++)
+        {
+            result[index] = "componentId" + index;
+        }
+
+        return string.Join(", ", result);
+    }
+
+    private static string ClosedComponentParameters(int arity)
+    {
+        var result = new string[arity];
+        for (int index = 0; index < arity; index++)
+        {
+            result[index] = "ComponentId componentId" + index;
         }
 
         return string.Join(", ", result);
