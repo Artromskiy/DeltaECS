@@ -61,7 +61,7 @@ on:
         default: 10
         type: number
       launch_count:
-        description: Number of isolated launches in every mode
+        description: Number of isolated launches used only in fixed mode
         required: true
         default: 1
         type: number
@@ -200,24 +200,30 @@ jobs:
           benchmark_args=(
             "$BENCHMARK_SUITE"
             --filter '*'
-            --launchCount "$LAUNCH_COUNT"
             --exporters json csv markdown github
             --artifacts artifacts/github-full
             --combined-report artifacts/github-full
           )
           case "$BENCHMARK_MODE" in
             adaptive)
-              benchmark_args+=(--job Default)
+              benchmark_args+=(
+                --job Default
+                --iterationTime 100
+              )
               ;;
             fixed)
               benchmark_args+=(
                 --job Default
+                --launchCount "$LAUNCH_COUNT"
                 --warmupCount "$WARMUP_COUNT"
                 --iterationCount "$ITERATION_COUNT"
               )
               ;;
             short)
-              benchmark_args+=(--job Short)
+              benchmark_args+=(
+                --job Short
+                --launchCount "$LAUNCH_COUNT"
+              )
               ;;
             *)
               echo "::error::Unknown benchmark mode '$BENCHMARK_MODE'."

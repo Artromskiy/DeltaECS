@@ -112,7 +112,8 @@ public class ComparativeDenseIterationBenchmarks
 [CategoriesColumn]
 [BenchmarkCategory("Iteration.Movement2Components")]
 // All backends use the same two float components, values (1, 2) and (3, 4),
-// reset before invocation, and ApplyMovement2.
+// and ApplyMovement2. State is initialized once in GlobalSetup; repeated
+// invocations intentionally preserve the same traversal and arithmetic path.
 public class ComparativeMovement2ComponentsBenchmarks
 {
     [Params(100, 1_000, 10_000, 100_000)] public int Amount { get; set; }
@@ -206,7 +207,6 @@ public class ComparativeMovement2ComponentsBenchmarks
         ResetLeoMovement();
     }
 
-    [IterationSetup(Target = nameof(DeltaECS_Movement2Components))]
     public void ResetDeltaMovement()
     {
         for (var i = 0; i < Amount; i++)
@@ -216,7 +216,6 @@ public class ComparativeMovement2ComponentsBenchmarks
         }
     }
 
-    [IterationSetup(Target = nameof(Arch_Movement2Components))]
     public void ResetArchMovement()
     {
         for (var i = 0; i < Amount; i++)
@@ -226,7 +225,6 @@ public class ComparativeMovement2ComponentsBenchmarks
         }
     }
 
-    [IterationSetup(Target = nameof(FrifloEngineECS_Movement2Components))]
     public void ResetFrifloMovement()
     {
         for (var i = 0; i < Amount; i++)
@@ -238,7 +236,6 @@ public class ComparativeMovement2ComponentsBenchmarks
         }
     }
 
-    [IterationSetup(Target = nameof(DefaultEcs_Movement2Components))]
     public void ResetDefaultMovement()
     {
         for (var i = 0; i < Amount; i++)
@@ -248,7 +245,6 @@ public class ComparativeMovement2ComponentsBenchmarks
         }
     }
 
-    [IterationSetup(Target = nameof(LeoEcsLite_Movement2Components))]
     public void ResetLeoMovement()
     {
         for (var i = 0; i < Amount; i++)
@@ -289,9 +285,9 @@ public class ComparativeMovement2ComponentsBenchmarks
 [GroupBenchmarksBy(BenchmarkDotNet.Configs.BenchmarkLogicalGroupRule.ByCategory)]
 [CategoriesColumn]
 [BenchmarkCategory("Iteration.Movement4Components")]
-// Every backend uses the same four int components, values (1, 2, 3, 4), reset
-// before its invocation, and ApplyMovement4. Only the iteration/callback path
-// differs; the kernel and checksum are intentionally shared.
+// Every backend uses the same four int components, values (1, 2, 3, 4), and
+// ApplyMovement4. State is initialized once in GlobalSetup; repeated
+// invocations intentionally preserve the same traversal and arithmetic path.
 public class ComparativeMovement4ComponentsBenchmarks
 {
     [Params(100, 1_000, 10_000, 100_000)] public int Amount { get; set; }
@@ -322,7 +318,6 @@ public class ComparativeMovement4ComponentsBenchmarks
         ResetLeoMovement4();
     }
 
-    [IterationSetup(Target = nameof(DeltaECS_Movement4Components))]
     public void ResetDeltaMovement4()
     {
         for (var i = 0; i < Amount; i++)
@@ -334,7 +329,6 @@ public class ComparativeMovement4ComponentsBenchmarks
         }
     }
 
-    [IterationSetup(Target = nameof(Arch_Movement4Components))]
     public void ResetArchMovement4()
     {
         for (var i = 0; i < Amount; i++)
@@ -346,7 +340,6 @@ public class ComparativeMovement4ComponentsBenchmarks
         }
     }
 
-    [IterationSetup(Target = nameof(FrifloEngineECS_Movement4Components))]
     public void ResetFrifloMovement4()
     {
         for (var i = 0; i < Amount; i++)
@@ -358,7 +351,6 @@ public class ComparativeMovement4ComponentsBenchmarks
         }
     }
 
-    [IterationSetup(Target = nameof(DefaultEcs_Movement4Components))]
     public void ResetDefaultMovement4()
     {
         for (var i = 0; i < Amount; i++)
@@ -370,7 +362,6 @@ public class ComparativeMovement4ComponentsBenchmarks
         }
     }
 
-    [IterationSetup(Target = nameof(LeoEcsLite_Movement4Components))]
     public void ResetLeoMovement4()
     {
         for (var i = 0; i < Amount; i++)
