@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Delta.ECS</RootNamespace>
+    <AssemblyName>DeltaECS.Profiled</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../../src/DeltaECS/**/*.cs"
+             Exclude="../../src/DeltaECS/bin/**/*.cs;../../src/DeltaECS/obj/**/*.cs" />
+    <ProjectReference Include="../../src/DeltaECS.Generators/DeltaECS.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all" />
+    <ProjectReference Include="../DeltaECS.Profiling.Runtime/DeltaECS.Profiling.Runtime.csproj" />
+    <PackageReference Include="Metalama.Framework" Version="2026.1.25" />
+  </ItemGroup>
+
+</Project>

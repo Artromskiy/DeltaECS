@@ -560,3 +560,48 @@ Expected effect: low/medium setup improvement, especially for repeated small
 queries; no change to the slot loop after the route is prepared. Risk: medium,
 because cache lifetime, world ownership and stale-token behavior must be
 specified before implementation.
+
+## Read-to-write access promotion
+
+Allow a query to prepare component access as read-only and promote selected
+routes to write access immediately before execution. The prepared read route
+already contains the expensive reusable data:
+
+```text
+ComponentId -> query ordinal -> archetype physical row
+```
+
+Promotion must reuse that route instead of repeating registry lookup, runtime
+type validation, mask membership checks or ordinal calculation:
+
+```csharp
+var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+query.PrepareRead(positionId);
+query.PrepareRead(velocityId);
+
+// A later execution needs to mutate Position.
+using var scope = world.OpenQuery(in query);
+scope.PromoteWrite(positionId);
+```
+
+Internally, the query keeps one access route per component. The execution scope
+owns a small access-mode overlay or write bitset, so promotion does not mutate
+the shared query plan and remains safe for concurrent or nested executions:
+
+```text
+prepared query route: ComponentId + query ordinal + physical rows
+execution overlay:    read/write bit per prepared route
+```
+
+Promotion is not permission bypass. At the execution boundary it must still:
+
+- verify that the route belongs to the active query and world;
+- reserve a write tick only when the query has active chunks;
+- mark the promoted component rows as written before writable refs are exposed;
+- keep write state local to that execution scope.
+
+Expected effect: lower setup overhead when the same prepared query is normally
+read-only but some executions need writes. The slot loop should remain
+unchanged; the benefit is limited to repeated cold/small query execution and
+generated setup. Risk: medium because write stamps, component-version marking,
+empty-query behavior and concurrent execution must remain exact.
