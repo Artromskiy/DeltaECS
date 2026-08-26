@@ -77,6 +77,10 @@ Do not publish a timing from a `Dry` job as a performance result. Do not compare
 different machines, power modes, runtimes or architectures as if their ratios
 were one result.
 
+The default `World` chunk capacity is 512 entities. Capacity remains an explicit
+benchmark parameter when testing a different storage layout; do not assume that
+the default is optimal for every workload.
+
 ## First micro-algorithm matrix
 
 The first implementation should create small, deterministic algorithm fixtures

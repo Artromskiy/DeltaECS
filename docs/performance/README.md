@@ -31,6 +31,10 @@ same chunk boundary and the query write session.
 valid only while the scope is active; structural mutation cannot invalidate a
 row while that lease is held.
 
+`World` uses a default chunk capacity of 512 entities. The constructor still
+accepts an explicit capacity so storage-layout experiments can compare the
+trade-off between chunk setup overhead, locality and partial-chunk waste.
+
 The generated delegate and functor surfaces enter the same type-erased plan and
 row preparation. They change callback syntax, not storage or matching.
 
@@ -54,6 +58,13 @@ throughput claim; measurements must use the benchmark protocol below.
 Check whether a visible row layout lets the AArch64 JIT form `ldp`/`stp` pairs.
 Do not infer a benefit from instruction spelling alone; compare the complete
 hot loop and measure throughput.
+
+### Generated slot-loop unrolling
+
+The partial-unroll experiment was rejected. It improved an isolated scalar
+array loop, but applying unroll×4 to the generated `World.ForEach` path grew the
+closed method from 744 B to 1016 B and regressed the 10k/100k Movement4 cases.
+See the [experiment evidence](experiments/chunk-loop-unrolling.md).
 
 ## Measurement rules
 

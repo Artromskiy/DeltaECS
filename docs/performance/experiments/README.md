@@ -45,6 +45,7 @@ linked focused report.
 | `Memory<T>`/`MemoryManager<T>` ownership wrapper for ECS storage | `443635b` and follow-ups | More indirection and code than the retained owner-controlled storage |
 | Native query-plan/row-index storage | `8472f0a` and follow-ups | Larger JIT and ownership complexity without a reliable end-to-end win |
 | Native AoS `NativePlanEntry` buffer | Historical query-plan experiment | Benchmark difference overlapped error/deviation; experiment cancelled |
+| Generated slot-loop unroll×4 | [chunk-loop-unrolling evidence](chunk-loop-unrolling.md) | Isolated scalar loop improved 15.8%, but generated Movement4 JIT grew 36.6% (`744 B` to `1016 B`) and the 10k/100k real `ForEach` cases regressed |
 | Function pointer in place of entity callback | Historical callback experiment | Indirect call remained and JIT could not inline the callback body |
 | Delegate wrapped in a generic struct adapter | Historical callback JIT experiment | Delegate invocation still produced an indirect call; wrapper did not create a direct inlineable lambda body |
 | Singleton destroy through chunk kernel | [destroy evidence](../destroy-kernels-v1.md) | Slower/noisy than direct atomic destroy |

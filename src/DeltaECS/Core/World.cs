@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 
 public sealed partial class World : IDisposable
 {
-    private const int DefaultChunkCapacity = 1024;
+    private const int DefaultChunkCapacity = 512;
     private const int DefaultInitialCapacity = 1024;
 
     private readonly ComponentLayoutRegistry _layouts;

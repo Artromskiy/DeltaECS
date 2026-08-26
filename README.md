@@ -32,6 +32,8 @@ demand-driven component callback generation.
   checked capacity is an implementation-limit error; widening is not promised
   as ABI-compatible.
 - Chunks store one typed CLR array per component in `Array[]` SoA rows.
+- The default chunk capacity is 512 entities; callers may provide another
+  positive capacity to `World` when the workload requires it.
 - Different component IDs may use the same CLR type and retain separate rows.
 - Value, reference and structs-with-reference components share one row model.
 
