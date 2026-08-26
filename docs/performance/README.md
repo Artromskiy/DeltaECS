@@ -36,7 +36,9 @@ accepts an explicit capacity so storage-layout experiments can compare the
 trade-off between chunk setup overhead, locality and partial-chunk waste.
 
 The generated delegate and functor surfaces enter the same type-erased plan and
-row preparation. They change callback syntax, not storage or matching.
+row preparation. Generated callbacks use prepared routes and a trusted advance
+after the execution boundary has validated the query lifetime. They change
+callback syntax, not storage or public safety guarantees.
 
 ## Accepted internal improvements
 

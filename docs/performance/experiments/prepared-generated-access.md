@@ -2,18 +2,23 @@
 
 ## Candidate
 
-`perf/prepared-generated-access` moves dense generated callback access setup
-after the validated `OpenDense` boundary and returns read/write access objects
-from query-plan caches. The public generated callback shape is unchanged.
+Commits `c6b819a..138cbd9` move dense generated callback access setup after the
+validated `OpenDense` boundary and return read/write access objects from
+query-plan caches. The public generated callback shape is unchanged. The
+implementation is now merged into `main`.
 
 The generated dense path now has this shape:
 
 ```text
 OpenDense
 GetPreparedReadAccess / GetPreparedWriteAccess
-MoveNext(out slots)
+MoveNextTrusted(out slots)
 generated row access and callback
 ```
+
+The generated callback uses `MoveNextTrusted(out slots)` after `OpenDense` has
+established the lifetime boundary; the checked `MoveNext` remains available to
+other callers.
 
 The prepared access objects retain the existing query-plan ownership and route
 checks. This is not a new public trusted escape hatch.
@@ -73,6 +78,27 @@ old `Create*Access` path, but they are still setup calls at the execution
 boundary. The slot loop itself is not represented by a separately named
 profiled method in this report.
 
+## Paired BDN comparison
+
+The adaptive `VersionMovement4Benchmarks` run used the default BenchmarkDotNet
+job on an Apple M4 Pro, .NET 10.0.9, Arm64 RyuJIT and workstation GC. The class
+also contains 1k, 10k and 100k parameters; the table below isolates the
+requested 100-entity row from the eight completed cases.
+
+| Version | Mean | Error | StdDev | Allocated |
+| --- | ---: | ---: | ---: | ---: |
+| `main` | 111.5 ns | ±0.60 ns | 0.56 ns | 0 B |
+| merged candidate | 112.8 ns | ±0.43 ns | 0.40 ns | 0 B |
+
+The candidate is `+1.17%` (`+1.3 ns`) in this run. The result is accepted as a
+small change within the requested tolerance, not as a throughput improvement.
+The benchmark uses the existing three-loop `BeginScope` path, so it does not
+isolate the generated `MoveNextTrusted` loop; it is a regression check for the
+shared runtime path rather than direct proof of a generated-path speedup.
+
+The raw BDN output was generated under the removed experiment worktree and is
+not tracked; the durable result is recorded above and in the ledger.
+
 ## Baseline comparison
 
 The previous main hot-cache profile was:
@@ -89,7 +115,8 @@ speedup comparison.
 
 ## Decision
 
-**Inconclusive pending BDN.** The candidate removes repeated resolver work from
-the generated access path and preserves the validation boundary, but the
-profile does not establish a throughput improvement. A paired Release BDN run
-with the same workload and checksum is required before merging this branch.
+**Merged into `main`.** The change removes repeated resolver descendants from
+the generated access path, keeps validation at the scope boundary and avoids
+the terminal-state write on the false path. The available BDN result does not
+claim a direct generated-loop speedup because its workload exercises the
+three-loop path.

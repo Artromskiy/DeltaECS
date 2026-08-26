@@ -26,6 +26,7 @@ linked focused report.
 | Generated callbacks | Inline generated invokers and reserve one write tick per execution | `53f3122`, `f29ed8a` | Removed repeated driver work; retained |
 | Generated rows | Trusted generated query slots/row preparation | `0ce7a95`, `022a1f5` | Retained after Movement4 comparison |
 | Query access setup | Prebuild `ComponentId -> ordinal/type` read routes and promote the validated route to write | `e9ccffe`, `fb6c8d0` | Movement4 delegate: about 15% faster at 100 entities, about 2% at 1k/10k, neutral at large sizes; affected helper JIT 1584 B to 888 B |
+| Prepared generated access and trusted advance | Prepare generated read/write routes at the validated execution boundary and use the trusted advance in generated callbacks | `c6b819a`, `138cbd9`; [evidence](prepared-generated-access.md) | Merged into `main`; 100-entity adaptive Movement4 was 111.5 ±0.60 ns on main versus 112.8 ±0.43 ns on the candidate (+1.17%). The benchmark exercises the shared three-loop path, so it is not a direct `MoveNextTrusted` throughput claim |
 | Structural create | Batched entity creation kernel | `7540054` | Retained measured structural improvement |
 | Structural destroy | Ordered/list destroy kernels with whole-chunk path | `c63b492`, `addc9b4`; [destroy evidence](../destroy-kernels-v1.md) | 49% to 91% faster for measured batches of 8 to 4096 |
 | Dense sweep | Combined L0-L3 internal cleanup | `9b0f42e`, `c9fac9a`, `92ac844`; [sweep summary](../l0-l3-sweep.md) | ARM64 JIT block 1408 B to 1084 B; throughput mostly neutral, retained for simpler generated code |
@@ -65,7 +66,6 @@ linked focused report.
 | Large native ECS buffer storage | `bc62b9f`, `d03fa85` | Some benchmark signals improved while generated code grew; retained source later evolved, so old isolated ratios are not current claims |
 | Split generated read/write drivers | `4a8db12`; [evidence](perf-split-generated-read-write-drivers.md) | Write guardrail removed one branch/compare and 8 B; Functor improved 1.57% at 100, all other tested write cases were neutral. Direct component-bearing read-only evidence is still missing |
 | Metalama layer-major chunking | `8040b2e`; [chunked experiment](../../../tools/DeltaECS.LayeredPipeline/README.md) | Promising cache signal, but the measurement used separate flat and chunked runs and the tile changes execution order across entities; not an ECS runtime decision yet |
-| Prepared generated access routes | `c6b819a`; [profile evidence](prepared-generated-access.md) | The generated tree no longer contains the old runtime-type resolver descendants, but calibration R² was `0.6545` and no paired BDN result exists; keep as an experiment until throughput is measured |
 
 ## Validated candidates awaiting a decision
 
