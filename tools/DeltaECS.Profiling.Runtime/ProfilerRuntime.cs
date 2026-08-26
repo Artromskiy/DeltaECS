@@ -6,6 +6,8 @@ namespace DeltaECS.Profiling;
 /// <summary>Process-local entry point used by Metalama-instrumented methods.</summary>
 public static class ProfilerRuntime
 {
+    private const int InitialMetadataCapacity = 2_048;
+
     [ThreadStatic]
     private static CallProfiler? s_current;
 
@@ -37,34 +39,6 @@ public static class ProfilerRuntime
         return profiler;
     }
 
-    /// <summary>Stops collection and writes a Markdown report.</summary>
-    public static void Stop(TextWriter writer)
-        => Stop(writer, methodNames: null);
-
-    /// <summary>Stops collection and resolves method names after profiling.</summary>
-    public static void Stop(TextWriter writer, IReadOnlyDictionary<int, string>? methodNames)
-    {
-        ArgumentNullException.ThrowIfNull(writer);
-        CallProfiler? profiler = Detach();
-        profiler?.WriteMarkdown(writer, methodNames);
-    }
-
-    /// <summary>Stops collection and writes a Markdown report to a file.</summary>
-    public static void StopToFile(string path)
-    {
-        ArgumentNullException.ThrowIfNull(path);
-        string fullPath = Path.GetFullPath(path);
-        string? directory = Path.GetDirectoryName(fullPath);
-        if (directory is not null)
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        using var writer = new StreamWriter(fullPath);
-        CallProfiler? profiler = Detach();
-        profiler?.WriteMarkdown(writer);
-    }
-
     /// <summary>Marks an instrumented method entry. Called only from woven IL.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void Enter(int methodId)
@@ -83,7 +57,7 @@ public static class ProfilerRuntime
     public static Dictionary<int, string> LoadMethodNames(Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);
-        var result = new Dictionary<int, string>();
+        var result = new Dictionary<int, string>(InitialMetadataCapacity);
         foreach (Type type in assembly.GetTypes())
         {
             foreach (MethodInfo method in type.GetMethods(
@@ -110,7 +84,6 @@ public static class ProfilerRuntime
 
         return result;
     }
-
 }
 
 /// <summary>Compile-time method identity emitted by the profiling-only Metalama build.</summary>

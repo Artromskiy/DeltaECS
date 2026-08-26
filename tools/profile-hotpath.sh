@@ -5,12 +5,16 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT="$SCRIPT_DIR/DeltaECS.Profiling/DeltaECS.Profiling.csproj"
 MOVEMENT4_ARGUMENT="--movement4"
 
-profile_properties=()
+enable_ecs_profiling=false
 for argument in "$@"; do
   if [[ "$argument" == "$MOVEMENT4_ARGUMENT" ]]; then
-    profile_properties+=("-p:EnableEcsProfiling=true")
+    enable_ecs_profiling=true
     break
   fi
 done
 
-exec dotnet run --project "$PROJECT" -c Release "${profile_properties[@]}" -- "$@"
+if [[ "$enable_ecs_profiling" == true ]]; then
+  exec dotnet run --project "$PROJECT" -c Release -p:EnableEcsProfiling=true -- "$@"
+fi
+
+exec dotnet run --project "$PROJECT" -c Release -- "$@"

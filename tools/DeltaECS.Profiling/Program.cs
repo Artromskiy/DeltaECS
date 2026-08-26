@@ -171,32 +171,37 @@ static void MergeMethodNames(Dictionary<int, string> target, IReadOnlyDictionary
 
 static long RunSmoke(ProfileCommandLine options, TextWriter report)
 {
-    var profiler = new CallProfiler(options.Depth, options.SampleCapacity);
-    int runWorkload = profiler.RegisterMethod(nameof(RunWorkload));
-    int workItem = profiler.RegisterMethod(nameof(WorkItem));
-    int leaf = profiler.RegisterMethod(nameof(Leaf));
-    for (int warmup = 0; warmup < options.Warmups; warmup++)
+    const int runWorkload = 1;
+    const int workItem = 2;
+    const int leaf = 3;
+    var methodNames = new Dictionary<int, string>
     {
-        _ = RunWorkload(
-            profiler,
-            runWorkload,
-            workItem,
-            leaf);
-        profiler.ResetMeasurements();
-    }
-
-    long checksum = 0;
-    for (int launch = 0; launch < options.Launches; launch++)
+        [runWorkload] = nameof(RunWorkload),
+        [workItem] = nameof(WorkItem),
+        [leaf] = nameof(Leaf)
+    };
+    CallProfiler profiler = ProfilerRuntime.Start(options.Depth, options.SampleCapacity);
+    try
     {
-        checksum = unchecked(checksum + RunWorkload(
-            profiler,
-            runWorkload,
-            workItem,
-            leaf));
-    }
+        for (int warmup = 0; warmup < options.Warmups; warmup++)
+        {
+            _ = RunWorkload(runWorkload, workItem, leaf);
+            profiler.ResetMeasurements();
+        }
 
-    profiler.WriteReport(report, methodNames: null, calibration: null, options.Report);
-    return checksum;
+        long checksum = 0;
+        for (int launch = 0; launch < options.Launches; launch++)
+        {
+            checksum = unchecked(checksum + RunWorkload(runWorkload, workItem, leaf));
+        }
+
+        profiler.WriteReport(report, methodNames, calibration: null, options.Report);
+        return checksum;
+    }
+    finally
+    {
+        _ = ProfilerRuntime.Detach();
+    }
 }
 
 static void WriteOutput(ProfileCommandLine options, string report, long checksum)
@@ -228,20 +233,41 @@ static void WriteOutput(ProfileCommandLine options, string report, long checksum
     }
 }
 
-static int RunWorkload(CallProfiler profiler, int methodId, int workItemId, int leafId)
+static int RunWorkload(int methodId, int workItemId, int leafId)
 {
-    using var scope = profiler.Enter(methodId);
-    return WorkItem(profiler, 0, workItemId, leafId);
+    ProfilerRuntime.Enter(methodId);
+    try
+    {
+        return WorkItem(0, workItemId, leafId);
+    }
+    finally
+    {
+        ProfilerRuntime.Leave(methodId);
+    }
 }
 
-static int WorkItem(CallProfiler profiler, int value, int methodId, int leafId)
+static int WorkItem(int value, int methodId, int leafId)
 {
-    using var scope = profiler.Enter(methodId);
-    return Leaf(profiler, value, leafId) + Leaf(profiler, value + 1, leafId);
+    ProfilerRuntime.Enter(methodId);
+    try
+    {
+        return Leaf(value, leafId) + Leaf(value + 1, leafId);
+    }
+    finally
+    {
+        ProfilerRuntime.Leave(methodId);
+    }
 }
 
-static int Leaf(CallProfiler profiler, int value, int methodId)
+static int Leaf(int value, int methodId)
 {
-    using var scope = profiler.Enter(methodId);
-    return (value * 17) ^ (value >> 3);
+    ProfilerRuntime.Enter(methodId);
+    try
+    {
+        return (value * 17) ^ (value >> 3);
+    }
+    finally
+    {
+        ProfilerRuntime.Leave(methodId);
+    }
 }

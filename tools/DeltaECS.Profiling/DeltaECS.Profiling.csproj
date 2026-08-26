@@ -9,7 +9,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="CallProfiler.cs" />
     <ProjectReference Include="../DeltaECS.Profiling.Runtime/DeltaECS.Profiling.Runtime.csproj" />
     <PackageReference Include="Metalama.Framework" Version="2026.1.25" />
   </ItemGroup>

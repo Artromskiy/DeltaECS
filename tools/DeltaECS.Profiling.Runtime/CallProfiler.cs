@@ -4,15 +4,11 @@ using System.Runtime.CompilerServices;
 
 namespace DeltaECS.Profiling;
 
-/// <summary>Collects inclusive, self and child time for explicitly instrumented calls.</summary>
+/// <summary>Collects numeric method-entry samples emitted by profiling instrumentation.</summary>
 public sealed class CallProfiler
 {
-    private const int InitialMethodCapacity = 256;
     private const int DefaultSampleCapacity = 1_048_576;
 
-    private readonly Dictionary<string, int> _methodIndices = new(InitialMethodCapacity, StringComparer.Ordinal);
-    private readonly Dictionary<int, int> _instrumentedMethodIndices = new(InitialMethodCapacity);
-    private readonly List<MethodStats> _methods = new(InitialMethodCapacity);
     private readonly Sample[] _samples;
     private readonly Frame[] _frames;
     private readonly int _maxDepth;
@@ -49,40 +45,6 @@ public sealed class CallProfiler
         _sampleCount = 0;
         _droppedSamples = 0;
         _nextInvocationId = 0;
-        foreach (MethodStats method in _methods)
-        {
-            method.Calls = 0;
-            method.InclusiveTicks = 0;
-            method.SelfTicks = 0;
-        }
-    }
-
-    /// <summary>Registers a method name before the profiled workload starts.</summary>
-    public int RegisterMethod(string method)
-    {
-        ArgumentNullException.ThrowIfNull(method);
-        if (_methodIndices.TryGetValue(method, out int existingIndex))
-        {
-            return existingIndex;
-        }
-
-        int methodIndex = _methods.Count;
-        _methodIndices.Add(method, methodIndex);
-        _methods.Add(new MethodStats(method));
-        return methodIndex;
-    }
-
-    /// <summary>Starts profiling a registered method. Scopes must be disposed in LIFO order.</summary>
-    public ProfileScope Enter(int methodIndex)
-    {
-        EnsureThread();
-        if (_depth >= _maxDepth)
-        {
-            return default;
-        }
-
-        _frames[_depth] = new Frame(methodIndex, Stopwatch.GetTimestamp());
-        return new ProfileScope(this, _depth++);
     }
 
     /// <summary>Returns a stable snapshot sorted by inclusive time descending.</summary>
@@ -93,34 +55,19 @@ public sealed class CallProfiler
     {
         Dictionary<int, Aggregate> aggregates = BuildAggregates();
 
-        var result = new ProfileMethod[_methods.Count];
-        for (int index = 0; index < _methods.Count; index++)
+        var result = new ProfileMethod[aggregates.Count];
+        int index = 0;
+        foreach ((int methodId, Aggregate aggregate) in aggregates)
         {
-            MethodStats stats = _methods[index];
-            long calls = stats.Calls;
-            long inclusiveTicks = stats.InclusiveTicks;
-            long selfTicks = stats.SelfTicks;
-            long descendants = 0;
-            long directChildren = 0;
+            double overheadTicks = calibration?.TimestampTicksPerProbe * aggregate.DescendantCalls ?? 0;
+            double selfOverheadTicks = calibration?.TimestampTicksPerProbe * aggregate.DirectChildCalls ?? 0;
 
-            if (stats.MethodId >= 0 && aggregates.TryGetValue(stats.MethodId, out Aggregate aggregate))
-            {
-                calls += aggregate.Calls;
-                inclusiveTicks += aggregate.InclusiveTicks;
-                selfTicks += aggregate.SelfTicks;
-                descendants = aggregate.DescendantCalls;
-                directChildren = aggregate.DirectChildCalls;
-            }
-
-            double overheadTicks = calibration?.TimestampTicksPerProbe * descendants ?? 0;
-            double selfOverheadTicks = calibration?.TimestampTicksPerProbe * directChildren ?? 0;
-
-            result[index] = new ProfileMethod(
-                ResolveMethodName(stats, methodNames),
-                stats.MethodId,
-                (int)calls,
-                ToTimeSpan(inclusiveTicks),
-                ToTimeSpan(selfTicks),
+            result[index++] = new ProfileMethod(
+                ResolveMethodName(methodId, methodNames),
+                methodId,
+                aggregate.Calls,
+                ToTimeSpan(aggregate.InclusiveTicks),
+                ToTimeSpan(aggregate.SelfTicks),
                 ToTimeSpan(overheadTicks),
                 ToTimeSpan(selfOverheadTicks));
         }
@@ -128,13 +75,6 @@ public sealed class CallProfiler
         Array.Sort(result, (left, right) => CompareMethods(left, right, sort));
         return result;
     }
-
-    /// <summary>Writes a compact Markdown report with self and child time separated.</summary>
-    public void WriteMarkdown(
-        TextWriter writer,
-        IReadOnlyDictionary<int, string>? methodNames = null,
-        ProfilerOverheadCalibration? calibration = null)
-        => WriteReport(writer, methodNames, calibration, ProfileReportOptions.Default);
 
     /// <summary>Writes a configurable profiling report.</summary>
     public void WriteReport(
@@ -569,7 +509,7 @@ public sealed class CallProfiler
 
     private Dictionary<int, Aggregate> BuildAggregates()
     {
-        var aggregates = new Dictionary<int, Aggregate>(_methods.Count);
+        var aggregates = new Dictionary<int, Aggregate>(Math.Min(_sampleCount, 256));
         for (int index = 0; index < _sampleCount; index++)
         {
             Sample sample = _samples[index];
@@ -634,19 +574,12 @@ public sealed class CallProfiler
         return parentSampleIndex < 0 ? NoParent : _samples[parentSampleIndex].MethodId;
     }
 
-    private string ResolveMethodName(
+    private static string ResolveMethodName(
         int methodId,
         IReadOnlyDictionary<int, string>? methodNames)
-    {
-        if (_instrumentedMethodIndices.TryGetValue(methodId, out int methodIndex))
-        {
-            return ResolveMethodName(_methods[methodIndex], methodNames);
-        }
-
-        return methodNames is not null && methodNames.TryGetValue(methodId, out string? name)
+        => methodNames is not null && methodNames.TryGetValue(methodId, out string? name)
             ? name
             : $"Method#{methodId}";
-    }
 
     private static int CompareMethods(
         ProfileMethod left,
@@ -660,41 +593,25 @@ public sealed class CallProfiler
             _ => right.RawInclusive.CompareTo(left.RawInclusive)
         };
 
-    internal void Exit(int frameIndex)
+    private void ExitCurrentMethod()
     {
-        EnsureThread();
-        if (_depth == 0 || frameIndex != _depth - 1)
-        {
-            ThrowInvalidScopeOrder();
-        }
-
-        ref Frame frame = ref _frames[frameIndex];
+        ref Frame frame = ref _frames[_depth - 1];
         long inclusiveTicks = Stopwatch.GetTimestamp() - frame.StartTimestamp;
         long selfTicks = inclusiveTicks - frame.ChildTicks;
 
-        if (frame.MethodId == -1)
+        if (_sampleCount < _samples.Length)
         {
-            MethodStats stats = _methods[frame.MethodIndex];
-            stats.Calls++;
-            stats.InclusiveTicks += inclusiveTicks;
-            stats.SelfTicks += selfTicks;
+            _samples[_sampleCount++] = new Sample(
+                frame.MethodId,
+                frame.InvocationId,
+                frame.ParentInvocationId,
+                frame.StartTimestamp,
+                frame.StartTimestamp + inclusiveTicks,
+                selfTicks);
         }
         else
         {
-            if (_sampleCount < _samples.Length)
-            {
-                _samples[_sampleCount++] = new Sample(
-                    frame.MethodId,
-                    frame.InvocationId,
-                    frame.ParentInvocationId,
-                    frame.StartTimestamp,
-                    frame.StartTimestamp + inclusiveTicks,
-                    selfTicks);
-            }
-            else
-            {
-                _droppedSamples++;
-            }
+            _droppedSamples++;
         }
 
         _depth--;
@@ -713,13 +630,11 @@ public sealed class CallProfiler
             return;
         }
 
-        int methodIndex = GetMethodIndex(methodId);
         int parentInvocationId = _depth == 0
             ? NoInvocation
             : _frames[_depth - 1].InvocationId;
         int invocationId = ++_nextInvocationId;
         _frames[_depth] = new Frame(
-            methodIndex,
             Stopwatch.GetTimestamp(),
             methodId,
             invocationId,
@@ -741,38 +656,7 @@ public sealed class CallProfiler
             ThrowInvalidInstrumentedExit();
         }
 
-        Exit(_depth - 1);
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private int GetMethodIndex(int methodId)
-    {
-        if (_instrumentedMethodIndices.TryGetValue(methodId, out int index))
-        {
-            return index;
-        }
-
-        index = _methods.Count;
-        _instrumentedMethodIndices.Add(methodId, index);
-        _methods.Add(new MethodStats(methodId));
-        return index;
-    }
-
-    private static string ResolveMethodName(
-        MethodStats stats,
-        IReadOnlyDictionary<int, string>? methodNames)
-    {
-        if (stats.Name is not null)
-        {
-            return stats.Name;
-        }
-
-        if (methodNames is not null && methodNames.TryGetValue(stats.MethodId, out string? name))
-        {
-            return name;
-        }
-
-        return $"Method#{stats.MethodId}";
+        ExitCurrentMethod();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -793,12 +677,6 @@ public sealed class CallProfiler
     private void InitializeOwnerThread(int threadId)
     {
         _ownerThreadId = threadId;
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowInvalidScopeOrder()
-    {
-        throw new InvalidOperationException("Profile scopes must be disposed in reverse order.");
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -886,33 +764,14 @@ public sealed class CallProfiler
             : (count / 1_000_000_000d).ToString("F1", CultureInfo.InvariantCulture) + "B";
     }
 
-    public readonly struct ProfileScope : IDisposable
-    {
-        private readonly CallProfiler? _profiler;
-        private readonly int _frameIndex;
-
-        internal ProfileScope(CallProfiler? profiler, int frameIndex)
-        {
-            _profiler = profiler;
-            _frameIndex = frameIndex;
-        }
-
-        public void Dispose()
-        {
-            _profiler?.Exit(_frameIndex);
-        }
-    }
-
     private struct Frame
     {
         internal Frame(
-            int methodIndex,
             long startTimestamp,
-            int methodId = -1,
-            int invocationId = NoInvocation,
-            int parentInvocationId = NoInvocation)
+            int methodId,
+            int invocationId,
+            int parentInvocationId)
         {
-            MethodIndex = methodIndex;
             StartTimestamp = startTimestamp;
             MethodId = methodId;
             InvocationId = invocationId;
@@ -920,32 +779,11 @@ public sealed class CallProfiler
             ChildTicks = 0;
         }
 
-        internal readonly int MethodIndex;
         internal readonly long StartTimestamp;
         internal readonly int MethodId;
         internal readonly int InvocationId;
         internal readonly int ParentInvocationId;
         internal long ChildTicks;
-    }
-
-    private sealed class MethodStats
-    {
-        internal MethodStats(string name)
-        {
-            MethodId = -1;
-            Name = name;
-        }
-
-        internal MethodStats(int methodId)
-        {
-            MethodId = methodId;
-        }
-
-        internal readonly int MethodId;
-        internal readonly string? Name;
-        internal int Calls;
-        internal long InclusiveTicks;
-        internal long SelfTicks;
     }
 
     private readonly struct Sample
@@ -996,37 +834,4 @@ public sealed class CallProfiler
         internal long DirectChildCalls;
         internal long DescendantCalls;
     }
-}
-
-/// <summary>Immutable aggregate for one instrumented method.</summary>
-public readonly record struct ProfileMethod(
-    string Name,
-    int MethodId,
-    int Calls,
-    TimeSpan RawInclusive,
-    TimeSpan RawSelf,
-    TimeSpan Overhead,
-    TimeSpan SelfOverhead)
-{
-    public TimeSpan AdjustedInclusive => Clamp(RawInclusive - Overhead);
-
-    public TimeSpan AdjustedSelf => Clamp(RawSelf - SelfOverhead);
-
-    public TimeSpan AdjustedInner => Clamp(AdjustedInclusive - AdjustedSelf);
-
-    private static TimeSpan Clamp(TimeSpan value) => value < TimeSpan.Zero ? TimeSpan.Zero : value;
-}
-
-/// <summary>Measured cost model for one active profiler sample.</summary>
-public readonly record struct ProfilerOverheadCalibration(
-    double TimestampTicksPerProbe,
-    int MaximumDepth,
-    int WarmupRuns,
-    int MeasurementRuns,
-    int PathIterations,
-    double RSquared,
-    double MinimumRSquared)
-{
-    public double NanosecondsPerProbe
-        => TimestampTicksPerProbe * 1_000_000_000d / Stopwatch.Frequency;
 }

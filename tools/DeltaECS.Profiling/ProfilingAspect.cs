@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Metalama.Framework.Aspects;
 
 namespace DeltaECS.Profiling;
@@ -8,6 +9,10 @@ internal sealed class ProfileMethodAttribute : OverrideMethodAspect
 {
     private readonly int _methodId;
 
+    [SuppressMessage(
+        "Design",
+        "CA1019:Define accessors for attribute arguments",
+        Justification = "The method ID is consumed only by the compile-time Metalama template.")]
     public ProfileMethodAttribute(int methodId)
     {
         _methodId = methodId;

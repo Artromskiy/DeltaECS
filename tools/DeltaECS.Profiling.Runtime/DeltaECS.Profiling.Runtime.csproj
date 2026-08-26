@@ -7,8 +7,4 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
-  <ItemGroup>
-    <Compile Include="../DeltaECS.Profiling/CallProfiler.cs" Link="CallProfiler.cs" />
-  </ItemGroup>
-
 </Project>

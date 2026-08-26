@@ -25,7 +25,7 @@ internal static class Movement4DelegateProfile
         ComponentId[] components = [aId, bId, cId, dId];
         var entities = new Entity[EntityCount];
 
-        var world = new World(layouts, EntityCount, chunkCapacity: 1024);
+        using var world = new World(layouts, EntityCount, chunkCapacity: 1024);
         world.Create(components, entities);
         for (int index = 0; index < entities.Length; index++)
         {
@@ -49,7 +49,6 @@ internal static class Movement4DelegateProfile
                 s_checksum += a.Value + b.Value + c.Value + d.Value;
             });
 
-        world.Dispose();
         return s_checksum;
     }
 

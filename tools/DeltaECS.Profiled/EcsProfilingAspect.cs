@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Metalama.Framework.Aspects;
 using Metalama.Framework.Code;
 using Metalama.Framework.Code.DeclarationBuilders;
@@ -8,6 +9,10 @@ namespace DeltaECS.Profiled;
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class EcsProfileMethodAttribute : OverrideMethodAspect
 {
+    [SuppressMessage(
+        "Design",
+        "CA1062:Validate arguments of public methods",
+        Justification = "Metalama supplies a non-null compile-time aspect builder.")]
     public override void BuildAspect(IAspectBuilder<IMethod> builder)
     {
         string methodName = builder.Target.ToDisplayString();
@@ -53,6 +58,10 @@ public sealed class EcsProfileMethodAttribute : OverrideMethodAspect
 
 public sealed class EcsProfilingFabric : ProjectFabric
 {
+    [SuppressMessage(
+        "Design",
+        "CA1062:Validate arguments of public methods",
+        Justification = "Metalama supplies a non-null compile-time project amender.")]
     public override void AmendProject(IProjectAmender amender)
     {
         amender

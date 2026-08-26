@@ -1,6 +1,6 @@
-# DeltaECS profiling-only build
+# DeltaECS call profiler
 
-This tool produces a bounded single-threaded call profile for an ECS workload.
+This tool produces a bounded single-threaded call tree for an ECS workload.
 The production `src/DeltaECS` project has no profiling dependency. Instead,
 `tools/DeltaECS.Profiled` compiles the ECS sources into a separate assembly and
 uses Metalama to inject `ProfilerRuntime.Enter(int)` and
@@ -10,14 +10,53 @@ invokers and callback boundaries emit the same numeric probes when the separate
 profiling runtime is present. Normal DeltaECS builds emit none of these probes.
 
 The measured path contains only numeric method IDs, timestamps, primitive
-samples, and preallocated buffers. Metalama also emits a metadata attribute
+samples, and preallocated arrays. It performs no string formatting, reflection,
+aggregation or dictionary lookup while collection is active. Metalama emits a metadata attribute
 containing each ID and method signature. Reflection reads those attributes
 after collection, so method-name strings and dictionaries never enter the hot
 path. Mono.Cecil is not used.
 
+## Quick start
+
+Run from the repository root:
+
+```bash
+tools/profile-hotpath.sh \
+  --movement4 \
+  --depth 16 \
+  --warmups 2 \
+  --correction optional \
+  --sort adjusted \
+  --destination file \
+  --output artifacts/profiling/movement4.txt
+```
+
+The script automatically builds the profiling-only ECS assembly. It does not
+modify or instrument the production `DeltaECS.dll`.
+
+## Architecture
+
+| Project/file | Responsibility |
+|:--|:--|
+| `DeltaECS.Profiled` | Recompiles ECS sources and applies the Metalama fabric to eligible `Delta.ECS` methods. |
+| `DeltaECS.Profiling.Runtime` | Owns the thread-local runtime, preallocated collector and report model. |
+| `DeltaECS.Profiling` | Selects probes, calibrates overhead, resolves method names and writes reports. |
+| `DemandDrivenForEachGenerator` | Emits numeric probes for generated extension, invoker and callback boundaries only when the profiling runtime is referenced. |
+| `profile-hotpath.sh` | Selects the profiled build for `--movement4` and forwards all CLI arguments. |
+
+Collection follows one path:
+
+```text
+Metalama/generated Enter(methodId)
+    -> timestamp + stack frame
+    -> original method
+    -> timestamp + primitive sample
+    -> post-run name resolution, aggregation, correction and rendering
+```
+
 ## Movement4 profile
 
-From the repository root:
+Full explicit example:
 
 ```bash
 tools/profile-hotpath.sh \
@@ -58,7 +97,7 @@ The report contains:
 Before the measured workload, the tool warms one deterministic nested path and
 runs it with collection depths `0..N`. Depth zero executes the same injected
 entry/exit calls with no active collector. For every other depth, the profiler
-retains warmed method routing and buffers while measurement samples are reset.
+retains its preallocated buffers while measurement samples are reset.
 
 The median elapsed time at each depth is compared against the number of active
 samples. A Theil-Sen median slope estimates timestamp ticks per active probe;
@@ -105,6 +144,12 @@ Argument names are centralized in `ProfileArgumentNames`.
 | `--sort` | `raw`, `adjusted`, `self`, `calls` | Sibling ordering in the tree and flat-table ordering. |
 | `--destination` | `console`, `file`, `both` | Report destination. |
 | `--output` | path | Required by `file` and `both`. |
+| `--help` | flag | Print the CLI contract without running a probe. |
+
+Defaults are smoke probe, depth 16, no warmups, 1,048,576 samples, text output
+sorted by adjusted time, and console output unless `--output` is supplied.
+Movement4 enables optional correction by default and chooses its launch count
+automatically from one pilot run and the sample capacity.
 
 ## Depth and buffer limits
 
@@ -113,15 +158,65 @@ still execute the small suppressed-depth path so exits remain balanced. The
 report shows captured and dropped sample counts; a result with dropped samples
 must not be used for correction.
 
-The collector is single-threaded. Parallel workloads require one profiler per
-thread and post-run report merging.
+The collector is deliberately single-threaded. Attaching one collector from a
+second thread is rejected; parallel workloads require independent collectors
+and a future post-run merge step.
 
 ## Smoke profile
 
-Without `--movement4`, the executable runs a small manual profiler smoke test:
+Without `--movement4`, the executable runs a small numeric-probe smoke test:
 
 ```bash
 tools/profile-hotpath.sh --depth 16
 ```
 
-This checks sample collection only and is not an ECS performance measurement.
+This checks balanced entry/exit collection and report generation only. It is
+not an ECS performance measurement and does not build `DeltaECS.Profiled`.
+
+## Adding or changing a probe
+
+Keep workload configuration in the probe type rather than adding entity-count
+or iteration arguments to the generic runner. A probe root must be one method
+whose body contains the complete path to inspect:
+
+```csharp
+[ProfileMethod(0)]
+internal static long Run()
+{
+    // Setup, execution and teardown belong here when the full path is desired.
+}
+```
+
+Then add a `ProfileProbe` value, its command-line flag in
+`ProfileArgumentNames`, and one dispatch case in `Program.cs`. Do not add
+manual scopes inside ECS methods: the profiling-only assembly and source
+generator own instrumentation below the root.
+
+## Validation
+
+Use a smoke before a longer profile:
+
+```bash
+tools/profile-hotpath.sh \
+  --smoke \
+  --depth 8 \
+  --sections summary,tree \
+  --format text
+```
+
+For the real instrumented path:
+
+```bash
+tools/profile-hotpath.sh \
+  --movement4 \
+  --depth 8 \
+  --warmups 1 \
+  --correction off \
+  --sample-capacity 200000 \
+  --sections summary,tree \
+  --format text
+```
+
+Treat a report as invalid when samples were dropped. Corrected timings are an
+estimate of the instrumented call tree, not a replacement for BenchmarkDotNet
+throughput or hardware counters.

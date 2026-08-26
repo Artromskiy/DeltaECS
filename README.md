@@ -195,4 +195,7 @@ own cursors/caches; one consumer never clears another's change state.
 See [TODO.md](TODO.md) before selecting work, [IDEAS.md](IDEAS.md) for deferred
 designs, [WORKFLOW.md](WORKFLOW.md) for correctness checks and
 [benchmarks/README.md](benchmarks/README.md) for bounded assembly-guided work.
-Full comparisons and version benchmarks are manual only.
+The isolated [call profiler](tools/DeltaECS.Profiling/README.md) provides
+Metalama-instrumented self/inner call-tree timing without adding a dependency
+to the production assembly. Full comparisons and version benchmarks are manual
+only.

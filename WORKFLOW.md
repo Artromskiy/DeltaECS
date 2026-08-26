@@ -39,3 +39,15 @@ full BenchmarkDotNet measurements unless the user asks. For assembly-guided
 micro-algorithms use [benchmarks/README.md](benchmarks/README.md) and
 `benchmarks/run-jit-disasm.sh`. For GitHub/manual version comparison use
 [docs/github-benchmarks.md](docs/github-benchmarks.md).
+
+For hierarchical self/inner timing, use the isolated Metalama profiling build:
+
+```bash
+tools/profile-hotpath.sh --movement4 --depth 16 \
+  --correction optional --sort adjusted \
+  --destination file --output artifacts/profiling/movement4.txt
+```
+
+The profiler does not modify production `DeltaECS.dll`. Its architecture,
+metric definitions, CLI and smoke commands are documented in
+[tools/DeltaECS.Profiling/README.md](tools/DeltaECS.Profiling/README.md).

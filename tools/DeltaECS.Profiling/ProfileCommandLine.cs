@@ -214,7 +214,7 @@ internal sealed class ProfileCommandLine
             && string.IsNullOrWhiteSpace(Output))
         {
             throw new ArgumentException(
-                $"{ProfileArgumentNames.Output} is required for destination '{effectiveDestination.ToString().ToLowerInvariant()}'.");
+                $"{ProfileArgumentNames.Output} is required for destination '{effectiveDestination}'.");
         }
 
         Destination = effectiveDestination;
@@ -237,11 +237,11 @@ internal sealed class ProfileCommandLine
                 : throw new ArgumentException($"'{value}' must be between 0 and 1.");
 
     private static ProfileCorrectionMode ParseCorrection(string value)
-        => value.ToLowerInvariant() switch
+        => value.ToUpperInvariant() switch
         {
-            "off" => ProfileCorrectionMode.Off,
-            "optional" => ProfileCorrectionMode.Optional,
-            "required" => ProfileCorrectionMode.Required,
+            "OFF" => ProfileCorrectionMode.Off,
+            "OPTIONAL" => ProfileCorrectionMode.Optional,
+            "REQUIRED" => ProfileCorrectionMode.Required,
             _ => throw new ArgumentException($"Unknown correction mode '{value}'.")
         };
 
@@ -250,12 +250,12 @@ internal sealed class ProfileCommandLine
         ProfileReportSections sections = ProfileReportSections.None;
         foreach (string section in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            sections |= section.ToLowerInvariant() switch
+            sections |= section.ToUpperInvariant() switch
             {
-                "summary" => ProfileReportSections.Summary,
-                "table" => ProfileReportSections.Table,
-                "tree" => ProfileReportSections.Tree,
-                "all" => ProfileReportSections.All,
+                "SUMMARY" => ProfileReportSections.Summary,
+                "TABLE" => ProfileReportSections.Table,
+                "TREE" => ProfileReportSections.Tree,
+                "ALL" => ProfileReportSections.All,
                 _ => throw new ArgumentException($"Unknown report section '{section}'.")
             };
         }
@@ -264,29 +264,29 @@ internal sealed class ProfileCommandLine
     }
 
     private static ProfileReportFormat ParseFormat(string value)
-        => value.ToLowerInvariant() switch
+        => value.ToUpperInvariant() switch
         {
-            "markdown" => ProfileReportFormat.Markdown,
-            "text" => ProfileReportFormat.Text,
+            "MARKDOWN" => ProfileReportFormat.Markdown,
+            "TEXT" => ProfileReportFormat.Text,
             _ => throw new ArgumentException($"Unknown report format '{value}'.")
         };
 
     private static ProfileReportSort ParseSort(string value)
-        => value.ToLowerInvariant() switch
+        => value.ToUpperInvariant() switch
         {
-            "raw" => ProfileReportSort.Raw,
-            "adjusted" => ProfileReportSort.Adjusted,
-            "self" => ProfileReportSort.Self,
-            "calls" => ProfileReportSort.Calls,
+            "RAW" => ProfileReportSort.Raw,
+            "ADJUSTED" => ProfileReportSort.Adjusted,
+            "SELF" => ProfileReportSort.Self,
+            "CALLS" => ProfileReportSort.Calls,
             _ => throw new ArgumentException($"Unknown report sort '{value}'.")
         };
 
     private static ProfileOutputDestination ParseDestination(string value)
-        => value.ToLowerInvariant() switch
+        => value.ToUpperInvariant() switch
         {
-            "console" => ProfileOutputDestination.Console,
-            "file" => ProfileOutputDestination.File,
-            "both" => ProfileOutputDestination.Both,
+            "CONSOLE" => ProfileOutputDestination.Console,
+            "FILE" => ProfileOutputDestination.File,
+            "BOTH" => ProfileOutputDestination.Both,
             _ => throw new ArgumentException($"Unknown output destination '{value}'.")
         };
 }
