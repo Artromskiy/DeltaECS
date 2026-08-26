@@ -42,10 +42,9 @@ public sealed partial class World
                     lastArchetype = record.Archetype;
                 }
 
-                Chunk chunk = plan.Archetype.GetChunk(record.Chunk);
                 var cursor = new GeneratedSequenceCursor(
                     plan,
-                    chunk,
+                    plan.Chunks.Ref(record.Chunk),
                     record.SlotIndex,
                     entity,
                     writeSession,

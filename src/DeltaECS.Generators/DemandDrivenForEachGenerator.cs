@@ -714,6 +714,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 .Append(methodId).Append(", \"").Append(profileName).AppendLine("\")]");
         }
 
+        source.AppendLine("    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         source.AppendLine("    public void Invoke(ref GeneratedSequenceCursor cursor)");
         source.AppendLine("    {");
         string indent = "        ";
@@ -727,12 +728,35 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
-            source.Append(indent).Append("var values").Append(index).Append(" = cursor.Get")
-                .Append(IsWrite(shape.Pattern[index]) ? "Write" : "Read")
-                .Append("Row(_access").Append(index).AppendLine(");");
+            string componentType = ComponentType(shape, index);
+            char mode = shape.Pattern[index];
+            source.Append(indent);
+            if (mode == 'W')
+            {
+                source.Append("ref ");
+            }
+            else if (mode is 'R' or 'I')
+            {
+                source.Append("ref readonly ");
+            }
+
+            source.Append(componentType).Append(" component").Append(index)
+                .Append(" = ");
+            if (mode is 'R' or 'I' or 'W')
+            {
+                source.Append("ref ");
+            }
+
+            source.Append("cursor.GetGenerated")
+                .Append(IsWrite(mode) ? "Write" : "Read")
+                .Append("Reference<")
+                .Append(componentType)
+                .Append(">(_access")
+                .Append(index)
+                .AppendLine(");");
         }
         source.Append(indent);
-        AppendInvocation(source, shape, "values", "cursor.Slot", sequence: true);
+        AppendClosedInvocation(source, shape, "_action", "_functor", "_context", "component", "cursor.Entity");
         source.AppendLine(";");
         if (profiling)
         {

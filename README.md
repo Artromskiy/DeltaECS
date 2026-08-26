@@ -139,7 +139,9 @@ Component callback parameters support four modes: `ref readonly T` (`R`),
 the other modes read the component. The generated callback shape uses these
 letters in its internal delegate name.
 The component type is validated against the registered `ComponentId` before
-execution; row resolution occurs once per chunk, outside the entity loop.
+execution. Dense generated paths resolve each row once per chunk and advance
+direct typed references inside the generated entity loop; sequence paths use
+the same trusted reference endpoint for the current entity chunk.
 Functors implement one of four stable marker interfaces: `IForEach`,
 `IForEachEntity`, `IForEachContext<TContext>`, or
 `IForEachContextEntity<TContext>`. The generator derives component types and

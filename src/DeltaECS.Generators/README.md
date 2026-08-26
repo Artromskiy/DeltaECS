@@ -30,6 +30,11 @@ structural kernels.
   or explicit `ComponentId` arguments.
 - Generated extensions live in the consumer assembly while execution enters a
   shared non-generic DeltaECS runtime bridge.
+- Dense generated callbacks enter a closed execution method. The runtime
+  validates the query once, resolves each row once per chunk, and the generated
+  loop advances direct typed references. Sequence callbacks use direct trusted
+  reference endpoints over the current entity chunk instead of creating a row
+  view for each callback.
 - Functors implement only `IForEach`, `IForEachEntity`,
   `IForEachContext<TContext>`, or `IForEachContextEntity<TContext>`; generated
   interface names never contain component types or read/write patterns.

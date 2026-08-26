@@ -119,6 +119,9 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         Assert.That(run.Diagnostics, Is.Empty);
         Assert.That(generated, Does.Contain("ForEachAction_WI<global::Delta.ECS.Position, global::Delta.ECS.Velocity>"));
+        Assert.That(generated, Does.Contain("cursor.GetGeneratedWriteReference<global::Delta.ECS.Position>(_access0)"));
+        Assert.That(generated, Does.Contain("cursor.GetGeneratedReadReference<global::Delta.ECS.Velocity>(_access1)"));
+        Assert.That(generated, Does.Not.Contain("GetReadRow"));
     }
 
     [Test]
@@ -327,10 +330,10 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public Entity Entity => default;
             public int Slot => 0;
-            public ReadRow GetReadRow(int queryComponentIndex) => default;
-            public ReadRow GetWriteRow(int queryComponentIndex) => default;
+            public ref readonly T GetGeneratedReadReference<T>(int queryComponentIndex) => throw new NotImplementedException();
+            public ref T GetGeneratedWriteReference<T>(int queryComponentIndex) => throw new NotImplementedException();
         }
-        public interface IGeneratedForEachInvoker { void Invoke(ref GeneratedQuerySlots slots); }
+
         public interface IGeneratedSequenceInvoker { void Invoke(ref GeneratedSequenceCursor cursor); }
         public static class GeneratedForEachRuntime
         {
@@ -353,8 +356,6 @@ public sealed class DemandDrivenForEachGeneratorTests
             public void ForEachEntity(in Query query, ForEachEntityAction action) { }
             public void ForEach<TContext>(in Query query, ref TContext context, ForEachContextAction<TContext> action) { }
             public void ForEachEntity<TContext>(in Query query, ref TContext context, ForEachContextEntityAction<TContext> action) { }
-            public void ExecuteGeneratedForEach<TInvoker>(in Query query, ref TInvoker invoker, bool hasWrites)
-                where TInvoker : struct, IGeneratedForEachInvoker { }
             public void ExecuteGeneratedSequence<TInvoker>(ReadOnlySpan<Entity> entities, in Query query, ref TInvoker invoker, bool hasWrites)
                 where TInvoker : struct, IGeneratedSequenceInvoker { }
         }

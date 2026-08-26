@@ -4,18 +4,11 @@ using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-/// <summary>Compiler-support contract for generated dense-query functor invokers.</summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
-public interface IGeneratedForEachInvoker
-{
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    void Invoke(ref GeneratedQuerySlots slots);
-}
-
 /// <summary>Compiler-support contract for generated entity-sequence functor invokers.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public interface IGeneratedSequenceInvoker
 {
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     void Invoke(ref GeneratedSequenceCursor cursor);
 }
 
@@ -110,19 +103,22 @@ public ref struct GeneratedSequenceCursor
 {
     private readonly Chunk _chunk;
     private readonly ReadOnlySpan<int> _componentRows;
+    private readonly Array[] _resolvedRowsByQuery;
     private readonly QueryWriteSession _writeSession;
     private readonly int _sessionGeneration;
 
     internal GeneratedSequenceCursor(
         ArchetypePlan plan,
-        Chunk chunk,
+        ChunkPlan chunkPlan,
         int slot,
         Entity entity,
         QueryWriteSession writeSession,
         int sessionGeneration)
     {
+        Chunk chunk = chunkPlan.Chunk;
         _chunk = chunk;
         _componentRows = plan.ComponentRows;
+        _resolvedRowsByQuery = chunkPlan.ComponentRows;
         _writeSession = writeSession;
         _sessionGeneration = sessionGeneration;
         Slot = slot;
@@ -134,20 +130,19 @@ public ref struct GeneratedSequenceCursor
     public Entity Entity { get; }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ReadRow GetReadRow(int queryComponentIndex)
+    public ref readonly T GetGeneratedReadReference<T>(int queryComponentIndex)
     {
         _writeSession.EnsureActive(_sessionGeneration);
-        int physicalRow = _componentRows.Ref(queryComponentIndex);
-        return new ReadRow(_chunk.GetRawComponentRowTrusted(physicalRow));
+        return ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.Ref(queryComponentIndex)));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public WriteRow GetWriteRow(int queryComponentIndex)
+    public ref T GetGeneratedWriteReference<T>(int queryComponentIndex)
     {
-        int physicalRow = _componentRows.Ref(queryComponentIndex);
         _writeSession.Acquire(_sessionGeneration, out uint writeTick, out Stamp writeStamp);
+        int physicalRow = _componentRows.Ref(queryComponentIndex);
         _chunk.MarkComponentWritten(physicalRow, Slot, writeTick, writeStamp);
-        return new WriteRow(_chunk.GetRawComponentRowTrusted(physicalRow));
+        return ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.Ref(queryComponentIndex)));
     }
 }
 

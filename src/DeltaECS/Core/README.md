@@ -83,8 +83,13 @@ the current chunk. The terminal `Ref<T>` is the typed boundary and `T` must
 match the registered component type. `ReadRow`, `WriteRow`, and all iterators
 are borrowed `ref struct` values and must not escape their execution scope.
 
-Generated `ForEach` APIs reuse `QuerySlots` internally and are documented in
-`Delegate` and `Functor`.
+Generated `ForEach` APIs use the same validated plan but enter a closed trusted
+execution method. Dense callbacks resolve each requested row once per chunk and
+advance typed references inside the generated slot loop. Ordered sequence
+callbacks use the same direct reference endpoints against the current entity's
+chunk; they do not construct `ReadRow`/`WriteRow` values for every callback.
+The public callback/ref boundary remains typed, while validation and lifetime
+checks stay in the runtime bridge.
 
 ## Generated callback execution
 
