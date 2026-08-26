@@ -1,7 +1,7 @@
-using DeltaECS;
+using Delta.ECS;
 using NUnit.Framework;
 
-namespace DeltaECS.Tests;
+namespace Delta.ECS.Tests;
 
 [TestFixture]
 public sealed class PipelineApiTests

@@ -1,4 +1,4 @@
-namespace DeltaECS;
+namespace Delta.ECS;
 
 using System;
 using System.ComponentModel;

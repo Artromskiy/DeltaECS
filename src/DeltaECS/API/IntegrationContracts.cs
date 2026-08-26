@@ -1,4 +1,4 @@
-namespace DeltaECS.Integration;
+namespace Delta.ECS.Integration;
 
 using System;
 

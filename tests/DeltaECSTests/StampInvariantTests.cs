@@ -1,11 +1,11 @@
 using System.Reflection;
-using DeltaECS;
-using DeltaECS.Integration;
+using Delta.ECS;
+using Delta.ECS.Integration;
 using NUnit.Framework;
 
 #pragma warning disable CA5394 // Seeded pseudo-random input is intentional for deterministic state-machine testing.
 
-namespace DeltaECS.Tests;
+namespace Delta.ECS.Tests;
 
 [TestFixture]
 public sealed class StampInvariantTests

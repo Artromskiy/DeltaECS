@@ -1,10 +1,10 @@
 using System.Globalization;
-using DeltaECS.Generators.Consumer;
+using Delta.ECS.Generators.Consumer;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using NUnit.Framework;
 
-namespace DeltaECS.Generators.Tests;
+namespace Delta.ECS.Generators.Tests;
 
 [TestFixture]
 public sealed class DemandDrivenForEachGeneratorTests
@@ -64,8 +64,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(run);
 
         Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN003"), Is.Empty);
-        Assert.That(generated, Does.Contain("ref global::DeltaECS.SimpleFunctor functor"));
-        Assert.That(generated, Does.Contain("GetGeneratedWriteReference<global::DeltaECS.T1>(access0)"));
+        Assert.That(generated, Does.Contain("ref global::Delta.ECS.SimpleFunctor functor"));
+        Assert.That(generated, Does.Contain("GetGeneratedWriteReference<global::Delta.ECS.T1>(access0)"));
         Assert.That(generated, Does.Not.Contain("IForEachEntity_W"));
     }
 
@@ -101,7 +101,7 @@ public sealed class DemandDrivenForEachGeneratorTests
     public void ImplicitLambdaComponentTypesGenerateTheSameShape()
     {
         const string source = """
-            namespace DeltaECS;
+            namespace Delta.ECS;
             struct Position { public int Value; }
             struct Velocity { public int Value; }
             static class Consumer
@@ -118,9 +118,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(run);
 
         Assert.That(run.Diagnostics, Is.Empty);
-        Assert.That(generated, Does.Contain("ForEachAction_WI<global::DeltaECS.Position, global::DeltaECS.Velocity>"));
-        Assert.That(generated, Does.Contain("cursor.GetGeneratedWriteReference<global::DeltaECS.Position>(_access0)"));
-        Assert.That(generated, Does.Contain("cursor.GetGeneratedReadReference<global::DeltaECS.Velocity>(_access1)"));
+        Assert.That(generated, Does.Contain("ForEachAction_WI<global::Delta.ECS.Position, global::Delta.ECS.Velocity>"));
+        Assert.That(generated, Does.Contain("cursor.GetGeneratedWriteReference<global::Delta.ECS.Position>(_access0)"));
+        Assert.That(generated, Does.Contain("cursor.GetGeneratedReadReference<global::Delta.ECS.Velocity>(_access1)"));
         Assert.That(generated, Does.Not.Contain("GetReadRow"));
     }
 
@@ -128,7 +128,7 @@ public sealed class DemandDrivenForEachGeneratorTests
     public void RefReadonlyInAndValueParametersGenerateDistinctModes()
     {
         const string source = """
-            namespace DeltaECS;
+            namespace Delta.ECS;
             struct Position { public int Value; }
             struct Velocity { public int Value; }
             struct Acceleration { public int Value; }
@@ -164,7 +164,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         string parameters = string.Join(", ", Enumerable.Range(1, arity).Select(static index => $"ref T{index} value{index}"));
         string declarations = string.Join(Environment.NewLine, Enumerable.Range(1, arity).Select(static index => $"struct T{index} {{ }}"));
         string source = $$"""
-            namespace DeltaECS;
+            namespace Delta.ECS;
             {{declarations}}
             static class WideConsumer
             {
@@ -197,7 +197,7 @@ public sealed class DemandDrivenForEachGeneratorTests
     public void DenseGenerationUsesClosedExecutionMethod()
     {
         const string source = """
-            namespace DeltaECS;
+            namespace Delta.ECS;
             struct Position { public int Value; }
             static class Consumer
             {
@@ -274,7 +274,7 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     private const string RuntimeStubSource = """
-        namespace DeltaECS;
+        namespace Delta.ECS;
         using System;
         public readonly struct Entity { public int Index { get; } }
         public readonly struct ComponentId { }
@@ -401,7 +401,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         """;
 
     private const string ConsumerSource = """
-        namespace DeltaECS;
+        namespace Delta.ECS;
         using System;
         struct T1 { public int Value; }
         struct T2 { public int Value; }
@@ -451,7 +451,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         """;
 
     private const string AmbiguousFunctorSource = """
-        namespace DeltaECS;
+        namespace Delta.ECS;
         struct T1 { public int Value; }
         struct AmbiguousFunctor : IForEachEntity
         {
@@ -469,7 +469,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         """;
 
     private const string SingleFunctorSource = """
-        namespace DeltaECS;
+        namespace Delta.ECS;
         struct T1 { public int Value; }
         struct SimpleFunctor : IForEachEntity
         {
@@ -486,7 +486,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         """;
 
     private const string PrivateFunctorSource = """
-        namespace DeltaECS;
+        namespace Delta.ECS;
         struct T1 { public int Value; }
         static class Consumer
         {

@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using BenchmarkDotNet.Running;
 
-namespace DeltaECS.Benchmarks;
+namespace Delta.ECS.Benchmarks;
 
 internal static class Program
 {

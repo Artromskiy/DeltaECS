@@ -1,4 +1,4 @@
-namespace DeltaECS.Benchmarks;
+namespace Delta.ECS.Benchmarks;
 
 /// <summary>Runs the unified iteration matrix once without BenchmarkDotNet.</summary>
 public static class ComparativeBenchmarkExecutionSmoke

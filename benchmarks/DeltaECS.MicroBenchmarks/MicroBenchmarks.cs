@@ -1,6 +1,6 @@
 using BenchmarkDotNet.Attributes;
 
-namespace DeltaECS.MicroBenchmarks;
+namespace Delta.ECS.MicroBenchmarks;
 
 /// <summary>Short BDN surface; fixture and kernel code lives in the implementation file.</summary>
 internal static class MicroBenchmarkCatalog

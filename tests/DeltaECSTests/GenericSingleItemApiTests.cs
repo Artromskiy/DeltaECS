@@ -1,7 +1,7 @@
-namespace DeltaECS.Tests;
+namespace Delta.ECS.Tests;
 
 using System;
-using DeltaECS;
+using Delta.ECS;
 using NUnit.Framework;
 
 [TestFixture]

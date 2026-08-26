@@ -1,4 +1,4 @@
-namespace DeltaECS;
+namespace Delta.ECS;
 
 public delegate void ForEachEntityAction(Entity entity);
 

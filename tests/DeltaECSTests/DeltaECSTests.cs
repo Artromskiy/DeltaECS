@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using NUnit.Framework;
-using DeltaECS;
+using Delta.ECS;
 
-namespace DeltaECS.Tests;
+namespace Delta.ECS.Tests;
 
 [TestFixture]
 public sealed class DeltaECSDeliveryTests
@@ -673,9 +673,9 @@ public sealed class DeltaECSDeliveryTests
     public void QuerySurface_Uses_The_Renamed_API()
     {
         var assembly = typeof(World).Assembly;
-        Assert.That(assembly.GetType("DeltaECS.QueryAccess"), Is.Null);
-        Assert.That(assembly.GetType("DeltaECS.DenseChunkAccessor"), Is.Null);
-        Assert.That(assembly.GetType("DeltaECS.DenseChunkScope"), Is.Null);
+        Assert.That(assembly.GetType("Delta.ECS.QueryAccess"), Is.Null);
+        Assert.That(assembly.GetType("Delta.ECS.DenseChunkAccessor"), Is.Null);
+        Assert.That(assembly.GetType("Delta.ECS.DenseChunkScope"), Is.Null);
 
         var publicMethods = typeof(World).GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
         Assert.That(publicMethods.Any(static method => method.Name == "Execute"), Is.False);
@@ -685,8 +685,8 @@ public sealed class DeltaECSDeliveryTests
         Assert.That(typeof(Query).GetMethods(publicInstance).Any(static method => method.Name == "Access" && method.IsGenericMethod), Is.False);
         Assert.That(typeof(QueryScope).GetMethods(publicInstance).Any(static method => method.Name.StartsWith("Bind", StringComparison.Ordinal) && method.IsGenericMethod), Is.False);
         Assert.That(typeof(QuerySlots).GetMethods(publicInstance).Any(static method => method.Name == "Get" && method.IsGenericMethod), Is.False);
-        Assert.That(assembly.GetType("DeltaECS.ReadRow`1"), Is.Null);
-        Assert.That(assembly.GetType("DeltaECS.WriteRow`1"), Is.Null);
+        Assert.That(assembly.GetType("Delta.ECS.ReadRow`1"), Is.Null);
+        Assert.That(assembly.GetType("Delta.ECS.WriteRow`1"), Is.Null);
     }
 
     [Test]

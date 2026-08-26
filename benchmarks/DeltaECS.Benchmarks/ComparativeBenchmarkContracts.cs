@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace DeltaECS.Benchmarks;
+namespace Delta.ECS.Benchmarks;
 
 /// <summary>Shared parameters for the cross-ECS iteration comparison.</summary>
 public static class ComparativeBenchmarkParameters

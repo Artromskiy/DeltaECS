@@ -164,7 +164,7 @@ static void PrepareMovement4(ProfileCommandLine options, ReadOnlySpan<int> rootM
 static Dictionary<int, string> LoadMovementMethodNames()
 {
     Dictionary<int, string> methodNames = ProfilerRuntime.LoadMethodNames(
-        typeof(DeltaECS.World).Assembly);
+        typeof(Delta.ECS.World).Assembly);
     MergeMethodNames(
         methodNames,
         ProfilerRuntime.LoadMethodNames(typeof(Movement4DelegateProfile).Assembly));

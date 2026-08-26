@@ -1,8 +1,8 @@
 using BenchmarkDotNet.Attributes;
-using DeltaECS;
+using Delta.ECS;
 using System.Runtime.CompilerServices;
 
-namespace DeltaECS.MicroBenchmarks;
+namespace Delta.ECS.MicroBenchmarks;
 
 internal static class MicroIds
 {

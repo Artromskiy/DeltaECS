@@ -1,4 +1,4 @@
-namespace DeltaECS.Tests;
+namespace Delta.ECS.Tests;
 
 using System;
 using System.Linq;

@@ -1,8 +1,8 @@
 using System.Runtime.CompilerServices;
 using BenchmarkDotNet.Attributes;
-using DeltaECS;
+using Delta.ECS;
 
-namespace DeltaECS.MicroBenchmarks;
+namespace Delta.ECS.MicroBenchmarks;
 
 public struct Movement4ApiContext
 {
