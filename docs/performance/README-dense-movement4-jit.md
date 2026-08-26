@@ -35,6 +35,7 @@ Portable PDB mapping when a matching checked JIT is available.
 
 ## Pending experiments
 
-The only open dense-loop experiments are an internal trusted row packet and a
-possible AArch64 adjacent-load experiment. Both must preserve the safe public
-three-loop API and require paired correctness, JIT and throughput evidence.
+Open and completed candidates are tracked in the
+[optimization experiment ledger](experiments/README.md). Active dense-loop
+experiments must preserve the safe public traversal API and require paired
+correctness, JIT and throughput evidence.

@@ -40,6 +40,17 @@ micro-algorithms use [benchmarks/README.md](benchmarks/README.md) and
 `benchmarks/run-jit-disasm.sh`. For GitHub/manual version comparison use
 [docs/github-benchmarks.md](docs/github-benchmarks.md).
 
+Every measured optimization, including rejected and inconclusive candidates,
+must be recorded in
+[docs/performance/experiments/README.md](docs/performance/experiments/README.md)
+before its branch is merged or deleted. Check the ledger before implementing a
+candidate. Record the baseline/candidate commits, workload and data shape,
+runtime/architecture/job, correctness evidence, Mean/Error/StdDev/Allocated,
+ratio, JIT code size and instruction summary, and the final decision. Raw BDN,
+JIT and profiler output remains under ignored `artifacts/`; the durable result
+belongs in the ledger. A rejected mechanism may be retried only when the entry
+states what materially changed in the implementation or measurement.
+
 For hierarchical self/inner timing, use the isolated Metalama profiling build:
 
 ```bash

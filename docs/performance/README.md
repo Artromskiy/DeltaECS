@@ -5,6 +5,10 @@ execution path and records measured ideas; it is not a task list. A candidate
 becomes implementation work only after an explicit decision and a reproducible
 workload.
 
+Completed and rejected experiments are indexed in the
+[optimization experiment ledger](experiments/README.md). Check that ledger
+before starting a candidate so an exhausted mechanism is not repeated.
+
 ## Current dense execution
 
 The public low-level path is:
