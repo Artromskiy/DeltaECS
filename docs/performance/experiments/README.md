@@ -65,6 +65,7 @@ linked focused report.
 | Large native ECS buffer storage | `bc62b9f`, `d03fa85` | Some benchmark signals improved while generated code grew; retained source later evolved, so old isolated ratios are not current claims |
 | Split generated read/write drivers | `4a8db12`; [evidence](perf-split-generated-read-write-drivers.md) | Write guardrail removed one branch/compare and 8 B; Functor improved 1.57% at 100, all other tested write cases were neutral. Direct component-bearing read-only evidence is still missing |
 | Metalama layer-major chunking | `8040b2e`; [chunked experiment](../../../tools/DeltaECS.LayeredPipeline/README.md) | Promising cache signal, but the measurement used separate flat and chunked runs and the tile changes execution order across entities; not an ECS runtime decision yet |
+| Prepared generated access routes | `c6b819a`; [profile evidence](prepared-generated-access.md) | The generated tree no longer contains the old runtime-type resolver descendants, but calibration R² was `0.6545` and no paired BDN result exists; keep as an experiment until throughput is measured |
 
 ## Validated candidates awaiting a decision
 
