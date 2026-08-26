@@ -245,6 +245,8 @@ internal struct ArchetypePlan
     internal Archetype Archetype { get; }
     internal int[] ComponentRows { get; }
     internal ReadOnlySpan<ChunkPlan> Chunks => _chunks.AsSpan(0, _chunkCount);
+    internal ChunkPlan[] ChunkArray => _chunks;
+    internal int ChunkCount => _chunkCount;
 
     private ChunkPlan[] _chunks;
     private int _chunkCount;

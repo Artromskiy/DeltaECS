@@ -591,7 +591,11 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         {
             RenderContracts(source, shape);
         }
-        RenderInvoker(source, shape, profiling);
+        if (shape.Sequence)
+        {
+            RenderInvoker(source, shape, profiling);
+        }
+
         RenderExtensions(source, shape, profiling);
         return source.ToString();
     }
@@ -617,7 +621,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string name = InvokerName(shape);
         string actionType = ActionType(shape);
         string stateGeneric = StateGeneric(shape, generic);
-        source.Append("internal struct ").Append(name).Append(stateGeneric).AppendLine(" : IGeneratedForEachInvoker, IGeneratedSequenceInvoker");
+        source.Append("internal struct ").Append(name).Append(stateGeneric).AppendLine(" : IGeneratedSequenceInvoker");
         source.AppendLine("{");
         if (shape.HasContext)
         {
@@ -682,7 +686,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
         source.AppendLine("    }");
 
-        RenderDenseInvoke(source, shape, name + stateGeneric, profiling);
         RenderSequenceInvoke(source, shape, name + stateGeneric, profiling);
         if (shape.HasContext)
         {
@@ -695,81 +698,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         source.AppendLine("}");
-    }
-
-    private static void RenderDenseInvoke(
-        StringBuilder source,
-        Shape shape,
-        string invokerType,
-        bool profiling)
-    {
-        string profileName = invokerType + ".Invoke(ref GeneratedQuerySlots)";
-        int methodId = StableProfileMethodId(profileName);
-        string callbackProfileName = invokerType + ".Callback";
-        int callbackMethodId = StableProfileMethodId(callbackProfileName);
-        if (profiling)
-        {
-            source.Append("    [global::DeltaECS.Profiling.ProfiledMethodMetadataAttribute(")
-                .Append(methodId).Append(", \"").Append(profileName).AppendLine("\")]");
-            source.Append("    [global::DeltaECS.Profiling.ProfiledMethodMetadataAttribute(")
-                .Append(callbackMethodId).Append(", \"").Append(callbackProfileName).AppendLine("\")]");
-        }
-
-        source.AppendLine("    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        source.AppendLine("    public void Invoke(ref GeneratedQuerySlots slots)");
-        source.AppendLine("    {");
-        string indent = "        ";
-        if (profiling)
-        {
-            source.Append("        global::DeltaECS.Profiling.ProfilerRuntime.Enter(").Append(methodId).AppendLine(");");
-            source.AppendLine("        try");
-            source.AppendLine("        {");
-            indent = "            ";
-        }
-
-        for (int index = 0; index < shape.Pattern.Length; index++)
-        {
-            source.Append(indent).Append("var values").Append(index).Append(" = slots.GetGenerated")
-                .Append(IsWrite(shape.Pattern[index]) ? "Write" : "Read")
-                .Append("Row(_access").Append(index).AppendLine(");");
-        }
-        source.Append(indent).AppendLine("while (slots.MoveNext())");
-        source.Append(indent).AppendLine("{");
-        source.Append(indent).AppendLine("    int index = slots.CurrentIndex;");
-        if (profiling)
-        {
-            source.Append(indent).Append("    global::DeltaECS.Profiling.ProfilerRuntime.Enter(")
-                .Append(callbackMethodId).AppendLine(");");
-            source.Append(indent).AppendLine("    try");
-            source.Append(indent).AppendLine("    {");
-            source.Append(indent).Append("        ");
-            AppendInvocation(source, shape, "values", "index", sequence: false);
-            source.AppendLine(";");
-            source.Append(indent).AppendLine("    }");
-            source.Append(indent).AppendLine("    finally");
-            source.Append(indent).AppendLine("    {");
-            source.Append(indent).Append("        global::DeltaECS.Profiling.ProfilerRuntime.Leave(")
-                .Append(callbackMethodId).AppendLine(");");
-            source.Append(indent).AppendLine("    }");
-        }
-        else
-        {
-            source.Append(indent).Append("    ");
-            AppendInvocation(source, shape, "values", "index", sequence: false);
-            source.AppendLine(";");
-        }
-        source.Append(indent).AppendLine("}");
-        if (profiling)
-        {
-            source.AppendLine("        }");
-            source.AppendLine("        finally");
-            source.AppendLine("        {");
-            source.Append("            global::DeltaECS.Profiling.ProfilerRuntime.Leave(").Append(methodId).AppendLine(");");
-            source.AppendLine("        }");
-        }
-
-        source.AppendLine("    }");
-
     }
 
     private static void RenderSequenceInvoke(
@@ -863,6 +791,39 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         source.Append(string.Join(", ", invocationArguments)).Append(')');
     }
 
+    private static void AppendClosedInvocation(
+        StringBuilder source,
+        Shape shape,
+        string actionName,
+        string functorName,
+        string contextName,
+        string componentPrefix,
+        string entityExpression)
+    {
+        var invocationArguments = new List<string>();
+        if (shape.HasContext)
+        {
+            invocationArguments.Add("ref " + contextName);
+        }
+
+        if (shape.HasEntity)
+        {
+            invocationArguments.Add(entityExpression);
+        }
+
+        source.Append(shape.IsFunctor ? functorName + ".Invoke(" : actionName + "(");
+        for (int index = 0; index < shape.Pattern.Length; index++)
+        {
+            invocationArguments.Add(
+                InvocationPrefix(shape.Pattern[index])
+                + componentPrefix
+                + index
+            );
+        }
+
+        source.Append(string.Join(", ", invocationArguments)).Append(')');
+    }
+
     private static void RenderExtensions(StringBuilder source, Shape shape, bool profiling)
     {
         string className = "DemandForEachExtensions_" + StableName(shape.Key);
@@ -870,7 +831,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string ids = shape.ExplicitIds ? ComponentParameters(shape.Components.Length) : string.Empty;
         string idArguments = shape.ExplicitIds ? ComponentNames(shape.Components.Length) : PrimaryArguments(shape);
         string accessArguments = AccessArguments(shape.Pattern);
-        string setup = AccessSetup(shape, idArguments);
+        string setup = AccessSetup(shape, idArguments, closed: !shape.Sequence);
         string name = InvokerName(shape);
         string stateGeneric = StateGeneric(shape, generic);
         string callback = ActionType(shape);
@@ -889,6 +850,13 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             : TypeParameterList(shape.ImplicitComponents ? string.Empty : shape.HasContext ? JoinGeneric("TContext", generic) : generic);
         source.Append(shape.IsFunctor ? "internal static class " : "public static class ").Append(className).AppendLine();
         source.AppendLine("{");
+        string? closedMethodName = null;
+        if (!shape.Sequence)
+        {
+            closedMethodName = "ExecuteClosed_" + StableName(shape.Key);
+            RenderClosedDenseMethod(source, shape, closedMethodName);
+        }
+
         RenderExtensionMethod(
             source,
             shape,
@@ -903,8 +871,82 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             setup,
             accessArguments,
             className,
-            profiling);
+            profiling,
+            closedMethodName);
         source.AppendLine("}");
+    }
+
+    private static void RenderClosedDenseMethod(
+        StringBuilder source,
+        Shape shape,
+        string methodName)
+    {
+        string generic = shape.IsFunctor || shape.ImplicitComponents ? string.Empty : GenericTypes(shape.Components.Length);
+        string genericPrefix = TypeParameterList(
+            shape.IsFunctor || shape.ImplicitComponents
+                ? string.Empty
+                : shape.HasContext
+                    ? JoinGeneric("TContext", generic)
+                    : generic);
+        string contextParameter = shape.HasContext
+            ? ", ref " + ContextType(shape) + " context"
+            : string.Empty;
+        string callbackParameter = shape.IsFunctor
+            ? ", ref " + shape.FunctorType + " functor"
+            : ", " + ActionType(shape) + " action";
+        string accessParameters = ClosedAccessParameters(shape.Pattern);
+        string accessParameterSuffix = accessParameters.Length == 0 ? string.Empty : ", " + accessParameters;
+
+        source.AppendLine("    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]");
+        source.Append("    private static void ").Append(methodName).Append(genericPrefix)
+            .Append("(World world, in Query query")
+            .Append(contextParameter)
+            .Append(callbackParameter)
+            .Append(accessParameterSuffix)
+            .AppendLine(")");
+        source.AppendLine("    {");
+        source.Append("        using var execution = GeneratedForEachRuntime.OpenDense(world, in query, hasWrites: ")
+            .Append(BoolHasWrites(shape.Pattern)).AppendLine(");");
+        source.AppendLine("        while (execution.MoveNext(out var slots))");
+        source.AppendLine("        {");
+        for (int index = 0; index < shape.Pattern.Length; index++)
+        {
+            string componentType = ComponentType(shape, index);
+            source.Append("                ")
+                .Append("ref ")
+                .Append(componentType)
+                .Append(" row")
+                .Append(index)
+                .Append(" = ref slots.GetGenerated")
+                .Append(IsWrite(shape.Pattern[index]) ? "Write" : "Read")
+                .Append("Reference<")
+                .Append(componentType)
+                .Append(">(access")
+                .Append(index)
+                .AppendLine(");");
+        }
+
+        source.AppendLine("                int count = slots.Count;");
+        source.AppendLine("                for (int index = 0; index < count; index++)");
+        source.AppendLine("                {");
+        for (int index = 0; index < shape.Pattern.Length; index++)
+        {
+            string componentType = ComponentType(shape, index);
+            source.Append("                    ")
+                .Append(IsWrite(shape.Pattern[index]) ? "ref " : "ref readonly ")
+                .Append(componentType)
+                .Append(" component")
+                .Append(index)
+                .Append(" = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row")
+                .Append(index)
+                .AppendLine(", index);");
+        }
+        source.Append("                    ");
+        AppendClosedInvocation(source, shape, "action", "functor", "context", "component", "slots.EntityAt(index)");
+        source.AppendLine(";");
+        source.AppendLine("                }");
+        source.AppendLine("        }");
+        source.AppendLine("    }");
     }
 
     private static void RenderExtensionMethod(
@@ -921,7 +963,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string setup,
         string accessArguments,
         string className,
-        bool profiling)
+        bool profiling,
+        string? closedMethodName)
     {
         string componentPart = string.IsNullOrEmpty(ids) ? string.Empty : $", {ids}";
         string methodName = shape.HasEntity ? "ForEachEntity" : "ForEach";
@@ -939,7 +982,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 "functor",
                 hasAction: false,
                 profiling,
-                StableProfileMethodId(profileName));
+                StableProfileMethodId(profileName),
+                closedMethodName);
             AppendMethod(source, signature, body, null, profiling ? profileName : null);
             return;
         }
@@ -956,7 +1000,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             "action",
             hasAction: true,
             profiling,
-            StableProfileMethodId(profileName));
+            StableProfileMethodId(profileName),
+            closedMethodName);
         AppendMethod(source, signatureDelegate, delegateBody, null, profiling ? profileName : null);
     }
 
@@ -969,7 +1014,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string callbackName,
         bool hasAction,
         bool profiling,
-        int methodId)
+        int methodId,
+        string? closedMethodName)
     {
         string[] access = accessArguments.Split(new[] { ", " }, StringSplitOptions.None);
         var accesses = new StringBuilder();
@@ -983,9 +1029,27 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             accesses.Append(access[index]);
         }
 
-        string invoke = shape.Sequence
-            ? "sequence.GeneratedWorld.ExecuteGeneratedSequence(sequence.GeneratedEntities, in query, ref invoker, hasWrites: " + BoolHasWrites(shape.Pattern) + ");"
-            : "world.ExecuteGeneratedForEach(in query, ref invoker, hasWrites: " + BoolHasWrites(shape.Pattern) + ");";
+        string invoke;
+        if (shape.Sequence)
+        {
+            invoke = "sequence.GeneratedWorld.ExecuteGeneratedSequence(sequence.GeneratedEntities, in query, ref invoker, hasWrites: " + BoolHasWrites(shape.Pattern) + ");";
+        }
+        else
+        {
+            var closedArguments = new List<string> { "world", "in query" };
+            if (shape.HasContext)
+            {
+                closedArguments.Add("ref context");
+            }
+
+            closedArguments.Add(shape.IsFunctor ? "ref functor" : "action");
+            if (accesses.Length > 0)
+            {
+                closedArguments.Add(accesses.ToString());
+            }
+
+            invoke = closedMethodName + "(" + string.Join(", ", closedArguments) + ");";
+        }
         var body = new StringBuilder();
         body.AppendLine("{");
         string indent = "    ";
@@ -1015,17 +1079,24 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             constructorArguments.Add(accesses.ToString());
         }
 
-        body.Append(indent).Append("var invoker = new ").Append(invokerName).Append(stateGeneric).Append('(')
-            .Append(string.Join(", ", constructorArguments)).AppendLine(");");
-        body.Append(indent).Append(invoke).AppendLine();
-        if (shape.HasContext)
+        if (shape.Sequence)
         {
-            body.Append(indent).AppendLine("context = invoker.Context;");
-        }
+            body.Append(indent).Append("var invoker = new ").Append(invokerName).Append(stateGeneric).Append('(')
+                .Append(string.Join(", ", constructorArguments)).AppendLine(");");
+            body.Append(indent).Append(invoke).AppendLine();
+            if (shape.HasContext)
+            {
+                body.Append(indent).AppendLine("context = invoker.Context;");
+            }
 
-        if (shape.IsFunctor)
+            if (shape.IsFunctor)
+            {
+                body.Append(indent).AppendLine("functor = invoker.Functor;");
+            }
+        }
+        else
         {
-            body.Append(indent).AppendLine("functor = invoker.Functor;");
+            body.Append(indent).Append(invoke).AppendLine();
         }
 
         if (profiling)
@@ -1067,7 +1138,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
     }
 
-    private static string AccessSetup(Shape shape, string ids)
+    private static string AccessSetup(Shape shape, string ids, bool closed)
     {
         string query = string.Empty;
         if (shape.Receiver == ReceiverKind.FilteredEntitySequence)
@@ -1089,9 +1160,17 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
-            result.Append("var access").Append(index).Append(" = GeneratedForEachRuntime.Access")
-                .Append(IsWrite(shape.Pattern[index]) ? "Write" : "Read")
-                .Append('(').Append(owner).Append(", in query, ");
+            result.Append("var access").Append(index).Append(" = GeneratedForEachRuntime.");
+            if (closed)
+            {
+                result.Append("Create").Append(IsWrite(shape.Pattern[index]) ? "Write" : "Read").Append("Access");
+            }
+            else
+            {
+                result.Append("Access").Append(IsWrite(shape.Pattern[index]) ? "Write" : "Read");
+            }
+
+            result.Append('(').Append(owner).Append(", in query, ");
             if (shape.ExplicitIds)
             {
                 result.Append(ComponentArgument(ids, index)).Append(", ");
@@ -1175,6 +1254,17 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         for (int index = 0; index < pattern.Length; index++)
         {
             result[index] = "int access" + index;
+        }
+
+        return string.Join(", ", result);
+    }
+
+    private static string ClosedAccessParameters(string pattern)
+    {
+        var result = new string[pattern.Length];
+        for (int index = 0; index < pattern.Length; index++)
+        {
+            result[index] = (IsWrite(pattern[index]) ? "WriteAccess" : "ReadAccess") + " access" + index;
         }
 
         return string.Join(", ", result);

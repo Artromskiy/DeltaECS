@@ -65,7 +65,7 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN003"), Is.Empty);
         Assert.That(generated, Does.Contain("ref global::Delta.ECS.SimpleFunctor functor"));
-        Assert.That(generated, Does.Contain("Ref<global::Delta.ECS.T1>(index)"));
+        Assert.That(generated, Does.Contain("GetGeneratedWriteReference<global::Delta.ECS.T1>(access0)"));
         Assert.That(generated, Does.Not.Contain("IForEachEntity_W"));
     }
 
@@ -182,12 +182,41 @@ public sealed class DemandDrivenForEachGeneratorTests
     {
         string generated = GeneratedText(RunGenerator());
 
-        Assert.That(generated, Does.Contain("AccessRead(world, in query, typeof(T1)"));
-        Assert.That(generated, Does.Contain("AccessWrite(world, in query, typeof(T2)"));
+        Assert.That(generated, Does.Contain("CreateReadAccess(world, in query, typeof(T1)"));
+        Assert.That(generated, Does.Contain("CreateWriteAccess(world, in query, typeof(T2)"));
         Assert.That(generated, Does.Not.Contain("AccessRead(world, in query, world.Layouts.GetPrimary"));
         Assert.That(generated, Does.Not.Contain("AccessWrite(world, in query, world.Layouts.GetPrimary"));
         Assert.That(generated, Does.Not.Contain("ResolveComponentIds"));
         Assert.That(generated, Does.Not.Contain("AllMask.Count != destination.Length"));
+    }
+
+    [Test]
+    public void DenseGenerationUsesClosedExecutionMethod()
+    {
+        const string source = """
+            namespace Delta.ECS;
+            struct Position { public int Value; }
+            static class Consumer
+            {
+                public static void Use(World world, Query query)
+                {
+                    world.ForEach<Position>(in query,
+                        static (ref Position position) => position.Value++);
+                }
+            }
+            """;
+
+        string generated = GeneratedText(RunGenerator(source));
+
+        Assert.That(generated, Does.Contain("ExecuteClosed_"));
+        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenDense(world, in query"));
+        Assert.That(generated, Does.Contain("while (execution.MoveNext(out var slots))"));
+        Assert.That(generated, Does.Contain("ref T1 row0 = ref slots.GetGeneratedWriteReference<T1>(access0)"));
+        Assert.That(generated, Does.Contain("for (int index = 0; index < count; index++)"));
+        Assert.That(generated, Does.Contain("ref T1 component0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row0, index)"));
+        Assert.That(generated, Does.Contain("action(ref component0)"));
+        Assert.That(generated, Does.Not.Contain("Ref<T1>(index)"));
+        Assert.That(generated, Does.Not.Contain("ExecuteGeneratedForEach"));
     }
 
     [Test]
@@ -281,9 +310,18 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public Entity CurrentEntity => default;
             public int CurrentIndex => 0;
+            public int Count => 0;
+            public Entity EntityAt(int index) => default;
             public bool MoveNext() => false;
-            public ReadRow GetGeneratedReadRow(int queryComponentIndex) => default;
-            public ReadRow GetGeneratedWriteRow(int queryComponentIndex) => default;
+            public ref T GetGeneratedReadReference<T>(int queryComponentIndex) => throw new NotImplementedException();
+            public ref T GetGeneratedReadReference<T>(ReadAccess access) => throw new NotImplementedException();
+            public ref T GetGeneratedWriteReference<T>(int queryComponentIndex) => throw new NotImplementedException();
+            public ref T GetGeneratedWriteReference<T>(WriteAccess access) => throw new NotImplementedException();
+        }
+        public ref struct GeneratedDenseExecution
+        {
+            public bool MoveNext(out GeneratedQuerySlots slots) { slots = default; return false; }
+            public void Dispose() { }
         }
         public ref struct GeneratedSequenceCursor
         {
@@ -296,6 +334,11 @@ public sealed class DemandDrivenForEachGeneratorTests
         public interface IGeneratedSequenceInvoker { void Invoke(ref GeneratedSequenceCursor cursor); }
         public static class GeneratedForEachRuntime
         {
+            public static GeneratedDenseExecution OpenDense(World world, in Query query, bool hasWrites) => default;
+            public static ReadAccess CreateReadAccess(World world, in Query query, Type runtimeType) => default;
+            public static WriteAccess CreateWriteAccess(World world, in Query query, Type runtimeType) => default;
+            public static ReadAccess CreateReadAccess(World world, in Query query, ComponentId component, Type runtimeType) => default;
+            public static WriteAccess CreateWriteAccess(World world, in Query query, ComponentId component, Type runtimeType) => default;
             public static int AccessRead(World world, in Query query, ComponentId component, Type runtimeType) => default;
             public static int AccessWrite(World world, in Query query, ComponentId component, Type runtimeType) => default;
             public static int AccessRead(World world, in Query query, Type runtimeType) => default;
@@ -305,6 +348,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public ComponentLayoutRegistry Layouts { get; } = new();
             public Query CreateQuery(in QuerySpec spec) => default;
+            public QueryScope BeginScope(in Query query) => default;
             public void ForEach(in Query query, ForEachAction action) { }
             public void ForEachEntity(in Query query, ForEachEntityAction action) { }
             public void ForEach<TContext>(in Query query, ref TContext context, ForEachContextAction<TContext> action) { }
@@ -313,6 +357,29 @@ public sealed class DemandDrivenForEachGeneratorTests
                 where TInvoker : struct, IGeneratedForEachInvoker { }
             public void ExecuteGeneratedSequence<TInvoker>(ReadOnlySpan<Entity> entities, in Query query, ref TInvoker invoker, bool hasWrites)
                 where TInvoker : struct, IGeneratedSequenceInvoker { }
+        }
+        public ref struct QueryScope
+        {
+            public QueryArchetypes Archetypes => default;
+            public void Dispose() { }
+        }
+        public ref struct QueryArchetypes
+        {
+            public QueryArchetype Current => default;
+            public bool MoveNext() => false;
+        }
+        public readonly ref struct QueryArchetype
+        {
+            public QueryArchetypeChunks Chunks => default;
+        }
+        public ref struct QueryArchetypeChunks
+        {
+            public QueryChunk Current => default;
+            public bool MoveNext() => false;
+        }
+        public readonly ref struct QueryChunk
+        {
+            public QuerySlots Slots => default;
         }
         public readonly ref partial struct EntitySequence
         {

@@ -37,6 +37,13 @@ public ref struct GeneratedQuerySlots
         get => _index;
     }
 
+    /// <summary>Gets the number of entities in the validated chunk.</summary>
+    public int Count
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _count;
+    }
+
     public Entity CurrentEntity
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -44,19 +51,36 @@ public ref struct GeneratedQuerySlots
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public Entity EntityAt(int index)
+        => _chunk.RawEntities.Ref(index);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNext() => ++_index < _count;
 
+    /// <summary>Gets the trusted first element of a validated read row.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public ReadRow GetGeneratedReadRow(int queryComponentIndex)
-        => new(_resolvedRowsByQuery.Ref(queryComponentIndex));
+    public ref T GetGeneratedReadReference<T>(int queryComponentIndex)
+        => ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.Ref(queryComponentIndex)));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public WriteRow GetGeneratedWriteRow(int queryComponentIndex)
+    public ref T GetGeneratedReadReference<T>(ReadAccess access)
+        => ref GetGeneratedReadReference<T>(access.QueryComponentIndex);
+
+    /// <summary>Marks and gets the trusted first element of a validated write row.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public ref T GetGeneratedWriteReference<T>(int queryComponentIndex)
     {
         int physicalRow = _componentRowsByQuery.Ref(queryComponentIndex);
         _chunk.MarkComponentWrittenTrusted(physicalRow, _writeTick, _writeStamp);
-        return new WriteRow(_resolvedRowsByQuery.Ref(queryComponentIndex));
+        return ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.Ref(queryComponentIndex)));
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public ref T GetGeneratedWriteReference<T>(WriteAccess access)
+        => ref GetGeneratedWriteReference<T>(access.QueryComponentIndex);
 }
