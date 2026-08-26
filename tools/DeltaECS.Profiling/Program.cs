@@ -8,15 +8,23 @@ if (options.Help)
 }
 
 using var report = new StringWriter();
+Dictionary<int, string>? movementMethodNames = null;
+int[] rootMethodIds = [];
 if (options.Probe == ProfileProbe.Movement4)
 {
-    PrepareMovement4(options);
+    movementMethodNames = LoadMovementMethodNames();
+    rootMethodIds = ResolveRootMethodIds(options.Root, movementMethodNames);
+    PrepareMovement4(options, rootMethodIds);
 }
 
 WriteRunConfiguration(options, report);
 long checksum = options.Probe switch
 {
-    ProfileProbe.Movement4 => RunMovement4(options, report),
+    ProfileProbe.Movement4 => RunMovement4(
+        options,
+        report,
+        movementMethodNames ?? throw new InvalidOperationException("Movement4 metadata was not prepared."),
+        rootMethodIds),
     _ => RunSmoke(options, report)
 };
 
@@ -50,6 +58,7 @@ static void WriteRunConfiguration(ProfileCommandLine options, TextWriter report)
     Write("Depth", options.Depth);
     Write("Launches", options.Launches);
     Write("Warmups", options.Warmups);
+    Write("Root", options.Root ?? "All instrumented methods");
     if (options.Probe == ProfileProbe.Movement4)
     {
         Write("Fixed entities", Movement4DelegateProfile.EntityCount);
@@ -66,7 +75,11 @@ static void WriteRunConfiguration(ProfileCommandLine options, TextWriter report)
         => report.WriteLine(markdown ? $"| {name} | {value} |" : $"{name}: {value}");
 }
 
-static long RunMovement4(ProfileCommandLine options, TextWriter report)
+static long RunMovement4(
+    ProfileCommandLine options,
+    TextWriter report,
+    IReadOnlyDictionary<int, string> methodNames,
+    ReadOnlySpan<int> rootMethodIds)
 {
     ProfilerOverheadCalibration? calibration = options.Correction == ProfileCorrectionMode.Off
         ? null
@@ -77,7 +90,7 @@ static long RunMovement4(ProfileCommandLine options, TextWriter report)
             options.CalibrationIterations,
             options.CorrectionMinimumRSquared);
 
-    CallProfiler profiler = ProfilerRuntime.Start(options.Depth, options.SampleCapacity);
+    CallProfiler profiler = ProfilerRuntime.Start(options.Depth, options.SampleCapacity, rootMethodIds);
     long checksum = 0;
     try
     {
@@ -116,24 +129,18 @@ static long RunMovement4(ProfileCommandLine options, TextWriter report)
         calibration = null;
     }
 
-    Dictionary<int, string> methodNames = ProfilerRuntime.LoadMethodNames(
-        typeof(Delta.ECS.World).Assembly);
-    MergeMethodNames(
-        methodNames,
-        ProfilerRuntime.LoadMethodNames(typeof(Movement4DelegateProfile).Assembly));
-    methodNames[0] = "DeltaECS.Profiling.Movement4DelegateProfile::Run";
     profiler.WriteReport(report, methodNames, calibration, options.Report);
     return checksum;
 }
 
-static void PrepareMovement4(ProfileCommandLine options)
+static void PrepareMovement4(ProfileCommandLine options, ReadOnlySpan<int> rootMethodIds)
 {
     for (int warmup = 0; warmup < options.Warmups; warmup++)
     {
         _ = Movement4DelegateProfile.Run();
     }
 
-    CallProfiler pilot = ProfilerRuntime.Start(options.Depth, options.SampleCapacity);
+    CallProfiler pilot = ProfilerRuntime.Start(options.Depth, options.SampleCapacity, rootMethodIds);
     try
     {
         _ = Movement4DelegateProfile.Run();
@@ -152,6 +159,44 @@ static void PrepareMovement4(ProfileCommandLine options)
     int sampleBudget = checked((int)(options.SampleCapacity * 0.9));
     int launches = Math.Max(1, sampleBudget / pilot.SampleCount);
     options.SetCalibratedLaunches(launches);
+}
+
+static Dictionary<int, string> LoadMovementMethodNames()
+{
+    Dictionary<int, string> methodNames = ProfilerRuntime.LoadMethodNames(
+        typeof(Delta.ECS.World).Assembly);
+    MergeMethodNames(
+        methodNames,
+        ProfilerRuntime.LoadMethodNames(typeof(Movement4DelegateProfile).Assembly));
+    methodNames[0] = "DeltaECS.Profiling.Movement4DelegateProfile::Run";
+    return methodNames;
+}
+
+static int[] ResolveRootMethodIds(
+    string? selector,
+    IReadOnlyDictionary<int, string> methodNames)
+{
+    if (selector is null)
+    {
+        return [];
+    }
+
+    bool worldForEach = string.Equals(selector, "World.ForEach", StringComparison.OrdinalIgnoreCase);
+    int[] matches = methodNames
+        .Where(pair => worldForEach
+            ? pair.Value.StartsWith("DemandForEachExtensions_", StringComparison.Ordinal)
+                && pair.Value.EndsWith(".ForEach", StringComparison.Ordinal)
+            : pair.Value.Contains(selector, StringComparison.OrdinalIgnoreCase))
+        .Select(static pair => pair.Key)
+        .Distinct()
+        .ToArray();
+    if (matches.Length == 0)
+    {
+        throw new ArgumentException(
+            $"{ProfileArgumentNames.Root} '{selector}' did not match an instrumented method.");
+    }
+
+    return matches;
 }
 
 static void MergeMethodNames(Dictionary<int, string> target, IReadOnlyDictionary<int, string> source)

@@ -12,9 +12,12 @@ public static class ProfilerRuntime
     private static CallProfiler? s_current;
 
     /// <summary>Starts collection on the current thread.</summary>
-    public static CallProfiler Start(int maxDepth = 32, int sampleCapacity = 1_048_576)
+    public static CallProfiler Start(
+        int maxDepth = 32,
+        int sampleCapacity = 1_048_576,
+        ReadOnlySpan<int> rootMethodIds = default)
     {
-        var profiler = new CallProfiler(maxDepth, sampleCapacity);
+        var profiler = new CallProfiler(maxDepth, sampleCapacity, rootMethodIds);
         s_current = profiler;
         return profiler;
     }

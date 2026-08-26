@@ -7,6 +7,7 @@ public static class ProfileArgumentNames
     public const string Smoke = "--smoke";
     public const string Depth = "--depth";
     public const string Warmups = "--warmups";
+    public const string Root = "--root";
     public const string SampleCapacity = "--sample-capacity";
     public const string Correction = "--correction";
     public const string CorrectionMinimumRSquared = "--correction-min-r2";

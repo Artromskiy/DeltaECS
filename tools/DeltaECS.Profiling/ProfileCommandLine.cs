@@ -33,6 +33,8 @@ internal sealed class ProfileCommandLine
 
     internal int Warmups { get; private set; }
 
+    internal string? Root { get; private set; }
+
     internal int SampleCapacity { get; private set; } = 1_048_576;
 
     internal ProfileCorrectionMode Correction { get; private set; }
@@ -76,6 +78,9 @@ internal sealed class ProfileCommandLine
                     break;
                 case ProfileArgumentNames.Warmups:
                     result.Warmups = ParseNonNegative(NextValue(ProfileArgumentNames.Warmups));
+                    break;
+                case ProfileArgumentNames.Root:
+                    result.Root = NextValue(ProfileArgumentNames.Root);
                     break;
                 case ProfileArgumentNames.SampleCapacity:
                     result.SampleCapacity = ParsePositive(NextValue(ProfileArgumentNames.SampleCapacity));
@@ -174,7 +179,7 @@ internal sealed class ProfileCommandLine
         writer.WriteLine($"Probe: {ProfileArgumentNames.Movement4} | {ProfileArgumentNames.Smoke}");
         writer.WriteLine(
             $"Measurement: {ProfileArgumentNames.Depth} N {ProfileArgumentNames.Warmups} N "
-            + $"{ProfileArgumentNames.SampleCapacity} N");
+            + $"{ProfileArgumentNames.SampleCapacity} N {ProfileArgumentNames.Root} METHOD");
         writer.WriteLine(
             $"Correction: {ProfileArgumentNames.Correction} off|optional|required "
             + $"{ProfileArgumentNames.CorrectionMinimumRSquared} 0..1");
@@ -202,9 +207,20 @@ internal sealed class ProfileCommandLine
                 $"{ProfileArgumentNames.Correction} is available only with {ProfileArgumentNames.Movement4}.");
         }
 
+        if (Probe == ProfileProbe.Smoke && Root is not null)
+        {
+            throw new ArgumentException(
+                $"{ProfileArgumentNames.Root} is available only with {ProfileArgumentNames.Movement4}.");
+        }
+
         if (Report.Sections == ProfileReportSections.None)
         {
             throw new ArgumentException($"{ProfileArgumentNames.Sections} must include at least one section.");
+        }
+
+        if (Root is not null && string.IsNullOrWhiteSpace(Root))
+        {
+            throw new ArgumentException($"{ProfileArgumentNames.Root} must contain a method selector.");
         }
 
         ProfileOutputDestination effectiveDestination = Destination == ProfileOutputDestination.Automatic

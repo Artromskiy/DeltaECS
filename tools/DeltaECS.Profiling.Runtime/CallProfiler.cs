@@ -11,6 +11,7 @@ public sealed class CallProfiler
 
     private readonly Sample[] _samples;
     private readonly Frame[] _frames;
+    private readonly int[] _rootMethodIds;
     private readonly int _maxDepth;
     private int _sampleCount;
     private long _droppedSamples;
@@ -18,14 +19,20 @@ public sealed class CallProfiler
     private int _suppressedDepth;
     private int _ownerThreadId;
     private int _nextInvocationId;
+    private bool _capturingRoot;
 
-    public CallProfiler(int maxDepth = 32, int sampleCapacity = DefaultSampleCapacity)
+    public CallProfiler(
+        int maxDepth = 32,
+        int sampleCapacity = DefaultSampleCapacity,
+        ReadOnlySpan<int> rootMethodIds = default)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxDepth);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sampleCapacity);
         _maxDepth = maxDepth;
         _frames = new Frame[maxDepth];
         _samples = new Sample[sampleCapacity];
+        _rootMethodIds = rootMethodIds.ToArray();
+        _capturingRoot = _rootMethodIds.Length == 0;
     }
 
     /// <summary>Gets the number of samples captured since the last reset.</summary>
@@ -34,7 +41,7 @@ public sealed class CallProfiler
     /// <summary>Gets the number of samples rejected because the buffer was full.</summary>
     public long DroppedSamples => _droppedSamples;
 
-    /// <summary>Clears measurements while retaining warmed method routing tables and buffers.</summary>
+    /// <summary>Clears measurements while retaining the preallocated sample and frame buffers.</summary>
     public void ResetMeasurements()
     {
         if (_depth != 0 || _suppressedDepth != 0)
@@ -45,6 +52,7 @@ public sealed class CallProfiler
         _sampleCount = 0;
         _droppedSamples = 0;
         _nextInvocationId = 0;
+        _capturingRoot = _rootMethodIds.Length == 0;
     }
 
     /// <summary>Returns a stable snapshot sorted by inclusive time descending.</summary>
@@ -239,6 +247,7 @@ public sealed class CallProfiler
         const int callsColumn = 7;
         const int metricColumn = 17;
         Dictionary<CallEdge, EdgeAggregate> edges = BuildCallEdges();
+        PrepareAdjustedMetrics(NoParent);
         int methodColumn = MeasureMethodColumn();
         writer.WriteLine();
         writer.WriteLine(format == ProfileReportFormat.Markdown ? "## Call tree" : "Call tree");
@@ -265,7 +274,6 @@ public sealed class CallProfiler
             NoParent,
             depth: 0,
             prefix: string.Empty,
-            new HashSet<int>(),
             rootCorrectedTicks: 0,
             parentRawTicks: 0);
         if (format == ProfileReportFormat.Markdown)
@@ -278,12 +286,12 @@ public sealed class CallProfiler
         int MeasureMethodColumn()
         {
             int maximum = "METHOD".Length;
-            MeasureChildren(NoParent, depth: 0, prefix: string.Empty, new HashSet<int>());
+            MeasureChildren(NoParent, depth: 0, prefix: string.Empty);
             return maximum;
 
-            void MeasureChildren(int parentMethodId, int depth, string prefix, HashSet<int> path)
+            void MeasureChildren(int parentNodeId, int depth, string prefix)
             {
-                CallEdge[] children = OrderedChildren(parentMethodId);
+                CallEdge[] children = OrderedChildren(parentNodeId);
                 for (int childIndex = 0; childIndex < children.Length; childIndex++)
                 {
                     CallEdge edge = children[childIndex];
@@ -293,44 +301,38 @@ public sealed class CallProfiler
                     string label = nodePrefix + CompactMethodName(ResolveMethodName(edge.MethodId, methodNames));
                     maximum = Math.Max(maximum, label.Length);
 
-                    if (path.Add(edge.MethodId))
-                    {
-                        string continuationPrefix = isRoot
-                            ? string.Empty
-                            : prefix + (isLast ? "   " : "│  ");
-                        MeasureChildren(edge.MethodId, depth + 1, continuationPrefix, path);
-                        _ = path.Remove(edge.MethodId);
-                    }
+                    string continuationPrefix = isRoot
+                        ? string.Empty
+                        : prefix + (isLast ? "   " : "│  ");
+                    MeasureChildren(edge.NodeId, depth + 1, continuationPrefix);
                 }
             }
         }
 
-        CallEdge[] OrderedChildren(int parentMethodId)
+        CallEdge[] OrderedChildren(int parentNodeId)
             => edges.Keys
-                .Where(edge => edge.ParentMethodId == parentMethodId)
+                .Where(edge => edge.ParentNodeId == parentNodeId)
                 .OrderByDescending(edge => SortTicks(edges[edge], sort))
                 .ThenByDescending(edge => edges[edge].RawInclusiveTicks)
                 .ThenBy(edge => ResolveMethodName(edge.MethodId, methodNames), StringComparer.Ordinal)
                 .ToArray();
 
         void WriteChildren(
-            int parentMethodId,
+            int parentNodeId,
             int depth,
             string prefix,
-            HashSet<int> path,
             double rootCorrectedTicks,
             double parentRawTicks)
         {
-            CallEdge[] children = OrderedChildren(parentMethodId);
+            CallEdge[] children = OrderedChildren(parentNodeId);
             for (int childIndex = 0; childIndex < children.Length; childIndex++)
             {
                 CallEdge edge = children[childIndex];
                 EdgeAggregate aggregate = edges[edge];
-                double overheadTicks = calibration?.TimestampTicksPerProbe * aggregate.DescendantCalls ?? 0;
-                double selfOverheadTicks = calibration?.TimestampTicksPerProbe * aggregate.DirectChildCalls ?? 0;
-                double correctedTicks = Math.Max(0, aggregate.RawInclusiveTicks - overheadTicks);
-                double correctedSelfTicks = Math.Max(0, aggregate.RawSelfTicks - selfOverheadTicks);
-                double correctedInnerTicks = Math.Max(0, correctedTicks - correctedSelfTicks);
+                double overheadTicks = aggregate.OverheadTicks;
+                double correctedTicks = aggregate.AdjustedInclusiveTicks;
+                double correctedSelfTicks = aggregate.AdjustedSelfTicks;
+                double correctedInnerTicks = aggregate.AdjustedInnerTicks;
                 double effectiveRootTicks = depth == 0 ? correctedTicks : rootCorrectedTicks;
                 double effectiveParentRawTicks = depth == 0
                     ? aggregate.RawInclusiveTicks
@@ -351,18 +353,36 @@ public sealed class CallProfiler
                     correctedSelfTicks,
                     correctedInnerTicks);
 
-                if (path.Add(edge.MethodId))
-                {
-                    WriteChildren(
-                        edge.MethodId,
-                        depth + 1,
-                        continuationPrefix,
-                        path,
-                        effectiveRootTicks,
-                        aggregate.RawInclusiveTicks);
-                    _ = path.Remove(edge.MethodId);
-                }
+                WriteChildren(
+                    edge.NodeId,
+                    depth + 1,
+                    continuationPrefix,
+                    effectiveRootTicks,
+                    aggregate.RawInclusiveTicks);
             }
+        }
+
+        double PrepareAdjustedMetrics(int parentNodeId)
+        {
+            double total = 0;
+            foreach (CallEdge edge in OrderedChildren(parentNodeId))
+            {
+                EdgeAggregate aggregate = edges[edge];
+                double adjustedInnerTicks = PrepareAdjustedMetrics(edge.NodeId);
+                double selfOverheadTicks = calibration?.TimestampTicksPerProbe
+                    * aggregate.DirectChildCalls ?? 0;
+                double adjustedSelfTicks = Math.Max(0, aggregate.RawSelfTicks - selfOverheadTicks);
+                aggregate.AdjustedSelfTicks = adjustedSelfTicks;
+                aggregate.AdjustedInnerTicks = adjustedInnerTicks;
+                aggregate.AdjustedInclusiveTicks = adjustedSelfTicks + adjustedInnerTicks;
+                aggregate.OverheadTicks = Math.Max(
+                    0,
+                    aggregate.RawInclusiveTicks - aggregate.AdjustedInclusiveTicks);
+                edges[edge] = aggregate;
+                total += aggregate.AdjustedInclusiveTicks;
+            }
+
+            return total;
         }
 
         void WriteAsciiNode(
@@ -446,14 +466,8 @@ public sealed class CallProfiler
         double SortTicks(EdgeAggregate aggregate, ProfileReportSort requestedSort)
             => requestedSort switch
             {
-                ProfileReportSort.Adjusted => Math.Max(
-                    0,
-                    aggregate.RawInclusiveTicks
-                    - (calibration?.TimestampTicksPerProbe * aggregate.DescendantCalls ?? 0)),
-                ProfileReportSort.Self => Math.Max(
-                    0,
-                    aggregate.RawSelfTicks
-                    - (calibration?.TimestampTicksPerProbe * aggregate.DirectChildCalls ?? 0)),
+                ProfileReportSort.Adjusted => aggregate.AdjustedInclusiveTicks,
+                ProfileReportSort.Self => aggregate.AdjustedSelfTicks,
                 ProfileReportSort.Calls => aggregate.Calls,
                 _ => aggregate.RawInclusiveTicks
             };
@@ -463,11 +477,18 @@ public sealed class CallProfiler
     {
         var edges = new Dictionary<CallEdge, EdgeAggregate>();
         int[] samplesByInvocation = CreateInvocationMap();
+        var nodesByPath = new Dictionary<CallPath, int>();
+        var nodesByInvocation = new int[_nextInvocationId + 1];
+        Array.Fill(nodesByInvocation, NoParent);
+
         for (int sampleIndex = 0; sampleIndex < _sampleCount; sampleIndex++)
         {
             Sample sample = _samples[sampleIndex];
-            int parentMethodId = ResolveParentMethodId(sample.ParentInvocationId, samplesByInvocation);
-            var edge = new CallEdge(parentMethodId, sample.MethodId);
+            int nodeId = ResolveNode(sampleIndex);
+            int parentNodeId = sample.ParentInvocationId == NoInvocation
+                ? NoParent
+                : nodesByInvocation[sample.ParentInvocationId];
+            var edge = new CallEdge(nodeId, parentNodeId, sample.MethodId);
             edges.TryGetValue(edge, out EdgeAggregate aggregate);
             aggregate.Calls++;
             aggregate.RawInclusiveTicks += sample.EndTicks - sample.StartTicks;
@@ -488,12 +509,15 @@ public sealed class CallProfiler
                 }
 
                 Sample ancestor = _samples[ancestorIndex];
-                int ancestorParentMethodId = ResolveParentMethodId(
-                    ancestor.ParentInvocationId,
-                    samplesByInvocation);
-                var ancestorEdge = new CallEdge(ancestorParentMethodId, ancestor.MethodId);
+                int ancestorNodeId = nodesByInvocation[ancestorInvocationId];
+                int ancestorParentNodeId = ancestor.ParentInvocationId == NoInvocation
+                    ? NoParent
+                    : nodesByInvocation[ancestor.ParentInvocationId];
+                var ancestorEdge = new CallEdge(
+                    ancestorNodeId,
+                    ancestorParentNodeId,
+                    ancestor.MethodId);
                 EdgeAggregate ancestorAggregate = edges[ancestorEdge];
-                ancestorAggregate.DescendantCalls++;
                 if (ancestorInvocationId == sample.ParentInvocationId)
                 {
                     ancestorAggregate.DirectChildCalls++;
@@ -505,6 +529,36 @@ public sealed class CallProfiler
         }
 
         return edges;
+
+        int ResolveNode(int sampleIndex)
+        {
+            Sample sample = _samples[sampleIndex];
+            int existingNodeId = nodesByInvocation[sample.InvocationId];
+            if (existingNodeId != NoParent)
+            {
+                return existingNodeId;
+            }
+
+            int parentNodeId = NoParent;
+            if (sample.ParentInvocationId != NoInvocation)
+            {
+                int parentSampleIndex = samplesByInvocation[sample.ParentInvocationId];
+                if (parentSampleIndex >= 0)
+                {
+                    parentNodeId = ResolveNode(parentSampleIndex);
+                }
+            }
+
+            var path = new CallPath(parentNodeId, sample.MethodId);
+            if (!nodesByPath.TryGetValue(path, out int nodeId))
+            {
+                nodeId = nodesByPath.Count;
+                nodesByPath.Add(path, nodeId);
+            }
+
+            nodesByInvocation[sample.InvocationId] = nodeId;
+            return nodeId;
+        }
     }
 
     private Dictionary<int, Aggregate> BuildAggregates()
@@ -563,17 +617,6 @@ public sealed class CallProfiler
         return samplesByInvocation;
     }
 
-    private int ResolveParentMethodId(int parentInvocationId, int[] samplesByInvocation)
-    {
-        if (parentInvocationId == NoInvocation)
-        {
-            return NoParent;
-        }
-
-        int parentSampleIndex = samplesByInvocation[parentInvocationId];
-        return parentSampleIndex < 0 ? NoParent : _samples[parentSampleIndex].MethodId;
-    }
-
     private static string ResolveMethodName(
         int methodId,
         IReadOnlyDictionary<int, string>? methodNames)
@@ -624,6 +667,16 @@ public sealed class CallProfiler
     internal void EnterMethod(int methodId)
     {
         EnsureThread();
+        if (!_capturingRoot)
+        {
+            if (!IsRootMethod(methodId))
+            {
+                return;
+            }
+
+            _capturingRoot = true;
+        }
+
         if (_depth >= _maxDepth)
         {
             _suppressedDepth++;
@@ -645,6 +698,11 @@ public sealed class CallProfiler
     internal void ExitMethod(int methodId)
     {
         EnsureThread();
+        if (!_capturingRoot)
+        {
+            return;
+        }
+
         if (_suppressedDepth != 0)
         {
             _suppressedDepth--;
@@ -657,6 +715,24 @@ public sealed class CallProfiler
         }
 
         ExitCurrentMethod();
+        if (_depth == 0 && _rootMethodIds.Length != 0)
+        {
+            _capturingRoot = false;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool IsRootMethod(int methodId)
+    {
+        for (int index = 0; index < _rootMethodIds.Length; index++)
+        {
+            if (_rootMethodIds[index] == methodId)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -824,7 +900,9 @@ public sealed class CallProfiler
     private const int NoParent = int.MinValue;
     private const int NoInvocation = 0;
 
-    private readonly record struct CallEdge(int ParentMethodId, int MethodId);
+    private readonly record struct CallPath(int ParentNodeId, int MethodId);
+
+    private readonly record struct CallEdge(int NodeId, int ParentNodeId, int MethodId);
 
     private struct EdgeAggregate
     {
@@ -832,6 +910,9 @@ public sealed class CallProfiler
         internal long RawInclusiveTicks;
         internal long RawSelfTicks;
         internal long DirectChildCalls;
-        internal long DescendantCalls;
+        internal double AdjustedInclusiveTicks;
+        internal double AdjustedSelfTicks;
+        internal double AdjustedInnerTicks;
+        internal double OverheadTicks;
     }
 }

@@ -34,6 +34,30 @@ tools/profile-hotpath.sh \
 The script automatically builds the profiling-only ECS assembly. It does not
 modify or instrument the production `DeltaECS.dll`.
 
+To collect only a generated `world.ForEach(...)` call and everything nested
+inside it, add the root selector:
+
+```bash
+tools/profile-hotpath.sh \
+  --movement4 \
+  --root World.ForEach \
+  --depth 32 \
+  --warmups 10 \
+  --correction optional \
+  --sample-capacity 4000000 \
+  --sections all \
+  --format text \
+  --sort adjusted \
+  --destination file \
+  --output artifacts/profiling/movement4-foreach-only.txt
+```
+
+The selector is resolved to numeric method IDs before collection. Outside the
+selected root, woven methods perform no timestamp or sample-buffer work. The
+root call and every instrumented descendant are collected until that root
+returns. `World.ForEach` is a stable alias for generated delegate `ForEach`
+extension methods; other selectors use a case-insensitive method-name match.
+
 ## Architecture
 
 | Project/file | Responsibility |
@@ -92,6 +116,13 @@ The report contains:
   node occupies one aligned ASCII row; the active `--sort` key is the first
   metric after method name and call count.
 
+Tree nodes are aggregated by their complete call path, not only by
+`parent method + method`. The same method reached through two branches is
+therefore reported independently in each branch. Adjusted tree totals are
+computed bottom-up as `adjusted self + adjusted children`; this keeps every
+parent/root percentage within `0..100%`. The flat table intentionally remains
+method-based and combines all call sites of the same method.
+
 ## Overhead calibration
 
 Before the measured workload, the tool warms one deterministic nested path and
@@ -133,6 +164,7 @@ Argument names are centralized in `ProfileArgumentNames`.
 | `--movement4`, `--smoke` | flag | Select the real probe or collector smoke. |
 | `--depth` | positive integer | Maximum captured call depth. |
 | `--warmups` | non-negative integer | Unmeasured workload calls before collection. |
+| `--root` | method selector | Collect only matching roots and their instrumented descendants; `World.ForEach` selects generated delegate iteration. |
 | `--sample-capacity` | positive integer | Preallocated raw sample capacity. |
 | `--correction` | `off`, `optional`, `required` | Active-overhead correction policy. |
 | `--correction-min-r2` | `0..1` | Required calibration quality. |
