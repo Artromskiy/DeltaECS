@@ -67,7 +67,7 @@ public sealed class EcsProfilingFabric : ProjectFabric
         amender
             .SelectMany(compilation => compilation.AllTypes)
             .Where(static type => type.ContainingNamespace.ToDisplayString()
-                .StartsWith("Delta.ECS", StringComparison.Ordinal))
+                .StartsWith("DeltaECS", StringComparison.Ordinal))
             .SelectMany(static type => type.Methods)
             .Where(static method => method.Name is not ".ctor" and not ".cctor")
             .AddAspectIfEligible<EcsProfileMethodAttribute>();

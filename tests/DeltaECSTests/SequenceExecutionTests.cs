@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using NUnit.Framework;
-using Delta.ECS;
+using DeltaECS;
 
-namespace Delta.ECS.Tests;
+namespace DeltaECS.Tests;
 
 [TestFixture]
 public sealed class SequenceExecutionTests

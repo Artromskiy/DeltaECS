@@ -1,6 +1,6 @@
 using BenchmarkDotNet.Attributes;
 
-namespace Delta.ECS.MicroBenchmarks;
+namespace DeltaECS.MicroBenchmarks;
 
 /// <summary>Short BDN surface; fixture and kernel code lives in the implementation file.</summary>
 internal static class MicroBenchmarkCatalog
@@ -10,13 +10,7 @@ internal static class MicroBenchmarkCatalog
         typeof(DenseIterationMicroBenchmarks),
         typeof(Movement4OrderMicroBenchmarks),
         typeof(GeneratedFunctorMovement4MicroBenchmarks),
-        typeof(Movement4ApiComparisonMicroBenchmarks),
-        typeof(AddMicroBenchmarks),
-        typeof(RemoveMicroBenchmarks),
-        typeof(CreateMicroBenchmarks),
-        typeof(DestroyMicroBenchmarks),
-        typeof(ListStructuralBatchMicroBenchmarks),
-        typeof(QueryStructuralBatchMicroBenchmarks)
+        typeof(Movement4ApiComparisonMicroBenchmarks)
     ];
 }
 
@@ -37,35 +31,5 @@ public class GeneratedFunctorMovement4MicroBenchmarks : GeneratedFunctorMovement
 
 [MemoryDiagnoser]
 public class Movement4ApiComparisonMicroBenchmarks : Movement4ApiComparisonMicroBenchmarkImplementation
-{
-}
-
-[MemoryDiagnoser]
-public class AddMicroBenchmarks : AddMicroBenchmarkImplementation
-{
-}
-
-[MemoryDiagnoser]
-public class RemoveMicroBenchmarks : RemoveMicroBenchmarkImplementation
-{
-}
-
-[MemoryDiagnoser]
-public class CreateMicroBenchmarks : CreateMicroBenchmarkImplementation
-{
-}
-
-[MemoryDiagnoser]
-public class DestroyMicroBenchmarks : DestroyMicroBenchmarkImplementation
-{
-}
-
-[MemoryDiagnoser]
-public class ListStructuralBatchMicroBenchmarks : ListStructuralBatchMicroBenchmarkImplementation
-{
-}
-
-[MemoryDiagnoser]
-public class QueryStructuralBatchMicroBenchmarks : QueryStructuralBatchMicroBenchmarkImplementation
 {
 }

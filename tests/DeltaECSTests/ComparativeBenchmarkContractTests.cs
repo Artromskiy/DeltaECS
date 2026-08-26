@@ -1,9 +1,9 @@
-using Delta.ECS.Benchmarks;
-using Delta.ECS;
+using DeltaECS.Benchmarks;
+using DeltaECS;
 using NUnit.Framework;
 using System.Text.RegularExpressions;
 
-namespace Delta.ECS.Tests;
+namespace DeltaECS.Tests;
 
 [TestFixture]
 public sealed class ComparativeBenchmarkContractTests
@@ -58,7 +58,7 @@ public sealed class ComparativeBenchmarkContractTests
             Assert.That(ordinalAccess.IsMatch(File.ReadAllText(source)), Is.False, source);
         }
 
-        Assert.That(typeof(World).Assembly.GetType("Delta.ECS.QueryChunkCursor"), Is.Null);
+        Assert.That(typeof(World).Assembly.GetType("DeltaECS.QueryChunkCursor"), Is.Null);
     }
 
     private static string FindBenchmarkRoot()

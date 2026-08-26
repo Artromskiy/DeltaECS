@@ -1,6 +1,6 @@
 # DeltaECS source API map
 
-The public namespace is `Delta.ECS`. Source folders separate API roles; they
+The public namespace is `DeltaECS`. Source folders separate API roles; they
 do not create separate storage models or namespaces.
 
 | Folder | Responsibility | Documentation |

@@ -2,22 +2,6 @@ namespace DeltaECS.VersionAdapter;
 
 using Delta.ECS;
 
-public enum AtomicOperation
-{
-    Create,
-    Destroy,
-    Add,
-    Remove
-}
-
-public enum BatchOperation
-{
-    Create,
-    Destroy,
-    Add,
-    Remove
-}
-
 public sealed class IterationScenario
 {
     private readonly int _amount;
@@ -189,131 +173,6 @@ public sealed class IterationScenario
     }
 }
 
-public sealed class AtomicScenario
-{
-    private World _createWorld = null!;
-    private World _destroyWorld = null!;
-    private World _addWorld = null!;
-    private World _removeWorld = null!;
-    private ArchetypeHandle _createArchetype;
-    private Entity _destroyEntity;
-    private Entity _addEntity;
-    private Entity _removeEntity;
-    private ComponentId _extra;
-    private ComponentId[] _extraIds = null!;
-
-    public AtomicScenario() => Reset();
-
-    public void Reset()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        var baseId = layouts.Register(typeof(StructuralBase), new SchemaId(951_000));
-        _extra = layouts.Register(typeof(StructuralExtra), new SchemaId(951_001));
-        _extraIds = [_extra];
-
-        _createWorld = new World(layouts);
-        _createArchetype = _createWorld.GetOrCreateArchetype(baseId);
-
-        _destroyWorld = new World(layouts);
-        _destroyEntity = _destroyWorld.Create([baseId]);
-
-        _addWorld = new World(layouts);
-        _addEntity = _addWorld.Create([baseId]);
-
-        _removeWorld = new World(layouts);
-        _removeEntity = _removeWorld.Create([baseId, _extra]);
-    }
-
-    public int Run(AtomicOperation operation) => operation switch
-    {
-        AtomicOperation.Create => Create(),
-        AtomicOperation.Destroy => Destroy(),
-        AtomicOperation.Add => Add(),
-        AtomicOperation.Remove => Remove(),
-        _ => throw new ArgumentOutOfRangeException(nameof(operation))
-    };
-
-    private int Create()
-    {
-        var entity = _createWorld.Create(_createArchetype);
-        return _createWorld.IsAlive(entity) ? 1 : throw new InvalidOperationException("Atomic create failed.");
-    }
-
-    private int Destroy() => _destroyWorld.Destroy(_destroyEntity)
-        ? 1
-        : throw new InvalidOperationException("Atomic destroy failed.");
-
-    private int Add()
-    {
-        _addWorld.Add(_extraIds, _addEntity);
-        return _addWorld.TryGet<StructuralExtra>(_addEntity, _extra, out _)
-            ? 1
-            : throw new InvalidOperationException("Atomic add failed.");
-    }
-
-    private int Remove()
-    {
-        _removeWorld.Remove(_extraIds, _removeEntity);
-        return !_removeWorld.TryGet<StructuralExtra>(_removeEntity, _extra, out _)
-            ? 1
-            : throw new InvalidOperationException("Atomic remove failed.");
-    }
-}
-
-public sealed class BatchScenario
-{
-    private readonly int _amount;
-    private World _createWorld = null!;
-    private World _destroyWorld = null!;
-    private World _addWorld = null!;
-    private World _removeWorld = null!;
-    private ArchetypeHandle _createArchetype;
-    private Entity[] _createOutput = null!;
-    private Entity[] _destroyEntities = null!;
-    private Entity[] _addEntities = null!;
-    private Entity[] _removeEntities = null!;
-    private ComponentId[] _extraIds = null!;
-
-    public BatchScenario(int amount)
-    {
-        _amount = amount;
-        Reset();
-    }
-
-    public void Reset()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        var baseId = layouts.Register(typeof(StructuralBase), new SchemaId(952_000));
-        var extra = layouts.Register(typeof(StructuralExtra), new SchemaId(952_001));
-        _extraIds = [extra];
-
-        _createWorld = new World(layouts, initialEntityCapacity: _amount);
-        _createArchetype = _createWorld.GetOrCreateArchetype(baseId);
-        _createOutput = new Entity[_amount];
-
-        _destroyWorld = new World(layouts, initialEntityCapacity: _amount);
-        _destroyEntities = new Entity[_amount];
-        _destroyWorld.Create([baseId], _destroyEntities);
-
-        _addWorld = new World(layouts, initialEntityCapacity: _amount);
-        _addEntities = new Entity[_amount];
-        _addWorld.Create([baseId], _addEntities);
-
-        _removeWorld = new World(layouts, initialEntityCapacity: _amount);
-        _removeEntities = new Entity[_amount];
-        _removeWorld.Create([baseId, extra], _removeEntities);
-    }
-
-    public int Run(BatchOperation operation) => operation switch
-    {
-        BatchOperation.Create => _createWorld.Create(_createArchetype, _createOutput),
-        BatchOperation.Destroy => _destroyWorld.Destroy(_destroyEntities),
-        BatchOperation.Add => _addWorld.Add(_extraIds, _addEntities),
-        BatchOperation.Remove => _removeWorld.Remove(_extraIds, _removeEntities),
-        _ => throw new ArgumentOutOfRangeException(nameof(operation))
-    };
-}
-
 internal struct DenseValue { public int Value; }
 internal struct Position { public float X; public float Y; }
 internal struct Velocity { public float X; public float Y; }
@@ -321,5 +180,3 @@ internal struct MovementA { public int Value; }
 internal struct MovementB { public int Value; }
 internal struct MovementC { public int Value; }
 internal struct MovementD { public int Value; }
-internal struct StructuralBase { }
-internal struct StructuralExtra { }

@@ -1,4 +1,4 @@
-# ADR-0005: Delta.ECS root namespace
+# ADR-0005: DeltaECS root namespace
 
 ## Context
 
@@ -8,9 +8,9 @@ parallel `DeltaECSTests` and `DeltaECS.Benchmarks` namespaces.
 
 ## Decision
 
-- Production public types use `Delta.ECS`.
-- Test-only types use `Delta.ECS.Tests`.
-- Benchmark types use `Delta.ECS.Benchmarks`.
+- Production public types use `DeltaECS`.
+- Test-only types use `DeltaECS.Tests`.
+- Benchmark types use `DeltaECS.Benchmarks`.
 - Each owned csproj declares the matching `RootNamespace`.
 - Project and assembly names remain `DeltaECS`, `DeltaECSTests`, and
   `DeltaECS.Benchmarks`; Arch and Friflo source/projects are not renamed.
@@ -18,6 +18,6 @@ parallel `DeltaECSTests` and `DeltaECS.Benchmarks` namespaces.
 ## Compatibility
 
 Binary/project references remain compatible because assembly identities are
-unchanged. Source consumers must replace `using DeltaECS;` with `using Delta.ECS;`
+unchanged. Source consumers must replace `using DeltaECS;` with `using DeltaECS;`
 and update fully qualified `DeltaECS.*` type names. There is intentionally no
 old-namespace forwarding layer, keeping the public API unambiguous.

@@ -1,39 +1,27 @@
-# GitHub benchmark runs
+# GitHub iteration benchmarks
 
-The `ECS benchmarks` workflow has two lanes:
+The `ECS benchmarks` workflow has two iteration lanes:
 
-- pull requests and pushes to `main` build the solution, run the correctness
-  tests, validate the capability contract, and run a BenchmarkDotNet discovery
-  list smoke. It does not measure performance;
-- a manual dispatch or the Monday schedule runs the selected comparative suite
-  in Release and uploads JSON, CSV, Markdown, logs, and runner metadata.
+- pull requests and pushes to `main` build the solution, run correctness tests,
+  validate the iteration contract and run BenchmarkDotNet discovery only;
+- a manual dispatch or the Monday schedule runs the unified iteration matrix in
+  Release and uploads JSON, CSV, Markdown, logs and runner metadata.
 
-To start a measured run, open **Actions → ECS benchmarks → Run workflow**. The
-default `adaptive` mode uses `Job.Default` and lets BenchmarkDotNet choose its
-warm-up and measurement iteration counts. `launch_count` is independent and
-always configurable; it defaults to one. Use `fixed` when exact warm-up and
-measurement counts are required, or `short` for a quick exploratory run. The
-manual form can use either the standard x64 Linux runner or the standard ARM64
-Linux runner; smaller suites are available for focused investigation. The
-weekly run uses adaptive mode on x64.
+The manual `iteration` route compares DeltaECS, Arch, Friflo.Engine.ECS,
+DefaultEcs and LeoEcsLite using the same workloads and entity amounts. The
+separate `version-comparison` route compares two DeltaECS revisions using the
+same dense, Movement2 and Movement4 iteration scenarios.
 
-The generated raw BDN tables and the stable `comparative-report.md` / `.csv`
-combined schema are appended to the Actions run summary. Unsupported native
-batch capabilities are retained as `Supported=false`, `Mode=Unsupported`, and
-`∞` mean/ratio rows. Complete output is retained as the `ecs-benchmarks-*`
-artifact for 30 days.
+Adaptive mode uses `Job.Default` with a 100 ms iteration target and lets
+BenchmarkDotNet choose invocation, warm-up and measurement counts. Fixed and
+short modes are available only for explicitly requested exploratory runs.
 
-The current matrix compares DeltaECS, Arch, Friflo.Engine.ECS, DefaultEcs and
-LeoECS Lite. Additional focused routes are kept separate from
-`full-comparison` so each report has one unambiguous scenario matrix.
+The workflow no longer dispatches structural, capacity, hardware-profile or
+one-off benchmark categories. This keeps every published comparative result in
+the iteration scope and avoids mixing incompatible setup and correctness
+contracts.
 
 GitHub-hosted runners are shared and their CPU model may change between jobs.
-Use a single run to compare DeltaECS with the other ECS implementations because
-all competitors then see the same machine. Do not treat small differences
-between separate workflow runs as regressions. Stable cross-commit regression
-gates require a dedicated self-hosted runner later.
-
-The workflow intentionally does not request hardware performance counters:
-standard GitHub-hosted runners do not provide reliable PMU access. It still
-records BenchmarkDotNet time, ratios, managed allocations, GC data, and the
-runner's CPU/runtime information.
+Use a single run to compare all ECS implementations because they then see the
+same machine. The workflow records BenchmarkDotNet timing, ratios, allocations,
+GC data and runner/runtime information; it does not request hardware counters.

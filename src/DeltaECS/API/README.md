@@ -1,6 +1,6 @@
 # Integration API
 
-`Delta.ECS.Integration.IEcsWorld` is the neutral local boundary for engine and
+`DeltaECS.Integration.IEcsWorld` is the neutral local boundary for engine and
 editor tooling. `World` implements it without introducing an adapter storage
 model.
 

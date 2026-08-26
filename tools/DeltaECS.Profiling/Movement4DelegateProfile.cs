@@ -1,4 +1,4 @@
-using Delta.ECS;
+using DeltaECS;
 
 namespace DeltaECS.Profiling;
 

@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using NUnit.Framework;
-using Delta.ECS;
+using DeltaECS;
 
-namespace Delta.ECS.Tests;
+namespace DeltaECS.Tests;
 
 /// <summary>
 /// Deterministic regression coverage for the structural algorithms.  These tests

@@ -6,7 +6,7 @@ before the experiment.
 - Baseline: `38be81d`
 - V3 code: `6d3ecdf`
 - Target: macOS ARM64, Release, .NET 10, TieredCompilation=0, ReadyToRun=0
-- Method: `Delta.ECS.QueryPlan:MatchingArchetypes(Delta.ECS.World)`
+- Method: `DeltaECS.QueryPlan:MatchingArchetypes(DeltaECS.World)`
 - Source: [QueryAccess.cs](../../src/DeltaECS/Core/QueryAccess.cs#L65)
 - V3 raw JIT: [query-plan-matching-v3-release.txt](../../artifacts/jit-disasm/query-plan-matching-v3-release.txt)
 - Baseline raw JIT: `/private/tmp/deltaecs-v3-baseline-2/artifacts/jit-disasm/query-plan-matching-baseline-release.txt`

@@ -1,13 +1,12 @@
 using System.Globalization;
 using System.Text;
 
-namespace Delta.ECS.Benchmarks;
+namespace DeltaECS.Benchmarks;
 
-/// <summary>One source of truth for the comparable workload sizes.</summary>
+/// <summary>Shared parameters for the cross-ECS iteration comparison.</summary>
 public static class ComparativeBenchmarkParameters
 {
     public static readonly int[] Amounts = { 100, 1_000, 10_000, 100_000 };
-    public static readonly int[] ChangeWidths = { 1, 4 };
     public const int SparseMatchStride = 4;
     public const int WideComponentCount = 8;
 }
@@ -21,120 +20,35 @@ public enum ComparativeEcs
     LeoEcsLite
 }
 
-public enum ComparativeCapabilityMode
-{
-    Native,
-    QueryFallback,
-    ListFallback,
-    AtomicFallback,
-    Unsupported
-}
+public sealed record ComparativeCapability(string Workload, ComparativeEcs Ecs, bool Supported, string Note);
 
-public sealed record ComparativeCapability(
-    string Workload,
-    ComparativeEcs Ecs,
-    bool Supported,
-    ComparativeCapabilityMode Mode,
-    string Note);
-
-/// <summary>
-/// Explicit capability data. Every operation uses the highest common semantic
-/// level exposed by an ECS and falls back to a lower level when necessary.
-/// </summary>
+/// <summary>Declares the complete iteration matrix used by the comparative suite.</summary>
 public static class ComparativeCapabilityManifest
 {
-    private static readonly string[] s_iteration =
+    private static readonly string[] s_workloads =
     {
-        "Iteration.Dense", "Iteration.Movement2Components", "Iteration.Movement4Components",
-        "Iteration.WideArchetypeNarrowQuery", "Iteration.SparseWorldQueryPlan", "Iteration.QueryPlanConstruction"
-    };
-
-    private static readonly string[] s_atomic =
-    {
-        "Structural.Atomic.Create", "Structural.Atomic.Destroy",
-        "Structural.Atomic.Add", "Structural.Atomic.Remove"
-    };
-
-    private static readonly string[] s_batch =
-    {
-        "Structural.List.CreateBatch", "Structural.List.DestroyBatch",
-        "Structural.List.AddBatch", "Structural.List.RemoveBatch",
-        "Structural.Query.CreateBatch", "Structural.Query.DestroyBatch",
-        "Structural.Query.AddBatch", "Structural.Query.RemoveBatch"
+        "Iteration.Dense",
+        "Iteration.Movement2Components",
+        "Iteration.Movement4Components",
+        "Iteration.WideArchetypeNarrowQuery",
+        "Iteration.SparseWorldQueryPlan",
+        "Iteration.QueryPlanConstruction"
     };
 
     public static IReadOnlyList<ComparativeCapability> Rows { get; } = BuildRows();
 
     private static IReadOnlyList<ComparativeCapability> BuildRows()
     {
-        var rows = new List<ComparativeCapability>();
-        foreach (var workload in s_iteration)
+        var rows = new List<ComparativeCapability>(s_workloads.Length * Enum.GetValues<ComparativeEcs>().Length);
+        foreach (var workload in s_workloads)
         {
             foreach (var ecs in Enum.GetValues<ComparativeEcs>())
             {
-                rows.Add(new(workload, ecs, true, ComparativeCapabilityMode.Native, "direct public API"));
-            }
-        }
-
-        foreach (var workload in s_atomic)
-        {
-            foreach (var ecs in Enum.GetValues<ComparativeEcs>())
-            {
-                var multiComponent = workload is "Structural.Atomic.Add" or "Structural.Atomic.Remove";
-                var hasNativeMultiComponentTransition = ecs is ComparativeEcs.DeltaECS or ComparativeEcs.Arch or ComparativeEcs.FrifloEngineECS;
-                var mode = multiComponent && !hasNativeMultiComponentTransition
-                    ? ComparativeCapabilityMode.AtomicFallback
-                    : ComparativeCapabilityMode.Native;
-                var note = mode == ComparativeCapabilityMode.Native
-                    ? "one structural operation"
-                    : "one atomic call per component";
-                rows.Add(new(workload, ecs, true, mode, note));
-            }
-        }
-
-        foreach (var workload in s_batch)
-        {
-            foreach (var ecs in Enum.GetValues<ComparativeEcs>())
-            {
-                rows.Add(BuildBatchCapability(workload, ecs));
+                rows.Add(new(workload, ecs, true, "direct public API"));
             }
         }
 
         return rows;
-    }
-
-    private static ComparativeCapability BuildBatchCapability(string workload, ComparativeEcs ecs)
-    {
-        if (ecs == ComparativeEcs.DeltaECS)
-        {
-            var queryTransition = workload is "Structural.Query.DestroyBatch" or "Structural.Query.AddBatch" or "Structural.Query.RemoveBatch";
-            return queryTransition
-                ? new(workload, ecs, true, ComparativeCapabilityMode.ListFallback, "query selection followed by native Span batch")
-                : new(workload, ecs, true, ComparativeCapabilityMode.Native, "native Span batch API");
-        }
-
-        if (ecs == ComparativeEcs.Arch)
-        {
-            return workload switch
-            {
-                "Structural.Query.DestroyBatch" => new(workload, ecs, true, ComparativeCapabilityMode.Native, "native query destroy"),
-                "Structural.Query.AddBatch" or "Structural.Query.RemoveBatch" => new(workload, ecs, true, ComparativeCapabilityMode.Native, "native multi-component query operation"),
-                _ => new(workload, ecs, true, ComparativeCapabilityMode.AtomicFallback, "atomic loop fallback")
-            };
-        }
-
-        if (ecs == ComparativeEcs.FrifloEngineECS)
-        {
-            return workload switch
-            {
-                "Structural.List.AddBatch" or "Structural.List.RemoveBatch" or
-                "Structural.Query.AddBatch" or "Structural.Query.RemoveBatch" =>
-                    new(workload, ecs, true, ComparativeCapabilityMode.Native, "native EntityBatch bulk operation"),
-                _ => new(workload, ecs, true, ComparativeCapabilityMode.AtomicFallback, "atomic loop fallback")
-            };
-        }
-
-        return new(workload, ecs, true, ComparativeCapabilityMode.AtomicFallback, "query/list selection followed by atomic loop");
     }
 }
 
@@ -146,20 +60,11 @@ public sealed record ComparativeReportRow(
     double RatioToDelta,
     string Allocated,
     bool Supported,
-    ComparativeCapabilityMode Mode,
     string Note);
 
-/// <summary>Produces the stable combined schema, including explicit infinity rows.</summary>
+/// <summary>Builds machine-readable and GitHub-friendly iteration reports.</summary>
 public static class ComparativeReportBuilder
 {
-    private static readonly (string Prefix, string DisplayName)[] s_summaryCategories =
-    {
-        ("Iteration.", "Итерация"),
-        ("Structural.Atomic.", "Atomic structural"),
-        ("Structural.List.", "Batch по списку"),
-        ("Structural.Query.", "Batch по query")
-    };
-
     private static readonly (string Workload, string DisplayName)[] s_iterationWorkloads =
     {
         ("Iteration.Dense", "Dense"),
@@ -175,10 +80,10 @@ public static class ComparativeReportBuilder
         var result = new List<ComparativeReportRow>(ComparativeCapabilityManifest.Rows.Count);
         foreach (var capability in ComparativeCapabilityManifest.Rows)
         {
-            var mean = capability.Supported ? double.NaN : double.PositiveInfinity;
-            var ratio = capability.Supported ? double.NaN : double.PositiveInfinity;
             result.Add(new(capability.Workload, parameters ?? "manifest", capability.Ecs,
-                mean, ratio, "N/A", capability.Supported, capability.Mode, capability.Note));
+                capability.Supported ? double.NaN : double.PositiveInfinity,
+                capability.Supported ? double.NaN : double.PositiveInfinity,
+                "N/A", capability.Supported, capability.Note));
         }
 
         return result;
@@ -187,24 +92,20 @@ public static class ComparativeReportBuilder
     public static string ToMarkdown(IEnumerable<ComparativeReportRow> rows)
     {
         var builder = new StringBuilder();
-        builder.AppendLine("| Workload | Params | ECS | Mean | RatioToDelta | Allocated | Supported | Mode | Note |");
-        builder.AppendLine("|---|---|---|---:|---:|---|:---:|---|---|");
+        builder.AppendLine("| Workload | Params | ECS | Mean | RatioToDelta | Allocated | Supported | Note |");
+        builder.AppendLine("|---|---|---|---:|---:|---|:---:|---|");
         foreach (var row in rows)
         {
             builder.Append('|').Append(row.Workload).Append('|').Append(row.Params).Append('|')
                 .Append(DisplayName(row.Ecs)).Append('|').Append(FormatNumber(row.Mean)).Append('|')
                 .Append(FormatNumber(row.RatioToDelta)).Append('|').Append(row.Allocated).Append('|')
-                .Append(row.Supported ? "true" : "false").Append('|').Append(row.Mode).Append('|')
-                .Append(Markdown(row.Note)).Append('|').AppendLine();
+                .Append(row.Supported ? "true" : "false").Append('|').Append(Markdown(row.Note)).Append('|')
+                .AppendLine();
         }
 
         return builder.ToString();
     }
 
-    /// <summary>
-    /// Produces the compact GitHub-facing report. A victory is one workload/parameter
-    /// scenario where Delta has the lowest mean among all supported competitors.
-    /// </summary>
     public static string ToSummaryMarkdown(IEnumerable<ComparativeReportRow> rows)
     {
         var scenarios = rows
@@ -232,15 +133,7 @@ public static class ComparativeReportBuilder
 
         builder.AppendLine("| Категория | Победы Delta |");
         builder.AppendLine("|---|---:|");
-        foreach (var category in s_summaryCategories)
-        {
-            var categoryScenarios = scenarios.Where(scenario => scenario.Workload.StartsWith(category.Prefix, StringComparison.Ordinal)).ToArray();
-            if (categoryScenarios.Length == 0) continue;
-            builder.Append('|').Append(category.DisplayName).Append('|')
-                .Append(CountVictories(categoryScenarios)).Append('/').Append(categoryScenarios.Length)
-                .Append('|').AppendLine();
-        }
-
+        builder.Append("| Итерация | ").Append(CountVictories(scenarios)).Append('/').Append(scenarios.Length).AppendLine(" |");
         builder.AppendLine().AppendLine("### Итерация").AppendLine();
         builder.AppendLine("| Тест | Победы Delta | Лучший конкурент и отношение времени |");
         builder.AppendLine("|---|---:|---|");
@@ -250,29 +143,24 @@ public static class ComparativeReportBuilder
             if (workloadScenarios.Length == 0) continue;
             builder.Append('|').Append(workload.DisplayName).Append('|')
                 .Append(CountVictories(workloadScenarios)).Append('/').Append(workloadScenarios.Length).Append('|')
-                .Append(FormatBestRival(FindBestRival(workloadScenarios, static _ => true))).Append('|').AppendLine();
+                .Append(FormatBestRival(FindBestRival(workloadScenarios))).Append('|').AppendLine();
         }
 
-        AppendStructuralSummary(builder, scenarios, "Structural.Atomic.", "Atomic structural");
-        AppendStructuralSummary(builder, scenarios, "Structural.List.", "Batch по списку");
-        AppendStructuralSummary(builder, scenarios, "Structural.Query.", "Batch по query");
-
         builder.AppendLine().AppendLine(
-            "Победа — минимальное среднее время для конкретной операции и набора параметров. " +
-            "Неподдерживаемые операции исключены; отношение рассчитано по среднему времени лучшего конкурента.");
+            "Победа — минимальное среднее время для конкретного workload и набора параметров. " +
+            "Сравнение включает только iteration-сценарии; отношение рассчитано по среднему времени.");
         return builder.ToString();
     }
 
     public static string ToCsv(IEnumerable<ComparativeReportRow> rows)
     {
-        var builder = new StringBuilder("Workload,Params,ECS,Mean,RatioToDelta,Allocated,Supported,Mode,Note\n");
+        var builder = new StringBuilder("Workload,Params,ECS,Mean,RatioToDelta,Allocated,Supported,Note\n");
         foreach (var row in rows)
         {
             builder.Append(Csv(row.Workload)).Append(',').Append(Csv(row.Params)).Append(',')
                 .Append(DisplayName(row.Ecs)).Append(',').Append(FormatNumber(row.Mean)).Append(',')
                 .Append(FormatNumber(row.RatioToDelta)).Append(',').Append(Csv(row.Allocated)).Append(',')
-                .Append(row.Supported ? "true" : "false").Append(',').Append(row.Mode).Append(',')
-                .Append(Csv(row.Note)).AppendLine();
+                .Append(row.Supported ? "true" : "false").Append(',').Append(Csv(row.Note)).AppendLine();
         }
 
         return builder.ToString();
@@ -287,45 +175,19 @@ public static class ComparativeReportBuilder
         File.WriteAllText(Path.Combine(directory, "comparative-report.csv"), ToCsv(rows));
     }
 
-    private static void AppendStructuralSummary(StringBuilder builder, ComparisonScenario[] scenarios, string prefix, string title)
-    {
-        var categoryScenarios = scenarios.Where(scenario => scenario.Workload.StartsWith(prefix, StringComparison.Ordinal)).ToArray();
-        if (categoryScenarios.Length == 0) return;
-
-        builder.AppendLine().Append("### ").AppendLine(title).AppendLine();
-        builder.AppendLine("| Операция | Победы Delta | Лучший native-конкурент | Лучший fallback-конкурент |");
-        builder.AppendLine("|---|---:|---|---|");
-        foreach (var operation in new[] { "Add", "Create", "Destroy", "Remove" })
-        {
-            var operationScenarios = categoryScenarios
-                .Where(scenario => StructuralOperation(scenario.Workload) == operation)
-                .ToArray();
-            if (operationScenarios.Length == 0) continue;
-
-            builder.Append('|').Append(operation).Append('|')
-                .Append(CountVictories(operationScenarios)).Append('/').Append(operationScenarios.Length).Append('|')
-                .Append(FormatBestRival(FindBestRival(operationScenarios, row => row.Mode == ComparativeCapabilityMode.Native))).Append('|')
-                .Append(FormatBestRival(FindBestRival(operationScenarios, row => row.Mode is ComparativeCapabilityMode.QueryFallback
-                    or ComparativeCapabilityMode.ListFallback or ComparativeCapabilityMode.AtomicFallback))).Append('|').AppendLine();
-        }
-    }
-
     private static int CountVictories(IEnumerable<ComparisonScenario> scenarios) =>
         scenarios.Count(scenario => scenario.Rivals.All(rival => scenario.Delta.Mean <= rival.Mean));
 
-    private static BestRival? FindBestRival(IEnumerable<ComparisonScenario> scenarios, Func<ComparativeReportRow, bool> predicate)
+    private static BestRival? FindBestRival(IEnumerable<ComparisonScenario> scenarios)
     {
         BestRival? best = null;
         foreach (var scenario in scenarios)
         {
-            foreach (var rival in scenario.Rivals.Where(predicate))
+            foreach (var rival in scenario.Rivals)
             {
                 var ratio = rival.Mean / scenario.Delta.Mean;
                 if (!double.IsFinite(ratio) || ratio <= 0) continue;
-                if (best is null || ratio < best.RatioToDelta)
-                {
-                    best = new(rival.Ecs, scenario.Params, ratio);
-                }
+                if (best is null || ratio < best.RatioToDelta) best = new(rival.Ecs, scenario.Params, ratio);
             }
         }
 
@@ -337,36 +199,16 @@ public static class ComparativeReportBuilder
         if (best is null) return "—";
         var rival = DisplayName(best.Ecs);
         var parameters = Markdown(best.Params);
-        if (best.RatioToDelta < 1)
-        {
-            return $"{rival} быстрее Delta в {FormatRatio(1 / best.RatioToDelta)}× (`{parameters}`)";
-        }
-
-        if (best.RatioToDelta > 1)
-        {
-            return $"Delta быстрее {rival} в {FormatRatio(best.RatioToDelta)}× (`{parameters}`)";
-        }
-
-        return $"Ничья с {rival} (`{parameters}`)";
+        return best.RatioToDelta < 1
+            ? $"{rival} быстрее Delta в {FormatRatio(1 / best.RatioToDelta)}× (`{parameters}`)"
+            : best.RatioToDelta > 1
+                ? $"Delta быстрее {rival} в {FormatRatio(best.RatioToDelta)}× (`{parameters}`)"
+                : $"Ничья с {rival} (`{parameters}`)";
     }
 
-    private static bool IsMeasured(ComparativeReportRow row) =>
-        row.Supported && double.IsFinite(row.Mean) && row.Mean > 0;
+    private static bool IsMeasured(ComparativeReportRow row) => row.Supported && double.IsFinite(row.Mean) && row.Mean > 0;
 
-    private static string StructuralOperation(string workload)
-    {
-        var operation = workload[(workload.LastIndexOf('.') + 1)..];
-        return operation.EndsWith("Batch", StringComparison.Ordinal) ? operation[..^"Batch".Length] : operation;
-    }
-
-    private static string FormatRatio(double ratio) => ratio.ToString("0.##", CultureInfo.InvariantCulture);
-
-    private sealed record ComparisonScenario(
-        string Workload,
-        string Params,
-        ComparativeReportRow Delta,
-        ComparativeReportRow[] Rivals);
-
+    private sealed record ComparisonScenario(string Workload, string Params, ComparativeReportRow Delta, ComparativeReportRow[] Rivals);
     private sealed record BestRival(ComparativeEcs Ecs, string Params, double RatioToDelta);
 
     private static IReadOnlyList<ComparativeReportRow> BuildCombinedRows(string directory)
@@ -383,25 +225,22 @@ public static class ComparativeReportBuilder
             var meanIndex = Array.IndexOf(header, "Mean");
             var allocatedIndex = Array.IndexOf(header, "Allocated");
             var ratioIndex = Array.IndexOf(header, "Ratio");
-            if (methodIndex < 0 || meanIndex < 0) continue;
             var amountIndex = Array.IndexOf(header, "Amount");
-            var widthIndex = Array.IndexOf(header, "ChangeWidth");
+            if (methodIndex < 0 || meanIndex < 0) continue;
+
             foreach (var line in lines.Skip(1))
             {
                 var fields = ParseDelimitedLine(line, separator);
                 if (fields.Length <= Math.Max(methodIndex, meanIndex)) continue;
                 if (!TryMapMethod(fields[methodIndex], out var workload, out var ecs)) continue;
                 var mean = ParseMeasurement(fields[meanIndex], separator);
-                if (double.IsNaN(mean))
-                    throw new InvalidOperationException($"BenchmarkDotNet produced an invalid Mean for '{fields[methodIndex]}' in '{file}'. NA rows are not reportable results.");
+                if (double.IsNaN(mean)) throw new InvalidOperationException($"BenchmarkDotNet produced an invalid Mean for '{fields[methodIndex]}' in '{file}'.");
                 var ratio = ratioIndex >= 0 && ratioIndex < fields.Length ? ParseMeasurement(fields[ratioIndex], separator) : double.NaN;
                 var parameters = amountIndex >= 0 && amountIndex < fields.Length ? $"Amount={fields[amountIndex]}" : "raw";
-                if (widthIndex >= 0 && widthIndex < fields.Length) parameters += $";ChangeWidth={fields[widthIndex]}";
                 var capability = ComparativeCapabilityManifest.Rows.FirstOrDefault(row => row.Workload == workload && row.Ecs == ecs);
                 measured.Add(new(workload, parameters, ecs, mean, ratio,
-                    allocatedIndex >= 0 && allocatedIndex < fields.Length ? fields[allocatedIndex] : "N/A", true,
-                    capability?.Mode ?? ComparativeCapabilityMode.Native,
-                    capability?.Note ?? "capability not declared"));
+                    allocatedIndex >= 0 && allocatedIndex < fields.Length ? fields[allocatedIndex] : "N/A",
+                    true, capability?.Note ?? "capability not declared"));
             }
         }
 
@@ -412,30 +251,23 @@ public static class ComparativeReportBuilder
             var delta = group.FirstOrDefault(row => row.Ecs == ComparativeEcs.DeltaECS);
             foreach (var capability in ComparativeCapabilityManifest.Rows.Where(row => row.Workload == group.Key.Workload))
             {
-                if (group.Any(row => row.Ecs == capability.Ecs)) continue;
-                if (capability.Supported)
-                    throw new InvalidOperationException($"Measured report is missing supported ECS '{capability.Ecs}' for {group.Key.Workload} ({group.Key.Params}).");
-                result.Add(new(capability.Workload, group.Key.Params, capability.Ecs,
-                    double.PositiveInfinity, double.PositiveInfinity, "N/A", false,
-                    ComparativeCapabilityMode.Unsupported, capability.Note));
+                if (!group.Any(row => row.Ecs == capability.Ecs) && !capability.Supported)
+                    result.Add(new(capability.Workload, group.Key.Params, capability.Ecs, double.PositiveInfinity, double.PositiveInfinity, "N/A", false, capability.Note));
             }
 
-            if (delta is not null && !double.IsNaN(delta.Mean) && delta.Mean != 0)
+            if (delta is not null && delta.Mean != 0)
             {
-                for (var i = 0; i < result.Count; i++)
+                for (var index = 0; index < result.Count; index++)
                 {
-                    var row = result[i];
+                    var row = result[index];
                     if (row.Workload == group.Key.Workload && row.Params == group.Key.Params && double.IsNaN(row.RatioToDelta))
-                        result[i] = row with { RatioToDelta = row.Mean / delta.Mean };
+                        result[index] = row with { RatioToDelta = row.Mean / delta.Mean };
                 }
             }
         }
 
-        return result
-            .OrderBy(row => row.Workload, StringComparer.Ordinal)
-            .ThenBy(row => row.Params, StringComparer.Ordinal)
-            .ThenBy(row => row.Ecs)
-            .ToArray();
+        return result.OrderBy(row => row.Workload, StringComparer.Ordinal)
+            .ThenBy(row => row.Params, StringComparer.Ordinal).ThenBy(row => row.Ecs).ToArray();
     }
 
     internal static bool TryMapMethod(string method, out string workload, out ComparativeEcs ecs)
@@ -445,44 +277,23 @@ public static class ComparativeReportBuilder
             method.Contains("Movement4Components", StringComparison.OrdinalIgnoreCase) ? "Iteration.Movement4Components" :
             method.Contains("WideArchetypeNarrowQuery", StringComparison.OrdinalIgnoreCase) ? "Iteration.WideArchetypeNarrowQuery" :
             method.Contains("SparseWorldQueryPlan", StringComparison.OrdinalIgnoreCase) ? "Iteration.SparseWorldQueryPlan" :
-            method.Contains("QueryPlanConstruction", StringComparison.OrdinalIgnoreCase) ? "Iteration.QueryPlanConstruction" :
-            method.Contains("List_CreateBatch", StringComparison.OrdinalIgnoreCase) ? "Structural.List.CreateBatch" :
-            method.Contains("List_DestroyBatch", StringComparison.OrdinalIgnoreCase) ? "Structural.List.DestroyBatch" :
-            method.Contains("List_AddBatch", StringComparison.OrdinalIgnoreCase) ? "Structural.List.AddBatch" :
-            method.Contains("List_RemoveBatch", StringComparison.OrdinalIgnoreCase) ? "Structural.List.RemoveBatch" :
-            method.Contains("Query_CreateBatch", StringComparison.OrdinalIgnoreCase) ? "Structural.Query.CreateBatch" :
-            method.Contains("Query_DestroyBatch", StringComparison.OrdinalIgnoreCase) ? "Structural.Query.DestroyBatch" :
-            method.Contains("Query_AddBatch", StringComparison.OrdinalIgnoreCase) ? "Structural.Query.AddBatch" :
-            method.Contains("Query_RemoveBatch", StringComparison.OrdinalIgnoreCase) ? "Structural.Query.RemoveBatch" :
-            method.Contains("Atomic_Create", StringComparison.OrdinalIgnoreCase) ? "Structural.Atomic.Create" :
-            method.Contains("Atomic_Destroy", StringComparison.OrdinalIgnoreCase) ? "Structural.Atomic.Destroy" :
-            method.Contains("Atomic_Add", StringComparison.OrdinalIgnoreCase) ? "Structural.Atomic.Add" :
-            method.Contains("Atomic_Remove", StringComparison.OrdinalIgnoreCase) ? "Structural.Atomic.Remove" : "";
-        var mappedEcs = true;
+            method.Contains("QueryPlanConstruction", StringComparison.OrdinalIgnoreCase) ? "Iteration.QueryPlanConstruction" : "";
+        var mapped = true;
         ecs = method.StartsWith("DeltaECS_", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.DeltaECS :
             method.StartsWith("Arch_", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.Arch :
             method.StartsWith("Friflo", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.FrifloEngineECS :
             method.StartsWith("DefaultEcs_", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.DefaultEcs :
             method.StartsWith("LeoEcsLite_", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.LeoEcsLite : UnknownEcs();
-        return workload.Length != 0 && mappedEcs;
+        return workload.Length != 0 && mapped;
 
-        ComparativeEcs UnknownEcs()
-        {
-            mappedEcs = false;
-            return default;
-        }
+        ComparativeEcs UnknownEcs() { mapped = false; return default; }
     }
 
     private static double ParseMeasurement(string value, char csvSeparator)
     {
-        var number = new string(value.TrimStart().TakeWhile(character =>
-            char.IsDigit(character) || character is '.' or ',' or '-' or '+' or 'e' or 'E' || char.IsWhiteSpace(character)).ToArray());
+        var number = new string(value.TrimStart().TakeWhile(character => char.IsDigit(character) || character is '.' or ',' or '-' or '+' or 'e' or 'E' || char.IsWhiteSpace(character)).ToArray());
         number = number.Replace(" ", string.Empty).Replace("\u00a0", string.Empty).Replace("\u202f", string.Empty);
-        if (csvSeparator == ';' && number.Contains(',') && !number.Contains('.'))
-        {
-            number = number.Replace(',', '.');
-        }
-
+        if (csvSeparator == ';' && number.Contains(',') && !number.Contains('.')) number = number.Replace(',', '.');
         if (!double.TryParse(number, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsed)) return double.NaN;
         if (value.Contains("ms", StringComparison.OrdinalIgnoreCase)) return parsed * 1_000_000;
         if (value.Contains("μs", StringComparison.OrdinalIgnoreCase) || value.Contains("us", StringComparison.OrdinalIgnoreCase)) return parsed * 1_000;
@@ -490,12 +301,7 @@ public static class ComparativeReportBuilder
         return parsed;
     }
 
-    private static char DetectSeparator(string header)
-    {
-        if (header.Contains(';')) return ';';
-        if (header.Contains(',')) return ',';
-        throw new InvalidOperationException("Benchmark CSV header has no supported delimiter.");
-    }
+    private static char DetectSeparator(string header) => header.Contains(';') ? ';' : header.Contains(',') ? ',' : throw new InvalidOperationException("Benchmark CSV header has no supported delimiter.");
 
     private static string[] ParseDelimitedLine(string line, char separator)
     {
@@ -507,25 +313,11 @@ public static class ComparativeReportBuilder
             var character = line[index];
             if (character == '"')
             {
-                if (quoted && index + 1 < line.Length && line[index + 1] == '"')
-                {
-                    field.Append('"');
-                    index++;
-                }
-                else
-                {
-                    quoted = !quoted;
-                }
+                if (quoted && index + 1 < line.Length && line[index + 1] == '"') { field.Append('"'); index++; }
+                else quoted = !quoted;
             }
-            else if (character == separator && !quoted)
-            {
-                fields.Add(field.ToString());
-                field.Clear();
-            }
-            else
-            {
-                field.Append(character);
-            }
+            else if (character == separator && !quoted) { fields.Add(field.ToString()); field.Clear(); }
+            else field.Append(character);
         }
 
         if (quoted) throw new InvalidOperationException("Benchmark CSV contains an unterminated quoted field.");
@@ -533,17 +325,14 @@ public static class ComparativeReportBuilder
         return fields.ToArray();
     }
 
-    private static string FormatNumber(double value) =>
-        double.IsPositiveInfinity(value) ? "∞" : double.IsNaN(value) ? "N/A" : value.ToString("0.###", CultureInfo.InvariantCulture);
-
+    private static string FormatNumber(double value) => double.IsPositiveInfinity(value) ? "∞" : double.IsNaN(value) ? "N/A" : value.ToString("0.###", CultureInfo.InvariantCulture);
+    private static string FormatRatio(double ratio) => ratio.ToString("0.##", CultureInfo.InvariantCulture);
     private static string DisplayName(ComparativeEcs ecs) => ecs == ComparativeEcs.FrifloEngineECS ? "Friflo.Engine.ECS" : ecs.ToString();
-
     private static string Csv(string value) => value.Contains(',') || value.Contains('"') ? $"\"{value.Replace("\"", "\"\"")}\"" : value;
-
     private static string Markdown(string value) => value.Replace("|", "\\|").Replace("\r", " ").Replace("\n", " ");
 }
 
-/// <summary>Only unified classes are included here; no Legacy class is reachable from the new routes.</summary>
+/// <summary>Only unified iteration benchmarks are exposed by this project.</summary>
 public static class ComparativeBenchmarkCatalog
 {
     public static readonly Type[] Iteration =
@@ -555,54 +344,29 @@ public static class ComparativeBenchmarkCatalog
         typeof(ComparativeSparseQueryBenchmarks)
     };
 
-    public static readonly Type[] StructuralList = { typeof(ComparativeStructuralListBenchmarks) };
-    public static readonly Type[] StructuralQuery = { typeof(ComparativeStructuralQueryBenchmarks) };
-    public static readonly Type[] StructuralAtomic = { typeof(ComparativeStructuralAtomicBenchmarks) };
-
-    public static readonly Type[] FullComparison = Iteration
-        .Concat(StructuralList).Concat(StructuralQuery).Concat(StructuralAtomic).ToArray();
-
     public static Type[] ForRoute(string route) => route.ToLowerInvariant() switch
     {
         "iteration" => Iteration,
-        "structural-list" => StructuralList,
-        "structural-query" => StructuralQuery,
-        "structural-atomic" => StructuralAtomic,
-        "full-comparison" => FullComparison,
-        _ => throw new ArgumentException($"Unknown comparative route '{route}'.", nameof(route))
+        _ => throw new ArgumentException($"Unknown comparative route '{route}'. Only 'iteration' is supported.", nameof(route))
     };
 
     public static void Validate()
     {
-        if (FullComparison.Any(type => type.Name.Contains("Legacy", StringComparison.OrdinalIgnoreCase)))
-            throw new InvalidOperationException("Legacy is not allowed in the new comparative catalog.");
-
-        if (FullComparison.Any(HasEmbeddedMeasurementJob))
-            throw new InvalidOperationException("Unified comparative benchmarks must take their measurement job from the selected workflow mode.");
-
-        foreach (var type in Iteration)
-        {
-            if (type.GetMethods().Any(method => method.GetCustomAttributes(typeof(BenchmarkDotNet.Attributes.IterationSetupAttribute), inherit: true).Length != 0)
-                && !AllowsIterationSetup(type))
-                throw new InvalidOperationException($"Iteration benchmark {type.Name} must not force InvocationCount=1 through IterationSetup.");
-        }
+        if (Iteration.Any(HasEmbeddedMeasurementJob))
+            throw new InvalidOperationException("Unified iteration benchmarks must take their measurement job from the selected workflow mode.");
 
         var ecsCount = Enum.GetValues<ComparativeEcs>().Length;
-        foreach (var workload in new[] { "Iteration.Dense", "Iteration.Movement2Components", "Iteration.Movement4Components", "Iteration.WideArchetypeNarrowQuery", "Iteration.SparseWorldQueryPlan", "Iteration.QueryPlanConstruction" })
+        foreach (var workload in ComparativeCapabilityManifest.Rows.Select(row => row.Workload).Distinct(StringComparer.Ordinal))
         {
             if (ComparativeCapabilityManifest.Rows.Count(row => row.Workload == workload) != ecsCount)
                 throw new InvalidOperationException($"Capability manifest is incomplete for {workload}.");
         }
 
-        var unsupported = ComparativeReportBuilder.BuildManifestRows().Where(row => !row.Supported).ToArray();
-        if (unsupported.Any(row => !double.IsPositiveInfinity(row.Mean) || !double.IsPositiveInfinity(row.RatioToDelta)))
-            throw new InvalidOperationException("Unsupported capability rows must render as infinity.");
-
         var benchmarkAttribute = typeof(BenchmarkDotNet.Attributes.BenchmarkAttribute);
         var measuredCapabilities = new HashSet<(string Workload, ComparativeEcs Ecs)>();
-        foreach (var type in FullComparison)
+        foreach (var type in Iteration)
         {
-            var methods = type.GetMethods().Where(method => method.GetCustomAttributes(benchmarkAttribute, inherit: true).Length != 0).ToArray();
+            var methods = type.GetMethods().Where(method => method.GetCustomAttributes(benchmarkAttribute, true).Length != 0).ToArray();
             if (methods.Length == 0) throw new InvalidOperationException($"Comparative class {type.Name} has no benchmark methods.");
             var baselines = methods.Where(method => ((BenchmarkDotNet.Attributes.BenchmarkAttribute)method.GetCustomAttributes(benchmarkAttribute, true).Single()).Baseline).ToArray();
             if (baselines.Length == 0 || baselines.Any(method => !method.Name.StartsWith("DeltaECS_", StringComparison.Ordinal)))
@@ -610,22 +374,17 @@ public static class ComparativeBenchmarkCatalog
             foreach (var method in methods)
             {
                 if (!ComparativeReportBuilder.TryMapMethod(method.Name, out var workload, out var ecs))
-                    throw new InvalidOperationException($"Comparative method {type.Name}.{method.Name} is not mapped to a workload and ECS.");
-                if (!measuredCapabilities.Add((workload, ecs)))
-                    throw new InvalidOperationException($"Duplicate comparative method for {workload} and {ecs}.");
+                    throw new InvalidOperationException($"Comparative method {type.Name}.{method.Name} is not mapped to iteration and ECS.");
+                if (!measuredCapabilities.Add((workload, ecs))) throw new InvalidOperationException($"Duplicate comparative method for {workload} and {ecs}.");
             }
         }
 
         foreach (var capability in ComparativeCapabilityManifest.Rows.Where(row => row.Supported))
+        {
             if (!measuredCapabilities.Contains((capability.Workload, capability.Ecs)))
                 throw new InvalidOperationException($"Missing benchmark method for supported capability {capability.Workload} and {capability.Ecs}.");
+        }
     }
 
-    private static bool AllowsIterationSetup(Type type) =>
-        type.Name.Contains("Movement", StringComparison.Ordinal);
-
-    private static bool HasEmbeddedMeasurementJob(Type type) =>
-        type.GetCustomAttributes(inherit: true).Any(attribute =>
-            attribute is BenchmarkDotNet.Attributes.ShortRunJobAttribute
-            or BenchmarkDotNet.Attributes.SimpleJobAttribute);
+    private static bool HasEmbeddedMeasurementJob(Type type) => type.GetCustomAttributes(inherit: true).Any(attribute => attribute is BenchmarkDotNet.Attributes.ShortRunJobAttribute or BenchmarkDotNet.Attributes.SimpleJobAttribute);
 }

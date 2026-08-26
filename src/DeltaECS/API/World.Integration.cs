@@ -1,7 +1,7 @@
-namespace Delta.ECS;
+namespace DeltaECS;
 
 using System;
-using Delta.ECS.Integration;
+using DeltaECS.Integration;
 
 public sealed partial class World : IEcsWorld
 {

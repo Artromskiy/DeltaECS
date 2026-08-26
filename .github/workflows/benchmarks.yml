@@ -22,14 +22,10 @@ on:
       suite:
         description: Benchmark suite to run
         required: true
-        default: full-comparison
+        default: iteration
         type: choice
         options:
-          - full-comparison
           - iteration
-          - structural-list
-          - structural-query
-          - structural-atomic
           - version-comparison
       benchmark_mode:
         description: BenchmarkDotNet measurement mode
@@ -131,7 +127,7 @@ jobs:
         run: |
           dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net10.0/DeltaECS.Benchmarks.dll contract-smoke
           dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net10.0/DeltaECS.Benchmarks.dll \
-            full-comparison \
+            iteration \
             --list flat \
             --filter '*'
 
@@ -145,7 +141,7 @@ jobs:
           retention-days: 7
 
   full:
-    name: Full comparative benchmark
+    name: Iteration comparative benchmark
     if: (github.event_name == 'workflow_dispatch' && inputs.suite != 'version-comparison') || github.event_name == 'schedule'
     runs-on: ${{ inputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 360
@@ -153,7 +149,7 @@ jobs:
       group: ecs-benchmarks-full-${{ github.event_name }}-${{ github.ref }}
       cancel-in-progress: false
     env:
-      BENCHMARK_SUITE: ${{ inputs.suite || 'full-comparison' }}
+      BENCHMARK_SUITE: ${{ inputs.suite || 'iteration' }}
       BENCHMARK_MODE: ${{ inputs.benchmark_mode || 'adaptive' }}
       WARMUP_COUNT: ${{ inputs.warmup_count || 5 }}
       ITERATION_COUNT: ${{ inputs.iteration_count || 10 }}
@@ -413,23 +409,23 @@ jobs:
         run: |
           benchmark_args=(
             --filter '*'
-            --launchCount "$LAUNCH_COUNT"
             --exporters json csv markdown github
             --artifacts artifacts/version-comparison
           )
           case "$BENCHMARK_MODE" in
             adaptive)
-              benchmark_args+=(--job Default)
+              benchmark_args+=(--job Default --iterationTime 100)
               ;;
             fixed)
               benchmark_args+=(
                 --job Default
+                --launchCount "$LAUNCH_COUNT"
                 --warmupCount "$WARMUP_COUNT"
                 --iterationCount "$ITERATION_COUNT"
               )
               ;;
             short)
-              benchmark_args+=(--job Short)
+              benchmark_args+=(--job Short --launchCount "$LAUNCH_COUNT")
               ;;
             *)
               echo "::error::Unknown benchmark mode '$BENCHMARK_MODE'."

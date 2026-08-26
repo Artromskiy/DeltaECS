@@ -1,162 +1,104 @@
-namespace Delta.ECS.Benchmarks;
+namespace DeltaECS.Benchmarks;
 
-/// <summary>Runs every supported unified method once at Amount=100 without BDN.</summary>
+/// <summary>Runs the unified iteration matrix once without BenchmarkDotNet.</summary>
 public static class ComparativeBenchmarkExecutionSmoke
 {
     public static void RunAmount100()
     {
-        RunIteration();
-        RunStructuralList();
-        RunStructuralQuery();
-        RunStructuralAtomic();
+        RunDense();
+        RunMovement2();
+        RunMovement4();
+        RunWide();
+        RunSparse();
     }
 
-    private static void RunIteration()
+    private static void RunDense()
     {
-        var dense = new ComparativeDenseIterationBenchmarks { Amount = 100 };
-        dense.Setup();
-        try { Require(dense.DeltaECS_Dense(), 5_050, "Delta dense"); Require(dense.Arch_Dense(), 5_050, "Arch dense"); Require(dense.FrifloEngineECS_Dense(), 5_050, "Friflo dense"); Require(dense.DefaultEcs_Dense(), 5_050, "Default dense"); Require(dense.LeoEcsLite_Dense(), 5_050, "Leo dense"); }
-        finally { dense.Cleanup(); }
-
-        var movement = new ComparativeMovement2ComponentsBenchmarks { Amount = 100 };
-        movement.Setup();
+        var benchmark = new ComparativeDenseIterationBenchmarks { Amount = 100 };
+        benchmark.Setup();
         try
         {
-            movement.ResetMovement();
-            RequireApproximately(movement.DeltaECS_Movement2Components(), Movement2Expected(movement.Amount), "Delta movement two components");
-            movement.ResetMovement();
-            RequireApproximately(movement.Arch_Movement2Components(), Movement2Expected(movement.Amount), "Arch movement two components");
-            movement.ResetMovement();
-            RequireApproximately(movement.FrifloEngineECS_Movement2Components(), Movement2Expected(movement.Amount), "Friflo movement two components");
-            movement.ResetMovement();
-            RequireApproximately(movement.DefaultEcs_Movement2Components(), Movement2Expected(movement.Amount), "Default movement two components");
-            movement.ResetMovement();
-            RequireApproximately(movement.LeoEcsLite_Movement2Components(), Movement2Expected(movement.Amount), "Leo movement two components");
-            movement.ResetMovement();
-            RequireApproximately(movement.DeltaECS_Movement2Components(), Movement2Expected(movement.Amount), "Delta movement two components after reset");
+            Require(benchmark.DeltaECS_Dense(), 5_050, "Delta dense");
+            Require(benchmark.Arch_Dense(), 5_050, "Arch dense");
+            Require(benchmark.FrifloEngineECS_Dense(), 5_050, "Friflo dense");
+            Require(benchmark.DefaultEcs_Dense(), 5_050, "Default dense");
+            Require(benchmark.LeoEcsLite_Dense(), 5_050, "Leo dense");
         }
-        finally { movement.Cleanup(); }
-
-        var distinct = new ComparativeMovement4ComponentsBenchmarks { Amount = 100 };
-        distinct.Setup();
-        try
-        {
-            distinct.ResetMovement4(); Require(distinct.DeltaECS_Movement4Components(), 2_000, "Delta movement four components");
-            distinct.ResetMovement4(); Require(distinct.Arch_Movement4Components(), 2_000, "Arch movement four components");
-            distinct.ResetMovement4(); Require(distinct.FrifloEngineECS_Movement4Components(), 2_000, "Friflo movement four components");
-            distinct.ResetMovement4(); Require(distinct.DefaultEcs_Movement4Components(), 2_000, "Default movement four components");
-            distinct.ResetMovement4(); Require(distinct.LeoEcsLite_Movement4Components(), 2_000, "Leo movement four components");
-            distinct.ResetMovement4(); Require(distinct.DeltaECS_Movement4Components(), 2_000, "Delta movement four components after reset");
-        }
-        finally { distinct.Cleanup(); }
-
-        var wide = new ComparativeWideArchetypeNarrowQueryBenchmarks { Amount = 100 };
-        wide.Setup();
-        try { Require(wide.DeltaECS_WideArchetypeNarrowQuery(), 900, "Delta wide archetype narrow query"); Require(wide.Arch_WideArchetypeNarrowQuery(), 900, "Arch wide archetype narrow query"); Require(wide.FrifloEngineECS_WideArchetypeNarrowQuery(), 900, "Friflo wide archetype narrow query"); Require(wide.DefaultEcs_WideArchetypeNarrowQuery(), 900, "Default wide archetype narrow query"); Require(wide.LeoEcsLite_WideArchetypeNarrowQuery(), 900, "Leo wide archetype narrow query"); }
-        finally { wide.Cleanup(); }
-
-        var sparse = new ComparativeSparseQueryBenchmarks { Amount = 100 };
-        sparse.Setup();
-        try { Require(sparse.DeltaECS_SparseWorldQueryPlan(), 25, "Delta sparse world cached query"); Require(sparse.Arch_SparseWorldQueryPlan(), 25, "Arch sparse world cached query"); Require(sparse.FrifloEngineECS_SparseWorldQueryPlan(), 25, "Friflo sparse world cached query"); Require(sparse.DefaultEcs_SparseWorldQueryPlan(), 25, "Default sparse world cached query"); Require(sparse.LeoEcsLite_SparseWorldQueryPlan(), 25, "Leo sparse world cached query"); Require(sparse.DeltaECS_QueryPlanConstruction(), 25, "Delta query-plan construction"); Require(sparse.Arch_QueryPlanConstruction(), 25, "Arch query-plan construction"); Require(sparse.FrifloEngineECS_QueryPlanConstruction(), 25, "Friflo query-plan construction"); Require(sparse.DefaultEcs_QueryPlanConstruction(), 25, "Default query-plan construction"); Require(sparse.LeoEcsLite_QueryPlanConstruction(), 25, "Leo query-plan construction"); }
-        finally { sparse.Cleanup(); }
+        finally { benchmark.Cleanup(); }
     }
 
-    private static void RunStructuralList()
+    private static void RunMovement2()
     {
-        var b = new ComparativeStructuralListBenchmarks { Amount = 100, ChangeWidth = 4 };
-        b.Setup();
+        var benchmark = new ComparativeMovement2ComponentsBenchmarks { Amount = 100 };
+        benchmark.Setup();
         try
         {
-            b.PrepareCreate(); Require(b.DeltaECS_List_CreateBatch(), 100, "Delta list create"); b.RestoreAfterIteration();
-            b.PrepareDestroy(); Require(b.DeltaECS_List_DestroyBatch(), 100, "Delta list destroy"); b.RestoreAfterIteration();
-            b.PrepareAdd(); Require(b.DeltaECS_List_AddBatch(), 100, "Delta list add"); b.RestoreAfterIteration();
-            b.PrepareRemove(); Require(b.DeltaECS_List_RemoveBatch(), 100, "Delta list remove"); b.RestoreAfterIteration();
-
-            b.PrepareArchListCreate(); Require(b.Arch_List_CreateBatch(), 100, "Arch list create"); b.RestoreAfterIteration();
-            b.PrepareArchListDestroy(); Require(b.Arch_List_DestroyBatch(), 100, "Arch list destroy"); b.RestoreAfterIteration();
-            b.PrepareArchListAdd(); Require(b.Arch_List_AddBatch(), 100, "Arch list add"); b.RestoreAfterIteration();
-            b.PrepareArchListRemove(); Require(b.Arch_List_RemoveBatch(), 100, "Arch list remove"); b.RestoreAfterIteration();
-
-            b.PrepareFrifloListCreate(); Require(b.FrifloEngineECS_List_CreateBatch(), 100, "Friflo list create"); b.RestoreAfterIteration();
-            b.PrepareFrifloListDestroy(); Require(b.FrifloEngineECS_List_DestroyBatch(), 100, "Friflo list destroy"); b.RestoreAfterIteration();
-            b.PrepareFrifloListAdd(); Require(b.FrifloEngineECS_List_AddBatch(), 100, "Friflo list add"); b.RestoreAfterIteration();
-            b.PrepareFrifloListRemove(); Require(b.FrifloEngineECS_List_RemoveBatch(), 100, "Friflo list remove"); b.RestoreAfterIteration();
-
-            b.PrepareDefaultListCreate(); Require(b.DefaultEcs_List_CreateBatch(), 100, "Default list create"); b.RestoreAfterIteration();
-            b.PrepareDefaultListDestroy(); Require(b.DefaultEcs_List_DestroyBatch(), 100, "Default list destroy"); b.RestoreAfterIteration();
-            b.PrepareDefaultListAdd(); Require(b.DefaultEcs_List_AddBatch(), 100, "Default list add"); b.RestoreAfterIteration();
-            b.PrepareDefaultListRemove(); Require(b.DefaultEcs_List_RemoveBatch(), 100, "Default list remove"); b.RestoreAfterIteration();
-
-            b.PrepareLeoListCreate(); Require(b.LeoEcsLite_List_CreateBatch(), 100, "Leo list create"); b.RestoreAfterIteration();
-            b.PrepareLeoListDestroy(); Require(b.LeoEcsLite_List_DestroyBatch(), 100, "Leo list destroy"); b.RestoreAfterIteration();
-            b.PrepareLeoListAdd(); Require(b.LeoEcsLite_List_AddBatch(), 100, "Leo list add"); b.RestoreAfterIteration();
-            b.PrepareLeoListRemove(); Require(b.LeoEcsLite_List_RemoveBatch(), 100, "Leo list remove"); b.RestoreAfterIteration();
+            foreach (var run in new Func<double>[]
+            {
+                benchmark.DeltaECS_Movement2Components,
+                benchmark.Arch_Movement2Components,
+                benchmark.FrifloEngineECS_Movement2Components,
+                benchmark.DefaultEcs_Movement2Components,
+                benchmark.LeoEcsLite_Movement2Components
+            })
+            {
+                benchmark.ResetMovement();
+                RequireApproximately(run(), Movement2Expected(benchmark.Amount), "Movement2");
+            }
         }
-        finally { b.RestoreAfterIteration(); }
+        finally { benchmark.Cleanup(); }
     }
 
-    private static void RunStructuralQuery()
+    private static void RunMovement4()
     {
-        var b = new ComparativeStructuralQueryBenchmarks { Amount = 100, ChangeWidth = 4 };
-        b.Setup();
+        var benchmark = new ComparativeMovement4ComponentsBenchmarks { Amount = 100 };
+        benchmark.Setup();
         try
         {
-            b.PrepareCreate(); Require(b.DeltaECS_Query_CreateBatch(), 100, "Delta query create"); b.RestoreAfterIteration();
-            b.PrepareDestroy(); Require(b.DeltaECS_Query_DestroyBatch(), 25, "Delta query destroy"); b.RestoreAfterIteration();
-            b.PrepareAdd(); Require(b.DeltaECS_Query_AddBatch(), 25, "Delta query add"); b.RestoreAfterIteration();
-            b.PrepareRemove(); Require(b.DeltaECS_Query_RemoveBatch(), 25, "Delta query remove"); b.RestoreAfterIteration();
-
-            b.PrepareArchQueryCreate(); Require(b.Arch_Query_CreateBatch(), 100, "Arch query create"); b.RestoreAfterIteration();
-            b.PrepareArchQueryDestroy(); Require(b.Arch_Query_DestroyBatch(), 25, "Arch query destroy"); b.RestoreAfterIteration();
-            b.PrepareArchQueryAdd(); Require(b.Arch_Query_AddBatch(), 25, "Arch query add"); b.RestoreAfterIteration();
-            b.PrepareArchQueryRemove(); Require(b.Arch_Query_RemoveBatch(), 25, "Arch query remove"); b.RestoreAfterIteration();
-
-            b.PrepareFrifloQueryCreate(); Require(b.FrifloEngineECS_Query_CreateBatch(), 100, "Friflo query create"); b.RestoreAfterIteration();
-            b.PrepareFrifloQueryDestroy(); Require(b.FrifloEngineECS_Query_DestroyBatch(), 25, "Friflo query destroy"); b.RestoreAfterIteration();
-            b.PrepareFrifloQueryAdd(); Require(b.FrifloEngineECS_Query_AddBatch(), 25, "Friflo query add"); b.RestoreAfterIteration();
-            b.PrepareFrifloQueryRemove(); Require(b.FrifloEngineECS_Query_RemoveBatch(), 25, "Friflo query remove"); b.RestoreAfterIteration();
-
-            b.PrepareDefaultQueryCreate(); Require(b.DefaultEcs_Query_CreateBatch(), 100, "Default query create"); b.RestoreAfterIteration();
-            b.PrepareDefaultQueryDestroy(); Require(b.DefaultEcs_Query_DestroyBatch(), 25, "Default query destroy"); b.RestoreAfterIteration();
-            b.PrepareDefaultQueryAdd(); Require(b.DefaultEcs_Query_AddBatch(), 25, "Default query add"); b.RestoreAfterIteration();
-            b.PrepareDefaultQueryRemove(); Require(b.DefaultEcs_Query_RemoveBatch(), 25, "Default query remove"); b.RestoreAfterIteration();
-
-            b.PrepareLeoQueryCreate(); Require(b.LeoEcsLite_Query_CreateBatch(), 100, "Leo query create"); b.RestoreAfterIteration();
-            b.PrepareLeoQueryDestroy(); Require(b.LeoEcsLite_Query_DestroyBatch(), 25, "Leo query destroy"); b.RestoreAfterIteration();
-            b.PrepareLeoQueryAdd(); Require(b.LeoEcsLite_Query_AddBatch(), 25, "Leo query add"); b.RestoreAfterIteration();
-            b.PrepareLeoQueryRemove(); Require(b.LeoEcsLite_Query_RemoveBatch(), 25, "Leo query remove"); b.RestoreAfterIteration();
+            foreach (var run in new Func<int>[]
+            {
+                benchmark.DeltaECS_Movement4Components,
+                benchmark.Arch_Movement4Components,
+                benchmark.FrifloEngineECS_Movement4Components,
+                benchmark.DefaultEcs_Movement4Components,
+                benchmark.LeoEcsLite_Movement4Components
+            })
+            {
+                benchmark.ResetMovement4();
+                Require(run(), 2_000, "Movement4");
+            }
         }
-        finally { b.RestoreAfterIteration(); }
+        finally { benchmark.Cleanup(); }
     }
 
-    private static void RunStructuralAtomic()
+    private static void RunWide()
     {
-        var b = new ComparativeStructuralAtomicBenchmarks { Amount = 100, ChangeWidth = 4 };
-        b.Setup();
+        var benchmark = new ComparativeWideArchetypeNarrowQueryBenchmarks { Amount = 100 };
+        benchmark.Setup();
         try
         {
-            b.PrepareAtomic(); Require(b.DeltaECS_Atomic_Create(), 1, "Delta atomic create"); b.RestoreAfterIteration();
-            b.PrepareAtomic(); Require(b.Arch_Atomic_Create(), 1, "Arch atomic create"); b.RestoreAfterIteration();
-            b.PrepareAtomic(); Require(b.FrifloEngineECS_Atomic_Create(), 1, "Friflo atomic create"); b.RestoreAfterIteration();
-            b.PrepareAtomic(); Require(b.DefaultEcs_Atomic_Create(), 1, "Default atomic create"); b.RestoreAfterIteration();
-            b.PrepareAtomic(); Require(b.LeoEcsLite_Atomic_Create(), 1, "Leo atomic create"); b.RestoreAfterIteration();
-            b.PrepareAtomic(); Require(b.DeltaECS_Atomic_Destroy(), 1, "Delta atomic destroy"); b.RestoreAfterIteration();
-            b.PrepareAtomic(); Require(b.Arch_Atomic_Destroy(), 1, "Arch atomic destroy"); b.RestoreAfterIteration();
-            b.PrepareAtomic(); Require(b.FrifloEngineECS_Atomic_Destroy(), 1, "Friflo atomic destroy"); b.RestoreAfterIteration();
-            b.PrepareAtomic(); Require(b.DefaultEcs_Atomic_Destroy(), 1, "Default atomic destroy"); b.RestoreAfterIteration();
-            b.PrepareAtomic(); Require(b.LeoEcsLite_Atomic_Destroy(), 1, "Leo atomic destroy"); b.RestoreAfterIteration();
-            b.PrepareAtomic(); Require(b.DeltaECS_Atomic_Add(), 4, "Delta atomic add"); b.RestoreAfterIteration();
-            b.PrepareAtomic(); Require(b.Arch_Atomic_Add(), 4, "Arch atomic add"); b.RestoreAfterIteration();
-            b.PrepareAtomic(); Require(b.FrifloEngineECS_Atomic_Add(), 4, "Friflo atomic add"); b.RestoreAfterIteration();
-            b.PrepareAtomic(); Require(b.DefaultEcs_Atomic_Add(), 4, "Default atomic add"); b.RestoreAfterIteration();
-            b.PrepareAtomic(); Require(b.LeoEcsLite_Atomic_Add(), 4, "Leo atomic add"); b.RestoreAfterIteration();
-            b.PrepareDeltaRemove(); Require(b.DeltaECS_Atomic_Remove(), 4, "Delta atomic remove"); b.RestoreAfterIteration();
-            b.PrepareArchRemove(); Require(b.Arch_Atomic_Remove(), 4, "Arch atomic remove"); b.RestoreAfterIteration();
-            b.PrepareFrifloRemove(); Require(b.FrifloEngineECS_Atomic_Remove(), 4, "Friflo atomic remove"); b.RestoreAfterIteration();
-            b.PrepareDefaultRemove(); Require(b.DefaultEcs_Atomic_Remove(), 4, "Default atomic remove"); b.RestoreAfterIteration();
-            b.PrepareLeoRemove(); Require(b.LeoEcsLite_Atomic_Remove(), 4, "Leo atomic remove"); b.RestoreAfterIteration();
+            Require(benchmark.DeltaECS_WideArchetypeNarrowQuery(), 900, "Delta wide");
+            Require(benchmark.Arch_WideArchetypeNarrowQuery(), 900, "Arch wide");
+            Require(benchmark.FrifloEngineECS_WideArchetypeNarrowQuery(), 900, "Friflo wide");
+            Require(benchmark.DefaultEcs_WideArchetypeNarrowQuery(), 900, "Default wide");
+            Require(benchmark.LeoEcsLite_WideArchetypeNarrowQuery(), 900, "Leo wide");
         }
-        finally { b.RestoreAfterIteration(); b.Cleanup(); }
+        finally { benchmark.Cleanup(); }
+    }
+
+    private static void RunSparse()
+    {
+        var benchmark = new ComparativeSparseQueryBenchmarks { Amount = 100 };
+        benchmark.Setup();
+        try
+        {
+            Require(benchmark.DeltaECS_SparseWorldQueryPlan(), 25, "Delta sparse");
+            Require(benchmark.Arch_SparseWorldQueryPlan(), 25, "Arch sparse");
+            Require(benchmark.FrifloEngineECS_SparseWorldQueryPlan(), 25, "Friflo sparse");
+            Require(benchmark.DefaultEcs_SparseWorldQueryPlan(), 25, "Default sparse");
+            Require(benchmark.LeoEcsLite_SparseWorldQueryPlan(), 25, "Leo sparse");
+        }
+        finally { benchmark.Cleanup(); }
     }
 
     private static void Require<T>(T actual, T expected, string name) where T : IEquatable<T>
@@ -164,11 +106,10 @@ public static class ComparativeBenchmarkExecutionSmoke
         if (!actual.Equals(expected)) throw new InvalidOperationException($"{name} returned {actual}, expected {expected}.");
     }
 
-    private static void RequireApproximately(double actual, double expected, string name, double epsilon = 0.0001)
+    private static void RequireApproximately(double actual, double expected, string name)
     {
-        if (Math.Abs(actual - expected) > epsilon)
-            throw new InvalidOperationException($"{name} returned {actual}, expected {expected} (epsilon {epsilon}).");
+        if (Math.Abs(actual - expected) > 0.0001) throw new InvalidOperationException($"{name} returned {actual}, expected {expected}.");
     }
 
-    private static double Movement2Expected(int amount) => amount * (((1f + 3f / 60f) + (2f + 4f / 60f)));
+    private static double Movement2Expected(int amount) => amount * ((1f + 3f / 60f) + (2f + 4f / 60f));
 }

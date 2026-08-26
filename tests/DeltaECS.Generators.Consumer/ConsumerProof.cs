@@ -1,6 +1,6 @@
-using Delta.ECS;
+using DeltaECS;
 
-namespace Delta.ECS.Generators.Consumer;
+namespace DeltaECS.Generators.Consumer;
 
 public struct Position { public int Value; }
 public struct Velocity { public int Value; }

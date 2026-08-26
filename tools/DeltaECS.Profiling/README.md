@@ -4,7 +4,7 @@ This tool produces a bounded single-threaded call tree for an ECS workload.
 The production `src/DeltaECS` project has no profiling dependency. Instead,
 `tools/DeltaECS.Profiled` compiles the ECS sources into a separate assembly and
 uses Metalama to inject `ProfilerRuntime.Enter(int)` and
-`ProfilerRuntime.Leave(int)` around every eligible first-party `Delta.ECS`
+`ProfilerRuntime.Leave(int)` around every eligible first-party `DeltaECS`
 method reachable below the profiled root. Demand-generated `ForEach` methods,
 invokers and callback boundaries emit the same numeric probes when the separate
 profiling runtime is present. Normal DeltaECS builds emit none of these probes.
@@ -62,7 +62,7 @@ extension methods; other selectors use a case-insensitive method-name match.
 
 | Project/file | Responsibility |
 |:--|:--|
-| `DeltaECS.Profiled` | Recompiles ECS sources and applies the Metalama fabric to eligible `Delta.ECS` methods. |
+| `DeltaECS.Profiled` | Recompiles ECS sources and applies the Metalama fabric to eligible `DeltaECS` methods. |
 | `DeltaECS.Profiling.Runtime` | Owns the thread-local runtime, preallocated collector and report model. |
 | `DeltaECS.Profiling` | Selects probes, calibrates overhead, resolves method names and writes reports. |
 | `DemandDrivenForEachGenerator` | Emits numeric probes for generated extension, invoker and callback boundaries only when the profiling runtime is referenced. |

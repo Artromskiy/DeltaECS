@@ -1,4 +1,4 @@
-namespace Delta.ECS;
+namespace DeltaECS;
 
 internal struct MutationStampSource
 {

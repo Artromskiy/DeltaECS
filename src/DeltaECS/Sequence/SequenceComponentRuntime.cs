@@ -1,4 +1,4 @@
-namespace Delta.ECS;
+namespace DeltaECS;
 
 using System;
 

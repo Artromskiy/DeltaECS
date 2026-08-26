@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Delta.ECS.Tests;
+namespace DeltaECS.Tests;
 
 [StructLayout(LayoutKind.Sequential)]
 internal struct Position

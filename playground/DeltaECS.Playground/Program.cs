@@ -1,4 +1,4 @@
-using Delta.ECS;
+using DeltaECS;
 
 var layouts = new ComponentLayoutRegistry();
 var positionId = layouts.Register<Position>(new SchemaId(1));
