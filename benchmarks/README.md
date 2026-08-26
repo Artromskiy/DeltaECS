@@ -1,9 +1,8 @@
 # DeltaECS benchmarks
 
 The benchmark directory contains one supported measurement family: iteration.
-Structural, capacity, hardware-profile and one-off comparison suites were
-removed so every comparative result answers the same question: how fast does
-each ECS iterate the same data shape?
+Every comparative result answers the same question: how fast does each ECS
+iterate the same data shape?
 
 ## Projects
 

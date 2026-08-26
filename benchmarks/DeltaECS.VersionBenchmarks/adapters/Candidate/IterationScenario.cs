@@ -132,9 +132,6 @@ public sealed class IterationScenario
             }
         }
 
-        // Movement benchmarks intentionally accumulate state across invocations so
-        // BenchmarkDotNet can select a throughput invocation count. The dedicated
-        // smoke resets both revisions and verifies that their returned checksums agree.
         return sum;
     }
 
@@ -172,11 +169,3 @@ public sealed class IterationScenario
         return sum;
     }
 }
-
-internal struct DenseValue { public int Value; }
-internal struct Position { public float X; public float Y; }
-internal struct Velocity { public float X; public float Y; }
-internal struct MovementA { public int Value; }
-internal struct MovementB { public int Value; }
-internal struct MovementC { public int Value; }
-internal struct MovementD { public int Value; }

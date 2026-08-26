@@ -15,7 +15,8 @@
   </Target>
 
   <ItemGroup>
-    <Compile Include="../../Shared/VersionScenarios.cs" Link="VersionScenarios.cs" />
+    <Compile Include="../../Shared/VersionScenarioTypes.cs" Link="VersionScenarioTypes.cs" />
+    <Compile Include="IterationScenario.cs" />
     <ProjectReference Include="$(CandidateRoot)/src/DeltaECS/DeltaECS.csproj"
                       AdditionalProperties="AssemblyName=DeltaECS.Candidate" />
   </ItemGroup>
