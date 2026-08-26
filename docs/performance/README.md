@@ -55,12 +55,6 @@ Check whether a visible row layout lets the AArch64 JIT form `ldp`/`stp` pairs.
 Do not infer a benefit from instruction spelling alone; compare the complete
 hot loop and measure throughput.
 
-### Trusted callback kernel
-
-The generator already removes callback-shape repetition from the runtime. A
-future internal kernel may reduce chunk-level bookkeeping, but it must preserve
-scope ownership and the generated callback contract.
-
 ## Measurement rules
 
 - Keep setup, world creation, query construction, reset and report formatting

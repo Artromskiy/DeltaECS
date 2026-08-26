@@ -27,26 +27,15 @@ Evidence and candidate order live in
 [docs/performance/README.md](docs/performance/README.md). Promote one candidate
 at a time with accumulator parity, JIT capture and an unchanged public API.
 
-## Prepared active-chunk view and execution state
+## One-time chunk traversal selection
 
-Maintain a flat active-chunk view in parallel with archetype plans for generated
-and two-loop execution:
+A flat active-chunk view was substantially faster for the public two-loop path
+once a query covered multiple chunks, but almost twice as slow for its
+single-chunk lane. A follow-up may choose the representation once when opening
+the scope: retain the direct one-plan/one-chunk path and use a maintained flat
+view only after the query becomes multi-chunk.
 
-```csharp
-internal readonly struct PreparedChunkPlan
-{
-    internal readonly Chunk Chunk;
-    internal readonly Array[] Rows;
-    internal readonly int[] ComponentRows;
-}
-```
-
-Also maintain `ActiveChunkCount` on `QueryPlan`. The execution entry point can
-return before opening a lease and reserve a write stamp in O(1), instead of
-scanning every matching plan to find the first active chunk. The three-loop API
-can continue consuming `ArchetypePlan`.
-
-Expected effect: high relative improvement for empty/small queries and less
-driver indirection; little change for one large dense query. Risk: medium,
-because every chunk activation, deactivation and swap-back must update both
-views exactly once.
+The selection must not add a mode branch to every `MoveNext`, duplicate
+validation or change the three-loop API. Activation, deactivation and
+swap-back must update reverse indices exactly once. This is a new hypothesis;
+the unconditional flat view is already rejected in the experiment ledger.

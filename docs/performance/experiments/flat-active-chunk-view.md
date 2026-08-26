@@ -156,8 +156,9 @@ mix is mixed; the BDN result determines the verdict.
   disabled: passed, 0 errors.
 - Release tests: 134 passed, 0 failed, 0 skipped.
 - `./eng/code-metrics.sh -v:q`: passed, 0 errors. Candidate emitted 899 build
-  warnings / 425 SARIF results; untouched main emitted 785 build warnings / 417
-  SARIF results. The changed source/test files contain no new analyzer errors.
+  warning lines / 425 SARIF results; the project baseline is 893 warning lines /
+  417 SARIF results. The rejected source therefore is not merge-eligible under
+  the current metrics policy without resolving its `+6` / `+8` delta.
 - `git diff --check`: passed.
 
 ## Follow-up

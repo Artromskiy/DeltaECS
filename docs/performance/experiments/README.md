@@ -50,6 +50,9 @@ linked focused report.
 | Singleton destroy through chunk kernel | [destroy evidence](../destroy-kernels-v1.md) | Slower/noisy than direct atomic destroy |
 | Query-specific destroy helper/active-chunk variants | [destroy evidence](../destroy-kernels-v1.md) | Neutral to slower across tested sizes |
 | Aggressive inlining of structural helpers | [destroy evidence](../destroy-kernels-v1.md) | No repeatable benefit |
+| Compact linear primary-route cache | `877fa90`; [evidence](compact-primary-route-cache.md) | Functor was up to 14.7% faster, but Delegate regressed 7.6% to 22.2%; lookup JIT grew 572 B to 620 B |
+| Unconditional flat active-chunk view | `6cc65a1`; [evidence](flat-active-chunk-view.md) | TwoWhile improved 26% to 32% for 1k to 10M, but regressed 92.7% at 100/single chunk; Functor was neutral |
+| Non-inlined generated row-preparation helper | `ee92c97`; [evidence](arity-trusted-chunk-kernel.md) | Added one `blr` per chunk and grew total emitted code; Functor regressed 49% to 62%, Delegate 6% to 9% |
 
 ## Inconclusive or superseded evidence
 
@@ -59,19 +62,14 @@ linked focused report.
 | Dense 48/50-candidate assembly sweep | `c9fac9a`, `92ac844` | Code size improved substantially, but short 100k throughput was near noise; only merged source is authoritative |
 | Generic cached array versus `Span<T>` | Historical comparison | JIT was effectively identical; direct span form was kept for simplicity |
 | Large native ECS buffer storage | `bc62b9f`, `d03fa85` | Some benchmark signals improved while generated code grew; retained source later evolved, so old isolated ratios are not current claims |
+| Split generated read/write drivers | `4a8db12`; [evidence](perf-split-generated-read-write-drivers.md) | Write guardrail removed one branch/compare and 8 B; Functor improved 1.57% at 100, all other tested write cases were neutral. Direct component-bearing read-only evidence is still missing |
 
-## Active experiments
+## Validated candidates awaiting a decision
 
-The branches below started from `main` at `fb6c8d0`. Move their final verdict
-into the tables above when complete, then remove the entry from `IDEAS.md` or
-the performance candidate list if the mechanism has been exhausted.
-
-| Branch | Hypothesis |
-| --- | --- |
-| `perf/flat-active-chunk-view` | Flat active chunk plans and O(1) active count |
-| `perf/compact-primary-route-cache` | Compact primary runtime-type route lookup without a dictionary |
-| `perf/split-generated-read-write-drivers` | One-time read/write driver dispatch |
-| `perf/arity-trusted-chunk-kernel` | Smaller arity-specific trusted chunk kernel |
+`perf/split-generated-read-write-drivers` is the only candidate from the
+`fb6c8d0` round that did not regress its write guardrail. Before merging it,
+add a direct generated read-only workload: the change primarily targets that
+path, while the current BDN evidence measures write-heavy Movement4.
 
 ## Required entry fields
 

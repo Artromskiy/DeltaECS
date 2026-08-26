@@ -1,6 +1,6 @@
 # Split generated read/write drivers experiment
 
-Status: **accepted as a modest fixed-overhead improvement**.
+Status: **validated candidate; merge deferred**.
 
 Branch: `perf/split-generated-read-write-drivers`
 
@@ -175,8 +175,12 @@ valid replacement is the serialized pair documented above.
 
 ## Verdict
 
-**Accepted.** The split removes one branch, one compare and 8 B from the
+**Merge deferred.** The split removes one branch, one compare and 8 B from the
 generated write driver, reduces the Movement4 Functor wrapper by 4 B, and
 delivers a reliable 1.567% Functor improvement at Amount 100. Larger workloads
 and the Delegate route are neutral within uncertainty, with no allocation,
 correctness, ownership, lease, write-stamp or empty-query regression.
+
+The candidate's primary design benefit is a thinner generated read-only driver,
+but this round had no direct component-bearing read-only benchmark. Add that
+workload before deciding whether to merge the source commit.
