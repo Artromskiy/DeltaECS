@@ -20,23 +20,10 @@ public sealed class ComparativeBenchmarkContractTests
     }
 
     [Test]
-    public void Structural_capabilities_use_explicit_fallback_levels()
+    public void Iteration_catalog_contains_no_legacy_class()
     {
-        var rows = ComparativeReportBuilder.BuildManifestRows();
-        Assert.That(rows.Where(row => !row.Supported).All(row => double.IsPositiveInfinity(row.Mean) && double.IsPositiveInfinity(row.RatioToDelta)), Is.True);
-        Assert.That(rows.Single(row => row.Workload == "Structural.Query.AddBatch" && row.Ecs == ComparativeEcs.Arch).Mode, Is.EqualTo(ComparativeCapabilityMode.Native));
-        Assert.That(rows.Single(row => row.Workload == "Structural.Query.AddBatch" && row.Ecs == ComparativeEcs.DeltaECS).Mode, Is.EqualTo(ComparativeCapabilityMode.ListFallback));
-        Assert.That(rows.Single(row => row.Workload == "Structural.Query.AddBatch" && row.Ecs == ComparativeEcs.LeoEcsLite).Mode, Is.EqualTo(ComparativeCapabilityMode.AtomicFallback));
-        Assert.That(rows.Single(row => row.Workload == "Structural.Atomic.Add" && row.Ecs == ComparativeEcs.Arch).Mode, Is.EqualTo(ComparativeCapabilityMode.Native));
-        Assert.That(rows.Single(row => row.Workload == "Structural.Atomic.Remove" && row.Ecs == ComparativeEcs.FrifloEngineECS).Mode, Is.EqualTo(ComparativeCapabilityMode.Native));
-        Assert.That(rows.Single(row => row.Workload == "Structural.Atomic.Add" && row.Ecs == ComparativeEcs.DefaultEcs).Mode, Is.EqualTo(ComparativeCapabilityMode.AtomicFallback));
-    }
-
-    [Test]
-    public void Full_comparison_catalog_contains_no_legacy_class()
-    {
-        Assert.That(ComparativeBenchmarkCatalog.FullComparison, Is.Not.Empty);
-        Assert.That(ComparativeBenchmarkCatalog.FullComparison.Any(type => type.Name.Contains("Legacy", StringComparison.OrdinalIgnoreCase)), Is.False);
+        Assert.That(ComparativeBenchmarkCatalog.Iteration, Is.Not.Empty);
+        Assert.That(ComparativeBenchmarkCatalog.Iteration.Any(type => type.Name.Contains("Legacy", StringComparison.OrdinalIgnoreCase)), Is.False);
     }
 
     [Test]
@@ -112,7 +99,7 @@ public sealed class ComparativeBenchmarkContractTests
             Assert.That(report, Does.Contain("|Iteration.Dense|Amount=100|DeltaECS|100|1|"));
             Assert.That(report, Does.Contain("|Iteration.Dense|Amount=100|Arch|200|2|1,024 B|"));
             Assert.That(report, Does.Not.Contain("|Iteration.Dense|manifest|"));
-            Assert.That(summary, Does.Contain("|Итерация|1/1|"));
+            Assert.That(summary, Does.Contain("| Итерация | 1/1 |"));
             Assert.That(summary, Does.Contain("|Dense|1/1|Delta быстрее Arch в 2× (`Amount=100`)|"));
         }
         finally
@@ -126,8 +113,8 @@ public sealed class ComparativeBenchmarkContractTests
     {
         var rows = new[]
         {
-            new ComparativeReportRow("Iteration.Dense", "Amount=100", ComparativeEcs.DeltaECS, 65.379999999999995, 1, "0 B", true, ComparativeCapabilityMode.Native, "direct public API"),
-            new ComparativeReportRow("Iteration.Dense", "Amount=100", ComparativeEcs.Arch, 312.62, 4.7800000000000002, "88 B", true, ComparativeCapabilityMode.Native, "direct public API")
+            new ComparativeReportRow("Iteration.Dense", "Amount=100", ComparativeEcs.DeltaECS, 65.379999999999995, 1, "0 B", true, "direct public API"),
+            new ComparativeReportRow("Iteration.Dense", "Amount=100", ComparativeEcs.Arch, 312.62, 4.7800000000000002, "88 B", true, "direct public API")
         };
 
         var markdown = ComparativeReportBuilder.ToMarkdown(rows);
@@ -139,33 +126,27 @@ public sealed class ComparativeBenchmarkContractTests
     }
 
     [Test]
-    public void Compact_summary_counts_victories_and_selects_best_native_and_fallback_rivals()
+    public void Compact_summary_counts_victories_and_selects_best_rival()
     {
         var rows = new[]
         {
-            Row("Iteration.Dense", "Amount=100", ComparativeEcs.DeltaECS, 100, ComparativeCapabilityMode.Native),
-            Row("Iteration.Dense", "Amount=100", ComparativeEcs.Arch, 200, ComparativeCapabilityMode.Native),
-            Row("Iteration.Dense", "Amount=1000", ComparativeEcs.DeltaECS, 200, ComparativeCapabilityMode.Native),
-            Row("Iteration.Dense", "Amount=1000", ComparativeEcs.Arch, 100, ComparativeCapabilityMode.Native),
-            Row("Structural.Atomic.Add", "Amount=100;ChangeWidth=1", ComparativeEcs.DeltaECS, 100, ComparativeCapabilityMode.Native),
-            Row("Structural.Atomic.Add", "Amount=100;ChangeWidth=1", ComparativeEcs.Arch, 80, ComparativeCapabilityMode.Native),
-            Row("Structural.Atomic.Add", "Amount=100;ChangeWidth=1", ComparativeEcs.DefaultEcs, 50, ComparativeCapabilityMode.AtomicFallback)
+            Row("Iteration.Dense", "Amount=100", ComparativeEcs.DeltaECS, 100),
+            Row("Iteration.Dense", "Amount=100", ComparativeEcs.Arch, 200),
+            Row("Iteration.Dense", "Amount=1000", ComparativeEcs.DeltaECS, 200),
+            Row("Iteration.Dense", "Amount=1000", ComparativeEcs.Arch, 100)
         };
 
         var summary = ComparativeReportBuilder.ToSummaryMarkdown(rows);
 
-        Assert.That(summary, Does.Contain("|Итерация|1/2|"));
-        Assert.That(summary, Does.Contain("|Atomic structural|0/1|"));
+        Assert.That(summary, Does.Contain("| Итерация | 1/2 |"));
         Assert.That(summary, Does.Contain("|Dense|1/2|Arch быстрее Delta в 2× (`Amount=1000`)|"));
-        Assert.That(summary, Does.Contain("|Add|0/1|Arch быстрее Delta в 1.25× (`Amount=100;ChangeWidth=1`)|DefaultEcs быстрее Delta в 2× (`Amount=100;ChangeWidth=1`)|"));
     }
 
     private static ComparativeReportRow Row(
         string workload,
         string parameters,
         ComparativeEcs ecs,
-        double mean,
-        ComparativeCapabilityMode mode) =>
-        new(workload, parameters, ecs, mean, double.NaN, "0 B", true, mode, "test");
+        double mean) =>
+        new(workload, parameters, ecs, mean, double.NaN, "0 B", true, "test");
 
 }
