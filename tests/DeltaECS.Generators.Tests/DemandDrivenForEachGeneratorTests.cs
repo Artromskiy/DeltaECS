@@ -250,6 +250,31 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void InterceptedCallSitesKeepTheirUsingAliasesIsolated()
+    {
+        string[] consumerSources =
+        {
+            InterceptionAliasSharedSource,
+            InterceptionAliasFirstSource,
+            InterceptionAliasSecondSource
+        };
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(consumerSources);
+
+        Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
+        Assert.That(
+            run.GeneratedTrees.Count(static tree => tree.FilePath.Contains("DemandForEachInterceptor_", StringComparison.Ordinal)),
+            Is.EqualTo(2));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource }.Concat(consumerSources),
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
     public void EnabledStaticMethodGroupsGenerateDirectFunctorCalls()
     {
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(StaticMethodGroupInterceptionSource);
@@ -351,8 +376,11 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     private static GeneratorDriverRunResult RunGeneratorWithInterceptors(string consumerSource)
+        => RunGeneratorWithInterceptors(new[] { consumerSource });
+
+    private static GeneratorDriverRunResult RunGeneratorWithInterceptors(IEnumerable<string> consumerSources)
     {
-        CSharpCompilation compilation = CreateCompilation(new[] { RuntimeStubSource, consumerSource });
+        CSharpCompilation compilation = CreateCompilation(new[] { RuntimeStubSource }.Concat(consumerSources));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             new[] { new DemandDrivenForEachGenerator().AsSourceGenerator() },
             Array.Empty<AdditionalText>(),
@@ -681,6 +709,39 @@ public sealed class DemandDrivenForEachGeneratorTests
             {
                 world.ForEach<T1>(in query, static (ref T1 value) => value.Value++);
             }
+        }
+        """;
+
+    private const string InterceptionAliasSharedSource = """
+        namespace Delta.ECS;
+        struct AliasComponent { public int Value; }
+        """;
+
+    private const string InterceptionAliasFirstSource = """
+        using Callback = Delta.ECS.FirstCallback;
+        namespace Delta.ECS;
+        static class FirstCallback
+        {
+            internal static void Apply(ref AliasComponent value) => value.Value++;
+        }
+        static class FirstAliasConsumer
+        {
+            internal static void Use(World world, Query query)
+                => world.ForEach(in query, static (ref AliasComponent value) => Callback.Apply(ref value));
+        }
+        """;
+
+    private const string InterceptionAliasSecondSource = """
+        using Callback = Delta.ECS.SecondCallback;
+        namespace Delta.ECS;
+        static class SecondCallback
+        {
+            internal static void Apply(ref AliasComponent value) => value.Value--;
+        }
+        static class SecondAliasConsumer
+        {
+            internal static void Use(World world, Query query)
+                => world.ForEach(in query, static (ref AliasComponent value) => Callback.Apply(ref value));
         }
         """;
 

@@ -89,7 +89,8 @@ public sealed class PipelineApiTests
         Assert.That(world.Set(entity, positionId, new PipelinePosition { Value = 3 }), Is.True);
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
         int calls = 0;
-        ForEachAction_W<PipelinePosition> action = (ref PipelinePosition position) =>
+        world.ForEach(in query, static (ref PipelinePosition _) => { });
+        ForEachAction<PipelinePosition> action = (ref PipelinePosition position) =>
         {
             calls++;
             position.Value++;
