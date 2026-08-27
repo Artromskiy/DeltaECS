@@ -25,6 +25,7 @@ linked focused report.
 | Query access | Type-erased access objects and non-generic storage/query chain | `0213ae0`, `6da5550`, `7a2f999` | Equivalent or better JIT while preserving generic only at `Ref<T>` boundary |
 | Generated callbacks | Inline generated invokers and reserve one write tick per execution | `53f3122`, `f29ed8a` | Removed repeated driver work; retained |
 | Delegate interception | Convert supported static `World.ForEach` lambdas and method groups into generated struct functors without changing source spelling | `3c7edbb`, `6946781`, merge `612d26a`; [evidence](delegate-interception.md) | Accepted opt-in path. Movement4 measured 0.56x-0.61x of the pre-created delegate fallback with 0 B allocation; unsupported callbacks retain delegate semantics |
+| Interceptor discard-name hygiene | Give repeated lambda discard parameters unique generated names | `368b207` -> `17aac7c`; generator tests 21/21 | Accepted correctness fix; avoids duplicate generated parameter declarations, with no throughput claim |
 | Generated rows | Trusted generated query slots/row preparation | `0ce7a95`, `022a1f5` | Retained after Movement4 comparison |
 | Query access setup | Prebuild `ComponentId -> ordinal/type` read routes and promote the validated route to write | `e9ccffe`, `fb6c8d0` | Movement4 delegate: about 15% faster at 100 entities, about 2% at 1k/10k, neutral at large sizes; affected helper JIT 1584 B to 888 B |
 | Prepared generated access and trusted advance | Prepare generated read/write routes at the validated execution boundary and use the trusted advance in generated callbacks | `c6b819a`, `138cbd9`; [evidence](prepared-generated-access.md) | Merged into `main`; 100-entity adaptive Movement4 was 111.5 ±0.60 ns on main versus 112.8 ±0.43 ns on the candidate (+1.17%). The benchmark exercises the shared three-loop path, so it is not a direct `MoveNextTrusted` throughput claim |
@@ -56,6 +57,20 @@ linked focused report.
 | Compact linear primary-route cache | `877fa90`; [evidence](compact-primary-route-cache.md) | Rejected; experiment branch `perf/compact-primary-route-cache` deleted. Functor was up to 14.7% faster, but Delegate regressed 7.6% to 22.2%; lookup JIT grew 572 B to 620 B |
 | Unconditional flat active-chunk view | `6cc65a1`; [evidence](flat-active-chunk-view.md) | TwoWhile improved 26% to 32% for 1k to 10M, but regressed 92.7% at 100/single chunk; Functor was neutral |
 | Non-inlined generated row-preparation helper | `ee92c97`; [evidence](arity-trusted-chunk-kernel.md) | Rejected; experiment branch `perf/arity-trusted-chunk-kernel` deleted. Added one `blr` per chunk and grew total emitted code; Functor regressed 49% to 62%, Delegate 6% to 9% |
+| Global `AggressiveInlining` on every generated closed core | `artifacts/aggressive-inline-closed-movement4`, `artifacts/aggressive-inline-closed-micro-api` | Rejected as a global policy. It improved comparative write cases, but Micro `Intercepted` regressed at 1,000 entities from `1,077.3 ± 4.02 ns` to `1,103.8 ± 15.45 ns`; narrowed to read-only shapes in `17aac7c` |
+| Read-only component value copies | `artifacts/final-read-only-copy-dense`, `artifacts/read-only-copy-wide` | Rejected despite Dense/Wide speedups: replacing `ref readonly` with a mutable local can change the source lambda's `in` readonly semantics |
+| One prepared generated access bundle | `artifacts/prepared-bundle-movement4` | Rejected: mixed result against the interception-only control, including a small-size regression; no all-size no-regression proof |
+| Direct generated plan/chunk loop | `artifacts/direct-loop-movement4` | Rejected: slower than the interception-only control across the measured Movement4 sizes |
+| Typed arrays acquired once per chunk | `artifacts/typed-array-movement4` | Rejected: slower at the measured small and large Movement4 endpoints |
+| `AggressiveOptimization` on generated closed core | `artifacts/aggressive-optimization-movement4` | Rejected: mixed small result and large-size regressions against the prepared-bundle control |
+| Direct typed row references | `artifacts/typed-ref-movement4` | Rejected: slightly slower at every measured Movement4 size than the helper control |
+| Span row endpoint | `artifacts/span-row-movement4`, `artifacts/read-only-span-wide` | Rejected: mixed Movement4 result and worse than the accepted read-only inlining result on Wide |
+| Read-only array endpoint | `artifacts/read-only-array-dense` | Rejected: mixed against the read-only reference; 1,000-entity Dense regressed |
+| Discard-only Sparse access elimination | `artifacts/no-discard-sparse`, `artifacts/discard-only-sparse` | Rejected: improved 100 entities but regressed 1K/10K/100K by roughly 7%/10%/13%; the later read-only inlining experiment is a materially different JIT mechanism |
+| Conditional generated read-only closed-core inlining | `17aac7c`; clean main-baseline recheck `artifacts/recheck-clean2-{dense,movement2,movement4,wide,sparse}` versus `artifacts/recheck-main2-{dense,movement2,movement4,wide,sparse}`; JIT `artifacts/recheck-clean2-jit-comparative-dense.log` versus `artifacts/recheck-main2-jit-comparative-dense.log` | Rejected as a broad candidate. With benchmark helper inlining hints removed, Wide alone improved 23.9%–31.8%; Dense regressed 1.4%–3.2%, Movement4 regressed 2.4%–6.9%, Movement2 was mixed within 1.5%, and Sparse was mixed within 5.6%. The generated caller grew from 284 B / 3 single-block inlinees on main to 720 B / 33 single-block inlinees, without a no-regression result |
+| Benchmark-only interceptor activation | `17aac7c` -> `005085f`; current matrix `artifacts/recheck-current-{dense,movement2,movement4,wide,sparse}` versus `artifacts/recheck-main-current-{dense,movement2,movement4,wide,sparse}`; JIT `artifacts/recheck-current-jit-interceptor-dense.log` versus `artifacts/recheck-main-current-jit-interceptor-dense.log` | Rejected as benchmark configuration. The current NoInlining generated caller was identical to main at 284 B / 3 single-block inlinees / 2 non-PGO inlinees, and the BDN matrix was mixed: Dense −3.6% to +1.6%, Movement2 −4.1% to +1.2%, Movement4 −1.2% to +12.0%, Wide −3.3% to −1.1%, Sparse −5.4% to +1.2%. The general interceptor runtime feature remains covered by the separate accepted method-group evidence |
+| Compact `Query` handle plus strong last-plan cache | `artifacts/query-handle-compact-last-cache`, `artifacts/query-hash-dry` | Rejected: the only stable screening point was 51.77 ns for Delta query construction at 100 entities versus the 52.62 ns reference; the combination is far from the 30% target and was reverted |
+| Cheap `ComponentMask` hash | `artifacts/query-hash-dry` | Rejected: the all-size probe used `Dry` measurements only and provided no reliable throughput evidence; the hash implementation was reverted |
 
 ## Inconclusive or superseded evidence
 
@@ -67,6 +82,99 @@ linked focused report.
 | Large native ECS buffer storage | `bc62b9f`, `d03fa85` | Some benchmark signals improved while generated code grew; retained source later evolved, so old isolated ratios are not current claims |
 | Split generated read/write drivers | `4a8db12`; [evidence](perf-split-generated-read-write-drivers.md) | Write guardrail removed one branch/compare and 8 B; Functor improved 1.57% at 100, all other tested write cases were neutral. Direct component-bearing read-only evidence is still missing |
 | Metalama layer-major chunking | `8040b2e`; [chunked experiment](../../../tools/DeltaECS.LayeredPipeline/README.md) | Promising cache signal, but the measurement used separate flat and chunked runs and the tile changes execution order across entities; not an ECS runtime decision yet |
+| Full Sparse campaign with generated-core inlining | `368b207` plus temporary worktree patch; `artifacts/aggressive-inline-closed-sparse` | Inconclusive: the 40-case run was interrupted after the first Delta construction case because BDN estimated about 1 h 35 min and produced no report |
+| Focused SparseWorldQueryPlan run | `17aac7c`; `artifacts/aggressive-inline-closed-sparse-world-plan` | Valid 20-case matrix with default adaptive sampling; construction-heavy query-plan measurements are intentionally not inferred from it |
+
+## Adaptive benchmark campaign (2026-08-27)
+
+The campaign baseline is `368b207`; the historical candidate was `17aac7c` in
+the separate `codex/adaptive-benchmarks` worktree. Measurements used .NET
+10.0.9 / SDK 10.0.301 on macOS 26.5.2, Apple M4 Pro, Arm64 RyuJIT AdvSIMD,
+Concurrent Workstation GC, `DOTNET_TieredCompilation=0`,
+`DOTNET_ReadyToRun=0`, and BenchmarkDotNet `Default` with adaptive
+`IterationTime=100 ms`. The Dense and Wide confirmation runs used
+`IterationCount=20`; their CSVs include the full Mean/Error/StdDev/Allocated
+rows. Comparative benchmark methods validate checksums on every operation;
+all completed runs and both contract smokes passed without a mismatch.
+Rejected variants were deliberately left uncommitted; each artifact directory
+is the unique candidate identifier for a temporary snapshot based on
+`368b207`, and no rejected patch was merged or pushed.
+
+This historical table is superseded by the clean recheck below. Its candidate
+also changed comparative benchmark helper methods to `AggressiveInlining`;
+those are harness-only changes, were removed in `06fe7f6`, and must not be
+attributed to ECS runtime performance. The table is retained only to explain
+why the earlier apparent 30% result was not accepted.
+
+| Workload | Delta Mean ± Error (StdDev), entities `100 / 1K / 10K / 100K` | Fastest external Mean ± Error (StdDev) | Delta / fastest |
+| --- | --- | --- | --- |
+| Dense, 20-iteration confirmation | `35.17 ±0.190 (0.219) / 289.57 ±6.930 (7.980) / 2,796.39 ±31.231 (35.965) / 28,542.88 ±265.112 (305.303) ns` | Leo `81.38 ±0.484 (0.557) / 787.09 ±3.876 (4.463) / 8,319.08 ±16.917 (18.101) / 80,580.47 ±466.035 (536.687) ns` | `0.432 / 0.368 / 0.336 / 0.354` |
+| Wide archetype, 20-iteration confirmation | `54.25 ±0.548 (0.631) / 515.51 ±2.650 (3.052) / 5,157.10 ±24.292 (27.001) / 52,065.04 ±351.282 (404.537) ns` | Leo/Arch `130.50 ±0.549 (0.610) / 1,062.21 ±8.186 (9.099) / 10,336.38 ±53.786 (57.551) / 104,665.83 ±872.203 (933.247) ns` | `0.416 / 0.485 / 0.499 / 0.497` |
+| Movement2, adaptive control | `105.4 ±0.39 (0.37) / 869.0 ±2.90 (2.71) / 9,186.3 ±35.32 (29.49) / 91,967.9 ±265.28 (248.14) ns` | Arch/Leo `161.5 ±3.20 (3.55) / 1,350.0 ±4.06 (3.39) / 14,150.9 ±30.92 (25.82) / 142,750.8 ±807.16 (755.02) ns` | `0.653 / 0.644 / 0.649 / 0.644` |
+| Movement4, adaptive control | `134.8 ±0.20 (0.17) / 1,113.5 ±15.18 (13.46) / 10,940.0 ±101.85 (95.27) / 107,502.4 ±625.37 (554.37) ns` | Arch `220.5 ±1.74 (1.45) / 1,642.0 ±6.69 (6.26) / 17,082.4 ±338.63 (527.21) / 165,591.1 ±2,131.75 (1,889.74) ns` | `0.611 / 0.678 / 0.640 / 0.649` |
+| Sparse world plan, 20-case focused run | `24.406 ±0.3394 (0.3175) / 91.008 ±1.5925 (1.4896) / 698.990 ±13.2155 (11.7152) / 6,700.595 ±106.8803 (99.9759) ns` | Default `7.079 ±0.1087 (0.1017) / 71.229 ±1.4410 (2.2856) / 623.318 ±12.4279 (12.2059) / 6,227.608 ±123.7598 (147.3272) ns` | `3.448 / 1.278 / 1.121 / 1.076` |
+
+The exact adaptive control CSVs for Movement2 and Movement4 are
+`artifacts/final-movement2` and `artifacts/final-movement4`; their complete
+rows retain BDN Error/StdDev/Allocated values even where the compact table
+above omits repeated uncertainty fields. The read-only campaign evidence is
+`artifacts/final-conditional-20-dense`,
+`artifacts/final-conditional-20-wide`, and
+`artifacts/aggressive-inline-closed-sparse-world-plan`.
+
+The API-shape matrix also retained the interception win against the
+pre-created delegate at `100 / 1K / 10K / 100K / 1M / 10M` entities: the
+Intercepted/Delegate ratios were `0.615 / 0.583 / 0.578 / 0.558 / 0.589 /
+0.568`, all at `0 B` allocation. It did not beat the already optimized
+Functor path at every size.
+
+The strict user target was not reached. These historical numbers are not a
+current runtime claim, and the branch must not be described as winning all
+adaptive benchmarks.
+
+## Reverted invalid candidate (2026-08-27)
+
+Commit `da92547` is rejected and reverted by `1d6a879`. Its `countOnly`
+lowering recognized a narrow `ref int` increment shape and replaced the
+per-entity `ForEach` callback with `CountMatching`. That changes observable
+semantics: callbacks are not invoked, declared component accesses are not
+acquired, and callback side effects and per-row validation are skipped. Its
+Sparse and query-construction measurements are therefore not performance
+evidence. The associated `MatchingEntityCount`, cached archetype entity
+counter, last-query cache, and custom hash experiments are not retained.
+
+## Clean main-baseline recheck (2026-08-27)
+
+The conditional generated-core candidate was rechecked against the current
+main baseline after removing all benchmark-helper `AggressiveInlining` hints.
+The source snapshot under test was `17aac7c`; the helper cleanup was
+`06fe7f6`. Both sides used .NET 10.0.9 / Arm64 RyuJIT AdvSIMD with tiering and
+ReadyToRun disabled, BenchmarkDotNet `Default`, adaptive `IterationTime=100
+ms`, and 10–20 measured iterations. Every Delta result allocated `0 B`.
+
+| Workload | Candidate mean, entities `100 / 1K / 10K / 100K` | Main mean, entities `100 / 1K / 10K / 100K` | Candidate / main |
+| --- | --- | --- | --- |
+| Dense | `139.2 / 1,282.7 / 12,898.6 / 130,226.4 ns` | `137.1 / 1,265.6 / 12,631.4 / 126,227.3 ns` | `1.02 / 1.01 / 1.02 / 1.03` |
+| Movement2 | `201.6 / 2,152.6 / 22,400.5 / 230,829.5 ns` | `200.2 / 2,185.4 / 22,595.3 / 229,008.4 ns` | `1.01 / 0.98 / 0.99 / 1.01` |
+| Movement4 | `275.7 / 2,155.9 / 21,200.9 / 210,767.5 ns` | `262.9 / 2,104.4 / 19,826.1 / 200,822.9 ns` | `1.05 / 1.02 / 1.07 / 1.05` |
+| Wide | `140.6 / 1,267.5 / 12,635.4 / 126,348.5 ns` | `184.8 / 1,846.9 / 18,169.0 / 185,175.2 ns` | `0.76 / 0.69 / 0.70 / 0.68` |
+| Sparse | `54.65 / 354.62 / 3,359.36 / 33,220.43 ns` | `57.89 / 356.31 / 3,410.19 / 33,317.85 ns` | `0.94 / 1.00 / 0.99 / 1.00` |
+
+This is a rejected candidate: the Wide improvement is not universal, while
+Dense and Movement4 regress. The JIT confirms the mechanism but not its
+acceptance: the candidate Dense caller is 720 B with 33 single-block inlinees
+and 5 non-PGO inlinees; main is 284 B with 3 single-block inlinees and 2
+non-PGO inlinees. The conditional inlining source was subsequently removed by
+`f51f3c1`, so the current branch does not retain this rejected runtime policy.
+The raw BDN and JIT files are the `recheck-clean2-*` and `recheck-main2-*`
+artifacts named in the rejected table above.
+
+Correctness gates for the cleaned branch passed: generator tests `21/21`, ECS
+tests `135/135`, comparative iteration contract smoke for `5` classes, and
+the micro contract smoke. `PipelineApiTests` additionally checks one callback
+per matching entity, unchanged read-component stamps, changed write-component
+stamps, unchanged entity count, and component-validation failure before the
+first callback.
 
 ## Accepted evidence: Roslyn delegate interception
 
