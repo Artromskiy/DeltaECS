@@ -468,6 +468,8 @@ internal static class MicroContractSmoke
             throw new InvalidOperationException("Functor Movement4 checksum mismatch.");
         if (apiComparison.Delegate() != expectedApiComparison)
             throw new InvalidOperationException("Delegate Movement4 checksum mismatch.");
+        if (apiComparison.Intercepted() != expectedApiComparison)
+            throw new InvalidOperationException("Intercepted Movement4 checksum mismatch.");
         if (apiComparison.DelegateContext() != expectedApiComparison)
             throw new InvalidOperationException("Delegate-context Movement4 checksum mismatch.");
         if (apiComparison.FunctorContext() != expectedApiComparison)

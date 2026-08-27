@@ -67,6 +67,85 @@ linked focused report.
 | Split generated read/write drivers | `4a8db12`; [evidence](perf-split-generated-read-write-drivers.md) | Write guardrail removed one branch/compare and 8 B; Functor improved 1.57% at 100, all other tested write cases were neutral. Direct component-bearing read-only evidence is still missing |
 | Metalama layer-major chunking | `8040b2e`; [chunked experiment](../../../tools/DeltaECS.LayeredPipeline/README.md) | Promising cache signal, but the measurement used separate flat and chunked runs and the tile changes execution order across entities; not an ECS runtime decision yet |
 
+### Roslyn delegate interception (opt-in experiment)
+
+| Field | Evidence |
+| --- | --- |
+| Baseline / candidate | `44cfe13` / `3c7edbb` (implementation commit; benchmark evidence is recorded with this experiment) |
+| Operation | `Movement4ApiComparisonMicroBenchmarks.Delegate` (pre-created delegate fallback) versus `Intercepted` (static method group interception) |
+| Runtime/host | .NET 10.0.9, SDK 10.0.301, Roslyn package 4.13.0, macOS 26.5.2, Apple M4 Pro, Arm64 RyuJIT AdvSIMD, Concurrent Workstation GC |
+| Configuration | Project-local `InterceptorsNamespaces=Delta.ECS.Generated`; no global preview switch and no `InterceptorsPreviewNamespaces` |
+| Correctness | Generator tests 19/19; consumer fixture rebuild succeeds; micro contract smoke succeeds; `ref`/`in`/write checksum, static method-group context and single invocation are checked |
+
+The current SDK supports the generated interceptors. Roslyn's interceptable
+location API is consumed by the generator and the generated bridge keeps the
+delegate-compatible parameter list, while the bridge ignores the delegate and
+enters the existing closed struct-functor execution path. Capturing lambdas,
+instance or ambiguous method groups, pre-created delegates,
+async/generic/unsupported forms and sequence receivers remain on the ordinary
+delegate path; unambiguous static method groups now use the same intercepted
+struct-functor path as static lambdas.
+
+ShortRun BDN (three actual iterations, tiering and ReadyToRun disabled) was
+run separately for the exact baseline and candidate methods:
+
+```bash
+env DOTNET_TieredCompilation=0 DOTNET_ReadyToRun=0 \
+  dotnet benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net10.0/DeltaECS.MicroBenchmarks.dll \
+  --filter '*Movement4ApiComparisonMicroBenchmarks.Delegate' --job Short \
+  --exporters csv --artifacts artifacts/interceptor-bdn-methodgroup-inline-delegate
+
+env DOTNET_TieredCompilation=0 DOTNET_ReadyToRun=0 \
+  dotnet benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net10.0/DeltaECS.MicroBenchmarks.dll \
+  --filter '*Movement4ApiComparisonMicroBenchmarks.Intercepted' --job Short \
+  --exporters csv --artifacts artifacts/interceptor-bdn-methodgroup-inline-intercepted
+```
+
+| Entities | Delegate Mean ± Error (StdDev) | Intercepted Mean ± Error (StdDev) | Candidate/Baseline | Allocated |
+| ---: | ---: | ---: | ---: | ---: |
+| 100 | 229.8 ± 14.17 ns (0.78 ns) | 140.9 ± 5.03 ns (0.28 ns) | 0.61x | 0 B / 0 B |
+| 1,000 | 1,857.9 ± 141.27 ns (7.74 ns) | 1,128.4 ± 35.39 ns (1.94 ns) | 0.61x | 0 B / 0 B |
+| 100,000 | 199,204.7 ± 7,905.19 ns (433.31 ns) | 111,834.7 ± 2,487.47 ns (136.35 ns) | 0.56x | 0 B / 0 B |
+
+The required cold-start Dry cross-check also completed for all 42 catalog
+cases (`artifacts/interceptor-bdn-final`); it is retained as a probe rather
+than a throughput claim.
+
+JIT disassembly was captured with:
+
+```bash
+env DOTNET_TieredCompilation=0 DOTNET_ReadyToRun=0 \
+  DOTNET_JitDisasm='Delta.ECS.DemandForEachExtensions_1D7130AA:ExecuteClosed_1D7130AA' \
+  dotnet benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net10.0/DeltaECS.MicroBenchmarks.dll \
+  --filter '*Movement4ApiComparisonMicroBenchmarks.Delegate*' --job Dry \
+  > artifacts/interceptor-jit-methodgroup/delegate-inlinehint.log 2>&1
+
+env DOTNET_TieredCompilation=0 DOTNET_ReadyToRun=0 \
+  DOTNET_JitDisasm='Delta.ECS.DemandForEachExtensions_1D7130AA:ExecuteInterceptedClosed_F5758854' \
+  dotnet benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net10.0/DeltaECS.MicroBenchmarks.dll \
+  --filter '*Movement4ApiComparisonMicroBenchmarks.Intercepted*' --job Dry \
+  > artifacts/interceptor-jit-methodgroup/intercepted-inlinehint2.log 2>&1
+```
+
+The first `ExecuteClosed` listing is 860 B / 215 instructions; the
+intercepted `ExecuteInterceptedClosed` listing is 880 B / 220 instructions
+(+20 B, +5 instructions). Both have 10 branch instructions and zero direct
+`bl` instructions. The delegate driver has six `blr` instructions, 80 loads
+and 36 stores; the intercepted driver has five `blr` instructions, 82 loads
+and 33 stores. The delegate listing has one `blr` in the entity loop that
+loads the callback from the delegate object. The intercepted listing has no
+`blr` in that loop: the generated functor `Invoke` and the benchmark's static
+target are marked for aggressive inlining. The remaining five `blr`
+instructions are runtime/access setup calls before iteration. Without an
+inline hint on an arbitrary user method, the generated method-group forwarding
+call remains direct-to-static but may still be visible as one entity-loop
+`blr`; the delegate Invoke indirection is removed in either case.
+
+The design and fallback details are in
+[the focused experiment report](delegate-interceptor-blocker.md), with the
+[Roslyn interceptor specification](https://github.com/dotnet/roslyn/blob/main/docs/features/interceptors.md)
+as the required compiler reference.
+
 ## Validated candidates awaiting a decision
 
 `perf/split-generated-read-write-drivers` is the only candidate from the

@@ -129,7 +129,7 @@ internal static class Movement4ApiComparisonKernels
 
 public class Movement4ApiComparisonMicroBenchmarkImplementation
 {
-    private static int s_delegateChecksum;
+    internal static int s_delegateChecksum;
 
     [Params(100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000)]
     public int Amount { get; set; }
@@ -188,16 +188,30 @@ public class Movement4ApiComparisonMicroBenchmarkImplementation
     public int Delegate()
     {
         s_delegateChecksum = 0;
-        _fixture.World.ForEach(
-            in _query,
-            static (ref Movement4A a, ref Movement4B b, ref Movement4C c, in Movement4D d) =>
-            {
-                a.Value = d.Value + 1;
-                b.Value = d.Value + 2;
-                c.Value = (a.Value + b.Value) / 2;
-                s_delegateChecksum += a.Value + b.Value + c.Value + d.Value;
-            });
+        ForEachAction_WWWI<Movement4A, Movement4B, Movement4C, Movement4D> action = ApplyDelegate;
+        _fixture.World.ForEach(in _query, action);
         return s_delegateChecksum;
+    }
+
+    [Benchmark]
+    public int Intercepted()
+    {
+        s_delegateChecksum = 0;
+        _fixture.World.ForEach(in _query, ApplyDelegate);
+        return s_delegateChecksum;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void ApplyDelegate(
+        ref Movement4A a,
+        ref Movement4B b,
+        ref Movement4C c,
+        in Movement4D d)
+    {
+        a.Value = d.Value + 1;
+        b.Value = d.Value + 2;
+        c.Value = (a.Value + b.Value) / 2;
+        s_delegateChecksum += a.Value + b.Value + c.Value + d.Value;
     }
 
     [Benchmark]
