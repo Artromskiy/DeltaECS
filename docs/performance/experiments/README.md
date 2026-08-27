@@ -24,6 +24,7 @@ linked focused report.
 | Slot order | Forward slot traversal | `8b27472` | Won the dedicated forward/reverse Movement4 comparison |
 | Query access | Type-erased access objects and non-generic storage/query chain | `0213ae0`, `6da5550`, `7a2f999` | Equivalent or better JIT while preserving generic only at `Ref<T>` boundary |
 | Generated callbacks | Inline generated invokers and reserve one write tick per execution | `53f3122`, `f29ed8a` | Removed repeated driver work; retained |
+| Delegate interception | Convert supported static `World.ForEach` lambdas and method groups into generated struct functors without changing source spelling | `3c7edbb`, `6946781`, merge `612d26a`; [evidence](delegate-interception.md) | Accepted opt-in path. Movement4 measured 0.56x-0.61x of the pre-created delegate fallback with 0 B allocation; unsupported callbacks retain delegate semantics |
 | Generated rows | Trusted generated query slots/row preparation | `0ce7a95`, `022a1f5` | Retained after Movement4 comparison |
 | Query access setup | Prebuild `ComponentId -> ordinal/type` read routes and promote the validated route to write | `e9ccffe`, `fb6c8d0` | Movement4 delegate: about 15% faster at 100 entities, about 2% at 1k/10k, neutral at large sizes; affected helper JIT 1584 B to 888 B |
 | Prepared generated access and trusted advance | Prepare generated read/write routes at the validated execution boundary and use the trusted advance in generated callbacks | `c6b819a`, `138cbd9`; [evidence](prepared-generated-access.md) | Merged into `main`; 100-entity adaptive Movement4 was 111.5 ±0.60 ns on main versus 112.8 ±0.43 ns on the candidate (+1.17%). The benchmark exercises the shared three-loop path, so it is not a direct `MoveNextTrusted` throughput claim |
@@ -67,15 +68,15 @@ linked focused report.
 | Split generated read/write drivers | `4a8db12`; [evidence](perf-split-generated-read-write-drivers.md) | Write guardrail removed one branch/compare and 8 B; Functor improved 1.57% at 100, all other tested write cases were neutral. Direct component-bearing read-only evidence is still missing |
 | Metalama layer-major chunking | `8040b2e`; [chunked experiment](../../../tools/DeltaECS.LayeredPipeline/README.md) | Promising cache signal, but the measurement used separate flat and chunked runs and the tile changes execution order across entities; not an ECS runtime decision yet |
 
-### Roslyn delegate interception (opt-in experiment)
+## Accepted evidence: Roslyn delegate interception
 
 | Field | Evidence |
 | --- | --- |
-| Baseline / candidate | `44cfe13` / `3c7edbb` (implementation commit; benchmark evidence is recorded with this experiment) |
+| Baseline / candidate | `44cfe13` / `3c7edbb`; hardened by `6946781` and merged into `main` by `612d26a` |
 | Operation | `Movement4ApiComparisonMicroBenchmarks.Delegate` (pre-created delegate fallback) versus `Intercepted` (static method group interception) |
 | Runtime/host | .NET 10.0.9, SDK 10.0.301, Roslyn package 4.13.0, macOS 26.5.2, Apple M4 Pro, Arm64 RyuJIT AdvSIMD, Concurrent Workstation GC |
 | Configuration | Project-local `InterceptorsNamespaces=Delta.ECS.Generated`; no global preview switch and no `InterceptorsPreviewNamespaces` |
-| Correctness | Generator tests 19/19; consumer fixture rebuild succeeds; micro contract smoke succeeds; `ref`/`in`/write checksum, static method-group context and single invocation are checked |
+| Correctness | Generator tests 20/20 and ECS tests 133/133; consumer fixture rebuild and micro contract smoke succeed; alias isolation, fallback, `ref`/`in`/write checksum, static method-group context and single invocation are checked |
 
 The current SDK supports the generated interceptors. Roslyn's interceptable
 location API is consumed by the generator and the generated bridge keeps the
@@ -142,7 +143,7 @@ call remains direct-to-static but may still be visible as one entity-loop
 `blr`; the delegate Invoke indirection is removed in either case.
 
 The design and fallback details are in
-[the focused experiment report](delegate-interceptor-blocker.md), with the
+[the focused experiment report](delegate-interception.md), with the
 [Roslyn interceptor specification](https://github.com/dotnet/roslyn/blob/main/docs/features/interceptors.md)
 as the required compiler reference.
 

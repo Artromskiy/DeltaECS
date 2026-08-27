@@ -1,7 +1,7 @@
-# Roslyn delegate interception experiment
+# Roslyn delegate interception
 
-Status: compiling opt-in prototype with focused runtime and generator
-coverage.
+Status: accepted as an opt-in generated path and merged into `main` by
+`612d26a`. The public callback spelling and delegate fallback remain stable.
 
 The user-facing call remains unchanged:
 
@@ -58,7 +58,7 @@ entity-sequence receivers, and calls for which Roslyn supplies no
 interceptable location remain ordinary delegate calls. `DECSGEN005` reports
 the reason at informational severity, so fallback does not break the build.
 
-The focused tests cover generated interception, callback execution, `ref`/
+The focused tests cover per-call-site using-alias isolation, generated interception, callback execution, `ref`/
 `in`/write behavior, capturing lambda fallback, static method-group
 interception, instance method-group fallback, pre-created delegate fallback,
 and single invocation. The consumer fixture also exercises the static
@@ -79,8 +79,7 @@ generation API used here. The implementation remains opt-in and does not
 claim support for SDKs whose compiler does not expose that API.
 
 Benchmark and JIT results for the baseline delegate path versus the
-intercepted path are recorded in the experiment ledger after the focused
-Movement4 run.
+intercepted path are recorded in the [experiment ledger](README.md).
 
 For the Movement4 JIT probe, `ApplyDelegate` carries an explicit
 `AggressiveInlining` hint so the candidate measures the fully inlineable

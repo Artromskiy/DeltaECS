@@ -165,6 +165,14 @@ member is emitted as an extension method in the consumer assembly. A consumer
 must reference the DeltaECS analyzer/source-generator; the generator cannot add
 instance members to a previously compiled `World`.
 
+Consumers may additionally opt in to the library-owned
+`Delta.ECS.Generated` interceptor namespace. Supported synchronous static
+lambdas and unambiguous static method groups then enter the generated
+struct-functor execution path without changing the `world.ForEach(...)` call.
+Capturing, instance, generic and otherwise unsupported callbacks retain the
+ordinary delegate fallback. Configuration and exact eligibility rules are in
+the [generator README](src/DeltaECS.Generators/README.md#optional-roslyn-interceptor-path).
+
 Ordered sequence execution uses the non-owning fluent facade:
 
 ```csharp

@@ -27,3 +27,10 @@ world.ForEach<Position, Velocity>(
 also support an `Entity` argument, caller context, explicit component IDs, and
 arities up to the component-mask capacity. See the generator README for the
 generation boundary.
+
+With the project-local Roslyn interceptor opt-in enabled, supported static
+lambdas and static method groups keep this delegate-shaped source API but are
+lowered to the generated struct-functor execution path. Capturing callbacks,
+pre-created delegates and unsupported call sites continue through the normal
+delegate path. See the
+[interceptor configuration](../../DeltaECS.Generators/README.md#optional-roslyn-interceptor-path).

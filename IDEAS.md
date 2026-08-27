@@ -30,3 +30,5 @@ projection. Do not add per-entity subscriptions to the base world.
 Evidence and candidate order live in
 [docs/performance/README.md](docs/performance/README.md). Promote one candidate
 at a time with accumulator parity, JIT capture and an unchanged public API.
+Roslyn delegate interception is no longer a candidate: it is accepted and
+recorded in the [experiment ledger](docs/performance/experiments/README.md#accepted-evidence-roslyn-delegate-interception).

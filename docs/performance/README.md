@@ -49,6 +49,10 @@ callback syntax, not storage or public safety guarantees.
   the slot loop.
 - The public row endpoint is `ReadRow.Ref<T>` or `WriteRow.Ref<T>`; no raw
   pointer or ordinal row API is exposed to consumers.
+- Opt-in Roslyn interception lowers supported static delegate call sites to
+  generated struct functors while retaining the same `World.ForEach` spelling,
+  validation, lease and write-stamp path. Unsupported callbacks use the
+  ordinary delegate fallback.
 
 These statements describe the current source. Code size alone is not a
 throughput claim; measurements must use the benchmark protocol below.
