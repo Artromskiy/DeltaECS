@@ -53,6 +53,73 @@ public sealed class PipelineApiTests
     }
 
     [Test]
+    public void StaticLambdaDelegatePathInvokesOnceAndPreservesRefWriteSemantics()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_008));
+        ComponentId velocityId = layouts.Register<PipelineVelocity>(new SchemaId(70_009));
+        using var world = new World(layouts);
+        Entity entity = world.Create(positionId, velocityId);
+        Assert.That(world.Set(entity, positionId, new PipelinePosition { Value = 1 }), Is.True);
+        Assert.That(world.Set(entity, velocityId, new PipelineVelocity { Value = 2 }), Is.True);
+        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+
+        int calls = 0;
+        world.ForEach(in query, static (ref PipelinePosition position, in PipelineVelocity velocity) =>
+        {
+            position.Value += velocity.Value;
+        });
+        world.ForEach(in query, (ref PipelinePosition position, in PipelineVelocity velocity) =>
+        {
+            calls++;
+            position.Value += velocity.Value;
+        });
+
+        Assert.That(calls, Is.EqualTo(1));
+        Assert.That(world.Get<PipelinePosition>(entity, positionId).Value, Is.EqualTo(5));
+    }
+
+    [Test]
+    public void PrecreatedDelegateFallbackStillExecutesOnce()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_010));
+        using var world = new World(layouts);
+        Entity entity = world.Create(positionId);
+        Assert.That(world.Set(entity, positionId, new PipelinePosition { Value = 3 }), Is.True);
+        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
+        int calls = 0;
+        world.ForEach(in query, static (ref PipelinePosition _) => { });
+        ForEachAction<PipelinePosition> action = (ref PipelinePosition position) =>
+        {
+            calls++;
+            position.Value++;
+        };
+
+        world.ForEach(in query, action);
+
+        Assert.That(calls, Is.EqualTo(1));
+        Assert.That(world.Get<PipelinePosition>(entity, positionId).Value, Is.EqualTo(4));
+    }
+
+    [Test]
+    public void MethodGroupDelegateFallbackStillExecutesOnce()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_011));
+        using var world = new World(layouts);
+        Entity entity = world.Create(positionId);
+        Assert.That(world.Set(entity, positionId, new PipelinePosition { Value = 3 }), Is.True);
+        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
+        s_methodGroupCalls = 0;
+
+        world.ForEach(in query, ApplyMethodGroup);
+
+        Assert.That(s_methodGroupCalls, Is.EqualTo(1));
+        Assert.That(world.Get<PipelinePosition>(entity, positionId).Value, Is.EqualTo(4));
+    }
+
+    [Test]
     public void FromPipelineFiltersAndDestroysCandidates()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -83,5 +150,13 @@ public sealed class PipelineApiTests
 
     internal struct PipelineMarker
     {
+    }
+
+    private static int s_methodGroupCalls;
+
+    private static void ApplyMethodGroup(ref PipelinePosition position)
+    {
+        s_methodGroupCalls++;
+        position.Value++;
     }
 }

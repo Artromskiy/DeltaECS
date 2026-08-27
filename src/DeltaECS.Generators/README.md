@@ -39,6 +39,37 @@ structural kernels.
   `IForEachContext<TContext>`, or `IForEachContextEntity<TContext>`; generated
   interface names never contain component types or read/write patterns.
 
+## Optional Roslyn interceptor path
+
+Consumers targeting an SDK with Roslyn interceptor support may opt in per
+project by exposing the library-owned namespace to the compiler:
+
+```xml
+<PropertyGroup>
+  <InterceptorsNamespaces>Delta.ECS.Generated</InterceptorsNamespaces>
+</PropertyGroup>
+<ItemGroup>
+  <CompilerVisibleProperty Include="InterceptorsNamespaces" />
+</ItemGroup>
+```
+
+The generator keeps this opt-in isolated to `Delta.ECS.Generated`; it does not
+enable a global preview switch or add `InterceptorsPreviewNamespaces`. When
+enabled, a supported `World.ForEach`/`ForEachEntity` call with a synchronous
+static non-capturing lambda or an unambiguous static method group receives a
+generated interceptor. A lambda body is copied into a generated struct
+functor; a method group functor forwards directly to its resolved static
+method. Both forms enter the same closed dense execution method as the
+explicit functor API. Query ownership, leases, mutation stamps and write-row
+marking therefore remain in the shared runtime path.
+
+Capturing and async lambdas, instance or ambiguous method groups, pre-created
+delegates, generic method-group targets, generic containing types/methods,
+sequence receivers, and call sites without an interceptable Roslyn location
+stay on the ordinary delegate path. The generator reports `DECSGEN005` at
+informational severity with the fallback reason; the diagnostic never turns a
+fallback call into a build failure.
+
 The generator reports diagnostics for unsupported arity, ambiguous functor
 `Invoke` shapes, invalid ref kinds and calls whose requested component pattern
 cannot be represented safely. It does not use runtime reflection to choose a
