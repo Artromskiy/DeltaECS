@@ -156,8 +156,7 @@ sudo env \
             --filter "$DELTAECS_FILTER" \
             --job Default \
             --exporters json csv markdown github \
-            --artifacts "$DELTAECS_ARTIFACT_ROOT" \
-            --combined-report "$DELTAECS_ARTIFACT_ROOT")
+            --artifacts "$DELTAECS_ARTIFACT_ROOT")
         if [[ "$DELTAECS_ADAPTIVE" != true ]]; then
             benchmark_args+=(
                 --warmupCount "$DELTAECS_WARMUPS"
@@ -166,6 +165,13 @@ sudo env \
         fi
         nice -n -20 dotnet "$DELTAECS_RUNNER" "${benchmark_args[@]}" \
             2>&1 | tee "$DELTAECS_ARTIFACT_ROOT/benchmark.log"
+        if ! find "$DELTAECS_ARTIFACT_ROOT" -type f -name "*-report.csv" -print -quit | grep -q .; then
+            echo "BenchmarkDotNet produced no CSV measurements." >&2
+            exit 1
+        fi
+        dotnet "$DELTAECS_RUNNER" combined-report "$DELTAECS_ARTIFACT_ROOT"
+        test -s "$DELTAECS_ARTIFACT_ROOT/comparative-report.csv"
+        test -s "$DELTAECS_ARTIFACT_ROOT/comparative-summary.md"
     '
 
 echo "Results: $artifact_root"

@@ -198,7 +198,6 @@ jobs:
             --filter '*'
             --exporters json csv markdown github
             --artifacts artifacts/github-full
-            --combined-report artifacts/github-full
           )
           case "$BENCHMARK_MODE" in
             adaptive)
@@ -228,6 +227,14 @@ jobs:
           esac
           dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net10.0/DeltaECS.Benchmarks.dll \
             "${benchmark_args[@]}"
+          if ! find artifacts/github-full -type f -name '*-report.csv' -print -quit | grep -q .; then
+            echo "::error::BenchmarkDotNet produced no CSV measurements."
+            exit 1
+          fi
+          dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net10.0/DeltaECS.Benchmarks.dll \
+            combined-report artifacts/github-full
+          test -s artifacts/github-full/comparative-report.csv
+          test -s artifacts/github-full/comparative-summary.md
 
       - name: Add results to workflow summary
         if: always()
