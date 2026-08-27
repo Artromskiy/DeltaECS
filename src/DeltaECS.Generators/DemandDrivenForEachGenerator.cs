@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Delta.ECS.Generators;
 
@@ -14,6 +15,7 @@ namespace Delta.ECS.Generators;
 [Generator]
 public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 {
+    private const string InterceptorNamespace = "Delta.ECS.Generated";
     private const int FirstDemandArity = 1;
     private const int MaxArity = 256;
 
@@ -49,18 +51,32 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor InterceptionNotApplied = new(
+        "DECSGEN005",
+        "ForEach interception was not applied",
+        "ForEach interception was not applied: {0}; the delegate fallback remains active",
+        "ForEach",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         context.RegisterSourceOutput(
-            context.CompilationProvider,
-            static (productionContext, compilation) => Execute(compilation, productionContext));
+            context.CompilationProvider.Combine(
+                context.AnalyzerConfigOptionsProvider.Select(
+                    static (provider, _) => IsInterceptionEnabled(provider.GlobalOptions))),
+            static (productionContext, input) => Execute(input.Left, productionContext, input.Right));
     }
 
-    private static void Execute(Compilation compilation, SourceProductionContext context)
+    private static void Execute(
+        Compilation compilation,
+        SourceProductionContext context,
+        bool interceptorsEnabled)
     {
         bool profiling = compilation.GetTypeByMetadataName("DeltaECS.Profiling.ProfilerRuntime") is not null
             && compilation.GetTypeByMetadataName("DeltaECS.Profiling.ProfiledMethodMetadataAttribute") is not null;
         var shapes = new Dictionary<string, Shape>(StringComparer.Ordinal);
+        var interceptionSites = new Dictionary<string, List<InterceptionSite>>(StringComparer.Ordinal);
         foreach (SyntaxTree tree in compilation.SyntaxTrees)
         {
             if (tree.FilePath.EndsWith("ForEach.g.cs", StringComparison.Ordinal)
@@ -93,6 +109,25 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 {
                     shapes.Add(key, candidate);
                 }
+
+                if (interceptorsEnabled && !candidate.IsFunctor)
+                {
+                    if (TryCreateInterceptionSite(model, invocation, candidate, tree, out InterceptionSite? site, out string? reason)
+                        && site is { } interceptionSite)
+                    {
+                        if (!interceptionSites.TryGetValue(key, out List<InterceptionSite>? sites))
+                        {
+                            sites = new List<InterceptionSite>();
+                            interceptionSites.Add(key, sites);
+                        }
+
+                        sites.Add(interceptionSite);
+                    }
+                    else if (reason is not null)
+                    {
+                        context.ReportDiagnostic(Diagnostic.Create(InterceptionNotApplied, invocation.GetLocation(), reason));
+                    }
+                }
             }
         }
 
@@ -105,13 +140,246 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             {
                 context.AddSource(
                     $"DemandForEach_{StableName(shape.Key)}.g.cs",
-                    Render(shape, renderContracts, profiling));
+                    Render(
+                        shape,
+                        renderContracts,
+                        profiling,
+                        interceptionSites.TryGetValue(shape.Key, out List<InterceptionSite>? sites)
+                            ? sites
+                            : Array.Empty<InterceptionSite>()));
+                if (interceptionSites.TryGetValue(shape.Key, out List<InterceptionSite>? interceptorSites))
+                {
+                    context.AddSource(
+                        $"DemandForEachInterceptors_{StableName(shape.Key)}.g.cs",
+                        RenderInterceptors(shape, interceptorSites));
+                }
                 if (!shape.IsFunctor)
                 {
                     renderContracts = false;
                 }
             }
         }
+    }
+
+    private static bool IsInterceptionEnabled(AnalyzerConfigOptions options)
+        => options.TryGetValue("build_property.InterceptorsNamespaces", out string? namespaces)
+            && namespaces
+                .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Any(static value => string.Equals(value.Trim(), InterceptorNamespace, StringComparison.Ordinal));
+
+    private static bool TryCreateInterceptionSite(
+        SemanticModel model,
+        InvocationExpressionSyntax invocation,
+        Shape shape,
+        SyntaxTree tree,
+        out InterceptionSite? site,
+        out string? reason)
+    {
+        site = null;
+        reason = null;
+        if (shape.Receiver != ReceiverKind.World)
+        {
+            reason = "only World.ForEach call sites are currently supported";
+            return false;
+        }
+
+        LambdaExpressionSyntax? lambda = Lambda(invocation.ArgumentList.Arguments);
+        IMethodSymbol? methodGroup = null;
+        if (lambda is null)
+        {
+            if (invocation.ArgumentList.Arguments.Count == 0
+                || !TryGetMethodGroupTarget(model, invocation.ArgumentList.Arguments.Last().Expression, out IMethodSymbol? resolvedMethod))
+            {
+                reason = "the callback is not a resolvable static method group";
+                return false;
+            }
+
+            IMethodSymbol methodTarget = resolvedMethod!;
+            methodGroup = methodTarget;
+            if (!methodTarget.IsStatic)
+            {
+                reason = "the method group target is an instance method";
+                return false;
+            }
+
+            if (!IsStaticMethodGroupExpression(model, invocation.ArgumentList.Arguments.Last().Expression))
+            {
+                reason = "the method group has an instance receiver";
+                return false;
+            }
+
+            if (methodTarget.MethodKind != MethodKind.Ordinary
+                || methodTarget.Arity != 0
+                || methodTarget.ContainingType is null)
+            {
+                reason = "only non-generic ordinary static method groups are supported";
+                return false;
+            }
+
+            if (!IsAccessibleToGeneratedCode(methodTarget))
+            {
+                reason = "the static method group target is not accessible to generated callback code";
+                return false;
+            }
+
+            if (methodTarget.Parameters.Any(parameter => !IsAccessibleToGeneratedCode(parameter.Type)))
+            {
+                reason = "a static method group parameter type is not accessible to generated callback code";
+                return false;
+            }
+
+            for (INamedTypeSymbol? typeInChain = methodTarget.ContainingType;
+                 typeInChain is not null;
+                 typeInChain = typeInChain.ContainingType)
+            {
+                if (typeInChain.Arity != 0)
+                {
+                    reason = "generic containing types are not supported by the generated callback";
+                    return false;
+                }
+            }
+        }
+
+        if (lambda is not null
+            && !lambda.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.StaticKeyword)))
+        {
+            reason = "the callback is not a static lambda";
+            return false;
+        }
+
+        if (lambda is not null && lambda.AsyncKeyword.IsKind(SyntaxKind.AsyncKeyword))
+        {
+            reason = "async lambdas are not supported by the synchronous functor path";
+            return false;
+        }
+
+        if (shape.HasContext && string.IsNullOrEmpty(shape.ContextType))
+        {
+            reason = "the lambda context type could not be resolved";
+            return false;
+        }
+
+        if (lambda is not null)
+        {
+            for (INamedTypeSymbol? typeInChain = model.GetEnclosingSymbol(invocation.SpanStart)?.ContainingType;
+                 typeInChain is not null;
+                 typeInChain = typeInChain.ContainingType)
+            {
+                if (typeInChain.Arity != 0)
+                {
+                    reason = "generic containing types are not supported by the generated callback";
+                    return false;
+                }
+            }
+
+            if (model.GetEnclosingSymbol(invocation.SpanStart) is IMethodSymbol enclosingMethod
+                && enclosingMethod.IsGenericMethod)
+            {
+                reason = "generic containing methods are not supported by the generated callback";
+                return false;
+            }
+        }
+
+        if (lambda is not null && !AreLambdaReferencesAccessible(model, lambda, out reason))
+        {
+            return false;
+        }
+
+        InterceptableLocation? location = model.GetInterceptableLocation(invocation, default);
+        if (location is null)
+        {
+            reason = "Roslyn did not provide an interceptable location for this call";
+            return false;
+        }
+
+        ISymbol? enclosing = model.GetEnclosingSymbol(invocation.SpanStart);
+        var usings = lambda is null
+            ? Array.Empty<string>()
+            : tree.GetRoot()
+                .DescendantNodes()
+                .OfType<UsingDirectiveSyntax>()
+                .Select(static directive => directive.ToString())
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+        if (lambda is not null && enclosing is not null)
+        {
+            string namespaceName = enclosing.ContainingNamespace?.ToDisplayString() ?? string.Empty;
+            if (!string.IsNullOrEmpty(namespaceName))
+            {
+                usings = usings
+                    .Append("using global::" + namespaceName + ";")
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
+            }
+
+            if (enclosing.ContainingType is { Arity: 0 } containingType)
+            {
+                if (!IsAccessibleToGeneratedCode(containingType))
+                {
+                    reason = "the containing type is not accessible to generated callback code";
+                    return false;
+                }
+
+                usings = usings
+                    .Append("using static " + containingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ";")
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
+            }
+        }
+
+        string id = StableName(shape.Key + "|" + location.Data);
+        site = new InterceptionSite(
+            id,
+            shape,
+            lambda,
+            methodGroup,
+            location.GetInterceptsLocationAttributeSyntax().ToString(),
+            usings);
+        return true;
+    }
+
+    private static bool AreLambdaReferencesAccessible(
+        SemanticModel model,
+        LambdaExpressionSyntax lambda,
+        out string? reason)
+    {
+        foreach (ParameterSyntax parameter in LambdaParameters(lambda))
+        {
+            if (model.GetDeclaredSymbol(parameter) is IParameterSymbol parameterSymbol
+                && !IsAccessibleToGeneratedCode(parameterSymbol.Type))
+            {
+                reason = "a lambda parameter type is not accessible to generated callback code";
+                return false;
+            }
+        }
+
+        foreach (SyntaxNode node in lambda.Body.DescendantNodesAndSelf())
+        {
+            ISymbol? symbol = model.GetSymbolInfo(node).Symbol;
+            if (symbol is null
+                or IParameterSymbol
+                or ILocalSymbol
+                or IRangeVariableSymbol)
+            {
+                continue;
+            }
+
+            if (symbol is ITypeParameterSymbol)
+            {
+                reason = "the lambda body references a type parameter";
+                return false;
+            }
+
+            if (!IsAccessibleToGeneratedCode(symbol))
+            {
+                reason = "the lambda body references a private or protected symbol";
+                return false;
+            }
+        }
+
+        reason = null;
+        return true;
     }
 
     private static bool TryReadShape(
@@ -132,6 +400,11 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         bool hasLambda = invocation.ArgumentList.Arguments.Any(static argument => argument.Expression is LambdaExpressionSyntax);
         if (!hasLambda)
         {
+            if (TryReadMethodGroupShape(model, invocation, member, out shape, out diagnostic))
+            {
+                return true;
+            }
+
             return TryReadFunctorShape(model, invocation, member, out shape, out diagnostic);
         }
 
@@ -204,7 +477,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         bool sequence = receiver is ReceiverKind.EntitySequence or ReceiverKind.FilteredEntitySequence;
         var typeArguments = genericName?.TypeArgumentList.Arguments
-            .Select(static argument => argument.ToString())
+            .Select(argument => model.GetTypeInfo(argument).Type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? argument.ToString())
             .ToArray()
             ?? LambdaComponentTypes(model, lambda, prefixCount, hasEntity);
         int componentStart = genericName is null ? 0 : prefixCount;
@@ -215,9 +488,18 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return false;
         }
 
-        string? lambdaContextType = hasContext && lambdaParameters.Length > 0 && lambdaParameters[0].Type is { } contextSyntax
-            ? model.GetTypeInfo(contextSyntax).Type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-            : null;
+        string? lambdaContextType = null;
+        if (hasContext)
+        {
+            TypeSyntax? contextSyntax = genericName is not null && genericName.TypeArgumentList.Arguments.Count > 0
+                ? genericName.TypeArgumentList.Arguments[0]
+                : lambdaParameters.Length > 0
+                    ? lambdaParameters[0].Type
+                    : null;
+            lambdaContextType = contextSyntax is not null
+                ? model.GetTypeInfo(contextSyntax).Type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                : null;
+        }
 
         shape = new Shape(
             receiver,
@@ -231,6 +513,151 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             components,
             functorType: null,
             contextType: lambdaContextType);
+        return true;
+    }
+
+    private static bool TryReadMethodGroupShape(
+        SemanticModel model,
+        InvocationExpressionSyntax invocation,
+        MemberAccessExpressionSyntax member,
+        out Shape? shape,
+        out Diagnostic? diagnostic)
+    {
+        shape = null;
+        diagnostic = null;
+        if (invocation.ArgumentList.Arguments.Count == 0)
+        {
+            return false;
+        }
+
+        ArgumentSyntax callback = invocation.ArgumentList.Arguments.Last();
+        if (callback.RefKindKeyword.RawKind != 0
+            || !TryGetMethodGroupTarget(model, callback.Expression, out IMethodSymbol? method))
+        {
+            return false;
+        }
+
+        IMethodSymbol methodTarget = method!;
+        ReceiverKind receiver = ReceiverKindFrom(model.GetTypeInfo(member.Expression).Type);
+        if (receiver == ReceiverKind.None
+            || methodTarget.MethodKind != MethodKind.Ordinary
+            || methodTarget.Arity != 0
+            || !methodTarget.ReturnsVoid
+            || methodTarget.ContainingType is null
+            || methodTarget.Parameters.Any(static parameter => parameter.IsParams
+                || !IsSupportedComponentRefKind(parameter.RefKind)))
+        {
+            return false;
+        }
+
+        GenericNameSyntax? genericName = member.Name as GenericNameSyntax;
+        bool namedEntity = member.Name.Identifier.ValueText == "ForEachEntity";
+        bool hasContext = invocation.ArgumentList.Arguments
+            .Any(static argument => argument.RefKindKeyword.IsKind(SyntaxKind.RefKeyword));
+        int parameterIndex = 0;
+        if (hasContext)
+        {
+            if (methodTarget.Parameters.Length == 0
+                || methodTarget.Parameters[0].RefKind != RefKind.Ref)
+            {
+                return false;
+            }
+
+            parameterIndex++;
+        }
+
+        bool hasEntity = false;
+        if (namedEntity)
+        {
+            if (methodTarget.Parameters.Length <= parameterIndex
+                || methodTarget.Parameters[parameterIndex].RefKind != RefKind.None
+                || !IsEntityType(methodTarget.Parameters[parameterIndex].Type))
+            {
+                return false;
+            }
+
+            hasEntity = true;
+            parameterIndex++;
+        }
+
+        IParameterSymbol[] componentParameters = methodTarget.Parameters.Skip(parameterIndex).ToArray();
+        if (componentParameters.Length < FirstDemandArity
+            || componentParameters.Length > MaxArity)
+        {
+            return false;
+        }
+
+        int genericCount = genericName?.TypeArgumentList.Arguments.Count ?? 0;
+        int expectedGenericCount = componentParameters.Length + (hasContext ? 1 : 0);
+        if (genericName is not null && genericCount != expectedGenericCount)
+        {
+            return false;
+        }
+
+        string[] components;
+        string? contextType = hasContext
+            ? methodTarget.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+            : null;
+        if (genericName is not null)
+        {
+            ITypeSymbol?[] requestedTypes = genericName.TypeArgumentList.Arguments
+                .Select(argument => model.GetTypeInfo(argument).Type)
+                .ToArray();
+            if (hasContext
+                && (requestedTypes[0] is null
+                    || !SymbolEqualityComparer.Default.Equals(requestedTypes[0], methodTarget.Parameters[0].Type)))
+            {
+                return false;
+            }
+
+            int requestedComponentStart = hasContext ? 1 : 0;
+            int methodComponentStart = (hasContext ? 1 : 0) + (hasEntity ? 1 : 0);
+            for (int index = 0; index < componentParameters.Length; index++)
+            {
+                ITypeSymbol? requestedType = requestedTypes[requestedComponentStart + index];
+                ITypeSymbol expectedType = methodTarget.Parameters[methodComponentStart + index].Type;
+                if (requestedType is null
+                    || !SymbolEqualityComparer.Default.Equals(requestedType, expectedType))
+                {
+                    return false;
+                }
+            }
+
+            components = requestedTypes
+                .Skip(hasContext ? 1 : 0)
+                .Select(static type => type!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
+                .ToArray();
+            if (hasContext)
+            {
+                contextType = requestedTypes[0]!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            }
+        }
+        else
+        {
+            components = componentParameters
+                .Select(static parameter => parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
+                .ToArray();
+        }
+
+        int componentIdCount = CountComponentIds(model, invocation.ArgumentList.Arguments);
+        if (componentIdCount != 0 && componentIdCount != componentParameters.Length)
+        {
+            diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
+            return false;
+        }
+
+        shape = new Shape(
+            receiver,
+            receiver is ReceiverKind.EntitySequence or ReceiverKind.FilteredEntitySequence,
+            componentIdCount == componentParameters.Length && componentIdCount != 0,
+            hasEntity,
+            hasContext,
+            isFunctor: false,
+            implicitComponents: genericName is null,
+            new string(componentParameters.Select(static parameter => PatternLetter(parameter.RefKind)).ToArray()),
+            components,
+            functorType: null,
+            contextType);
         return true;
     }
 
@@ -410,9 +837,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
     {
         for (INamedTypeSymbol? type = functorType; type is not null; type = type.ContainingType)
         {
-            if (type.DeclaredAccessibility is Accessibility.Private
-                or Accessibility.Protected
-                or Accessibility.ProtectedAndInternal)
+            if (!IsAccessibilityAllowed(type.DeclaredAccessibility))
             {
                 return false;
             }
@@ -420,6 +845,57 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         return true;
     }
+
+    private static bool IsAccessibleToGeneratedCode(ISymbol symbol)
+    {
+        if (!IsAccessibilityAllowed(symbol.DeclaredAccessibility))
+        {
+            return false;
+        }
+
+        if (symbol is ITypeSymbol type)
+        {
+            return IsAccessibleToGeneratedCode(type);
+        }
+
+        for (INamedTypeSymbol? containingType = symbol.ContainingType;
+             containingType is not null;
+             containingType = containingType.ContainingType)
+        {
+            if (!IsAccessibilityAllowed(containingType.DeclaredAccessibility))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsAccessibleToGeneratedCode(ITypeSymbol type)
+    {
+        switch (type)
+        {
+            case IArrayTypeSymbol array:
+                return IsAccessibleToGeneratedCode(array.ElementType);
+            case IPointerTypeSymbol pointer:
+                return IsAccessibleToGeneratedCode(pointer.PointedAtType);
+            case INamedTypeSymbol named:
+                if (!IsAccessibilityAllowed(named.DeclaredAccessibility)
+                    || (named.ContainingType is not null && !IsAccessibleToGeneratedCode(named.ContainingType)))
+                {
+                    return false;
+                }
+
+                return named.TypeArguments.All(IsAccessibleToGeneratedCode);
+            default:
+                return true;
+        }
+    }
+
+    private static bool IsAccessibilityAllowed(Accessibility accessibility)
+        => accessibility is not Accessibility.Private
+            and not Accessibility.Protected
+            and not Accessibility.ProtectedAndInternal;
 
     private static int CountComponentIds(SemanticModel model, SeparatedSyntaxList<ArgumentSyntax> arguments)
     {
@@ -453,8 +929,46 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
     private static bool IsEntityParameter(SemanticModel model, ParameterSyntax parameter)
     {
         ITypeSymbol? type = parameter.Type is null ? null : model.GetTypeInfo(parameter.Type).Type;
-        return type?.Name == "Entity" && type.ContainingNamespace.ToDisplayString() == "Delta.ECS";
+        return type is not null && IsEntityType(type);
     }
+
+    private static bool IsEntityType(ITypeSymbol type)
+        => type.Name == "Entity" && type.ContainingNamespace.ToDisplayString() == "Delta.ECS";
+
+    private static bool IsStaticMethodGroupExpression(SemanticModel model, ExpressionSyntax expression)
+    {
+        if (expression is IdentifierNameSyntax)
+        {
+            return true;
+        }
+
+        if (expression is not MemberAccessExpressionSyntax member)
+        {
+            return false;
+        }
+
+        ISymbol? receiver = model.GetSymbolInfo(member.Expression).Symbol;
+        return receiver is INamedTypeSymbol or INamespaceSymbol or IAliasSymbol;
+    }
+
+    private static bool TryGetMethodGroupTarget(
+        SemanticModel model,
+        ExpressionSyntax expression,
+        out IMethodSymbol? method)
+    {
+        var members = model.GetMemberGroup(expression);
+        if (members.Length == 1 && members[0] is IMethodSymbol resolvedMethod)
+        {
+            method = resolvedMethod;
+            return true;
+        }
+
+        method = null;
+        return false;
+    }
+
+    private static string MethodGroupTarget(IMethodSymbol method)
+        => method.ContainingType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "." + method.Name;
 
     private static string[] LambdaComponentTypes(
         SemanticModel model,
@@ -579,7 +1093,11 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         };
     }
 
-    private static string Render(Shape shape, bool renderContracts, bool profiling)
+    private static string Render(
+        Shape shape,
+        bool renderContracts,
+        bool profiling,
+        IReadOnlyList<InterceptionSite> interceptionSites)
     {
         var source = new StringBuilder(32 * 1024);
         source.AppendLine("// <auto-generated />");
@@ -596,7 +1114,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             RenderInvoker(source, shape, profiling);
         }
 
-        RenderExtensions(source, shape, profiling);
+        RenderExtensions(source, shape, profiling, interceptionSites);
         return source.ToString();
     }
 
@@ -848,7 +1366,11 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         source.Append(string.Join(", ", invocationArguments)).Append(')');
     }
 
-    private static void RenderExtensions(StringBuilder source, Shape shape, bool profiling)
+    private static void RenderExtensions(
+        StringBuilder source,
+        Shape shape,
+        bool profiling,
+        IReadOnlyList<InterceptionSite> interceptionSites)
     {
         string className = "DemandForEachExtensions_" + StableName(shape.Key);
         string generic = shape.ImplicitComponents ? string.Empty : GenericTypes(shape.Components.Length);
@@ -903,7 +1425,286 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             className,
             profiling,
             closedMethodName);
+        foreach (InterceptionSite site in interceptionSites)
+        {
+            RenderInterceptedHelper(source, shape, site);
+        }
+
         source.AppendLine("}");
+    }
+
+    private static void RenderInterceptedHelper(
+        StringBuilder source,
+        Shape shape,
+        InterceptionSite site)
+    {
+        string functorName = "global::Delta.ECS.Generated.InterceptedFunctor_" + site.Id;
+        var functorShape = new Shape(
+            ReceiverKind.World,
+            sequence: false,
+            shape.ExplicitIds,
+            shape.HasEntity,
+            shape.HasContext,
+            isFunctor: true,
+            implicitComponents: true,
+            shape.Pattern,
+            shape.Components,
+            functorName,
+            shape.ContextType);
+        string closedMethodName = "ExecuteInterceptedClosed_" + site.Id;
+        string componentParameters = shape.ExplicitIds
+            ? ", " + ClosedComponentParameters(shape.Components.Length)
+            : string.Empty;
+        RenderClosedDenseMethod(
+            source,
+            functorShape,
+            closedMethodName,
+            shape.ExplicitIds ? ClosedComponentNames(shape.Components.Length) : string.Empty,
+            componentParameters);
+
+        source.Append("    internal static void ExecuteIntercepted_").Append(site.Id)
+            .Append("(World world, in Query query");
+        if (shape.ExplicitIds)
+        {
+            source.Append(", ").Append(ClosedComponentParameters(shape.Components.Length));
+        }
+
+        if (shape.HasContext)
+        {
+            source.Append(", ref ").Append(InterceptedContextType(shape)).Append(" context");
+        }
+
+        source.AppendLine(")");
+        source.AppendLine("    {");
+        source.Append("        var functor = new ").Append(functorName).AppendLine("();");
+        source.Append("        ").Append(closedMethodName).Append("(world, in query");
+        if (shape.ExplicitIds)
+        {
+            source.Append(", ").Append(ClosedComponentNames(shape.Components.Length));
+        }
+
+        if (shape.HasContext)
+        {
+            source.Append(", ref context");
+        }
+
+        source.AppendLine(", ref functor);");
+        source.AppendLine("    }");
+    }
+
+    private static string RenderInterceptors(
+        Shape shape,
+        IReadOnlyList<InterceptionSite> sites)
+    {
+        var source = new StringBuilder(16 * 1024);
+        source.AppendLine("// <auto-generated />");
+        source.AppendLine("#nullable enable");
+        foreach (string usingDirective in sites.SelectMany(static site => site.Usings).Distinct(StringComparer.Ordinal))
+        {
+            source.AppendLine(usingDirective);
+        }
+
+        source.AppendLine("namespace Delta.ECS.Generated");
+        source.AppendLine("{");
+        source.AppendLine();
+        foreach (InterceptionSite site in sites)
+        {
+            RenderInterceptedFunctor(source, site);
+        }
+
+        source.Append("file static class ForEachInterceptors_").Append(StableName(shape.Key)).AppendLine();
+        source.AppendLine("{");
+        foreach (InterceptionSite site in sites)
+        {
+            RenderInterceptor(source, shape, site);
+        }
+
+        source.AppendLine("}");
+        source.AppendLine();
+        source.AppendLine("}");
+        source.AppendLine();
+        source.AppendLine("namespace System.Runtime.CompilerServices");
+        source.AppendLine("{");
+        source.AppendLine();
+        source.AppendLine("file sealed class InterceptsLocationAttribute : global::System.Attribute");
+        source.AppendLine("{");
+        source.AppendLine("    public InterceptsLocationAttribute(int version, string data) { }");
+        source.AppendLine("}");
+        source.AppendLine("}");
+        return source.ToString();
+    }
+
+    private static void RenderInterceptedFunctor(StringBuilder source, InterceptionSite site)
+    {
+        Shape shape = site.Shape;
+        string name = "InterceptedFunctor_" + site.Id;
+        string marker = shape.HasContext
+            ? shape.HasEntity ? "IForEachContextEntity" : "IForEachContext"
+            : shape.HasEntity ? "IForEachEntity" : "IForEach";
+        string markerType = shape.HasContext
+            ? "global::Delta.ECS." + marker + "<" + InterceptedContextType(shape) + ">"
+            : "global::Delta.ECS." + marker;
+        source.Append("internal struct ").Append(name).Append(" : ").AppendLine(markerType);
+        source.AppendLine("{");
+        source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        source.Append("    public void Invoke(");
+        string[] parameters = InterceptedParameterNames(site);
+        var declarations = new List<string>();
+        int parameterIndex = 0;
+        if (shape.HasContext)
+        {
+            declarations.Add("ref " + InterceptedContextType(shape) + " " + parameters[parameterIndex]);
+            parameterIndex++;
+        }
+
+        if (shape.HasEntity)
+        {
+            declarations.Add("global::Delta.ECS.Entity " + parameters[parameterIndex]);
+            parameterIndex++;
+        }
+
+        for (int index = 0; index < shape.Pattern.Length; index++)
+        {
+            declarations.Add(
+                ParameterPrefix(shape.Pattern[index])
+                + shape.Components[index]
+                + " "
+                + parameters[parameterIndex + index]);
+        }
+
+        source.Append(string.Join(", ", declarations)).AppendLine(")");
+        source.AppendLine("    {");
+        if (site.Lambda is { } lambda && lambda.Body is BlockSyntax block)
+        {
+            AppendIndented(source, block.ToString(), "        ");
+        }
+        else if (site.Lambda is { } expressionLambda)
+        {
+            source.Append("        ").Append(expressionLambda.Body).AppendLine(";");
+        }
+        else
+        {
+            source.Append("        ").Append(site.MethodGroupTarget).Append('(');
+            var invocationArguments = new List<string>();
+            parameterIndex = 0;
+            if (shape.HasContext)
+            {
+                invocationArguments.Add("ref " + parameters[parameterIndex]);
+                parameterIndex++;
+            }
+
+            if (shape.HasEntity)
+            {
+                invocationArguments.Add(parameters[parameterIndex]);
+                parameterIndex++;
+            }
+
+            for (int index = 0; index < shape.Pattern.Length; index++)
+            {
+                invocationArguments.Add(InvocationPrefix(shape.Pattern[index]) + parameters[parameterIndex + index]);
+            }
+
+            source.Append(string.Join(", ", invocationArguments)).AppendLine(");");
+        }
+
+        source.AppendLine("    }");
+        source.AppendLine("}");
+        source.AppendLine();
+    }
+
+    private static string[] InterceptedParameterNames(InterceptionSite site)
+    {
+        if (site.Lambda is { } lambda)
+        {
+            return LambdaParameters(lambda)
+                .Select(static parameter => parameter.Identifier.ValueText)
+                .ToArray();
+        }
+
+        var names = new List<string>();
+        if (site.Shape.HasContext)
+        {
+            names.Add("context");
+        }
+
+        if (site.Shape.HasEntity)
+        {
+            names.Add("entity");
+        }
+
+        names.AddRange(Enumerable.Range(0, site.Shape.Pattern.Length).Select(static index => "component" + index));
+        return names.ToArray();
+    }
+
+    private static void RenderInterceptor(
+        StringBuilder source,
+        Shape shape,
+        InterceptionSite site)
+    {
+        source.Append("    ").AppendLine(site.Attribute);
+        source.Append("    public static void Intercept_").Append(site.Id).Append("(");
+        var parameters = new List<string> { "this global::Delta.ECS.World world", "in global::Delta.ECS.Query query" };
+        if (shape.ExplicitIds)
+        {
+            parameters.Add(
+                string.Join(", ", Enumerable.Range(0, shape.Components.Length)
+                    .Select(static index => "global::Delta.ECS.ComponentId component" + index)));
+        }
+
+        if (shape.HasContext)
+        {
+            parameters.Add("ref " + InterceptedContextType(shape) + " context");
+        }
+
+        parameters.Add("global::Delta.ECS." + ConcreteActionType(shape) + " action");
+        source.Append(string.Join(", ", parameters)).AppendLine(")");
+        source.AppendLine("    {");
+        source.Append("        global::Delta.ECS.DemandForEachExtensions_")
+            .Append(StableName(shape.Key))
+            .Append(".ExecuteIntercepted_")
+            .Append(site.Id)
+            .Append("(world, in query");
+        if (shape.ExplicitIds)
+        {
+            source.Append(", ").Append(ComponentNames(shape.Components.Length));
+        }
+
+        if (shape.HasContext)
+        {
+            source.Append(", ref context");
+        }
+
+        source.AppendLine(");");
+        source.AppendLine("    }");
+        source.AppendLine();
+    }
+
+    private static string ConcreteActionType(Shape shape)
+    {
+        string suffix = IsAllWrite(shape.Pattern) ? string.Empty : "_" + shape.Pattern;
+        string generic = string.Join(", ", shape.Components);
+        if (shape.HasContext)
+        {
+            generic = JoinGeneric(InterceptedContextType(shape), generic);
+            return TypeWithGenericArgs(
+                (shape.HasEntity ? "ForEachContextEntityAction" : "ForEachContextAction") + suffix,
+                generic);
+        }
+
+        return TypeWithGenericArgs(
+            (shape.HasEntity ? "ForEachEntityAction" : "ForEachAction") + suffix,
+            generic);
+    }
+
+    private static string InterceptedContextType(Shape shape)
+        => shape.ContextType ?? "global::System.Object";
+
+    private static void AppendIndented(StringBuilder source, string text, string indent)
+    {
+        foreach (string line in text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None))
+        {
+            source.Append(indent).AppendLine(line);
+        }
     }
 
     private static void RenderClosedDenseMethod(
@@ -1441,6 +2242,32 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         World,
         EntitySequence,
         FilteredEntitySequence
+    }
+
+    private sealed class InterceptionSite
+    {
+        public InterceptionSite(
+            string id,
+            Shape shape,
+            LambdaExpressionSyntax? lambda,
+            IMethodSymbol? methodGroup,
+            string attribute,
+            string[] usings)
+        {
+            Id = id;
+            Shape = shape;
+            Lambda = lambda;
+            MethodGroupTarget = methodGroup is null ? null : MethodGroupTarget(methodGroup);
+            Attribute = attribute;
+            Usings = usings;
+        }
+
+        public string Id { get; }
+        public Shape Shape { get; }
+        public LambdaExpressionSyntax? Lambda { get; }
+        public string? MethodGroupTarget { get; }
+        public string Attribute { get; }
+        public string[] Usings { get; }
     }
 
     private sealed class Shape

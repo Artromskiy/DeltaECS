@@ -2,6 +2,7 @@ using System.Globalization;
 using Delta.ECS.Generators.Consumer;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
 using NUnit.Framework;
 
 namespace Delta.ECS.Generators.Tests;
@@ -236,6 +237,101 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void EnabledStaticLambdaGeneratesAnInterceptedFunctorAndBridge()
+    {
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(InterceptionSource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
+        Assert.That(generated, Does.Contain("InterceptedFunctor_"));
+        Assert.That(generated, Does.Contain("InterceptsLocationAttribute"));
+        Assert.That(generated, Does.Contain("ExecuteIntercepted_"));
+        Assert.That(generated, Does.Contain("value.Value++"));
+    }
+
+    [Test]
+    public void EnabledStaticMethodGroupsGenerateDirectFunctorCalls()
+    {
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(StaticMethodGroupInterceptionSource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
+        Assert.That(generated, Does.Contain("global::Delta.ECS.Consumer.Update(ref component0)"));
+        Assert.That(generated, Does.Contain("global::Delta.ECS.Callbacks.Update(ref component0)"));
+        Assert.That(generated, Does.Contain("global::Delta.ECS.Consumer.UpdateWithContext(ref context, in component0)"));
+        Assert.That(generated, Does.Contain("global::Delta.ECS.Consumer.UpdateEntity(entity, ref component0)"));
+        Assert.That(generated, Does.Contain("ExecuteIntercepted_"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, StaticMethodGroupInterceptionSource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
+    public void StaticMethodGroupsCanInferComponentTypes()
+    {
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(ImplicitStaticMethodGroupInterceptionSource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
+        Assert.That(generated, Does.Contain("global::Delta.ECS.Consumer.Update(ref component0)"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, ImplicitStaticMethodGroupInterceptionSource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
+    public void InstanceMethodGroupsReportFallbackReason()
+    {
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(InstanceMethodGroupInterceptionSource);
+        Diagnostic diagnostic = run.Diagnostics.Single(static value => value.Id == "DECSGEN005");
+
+        Assert.That(diagnostic.GetMessage(CultureInfo.InvariantCulture), Does.Contain("instance method"));
+        Assert.That(GeneratedText(run), Does.Contain("ForEachAction<T1>"));
+        Assert.That(GeneratedText(run), Does.Not.Contain("InterceptedFunctor_"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, InstanceMethodGroupInterceptionSource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static value => value.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
+    public void EnabledUnsupportedLambdaReportsFallbackReason()
+    {
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(UnsupportedInterceptionSource);
+        Diagnostic diagnostic = run.Diagnostics.Single(static value => value.Id == "DECSGEN005");
+
+        Assert.That(diagnostic.Severity, Is.EqualTo(DiagnosticSeverity.Info));
+        Assert.That(diagnostic.GetMessage(CultureInfo.InvariantCulture), Does.Contain("not a static lambda"));
+        Assert.That(GeneratedText(run), Does.Contain("ForEachAction<T1>"));
+    }
+
+    [Test]
+    public void EnabledPrivateLambdaReferenceReportsFallbackReason()
+    {
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(PrivateReferenceInterceptionSource);
+        Diagnostic diagnostic = run.Diagnostics.Single(static value => value.Id == "DECSGEN005");
+
+        Assert.That(diagnostic.Severity, Is.EqualTo(DiagnosticSeverity.Info));
+        Assert.That(diagnostic.GetMessage(CultureInfo.InvariantCulture), Does.Contain("private or protected"));
+        Assert.That(GeneratedText(run), Does.Contain("ForEachAction<T1>"));
+        Assert.That(GeneratedText(run), Does.Not.Contain("InterceptedFunctor_"));
+    }
+
+    [Test]
     public void RealConsumerProjectExecutesDenseAndSequenceGeneratedPaths()
     {
         int checksum = ConsumerProof.Run();
@@ -250,6 +346,19 @@ public sealed class DemandDrivenForEachGeneratorTests
     {
         CSharpCompilation compilation = CreateCompilation(new[] { RuntimeStubSource, consumerSource });
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new DemandDrivenForEachGenerator().AsSourceGenerator());
+        driver = driver.RunGenerators(compilation);
+        return driver.GetRunResult();
+    }
+
+    private static GeneratorDriverRunResult RunGeneratorWithInterceptors(string consumerSource)
+    {
+        CSharpCompilation compilation = CreateCompilation(new[] { RuntimeStubSource, consumerSource });
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            new[] { new DemandDrivenForEachGenerator().AsSourceGenerator() },
+            Array.Empty<AdditionalText>(),
+            new CSharpParseOptions(LanguageVersion.Latest),
+            new FixedAnalyzerConfigOptionsProvider("Delta.ECS.Generated"),
+            default);
         driver = driver.RunGenerators(compilation);
         return driver.GetRunResult();
     }
@@ -271,6 +380,66 @@ public sealed class DemandDrivenForEachGeneratorTests
             sources.Select(static source => CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Latest))),
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+    }
+
+    private static CSharpCompilation CreateCompilationWithGeneratedTrees(
+        IEnumerable<string> sources,
+        IEnumerable<SyntaxTree> generatedTrees)
+    {
+        var references = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+            .Select(static path => MetadataReference.CreateFromFile(path));
+        var parseOptions = new CSharpParseOptions(LanguageVersion.Latest)
+            .WithFeatures(new[]
+            {
+                new KeyValuePair<string, string>("InterceptorsNamespaces", "Delta.ECS.Generated")
+            });
+        var syntaxTrees = sources
+            .Select(source => CSharpSyntaxTree.ParseText(source, parseOptions))
+            .Concat(generatedTrees.Select(tree => CSharpSyntaxTree.ParseText(tree.GetText().ToString(), parseOptions, tree.FilePath)));
+        return CSharpCompilation.Create(
+            "DeltaEcsGeneratorHarness",
+            syntaxTrees,
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+    }
+
+    private sealed class FixedAnalyzerConfigOptionsProvider : AnalyzerConfigOptionsProvider
+    {
+        private readonly AnalyzerConfigOptions _options;
+
+        public FixedAnalyzerConfigOptionsProvider(string interceptorsNamespace)
+        {
+            _options = new FixedAnalyzerConfigOptions(interceptorsNamespace);
+        }
+
+        public override AnalyzerConfigOptions GlobalOptions => _options;
+
+        public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => _options;
+
+        public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => _options;
+    }
+
+    private sealed class FixedAnalyzerConfigOptions : AnalyzerConfigOptions
+    {
+        private readonly string _interceptorsNamespace;
+
+        public FixedAnalyzerConfigOptions(string interceptorsNamespace)
+        {
+            _interceptorsNamespace = interceptorsNamespace;
+        }
+
+        public override bool TryGetValue(string key, out string value)
+        {
+            if (key == "build_property.InterceptorsNamespaces")
+            {
+                value = _interceptorsNamespace;
+                return true;
+            }
+
+            value = string.Empty;
+            return false;
+        }
     }
 
     private const string RuntimeStubSource = """
@@ -499,6 +668,97 @@ public sealed class DemandDrivenForEachGeneratorTests
             {
                 var functor = new PrivateFunctor();
                 world.ForEach(in query, ref functor);
+            }
+        }
+        """;
+
+    private const string InterceptionSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        static class Consumer
+        {
+            public static void Use(World world, Query query)
+            {
+                world.ForEach<T1>(in query, static (ref T1 value) => value.Value++);
+            }
+        }
+        """;
+
+    private const string StaticMethodGroupInterceptionSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        struct Context { public int Value; }
+        static class Callbacks
+        {
+            public static void Update(ref T1 value) => value.Value++;
+        }
+        static class Consumer
+        {
+            public static void Update(ref T1 value) => value.Value++;
+            public static void UpdateWithContext(ref Context context, in T1 value) => context.Value += value.Value;
+            public static void UpdateEntity(Entity entity, ref T1 value) => value.Value += entity.Index;
+
+            public static void Use(World world, Query query)
+            {
+                var context = new Context();
+                world.ForEach<T1>(in query, Update);
+                world.ForEach<T1>(in query, Callbacks.Update);
+                world.ForEach<Context, T1>(in query, ref context, UpdateWithContext);
+                world.ForEachEntity<T1>(in query, UpdateEntity);
+            }
+        }
+        """;
+
+    private const string InstanceMethodGroupInterceptionSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        class Consumer
+        {
+            private void Update(ref T1 value) => value.Value++;
+
+            public void Use(World world, Query query)
+            {
+                world.ForEach<T1>(in query, Update);
+            }
+        }
+        """;
+
+    private const string ImplicitStaticMethodGroupInterceptionSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        static class Consumer
+        {
+            public static void Update(ref T1 value) => value.Value++;
+
+            public static void Use(World world, Query query)
+            {
+                world.ForEach(in query, Update);
+            }
+        }
+        """;
+
+    private const string UnsupportedInterceptionSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        static class Consumer
+        {
+            public static void Use(World world, Query query, int delta)
+            {
+                world.ForEach<T1>(in query, (ref T1 value) => value.Value += delta);
+            }
+        }
+        """;
+
+    private const string PrivateReferenceInterceptionSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        static class Consumer
+        {
+            private static int Delta => 1;
+
+            public static void Use(World world, Query query)
+            {
+                world.ForEach<T1>(in query, static (ref T1 value) => value.Value += Delta);
             }
         }
         """;

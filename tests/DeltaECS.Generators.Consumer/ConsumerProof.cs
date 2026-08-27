@@ -50,6 +50,14 @@ public struct SequenceFunctor : IForEachEntity
 /// </summary>
 public static class ConsumerProof
 {
+    public static void ApplyStaticMethodGroup(ref Position value) => value.Value++;
+
+    public static void ApplyStaticMethodGroupWithContext(ref ConsumerContext context, ref Position value)
+    {
+        context.Value++;
+        value.Value++;
+    }
+
     public static int Run()
     {
         using var world = new World(chunkCapacity: 2);
@@ -90,6 +98,13 @@ public static class ConsumerProof
 
         // Arity 1, no ID: resolves the primary registration by CLR type.
         world.ForEach<Position>(in allNine, static (ref Position value) => value.Value++);
+        world.ForEach<Position>(in allNine, ApplyStaticMethodGroup);
+        var methodGroupContext = new ConsumerContext();
+        world.ForEach<ConsumerContext, Position>(in allNine, ref methodGroupContext, ApplyStaticMethodGroupWithContext);
+        if (methodGroupContext.Value != 1)
+        {
+            throw new InvalidOperationException("Static method-group context callback was not invoked exactly once.");
+        }
 
         // Arity 4, no ID, mixed read/write access.
         world.ForEach<Position, Velocity, Acceleration, Lifetime>(
