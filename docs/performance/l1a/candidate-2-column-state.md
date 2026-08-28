@@ -14,4 +14,4 @@ short for a stable throughput claim.
 The current implementation has a stronger, explicit chunk plan: it resolves
 the direct `Array[]` rows in `ArchetypePlan.RefreshChunks` and passes that table
 to `QuerySlots`. Use [performance README](../README.md) for the current path
-and [benchmarks/README.md](../../../benchmarks/README.md) for reproduction.
+and [benchmarks/README.md](../../benchmarks/README.md) for reproduction.

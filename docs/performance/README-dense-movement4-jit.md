@@ -29,7 +29,7 @@ than a bounds check. Code size and instruction counts do not prove cache
 behavior or throughput.
 
 Use the reproducible commands in
-[benchmarks/README.md](../../benchmarks/README.md). A Release report omits
+[benchmarks/README.md](../benchmarks/README.md). A Release report omits
 source-line mapping; a Debug/checked-JIT report may provide approximate IL to
 Portable PDB mapping when a matching checked JIT is available.
 

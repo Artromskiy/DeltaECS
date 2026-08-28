@@ -1,13 +1,13 @@
 # DeltaECS API and source map
 
 This file is a contributor navigation map. It is intentionally smaller than
-the public contract: stable behavior belongs in the root `README.md`, and
-folder-specific API details belong in the README beside the source.
+the public contract: stable behavior belongs in `docs/README.md`, and
+folder-specific API details are kept in the corresponding `docs/src/` tree.
 
 ## Fast read order
 
 1. Read the repository and project `AGENTS.md` files.
-2. Read `README.md` for stable behavior and `WORKFLOW.md` before commands.
+2. Read `docs/README.md` for stable behavior and `WORKFLOW.md` before commands.
 3. Use the folder map below to choose the smallest source slice.
 4. Read the nearest focused test only after locating the implementation.
 
@@ -22,17 +22,17 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 
 | Folder | Responsibility | Documentation |
 |---|---|---|
-| `Core` | World, identity, storage-facing structural operations and explicit query traversal | [Core API](../src/DeltaECS/Core/README.md) |
-| `Generic` | CLR-type registration and single-component convenience operations | [Generic API](../src/DeltaECS/Generic/README.md) |
-| `Delegate` | Delegate callback contracts and zero-component callback entry points | [Delegate API](../src/DeltaECS/Delegate/README.md) |
-| `Functor` | Marker contracts and generated functor runtime bridge | [Functor API](../src/DeltaECS/Functor/README.md) |
-| `Sequence` | Ordered execution over an explicit entity span | [Sequence API](../src/DeltaECS/Sequence/README.md) |
-| `API` | Neutral integration contract implemented by `World` | [Integration API](../src/DeltaECS/API/README.md) |
-| `Stamps` | World and component revision values | [Stamp contract](../src/DeltaECS/Stamps/README.md) |
+| `Core` | World, identity, storage-facing structural operations and explicit query traversal | [Core API](src/DeltaECS/Core/README.md) |
+| `Generic` | CLR-type registration and single-component convenience operations | [Generic API](src/DeltaECS/Generic/README.md) |
+| `Delegate` | Delegate callback contracts and zero-component callback entry points | [Delegate API](src/DeltaECS/Delegate/README.md) |
+| `Functor` | Marker contracts and generated functor runtime bridge | [Functor API](src/DeltaECS/Functor/README.md) |
+| `Sequence` | Ordered execution over an explicit entity span | [Sequence API](src/DeltaECS/Sequence/README.md) |
+| `API` | Neutral integration contract implemented by `World` | [Integration API](src/DeltaECS/API/README.md) |
+| `Stamps` | World and component revision values | [Stamp contract](src/DeltaECS/Stamps/README.md) |
 | `Properties` | Assembly metadata; no consumer API | — |
 
 The consumer source generator is documented in
-[DeltaECS.Generators/README.md](../src/DeltaECS.Generators/README.md).
+[DeltaECS.Generators/README.md](src/DeltaECS.Generators/README.md).
 
 ## Public API map
 
@@ -151,8 +151,8 @@ work, inspect the focused test class after locating the source method.
 - `IEcsWorld` is a neutral local .NET boundary. It uses the core `Entity` and
   `ComponentId` types and exposes object snapshots only for integration work.
 
-See the [integration README](../src/DeltaECS/API/README.md) and
-[stamp README](../src/DeltaECS/Stamps/README.md) for their complete contracts.
+See the [integration README](src/DeltaECS/API/README.md) and
+[stamp README](src/DeltaECS/Stamps/README.md) for their complete contracts.
 
 ## Focused test map
 
@@ -167,5 +167,5 @@ See the [integration README](../src/DeltaECS/API/README.md) and
 | Ordered sequence facade | `tests/DeltaECSTests/SequenceExecutionTests.cs` |
 | Consumer source generation | `tests/DeltaECS.Generators.Tests/DemandDrivenForEachGeneratorTests.cs`, `tests/DeltaECS.Generators.Consumer/` |
 
-The root `README.md` is the stable contract; `TODO.md` selects work and
+The `docs/README.md` is the stable contract; `TODO.md` selects work and
 `IDEAS.md` records proposals that have not been selected.

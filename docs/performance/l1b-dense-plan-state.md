@@ -19,5 +19,5 @@ it reduced the first emitted ARM64 block from 1408 B to 1160 B, with:
 
 The result is assembly evidence, not a general throughput claim. Reproduce
 the current source with the narrow JIT and BenchmarkDotNet commands in
-[benchmarks/README.md](../../benchmarks/README.md) before making a regression
+[benchmarks/README.md](../benchmarks/README.md) before making a regression
 decision.

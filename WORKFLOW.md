@@ -1,5 +1,18 @@
 # DeltaECS workflow
 
+## Documentation layout
+
+The repository root contains only the four control documents used to route
+agent work: `AGENTS.md`, `TODO.md`, `WORKFLOW.md` and `IDEAS.md`. All
+substantive documentation is under `docs/`: the stable API entry point is
+`docs/README.md`, source-area guides are under `docs/src/`, benchmark guides
+under `docs/benchmarks/`, and decisions under `docs/adr/`. Generated benchmark,
+JIT and profiler output remains under `artifacts/` and is not moved into the
+documentation tree. Tool-owned metadata such as
+`src/DeltaECS.Generators/AnalyzerReleases.Unshipped.md` stays beside the tool
+because Roslyn consumes that file by convention; it is not project
+documentation.
+
 ## Repository layout gate
 
 The repository must follow the shared first-party layout documented in the
@@ -52,7 +65,7 @@ CODE_METRICS_ERROR_LOG=/tmp/deltaecs-metrics.sarif ./eng/code-metrics.sh -v:q
 
 Build benchmark projects and use dry contract smokes during review. Do not run
 full BenchmarkDotNet measurements unless the user asks. For assembly-guided
-micro-algorithms use [benchmarks/README.md](benchmarks/README.md) and
+micro-algorithms use [docs/benchmarks/README.md](docs/benchmarks/README.md) and
 `benchmarks/run-jit-disasm.sh`. For GitHub/manual version comparison use
 [docs/github-benchmarks.md](docs/github-benchmarks.md).
 
@@ -77,4 +90,4 @@ tools/profile-hotpath.sh --movement4 --depth 16 \
 
 The profiler does not modify production `DeltaECS.dll`. Its architecture,
 metric definitions, CLI and smoke commands are documented in
-[tools/DeltaECS.Profiling/README.md](tools/DeltaECS.Profiling/README.md).
+[docs/tools/DeltaECS.Profiling/README.md](docs/tools/DeltaECS.Profiling/README.md).

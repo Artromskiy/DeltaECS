@@ -1,7 +1,8 @@
 # DeltaECS source API map
 
-The public namespace is `DeltaECS`. Source folders separate API roles; they
-do not create separate storage models or namespaces.
+The public namespace is `DeltaECS`. Source folders separate API roles; their
+documentation is centralized under `docs/src/` so source trees remain focused
+on implementation. They do not create separate storage models or namespaces.
 
 | Folder | Responsibility | Documentation |
 |---|---|---|
@@ -19,4 +20,4 @@ The consumer-facing source generator is a separate project documented in
 [DeltaECS.Generators](../DeltaECS.Generators/README.md).
 
 Start with the repository [README](../../README.md) for stable behavior and
-use [docs/APIMAP.md](../../docs/APIMAP.md) for contributor navigation.
+use the [API map](../../APIMAP.md) for contributor navigation.

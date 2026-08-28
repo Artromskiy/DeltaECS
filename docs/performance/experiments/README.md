@@ -81,7 +81,7 @@ linked focused report.
 | Generic cached array versus `Span<T>` | Historical comparison | JIT was effectively identical; direct span form was kept for simplicity |
 | Large native ECS buffer storage | `bc62b9f`, `d03fa85` | Some benchmark signals improved while generated code grew; retained source later evolved, so old isolated ratios are not current claims |
 | Split generated read/write drivers | `4a8db12`; [evidence](perf-split-generated-read-write-drivers.md) | Write guardrail removed one branch/compare and 8 B; Functor improved 1.57% at 100, all other tested write cases were neutral. Direct component-bearing read-only evidence is still missing |
-| Metalama layer-major chunking | `8040b2e`; [chunked experiment](../../../tools/DeltaECS.LayeredPipeline/README.md) | Promising cache signal, but the measurement used separate flat and chunked runs and the tile changes execution order across entities; not an ECS runtime decision yet |
+| Metalama layer-major chunking | `8040b2e` (historical experiment) | Promising cache signal, but the measurement used separate flat and chunked runs and the tile changes execution order across entities; not an ECS runtime decision yet |
 | Full Sparse campaign with generated-core inlining | `368b207` plus temporary worktree patch; `artifacts/aggressive-inline-closed-sparse` | Inconclusive: the 40-case run was interrupted after the first Delta construction case because BDN estimated about 1 h 35 min and produced no report |
 | Focused SparseWorldQueryPlan run | `17aac7c`; `artifacts/aggressive-inline-closed-sparse-world-plan` | Valid 20-case matrix with default adaptive sampling; construction-heavy query-plan measurements are intentionally not inferred from it |
 

@@ -32,4 +32,5 @@ rows; short amounts are directional.
 | 100,000 | 237.113 us |
 
 The result is retained as historical evidence only. Re-run current source with
-the commands in `benchmarks/README.md` before using it for a regression claim.
+the commands in `docs/benchmarks/README.md` before using it for a regression
+claim.

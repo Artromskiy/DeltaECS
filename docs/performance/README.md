@@ -85,6 +85,6 @@ See the [experiment evidence](experiments/chunk-loop-unrolling.md).
 - Instruction count does not reveal cache misses. Use hardware counters when
   making a cache claim.
 
-The runnable procedure is in [benchmarks/README.md](../../benchmarks/README.md).
+The runnable procedure is in [benchmarks/README.md](../benchmarks/README.md).
 The comparative suite is manual evidence; the microbenchmark project is the
 focused source for dense iteration and structural kernels.

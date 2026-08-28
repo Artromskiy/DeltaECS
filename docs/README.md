@@ -4,6 +4,11 @@ Standalone archetype ECS kernel focused on fast component iteration, immediate
 structural changes, batch operations and predictable memory use.
 Public namespace is `DeltaECS`; project/assembly names remain `DeltaECS*`.
 
+This is the repository's substantive documentation entry point. The repository
+root intentionally contains only agent and workflow controls (`AGENTS.md`,
+`TODO.md`, `WORKFLOW.md` and `IDEAS.md`); API, architecture, benchmark and
+decision documentation lives below `docs/`.
+
 ## API organization
 
 The implementation is split by API role while sharing one archetype/chunk
@@ -204,9 +209,9 @@ Structural mutation is invalid while a conflicting row lease is active. This
 is a local lifetime rule, not a global barrier. External consumers keep their
 own cursors/caches; one consumer never clears another's change state.
 
-See [TODO.md](TODO.md) before selecting work, [IDEAS.md](IDEAS.md) for deferred
-designs, [WORKFLOW.md](WORKFLOW.md) for correctness checks and
-[benchmarks/README.md](benchmarks/README.md) for bounded assembly-guided work.
+See [TODO.md](../TODO.md) before selecting work, [IDEAS.md](../IDEAS.md) for deferred
+designs, [WORKFLOW.md](../WORKFLOW.md) for correctness checks and
+[benchmark guide](benchmarks/README.md) for bounded assembly-guided work.
 The isolated [call profiler](tools/DeltaECS.Profiling/README.md) provides
 Metalama-instrumented self/inner call-tree timing without adding a dependency
 to the production assembly. Full comparisons and version benchmarks are manual

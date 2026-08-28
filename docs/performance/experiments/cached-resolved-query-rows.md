@@ -30,4 +30,4 @@ changes. It is refreshed from the current chunk arrays at the chunk boundary.
 Use the same Release runtime, entity count, component width and checksum when
 comparing a different representation. JIT code size and instruction counts are
 supporting evidence; throughput comes from a paired BenchmarkDotNet run. The
-reproduction procedure is in [benchmarks/README.md](../../../benchmarks/README.md).
+reproduction procedure is in [benchmarks/README.md](../../benchmarks/README.md).

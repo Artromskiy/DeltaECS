@@ -8,14 +8,14 @@ delegate or implement API/query/performance tasks from repository TODOs unless
 the user explicitly assigns that bounded work. Preserve their active branch
 and dirty changes.
 
-- [README.md](README.md) — stable storage/API contract.
+- [docs/README.md](docs/README.md) — stable storage/API contract.
 - [TODO.md](TODO.md) — selected implementation work; always read before task
   selection.
 - [IDEAS.md](IDEAS.md) — deferred ECS designs; never implement without an
   explicit decision and workload.
 - [WORKFLOW.md](WORKFLOW.md) — correctness checks and benchmark routing.
 - [docs/APIMAP.md](docs/APIMAP.md) — source/API navigation map for focused reads.
-- [benchmarks/README.md](benchmarks/README.md) — micro/JIT procedure.
+- [docs/benchmarks/README.md](docs/benchmarks/README.md) — micro/JIT procedure.
 - [docs/performance/README.md](docs/performance/README.md) — evidence and
   optimization candidates, not automatic tasks.
 - ADRs record decisions; generated benchmark reports are evidence, not TODOs.

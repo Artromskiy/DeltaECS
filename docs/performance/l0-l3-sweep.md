@@ -20,4 +20,4 @@ claim.
 
 Further work must compare the current source with the same checksum, runtime,
 architecture and BenchmarkDotNet job. See [performance README](README.md) and
-[benchmarks README](../../benchmarks/README.md).
+[benchmarks README](../benchmarks/README.md).

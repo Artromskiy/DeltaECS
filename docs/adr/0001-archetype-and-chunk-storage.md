@@ -1,7 +1,8 @@
 # ADR-0001: Archetype and chunk storage model
 
 > Status: historical decision record. The current public contract is in
-> `README.md`; this record keeps only the storage assumptions that still apply.
+> `docs/README.md`; this record keeps only the storage assumptions that still
+> apply.
 
 ## Context
 
