@@ -1,5 +1,21 @@
 # DeltaECS workflow
 
+## Repository layout gate
+
+The repository must follow the shared first-party layout documented in the
+Furnace project standard. Before restore/build or a structural handoff, run:
+
+```bash
+./eng/check-layout.sh
+```
+
+The gate checks the mandatory top-level directories, rejects unexpected
+tracked top-level folders, requires src/DeltaECS/ as the primary source
+project, and requires source siblings to use the src/DeltaECS.<Area>/ form.
+samples/ contains runnable examples; probes/ contains bounded
+headless/compiler/contract checks. Empty mandatory domains stay tracked with
+.gitkeep.
+
 Correctness first:
 
 ```bash
