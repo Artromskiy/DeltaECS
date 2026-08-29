@@ -29,6 +29,15 @@ internal struct ComponentStampStorage : IDisposable
             : _values.ReadOnlySpan[offset];
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal readonly Stamp GetTrusted(int componentIndex, int slotIndex)
+    {
+        int offset = (componentIndex * _capacity) + slotIndex;
+        return slotIndex < _uniformCounts.ReadOnlySpan[componentIndex]
+            ? _uniformStamps.ReadOnlySpan[componentIndex]
+            : _values.ReadOnlySpan[offset];
+    }
+
     internal void Set(int componentIndex, int slotIndex, Stamp stamp)
     {
         int offset = Offset(componentIndex, slotIndex);

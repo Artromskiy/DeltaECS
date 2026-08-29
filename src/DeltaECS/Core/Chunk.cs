@@ -157,6 +157,10 @@ internal sealed class Chunk
     internal Stamp GetComponentStamp(int componentIndex, int slotIndex)
         => _componentStamps.Get(componentIndex, slotIndex);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Stamp GetComponentStampTrusted(int componentIndex, int slotIndex)
+        => _componentStamps.GetTrusted(componentIndex, slotIndex);
+
     internal void MarkComponentStamped(int componentIndex, int slotIndex, Stamp stamp)
         => _componentStamps.Set(componentIndex, slotIndex, stamp);
 

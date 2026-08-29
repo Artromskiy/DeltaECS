@@ -223,6 +223,79 @@ public sealed class StampTests
     }
 
     [Test]
+    public void StampRowReadsExactStampForEachCurrentSlotWithoutMarkingWrites()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(40_055));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(40_056));
+        using var world = new World(layouts, chunkCapacity: 4);
+        Entity first = world.Create(positionId, velocityId);
+        Entity second = world.Create(positionId, velocityId);
+        Assert.That(world.Set(first, positionId, new Position(10)), Is.True);
+        Assert.That(world.Set(second, velocityId, new Velocity(20)), Is.True);
+        Assert.That(world.TryGetComponentStamp(first, positionId, out Stamp firstExpected), Is.True);
+        Assert.That(world.TryGetComponentStamp(second, positionId, out Stamp secondExpected), Is.True);
+        Stamp worldStampBeforeScope = world.Stamp;
+
+        var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+        ReadAccess positionAccess = query.AccessRead(positionId);
+        var observed = new Stamp[2];
+        int observedCount = 0;
+        using (var scope = world.BeginScope(in query))
+        {
+            var chunks = scope.Chunks;
+            while (chunks.MoveNext())
+            {
+                var chunk = chunks.Current;
+                StampRow stamps = chunk.GetStampRow(positionAccess);
+                var slots = chunk.Slots;
+                while (slots.MoveNext())
+                {
+                    observed[observedCount++] = stamps.Get(in slots);
+                }
+            }
+        }
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(observedCount, Is.EqualTo(2));
+            Assert.That(observed[0], Is.EqualTo(firstExpected));
+            Assert.That(observed[1], Is.EqualTo(secondExpected));
+            Assert.That(world.Stamp, Is.EqualTo(worldStampBeforeScope));
+        });
+    }
+
+    [Test]
+    public void StampRowRequiresPositionedSlots()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(40_057));
+        using var world = new World(layouts);
+        _ = world.Create(positionId);
+        var query = world.CreateQuery(QuerySpec.WhereAll(positionId));
+        ReadAccess access = query.AccessRead(positionId);
+
+        using var scope = world.BeginScope(in query);
+        var chunks = scope.Chunks;
+        Assert.That(chunks.MoveNext(), Is.True);
+        var chunk = chunks.Current;
+        StampRow stamps = chunk.GetStampRow(access);
+        var slots = chunk.Slots;
+
+        bool threw = false;
+        try
+        {
+            _ = stamps.Get(in slots);
+        }
+        catch (InvalidOperationException)
+        {
+            threw = true;
+        }
+
+        Assert.That(threw, Is.True);
+    }
+
+    [Test]
     public void GeneratedWholeChunkWriteMaterializesExactEntityStampsOnDemand()
     {
         var layouts = new ComponentLayoutRegistry();

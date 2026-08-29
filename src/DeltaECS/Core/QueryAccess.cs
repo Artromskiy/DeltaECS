@@ -406,4 +406,7 @@ internal static class QueryThrowHelper
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowChunkIteratorNotPositioned() => throw new InvalidOperationException("The chunk iterator is not positioned on a chunk.");
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowSlotIteratorNotPositioned() => throw new InvalidOperationException("The slot iterator is not positioned on a slot.");
 }

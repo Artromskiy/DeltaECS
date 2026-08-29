@@ -164,4 +164,19 @@ public readonly ref struct QueryChunk
     public ReadOnlySpan<Entity> Entities => _chunk.Chunk.Entities;
 
     public QuerySlots Slots => new(_plan, _chunk, _query, _writeSession, _sessionGeneration);
+
+    /// <summary>Prepares exact component stamps for this chunk.</summary>
+    /// <remarks>Access validation occurs once here; reading stamps never marks a component written.</remarks>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public StampRow GetStampRow(ReadAccess access)
+    {
+        _writeSession.EnsureActive(_sessionGeneration);
+        if (!ReferenceEquals(access.Query, _query))
+        {
+            QueryThrowHelper.ThrowAccessMismatch();
+        }
+
+        int physicalRow = _plan.ComponentRows.Ref(access.QueryComponentIndex);
+        return new StampRow(_chunk.Chunk, physicalRow, _chunk.Chunk.Count);
+    }
 }
