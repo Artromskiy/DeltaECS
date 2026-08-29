@@ -17,12 +17,11 @@ public ref struct GeneratedQuerySlots
     private int _index;
 
     internal GeneratedQuerySlots(
-        ArchetypePlan plan,
         ChunkPlan chunkPlan,
         uint writeTick,
         Stamp writeStamp)
     {
-        _componentRowsByQuery = plan.ComponentRows;
+        _componentRowsByQuery = chunkPlan.ComponentRowsByQuery;
         _chunk = chunkPlan.Chunk;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
         _writeTick = writeTick;
