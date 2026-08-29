@@ -338,7 +338,7 @@ internal struct ArchetypePlan
             resolvedRows[queryRow] = sourceRows[ComponentRows[queryRow]];
         }
 
-        _chunks[_chunkCount++] = new ChunkPlan(chunk, resolvedRows, ComponentRows);
+        _chunks[_chunkCount++] = new ChunkPlan(chunk, resolvedRows);
     }
 
     internal void OnChunkDeactivated(int activePosition, int lastPosition)
@@ -360,16 +360,14 @@ internal struct ArchetypePlan
 
 internal readonly struct ChunkPlan
 {
-    internal ChunkPlan(Chunk chunk, Array[] componentRows, int[] componentRowsByQuery)
+    internal ChunkPlan(Chunk chunk, Array[] componentRows)
     {
         Chunk = chunk;
         ComponentRows = componentRows;
-        ComponentRowsByQuery = componentRowsByQuery;
     }
 
     internal Chunk Chunk { get; }
     internal Array[] ComponentRows { get; }
-    internal int[] ComponentRowsByQuery { get; }
 }
 
 internal readonly struct QueryPlanLink

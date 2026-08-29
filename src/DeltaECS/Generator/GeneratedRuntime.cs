@@ -62,6 +62,7 @@ public ref struct GeneratedDenseExecution
         {
             _chunkIndex = nextChunk;
             slots = new GeneratedQuerySlots(
+                _plans.Ref(_planIndex),
                 _chunks.Ref(_chunkIndex),
                 _writeTick,
                 _writeStamp);
@@ -80,6 +81,7 @@ public ref struct GeneratedDenseExecution
 
             _chunkIndex = 0;
             slots = new GeneratedQuerySlots(
+                plan,
                 _chunks.Ref(_chunkIndex),
                 _writeTick,
                 _writeStamp);
