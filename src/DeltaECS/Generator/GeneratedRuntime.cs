@@ -18,7 +18,6 @@ public ref struct GeneratedDenseExecution
 {
     private World? _owner;
     private readonly ReadOnlySpan<ArchetypePlan> _plans;
-    private int[] _componentRowsByQuery;
     private readonly uint _writeTick;
     private readonly Stamp _writeStamp;
     private ChunkPlan[] _chunks;
@@ -34,7 +33,6 @@ public ref struct GeneratedDenseExecution
     {
         _owner = owner;
         _plans = plans;
-        _componentRowsByQuery = Array.Empty<int>();
         _writeTick = writeTick;
         _writeStamp = writeStamp;
         _chunks = Array.Empty<ChunkPlan>();
@@ -64,7 +62,7 @@ public ref struct GeneratedDenseExecution
         {
             _chunkIndex = nextChunk;
             slots = new GeneratedQuerySlots(
-                _componentRowsByQuery,
+                _plans.Ref(_planIndex),
                 _chunks.Ref(_chunkIndex),
                 _writeTick,
                 _writeStamp);
@@ -76,7 +74,6 @@ public ref struct GeneratedDenseExecution
             ref readonly ArchetypePlan plan = ref _plans.Ref(_planIndex);
             _chunks = plan.ChunkArray;
             _chunkCount = plan.ChunkCount;
-            _componentRowsByQuery = plan.ComponentRows;
             if (_chunkCount == 0)
             {
                 continue;
@@ -84,7 +81,7 @@ public ref struct GeneratedDenseExecution
 
             _chunkIndex = 0;
             slots = new GeneratedQuerySlots(
-                plan.ComponentRows,
+                plan,
                 _chunks.Ref(_chunkIndex),
                 _writeTick,
                 _writeStamp);
