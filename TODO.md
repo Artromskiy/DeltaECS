@@ -53,3 +53,17 @@
 
 Deferred subscriptions and performance hypotheses live in
 [IDEAS.md](IDEAS.md), not here.
+
+## Cross-project UI performance consultation (advisory)
+
+This item is a bounded consultation requested by the UI/render owners. It does
+not authorize changes to the ECS kernel, public API, storage layout or ECS
+dependencies. Validate the following patterns against existing ECS principles
+and return measured-risk guidance to DeltaXAML/DeltaRender:
+
+- [ ] persistent dense render-instance storage with stable local handles;
+- [ ] dirty-range uploads and contiguous range coalescing;
+- [ ] clip/material slot caches without ECS-owned subscriptions;
+- [ ] order-preserving adjacent batching for `A-B-A` draw sequences;
+- [ ] zero-allocation warm frames and world-space projection as a consumer
+  transform rather than a second UI runtime.
