@@ -460,19 +460,19 @@ public class ComparativeSparseQueryBenchmarks
     private EntityStore _friflo = null!; private ArchetypeQuery<SparseA, SparseB> _frifloQuery = null!;
     private DefaultWorld _default = null!; private DefaultEcs.EntitySet _defaultQuery = null!;
     private EcsWorld _leo = null!; private EcsPool<SparseA> _leoA = null!; private EcsPool<SparseB> _leoB = null!; private EcsFilter _leoQuery = null!; private int[] _leoEntities = null!;
-    private int ExpectedMatches => (Amount + ComparativeBenchmarkParameters.SparseMatchStride - 1) / ComparativeBenchmarkParameters.SparseMatchStride;
+    private int ExpectedChecksum => ((Amount + ComparativeBenchmarkParameters.SparseMatchStride - 1) / ComparativeBenchmarkParameters.SparseMatchStride) * 3;
 
     [GlobalSetup]
     public void Setup()
     {
-        var layouts = new ComponentLayoutRegistry(); _deltaA = layouts.Register(typeof(SparseA), new SchemaId(204_000)); _deltaB = layouts.Register(typeof(SparseB), new SchemaId(204_001)); _deltaC = layouts.Register(typeof(SparseC), new SchemaId(204_002)); var n0 = layouts.Register(typeof(SparseNoise0), new SchemaId(204_003)); var n1 = layouts.Register(typeof(SparseNoise1), new SchemaId(204_004)); var n2 = layouts.Register(typeof(SparseNoise2), new SchemaId(204_005)); var n3 = layouts.Register(typeof(SparseNoise3), new SchemaId(204_006)); _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); _deltaEntities = new DeltaEntity[Amount]; for (var i = 0; i < Amount; i++) { var ids = i % ComparativeBenchmarkParameters.SparseMatchStride == 0 ? new[] { _deltaA, _deltaB, n0, n1, n2, n3 } : new[] { _deltaA, _deltaB, _deltaC, n0, n1, n2, n3 }; _deltaEntities[i] = _delta.Create(ids); }
+        var layouts = new ComponentLayoutRegistry(); _deltaA = layouts.Register(typeof(SparseA), new SchemaId(204_000)); _deltaB = layouts.Register(typeof(SparseB), new SchemaId(204_001)); _deltaC = layouts.Register(typeof(SparseC), new SchemaId(204_002)); var n0 = layouts.Register(typeof(SparseNoise0), new SchemaId(204_003)); var n1 = layouts.Register(typeof(SparseNoise1), new SchemaId(204_004)); var n2 = layouts.Register(typeof(SparseNoise2), new SchemaId(204_005)); var n3 = layouts.Register(typeof(SparseNoise3), new SchemaId(204_006)); _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); _deltaEntities = new DeltaEntity[Amount]; for (var i = 0; i < Amount; i++) { var ids = i % ComparativeBenchmarkParameters.SparseMatchStride == 0 ? new[] { _deltaA, _deltaB, n0, n1, n2, n3 } : new[] { _deltaA, _deltaB, _deltaC, n0, n1, n2, n3 }; var entity = _deltaEntities[i] = _delta.Create(ids); _delta.Set(entity, _deltaA, new SparseA { Value = 1 }); _delta.Set(entity, _deltaB, new SparseB { Value = 2 }); }
         var d = new QuerySpec(new[] { _deltaA, _deltaB }, Array.Empty<ComponentId>(), new[] { _deltaC }); _deltaQuery = _delta.CreateQuery(in d);
-        _arch = Arch.Core.World.Create(); _archCType = typeof(SparseC); _archMatchTypes = new ArchComponentType[] { typeof(SparseA), typeof(SparseB), typeof(SparseNoise0), typeof(SparseNoise1), typeof(SparseNoise2), typeof(SparseNoise3) }; _archNonMatchTypes = new ArchComponentType[] { typeof(SparseA), typeof(SparseB), _archCType, typeof(SparseNoise0), typeof(SparseNoise1), typeof(SparseNoise2), typeof(SparseNoise3) }; _arch.Reserve(_archMatchTypes, Amount); _arch.Reserve(_archNonMatchTypes, Amount); _archQuery = new Arch.Core.QueryDescription { All = new ArchComponentType[] { _archMatchTypes[0], _archMatchTypes[1] }, None = new ArchComponentType[] { _archCType } }; for (var i = 0; i < Amount; i++) { var e = i % ComparativeBenchmarkParameters.SparseMatchStride == 0 ? _arch.Create(_archMatchTypes) : _arch.Create(_archNonMatchTypes); _ = e; }
-        _friflo = new EntityStore(); for (var i = 0; i < Amount; i++) { var e = _friflo.CreateEntity(new SparseA(), new SparseB(), new SparseNoise0(), new SparseNoise1(), new SparseNoise2(), new SparseNoise3()); if (i % ComparativeBenchmarkParameters.SparseMatchStride != 0) e.AddComponent(new SparseC()); }
+        _arch = Arch.Core.World.Create(); _archCType = typeof(SparseC); _archMatchTypes = new ArchComponentType[] { typeof(SparseA), typeof(SparseB), typeof(SparseNoise0), typeof(SparseNoise1), typeof(SparseNoise2), typeof(SparseNoise3) }; _archNonMatchTypes = new ArchComponentType[] { typeof(SparseA), typeof(SparseB), _archCType, typeof(SparseNoise0), typeof(SparseNoise1), typeof(SparseNoise2), typeof(SparseNoise3) }; _arch.Reserve(_archMatchTypes, Amount); _arch.Reserve(_archNonMatchTypes, Amount); _archQuery = new Arch.Core.QueryDescription { All = new ArchComponentType[] { _archMatchTypes[0], _archMatchTypes[1] }, None = new ArchComponentType[] { _archCType } }; for (var i = 0; i < Amount; i++) { var e = i % ComparativeBenchmarkParameters.SparseMatchStride == 0 ? _arch.Create(_archMatchTypes) : _arch.Create(_archNonMatchTypes); _arch.Set(e, new SparseA { Value = 1 }); _arch.Set(e, new SparseB { Value = 2 }); }
+        _friflo = new EntityStore(); for (var i = 0; i < Amount; i++) { var e = _friflo.CreateEntity(new SparseA { Value = 1 }, new SparseB { Value = 2 }, new SparseNoise0(), new SparseNoise1(), new SparseNoise2(), new SparseNoise3()); if (i % ComparativeBenchmarkParameters.SparseMatchStride != 0) e.AddComponent(new SparseC()); }
         _frifloQuery = CreateFrifloQuery();
-        _default = new DefaultWorld(); for (var i = 0; i < Amount; i++) { var e = _default.CreateEntity(); e.Set<SparseA>(); e.Set<SparseB>(); e.Set<SparseNoise0>(); e.Set<SparseNoise1>(); e.Set<SparseNoise2>(); e.Set<SparseNoise3>(); if (i % ComparativeBenchmarkParameters.SparseMatchStride != 0) e.Set<SparseC>(); }
+        _default = new DefaultWorld(); for (var i = 0; i < Amount; i++) { var e = _default.CreateEntity(); e.Set(new SparseA { Value = 1 }); e.Set(new SparseB { Value = 2 }); e.Set<SparseNoise0>(); e.Set<SparseNoise1>(); e.Set<SparseNoise2>(); e.Set<SparseNoise3>(); if (i % ComparativeBenchmarkParameters.SparseMatchStride != 0) e.Set<SparseC>(); }
         _defaultQuery = CreateDefaultQuery();
-        _leo = new EcsWorld(); _leoA = _leo.GetPool<SparseA>(); _leoB = _leo.GetPool<SparseB>(); var c = _leo.GetPool<SparseC>(); var n0l = _leo.GetPool<SparseNoise0>(); var n1l = _leo.GetPool<SparseNoise1>(); var n2l = _leo.GetPool<SparseNoise2>(); var n3l = _leo.GetPool<SparseNoise3>(); _leoEntities = new int[Amount]; for (var i = 0; i < Amount; i++) { var e = _leoEntities[i] = _leo.NewEntity(); _leoA.Add(e); _leoB.Add(e); n0l.Add(e); n1l.Add(e); n2l.Add(e); n3l.Add(e); if (i % ComparativeBenchmarkParameters.SparseMatchStride != 0) c.Add(e); }
+        _leo = new EcsWorld(); _leoA = _leo.GetPool<SparseA>(); _leoB = _leo.GetPool<SparseB>(); var c = _leo.GetPool<SparseC>(); var n0l = _leo.GetPool<SparseNoise0>(); var n1l = _leo.GetPool<SparseNoise1>(); var n2l = _leo.GetPool<SparseNoise2>(); var n3l = _leo.GetPool<SparseNoise3>(); _leoEntities = new int[Amount]; for (var i = 0; i < Amount; i++) { var e = _leoEntities[i] = _leo.NewEntity(); _leoA.Add(e).Value = 1; _leoB.Add(e).Value = 2; n0l.Add(e); n1l.Add(e); n2l.Add(e); n3l.Add(e); if (i % ComparativeBenchmarkParameters.SparseMatchStride != 0) c.Add(e); }
         _leoQuery = _leo.Filter<SparseA>().Inc<SparseB>().Exc<SparseC>().End();
     }
     [GlobalCleanup]
@@ -499,18 +499,18 @@ public class ComparativeSparseQueryBenchmarks
     {
         var count = 0;
         _delta.ForEach(in query, ref count,
-            static (ref int matches, ref readonly SparseA _, ref readonly SparseB _) => ApplySparse(ref matches));
+            static (ref int matches, ref readonly SparseA a, ref readonly SparseB b) => ApplySparse(ref matches, in a, in b));
 
         return Check(count);
     }
-    private int ArchQuery(Arch.Core.QueryDescription query) { var count = 0; _arch.Query(query, (ref SparseA _, ref SparseB _) => ApplySparse(ref count)); return Check(count); }
-    private int FrifloQuery(ArchetypeQuery<SparseA, SparseB> query) { var count = 0; query.ForEachEntity((ref SparseA _, ref SparseB _, FrifloEntity _) => ApplySparse(ref count)); return Check(count); }
-    private int DefaultQuery(ReadOnlySpan<DefaultEcs.Entity> entities) { var count = 0; for (var i = entities.Length - 1; i >= 0; i--) ApplySparse(ref count); return Check(count); }
-    private int LeoQuery(EcsFilter query) { var count = 0; foreach (var _ in query) ApplySparse(ref count); return Check(count); }
-    private int Check(int actual) => actual == ExpectedMatches ? actual : throw new InvalidOperationException($"sparse match mismatch: {actual} != {ExpectedMatches}");
+    private int ArchQuery(Arch.Core.QueryDescription query) { var count = 0; _arch.Query(query, (ref SparseA a, ref SparseB b) => ApplySparse(ref count, in a, in b)); return Check(count); }
+    private int FrifloQuery(ArchetypeQuery<SparseA, SparseB> query) { var count = 0; query.ForEachEntity((ref SparseA a, ref SparseB b, FrifloEntity _) => ApplySparse(ref count, in a, in b)); return Check(count); }
+    private int DefaultQuery(ReadOnlySpan<DefaultEcs.Entity> entities) { var count = 0; for (var i = entities.Length - 1; i >= 0; i--) { var a = entities[i].Get<SparseA>(); var b = entities[i].Get<SparseB>(); ApplySparse(ref count, in a, in b); } return Check(count); }
+    private int LeoQuery(EcsFilter query) { var count = 0; foreach (var entity in query) { var a = _leoA.Get(entity); var b = _leoB.Get(entity); ApplySparse(ref count, in a, in b); } return Check(count); }
+    private int Check(int actual) => actual == ExpectedChecksum ? actual : throw new InvalidOperationException($"sparse checksum mismatch: {actual} != {ExpectedChecksum}");
     private ArchetypeQuery<SparseA, SparseB> CreateFrifloQuery() { var f = new QueryFilter(); f.WithoutAllComponents(ComponentTypes.Get<SparseC>()); return _friflo.Query<SparseA, SparseB>(f); }
     private DefaultEcs.EntitySet CreateDefaultQuery() => _default.GetEntities().With<SparseA>().With<SparseB>().Without<SparseC>().AsSet();
-    private static void ApplySparse(ref int count) => count++;
+    private static void ApplySparse(ref int count, ref readonly SparseA a, ref readonly SparseB b) => count += a.Value + b.Value;
 }
 
 internal struct DenseValue : IComponent { public int Value; }
@@ -528,8 +528,8 @@ internal struct Wide4 : IComponent { }
 internal struct Wide5 : IComponent { }
 internal struct Wide6 : IComponent { }
 internal struct Wide7 : IComponent { public int Value; }
-internal struct SparseA : IComponent { }
-internal struct SparseB : IComponent { }
+internal struct SparseA : IComponent { public int Value; }
+internal struct SparseB : IComponent { public int Value; }
 internal struct SparseC : IComponent { }
 internal struct SparseNoise0 : IComponent { }
 internal struct SparseNoise1 : IComponent { }
