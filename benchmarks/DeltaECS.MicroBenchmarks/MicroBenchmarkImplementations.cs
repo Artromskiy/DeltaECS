@@ -101,7 +101,7 @@ internal static class MicroBenchmarkKernels
         fixture.World.ForEach(
             in query,
             ref checksum,
-            static (ref int sum, ref Position p, in Velocity v) =>
+            static (ref int sum, ref Position p, ref readonly Velocity v) =>
             {
                 p.X += v.X;
                 p.Y += v.Y;
@@ -126,7 +126,7 @@ internal static class MicroBenchmarkKernels
         fixture.World.ForEach(
             in query,
             ref checksum,
-            static (ref int sum, ref Movement4A a, ref Movement4B b, ref Movement4C c, in Movement4D d) =>
+            static (ref int sum, ref Movement4A a, ref Movement4B b, ref Movement4C c, ref readonly Movement4D d) =>
             {
                 a.Value += d.Value;
                 b.Value += d.Value;
@@ -352,7 +352,7 @@ internal record struct GeneratedMovement4Functor : IForEach
         ref Movement4A a,
         ref Movement4B b,
         ref Movement4C c,
-        in Movement4D d)
+        ref readonly Movement4D d)
     {
         a.Value += d.Value;
         b.Value += a.Value;

@@ -95,13 +95,13 @@ public class ComparativeDenseIterationBenchmarks
         (_leo as IDisposable)?.Dispose();
     }
 
-    [Benchmark(Baseline = true)] public long DeltaECS_Dense() { long sum = 0; _delta.ForEach(in _deltaQuery, ref sum, static (ref long checksum, in DenseValue value) => ApplyDense(in value, ref checksum)); return Checksum(sum, (long)Amount * (Amount + 1) / 2, "dense"); }
+    [Benchmark(Baseline = true)] public long DeltaECS_Dense() { long sum = 0; _delta.ForEach(in _deltaQuery, ref sum, static (ref long checksum, ref readonly DenseValue value) => ApplyDense(in value, ref checksum)); return Checksum(sum, (long)Amount * (Amount + 1) / 2, "dense"); }
     [Benchmark] public long Arch_Dense() { long sum = 0; _arch.Query(_archQuery, (ref DenseValue value) => ApplyDense(in value, ref sum)); return Checksum(sum, (long)Amount * (Amount + 1) / 2, "dense"); }
     [Benchmark] public long FrifloEngineECS_Dense() { long sum = 0; _frifloQuery.ForEachEntity((ref DenseValue value, FrifloEntity _) => ApplyDense(in value, ref sum)); return Checksum(sum, (long)Amount * (Amount + 1) / 2, "dense"); }
     [Benchmark] public long DefaultEcs_Dense() { long sum = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { var value = entities[i].Get<DenseValue>(); ApplyDense(in value, ref sum); } return Checksum(sum, (long)Amount * (Amount + 1) / 2, "dense"); }
     [Benchmark] public long LeoEcsLite_Dense() { long sum = 0; foreach (var entity in _leoQuery) { var value = _leoPool.Get(entity); ApplyDense(in value, ref sum); } return Checksum(sum, (long)Amount * (Amount + 1) / 2, "dense"); }
 
-    private static void ApplyDense(in DenseValue value, ref long checksum) => checksum += value.Value;
+    private static void ApplyDense(ref readonly DenseValue value, ref long checksum) => checksum += value.Value;
 
     internal static long Checksum(long actual, long expected, string name) => actual == expected ? actual : throw new InvalidOperationException($"{name} checksum mismatch: {actual} != {expected}");
 
@@ -266,13 +266,13 @@ public class ComparativeMovement2ComponentsBenchmarks
         (_leo as IDisposable)?.Dispose();
     }
 
-    [Benchmark(Baseline = true)] public double DeltaECS_Movement2Components() { double sum = 0; _delta.ForEach(in _deltaQuery, ref sum, static (ref double checksum, ref Movement2Position position, in Movement2Velocity velocity) => ApplyMovement2(ref position, in velocity, ref checksum)); return sum; }
+    [Benchmark(Baseline = true)] public double DeltaECS_Movement2Components() { double sum = 0; _delta.ForEach(in _deltaQuery, ref sum, static (ref double checksum, ref Movement2Position position, ref readonly Movement2Velocity velocity) => ApplyMovement2(ref position, in velocity, ref checksum)); return sum; }
     [Benchmark] public double Arch_Movement2Components() { double sum = 0; _arch.Query(_archQuery, (ref Movement2Position position, ref Movement2Velocity velocity) => ApplyMovement2(ref position, in velocity, ref sum)); return sum; }
     [Benchmark] public double FrifloEngineECS_Movement2Components() { double sum = 0; _frifloQuery.ForEachEntity((ref Movement2Position position, ref Movement2Velocity velocity, FrifloEntity _) => ApplyMovement2(ref position, in velocity, ref sum)); return sum; }
     [Benchmark] public double DefaultEcs_Movement2Components() { double sum = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { ref var position = ref entities[i].Get<Movement2Position>(); var velocity = entities[i].Get<Movement2Velocity>(); ApplyMovement2(ref position, in velocity, ref sum); } return sum; }
     [Benchmark] public double LeoEcsLite_Movement2Components() { double sum = 0; foreach (var entity in _leoQuery) { ref var position = ref _leoPosition.Get(entity); var velocity = _leoVelocity.Get(entity); ApplyMovement2(ref position, in velocity, ref sum); } return sum; }
 
-    private static void ApplyMovement2(ref Movement2Position position, in Movement2Velocity velocity, ref double checksum)
+    private static void ApplyMovement2(ref Movement2Position position, ref readonly Movement2Velocity velocity, ref double checksum)
     {
         position.X += velocity.X / 60f;
         position.Y += velocity.Y / 60f;
@@ -383,7 +383,7 @@ public class ComparativeMovement4ComponentsBenchmarks
         (_leo as IDisposable)?.Dispose();
     }
 
-    [Benchmark(Baseline = true)] public int DeltaECS_Movement4Components() { var sum = 0; _delta.ForEach(in _deltaQuery, ref sum, static (ref int checksum, ref Movement4A rowA, ref Movement4B rowB, ref Movement4C rowC, in Movement4D rowD) => ApplyMovement4(ref rowA, ref rowB, ref rowC, in rowD, ref checksum)); return sum; }
+    [Benchmark(Baseline = true)] public int DeltaECS_Movement4Components() { var sum = 0; _delta.ForEach(in _deltaQuery, ref sum, static (ref int checksum, ref Movement4A rowA, ref Movement4B rowB, ref Movement4C rowC, ref readonly Movement4D rowD) => ApplyMovement4(ref rowA, ref rowB, ref rowC, in rowD, ref checksum)); return sum; }
     [Benchmark] public int Arch_Movement4Components() { var sum = 0; _arch.Query(_archQuery, (ref Movement4A rowA, ref Movement4B rowB, ref Movement4C rowC, ref Movement4D rowD) => ApplyMovement4(ref rowA, ref rowB, ref rowC, in rowD, ref sum)); return sum; }
     [Benchmark] public int FrifloEngineECS_Movement4Components() { var sum = 0; _frifloQuery.ForEachEntity((ref Movement4A rowA, ref Movement4B rowB, ref Movement4C rowC, ref Movement4D rowD, FrifloEntity _) => ApplyMovement4(ref rowA, ref rowB, ref rowC, in rowD, ref sum)); return sum; }
     [Benchmark] public int DefaultEcs_Movement4Components() { var sum = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { ref var rowA = ref entities[i].Get<Movement4A>(); ref var rowB = ref entities[i].Get<Movement4B>(); ref var rowC = ref entities[i].Get<Movement4C>(); var rowD = entities[i].Get<Movement4D>(); ApplyMovement4(ref rowA, ref rowB, ref rowC, in rowD, ref sum); } return sum; }
@@ -391,7 +391,7 @@ public class ComparativeMovement4ComponentsBenchmarks
 
     private static void SetDefault(DefaultEcs.Entity e) { e.Set(new Movement4A { Value = 1 }); e.Set(new Movement4B { Value = 2 }); e.Set(new Movement4C { Value = 3 }); e.Set(new Movement4D { Value = 4 }); }
 
-    private static void ApplyMovement4(ref Movement4A rowA, ref Movement4B rowB, ref Movement4C rowC, in Movement4D rowD, ref int checksum)
+    private static void ApplyMovement4(ref Movement4A rowA, ref Movement4B rowB, ref Movement4C rowC, ref readonly Movement4D rowD, ref int checksum)
     {
         var updatedA = rowA.Value + rowD.Value;
         var updatedB = rowB.Value + rowD.Value;
@@ -438,13 +438,13 @@ public class ComparativeWideArchetypeNarrowQueryBenchmarks
         (_leo as IDisposable)?.Dispose();
     }
 
-    [Benchmark(Baseline = true)] public int DeltaECS_WideArchetypeNarrowQuery() { var sum = 0; _delta.ForEach(in _deltaQuery, ref sum, static (ref int checksum, in Wide0 a, in Wide7 z) => ApplyWide(in a, in z, ref checksum)); return Check(sum, Amount * 9); }
+    [Benchmark(Baseline = true)] public int DeltaECS_WideArchetypeNarrowQuery() { var sum = 0; _delta.ForEach(in _deltaQuery, ref sum, static (ref int checksum, ref readonly Wide0 a, ref readonly Wide7 z) => ApplyWide(in a, in z, ref checksum)); return Check(sum, Amount * 9); }
     [Benchmark] public int Arch_WideArchetypeNarrowQuery() { var sum = 0; _arch.Query(_archQuery, (ref Wide0 a, ref Wide7 z) => ApplyWide(in a, in z, ref sum)); return Check(sum, Amount * 9); }
     [Benchmark] public int FrifloEngineECS_WideArchetypeNarrowQuery() { var sum = 0; _frifloQuery.ForEachEntity((ref Wide0 a, ref Wide7 z, FrifloEntity _) => ApplyWide(in a, in z, ref sum)); return Check(sum, Amount * 9); }
     [Benchmark] public int DefaultEcs_WideArchetypeNarrowQuery() { var sum = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { var a = entities[i].Get<Wide0>(); var z = entities[i].Get<Wide7>(); ApplyWide(in a, in z, ref sum); } return Check(sum, Amount * 9); }
     [Benchmark] public int LeoEcsLite_WideArchetypeNarrowQuery() { var sum = 0; foreach (var e in _leoQuery) { var a = _leo0.Get(e); var z = _leo7.Get(e); ApplyWide(in a, in z, ref sum); } return Check(sum, Amount * 9); }
     private static int Check(int actual, int expected) => actual == expected ? actual : throw new InvalidOperationException($"wide checksum mismatch: {actual} != {expected}");
-    private static void ApplyWide(in Wide0 a, in Wide7 z, ref int checksum) => checksum += a.Value + z.Value;
+    private static void ApplyWide(ref readonly Wide0 a, ref readonly Wide7 z, ref int checksum) => checksum += a.Value + z.Value;
 }
 
 [MemoryDiagnoser]
@@ -499,7 +499,7 @@ public class ComparativeSparseQueryBenchmarks
     {
         var count = 0;
         _delta.ForEach(in query, ref count,
-            static (ref int matches, in SparseA _, in SparseB _) => ApplySparse(ref matches));
+            static (ref int matches, ref readonly SparseA _, ref readonly SparseB _) => ApplySparse(ref matches));
 
         return Check(count);
     }

@@ -7,9 +7,11 @@
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <InterceptorsNamespaces>Delta.ECS.Generated</InterceptorsNamespaces>
   </PropertyGroup>
 
   <ItemGroup>
+    <CompilerVisibleProperty Include="InterceptorsNamespaces" />
     <ProjectReference Include="..\..\src\DeltaECS\DeltaECS.csproj" />
     <ProjectReference Include="..\..\src\DeltaECS.Generators\DeltaECS.Generators.csproj"
                       OutputItemType="Analyzer"

@@ -18,7 +18,7 @@ internal struct Movement4NoContextFunctor : IForEach
         ref Movement4A a,
         ref Movement4B b,
         ref Movement4C c,
-        in Movement4D d)
+        ref readonly Movement4D d)
     {
         a.Value = d.Value + 1;
         b.Value = d.Value + 2;
@@ -35,7 +35,7 @@ internal struct Movement4ContextFunctor : IForEachContext<Movement4ApiContext>
         ref Movement4A a,
         ref Movement4B b,
         ref Movement4C c,
-        in Movement4D d)
+        ref readonly Movement4D d)
     {
         a.Value = d.Value + 1;
         b.Value = d.Value + 2;
@@ -117,7 +117,7 @@ internal static class Movement4ApiComparisonKernels
         ref Movement4A a,
         ref Movement4B b,
         ref Movement4C c,
-        in Movement4D d,
+        ref readonly Movement4D d,
         ref int checksum)
     {
         a.Value = d.Value + 1;
@@ -188,7 +188,7 @@ public class Movement4ApiComparisonMicroBenchmarkImplementation
     public int Delegate()
     {
         s_delegateChecksum = 0;
-        ForEachAction_WWWI<Movement4A, Movement4B, Movement4C, Movement4D> action = ApplyDelegate;
+        ForEachAction_WWWR<Movement4A, Movement4B, Movement4C, Movement4D> action = ApplyDelegate;
         _fixture.World.ForEach(in _query, action);
         return s_delegateChecksum;
     }
@@ -206,7 +206,7 @@ public class Movement4ApiComparisonMicroBenchmarkImplementation
         ref Movement4A a,
         ref Movement4B b,
         ref Movement4C c,
-        in Movement4D d)
+        ref readonly Movement4D d)
     {
         a.Value = d.Value + 1;
         b.Value = d.Value + 2;
@@ -221,7 +221,7 @@ public class Movement4ApiComparisonMicroBenchmarkImplementation
         _fixture.World.ForEach(
             in _query,
             ref context,
-            static (ref Movement4ApiContext state, ref Movement4A a, ref Movement4B b, ref Movement4C c, in Movement4D d) =>
+            static (ref Movement4ApiContext state, ref Movement4A a, ref Movement4B b, ref Movement4C c, ref readonly Movement4D d) =>
             {
                 a.Value = d.Value + 1;
                 b.Value = d.Value + 2;
