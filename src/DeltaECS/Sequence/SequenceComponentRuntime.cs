@@ -43,8 +43,8 @@ public sealed partial class World
                 }
 
                 var cursor = new GeneratedSequenceCursor(
-                    in plan,
-                    in plan.Chunks.Ref(record.Chunk),
+                    plan,
+                    plan.Chunks.Ref(record.Chunk),
                     record.SlotIndex,
                     entity,
                     writeSession,

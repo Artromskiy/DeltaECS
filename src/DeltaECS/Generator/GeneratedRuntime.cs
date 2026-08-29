@@ -61,11 +61,9 @@ public ref struct GeneratedDenseExecution
         if ((uint)nextChunk < (uint)_chunkCount)
         {
             _chunkIndex = nextChunk;
-            ref readonly ArchetypePlan currentPlan = ref _plans.Ref(_planIndex);
-            ref readonly ChunkPlan currentChunk = ref _chunks.Ref(_chunkIndex);
             slots = new GeneratedQuerySlots(
-                in currentPlan,
-                in currentChunk,
+                _plans.Ref(_planIndex),
+                _chunks.Ref(_chunkIndex),
                 _writeTick,
                 _writeStamp);
             return true;
@@ -82,10 +80,9 @@ public ref struct GeneratedDenseExecution
             }
 
             _chunkIndex = 0;
-            ref readonly ChunkPlan currentChunk = ref _chunks.Ref(_chunkIndex);
             slots = new GeneratedQuerySlots(
-                in plan,
-                in currentChunk,
+                plan,
+                _chunks.Ref(_chunkIndex),
                 _writeTick,
                 _writeStamp);
             return true;
@@ -124,8 +121,8 @@ public ref struct GeneratedSequenceCursor
     private readonly int _sessionGeneration;
 
     internal GeneratedSequenceCursor(
-        in ArchetypePlan plan,
-        in ChunkPlan chunkPlan,
+        ArchetypePlan plan,
+        ChunkPlan chunkPlan,
         int slot,
         Entity entity,
         QueryWriteSession writeSession,
