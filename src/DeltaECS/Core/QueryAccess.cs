@@ -162,6 +162,10 @@ internal sealed class QueryPlan
 
     internal ReadOnlySpan<ArchetypePlan> MatchingPlans() => _matchingPlans.AsSpan(0, _matchingCount);
 
+    internal ArchetypePlan[] MatchingPlanArray => _matchingPlans;
+
+    internal int MatchingPlanCount => _matchingCount;
+
     internal ReadOnlySpan<int> ComponentRowIndices(int matchingIndex) => _matchingPlans[matchingIndex].ComponentRows;
 
     internal bool TryGetPlan(int archetypeId, out ArchetypePlan plan)

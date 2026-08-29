@@ -17,7 +17,8 @@ public interface IGeneratedSequenceInvoker
 public ref struct GeneratedDenseExecution
 {
     private World? _owner;
-    private readonly ReadOnlySpan<ArchetypePlan> _plans;
+    private readonly ArchetypePlan[] _plans;
+    private readonly int _planCount;
     private readonly uint _writeTick;
     private readonly Stamp _writeStamp;
     private ChunkPlan[] _chunks;
@@ -27,12 +28,14 @@ public ref struct GeneratedDenseExecution
 
     internal GeneratedDenseExecution(
         World owner,
-        ReadOnlySpan<ArchetypePlan> plans,
+        ArchetypePlan[] plans,
+        int planCount,
         uint writeTick,
         Stamp writeStamp)
     {
         _owner = owner;
         _plans = plans;
+        _planCount = planCount;
         _writeTick = writeTick;
         _writeStamp = writeStamp;
         _chunks = Array.Empty<ChunkPlan>();
@@ -69,7 +72,7 @@ public ref struct GeneratedDenseExecution
             return true;
         }
 
-        while ((uint)++_planIndex < (uint)_plans.Length)
+        while ((uint)++_planIndex < (uint)_planCount)
         {
             ref readonly ArchetypePlan plan = ref _plans.Ref(_planIndex);
             _chunks = plan.ChunkArray;
@@ -88,7 +91,7 @@ public ref struct GeneratedDenseExecution
             return true;
         }
 
-        _planIndex = _plans.Length;
+        _planIndex = _planCount;
         _chunkCount = 0;
         _chunkIndex = -1;
         slots = default;
@@ -168,12 +171,13 @@ public static class GeneratedForEachRuntime
     public static GeneratedDenseExecution OpenDense(World world, in Query query, bool hasWrites)
     {
         QueryPlan plan = ValidateQuery(world, in query);
-        ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
+        ArchetypePlan[] plans = plan.MatchingPlanArray;
+        int planCount = plan.MatchingPlanCount;
         uint writeTick = 0;
         Stamp writeStamp = default;
         if (hasWrites)
         {
-            for (int planIndex = 0; planIndex < plans.Length; planIndex++)
+            for (int planIndex = 0; planIndex < planCount; planIndex++)
             {
                 if (plans.Ref(planIndex).Chunks.IsEmpty)
                 {
@@ -189,6 +193,7 @@ public static class GeneratedForEachRuntime
         return new GeneratedDenseExecution(
             world,
             plans,
+            planCount,
             writeTick,
             writeStamp);
     }
