@@ -83,6 +83,14 @@ the current chunk. The terminal `Ref<T>` is the typed boundary and `T` must
 match the registered component type. `ReadRow`, `WriteRow`, and all iterators
 are borrowed `ref struct` values and must not escape their execution scope.
 
+For change detection, `QueryChunk.GetStampRow(ReadAccess)` prepares a
+non-generic borrowed `StampRow` once per component and chunk. Its
+`Get(in QuerySlots)` method returns the exact component stamp for the current
+entity without repeating entity, type or dictionary lookup. Use
+`World.TryGetComponentStamp(Entity, ComponentId, out Stamp)` for a single
+entity outside a query scope. Stamps identify an entity/component pair; the
+API does not synthesize an aggregate entity stamp.
+
 Generated `ForEach` APIs use the same validated plan but enter a closed trusted
 execution method. Dense callbacks resolve each requested row once per chunk and
 advance typed references inside the generated slot loop. Ordered sequence
