@@ -1771,56 +1771,24 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         source.AppendLine("                int count = slots.Count;");
-        if (shape.IsFunctor)
+        source.AppendLine("                for (int index = 0; index < count; index++)");
+        source.AppendLine("                {");
+        for (int index = 0; index < shape.Pattern.Length; index++)
         {
-            for (int index = 0; index < shape.Pattern.Length; index++)
-            {
-                source.Append("                ref ")
-                    .Append(ComponentType(shape, index))
-                    .Append(" current")
-                    .Append(index)
-                    .Append(" = ref row")
-                    .Append(index)
-                    .AppendLine(";");
-            }
-
-            source.AppendLine("                for (int index = 0; index < count; index++)");
-            source.AppendLine("                {");
-            source.Append("                    ");
-            AppendClosedInvocation(source, shape, "action", "functor", "context", "current", "slots.EntityAt(index)");
-            source.AppendLine(";");
-            for (int index = 0; index < shape.Pattern.Length; index++)
-            {
-                source.Append("                    current")
-                    .Append(index)
-                    .Append(" = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref current")
-                    .Append(index)
-                    .AppendLine(", 1);");
-            }
-
-            source.AppendLine("                }");
+            string componentType = ComponentType(shape, index);
+            source.Append("                    ")
+                .Append(IsWrite(shape.Pattern[index]) ? "ref " : "ref readonly ")
+                .Append(componentType)
+                .Append(" component")
+                .Append(index)
+                .Append(" = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row")
+                .Append(index)
+                .AppendLine(", index);");
         }
-        else
-        {
-            source.AppendLine("                for (int index = 0; index < count; index++)");
-            source.AppendLine("                {");
-            for (int index = 0; index < shape.Pattern.Length; index++)
-            {
-                string componentType = ComponentType(shape, index);
-                source.Append("                    ")
-                    .Append(IsWrite(shape.Pattern[index]) ? "ref " : "ref readonly ")
-                    .Append(componentType)
-                    .Append(" component")
-                    .Append(index)
-                    .Append(" = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row")
-                    .Append(index)
-                    .AppendLine(", index);");
-            }
-            source.Append("                    ");
-            AppendClosedInvocation(source, shape, "action", "functor", "context", "component", "slots.EntityAt(index)");
-            source.AppendLine(";");
-            source.AppendLine("                }");
-        }
+        source.Append("                    ");
+        AppendClosedInvocation(source, shape, "action", "functor", "context", "component", "slots.EntityAt(index)");
+        source.AppendLine(";");
+        source.AppendLine("                }");
         source.AppendLine("        }");
         source.AppendLine("    }");
     }
