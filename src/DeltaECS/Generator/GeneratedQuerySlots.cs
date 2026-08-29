@@ -17,8 +17,8 @@ public ref struct GeneratedQuerySlots
     private int _index;
 
     internal GeneratedQuerySlots(
-        ArchetypePlan plan,
-        ChunkPlan chunkPlan,
+        in ArchetypePlan plan,
+        in ChunkPlan chunkPlan,
         uint writeTick,
         Stamp writeStamp)
     {
