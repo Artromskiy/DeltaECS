@@ -10,6 +10,12 @@ or measurement quality. Raw BenchmarkDotNet and JIT output stays under ignored
 `artifacts/`; durable conclusions and reproduction details belong here or in a
 linked focused report.
 
+## Measurement corrections
+
+| Correction | Evidence | Result |
+| --- | --- | --- |
+| Make the shared benchmark terminal helpers `internal` so the already-enabled Roslyn interceptor can legally copy static lambda bodies into generated code | Candidate source diff in `benchmarks/DeltaECS.Benchmarks/UnifiedIterationBenchmarks.cs`; full matrix `artifacts/perf-round-20260829/interceptor-all`; Movement4 JIT `artifacts/perf-round-20260829/candidate-interceptor-harness-jit/movement4-jit.txt` | Corrects the intended interceptor-enabled benchmark mode; it does not change ECS runtime or public API. The generated Movement4 method is `872 B / 218 instructions` versus the pre-correction delegate method `876 B / 219 instructions`; `blr` remains `6` (including one callback-path indirect call). Delta improves versus the old harness by `22.8/11.1/10.8/10.0%` Dense, `5.9/30.0/31.4/31.6%` Movement2, `22.0/23.1/14.5/12.8%` Movement4 and `18.4/12.8/39.0/12.7%` Wide for `100/1K/10K/100K` entities. It is a measurement correction, not evidence that Delta wins every iteration category. |
+
 ## Accepted
 
 | Area | Change | Evidence | Result |
