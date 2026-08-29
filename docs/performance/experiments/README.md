@@ -45,6 +45,7 @@ linked focused report.
 | --- | --- | --- |
 | Local slot-count/index caches and direct iterator field access | [slot matrix](../l0-b-slot-iterator-experiments.md) | No JIT change |
 | `readonly`/`in` binding helper variants | [slot matrix](../l0-b-slot-iterator-experiments.md) | Invalid span/ref escape semantics |
+| Per-archetype generated route carried by the execution driver | `502230a` (reverted by `9d352c1`); JIT `artifacts/perf-round-20260829/candidate-in-ctor-baseline-jit.txt` vs `candidate-archetype-route-cache-jit.txt`; BDN `artifacts/perf-round-20260829/candidate-archetype-route-cache-bdn` vs `/tmp/deltaecs-perf-baseline-20260829/artifacts` | JIT shrank `888→884 B` (`sbfiz 4→3`, `add/sub 33→32`, `str 20→19`), but Movement4 throughput regressed `+2.5%/+4.7%/−3.0%/+7.7%/+2.5%` at 100/1k/10k/100k/1M entities; no stable win |
 | Extra prepared column state | `dd43b6b`; [column-state evidence](../l1a/candidate-2-column-state.md) | Small JIT movement, no stable throughput win; superseded by direct chunk row cache |
 | Advancing `ref byte` rows in `MoveNext` | Historical Movement4 comparison | Removed `sbfiz` and reduced code about 2%, but repeated long runs did not improve throughput |
 | Per-row static/common/write-only helpers | Historical L0-L3 follow-up | Smaller code in some variants, inconsistent or negative throughput |
