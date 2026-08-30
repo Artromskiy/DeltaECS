@@ -2,7 +2,7 @@ namespace Delta.ECS;
 
 using System;
 
-/// <summary>Opaque equality-only revision of a successful world mutation.</summary>
+/// <summary>Opaque 64-bit equality token used for mutation revision tracking.</summary>
 public readonly struct Stamp : IEquatable<Stamp>
 {
     public Stamp(ulong value) => Value = value;
@@ -25,6 +25,6 @@ public readonly struct Stamp : IEquatable<Stamp>
 internal static class StampMath
 {
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-    internal static Stamp Sum(Stamp entity, Stamp chunk, Stamp archetype, Stamp world)
-        => new(unchecked(entity.Value + chunk.Value + archetype.Value + world.Value));
+    internal static Stamp Sum(Stamp entity, Stamp chunk, Stamp archetype)
+        => new(unchecked(entity.Value + chunk.Value + archetype.Value));
 }

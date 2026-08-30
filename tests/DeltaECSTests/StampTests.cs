@@ -26,7 +26,7 @@ public sealed class StampTests
     }
 
     [Test]
-    public void ComponentStampSumsEntityChunkArchetypeAndWorldTerms()
+    public void ComponentStampSumsEntityChunkAndArchetypeTerms()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(40_001));
@@ -39,14 +39,11 @@ public sealed class StampTests
         Stamp entityTerm = chunk.GetComponentStamp(componentIndex, 0);
         Stamp chunkTerm = new(2);
         Stamp archetypeTerm = new(3);
-        Stamp worldTerm = new(5);
-
         world.MarkChunkComponentWritten(chunk, componentIndex, chunkTerm);
         world.MarkArchetypeComponentWritten(archetype.Id, componentIndex, archetypeTerm);
-        world.MarkWorldComponentWritten(positionId, worldTerm);
 
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp actual), Is.True);
-        Assert.That(actual, Is.EqualTo(new Stamp(entityTerm.Value + 2 + 3 + 5)));
+        Assert.That(actual, Is.EqualTo(new Stamp(entityTerm.Value + 2 + 3)));
 
         Assert.That(world.Destroy(entity), Is.True);
         Entity replacement = world.Create(positionId);
@@ -56,7 +53,22 @@ public sealed class StampTests
         Assert.That(world.TryGetComponentStamp(replacement, positionId, out Stamp replacementStamp), Is.True);
         Assert.That(
             replacementStamp,
-            Is.EqualTo(new Stamp(replacementEntityTerm.Value + archetypeTerm.Value + worldTerm.Value)));
+            Is.EqualTo(new Stamp(replacementEntityTerm.Value + archetypeTerm.Value)));
+    }
+
+    [Test]
+    public void WorldMutationCounterDoesNotEnterComponentStamp()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(40_005));
+        using var world = new World(layouts);
+        Entity entity = world.Create(positionId);
+        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp before), Is.True);
+
+        _ = world.Create(positionId);
+
+        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp after), Is.True);
+        Assert.That(after, Is.EqualTo(before));
     }
 
     [Test]

@@ -20,8 +20,8 @@ change the public API or the meaning of `Stamp` equality.
 | `World.Set` and integration `TryWrite` | `EntityComponentStampWriter.MarkPoint` | Updates the exact entity/component term without introducing a chunk write intent |
 | Generated sequence write | `EntityComponentStampWriter.Mark` | Preserves selected-entity component stamp semantics |
 | `QuerySlots.GetRow(WriteAccess)` / object write row | `ChunkComponentStampWriter.Mark` | The borrowed write row represents the complete component row in the current chunk |
-| Generated dense write | `GeneratedQuerySlots.MarkGeneratedWrite` | Marks the archetype/component term once before the slot loop |
-| Archetype/world internal endpoints | `ArchetypeComponentStampWriter` / `WorldComponentStampWriter` | Keep broad mutation routes available without putting their storage on `Chunk` or `Archetype` |
+| Generated dense write | `GeneratedDenseExecution.MarkArchetypeWrite` | Marks the archetype/component term once before the slot loop |
+| Archetype internal endpoints | `ArchetypeComponentStampWriter` | Keep broad mutation routes available without putting their storage on `Chunk` or `Archetype` |
 | Generated read-only and zero-arity execution | `GeneratedReadDenseExecution` + `GeneratedReadQuerySlots` | Carries no tick, stamp, native stamp buffer, or writer state |
 
 ## Correctness gates

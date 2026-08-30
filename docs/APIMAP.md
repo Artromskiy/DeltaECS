@@ -161,6 +161,10 @@ work, inspect the focused test class after locating the source method.
   is the stable cross-world identity used by integration consumers.
 - `Stamp` values are opaque equality tokens, not wall-clock timestamps or
   arithmetic counters exposed to consumers.
+- Effective component stamps combine entity/component, chunk/component and
+  archetype/component overrides. The latter two layers are centrally owned by
+  `World`; they do not enlarge `Chunk` or `Archetype`. `World.Stamp` remains a
+  mutation counter and is not part of an entity/component stamp.
 - `IEcsWorld` is a neutral local .NET boundary. It uses the core `Entity` and
   `ComponentId` types and exposes object snapshots only for integration work.
 

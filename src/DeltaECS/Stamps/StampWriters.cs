@@ -75,24 +75,3 @@ internal readonly struct ArchetypeComponentStampWriter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void Mark() => _stamps[_componentIndex] = _stamp;
 }
-
-/// <summary>Trusted writer for one component stamp shared by the world.</summary>
-internal readonly struct WorldComponentStampWriter
-{
-    private readonly NativeMemory<Stamp> _stamps;
-    private readonly int _componentIndex;
-    private readonly Stamp _stamp;
-
-    internal WorldComponentStampWriter(
-        NativeMemory<Stamp> stamps,
-        int componentIndex,
-        Stamp stamp)
-    {
-        _stamps = stamps;
-        _componentIndex = componentIndex;
-        _stamp = stamp;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void Mark() => _stamps[_componentIndex] = _stamp;
-}

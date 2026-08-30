@@ -85,8 +85,11 @@ are borrowed `ref struct` values and must not escape their execution scope.
 
 For change detection, `QueryChunk.GetStampRow(ReadAccess)` prepares a
 non-generic borrowed `StampRow` once per component and chunk. Its
-`Get(in QuerySlots)` method returns the exact component stamp for the current
-entity without repeating entity, type or dictionary lookup. Use
+`Get(in QuerySlots)` method returns the effective three-level component stamp
+for the current entity without repeating entity, type or dictionary lookup.
+The stamp combines entity/component, chunk/component and archetype/component
+terms. `World.Stamp` is only the world's mutation counter and is not included.
+Use
 `World.TryGetComponentStamp(Entity, ComponentId, out Stamp)` for a single
 entity outside a query scope. Stamps identify an entity/component pair; the
 API does not synthesize an aggregate entity stamp.

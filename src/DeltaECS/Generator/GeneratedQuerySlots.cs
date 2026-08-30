@@ -8,25 +8,17 @@ using System.Runtime.CompilerServices;
 [EditorBrowsable(EditorBrowsableState.Never)]
 public ref struct GeneratedQuerySlots
 {
-    private readonly int[] _componentRowsByQuery;
     private readonly Chunk _chunk;
-    private readonly NativeMemory<Stamp> _archetypeStamps;
     private readonly Array[] _resolvedRowsByQuery;
-    private readonly Stamp _writeStamp;
     private readonly int _count;
     private int _index;
 
     internal GeneratedQuerySlots(
         ArchetypePlan plan,
-        ChunkPlan chunkPlan,
-        NativeMemory<Stamp> archetypeStamps,
-        Stamp writeStamp)
+        ChunkPlan chunkPlan)
     {
-        _componentRowsByQuery = plan.ComponentRows;
         _chunk = chunkPlan.Chunk;
-        _archetypeStamps = archetypeStamps;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
-        _writeStamp = writeStamp;
         _count = chunkPlan.Chunk.Count;
         _index = -1;
     }
@@ -74,23 +66,6 @@ public ref struct GeneratedQuerySlots
     [EditorBrowsable(EditorBrowsableState.Never)]
     public ref T GetGeneratedWriteReference<T>(int queryComponentIndex)
         => ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.Ref(queryComponentIndex)));
-
-    /// <summary>
-    /// Marks a generated write at chunk setup through the archetype stamp route
-    /// before the entity loop starts.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public void MarkGeneratedWrite(int queryComponentIndex)
-    {
-        int physicalRow = _componentRowsByQuery.Ref(queryComponentIndex);
-        new ArchetypeComponentStampWriter(_archetypeStamps, physicalRow, _writeStamp).Mark();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public void MarkGeneratedWrite(WriteAccess access)
-        => MarkGeneratedWrite(access.QueryComponentIndex);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]

@@ -15,28 +15,29 @@ arithmetic ordering.
 Successful writes reserve a new stamp. Read-only query access does not. Write
 query access records the write intent through the operation-specific stamp route.
 
-The effective component stamp is the unchecked `ulong` sum of four independent
-terms:
+The effective component stamp is a new opaque value whose unchecked `ulong`
+payload is the sum of three independent overrides:
 
 ```text
-entity/component + chunk/component + archetype/component + world/component
+entity/component + chunk/component + archetype/component
 ```
 
-The entity/component term is the existing per-slot stamp. The other three
-terms are centralized in `World`-owned storage; they are deliberately not
-fields on `Chunk` or `Archetype`, so those hot storage objects do not grow for
-the hierarchy. The terms are addressed by stable world-local ids and physical
-component ordinals. A trusted internal operation can update the appropriate
-level without changing the public API. Equality is the only supported
-interpretation: the sum is a change token, not an ordered timestamp, and
-wraparound is allowed.
+The entity/component term is the existing per-slot stamp. The chunk and
+archetype overrides are centralized in `World`-owned storage; they are
+deliberately not fields on `Chunk` or `Archetype`, so those hot storage objects
+do not grow for the hierarchy. The terms are addressed by stable world-local
+ids and physical component ordinals. A trusted internal operation can update
+the appropriate level without changing the public API. Equality is the only
+supported interpretation: the sum is a change token, not an ordered
+timestamp, and wraparound is allowed.
 
 The default mutation paths use the entity term for a point write and the chunk
-term for a validated dense query row write. Archetype- and world-level terms
-are available to internal systems that perform a broader operation. When a
-physical chunk becomes empty, its chunk-level terms are cleared before the
-chunk can be reused; archetype- and world-level terms remain at their own
-scope.
+term for a validated dense query row write. A generated dense query write uses
+the archetype override once for each matching archetype. When a physical chunk
+becomes empty, its chunk-level terms are cleared before the chunk can be
+reused; archetype-level terms remain at archetype scope. `World.Stamp` remains
+the latest world mutation counter, but it is not part of an entity/component
+stamp and must not be used as a component change token.
 
 The trusted runtime keeps the write state proportional to the operation:
 
@@ -45,13 +46,12 @@ The trusted runtime keeps the write state proportional to the operation:
 | `Set`, integration point write, or selected-entity sequence | `EntityComponentStampWriter` for the current entity/component |
 | `QuerySlots.GetRow(WriteAccess)` / complete row traversal | `ChunkComponentStampWriter` for the current chunk/component |
 | Generated dense `ForEach` write | `ArchetypeComponentStampWriter` for the matching archetype/component |
-| World-wide internal mutation | `WorldComponentStampWriter` for the component at world scope |
 | Generated read-only or zero-arity traversal | no write stamp or writer state |
 
 This distinction is intentional: read-only and entity-selected paths do not
-carry broader write data, while a dense generated write marks the archetype term
-once before its entity loop. It is an internal lowering choice; the public
-delegate, functor, sequence and query APIs remain unchanged.
+carry broader write data, while a dense generated write marks the archetype
+override once before its entity loop. It is an internal lowering choice; the
+public delegate, functor, sequence and query APIs remain unchanged.
 
 `MutationStampSource`, `ComponentStampStorage` and the centralized hierarchy
 buffers are internal implementation types. Consumers exchange only `Stamp`

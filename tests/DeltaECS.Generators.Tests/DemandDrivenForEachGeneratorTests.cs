@@ -213,14 +213,69 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(RunGenerator(source));
 
         Assert.That(generated, Does.Contain("ExecuteClosed_"));
-        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenDense(world, in query"));
+        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenWriteDense(world, in query"));
         Assert.That(generated, Does.Contain("while (execution.MoveNextTrusted(out var slots))"));
         Assert.That(generated, Does.Contain("ref T1 row0 = ref slots.GetGeneratedWriteReference<T1>(access0)"));
         Assert.That(generated, Does.Contain("for (int index = 0; index < count; index++)"));
         Assert.That(generated, Does.Contain("ref T1 component0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row0, index)"));
         Assert.That(generated, Does.Contain("action(ref component0)"));
+        Assert.That(generated, Does.Contain(
+            "execution.MarkArchetypeWrite(GeneratedForEachRuntime.GetWriteQueryComponentIndex(access0));"));
+        Assert.That(generated, Does.Not.Contain("slots.MarkGeneratedWrite"));
         Assert.That(generated, Does.Not.Contain("Ref<T1>(index)"));
         Assert.That(generated, Does.Not.Contain("ExecuteGeneratedForEach"));
+    }
+
+    [Test]
+    public void ReadOnlyDenseGenerationUsesReadExecutionWithoutWriteState()
+    {
+        const string source = """
+            namespace Delta.ECS;
+            struct Position { public int Value; }
+            static class Consumer
+            {
+                public static void Use(World world, Query query)
+                {
+                    world.ForEach<Position>(in query,
+                        static (in Position position) => _ = position.Value);
+                }
+            }
+            """;
+
+        string generated = GeneratedText(RunGenerator(source));
+
+        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenReadDense(world, in query)"));
+        Assert.That(generated, Does.Contain("while (execution.MoveNextTrusted(out var slots))"));
+        Assert.That(generated, Does.Not.Contain("OpenWriteDense(world, in query)"));
+        Assert.That(generated, Does.Not.Contain("MarkGeneratedWrite(access0)"));
+    }
+
+    [Test]
+    public void MultipleWriteRowsUseOneArchetypePlanTraversal()
+    {
+        const string source = """
+            namespace Delta.ECS;
+            struct Position { public int Value; }
+            struct Velocity { public int Value; }
+            static class Consumer
+            {
+                public static void Use(World world, Query query)
+                {
+                    world.ForEach<Position, Velocity>(in query,
+                        static (ref Position position, ref Velocity velocity) =>
+                        {
+                            position.Value += velocity.Value;
+                        });
+                }
+            }
+            """;
+
+        string generated = GeneratedText(RunGenerator(source));
+
+        Assert.That(generated, Does.Contain(
+            "execution.MarkArchetypeWrites(GeneratedForEachRuntime.GetWriteQueryComponentIndex(access0), GeneratedForEachRuntime.GetWriteQueryComponentIndex(access1));"));
+        Assert.That(generated, Does.Not.Contain("execution.MarkArchetypeWrite(access0)"));
+        Assert.That(generated, Does.Not.Contain("execution.MarkArchetypeWrite(access1)"));
     }
 
     [Test]
@@ -522,10 +577,30 @@ public sealed class DemandDrivenForEachGeneratorTests
             public ref T GetGeneratedWriteReference<T>(int queryComponentIndex) => throw new NotImplementedException();
             public ref T GetGeneratedWriteReference<T>(WriteAccess access) => throw new NotImplementedException();
         }
+        public ref struct GeneratedReadQuerySlots
+        {
+            public Entity CurrentEntity => default;
+            public int CurrentIndex => 0;
+            public int Count => 0;
+            public Entity EntityAt(int index) => default;
+            public bool MoveNext() => false;
+            public ref T GetGeneratedReadReference<T>(int queryComponentIndex) => throw new NotImplementedException();
+            public ref T GetGeneratedReadReference<T>(ReadAccess access) => throw new NotImplementedException();
+        }
         public ref struct GeneratedDenseExecution
         {
             public bool MoveNext(out GeneratedQuerySlots slots) { slots = default; return false; }
             public bool MoveNextTrusted(out GeneratedQuerySlots slots) { slots = default; return false; }
+            public void MarkArchetypeWrite(int queryComponentIndex) { }
+            public void MarkArchetypeWrites(scoped ReadOnlySpan<int> queryComponentIndices) { }
+            public void MarkArchetypeWrites(int firstQueryComponentIndex, int secondQueryComponentIndex) { }
+            public void MarkArchetypeWrites(int firstQueryComponentIndex, int secondQueryComponentIndex, int thirdQueryComponentIndex) { }
+            public void MarkArchetypeWrites(int firstQueryComponentIndex, int secondQueryComponentIndex, int thirdQueryComponentIndex, int fourthQueryComponentIndex) { }
+            public void Dispose() { }
+        }
+        public ref struct GeneratedReadDenseExecution
+        {
+            public bool MoveNextTrusted(out GeneratedReadQuerySlots slots) { slots = default; return false; }
             public void Dispose() { }
         }
         public ref struct GeneratedSequenceCursor
@@ -540,6 +615,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         public static class GeneratedForEachRuntime
         {
             public static GeneratedDenseExecution OpenDense(World world, in Query query, bool hasWrites) => default;
+            public static GeneratedDenseExecution OpenWriteDense(World world, in Query query) => default;
+            public static GeneratedReadDenseExecution OpenReadDense(World world, in Query query) => default;
             public static ReadAccess CreateReadAccess(World world, in Query query, Type runtimeType) => default;
             public static WriteAccess CreateWriteAccess(World world, in Query query, Type runtimeType) => default;
             public static ReadAccess CreateReadAccess(World world, in Query query, ComponentId component, Type runtimeType) => default;
@@ -548,6 +625,7 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static WriteAccess GetPreparedWriteAccess(in Query query, Type runtimeType) => default;
             public static ReadAccess GetPreparedReadAccess(in Query query, ComponentId component, Type runtimeType) => default;
             public static WriteAccess GetPreparedWriteAccess(in Query query, ComponentId component, Type runtimeType) => default;
+            public static int GetWriteQueryComponentIndex(WriteAccess access) => default;
             public static int AccessRead(World world, in Query query, ComponentId component, Type runtimeType) => default;
             public static int AccessWrite(World world, in Query query, ComponentId component, Type runtimeType) => default;
             public static int AccessRead(World world, in Query query, Type runtimeType) => default;
