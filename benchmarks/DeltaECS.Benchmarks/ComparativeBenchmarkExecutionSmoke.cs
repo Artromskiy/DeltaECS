@@ -92,11 +92,11 @@ public static class ComparativeBenchmarkExecutionSmoke
         benchmark.Setup();
         try
         {
-            Require(benchmark.DeltaECS_SparseWorldQueryPlan(), 25, "Delta sparse");
-            Require(benchmark.Arch_SparseWorldQueryPlan(), 25, "Arch sparse");
-            Require(benchmark.FrifloEngineECS_SparseWorldQueryPlan(), 25, "Friflo sparse");
-            Require(benchmark.DefaultEcs_SparseWorldQueryPlan(), 25, "Default sparse");
-            Require(benchmark.LeoEcsLite_SparseWorldQueryPlan(), 25, "Leo sparse");
+            Require(benchmark.DeltaECS_SparseWorldQueryPlan(), 75, "Delta sparse");
+            Require(benchmark.Arch_SparseWorldQueryPlan(), 75, "Arch sparse");
+            Require(benchmark.FrifloEngineECS_SparseWorldQueryPlan(), 75, "Friflo sparse");
+            Require(benchmark.DefaultEcs_SparseWorldQueryPlan(), 75, "Default sparse");
+            Require(benchmark.LeoEcsLite_SparseWorldQueryPlan(), 75, "Leo sparse");
         }
         finally { benchmark.Cleanup(); }
     }
