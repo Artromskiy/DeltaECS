@@ -960,6 +960,16 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         ExpressionSyntax expression,
         out IMethodSymbol? method)
     {
+        while (expression is ParenthesizedExpressionSyntax parenthesized)
+        {
+            expression = parenthesized.Expression;
+        }
+
+        if (expression is CastExpressionSyntax cast)
+        {
+            expression = cast.Expression;
+        }
+
         var members = model.GetMemberGroup(expression);
         if (members.Length == 1 && members[0] is IMethodSymbol resolvedMethod)
         {
@@ -1582,14 +1592,18 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             .Append(contextParameter)
             .AppendLine(")");
         source.AppendLine("{");
-        source.Append("    using var execution = GeneratedForEachRuntime.OpenDense(world, in query, hasWrites: ")
-            .Append(BoolHasWrites(closedShape.Pattern)).AppendLine(");");
+        source.Append("    using var execution = GeneratedForEachRuntime.")
+            .Append(BoolHasWrites(closedShape.Pattern) == "true" ? "OpenWriteDense" : "OpenReadDense")
+            .AppendLine("(world, in query);");
         source.Append("    ").Append(AccessSetup(
             closedShape,
             closedShape.ExplicitIds ? ClosedComponentNames(closedShape.Components.Length) : string.Empty,
             closed: true,
             prepared: true));
-        source.AppendLine("    while (execution.MoveNextTrusted(out var slots))");
+        AppendArchetypeWriteSetup(source, closedShape, "    ");
+        source.Append("    while (execution.")
+            .Append("MoveNextTrusted")
+            .AppendLine("(out var slots))");
         source.AppendLine("    {");
         for (int index = 0; index < closedShape.Pattern.Length; index++)
         {
@@ -1775,10 +1789,14 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             .Append(callbackParameter)
             .AppendLine(")");
         source.AppendLine("    {");
-        source.Append("        using var execution = GeneratedForEachRuntime.OpenDense(world, in query, hasWrites: ")
-            .Append(BoolHasWrites(shape.Pattern)).AppendLine(");");
+        source.Append("        using var execution = GeneratedForEachRuntime.")
+            .Append(BoolHasWrites(shape.Pattern) == "true" ? "OpenWriteDense" : "OpenReadDense")
+            .AppendLine("(world, in query);");
         source.Append("        ").Append(AccessSetup(shape, ids, closed: true, prepared: true));
-        source.AppendLine("        while (execution.MoveNextTrusted(out var slots))");
+        AppendArchetypeWriteSetup(source, shape, "        ");
+        source.Append("        while (execution.")
+            .Append("MoveNextTrusted")
+            .AppendLine("(out var slots))");
         source.AppendLine("        {");
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
@@ -2011,6 +2029,56 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         foreach (string line in body.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None))
         {
             source.Append("    ").AppendLine(line);
+        }
+    }
+
+    private static void AppendArchetypeWriteSetup(StringBuilder source, Shape shape, string indent)
+    {
+        int writeCount = shape.Pattern.Count(IsWrite);
+        if (writeCount > 1)
+        {
+            source.Append(indent).Append("execution.MarkArchetypeWrites(");
+            bool useSpan = writeCount > 4;
+            if (useSpan)
+            {
+                source.Append("stackalloc int[] { ");
+            }
+
+            bool first = true;
+            for (int index = 0; index < shape.Pattern.Length; index++)
+            {
+                if (!IsWrite(shape.Pattern[index]))
+                {
+                    continue;
+                }
+
+                if (!first)
+                {
+                    source.Append(", ");
+                }
+
+                source.Append("GeneratedForEachRuntime.GetWriteQueryComponentIndex(access").Append(index).Append(')');
+                first = false;
+            }
+
+            if (useSpan)
+            {
+                source.Append(" }");
+            }
+
+            source.AppendLine(");");
+            return;
+        }
+
+        for (int index = 0; index < shape.Pattern.Length; index++)
+        {
+            if (IsWrite(shape.Pattern[index]))
+            {
+                source.Append(indent)
+                    .Append("execution.MarkArchetypeWrite(GeneratedForEachRuntime.GetWriteQueryComponentIndex(access")
+                    .Append(index)
+                    .AppendLine("));");
+            }
         }
     }
 

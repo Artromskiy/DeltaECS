@@ -3,6 +3,7 @@ namespace Delta.ECS;
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 /// <summary>Compiler-support contract for generated entity-sequence functor invokers.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
@@ -49,6 +50,130 @@ public ref struct GeneratedDenseExecution
         return MoveNextTrusted(out slots);
     }
 
+    /// <summary>
+    /// Marks one write component for every non-empty matching archetype once
+    /// before the generated chunk loop starts.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void MarkArchetypeWrite(int queryComponentIndex)
+    {
+        for (int planIndex = 0; planIndex < _plans.Length; planIndex++)
+        {
+            ref readonly ArchetypePlan plan = ref _plans[planIndex];
+            if (plan.ChunkCount == 0)
+            {
+                continue;
+            }
+
+            ref nint firstStampAddress = ref MemoryMarshal.GetArrayDataReference(plan.ArchetypeStampAddresses);
+            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, queryComponentIndex), _writeStamp);
+        }
+    }
+
+    /// <summary>
+    /// Marks several write components for every non-empty matching archetype
+    /// in one plan traversal before the generated chunk loop starts.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void MarkArchetypeWrites(scoped ReadOnlySpan<int> queryComponentIndices)
+    {
+        for (int planIndex = 0; planIndex < _plans.Length; planIndex++)
+        {
+            ref readonly ArchetypePlan plan = ref _plans[planIndex];
+            if (plan.ChunkCount == 0)
+            {
+                continue;
+            }
+
+            nint[] stampAddresses = plan.ArchetypeStampAddresses;
+            ref nint firstStampAddress = ref MemoryMarshal.GetArrayDataReference(stampAddresses);
+            for (int accessIndex = 0; accessIndex < queryComponentIndices.Length; accessIndex++)
+            {
+                WriteArchetypeStamp(
+                    Unsafe.Add(ref firstStampAddress, queryComponentIndices[accessIndex]),
+                    _writeStamp);
+            }
+        }
+    }
+
+    /// <summary>Marks two write components with one direct plan traversal.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void MarkArchetypeWrites(int firstQueryComponentIndex, int secondQueryComponentIndex)
+    {
+        for (int planIndex = 0; planIndex < _plans.Length; planIndex++)
+        {
+            ref readonly ArchetypePlan plan = ref _plans[planIndex];
+            if (plan.ChunkCount == 0)
+            {
+                continue;
+            }
+
+            nint[] stampAddresses = plan.ArchetypeStampAddresses;
+            ref nint firstStampAddress = ref MemoryMarshal.GetArrayDataReference(stampAddresses);
+            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, firstQueryComponentIndex), _writeStamp);
+            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, secondQueryComponentIndex), _writeStamp);
+        }
+    }
+
+    /// <summary>Marks three write components with one direct plan traversal.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void MarkArchetypeWrites(
+        int firstQueryComponentIndex,
+        int secondQueryComponentIndex,
+        int thirdQueryComponentIndex)
+    {
+        for (int planIndex = 0; planIndex < _plans.Length; planIndex++)
+        {
+            ref readonly ArchetypePlan plan = ref _plans[planIndex];
+            if (plan.ChunkCount == 0)
+            {
+                continue;
+            }
+
+            nint[] stampAddresses = plan.ArchetypeStampAddresses;
+            ref nint firstStampAddress = ref MemoryMarshal.GetArrayDataReference(stampAddresses);
+            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, firstQueryComponentIndex), _writeStamp);
+            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, secondQueryComponentIndex), _writeStamp);
+            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, thirdQueryComponentIndex), _writeStamp);
+        }
+    }
+
+    /// <summary>Marks four write components with one direct plan traversal.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void MarkArchetypeWrites(
+        int firstQueryComponentIndex,
+        int secondQueryComponentIndex,
+        int thirdQueryComponentIndex,
+        int fourthQueryComponentIndex)
+    {
+        for (int planIndex = 0; planIndex < _plans.Length; planIndex++)
+        {
+            ref readonly ArchetypePlan plan = ref _plans[planIndex];
+            if (plan.ChunkCount == 0)
+            {
+                continue;
+            }
+
+            nint[] stampAddresses = plan.ArchetypeStampAddresses;
+            ref nint firstStampAddress = ref MemoryMarshal.GetArrayDataReference(stampAddresses);
+            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, firstQueryComponentIndex), _writeStamp);
+            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, secondQueryComponentIndex), _writeStamp);
+            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, thirdQueryComponentIndex), _writeStamp);
+            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, fourthQueryComponentIndex), _writeStamp);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static unsafe void WriteArchetypeStamp(nint stampAddress, Stamp stamp)
+    {
+        *(Stamp*)stampAddress = stamp;
+    }
+
     /// <summary>Advances a validated generated execution without repeating the lifetime guard.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -60,15 +185,13 @@ public ref struct GeneratedDenseExecution
             _chunkIndex = nextChunk;
             slots = new GeneratedQuerySlots(
                 _plans.Ref(_planIndex),
-                _chunks.Ref(_chunkIndex),
-                _owner!.GetArchetypeComponentStampStorage(_plans.Ref(_planIndex).Archetype.Id),
-                _writeStamp);
+                _chunks.Ref(_chunkIndex));
             return true;
         }
 
         while ((uint)++_planIndex < (uint)_plans.Length)
         {
-            ref readonly ArchetypePlan plan = ref _plans.Ref(_planIndex);
+            ref readonly ArchetypePlan plan = ref _plans[_planIndex];
             _chunks = plan.ChunkArray;
             _chunkCount = plan.ChunkCount;
             if (_chunkCount == 0)
@@ -77,11 +200,7 @@ public ref struct GeneratedDenseExecution
             }
 
             _chunkIndex = 0;
-            slots = new GeneratedQuerySlots(
-                plan,
-                _chunks.Ref(_chunkIndex),
-                _owner!.GetArchetypeComponentStampStorage(plan.Archetype.Id),
-                _writeStamp);
+            slots = new GeneratedQuerySlots(plan, _chunks[_chunkIndex]);
             return true;
         }
 
@@ -245,7 +364,7 @@ public static class GeneratedForEachRuntime
         {
             for (int planIndex = 0; planIndex < plans.Length; planIndex++)
             {
-                if (plans.Ref(planIndex).Chunks.IsEmpty)
+                if (plans[planIndex].ChunkCount == 0)
                 {
                     continue;
                 }
@@ -283,7 +402,7 @@ public static class GeneratedForEachRuntime
         Stamp writeStamp = default;
         for (int planIndex = 0; planIndex < plans.Length; planIndex++)
         {
-            if (plans.Ref(planIndex).Chunks.IsEmpty)
+            if (plans[planIndex].ChunkCount == 0)
             {
                 continue;
             }
@@ -367,6 +486,12 @@ public static class GeneratedForEachRuntime
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static WriteAccess GetPreparedWriteAccess(in Query query, Type runtimeType)
         => query.Cached.GetPreparedPrimaryWriteAccess(runtimeType);
+
+    /// <summary>Returns the trusted query-local route used by batch write marking.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int GetWriteQueryComponentIndex(WriteAccess access)
+        => access.QueryComponentIndex;
 
     /// <summary>
     /// Returns a cached explicit-component read access after dense scope
