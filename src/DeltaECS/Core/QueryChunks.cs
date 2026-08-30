@@ -155,15 +155,35 @@ public readonly ref struct QueryChunk
         _sessionGeneration = sessionGeneration;
     }
 
-    public int ArchetypeId => _plan.Archetype.Id;
+    public int ArchetypeId
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _plan.Archetype.Id;
+    }
 
-    public int GlobalChunkId => _chunk.Chunk.GlobalId;
+    public int GlobalChunkId
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _chunk.Chunk.GlobalId;
+    }
 
-    public int SlotCount => _chunk.Chunk.Count;
+    public int SlotCount
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _chunk.Chunk.Count;
+    }
 
-    public ReadOnlySpan<Entity> Entities => _chunk.Chunk.Entities;
+    public ReadOnlySpan<Entity> Entities
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _chunk.Chunk.Entities;
+    }
 
-    public QuerySlots Slots => new(_plan, _chunk, _query, _writeSession, _sessionGeneration);
+    public QuerySlots Slots
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => new(_plan, _chunk, _query, _writeSession, _sessionGeneration);
+    }
 
     /// <summary>Prepares exact component stamps for this chunk.</summary>
     /// <remarks>Access validation occurs once here; reading stamps never marks a component written.</remarks>

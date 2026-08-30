@@ -158,12 +158,16 @@ internal sealed class QueryPlan
         return _preparedWriteAccessesByComponent[component.Value];
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ReadOnlySpan<int> MatchingArchetypes() => _matchingArchetypes.AsSpan(0, _matchingCount);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ReadOnlySpan<ArchetypePlan> MatchingPlans() => _matchingPlans.AsSpan(0, _matchingCount);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ReadOnlySpan<int> ComponentRowIndices(int matchingIndex) => _matchingPlans[matchingIndex].ComponentRows;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetPlan(int archetypeId, out ArchetypePlan plan)
     {
         if ((uint)archetypeId < (uint)_planIndicesByArchetype.Length)

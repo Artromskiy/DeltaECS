@@ -170,13 +170,28 @@ member is emitted as an extension method in the consumer assembly. A consumer
 must reference the DeltaECS analyzer/source-generator; the generator cannot add
 instance members to a previously compiled `World`.
 
-Consumers may additionally opt in to the library-owned
-`Delta.ECS.Generated` interceptor namespace. Supported synchronous static
-lambdas and unambiguous static method groups then enter the generated
-struct-functor execution path without changing the `world.ForEach(...)` call.
-Capturing, instance, generic and otherwise unsupported callbacks retain the
-ordinary delegate fallback. Configuration and exact eligibility rules are in
-the [generator README](src/DeltaECS.Generators/README.md#optional-roslyn-interceptor-path).
+For maximum performance on the delegate-shaped hot path, enable the optional
+Roslyn interceptor configuration in the consumer project:
+
+```xml
+<PropertyGroup>
+  <InterceptorsNamespaces>Delta.ECS.Generated</InterceptorsNamespaces>
+</PropertyGroup>
+<ItemGroup>
+  <CompilerVisibleProperty Include="InterceptorsNamespaces" />
+</ItemGroup>
+```
+
+With this opt-in, supported static non-capturing `World.ForEach` and
+`World.ForEachEntity` call sites are lowered at compile time to generated
+trusted struct-functor execution without changing the user-facing API. The
+interceptor is not a universal delegate replacement: capturing, instance,
+pre-created, ambiguous, generic, async, sequence, and non-interceptable calls
+use the ordinary delegate fallback. The analyzer is build-time only and is not
+deployed with a NativeAOT application.
+
+Configuration and exact eligibility rules are in the
+[generator README](src/DeltaECS.Generators/README.md#optional-roslyn-interceptor-path).
 
 Ordered sequence execution uses the non-owning fluent facade:
 

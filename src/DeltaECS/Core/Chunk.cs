@@ -36,7 +36,7 @@ internal sealed class Chunk
         for (int index = 0; index < layouts.Length; index++)
         {
             var runtimeType = layouts[index].RuntimeType ?? throw new InvalidOperationException("ArrayRows requires a type-backed component layout. Register the component with its runtime Type.");
-            _componentRows[index] = Array.CreateInstance(runtimeType, capacity);
+            _componentRows[index] = _rowOperations[index].CreateArray(runtimeType, capacity);
         }
     }
 

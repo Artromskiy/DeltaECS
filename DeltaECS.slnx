@@ -2,6 +2,7 @@
   <Project Path="benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj" />
   <Project Path="benchmarks/DeltaECS.MicroBenchmarks/DeltaECS.MicroBenchmarks.csproj" />
   <Project Path="playground/DeltaECS.Playground/DeltaECS.Playground.csproj" />
+  <Project Path="samples/DeltaECS.AotSample/DeltaECS.AotSample.csproj" />
   <Project Path="src/DeltaECS/DeltaECS.csproj" />
   <Project Path="src/DeltaECS.Generators/DeltaECS.Generators.csproj" />
   <Project Path="tests/DeltaECSTests/DeltaECSTests.csproj" />

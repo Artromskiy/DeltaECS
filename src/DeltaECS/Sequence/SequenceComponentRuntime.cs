@@ -1,11 +1,13 @@
 namespace Delta.ECS;
 
 using System;
+using System.Runtime.CompilerServices;
 
 public sealed partial class World
 {
     /// <summary>Executes a compiler-generated invoker over an explicit entity sequence.</summary>
     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void ExecuteGeneratedSequence<TInvoker>(
         ReadOnlySpan<Entity> entities,
         in Query query,

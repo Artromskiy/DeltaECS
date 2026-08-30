@@ -53,6 +53,14 @@ project by exposing the library-owned namespace to the compiler:
 </ItemGroup>
 ```
 
+This opt-in is part of the recommended high-performance configuration for
+delegate-shaped hot loops. It preserves the public `world.ForEach(...)` call
+while allowing supported static callbacks to use the generated trusted
+struct-functor execution path instead of the ordinary delegate callback path.
+The setting is a consumer-project build feature; it is not a runtime package
+dependency and it does not add the `netstandard2.0` analyzer to a published
+NativeAOT application.
+
 The generator keeps this opt-in isolated to `Delta.ECS.Generated`; it does not
 enable a global preview switch or add `InterceptorsPreviewNamespaces`. When
 enabled, a supported `World.ForEach`/`ForEachEntity` call with a synchronous

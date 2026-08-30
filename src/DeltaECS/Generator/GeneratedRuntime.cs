@@ -165,6 +165,7 @@ public static class GeneratedForEachRuntime
 {
     /// <summary>Opens the trusted dense execution used by generated callbacks.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static GeneratedDenseExecution OpenDense(World world, in Query query, bool hasWrites)
     {
         QueryPlan plan = ValidateQuery(world, in query);
@@ -195,6 +196,7 @@ public static class GeneratedForEachRuntime
 
     /// <summary>Creates a validated read access token for a closed generated dense path.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ReadAccess CreateReadAccess(
         World world,
         in Query query,
@@ -206,6 +208,7 @@ public static class GeneratedForEachRuntime
 
     /// <summary>Creates a validated write access token for a closed generated dense path.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static WriteAccess CreateWriteAccess(
         World world,
         in Query query,
@@ -218,6 +221,7 @@ public static class GeneratedForEachRuntime
 
     /// <summary>Creates a validated explicit-component read access token for a closed generated dense path.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ReadAccess CreateReadAccess(
         World world,
         in Query query,
@@ -230,6 +234,7 @@ public static class GeneratedForEachRuntime
 
     /// <summary>Creates a validated explicit-component write access token for a closed generated dense path.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static WriteAccess CreateWriteAccess(
         World world,
         in Query query,
@@ -247,6 +252,7 @@ public static class GeneratedForEachRuntime
     /// without the preceding <see cref="OpenDense"/> validation.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ReadAccess GetPreparedReadAccess(in Query query, Type runtimeType)
         => query.Cached.GetPreparedPrimaryReadAccess(runtimeType);
 
@@ -256,6 +262,7 @@ public static class GeneratedForEachRuntime
     /// without the preceding <see cref="OpenDense"/> validation.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static WriteAccess GetPreparedWriteAccess(in Query query, Type runtimeType)
         => query.Cached.GetPreparedPrimaryWriteAccess(runtimeType);
 
@@ -264,6 +271,7 @@ public static class GeneratedForEachRuntime
     /// validation. The component/type contract remains checked by the plan.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ReadAccess GetPreparedReadAccess(
         in Query query,
         ComponentId component,
@@ -275,12 +283,14 @@ public static class GeneratedForEachRuntime
     /// validation. The component/type contract remains checked by the plan.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static WriteAccess GetPreparedWriteAccess(
         in Query query,
         ComponentId component,
         Type runtimeType)
         => query.Cached.GetPreparedWriteAccess(component, runtimeType);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int AccessRead(
         World world,
         in Query query,
@@ -290,6 +300,7 @@ public static class GeneratedForEachRuntime
         return plan.ResolvePrimaryReadRoute(runtimeType);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int AccessWrite(
         World world,
         in Query query,
@@ -299,6 +310,7 @@ public static class GeneratedForEachRuntime
         return plan.UpgradeReadRouteToWrite(plan.ResolvePrimaryReadRoute(runtimeType));
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int AccessRead(
         World world,
         in Query query,
@@ -309,6 +321,7 @@ public static class GeneratedForEachRuntime
         return plan.ResolveReadRoute(component, runtimeType);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static QueryPlan ValidateQuery(World world, in Query query, Type runtimeType)
     {
         ArgumentNullException.ThrowIfNull(world);
@@ -316,6 +329,7 @@ public static class GeneratedForEachRuntime
         return ValidateQuery(world, in query);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static QueryPlan ValidateQuery(World world, in Query query)
     {
         ArgumentNullException.ThrowIfNull(world);
@@ -327,6 +341,7 @@ public static class GeneratedForEachRuntime
         return query.Cached;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int AccessWrite(
         World world,
         in Query query,

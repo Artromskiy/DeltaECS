@@ -15,6 +15,7 @@
     <ProjectReference Include="..\DeltaECS.Generators\DeltaECS.Generators.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
+                      GlobalPropertiesToRemove="PublishAot;PublishTrimmed;SelfContained;RuntimeIdentifier"
                       PrivateAssets="all" />
   </ItemGroup>
 

@@ -9,24 +9,28 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntitySequence From(ReadOnlySpan<Entity> entities) => new(this, entities);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void ExecuteSequence(ReadOnlySpan<Entity> entities, ForEachEntityAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
         ExecuteSequence(entities, default, hasFilter: false, action);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void ExecuteSequence(ReadOnlySpan<Entity> entities, in Query query, ForEachEntityAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
         ExecuteSequence(entities, query, hasFilter: true, action);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void ExecuteSequence<TContext>(ReadOnlySpan<Entity> entities, ref TContext context, ForEachContextEntityAction<TContext> action)
     {
         ArgumentNullException.ThrowIfNull(action);
         ExecuteSequence(entities, ref context, default, hasFilter: false, action);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void ExecuteSequence<TContext>(ReadOnlySpan<Entity> entities, in Query query, ref TContext context, ForEachContextEntityAction<TContext> action)
     {
         ArgumentNullException.ThrowIfNull(action);

@@ -1,6 +1,7 @@
 namespace Delta.ECS;
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 
 public readonly struct ComponentId : IEquatable<ComponentId>, IComparable<ComponentId>
@@ -286,7 +287,7 @@ public readonly struct ComponentLayout : IEquatable<ComponentLayout>
 {
     public ComponentLayout(
         SchemaId schemaId,
-        Type runtimeType,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType,
         int alignment = 1)
     {
         ArgumentNullException.ThrowIfNull(runtimeType);
@@ -336,6 +337,7 @@ public readonly struct ComponentLayout : IEquatable<ComponentLayout>
 
     public int Stride { get; }
 
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
     public Type? RuntimeType { get; }
 
     public RuntimeTypeHandle RuntimeTypeHandle { get; }

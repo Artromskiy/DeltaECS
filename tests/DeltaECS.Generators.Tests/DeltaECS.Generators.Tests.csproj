@@ -14,7 +14,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DeltaECS\DeltaECS.csproj" />
-    <ProjectReference Include="..\..\src\DeltaECS.Generators\DeltaECS.Generators.csproj" />
+    <ProjectReference Include="..\..\src\DeltaECS.Generators\DeltaECS.Generators.csproj"
+                      GlobalPropertiesToRemove="PublishAot;PublishTrimmed;SelfContained;RuntimeIdentifier" />
     <ProjectReference Include="..\DeltaECS.Generators.Consumer\DeltaECS.Generators.Consumer.csproj" />
   </ItemGroup>
 

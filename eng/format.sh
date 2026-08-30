@@ -13,6 +13,7 @@ format_args=(
     --include tests
     --include playground
     --include benchmarks
+    --include samples
     --include tools
     --exclude ./obj
     --exclude ./bin

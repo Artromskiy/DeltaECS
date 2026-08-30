@@ -1,16 +1,19 @@
 namespace Delta.ECS;
 
 using System;
+using System.Runtime.CompilerServices;
 
 public ref partial struct ReadRow
 {
     private readonly ref byte _data;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ReadRow(Array row) => _data = ref ArrayAccess.DataReference(row);
 }
 
 public ref partial struct WriteRow
 {
     private readonly ref byte _data;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal WriteRow(Array row) => _data = ref ArrayAccess.DataReference(row);
 }
 

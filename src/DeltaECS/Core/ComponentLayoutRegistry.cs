@@ -2,6 +2,7 @@ namespace Delta.ECS;
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
@@ -21,7 +22,7 @@ public sealed partial class ComponentLayoutRegistry
     public int Count => _layouts.Count;
 
     public ComponentId Register(
-        Type runtimeType,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType,
         SchemaId schemaId)
         => Register(
             runtimeType,
@@ -29,7 +30,7 @@ public sealed partial class ComponentLayoutRegistry
             ContainsReferences(runtimeType));
 
     internal ComponentId Register(
-        Type runtimeType,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType,
         SchemaId schemaId,
         bool containsReferences)
         => Register(
@@ -42,7 +43,8 @@ public sealed partial class ComponentLayoutRegistry
             ComponentRowOperations.ForRuntimeType(
                 layout.RuntimeType is not { } runtimeType || ContainsReferences(runtimeType)));
 
-    private bool ContainsReferences(Type runtimeType)
+    private bool ContainsReferences(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType)
     {
         if (_containsReferencesByType.TryGetValue(runtimeType, out bool containsReferences))
         {

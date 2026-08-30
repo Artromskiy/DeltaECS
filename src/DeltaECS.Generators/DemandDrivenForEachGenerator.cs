@@ -1575,7 +1575,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             ? ", ref " + InterceptedContextType(closedShape) + " " + parameters[0]
             : string.Empty;
 
-        source.AppendLine("[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]");
+        source.AppendLine("[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         source.Append("private static void ").Append(methodName)
             .Append("(global::Delta.ECS.World world, in global::Delta.ECS.Query query")
             .Append(componentParameters)
@@ -1767,7 +1767,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             ? ", ref " + shape.FunctorType + " functor"
             : ", " + ActionType(shape) + " action";
 
-        source.AppendLine("    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]");
+        source.AppendLine("    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         source.Append("    private static void ").Append(methodName).Append(genericPrefix)
             .Append("(World world, in Query query")
             .Append(componentParameters)

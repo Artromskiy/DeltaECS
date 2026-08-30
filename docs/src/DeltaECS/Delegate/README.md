@@ -34,3 +34,10 @@ lowered to the generated struct-functor execution path. Capturing callbacks,
 pre-created delegates and unsupported call sites continue through the normal
 delegate path. See the
 [interceptor configuration](../../DeltaECS.Generators/README.md#optional-roslyn-interceptor-path).
+
+For the maximum performance of delegate-shaped iteration, enable that opt-in
+in the consumer project. This is a compile-time lowering contract: the public
+delegate API and callback source spelling stay unchanged, while eligible
+static non-capturing `World.ForEach` calls enter the closed trusted execution
+method. The interceptor is not applied to sequence callbacks or callbacks
+whose shape cannot be proven safe by the generator.

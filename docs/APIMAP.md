@@ -120,6 +120,19 @@ component types appear at registration and at the callback/ref boundary; they
 are not carried by query, access, plan or iterator storage. See the generator
 README for lambda inference and diagnostics.
 
+For maximum performance on delegate-shaped hot loops, the consumer should
+enable the project-local Roslyn interceptor opt-in:
+
+```xml
+<InterceptorsNamespaces>Delta.ECS.Generated</InterceptorsNamespaces>
+<CompilerVisibleProperty Include="InterceptorsNamespaces" />
+```
+
+Eligible static non-capturing `World.ForEach` calls keep the same public source
+API but lower to the generated trusted struct-functor path. Unsupported or
+capturing callbacks retain ordinary delegate semantics; the analyzer remains
+build-time only and is not part of a NativeAOT deployment.
+
 ## Ordered sequence path
 
 `World.From(ReadOnlySpan<Entity>)` creates a non-owning ordered facade.
