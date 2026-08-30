@@ -5,6 +5,7 @@ using DefaultEcs;
 using Delta.ECS;
 using Friflo.Engine.ECS;
 using Leopotam.EcsLite;
+using System.Runtime.CompilerServices;
 using DeltaEntity = Delta.ECS.Entity;
 using DeltaWorld = Delta.ECS.World;
 using DefaultWorld = DefaultEcs.World;
@@ -101,6 +102,7 @@ public class ComparativeDenseIterationBenchmarks
     [Benchmark] public long DefaultEcs_Dense() { long sum = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { var value = entities[i].Get<DenseValue>(); ApplyDense(in value, ref sum); } return Checksum(sum, (long)Amount * (Amount + 1) / 2, "dense"); }
     [Benchmark] public long LeoEcsLite_Dense() { long sum = 0; foreach (var entity in _leoQuery) { var value = _leoPool.Get(entity); ApplyDense(in value, ref sum); } return Checksum(sum, (long)Amount * (Amount + 1) / 2, "dense"); }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void ApplyDense(ref readonly DenseValue value, ref long checksum) => checksum += value.Value;
 
     internal static long Checksum(long actual, long expected, string name) => actual == expected ? actual : throw new InvalidOperationException($"{name} checksum mismatch: {actual} != {expected}");
@@ -272,6 +274,7 @@ public class ComparativeMovement2ComponentsBenchmarks
     [Benchmark] public double DefaultEcs_Movement2Components() { double sum = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { ref var position = ref entities[i].Get<Movement2Position>(); var velocity = entities[i].Get<Movement2Velocity>(); ApplyMovement2(ref position, in velocity, ref sum); } return sum; }
     [Benchmark] public double LeoEcsLite_Movement2Components() { double sum = 0; foreach (var entity in _leoQuery) { ref var position = ref _leoPosition.Get(entity); var velocity = _leoVelocity.Get(entity); ApplyMovement2(ref position, in velocity, ref sum); } return sum; }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void ApplyMovement2(ref Movement2Position position, ref readonly Movement2Velocity velocity, ref double checksum)
     {
         position.X += velocity.X / 60f;
@@ -391,6 +394,7 @@ public class ComparativeMovement4ComponentsBenchmarks
 
     private static void SetDefault(DefaultEcs.Entity e) { e.Set(new Movement4A { Value = 1 }); e.Set(new Movement4B { Value = 2 }); e.Set(new Movement4C { Value = 3 }); e.Set(new Movement4D { Value = 4 }); }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void ApplyMovement4(ref Movement4A rowA, ref Movement4B rowB, ref Movement4C rowC, ref readonly Movement4D rowD, ref int checksum)
     {
         var updatedA = rowA.Value + rowD.Value;
@@ -444,6 +448,7 @@ public class ComparativeWideArchetypeNarrowQueryBenchmarks
     [Benchmark] public int DefaultEcs_WideArchetypeNarrowQuery() { var sum = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { var a = entities[i].Get<Wide0>(); var z = entities[i].Get<Wide7>(); ApplyWide(in a, in z, ref sum); } return Check(sum, Amount * 9); }
     [Benchmark] public int LeoEcsLite_WideArchetypeNarrowQuery() { var sum = 0; foreach (var e in _leoQuery) { var a = _leo0.Get(e); var z = _leo7.Get(e); ApplyWide(in a, in z, ref sum); } return Check(sum, Amount * 9); }
     private static int Check(int actual, int expected) => actual == expected ? actual : throw new InvalidOperationException($"wide checksum mismatch: {actual} != {expected}");
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void ApplyWide(ref readonly Wide0 a, ref readonly Wide7 z, ref int checksum) => checksum += a.Value + z.Value;
 }
 
@@ -510,6 +515,7 @@ public class ComparativeSparseQueryBenchmarks
     private int Check(int actual) => actual == ExpectedChecksum ? actual : throw new InvalidOperationException($"sparse checksum mismatch: {actual} != {ExpectedChecksum}");
     private ArchetypeQuery<SparseA, SparseB> CreateFrifloQuery() { var f = new QueryFilter(); f.WithoutAllComponents(ComponentTypes.Get<SparseC>()); return _friflo.Query<SparseA, SparseB>(f); }
     private DefaultEcs.EntitySet CreateDefaultQuery() => _default.GetEntities().With<SparseA>().With<SparseB>().Without<SparseC>().AsSet();
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void ApplySparse(ref int count, ref readonly SparseA a, ref readonly SparseB b) => count += a.Value + b.Value;
 }
 

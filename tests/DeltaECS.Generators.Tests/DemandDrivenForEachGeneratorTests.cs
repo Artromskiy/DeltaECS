@@ -237,16 +237,19 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
-    public void EnabledStaticLambdaGeneratesAnInterceptedFunctorAndBridge()
+    public void EnabledStaticLambdaGeneratesAClosedCallbackKernel()
     {
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(InterceptionSource);
         string generated = GeneratedText(run);
 
         Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
-        Assert.That(generated, Does.Contain("InterceptedFunctor_"));
+        Assert.That(generated, Does.Contain("InvokeInterceptedCallback_"));
         Assert.That(generated, Does.Contain("InterceptsLocationAttribute"));
-        Assert.That(generated, Does.Contain("ExecuteIntercepted_"));
+        Assert.That(generated, Does.Contain("ExecuteInterceptedClosed_"));
         Assert.That(generated, Does.Contain("value.Value++"));
+        Assert.That(generated, Does.Contain("ForEachAction<global::Delta.ECS.T1> _"));
+        Assert.That(generated, Does.Not.Contain("InterceptedFunctor_"));
+        Assert.That(generated, Does.Not.Contain("ref functor"));
     }
 
     [Test]
@@ -285,7 +288,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("global::Delta.ECS.Callbacks.Update(ref component0)"));
         Assert.That(generated, Does.Contain("global::Delta.ECS.Consumer.UpdateWithContext(ref context, in component0)"));
         Assert.That(generated, Does.Contain("global::Delta.ECS.Consumer.UpdateEntity(entity, ref component0)"));
-        Assert.That(generated, Does.Contain("ExecuteIntercepted_"));
+        Assert.That(generated, Does.Contain("ExecuteInterceptedClosed_"));
+        Assert.That(generated, Does.Not.Contain("InterceptedFunctor_"));
 
         CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
             new[] { RuntimeStubSource, StaticMethodGroupInterceptionSource },
