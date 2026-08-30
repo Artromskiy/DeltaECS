@@ -67,7 +67,7 @@ structural evidence only; it is not a reliable throughput claim.
 | --- | ---: | ---: | ---: |
 | `DemandForEachExtensions_90EB81AA.ForEach` | 156,521 | 57.970 ms | 100.0% |
 | `GeneratedForEachRuntime.OpenDense(...)` | 156,521 | 10.365 ms | 17.9% |
-| `Chunk.MarkComponentWrittenTrusted(...)` | 469,563 | 9.553 ms | 16.5% |
+| `ArchetypeComponentStampWriter.Mark(...)` | 469,563 | 9.553 ms | 16.5% |
 | `GeneratedForEachRuntime.GetPreparedWriteAccess(...)` | 469,563 | 9.249 ms | 16.0% |
 | `GeneratedForEachRuntime.GetPreparedReadAccess(...)` | 156,521 | 3.465 ms | 6.0% |
 | `World.EndQueryLease()` | 156,521 | 1.929 ms | 3.3% |

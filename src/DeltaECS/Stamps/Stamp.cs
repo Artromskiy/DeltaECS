@@ -21,3 +21,10 @@ public readonly struct Stamp : IEquatable<Stamp>
 
     public override string ToString() => Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
 }
+
+internal static class StampMath
+{
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    internal static Stamp Sum(Stamp entity, Stamp chunk, Stamp archetype, Stamp world)
+        => new(unchecked(entity.Value + chunk.Value + archetype.Value + world.Value));
+}

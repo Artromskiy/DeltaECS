@@ -146,11 +146,9 @@ public sealed class DeltaECSDeliveryTests
 
         var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         var position = query.AccessWrite(PositionId);
-        var before = world.WorldTick;
         var archetypeCount = 0;
         var chunkCount = 0;
         var slotCount = 0;
-        var writtenChunks = new List<int>();
 
         using (var scope = world.BeginScope(in query))
         {
@@ -164,7 +162,6 @@ public sealed class DeltaECSDeliveryTests
                 {
                     chunkCount++;
                     var chunk = chunks.Current;
-                    writtenChunks.Add(chunk.GlobalChunkId);
                     var entities = chunk.Entities;
                     var slots = chunk.Slots;
                     var positions = slots.GetRow(preparedPosition);
@@ -187,10 +184,6 @@ public sealed class DeltaECSDeliveryTests
         Assert.That(archetypeCount, Is.EqualTo(2));
         Assert.That(chunkCount, Is.EqualTo(4));
         Assert.That(slotCount, Is.EqualTo(7));
-        foreach (var chunkId in writtenChunks)
-        {
-            Assert.That(world.HasChangedSince(chunkId, PositionId, before), Is.True);
-        }
     }
 
     [Test]
@@ -206,7 +199,6 @@ public sealed class DeltaECSDeliveryTests
 
         var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         var position = query.AccessWrite(PositionId);
-        var before = world.WorldTick;
         var chunkCount = 0;
         var slotCount = 0;
         var archetypeIds = new HashSet<int>();
@@ -237,12 +229,6 @@ public sealed class DeltaECSDeliveryTests
             Assert.That(slotCount, Is.EqualTo(7));
         });
 
-        using var verifyScope = world.BeginScope(in query);
-        var verifyChunks = verifyScope.Chunks;
-        while (verifyChunks.MoveNext())
-        {
-            Assert.That(world.HasChangedSince(verifyChunks.Current.GlobalChunkId, PositionId, before), Is.True);
-        }
     }
 
     [Test]
@@ -258,8 +244,6 @@ public sealed class DeltaECSDeliveryTests
         var query = world.CreateQuery(QuerySpec.WhereAll(PositionId, VelocityId));
         var position = query.AccessWrite(PositionId);
         var velocity = query.AccessRead(VelocityId);
-        var before = world.WorldTick;
-
         using (var scope = world.BeginScope(in query))
         {
             var write = position;
@@ -279,8 +263,6 @@ public sealed class DeltaECSDeliveryTests
 
         Assert.That(world.TryGet<Position>(entity, PositionId, out var result), Is.True);
         Assert.That(result.X, Is.EqualTo(4));
-        Assert.That(world.HasChangedSince(0, PositionId, before), Is.True);
-        Assert.That(world.HasChangedSince(0, VelocityId, before), Is.False);
     }
 
     [Test]
@@ -585,91 +567,6 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
-    public void WriteAccess_Marks_Only_Yielded_Rows_And_ReadBinding_Does_Not_Mark()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        RegisterComponentLayouts(layouts);
-        var world = new World(layouts, chunkCapacity: 4);
-        var entity = world.Create(new[] { PositionId, VelocityId });
-        var chunkId = -1;
-        var spec = QuerySpec.WhereAll(PositionId);
-        var query = world.CreateQuery(in spec);
-        var readPosition = query.AccessRead(PositionId);
-        var writePosition = query.AccessWrite(PositionId);
-        var before = world.WorldTick;
-
-        using (var scope = world.BeginScope(in query))
-        {
-            var archetypes = scope.Archetypes;
-            while (archetypes.MoveNext())
-            {
-                var chunks = archetypes.Current.Chunks;
-                while (chunks.MoveNext())
-                {
-                    if (chunkId < 0)
-                    {
-                        chunkId = chunks.Current.GlobalChunkId;
-                    }
-                }
-            }
-        }
-        Assert.That(chunkId, Is.GreaterThanOrEqualTo(0));
-        Assert.That(world.HasChangedSince(chunkId, PositionId, before), Is.False);
-        Assert.That(world.HasChangedSince(chunkId, VelocityId, before), Is.False);
-
-        using (var scope = world.BeginScope(in query))
-        {
-            var prepared = writePosition;
-            var archetypes = scope.Archetypes;
-            while (archetypes.MoveNext())
-            {
-                var chunks = archetypes.Current.Chunks;
-                while (chunks.MoveNext())
-                {
-                    _ = chunks.Current.Slots.GetRow(prepared);
-                }
-            }
-        }
-        var afterWrite = world.WorldTick;
-        Assert.That(afterWrite, Is.GreaterThan(before));
-        Assert.That(world.HasChangedSince(chunkId, PositionId, before), Is.True);
-        Assert.That(world.HasChangedSince(chunkId, VelocityId, before), Is.False);
-
-        using (var scope = world.BeginScope(in query))
-        {
-            var prepared = readPosition;
-            var archetypes = scope.Archetypes;
-            while (archetypes.MoveNext())
-            {
-                var chunks = archetypes.Current.Chunks;
-                while (chunks.MoveNext())
-                {
-                    _ = chunks.Current.Slots.GetRow(prepared);
-                }
-            }
-        }
-        Assert.That(world.HasChangedSince(chunkId, VelocityId, afterWrite), Is.False);
-
-        using (var scope = world.BeginScope(in query))
-        {
-            var prepared = writePosition;
-            var archetypes = scope.Archetypes;
-            while (archetypes.MoveNext())
-            {
-                var chunks = archetypes.Current.Chunks;
-                while (chunks.MoveNext())
-                {
-                    _ = chunks.Current.Slots.GetRow(prepared);
-                }
-            }
-        }
-
-        Assert.That(world.WorldTick, Is.GreaterThan(afterWrite));
-        Assert.That(world.HasChangedSince(chunkId, PositionId, afterWrite), Is.True);
-        Assert.That(world.IsAlive(entity), Is.True);
-    }
-
-    [Test]
     public void QuerySurface_Uses_The_Renamed_API()
     {
         var assembly = typeof(World).Assembly;
@@ -706,7 +603,6 @@ public sealed class DeltaECSDeliveryTests
         Assert.That(query.Cached, Is.Not.Null);
 
         var cursorRows = 0;
-        var writtenChunks = new HashSet<int>();
         using (var scope = world.BeginScope(in query))
         {
             var archetypes = scope.Archetypes;
@@ -722,7 +618,6 @@ public sealed class DeltaECSDeliveryTests
         }
         Assert.That(cursorRows, Is.EqualTo(2));
 
-        var before = world.WorldTick;
         var rows = 0;
         using (var scope = world.BeginScope(in query))
         {
@@ -738,7 +633,6 @@ public sealed class DeltaECSDeliveryTests
                     var slots = chunk.Slots;
                     var positions = slots.GetRow(preparedPosition);
                     var velocities = slots.GetRow(preparedVelocity);
-                    writtenChunks.Add(chunk.GlobalChunkId);
                     while (slots.MoveNext())
                     {
                         ref var row = ref positions.Ref<Position>(slots);
@@ -750,12 +644,6 @@ public sealed class DeltaECSDeliveryTests
         }
 
         Assert.That(rows, Is.EqualTo(2));
-        Assert.That(writtenChunks.Count, Is.EqualTo(2));
-        foreach (var chunkId in writtenChunks)
-        {
-            Assert.That(world.HasChangedSince(chunkId, PositionId, before), Is.True);
-            Assert.That(world.HasChangedSince(chunkId, VelocityId, before), Is.False);
-        }
 
         var simpleRows = 0;
         using (var scope = world.BeginScope(in query))
@@ -793,7 +681,6 @@ public sealed class DeltaECSDeliveryTests
         var query = world.CreateQuery(QuerySpec.WhereAll(PositionId, VelocityId));
         ReadAccess readRequest = query.AccessRead(VelocityId);
         WriteAccess writeRequest = query.AccessWrite(PositionId);
-        var before = world.WorldTick;
         var sum = 0f;
 
         using (var scope = world.BeginScope(in query))
@@ -821,8 +708,6 @@ public sealed class DeltaECSDeliveryTests
         }
 
         Assert.That(sum, Is.GreaterThan(0));
-        Assert.That(world.HasChangedSince(0, PositionId, before), Is.True);
-        Assert.That(world.HasChangedSince(0, VelocityId, before), Is.False);
     }
 
     [Test]

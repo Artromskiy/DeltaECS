@@ -390,6 +390,13 @@ public sealed class StampInvariantTests
         Assert.That(world.Stamp, Is.EqualTo(beforeRead));
 
         WriteAccess writePosition = positionQuery.AccessWrite(PositionId);
+        var positionStamps = new Dictionary<Entity, Stamp>();
+        foreach (Entity entity in positionOnly.Concat(positionVelocity))
+        {
+            Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp stamp), Is.True);
+            positionStamps.Add(entity, stamp);
+        }
+
         var velocityStamps = new Dictionary<Entity, Stamp>();
         foreach (Entity entity in positionVelocity)
         {
@@ -423,7 +430,8 @@ public sealed class StampInvariantTests
         foreach (Entity entity in positionOnly.Concat(positionVelocity))
         {
             Assert.That(world.TryGetComponentStamp(entity, PositionId, out Stamp stamp), Is.True);
-            Assert.That(stamp, Is.EqualTo(writeStamp));
+            Stamp expected = new(unchecked(positionStamps[entity].Value + writeStamp.Value));
+            Assert.That(stamp, Is.EqualTo(expected));
         }
 
         foreach (var pair in velocityStamps)
@@ -605,7 +613,8 @@ public sealed class StampInvariantTests
         {
             Assert.That(values[index].Value, Is.EqualTo(index + 11));
             Assert.That(world.TryGetComponentStamp(entities[index], referenceId, out Stamp stamp), Is.True);
-            Assert.That(stamp, Is.EqualTo(queryStamp));
+            Stamp expected = new(unchecked(stamps[index].Value + queryStamp.Value));
+            Assert.That(stamp, Is.EqualTo(expected));
         }
 
         Stamp beforeRemove = world.Stamp;
@@ -616,7 +625,7 @@ public sealed class StampInvariantTests
             Assert.That(world.TryGet<ReferenceComponent>(entities[index], referenceId, out ReferenceComponent? actual), Is.True);
             Assert.That(actual, Is.SameAs(values[index]));
             Assert.That(world.TryGetComponentStamp(entities[index], referenceId, out Stamp stamp), Is.True);
-            Assert.That(stamp, Is.EqualTo(queryStamp));
+            Assert.That(stamp, Is.EqualTo(stamps[index]));
         }
     }
 
@@ -706,7 +715,7 @@ public sealed class StampInvariantTests
         var plan = new ArchetypePlan(archetype, QueryRowZero);
         var chunk = archetype.GetChunk(0);
         var chunkPlan = new ChunkPlan(chunk, new[] { chunk.GetRawComponentRow(0) });
-        var slots = new QuerySlots(plan, chunkPlan, query.Cached, writeTick: 1, writeStamp: new Stamp(before.Value + 1));
+        var slots = new QuerySlots(plan, chunkPlan, query.Cached, writeEnabled: true, writeStamp: new Stamp(before.Value + 1));
 
         _ = slots.GetRow(write);
         Assert.That(world.Stamp, Is.EqualTo(before));

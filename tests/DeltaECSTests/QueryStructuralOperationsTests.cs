@@ -110,7 +110,6 @@ public sealed class QueryStructuralOperationsTests
         var query = world.CreateQuery(QuerySpec.WhereAll(VelocityId));
         var aliveBefore = world.AliveEntityCount;
         var archetypeVersionBefore = world.ArchetypeVersion;
-        var worldTickBefore = world.WorldTick;
 
         Assert.That(world.Add(in query, new[] { HealthId }), Is.EqualTo(0));
         Assert.That(world.Remove(in query, new[] { PositionId }), Is.EqualTo(0));
@@ -118,7 +117,6 @@ public sealed class QueryStructuralOperationsTests
 
         Assert.That(world.AliveEntityCount, Is.EqualTo(aliveBefore));
         Assert.That(world.ArchetypeVersion, Is.EqualTo(archetypeVersionBefore));
-        Assert.That(world.WorldTick, Is.EqualTo(worldTickBefore));
         Assert.That(world.IsAlive(entity), Is.True);
         Assert.That(world.TryGet<Position>(entity, PositionId, out _), Is.True);
     }
@@ -139,74 +137,6 @@ public sealed class QueryStructuralOperationsTests
         Assert.That(world.IsAlive(entity), Is.True);
         Assert.That(world.TryGet<Position>(entity, PositionId, out _), Is.True);
         Assert.That(world.TryGet<Velocity>(entity, VelocityId, out _), Is.False);
-    }
-
-    [Test]
-    public void QueryBlockTransition_PreservesReadWriteChangeTracking()
-    {
-        var layouts = CreateLayouts();
-        var world = new World(layouts, chunkCapacity: 2);
-        var entities = new Entity[3];
-        world.Create(new[] { PositionId }, entities);
-        var spec = QuerySpec.WhereAll(PositionId);
-        var query = world.CreateQuery(in spec);
-        var readPosition = query.AccessRead(PositionId);
-        var writePosition = query.AccessWrite(PositionId);
-
-        Assert.That(world.Add(in query, new[] { VelocityId }), Is.EqualTo(entities.Length));
-
-        var readBefore = world.WorldTick;
-        var readChunkId = -1;
-        using (var scope = world.BeginScope(in query))
-        {
-            var readAccess = readPosition;
-            var archetypes = scope.Archetypes;
-            while (archetypes.MoveNext())
-            {
-                var chunks = archetypes.Current.Chunks;
-                while (chunks.MoveNext())
-                {
-                    var chunk = chunks.Current;
-                    if (chunk.SlotCount == 0)
-                    {
-                        continue;
-                    }
-
-                    readChunkId = chunk.GlobalChunkId;
-                    var slots = chunk.Slots;
-                    _ = slots.GetRow(readAccess);
-                }
-            }
-        }
-
-        Assert.That(readChunkId, Is.GreaterThanOrEqualTo(0));
-        Assert.That(world.HasChangedSince(readChunkId, PositionId, readBefore), Is.False);
-
-        var writeChunkId = -1;
-        using (var scope = world.BeginScope(in query))
-        {
-            var writeAccess = writePosition;
-            var archetypes = scope.Archetypes;
-            while (archetypes.MoveNext())
-            {
-                var chunks = archetypes.Current.Chunks;
-                while (chunks.MoveNext())
-                {
-                    var chunk = chunks.Current;
-                    if (chunk.SlotCount == 0)
-                    {
-                        continue;
-                    }
-
-                    writeChunkId = chunk.GlobalChunkId;
-                    var slots = chunk.Slots;
-                    _ = slots.GetRow(writeAccess);
-                }
-            }
-        }
-
-        Assert.That(writeChunkId, Is.EqualTo(readChunkId));
-        Assert.That(world.HasChangedSince(writeChunkId, PositionId, readBefore), Is.True);
     }
 
     [Test]

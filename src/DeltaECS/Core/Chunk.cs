@@ -8,7 +8,6 @@ internal sealed class Chunk
     private readonly int _capacity;
     private readonly Array[] _componentRows;
     private readonly ComponentRowOperations[] _rowOperations;
-    private NativeMemory<uint> _componentVersions;
     private NativeMemory<Entity> _entities;
     private ComponentStampStorage _componentStamps;
     private int _count;
@@ -32,7 +31,6 @@ internal sealed class Chunk
         _componentStamps = new ComponentStampStorage(layouts.Length, capacity);
         _componentRows = new Array[layouts.Length];
         _rowOperations = rowOperations;
-        _componentVersions = new NativeMemory<uint>(layouts.Length);
         for (int index = 0; index < layouts.Length; index++)
         {
             var runtimeType = layouts[index].RuntimeType ?? throw new InvalidOperationException("ArrayRows requires a type-backed component layout. Register the component with its runtime Type.");
@@ -45,6 +43,8 @@ internal sealed class Chunk
     internal int Capacity => _capacity;
 
     internal int Count => _count;
+
+    internal int ComponentCount => _componentRows.Length;
 
     internal bool IsFull => _count >= _capacity;
 
@@ -131,26 +131,8 @@ internal sealed class Chunk
     internal Span<T> GetComponentRow<T>(Array[] componentRows, int componentIndex)
         => Unsafe.As<T[]>(componentRows.Ref(componentIndex)).AsSpan(0, _count);
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal uint GetComponentVersion(int componentIndex) => _componentVersions[componentIndex];
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void MarkComponentWritten(int componentIndex, uint worldTick, Stamp stamp)
+    internal void MarkComponentWritten(int componentIndex, int slotIndex, Stamp stamp)
     {
-        _componentVersions[componentIndex] = worldTick;
-        _componentStamps.SetComponentRange(componentIndex, 0, _count, stamp);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void MarkComponentWrittenTrusted(int componentIndex, uint worldTick, Stamp stamp)
-    {
-        _componentVersions[componentIndex] = worldTick;
-        _componentStamps.SetComponentPrefixTrusted(componentIndex, _count, stamp);
-    }
-
-    internal void MarkComponentWritten(int componentIndex, int slotIndex, uint worldTick, Stamp stamp)
-    {
-        _componentVersions[componentIndex] = worldTick;
         _componentStamps.Set(componentIndex, slotIndex, stamp);
     }
 
@@ -171,8 +153,6 @@ internal sealed class Chunk
 
     internal void StampRowsRange(int slotIndex, int count, ReadOnlySpan<int> componentIndices, Stamp stamp)
         => _componentStamps.SetRowsRange(slotIndex, count, componentIndices, stamp);
-
-    internal void ClearComponentVersions() => _componentVersions.Clear();
 
     internal void CopySlotTo(Chunk target, int sourceSlotIndex, int targetSlotIndex, int sourceComponentIndex, int targetComponentIndex)
     {
@@ -290,7 +270,6 @@ internal sealed class Chunk
 
     internal void Dispose()
     {
-        _componentVersions.Dispose();
         _componentStamps.Dispose();
         _entities.Dispose();
     }

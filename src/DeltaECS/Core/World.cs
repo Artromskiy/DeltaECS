@@ -30,6 +30,11 @@ public sealed partial class World : IDisposable
     private QueryWriteSession? _queryWriteSessionPool;
     private int _archetypeVersion;
     private MutationStampSource _mutationStamps;
+    private NativeMemory<Stamp> _worldComponentWriteStamps;
+    private NativeMemory<Stamp>[] _archetypeComponentWriteStamps = Array.Empty<NativeMemory<Stamp>>();
+    private NativeMemory<Stamp>[] _chunkComponentWriteStamps = Array.Empty<NativeMemory<Stamp>>();
+    private int[] _archetypeStampComponentCounts = Array.Empty<int>();
+    private int[] _chunkStampComponentCounts = Array.Empty<int>();
     private bool _disposed;
 
     public World(
@@ -44,11 +49,10 @@ public sealed partial class World : IDisposable
         _layouts = layouts ?? new ComponentLayoutRegistry();
         _chunkCapacity = chunkCapacity;
         _records.Capacity = initialEntityCapacity;
+        _worldComponentWriteStamps = new NativeMemory<Stamp>(_layouts.Count);
     }
 
     public int ArchetypeVersion => _archetypeVersion;
-
-    public uint WorldTick { get; private set; }
 
     public Stamp Stamp => _mutationStamps.Current;
 
@@ -92,6 +96,8 @@ public sealed partial class World : IDisposable
         _destroyScratch.Dispose();
         _sequenceScratch.Dispose();
         _batchEdgeStamps.Dispose();
+        DisposeStampLayers();
+        _worldComponentWriteStamps.Dispose();
         GC.SuppressFinalize(this);
     }
 
@@ -170,6 +176,7 @@ public sealed partial class World : IDisposable
                 out int chunkIndex,
                 out var chunk,
                 out int reusedCount);
+            RegisterChunkStampStorage(chunk);
             int slotIndex = chunk.Count - reserved;
             if (reusedCount != 0)
             {
@@ -346,33 +353,6 @@ public sealed partial class World : IDisposable
 
     public bool IsAlive(Entity entity) => TryResolve(entity, out _);
 
-    public bool HasChangedSince(int globalChunkId, ComponentId componentId, uint sinceTick)
-    {
-        for (int archetypeIndex = 0; archetypeIndex < _archetypes.Count; archetypeIndex++)
-        {
-            var archetype = _archetypes[archetypeIndex];
-            if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
-            {
-                continue;
-            }
-
-            for (int chunkIndex = 0; chunkIndex < archetype.ChunkCount; chunkIndex++)
-            {
-                var chunk = archetype.GetChunk(chunkIndex);
-                if (chunk.GlobalId != globalChunkId)
-                {
-                    continue;
-                }
-
-                uint version = chunk.GetComponentVersion(componentIndex);
-                return version != sinceTick
-                    && unchecked(version - sinceTick) < 0x8000_0000u;
-            }
-        }
-
-        return false;
-    }
-
     private bool SetCore<T>(Entity entity, ComponentId componentId, in T value)
     {
         if (!TryResolve(entity, out int recordIndex))
@@ -398,7 +378,11 @@ public sealed partial class World : IDisposable
             return false;
         }
 
-        stamp = archetype.GetChunk(record.Chunk).GetComponentStamp(componentIndex, record.SlotIndex);
+        stamp = GetComponentStamp(
+            archetype.Id,
+            archetype.GetChunk(record.Chunk),
+            componentIndex,
+            record.SlotIndex);
         return true;
     }
 
@@ -478,11 +462,79 @@ public sealed partial class World : IDisposable
         return destroyed;
     }
 
-    internal uint ReserveQueryWrite(out Stamp writeStamp)
+    internal void ReserveQueryWrite(out Stamp writeStamp)
     {
         writeStamp = _mutationStamps.Next();
-        return AdvanceWorldTick();
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Stamp GetComponentStamp(
+        int archetypeId,
+        Chunk chunk,
+        int componentIndex,
+        int slotIndex)
+        => StampMath.Sum(
+            chunk.GetComponentStampTrusted(componentIndex, slotIndex),
+            _chunkComponentWriteStamps[chunk.GlobalId][componentIndex],
+            _archetypeComponentWriteStamps[archetypeId][componentIndex],
+            _worldComponentWriteStamps[_archetypes[archetypeId].ComponentIds[componentIndex].Value]);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Stamp GetWorldComponentStamp(ComponentId componentId)
+        => _worldComponentWriteStamps[componentId.Value];
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void MarkChunkComponentWritten(Chunk chunk, int componentIndex, Stamp stamp)
+        => CreateChunkComponentStampWriter(chunk, componentIndex, stamp).Mark();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void MarkArchetypeComponentWritten(int archetypeId, int componentIndex, Stamp stamp)
+        => CreateArchetypeComponentStampWriter(archetypeId, componentIndex, stamp).Mark();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void MarkWorldComponentWritten(ComponentId componentId, Stamp stamp)
+        => CreateWorldComponentStampWriter(componentId, stamp).Mark();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal EntityComponentStampWriter CreateEntityComponentStampWriter(
+        Chunk chunk,
+        int componentIndex,
+        int slotIndex,
+        Stamp stamp)
+        => new(chunk, componentIndex, slotIndex, stamp);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ChunkComponentStampWriter CreateChunkComponentStampWriter(
+        Chunk chunk,
+        int componentIndex,
+        Stamp stamp)
+        => new(
+            _chunkComponentWriteStamps[chunk.GlobalId],
+            componentIndex,
+            stamp);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ArchetypeComponentStampWriter CreateArchetypeComponentStampWriter(
+        int archetypeId,
+        int componentIndex,
+        Stamp stamp)
+        => new(_archetypeComponentWriteStamps[archetypeId], componentIndex, stamp);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal NativeMemory<Stamp> GetArchetypeComponentStampStorage(int archetypeId)
+        => _archetypeComponentWriteStamps[archetypeId];
+
+    internal WorldComponentStampWriter CreateWorldComponentStampWriter(
+        ComponentId componentId,
+        Stamp stamp)
+    {
+        EnsureWorldComponentStampCapacity(componentId.Value + 1);
+        return new WorldComponentStampWriter(_worldComponentWriteStamps, componentId.Value, stamp);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void ClearChunkComponentStamps(Chunk chunk)
+        => _chunkComponentWriteStamps[chunk.GlobalId].Clear();
 
     public int CollectAliveEntities(Span<Entity> destination)
     {
@@ -540,29 +592,6 @@ public sealed partial class World : IDisposable
         _activeChunkLeases--;
         session.Next = _queryWriteSessionPool;
         _queryWriteSessionPool = session;
-    }
-
-    private uint AdvanceWorldTick()
-    {
-        if (WorldTick == uint.MaxValue)
-        {
-            for (int archetypeIndex = 0; archetypeIndex < _archetypes.Count; archetypeIndex++)
-            {
-                var archetype = _archetypes[archetypeIndex];
-                for (int chunkIndex = 0; chunkIndex < archetype.ChunkCount; chunkIndex++)
-                {
-                    archetype.GetChunk(chunkIndex).ClearComponentVersions();
-                }
-            }
-
-            WorldTick = 1;
-        }
-        else
-        {
-            WorldTick++;
-        }
-
-        return WorldTick;
     }
 
     private int ApplyComponents(bool isAdd, ComponentId[] componentIds, ReadOnlySpan<Entity> entities)
@@ -687,6 +716,7 @@ public sealed partial class World : IDisposable
                     out int targetChunkIndex,
                     out var targetChunk,
                     out _);
+                RegisterChunkStampStorage(targetChunk);
                 int targetSlot = targetChunk.Count - reserved;
                 int sourceSlot = sourceEnd - reserved;
 
@@ -730,6 +760,7 @@ public sealed partial class World : IDisposable
             }
 
             sourceChunk.ClearAll();
+            ClearChunkComponentStamps(sourceChunk);
             sourceArchetype.ReleaseChunk(sourceChunkIndex);
         }
 
@@ -759,6 +790,7 @@ public sealed partial class World : IDisposable
         }
 
         chunk.ClearAll();
+        ClearChunkComponentStamps(chunk);
         archetype.ReleaseChunk(chunkIndex);
         AliveEntityCount -= count;
         return count;
@@ -826,6 +858,11 @@ public sealed partial class World : IDisposable
         ref var record = ref RecordAt(recordIndex);
         var archetype = _archetypes[record.Archetype];
         var moved = archetype.RemoveEntity(record.Chunk, record.SlotIndex);
+        if (archetype.GetChunk(record.Chunk).IsEmpty)
+        {
+            ClearChunkComponentStamps(archetype.GetChunk(record.Chunk));
+        }
+
         if (moved.IsAlive)
         {
             ref var movedRecord = ref RecordAt(moved.Index);
@@ -857,6 +894,7 @@ public sealed partial class World : IDisposable
             out int targetSlotIndex,
             out bool reusedTargetSlot);
         var targetChunk = targetArchetype.GetChunk(targetChunkIndex);
+        RegisterChunkStampStorage(targetChunk);
 
         for (int sourceIndex = 0; sourceIndex < edge.SourceToTargetRowIndices.Length; sourceIndex++)
         {
@@ -877,6 +915,10 @@ public sealed partial class World : IDisposable
         }
 
         var moved = sourceArchetype.RemoveEntity(sourceChunkIndex, sourceSlotIndex);
+        if (sourceChunk.IsEmpty)
+        {
+            ClearChunkComponentStamps(sourceChunk);
+        }
         sourceRecord.Archetype = edge.TargetArchetypeId;
         sourceRecord.Chunk = targetChunkIndex;
         sourceRecord.SlotIndex = targetSlotIndex;
@@ -947,7 +989,11 @@ public sealed partial class World : IDisposable
         var chunk = archetype.GetChunk(record.Chunk);
         Stamp stamp = _mutationStamps.Next();
         chunk.GetComponentRow<T>(componentIndex)[record.SlotIndex] = value;
-        chunk.MarkComponentStamped(componentIndex, record.SlotIndex, stamp);
+        CreateEntityComponentStampWriter(
+            chunk,
+            componentIndex,
+            record.SlotIndex,
+            stamp).MarkPoint();
         return true;
     }
 
@@ -960,6 +1006,7 @@ public sealed partial class World : IDisposable
 
         var componentIds = new ComponentId[mask.Count];
         mask.CopyComponentIds(componentIds);
+        EnsureWorldComponentStampCapacity(_layouts.Count);
         var layouts = new ComponentLayout[componentIds.Length];
         var rowOperations = new ComponentRowOperations[componentIds.Length];
         for (int i = 0; i < componentIds.Length; i++)
@@ -982,6 +1029,7 @@ public sealed partial class World : IDisposable
             _chunkCapacity);
         _archetypeByMask.Add(mask, archetype.Id);
         _archetypes.Add(archetype);
+        RegisterArchetypeStampStorage(archetype.Id, archetype.ComponentCount);
         _archetypeVersion++;
         List<QuerySpec>? deadQueries = null;
         foreach (var entry in _queryCache)
@@ -1005,6 +1053,92 @@ public sealed partial class World : IDisposable
         }
 
         return archetype;
+    }
+
+    private void EnsureWorldComponentStampCapacity(int required)
+    {
+        if (required <= _worldComponentWriteStamps.Length)
+        {
+            return;
+        }
+
+        int capacity = Math.Max(
+            required,
+            _worldComponentWriteStamps.Length == 0 ? 4 : _worldComponentWriteStamps.Length * 2);
+        _worldComponentWriteStamps.Resize(capacity);
+    }
+
+    private void RegisterArchetypeStampStorage(int archetypeId, int componentCount)
+    {
+        EnsureStampStorageCapacity(
+            ref _archetypeComponentWriteStamps,
+            ref _archetypeStampComponentCounts,
+            archetypeId + 1);
+        if (componentCount == 0)
+        {
+            return;
+        }
+
+        _archetypeComponentWriteStamps[archetypeId] = new NativeMemory<Stamp>(componentCount);
+        _archetypeStampComponentCounts[archetypeId] = componentCount;
+    }
+
+    internal void RegisterChunkStampStorage(Chunk chunk)
+    {
+        if (chunk.ComponentCount == 0)
+        {
+            return;
+        }
+
+        int chunkId = chunk.GlobalId;
+        EnsureStampStorageCapacity(
+            ref _chunkComponentWriteStamps,
+            ref _chunkStampComponentCounts,
+            chunkId + 1);
+        if (_chunkStampComponentCounts[chunkId] == 0)
+        {
+            _chunkComponentWriteStamps[chunkId] = new NativeMemory<Stamp>(chunk.ComponentCount);
+            _chunkStampComponentCounts[chunkId] = chunk.ComponentCount;
+        }
+    }
+
+    private static void EnsureStampStorageCapacity(
+        ref NativeMemory<Stamp>[] storage,
+        ref int[] componentCounts,
+        int required)
+    {
+        if (required <= storage.Length)
+        {
+            return;
+        }
+
+        int capacity = Math.Max(required, storage.Length == 0 ? 4 : storage.Length * 2);
+        Array.Resize(ref storage, capacity);
+        Array.Resize(ref componentCounts, capacity);
+    }
+
+    private void DisposeStampLayers()
+    {
+        for (int index = 0; index < _archetypeStampComponentCounts.Length; index++)
+        {
+            if (_archetypeStampComponentCounts[index] != 0)
+            {
+                _archetypeComponentWriteStamps[index].Dispose();
+            }
+        }
+
+        for (int index = 0; index < _chunkStampComponentCounts.Length; index++)
+        {
+            if (_chunkStampComponentCounts[index] != 0)
+            {
+                _chunkComponentWriteStamps[index].Dispose();
+            }
+        }
+
+        _archetypeComponentWriteStamps = Array.Empty<NativeMemory<Stamp>>();
+        _chunkComponentWriteStamps = Array.Empty<NativeMemory<Stamp>>();
+        _archetypeStampComponentCounts = Array.Empty<int>();
+        _chunkStampComponentCounts = Array.Empty<int>();
     }
 
     private bool TryBuildComponentMask(ReadOnlySpan<ComponentId> componentIds, out ComponentMask mask)

@@ -138,7 +138,11 @@ public sealed partial class World : IEcsWorld
 
         var chunk = archetype.GetChunk(record.Chunk);
         object? value = chunk.GetRawComponentRow(componentIndex).GetValue(record.SlotIndex);
-        Stamp componentStamp = chunk.GetComponentStamp(componentIndex, record.SlotIndex);
+        Stamp componentStamp = GetComponentStamp(
+            archetype.Id,
+            chunk,
+            componentIndex,
+            record.SlotIndex);
         snapshot = new ComponentSnapshot(value, componentStamp);
         error = new EcsReadError(EcsReadErrorCode.None);
         return true;
@@ -184,7 +188,7 @@ public sealed partial class World : IEcsWorld
         }
 
         var chunk = archetype.GetChunk(record.Chunk);
-        if (chunk.GetComponentStamp(componentIndex, record.SlotIndex) != expectedStamp)
+        if (GetComponentStamp(archetype.Id, chunk, componentIndex, record.SlotIndex) != expectedStamp)
         {
             error = new EcsWriteError(EcsWriteErrorCode.StaleStamp);
             return false;
@@ -200,7 +204,11 @@ public sealed partial class World : IEcsWorld
 
         writtenStamp = _mutationStamps.Next();
         chunk.GetRawComponentRow(componentIndex).SetValue(value, record.SlotIndex);
-        chunk.MarkComponentStamped(componentIndex, record.SlotIndex, writtenStamp);
+        CreateEntityComponentStampWriter(
+            chunk,
+            componentIndex,
+            record.SlotIndex,
+            writtenStamp).MarkPoint();
         error = new EcsWriteError(EcsWriteErrorCode.None);
         return true;
     }

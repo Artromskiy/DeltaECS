@@ -12,13 +12,12 @@ public interface IGeneratedSequenceInvoker
     void Invoke(ref GeneratedSequenceCursor cursor);
 }
 
-/// <summary>Trusted compiler-support execution state for generated dense queries.</summary>
+/// <summary>Trusted compiler-support execution state for generated write queries.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public ref struct GeneratedDenseExecution
 {
     private World? _owner;
     private readonly ReadOnlySpan<ArchetypePlan> _plans;
-    private readonly uint _writeTick;
     private readonly Stamp _writeStamp;
     private ChunkPlan[] _chunks;
     private int _chunkCount;
@@ -28,12 +27,10 @@ public ref struct GeneratedDenseExecution
     internal GeneratedDenseExecution(
         World owner,
         ReadOnlySpan<ArchetypePlan> plans,
-        uint writeTick,
         Stamp writeStamp)
     {
         _owner = owner;
         _plans = plans;
-        _writeTick = writeTick;
         _writeStamp = writeStamp;
         _chunks = Array.Empty<ChunkPlan>();
         _chunkCount = 0;
@@ -64,7 +61,7 @@ public ref struct GeneratedDenseExecution
             slots = new GeneratedQuerySlots(
                 _plans.Ref(_planIndex),
                 _chunks.Ref(_chunkIndex),
-                _writeTick,
+                _owner!.GetArchetypeComponentStampStorage(_plans.Ref(_planIndex).Archetype.Id),
                 _writeStamp);
             return true;
         }
@@ -83,8 +80,77 @@ public ref struct GeneratedDenseExecution
             slots = new GeneratedQuerySlots(
                 plan,
                 _chunks.Ref(_chunkIndex),
-                _writeTick,
+                _owner!.GetArchetypeComponentStampStorage(plan.Archetype.Id),
                 _writeStamp);
+            return true;
+        }
+
+        _planIndex = _plans.Length;
+        _chunkCount = 0;
+        _chunkIndex = -1;
+        slots = default;
+        return false;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Dispose()
+    {
+        World? owner = _owner;
+        if (owner is null)
+        {
+            return;
+        }
+
+        owner.EndQueryLease();
+        _owner = null;
+        _chunks = Array.Empty<ChunkPlan>();
+    }
+}
+
+/// <summary>Trusted compiler-support execution state for generated read queries.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public ref struct GeneratedReadDenseExecution
+{
+    private World? _owner;
+    private readonly ReadOnlySpan<ArchetypePlan> _plans;
+    private ChunkPlan[] _chunks;
+    private int _chunkCount;
+    private int _planIndex;
+    private int _chunkIndex;
+
+    internal GeneratedReadDenseExecution(World owner, ReadOnlySpan<ArchetypePlan> plans)
+    {
+        _owner = owner;
+        _plans = plans;
+        _chunks = Array.Empty<ChunkPlan>();
+        _chunkCount = 0;
+        _planIndex = -1;
+        _chunkIndex = -1;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool MoveNextTrusted(out GeneratedReadQuerySlots slots)
+    {
+        int nextChunk = _chunkIndex + 1;
+        if ((uint)nextChunk < (uint)_chunkCount)
+        {
+            _chunkIndex = nextChunk;
+            slots = new GeneratedReadQuerySlots(_chunks.Ref(_chunkIndex));
+            return true;
+        }
+
+        while ((uint)++_planIndex < (uint)_plans.Length)
+        {
+            ref readonly ArchetypePlan plan = ref _plans.Ref(_planIndex);
+            _chunks = plan.ChunkArray;
+            _chunkCount = plan.ChunkCount;
+            if (_chunkCount == 0)
+            {
+                continue;
+            }
+
+            _chunkIndex = 0;
+            slots = new GeneratedReadQuerySlots(_chunks.Ref(_chunkIndex));
             return true;
         }
 
@@ -152,9 +218,13 @@ public ref struct GeneratedSequenceCursor
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetGeneratedWriteReference<T>(int queryComponentIndex)
     {
-        _writeSession.Acquire(_sessionGeneration, out uint writeTick, out Stamp writeStamp);
+        _writeSession.Acquire(_sessionGeneration, out Stamp writeStamp);
         int physicalRow = _componentRows.Ref(queryComponentIndex);
-        _chunk.MarkComponentWritten(physicalRow, Slot, writeTick, writeStamp);
+        new EntityComponentStampWriter(
+            _chunk,
+            physicalRow,
+            Slot,
+            writeStamp).Mark();
         return ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.Ref(queryComponentIndex)));
     }
 }
@@ -170,7 +240,6 @@ public static class GeneratedForEachRuntime
     {
         QueryPlan plan = ValidateQuery(world, in query);
         ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
-        uint writeTick = 0;
         Stamp writeStamp = default;
         if (hasWrites)
         {
@@ -181,7 +250,7 @@ public static class GeneratedForEachRuntime
                     continue;
                 }
 
-                writeTick = world.ReserveQueryWrite(out writeStamp);
+                world.ReserveQueryWrite(out writeStamp);
                 break;
             }
         }
@@ -190,8 +259,41 @@ public static class GeneratedForEachRuntime
         return new GeneratedDenseExecution(
             world,
             plans,
-            writeTick,
             writeStamp);
+    }
+
+    /// <summary>Opens a validated read-only dense execution without write state.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static GeneratedReadDenseExecution OpenReadDense(World world, in Query query)
+    {
+        QueryPlan plan = ValidateQuery(world, in query);
+        ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
+        world.BeginQueryLease();
+        return new GeneratedReadDenseExecution(world, plans);
+    }
+
+    /// <summary>Opens a validated write dense execution with reserved write state.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static GeneratedDenseExecution OpenWriteDense(World world, in Query query)
+    {
+        QueryPlan plan = ValidateQuery(world, in query);
+        ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
+        Stamp writeStamp = default;
+        for (int planIndex = 0; planIndex < plans.Length; planIndex++)
+        {
+            if (plans.Ref(planIndex).Chunks.IsEmpty)
+            {
+                continue;
+            }
+
+            world.ReserveQueryWrite(out writeStamp);
+            break;
+        }
+
+        world.BeginQueryLease();
+        return new GeneratedDenseExecution(world, plans, writeStamp);
     }
 
     /// <summary>Creates a validated read access token for a closed generated dense path.</summary>

@@ -26,6 +26,40 @@ public sealed class StampTests
     }
 
     [Test]
+    public void ComponentStampSumsEntityChunkArchetypeAndWorldTerms()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(40_001));
+        using var world = new World(layouts, chunkCapacity: 2);
+        Entity entity = world.Create(positionId);
+
+        Archetype archetype = world.Archetypes[0];
+        Chunk chunk = archetype.GetChunk(0);
+        int componentIndex = 0;
+        Stamp entityTerm = chunk.GetComponentStamp(componentIndex, 0);
+        Stamp chunkTerm = new(2);
+        Stamp archetypeTerm = new(3);
+        Stamp worldTerm = new(5);
+
+        world.MarkChunkComponentWritten(chunk, componentIndex, chunkTerm);
+        world.MarkArchetypeComponentWritten(archetype.Id, componentIndex, archetypeTerm);
+        world.MarkWorldComponentWritten(positionId, worldTerm);
+
+        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp actual), Is.True);
+        Assert.That(actual, Is.EqualTo(new Stamp(entityTerm.Value + 2 + 3 + 5)));
+
+        Assert.That(world.Destroy(entity), Is.True);
+        Entity replacement = world.Create(positionId);
+        var replacementArchetype = world.Archetypes[0];
+        var replacementChunk = replacementArchetype.GetChunk(0);
+        Stamp replacementEntityTerm = replacementChunk.GetComponentStamp(componentIndex, 0);
+        Assert.That(world.TryGetComponentStamp(replacement, positionId, out Stamp replacementStamp), Is.True);
+        Assert.That(
+            replacementStamp,
+            Is.EqualTo(new Stamp(replacementEntityTerm.Value + archetypeTerm.Value + worldTerm.Value)));
+    }
+
+    [Test]
     public void SetComponentChangesOnlySelectedEntityAndComponentStamp()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -188,6 +222,7 @@ public sealed class StampTests
         var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
         WriteAccess positionAccess = query.AccessWrite(positionId);
         ReadAccess velocityAccess = query.AccessRead(velocityId);
+        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionBefore), Is.True);
         Assert.That(world.TryGetComponentStamp(entity, velocityId, out Stamp velocityBefore), Is.True);
 
         using (var scope = world.BeginScope(in query))
@@ -217,7 +252,7 @@ public sealed class StampTests
         Assert.That(world.TryGetComponentStamp(entity, velocityId, out Stamp velocityAfter), Is.True);
         Assert.Multiple(() =>
         {
-            Assert.That(positionAfter, Is.EqualTo(world.Stamp));
+            Assert.That(positionAfter, Is.EqualTo(new Stamp(positionBefore.Value + world.Stamp.Value)));
             Assert.That(velocityAfter, Is.EqualTo(velocityBefore));
         });
     }
@@ -301,13 +336,15 @@ public sealed class StampTests
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register(typeof(Position), new SchemaId(40_061));
         ComponentId velocityId = layouts.Register(typeof(Velocity), new SchemaId(40_062));
-        using var world = new World(layouts, chunkCapacity: 4);
+        using var world = new World(layouts, chunkCapacity: 2);
         var entities = new Entity[3];
         world.Create([positionId, velocityId], entities);
+        var entityStamps = new Stamp[entities.Length];
         for (int index = 0; index < entities.Length; index++)
         {
             Assert.That(world.Set(entities[index], positionId, new Position(index)), Is.True);
             Assert.That(world.Set(entities[index], velocityId, new Velocity(1)), Is.True);
+            Assert.That(world.TryGetComponentStamp(entities[index], positionId, out entityStamps[index]), Is.True);
         }
 
         var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
@@ -318,7 +355,8 @@ public sealed class StampTests
         foreach (Entity entity in entities)
         {
             Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp stamp), Is.True);
-            Assert.That(stamp, Is.EqualTo(generatedStamp));
+            int index = Array.IndexOf(entities, entity);
+            Assert.That(stamp, Is.EqualTo(new Stamp(unchecked(entityStamps[index].Value + generatedStamp.Value))));
         }
 
         Assert.That(world.Set(entities[1], positionId, new Position(42)), Is.True);
@@ -328,14 +366,14 @@ public sealed class StampTests
         Assert.That(world.TryGetComponentStamp(entities[2], positionId, out Stamp thirdStamp), Is.True);
         Assert.Multiple(() =>
         {
-            Assert.That(firstStamp, Is.EqualTo(generatedStamp));
-            Assert.That(secondStamp, Is.EqualTo(pointStamp));
-            Assert.That(thirdStamp, Is.EqualTo(generatedStamp));
+            Assert.That(firstStamp, Is.EqualTo(new Stamp(unchecked(entityStamps[0].Value + generatedStamp.Value))));
+            Assert.That(secondStamp, Is.EqualTo(new Stamp(unchecked(pointStamp.Value + generatedStamp.Value))));
+            Assert.That(thirdStamp, Is.EqualTo(new Stamp(unchecked(entityStamps[2].Value + generatedStamp.Value))));
         });
 
         Assert.That(world.Destroy(entities[0]), Is.True);
         Assert.That(world.TryGetComponentStamp(entities[2], positionId, out Stamp movedStamp), Is.True);
-        Assert.That(movedStamp, Is.EqualTo(generatedStamp));
+        Assert.That(movedStamp, Is.EqualTo(new Stamp(unchecked(entityStamps[2].Value + generatedStamp.Value))));
     }
 
     internal struct StampWriteFunctor : IForEach
