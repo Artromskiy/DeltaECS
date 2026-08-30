@@ -19,8 +19,8 @@ and dirty changes.
 - [docs/performance/README.md](docs/performance/README.md) — evidence and
   optimization candidates, not automatic tasks.
 - ADRs record decisions; generated benchmark reports are evidence, not TODOs.
-- [../HIGH_PRIORITY_TODO.md](../HIGH_PRIORITY_TODO.md) tracks independent
-  query correctness and integration boundaries.
+- [../CONTRACTS.md](../CONTRACTS.md) tracks cross-project integration
+  boundaries; ECS redesign remains user-owned in this repository's `TODO.md`.
 
 Do not add editor/render dependencies or mandatory command buffers. Public hot
 loops use validated typed bindings; raw row lookup stays internal.

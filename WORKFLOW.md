@@ -57,6 +57,11 @@ explicitly marked `internal` (or `private`). This marks the point where
 validation has already completed and prevents accidentally exposing trusted
 runtime operations as public API.
 
+For multiline C# source generation and template payloads, prefer C# raw string
+literals (`\"\"\"...\"\"\"`) over escaped regular strings or concatenation. Keep
+the generated text readable and use another representation only when the
+target language or interpolation requirements make a raw string unsuitable.
+
 To choose another report location:
 
 ```bash
