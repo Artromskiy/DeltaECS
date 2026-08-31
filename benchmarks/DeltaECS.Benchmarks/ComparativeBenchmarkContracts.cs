@@ -337,7 +337,8 @@ public static class ComparativeBenchmarkCatalog
 {
     public static readonly Type[] ManyComponents =
     {
-        typeof(ManyComponentIterationBenchmarks)
+        typeof(ManyComponentIterationBenchmarks),
+        typeof(WidePayloadPartialReadIterationBenchmarks)
     };
 
     public static readonly Type[] Iteration =

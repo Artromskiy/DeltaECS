@@ -10,6 +10,7 @@ public static class ComparativeBenchmarkExecutionSmoke
         RunMovement4();
         RunWide();
         RunSparse();
+        RunWidePayloadPartialRead();
     }
 
     private static void RunDense()
@@ -97,6 +98,17 @@ public static class ComparativeBenchmarkExecutionSmoke
             Require(benchmark.FrifloEngineECS_SparseWorldQueryPlan(), 75, "Friflo sparse");
             Require(benchmark.DefaultEcs_SparseWorldQueryPlan(), 75, "Default sparse");
             Require(benchmark.LeoEcsLite_SparseWorldQueryPlan(), 75, "Leo sparse");
+        }
+        finally { benchmark.Cleanup(); }
+    }
+
+    private static void RunWidePayloadPartialRead()
+    {
+        var benchmark = new WidePayloadPartialReadIterationBenchmarks { Amount = 100 };
+        benchmark.Setup();
+        try
+        {
+            Require(benchmark.DeltaECS_WidePayloadPartialRead(), 900, "Delta wide payload");
         }
         finally { benchmark.Cleanup(); }
     }
