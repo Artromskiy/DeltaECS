@@ -69,11 +69,6 @@ public sealed partial class ComponentLayoutRegistry
             return new ComponentId(existingId);
         }
 
-        if (_layouts.Count >= ComponentMask.Capacity)
-        {
-            ThrowHelper.ThrowComponentCapacityExceeded();
-        }
-
         var id = new ComponentId(_layouts.Count);
         _layouts.Add(layout);
         _rowOperations.Add(rowOperations);

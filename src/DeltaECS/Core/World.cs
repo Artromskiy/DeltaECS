@@ -1088,7 +1088,6 @@ public sealed partial class World : IDisposable
 
     private bool TryBuildComponentMask(ReadOnlySpan<ComponentId> componentIds, out ComponentMask mask)
     {
-        mask = default;
         for (int i = 0; i < componentIds.Length; i++)
         {
             if (!componentIds[i].IsValid)
@@ -1100,10 +1099,9 @@ public sealed partial class World : IDisposable
             {
                 ThrowHelper.ThrowWorldComponentNotRegistered(componentIds[i].Value, nameof(componentIds));
             }
-
-            mask = mask.Set(componentIds[i]);
         }
 
+        mask = ComponentMask.FromValidated(componentIds);
         return !mask.IsEmpty;
     }
 
