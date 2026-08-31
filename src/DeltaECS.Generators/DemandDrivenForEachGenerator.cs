@@ -1406,36 +1406,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
     }
 
-    private static void AppendInvocation(StringBuilder source, Shape shape, string valuesPrefix, string cursor, bool sequence)
-    {
-        var invocationArguments = new List<string>();
-        if (shape.HasContext)
-        {
-            invocationArguments.Add("ref _context");
-        }
-
-        if (shape.HasEntity)
-        {
-            invocationArguments.Add(sequence ? "cursor.Entity" : "slots.CurrentEntity");
-        }
-        if (shape.IsFunctor)
-        {
-            source.Append("_functor.Invoke(");
-        }
-        else
-        {
-            source.Append("_action(");
-        }
-
-        for (int index = 0; index < shape.Pattern.Length; index++)
-        {
-            string componentType = ComponentType(shape, index);
-            invocationArguments.Add(InvocationPrefix(shape.Pattern[index]) + valuesPrefix + index + ".Ref<" + componentType + ">(" + cursor + ")");
-        }
-
-        source.Append(string.Join(", ", invocationArguments)).Append(')');
-    }
-
     private static void AppendClosedInvocation(
         StringBuilder source,
         Shape shape,
@@ -1948,7 +1918,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 profiling,
                 StableProfileMethodId(profileName),
                 closedMethodName);
-            AppendMethod(source, signature, body, null, profiling ? profileName : null);
+            AppendMethod(source, signature, body, profiling ? profileName : null);
             return;
         }
 
@@ -1966,7 +1936,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             profiling,
             StableProfileMethodId(profileName),
             closedMethodName);
-        AppendMethod(source, signatureDelegate, delegateBody, null, profiling ? profileName : null);
+        AppendMethod(source, signatureDelegate, delegateBody, profiling ? profileName : null);
     }
 
     private static string BuildBody(
@@ -1981,17 +1951,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         int methodId,
         string? closedMethodName)
     {
-        string[] access = accessArguments.Split(new[] { ", " }, StringSplitOptions.None);
-        var accesses = new StringBuilder();
-        for (int index = 0; index < access.Length; index++)
-        {
-            if (index > 0)
-            {
-                accesses.Append(", ");
-            }
-
-            accesses.Append(access[index]);
-        }
+        string accesses = accessArguments;
 
         string invoke;
         if (shape.Sequence)
@@ -2014,7 +1974,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             closedArguments.Add(shape.IsFunctor ? "ref functor" : "action");
             if (accesses.Length > 0 && closedMethodName is null)
             {
-                closedArguments.Add(accesses.ToString());
+                closedArguments.Add(accesses);
             }
 
             invoke = closedMethodName + "(" + string.Join(", ", closedArguments) + ");";
@@ -2045,7 +2005,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         constructorArguments.Add(callbackName);
         if (accesses.Length > 0)
         {
-            constructorArguments.Add(accesses.ToString());
+            constructorArguments.Add(accesses);
         }
 
         if (shape.Sequence)
@@ -2085,7 +2045,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         StringBuilder source,
         string signature,
         string body,
-        string? constraint,
         string? profileName)
     {
         if (profileName is not null)
@@ -2096,10 +2055,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         source.AppendLine("    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         source.Append("    ").AppendLine(signature);
-        if (constraint is not null)
-        {
-            source.Append("        ").AppendLine(constraint);
-        }
 
         foreach (string line in body.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None))
         {
