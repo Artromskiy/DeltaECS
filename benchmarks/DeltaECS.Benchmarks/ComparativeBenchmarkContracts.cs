@@ -335,6 +335,11 @@ public static class ComparativeReportBuilder
 /// <summary>Only unified iteration benchmarks are exposed by this project.</summary>
 public static class ComparativeBenchmarkCatalog
 {
+    public static readonly Type[] ManyComponents =
+    {
+        typeof(ManyComponentIterationBenchmarks)
+    };
+
     public static readonly Type[] Iteration =
     {
         typeof(ComparativeDenseIterationBenchmarks),

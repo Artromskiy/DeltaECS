@@ -24,8 +24,15 @@ internal static class Program
             return;
         }
 
+        if (args.Length > 0 && string.Equals(args[0], "many-components", StringComparison.OrdinalIgnoreCase))
+        {
+            var manyComponentArgs = args.Length > 0 ? args[1..] : Array.Empty<string>();
+            RunTimed("many-components", () => BenchmarkSwitcher.FromTypes(ComparativeBenchmarkCatalog.ManyComponents).Run(manyComponentArgs));
+            return;
+        }
+
         if (args.Length > 0 && !string.Equals(args[0], "iteration", StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException($"Unknown benchmark route '{args[0]}'. Only 'iteration' is supported.", nameof(args));
+            throw new ArgumentException($"Unknown benchmark route '{args[0]}'. Only 'iteration' and 'many-components' are supported.", nameof(args));
 
         var benchmarkArgs = args.Length > 0 ? args[1..] : Array.Empty<string>();
         RunTimed("iteration", () => BenchmarkSwitcher.FromTypes(ComparativeBenchmarkCatalog.Iteration).Run(benchmarkArgs));
