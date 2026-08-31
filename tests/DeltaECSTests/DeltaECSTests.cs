@@ -517,9 +517,10 @@ public sealed class DeltaECSDeliveryTests
         }
 
         Assert.That(index, Is.EqualTo(expected.Length));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new QuerySpec(
+        var dynamicQuery = new QuerySpec(
             new[] { new ComponentId(ComponentMask.Capacity) },
-            Array.Empty<ComponentId>(), Array.Empty<ComponentId>()));
+            Array.Empty<ComponentId>(), Array.Empty<ComponentId>());
+        Assert.That(dynamicQuery.AllMask.Contains(new ComponentId(ComponentMask.Capacity)), Is.True);
     }
 
     [Test]

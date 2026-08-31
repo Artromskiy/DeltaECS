@@ -78,12 +78,13 @@ public sealed class ComponentLayoutRegistryTests
     }
 
     [Test]
-    public void CapacityDoesNotAffectThePrimaryTypeIndex()
+    public void RegistrationContinuesBeyondTheLegacyMaskCapacity()
     {
         var layouts = new ComponentLayoutRegistry();
         var primary = layouts.Register<Position>(new SchemaId(70_041));
 
-        for (var index = 1; index < ComponentMask.Capacity; index++)
+        int registrationCount = ComponentMask.Capacity + 64;
+        for (var index = 1; index < registrationCount; index++)
         {
             layouts.Register(new ComponentLayout(
                 new SchemaId((ulong)(70_041 + index)),
@@ -91,10 +92,10 @@ public sealed class ComponentLayoutRegistryTests
                 alignment: 4));
         }
 
-        Assert.That(layouts.Count, Is.EqualTo(ComponentMask.Capacity));
+        Assert.That(layouts.Count, Is.EqualTo(registrationCount));
         Assert.That(layouts.GetPrimary<Position>(), Is.EqualTo(primary));
-        Assert.Throws<InvalidOperationException>(() =>
-            layouts.Register(new ComponentLayout(new SchemaId(71_000), size: 4, alignment: 4)));
+        Assert.That(layouts.Register(new ComponentLayout(new SchemaId(71_000), size: 4, alignment: 4)).Value,
+            Is.EqualTo(registrationCount));
     }
 
     [Test]

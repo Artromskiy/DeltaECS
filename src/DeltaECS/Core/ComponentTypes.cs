@@ -3,6 +3,7 @@ namespace Delta.ECS;
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 
 public readonly struct ComponentId : IEquatable<ComponentId>, IComparable<ComponentId>
 {
@@ -36,81 +37,160 @@ public readonly struct ComponentId : IEquatable<ComponentId>, IComparable<Compon
     public static bool operator >(ComponentId left, ComponentId right) => left.CompareTo(right) > 0;
 
     public static bool operator >=(ComponentId left, ComponentId right) => left.CompareTo(right) >= 0;
+
     public override string ToString() => Value.ToString();
 }
 
+/// <summary>
+/// Immutable set of component ids backed by dynamically sized native words.
+/// </summary>
+/// <remarks>
+/// <see cref="Capacity"/> is retained as the legacy four-word baseline for source
+/// compatibility. It is not a maximum: masks grow to address every non-negative
+/// <see cref="ComponentId"/> value, subject to available native memory.
+/// </remarks>
 public readonly struct ComponentMask : IEquatable<ComponentMask>
 {
+    // Kept for source compatibility with the former four-word implementation.
     public const int Capacity = 256;
 
-    private readonly ulong _word0;
-    private readonly ulong _word1;
-    private readonly ulong _word2;
-    private readonly ulong _word3;
+    private readonly NativeComponentMaskStorage? _storage;
 
-    private ComponentMask(ulong word0, ulong word1, ulong word2, ulong word3)
+    private ComponentMask(NativeComponentMaskStorage storage)
     {
-        _word0 = word0;
-        _word1 = word1;
-        _word2 = word2;
-        _word3 = word3;
+        _storage = storage;
     }
 
-    public bool IsEmpty => (_word0 | _word1 | _word2 | _word3) == 0;
+    public bool IsEmpty => _storage is null;
 
     public static ComponentMask From(ReadOnlySpan<ComponentId> componentIds)
-    {
-        var mask = default(ComponentMask);
-        for (int i = 0; i < componentIds.Length; i++)
-        {
-            mask = mask.Set(componentIds[i]);
-        }
+        => FromCore(componentIds, skipInvalid: false);
 
-        return mask;
-    }
+    internal static ComponentMask FromValidated(ReadOnlySpan<ComponentId> componentIds)
+        => FromCore(componentIds, skipInvalid: true);
 
     public ComponentMask Set(ComponentId componentId)
     {
         int value = Validate(componentId);
-        int word = value >> 6;
-        ulong bit = 1UL << (value & 63);
-        return word switch
+        int wordIndex = value >> 5;
+        int requiredLength = Math.Max(_storage?.Length ?? 0, wordIndex + 1);
+        var storage = new NativeComponentMaskStorage(requiredLength);
+
+        if (_storage is not null)
         {
-            0 => new ComponentMask(_word0 | bit, _word1, _word2, _word3),
-            1 => new ComponentMask(_word0, _word1 | bit, _word2, _word3),
-            2 => new ComponentMask(_word0, _word1, _word2 | bit, _word3),
-            _ => new ComponentMask(_word0, _word1, _word2, _word3 | bit)
-        };
+            _storage.CopyTo(storage);
+        }
+
+        storage[wordIndex] |= 1u << (value & 31);
+        storage.RecalculateMetadata();
+        return new ComponentMask(storage);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains(ComponentId componentId)
     {
-        if (!componentId.IsValid || componentId.Value >= Capacity)
+        if (!componentId.IsValid || _storage is null)
         {
             return false;
         }
 
-        ulong bit = 1UL << (componentId.Value & 63);
-        return (GetWord(componentId.Value >> 6) & bit) != 0;
+        int wordIndex = componentId.Value >> 5;
+        return wordIndex < _storage.Length
+            && (_storage[wordIndex] & (1u << (componentId.Value & 31))) != 0;
     }
 
     public bool ContainsAll(ComponentMask other)
     {
-        return (_word0 & other._word0) == other._word0
-            && (_word1 & other._word1) == other._word1
-            && (_word2 & other._word2) == other._word2
-            && (_word3 & other._word3) == other._word3;
+        if (other._storage is null)
+        {
+            return true;
+        }
+
+        if (_storage is null || _storage.Length < other._storage.Length)
+        {
+            return false;
+        }
+
+        for (int index = 0; index < other._storage.Length; index++)
+        {
+            if ((_storage[index] & other._storage[index]) != other._storage[index])
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public bool Intersects(ComponentMask other)
     {
-        return ((_word0 & other._word0) | (_word1 & other._word1)
-            | (_word2 & other._word2) | (_word3 & other._word3)) != 0;
+        if (_storage is null || other._storage is null)
+        {
+            return false;
+        }
+
+        int length = Math.Min(_storage.Length, other._storage.Length);
+        for (int index = 0; index < length; index++)
+        {
+            if ((_storage[index] & other._storage[index]) != 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
-    public ComponentMask Or(ComponentMask other) => new(_word0 | other._word0, _word1 | other._word1, _word2 | other._word2, _word3 | other._word3);
+    public ComponentMask Or(ComponentMask other)
+    {
+        if (_storage is null)
+        {
+            return other;
+        }
 
-    public ComponentMask Except(ComponentMask other) => new(_word0 & ~other._word0, _word1 & ~other._word1, _word2 & ~other._word2, _word3 & ~other._word3);
+        if (other._storage is null)
+        {
+            return this;
+        }
+
+        int length = Math.Max(_storage.Length, other._storage.Length);
+        var storage = new NativeComponentMaskStorage(length);
+        for (int index = 0; index < length; index++)
+        {
+            storage[index] = GetWord(index) | other.GetWord(index);
+        }
+
+        storage.RecalculateMetadata();
+        return new ComponentMask(storage);
+    }
+
+    public ComponentMask Except(ComponentMask other)
+    {
+        if (_storage is null || other._storage is null)
+        {
+            return this;
+        }
+
+        int length = _storage.Length;
+        while (length > 0 && (_storage[length - 1] & ~other.GetWord(length - 1)) == 0)
+        {
+            length--;
+        }
+
+        if (length == 0)
+        {
+            return default;
+        }
+
+        var storage = new NativeComponentMaskStorage(length);
+        for (int index = 0; index < length; index++)
+        {
+            storage[index] = _storage[index] & ~other.GetWord(index);
+        }
+
+        storage.RecalculateMetadata();
+        return new ComponentMask(storage);
+    }
 
     public int Rank(ComponentId componentId)
     {
@@ -119,44 +199,35 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
             return -1;
         }
 
-        int value = componentId.Value;
-        int word = value >> 6;
-        int bit = value & 63;
-        int rank = word switch
+        int wordIndex = componentId.Value >> 5;
+        int rank = 0;
+        for (int index = 0; index < wordIndex; index++)
         {
-            0 => 0,
-            1 => BitOperations.PopCount(_word0),
-            2 => BitOperations.PopCount(_word0) + BitOperations.PopCount(_word1),
-            _ => BitOperations.PopCount(_word0) + BitOperations.PopCount(_word1) + BitOperations.PopCount(_word2)
-        };
+            rank += BitOperations.PopCount(_storage![index]);
+        }
 
-        ulong lowerBits = bit == 0 ? 0UL : GetWord(word) & ((1UL << bit) - 1UL);
+        uint lowerBits = _storage![wordIndex] & ((1u << (componentId.Value & 31)) - 1u);
         return rank + BitOperations.PopCount(lowerBits);
     }
 
-    public int Count => BitOperations.PopCount(_word0) + BitOperations.PopCount(_word1)
-        + BitOperations.PopCount(_word2) + BitOperations.PopCount(_word3);
+    public int Count => _storage?.Count ?? 0;
 
     /// <summary>
     /// Enumerates the set component ids in ascending numeric order without allocating.
     /// </summary>
-    public Enumerator GetEnumerator() => new(_word0, _word1, _word2, _word3);
+    public Enumerator GetEnumerator() => new(_storage);
 
     public ref struct Enumerator
     {
-        private ulong _word0;
-        private ulong _word1;
-        private ulong _word2;
-        private ulong _word3;
+        private readonly NativeComponentMaskStorage? _storage;
         private int _wordIndex;
+        private uint _remaining;
 
-        internal Enumerator(ulong word0, ulong word1, ulong word2, ulong word3)
+        internal Enumerator(NativeComponentMaskStorage? storage)
         {
-            _word0 = word0;
-            _word1 = word1;
-            _word2 = word2;
-            _word3 = word3;
+            _storage = storage;
             _wordIndex = 0;
+            _remaining = 0;
             Current = default;
         }
 
@@ -164,77 +235,124 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
 
         public bool MoveNext()
         {
-            while (_wordIndex < 4)
+            if (_storage is null)
             {
-                ulong word = _wordIndex switch
-                {
-                    0 => _word0,
-                    1 => _word1,
-                    2 => _word2,
-                    _ => _word3
-                };
-                if (word == 0)
-                {
-                    _wordIndex++;
-                    continue;
-                }
-
-                int bit = BitOperations.TrailingZeroCount(word);
-                switch (_wordIndex)
-                {
-                    case 0:
-                        _word0 = word & (word - 1);
-                        break;
-                    case 1:
-                        _word1 = word & (word - 1);
-                        break;
-                    case 2:
-                        _word2 = word & (word - 1);
-                        break;
-                    default:
-                        _word3 = word & (word - 1);
-                        break;
-                }
-
-                Current = new ComponentId((_wordIndex * 64) + bit);
-                return true;
+                return false;
             }
 
-            return false;
+            while (_remaining == 0 && _wordIndex < _storage.Length)
+            {
+                _remaining = _storage[_wordIndex++];
+            }
+
+            if (_remaining == 0)
+            {
+                return false;
+            }
+
+            int bit = BitOperations.TrailingZeroCount(_remaining);
+            _remaining &= _remaining - 1;
+            Current = new ComponentId(((_wordIndex - 1) * 32) + bit);
+            return true;
         }
     }
 
     internal void CopyComponentIds(Span<ComponentId> destination)
     {
-        if (destination.Length < Count)
+        int count = Count;
+        if (destination.Length < count)
         {
             ThrowHelper.ThrowComponentDestinationTooSmall(nameof(destination));
         }
 
-        int offset = CopyWord(_word0, 0, destination, 0);
-        offset = CopyWord(_word1, 64, destination, offset);
-        offset = CopyWord(_word2, 128, destination, offset);
-        CopyWord(_word3, 192, destination, offset);
+        int offset = 0;
+        var enumerator = GetEnumerator();
+        while (enumerator.MoveNext())
+        {
+            destination[offset++] = enumerator.Current;
+        }
     }
 
-    public bool Equals(ComponentMask other) => _word0 == other._word0 && _word1 == other._word1
-        && _word2 == other._word2 && _word3 == other._word3;
+    public bool Equals(ComponentMask other)
+    {
+        if (ReferenceEquals(_storage, other._storage))
+        {
+            return true;
+        }
+
+        if (_storage is null || other._storage is null || _storage.Length != other._storage.Length)
+        {
+            return false;
+        }
+
+        if (_storage.Hash != other._storage.Hash)
+        {
+            return false;
+        }
+
+        for (int index = 0; index < _storage.Length; index++)
+        {
+            if (_storage[index] != other._storage[index])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     public override bool Equals(object? obj) => obj is ComponentMask other && Equals(other);
 
-    public override int GetHashCode() => HashCode.Combine(_word0, _word1, _word2, _word3);
+    public override int GetHashCode() => _storage?.Hash ?? 0;
 
-    private ulong GetWord(int index) => index switch
+    private uint GetWord(int index)
+        => _storage is not null && (uint)index < (uint)_storage.Length
+            ? _storage[index]
+            : 0;
+
+    private static ComponentMask FromCore(ReadOnlySpan<ComponentId> componentIds, bool skipInvalid)
     {
-        0 => _word0,
-        1 => _word1,
-        2 => _word2,
-        _ => _word3
-    };
+        int maxValue = -1;
+        for (int index = 0; index < componentIds.Length; index++)
+        {
+            ComponentId componentId = componentIds[index];
+            if (!componentId.IsValid)
+            {
+                if (skipInvalid)
+                {
+                    continue;
+                }
+
+                Validate(componentId);
+            }
+
+            maxValue = Math.Max(maxValue, componentId.Value);
+        }
+
+        if (maxValue < 0)
+        {
+            return default;
+        }
+
+        var storage = new NativeComponentMaskStorage((maxValue >> 5) + 1);
+        for (int index = 0; index < componentIds.Length; index++)
+        {
+            ComponentId componentId = componentIds[index];
+            if (!componentId.IsValid)
+            {
+                continue;
+            }
+
+            storage[componentId.Value >> 5] |= 1u << (componentId.Value & 31);
+        }
+
+        storage.RecalculateMetadata();
+        return new ComponentMask(storage);
+    }
 
     private static int Validate(ComponentId componentId)
     {
-        if (!componentId.IsValid || componentId.Value >= Capacity)
+        if (!componentId.IsValid)
         {
             return ThrowHelper.ThrowComponentIdOutOfRange();
         }
@@ -242,21 +360,61 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
         return componentId.Value;
     }
 
-    private static int CopyWord(ulong word, int baseValue, Span<ComponentId> destination, int offset)
-    {
-        while (word != 0)
-        {
-            int bit = BitOperations.TrailingZeroCount(word);
-            destination[offset++] = new ComponentId(baseValue + bit);
-            word &= word - 1;
-        }
-
-        return offset;
-    }
-
     public static bool operator ==(ComponentMask left, ComponentMask right) => left.Equals(right);
 
     public static bool operator !=(ComponentMask left, ComponentMask right) => !left.Equals(right);
+}
+
+/// <summary>Immutable native word storage owned by a component mask.</summary>
+internal sealed class NativeComponentMaskStorage
+{
+    private NativeMemory<uint> _words;
+    private int _count;
+    private int _hash;
+
+    internal NativeComponentMaskStorage(int length)
+    {
+        _words = new NativeMemory<uint>(length);
+    }
+
+    internal int Length => _words.Length;
+
+    internal int Count => _count;
+
+    internal int Hash => _hash;
+
+    internal Span<uint> Span => _words.Span;
+
+    internal ref uint this[int index]
+    {
+        get => ref _words[index];
+    }
+
+    internal void CopyTo(NativeComponentMaskStorage destination)
+    {
+        _words.ReadOnlySpan[..Math.Min(Length, destination.Length)].CopyTo(destination.Span);
+    }
+
+    internal void RecalculateMetadata()
+    {
+        int count = 0;
+        var hash = new HashCode();
+        hash.Add(Length);
+        for (int index = 0; index < Length; index++)
+        {
+            uint word = _words[index];
+            count += BitOperations.PopCount(word);
+            hash.Add(word);
+        }
+
+        _count = count;
+        _hash = hash.ToHashCode();
+    }
+
+    ~NativeComponentMaskStorage()
+    {
+        _words.Dispose();
+    }
 }
 
 public readonly struct SchemaId : IEquatable<SchemaId>

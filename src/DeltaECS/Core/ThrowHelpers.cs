@@ -257,7 +257,7 @@ internal static class ThrowHelper
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal static int ThrowComponentIdOutOfRange()
-        => throw new ArgumentOutOfRangeException("componentId", "ComponentId must be a bit position in [0, 255].");
+        => throw new ArgumentOutOfRangeException("componentId", "ComponentId must be a non-negative value.");
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -278,11 +278,6 @@ internal static class ThrowHelper
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowSchemaConflict(SchemaId schemaId)
         => throw new InvalidOperationException($"SchemaId {schemaId} is already registered with a different component layout.");
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowComponentCapacityExceeded()
-        => throw new InvalidOperationException($"The type-erased mask supports at most {ComponentMask.Capacity} components.");
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]

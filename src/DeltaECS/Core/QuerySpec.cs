@@ -38,18 +38,7 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
     }
 
     private static ComponentMask BuildMask(ReadOnlySpan<ComponentId> ids)
-    {
-        var mask = default(ComponentMask);
-        for (int i = 0; i < ids.Length; i++)
-        {
-            if (ids[i].IsValid)
-            {
-                mask = mask.Set(ids[i]);
-            }
-        }
-
-        return mask;
-    }
+        => ComponentMask.FromValidated(ids);
 
     public bool Equals(QuerySpec other) => Hash == other.Hash
         && _allMask == other._allMask
