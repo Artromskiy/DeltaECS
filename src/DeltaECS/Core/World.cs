@@ -29,7 +29,7 @@ public sealed partial class World : IDisposable
     private int _activeChunkLeases;
     private QueryWriteSession? _queryWriteSessionPool;
     private int _archetypeVersion;
-    private NativeMemory<Stamp>[] _archetypeComponentWriteStamps = Array.Empty<NativeMemory<Stamp>>();
+    private Stamp[][] _archetypeComponentWriteStamps = Array.Empty<Stamp[]>();
     private NativeMemory<Stamp>[] _chunkComponentWriteStamps = Array.Empty<NativeMemory<Stamp>>();
     private int[] _archetypeStampComponentCounts = Array.Empty<int>();
     private int[] _chunkStampComponentCounts = Array.Empty<int>();
@@ -476,7 +476,7 @@ public sealed partial class World : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal Stamp IncrementArchetypeComponentStamp(int archetypeId, int componentIndex)
     {
-        NativeMemory<Stamp> stamps = _archetypeComponentWriteStamps[archetypeId];
+        Stamp[] stamps = _archetypeComponentWriteStamps[archetypeId];
         Stamp stamp = stamps[componentIndex].Next();
         stamps[componentIndex] = stamp;
         return stamp;
@@ -508,8 +508,8 @@ public sealed partial class World : IDisposable
         => new(_archetypeComponentWriteStamps[archetypeId], componentIndex, stamp);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal nint GetArchetypeComponentStampAddress(int archetypeId)
-        => _archetypeComponentWriteStamps[archetypeId].Address;
+    internal Stamp[] GetArchetypeComponentStamps(int archetypeId)
+        => _archetypeComponentWriteStamps[archetypeId];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void ClearChunkComponentStamps(Chunk chunk)
@@ -1032,7 +1032,7 @@ public sealed partial class World : IDisposable
             return;
         }
 
-        _archetypeComponentWriteStamps[archetypeId] = new NativeMemory<Stamp>(componentCount);
+        _archetypeComponentWriteStamps[archetypeId] = new Stamp[componentCount];
         _archetypeStampComponentCounts[archetypeId] = componentCount;
     }
 
@@ -1055,8 +1055,8 @@ public sealed partial class World : IDisposable
         }
     }
 
-    private static void EnsureStampStorageCapacity(
-        ref NativeMemory<Stamp>[] storage,
+    private static void EnsureStampStorageCapacity<T>(
+        ref T[] storage,
         ref int[] componentCounts,
         int required)
     {
@@ -1072,14 +1072,6 @@ public sealed partial class World : IDisposable
 
     private void DisposeStampLayers()
     {
-        for (int index = 0; index < _archetypeStampComponentCounts.Length; index++)
-        {
-            if (_archetypeStampComponentCounts[index] != 0)
-            {
-                _archetypeComponentWriteStamps[index].Dispose();
-            }
-        }
-
         for (int index = 0; index < _chunkStampComponentCounts.Length; index++)
         {
             if (_chunkStampComponentCounts[index] != 0)
@@ -1088,7 +1080,7 @@ public sealed partial class World : IDisposable
             }
         }
 
-        _archetypeComponentWriteStamps = Array.Empty<NativeMemory<Stamp>>();
+        _archetypeComponentWriteStamps = Array.Empty<Stamp[]>();
         _chunkComponentWriteStamps = Array.Empty<NativeMemory<Stamp>>();
         _archetypeStampComponentCounts = Array.Empty<int>();
         _chunkStampComponentCounts = Array.Empty<int>();

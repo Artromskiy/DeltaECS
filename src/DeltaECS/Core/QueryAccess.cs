@@ -197,7 +197,7 @@ internal sealed class QueryPlan
         var plan = new ArchetypePlan(
             archetype,
             indices,
-            _owner.GetArchetypeComponentStampAddress(archetype.Id));
+            _owner.GetArchetypeComponentStamps(archetype.Id));
         _matchingArchetypes[_matchingCount] = archetype.Id;
         _matchingPlans[_matchingCount] = plan;
         _planIndicesByArchetype[archetype.Id] = _matchingCount++;
@@ -320,19 +320,11 @@ internal struct ArchetypePlan
     internal ArchetypePlan(
         Archetype archetype,
         int[] componentRows,
-        nint archetypeStampAddress = 0)
+        Stamp[]? archetypeStamps = null)
     {
         Archetype = archetype;
         ComponentRows = componentRows;
-        var stampAddresses = new nint[componentRows.Length];
-        nuint stampSize = (nuint)Unsafe.SizeOf<Stamp>();
-        for (int queryRow = 0; queryRow < componentRows.Length; queryRow++)
-        {
-            stampAddresses[queryRow] = (nint)((nuint)archetypeStampAddress
-                + ((nuint)componentRows[queryRow] * stampSize));
-        }
-
-        ArchetypeStampAddresses = stampAddresses;
+        ArchetypeStamps = archetypeStamps ?? Array.Empty<Stamp>();
         _chunks = Array.Empty<ChunkPlan>();
         for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
         {
@@ -342,7 +334,7 @@ internal struct ArchetypePlan
 
     internal Archetype Archetype { get; }
     internal int[] ComponentRows { get; }
-    internal nint[] ArchetypeStampAddresses { get; }
+    internal Stamp[] ArchetypeStamps { get; }
     internal ReadOnlySpan<ChunkPlan> Chunks => _chunks.AsSpan(0, _chunkCount);
     internal ChunkPlan[] ChunkArray => _chunks;
     internal int ChunkCount => _chunkCount;

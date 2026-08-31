@@ -58,12 +58,12 @@ internal readonly struct ChunkComponentStampWriter
 /// <summary>Trusted writer for one component stamp shared by an archetype.</summary>
 internal readonly struct ArchetypeComponentStampWriter
 {
-    private readonly NativeMemory<Stamp> _stamps;
+    private readonly Stamp[] _stamps;
     private readonly int _componentIndex;
     private readonly Stamp _stamp;
 
     internal ArchetypeComponentStampWriter(
-        NativeMemory<Stamp> stamps,
+        Stamp[] stamps,
         int componentIndex,
         Stamp stamp)
     {

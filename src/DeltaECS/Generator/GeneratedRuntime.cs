@@ -3,7 +3,6 @@ namespace Delta.ECS;
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 /// <summary>Compiler-support contract for generated entity-sequence functor invokers.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
@@ -18,7 +17,7 @@ public interface IGeneratedSequenceInvoker
 public interface IGeneratedArchetypeStampWriter
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    void Write(nint[] stampAddresses);
+    void Write(Stamp[] stamps);
 }
 
 /// <summary>Trusted compiler-support execution state for generated write queries.</summary>
@@ -71,9 +70,9 @@ public ref struct GeneratedDenseExecution
                 continue;
             }
 
-            ref nint firstStampAddress = ref MemoryMarshal.GetArrayDataReference(plan.ArchetypeStampAddresses);
             GeneratedForEachRuntime.IncrementArchetypeStamp(
-                Unsafe.Add(ref firstStampAddress, queryComponentIndex));
+                plan.ArchetypeStamps,
+                queryComponentIndex);
         }
     }
 
@@ -93,12 +92,12 @@ public ref struct GeneratedDenseExecution
                 continue;
             }
 
-            nint[] stampAddresses = plan.ArchetypeStampAddresses;
-            ref nint firstStampAddress = ref MemoryMarshal.GetArrayDataReference(stampAddresses);
+            Stamp[] stamps = plan.ArchetypeStamps;
             for (int accessIndex = 0; accessIndex < queryComponentIndices.Length; accessIndex++)
             {
                 GeneratedForEachRuntime.IncrementArchetypeStamp(
-                    Unsafe.Add(ref firstStampAddress, queryComponentIndices[accessIndex]));
+                    stamps,
+                    queryComponentIndices[accessIndex]);
             }
         }
     }
@@ -117,7 +116,7 @@ public ref struct GeneratedDenseExecution
                 continue;
             }
 
-            writer.Write(plan.ArchetypeStampAddresses);
+            writer.Write(plan.ArchetypeStamps);
         }
     }
 
@@ -302,14 +301,8 @@ public static class GeneratedForEachRuntime
 {
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void IncrementArchetypeStamp(nint stampAddress)
-    {
-        unsafe
-        {
-            Stamp* current = (Stamp*)stampAddress;
-            *current = current->Next();
-        }
-    }
+    public static void IncrementArchetypeStamp(Stamp[] stamps, int componentIndex)
+        => stamps[componentIndex] = stamps[componentIndex].Next();
 
     /// <summary>Opens the trusted dense execution used by generated callbacks.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]

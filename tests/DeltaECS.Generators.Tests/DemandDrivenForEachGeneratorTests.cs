@@ -615,7 +615,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         }
 
         public interface IGeneratedSequenceInvoker { void Invoke(ref GeneratedSequenceCursor cursor); }
-        public interface IGeneratedArchetypeStampWriter { void Write(nint[] stampAddresses); }
+        public interface IGeneratedArchetypeStampWriter { void Write(Stamp[] stamps); }
         public static class GeneratedForEachRuntime
         {
             public static GeneratedDenseExecution OpenDense(World world, in Query query, bool hasWrites) => default;
@@ -630,7 +630,7 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static ReadAccess GetPreparedReadAccess(in Query query, ComponentId component, Type runtimeType) => default;
             public static WriteAccess GetPreparedWriteAccess(in Query query, ComponentId component, Type runtimeType) => default;
             public static int GetWriteQueryComponentIndex(WriteAccess access) => default;
-            public static void IncrementArchetypeStamp(nint stampAddress) { }
+            public static void IncrementArchetypeStamp(Stamp[] stamps, int componentIndex) { }
             public static int AccessRead(World world, in Query query, ComponentId component, Type runtimeType) => default;
             public static int AccessWrite(World world, in Query query, ComponentId component, Type runtimeType) => default;
             public static int AccessRead(World world, in Query query, Type runtimeType) => default;

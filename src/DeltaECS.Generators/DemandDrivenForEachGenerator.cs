@@ -1217,17 +1217,16 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         source.AppendLine("    }");
         source.AppendLine();
         source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        source.AppendLine("    void IGeneratedArchetypeStampWriter.Write(nint[] stampAddresses)");
+        source.AppendLine("    void IGeneratedArchetypeStampWriter.Write(Stamp[] stamps)");
         source.AppendLine("    {");
-        source.AppendLine("        ref nint firstStampAddress = ref global::System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(stampAddresses);");
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
             if (IsWrite(shape.Pattern[index]))
             {
                 source.Append("        GeneratedForEachRuntime.IncrementArchetypeStamp(")
-                    .Append("global::System.Runtime.CompilerServices.Unsafe.Add(ref firstStampAddress, _access")
+                    .Append("stamps, _access")
                     .Append(index)
-                    .AppendLine("));");
+                    .AppendLine(");");
             }
         }
 
