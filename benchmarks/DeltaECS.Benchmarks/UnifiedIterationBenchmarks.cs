@@ -515,8 +515,11 @@ public class ComparativeSparseQueryBenchmarks
     private int Check(int actual) => actual == ExpectedChecksum ? actual : throw new InvalidOperationException($"sparse checksum mismatch: {actual} != {ExpectedChecksum}");
     private ArchetypeQuery<SparseA, SparseB> CreateFrifloQuery() { var f = new QueryFilter(); f.WithoutAllComponents(ComponentTypes.Get<SparseC>()); return _friflo.Query<SparseA, SparseB>(f); }
     private DefaultEcs.EntitySet CreateDefaultQuery() => _default.GetEntities().With<SparseA>().With<SparseB>().Without<SparseC>().AsSet();
+    // Keep the shared terminal accessible to the source generator. A private
+    // helper is not legally callable from generated interception code and
+    // silently forces this benchmark onto the per-entity delegate fallback.
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void ApplySparse(ref int count, ref readonly SparseA a, ref readonly SparseB b) => count += a.Value + b.Value;
+    internal static void ApplySparse(ref int count, ref readonly SparseA a, ref readonly SparseB b) => count += a.Value + b.Value;
 }
 
 internal struct DenseValue : IComponent { public int Value; }
