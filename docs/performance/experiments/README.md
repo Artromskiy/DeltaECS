@@ -30,7 +30,7 @@ linked focused report.
 | Slot traversal | Remove terminal assignments from outer advancement | `a8fefe7`; [slot evidence](../l0-b-slot-iterator-experiments.md) | JIT block reduced; retained as code-generation improvement |
 | Slot order | Forward slot traversal | `8b27472` | Won the dedicated forward/reverse Movement4 comparison |
 | Query access | Type-erased access objects and non-generic storage/query chain | `0213ae0`, `6da5550`, `7a2f999` | Equivalent or better JIT while preserving generic only at `Ref<T>` boundary |
-| Generated callbacks | Inline generated invokers and reserve one write tick per execution | `53f3122`, `f29ed8a` | Removed repeated driver work; retained |
+| Generated callbacks | Inline generated invokers and keep write-state setup outside the entity loop | `53f3122`, `f29ed8a` | Removed repeated driver work; retained. The current implementation has no aggregate world write tick; dense writes use the operation-specific archetype stamp route. |
 | Delegate interception | Convert supported static `World.ForEach` lambdas and method groups into generated struct functors without changing source spelling | `3c7edbb`, `6946781`, merge `612d26a`; [evidence](delegate-interception.md) | Accepted opt-in path. Movement4 measured 0.56x-0.61x of the pre-created delegate fallback with 0 B allocation; unsupported callbacks retain delegate semantics |
 | Interceptor discard-name hygiene | Give repeated lambda discard parameters unique generated names | `368b207` -> `17aac7c`; generator tests 21/21 | Accepted correctness fix; avoids duplicate generated parameter declarations, with no throughput claim |
 | Generated rows | Trusted generated query slots/row preparation | `0ce7a95`, `022a1f5` | Retained after Movement4 comparison |

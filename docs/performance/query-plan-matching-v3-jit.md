@@ -9,7 +9,10 @@ before the experiment.
 - Method: `Delta.ECS.QueryPlan:MatchingArchetypes(Delta.ECS.World)`
 - Source: [QueryAccess.cs](../../src/DeltaECS/Core/QueryAccess.cs#L65)
 - V3 raw JIT (local ignored artifact): `artifacts/jit-disasm/query-plan-matching-v3-release.txt`
-- Baseline raw JIT: `/private/tmp/deltaecs-v3-baseline-2/artifacts/jit-disasm/query-plan-matching-baseline-release.txt`
+- Baseline raw JIT (candidate worktree artifact): `/private/tmp/deltaecs-v3-baseline-2/artifacts/jit-disasm/query-plan-matching-baseline-release.txt`
+- These raw captures are ignored local artifacts and are not part of a clean
+  checkout; the tables below are the durable evidence for this historical
+  probe.
 
 The dry JIT capture compiled the same method four times for the benchmark
 parameters. The first emitted body is used below; all V3 bodies were 1004 B.

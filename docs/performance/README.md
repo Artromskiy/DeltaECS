@@ -24,7 +24,9 @@ physical component rows. `ArchetypePlan.RefreshChunks` prepares a
 `ChunkPlan` for every active chunk. Each `ChunkPlan` stores direct `Array`
 references in query order, so `QuerySlots.GetRow` resolves one row per chunk,
 not once per entity. Write access marks the physical component row through the
-same chunk boundary and the query write session.
+same chunk boundary and the operation-specific stamp route. The query write
+session carries only scope lifetime and write intent; it is not a global
+mutation tick.
 
 `QueryScope` is the owner of the structural lease. `QueryArchetypes`,
 `QueryChunks` and `QuerySlots` are borrowed stack-only views. Their values are

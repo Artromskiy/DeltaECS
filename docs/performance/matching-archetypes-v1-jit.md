@@ -112,8 +112,11 @@ throughput conclusion is made from assembly size alone.
 
 ## Artifacts and reproduction
 
-- [V1 raw JIT](../../artifacts/jit-disasm/matching-archetypes-v1-release.txt)
-- [V1 `MatchingPlans` raw JIT](../../artifacts/jit-disasm/matching-plans-v1-release.txt)
+- V1 raw JIT capture: `artifacts/jit-disasm/matching-archetypes-v1-release.txt`
+- V1 `MatchingPlans` raw JIT capture: `artifacts/jit-disasm/matching-plans-v1-release.txt`
+- The raw captures are ignored local artifacts and are not part of a clean
+  checkout; the tables above are the durable evidence for this historical
+  probe.
 - [V1 source](../../src/DeltaECS/Core/QueryAccess.cs#L66)
 
 Baseline was captured from commit `38be81d` with the same Release dry command,

@@ -157,7 +157,7 @@ work, inspect the focused test class after locating the source method.
 
 - Structural mutation is rejected while a conflicting query scope is active.
 - Read and write access intent is declared before row traversal; write rows are
-  marked according to the current query write session.
+  marked through the operation-specific entity, chunk or archetype stamp route.
 - `Entity` and `ComponentId` are compact world-local core values. `SchemaId`
   is the stable cross-world identity used by integration consumers.
 - `Stamp` is a 64-bit equality token (`ulong Value`). It is not wall-clock
