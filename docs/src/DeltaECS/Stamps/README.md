@@ -1,8 +1,9 @@
 # Stamp contract
 
-`Stamp` is an opaque 64-bit revision used for equality-based change tracking.
-It is not wall-clock time and public code must not infer elapsed time or rely on
-arithmetic ordering.
+`Stamp` is a 64-bit counter token used for equality-based change tracking. Its
+`ulong Value` is public for transport and diagnostics, but consumers must treat
+the value as an equality token: it is not wall-clock time and arithmetic
+ordering is not a supported semantic.
 
 - `ComponentCatalog.Stamp` changes when the tooling catalog changes.
 - A component stamp is the combined revision for one entity/component pair.

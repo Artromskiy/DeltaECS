@@ -2,7 +2,7 @@
 
 Standalone archetype ECS kernel focused on fast component iteration, immediate
 structural changes, batch operations and predictable memory use.
-Public namespace is `DeltaECS`; project/assembly names remain `DeltaECS*`.
+Public namespace is `Delta.ECS`; project/assembly names remain `DeltaECS*`.
 
 This is the repository's substantive documentation entry point. The repository
 root intentionally contains only agent and workflow controls (`AGENTS.md`,
@@ -22,7 +22,7 @@ storage model:
 | Functor | struct-based `ForEach` callbacks | [Functor API](src/DeltaECS/Functor/README.md) |
 | Sequence | ordered execution over explicit entity candidates | [Sequence API](src/DeltaECS/Sequence/README.md) |
 | Integration | neutral runtime/editor `IEcsWorld` boundary | [Integration API](src/DeltaECS/API/README.md) |
-| Stamps | world/catalog/component mutation revisions | [Stamp contract](src/DeltaECS/Stamps/README.md) |
+| Stamps | catalog and entity/component mutation revisions | [Stamp contract](src/DeltaECS/Stamps/README.md) |
 
 The [source API index](src/DeltaECS/README.md) maps folders, and the
 [consumer generator README](src/DeltaECS.Generators/README.md) explains
@@ -33,9 +33,11 @@ demand-driven component callback generation.
 - `Entity` is index + generation; `EntityRecord` resolves its location.
 - `ComponentId` is compact runtime identity; schema IDs are stable tooling
   identity; `Type` is cold registration metadata.
-- Archetypes currently use an opaque 256-bit mask. Registration beyond that
-  checked capacity is an implementation-limit error; widening is not promised
-  as ABI-compatible.
+- Archetypes use an immutable component mask backed by a dynamically sized
+  native array of `uint` words. Non-negative `ComponentId` values are not
+  limited to 256 bits; `ComponentMask.Capacity` remains only as the legacy
+  four-word source-compatibility constant. Practical limits are available
+  native memory and the `int` range of `ComponentId.Value`.
 - Chunks store one typed CLR array per component in `Array[]` SoA rows.
 - The default chunk capacity is 512 entities; callers may provide another
   positive capacity to `World` when the workload requires it.
@@ -46,12 +48,12 @@ Create, destroy, add and remove are immediate; the world has no mandatory
 command buffer/playback barrier. Batch APIs group by archetype/chunk rather
 than loop through public atomic operations.
 
-`World` implements the neutral `DeltaECS.Integration.IEcsWorld` lifecycle and
-tooling boundary. Its `Update` method validates lifecycle state and a finite,
-non-negative delta, but intentionally performs no scheduling because this ECS
-kernel has no system scheduler. Runtime hosts remain responsible for invoking
-their systems. Integration structural and tooling operations are valid only
-between `Initialize` and `Shutdown`.
+`World` explicitly implements the neutral `Delta.ECS.Integration.IEcsWorld`
+lifecycle and tooling boundary. Its parameterless `Update` method validates
+the integration lifecycle and performs no scheduling because this ECS kernel
+has no system scheduler or time source. Runtime hosts remain responsible for
+invoking their systems. Integration structural and tooling operations are
+valid only between `Initialize` and `Shutdown`.
 
 ## Queries and changes
 
@@ -136,7 +138,7 @@ actually makes and emits only the requested callback shapes:
 |---|---|
 | Context | no context, or one caller-provided `TContext` |
 | Entity argument | no entity, or current `Entity` |
-| Component arity | zero components and any practical arity up to the 256-component mask capacity |
+| Component arity | handwritten zero-component delegates, plus generated component-bearing callbacks with 1–256 parameters |
 | Component access | any read/write pattern for the requested arity |
 | Component ID form | no-ID primary registration, or explicit IDs for secondary registrations of the same CLR type |
 | Selection | prepared `Query`; the generator emits extension methods in the consumer assembly |
@@ -211,9 +213,11 @@ Generated `ForEach` owns query validation and access preparation.
 Explicit `BeginScope` remains the advanced path for direct three-loop traversal.
 Both routes use the existing type-erased query plan and chunk traversal; no
 generic component type is carried by `Query`, an access token or an iterator.
-The generator has a documented maximum generated arity of 256, matching the
-component-mask capacity. Calls above that limit produce a diagnostic instead
-of silently falling back to a handwritten matrix.
+The generator has a documented maximum callback arity of 256. This is an
+independent source-generation limit and is not a component-mask capacity:
+the runtime mask can address component IDs above 255. Calls above the
+callback-parameter limit produce a diagnostic instead of silently falling back
+to a handwritten matrix.
 
 The root scope validates ownership and owns the lease. The archetype, chunk and
 slot iterators are borrowed views over that execution; outer advancement and

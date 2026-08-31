@@ -38,9 +38,10 @@ Reads are `in T`; writes are `ref T`. Entity records are resolved directly and
 the last archetype row plan is cached. Sequence execution does not loop through
 public atomic `TryGet`/`Set` calls and does not introduce a second storage model.
 
-Zero-component delegate and struct-functor forms are handwritten. Generated
-component-bearing forms support context, entity/no-entity callback shapes,
-primary registrations and explicit component IDs.
+Zero-component delegate forms are handwritten. Generated component-bearing
+forms support context, entity/no-entity callback shapes, primary registrations
+and explicit component IDs; component-bearing functor forms use the same
+consumer-demand generator.
 
 ## Structural terminals
 

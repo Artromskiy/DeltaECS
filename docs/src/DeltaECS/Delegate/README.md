@@ -25,8 +25,9 @@ world.ForEach<Position, Velocity>(
 
 `in T` declares read access and `ref T` declares write access. Generated forms
 also support an `Entity` argument, caller context, explicit component IDs, and
-arities up to the component-mask capacity. See the generator README for the
-generation boundary.
+component-bearing arities from 1 through the generator's maximum of 256. This
+callback-parameter limit is independent of the dynamic component-ID mask. See
+the generator README for the generation boundary.
 
 With the project-local Roslyn interceptor opt-in enabled, supported static
 lambdas and static method groups keep this delegate-shaped source API but are

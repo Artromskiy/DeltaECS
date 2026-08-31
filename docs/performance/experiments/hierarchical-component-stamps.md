@@ -24,7 +24,8 @@ stored in buffers owned by `World`, indexed by archetype id, chunk id and
 component ordinal/id. `Chunk` and `Archetype` therefore did not acquire
 additional hierarchy fields or references.
 
-The current mutation mapping is deliberately conservative:
+At the time of this experiment the mutation mapping was deliberately
+conservative:
 
 - point `Set` and sequence writes update the entity/component term;
 - a validated dense query write updates the chunk/component term once its
@@ -53,8 +54,8 @@ through an ECS write endpoint.
 
 Baseline and candidate were both derived from commit `6c56cb2`. The baseline
 was run in a clean detached worktree before the World-owned hierarchy was
-applied; the candidate is the current uncommitted working tree derived from
-the same commit. Both runs used .NET `10.0.9`, Arm64 RyuJIT AdvSIMD, Apple M4
+applied; the candidate was the temporary working tree derived from the same
+commit. Both runs used .NET `10.0.9`, Arm64 RyuJIT AdvSIMD, Apple M4
 Pro, concurrent workstation GC, tiering and ReadyToRun disabled, one launch,
 10 warmups, 10--20 measured iterations and `IterationTime=200 ms`. High
 priority was unavailable without sudo (`Permission denied`), and both runs

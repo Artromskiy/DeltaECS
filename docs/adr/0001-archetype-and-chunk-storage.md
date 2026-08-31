@@ -15,8 +15,9 @@ not become part of entity identity, query plans or structural transition keys.
 - Entities are identified by `Entity(Index, Generation)` and resolved through
   an `EntityRecord`.
 - `ComponentId` and `ComponentLayout` describe registered component rows.
-- Archetypes own a component mask and chunks. Each chunk stores one CLR array
-  per component row in a structure-of-arrays layout.
+- Archetypes own a dynamically sized native-word component mask and chunks.
+  Each chunk stores one CLR array per component row in a structure-of-arrays
+  layout.
 - One CLR type may have multiple component IDs; each ID owns an independent
   physical row.
 - CLR `Type` is used during registration and array creation only. It is not

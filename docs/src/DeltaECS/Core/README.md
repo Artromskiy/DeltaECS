@@ -49,7 +49,7 @@ archetype plans. `ReadAccess` and `WriteAccess` declare row intent without a
 generic component type.
 
 ```csharp
-var spec = QuerySpec.ForComponents(positionId, velocityId);
+var spec = QuerySpec.WhereAll(positionId, velocityId);
 var query = world.CreateQuery(in spec);
 var writePosition = query.AccessWrite(positionId);
 var readVelocity = query.AccessRead(velocityId);
@@ -78,8 +78,8 @@ while (archetypes.MoveNext())
 }
 ```
 
-`Bind` validates access at scope setup. `GetRow` resolves one component row for
-the current chunk. The terminal `Ref<T>` is the typed boundary and `T` must
+`GetRow` validates the access token against the active query and resolves one
+component row for the current chunk. The terminal `Ref<T>` is the typed boundary and `T` must
 match the registered component type. `ReadRow`, `WriteRow`, and all iterators
 are borrowed `ref struct` values and must not escape their execution scope.
 
@@ -120,7 +120,8 @@ method applies an existing query filter.
 
 For type-erased tooling inside a query execution, `GetObject` returns
 `ObjectReadValues` or `ObjectWriteValues`. Their `Get`/`Set` methods operate on
-the current slot and validate object writes against the registered CLR type.
+the current slot; object writes validate the supplied value against the
+registered CLR type. This is a tooling path, not the typed hot-loop endpoint.
 
 ## Internal storage
 

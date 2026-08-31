@@ -13,8 +13,8 @@ ReadAccess/WriteAccess -> ReadRow/WriteRow -> Ref<T>
 
 `T` is present only at component registration and the terminal
 `values.Ref<T>(slots)` operation. The benchmark uses non-generic
-`ReadAccess`/`WriteAccess`, `Bind`, and `slots.GetRow`; no generic access
-path remains.
+`ReadAccess`/`WriteAccess` and `slots.GetRow`; no generic access path remains
+until the terminal `Ref<T>` call.
 
 The existing comparative and version benchmark projects are separate suites;
 they are not part of this focused L4 measurement.

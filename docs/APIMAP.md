@@ -25,10 +25,10 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `Core` | World, identity, storage-facing structural operations and explicit query traversal | [Core API](src/DeltaECS/Core/README.md) |
 | `Generic` | CLR-type registration and single-component convenience operations | [Generic API](src/DeltaECS/Generic/README.md) |
 | `Delegate` | Delegate callback contracts and zero-component callback entry points | [Delegate API](src/DeltaECS/Delegate/README.md) |
-| `Functor` | Marker contracts and generated functor runtime bridge | [Functor API](src/DeltaECS/Functor/README.md) |
+| `Functor` | Marker contracts for generated struct-functor callbacks | [Functor API](src/DeltaECS/Functor/README.md) |
 | `Sequence` | Ordered execution over an explicit entity span | [Sequence API](src/DeltaECS/Sequence/README.md) |
 | `API` | Neutral integration contract implemented by `World` | [Integration API](src/DeltaECS/API/README.md) |
-| `Stamps` | World and component revision values | [Stamp contract](src/DeltaECS/Stamps/README.md) |
+| `Stamps` | Catalog and entity/component revision values | [Stamp contract](src/DeltaECS/Stamps/README.md) |
 | `Properties` | Assembly metadata; no consumer API | — |
 
 The consumer source generator is documented in
@@ -54,7 +54,7 @@ The consumer source generator is documented in
 | `IForEach*` | Stable functor marker contracts | `src/DeltaECS/Functor/ForEachFunctorContracts.cs` |
 | `World.From` and `ForEachEntity` | Ordered entity-sequence entry points and terminals | `src/DeltaECS/Sequence/World.Sequence.cs`, `EntitySequence.cs` |
 | `IEcsWorld` | Neutral lifecycle, structural and object-value integration contract | `src/DeltaECS/API/IntegrationContracts.cs` |
-| `Stamp` | Opaque 64-bit revision value | `src/DeltaECS/Stamps/Stamp.cs` |
+| `Stamp` | 64-bit equality token for exact component revisions | `src/DeltaECS/Stamps/Stamp.cs` |
 
 ## Explicit query traversal
 
@@ -97,10 +97,10 @@ while (archetypes.MoveNext())
 ```
 
 `QueryScope` validates query ownership and owns the active structural lease.
-The child iterators are borrowed stack-only views. `Bind` performs scope-level
-ownership validation; row resolution then uses the access declaration and the
-current chunk's prepared row table. `ReadRow`, `WriteRow` and the iterators
-must not escape the scope.
+The child iterators are borrowed stack-only views. `GetRow` validates that an
+access token belongs to the current query and then resolves the current
+chunk's prepared row table. `ReadRow`, `WriteRow` and the iterators must not
+escape the scope.
 
 ## Generated callback path
 
@@ -109,7 +109,8 @@ observed by that consumer. It supports:
 
 - no context or one caller-provided context;
 - callbacks with or without `Entity`;
-- zero-component callbacks and component arities up to the 256-bit mask limit;
+- zero-component delegate callbacks and generated component arities from 1 to
+  256;
 - `ref readonly T`, `in T`, and by-value `T` reads, plus `ref T` writes;
 - primary component lookup or explicit `ComponentId` selection;
 - delegate and struct-functor forms.
@@ -159,13 +160,13 @@ work, inspect the focused test class after locating the source method.
   marked according to the current query write session.
 - `Entity` and `ComponentId` are compact world-local core values. `SchemaId`
   is the stable cross-world identity used by integration consumers.
-- `Stamp` values are opaque equality tokens, not wall-clock timestamps or
-  arithmetic counters exposed to consumers.
+- `Stamp` is a 64-bit equality token (`ulong Value`). It is not wall-clock
+  time; consumers compare exact values and must not infer ordering from them.
 - Effective component stamps combine entity/component, chunk/component and
   archetype/component overrides. The latter two layers are centrally owned by
   `World`; they do not enlarge `Chunk` or `Archetype`. There is no aggregate
   world mutation stamp; consumers use exact entity/component stamps.
-- `IEcsWorld` is a neutral local .NET boundary. It uses the core `Entity` and
+- `IEcsWorld` (`Delta.ECS.Integration`) is a neutral local .NET boundary. It uses the core `Entity` and
   `ComponentId` types and exposes object snapshots only for integration work.
 
 See the [integration README](src/DeltaECS/API/README.md) and

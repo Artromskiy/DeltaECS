@@ -1,7 +1,8 @@
 # Native dynamic component mask
 
-Status: rejected as a throughput replacement; retained only in the isolated
-worktree for the experiment. The public ECS contract was not changed.
+Status: merged into `main` as the current functional mask representation;
+rejected only as a throughput replacement. The public ECS contract was not
+changed.
 
 ## Goal
 
@@ -10,14 +11,14 @@ words, so component IDs are not limited by the legacy 256-bit representation.
 The comparison target is the existing fixed-mask implementation at baseline
 commit `50c1f60`.
 
-Candidate commits:
+Implementation commits:
 
 - `97cf8e5` — initial native dynamic mask;
 - `81ac418` — correctness and metadata hardening.
+- `20efeb1` — merge into `main`.
 
-The candidate is available on branch
-`perf/native-dynamic-component-mask` in worktree
-`/private/tmp/deltaecs-native-dynamic-mask`.
+The implementation is now part of `main`; the candidate paths below are
+historical evidence locations.
 
 ## Implementation
 
@@ -60,7 +61,9 @@ short 100-ms screening because the latter was visibly noisy on this host.
 All measurements allocated `0 B`. The middle-size errors overlap, while the
 two endpoints differ in opposite directions in separate processes. Since the
 sign changes with entity count, this is not a stable all-size throughput
-improvement. The candidate is therefore not merged into `main`.
+improvement. The candidate therefore did not demonstrate a stable all-size
+throughput win, but its functional dynamic-mask behavior is retained in
+`main`.
 
 The separate 100-ms full-matrix screen also changed with process order and
 host load. It is retained as supplemental evidence, not as an acceptance

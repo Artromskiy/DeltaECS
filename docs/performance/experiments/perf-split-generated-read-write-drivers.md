@@ -1,6 +1,8 @@
-# Split generated read/write drivers experiment
+# Historical split generated read/write drivers experiment
 
-Status: **validated candidate; merge deferred**.
+Status: **superseded historical candidate; not the current implementation**.
+The later stamp cleanup removed the global world stamp and centralized throw
+paths; consult the current runtime and stamp guides for the active contract.
 
 Branch: `perf/split-generated-read-write-drivers`
 
@@ -21,8 +23,9 @@ is small; both loop drivers are explicitly non-inlined.
 
 - `World.ExecuteGeneratedForEach` performs one read/write dispatch.
 - `ExecuteGeneratedReadForEach` constructs slots without write state.
-- `ExecuteGeneratedWriteForEach` retains reserve-before-lease ordering and
-  reserves a write stamp only after finding a non-empty chunk list.
+- `ExecuteGeneratedWriteForEach` retained reserve-before-lease ordering and
+  reserved a write stamp only after finding a non-empty chunk list in that
+  historical candidate.
 - `GeneratedQuerySlots` gained an internal read-only constructor; its public
   shape and generated invoker contract did not change.
 - A regression test proves that a generated write over an empty query does not

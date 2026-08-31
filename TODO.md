@@ -5,8 +5,10 @@
 - The user is redesigning the API. Colleagues and coordinating agents must not
   implement, optimize or stabilize the current surface unless explicitly
   assigned a bounded task.
-- Previous candidates such as terminal `Ref<T>` validation, QuerySpec factories
-  and mask widening are context, not selected work for the replacement API.
+- Previous candidates such as terminal `Ref<T>` validation and legacy
+  `QuerySpec` factories are context, not selected work for the replacement API.
+  Dynamic native component-mask storage is part of the current implementation;
+  its performance evidence is recorded in the experiment ledger.
 
 ## Selected stabilization work
 
@@ -28,7 +30,8 @@
   callback shapes actually used by the consumer.
   Support the entity-only form, with/without context, with/without `Entity`,
   delegate and struct-functor callbacks, and arbitrary requested read/write
-  patterns up to the 256-component mask capacity.
+  patterns up to the generator's 256-component callback-arity limit. This
+  limit is independent of the dynamic component mask.
 - [x] Complete the no-ID component form: resolve every generic component type
   independently to its registry primary `ComponentId`, even when the query
   contains additional required components. Keep explicit-ID overloads for
