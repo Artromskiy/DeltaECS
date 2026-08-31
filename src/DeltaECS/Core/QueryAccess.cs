@@ -1,7 +1,6 @@
 namespace Delta.ECS;
 
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 /// <summary>Non-generic query access token for a read row.</summary>
@@ -86,9 +85,7 @@ internal sealed class QueryPlan
             }
         }
 
-        throw new ArgumentException(
-            "A row access must target a registered component guaranteed by the query All mask.",
-            nameof(component));
+        return ThrowHelper.ThrowInvalidReadRoute(component);
     }
 
     internal int ResolveReadRoute(ComponentId component, Type runtimeType)
@@ -96,9 +93,7 @@ internal sealed class QueryPlan
         int route = ResolveReadRoute(component);
         if (!ReferenceEquals(_readRouteTypesByComponent[component.Value], runtimeType))
         {
-            throw new ArgumentException(
-                $"Component {component} is not registered as {runtimeType}.",
-                nameof(component));
+            ThrowHelper.ThrowComponentTypeMismatch(component, runtimeType);
         }
 
         return route;
@@ -111,9 +106,7 @@ internal sealed class QueryPlan
             return route;
         }
 
-        throw new ArgumentException(
-            $"The primary component for {runtimeType} is not guaranteed by the query All mask.",
-            nameof(runtimeType));
+        return ThrowHelper.ThrowMissingPrimaryRoute(runtimeType);
     }
 
     internal int UpgradeReadRouteToWrite(int route)
@@ -129,9 +122,7 @@ internal sealed class QueryPlan
             return new ReadAccess(this, route);
         }
 
-        throw new ArgumentException(
-            $"The primary component for {runtimeType} is not guaranteed by the query All mask.",
-            nameof(runtimeType));
+        return ThrowHelper.ThrowMissingPrimaryReadAccess(runtimeType);
     }
 
     internal WriteAccess GetPreparedPrimaryWriteAccess(Type runtimeType)
@@ -142,9 +133,7 @@ internal sealed class QueryPlan
             return new WriteAccess(this, route);
         }
 
-        throw new ArgumentException(
-            $"The primary component for {runtimeType} is not guaranteed by the query All mask.",
-            nameof(runtimeType));
+        return ThrowHelper.ThrowMissingPrimaryWriteAccess(runtimeType);
     }
 
     internal ReadAccess GetPreparedReadAccess(ComponentId component, Type runtimeType)
@@ -240,9 +229,7 @@ internal sealed class QueryPlan
     {
         if (!ReferenceEquals(_readRouteTypesByComponent[component.Value], runtimeType))
         {
-            throw new ArgumentException(
-                $"Component {component} is not registered as {runtimeType}.",
-                nameof(component));
+            ThrowHelper.ThrowComponentTypeMismatch(component, runtimeType);
         }
     }
 
@@ -253,9 +240,7 @@ internal sealed class QueryPlan
         {
             if (!world.Layouts.TryGet(component, out ComponentLayout layout))
             {
-                throw new ArgumentException(
-                    $"Query component {component} is not registered in the query's world.",
-                    nameof(spec));
+                ThrowHelper.ThrowUnregisteredQueryComponent(component, spec);
             }
 
             _readRoutesByComponent[component.Value] = route;
@@ -327,6 +312,7 @@ internal sealed class QueryPlan
     private bool Matches(Archetype archetype) => archetype.Mask.ContainsAll(_description.AllMask)
         && (_description.AnyMask.IsEmpty || archetype.Mask.Intersects(_description.AnyMask))
         && !archetype.Mask.Intersects(_description.NoneMask);
+
 }
 
 internal struct ArchetypePlan
@@ -368,7 +354,7 @@ internal struct ArchetypePlan
     {
         if (activePosition != _chunkCount)
         {
-            throw new InvalidOperationException("Chunk plan activation order is out of sync with its archetype.");
+            ThrowHelper.ThrowPlanActivationOutOfSync();
         }
 
         if (_chunkCount == _chunks.Length)
@@ -390,7 +376,7 @@ internal struct ArchetypePlan
     {
         if ((uint)activePosition >= (uint)_chunkCount || lastPosition != _chunkCount - 1)
         {
-            throw new InvalidOperationException("Chunk plan deactivation order is out of sync with its archetype.");
+            ThrowHelper.ThrowPlanDeactivationOutOfSync();
         }
 
         if (activePosition != lastPosition)
@@ -425,33 +411,4 @@ internal readonly struct QueryPlanLink
 
     internal WeakReference<QueryPlan> Query { get; }
     internal int PlanIndex { get; }
-}
-
-internal static class QueryThrowHelper
-{
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowAccessMismatch() => throw new InvalidOperationException("The row access does not belong to this query or world.");
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowAccessTypeMismatch() => throw new InvalidOperationException("The row access type does not match the registered component type.");
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    [DoesNotReturn]
-    internal static void ThrowMissingWriteIntent() => throw new InvalidOperationException("The query did not register its write row access.");
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    [DoesNotReturn]
-    internal static void ThrowDisposedQueryExecution() => throw new InvalidOperationException("The query execution has ended.");
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowAccessModeMismatch() => throw new InvalidOperationException("The access mode does not match the requested row operation.");
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowArchetypeIteratorNotPositioned() => throw new InvalidOperationException("The archetype iterator is not positioned on an archetype.");
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowChunkIteratorNotPositioned() => throw new InvalidOperationException("The chunk iterator is not positioned on a chunk.");
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowSlotIteratorNotPositioned() => throw new InvalidOperationException("The slot iterator is not positioned on a slot.");
 }

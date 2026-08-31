@@ -31,7 +31,7 @@ internal sealed class Archetype
         if (layouts.Length != componentIds.Length
             || rowOperations.Length != componentIds.Length)
         {
-            throw new ArgumentException("Archetype must have matching component and layout arrays.");
+            ThrowHelper.ThrowArchetypeLayoutMismatch();
         }
 
         _id = id;

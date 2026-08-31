@@ -78,7 +78,7 @@ internal struct ComponentStampStorage : IDisposable
     {
         if (slotIndex < 0 || count < 0 || slotIndex > _capacity - count)
         {
-            throw new ArgumentOutOfRangeException(nameof(slotIndex));
+            ThrowHelper.ThrowStampRange(nameof(slotIndex));
         }
 
         for (int componentIndex = 0; componentIndex < _componentCount; componentIndex++)
@@ -182,7 +182,7 @@ internal struct ComponentStampStorage : IDisposable
     {
         if ((uint)componentIndex >= (uint)_componentCount)
         {
-            throw new ArgumentOutOfRangeException(nameof(componentIndex));
+            ThrowHelper.ThrowStampRange(nameof(componentIndex));
         }
 
         ValidateSlot(slotIndex);
@@ -193,12 +193,12 @@ internal struct ComponentStampStorage : IDisposable
     {
         if ((uint)componentIndex >= (uint)_componentCount)
         {
-            throw new ArgumentOutOfRangeException(nameof(componentIndex));
+            ThrowHelper.ThrowStampRange(nameof(componentIndex));
         }
 
         if (slotIndex < 0 || count < 0 || slotIndex > _capacity - count)
         {
-            throw new ArgumentOutOfRangeException(nameof(slotIndex));
+            ThrowHelper.ThrowStampRange(nameof(slotIndex));
         }
     }
 
@@ -206,7 +206,7 @@ internal struct ComponentStampStorage : IDisposable
     {
         if ((uint)slotIndex >= (uint)_capacity)
         {
-            throw new ArgumentOutOfRangeException(nameof(slotIndex));
+            ThrowHelper.ThrowStampRange(nameof(slotIndex));
         }
     }
 }

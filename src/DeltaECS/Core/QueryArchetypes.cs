@@ -31,7 +31,7 @@ public ref struct QueryArchetypes
         {
             if ((uint)_index >= (uint)_plans.Length)
             {
-                QueryThrowHelper.ThrowArchetypeIteratorNotPositioned();
+                ThrowHelper.ThrowArchetypeIteratorNotPositioned();
             }
 
             return new QueryArchetype(_plans.Ref(_index), _query, _writeSession, _sessionGeneration);

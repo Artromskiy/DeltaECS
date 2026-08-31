@@ -36,7 +36,7 @@ public readonly ref struct ObjectWriteValues
     {
         _row = row;
         _elementType = row.GetType().GetElementType()
-            ?? throw new ArgumentException("The component row must be a CLR array.", nameof(row));
+            ?? ThrowHelper.ThrowNonArrayComponentRow(nameof(row));
     }
 
     public void Set(QuerySlots slots, object? value) => Set(slots.CurrentIndex, value);
@@ -49,14 +49,12 @@ public readonly ref struct ObjectWriteValues
         {
             if (_elementType.IsValueType && Nullable.GetUnderlyingType(_elementType) is null)
             {
-                throw new ArgumentException($"Component value must be exactly {_elementType}.", nameof(value));
+                ThrowHelper.ThrowExactComponentValueType(_elementType, nameof(value));
             }
         }
         else if (value.GetType() != acceptedType)
         {
-            throw new ArgumentException(
-                $"Component value type {value.GetType()} does not match registered type {_elementType}.",
-                nameof(value));
+            ThrowHelper.ThrowComponentValueTypeMismatch(value.GetType(), _elementType, nameof(value));
         }
 
         _row.SetValue(value, index);

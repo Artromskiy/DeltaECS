@@ -36,7 +36,7 @@ public ref struct QueryChunks
             if ((uint)_planIndex >= (uint)_plans.Length
                 || (uint)_chunkIndex >= (uint)_chunks.Length)
             {
-                QueryThrowHelper.ThrowChunkIteratorNotPositioned();
+                ThrowHelper.ThrowChunkIteratorNotPositioned();
             }
 
             return new QueryChunk(
@@ -112,7 +112,7 @@ public ref struct QueryArchetypeChunks
         {
             if ((uint)_index >= (uint)_chunks.Length)
             {
-                QueryThrowHelper.ThrowChunkIteratorNotPositioned();
+                ThrowHelper.ThrowChunkIteratorNotPositioned();
             }
 
             return new QueryChunk(_plan, _chunks.Ref(_index), _query, _writeSession, _sessionGeneration);
@@ -193,7 +193,7 @@ public readonly ref struct QueryChunk
         _writeSession.EnsureActive(_sessionGeneration);
         if (!ReferenceEquals(access.Query, _query))
         {
-            QueryThrowHelper.ThrowAccessMismatch();
+            ThrowHelper.ThrowAccessMismatch();
         }
 
         int physicalRow = _plan.ComponentRows.Ref(access.QueryComponentIndex);

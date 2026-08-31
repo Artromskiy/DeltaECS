@@ -208,7 +208,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
     {
         if (destination.Length < Count)
         {
-            throw new ArgumentException("Destination is too small.", nameof(destination));
+            ThrowHelper.ThrowComponentDestinationTooSmall(nameof(destination));
         }
 
         int offset = CopyWord(_word0, 0, destination, 0);
@@ -236,7 +236,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
     {
         if (!componentId.IsValid || componentId.Value >= Capacity)
         {
-            throw new ArgumentOutOfRangeException(nameof(componentId), "ComponentId must be a bit position in [0, 255].");
+            return ThrowHelper.ThrowComponentIdOutOfRange();
         }
 
         return componentId.Value;

@@ -68,7 +68,7 @@ public ref struct QuerySlots
         _writeSession.EnsureActive(_sessionGeneration);
         if (!ReferenceEquals(access.Query, _query))
         {
-            QueryThrowHelper.ThrowAccessMismatch();
+            ThrowHelper.ThrowAccessMismatch();
         }
 
         return new ReadRow(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
@@ -79,7 +79,7 @@ public ref struct QuerySlots
     {
         if (!ReferenceEquals(access.Query, _query))
         {
-            QueryThrowHelper.ThrowAccessMismatch();
+            ThrowHelper.ThrowAccessMismatch();
         }
 
         _writeSession.Acquire(_sessionGeneration, out Stamp writeStamp);
@@ -93,7 +93,7 @@ public ref struct QuerySlots
         _writeSession.EnsureActive(_sessionGeneration);
         if (!ReferenceEquals(access.Query, _query))
         {
-            QueryThrowHelper.ThrowAccessMismatch();
+            ThrowHelper.ThrowAccessMismatch();
         }
 
         return new ObjectReadValues(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
@@ -103,7 +103,7 @@ public ref struct QuerySlots
     {
         if (!ReferenceEquals(access.Query, _query))
         {
-            QueryThrowHelper.ThrowAccessMismatch();
+            ThrowHelper.ThrowAccessMismatch();
         }
 
         _writeSession.Acquire(_sessionGeneration, out Stamp writeStamp);

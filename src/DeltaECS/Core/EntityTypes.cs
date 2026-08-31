@@ -108,7 +108,7 @@ public readonly struct Query
     {
         if (!IsValid)
         {
-            throw new InvalidOperationException("Cannot bind a row from an invalid query handle.");
+            ThrowHelper.ThrowInvalidEntityQueryHandle();
         }
     }
 

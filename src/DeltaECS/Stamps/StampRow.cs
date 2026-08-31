@@ -27,7 +27,7 @@ public readonly ref struct StampRow
         int slotIndex = slots.CurrentIndex;
         if ((uint)slotIndex >= (uint)_count)
         {
-            QueryThrowHelper.ThrowSlotIteratorNotPositioned();
+            ThrowHelper.ThrowSlotIteratorNotPositioned();
         }
 
         return GetTrusted(slotIndex);

@@ -56,8 +56,7 @@ public sealed partial class World
         EnsureRegisteredType<T>(componentId);
         if (!TryGet(entity, componentId, out T value))
         {
-            throw new InvalidOperationException(
-                $"Entity {entity} does not contain a component of type {typeof(T)} for {componentId}.");
+            return ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }
 
         return value;
@@ -77,16 +76,12 @@ public sealed partial class World
     {
         if (!_layouts.TryGet(componentId, out var layout))
         {
-            throw new ArgumentException(
-                $"Component {componentId} is not registered in this world.",
-                nameof(componentId));
+            ThrowHelper.ThrowComponentNotRegistered(componentId);
         }
 
         if (layout.RuntimeType != typeof(T))
         {
-            throw new ArgumentException(
-                $"Component {componentId} is registered as {layout.RuntimeType}, not {typeof(T)}.",
-                nameof(componentId));
+            ThrowHelper.ThrowGenericComponentTypeMismatch<T>(componentId, layout.RuntimeType!);
         }
     }
 
@@ -94,14 +89,14 @@ public sealed partial class World
     {
         if (!TryResolve(entity, out int recordIndex))
         {
-            throw new InvalidOperationException("The structural operation did not produce a live entity.");
+            ThrowHelper.ThrowStructuralCreateFailed();
         }
 
         ref readonly var record = ref RecordAt(recordIndex);
         var archetype = _archetypes[record.Archetype];
         if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
         {
-            throw new InvalidOperationException("The structural operation did not produce the requested component row.");
+            ThrowHelper.ThrowStructuralComponentMissing();
         }
 
         archetype.GetChunk(record.Chunk).GetComponentRow<T>(componentIndex)[record.SlotIndex] = value;

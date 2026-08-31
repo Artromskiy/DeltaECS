@@ -10,7 +10,7 @@ internal struct MutationStampSource
     {
         if (_value == ulong.MaxValue)
         {
-            throw new InvalidOperationException("The world mutation stamp space is exhausted.");
+            ThrowHelper.ThrowMutationStampExhausted();
         }
 
         return new Stamp(++_value);

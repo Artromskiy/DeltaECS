@@ -16,7 +16,7 @@ public ref struct QueryScope
     {
         if (!ReferenceEquals(handle.Owner, owner) || !handle.IsValid)
         {
-            throw new ArgumentException("Query handle does not belong to this world.", nameof(handle));
+            ThrowHelper.ThrowInvalidQueryScopeHandle(nameof(handle));
         }
 
         _owner = owner;
@@ -59,7 +59,7 @@ public ref struct QueryScope
     {
         if (_owner is null)
         {
-            throw new InvalidOperationException("The query scope has been disposed.");
+            ThrowHelper.ThrowDisposedQueryScope();
         }
 
         _writeSession.EnsureActive(_sessionGeneration);

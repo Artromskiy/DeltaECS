@@ -102,7 +102,7 @@ public sealed partial class World : IDisposable
     {
         if (!TryBuildComponentMask(componentIds, out var mask))
         {
-            throw new InvalidOperationException("Component list is empty or invalid.");
+            ThrowHelper.ThrowInvalidComponentList();
         }
 
         return new ArchetypeHandle(this, GetOrCreateArchetype(mask).Id);
@@ -131,7 +131,7 @@ public sealed partial class World : IDisposable
 
         if (!TryBuildComponentMask(componentIds, out var mask))
         {
-            throw new InvalidOperationException("Component list is empty or invalid.");
+            ThrowHelper.ThrowInvalidComponentList();
         }
 
         Stamp stamp = _mutationStamps.Next();
@@ -204,7 +204,7 @@ public sealed partial class World : IDisposable
             || !ReferenceEquals(handle.Owner, this)
             || (uint)handle.ArchetypeId >= (uint)_archetypes.Count)
         {
-            throw new ArgumentException("Archetype handle does not belong to this world.", nameof(handle));
+            ThrowHelper.ThrowArchetypeHandleInvalid(nameof(handle));
         }
 
         return _archetypes[handle.ArchetypeId];
@@ -529,7 +529,7 @@ public sealed partial class World : IDisposable
 
             if (count >= destination.Length)
             {
-                throw new ArgumentOutOfRangeException(nameof(destination));
+                ThrowHelper.ThrowWorldDestinationOutOfRange(nameof(destination));
             }
 
             destination[count++] = new Entity(i, record.Generation);
@@ -992,7 +992,7 @@ public sealed partial class World : IDisposable
         {
             if (!_layouts.TryGet(componentIds[i], out var layout))
             {
-                throw new InvalidOperationException($"Missing component layout for {componentIds[i].Value}.");
+                ThrowHelper.ThrowMissingComponentLayout(componentIds[i].Value);
             }
 
             layouts[i] = layout;
@@ -1119,9 +1119,7 @@ public sealed partial class World : IDisposable
 
             if (!_layouts.TryGet(componentIds[i], out _))
             {
-                throw new ArgumentException(
-                    $"Component {componentIds[i].Value} is not registered in this world.",
-                    nameof(componentIds));
+                ThrowHelper.ThrowWorldComponentNotRegistered(componentIds[i].Value, nameof(componentIds));
             }
 
             mask = mask.Set(componentIds[i]);
@@ -1220,7 +1218,7 @@ public sealed partial class World : IDisposable
     {
         if (_activeChunkLeases > 0)
         {
-            throw new InvalidOperationException($"Cannot {operation} while chunk leases are active.");
+            ThrowHelper.ThrowStructuralChangeWhileLeased(operation);
         }
     }
 
@@ -1228,7 +1226,7 @@ public sealed partial class World : IDisposable
     {
         if (!query.IsValid || !ReferenceEquals(query.Owner, this))
         {
-            throw new ArgumentException("Query handle does not belong to this world.", nameof(query));
+            ThrowHelper.ThrowInvalidQuery(nameof(query));
         }
     }
 

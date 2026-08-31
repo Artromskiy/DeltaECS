@@ -37,7 +37,7 @@ internal sealed class QueryWriteSession
     {
         if (!_active || generation != _generation)
         {
-            QueryThrowHelper.ThrowDisposedQueryExecution();
+            ThrowHelper.ThrowDisposedQueryExecution();
         }
     }
 
@@ -46,7 +46,7 @@ internal sealed class QueryWriteSession
         EnsureActive(generation);
         if (!_writeEnabled)
         {
-            QueryThrowHelper.ThrowMissingWriteIntent();
+            ThrowHelper.ThrowMissingWriteIntent();
         }
 
         if (_writeStamp == default)
@@ -54,7 +54,7 @@ internal sealed class QueryWriteSession
             World? owner = _owner;
             if (owner is null)
             {
-                QueryThrowHelper.ThrowMissingWriteIntent();
+                ThrowHelper.ThrowMissingWriteIntent();
             }
 
             owner.ReserveQueryWrite(out _writeStamp);

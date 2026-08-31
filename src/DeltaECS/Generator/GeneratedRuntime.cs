@@ -13,6 +13,14 @@ public interface IGeneratedSequenceInvoker
     void Invoke(ref GeneratedSequenceCursor cursor);
 }
 
+/// <summary>Compiler-support contract for generated archetype stamp writers.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public interface IGeneratedArchetypeStampWriter
+{
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    void Write(nint[] stampAddresses, Stamp stamp);
+}
+
 /// <summary>Trusted compiler-support execution state for generated write queries.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public ref struct GeneratedDenseExecution
@@ -44,7 +52,7 @@ public ref struct GeneratedDenseExecution
     {
         if (_owner is null)
         {
-            QueryThrowHelper.ThrowDisposedQueryExecution();
+            ThrowHelper.ThrowDisposedQueryExecution();
         }
 
         return MoveNextTrusted(out slots);
@@ -67,7 +75,9 @@ public ref struct GeneratedDenseExecution
             }
 
             ref nint firstStampAddress = ref MemoryMarshal.GetArrayDataReference(plan.ArchetypeStampAddresses);
-            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, queryComponentIndex), _writeStamp);
+            GeneratedForEachRuntime.WriteArchetypeStamp(
+                Unsafe.Add(ref firstStampAddress, queryComponentIndex),
+                _writeStamp);
         }
     }
 
@@ -91,17 +101,18 @@ public ref struct GeneratedDenseExecution
             ref nint firstStampAddress = ref MemoryMarshal.GetArrayDataReference(stampAddresses);
             for (int accessIndex = 0; accessIndex < queryComponentIndices.Length; accessIndex++)
             {
-                WriteArchetypeStamp(
+                GeneratedForEachRuntime.WriteArchetypeStamp(
                     Unsafe.Add(ref firstStampAddress, queryComponentIndices[accessIndex]),
                     _writeStamp);
             }
         }
     }
 
-    /// <summary>Marks two write components with one direct plan traversal.</summary>
+    /// <summary>Runs the generated, arity-specific writer once for every matching archetype.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void MarkArchetypeWrites(int firstQueryComponentIndex, int secondQueryComponentIndex)
+    public void MarkArchetypeWrites<TWriter>(ref TWriter writer)
+        where TWriter : struct, IGeneratedArchetypeStampWriter
     {
         for (int planIndex = 0; planIndex < _plans.Length; planIndex++)
         {
@@ -111,67 +122,8 @@ public ref struct GeneratedDenseExecution
                 continue;
             }
 
-            nint[] stampAddresses = plan.ArchetypeStampAddresses;
-            ref nint firstStampAddress = ref MemoryMarshal.GetArrayDataReference(stampAddresses);
-            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, firstQueryComponentIndex), _writeStamp);
-            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, secondQueryComponentIndex), _writeStamp);
+            writer.Write(plan.ArchetypeStampAddresses, _writeStamp);
         }
-    }
-
-    /// <summary>Marks three write components with one direct plan traversal.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void MarkArchetypeWrites(
-        int firstQueryComponentIndex,
-        int secondQueryComponentIndex,
-        int thirdQueryComponentIndex)
-    {
-        for (int planIndex = 0; planIndex < _plans.Length; planIndex++)
-        {
-            ref readonly ArchetypePlan plan = ref _plans[planIndex];
-            if (plan.ChunkCount == 0)
-            {
-                continue;
-            }
-
-            nint[] stampAddresses = plan.ArchetypeStampAddresses;
-            ref nint firstStampAddress = ref MemoryMarshal.GetArrayDataReference(stampAddresses);
-            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, firstQueryComponentIndex), _writeStamp);
-            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, secondQueryComponentIndex), _writeStamp);
-            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, thirdQueryComponentIndex), _writeStamp);
-        }
-    }
-
-    /// <summary>Marks four write components with one direct plan traversal.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void MarkArchetypeWrites(
-        int firstQueryComponentIndex,
-        int secondQueryComponentIndex,
-        int thirdQueryComponentIndex,
-        int fourthQueryComponentIndex)
-    {
-        for (int planIndex = 0; planIndex < _plans.Length; planIndex++)
-        {
-            ref readonly ArchetypePlan plan = ref _plans[planIndex];
-            if (plan.ChunkCount == 0)
-            {
-                continue;
-            }
-
-            nint[] stampAddresses = plan.ArchetypeStampAddresses;
-            ref nint firstStampAddress = ref MemoryMarshal.GetArrayDataReference(stampAddresses);
-            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, firstQueryComponentIndex), _writeStamp);
-            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, secondQueryComponentIndex), _writeStamp);
-            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, thirdQueryComponentIndex), _writeStamp);
-            WriteArchetypeStamp(Unsafe.Add(ref firstStampAddress, fourthQueryComponentIndex), _writeStamp);
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static unsafe void WriteArchetypeStamp(nint stampAddress, Stamp stamp)
-    {
-        *(Stamp*)stampAddress = stamp;
     }
 
     /// <summary>Advances a validated generated execution without repeating the lifetime guard.</summary>
@@ -352,6 +304,16 @@ public ref struct GeneratedSequenceCursor
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static class GeneratedForEachRuntime
 {
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void WriteArchetypeStamp(nint stampAddress, Stamp stamp)
+    {
+        unsafe
+        {
+            *(Stamp*)stampAddress = stamp;
+        }
+    }
+
     /// <summary>Opens the trusted dense execution used by generated callbacks.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -562,7 +524,7 @@ public static class GeneratedForEachRuntime
         ArgumentNullException.ThrowIfNull(world);
         if (!ReferenceEquals(query.Owner, world) || !query.IsValid)
         {
-            throw new ArgumentException("Query handle does not belong to this world.", nameof(query));
+            ThrowHelper.ThrowGeneratedQueryInvalid(nameof(query));
         }
 
         return query.Cached;

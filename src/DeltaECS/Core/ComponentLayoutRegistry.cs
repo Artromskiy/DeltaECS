@@ -11,7 +11,7 @@ public sealed partial class ComponentLayoutRegistry
     private static readonly MethodInfo _containsReferencesMethod = typeof(RuntimeHelpers).GetMethod(
         nameof(RuntimeHelpers.IsReferenceOrContainsReferences),
         BindingFlags.Public | BindingFlags.Static)
-        ?? throw new MissingMethodException(nameof(RuntimeHelpers.IsReferenceOrContainsReferences));
+        ?? ThrowHelper.ThrowMissingRuntimeHelper();
 
     private readonly Dictionary<SchemaId, int> _idsBySchema = new();
     private readonly Dictionary<Type, ComponentId> _primaryIdsByType = new();
@@ -63,7 +63,7 @@ public sealed partial class ComponentLayoutRegistry
             var existingLayout = _layouts[existingId];
             if (!existingLayout.Equals(layout))
             {
-                throw new InvalidOperationException($"SchemaId {layout.SchemaId} is already registered with a different component layout.");
+                ThrowHelper.ThrowSchemaConflict(layout.SchemaId);
             }
 
             return new ComponentId(existingId);
@@ -71,7 +71,7 @@ public sealed partial class ComponentLayoutRegistry
 
         if (_layouts.Count >= ComponentMask.Capacity)
         {
-            throw new InvalidOperationException($"The type-erased mask supports at most {ComponentMask.Capacity} components.");
+            ThrowHelper.ThrowComponentCapacityExceeded();
         }
 
         var id = new ComponentId(_layouts.Count);
@@ -122,14 +122,14 @@ public sealed partial class ComponentLayoutRegistry
             return componentId;
         }
 
-        throw new KeyNotFoundException($"The component type {runtimeType} is not registered.");
+        return ThrowHelper.ThrowComponentTypeNotRegistered(runtimeType);
     }
 
     public ComponentLayout Get(ComponentId id)
     {
         if (!id.IsValid || id.Value >= _layouts.Count)
         {
-            throw new ArgumentOutOfRangeException(nameof(id));
+            return ThrowHelper.ThrowInvalidComponentLayoutId<ComponentLayout>();
         }
 
         return _layouts[id.Value];
@@ -151,7 +151,7 @@ public sealed partial class ComponentLayoutRegistry
     {
         if (!id.IsValid || id.Value >= _rowOperations.Count)
         {
-            throw new ArgumentOutOfRangeException(nameof(id));
+            return ThrowHelper.ThrowInvalidComponentLayoutId<ComponentRowOperations>();
         }
 
         return _rowOperations[id.Value];

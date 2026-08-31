@@ -22,7 +22,7 @@ internal sealed class Chunk
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
         if (rowOperations.Length != layouts.Length)
         {
-            throw new ArgumentException("Each component row must have cached operations.", nameof(rowOperations));
+            ThrowHelper.ThrowChunkRowOperationsMismatch(nameof(rowOperations));
         }
 
         _capacity = capacity;
@@ -33,7 +33,12 @@ internal sealed class Chunk
         _rowOperations = rowOperations;
         for (int index = 0; index < layouts.Length; index++)
         {
-            var runtimeType = layouts[index].RuntimeType ?? throw new InvalidOperationException("ArrayRows requires a type-backed component layout. Register the component with its runtime Type.");
+            var runtimeType = layouts[index].RuntimeType;
+            if (runtimeType is null)
+            {
+                ThrowHelper.ThrowArrayRowsRequiresRuntimeType();
+            }
+
             _componentRows[index] = _rowOperations[index].CreateArray(runtimeType, capacity);
         }
     }
@@ -56,7 +61,7 @@ internal sealed class Chunk
     {
         if (IsFull)
         {
-            throw new InvalidOperationException("Chunk is full.");
+            ThrowHelper.ThrowChunkFull();
         }
 
         int slotIndex = _count++;
@@ -74,7 +79,7 @@ internal sealed class Chunk
     {
         if (count < 0 || _count + count > _capacity)
         {
-            throw new ArgumentOutOfRangeException(nameof(count));
+            ThrowHelper.ThrowChunkCountOutOfRange(nameof(count));
         }
 
         int start = _count;
@@ -92,7 +97,7 @@ internal sealed class Chunk
     {
         if (slotIndex < 0 || slotIndex >= _count)
         {
-            throw new ArgumentOutOfRangeException(nameof(slotIndex));
+            ThrowHelper.ThrowChunkSlotOutOfRange(nameof(slotIndex));
         }
 
         int lastSlotIndex = _count - 1;

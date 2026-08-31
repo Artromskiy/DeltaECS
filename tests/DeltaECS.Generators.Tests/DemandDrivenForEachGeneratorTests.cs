@@ -179,6 +179,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(RunGenerator(source));
 
         Assert.That(generated, Does.Contain($"ForEachAction<{componentTypes}>"));
+        Assert.That(generated, Does.Contain("DemandForEachArchetypeStampWriter_"));
+        Assert.That(generated, Does.Contain("execution.MarkArchetypeWrites(ref stampWriter)"));
+        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.GetWriteQueryComponentIndex(access31)"));
     }
 
     [Test]
@@ -273,7 +276,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(RunGenerator(source));
 
         Assert.That(generated, Does.Contain(
-            "execution.MarkArchetypeWrites(GeneratedForEachRuntime.GetWriteQueryComponentIndex(access0), GeneratedForEachRuntime.GetWriteQueryComponentIndex(access1));"));
+            "var stampWriter = new DemandForEachArchetypeStampWriter_"));
+        Assert.That(generated, Does.Contain("execution.MarkArchetypeWrites(ref stampWriter);"));
         Assert.That(generated, Does.Not.Contain("execution.MarkArchetypeWrite(access0)"));
         Assert.That(generated, Does.Not.Contain("execution.MarkArchetypeWrite(access1)"));
     }
@@ -593,9 +597,8 @@ public sealed class DemandDrivenForEachGeneratorTests
             public bool MoveNextTrusted(out GeneratedQuerySlots slots) { slots = default; return false; }
             public void MarkArchetypeWrite(int queryComponentIndex) { }
             public void MarkArchetypeWrites(scoped ReadOnlySpan<int> queryComponentIndices) { }
-            public void MarkArchetypeWrites(int firstQueryComponentIndex, int secondQueryComponentIndex) { }
-            public void MarkArchetypeWrites(int firstQueryComponentIndex, int secondQueryComponentIndex, int thirdQueryComponentIndex) { }
-            public void MarkArchetypeWrites(int firstQueryComponentIndex, int secondQueryComponentIndex, int thirdQueryComponentIndex, int fourthQueryComponentIndex) { }
+            public void MarkArchetypeWrites<TWriter>(ref TWriter writer)
+                where TWriter : struct, IGeneratedArchetypeStampWriter { }
             public void Dispose() { }
         }
         public ref struct GeneratedReadDenseExecution
@@ -612,6 +615,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         }
 
         public interface IGeneratedSequenceInvoker { void Invoke(ref GeneratedSequenceCursor cursor); }
+        public interface IGeneratedArchetypeStampWriter { void Write(nint[] stampAddresses, Stamp stamp); }
         public static class GeneratedForEachRuntime
         {
             public static GeneratedDenseExecution OpenDense(World world, in Query query, bool hasWrites) => default;
@@ -626,6 +630,7 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static ReadAccess GetPreparedReadAccess(in Query query, ComponentId component, Type runtimeType) => default;
             public static WriteAccess GetPreparedWriteAccess(in Query query, ComponentId component, Type runtimeType) => default;
             public static int GetWriteQueryComponentIndex(WriteAccess access) => default;
+            public static void WriteArchetypeStamp(nint stampAddress, Stamp stamp) { }
             public static int AccessRead(World world, in Query query, ComponentId component, Type runtimeType) => default;
             public static int AccessWrite(World world, in Query query, ComponentId component, Type runtimeType) => default;
             public static int AccessRead(World world, in Query query, Type runtimeType) => default;

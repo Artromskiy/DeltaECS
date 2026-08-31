@@ -25,7 +25,7 @@ public sealed partial class World : IEcsWorld
         ThrowIfDisposed();
         if (_integrationLifecycle != IntegrationLifecycleState.Created)
         {
-            throw new InvalidOperationException("The ECS world can be initialized exactly once.");
+            ThrowHelper.ThrowIntegrationAlreadyInitialized();
         }
 
         _integrationLifecycle = IntegrationLifecycleState.Initialized;
@@ -272,12 +272,12 @@ public sealed partial class World : IEcsWorld
             ComponentId component = components[index];
             if (!_layouts.TryGet(component, out var layout))
             {
-                throw new ArgumentException($"Component {component.Value} is not registered in this world.", nameof(components));
+                ThrowHelper.ThrowIntegrationComponentNotRegistered(component.Value, nameof(components));
             }
 
             if (layout.RuntimeType is null)
             {
-                throw new NotSupportedException($"Component {component.Value} has a raw layout that the typed-array world cannot materialize.");
+                ThrowHelper.ThrowIntegrationRawComponentUnsupported(component.Value);
             }
         }
     }
@@ -287,7 +287,7 @@ public sealed partial class World : IEcsWorld
         ThrowIfDisposed();
         if (_integrationLifecycle != IntegrationLifecycleState.Initialized)
         {
-            throw new InvalidOperationException("The ECS integration world is not initialized or has already shut down.");
+            ThrowHelper.ThrowIntegrationNotInitialized();
         }
     }
 

@@ -1129,6 +1129,10 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         {
             RenderContracts(source, shape);
         }
+        if (!shape.Sequence && shape.Pattern.Count(IsWrite) > 1)
+        {
+            RenderArchetypeStampWriter(source, shape);
+        }
         if (shape.Sequence)
         {
             RenderInvoker(source, shape, profiling);
@@ -1151,6 +1155,62 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             .Append(JoinParameters("ref TContext context", parameters)).AppendLine(");");
         source.Append("public delegate void ").Append(TypeWithGenericArgs("ForEachContextEntityAction" + suffix, JoinGeneric("TContext", generic))).Append('(')
             .Append(JoinParameters("ref TContext context, Entity entity", parameters)).AppendLine(");");
+    }
+
+    private static void RenderArchetypeStampWriter(StringBuilder source, Shape shape)
+    {
+        string name = ArchetypeStampWriterName(shape);
+        source.Append("[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]").AppendLine();
+        source.Append("internal struct ").Append(name).AppendLine(" : IGeneratedArchetypeStampWriter");
+        source.AppendLine("{");
+        for (int index = 0; index < shape.Pattern.Length; index++)
+        {
+            if (IsWrite(shape.Pattern[index]))
+            {
+                source.Append("    private readonly int _access").Append(index).AppendLine(";");
+            }
+        }
+
+        source.Append("    internal ").Append(name).Append('(');
+        var constructorParameters = new List<string>();
+        for (int index = 0; index < shape.Pattern.Length; index++)
+        {
+            if (IsWrite(shape.Pattern[index]))
+            {
+                constructorParameters.Add("int access" + index);
+            }
+        }
+
+        source.Append(string.Join(", ", constructorParameters)).AppendLine(")");
+        source.AppendLine("    {");
+        for (int index = 0; index < shape.Pattern.Length; index++)
+        {
+            if (IsWrite(shape.Pattern[index]))
+            {
+                source.Append("        _access").Append(index).Append(" = access").Append(index).AppendLine(";");
+            }
+        }
+
+        source.AppendLine("    }");
+        source.AppendLine();
+        source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        source.AppendLine("    void IGeneratedArchetypeStampWriter.Write(nint[] stampAddresses, Stamp stamp)");
+        source.AppendLine("    {");
+        source.AppendLine("        ref nint firstStampAddress = ref global::System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(stampAddresses);");
+        for (int index = 0; index < shape.Pattern.Length; index++)
+        {
+            if (IsWrite(shape.Pattern[index]))
+            {
+                source.Append("        GeneratedForEachRuntime.WriteArchetypeStamp(")
+                    .Append("global::System.Runtime.CompilerServices.Unsafe.Add(ref firstStampAddress, _access")
+                    .Append(index)
+                    .AppendLine("), stamp);");
+            }
+        }
+
+        source.AppendLine("    }");
+        source.AppendLine("}");
+        source.AppendLine();
     }
 
     private static void RenderInvoker(StringBuilder source, Shape shape, bool profiling)
@@ -1600,7 +1660,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             closedShape.ExplicitIds ? ClosedComponentNames(closedShape.Components.Length) : string.Empty,
             closed: true,
             prepared: true));
-        AppendArchetypeWriteSetup(source, closedShape, "    ");
+        AppendArchetypeWriteSetup(source, shape, "    ");
         source.Append("    while (execution.")
             .Append("MoveNextTrusted")
             .AppendLine("(out var slots))");
@@ -2037,12 +2097,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         int writeCount = shape.Pattern.Count(IsWrite);
         if (writeCount > 1)
         {
-            source.Append(indent).Append("execution.MarkArchetypeWrites(");
-            bool useSpan = writeCount > 4;
-            if (useSpan)
-            {
-                source.Append("stackalloc int[] { ");
-            }
+            source.Append(indent).Append("var stampWriter = new ")
+                .Append(ArchetypeStampWriterName(shape)).Append('(');
 
             bool first = true;
             for (int index = 0; index < shape.Pattern.Length; index++)
@@ -2061,12 +2117,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 first = false;
             }
 
-            if (useSpan)
-            {
-                source.Append(" }");
-            }
-
             source.AppendLine(");");
+            source.Append(indent).AppendLine("execution.MarkArchetypeWrites(ref stampWriter);");
             return;
         }
 
@@ -2271,6 +2323,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                     : generic);
 
     private static string InvokerName(Shape shape) => "DemandForEachInvoker_" + StableName(shape.Key);
+
+    private static string ArchetypeStampWriterName(Shape shape)
+        => "DemandForEachArchetypeStampWriter_" + StableName(shape.Key);
 
     private static string GenericTypes(int arity)
     {
