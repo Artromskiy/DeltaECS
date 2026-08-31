@@ -89,26 +89,26 @@ public class WidePayloadPartialReadIterationBenchmarks
     }
 }
 
-[StructLayout(LayoutKind.Sequential, Size = 256)]
+[StructLayout(LayoutKind.Sequential, Size = 512)]
 internal struct WidePayload0 { public int Value; }
 
-[StructLayout(LayoutKind.Sequential, Size = 256)]
+[StructLayout(LayoutKind.Sequential, Size = 512)]
 internal struct WidePayload1 { public int Value; }
 
-[StructLayout(LayoutKind.Sequential, Size = 256)]
+[StructLayout(LayoutKind.Sequential, Size = 512)]
 internal struct WidePayload2 { public int Value; }
 
-[StructLayout(LayoutKind.Sequential, Size = 256)]
+[StructLayout(LayoutKind.Sequential, Size = 512)]
 internal struct WidePayload3 { public int Value; }
 
-[StructLayout(LayoutKind.Sequential, Size = 256)]
+[StructLayout(LayoutKind.Sequential, Size = 512)]
 internal struct WidePayload4 { public int Value; }
 
-[StructLayout(LayoutKind.Sequential, Size = 256)]
+[StructLayout(LayoutKind.Sequential, Size = 512)]
 internal struct WidePayload5 { public int Value; }
 
-[StructLayout(LayoutKind.Sequential, Size = 256)]
+[StructLayout(LayoutKind.Sequential, Size = 512)]
 internal struct WidePayload6 { public int Value; }
 
-[StructLayout(LayoutKind.Sequential, Size = 256)]
+[StructLayout(LayoutKind.Sequential, Size = 512)]
 internal struct WidePayload7 { public int Value; }
