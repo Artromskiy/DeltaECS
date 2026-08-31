@@ -65,21 +65,18 @@ public sealed class SequenceExecutionTests
 
         var candidates = new[] { unmarked, marked, marked, stale };
         Assert.That(world.From(candidates).Where(in query).Add(new[] { velocityId }), Is.EqualTo(1));
-        Stamp afterAdd = world.Stamp;
         Assert.That(world.TryGet<short>(marked, velocityId, out _), Is.True);
         Assert.That(world.TryGet<short>(unmarked, velocityId, out _), Is.False);
         Assert.That(world.TryGet<short>(outsideCandidateSequence, velocityId, out _), Is.False);
         Assert.That(world.TryGetComponentStamp(marked, positionId, out Stamp markedPositionAfterAdd), Is.True);
         Assert.That(world.TryGetComponentStamp(marked, velocityId, out Stamp markedVelocityAfterAdd), Is.True);
         Assert.That(markedPositionAfterAdd, Is.EqualTo(markedPositionBefore));
-        Assert.That(markedVelocityAfterAdd, Is.EqualTo(afterAdd));
+        Assert.That(markedVelocityAfterAdd, Is.EqualTo(new Stamp(1)));
 
         Assert.That(world.From(candidates).Where(in query).Remove(new[] { velocityId }), Is.EqualTo(1));
-        Stamp afterRemove = world.Stamp;
         Assert.That(world.TryGet<short>(marked, velocityId, out _), Is.False);
         Assert.That(world.TryGetComponentStamp(marked, positionId, out Stamp markedPositionAfterRemove), Is.True);
         Assert.That(markedPositionAfterRemove, Is.EqualTo(markedPositionBefore));
-        Assert.That(afterRemove, Is.Not.EqualTo(afterAdd));
 
         Assert.That(world.From(candidates).Where(in query).Destroy(), Is.EqualTo(1));
         Assert.That(world.IsAlive(marked), Is.False);
@@ -87,10 +84,8 @@ public sealed class SequenceExecutionTests
         Assert.That(world.TryGetComponentStamp(unmarked, positionId, out Stamp unmarkedPositionAfter), Is.True);
         Assert.That(unmarkedPositionAfter, Is.EqualTo(unmarkedPositionBefore));
 
-        Stamp afterDestroy = world.Stamp;
         Assert.That(world.From(candidates).Where(in query).Destroy(), Is.Zero);
         Assert.That(world.From(candidates).Where(in query).Add(new[] { velocityId }), Is.Zero);
-        Assert.That(world.Stamp, Is.EqualTo(afterDestroy));
     }
 
     [Test]
@@ -136,6 +131,8 @@ public sealed class SequenceExecutionTests
         Assert.That(world.Set(third, positionId, new SequencePosition(3)), Is.True);
         Assert.That(world.TryGetComponentStamp(first, positionId, out Stamp firstPosition), Is.True);
         Assert.That(world.TryGetComponentStamp(third, positionId, out Stamp thirdPosition), Is.True);
+        Assert.That(world.TryGetComponentStamp(first, velocityId, out Stamp firstVelocity), Is.True);
+        Assert.That(world.TryGetComponentStamp(third, velocityId, out Stamp thirdVelocity), Is.True);
         Assert.That(world.TryGetComponentStamp(second, velocityId, out Stamp untouchedVelocity), Is.True);
         var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
         var candidates = new[] { third, first, third };
@@ -162,8 +159,8 @@ public sealed class SequenceExecutionTests
         {
             Assert.That(firstPositionAfter, Is.EqualTo(firstPosition));
             Assert.That(thirdPositionAfter, Is.EqualTo(thirdPosition));
-            Assert.That(firstVelocityAfter, Is.EqualTo(world.Stamp));
-            Assert.That(thirdVelocityAfter, Is.EqualTo(world.Stamp));
+            Assert.That(firstVelocityAfter, Is.EqualTo(new Stamp(firstVelocity.Value + 1)));
+            Assert.That(thirdVelocityAfter, Is.EqualTo(new Stamp(thirdVelocity.Value + 2)));
             Assert.That(untouchedVelocityAfter, Is.EqualTo(untouchedVelocity));
         });
     }
@@ -179,7 +176,6 @@ public sealed class SequenceExecutionTests
         Assert.That(world.Set(entity, positionId, new SequencePosition(5)), Is.True);
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionBefore), Is.True);
         Assert.That(world.TryGetComponentStamp(entity, velocityId, out Stamp velocityBefore), Is.True);
-        Stamp beforeRead = world.Stamp;
         var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
         var candidates = new[] { entity, entity };
         int sum = 0;
@@ -190,7 +186,6 @@ public sealed class SequenceExecutionTests
                 total += position.Value + velocity.Value);
 
         Assert.That(sum, Is.EqualTo(10));
-        Assert.That(world.Stamp, Is.EqualTo(beforeRead));
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionAfterRead), Is.True);
         Assert.That(world.TryGetComponentStamp(entity, velocityId, out Stamp velocityAfterRead), Is.True);
         Assert.That(positionAfterRead, Is.EqualTo(positionBefore));
@@ -204,7 +199,7 @@ public sealed class SequenceExecutionTests
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionAfterWrite), Is.True);
         Assert.That(world.TryGetComponentStamp(entity, velocityId, out Stamp velocityAfterWrite), Is.True);
         Assert.That(positionAfterWrite, Is.EqualTo(positionBefore));
-        Assert.That(velocityAfterWrite, Is.EqualTo(world.Stamp));
+        Assert.That(velocityAfterWrite, Is.EqualTo(new Stamp(velocityBefore.Value + 2)));
     }
 
     [Test]
@@ -241,14 +236,12 @@ public sealed class SequenceExecutionTests
         using var world = new World(layouts);
         Entity stale = world.Create(velocityId);
         Assert.That(world.Destroy(stale), Is.True);
-        Stamp before = world.Stamp;
 
         world.From(Array.Empty<Entity>()).ForEach<SequenceVelocity>(
             static (ref SequenceVelocity velocity) => velocity.Value++);
         world.From(new[] { stale }).ForEach<SequenceVelocity>(
             static (ref SequenceVelocity velocity) => velocity.Value++);
 
-        Assert.That(world.Stamp, Is.EqualTo(before));
     }
 
     internal struct EntityCollector : IForEachEntity

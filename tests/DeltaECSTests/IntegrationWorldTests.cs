@@ -15,11 +15,9 @@ public sealed class IntegrationWorldTests
 
         Assert.Throws<InvalidOperationException>(world.Update);
         world.Initialize();
-        Stamp before = world.Stamp;
 
         world.Update();
 
-        Assert.That(world.Stamp, Is.EqualTo(before));
         Assert.Throws<InvalidOperationException>(world.Initialize);
 
         world.Shutdown();
@@ -36,7 +34,6 @@ public sealed class IntegrationWorldTests
         IEcsWorld world = storage;
 
         ComponentCatalog first = world.Catalog;
-        Stamp worldStamp = world.Stamp;
         ComponentId rawId = layouts.Register(new ComponentLayout(new SchemaId(50_002), size: 16, alignment: 8));
         ComponentCatalog second = world.Catalog;
 
@@ -53,7 +50,6 @@ public sealed class IntegrationWorldTests
             Assert.That(second.Components.Span[1].Id, Is.EqualTo(rawId));
             Assert.That(second.Components.Span[1].Schema, Is.EqualTo(new SchemaId(50_002)));
             Assert.That(second.Components.Span[1].Capabilities, Is.EqualTo(ComponentCapabilities.None));
-            Assert.That(world.Stamp, Is.EqualTo(worldStamp));
         });
 
         world.Initialize();
@@ -61,7 +57,6 @@ public sealed class IntegrationWorldTests
         Assert.Multiple(() =>
         {
             Assert.That(world.Catalog.Stamp, Is.EqualTo(second.Stamp));
-            Assert.That(world.Stamp, Is.Not.EqualTo(worldStamp));
         });
         world.Shutdown();
     }
@@ -96,10 +91,8 @@ public sealed class IntegrationWorldTests
             Assert.That(destination[0], Is.EqualTo(positionId));
         });
 
-        Stamp beforeRemove = world.Stamp;
         Assert.That(world.Remove(entity, stackalloc[] { positionId }), Is.True);
         Assert.That(world.Remove(entity, stackalloc[] { positionId }), Is.False);
-        Assert.That(world.Stamp, Is.Not.EqualTo(beforeRemove));
         Assert.That(world.TryGetComponents(entity, destination, out int removedCount), Is.True);
         Assert.That(removedCount, Is.Zero);
 
@@ -131,10 +124,8 @@ public sealed class IntegrationWorldTests
         world.Initialize();
         Assert.Throws<ArgumentException>(() => world.Create(new[] { unknownId }));
         Entity entity = world.Create(stackalloc[] { positionId });
-        Stamp before = world.Stamp;
 
         Assert.Throws<ArgumentException>(() => world.Add(entity, new[] { velocityId, unknownId }));
-        Assert.That(world.Stamp, Is.EqualTo(before));
         Assert.That(world.TryRead(entity, velocityId, out _, out EcsReadError missing), Is.False);
         Assert.That(missing.Code, Is.EqualTo(EcsReadErrorCode.ComponentMissing));
 
@@ -142,7 +133,6 @@ public sealed class IntegrationWorldTests
         Assert.Throws<ArgumentException>(() => world.Remove(entity, new[] { positionId, unknownId }));
         Assert.That(world.TryRead(entity, positionId, out _, out EcsReadError retained), Is.True);
         Assert.That(retained.Code, Is.EqualTo(EcsReadErrorCode.None));
-        Assert.That(world.Stamp, Is.EqualTo(before));
 
         world.Shutdown();
     }
@@ -168,7 +158,6 @@ public sealed class IntegrationWorldTests
         Assert.That(world.TryWrite(entity, positionId, new Position(42), initial.Stamp, out Stamp written, out EcsWriteError writeError), Is.True);
         Assert.Multiple(() =>
         {
-            Assert.That(written, Is.EqualTo(world.Stamp));
             Assert.That(writeError.Code, Is.EqualTo(EcsWriteErrorCode.None));
         });
         Assert.That(world.TryRead(entity, positionId, out ComponentSnapshot updated, out _), Is.True);
@@ -178,7 +167,6 @@ public sealed class IntegrationWorldTests
             Assert.That(updated.Stamp, Is.EqualTo(written));
         });
 
-        Stamp beforeFailures = world.Stamp;
         Assert.That(world.TryWrite(entity, positionId, new Position(43), initial.Stamp, out Stamp staleWritten, out EcsWriteError stale), Is.False);
         Assert.That(world.TryWrite(entity, positionId, new Velocity(1), written, out _, out EcsWriteError wrongType), Is.False);
         Assert.That(world.TryWrite(entity, positionId, null, written, out _, out EcsWriteError nullValue), Is.False);
@@ -196,7 +184,6 @@ public sealed class IntegrationWorldTests
             Assert.That(unknown.Code, Is.EqualTo(EcsReadErrorCode.ComponentUnknown));
             Assert.That(missingWrite.Code, Is.EqualTo(EcsWriteErrorCode.ComponentMissing));
             Assert.That(unknownWrite.Code, Is.EqualTo(EcsWriteErrorCode.ComponentUnknown));
-            Assert.That(world.Stamp, Is.EqualTo(beforeFailures));
         });
 
         Assert.That(world.Destroy(entity), Is.True);
@@ -236,7 +223,6 @@ public sealed class IntegrationWorldTests
             Assert.That(mutated.Value, Is.SameAs(value));
             Assert.That(mutatedValue?.Value, Is.EqualTo(9));
             Assert.That(mutated.Stamp, Is.EqualTo(written));
-            Assert.That(world.Stamp, Is.EqualTo(written));
         });
 
         Assert.That(world.TryWrite(entity, referenceId, value, mutated.Stamp, out Stamp rewritten, out _), Is.True);

@@ -63,8 +63,6 @@ public readonly record struct EcsWriteError(
 /// </summary>
 public interface IEcsWorld
 {
-    Stamp Stamp { get; }
-
     ComponentCatalog Catalog { get; }
 
     void Initialize();

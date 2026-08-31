@@ -1,6 +1,7 @@
 namespace Delta.ECS;
 
 using System;
+using System.Runtime.CompilerServices;
 
 /// <summary>Opaque 64-bit equality token used for mutation revision tracking.</summary>
 public readonly struct Stamp : IEquatable<Stamp>
@@ -20,6 +21,10 @@ public readonly struct Stamp : IEquatable<Stamp>
     public static bool operator !=(Stamp left, Stamp right) => !left.Equals(right);
 
     public override string ToString() => Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Stamp Next()
+        => new(unchecked(Value + 1));
 }
 
 internal static class StampMath

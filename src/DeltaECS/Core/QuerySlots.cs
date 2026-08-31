@@ -32,18 +32,6 @@ public ref struct QuerySlots
         _index = -1;
     }
 
-    internal QuerySlots(ArchetypePlan plan, ChunkPlan chunkPlan, QueryPlan query, bool writeEnabled, Stamp writeStamp)
-    {
-        _componentRowsByQuery = plan.ComponentRows;
-        _chunk = chunkPlan.Chunk;
-        _resolvedRowsByQuery = chunkPlan.ComponentRows;
-        _query = query;
-        _writeSession = new QueryWriteSession();
-        _sessionGeneration = _writeSession.Reset(writeEnabled, writeStamp);
-        _count = chunkPlan.Chunk.Count;
-        _index = -1;
-    }
-
     public int CurrentIndex
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -82,9 +70,9 @@ public ref struct QuerySlots
             ThrowHelper.ThrowAccessMismatch();
         }
 
-        _writeSession.Acquire(_sessionGeneration, out Stamp writeStamp);
+        _writeSession.Acquire(_sessionGeneration);
         int physicalRow = _componentRowsByQuery.Ref(access.QueryComponentIndex);
-        _query.Owner.CreateChunkComponentStampWriter(_chunk, physicalRow, writeStamp).Mark();
+        _query.Owner.IncrementChunkComponentStamp(_chunk, physicalRow);
         return new WriteRow(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
     }
 
@@ -106,9 +94,9 @@ public ref struct QuerySlots
             ThrowHelper.ThrowAccessMismatch();
         }
 
-        _writeSession.Acquire(_sessionGeneration, out Stamp writeStamp);
+        _writeSession.Acquire(_sessionGeneration);
         int physicalRow = _componentRowsByQuery.Ref(access.QueryComponentIndex);
-        _query.Owner.CreateChunkComponentStampWriter(_chunk, physicalRow, writeStamp).Mark();
+        _query.Owner.IncrementChunkComponentStamp(_chunk, physicalRow);
         return new ObjectWriteValues(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
     }
 

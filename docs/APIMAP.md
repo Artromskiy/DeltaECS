@@ -163,8 +163,8 @@ work, inspect the focused test class after locating the source method.
   arithmetic counters exposed to consumers.
 - Effective component stamps combine entity/component, chunk/component and
   archetype/component overrides. The latter two layers are centrally owned by
-  `World`; they do not enlarge `Chunk` or `Archetype`. `World.Stamp` remains a
-  mutation counter and is not part of an entity/component stamp.
+  `World`; they do not enlarge `Chunk` or `Archetype`. There is no aggregate
+  world mutation stamp; consumers use exact entity/component stamps.
 - `IEcsWorld` is a neutral local .NET boundary. It uses the core `Entity` and
   `ComponentId` types and exposes object snapshots only for integration work.
 

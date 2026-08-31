@@ -12,7 +12,7 @@ on implementation. They do not create separate storage models or namespaces.
 | `Functor` | Struct-functor contracts and generated runtime bridge | [Functor API](Functor/README.md) |
 | `Sequence` | Ordered execution over an explicit entity span | [Sequence API](Sequence/README.md) |
 | `API` | Neutral engine/editor integration contract | [Integration API](API/README.md) |
-| `Stamps` | World and component mutation revisions | [Stamp contract](Stamps/README.md) |
+| `Stamps` | Catalog and entity/component mutation revisions | [Stamp contract](Stamps/README.md) |
 
 `Properties` contains assembly metadata and has no user-facing API.
 

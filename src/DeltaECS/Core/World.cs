@@ -29,7 +29,6 @@ public sealed partial class World : IDisposable
     private int _activeChunkLeases;
     private QueryWriteSession? _queryWriteSessionPool;
     private int _archetypeVersion;
-    private MutationStampSource _mutationStamps;
     private NativeMemory<Stamp>[] _archetypeComponentWriteStamps = Array.Empty<NativeMemory<Stamp>>();
     private NativeMemory<Stamp>[] _chunkComponentWriteStamps = Array.Empty<NativeMemory<Stamp>>();
     private int[] _archetypeStampComponentCounts = Array.Empty<int>();
@@ -51,8 +50,6 @@ public sealed partial class World : IDisposable
     }
 
     public int ArchetypeVersion => _archetypeVersion;
-
-    public Stamp Stamp => _mutationStamps.Current;
 
     public int AliveEntityCount { get; private set; }
 
@@ -134,9 +131,8 @@ public sealed partial class World : IDisposable
             ThrowHelper.ThrowInvalidComponentList();
         }
 
-        Stamp stamp = _mutationStamps.Next();
         var archetype = GetOrCreateArchetype(mask);
-        return CreateBatch(archetype, output, stamp);
+        return CreateBatch(archetype, output);
     }
 
     public Entity Create(ArchetypeHandle handle)
@@ -153,10 +149,10 @@ public sealed partial class World : IDisposable
         }
 
         var archetype = ResolveArchetype(handle);
-        return CreateBatch(archetype, output, _mutationStamps.Next());
+        return CreateBatch(archetype, output);
     }
 
-    private int CreateBatch(Archetype archetype, Span<Entity> output, Stamp stamp)
+    private int CreateBatch(Archetype archetype, Span<Entity> output)
     {
         if (output.Length == 0)
         {
@@ -180,7 +176,7 @@ public sealed partial class World : IDisposable
                 chunk.InitializeSlotRange(slotIndex, reusedCount);
             }
 
-            chunk.StampAllRange(slotIndex, reserved, stamp);
+            chunk.StampAllRange(slotIndex, reserved, new Stamp(1));
             for (int reservedIndex = 0; reservedIndex < reserved; reservedIndex++)
             {
                 int recordIndex = AllocateRecord();
@@ -218,7 +214,6 @@ public sealed partial class World : IDisposable
             return false;
         }
 
-        _ = _mutationStamps.Next();
         DestroyResolved(recordIndex);
         return true;
     }
@@ -241,8 +236,6 @@ public sealed partial class World : IDisposable
         {
             return 0;
         }
-
-        _ = _mutationStamps.Next();
 
         if (count == 1)
         {
@@ -435,7 +428,6 @@ public sealed partial class World : IDisposable
         var cached = query.Cached;
         ReadOnlySpan<int> archetypes = cached.MatchingArchetypes();
         int destroyed = 0;
-        bool stampReserved = false;
         for (int archetypeIndex = 0; archetypeIndex < archetypes.Length; archetypeIndex++)
         {
             var archetype = _archetypes[archetypes[archetypeIndex]];
@@ -446,22 +438,11 @@ public sealed partial class World : IDisposable
                     continue;
                 }
 
-                if (!stampReserved)
-                {
-                    _ = _mutationStamps.Next();
-                    stampReserved = true;
-                }
-
                 destroyed += DestroyChunk(archetype, chunkIndex);
             }
         }
 
         return destroyed;
-    }
-
-    internal void ReserveQueryWrite(out Stamp writeStamp)
-    {
-        writeStamp = _mutationStamps.Next();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -482,6 +463,24 @@ public sealed partial class World : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void MarkArchetypeComponentWritten(int archetypeId, int componentIndex, Stamp stamp)
         => CreateArchetypeComponentStampWriter(archetypeId, componentIndex, stamp).Mark();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Stamp IncrementChunkComponentStamp(Chunk chunk, int componentIndex)
+    {
+        NativeMemory<Stamp> stamps = _chunkComponentWriteStamps[chunk.GlobalId];
+        Stamp stamp = stamps[componentIndex].Next();
+        stamps[componentIndex] = stamp;
+        return stamp;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Stamp IncrementArchetypeComponentStamp(int archetypeId, int componentIndex)
+    {
+        NativeMemory<Stamp> stamps = _archetypeComponentWriteStamps[archetypeId];
+        Stamp stamp = stamps[componentIndex].Next();
+        stamps[componentIndex] = stamp;
+        return stamp;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal EntityComponentStampWriter CreateEntityComponentStampWriter(
@@ -558,7 +557,7 @@ public sealed partial class World : IDisposable
             session = new QueryWriteSession();
         }
 
-        generation = session.Reset(this, writeEnabled);
+        generation = session.Reset(writeEnabled);
         return session;
     }
 
@@ -589,7 +588,6 @@ public sealed partial class World : IDisposable
 
         int edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
         int changed = 0;
-        Stamp operationStamp = default;
         for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
         {
             var entity = entities[entityIndex];
@@ -609,16 +607,11 @@ public sealed partial class World : IDisposable
                 continue;
             }
 
-            if (operationStamp == default)
-            {
-                operationStamp = _mutationStamps.Next();
-            }
-
             var edge = edgeStamp == 0
                 ? GetTransitionEdge(sourceArchetypeId, changeMask, isAdd, targetMask)
                 : GetBatchTransitionEdge(sourceArchetypeId, changeMask, isAdd, targetMask, edgeStamp);
 
-            MoveEntity(recordIndex, edge, operationStamp);
+            MoveEntity(recordIndex, edge);
             changed++;
         }
 
@@ -643,7 +636,6 @@ public sealed partial class World : IDisposable
         ReadOnlySpan<int> matchingArchetypes = cached.MatchingArchetypes();
         int edgeStamp = BeginBatchEdgeCache();
         int changed = 0;
-        Stamp operationStamp = default;
         for (int matchingIndex = 0; matchingIndex < matchingArchetypes.Length; matchingIndex++)
         {
             var sourceArchetype = _archetypes[matchingArchetypes[matchingIndex]];
@@ -660,19 +652,14 @@ public sealed partial class World : IDisposable
                 continue;
             }
 
-            if (operationStamp == default)
-            {
-                operationStamp = _mutationStamps.Next();
-            }
-
             var edge = GetBatchTransitionEdge(sourceArchetype.Id, changeMask, isAdd, targetMask, edgeStamp);
-            changed += MoveArchetypeBlocks(sourceArchetype, edge, operationStamp);
+            changed += MoveArchetypeBlocks(sourceArchetype, edge);
         }
 
         return changed;
     }
 
-    private int MoveArchetypeBlocks(Archetype sourceArchetype, TransitionEdge edge, Stamp operationStamp)
+    private int MoveArchetypeBlocks(Archetype sourceArchetype, TransitionEdge edge)
     {
         int movedCount = 0;
         var targetArchetype = _archetypes[edge.TargetArchetypeId];
@@ -725,7 +712,7 @@ public sealed partial class World : IDisposable
                 }
 
                 targetChunk.InitializeRowsRange(targetSlot, reserved, edge.AddedTargetRowIndices);
-                targetChunk.StampRowsRange(targetSlot, reserved, edge.AddedTargetRowIndices, operationStamp);
+                targetChunk.StampRowsRange(targetSlot, reserved, edge.AddedTargetRowIndices, new Stamp(1));
                 for (int slot = 0; slot < reserved; slot++)
                 {
                     var entity = sourceEntities[sourceSlot + slot];
@@ -858,7 +845,7 @@ public sealed partial class World : IDisposable
         AliveEntityCount--;
     }
 
-    private void MoveEntity(int recordIndex, TransitionEdge edge, Stamp operationStamp)
+    private void MoveEntity(int recordIndex, TransitionEdge edge)
     {
         ref var sourceRecord = ref RecordAt(recordIndex);
         var sourceArchetype = _archetypes[sourceRecord.Archetype];
@@ -891,7 +878,7 @@ public sealed partial class World : IDisposable
         }
         for (int i = 0; i < edge.AddedTargetRowIndices.Length; i++)
         {
-            targetChunk.MarkComponentStamped(edge.AddedTargetRowIndices[i], targetSlotIndex, operationStamp);
+            targetChunk.MarkComponentStamped(edge.AddedTargetRowIndices[i], targetSlotIndex, new Stamp(1));
         }
 
         var moved = sourceArchetype.RemoveEntity(sourceChunkIndex, sourceSlotIndex);
@@ -967,8 +954,8 @@ public sealed partial class World : IDisposable
         }
 
         var chunk = archetype.GetChunk(record.Chunk);
-        Stamp stamp = _mutationStamps.Next();
         chunk.GetComponentRow<T>(componentIndex)[record.SlotIndex] = value;
+        Stamp stamp = chunk.IncrementComponentStamp(componentIndex, record.SlotIndex);
         CreateEntityComponentStampWriter(
             chunk,
             componentIndex,

@@ -4,7 +4,6 @@
 It is not wall-clock time and public code must not infer elapsed time or rely on
 arithmetic ordering.
 
-- `World.Stamp` is the latest successful world mutation revision.
 - `ComponentCatalog.Stamp` changes when the tooling catalog changes.
 - A component stamp is the combined revision for one entity/component pair.
 - `World.TryGetComponentStamp` returns the exact stamp for one live entity and
@@ -12,8 +11,10 @@ arithmetic ordering.
 - `TryRead` returns the observed component stamp.
 - `TryWrite` compares `expectedStamp` and reports `StaleStamp` on conflict.
 
-Successful writes reserve a new stamp. Read-only query access does not. Write
-query access records the write intent through the operation-specific stamp route.
+Successful writes advance only the stamp cell for the affected
+entity/component, chunk/component, or archetype/component. Read-only query
+access does not change stamps. Write query access records the write intent
+through the operation-specific stamp route.
 
 The effective component stamp is a new opaque value whose unchecked `ulong`
 payload is the sum of three independent overrides:
@@ -35,9 +36,9 @@ The default mutation paths use the entity term for a point write and the chunk
 term for a validated dense query row write. A generated dense query write uses
 the archetype override once for each matching archetype. When a physical chunk
 becomes empty, its chunk-level terms are cleared before the chunk can be
-reused; archetype-level terms remain at archetype scope. `World.Stamp` remains
-the latest world mutation counter, but it is not part of an entity/component
-stamp and must not be used as a component change token.
+reused; archetype-level terms remain at archetype scope. There is no aggregate
+world mutation stamp; consumers compare the exact component stamp they
+observed.
 
 The trusted runtime keeps the write state proportional to the operation:
 
@@ -53,7 +54,7 @@ carry broader write data, while a dense generated write marks the archetype
 override once before its entity loop. It is an internal lowering choice; the
 public delegate, functor, sequence and query APIs remain unchanged.
 
-`MutationStampSource`, `ComponentStampStorage` and the centralized hierarchy
+`StampCounter`, `ComponentStampStorage` and the centralized hierarchy
 buffers are internal implementation types. Consumers exchange only `Stamp`
 values and compare them for equality. Mutating fields inside a reference-type
 component obtained by reference remains the component owner's responsibility;

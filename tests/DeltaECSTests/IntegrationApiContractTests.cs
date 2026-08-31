@@ -72,7 +72,6 @@ public sealed class IntegrationApiContractTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(contract.GetProperty(nameof(IEcsWorld.Stamp)), Is.Not.Null);
             Assert.That(contract.GetProperty(nameof(IEcsWorld.Catalog)), Is.Not.Null);
             Assert.That(methodNames, Does.Contain(nameof(IEcsWorld.Initialize)));
             Assert.That(methodNames, Does.Contain(nameof(IEcsWorld.Update)));

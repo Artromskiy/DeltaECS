@@ -18,7 +18,7 @@ public interface IGeneratedSequenceInvoker
 public interface IGeneratedArchetypeStampWriter
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    void Write(nint[] stampAddresses, Stamp stamp);
+    void Write(nint[] stampAddresses);
 }
 
 /// <summary>Trusted compiler-support execution state for generated write queries.</summary>
@@ -27,7 +27,6 @@ public ref struct GeneratedDenseExecution
 {
     private World? _owner;
     private readonly ReadOnlySpan<ArchetypePlan> _plans;
-    private readonly Stamp _writeStamp;
     private ChunkPlan[] _chunks;
     private int _chunkCount;
     private int _planIndex;
@@ -35,12 +34,10 @@ public ref struct GeneratedDenseExecution
 
     internal GeneratedDenseExecution(
         World owner,
-        ReadOnlySpan<ArchetypePlan> plans,
-        Stamp writeStamp)
+        ReadOnlySpan<ArchetypePlan> plans)
     {
         _owner = owner;
         _plans = plans;
-        _writeStamp = writeStamp;
         _chunks = Array.Empty<ChunkPlan>();
         _chunkCount = 0;
         _planIndex = -1;
@@ -75,9 +72,8 @@ public ref struct GeneratedDenseExecution
             }
 
             ref nint firstStampAddress = ref MemoryMarshal.GetArrayDataReference(plan.ArchetypeStampAddresses);
-            GeneratedForEachRuntime.WriteArchetypeStamp(
-                Unsafe.Add(ref firstStampAddress, queryComponentIndex),
-                _writeStamp);
+            GeneratedForEachRuntime.IncrementArchetypeStamp(
+                Unsafe.Add(ref firstStampAddress, queryComponentIndex));
         }
     }
 
@@ -101,9 +97,8 @@ public ref struct GeneratedDenseExecution
             ref nint firstStampAddress = ref MemoryMarshal.GetArrayDataReference(stampAddresses);
             for (int accessIndex = 0; accessIndex < queryComponentIndices.Length; accessIndex++)
             {
-                GeneratedForEachRuntime.WriteArchetypeStamp(
-                    Unsafe.Add(ref firstStampAddress, queryComponentIndices[accessIndex]),
-                    _writeStamp);
+                GeneratedForEachRuntime.IncrementArchetypeStamp(
+                    Unsafe.Add(ref firstStampAddress, queryComponentIndices[accessIndex]));
             }
         }
     }
@@ -122,7 +117,7 @@ public ref struct GeneratedDenseExecution
                 continue;
             }
 
-            writer.Write(plan.ArchetypeStampAddresses, _writeStamp);
+            writer.Write(plan.ArchetypeStampAddresses);
         }
     }
 
@@ -289,13 +284,14 @@ public ref struct GeneratedSequenceCursor
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetGeneratedWriteReference<T>(int queryComponentIndex)
     {
-        _writeSession.Acquire(_sessionGeneration, out Stamp writeStamp);
+        _writeSession.Acquire(_sessionGeneration);
         int physicalRow = _componentRows.Ref(queryComponentIndex);
+        Stamp stamp = _chunk.IncrementComponentStamp(physicalRow, Slot);
         new EntityComponentStampWriter(
             _chunk,
             physicalRow,
             Slot,
-            writeStamp).Mark();
+            stamp).Mark();
         return ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.Ref(queryComponentIndex)));
     }
 }
@@ -306,11 +302,12 @@ public static class GeneratedForEachRuntime
 {
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void WriteArchetypeStamp(nint stampAddress, Stamp stamp)
+    public static void IncrementArchetypeStamp(nint stampAddress)
     {
         unsafe
         {
-            *(Stamp*)stampAddress = stamp;
+            Stamp* current = (Stamp*)stampAddress;
+            *current = current->Next();
         }
     }
 
@@ -321,26 +318,8 @@ public static class GeneratedForEachRuntime
     {
         QueryPlan plan = ValidateQuery(world, in query);
         ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
-        Stamp writeStamp = default;
-        if (hasWrites)
-        {
-            for (int planIndex = 0; planIndex < plans.Length; planIndex++)
-            {
-                if (plans[planIndex].ChunkCount == 0)
-                {
-                    continue;
-                }
-
-                world.ReserveQueryWrite(out writeStamp);
-                break;
-            }
-        }
-
         world.BeginQueryLease();
-        return new GeneratedDenseExecution(
-            world,
-            plans,
-            writeStamp);
+        return new GeneratedDenseExecution(world, plans);
     }
 
     /// <summary>Opens a validated read-only dense execution without write state.</summary>
@@ -354,27 +333,15 @@ public static class GeneratedForEachRuntime
         return new GeneratedReadDenseExecution(world, plans);
     }
 
-    /// <summary>Opens a validated write dense execution with reserved write state.</summary>
+    /// <summary>Opens a validated write dense execution.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static GeneratedDenseExecution OpenWriteDense(World world, in Query query)
     {
         QueryPlan plan = ValidateQuery(world, in query);
         ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
-        Stamp writeStamp = default;
-        for (int planIndex = 0; planIndex < plans.Length; planIndex++)
-        {
-            if (plans[planIndex].ChunkCount == 0)
-            {
-                continue;
-            }
-
-            world.ReserveQueryWrite(out writeStamp);
-            break;
-        }
-
         world.BeginQueryLease();
-        return new GeneratedDenseExecution(world, plans, writeStamp);
+        return new GeneratedDenseExecution(world, plans);
     }
 
     /// <summary>Creates a validated read access token for a closed generated dense path.</summary>

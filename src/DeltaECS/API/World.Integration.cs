@@ -7,7 +7,7 @@ public sealed partial class World : IEcsWorld
 {
     private ComponentCatalog _integrationCatalog;
     private int _integrationCatalogLayoutCount = -1;
-    private MutationStampSource _catalogStamps;
+    private StampCounter _catalogStamps;
     private IntegrationLifecycleState _integrationLifecycle;
 
     ComponentCatalog IEcsWorld.Catalog
@@ -61,10 +61,9 @@ public sealed partial class World : IEcsWorld
         ValidateStructuralComponents(components);
 
         var mask = ComponentMask.From(components);
-        Stamp stamp = _mutationStamps.Next();
         var archetype = GetOrCreateArchetype(mask);
         Span<Entity> created = stackalloc Entity[1];
-        _ = CreateBatch(archetype, created, stamp);
+        _ = CreateBatch(archetype, created);
         return created[0];
     }
 
@@ -202,13 +201,18 @@ public sealed partial class World : IEcsWorld
             return false;
         }
 
-        writtenStamp = _mutationStamps.Next();
         chunk.GetRawComponentRow(componentIndex).SetValue(value, record.SlotIndex);
+        Stamp entityStamp = chunk.IncrementComponentStamp(componentIndex, record.SlotIndex);
         CreateEntityComponentStampWriter(
             chunk,
             componentIndex,
             record.SlotIndex,
-            writtenStamp).MarkPoint();
+            entityStamp).MarkPoint();
+        writtenStamp = GetComponentStamp(
+            archetype.Id,
+            chunk,
+            componentIndex,
+            record.SlotIndex);
         error = new EcsWriteError(EcsWriteErrorCode.None);
         return true;
     }

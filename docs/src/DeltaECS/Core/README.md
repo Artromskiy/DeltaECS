@@ -88,7 +88,8 @@ non-generic borrowed `StampRow` once per component and chunk. Its
 `Get(in QuerySlots)` method returns the effective three-level component stamp
 for the current entity without repeating entity, type or dictionary lookup.
 The stamp combines entity/component, chunk/component and archetype/component
-terms. `World.Stamp` is only the world's mutation counter and is not included.
+terms. There is no aggregate world mutation stamp; the world exposes only
+exact component stamps.
 Use
 `World.TryGetComponentStamp(Entity, ComponentId, out Stamp)` for a single
 entity outside a query scope. Stamps identify an entity/component pair; the

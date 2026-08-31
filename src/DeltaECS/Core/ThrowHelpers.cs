@@ -224,11 +224,6 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowMutationStampExhausted()
-        => throw new InvalidOperationException("The world mutation stamp space is exhausted.");
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowArchetypeLayoutMismatch()
         => throw new ArgumentException("Archetype must have matching component and layout arrays.");
 

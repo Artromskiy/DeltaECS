@@ -38,6 +38,16 @@ internal struct ComponentStampStorage : IDisposable
             : _values.ReadOnlySpan[offset];
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Stamp Increment(int componentIndex, int slotIndex)
+    {
+        int offset = Offset(componentIndex, slotIndex);
+        Materialize(componentIndex);
+        Stamp stamp = _values[offset].Next();
+        _values[offset] = stamp;
+        return stamp;
+    }
+
     internal void Set(int componentIndex, int slotIndex, Stamp stamp)
     {
         int offset = Offset(componentIndex, slotIndex);

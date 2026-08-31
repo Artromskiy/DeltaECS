@@ -625,7 +625,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             {
                 ITypeSymbol requestedType = requestedTypes[requestedComponentStart + index] is { } type
                     ? type
-                    : throw new InvalidOperationException("Validated component type was unexpectedly unavailable.");
+                    : ThrowHelper.ThrowValidatedComponentTypeUnavailable();
                 components[index] = requestedType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             }
 
@@ -633,7 +633,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             {
                 contextType = requestedTypes[0] is { } requestedContextType
                     ? requestedContextType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-                    : throw new InvalidOperationException("Validated context type was unexpectedly unavailable.");
+                    : ThrowHelper.ThrowValidatedContextTypeUnavailable();
             }
         }
         else
@@ -985,7 +985,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
     {
         if (method.ContainingType is not { } containingType)
         {
-            throw new ArgumentException("The method group target must belong to a type.", nameof(method));
+            return ThrowHelper.ThrowMethodGroupTargetMissing(method);
         }
 
         return containingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "." + method.Name;
@@ -1194,17 +1194,17 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         source.AppendLine("    }");
         source.AppendLine();
         source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        source.AppendLine("    void IGeneratedArchetypeStampWriter.Write(nint[] stampAddresses, Stamp stamp)");
+        source.AppendLine("    void IGeneratedArchetypeStampWriter.Write(nint[] stampAddresses)");
         source.AppendLine("    {");
         source.AppendLine("        ref nint firstStampAddress = ref global::System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(stampAddresses);");
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
             if (IsWrite(shape.Pattern[index]))
             {
-                source.Append("        GeneratedForEachRuntime.WriteArchetypeStamp(")
+                source.Append("        GeneratedForEachRuntime.IncrementArchetypeStamp(")
                     .Append("global::System.Runtime.CompilerServices.Unsafe.Add(ref firstStampAddress, _access")
                     .Append(index)
-                    .AppendLine("), stamp);");
+                    .AppendLine("));");
             }
         }
 
