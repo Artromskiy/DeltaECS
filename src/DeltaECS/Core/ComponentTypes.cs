@@ -1,9 +1,9 @@
 namespace Delta.ECS;
 
 using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 
 public readonly struct ComponentId : IEquatable<ComponentId>, IComparable<ComponentId>
 {
@@ -73,7 +73,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
     {
         int value = Validate(componentId);
         int wordIndex = value >> 5;
-        int requiredLength = wordIndex + 1;
+        int requiredLength = Math.Max(_storage?.Length ?? 0, wordIndex + 1);
         var storage = new NativeComponentMaskStorage(requiredLength);
 
         if (_storage is not null)
@@ -82,9 +82,11 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
         }
 
         storage[wordIndex] |= 1u << (value & 31);
+        storage.RecalculateMetadata();
         return new ComponentMask(storage);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains(ComponentId componentId)
     {
         if (!componentId.IsValid || _storage is null)
@@ -158,6 +160,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
             storage[index] = GetWord(index) | other.GetWord(index);
         }
 
+        storage.RecalculateMetadata();
         return new ComponentMask(storage);
     }
 
@@ -185,6 +188,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
             storage[index] = _storage[index] & ~other.GetWord(index);
         }
 
+        storage.RecalculateMetadata();
         return new ComponentMask(storage);
     }
 
@@ -206,24 +210,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
         return rank + BitOperations.PopCount(lowerBits);
     }
 
-    public int Count
-    {
-        get
-        {
-            if (_storage is null)
-            {
-                return 0;
-            }
-
-            int count = 0;
-            for (int index = 0; index < _storage.Length; index++)
-            {
-                count += BitOperations.PopCount(_storage[index]);
-            }
-
-            return count;
-        }
-    }
+    public int Count => _storage?.Count ?? 0;
 
     /// <summary>
     /// Enumerates the set component ids in ascending numeric order without allocating.
@@ -298,6 +285,11 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
             return false;
         }
 
+        if (_storage.Hash != other._storage.Hash)
+        {
+            return false;
+        }
+
         for (int index = 0; index < _storage.Length; index++)
         {
             if (_storage[index] != other._storage[index])
@@ -311,20 +303,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
 
     public override bool Equals(object? obj) => obj is ComponentMask other && Equals(other);
 
-    public override int GetHashCode()
-    {
-        var hash = new HashCode();
-        if (_storage is not null)
-        {
-            hash.Add(_storage.Length);
-            for (int index = 0; index < _storage.Length; index++)
-            {
-                hash.Add(_storage[index]);
-            }
-        }
-
-        return hash.ToHashCode();
-    }
+    public override int GetHashCode() => _storage?.Hash ?? 0;
 
     private uint GetWord(int index)
         => _storage is not null && (uint)index < (uint)_storage.Length
@@ -367,6 +346,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
             storage[componentId.Value >> 5] |= 1u << (componentId.Value & 31);
         }
 
+        storage.RecalculateMetadata();
         return new ComponentMask(storage);
     }
 
@@ -389,6 +369,8 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
 internal sealed class NativeComponentMaskStorage
 {
     private NativeMemory<uint> _words;
+    private int _count;
+    private int _hash;
 
     internal NativeComponentMaskStorage(int length)
     {
@@ -396,6 +378,10 @@ internal sealed class NativeComponentMaskStorage
     }
 
     internal int Length => _words.Length;
+
+    internal int Count => _count;
+
+    internal int Hash => _hash;
 
     internal Span<uint> Span => _words.Span;
 
@@ -407,6 +393,22 @@ internal sealed class NativeComponentMaskStorage
     internal void CopyTo(NativeComponentMaskStorage destination)
     {
         _words.ReadOnlySpan[..Math.Min(Length, destination.Length)].CopyTo(destination.Span);
+    }
+
+    internal void RecalculateMetadata()
+    {
+        int count = 0;
+        var hash = new HashCode();
+        hash.Add(Length);
+        for (int index = 0; index < Length; index++)
+        {
+            uint word = _words[index];
+            count += BitOperations.PopCount(word);
+            hash.Add(word);
+        }
+
+        _count = count;
+        _hash = hash.ToHashCode();
     }
 
     ~NativeComponentMaskStorage()

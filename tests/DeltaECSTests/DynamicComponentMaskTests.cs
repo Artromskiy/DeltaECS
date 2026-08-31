@@ -53,6 +53,17 @@ public sealed class DynamicComponentMaskTests
     }
 
     [Test]
+    public void SetPreservesExistingHigherWords()
+    {
+        var mask = ComponentMask.From(new[] { new ComponentId(256) })
+            .Set(new ComponentId(3));
+
+        Assert.That(mask.Count, Is.EqualTo(2));
+        Assert.That(mask.Contains(new ComponentId(3)), Is.True);
+        Assert.That(mask.Contains(new ComponentId(256)), Is.True);
+    }
+
+    [Test]
     public void WorldCreatesArchetypeWithMoreThanLegacyMaskCapacity()
     {
         var layouts = new ComponentLayoutRegistry();
