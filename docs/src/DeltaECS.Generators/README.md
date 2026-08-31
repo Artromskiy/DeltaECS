@@ -83,5 +83,10 @@ The generator reports diagnostics for unsupported arity, ambiguous functor
 cannot be represented safely. It does not use runtime reflection to choose a
 callback overload.
 
+Fixed multi-line source templates in the generator use C# raw string literals.
+Dynamic symbols, callback bodies and access lists are still appended separately,
+so the generated source remains demand-driven without turning runtime callback
+execution into a template or reflection path.
+
 The public source spelling remains `world.ForEach(...)`. Consumers must include
 the DeltaECS analyzer reference for component-bearing generated overloads.

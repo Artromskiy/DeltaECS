@@ -32,6 +32,11 @@ the appropriate level without changing the public API. Equality is the only
 supported interpretation: the sum is a change token, not an ordered
 timestamp, and wraparound is allowed.
 
+The generated archetype-write route keeps its override cells as a managed
+`Stamp[]` indexed by the prepared physical component ordinal. It does not pass
+raw addresses or pointers across the generator/runtime boundary. Native storage
+remains an internal implementation detail of the entity and chunk stamp layers.
+
 The default mutation paths use the entity term for a point write and the chunk
 term for a validated dense query row write. A generated dense query write uses
 the archetype override once for each matching archetype. When a physical chunk
