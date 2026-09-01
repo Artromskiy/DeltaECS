@@ -21,6 +21,7 @@ storage model:
 | Delegate | Delegate `ForEach` callbacks | [Delegate API](src/DeltaECS/Delegate/README.md) |
 | Functor | struct-based `ForEach` callbacks | [Functor API](src/DeltaECS/Functor/README.md) |
 | Sequence | ordered execution over explicit entity candidates | [Sequence API](src/DeltaECS/Sequence/README.md) |
+| Parallel | chunk-disjoint multi-threaded query execution | [Parallel API](src/DeltaECS/Parallel/README.md) |
 | Integration | neutral runtime/editor `IEcsWorld` boundary | [Integration API](src/DeltaECS/API/README.md) |
 | Stamps | catalog and entity/component mutation revisions | [Stamp contract](src/DeltaECS/Stamps/README.md) |
 

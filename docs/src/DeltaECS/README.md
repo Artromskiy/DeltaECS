@@ -11,6 +11,7 @@ on implementation. They do not create separate storage models or namespaces.
 | `Delegate` | Delegate callback contracts and zero-component entry points | [Delegate API](Delegate/README.md) |
 | `Functor` | Struct-functor marker contracts | [Functor API](Functor/README.md) |
 | `Sequence` | Ordered execution over an explicit entity span | [Sequence API](Sequence/README.md) |
+| `Parallel` | Chunk-disjoint multi-threaded query execution | [Parallel API](Parallel/README.md) |
 | `API` | Neutral engine/editor integration contract | [Integration API](API/README.md) |
 | `Stamps` | Catalog and entity/component mutation revisions | [Stamp contract](Stamps/README.md) |
 

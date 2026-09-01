@@ -12,6 +12,16 @@ public interface IGeneratedSequenceInvoker
     void Invoke(ref GeneratedSequenceCursor cursor);
 }
 
+/// <summary>Compiler-support contract for one direct generated parallel chunk invocation.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public interface IGeneratedParallelInvoker
+{
+    bool RequiresSingleThread { get; }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    void Invoke(ref GeneratedQuerySlots slots);
+}
+
 /// <summary>Compiler-support contract for generated archetype stamp writers.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public interface IGeneratedArchetypeStampWriter
@@ -304,6 +314,77 @@ public static class GeneratedForEachRuntime
     public static void IncrementArchetypeStamp(Stamp[] stamps, int componentIndex)
         => stamps[componentIndex] = stamps[componentIndex].Next();
 
+    /// <summary>
+    /// Executes a generated invoker over disjoint chunks. The query and access
+    /// routes have already been resolved by the generated call site.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ExecuteParallelDense<TInvoker>(
+        World world,
+        in Query query,
+        ref TInvoker invoker,
+        scoped ReadOnlySpan<int> writeComponentIndices,
+        int requestedWorkerCount = 0)
+        where TInvoker : struct, IGeneratedParallelInvoker
+    {
+        QueryPlan plan = ValidateQuery(world, in query);
+        ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
+        MarkArchetypeWrites(plans, writeComponentIndices);
+        QueryWriteSession session = world.RentQueryWriteSession(plan, out int generation);
+        world.BeginQueryLease();
+        bool entered = false;
+        try
+        {
+            world.EnterParallelExecution();
+            entered = true;
+            world.GetParallelQueryExecutor<TInvoker>().Execute(
+                plan,
+                ref invoker,
+                requestedWorkerCount);
+        }
+        finally
+        {
+            if (entered)
+            {
+                world.ExitParallelExecution();
+            }
+
+            world.ReturnQueryWriteSession(session, generation);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void MarkArchetypeWrites(
+        ReadOnlySpan<ArchetypePlan> plans,
+        scoped ReadOnlySpan<int> componentIndices)
+    {
+        for (int planIndex = 0; planIndex < plans.Length; planIndex++)
+        {
+            ref readonly ArchetypePlan plan = ref plans[planIndex];
+            if (plan.ChunkCount == 0)
+            {
+                continue;
+            }
+
+            Stamp[] stamps = plan.ArchetypeStamps;
+            for (int componentIndex = 0; componentIndex < componentIndices.Length; componentIndex++)
+            {
+                int queryComponentIndex = componentIndices[componentIndex];
+                bool duplicate = false;
+                for (int previous = 0; previous < componentIndex; previous++)
+                {
+                    duplicate |= componentIndices[previous] == queryComponentIndex;
+                }
+
+                if (!duplicate)
+                {
+                    IncrementArchetypeStamp(stamps, queryComponentIndex);
+                }
+            }
+        }
+    }
+
     /// <summary>Opens the trusted dense execution used by generated callbacks.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -413,6 +494,12 @@ public static class GeneratedForEachRuntime
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int GetWriteQueryComponentIndex(WriteAccess access)
+        => access.QueryComponentIndex;
+
+    /// <summary>Returns a trusted query-local route used by generated parallel invokers.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int GetReadQueryComponentIndex(ReadAccess access)
         => access.QueryComponentIndex;
 
     /// <summary>

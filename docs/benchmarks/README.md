@@ -17,6 +17,12 @@ The supported comparative route is `iteration`. The version suite is also
 iteration-only; it is intentionally separate because it builds the same
 scenario against two source revisions.
 
+The isolated parallel-iteration route is `parallel`. It runs
+`ParallelMovement4IterationBenchmarks` against the generated sequential
+Movement4 baseline and is intentionally not part of the five-ECS comparative
+manifest. Its callback contains the same Movement4 operation without a
+checksum; see the [parallel API notes](../src/DeltaECS/Parallel/README.md).
+
 ## Safe workflow
 
 Build the required project once, then run contract smoke and discovery before a
@@ -44,6 +50,25 @@ env NuGetAudit=false RestoreIgnoreFailedSources=true \
   iteration --filter '*Movement4Components*' --job Default --iterationTime 100 \
   --exporters json csv markdown github --artifacts artifacts/iteration
 ```
+
+The parallel Movement4 route accepts its matrix as runner arguments. These
+options are removed before the remaining arguments are passed to
+BenchmarkDotNet:
+
+```bash
+dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net10.0/DeltaECS.Benchmarks.dll \
+  parallel \
+  --amount 1_000 \
+  --workers 2 \
+  --warmupCount 10 --iterationCount 20 --iterationTime 500 --launchCount 1 \
+  --filter '*ParallelMovement4IterationBenchmarks*' \
+  --exporters csv markdown github \
+  --artifacts artifacts/parallel-movement4-1000-2workers
+```
+
+Use `--amounts 100,1000,10000` and `--worker-counts 2,4` to run a selected
+matrix. Without these options the route keeps its default matrix of all
+entity amounts and four workers.
 
 The GitHub workflow uses the same `iteration` route. Pull requests and pushes
 run build, tests, contract smoke and discovery only. Manual and scheduled

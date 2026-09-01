@@ -46,6 +46,7 @@ internal sealed class QueryPlan
     private readonly ReadAccess[] _preparedReadAccessesByComponent;
     private readonly WriteAccess[] _preparedWriteAccessesByComponent;
     private int _matchingCount;
+    private int _matchingVersion;
     private bool _hasWriteAccess;
 
     internal QueryPlan(World world, QuerySpec spec)
@@ -72,6 +73,7 @@ internal sealed class QueryPlan
     internal World Owner => _owner;
     internal WeakReference<QueryPlan> WeakReference => _weakReference;
     internal int PreparedPrimaryReadRouteCount { get; private set; }
+    internal int MatchingVersion => _matchingVersion;
 
     internal int ResolveReadRoute(ComponentId component)
     {
@@ -201,14 +203,21 @@ internal sealed class QueryPlan
         _matchingArchetypes[_matchingCount] = archetype.Id;
         _matchingPlans[_matchingCount] = plan;
         _planIndicesByArchetype[archetype.Id] = _matchingCount++;
+        _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
         archetype.Attach(this, planIndex);
     }
 
     internal void OnChunkActivated(int planIndex, Chunk chunk, int activePosition)
-        => _matchingPlans[planIndex].OnChunkActivated(chunk, activePosition);
+    {
+        _matchingPlans[planIndex].OnChunkActivated(chunk, activePosition);
+        _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
+    }
 
     internal void OnChunkDeactivated(int planIndex, int activePosition, int lastPosition)
-        => _matchingPlans[planIndex].OnChunkDeactivated(activePosition, lastPosition);
+    {
+        _matchingPlans[planIndex].OnChunkDeactivated(activePosition, lastPosition);
+        _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
+    }
 
     internal void Dispose()
     {
@@ -216,6 +225,7 @@ internal sealed class QueryPlan
         _matchingPlans = Array.Empty<ArchetypePlan>();
         _planIndicesByArchetype = Array.Empty<int>();
         _matchingCount = 0;
+        _matchingVersion = 0;
         _primaryReadRoutesByType.Clear();
         Array.Clear(_preparedReadAccessesByComponent);
         Array.Clear(_preparedWriteAccessesByComponent);

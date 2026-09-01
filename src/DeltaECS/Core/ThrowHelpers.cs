@@ -82,6 +82,16 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowParallelExecutionActive()
+        => throw new InvalidOperationException("Another parallel query execution is already active for this world.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowDisposedWorld()
+        => throw new ObjectDisposedException(nameof(World));
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowAccessModeMismatch()
         => throw new InvalidOperationException("The access mode does not match the requested row operation.");
 
