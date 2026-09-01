@@ -27,6 +27,7 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `Delegate` | Delegate callback contracts and zero-component callback entry points | [Delegate API](src/DeltaECS/Delegate/README.md) |
 | `Functor` | Marker contracts for generated struct-functor callbacks | [Functor API](src/DeltaECS/Functor/README.md) |
 | `Sequence` | Ordered execution over an explicit entity span | [Sequence API](src/DeltaECS/Sequence/README.md) |
+| `Parallel` | Chunk-disjoint multi-threaded query execution | [Parallel API](src/DeltaECS/Parallel/README.md) |
 | `API` | Neutral integration contract implemented by `World` | [Integration API](src/DeltaECS/API/README.md) |
 | `Stamps` | Catalog and entity/component revision values | [Stamp contract](src/DeltaECS/Stamps/README.md) |
 | `Properties` | Assembly metadata; no consumer API | — |
@@ -53,6 +54,7 @@ The consumer source generator is documented in
 | `World.ForEach`, `ForEachEntity` | Delegate callback entry points, including handwritten zero-component forms | `src/DeltaECS/Delegate/ForEachZeroArity.cs` |
 | `IForEach*` | Stable functor marker contracts | `src/DeltaECS/Functor/ForEachFunctorContracts.cs` |
 | `World.From` and `ForEachEntity` | Ordered entity-sequence entry points and terminals | `src/DeltaECS/Sequence/World.Sequence.cs`, `EntitySequence.cs` |
+| `World.ForEachParallel` | Chunk-disjoint parallel query callback entry point | `src/DeltaECS/Parallel/World.Parallel.cs`, `QueryChunkAction.cs` |
 | `IEcsWorld` | Neutral lifecycle, structural and object-value integration contract | `src/DeltaECS/API/IntegrationContracts.cs` |
 | `Stamp` | 64-bit equality token for exact component revisions | `src/DeltaECS/Stamps/Stamp.cs` |
 
@@ -183,6 +185,7 @@ See the [integration README](src/DeltaECS/API/README.md) and
 | Structural transitions and records | `tests/DeltaECSTests/StructuralAlgorithmTests.cs` |
 | Generic single-item boundary | `tests/DeltaECSTests/GenericSingleItemApiTests.cs` |
 | Ordered sequence facade | `tests/DeltaECSTests/SequenceExecutionTests.cs` |
+| Parallel chunk execution | `tests/DeltaECSTests/ParallelIterationTests.cs` |
 | Consumer source generation | `tests/DeltaECS.Generators.Tests/DemandDrivenForEachGeneratorTests.cs`, `tests/DeltaECS.Generators.Consumer/` |
 
 The `docs/README.md` is the stable contract; `TODO.md` selects work and

@@ -87,6 +87,7 @@ public sealed partial class World : IDisposable
             archetype.Dispose();
         }
 
+        DisposeParallelQueryExecutor();
         _freeRecords.Dispose();
         _destroyScratch.Dispose();
         _sequenceScratch.Dispose();
@@ -97,6 +98,7 @@ public sealed partial class World : IDisposable
 
     public ArchetypeHandle GetOrCreateArchetype(params ReadOnlySpan<ComponentId> componentIds)
     {
+        EnsureNoActiveLease("create an archetype");
         if (!TryBuildComponentMask(componentIds, out var mask))
         {
             ThrowHelper.ThrowInvalidComponentList();
@@ -121,6 +123,7 @@ public sealed partial class World : IDisposable
 
     public int Create(ReadOnlySpan<ComponentId> componentIds, Span<Entity> output)
     {
+        EnsureNoActiveLease("create entities");
         if (output.Length == 0)
         {
             return 0;
@@ -143,6 +146,7 @@ public sealed partial class World : IDisposable
 
     public int Create(ArchetypeHandle handle, Span<Entity> output)
     {
+        EnsureNoActiveLease("create entities");
         if (output.Length == 0)
         {
             return 0;
