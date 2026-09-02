@@ -10,9 +10,9 @@ using DeltaWorld = Delta.ECS.World;
 [BenchmarkCategory("Iteration.ParallelMovement4")]
 public class ParallelMovement4IterationBenchmarks
 {
-    public int Amount { get; set; } = ParallelBenchmarkConfiguration.Amount;
+    public int Amount { get; set; } = ParallelBenchmarkConfiguration.GetAmount();
 
-    public int WorkerCount { get; set; } = ParallelBenchmarkConfiguration.WorkerCount;
+    public int WorkerCount { get; set; } = ParallelBenchmarkConfiguration.GetWorkerCount();
 
     private DeltaWorld _world = null!;
     private Query _query;
@@ -92,4 +92,13 @@ internal static class ParallelBenchmarkConfiguration
     internal static int[] Amounts { get; set; } = [100, 1_000, 10_000, 100_000, 1_000_000, 5_000_000];
 
     internal static int[] WorkerCounts { get; set; } = [4];
+
+    internal static int GetAmount() => GetValue("DELTAECS_BENCH_AMOUNT", Amount);
+
+    internal static int GetWorkerCount() => GetValue("DELTAECS_BENCH_WORKERS", WorkerCount);
+
+    private static int GetValue(string name, int fallback) =>
+        int.TryParse(Environment.GetEnvironmentVariable(name), out int value) && value > 0
+            ? value
+            : fallback;
 }

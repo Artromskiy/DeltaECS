@@ -55,6 +55,8 @@ internal static class Program
                     {
                         ParallelBenchmarkConfiguration.Amount = amount;
                         ParallelBenchmarkConfiguration.WorkerCount = workerCount;
+                        Environment.SetEnvironmentVariable("DELTAECS_BENCH_AMOUNT", amount.ToString(CultureInfo.InvariantCulture));
+                        Environment.SetEnvironmentVariable("DELTAECS_BENCH_WORKERS", workerCount.ToString(CultureInfo.InvariantCulture));
                         BenchmarkSwitcher.FromTypes([typeof(ParallelMovement4IterationBenchmarks)]).Run(parallelArgs);
                     }
                 }
