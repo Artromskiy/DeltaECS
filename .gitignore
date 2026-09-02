@@ -29,6 +29,8 @@ coverage.*
 
 # NuGet packages and generated files
 **/packages/
+!docs/packages/
+!docs/packages/*.md
 *.nupkg
 *.snupkg
 *.nuget.props

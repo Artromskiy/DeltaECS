@@ -7,6 +7,20 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>DeltaECS</AssemblyName>
+    <PackageId>DeltaECS</PackageId>
+    <Version>0.0.10</Version>
+    <Authors>Artromskiy</Authors>
+    <Description>High-performance archetype-based entity component system for .NET.</Description>
+    <PackageTags>ecs;entity-component-system;game-development;archetype;dotnet</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <RepositoryUrl>https://github.com/Artromskiy/DeltaECS</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsPackable>true</IsPackable>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <!-- Analyzer/style diagnostics are advisory; the metrics workflow records them separately. -->
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
@@ -17,6 +31,13 @@
                       ReferenceOutputAssembly="false"
                       GlobalPropertiesToRemove="PublishAot;PublishTrimmed;SelfContained;RuntimeIdentifier"
                       PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\..\docs\packages\DeltaECS.README.md"
+          Pack="true"
+          PackagePath="README.md"
+          Visible="false" />
   </ItemGroup>
 
 </Project>

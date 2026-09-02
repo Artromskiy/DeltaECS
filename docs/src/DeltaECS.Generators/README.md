@@ -1,5 +1,11 @@
 # DeltaECS consumer API generator
 
+The generator is published separately as `DeltaECS.Generators` version
+`0.0.10`. Add it as a `PrivateAssets="all"` analyzer package beside the
+`DeltaECS` runtime package; it is build-time input and must not be deployed as
+a runtime dependency. The package README is at
+[docs/packages/DeltaECS.Generators.README.md](../../packages/DeltaECS.Generators.README.md).
+
 The analyzer emits only the `ForEach` and `ForEachEntity` shapes requested by a
 consumer compilation. It does not generate storage, queries, archetypes or
 structural kernels.

@@ -4,6 +4,14 @@ Standalone archetype ECS kernel focused on fast component iteration, immediate
 structural changes, batch operations and predictable memory use.
 Public namespace is `Delta.ECS`; project/assembly names remain `DeltaECS*`.
 
+## Packages
+
+The runtime package is `DeltaECS` version `0.0.10`. The consumer-assembly
+source generator is a separate build-time package, `DeltaECS.Generators`, at
+the same version. The generator is an analyzer dependency only and is not part
+of the runtime deployment. See the [runtime package README](packages/DeltaECS.README.md)
+and [generator package README](packages/DeltaECS.Generators.README.md).
+
 This is the repository's substantive documentation entry point. The repository
 root intentionally contains only agent and workflow controls (`AGENTS.md`,
 `TODO.md`, `WORKFLOW.md` and `IDEAS.md`); API, architecture, benchmark and

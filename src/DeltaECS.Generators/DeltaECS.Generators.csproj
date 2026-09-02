@@ -6,6 +6,20 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsRoslynComponent>true</IsRoslynComponent>
+    <AssemblyName>DeltaECS.Generators</AssemblyName>
+    <PackageId>DeltaECS.Generators</PackageId>
+    <Version>0.0.10</Version>
+    <Authors>Artromskiy</Authors>
+    <Description>Build-time Roslyn analyzer and source generator for DeltaECS consumer callbacks.</Description>
+    <PackageTags>ecs;source-generator;analyzer;roslyn;dotnet</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <RepositoryUrl>https://github.com/Artromskiy/DeltaECS</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
   </PropertyGroup>
@@ -13,6 +27,17 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.13.0" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(TargetPath)"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs"
+          Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)..\..\docs\packages\DeltaECS.Generators.README.md"
+          Pack="true"
+          PackagePath="README.md"
+          Visible="false" />
   </ItemGroup>
 
 </Project>
