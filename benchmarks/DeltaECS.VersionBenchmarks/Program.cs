@@ -15,6 +15,7 @@ public static class Program
             return;
         }
 
+        var benchmarkArgs = VersionBenchmarkConfiguration.Extract(args, out int[] amounts);
         var baselineRoot = ResolveVersionRoot("BASELINE_ROOT", "DeltaECS.BaselineRoot");
         var candidateRoot = ResolveVersionRoot("CANDIDATE_ROOT", "DeltaECS.CandidateRoot");
         var config = ManualConfig.Create(DefaultConfig.Instance);
@@ -26,7 +27,11 @@ public static class Program
             ])
             .AsMutator());
 
-        BenchmarkSwitcher.FromTypes(VersionBenchmarkCatalog.Types).Run(args, config);
+        foreach (int amount in amounts)
+        {
+            VersionBenchmarkConfiguration.CurrentAmount = amount;
+            BenchmarkSwitcher.FromTypes(VersionBenchmarkCatalog.Types).Run(benchmarkArgs, config);
+        }
     }
 
     private static string ResolveVersionRoot(string environmentName, string metadataName)

@@ -12,6 +12,15 @@ internal static class Program
             return;
         }
 
-        BenchmarkSwitcher.FromTypes(MicroBenchmarkCatalog.Types).Run(args);
+        var benchmarkArgs = MicroBenchmarkConfiguration.Extract(args, out int[]? requestedAmounts);
+        foreach (Type benchmarkType in MicroBenchmarkCatalog.Types)
+        {
+            int[] amounts = requestedAmounts ?? MicroBenchmarkConfiguration.DefaultAmounts(benchmarkType);
+            foreach (int amount in amounts)
+            {
+                MicroBenchmarkConfiguration.CurrentAmount = amount;
+                BenchmarkSwitcher.FromTypes([benchmarkType]).Run(benchmarkArgs);
+            }
+        }
     }
 }

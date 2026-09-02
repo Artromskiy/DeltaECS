@@ -226,8 +226,7 @@ internal static class MicroBenchmarkKernels
 
 public class DenseIterationMicroBenchmarkImplementation
 {
-    [Params(100, 1_000, 10_000, 100_000, 1_000_000)]
-    public int Amount { get; set; }
+    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
 
     private MicroWorld _fixture = null!;
     private Entity[] _movement2Entities = null!;
@@ -292,8 +291,7 @@ public class DenseIterationMicroBenchmarkImplementation
 
 public class Movement4OrderMicroBenchmarkImplementation
 {
-    [Params(100_000, 1_000_000)]
-    public int Amount { get; set; }
+    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
 
     private MicroWorld _fixture = null!;
     private Entity[] _entities = null!;
@@ -363,8 +361,7 @@ internal record struct GeneratedMovement4Functor : IForEach
 
 public class GeneratedFunctorMovement4MicroBenchmarkImplementation
 {
-    [Params(1_000_000)]
-    public int Amount { get; set; }
+    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
 
     private MicroWorld _fixture = null!;
     private Entity[] _entities = null!;

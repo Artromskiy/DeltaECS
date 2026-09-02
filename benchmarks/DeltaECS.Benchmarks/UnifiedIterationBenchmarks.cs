@@ -22,7 +22,7 @@ namespace Delta.ECS.Benchmarks;
 // only the traversal/callback mechanism differs.
 public class ComparativeDenseIterationBenchmarks
 {
-    [Params(100, 1_000, 10_000, 100_000)] public int Amount { get; set; }
+    public int Amount { get; set; } = BenchmarkConfiguration.Amount;
     private DeltaWorld _delta = null!;
     private Query _deltaQuery;
     private ComponentId _deltaValue;
@@ -118,7 +118,7 @@ public class ComparativeDenseIterationBenchmarks
 // invocations intentionally preserve the same traversal and arithmetic path.
 public class ComparativeMovement2ComponentsBenchmarks
 {
-    [Params(100, 1_000, 10_000, 100_000)] public int Amount { get; set; }
+    public int Amount { get; set; } = BenchmarkConfiguration.Amount;
     private DeltaWorld _delta = null!;
     private Query _deltaQuery;
     private ComponentId _deltaPosition, _deltaVelocity;
@@ -293,7 +293,7 @@ public class ComparativeMovement2ComponentsBenchmarks
 // invocations intentionally preserve the same traversal and arithmetic path.
 public class ComparativeMovement4ComponentsBenchmarks
 {
-    [Params(100, 1_000, 10_000, 100_000)] public int Amount { get; set; }
+    public int Amount { get; set; } = BenchmarkConfiguration.Amount;
     private DeltaWorld _delta = null!; private Query _deltaQuery; private ComponentId[] _deltaIds = null!; private DeltaEntity[] _deltaEntities = null!;
     private Arch.Core.World _arch = null!; private ArchComponentType[] _archTypes = null!; private Arch.Core.QueryDescription _archQuery; private Arch.Core.Entity[] _archEntities = null!;
     private EntityStore _friflo = null!; private ArchetypeQuery<Movement4A, Movement4B, Movement4C, Movement4D> _frifloQuery = null!; private FrifloEntity[] _frifloEntities = null!;
@@ -414,7 +414,7 @@ public class ComparativeMovement4ComponentsBenchmarks
 // and Wide7; ApplyWide owns the identical terminal checksum operation.
 public class ComparativeWideArchetypeNarrowQueryBenchmarks
 {
-    [Params(100, 1_000, 10_000, 100_000)] public int Amount { get; set; }
+    public int Amount { get; set; } = BenchmarkConfiguration.Amount;
     private DeltaWorld _delta = null!; private Query _deltaQuery; private ComponentId[] _deltaIds = null!;
     private Arch.Core.World _arch = null!; private ArchComponentType[] _archTypes = null!; private Arch.Core.QueryDescription _archQuery;
     private EntityStore _friflo = null!; private ArchetypeQuery<Wide0, Wide7> _frifloQuery = null!;
@@ -459,7 +459,7 @@ public class ComparativeWideArchetypeNarrowQueryBenchmarks
 // count matches through the same ApplySparse terminal operation.
 public class ComparativeSparseQueryBenchmarks
 {
-    [Params(100, 1_000, 10_000, 100_000)] public int Amount { get; set; }
+    public int Amount { get; set; } = BenchmarkConfiguration.Amount;
     private DeltaWorld _delta = null!; private Query _deltaQuery; private ComponentId _deltaA, _deltaB, _deltaC; private DeltaEntity[] _deltaEntities = null!;
     private Arch.Core.World _arch = null!; private ArchComponentType[] _archMatchTypes = null!; private ArchComponentType[] _archNonMatchTypes = null!; private ArchComponentType _archCType; private Arch.Core.QueryDescription _archQuery;
     private EntityStore _friflo = null!; private ArchetypeQuery<SparseA, SparseB> _frifloQuery = null!;

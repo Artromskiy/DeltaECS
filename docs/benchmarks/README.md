@@ -51,6 +51,16 @@ env NuGetAudit=false RestoreIgnoreFailedSources=true \
   --exporters json csv markdown github --artifacts artifacts/iteration
 ```
 
+The iteration runner uses `100`, `1_000`, `10_000` and `100_000` entities by
+default, running each amount as a separate BenchmarkDotNet process. Override
+the workload from the command line without benchmark parameter attributes:
+
+```bash
+dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net10.0/DeltaECS.Benchmarks.dll \
+  iteration --amounts 100,1000,10000 --filter '*Movement4Components*' \
+  --job Default --iterationTime 100
+```
+
 The parallel Movement4 route accepts its matrix as runner arguments. These
 options are removed before the remaining arguments are passed to
 BenchmarkDotNet:
@@ -96,6 +106,9 @@ dotnet benchmarks/DeltaECS.VersionBenchmarks/bin/Release/net10.0/DeltaECS.Versio
 Both revisions receive the same entity amounts (`100`, `1_000`, `10_000`,
 `100_000`), runtime, architecture and BenchmarkDotNet arguments. Setup and
 reset work stay outside the measured methods.
+
+Use `--amount N` or `--amounts N,N,...` to select the version-comparison
+workload; without either option the four documented default amounts are run.
 
 ## Microbenchmarks and JIT
 

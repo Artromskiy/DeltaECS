@@ -10,7 +10,7 @@ using BenchmarkDotNet.Attributes;
 [MemoryDiagnoser]
 public class VersionDenseBenchmarks
 {
-    [Params(100, 1_000, 10_000, 100_000)] public int Amount { get; set; }
+    public int Amount { get; set; } = VersionBenchmarkConfiguration.CurrentAmount;
     private BaselineIterationScenario _baseline = null!;
     private CandidateIterationScenario _candidate = null!;
 
@@ -28,7 +28,7 @@ public class VersionDenseBenchmarks
 [MemoryDiagnoser]
 public class VersionMovement2Benchmarks
 {
-    [Params(100, 1_000, 10_000, 100_000)] public int Amount { get; set; }
+    public int Amount { get; set; } = VersionBenchmarkConfiguration.CurrentAmount;
     private BaselineIterationScenario _baseline = null!;
     private CandidateIterationScenario _candidate = null!;
 
@@ -52,7 +52,7 @@ public class VersionMovement2Benchmarks
 [MemoryDiagnoser]
 public class VersionMovement4Benchmarks
 {
-    [Params(100, 1_000, 10_000, 100_000)] public int Amount { get; set; }
+    public int Amount { get; set; } = VersionBenchmarkConfiguration.CurrentAmount;
     private BaselineIterationScenario _baseline = null!;
     private CandidateIterationScenario _candidate = null!;
 

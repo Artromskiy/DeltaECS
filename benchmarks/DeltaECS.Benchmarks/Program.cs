@@ -27,8 +27,14 @@ internal static class Program
 
         if (args.Length > 0 && string.Equals(args[0], "many-components", StringComparison.OrdinalIgnoreCase))
         {
-            var manyComponentArgs = args.Length > 0 ? args[1..] : Array.Empty<string>();
-            RunTimed("many-components", () => BenchmarkSwitcher.FromTypes(ComparativeBenchmarkCatalog.ManyComponents).Run(manyComponentArgs));
+            var manyComponentArgs = BenchmarkConfiguration.SelectAmounts(
+                args[1..],
+                BenchmarkConfiguration.DefaultAmounts,
+                out int[] manyComponentAmounts);
+            RunTimed("many-components", () => RunForAmounts(
+                ComparativeBenchmarkCatalog.ManyComponents,
+                manyComponentArgs,
+                manyComponentAmounts));
             return;
         }
 
@@ -41,9 +47,18 @@ internal static class Program
                 ParallelBenchmarkArguments.PrintUsage();
             }
 
-            RunTimed(
-                "parallel",
-                () => BenchmarkSwitcher.FromTypes([typeof(ParallelMovement4IterationBenchmarks)]).Run(parallelArgs));
+            RunTimed("parallel", () =>
+            {
+                foreach (int amount in ParallelBenchmarkConfiguration.Amounts)
+                {
+                    foreach (int workerCount in ParallelBenchmarkConfiguration.WorkerCounts)
+                    {
+                        ParallelBenchmarkConfiguration.Amount = amount;
+                        ParallelBenchmarkConfiguration.WorkerCount = workerCount;
+                        BenchmarkSwitcher.FromTypes([typeof(ParallelMovement4IterationBenchmarks)]).Run(parallelArgs);
+                    }
+                }
+            });
             return;
         }
 
@@ -52,8 +67,11 @@ internal static class Program
                 $"Unknown benchmark route '{args[0]}'. Only 'iteration', 'many-components' and 'parallel' are supported.",
                 nameof(args));
 
-        var benchmarkArgs = args.Length > 0 ? args[1..] : Array.Empty<string>();
-        RunTimed("iteration", () => BenchmarkSwitcher.FromTypes(ComparativeBenchmarkCatalog.Iteration).Run(benchmarkArgs));
+        var benchmarkArgs = BenchmarkConfiguration.SelectAmounts(
+            args.Length > 0 ? args[1..] : Array.Empty<string>(),
+            BenchmarkConfiguration.DefaultAmounts,
+            out int[] amounts);
+        RunTimed("iteration", () => RunForAmounts(ComparativeBenchmarkCatalog.Iteration, benchmarkArgs, amounts));
     }
 
     private static void RunTimed(string name, Action action)
@@ -72,6 +90,15 @@ internal static class Program
         {
             stopwatch.Stop();
             Console.WriteLine($"[{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}] Benchmark finished: {name}, elapsed {stopwatch.Elapsed:hh\\:mm\\:ss}");
+        }
+    }
+
+    private static void RunForAmounts(Type[] benchmarkTypes, string[] benchmarkArgs, int[] amounts)
+    {
+        foreach (int amount in amounts)
+        {
+            BenchmarkConfiguration.Amount = amount;
+            BenchmarkSwitcher.FromTypes(benchmarkTypes).Run(benchmarkArgs);
         }
     }
 }
