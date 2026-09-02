@@ -80,4 +80,3 @@ fastest generated execution. For ordered candidates, use
 - [API map](docs/APIMAP.md)
 - [Integration API](docs/src/DeltaECS/API/README.md)
 - [Documentation index](docs/README.md)
-- [License](LICENSE)

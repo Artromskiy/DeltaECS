@@ -93,4 +93,3 @@ the caller retains ownership of the input entity storage.
 - [Public API map](APIMAP.md)
 - [API map](APIMAP.md)
 - [Integration API](src/DeltaECS/API/README.md)
-- [License](../LICENSE)
