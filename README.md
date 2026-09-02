@@ -76,7 +76,7 @@ fastest generated execution. For ordered candidates, use
 
 ## Further reading
 
-- [User API reference](docs/USER_API.md)
+- [Public API map](docs/APIMAP.md)
 - [API map](docs/APIMAP.md)
 - [Integration API](docs/src/DeltaECS/API/README.md)
 - [Documentation index](docs/README.md)
