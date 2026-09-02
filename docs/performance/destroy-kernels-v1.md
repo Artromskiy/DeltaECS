@@ -2,13 +2,15 @@
 
 Baseline: `8a2c9f2`
 Candidate code: `f4571ce` (`perf/destroy-kernels-v1`)
-Scope: `Destroy(Entity)`, `DestroyBatch(ReadOnlySpan<Entity>)`, and query `Destroy(in Query)`.
+Scope: `Destroy(Entity)`, batch `Destroy(ReadOnlySpan<Entity>)`, and query
+`Destroy(in Query)`.
 
 No public API or semantic contract was changed.
 
 ## Accepted implementation
 
-`DestroyBatch` now has three internal routes in `src/DeltaECS/Core/World.cs`:
+Batch `Destroy(ReadOnlySpan<Entity>)` now has three internal routes in
+`src/DeltaECS/Core/World.cs`:
 
 1. One valid entry skips sorting and the second lifetime/record validation.
 2. Already ascending entries are consumed from the end, grouped by archetype/chunk, and use the existing whole-chunk destroy kernel when the group is complete.
@@ -30,10 +32,10 @@ Positive delta means the candidate is slower; negative means faster. Allocations
 | Path | Amount | Baseline mean | Candidate mean | Delta | Baseline alloc | Candidate alloc |
 |---|---:|---:|---:|---:|---:|---:|
 | `Destroy(Entity)` | 1 | 439.3 ns | 480.7 ns | +9.4% | 736 B | 736 B |
-| `DestroyBatch` | 1 | 413.3 ns | 352.8 ns | −14.6% | 736 B | 736 B |
-| `DestroyBatch` | 8 | 3,035.2 ns | 1,538.2 ns | −49.3% | 800 B | 736 B |
-| `DestroyBatch` | 256 | 78,683.3 ns | 27,272.2 ns | −65.3% | 800 B | 736 B |
-| `DestroyBatch` | 4,096 | 1,261,696.7 ns | 107,160.0 ns | −91.5% | 800 B | 736 B |
+| `Destroy(ReadOnlySpan<Entity>)` | 1 | 413.3 ns | 352.8 ns | −14.6% | 736 B | 736 B |
+| `Destroy(ReadOnlySpan<Entity>)` | 8 | 3,035.2 ns | 1,538.2 ns | −49.3% | 800 B | 736 B |
+| `Destroy(ReadOnlySpan<Entity>)` | 256 | 78,683.3 ns | 27,272.2 ns | −65.3% | 800 B | 736 B |
+| `Destroy(ReadOnlySpan<Entity>)` | 4,096 | 1,261,696.7 ns | 107,160.0 ns | −91.5% | 800 B | 736 B |
 | Query `Destroy` | 1 | 596.0 ns | 497.6 ns | −16.5% | 736 B | 736 B |
 | Query `Destroy` | 8 | 493.8 ns | 524.0 ns | +6.1% | 736 B | 736 B |
 | Query `Destroy` | 256 | 1,664.6 ns | 1,713.0 ns | +2.9% | 736 B | 736 B |
