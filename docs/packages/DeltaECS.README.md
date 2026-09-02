@@ -4,7 +4,7 @@
 component system.
 
 ```xml
-<PackageReference Include="DeltaECS" Version="0.0.10" />
+<PackageReference Include="DeltaECS" Version="*" />
 ```
 
 The runtime package contains the `Delta.ECS` assembly and does not depend on

@@ -5,8 +5,8 @@ consumer callback shapes. It is packaged as an analyzer and has no runtime
 dependency on the generator assembly.
 
 ```xml
-<PackageReference Include="DeltaECS" Version="0.0.10" />
-<PackageReference Include="DeltaECS.Generators" Version="0.0.10"
+<PackageReference Include="DeltaECS" Version="*" />
+<PackageReference Include="DeltaECS.Generators" Version="*"
                   PrivateAssets="all" />
 ```
 
