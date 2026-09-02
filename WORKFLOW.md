@@ -81,6 +81,37 @@ To choose another report location:
 CODE_METRICS_ERROR_LOG=/tmp/deltaecs-metrics.sarif ./eng/code-metrics.sh -v:q
 ```
 
+## NuGet packages
+
+The runtime and generator packages must be published from the same commit and
+must keep the same version. The current package version is `0.0.10`. From the
+repository root, restore once and pack both projects into one temporary
+directory:
+
+```bash
+package_dir="$(mktemp -d "${TMPDIR:-/tmp}/deltaecs-pack.XXXXXX")"
+dotnet restore DeltaECS.slnx
+dotnet pack src/DeltaECS/DeltaECS.csproj -c Release --no-restore -o "$package_dir"
+dotnet pack src/DeltaECS.Generators/DeltaECS.Generators.csproj -c Release --no-restore -o "$package_dir"
+```
+
+Inspect both packages before publishing. The runtime package must contain the
+`lib/net10.0/DeltaECS.dll` asset and the generator package must contain only
+the analyzer asset under `analyzers/dotnet/cs`. Publish with a key supplied by
+the shell environment; never write the key into this repository:
+
+```bash
+: "${NUGET_API_KEY:?Set NUGET_API_KEY in the shell; do not store it in the repository}"
+dotnet nuget push "$package_dir/DeltaECS.0.0.10.nupkg" \
+  --api-key "$NUGET_API_KEY" \
+  --source https://api.nuget.org/v3/index.json \
+  --skip-duplicate
+dotnet nuget push "$package_dir/DeltaECS.Generators.0.0.10.nupkg" \
+  --api-key "$NUGET_API_KEY" \
+  --source https://api.nuget.org/v3/index.json \
+  --skip-duplicate
+```
+
 Build benchmark projects and use dry contract smokes during review. Do not run
 full BenchmarkDotNet measurements unless the user asks. For assembly-guided
 micro-algorithms use [docs/benchmarks/README.md](docs/benchmarks/README.md) and
