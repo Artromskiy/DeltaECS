@@ -151,11 +151,11 @@ mix is mixed; the BDN result determines the verdict.
 
 ## Final gates
 
-- `FORMAT_CHECK=1 ./eng/format.sh`: passed.
+- `FORMAT_CHECK=1 ../eng/format.sh "$PWD"`: passed.
 - Release solution build with restore/audit settings and build servers
   disabled: passed, 0 errors.
 - Release tests: 134 passed, 0 failed, 0 skipped.
-- `./eng/code-metrics.sh -v:q`: passed, 0 errors. Candidate emitted 899 build
+- `../eng/code-metrics.sh "$PWD" -v:q`: passed, 0 errors. Candidate emitted 899 build
   warning lines / 425 SARIF results; the project baseline is 893 warning lines /
   417 SARIF results. The rejected source therefore is not merge-eligible under
   the current metrics policy without resolving its `+6` / `+8` delta.

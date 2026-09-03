@@ -63,7 +63,7 @@ Focused tests passed: **43/43**. The added test `StampInvariantTests.DestroyBatc
 
 - Release solution rebuild with analyzer metrics: passed; baseline and candidate both 1,006 warning lines / 157 SARIF diagnostics, category delta `0`.
 - Effective `Nullable`: `enable`.
-- `FORMAT_CHECK=1 ./eng/format.sh`: passed.
+- `FORMAT_CHECK=1 ../eng/format.sh "$PWD"`: passed.
 - Focused Release tests: 43/43 passed.
 - `git diff --check`: passed.
 - No full comparative BenchmarkDotNet suite and no push.

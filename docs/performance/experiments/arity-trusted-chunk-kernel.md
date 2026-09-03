@@ -151,7 +151,7 @@ extra helper block or call overhead.
 
 ## Final gates
 
-- `FORMAT_CHECK=1 ./eng/format.sh`: passed.
+- `FORMAT_CHECK=1 ../eng/format.sh "$PWD"`: passed.
 - Release solution build with restore performed once, build servers disabled,
   one MSBuild node and shared compilation disabled: passed with 690 existing
   standard-analysis warnings and 0 errors.

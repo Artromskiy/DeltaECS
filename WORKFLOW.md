@@ -53,17 +53,17 @@ dotnet test tests/DeltaECSTests/DeltaECSTests.csproj \
 git diff --check
 ```
 
-For the analyzer/code-metrics build, use the repository wrapper instead of
-passing a relative `ErrorLog` property directly to `dotnet build`:
+Before every commit, run the shared Furnace wrappers against this repository:
+see [the common workflow](../REVIEW_PLAYBOOK.md#shared-local-formatter-and-metrics-wrappers).
 
 ```bash
-./eng/code-metrics.sh -v:q
+../eng/format.sh "$PWD"
+FORMAT_CHECK=1 ../eng/format.sh "$PWD"
+../eng/code-metrics.sh "$PWD" -v:q
 ```
 
-`eng/code-metrics.sh` converts `CODE_METRICS_ERROR_LOG` (or its default
-`artifacts/code-metrics/diagnostics.sarif`) to an absolute path before MSBuild
-starts. Roslyn otherwise resolves a relative SARIF path separately for every
-project and can fail when that project-local directory does not exist.
+The metrics wrapper discovers `DeltaECS.slnx`, normalizes the SARIF path, and
+keeps the project-local output under `artifacts/code-metrics/`.
 
 Internal boundary rule: every member declared inside an `internal` type must be
 explicitly marked `internal` (or `private`). This marks the point where
@@ -78,7 +78,8 @@ target language or interpolation requirements make a raw string unsuitable.
 To choose another report location:
 
 ```bash
-CODE_METRICS_ERROR_LOG=/tmp/deltaecs-metrics.sarif ./eng/code-metrics.sh -v:q
+CODE_METRICS_ERROR_LOG=/tmp/deltaecs-metrics.sarif \
+  ../eng/code-metrics.sh "$PWD" -v:q
 ```
 
 ## NuGet packages
