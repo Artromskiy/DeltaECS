@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="benchmarks/Ecs.CSharp.Benchmark/Ecs.CSharp.Benchmark.csproj" />
   <Project Path="benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj" />
   <Project Path="benchmarks/DeltaECS.MicroBenchmarks/DeltaECS.MicroBenchmarks.csproj" />
   <Project Path="playground/DeltaECS.Playground/DeltaECS.Playground.csproj" />

@@ -12,6 +12,10 @@ iterate the same data shape?
   candidate) on the same dense, Movement2 and Movement4 workloads.
 - `DeltaECS.MicroBenchmarks` isolates DeltaECS iteration/API shapes for JIT and
   focused throughput work.
+- `Ecs.CSharp.Benchmark` is a complete vendored fork of the upstream workload
+  suite. It keeps the competitor implementations and adds DeltaECS to every
+  create/system scenario group, consuming the published `DeltaECS` and
+  `DeltaECS.Generators` packages.
 
 The supported comparative route is `iteration`. The version suite is also
 iteration-only; it is intentionally separate because it builds the same

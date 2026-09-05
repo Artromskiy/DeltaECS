@@ -1,0 +1,107 @@
+﻿<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisMode>AllEnabledByDefault</AnalysisMode>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+    <RunAnalyzersDuringLiveAnalysis>true</RunAnalyzersDuringLiveAnalysis>
+    <NoWarn>$(NoWarn);NETSDK1206;CS1591</NoWarn>
+
+    <InterceptorsNamespaces>Delta.ECS.Generated</InterceptorsNamespaces>
+
+    <DefineConstants Condition="'$(CheckCacheMisses)' == 'true'">CHECK_CACHE_MISSES</DefineConstants>
+    <DefineConstants Condition="'$(IncludeSlowBenchmarks)' == 'true'">$(DefineConstants);INCLUDE_SLOW_BENCHMARKS</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IncludeSlowBenchmarks)' != 'true'">
+    <Compile Remove="Contexts/MonoGameExtendedBaseContext.cs" />
+    <Compile Remove="Contexts/MorpehBaseContext.cs" />
+    <Compile Remove="Contexts/RelEcsBaseContext.cs" />
+    <Compile Remove="Contexts/SveltoECSBaseContext.cs" />
+    <Compile Remove="CreateEntityWithOneComponent/MonoGameExtended.cs" />
+    <Compile Remove="CreateEntityWithOneComponent/Morpeh.cs" />
+    <Compile Remove="CreateEntityWithOneComponent/RelEcs.cs" />
+    <Compile Remove="CreateEntityWithOneComponent/SveltoECS.cs" />
+    <Compile Remove="CreateEntityWithTwoComponents/MonoGameExtended.cs" />
+    <Compile Remove="CreateEntityWithTwoComponents/Morpeh.cs" />
+    <Compile Remove="CreateEntityWithTwoComponents/RelEcs.cs" />
+    <Compile Remove="CreateEntityWithTwoComponents/SveltoECS.cs" />
+    <Compile Remove="CreateEntityWithThreeComponents/MonoGameExtended.cs" />
+    <Compile Remove="CreateEntityWithThreeComponents/Morpeh.cs" />
+    <Compile Remove="CreateEntityWithThreeComponents/RelEcs.cs" />
+    <Compile Remove="CreateEntityWithThreeComponents/SveltoECS.cs" />
+    <Compile Remove="SystemWithOneComponent/MonoGameExtended.cs" />
+    <Compile Remove="SystemWithOneComponent/Morpeh.cs" />
+    <Compile Remove="SystemWithOneComponent/RelEcs.cs" />
+    <Compile Remove="SystemWithOneComponent/SveltoECS.cs" />
+    <Compile Remove="SystemWithTwoComponents/MonoGameExtended.cs" />
+    <Compile Remove="SystemWithTwoComponents/Morpeh.cs" />
+    <Compile Remove="SystemWithTwoComponents/RelEcs.cs" />
+    <Compile Remove="SystemWithTwoComponents/SveltoECS.cs" />
+    <Compile Remove="SystemWithThreeComponents/MonoGameExtended.cs" />
+    <Compile Remove="SystemWithThreeComponents/Morpeh.cs" />
+    <Compile Remove="SystemWithThreeComponents/RelEcs.cs" />
+    <Compile Remove="SystemWithThreeComponents/SveltoECS.cs" />
+    <Compile Remove="SystemWithTwoComponentsMultipleComposition/MonoGameExtended.cs" />
+    <Compile Remove="SystemWithTwoComponentsMultipleComposition/Morpeh.cs" />
+    <Compile Remove="SystemWithTwoComponentsMultipleComposition/RelEcs.cs" />
+    <Compile Remove="SystemWithTwoComponentsMultipleComposition/SveltoECS.cs" />
+  </ItemGroup>
+
+  <ItemGroup Label="Analyzers">
+    <PackageReference Include="Arch.System" Version="1.0.5" />
+    <PackageReference Include="Arch.System.SourceGenerator" Version="1.2.1" />
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="8.0.0" PrivateAssets="all" />
+    <PackageReference Include="Myriad.ECS" Version="49.0.0" />
+    <PackageReference Include="Roslynator.Analyzers" Version="4.10.0" PrivateAssets="all" />
+    <PackageReference Include="Roslynator.CodeAnalysis.Analyzers" Version="4.10.0" PrivateAssets="all" />
+    <PackageReference Include="Roslynator.Formatting.Analyzers" Version="4.10.0" PrivateAssets="all" />
+    <PackageReference Include="TinyEcs.Main" Version="1.2.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Benchmark">
+    <PackageReference Include="BenchmarkDotNet" Version="0.13.12" />
+    <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.13.12" />
+  </ItemGroup>
+
+  <ItemGroup Label="DeltaECS">
+    <PackageReference Include="DeltaECS" Version="0.0.12" />
+    <PackageReference Include="DeltaECS.Generators" Version="0.0.12" PrivateAssets="all" />
+    <CompilerVisibleProperty Include="InterceptorsNamespaces" />
+  </ItemGroup>
+
+  <ItemGroup Label="Ecs">
+		<PackageReference Include="Arch" Version="1.2.8.1-alpha" />
+    <PackageReference Include="Frent" Version="0.4.0-beta" />
+    <PackageReference Include="DefaultEcs" Version="0.17.2" />
+    <PackageReference Include="DefaultEcs.Analyzer" Version="0.17.0" PrivateAssets="all" />
+
+    <PackageReference Include="fennecs" Version="0.1.1-beta" />
+
+    <PackageReference Include="Friflo.Engine.ECS" Version="3.6.0" />
+
+    <PackageReference Include="HypEcs" Version="1.2.1" />
+
+    <PackageReference Include="MonoGame.Extended.Entities" Version="3.8.0" />
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.1.303" />
+
+    <PackageReference Include="Leopotam.Ecs" Version="1.0.1" />
+
+    <PackageReference Include="Leopotam.EcsLite" Version="1.0.1" />
+
+    <PackageReference Include="RelEcs" Version="1.5.1" />
+
+    <PackageReference Include="Scellecs.Morpeh" Version="2023.1.0" />
+
+    <PackageReference Include="Svelto.ECS" Version="3.3.2" />
+    <PackageReference Include="Svelto.Common" Version="3.3.2" />
+		<PackageReference Include="Flecs.NET.Release" Version="3.2.11" />
+  </ItemGroup>
+
+</Project>

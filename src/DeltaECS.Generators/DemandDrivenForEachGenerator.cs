@@ -2149,6 +2149,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         Shape shape,
         InterceptionSite site)
     {
+        source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         source.Append("    ").AppendLine(site.Attribute);
         source.Append("    internal static void Intercept_").Append(site.Id).Append("(");
         var parameters = new List<string> { "this global::Delta.ECS.World world", "in global::Delta.ECS.Query query" };
