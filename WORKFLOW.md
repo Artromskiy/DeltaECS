@@ -85,7 +85,7 @@ CODE_METRICS_ERROR_LOG=/tmp/deltaecs-metrics.sarif \
 ## NuGet packages
 
 The runtime and generator packages must be published from the same commit and
-must keep the same version. The current package version is `0.0.10`. From the
+must keep the same version. The current package version is `0.0.11`. From the
 repository root, restore once and pack both projects into one temporary
 directory:
 
@@ -103,11 +103,11 @@ the shell environment; never write the key into this repository:
 
 ```bash
 : "${NUGET_API_KEY:?Set NUGET_API_KEY in the shell; do not store it in the repository}"
-dotnet nuget push "$package_dir/DeltaECS.0.0.10.nupkg" \
+dotnet nuget push "$package_dir/DeltaECS.0.0.11.nupkg" \
   --api-key "$NUGET_API_KEY" \
   --source https://api.nuget.org/v3/index.json \
   --skip-duplicate
-dotnet nuget push "$package_dir/DeltaECS.Generators.0.0.10.nupkg" \
+dotnet nuget push "$package_dir/DeltaECS.Generators.0.0.11.nupkg" \
   --api-key "$NUGET_API_KEY" \
   --source https://api.nuget.org/v3/index.json \
   --skip-duplicate

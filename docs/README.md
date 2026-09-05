@@ -19,8 +19,8 @@ fast, typed iteration and immediate world updates in .NET applications.
 Install the runtime package and source generator in the consumer project:
 
 ```xml
-<PackageReference Include="DeltaECS" Version="0.0.10" />
-<PackageReference Include="DeltaECS.Generators" Version="0.0.10"
+<PackageReference Include="DeltaECS" Version="0.0.11" />
+<PackageReference Include="DeltaECS.Generators" Version="0.0.11"
                   OutputItemType="Analyzer" />
 ```
 

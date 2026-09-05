@@ -8,7 +8,7 @@
     <IsRoslynComponent>true</IsRoslynComponent>
     <AssemblyName>DeltaECS.Generators</AssemblyName>
     <PackageId>DeltaECS.Generators</PackageId>
-    <Version>0.0.10</Version>
+    <Version>0.0.11</Version>
     <Authors>Artromskiy</Authors>
     <Description>Build-time Roslyn analyzer and source generator for DeltaECS consumer callbacks.</Description>
     <PackageTags>ecs;source-generator;analyzer;roslyn;dotnet</PackageTags>

@@ -16,8 +16,8 @@ fast, typed iteration and immediate world updates in .NET applications.
 ## Quick start
 
 ```xml
-<PackageReference Include="DeltaECS" Version="0.0.10" />
-<PackageReference Include="DeltaECS.Generators" Version="0.0.10"
+<PackageReference Include="DeltaECS" Version="0.0.11" />
+<PackageReference Include="DeltaECS.Generators" Version="0.0.11"
                   OutputItemType="Analyzer" />
 ```
 
