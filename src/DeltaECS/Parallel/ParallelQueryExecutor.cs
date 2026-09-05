@@ -8,7 +8,6 @@ internal sealed class ParallelQueryExecutor : IDisposable
 {
     private const int MinimumParallelEntityCount = 250_000;
     private readonly object _lifecycle = new();
-    private WorkerSlot[] _workerSlots = Array.Empty<WorkerSlot>();
     private Worker[] _workers = Array.Empty<Worker>();
     private ExceptionDispatchInfo?[] _workerFailures = Array.Empty<ExceptionDispatchInfo?>();
     private ParallelChunk[] _chunks = Array.Empty<ParallelChunk>();
@@ -25,6 +24,9 @@ internal sealed class ParallelQueryExecutor : IDisposable
     private int _chunkCount;
     private int _entityCount;
     private int _runVersion;
+    private int _publishedRun;
+    private int _remainingWorkers;
+    private int _completedRun;
     private int _stopping;
     private bool _disposed;
 
@@ -57,14 +59,13 @@ internal sealed class ParallelQueryExecutor : IDisposable
                 ? Environment.ProcessorCount
                 : requestedWorkerCount;
             workerCount = Math.Max(1, Math.Min(workerCount, _chunkCount));
-            if (workerCount == 1
-                || requestedWorkerCount == 0 && _entityCount < MinimumParallelEntityCount)
+            if (workerCount == 1 || _entityCount < MinimumParallelEntityCount)
             {
                 ExecuteSingleThread(plan, session, generation, action);
                 return;
             }
 
-            EnsureWorkerCapacity(workerCount - 1);
+            EnsureWorkerCapacity(workerCount);
             PrepareRanges(plan, workerCount);
             ExecuteMultiThread(plan, session, generation, action, workerCount);
         }
@@ -95,7 +96,6 @@ internal sealed class ParallelQueryExecutor : IDisposable
         }
 
         _workers = Array.Empty<Worker>();
-        _workerSlots = Array.Empty<WorkerSlot>();
         _workerFailures = Array.Empty<ExceptionDispatchInfo?>();
         _chunks = Array.Empty<ParallelChunk>();
         _ranges = Array.Empty<ParallelRange>();
@@ -127,24 +127,17 @@ internal sealed class ParallelQueryExecutor : IDisposable
         _activeSession = session;
         _activeGeneration = generation;
         _activeAction = action;
-        for (int workerIndex = 1; workerIndex < workerCount; workerIndex++)
+        Volatile.Write(ref _remainingWorkers, workerCount);
+        for (int workerIndex = 0; workerIndex < workerCount; workerIndex++)
         {
             _workerFailures[workerIndex] = null;
-            ParallelRange range = _ranges[workerIndex];
-            WorkerSlot slot = _workerSlots[workerIndex];
-            slot.StartChunk = range.StartChunk;
-            slot.EndChunk = range.EndChunk;
-            Volatile.Write(ref slot.PublishedRun, run);
         }
 
-        _workerFailures[0] = null;
-        ExecuteRange(0, run, workerSlot: null);
-        for (int workerIndex = 1; workerIndex < workerCount; workerIndex++)
+        Volatile.Write(ref _publishedRun, run);
+
+        while (Volatile.Read(ref _completedRun) != run)
         {
-            while (Volatile.Read(ref _workerSlots[workerIndex].CompletedRun) != run)
-            {
-                Thread.SpinWait(8);
-            }
+            Thread.SpinWait(8);
         }
 
         _activePlan = null;
@@ -162,12 +155,11 @@ internal sealed class ParallelQueryExecutor : IDisposable
     private void WorkerLoop(Worker worker)
     {
         int workerIndex = worker.Index;
-        WorkerSlot workerSlot = worker.Slot;
         int observedRun = 0;
         while (Volatile.Read(ref _stopping) == 0)
         {
             int run;
-            while ((run = Volatile.Read(ref workerSlot.PublishedRun)) == observedRun)
+            while ((run = Volatile.Read(ref _publishedRun)) == observedRun)
             {
                 if (Volatile.Read(ref _stopping) != 0)
                 {
@@ -183,11 +175,11 @@ internal sealed class ParallelQueryExecutor : IDisposable
             }
 
             observedRun = run;
-            ExecuteRange(workerIndex, run, workerSlot);
+            ExecuteRange(workerIndex, run);
         }
     }
 
-    private void ExecuteRange(int workerIndex, int run, WorkerSlot? workerSlot)
+    private void ExecuteRange(int workerIndex, int run)
     {
         ParallelRange range = _ranges[workerIndex];
         try
@@ -207,9 +199,9 @@ internal sealed class ParallelQueryExecutor : IDisposable
         }
         finally
         {
-            if (workerSlot is not null)
+            if (Interlocked.Decrement(ref _remainingWorkers) == 0)
             {
-                Volatile.Write(ref workerSlot.CompletedRun, run);
+                Volatile.Write(ref _completedRun, run);
             }
         }
     }
@@ -275,8 +267,7 @@ internal sealed class ParallelQueryExecutor : IDisposable
 
     private void EnsureWorkerCapacity(int requiredBackgroundWorkers)
     {
-        if (requiredBackgroundWorkers <= _workers.Length
-            && requiredBackgroundWorkers + 1 <= _workerSlots.Length)
+        if (requiredBackgroundWorkers <= _workers.Length)
         {
             return;
         }
@@ -289,26 +280,19 @@ internal sealed class ParallelQueryExecutor : IDisposable
             }
 
             int previousLength = _workers.Length;
-            int totalWorkers = requiredBackgroundWorkers + 1;
-            if (_workerSlots.Length < totalWorkers)
-            {
-                int previousSlotLength = _workerSlots.Length;
-                Array.Resize(ref _workerSlots, totalWorkers);
-                Array.Resize(ref _workerFailures, totalWorkers);
-                for (int workerIndex = previousSlotLength; workerIndex < totalWorkers; workerIndex++)
-                {
-                    _workerSlots[workerIndex] = new WorkerSlot();
-                }
-            }
-
             if (_workers.Length < requiredBackgroundWorkers)
             {
                 Array.Resize(ref _workers, requiredBackgroundWorkers);
             }
 
+            if (_workerFailures.Length < requiredBackgroundWorkers)
+            {
+                Array.Resize(ref _workerFailures, requiredBackgroundWorkers);
+            }
+
             for (int workerIndex = previousLength; workerIndex < requiredBackgroundWorkers; workerIndex++)
             {
-                Worker worker = new(this, workerIndex + 1, _workerSlots[workerIndex + 1]);
+                Worker worker = new(this, workerIndex);
                 _workers[workerIndex] = worker;
                 worker.Thread.Start(worker);
             }
@@ -341,17 +325,6 @@ internal sealed class ParallelQueryExecutor : IDisposable
         Array.Resize(ref _ranges, required);
     }
 
-    [System.Runtime.InteropServices.StructLayout(
-        System.Runtime.InteropServices.LayoutKind.Sequential,
-        Size = 64)]
-    private sealed class WorkerSlot
-    {
-        internal int PublishedRun;
-        internal int CompletedRun;
-        internal int StartChunk;
-        internal int EndChunk;
-    }
-
     private readonly struct ParallelRange
     {
         internal ParallelRange(int startChunk, int endChunk)
@@ -380,10 +353,8 @@ internal sealed class ParallelQueryExecutor : IDisposable
     {
         internal Worker(
             ParallelQueryExecutor owner,
-            int index,
-            WorkerSlot slot)
+            int index)
         {
-            Slot = slot;
             Thread = new Thread(static state => ((Worker)state!).Owner.WorkerLoop((Worker)state!))
             {
                 IsBackground = true,
@@ -395,7 +366,6 @@ internal sealed class ParallelQueryExecutor : IDisposable
 
         internal ParallelQueryExecutor Owner { get; }
         internal int Index { get; }
-        internal WorkerSlot Slot { get; }
         internal Thread Thread { get; }
     }
 }

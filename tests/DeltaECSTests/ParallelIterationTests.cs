@@ -114,6 +114,28 @@ public sealed class ParallelIterationTests
     }
 
     [Test]
+    public void ForEachParallel_UsesCallerThreadBelowParallelThreshold()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        var positionId = layouts.Register(typeof(Position), new SchemaId(70_060));
+        var velocityId = layouts.Register(typeof(Velocity), new SchemaId(70_061));
+        using var world = new World(layouts, initialEntityCapacity: 2_048, chunkCapacity: 128);
+        var entities = new Entity[2_048];
+        world.Create(new[] { positionId, velocityId }, entities);
+        var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+        int callerThreadId = Environment.CurrentManagedThreadId;
+        int callbackThreadId = 0;
+
+        QueryChunkAction action = chunk =>
+        {
+            callbackThreadId = Environment.CurrentManagedThreadId;
+        };
+        world.ForEachParallel(in query, action, workerCount: 4);
+
+        Assert.That(callbackThreadId, Is.EqualTo(callerThreadId));
+    }
+
+    [Test]
     public void ForEachParallel_ProcessesEveryChunkExactlyOnce()
     {
         var layouts = new ComponentLayoutRegistry();
