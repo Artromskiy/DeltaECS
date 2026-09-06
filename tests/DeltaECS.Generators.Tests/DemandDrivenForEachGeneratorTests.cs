@@ -296,19 +296,30 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
-    public void EnabledStaticLambdaGeneratesAClosedCallbackKernel()
+    public void EnabledStaticLambdaGeneratesAClosedKernelWithoutCallbackDispatch()
     {
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(InterceptionSource);
         string generated = GeneratedText(run);
 
         Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
-        Assert.That(generated, Does.Contain("InvokeInterceptedCallback_"));
+        Assert.That(generated, Does.Not.Contain("InvokeInterceptedCallback_"));
         Assert.That(generated, Does.Contain("InterceptsLocationAttribute"));
         Assert.That(generated, Does.Contain("ExecuteInterceptedClosed_"));
         Assert.That(generated, Does.Contain("value.Value++"));
         Assert.That(generated, Does.Contain("ForEachAction<global::Delta.ECS.T1> _"));
         Assert.That(generated, Does.Not.Contain("InterceptedFunctor_"));
         Assert.That(generated, Does.Not.Contain("ref functor"));
+    }
+
+    [Test]
+    public void InterceptedLambdaWithReturnKeepsCallbackBoundary()
+    {
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(ReturningInterceptionSource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
+        Assert.That(generated, Does.Contain("InvokeInterceptedCallback_"));
+        Assert.That(generated, Does.Contain("return;"));
     }
 
     [Test]
@@ -795,6 +806,26 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static void Use(World world, Query query)
             {
                 world.ForEach<T1>(in query, static (ref T1 value) => value.Value++);
+            }
+        }
+        """;
+
+    private const string ReturningInterceptionSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        static class Consumer
+        {
+            public static void Use(World world, Query query)
+            {
+                world.ForEach<T1>(in query, static (ref T1 value) =>
+                {
+                    if (value.Value > 0)
+                    {
+                        return;
+                    }
+
+                    value.Value++;
+                });
             }
         }
         """;

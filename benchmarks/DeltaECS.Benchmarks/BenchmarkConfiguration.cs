@@ -7,6 +7,14 @@ internal static class BenchmarkConfiguration
     internal static readonly int[] DefaultAmounts = [100, 1_000, 10_000, 100_000];
     internal static int Amount { get; set; }
 
+    internal static int GetAmount()
+    {
+        string? value = Environment.GetEnvironmentVariable("DELTAECS_BENCH_AMOUNT");
+        return int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int amount) && amount > 0
+            ? amount
+            : Amount;
+    }
+
     internal static string[] SelectAmounts(
         string[] args,
         int[] defaults,

@@ -100,6 +100,9 @@ internal static class Program
         foreach (int amount in amounts)
         {
             BenchmarkConfiguration.Amount = amount;
+            Environment.SetEnvironmentVariable(
+                "DELTAECS_BENCH_AMOUNT",
+                amount.ToString(CultureInfo.InvariantCulture));
             BenchmarkSwitcher.FromTypes(benchmarkTypes).Run(benchmarkArgs);
         }
     }

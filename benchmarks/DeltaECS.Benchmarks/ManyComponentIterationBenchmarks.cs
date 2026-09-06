@@ -15,7 +15,7 @@ namespace Delta.ECS.Benchmarks;
 // before and after an internal generated-loop change.
 public class ManyComponentIterationBenchmarks
 {
-    public int Amount { get; set; } = BenchmarkConfiguration.Amount;
+    public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
 
     private DeltaWorld _world = null!;
     private Query _query;

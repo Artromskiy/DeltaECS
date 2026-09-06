@@ -14,7 +14,7 @@ namespace Delta.ECS.Benchmarks;
 // the first and last row. This isolates wide storage from the actual read set.
 public class WidePayloadPartialReadIterationBenchmarks
 {
-    public int Amount { get; set; } = BenchmarkConfiguration.Amount;
+    public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
 
     private DeltaWorld _world = null!;
     private Query _query;
