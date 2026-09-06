@@ -340,6 +340,16 @@ public partial class SystemWithOneComponent
             in _deltaEcs.Query,
             static (ref DeltaComponent1 component) => DeltaOperations.Update(ref component));
     }
+
+    [BenchmarkCategory(Categories.DeltaECS)]
+    [Benchmark]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void DeltaECS_Parallel()
+    {
+        _deltaEcs.World.ForEachParallel(
+            in _deltaEcs.Query,
+            static (ref DeltaComponent1 component) => DeltaOperations.Update(ref component));
+    }
 }
 
 public partial class SystemWithTwoComponents
@@ -353,6 +363,17 @@ public partial class SystemWithTwoComponents
     public void DeltaECS()
     {
         _deltaEcs.World.ForEach(
+            in _deltaEcs.Query,
+            static (ref DeltaComponent1 first, ref DeltaComponent2 second) =>
+                DeltaOperations.Update(ref first, ref second));
+    }
+
+    [BenchmarkCategory(Categories.DeltaECS)]
+    [Benchmark]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void DeltaECS_Parallel()
+    {
+        _deltaEcs.World.ForEachParallel(
             in _deltaEcs.Query,
             static (ref DeltaComponent1 first, ref DeltaComponent2 second) =>
                 DeltaOperations.Update(ref first, ref second));
@@ -374,6 +395,17 @@ public partial class SystemWithThreeComponents
             static (ref DeltaComponent1 first, ref DeltaComponent2 second, ref DeltaComponent3 third) =>
                 DeltaOperations.Update(ref first, ref second, ref third));
     }
+
+    [BenchmarkCategory(Categories.DeltaECS)]
+    [Benchmark]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void DeltaECS_Parallel()
+    {
+        _deltaEcs.World.ForEachParallel(
+            in _deltaEcs.Query,
+            static (ref DeltaComponent1 first, ref DeltaComponent2 second, ref DeltaComponent3 third) =>
+                DeltaOperations.Update(ref first, ref second, ref third));
+    }
 }
 
 public partial class SystemWithTwoComponentsMultipleComposition
@@ -387,6 +419,17 @@ public partial class SystemWithTwoComponentsMultipleComposition
     public void DeltaECS()
     {
         _deltaEcs.World.ForEach(
+            in _deltaEcs.Query,
+            static (ref DeltaComponent1 first, ref DeltaComponent2 second) =>
+                DeltaOperations.Update(ref first, ref second));
+    }
+
+    [BenchmarkCategory(Categories.DeltaECS)]
+    [Benchmark]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void DeltaECS_Parallel()
+    {
+        _deltaEcs.World.ForEachParallel(
             in _deltaEcs.Query,
             static (ref DeltaComponent1 first, ref DeltaComponent2 second) =>
                 DeltaOperations.Update(ref first, ref second));
@@ -418,15 +461,19 @@ internal static class DeltaEcsSmoke
 
         using DeltaSystemOneContext one = new(32, 1);
         one.World.ForEach(in one.Query, static (ref DeltaComponent1 component) => DeltaOperations.Update(ref component));
+        one.World.ForEachParallel(in one.Query, static (ref DeltaComponent1 component) => DeltaOperations.Update(ref component));
 
         using DeltaSystemTwoContext two = new(32, 1);
         two.World.ForEach(in two.Query, static (ref DeltaComponent1 first, ref DeltaComponent2 second) => DeltaOperations.Update(ref first, ref second));
+        two.World.ForEachParallel(in two.Query, static (ref DeltaComponent1 first, ref DeltaComponent2 second) => DeltaOperations.Update(ref first, ref second));
 
         using DeltaSystemThreeContext three = new(32, 1);
         three.World.ForEach(in three.Query, static (ref DeltaComponent1 first, ref DeltaComponent2 second, ref DeltaComponent3 third) => DeltaOperations.Update(ref first, ref second, ref third));
+        three.World.ForEachParallel(in three.Query, static (ref DeltaComponent1 first, ref DeltaComponent2 second, ref DeltaComponent3 third) => DeltaOperations.Update(ref first, ref second, ref third));
 
         using DeltaSystemMultipleCompositionContext compositions = new(32);
         compositions.World.ForEach(in compositions.Query, static (ref DeltaComponent1 first, ref DeltaComponent2 second) => DeltaOperations.Update(ref first, ref second));
+        compositions.World.ForEachParallel(in compositions.Query, static (ref DeltaComponent1 first, ref DeltaComponent2 second) => DeltaOperations.Update(ref first, ref second));
         Console.WriteLine("DeltaECS full-fork contract smoke passed.");
     }
 }
