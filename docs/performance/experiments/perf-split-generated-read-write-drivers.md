@@ -43,9 +43,9 @@ Functor and Delegate methods are the write guardrail.
 - Runtime: .NET 10.0.9, Arm64 RyuJIT AdvSIMD.
 - GC reported by BDN probe: concurrent workstation.
 - BenchmarkDotNet: 0.13.12.
-- Candidate worktree: `/private/tmp/deltaecs-split-generated-drivers`.
+- Candidate worktree: `<external-worktree-root>/deltaecs-split-generated-drivers`.
 - Untouched detached baseline worktree:
-  `/private/tmp/deltaecs-split-baseline` at the exact baseline commit.
+  `<external-baseline-root>/deltaecs-split-baseline` at the exact baseline commit.
 
 The shared `main` checkout advanced concurrently during preparation, so it was
 not used as the baseline. The detached worktree above is the exact requested
@@ -161,7 +161,7 @@ guardrail at every size, and all methods remain allocation-free.
 Fresh valid artifacts:
 
 - Baseline:
-  `/private/tmp/deltaecs-split-baseline/artifacts/micro/split-drivers-serialized-baseline`.
+  `<external-baseline-root>/deltaecs-split-baseline/artifacts/micro/split-drivers-serialized-baseline`.
 - Candidate:
   `artifacts/micro/split-drivers-serialized-candidate`.
 

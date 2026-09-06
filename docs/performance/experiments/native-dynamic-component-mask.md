@@ -99,7 +99,7 @@ result is the deciding evidence.
 
 Evidence artifacts:
 
-- Baseline long run: `/Users/rum/GitProjects/TheFurnace/DeltaECS/artifacts/native-dynamic-mask-baseline-long/results/Delta.ECS.Benchmarks.ComparativeMovement4ComponentsBenchmarks-report-default.md`;
-- Candidate long run: `/private/tmp/deltaecs-native-dynamic-mask/artifacts/native-dynamic-mask-candidate-long/results/Delta.ECS.Benchmarks.ComparativeMovement4ComponentsBenchmarks-report-default.md`;
-- Candidate JIT probe: `/private/tmp/deltaecs-native-dynamic-mask/artifacts/native-dynamic-mask-jit/candidate.log`;
-- Baseline JIT probe: `/Users/rum/GitProjects/TheFurnace/DeltaECS/artifacts/native-dynamic-mask-jit-baseline/baseline.log`.
+- Baseline long run: `artifacts/native-dynamic-mask-baseline-long/results/Delta.ECS.Benchmarks.ComparativeMovement4ComponentsBenchmarks-report-default.md`;
+- Candidate long run: `<external-baseline-root>/deltaecs-native-dynamic-mask/artifacts/native-dynamic-mask-candidate-long/results/Delta.ECS.Benchmarks.ComparativeMovement4ComponentsBenchmarks-report-default.md`;
+- Candidate JIT probe: `<external-baseline-root>/deltaecs-native-dynamic-mask/artifacts/native-dynamic-mask-jit/candidate.log`;
+- Baseline JIT probe: `artifacts/native-dynamic-mask-jit-baseline/baseline.log`.

@@ -16,8 +16,8 @@ fast, typed iteration and immediate world updates in .NET applications.
 ## Quick start
 
 ```xml
-<PackageReference Include="DeltaECS" Version="0.0.12" />
-<PackageReference Include="DeltaECS.Generators" Version="0.0.12"
+<PackageReference Include="DeltaECS" Version="*" />
+<PackageReference Include="DeltaECS.Generators" Version="*"
                   OutputItemType="Analyzer" />
 ```
 
@@ -76,7 +76,6 @@ fastest generated execution. For ordered candidates, use
 
 ## Further reading
 
-- [Public API map](docs/APIMAP.md)
 - [API map](docs/APIMAP.md)
 - [Integration API](docs/src/DeltaECS/API/README.md)
 - [Documentation index](docs/README.md)

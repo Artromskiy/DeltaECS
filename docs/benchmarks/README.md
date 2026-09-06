@@ -33,7 +33,7 @@ Build the required project once, then run contract smoke and discovery before a
 measurement:
 
 ```bash
-cd /Users/rum/GitProjects/TheFurnace/DeltaECS
+cd /path/to/DeltaECS
 env NuGetAudit=false RestoreIgnoreFailedSources=true \
   dotnet build benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj \
   -c Release --no-restore --disable-build-servers -m:1 /p:UseSharedCompilation=false

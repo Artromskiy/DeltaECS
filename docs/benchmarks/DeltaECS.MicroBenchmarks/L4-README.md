@@ -24,7 +24,7 @@ they are not part of this focused L4 measurement.
 From the repository root, build first:
 
 ```sh
-cd /Users/rum/GitProjects/TheFurnace/DeltaECS
+cd /path/to/DeltaECS
 env NuGetAudit=false RestoreIgnoreFailedSources=true \
   dotnet build benchmarks/DeltaECS.MicroBenchmarks/DeltaECS.MicroBenchmarks.csproj \
   -c Release --no-restore
@@ -35,7 +35,7 @@ directory is required because BDN generates its child project relative to the
 current directory:
 
 ```sh
-cd /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks
+cd /path/to/DeltaECS/benchmarks/DeltaECS.MicroBenchmarks
 env NuGetAudit=false RestoreIgnoreFailedSources=true \
   dotnet bin/Release/net10.0/DeltaECS.MicroBenchmarks.dll \
   --filter '*DenseIterationMicroBenchmarks.Movement4Components*' \
@@ -49,7 +49,7 @@ only the existing workload parameters are selected.
 For Release JIT evidence, return to the repository root after the build:
 
 ```sh
-cd /Users/rum/GitProjects/TheFurnace/DeltaECS
+cd /path/to/DeltaECS
 ./benchmarks/run-jit-disasm.sh \
   --method '*Movement4Components*' \
   --filter '*DenseIterationMicroBenchmarks*' \

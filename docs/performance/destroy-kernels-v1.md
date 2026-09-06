@@ -45,9 +45,9 @@ The atomic and query measurements are short single-invocation operations and rem
 
 Raw BDN CSV/JSON reports are retained outside the repository for this run:
 
-- Baseline: `/private/tmp/deltaecs-destroy-baseline-final-results/results/`
-- Candidate: `/private/tmp/deltaecs-destroy-candidate-final-results/results/`
-- Atomic/list-1 confirmation: `/private/tmp/deltaecs-destroy-baseline-final2-results/results/` and `/private/tmp/deltaecs-destroy-candidate-final2-results/results/`
+- Baseline: `<external-baseline-root>/deltaecs-destroy-baseline-final-results/results/`
+- Candidate: `<external-baseline-root>/deltaecs-destroy-candidate-final-results/results/`
+- Atomic/list-1 confirmation: `<external-baseline-root>/deltaecs-destroy-baseline-final2-results/results/` and `<external-baseline-root>/deltaecs-destroy-candidate-final2-results/results/`
 
 ## Correctness evidence
 

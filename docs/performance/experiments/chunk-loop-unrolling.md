@@ -46,7 +46,7 @@ the generated delegate callback and therefore overstated the likely gain.
 ## Reproduction
 
 ```bash
-cd /Users/rum/GitProjects/TheFurnace/DeltaECS/benchmarks/DeltaECS.Benchmarks
+cd /path/to/DeltaECS/benchmarks/DeltaECS.Benchmarks
 env NuGetAudit=false RestoreIgnoreFailedSources=true \
 dotnet bin/Release/net10.0/DeltaECS.Benchmarks.dll \
   --filter '*ComparativeMovement4ComponentsBenchmarks.DeltaECS_Movement4Components*' \
