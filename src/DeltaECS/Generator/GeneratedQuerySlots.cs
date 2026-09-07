@@ -37,13 +37,13 @@ public ref struct GeneratedQuerySlots
     public Entity CurrentEntity
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _chunk.RawEntities.Ref(_index);
+        get => _chunk.RawEntities.RefAt(_index);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public Entity EntityAt(int index)
-        => _chunk.RawEntities.Ref(index);
+        => _chunk.RawEntities.RefAt(index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNext() => ++_index < _count;
@@ -52,7 +52,7 @@ public ref struct GeneratedQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public ref T GetGeneratedReadReference<T>(int queryComponentIndex)
-        => ref Unsafe.As<T[]>(_resolvedRowsByQuery.Ref(queryComponentIndex))[0];
+        => ref Unsafe.As<T[]>(_resolvedRowsByQuery.RefAt(queryComponentIndex)).GetRefAtZero();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -63,7 +63,7 @@ public ref struct GeneratedQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public ref T GetGeneratedWriteReference<T>(int queryComponentIndex)
-        => ref Unsafe.As<T[]>(_resolvedRowsByQuery.Ref(queryComponentIndex))[0];
+        => ref Unsafe.As<T[]>(_resolvedRowsByQuery.RefAt(queryComponentIndex)).GetRefAtZero();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -103,19 +103,19 @@ public ref struct GeneratedReadQuerySlots
     public Entity CurrentEntity
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _chunk.RawEntities.Ref(_index);
+        get => _chunk.RawEntities.RefAt(_index);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity EntityAt(int index)
-        => _chunk.RawEntities.Ref(index);
+        => _chunk.RawEntities.RefAt(index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNext() => ++_index < _count;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetGeneratedReadReference<T>(int queryComponentIndex)
-        => ref Unsafe.As<T[]>(_resolvedRowsByQuery.Ref(queryComponentIndex))[0];
+        => ref Unsafe.As<T[]>(_resolvedRowsByQuery.RefAt(queryComponentIndex)).GetRefAtZero();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetGeneratedReadReference<T>(ReadAccess access)

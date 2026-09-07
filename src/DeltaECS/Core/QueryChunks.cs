@@ -40,8 +40,8 @@ public ref struct QueryChunks
             }
 
             return new QueryChunk(
-                _plans.Ref(_planIndex),
-                _chunks.Ref(_chunkIndex),
+                _plans.RefAt(_planIndex),
+                _chunks.RefAt(_chunkIndex),
                 _query,
                 _writeSession,
                 _sessionGeneration);
@@ -67,7 +67,7 @@ public ref struct QueryChunks
     {
         while ((uint)++_planIndex < (uint)_plans.Length)
         {
-            _chunks = _plans.Ref(_planIndex).Chunks;
+            _chunks = _plans.RefAt(_planIndex).Chunks;
             if (!_chunks.IsEmpty)
             {
                 _chunkIndex = 0;
@@ -115,7 +115,7 @@ public ref struct QueryArchetypeChunks
                 ThrowHelper.ThrowChunkIteratorNotPositioned();
             }
 
-            return new QueryChunk(_plan, _chunks.Ref(_index), _query, _writeSession, _sessionGeneration);
+            return new QueryChunk(_plan, _chunks.RefAt(_index), _query, _writeSession, _sessionGeneration);
         }
     }
 
@@ -196,7 +196,7 @@ public readonly ref struct QueryChunk
             ThrowHelper.ThrowAccessMismatch();
         }
 
-        int physicalRow = _plan.ComponentRows.Ref(access.QueryComponentIndex);
+        int physicalRow = _plan.ComponentRows.RefAt(access.QueryComponentIndex);
         return new StampRow(
             _query.Owner,
             _plan.Archetype.Id,

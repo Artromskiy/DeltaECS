@@ -127,7 +127,7 @@ public sealed partial class World
         executor?.Dispose();
         for (int index = 0; index < generatedExecutors.Length; index++)
         {
-            generatedExecutors[index].Dispose();
+            generatedExecutors.RefAt(index).Dispose();
         }
     }
 }

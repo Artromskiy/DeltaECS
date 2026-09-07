@@ -51,7 +51,7 @@ internal readonly struct ChunkComponentStampWriter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void Mark()
     {
-        _stamps[_componentIndex] = _stamp;
+        _stamps.RefAt(_componentIndex) = _stamp;
     }
 }
 
@@ -73,5 +73,5 @@ internal readonly struct ArchetypeComponentStampWriter
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void Mark() => _stamps[_componentIndex] = _stamp;
+    internal void Mark() => _stamps.RefAt(_componentIndex) = _stamp;
 }

@@ -71,7 +71,7 @@ public ref struct GeneratedDenseExecution
     {
         for (int planIndex = 0; planIndex < _plans.Length; planIndex++)
         {
-            ref readonly ArchetypePlan plan = ref _plans[planIndex];
+            ref readonly ArchetypePlan plan = ref _plans.RefAt(planIndex);
             if (plan.ChunkCount == 0)
             {
                 continue;
@@ -93,7 +93,7 @@ public ref struct GeneratedDenseExecution
     {
         for (int planIndex = 0; planIndex < _plans.Length; planIndex++)
         {
-            ref readonly ArchetypePlan plan = ref _plans[planIndex];
+            ref readonly ArchetypePlan plan = ref _plans.RefAt(planIndex);
             if (plan.ChunkCount == 0)
             {
                 continue;
@@ -104,7 +104,7 @@ public ref struct GeneratedDenseExecution
             {
                 GeneratedForEachRuntime.IncrementArchetypeStamp(
                     stamps,
-                    queryComponentIndices[accessIndex]);
+                    queryComponentIndices.RefAt(accessIndex));
             }
         }
     }
@@ -117,7 +117,7 @@ public ref struct GeneratedDenseExecution
     {
         for (int planIndex = 0; planIndex < _plans.Length; planIndex++)
         {
-            ref readonly ArchetypePlan plan = ref _plans[planIndex];
+            ref readonly ArchetypePlan plan = ref _plans.RefAt(planIndex);
             if (plan.ChunkCount == 0)
             {
                 continue;
@@ -139,7 +139,7 @@ public ref struct GeneratedDenseExecution
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void GetChunkRowsTrusted(int chunkIndex, out Array[] componentRows, out int count)
     {
-        ref readonly ChunkPlan chunkPlan = ref _chunkPlans.Ref(chunkIndex);
+        ref readonly ChunkPlan chunkPlan = ref _chunkPlans.RefAt(chunkIndex);
         componentRows = chunkPlan.ComponentRows;
         count = chunkPlan.Chunk.Count;
     }
@@ -153,7 +153,7 @@ public ref struct GeneratedDenseExecution
         if ((uint)nextChunk < (uint)_chunkPlans.Length)
         {
             _chunkIndex = nextChunk;
-            slots = new GeneratedQuerySlots(in _chunkPlans.Ref(_chunkIndex));
+            slots = new GeneratedQuerySlots(in _chunkPlans.RefAt(_chunkIndex));
             return true;
         }
         _chunkIndex = _chunkPlans.Length;
@@ -170,7 +170,7 @@ public ref struct GeneratedDenseExecution
         if ((uint)nextChunk < (uint)_chunkPlans.Length)
         {
             _chunkIndex = nextChunk;
-            ChunkPlan chunkPlan = _chunkPlans.Ref(_chunkIndex);
+            ChunkPlan chunkPlan = _chunkPlans.RefAt(_chunkIndex);
             componentRows = chunkPlan.ComponentRows;
             count = chunkPlan.Chunk.Count;
             return true;
@@ -223,7 +223,7 @@ public ref struct GeneratedReadDenseExecution
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void GetChunkRowsTrusted(int chunkIndex, out Array[] componentRows, out int count)
     {
-        ref readonly ChunkPlan chunkPlan = ref _chunkPlans.Ref(chunkIndex);
+        ref readonly ChunkPlan chunkPlan = ref _chunkPlans.RefAt(chunkIndex);
         componentRows = chunkPlan.ComponentRows;
         count = chunkPlan.Chunk.Count;
     }
@@ -235,7 +235,7 @@ public ref struct GeneratedReadDenseExecution
         if ((uint)nextChunk < (uint)_chunkPlans.Length)
         {
             _chunkIndex = nextChunk;
-            slots = new GeneratedReadQuerySlots(in _chunkPlans.Ref(_chunkIndex));
+            slots = new GeneratedReadQuerySlots(in _chunkPlans.RefAt(_chunkIndex));
             return true;
         }
         _chunkIndex = _chunkPlans.Length;
@@ -293,21 +293,21 @@ public ref struct GeneratedSequenceCursor
     public ref readonly T GetGeneratedReadReference<T>(int queryComponentIndex)
     {
         _writeSession.EnsureActive(_sessionGeneration);
-        return ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.Ref(queryComponentIndex)));
+        return ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.RefAt(queryComponentIndex)));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetGeneratedWriteReference<T>(int queryComponentIndex)
     {
         _writeSession.Acquire(_sessionGeneration);
-        int physicalRow = _componentRows.Ref(queryComponentIndex);
+        int physicalRow = _componentRows.RefAt(queryComponentIndex);
         Stamp stamp = _chunk.IncrementComponentStamp(physicalRow, Slot);
         new EntityComponentStampWriter(
             _chunk,
             physicalRow,
             Slot,
             stamp).Mark();
-        return ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.Ref(queryComponentIndex)));
+        return ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.RefAt(queryComponentIndex)));
     }
 }
 
@@ -318,13 +318,16 @@ public static class GeneratedForEachRuntime
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void IncrementArchetypeStamp(Stamp[] stamps, int componentIndex)
-        => stamps[componentIndex] = stamps[componentIndex].Next();
+    {
+        ref Stamp stamp = ref stamps.RefAt(componentIndex);
+        stamp = stamp.Next();
+    }
 
     /// <summary>Gets the first element of a validated generated component row.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ref T GetGeneratedRow<T>(Array[] componentRows, int queryComponentIndex)
-        => ref Unsafe.As<T[]>(componentRows.Ref(queryComponentIndex))[0];
+        => ref Unsafe.As<T[]>(componentRows.RefAt(queryComponentIndex)).GetRefAtZero();
 
     /// <summary>
     /// Executes a generated invoker over disjoint chunks. The query and access
@@ -373,7 +376,7 @@ public static class GeneratedForEachRuntime
     {
         for (int planIndex = 0; planIndex < plans.Length; planIndex++)
         {
-            ref readonly ArchetypePlan plan = ref plans[planIndex];
+            ref readonly ArchetypePlan plan = ref plans.RefAt(planIndex);
             if (plan.ChunkCount == 0)
             {
                 continue;
@@ -382,11 +385,11 @@ public static class GeneratedForEachRuntime
             Stamp[] stamps = plan.ArchetypeStamps;
             for (int componentIndex = 0; componentIndex < componentIndices.Length; componentIndex++)
             {
-                int queryComponentIndex = componentIndices[componentIndex];
+                int queryComponentIndex = componentIndices.RefAt(componentIndex);
                 bool duplicate = false;
                 for (int previous = 0; previous < componentIndex; previous++)
                 {
-                    duplicate |= componentIndices[previous] == queryComponentIndex;
+                    duplicate |= componentIndices.RefAt(previous) == queryComponentIndex;
                 }
 
                 if (!duplicate)

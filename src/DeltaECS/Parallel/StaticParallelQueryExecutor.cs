@@ -63,16 +63,16 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
 
         for (int workerIndex = 0; workerIndex < workerCount; workerIndex++)
         {
-            _workerInvokers[workerIndex] = invoker;
-            _workerFailures[workerIndex] = null;
+            _workerInvokers.RefAt(workerIndex) = invoker;
+            _workerFailures.RefAt(workerIndex) = null;
         }
 
         int run = _runVersion == int.MaxValue ? 1 : _runVersion + 1;
         _runVersion = run;
         for (int workerIndex = 1; workerIndex < workerCount; workerIndex++)
         {
-            ParallelRange range = _ranges[workerIndex];
-            WorkerSlot slot = _workerSlots[workerIndex];
+            ParallelRange range = _ranges.RefAt(workerIndex);
+            WorkerSlot slot = _workerSlots.RefAt(workerIndex);
             slot.StartChunk = range.StartChunk;
             slot.EndChunk = range.EndChunk;
             Volatile.Write(ref slot.PublishedRun, run);
@@ -81,16 +81,16 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         ExecuteRange(0, run, workerSlot: null);
         for (int workerIndex = 1; workerIndex < workerCount; workerIndex++)
         {
-            while (Volatile.Read(ref _workerSlots[workerIndex].CompletedRun) != run)
+            while (Volatile.Read(ref _workerSlots.RefAt(workerIndex).CompletedRun) != run)
             {
                 Thread.SpinWait(8);
             }
         }
 
-        invoker = _workerInvokers[0];
+        invoker = _workerInvokers.GetRefAtZero();
         for (int workerIndex = 0; workerIndex < workerCount; workerIndex++)
         {
-            if (_workerFailures[workerIndex] is { } failure)
+            if (_workerFailures.RefAt(workerIndex) is { } failure)
             {
                 failure.Throw();
             }
@@ -103,7 +103,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         {
             for (int chunkIndex = 0; chunkIndex < _chunkCount; chunkIndex++)
             {
-                ParallelChunk work = _chunks[chunkIndex];
+                ParallelChunk work = _chunks.RefAt(chunkIndex);
                 GeneratedQuerySlots slots = new(work.Chunk);
                 invoker.Invoke(ref slots);
             }
@@ -131,7 +131,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
 
         for (int workerIndex = 0; workerIndex < workers.Length; workerIndex++)
         {
-            workers[workerIndex].Thread.Join();
+            workers.RefAt(workerIndex).Thread.Join();
         }
 
         _workers = Array.Empty<Worker>();
@@ -153,7 +153,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         int required = 0;
         for (int planIndex = 0; planIndex < plans.Length; planIndex++)
         {
-            required = checked(required + plans[planIndex].ChunkCount);
+            required = checked(required + plans.RefAt(planIndex).ChunkCount);
         }
 
         EnsureChunkCapacity(required);
@@ -161,12 +161,12 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         int entityCount = 0;
         for (int planIndex = 0; planIndex < plans.Length; planIndex++)
         {
-            ArchetypePlan archetypePlan = plans[planIndex];
+            ArchetypePlan archetypePlan = plans.RefAt(planIndex);
             ReadOnlySpan<ChunkPlan> chunks = archetypePlan.Chunks;
             for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
             {
-                _chunks[chunkCount++] = new ParallelChunk(archetypePlan, chunks[chunkIndex]);
-                entityCount += chunks[chunkIndex].Chunk.Count;
+                _chunks.RefAt(chunkCount++) = new ParallelChunk(archetypePlan, chunks.RefAt(chunkIndex));
+                entityCount += chunks.RefAt(chunkIndex).Chunk.Count;
             }
         }
 
@@ -191,7 +191,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         EnsureRangeCapacity(workerCount);
         for (int workerIndex = 0; workerIndex < workerCount; workerIndex++)
         {
-            _ranges[workerIndex] = new ParallelRange(
+            _ranges.RefAt(workerIndex) = new ParallelRange(
                 (int)((long)workerIndex * _chunkCount / workerCount),
                 (int)((long)(workerIndex + 1) * _chunkCount / workerCount));
         }
@@ -203,19 +203,19 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
 
     private void ExecuteRange(int workerIndex, int run, WorkerSlot? workerSlot)
     {
-        ParallelRange range = _ranges[workerIndex];
+        ParallelRange range = _ranges.RefAt(workerIndex);
         try
         {
             for (int chunkIndex = range.StartChunk; chunkIndex < range.EndChunk; chunkIndex++)
             {
-                ParallelChunk work = _chunks[chunkIndex];
+                ParallelChunk work = _chunks.RefAt(chunkIndex);
                 GeneratedQuerySlots slots = new(work.Chunk);
-                _workerInvokers[workerIndex].Invoke(ref slots);
+                _workerInvokers.RefAt(workerIndex).Invoke(ref slots);
             }
         }
         catch (Exception exception)
         {
-            _workerFailures[workerIndex] = ExceptionDispatchInfo.Capture(exception);
+            _workerFailures.RefAt(workerIndex) = ExceptionDispatchInfo.Capture(exception);
         }
         finally
         {
@@ -279,7 +279,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
                 Array.Resize(ref _workerFailures, totalWorkers);
                 for (int workerIndex = previousSlotLength; workerIndex < totalWorkers; workerIndex++)
                 {
-                    _workerSlots[workerIndex] = new WorkerSlot();
+                    _workerSlots.RefAt(workerIndex) = new WorkerSlot();
                 }
             }
 
@@ -290,8 +290,8 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
 
             for (int workerIndex = previousLength; workerIndex < requiredBackgroundWorkers; workerIndex++)
             {
-                Worker worker = new(this, workerIndex + 1, _workerSlots[workerIndex + 1]);
-                _workers[workerIndex] = worker;
+                Worker worker = new(this, workerIndex + 1, _workerSlots.RefAt(workerIndex + 1));
+                _workers.RefAt(workerIndex) = worker;
                 worker.Thread.Start(worker);
             }
         }

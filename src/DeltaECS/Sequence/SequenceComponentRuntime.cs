@@ -26,7 +26,7 @@ public sealed partial class World
             ArchetypePlan plan = default;
             for (int index = 0; index < entities.Length; index++)
             {
-                Entity entity = entities[index];
+                Entity entity = entities.RefAt(index);
                 if (!TryResolve(entity, out int recordIndex))
                 {
                     continue;
@@ -46,7 +46,7 @@ public sealed partial class World
 
                 var cursor = new GeneratedSequenceCursor(
                     plan,
-                    plan.Chunks.Ref(record.Chunk),
+                    plan.Chunks.RefAt(record.Chunk),
                     record.SlotIndex,
                     entity,
                     writeSession,

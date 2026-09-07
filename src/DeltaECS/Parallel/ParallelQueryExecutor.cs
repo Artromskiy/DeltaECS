@@ -92,7 +92,7 @@ internal sealed class ParallelQueryExecutor : IDisposable
 
         for (int workerIndex = 0; workerIndex < workers.Length; workerIndex++)
         {
-            workers[workerIndex].Thread.Join();
+            workers.RefAt(workerIndex).Thread.Join();
         }
 
         _workers = Array.Empty<Worker>();
@@ -109,7 +109,7 @@ internal sealed class ParallelQueryExecutor : IDisposable
     {
         for (int chunkIndex = 0; chunkIndex < _chunkCount; chunkIndex++)
         {
-            ParallelChunk work = _chunks[chunkIndex];
+            ParallelChunk work = _chunks.RefAt(chunkIndex);
             action(new QueryChunk(work.Plan, work.Chunk, plan, session, generation));
         }
     }
@@ -130,7 +130,7 @@ internal sealed class ParallelQueryExecutor : IDisposable
         Volatile.Write(ref _remainingWorkers, workerCount);
         for (int workerIndex = 0; workerIndex < workerCount; workerIndex++)
         {
-            _workerFailures[workerIndex] = null;
+            _workerFailures.RefAt(workerIndex) = null;
         }
 
         Volatile.Write(ref _publishedRun, run);
@@ -145,7 +145,7 @@ internal sealed class ParallelQueryExecutor : IDisposable
         _activeAction = null;
         for (int workerIndex = 0; workerIndex < workerCount; workerIndex++)
         {
-            if (_workerFailures[workerIndex] is { } failure)
+            if (_workerFailures.RefAt(workerIndex) is { } failure)
             {
                 failure.Throw();
             }
@@ -181,7 +181,7 @@ internal sealed class ParallelQueryExecutor : IDisposable
 
     private void ExecuteRange(int workerIndex, int run)
     {
-        ParallelRange range = _ranges[workerIndex];
+        ParallelRange range = _ranges.RefAt(workerIndex);
         try
         {
             QueryPlan plan = _activePlan!;
@@ -189,13 +189,13 @@ internal sealed class ParallelQueryExecutor : IDisposable
             QueryChunkAction action = _activeAction!;
             for (int chunkIndex = range.StartChunk; chunkIndex < range.EndChunk; chunkIndex++)
             {
-                ParallelChunk work = _chunks[chunkIndex];
+                ParallelChunk work = _chunks.RefAt(chunkIndex);
                 action(new QueryChunk(work.Plan, work.Chunk, plan, session, _activeGeneration));
             }
         }
         catch (Exception exception)
         {
-            _workerFailures[workerIndex] = ExceptionDispatchInfo.Capture(exception);
+            _workerFailures.RefAt(workerIndex) = ExceptionDispatchInfo.Capture(exception);
         }
         finally
         {
@@ -218,7 +218,7 @@ internal sealed class ParallelQueryExecutor : IDisposable
         EnsureRangeCapacity(workerCount);
         for (int workerIndex = 0; workerIndex < workerCount; workerIndex++)
         {
-            _ranges[workerIndex] = new ParallelRange(
+            _ranges.RefAt(workerIndex) = new ParallelRange(
                 (int)((long)workerIndex * _chunkCount / workerCount),
                 (int)((long)(workerIndex + 1) * _chunkCount / workerCount));
         }
@@ -239,7 +239,7 @@ internal sealed class ParallelQueryExecutor : IDisposable
         int required = 0;
         for (int planIndex = 0; planIndex < plans.Length; planIndex++)
         {
-            required = checked(required + plans[planIndex].ChunkCount);
+            required = checked(required + plans.RefAt(planIndex).ChunkCount);
         }
 
         EnsureChunkCapacity(required);
@@ -247,12 +247,12 @@ internal sealed class ParallelQueryExecutor : IDisposable
         int entityCount = 0;
         for (int planIndex = 0; planIndex < plans.Length; planIndex++)
         {
-            ArchetypePlan archetypePlan = plans[planIndex];
+            ArchetypePlan archetypePlan = plans.RefAt(planIndex);
             ReadOnlySpan<ChunkPlan> chunks = archetypePlan.Chunks;
             for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
             {
-                _chunks[count++] = new ParallelChunk(archetypePlan, chunks[chunkIndex]);
-                entityCount += chunks[chunkIndex].Chunk.Count;
+                _chunks.RefAt(count++) = new ParallelChunk(archetypePlan, chunks.RefAt(chunkIndex));
+                entityCount += chunks.RefAt(chunkIndex).Chunk.Count;
             }
         }
 
@@ -293,7 +293,7 @@ internal sealed class ParallelQueryExecutor : IDisposable
             for (int workerIndex = previousLength; workerIndex < requiredBackgroundWorkers; workerIndex++)
             {
                 Worker worker = new(this, workerIndex);
-                _workers[workerIndex] = worker;
+                _workers.RefAt(workerIndex) = worker;
                 worker.Thread.Start(worker);
             }
         }

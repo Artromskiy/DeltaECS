@@ -50,7 +50,7 @@ public sealed partial class World
 
         for (int index = 0; index < entities.Length; index++)
         {
-            Entity entity = entities[index];
+            Entity entity = entities.RefAt(index);
             if (!TryResolve(entity, out int recordIndex))
             {
                 continue;
@@ -80,7 +80,7 @@ public sealed partial class World
 
         for (int index = 0; index < entities.Length; index++)
         {
-            Entity entity = entities[index];
+            Entity entity = entities.RefAt(index);
             if (!TryResolve(entity, out int recordIndex))
             {
                 continue;
@@ -155,7 +155,7 @@ public sealed partial class World
         int count = 0;
         for (int index = 0; index < entities.Length; index++)
         {
-            Entity entity = entities[index];
+            Entity entity = entities.RefAt(index);
             if (!TryResolve(entity, out int recordIndex))
             {
                 continue;
@@ -164,7 +164,7 @@ public sealed partial class World
             ref readonly var record = ref RecordAt(recordIndex);
             if (MatchesSequenceQuery(record.Archetype, in query))
             {
-                destination[count++] = entity;
+                destination.RefAt(count++) = entity;
             }
         }
 
