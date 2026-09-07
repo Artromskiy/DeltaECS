@@ -104,7 +104,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             for (int chunkIndex = 0; chunkIndex < _chunkCount; chunkIndex++)
             {
                 ParallelChunk work = _chunks[chunkIndex];
-                GeneratedQuerySlots slots = new(work.Plan, work.Chunk);
+                GeneratedQuerySlots slots = new(work.Chunk);
                 invoker.Invoke(ref slots);
             }
         }
@@ -209,7 +209,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             for (int chunkIndex = range.StartChunk; chunkIndex < range.EndChunk; chunkIndex++)
             {
                 ParallelChunk work = _chunks[chunkIndex];
-                GeneratedQuerySlots slots = new(work.Plan, work.Chunk);
+                GeneratedQuerySlots slots = new(work.Chunk);
                 _workerInvokers[workerIndex].Invoke(ref slots);
             }
         }

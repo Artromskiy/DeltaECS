@@ -1918,6 +1918,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string callbackName = "InvokeInterceptedCallback_" + site.Id;
         string countName = GeneratedLocalName(site, "count", 0);
         string indexName = GeneratedLocalName(site, "index", 0);
+        string chunkIndexName = GeneratedLocalName(site, "chunk", 0);
         string[] rowNames = Enumerable.Range(0, closedShape.Pattern.Length)
             .Select(index => GeneratedLocalName(site, "row", index))
             .ToArray();
@@ -1943,23 +1944,60 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             closedShape.ExplicitIds ? ClosedComponentNames(closedShape.Components.Length) : string.Empty,
             closed: true,
             prepared: true));
+        AppendQueryComponentRoutes(source, closedShape, "    ");
         AppendArchetypeWriteSetup(source, shape, "    ");
-        source.Append("    while (execution.")
-            .Append("MoveNextTrusted")
-            .AppendLine("(out var slots))");
+        if (closedShape.HasEntity)
+        {
+            source.AppendLine("    while (execution.MoveNextTrusted(out var slots))");
+        }
+        else
+        {
+            source.Append("    for (int ").Append(chunkIndexName).Append(" = 0; ").Append(chunkIndexName)
+                .Append(" < execution.ChunkCount; ").Append(chunkIndexName).AppendLine("++)");
+        }
         source.AppendLine("    {");
+        if (!closedShape.HasEntity)
+        {
+            source.Append("        execution.GetChunkRowsTrusted(").Append(chunkIndexName)
+                .Append(", out var componentRows, out int ").Append(countName).AppendLine(");");
+        }
         for (int index = 0; index < closedShape.Pattern.Length; index++)
         {
             string componentType = closedShape.Components[index];
-            source.Append("        ref ").Append(componentType).Append(' ').Append(rowNames[index])
-                .Append(" = ref slots.GetGenerated")
-                .Append(IsWrite(closedShape.Pattern[index]) ? "Write" : "Read")
-                .Append("Reference<").Append(componentType).Append(">(access").Append(index).AppendLine(");");
+            string rowName = closedShape.HasEntity
+                ? rowNames[index]
+                : rowNames[index];
+            if (closedShape.HasEntity)
+            {
+                source.Append("        ")
+                    .Append("ref ")
+                    .Append(componentType).Append(' ').Append(rowName)
+                    .Append(" = ref slots.GetGenerated")
+                    .Append(IsWrite(closedShape.Pattern[index]) ? "Write" : "Read")
+                    .Append("Reference<").Append(componentType).Append(">(access").Append(index).AppendLine(");");
+            }
+            else
+            {
+                source.Append("        ref ").Append(componentType).Append(' ').Append(rowName)
+                    .Append(" = ref GeneratedForEachRuntime.GetGeneratedRow<")
+                    .Append(componentType).Append(">(componentRows, route").Append(index).AppendLine(");");
+            }
         }
 
-        source.Append("        int ").Append(countName).AppendLine(" = slots.Count;");
-        source.Append("        for (int ").Append(indexName).Append(" = 0; ").Append(indexName)
-            .Append(" < ").Append(countName).Append("; ").Append(indexName).AppendLine("++)");
+        if (closedShape.HasEntity)
+        {
+            source.Append("        int ").Append(countName).AppendLine(" = slots.Count;");
+        }
+        if (closedShape.HasEntity)
+        {
+            source.Append("        for (int ").Append(indexName).Append(" = 0; ").Append(indexName)
+                .Append(" < ").Append(countName).Append("; ").Append(indexName).AppendLine("++)");
+        }
+        else
+        {
+            source.Append("        int ").Append(indexName).AppendLine(" = 0;");
+            source.Append("        while (").Append(indexName).Append(" < ").Append(countName).AppendLine(")");
+        }
         source.AppendLine("        {");
         int parameterIndex = 0;
         if (closedShape.HasContext)
@@ -1979,9 +2017,16 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             string componentType = closedShape.Components[index];
             source.Append("            ")
                 .Append(IsWrite(closedShape.Pattern[index]) ? "ref " : "ref readonly ")
-                .Append(componentType).Append(' ').Append(parameters[parameterIndex + index])
-                .Append(" = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref ")
-                .Append(rowNames[index]).Append(", ").Append(indexName).AppendLine(");");
+                .Append(componentType).Append(' ').Append(parameters[parameterIndex + index]);
+            if (closedShape.HasEntity)
+            {
+                source.Append(" = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref ")
+                    .Append(rowNames[index]).Append(", ").Append(indexName).AppendLine(");");
+            }
+            else
+            {
+                source.Append(" = ref ").Append(rowNames[index]).AppendLine(";");
+            }
         }
 
         if (inlineBody)
@@ -1991,6 +2036,17 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         else
         {
             AppendInterceptedCallbackInvocation(source, closedShape, callbackName, parameters, "            ");
+        }
+        if (!closedShape.HasEntity)
+        {
+            for (int index = 0; index < closedShape.Pattern.Length; index++)
+            {
+                source.Append("        ").Append(rowNames[index])
+                    .Append(" = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref ")
+                    .Append(rowNames[index]).AppendLine(", 1);");
+            }
+
+            source.Append("        ").Append(indexName).AppendLine("++;");
         }
         source.AppendLine("        }");
         source.AppendLine("    }");
@@ -2324,29 +2380,51 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             .Append(BoolHasWrites(shape.Pattern) == "true" ? "OpenWriteDense" : "OpenReadDense")
             .AppendLine("(world, in query);");
         source.Append("        ").Append(AccessSetup(shape, ids, closed: true, prepared: true));
+        AppendQueryComponentRoutes(source, shape, "        ");
         AppendArchetypeWriteSetup(source, shape, "        ");
-        source.Append("        while (execution.")
-            .Append("MoveNextTrusted")
-            .AppendLine("(out var slots))");
+        if (shape.HasEntity)
+        {
+            source.AppendLine("        while (execution.MoveNextTrusted(out var slots))");
+        }
+        else
+        {
+            source.AppendLine("        for (int chunkIndex = 0; chunkIndex < execution.ChunkCount; chunkIndex++)");
+        }
         source.AppendLine("        {");
+        if (!shape.HasEntity)
+        {
+            source.AppendLine("            execution.GetChunkRowsTrusted(chunkIndex, out var componentRows, out int count);");
+        }
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
             string componentType = ComponentType(shape, index);
-            source.Append("                ")
-                .Append("ref ")
-                .Append(componentType)
-                .Append(" row")
-                .Append(index)
-                .Append(" = ref slots.GetGenerated")
-                .Append(IsWrite(shape.Pattern[index]) ? "Write" : "Read")
-                .Append("Reference<")
-                .Append(componentType)
-                .Append(">(access")
-                .Append(index)
-                .AppendLine(");");
+            if (shape.HasEntity)
+            {
+                source.Append("                ")
+                    .Append("ref ")
+                    .Append(componentType)
+                    .Append(" row")
+                    .Append(index)
+                    .Append(" = ref slots.GetGenerated")
+                    .Append(IsWrite(shape.Pattern[index]) ? "Write" : "Read")
+                    .Append("Reference<")
+                    .Append(componentType)
+                    .Append(">(access")
+                    .Append(index)
+                    .AppendLine(");");
+            }
+            else
+            {
+                source.Append("                ref ").Append(componentType).Append(" row").Append(index)
+                    .Append(" = ref GeneratedForEachRuntime.GetGeneratedRow<")
+                    .Append(componentType).Append(">(componentRows, route").Append(index).AppendLine(");");
+            }
         }
 
-        source.AppendLine("                int count = slots.Count;");
+        if (shape.HasEntity)
+        {
+            source.AppendLine("                int count = slots.Count;");
+        }
         source.AppendLine("                for (int index = 0; index < count; index++)");
         source.AppendLine("                {");
         for (int index = 0; index < shape.Pattern.Length; index++)
@@ -2577,7 +2655,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                     source.Append(", ");
                 }
 
-                source.Append("GeneratedForEachRuntime.GetWriteQueryComponentIndex(access").Append(index).Append(')');
+                source.Append("route").Append(index);
                 first = false;
             }
 
@@ -2591,10 +2669,35 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             if (IsWrite(shape.Pattern[index]))
             {
                 source.Append(indent)
-                    .Append("execution.MarkArchetypeWrite(GeneratedForEachRuntime.GetWriteQueryComponentIndex(access")
+                    .Append("execution.MarkArchetypeWrite(route")
                     .Append(index)
-                    .AppendLine("));");
+                    .AppendLine(");");
             }
+        }
+    }
+
+    private static void AppendQueryComponentRoutes(StringBuilder source, Shape shape, string indent)
+    {
+        if (!shape.HasEntity && !shape.ExplicitIds)
+        {
+            return;
+        }
+
+        for (int index = 0; index < shape.Pattern.Length; index++)
+        {
+            if (shape.HasEntity && !IsWrite(shape.Pattern[index]))
+            {
+                continue;
+            }
+
+            source.Append(indent)
+                .Append("int route")
+                .Append(index)
+                .Append(" = GeneratedForEachRuntime.Get")
+                .Append(IsWrite(shape.Pattern[index]) ? "Write" : "Read")
+                .Append("QueryComponentIndex(access")
+                .Append(index)
+                .AppendLine(");");
         }
     }
 
@@ -2620,10 +2723,24 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
-            result.Append("var access").Append(index).Append(" = GeneratedForEachRuntime.");
+            bool routeOnly = prepared && !shape.HasEntity && !shape.ExplicitIds && !shape.Parallel;
+            result.Append(routeOnly ? "int route" : "var access").Append(index)
+                .Append(" = GeneratedForEachRuntime.");
             if (prepared)
             {
-                result.Append("GetPrepared").Append(IsWrite(shape.Pattern[index]) ? "Write" : "Read").Append("Access");
+                string accessKind = IsWrite(shape.Pattern[index]) ? "Write" : "Read";
+                if (routeOnly)
+                {
+                    result.Append("GetPrepared").Append(accessKind).Append("Route");
+                }
+                else
+                {
+                    result.Append("GetPrepared").Append(accessKind).Append("Access");
+                }
+                if (!shape.ExplicitIds)
+                {
+                    result.Append('<').Append(ComponentType(shape, index)).Append('>');
+                }
             }
             else if (closed)
             {
@@ -2640,14 +2757,19 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 result.Append(owner).Append(", ");
             }
 
-            result.Append("in query, ");
+            result.Append("in query");
             if (shape.ExplicitIds)
             {
-                result.Append(ComponentArgument(ids, index)).Append(", ");
+                result.Append(", ").Append(ComponentArgument(ids, index));
             }
 
-            result.Append("typeof(")
-                .Append(ComponentType(shape, index)).AppendLine(") ); ");
+            if (!(prepared && !shape.ExplicitIds))
+            {
+                result.Append(", typeof(")
+                    .Append(ComponentType(shape, index)).Append(')');
+            }
+
+            result.AppendLine("); ");
         }
 
         return result.ToString();

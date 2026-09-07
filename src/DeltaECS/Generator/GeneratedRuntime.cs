@@ -36,20 +36,17 @@ public ref struct GeneratedDenseExecution
 {
     private World? _owner;
     private readonly ReadOnlySpan<ArchetypePlan> _plans;
-    private ChunkPlan[] _chunks;
-    private int _chunkCount;
-    private int _planIndex;
+    private readonly ReadOnlySpan<ChunkPlan> _chunkPlans;
     private int _chunkIndex;
 
     internal GeneratedDenseExecution(
         World owner,
-        ReadOnlySpan<ArchetypePlan> plans)
+        ReadOnlySpan<ArchetypePlan> plans,
+        ReadOnlySpan<ChunkPlan> chunkPlans)
     {
         _owner = owner;
         _plans = plans;
-        _chunks = Array.Empty<ChunkPlan>();
-        _chunkCount = 0;
-        _planIndex = -1;
+        _chunkPlans = chunkPlans;
         _chunkIndex = -1;
     }
 
@@ -130,40 +127,58 @@ public ref struct GeneratedDenseExecution
         }
     }
 
+    /// <summary>Returns one validated chunk's rows for an indexed generated traversal.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public int ChunkCount
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _chunkPlans.Length;
+    }
+
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void GetChunkRowsTrusted(int chunkIndex, out Array[] componentRows, out int count)
+    {
+        ref readonly ChunkPlan chunkPlan = ref _chunkPlans.Ref(chunkIndex);
+        componentRows = chunkPlan.ComponentRows;
+        count = chunkPlan.Chunk.Count;
+    }
+
     /// <summary>Advances a validated generated execution without repeating the lifetime guard.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNextTrusted(out GeneratedQuerySlots slots)
     {
         int nextChunk = _chunkIndex + 1;
-        if ((uint)nextChunk < (uint)_chunkCount)
+        if ((uint)nextChunk < (uint)_chunkPlans.Length)
         {
             _chunkIndex = nextChunk;
-            slots = new GeneratedQuerySlots(
-                _plans.Ref(_planIndex),
-                _chunks.Ref(_chunkIndex));
+            slots = new GeneratedQuerySlots(in _chunkPlans.Ref(_chunkIndex));
             return true;
         }
-
-        while ((uint)++_planIndex < (uint)_plans.Length)
-        {
-            ref readonly ArchetypePlan plan = ref _plans[_planIndex];
-            _chunks = plan.ChunkArray;
-            _chunkCount = plan.ChunkCount;
-            if (_chunkCount == 0)
-            {
-                continue;
-            }
-
-            _chunkIndex = 0;
-            slots = new GeneratedQuerySlots(plan, _chunks[_chunkIndex]);
-            return true;
-        }
-
-        _planIndex = _plans.Length;
-        _chunkCount = 0;
-        _chunkIndex = -1;
+        _chunkIndex = _chunkPlans.Length;
         slots = default;
+        return false;
+    }
+
+    /// <summary>Advances a validated execution while exposing only component rows and count.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool MoveNextTrusted(out Array[] componentRows, out int count)
+    {
+        int nextChunk = _chunkIndex + 1;
+        if ((uint)nextChunk < (uint)_chunkPlans.Length)
+        {
+            _chunkIndex = nextChunk;
+            ChunkPlan chunkPlan = _chunkPlans.Ref(_chunkIndex);
+            componentRows = chunkPlan.ComponentRows;
+            count = chunkPlan.Chunk.Count;
+            return true;
+        }
+
+        _chunkIndex = _chunkPlans.Length;
+        componentRows = null!;
+        count = 0;
         return false;
     }
 
@@ -178,7 +193,6 @@ public ref struct GeneratedDenseExecution
 
         owner.EndQueryLease();
         _owner = null;
-        _chunks = Array.Empty<ChunkPlan>();
     }
 }
 
@@ -187,51 +201,44 @@ public ref struct GeneratedDenseExecution
 public ref struct GeneratedReadDenseExecution
 {
     private World? _owner;
-    private readonly ReadOnlySpan<ArchetypePlan> _plans;
-    private ChunkPlan[] _chunks;
-    private int _chunkCount;
-    private int _planIndex;
+    private readonly ReadOnlySpan<ChunkPlan> _chunkPlans;
     private int _chunkIndex;
 
-    internal GeneratedReadDenseExecution(World owner, ReadOnlySpan<ArchetypePlan> plans)
+    internal GeneratedReadDenseExecution(World owner, ReadOnlySpan<ChunkPlan> chunkPlans)
     {
         _owner = owner;
-        _plans = plans;
-        _chunks = Array.Empty<ChunkPlan>();
-        _chunkCount = 0;
-        _planIndex = -1;
+        _chunkPlans = chunkPlans;
         _chunkIndex = -1;
+    }
+
+    /// <summary>Returns the number of validated chunks available to generated code.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public int ChunkCount
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _chunkPlans.Length;
+    }
+
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void GetChunkRowsTrusted(int chunkIndex, out Array[] componentRows, out int count)
+    {
+        ref readonly ChunkPlan chunkPlan = ref _chunkPlans.Ref(chunkIndex);
+        componentRows = chunkPlan.ComponentRows;
+        count = chunkPlan.Chunk.Count;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNextTrusted(out GeneratedReadQuerySlots slots)
     {
         int nextChunk = _chunkIndex + 1;
-        if ((uint)nextChunk < (uint)_chunkCount)
+        if ((uint)nextChunk < (uint)_chunkPlans.Length)
         {
             _chunkIndex = nextChunk;
-            slots = new GeneratedReadQuerySlots(_chunks.Ref(_chunkIndex));
+            slots = new GeneratedReadQuerySlots(in _chunkPlans.Ref(_chunkIndex));
             return true;
         }
-
-        while ((uint)++_planIndex < (uint)_plans.Length)
-        {
-            ref readonly ArchetypePlan plan = ref _plans.Ref(_planIndex);
-            _chunks = plan.ChunkArray;
-            _chunkCount = plan.ChunkCount;
-            if (_chunkCount == 0)
-            {
-                continue;
-            }
-
-            _chunkIndex = 0;
-            slots = new GeneratedReadQuerySlots(_chunks.Ref(_chunkIndex));
-            return true;
-        }
-
-        _planIndex = _plans.Length;
-        _chunkCount = 0;
-        _chunkIndex = -1;
+        _chunkIndex = _chunkPlans.Length;
         slots = default;
         return false;
     }
@@ -247,7 +254,6 @@ public ref struct GeneratedReadDenseExecution
 
         owner.EndQueryLease();
         _owner = null;
-        _chunks = Array.Empty<ChunkPlan>();
     }
 }
 
@@ -313,6 +319,12 @@ public static class GeneratedForEachRuntime
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void IncrementArchetypeStamp(Stamp[] stamps, int componentIndex)
         => stamps[componentIndex] = stamps[componentIndex].Next();
+
+    /// <summary>Gets the first element of a validated generated component row.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ref T GetGeneratedRow<T>(Array[] componentRows, int queryComponentIndex)
+        => ref Unsafe.As<T[]>(componentRows.Ref(queryComponentIndex))[0];
 
     /// <summary>
     /// Executes a generated invoker over disjoint chunks. The query and access
@@ -392,8 +404,9 @@ public static class GeneratedForEachRuntime
     {
         QueryPlan plan = ValidateQuery(world, in query);
         ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
+        ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
         world.BeginQueryLease();
-        return new GeneratedDenseExecution(world, plans);
+        return new GeneratedDenseExecution(world, plans, chunks);
     }
 
     /// <summary>Opens a validated read-only dense execution without write state.</summary>
@@ -402,9 +415,9 @@ public static class GeneratedForEachRuntime
     public static GeneratedReadDenseExecution OpenReadDense(World world, in Query query)
     {
         QueryPlan plan = ValidateQuery(world, in query);
-        ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
+        ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
         world.BeginQueryLease();
-        return new GeneratedReadDenseExecution(world, plans);
+        return new GeneratedReadDenseExecution(world, chunks);
     }
 
     /// <summary>Opens a validated write dense execution.</summary>
@@ -414,8 +427,9 @@ public static class GeneratedForEachRuntime
     {
         QueryPlan plan = ValidateQuery(world, in query);
         ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
+        ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
         world.BeginQueryLease();
-        return new GeneratedDenseExecution(world, plans);
+        return new GeneratedDenseExecution(world, plans, chunks);
     }
 
     /// <summary>Creates a validated read access token for a closed generated dense path.</summary>
@@ -480,6 +494,18 @@ public static class GeneratedForEachRuntime
     public static ReadAccess GetPreparedReadAccess(in Query query, Type runtimeType)
         => query.Cached.GetPreparedPrimaryReadAccess(runtimeType);
 
+    /// <summary>Returns a cached primary read access using the generated component type.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ReadAccess GetPreparedReadAccess<T>(in Query query)
+        => query.Cached.GetPreparedPrimaryReadAccess<T>();
+
+    /// <summary>Returns a cached primary read route without materializing an access token.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int GetPreparedReadRoute<T>(in Query query)
+        => query.Cached.GetPreparedPrimaryReadRoute<T>();
+
     /// <summary>
     /// Returns a cached primary write access after the generated dense scope has
     /// validated the query. This is compiler support and must not be called
@@ -489,6 +515,18 @@ public static class GeneratedForEachRuntime
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static WriteAccess GetPreparedWriteAccess(in Query query, Type runtimeType)
         => query.Cached.GetPreparedPrimaryWriteAccess(runtimeType);
+
+    /// <summary>Returns a cached primary write access using the generated component type.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static WriteAccess GetPreparedWriteAccess<T>(in Query query)
+        => query.Cached.GetPreparedPrimaryWriteAccess<T>();
+
+    /// <summary>Returns a cached primary write route without materializing an access token.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int GetPreparedWriteRoute<T>(in Query query)
+        => query.Cached.GetPreparedPrimaryWriteRoute<T>();
 
     /// <summary>Returns the trusted query-local route used by batch write marking.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]

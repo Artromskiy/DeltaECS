@@ -36,13 +36,15 @@ internal sealed class QueryPlan
     private readonly WeakReference<QueryPlan> _weakReference;
     private int[] _matchingArchetypes = Array.Empty<int>();
     private ArchetypePlan[] _matchingPlans = Array.Empty<ArchetypePlan>();
+    private ChunkPlan[] _matchingChunkPlans = Array.Empty<ChunkPlan>();
     private int[] _planIndicesByArchetype = Array.Empty<int>();
     private readonly int[] _readRoutesByComponent;
     private readonly Type?[] _readRouteTypesByComponent;
-    private readonly Dictionary<Type, int> _primaryReadRoutesByType;
-    private readonly Type?[] _primaryTypes;
+    private readonly Dictionary<RuntimeTypeHandle, int> _primaryReadRoutesByType;
+    private readonly RuntimeTypeHandle[] _primaryTypeHandles;
     private readonly int[] _primaryRoutes;
     private int _primaryTypeCount;
+    private int _matchingChunkCount;
     private readonly ReadAccess[] _preparedReadAccessesByComponent;
     private readonly WriteAccess[] _preparedWriteAccessesByComponent;
     private int _matchingCount;
@@ -58,8 +60,8 @@ internal sealed class QueryPlan
         _readRouteTypesByComponent = new Type?[world.Layouts.Count];
         _preparedReadAccessesByComponent = new ReadAccess[world.Layouts.Count];
         _preparedWriteAccessesByComponent = new WriteAccess[world.Layouts.Count];
-        _primaryReadRoutesByType = new Dictionary<Type, int>(_description.AllMask.Count);
-        _primaryTypes = new Type?[_description.AllMask.Count];
+        _primaryReadRoutesByType = new Dictionary<RuntimeTypeHandle, int>(_description.AllMask.Count);
+        _primaryTypeHandles = new RuntimeTypeHandle[_description.AllMask.Count];
         _primaryRoutes = new int[_description.AllMask.Count];
         Array.Fill(_readRoutesByComponent, -1);
         PrepareReadRoutes(world, spec);
@@ -127,6 +129,17 @@ internal sealed class QueryPlan
         return ThrowHelper.ThrowMissingPrimaryReadAccess(runtimeType);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ReadAccess GetPreparedPrimaryReadAccess<T>()
+    {
+        if (TryGetPreparedPrimaryRoute<T>(out int route))
+        {
+            return new ReadAccess(this, route);
+        }
+
+        return ThrowHelper.ThrowMissingPrimaryReadAccess(typeof(T));
+    }
+
     internal WriteAccess GetPreparedPrimaryWriteAccess(Type runtimeType)
     {
         _hasWriteAccess = true;
@@ -137,6 +150,37 @@ internal sealed class QueryPlan
 
         return ThrowHelper.ThrowMissingPrimaryWriteAccess(runtimeType);
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal WriteAccess GetPreparedPrimaryWriteAccess<T>()
+    {
+        _hasWriteAccess = true;
+        if (TryGetPreparedPrimaryRoute<T>(out int route))
+        {
+            return new WriteAccess(this, route);
+        }
+
+        return ThrowHelper.ThrowMissingPrimaryWriteAccess(typeof(T));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal int GetPreparedPrimaryReadRoute<T>()
+        => TryGetPreparedPrimaryRoute<T>(out int route)
+            ? route
+            : ThrowHelper.ThrowMissingPrimaryReadAccess(typeof(T)).QueryComponentIndex;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal int GetPreparedPrimaryWriteRoute<T>()
+    {
+        _hasWriteAccess = true;
+        return TryGetPreparedPrimaryRoute<T>(out int route)
+            ? route
+            : ThrowHelper.ThrowMissingPrimaryWriteAccess(typeof(T)).QueryComponentIndex;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryGetPreparedPrimaryRoute<T>(out int route)
+        => TryGetPrimaryRoute(typeof(T).TypeHandle, out route);
 
     internal ReadAccess GetPreparedReadAccess(ComponentId component, Type runtimeType)
     {
@@ -158,6 +202,9 @@ internal sealed class QueryPlan
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ReadOnlySpan<ArchetypePlan> MatchingPlans() => _matchingPlans.AsSpan(0, _matchingCount);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ReadOnlySpan<ChunkPlan> MatchingChunkPlans() => _matchingChunkPlans.AsSpan(0, _matchingChunkCount);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ReadOnlySpan<int> ComponentRowIndices(int matchingIndex) => _matchingPlans[matchingIndex].ComponentRows;
@@ -203,6 +250,7 @@ internal sealed class QueryPlan
         _matchingArchetypes[_matchingCount] = archetype.Id;
         _matchingPlans[_matchingCount] = plan;
         _planIndicesByArchetype[archetype.Id] = _matchingCount++;
+        RebuildMatchingChunkPlans();
         _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
         archetype.Attach(this, planIndex);
     }
@@ -210,12 +258,14 @@ internal sealed class QueryPlan
     internal void OnChunkActivated(int planIndex, Chunk chunk, int activePosition)
     {
         _matchingPlans[planIndex].OnChunkActivated(chunk, activePosition);
+        RebuildMatchingChunkPlans();
         _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
     }
 
     internal void OnChunkDeactivated(int planIndex, int activePosition, int lastPosition)
     {
         _matchingPlans[planIndex].OnChunkDeactivated(activePosition, lastPosition);
+        RebuildMatchingChunkPlans();
         _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
     }
 
@@ -223,13 +273,15 @@ internal sealed class QueryPlan
     {
         _matchingArchetypes = Array.Empty<int>();
         _matchingPlans = Array.Empty<ArchetypePlan>();
+        _matchingChunkPlans = Array.Empty<ChunkPlan>();
         _planIndicesByArchetype = Array.Empty<int>();
         _matchingCount = 0;
+        _matchingChunkCount = 0;
         _matchingVersion = 0;
         _primaryReadRoutesByType.Clear();
         Array.Clear(_preparedReadAccessesByComponent);
         Array.Clear(_preparedWriteAccessesByComponent);
-        Array.Clear(_primaryTypes);
+        Array.Clear(_primaryTypeHandles);
         _primaryTypeCount = 0;
         Array.Fill(_readRoutesByComponent, -1);
         Array.Clear(_readRouteTypesByComponent);
@@ -262,8 +314,8 @@ internal sealed class QueryPlan
                 if (world.Layouts.TryGetPrimary(runtimeType, out ComponentId primary)
                     && primary == component)
                 {
-                    _primaryReadRoutesByType.Add(runtimeType, route);
-                    _primaryTypes[_primaryTypeCount] = runtimeType;
+                    _primaryReadRoutesByType.Add(runtimeType.TypeHandle, route);
+                    _primaryTypeHandles[_primaryTypeCount] = runtimeType.TypeHandle;
                     _primaryRoutes[_primaryTypeCount++] = route;
                     PreparedPrimaryReadRouteCount++;
                 }
@@ -275,12 +327,16 @@ internal sealed class QueryPlan
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryGetPrimaryRoute(Type runtimeType, out int route)
+        => TryGetPrimaryRoute(runtimeType.TypeHandle, out route);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryGetPrimaryRoute(RuntimeTypeHandle runtimeType, out int route)
     {
         if (_primaryTypeCount <= 4)
         {
             for (int index = 0; index < _primaryTypeCount; index++)
             {
-                if (ReferenceEquals(_primaryTypes[index], runtimeType))
+                if (_primaryTypeHandles[index].Equals(runtimeType))
                 {
                     route = _primaryRoutes[index];
                     return true;
@@ -317,6 +373,34 @@ internal sealed class QueryPlan
         int capacity = Math.Max(required, _matchingPlans.Length == 0 ? 4 : _matchingPlans.Length * 2);
         Array.Resize(ref _matchingArchetypes, capacity);
         Array.Resize(ref _matchingPlans, capacity);
+    }
+
+    private void RebuildMatchingChunkPlans()
+    {
+        int required = 0;
+        for (int planIndex = 0; planIndex < _matchingCount; planIndex++)
+        {
+            required = checked(required + _matchingPlans[planIndex].ChunkCount);
+        }
+
+        if (required > _matchingChunkPlans.Length)
+        {
+            int capacity = Math.Max(required, _matchingChunkPlans.Length == 0 ? 4 : _matchingChunkPlans.Length * 2);
+            Array.Resize(ref _matchingChunkPlans, capacity);
+        }
+
+        int count = 0;
+        for (int planIndex = 0; planIndex < _matchingCount; planIndex++)
+        {
+            ArchetypePlan plan = _matchingPlans[planIndex];
+            ChunkPlan[] chunks = plan.ChunkArray;
+            for (int chunkIndex = 0; chunkIndex < plan.ChunkCount; chunkIndex++)
+            {
+                _matchingChunkPlans[count++] = chunks[chunkIndex];
+            }
+        }
+
+        _matchingChunkCount = count;
     }
 
     private bool Matches(Archetype archetype) => archetype.Mask.ContainsAll(_description.AllMask)

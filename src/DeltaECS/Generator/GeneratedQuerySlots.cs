@@ -13,9 +13,7 @@ public ref struct GeneratedQuerySlots
     private readonly int _count;
     private int _index;
 
-    internal GeneratedQuerySlots(
-        ArchetypePlan plan,
-        ChunkPlan chunkPlan)
+    internal GeneratedQuerySlots(in ChunkPlan chunkPlan)
     {
         _chunk = chunkPlan.Chunk;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
@@ -54,7 +52,7 @@ public ref struct GeneratedQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public ref T GetGeneratedReadReference<T>(int queryComponentIndex)
-        => ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.Ref(queryComponentIndex)));
+        => ref Unsafe.As<T[]>(_resolvedRowsByQuery.Ref(queryComponentIndex))[0];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -65,7 +63,7 @@ public ref struct GeneratedQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public ref T GetGeneratedWriteReference<T>(int queryComponentIndex)
-        => ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.Ref(queryComponentIndex)));
+        => ref Unsafe.As<T[]>(_resolvedRowsByQuery.Ref(queryComponentIndex))[0];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -82,7 +80,7 @@ public ref struct GeneratedReadQuerySlots
     private readonly int _count;
     private int _index;
 
-    internal GeneratedReadQuerySlots(ChunkPlan chunkPlan)
+    internal GeneratedReadQuerySlots(in ChunkPlan chunkPlan)
     {
         _chunk = chunkPlan.Chunk;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
@@ -117,7 +115,7 @@ public ref struct GeneratedReadQuerySlots
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetGeneratedReadReference<T>(int queryComponentIndex)
-        => ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.Ref(queryComponentIndex)));
+        => ref Unsafe.As<T[]>(_resolvedRowsByQuery.Ref(queryComponentIndex))[0];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetGeneratedReadReference<T>(ReadAccess access)
