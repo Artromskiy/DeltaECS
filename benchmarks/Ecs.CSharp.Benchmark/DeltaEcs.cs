@@ -471,7 +471,10 @@ internal static class DeltaEcsSmoke
 
         using DeltaSystemThreeContext three = new(32, 1);
         three.World.ForEach(in three.Query, static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second, ref readonly DeltaComponent3 third) => DeltaOperations.Update(ref first, in second, in third));
-        three.World.ForEachParallel(in three.Query, static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second, ref readonly DeltaComponent3 third) => DeltaOperations.Update(ref first, in second, in third));
+        three.World.ForEachParallel(
+            in three.Query,
+            static (ref DeltaComponent1 first, ref DeltaComponent2 second, ref readonly DeltaComponent3 third) =>
+                DeltaOperations.Update(ref first, in second, in third));
 
         using DeltaSystemMultipleCompositionContext compositions = new(32);
         compositions.World.ForEach(in compositions.Query, static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second) => DeltaOperations.Update(ref first, in second));
