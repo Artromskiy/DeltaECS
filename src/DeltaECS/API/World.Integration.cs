@@ -64,7 +64,7 @@ public sealed partial class World : IEcsWorld
         var archetype = GetOrCreateArchetype(mask);
         Span<Entity> created = stackalloc Entity[1];
         _ = CreateBatch(archetype, created);
-        return created[0];
+        return created.GetRefAtZero();
     }
 
     bool IEcsWorld.Destroy(Entity entity)
@@ -231,7 +231,7 @@ public sealed partial class World : IEcsWorld
         }
 
         Span<Entity> entities = stackalloc Entity[1];
-        entities[0] = entity;
+        entities.GetRefAtZero() = entity;
         return ApplyComponents(isAdd, components.ToArray(), entities) != 0;
     }
 
@@ -256,7 +256,7 @@ public sealed partial class World : IEcsWorld
             string name = runtimeType is null
                 ? $"Raw component {index}"
                 : runtimeType.FullName ?? runtimeType.Name;
-            descriptors[index] = new ComponentDescriptor(
+            descriptors.RefAt(index) = new ComponentDescriptor(
                 id,
                 layout.SchemaId,
                 name,
@@ -273,7 +273,7 @@ public sealed partial class World : IEcsWorld
     {
         for (int index = 0; index < components.Length; index++)
         {
-            ComponentId component = components[index];
+            ComponentId component = components.RefAt(index);
             if (!_layouts.TryGet(component, out var layout))
             {
                 ThrowHelper.ThrowIntegrationComponentNotRegistered(component.Value, nameof(components));

@@ -99,6 +99,6 @@ public sealed partial class World
             ThrowHelper.ThrowStructuralComponentMissing();
         }
 
-        archetype.GetChunk(record.Chunk).GetComponentRow<T>(componentIndex)[record.SlotIndex] = value;
+        archetype.GetChunk(record.Chunk).GetComponentRow<T>(componentIndex).RefAt(record.SlotIndex) = value;
     }
 }

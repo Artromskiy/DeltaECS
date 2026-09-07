@@ -232,6 +232,34 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
+    public void QueryScopeChunksIncludesChunksActivatedAfterQueryCreation()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        using var world = new World(layouts, chunkCapacity: 2);
+        Query query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
+        world.Create([PositionId], new Entity[3]);
+
+        int chunkCount = 0;
+        int entityCount = 0;
+        using (var scope = world.BeginScope(in query))
+        {
+            QueryChunks chunks = scope.Chunks;
+            while (chunks.MoveNext())
+            {
+                chunkCount++;
+                entityCount += chunks.Current.SlotCount;
+            }
+        }
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(chunkCount, Is.EqualTo(2));
+            Assert.That(entityCount, Is.EqualTo(3));
+        });
+    }
+
+    [Test]
     public void NonGenericAccessRequest_BindsRows_AndTracksOnlyWrites()
     {
         var layouts = new ComponentLayoutRegistry();

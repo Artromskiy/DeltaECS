@@ -71,6 +71,25 @@ public sealed class ParallelIterationTests
     }
 
     [Test]
+    public void GeneratedForEachParallelIncludesChunksActivatedAfterQueryCreation()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(70_070));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(70_071));
+        using var world = new World(layouts, initialEntityCapacity: 2_048, chunkCapacity: 128);
+        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+        var entities = new Entity[2_048];
+        world.Create([positionId, velocityId], entities);
+
+        RunGeneratedParallel(world, in query);
+
+        for (int index = 0; index < entities.Length; index++)
+        {
+            Assert.That(world.Get<Position>(entities[index], positionId).X, Is.EqualTo(1));
+        }
+    }
+
+    [Test]
     public void GeneratedForEachParallel_GrowsWorkerPoolWithoutLosingSignals()
     {
         var layouts = new ComponentLayoutRegistry();

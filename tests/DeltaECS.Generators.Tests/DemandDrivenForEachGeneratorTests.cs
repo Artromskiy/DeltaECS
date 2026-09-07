@@ -120,8 +120,14 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         Assert.That(run.Diagnostics, Is.Empty);
         Assert.That(generated, Does.Contain("ForEachAction_WI<global::Delta.ECS.Position, global::Delta.ECS.Velocity>"));
-        Assert.That(generated, Does.Contain("cursor.GetGeneratedWriteReference<global::Delta.ECS.Position>(_access0)"));
-        Assert.That(generated, Does.Contain("cursor.GetGeneratedReadReference<global::Delta.ECS.Velocity>(_access1)"));
+        Assert.That(generated, Does.Contain("cursor.GetGeneratedWriteReferenceTrusted<global::Delta.ECS.Position>(_access0)"));
+        Assert.That(generated, Does.Contain("cursor.GetGeneratedReadReferenceTrusted<global::Delta.ECS.Velocity>(_access1)"));
+        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.ValidateSequenceQuery(sequence.GeneratedWorld, in query)"));
+        Assert.That(generated, Does.Contain("GetPreparedWriteRoute<global::Delta.ECS.Position>(in query)"));
+        Assert.That(generated, Does.Contain("GetPreparedReadRoute<global::Delta.ECS.Velocity>(in query)"));
+        Assert.That(generated, Does.Contain("ExecuteGeneratedSequenceTrusted"));
+        Assert.That(generated, Does.Not.Contain("AccessWrite(sequence.GeneratedWorld"));
+        Assert.That(generated, Does.Not.Contain("AccessRead(sequence.GeneratedWorld"));
         Assert.That(generated, Does.Not.Contain("GetReadRow"));
     }
 
@@ -181,7 +187,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain($"ForEachAction<{componentTypes}>"));
         Assert.That(generated, Does.Contain("DemandForEachArchetypeStampWriter_"));
         Assert.That(generated, Does.Contain("execution.MarkArchetypeWrites(ref stampWriter)"));
-        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.GetWriteQueryComponentIndex(access31)"));
+        Assert.That(generated, Does.Contain("int route31 = GeneratedForEachRuntime.GetPreparedWriteRoute<T32>(in query);"));
     }
 
     [Test]
@@ -189,8 +195,8 @@ public sealed class DemandDrivenForEachGeneratorTests
     {
         string generated = GeneratedText(RunGenerator());
 
-        Assert.That(generated, Does.Contain("GetPreparedReadAccess(in query, typeof(T1)"));
-        Assert.That(generated, Does.Contain("GetPreparedWriteAccess(in query, typeof(T2)"));
+        Assert.That(generated, Does.Contain("GetPreparedReadRoute<T1>(in query)"));
+        Assert.That(generated, Does.Contain("GetPreparedWriteRoute<T2>(in query)"));
         Assert.That(generated, Does.Not.Contain("AccessRead(world, in query, world.Layouts.GetPrimary"));
         Assert.That(generated, Does.Not.Contain("AccessWrite(world, in query, world.Layouts.GetPrimary"));
         Assert.That(generated, Does.Not.Contain("ResolveComponentIds"));
@@ -217,13 +223,14 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         Assert.That(generated, Does.Contain("ExecuteClosed_"));
         Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenWriteDense(world, in query"));
-        Assert.That(generated, Does.Contain("while (execution.MoveNextTrusted(out var slots))"));
-        Assert.That(generated, Does.Contain("ref T1 row0 = ref slots.GetGeneratedWriteReference<T1>(access0)"));
+        Assert.That(generated, Does.Contain("while (execution.MoveNextTrusted(out var componentRows, out int count))"));
+        Assert.That(generated, Does.Contain("int route0 = GeneratedForEachRuntime.GetPreparedWriteRoute<T1>(in query);"));
+        Assert.That(generated, Does.Contain("ref T1 row0 = ref GeneratedForEachRuntime.GetGeneratedRow<T1>(componentRows, route0)"));
         Assert.That(generated, Does.Contain("for (int index = 0; index < count; index++)"));
         Assert.That(generated, Does.Contain("ref T1 component0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row0, index)"));
         Assert.That(generated, Does.Contain("action(ref component0)"));
         Assert.That(generated, Does.Contain(
-            "execution.MarkArchetypeWrite(GeneratedForEachRuntime.GetWriteQueryComponentIndex(access0));"));
+            "execution.MarkArchetypeWrite(route0);"));
         Assert.That(generated, Does.Not.Contain("slots.MarkGeneratedWrite"));
         Assert.That(generated, Does.Not.Contain("Ref<T1>(index)"));
         Assert.That(generated, Does.Not.Contain("ExecuteGeneratedForEach"));
@@ -248,7 +255,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(RunGenerator(source));
 
         Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenReadDense(world, in query)"));
-        Assert.That(generated, Does.Contain("while (execution.MoveNextTrusted(out var slots))"));
+        Assert.That(generated, Does.Contain("while (execution.MoveNextTrusted(out var componentRows, out int count))"));
         Assert.That(generated, Does.Not.Contain("OpenWriteDense(world, in query)"));
         Assert.That(generated, Does.Not.Contain("MarkGeneratedWrite(access0)"));
     }
@@ -296,19 +303,30 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
-    public void EnabledStaticLambdaGeneratesAClosedCallbackKernel()
+    public void EnabledStaticLambdaGeneratesAClosedKernelWithoutCallbackDispatch()
     {
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(InterceptionSource);
         string generated = GeneratedText(run);
 
         Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
-        Assert.That(generated, Does.Contain("InvokeInterceptedCallback_"));
+        Assert.That(generated, Does.Not.Contain("InvokeInterceptedCallback_"));
         Assert.That(generated, Does.Contain("InterceptsLocationAttribute"));
         Assert.That(generated, Does.Contain("ExecuteInterceptedClosed_"));
         Assert.That(generated, Does.Contain("value.Value++"));
         Assert.That(generated, Does.Contain("ForEachAction<global::Delta.ECS.T1> _"));
         Assert.That(generated, Does.Not.Contain("InterceptedFunctor_"));
         Assert.That(generated, Does.Not.Contain("ref functor"));
+    }
+
+    [Test]
+    public void InterceptedLambdaWithReturnKeepsCallbackBoundary()
+    {
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(ReturningInterceptionSource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
+        Assert.That(generated, Does.Contain("InvokeInterceptedCallback_"));
+        Assert.That(generated, Does.Contain("return;"));
     }
 
     [Test]
@@ -593,8 +611,20 @@ public sealed class DemandDrivenForEachGeneratorTests
         }
         public ref struct GeneratedDenseExecution
         {
+            public int ChunkCount => 0;
             public bool MoveNext(out GeneratedQuerySlots slots) { slots = default; return false; }
             public bool MoveNextTrusted(out GeneratedQuerySlots slots) { slots = default; return false; }
+            public bool MoveNextTrusted(out Array[] componentRows, out int count)
+            {
+                componentRows = Array.Empty<Array>();
+                count = 0;
+                return false;
+            }
+            public void GetChunkRowsTrusted(int chunkIndex, out Array[] componentRows, out int count)
+            {
+                componentRows = Array.Empty<Array>();
+                count = 0;
+            }
             public void MarkArchetypeWrite(int queryComponentIndex) { }
             public void MarkArchetypeWrites(scoped ReadOnlySpan<int> queryComponentIndices) { }
             public void MarkArchetypeWrites<TWriter>(ref TWriter writer)
@@ -603,7 +633,19 @@ public sealed class DemandDrivenForEachGeneratorTests
         }
         public ref struct GeneratedReadDenseExecution
         {
+            public int ChunkCount => 0;
             public bool MoveNextTrusted(out GeneratedReadQuerySlots slots) { slots = default; return false; }
+            public bool MoveNextTrusted(out Array[] componentRows, out int count)
+            {
+                componentRows = Array.Empty<Array>();
+                count = 0;
+                return false;
+            }
+            public void GetChunkRowsTrusted(int chunkIndex, out Array[] componentRows, out int count)
+            {
+                componentRows = Array.Empty<Array>();
+                count = 0;
+            }
             public void Dispose() { }
         }
         public ref struct GeneratedSequenceCursor
@@ -612,12 +654,15 @@ public sealed class DemandDrivenForEachGeneratorTests
             public int Slot => 0;
             public ref readonly T GetGeneratedReadReference<T>(int queryComponentIndex) => throw new NotImplementedException();
             public ref T GetGeneratedWriteReference<T>(int queryComponentIndex) => throw new NotImplementedException();
+            public ref readonly T GetGeneratedReadReferenceTrusted<T>(int queryComponentIndex) => throw new NotImplementedException();
+            public ref T GetGeneratedWriteReferenceTrusted<T>(int queryComponentIndex) => throw new NotImplementedException();
         }
 
         public interface IGeneratedSequenceInvoker { void Invoke(ref GeneratedSequenceCursor cursor); }
         public interface IGeneratedArchetypeStampWriter { void Write(Stamp[] stamps); }
         public static class GeneratedForEachRuntime
         {
+            public static ref T GetGeneratedRow<T>(Array[] componentRows, int queryComponentIndex) => throw new NotImplementedException();
             public static GeneratedDenseExecution OpenDense(World world, in Query query, bool hasWrites) => default;
             public static GeneratedDenseExecution OpenWriteDense(World world, in Query query) => default;
             public static GeneratedReadDenseExecution OpenReadDense(World world, in Query query) => default;
@@ -626,10 +671,18 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static ReadAccess CreateReadAccess(World world, in Query query, ComponentId component, Type runtimeType) => default;
             public static WriteAccess CreateWriteAccess(World world, in Query query, ComponentId component, Type runtimeType) => default;
             public static ReadAccess GetPreparedReadAccess(in Query query, Type runtimeType) => default;
+            public static ReadAccess GetPreparedReadAccess<T>(in Query query) => default;
+            public static int GetPreparedReadRoute<T>(in Query query) => default;
+            public static int GetPreparedReadRoute<T>(in Query query, ComponentId component) => default;
             public static WriteAccess GetPreparedWriteAccess(in Query query, Type runtimeType) => default;
+            public static WriteAccess GetPreparedWriteAccess<T>(in Query query) => default;
+            public static int GetPreparedWriteRoute<T>(in Query query) => default;
+            public static int GetPreparedWriteRoute<T>(in Query query, ComponentId component) => default;
+            public static void ValidateSequenceQuery(World world, in Query query) { }
             public static ReadAccess GetPreparedReadAccess(in Query query, ComponentId component, Type runtimeType) => default;
             public static WriteAccess GetPreparedWriteAccess(in Query query, ComponentId component, Type runtimeType) => default;
             public static int GetWriteQueryComponentIndex(WriteAccess access) => default;
+            public static int GetReadQueryComponentIndex(ReadAccess access) => default;
             public static void IncrementArchetypeStamp(Stamp[] stamps, int componentIndex) { }
             public static int AccessRead(World world, in Query query, ComponentId component, Type runtimeType) => default;
             public static int AccessWrite(World world, in Query query, ComponentId component, Type runtimeType) => default;
@@ -646,6 +699,8 @@ public sealed class DemandDrivenForEachGeneratorTests
             public void ForEach<TContext>(in Query query, ref TContext context, ForEachContextAction<TContext> action) { }
             public void ForEachEntity<TContext>(in Query query, ref TContext context, ForEachContextEntityAction<TContext> action) { }
             public void ExecuteGeneratedSequence<TInvoker>(ReadOnlySpan<Entity> entities, in Query query, ref TInvoker invoker, bool hasWrites)
+                where TInvoker : struct, IGeneratedSequenceInvoker { }
+            public void ExecuteGeneratedSequenceTrusted<TInvoker>(ReadOnlySpan<Entity> entities, in Query query, ref TInvoker invoker, bool hasWrites)
                 where TInvoker : struct, IGeneratedSequenceInvoker { }
         }
         public ref struct QueryScope
@@ -795,6 +850,26 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static void Use(World world, Query query)
             {
                 world.ForEach<T1>(in query, static (ref T1 value) => value.Value++);
+            }
+        }
+        """;
+
+    private const string ReturningInterceptionSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        static class Consumer
+        {
+            public static void Use(World world, Query query)
+            {
+                world.ForEach<T1>(in query, static (ref T1 value) =>
+                {
+                    if (value.Value > 0)
+                    {
+                        return;
+                    }
+
+                    value.Value++;
+                });
             }
         }
         """;

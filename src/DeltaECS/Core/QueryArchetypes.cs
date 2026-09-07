@@ -34,7 +34,7 @@ public ref struct QueryArchetypes
                 ThrowHelper.ThrowArchetypeIteratorNotPositioned();
             }
 
-            return new QueryArchetype(_plans.Ref(_index), _query, _writeSession, _sessionGeneration);
+            return new QueryArchetype(_plans.RefAt(_index), _query, _writeSession, _sessionGeneration);
         }
     }
 

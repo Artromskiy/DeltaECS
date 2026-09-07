@@ -24,18 +24,18 @@ internal struct ComponentStampStorage : IDisposable
     internal readonly Stamp Get(int componentIndex, int slotIndex)
     {
         int offset = Offset(componentIndex, slotIndex);
-        return slotIndex < _uniformCounts.ReadOnlySpan[componentIndex]
-            ? _uniformStamps.ReadOnlySpan[componentIndex]
-            : _values.ReadOnlySpan[offset];
+        return slotIndex < _uniformCounts.ReadOnlySpan.RefAt(componentIndex)
+            ? _uniformStamps.ReadOnlySpan.RefAt(componentIndex)
+            : _values.ReadOnlySpan.RefAt(offset);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal readonly Stamp GetTrusted(int componentIndex, int slotIndex)
     {
         int offset = (componentIndex * _capacity) + slotIndex;
-        return slotIndex < _uniformCounts.ReadOnlySpan[componentIndex]
-            ? _uniformStamps.ReadOnlySpan[componentIndex]
-            : _values.ReadOnlySpan[offset];
+        return slotIndex < _uniformCounts.ReadOnlySpan.RefAt(componentIndex)
+            ? _uniformStamps.ReadOnlySpan.RefAt(componentIndex)
+            : _values.ReadOnlySpan.RefAt(offset);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -43,8 +43,9 @@ internal struct ComponentStampStorage : IDisposable
     {
         int offset = Offset(componentIndex, slotIndex);
         Materialize(componentIndex);
-        Stamp stamp = _values[offset].Next();
-        _values[offset] = stamp;
+        ref Stamp value = ref _values.RefAt(offset);
+        Stamp stamp = value.Next();
+        value = stamp;
         return stamp;
     }
 
@@ -52,7 +53,7 @@ internal struct ComponentStampStorage : IDisposable
     {
         int offset = Offset(componentIndex, slotIndex);
         Materialize(componentIndex);
-        _values[offset] = stamp;
+        _values.RefAt(offset) = stamp;
     }
 
     internal void SetComponentRange(int componentIndex, int slotIndex, int count, Stamp stamp)
@@ -71,8 +72,8 @@ internal struct ComponentStampStorage : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void SetComponentPrefixTrusted(int componentIndex, int count, Stamp stamp)
     {
-        _uniformStamps[componentIndex] = stamp;
-        _uniformCounts[componentIndex] = count;
+        _uniformStamps.RefAt(componentIndex) = stamp;
+        _uniformCounts.RefAt(componentIndex) = count;
     }
 
     internal void SetSlot(int slotIndex, Stamp stamp)
@@ -101,7 +102,7 @@ internal struct ComponentStampStorage : IDisposable
     {
         for (int index = 0; index < componentIndices.Length; index++)
         {
-            SetComponentRange(componentIndices[index], slotIndex, count, stamp);
+            SetComponentRange(componentIndices.RefAt(index), slotIndex, count, stamp);
         }
     }
 
@@ -177,15 +178,15 @@ internal struct ComponentStampStorage : IDisposable
 
     private void Materialize(int componentIndex)
     {
-        int count = _uniformCounts[componentIndex];
+        int count = _uniformCounts.RefAt(componentIndex);
         if (count == 0)
         {
             return;
         }
 
         int offset = checked(componentIndex * _capacity);
-        _values.Span.Slice(offset, count).Fill(_uniformStamps[componentIndex]);
-        _uniformCounts[componentIndex] = 0;
+        _values.Span.Slice(offset, count).Fill(_uniformStamps.RefAt(componentIndex));
+        _uniformCounts.RefAt(componentIndex) = 0;
     }
 
     private readonly int Offset(int componentIndex, int slotIndex)

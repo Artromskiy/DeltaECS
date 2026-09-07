@@ -108,9 +108,10 @@ while (chunks.MoveNext())
 ```
 
 `StampRow` is a non-generic borrowed `readonly ref struct`. `GetStampRow`
-validates the access token once for the current chunk and does not mark a
-component as written. `StampRow.Get` reads the stamp for the current slot;
-it performs no entity lookup, CLR `Type` lookup, dictionary lookup or object
+validates the access token once for the current chunk and prepares direct
+references to the chunk- and archetype-level stamp cells. `StampRow.Get` then
+reads only those references plus the current entity cell; it performs no world
+hierarchy lookup, entity lookup, CLR `Type` lookup, dictionary lookup or object
 boxing. The row is valid only while its query scope and current chunk remain
 active. There is deliberately no aggregate `EntityStamp`: the exact contract
 is one stamp per entity/component pair.

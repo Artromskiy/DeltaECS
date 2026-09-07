@@ -33,13 +33,13 @@ internal sealed class Chunk
         _rowOperations = rowOperations;
         for (int index = 0; index < layouts.Length; index++)
         {
-            var runtimeType = layouts[index].RuntimeType;
+            var runtimeType = layouts.RefAt(index).RuntimeType;
             if (runtimeType is null)
             {
                 ThrowHelper.ThrowArrayRowsRequiresRuntimeType();
             }
 
-            _componentRows[index] = _rowOperations[index].CreateArray(runtimeType, capacity);
+            _componentRows.RefAt(index) = _rowOperations.RefAt(index).CreateArray(runtimeType, capacity);
         }
     }
 
@@ -71,7 +71,7 @@ internal sealed class Chunk
             _highWaterMark = _count;
         }
 
-        _entities[slotIndex] = entity;
+        _entities.RefAt(slotIndex) = entity;
         return slotIndex;
     }
 
@@ -101,15 +101,15 @@ internal sealed class Chunk
         }
 
         int lastSlotIndex = _count - 1;
-        var moved = _entities[lastSlotIndex];
+        var moved = _entities.RefAt(lastSlotIndex);
         if (slotIndex < lastSlotIndex)
         {
-            _entities[slotIndex] = moved;
+            _entities.RefAt(slotIndex) = moved;
             CopySlot(lastSlotIndex, slotIndex);
             _componentStamps.CopySlot(lastSlotIndex, slotIndex);
         }
 
-        _entities[lastSlotIndex] = Entity.Null;
+        _entities.RefAt(lastSlotIndex) = Entity.Null;
         ClearReferenceRows(lastSlotIndex);
         _componentStamps.ClearSlot(lastSlotIndex);
         _count = lastSlotIndex;
@@ -121,12 +121,12 @@ internal sealed class Chunk
         // Component layout/type compatibility is validated before this
         // internal hot path is reached. Avoid repeating the array cast check
         // for every row requested by every chunk.
-        Unsafe.As<T[]>(_componentRows.Ref(componentIndex)).AsSpan(0, _count);
+        Unsafe.As<T[]>(_componentRows.RefAt(componentIndex)).AsSpan(0, _count);
 
-    internal Array GetRawComponentRow(int componentIndex) => _componentRows[componentIndex];
+    internal Array GetRawComponentRow(int componentIndex) => _componentRows.RefAt(componentIndex);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Array GetRawComponentRowTrusted(int componentIndex) => _componentRows.Ref(componentIndex);
+    internal Array GetRawComponentRowTrusted(int componentIndex) => _componentRows.RefAt(componentIndex);
 
     internal Span<Entity> RawEntities => _entities.Span;
 
@@ -134,7 +134,7 @@ internal sealed class Chunk
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal Span<T> GetComponentRow<T>(Array[] componentRows, int componentIndex)
-        => Unsafe.As<T[]>(componentRows.Ref(componentIndex)).AsSpan(0, _count);
+        => Unsafe.As<T[]>(componentRows.RefAt(componentIndex)).AsSpan(0, _count);
 
     internal void MarkComponentWritten(int componentIndex, int slotIndex, Stamp stamp)
     {
@@ -221,10 +221,10 @@ internal sealed class Chunk
     {
         for (int componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
         {
-            ref readonly var operations = ref _rowOperations[componentIndex];
+            ref readonly var operations = ref _rowOperations.RefAt(componentIndex);
             if (operations.ContainsReferences)
             {
-                Array.Clear(_componentRows[componentIndex], slotIndex, 1);
+                Array.Clear(_componentRows.RefAt(componentIndex), slotIndex, 1);
             }
         }
     }
@@ -241,7 +241,7 @@ internal sealed class Chunk
 
         for (int componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
         {
-            Array.Clear(_componentRows[componentIndex], slotIndex, count);
+            Array.Clear(_componentRows.RefAt(componentIndex), slotIndex, count);
         }
     }
 
@@ -249,8 +249,8 @@ internal sealed class Chunk
     {
         for (int index = 0; index < componentIndices.Length; index++)
         {
-            int componentIndex = componentIndices[index];
-            Array.Clear(_componentRows[componentIndex], slotIndex, 1);
+            int componentIndex = componentIndices.RefAt(index);
+            Array.Clear(_componentRows.RefAt(componentIndex), slotIndex, 1);
         }
     }
 
@@ -258,7 +258,7 @@ internal sealed class Chunk
     {
         for (int index = 0; index < componentIndices.Length; index++)
         {
-            Array.Clear(_componentRows[componentIndices[index]], slotIndex, count);
+            Array.Clear(_componentRows.RefAt(componentIndices.RefAt(index)), slotIndex, count);
         }
     }
 
@@ -266,9 +266,9 @@ internal sealed class Chunk
     {
         for (int componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
         {
-            if (_rowOperations[componentIndex].ContainsReferences)
+            if (_rowOperations.RefAt(componentIndex).ContainsReferences)
             {
-                Array.Clear(_componentRows[componentIndex], 0, _count);
+                Array.Clear(_componentRows.RefAt(componentIndex), 0, _count);
             }
         }
 

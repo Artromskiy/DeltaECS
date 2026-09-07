@@ -43,6 +43,36 @@ public sealed class StampTests
     }
 
     [Test]
+    public void StampRowUsesPreparedHierarchyReferencesAndMatchesPointLookup()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(40_002));
+        using var world = new World(layouts, chunkCapacity: 2);
+        Entity entity = world.Create(positionId);
+        Archetype archetype = world.Archetypes[0];
+        Chunk storageChunk = archetype.GetChunk(0);
+        world.MarkChunkComponentWritten(storageChunk, 0, new Stamp(2));
+        world.MarkArchetypeComponentWritten(archetype.Id, 0, new Stamp(3));
+        var query = world.CreateQuery(QuerySpec.WhereAll(positionId));
+        ReadAccess access = query.AccessRead(positionId);
+
+        Stamp rowStamp;
+        using (var scope = world.BeginScope(in query))
+        {
+            QueryChunks chunks = scope.Chunks;
+            Assert.That(chunks.MoveNext(), Is.True);
+            QueryChunk chunk = chunks.Current;
+            StampRow stamps = chunk.GetStampRow(access);
+            QuerySlots slots = chunk.Slots;
+            Assert.That(slots.MoveNext(), Is.True);
+            rowStamp = stamps.Get(in slots);
+        }
+
+        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp pointStamp), Is.True);
+        Assert.That(rowStamp, Is.EqualTo(pointStamp));
+    }
+
+    [Test]
     public void PointWriteIncrementsOnlyTheSelectedEntityComponentTerm()
     {
         var layouts = new ComponentLayoutRegistry();

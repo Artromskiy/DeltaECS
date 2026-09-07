@@ -34,9 +34,13 @@ world.From(entities).Where(in query)
         });
 ```
 
-Reads are `in T`; writes are `ref T`. Entity records are resolved directly and
-the last archetype row plan is cached. Sequence execution does not loop through
-public atomic `TryGet`/`Set` calls and does not introduce a second storage model.
+Reads are `in T`; writes are `ref T`. Entity records are resolved directly, the
+last archetype row plan is cached, and filtered sequences test the query plan's
+prepared archetype-membership table instead of recomputing `All`/`Any`/`None`
+masks per entity. Generated sequence routes are prepared from the query cache;
+their trusted cursor runs under one structural lease without per-component
+lifetime checks. Sequence execution does not loop through public atomic
+`TryGet`/`Set` calls and does not introduce a second storage model.
 
 Zero-component delegate forms are handwritten. Generated component-bearing
 forms support context, entity/no-entity callback shapes, primary registrations

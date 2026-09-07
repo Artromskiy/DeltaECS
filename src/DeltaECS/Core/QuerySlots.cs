@@ -41,7 +41,7 @@ public ref struct QuerySlots
     public Entity CurrentEntity
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _chunk.RawEntities.Ref(_index);
+        get => _chunk.RawEntities.RefAt(_index);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -59,7 +59,7 @@ public ref struct QuerySlots
             ThrowHelper.ThrowAccessMismatch();
         }
 
-        return new ReadRow(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
+        return new ReadRow(_resolvedRowsByQuery.RefAt(access.QueryComponentIndex));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -71,9 +71,9 @@ public ref struct QuerySlots
         }
 
         _writeSession.Acquire(_sessionGeneration);
-        int physicalRow = _componentRowsByQuery.Ref(access.QueryComponentIndex);
+        int physicalRow = _componentRowsByQuery.RefAt(access.QueryComponentIndex);
         _query.Owner.IncrementChunkComponentStamp(_chunk, physicalRow);
-        return new WriteRow(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
+        return new WriteRow(_resolvedRowsByQuery.RefAt(access.QueryComponentIndex));
     }
 
     public ObjectReadValues GetObject(ReadAccess access)
@@ -84,7 +84,7 @@ public ref struct QuerySlots
             ThrowHelper.ThrowAccessMismatch();
         }
 
-        return new ObjectReadValues(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
+        return new ObjectReadValues(_resolvedRowsByQuery.RefAt(access.QueryComponentIndex));
     }
 
     public ObjectWriteValues GetObject(WriteAccess access)
@@ -95,9 +95,9 @@ public ref struct QuerySlots
         }
 
         _writeSession.Acquire(_sessionGeneration);
-        int physicalRow = _componentRowsByQuery.Ref(access.QueryComponentIndex);
+        int physicalRow = _componentRowsByQuery.RefAt(access.QueryComponentIndex);
         _query.Owner.IncrementChunkComponentStamp(_chunk, physicalRow);
-        return new ObjectWriteValues(_resolvedRowsByQuery.Ref(access.QueryComponentIndex));
+        return new ObjectWriteValues(_resolvedRowsByQuery.RefAt(access.QueryComponentIndex));
     }
 
 }

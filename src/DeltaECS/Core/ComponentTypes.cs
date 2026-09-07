@@ -81,7 +81,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
             _storage.CopyTo(storage);
         }
 
-        storage[wordIndex] |= 1u << (value & 31);
+        storage.RefAt(wordIndex) |= 1u << (value & 31);
         storage.RecalculateMetadata();
         return new ComponentMask(storage);
     }
@@ -96,7 +96,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
 
         int wordIndex = componentId.Value >> 5;
         return wordIndex < _storage.Length
-            && (_storage[wordIndex] & (1u << (componentId.Value & 31))) != 0;
+            && (_storage.RefAt(wordIndex) & (1u << (componentId.Value & 31))) != 0;
     }
 
     public bool ContainsAll(ComponentMask other)
@@ -113,7 +113,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
 
         for (int index = 0; index < other._storage.Length; index++)
         {
-            if ((_storage[index] & other._storage[index]) != other._storage[index])
+            if ((_storage.RefAt(index) & other._storage.RefAt(index)) != other._storage.RefAt(index))
             {
                 return false;
             }
@@ -132,7 +132,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
         int length = Math.Min(_storage.Length, other._storage.Length);
         for (int index = 0; index < length; index++)
         {
-            if ((_storage[index] & other._storage[index]) != 0)
+            if ((_storage.RefAt(index) & other._storage.RefAt(index)) != 0)
             {
                 return true;
             }
@@ -157,7 +157,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
         var storage = new NativeComponentMaskStorage(length);
         for (int index = 0; index < length; index++)
         {
-            storage[index] = GetWord(index) | other.GetWord(index);
+            storage.RefAt(index) = GetWord(index) | other.GetWord(index);
         }
 
         storage.RecalculateMetadata();
@@ -172,7 +172,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
         }
 
         int length = _storage.Length;
-        while (length > 0 && (_storage[length - 1] & ~other.GetWord(length - 1)) == 0)
+        while (length > 0 && (_storage.RefAt(length - 1) & ~other.GetWord(length - 1)) == 0)
         {
             length--;
         }
@@ -185,7 +185,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
         var storage = new NativeComponentMaskStorage(length);
         for (int index = 0; index < length; index++)
         {
-            storage[index] = _storage[index] & ~other.GetWord(index);
+            storage.RefAt(index) = _storage.RefAt(index) & ~other.GetWord(index);
         }
 
         storage.RecalculateMetadata();
@@ -203,10 +203,10 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
         int rank = 0;
         for (int index = 0; index < wordIndex; index++)
         {
-            rank += BitOperations.PopCount(_storage![index]);
+            rank += BitOperations.PopCount(_storage!.RefAt(index));
         }
 
-        uint lowerBits = _storage![wordIndex] & ((1u << (componentId.Value & 31)) - 1u);
+        uint lowerBits = _storage!.RefAt(wordIndex) & ((1u << (componentId.Value & 31)) - 1u);
         return rank + BitOperations.PopCount(lowerBits);
     }
 
@@ -242,7 +242,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
 
             while (_remaining == 0 && _wordIndex < _storage.Length)
             {
-                _remaining = _storage[_wordIndex++];
+                _remaining = _storage.RefAt(_wordIndex++);
             }
 
             if (_remaining == 0)
@@ -269,7 +269,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
         var enumerator = GetEnumerator();
         while (enumerator.MoveNext())
         {
-            destination[offset++] = enumerator.Current;
+            destination.RefAt(offset++) = enumerator.Current;
         }
     }
 
@@ -292,7 +292,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
 
         for (int index = 0; index < _storage.Length; index++)
         {
-            if (_storage[index] != other._storage[index])
+            if (_storage.RefAt(index) != other._storage.RefAt(index))
             {
                 return false;
             }
@@ -307,7 +307,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
 
     private uint GetWord(int index)
         => _storage is not null && (uint)index < (uint)_storage.Length
-            ? _storage[index]
+            ? _storage.RefAt(index)
             : 0;
 
     private static ComponentMask FromCore(ReadOnlySpan<ComponentId> componentIds, bool skipInvalid)
@@ -315,7 +315,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
         int maxValue = -1;
         for (int index = 0; index < componentIds.Length; index++)
         {
-            ComponentId componentId = componentIds[index];
+            ComponentId componentId = componentIds.RefAt(index);
             if (!componentId.IsValid)
             {
                 if (skipInvalid)
@@ -337,13 +337,13 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
         var storage = new NativeComponentMaskStorage((maxValue >> 5) + 1);
         for (int index = 0; index < componentIds.Length; index++)
         {
-            ComponentId componentId = componentIds[index];
+            ComponentId componentId = componentIds.RefAt(index);
             if (!componentId.IsValid)
             {
                 continue;
             }
 
-            storage[componentId.Value >> 5] |= 1u << (componentId.Value & 31);
+            storage.RefAt(componentId.Value >> 5) |= 1u << (componentId.Value & 31);
         }
 
         storage.RecalculateMetadata();
@@ -387,8 +387,11 @@ internal sealed class NativeComponentMaskStorage
 
     internal ref uint this[int index]
     {
-        get => ref _words[index];
+        get => ref RefAt(index);
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ref uint RefAt(int index) => ref _words.RefAt(index);
 
     internal void CopyTo(NativeComponentMaskStorage destination)
     {
@@ -402,7 +405,7 @@ internal sealed class NativeComponentMaskStorage
         hash.Add(Length);
         for (int index = 0; index < Length; index++)
         {
-            uint word = _words[index];
+            uint word = _words.RefAt(index);
             count += BitOperations.PopCount(word);
             hash.Add(word);
         }
