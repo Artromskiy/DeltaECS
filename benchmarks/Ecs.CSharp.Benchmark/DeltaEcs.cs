@@ -405,8 +405,8 @@ public partial class SystemWithThreeComponents
     {
         _deltaEcs.World.ForEachParallel(
             in _deltaEcs.Query,
-            static (ref DeltaComponent1 first, ref DeltaComponent2 second, ref readonly DeltaComponent3 third) =>
-                DeltaOperations.Update(ref first, ref second, in third));
+            static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second, ref readonly DeltaComponent3 third) =>
+                DeltaOperations.Update(ref first, in second, in third));
     }
 }
 
@@ -473,7 +473,7 @@ internal static class DeltaEcsSmoke
         three.World.ForEach(in three.Query, static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second, ref readonly DeltaComponent3 third) => DeltaOperations.Update(ref first, in second, in third));
         three.World.ForEachParallel(
             in three.Query,
-            static (ref DeltaComponent1 first, ref DeltaComponent2 second, ref readonly DeltaComponent3 third) =>
+            static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second, ref readonly DeltaComponent3 third) =>
                 DeltaOperations.Update(ref first, in second, in third));
 
         using DeltaSystemMultipleCompositionContext compositions = new(32);
