@@ -120,8 +120,14 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         Assert.That(run.Diagnostics, Is.Empty);
         Assert.That(generated, Does.Contain("ForEachAction_WI<global::Delta.ECS.Position, global::Delta.ECS.Velocity>"));
-        Assert.That(generated, Does.Contain("cursor.GetGeneratedWriteReference<global::Delta.ECS.Position>(_access0)"));
-        Assert.That(generated, Does.Contain("cursor.GetGeneratedReadReference<global::Delta.ECS.Velocity>(_access1)"));
+        Assert.That(generated, Does.Contain("cursor.GetGeneratedWriteReferenceTrusted<global::Delta.ECS.Position>(_access0)"));
+        Assert.That(generated, Does.Contain("cursor.GetGeneratedReadReferenceTrusted<global::Delta.ECS.Velocity>(_access1)"));
+        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.ValidateSequenceQuery(sequence.GeneratedWorld, in query)"));
+        Assert.That(generated, Does.Contain("GetPreparedWriteRoute<global::Delta.ECS.Position>(in query)"));
+        Assert.That(generated, Does.Contain("GetPreparedReadRoute<global::Delta.ECS.Velocity>(in query)"));
+        Assert.That(generated, Does.Contain("ExecuteGeneratedSequenceTrusted"));
+        Assert.That(generated, Does.Not.Contain("AccessWrite(sequence.GeneratedWorld"));
+        Assert.That(generated, Does.Not.Contain("AccessRead(sequence.GeneratedWorld"));
         Assert.That(generated, Does.Not.Contain("GetReadRow"));
     }
 
@@ -648,6 +654,8 @@ public sealed class DemandDrivenForEachGeneratorTests
             public int Slot => 0;
             public ref readonly T GetGeneratedReadReference<T>(int queryComponentIndex) => throw new NotImplementedException();
             public ref T GetGeneratedWriteReference<T>(int queryComponentIndex) => throw new NotImplementedException();
+            public ref readonly T GetGeneratedReadReferenceTrusted<T>(int queryComponentIndex) => throw new NotImplementedException();
+            public ref T GetGeneratedWriteReferenceTrusted<T>(int queryComponentIndex) => throw new NotImplementedException();
         }
 
         public interface IGeneratedSequenceInvoker { void Invoke(ref GeneratedSequenceCursor cursor); }
@@ -665,9 +673,12 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static ReadAccess GetPreparedReadAccess(in Query query, Type runtimeType) => default;
             public static ReadAccess GetPreparedReadAccess<T>(in Query query) => default;
             public static int GetPreparedReadRoute<T>(in Query query) => default;
+            public static int GetPreparedReadRoute<T>(in Query query, ComponentId component) => default;
             public static WriteAccess GetPreparedWriteAccess(in Query query, Type runtimeType) => default;
             public static WriteAccess GetPreparedWriteAccess<T>(in Query query) => default;
             public static int GetPreparedWriteRoute<T>(in Query query) => default;
+            public static int GetPreparedWriteRoute<T>(in Query query, ComponentId component) => default;
+            public static void ValidateSequenceQuery(World world, in Query query) { }
             public static ReadAccess GetPreparedReadAccess(in Query query, ComponentId component, Type runtimeType) => default;
             public static WriteAccess GetPreparedWriteAccess(in Query query, ComponentId component, Type runtimeType) => default;
             public static int GetWriteQueryComponentIndex(WriteAccess access) => default;
@@ -688,6 +699,8 @@ public sealed class DemandDrivenForEachGeneratorTests
             public void ForEach<TContext>(in Query query, ref TContext context, ForEachContextAction<TContext> action) { }
             public void ForEachEntity<TContext>(in Query query, ref TContext context, ForEachContextEntityAction<TContext> action) { }
             public void ExecuteGeneratedSequence<TInvoker>(ReadOnlySpan<Entity> entities, in Query query, ref TInvoker invoker, bool hasWrites)
+                where TInvoker : struct, IGeneratedSequenceInvoker { }
+            public void ExecuteGeneratedSequenceTrusted<TInvoker>(ReadOnlySpan<Entity> entities, in Query query, ref TInvoker invoker, bool hasWrites)
                 where TInvoker : struct, IGeneratedSequenceInvoker { }
         }
         public ref struct QueryScope

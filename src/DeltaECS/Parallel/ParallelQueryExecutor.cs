@@ -237,27 +237,20 @@ internal sealed class ParallelQueryExecutor : IDisposable
         }
 
         ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
-        int required = 0;
-        for (int planIndex = 0; planIndex < plans.Length; planIndex++)
-        {
-            required = checked(required + plans.RefAt(planIndex).ChunkCount);
-        }
-
-        EnsureChunkCapacity(required);
-        int count = 0;
+        ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
+        ReadOnlySpan<int> planIndices = plan.MatchingChunkPlanIndices();
+        EnsureChunkCapacity(chunks.Length);
         int entityCount = 0;
-        for (int planIndex = 0; planIndex < plans.Length; planIndex++)
+        for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
         {
-            ArchetypePlan archetypePlan = plans.RefAt(planIndex);
-            ReadOnlySpan<ChunkPlan> chunks = archetypePlan.Chunks;
-            for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
-            {
-                _chunks.RefAt(count++) = new ParallelChunk(archetypePlan, chunks.RefAt(chunkIndex));
-                entityCount += chunks.RefAt(chunkIndex).Chunk.Count;
-            }
+            ChunkPlan chunk = chunks.RefAt(chunkIndex);
+            _chunks.RefAt(chunkIndex) = new ParallelChunk(
+                plans.RefAt(planIndices.RefAt(chunkIndex)),
+                chunk);
+            entityCount += chunk.Chunk.Count;
         }
 
-        _chunkCount = count;
+        _chunkCount = chunks.Length;
         _entityCount = entityCount;
         _cachedPlan = plan;
         _cachedPlanVersion = plan.MatchingVersion;

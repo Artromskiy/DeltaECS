@@ -4,7 +4,21 @@ namespace Delta.ECS.MicroBenchmarks;
 
 internal static class MicroBenchmarkConfiguration
 {
-    internal static int CurrentAmount { get; set; }
+    private const string AmountEnvironmentVariable = "DELTAECS_MICROBENCHMARK_AMOUNT";
+
+    internal static int CurrentAmount
+    {
+        get => int.TryParse(
+            Environment.GetEnvironmentVariable(AmountEnvironmentVariable),
+            NumberStyles.None,
+            CultureInfo.InvariantCulture,
+            out int amount)
+            ? amount
+            : 0;
+        set => Environment.SetEnvironmentVariable(
+            AmountEnvironmentVariable,
+            value.ToString(CultureInfo.InvariantCulture));
+    }
 
     internal static int[] DefaultAmounts(Type benchmarkType) => benchmarkType.Name switch
     {
@@ -12,6 +26,7 @@ internal static class MicroBenchmarkConfiguration
         nameof(Movement4OrderMicroBenchmarks) => [100_000, 1_000_000],
         nameof(GeneratedFunctorMovement4MicroBenchmarks) => [1_000_000],
         nameof(Movement4ApiComparisonMicroBenchmarks) => [100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000],
+        nameof(RemainingApiOptimizationMicroBenchmarks) => [100, 1_000, 10_000],
         _ => throw new ArgumentOutOfRangeException(nameof(benchmarkType), benchmarkType, "Unknown microbenchmark type.")
     };
 

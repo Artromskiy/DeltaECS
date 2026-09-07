@@ -13,41 +13,53 @@ public sealed partial class World
     internal void ExecuteSequence(ReadOnlySpan<Entity> entities, ForEachEntityAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        ExecuteSequence(entities, default, hasFilter: false, action);
+        ExecuteUnfilteredSequenceCore(entities, action);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void ExecuteSequence(ReadOnlySpan<Entity> entities, in Query query, ForEachEntityAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        ExecuteSequence(entities, query, hasFilter: true, action);
+        ValidateQuery(in query);
+        ExecuteFilteredSequenceCore(entities, query.Cached, action);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void ExecuteSequence<TContext>(ReadOnlySpan<Entity> entities, ref TContext context, ForEachContextEntityAction<TContext> action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        ExecuteSequence(entities, ref context, default, hasFilter: false, action);
+        ExecuteUnfilteredSequenceCore(entities, ref context, action);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void ExecuteSequence<TContext>(ReadOnlySpan<Entity> entities, in Query query, ref TContext context, ForEachContextEntityAction<TContext> action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        ExecuteSequence(entities, ref context, query, hasFilter: true, action);
+        ValidateQuery(in query);
+        ExecuteFilteredSequenceCore(entities, query.Cached, ref context, action);
     }
 
-    private void ExecuteSequence(
+    private void ExecuteUnfilteredSequenceCore(
         ReadOnlySpan<Entity> entities,
-        Query query,
-        bool hasFilter,
         ForEachEntityAction action)
     {
-        if (hasFilter)
+        for (int index = 0; index < entities.Length; index++)
         {
-            ValidateQuery(in query);
+            Entity entity = entities.RefAt(index);
+            if (TryResolve(entity, out _))
+            {
+                action(entity);
+            }
         }
+    }
 
+    private void ExecuteFilteredSequenceCore(
+        ReadOnlySpan<Entity> entities,
+        QueryPlan plan,
+        ForEachEntityAction action)
+    {
+        int lastArchetype = -1;
+        bool lastMatches = false;
         for (int index = 0; index < entities.Length; index++)
         {
             Entity entity = entities.RefAt(index);
@@ -57,27 +69,42 @@ public sealed partial class World
             }
 
             ref readonly var record = ref RecordAt(recordIndex);
-            if (hasFilter && !MatchesSequenceQuery(record.Archetype, in query))
+            if (record.Archetype != lastArchetype)
             {
-                continue;
+                lastArchetype = record.Archetype;
+                lastMatches = plan.MatchesArchetype(lastArchetype);
             }
 
-            action(entity);
+            if (lastMatches)
+            {
+                action(entity);
+            }
         }
     }
 
-    private void ExecuteSequence<TContext>(
+    private void ExecuteUnfilteredSequenceCore<TContext>(
         ReadOnlySpan<Entity> entities,
         ref TContext context,
-        Query query,
-        bool hasFilter,
         ForEachContextEntityAction<TContext> action)
     {
-        if (hasFilter)
+        for (int index = 0; index < entities.Length; index++)
         {
-            ValidateQuery(in query);
+            Entity entity = entities.RefAt(index);
+            if (TryResolve(entity, out _))
+            {
+                action(ref context, entity);
+            }
         }
+    }
 
+    private void ExecuteFilteredSequenceCore<TContext>(
+        ReadOnlySpan<Entity> entities,
+        QueryPlan plan,
+        ref TContext context,
+        ForEachContextEntityAction<TContext> action)
+    {
+        int lastArchetype = -1;
+        bool lastMatches = false;
         for (int index = 0; index < entities.Length; index++)
         {
             Entity entity = entities.RefAt(index);
@@ -86,23 +113,18 @@ public sealed partial class World
                 continue;
             }
 
-            ref readonly var record = ref RecordAt(recordIndex);
-            if (hasFilter && !MatchesSequenceQuery(record.Archetype, in query))
+            ref readonly EntityRecord record = ref RecordAt(recordIndex);
+            if (record.Archetype != lastArchetype)
             {
-                continue;
+                lastArchetype = record.Archetype;
+                lastMatches = plan.MatchesArchetype(lastArchetype);
             }
 
-            action(ref context, entity);
+            if (lastMatches)
+            {
+                action(ref context, entity);
+            }
         }
-    }
-
-    private bool MatchesSequenceQuery(int archetypeId, in Query query)
-    {
-        var mask = _archetypes[archetypeId].Mask;
-        var description = query.Description;
-        return mask.ContainsAll(description.AllMask)
-            && (description.AnyMask.IsEmpty || mask.Intersects(description.AnyMask))
-            && !mask.Intersects(description.NoneMask);
     }
 
     internal int Add(ReadOnlySpan<Entity> entities, in Query query, ComponentId[] componentIds)
@@ -124,7 +146,7 @@ public sealed partial class World
         }
 
         EnsureSequenceScratch(entities.Length);
-        int count = CopyMatchingSequenceEntities(entities, in query, _sequenceScratch.Span);
+        int count = CopyMatchingSequenceEntities(entities, query.Cached, _sequenceScratch.Span);
         return Destroy(_sequenceScratch.ReadOnlySpan[..count]);
     }
 
@@ -141,7 +163,7 @@ public sealed partial class World
         }
 
         EnsureSequenceScratch(entities.Length);
-        int count = CopyMatchingSequenceEntities(entities, in query, _sequenceScratch.Span);
+        int count = CopyMatchingSequenceEntities(entities, query.Cached, _sequenceScratch.Span);
         return isAdd
             ? Add(componentIds, _sequenceScratch.ReadOnlySpan[..count])
             : Remove(componentIds, _sequenceScratch.ReadOnlySpan[..count]);
@@ -149,10 +171,12 @@ public sealed partial class World
 
     private int CopyMatchingSequenceEntities(
         ReadOnlySpan<Entity> entities,
-        in Query query,
+        QueryPlan plan,
         Span<Entity> destination)
     {
         int count = 0;
+        int lastArchetype = -1;
+        bool lastMatches = false;
         for (int index = 0; index < entities.Length; index++)
         {
             Entity entity = entities.RefAt(index);
@@ -162,7 +186,13 @@ public sealed partial class World
             }
 
             ref readonly var record = ref RecordAt(recordIndex);
-            if (MatchesSequenceQuery(record.Archetype, in query))
+            if (record.Archetype != lastArchetype)
+            {
+                lastArchetype = record.Archetype;
+                lastMatches = plan.MatchesArchetype(lastArchetype);
+            }
+
+            if (lastMatches)
             {
                 destination.RefAt(count++) = entity;
             }

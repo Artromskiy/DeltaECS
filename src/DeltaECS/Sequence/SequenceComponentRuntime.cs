@@ -16,14 +16,26 @@ public sealed partial class World
         where TInvoker : struct, IGeneratedSequenceInvoker
     {
         ValidateQuery(in query);
+        ExecuteGeneratedSequenceTrusted(entities, in query, ref invoker, hasWrites);
+    }
+
+    /// <summary>Executes a compiler-generated invoker after its query and routes were validated.</summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void ExecuteGeneratedSequenceTrusted<TInvoker>(
+        ReadOnlySpan<Entity> entities,
+        in Query query,
+        ref TInvoker invoker,
+        bool hasWrites)
+        where TInvoker : struct, IGeneratedSequenceInvoker
+    {
         QueryPlan cached = query.Cached;
-        _ = cached.MatchingPlans();
-        QueryWriteSession writeSession = RentQueryWriteSession(hasWrites, out int sessionGeneration);
         BeginQueryLease();
         try
         {
+            ReadOnlySpan<ArchetypePlan> plans = cached.MatchingPlans();
             int lastArchetype = -1;
-            ArchetypePlan plan = default;
+            int lastPlanIndex = -1;
             for (int index = 0; index < entities.Length; index++)
             {
                 Entity entity = entities.RefAt(index);
@@ -35,28 +47,28 @@ public sealed partial class World
                 ref readonly EntityRecord record = ref RecordAt(recordIndex);
                 if (record.Archetype != lastArchetype)
                 {
-                    if (!cached.TryGetPlan(record.Archetype, out plan))
-                    {
-                        lastArchetype = -1;
-                        continue;
-                    }
-
                     lastArchetype = record.Archetype;
+                    lastPlanIndex = cached.MatchingPlanIndex(lastArchetype);
                 }
 
+                if (lastPlanIndex < 0)
+                {
+                    continue;
+                }
+
+                ref readonly ArchetypePlan plan = ref plans.RefAt(lastPlanIndex);
                 var cursor = new GeneratedSequenceCursor(
-                    plan,
-                    plan.Chunks.RefAt(record.Chunk),
+                    in plan,
+                    in plan.Chunks.RefAt(record.Chunk),
                     record.SlotIndex,
                     entity,
-                    writeSession,
-                    sessionGeneration);
+                    hasWrites);
                 invoker.Invoke(ref cursor);
             }
         }
         finally
         {
-            ReturnQueryWriteSession(writeSession, sessionGeneration);
+            EndQueryLease();
         }
     }
 }

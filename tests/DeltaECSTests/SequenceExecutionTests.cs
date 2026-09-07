@@ -166,6 +166,30 @@ public sealed class SequenceExecutionTests
     }
 
     [Test]
+    public void TypedSequenceUsesTheEntitySlotWithinItsChunk()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<SequencePosition>(new SchemaId(60_018));
+        ComponentId velocityId = layouts.Register<SequenceVelocity>(new SchemaId(60_019));
+        using var world = new World(layouts, chunkCapacity: 4);
+        Entity first = world.Create(positionId, velocityId);
+        Entity second = world.Create(positionId, velocityId);
+        Assert.That(world.Set(first, positionId, new SequencePosition(3)), Is.True);
+        Assert.That(world.Set(second, positionId, new SequencePosition(7)), Is.True);
+        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+
+        world.From(new[] { second }).Where(in query).ForEach<SequencePosition, SequenceVelocity>(
+            static (in SequencePosition position, ref SequenceVelocity velocity) =>
+                velocity.Value = position.Value);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(world.Get<SequenceVelocity>(first, velocityId).Value, Is.Zero);
+            Assert.That(world.Get<SequenceVelocity>(second, velocityId).Value, Is.EqualTo(7));
+        });
+    }
+
+    [Test]
     public void TypedSequenceReadOnlyDoesNotAdvanceStampsAndFunctorMatchesDelegateContract()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -226,6 +250,24 @@ public sealed class SequenceExecutionTests
             Assert.That(world.Get<SequenceVelocity>(plain, velocityId).Value, Is.EqualTo(4));
             Assert.That(world.Get<SequenceVelocity>(marked, velocityId).Value, Is.EqualTo(6));
         });
+    }
+
+    [Test]
+    public void TypedFilteredSequenceRejectsForeignQueryBeforeTrustedExecution()
+    {
+        var firstLayouts = new ComponentLayoutRegistry();
+        ComponentId firstPosition = firstLayouts.Register<SequencePosition>(new SchemaId(60_017));
+        using var firstWorld = new World(firstLayouts);
+        Entity entity = firstWorld.Create(firstPosition);
+
+        var secondLayouts = new ComponentLayoutRegistry();
+        ComponentId secondPosition = secondLayouts.Register<SequencePosition>(new SchemaId(60_017));
+        using var secondWorld = new World(secondLayouts);
+        Query foreignQuery = secondWorld.CreateQuery(QuerySpec.WhereAll(secondPosition));
+
+        Assert.Throws<ArgumentException>(() =>
+            firstWorld.From(new[] { entity }).Where(in foreignQuery).ForEach<SequencePosition>(
+                static (in SequencePosition _) => { }));
     }
 
     [Test]

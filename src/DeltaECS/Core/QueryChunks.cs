@@ -197,11 +197,15 @@ public readonly ref struct QueryChunk
         }
 
         int physicalRow = _plan.ComponentRows.RefAt(access.QueryComponentIndex);
-        return new StampRow(
-            _query.Owner,
+        ref Stamp chunkStamp = ref _query.Owner.GetChunkComponentStampReference(_chunk.Chunk, physicalRow);
+        ref Stamp archetypeStamp = ref _query.Owner.GetArchetypeComponentStampReference(
             _plan.Archetype.Id,
+            physicalRow);
+        return new StampRow(
             _chunk.Chunk,
             physicalRow,
-            _chunk.Chunk.Count);
+            _chunk.Chunk.Count,
+            ref chunkStamp,
+            ref archetypeStamp);
     }
 }

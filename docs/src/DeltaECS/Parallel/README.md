@@ -34,7 +34,10 @@ The executor owns persistent workers and reusable arrays per `World`. Once the
 worker pool, flattened chunk list, and ranges are warm, a stable query topology
 does not allocate on the caller thread. The flattened chunk list and static
 ranges are rebuilt only when `QueryPlan.MatchingVersion` changes or the worker
-count changes.
+count changes. Both parallel facades consume the query plan's prepared flat
+`ChunkPlan` snapshot and its plan-index sidecar; a topology refresh therefore
+does not perform a separate counting pass followed by another nested
+archetype/chunk traversal.
 
 Each worker has a padded state slot. The caller publishes `StartChunk` and
 `EndChunk` with a release `Volatile.Write(PublishedRun, run)`. The worker

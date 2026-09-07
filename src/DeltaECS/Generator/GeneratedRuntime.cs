@@ -285,23 +285,20 @@ public ref struct GeneratedSequenceCursor
     private readonly Chunk _chunk;
     private readonly ReadOnlySpan<int> _componentRows;
     private readonly Array[] _resolvedRowsByQuery;
-    private readonly QueryWriteSession _writeSession;
-    private readonly int _sessionGeneration;
+    private readonly bool _writeEnabled;
 
     internal GeneratedSequenceCursor(
-        ArchetypePlan plan,
-        ChunkPlan chunkPlan,
+        in ArchetypePlan plan,
+        in ChunkPlan chunkPlan,
         int slot,
         Entity entity,
-        QueryWriteSession writeSession,
-        int sessionGeneration)
+        bool writeEnabled)
     {
         Chunk chunk = chunkPlan.Chunk;
         _chunk = chunk;
         _componentRows = plan.ComponentRows;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
-        _writeSession = writeSession;
-        _sessionGeneration = sessionGeneration;
+        _writeEnabled = writeEnabled;
         Slot = slot;
         Entity = entity;
     }
@@ -312,15 +309,32 @@ public ref struct GeneratedSequenceCursor
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref readonly T GetGeneratedReadReference<T>(int queryComponentIndex)
-    {
-        _writeSession.EnsureActive(_sessionGeneration);
-        return ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.RefAt(queryComponentIndex)));
-    }
+        => ref GetGeneratedReadReferenceTrusted<T>(queryComponentIndex);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetGeneratedWriteReference<T>(int queryComponentIndex)
     {
-        _writeSession.Acquire(_sessionGeneration);
+        if (!_writeEnabled)
+        {
+            ThrowHelper.ThrowMissingWriteIntent();
+        }
+
+        return ref GetGeneratedWriteReferenceTrusted<T>(queryComponentIndex);
+    }
+
+    /// <summary>Gets a generated read reference after the sequence execution boundary was validated.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref readonly T GetGeneratedReadReferenceTrusted<T>(int queryComponentIndex)
+        => ref Unsafe.Add(
+            ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.RefAt(queryComponentIndex))),
+            Slot);
+
+    /// <summary>Gets and stamps a generated write reference after validation.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T GetGeneratedWriteReferenceTrusted<T>(int queryComponentIndex)
+    {
         int physicalRow = _componentRows.RefAt(queryComponentIndex);
         Stamp stamp = _chunk.IncrementComponentStamp(physicalRow, Slot);
         new EntityComponentStampWriter(
@@ -328,7 +342,9 @@ public ref struct GeneratedSequenceCursor
             physicalRow,
             Slot,
             stamp).Mark();
-        return ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.RefAt(queryComponentIndex)));
+        return ref Unsafe.Add(
+            ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.RefAt(queryComponentIndex))),
+            Slot);
     }
 }
 
@@ -530,6 +546,12 @@ public static class GeneratedForEachRuntime
     public static int GetPreparedReadRoute<T>(in Query query)
         => query.Cached.GetPreparedPrimaryReadRoute<T>();
 
+    /// <summary>Returns a cached explicit-component read route after sequence validation.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int GetPreparedReadRoute<T>(in Query query, ComponentId component)
+        => query.Cached.GetPreparedReadAccess(component, typeof(T)).QueryComponentIndex;
+
     /// <summary>
     /// Returns a cached primary write access after the generated dense scope has
     /// validated the query. This is compiler support and must not be called
@@ -551,6 +573,18 @@ public static class GeneratedForEachRuntime
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int GetPreparedWriteRoute<T>(in Query query)
         => query.Cached.GetPreparedPrimaryWriteRoute<T>();
+
+    /// <summary>Returns a cached explicit-component write route after sequence validation.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int GetPreparedWriteRoute<T>(in Query query, ComponentId component)
+        => query.Cached.GetPreparedWriteAccess(component, typeof(T)).QueryComponentIndex;
+
+    /// <summary>Validates a filtered sequence before generated prepared routes are consumed.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ValidateSequenceQuery(World world, in Query query)
+        => _ = ValidateQuery(world, in query);
 
     /// <summary>Returns the trusted query-local route used by batch write marking.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]

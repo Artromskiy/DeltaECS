@@ -1587,7 +1587,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
             source.Append("cursor.GetGenerated")
                 .Append(IsWrite(mode) ? "Write" : "Read")
-                .Append("Reference<")
+                .Append("ReferenceTrusted<")
                 .Append(componentType)
                 .Append(">(_access")
                 .Append(index)
@@ -1668,7 +1668,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string closedIdArguments = shape.ExplicitIds ? ClosedComponentNames(shape.Components.Length) : string.Empty;
         string accessArguments = AccessArguments(shape.Pattern);
         string setup = shape.Sequence
-            ? AccessSetup(shape, idArguments, closed: false)
+            ? AccessSetup(shape, idArguments, closed: false, prepared: true)
             : string.Empty;
         string name = InvokerName(shape);
         string stateGeneric = StateGeneric(shape, generic);
@@ -2514,7 +2514,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string invoke;
         if (shape.Sequence)
         {
-            invoke = "sequence.GeneratedWorld.ExecuteGeneratedSequence(sequence.GeneratedEntities, in query, ref invoker, hasWrites: " + BoolHasWrites(shape.Pattern) + ");";
+            invoke = "sequence.GeneratedWorld.ExecuteGeneratedSequenceTrusted(sequence.GeneratedEntities, in query, ref invoker, hasWrites: " + BoolHasWrites(shape.Pattern) + ");";
         }
         else
         {
@@ -2711,10 +2711,19 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             result.Append(query).Append(' ');
         }
 
+        if (prepared && shape.Receiver == ReceiverKind.FilteredEntitySequence)
+        {
+            result.Append("GeneratedForEachRuntime.ValidateSequenceQuery(sequence.GeneratedWorld, in query);").AppendLine();
+        }
+
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
-            bool routeOnly = prepared && !shape.HasEntity && !shape.ExplicitIds && !shape.Parallel;
-            result.Append(routeOnly ? "int route" : "var access").Append(index)
+            bool routeOnly = prepared
+                && (shape.Sequence || (!shape.HasEntity && !shape.ExplicitIds && !shape.Parallel));
+            result.Append(routeOnly
+                    ? shape.Sequence ? "int access" : "int route"
+                    : "var access")
+                .Append(index)
                 .Append(" = GeneratedForEachRuntime.");
             if (prepared)
             {
@@ -2727,7 +2736,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 {
                     result.Append("GetPrepared").Append(accessKind).Append("Access");
                 }
-                if (!shape.ExplicitIds)
+                if (!shape.ExplicitIds || routeOnly)
                 {
                     result.Append('<').Append(ComponentType(shape, index)).Append('>');
                 }
@@ -2753,7 +2762,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 result.Append(", ").Append(ComponentArgument(ids, index));
             }
 
-            if (!(prepared && !shape.ExplicitIds))
+            if (!(prepared && (!shape.ExplicitIds || routeOnly)))
             {
                 result.Append(", typeof(")
                     .Append(ComponentType(shape, index)).Append(')');

@@ -37,6 +37,7 @@ internal sealed class QueryPlan
     private int[] _matchingArchetypes = Array.Empty<int>();
     private ArchetypePlan[] _matchingPlans = Array.Empty<ArchetypePlan>();
     private ChunkPlan[] _matchingChunkPlans = Array.Empty<ChunkPlan>();
+    private int[] _matchingChunkPlanIndices = Array.Empty<int>();
     private int[] _planIndicesByArchetype = Array.Empty<int>();
     private readonly int[] _readRoutesByComponent;
     private readonly Type?[] _readRouteTypesByComponent;
@@ -207,24 +208,19 @@ internal sealed class QueryPlan
     internal ReadOnlySpan<ChunkPlan> MatchingChunkPlans() => _matchingChunkPlans.AsSpan(0, _matchingChunkCount);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ReadOnlySpan<int> MatchingChunkPlanIndices() => _matchingChunkPlanIndices.AsSpan(0, _matchingChunkCount);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ReadOnlySpan<int> ComponentRowIndices(int matchingIndex) => _matchingPlans.RefAt(matchingIndex).ComponentRows;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool TryGetPlan(int archetypeId, out ArchetypePlan plan)
-    {
-        if ((uint)archetypeId < (uint)_planIndicesByArchetype.Length)
-        {
-            int planIndex = _planIndicesByArchetype.RefAt(archetypeId);
-            if ((uint)planIndex < (uint)_matchingCount)
-            {
-                plan = _matchingPlans.RefAt(planIndex);
-                return true;
-            }
-        }
+    internal int MatchingPlanIndex(int archetypeId)
+        => (uint)archetypeId < (uint)_planIndicesByArchetype.Length
+            ? _planIndicesByArchetype.RefAt(archetypeId)
+            : -1;
 
-        plan = default;
-        return false;
-    }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool MatchesArchetype(int archetypeId) => MatchingPlanIndex(archetypeId) >= 0;
 
     internal void OnArchetypeCreated(Archetype archetype)
     {
@@ -274,6 +270,7 @@ internal sealed class QueryPlan
         _matchingArchetypes = Array.Empty<int>();
         _matchingPlans = Array.Empty<ArchetypePlan>();
         _matchingChunkPlans = Array.Empty<ChunkPlan>();
+        _matchingChunkPlanIndices = Array.Empty<int>();
         _planIndicesByArchetype = Array.Empty<int>();
         _matchingCount = 0;
         _matchingChunkCount = 0;
@@ -387,6 +384,7 @@ internal sealed class QueryPlan
         {
             int capacity = Math.Max(required, _matchingChunkPlans.Length == 0 ? 4 : _matchingChunkPlans.Length * 2);
             Array.Resize(ref _matchingChunkPlans, capacity);
+            Array.Resize(ref _matchingChunkPlanIndices, capacity);
         }
 
         int count = 0;
@@ -396,7 +394,8 @@ internal sealed class QueryPlan
             ChunkPlan[] chunks = plan.ChunkArray;
             for (int chunkIndex = 0; chunkIndex < plan.ChunkCount; chunkIndex++)
             {
-                _matchingChunkPlans.RefAt(count++) = chunks.RefAt(chunkIndex);
+                _matchingChunkPlans.RefAt(count) = chunks.RefAt(chunkIndex);
+                _matchingChunkPlanIndices.RefAt(count++) = planIndex;
             }
         }
 
