@@ -170,7 +170,7 @@ public ref struct GeneratedDenseExecution
         if ((uint)nextChunk < (uint)_chunkPlans.Length)
         {
             _chunkIndex = nextChunk;
-            ChunkPlan chunkPlan = _chunkPlans.RefAt(_chunkIndex);
+            ref readonly ChunkPlan chunkPlan = ref _chunkPlans.RefAt(_chunkIndex);
             componentRows = chunkPlan.ComponentRows;
             count = chunkPlan.Chunk.Count;
             return true;
@@ -240,6 +240,27 @@ public ref struct GeneratedReadDenseExecution
         }
         _chunkIndex = _chunkPlans.Length;
         slots = default;
+        return false;
+    }
+
+    /// <summary>Advances a validated read execution while exposing only component rows and count.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool MoveNextTrusted(out Array[] componentRows, out int count)
+    {
+        int nextChunk = _chunkIndex + 1;
+        if ((uint)nextChunk < (uint)_chunkPlans.Length)
+        {
+            _chunkIndex = nextChunk;
+            ref readonly ChunkPlan chunkPlan = ref _chunkPlans.RefAt(_chunkIndex);
+            componentRows = chunkPlan.ComponentRows;
+            count = chunkPlan.Chunk.Count;
+            return true;
+        }
+
+        _chunkIndex = _chunkPlans.Length;
+        componentRows = null!;
+        count = 0;
         return false;
     }
 

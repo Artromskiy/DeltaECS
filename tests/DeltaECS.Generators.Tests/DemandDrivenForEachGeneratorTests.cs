@@ -217,7 +217,7 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         Assert.That(generated, Does.Contain("ExecuteClosed_"));
         Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenWriteDense(world, in query"));
-        Assert.That(generated, Does.Contain("for (int chunkIndex = 0; chunkIndex < execution.ChunkCount; chunkIndex++)"));
+        Assert.That(generated, Does.Contain("while (execution.MoveNextTrusted(out var componentRows, out int count))"));
         Assert.That(generated, Does.Contain("int route0 = GeneratedForEachRuntime.GetPreparedWriteRoute<T1>(in query);"));
         Assert.That(generated, Does.Contain("ref T1 row0 = ref GeneratedForEachRuntime.GetGeneratedRow<T1>(componentRows, route0)"));
         Assert.That(generated, Does.Contain("for (int index = 0; index < count; index++)"));
@@ -249,7 +249,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(RunGenerator(source));
 
         Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenReadDense(world, in query)"));
-        Assert.That(generated, Does.Contain("for (int chunkIndex = 0; chunkIndex < execution.ChunkCount; chunkIndex++)"));
+        Assert.That(generated, Does.Contain("while (execution.MoveNextTrusted(out var componentRows, out int count))"));
         Assert.That(generated, Does.Not.Contain("OpenWriteDense(world, in query)"));
         Assert.That(generated, Does.Not.Contain("MarkGeneratedWrite(access0)"));
     }
@@ -608,6 +608,12 @@ public sealed class DemandDrivenForEachGeneratorTests
             public int ChunkCount => 0;
             public bool MoveNext(out GeneratedQuerySlots slots) { slots = default; return false; }
             public bool MoveNextTrusted(out GeneratedQuerySlots slots) { slots = default; return false; }
+            public bool MoveNextTrusted(out Array[] componentRows, out int count)
+            {
+                componentRows = Array.Empty<Array>();
+                count = 0;
+                return false;
+            }
             public void GetChunkRowsTrusted(int chunkIndex, out Array[] componentRows, out int count)
             {
                 componentRows = Array.Empty<Array>();
@@ -623,6 +629,12 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public int ChunkCount => 0;
             public bool MoveNextTrusted(out GeneratedReadQuerySlots slots) { slots = default; return false; }
+            public bool MoveNextTrusted(out Array[] componentRows, out int count)
+            {
+                componentRows = Array.Empty<Array>();
+                count = 0;
+                return false;
+            }
             public void GetChunkRowsTrusted(int chunkIndex, out Array[] componentRows, out int count)
             {
                 componentRows = Array.Empty<Array>();

@@ -1918,7 +1918,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string callbackName = "InvokeInterceptedCallback_" + site.Id;
         string countName = GeneratedLocalName(site, "count", 0);
         string indexName = GeneratedLocalName(site, "index", 0);
-        string chunkIndexName = GeneratedLocalName(site, "chunk", 0);
         string[] rowNames = Enumerable.Range(0, closedShape.Pattern.Length)
             .Select(index => GeneratedLocalName(site, "row", index))
             .ToArray();
@@ -1952,15 +1951,10 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
         else
         {
-            source.Append("    for (int ").Append(chunkIndexName).Append(" = 0; ").Append(chunkIndexName)
-                .Append(" < execution.ChunkCount; ").Append(chunkIndexName).AppendLine("++)");
+            source.Append("    while (execution.MoveNextTrusted(out var componentRows, out int ")
+                .Append(countName).AppendLine("))");
         }
         source.AppendLine("    {");
-        if (!closedShape.HasEntity)
-        {
-            source.Append("        execution.GetChunkRowsTrusted(").Append(chunkIndexName)
-                .Append(", out var componentRows, out int ").Append(countName).AppendLine(");");
-        }
         for (int index = 0; index < closedShape.Pattern.Length; index++)
         {
             string componentType = closedShape.Components[index];
@@ -2388,13 +2382,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
         else
         {
-            source.AppendLine("        for (int chunkIndex = 0; chunkIndex < execution.ChunkCount; chunkIndex++)");
+            source.AppendLine("        while (execution.MoveNextTrusted(out var componentRows, out int count))");
         }
         source.AppendLine("        {");
-        if (!shape.HasEntity)
-        {
-            source.AppendLine("            execution.GetChunkRowsTrusted(chunkIndex, out var componentRows, out int count);");
-        }
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
             string componentType = ComponentType(shape, index);
