@@ -6,6 +6,7 @@ using System.Threading;
 /// <summary>Reusable per-world executor for chunk callbacks with static worker ranges.</summary>
 internal sealed class ParallelQueryExecutor : IDisposable
 {
+    private const int DefaultWorkerCount = 2;
     private const int MinimumParallelEntityCount = 250_000;
     private readonly object _lifecycle = new();
     private Worker[] _workers = Array.Empty<Worker>();
@@ -56,7 +57,7 @@ internal sealed class ParallelQueryExecutor : IDisposable
             }
 
             int workerCount = requestedWorkerCount == 0
-                ? Environment.ProcessorCount
+                ? DefaultWorkerCount
                 : requestedWorkerCount;
             workerCount = Math.Max(1, Math.Min(workerCount, _chunkCount));
             if (workerCount == 1 || _entityCount < MinimumParallelEntityCount)

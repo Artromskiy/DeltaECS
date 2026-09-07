@@ -9,6 +9,7 @@ using System.Threading;
 internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
     where TInvoker : struct, IGeneratedParallelInvoker
 {
+    private const int DefaultWorkerCount = 2;
     private const int MinimumParallelEntityCount = 32_768;
     private readonly object _lifecycle = new();
     private WorkerSlot[] _workerSlots = Array.Empty<WorkerSlot>();
@@ -46,7 +47,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         }
 
         int workerCount = requestedWorkerCount == 0
-            ? Environment.ProcessorCount
+            ? DefaultWorkerCount
             : requestedWorkerCount;
         workerCount = Math.Max(1, Math.Min(workerCount, _chunkCount));
 
