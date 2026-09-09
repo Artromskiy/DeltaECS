@@ -340,6 +340,13 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Not.Contain("DemandForEachInterceptor_"));
         Assert.That(generated, Does.Not.Contain("InterceptsLocationAttribute"));
         Assert.That(run.Diagnostics, Is.Empty, string.Join(Environment.NewLine, run.Diagnostics.Select(static diagnostic => diagnostic.ToString())));
+
+        var errors = run.GeneratedTrees
+            .Select(tree => CSharpSyntaxTree.ParseText(tree.GetText(), new CSharpParseOptions(LanguageVersion.CSharp9), tree.FilePath))
+            .SelectMany(static tree => tree.GetDiagnostics())
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
     [Test]
@@ -588,16 +595,20 @@ public sealed class DemandDrivenForEachGeneratorTests
 
     private static CSharpCompilation CreateCompilationWithGeneratedTrees(
         IEnumerable<string> sources,
-        IEnumerable<SyntaxTree> generatedTrees)
+        IEnumerable<SyntaxTree> generatedTrees,
+        LanguageVersion languageVersion = LanguageVersion.Latest)
     {
         var references = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
             .Select(static path => MetadataReference.CreateFromFile(path));
-        var parseOptions = new CSharpParseOptions(LanguageVersion.Latest)
-            .WithFeatures(new[]
+        var parseOptions = new CSharpParseOptions(languageVersion);
+        if (languageVersion >= LanguageVersion.CSharp11)
+        {
+            parseOptions = parseOptions.WithFeatures(new[]
             {
                 new KeyValuePair<string, string>("InterceptorsNamespaces", "Delta.ECS.Generated")
             });
+        }
         var syntaxTrees = sources
             .Select(source => CSharpSyntaxTree.ParseText(source, parseOptions))
             .Concat(generatedTrees.Select(tree => CSharpSyntaxTree.ParseText(tree.GetText().ToString(), parseOptions, tree.FilePath)));
