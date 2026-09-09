@@ -102,6 +102,19 @@ public sealed class QueryStructuralOperationsTests
     }
 
     [Test]
+    public void QueryHandle_BecomesInvalidWhenItsWorldIsDisposed()
+    {
+        var layouts = CreateLayouts();
+        var world = new World(layouts);
+        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
+
+        Assert.That(query.IsValid, Is.True);
+        world.Dispose();
+
+        Assert.That(query.IsValid, Is.False);
+    }
+
+    [Test]
     public void EmptyMatchingQuery_ReturnsZero_AndLeavesWorldUnchanged()
     {
         var layouts = CreateLayouts();

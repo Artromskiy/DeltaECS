@@ -17,6 +17,21 @@ first primary registration.
 ## Single-component operations
 
 ```csharp
+Entity primaryEntity = world.Create(positionId, new Position());
+var primaryDestination = new Entity[10];
+int primaryCreated = world.Create<Position>(10, primaryDestination);
+bool primaryAdded = world.Add(primaryEntity, new Velocity());
+int primaryBatchAdded = world.Add<Velocity>(primaryDestination, new Velocity());
+
+if (world.TryGet(primaryEntity, out Position primaryPosition))
+{
+    primaryPosition.X++;
+    world.Set(primaryEntity, in primaryPosition);
+}
+
+world.Remove<Velocity>(primaryEntity);
+int primaryRemoved = world.Remove<Velocity>(primaryDestination);
+
 Entity entity = world.Create(positionId, new Position());
 Entity[] entities = world.Create(stackalloc[] { positionId }, 10);
 var destination = new Entity[10];
@@ -34,11 +49,13 @@ world.Remove<Velocity>(entity, velocityId);
 int removed = world.Remove<Velocity>(entities, velocityId);
 ```
 
-These helpers validate `ComponentId` against `T` and delegate to the core
-structural/storage operations. Batch `Add<T>` initializes the newly added row
-with the same value for every eligible entity; batch `Remove<T>` returns the
-number of structural transitions. Stale handles and entities that already have
-or do not have the component are skipped.
+The overloads without a `ComponentId` resolve the registered primary component
+for `T` once at the API boundary, so the type and component ID cannot be
+supplied inconsistently. The explicit-ID overloads remain available for
+secondary registrations and validate `ComponentId` against `T`. Batch `Add<T>`
+initializes the newly added row with the same value for every eligible entity;
+batch `Remove<T>` returns the number of structural transitions. Stale handles
+and entities that already have or do not have the component are skipped.
 
 ## Generated primary-component batches
 

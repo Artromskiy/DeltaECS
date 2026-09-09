@@ -76,19 +76,21 @@ public sealed partial class World
     /// <summary>
     /// Entry point for a functor that processes matching entities without components.
     /// Generated component-bearing forms support callback arity 1-256, for example
-    /// <code>world.ForEachEntity(in query, functor);</code>
+    /// <code>world.ForEachEntity(in query, ref functor);</code>
     /// </summary>
     public void ForEachEntity<T>(in Query query, T action) where T : IForEachEntity
     {
+        ThrowHelper.ThrowGeneratedFunctorRequired();
     }
 
     /// <summary>
     /// Entry point for a functor that processes matching components.
     /// Generated component-bearing forms support callback arity 1-256, for example
-    /// <code>world.ForEach(in query, functor);</code>
+    /// <code>world.ForEach(in query, ref functor);</code>
     /// </summary>
     public void ForEach<T>(in Query query, T action) where T : IForEach
     {
+        ThrowHelper.ThrowGeneratedFunctorRequired();
     }
 
 }

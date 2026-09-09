@@ -14,7 +14,15 @@ public readonly struct Entity : IEquatable<Entity>
         Generation = generation;
     }
 
-    public bool IsAlive => this != Null;
+    /// <summary>
+    /// Gets whether this handle is non-null.
+    /// </summary>
+    /// <remarks>
+    /// An entity handle does not own a reference to a world and therefore
+    /// cannot determine whether it is currently alive. Use
+    /// <see cref="World.IsAlive(Entity)"/> for a world-specific liveness check.
+    /// </remarks>
+    public bool IsValid => this != Null;
 
     public bool Equals(Entity other) => Index == other.Index && Generation == other.Generation;
 
@@ -88,7 +96,7 @@ public readonly struct Query
 
     internal QuerySpec Description => _description;
 
-    public bool IsValid => _owner is not null && _cached is not null;
+    public bool IsValid => _owner is not null && _cached is not null && !_owner.IsDisposed;
 
     public ReadAccess AccessRead(ComponentId componentId)
     {

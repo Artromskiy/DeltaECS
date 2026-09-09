@@ -27,9 +27,11 @@ world.ForEachEntity(in query, ref counter);
 The interfaces are markers only: they do not declare `Invoke` and never encode
 component types or access patterns in their names. Concrete extension methods
 are generated in the consumer assembly from the functor's `Invoke` signature.
-The marker-only instance overloads on `World` are compiler anchors, not a
-generated zero-component functor execution path; use the handwritten delegate
-overloads for a runtime callback with no components.
+The handwritten marker overloads are compiler anchors and report a clear error
+if called without generated lowering; they are not a silent no-op runtime
+fallback. A functor call must be lowered by the analyzer to a generated
+extension, including a zero-component `Invoke()` shape. Use the handwritten
+delegate overloads when a runtime delegate callback is required.
 `in T` means read and `ref T` means write. The generator diagnoses missing,
 ambiguous, or incompatible `Invoke` implementations rather than selecting one
 through reflection at runtime.

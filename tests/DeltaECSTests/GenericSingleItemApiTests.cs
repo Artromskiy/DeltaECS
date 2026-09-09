@@ -8,6 +8,50 @@ using NUnit.Framework;
 public sealed class GenericSingleItemApiTests
 {
     [Test]
+    public void PrimaryGenericOverloadsResolveTheRegisteredPrimaryComponent()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        layouts.Register<Position>(new SchemaId(60_061));
+        layouts.Register<Velocity>(new SchemaId(60_062));
+        using var world = new World(layouts, chunkCapacity: 2);
+
+        var initial = new Position { X = 1, Y = 2 };
+        ComponentId positionId = layouts.GetPrimary<Position>();
+        Entity entity = world.Create(positionId, in initial);
+        var replacement = new Position { X = 3, Y = 4 };
+
+        Assert.That(world.TryGet(entity, out Position actual), Is.True);
+        Assert.That(actual, Is.EqualTo(initial));
+        Assert.That(world.Get<Position>(entity), Is.EqualTo(initial));
+        Assert.That(world.Set(entity, in replacement), Is.True);
+        Assert.That(world.Get<Position>(entity), Is.EqualTo(replacement));
+
+        var entities = new Entity[2];
+        Assert.That(world.Create<Position>(entities.Length, entities), Is.EqualTo(entities.Length));
+        var velocity = new Velocity { X = 5, Y = 6 };
+        Assert.That(world.Add<Velocity>(entities, in velocity), Is.EqualTo(entities.Length));
+        Assert.That(world.TryGet(entities[0], out Velocity added), Is.True);
+        Assert.That(added, Is.EqualTo(velocity));
+        Assert.That(world.Remove<Velocity>(entities), Is.EqualTo(entities.Length));
+        Assert.That(world.TryGet(entities[0], out Velocity _), Is.False);
+    }
+
+    [Test]
+    public void UntypedSingleEntityStructuralOperationsReportWhetherTheyChanged()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_071));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_072));
+        using var world = new World(layouts);
+        Entity entity = world.Create(new[] { positionId });
+
+        Assert.That(world.Add(new[] { velocityId }, entity), Is.True);
+        Assert.That(world.Add(new[] { velocityId }, entity), Is.False);
+        Assert.That(world.Remove(new[] { velocityId }, entity), Is.True);
+        Assert.That(world.Remove(new[] { velocityId }, entity), Is.False);
+    }
+
+    [Test]
     public void TypedCreateGetSetAndTryGetUseTheExistingComponentRows()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -78,9 +122,9 @@ public sealed class GenericSingleItemApiTests
             Assert.That(written, Is.EqualTo(3));
             Assert.That(typedWritten, Is.EqualTo(2));
             Assert.That(world.AliveEntityCount, Is.EqualTo(10));
-            Assert.That(created, Has.All.Matches<Entity>(entity => entity.IsAlive));
-            Assert.That(destination, Has.All.Matches<Entity>(entity => entity.IsAlive));
-            Assert.That(typedDestination, Has.All.Matches<Entity>(entity => entity.IsAlive));
+            Assert.That(created, Has.All.Matches<Entity>(entity => world.IsAlive(entity)));
+            Assert.That(destination, Has.All.Matches<Entity>(entity => world.IsAlive(entity)));
+            Assert.That(typedDestination, Has.All.Matches<Entity>(entity => world.IsAlive(entity)));
         });
 
         Assert.Throws<ArgumentOutOfRangeException>(() => world.Create(stackalloc[] { positionId }, -1));

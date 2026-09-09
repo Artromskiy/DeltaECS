@@ -2,6 +2,10 @@ namespace Delta.ECS;
 
 public sealed partial class World
 {
+    /// <summary>Creates entities with the primary component for <typeparamref name="T"/> into caller-owned storage.</summary>
+    public int Create<T>(int count, Span<Entity> output)
+        => Create<T>(_layouts.GetPrimary<T>(), count, output);
+
     /// <summary>
     /// Creates an entity containing one component and initializes its value.
     /// </summary>
@@ -20,6 +24,14 @@ public sealed partial class World
         EnsureRegisteredType<T>(componentId);
         return Create(stackalloc[] { componentId }, count, output);
     }
+
+    /// <summary>Adds and initializes the primary component for <typeparamref name="T"/> on one entity.</summary>
+    public bool Add<T>(Entity entity, in T value)
+        => Add(entity, _layouts.GetPrimary<T>(), in value);
+
+    /// <summary>Adds and initializes the primary component for <typeparamref name="T"/> on every eligible entity.</summary>
+    public int Add<T>(ReadOnlySpan<Entity> entities, in T value)
+        => Add(entities, _layouts.GetPrimary<T>(), in value);
 
     /// <summary>Adds one typed component to an alive entity and initializes its value.</summary>
     public bool Add<T>(Entity entity, ComponentId componentId, in T value)
@@ -45,6 +57,14 @@ public sealed partial class World
         return AddComponentBatch(entities, componentId, in value);
     }
 
+    /// <summary>Removes the primary component for <typeparamref name="T"/> from one entity.</summary>
+    public bool Remove<T>(Entity entity)
+        => Remove<T>(entity, _layouts.GetPrimary<T>());
+
+    /// <summary>Removes the primary component for <typeparamref name="T"/> from every eligible entity.</summary>
+    public int Remove<T>(ReadOnlySpan<Entity> entities)
+        => Remove<T>(entities, _layouts.GetPrimary<T>());
+
     /// <summary>Removes one typed component from an alive entity.</summary>
     public bool Remove<T>(Entity entity, ComponentId componentId)
     {
@@ -69,6 +89,18 @@ public sealed partial class World
         return RemoveComponentBatch<T>(entities, componentId);
     }
 
+    /// <summary>Reads the primary component for <typeparamref name="T"/> when present.</summary>
+    public bool TryGet<T>(Entity entity, out T value)
+    {
+        if (!_layouts.TryGetPrimary<T>(out ComponentId componentId))
+        {
+            value = default!;
+            return false;
+        }
+
+        return TryGet(entity, componentId, out value);
+    }
+
     /// <summary>Reads one component when the entity owns a matching component row.</summary>
     public bool TryGet<T>(Entity entity, ComponentId componentId, out T value)
         => TryGetCore(entity, componentId, out value);
@@ -88,9 +120,17 @@ public sealed partial class World
         return value;
     }
 
+    /// <summary>Reads the primary component for <typeparamref name="T"/> or throws when it is missing.</summary>
+    public T Get<T>(Entity entity)
+        => Get<T>(entity, _layouts.GetPrimary<T>());
+
     /// <summary>Writes one component value and reports whether the row was updated.</summary>
     public bool Set<T>(Entity entity, ComponentId componentId, in T value)
         => SetCore(entity, componentId, in value);
+
+    /// <summary>Writes the primary component for <typeparamref name="T"/>.</summary>
+    public bool Set<T>(Entity entity, in T value)
+        => Set(entity, _layouts.GetPrimary<T>(), in value);
 
     private bool IsRegisteredType<T>(ComponentId componentId)
     {

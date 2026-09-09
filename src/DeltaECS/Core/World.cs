@@ -54,6 +54,8 @@ public sealed partial class World : IDisposable
 
     public ComponentLayoutRegistry Layouts => _layouts;
 
+    internal bool IsDisposed => _disposed;
+
     internal List<Archetype> Archetypes => _archetypes;
 
     /// <summary>
@@ -423,11 +425,12 @@ public sealed partial class World : IDisposable
         return true;
     }
 
-    public void Add(ComponentId[] componentIds, Entity entity)
+    /// <summary>Adds the component set to one entity and reports whether it changed.</summary>
+    public bool Add(ComponentId[] componentIds, Entity entity)
     {
         Span<Entity> entities = stackalloc Entity[1];
         entities.GetRefAtZero() = entity;
-        _ = ApplyComponents(true, componentIds, entities);
+        return ApplyComponents(true, componentIds, entities) == 1;
     }
 
     public int Add(ComponentId[] componentIds, ReadOnlySpan<Entity> entities) => ApplyComponents(true, componentIds, entities);
@@ -436,11 +439,12 @@ public sealed partial class World : IDisposable
     public int Add(ReadOnlySpan<ComponentId> componentIds, ReadOnlySpan<Entity> entities)
         => ApplyComponents(true, componentIds, entities);
 
-    public void Remove(ComponentId[] componentIds, Entity entity)
+    /// <summary>Removes the component set from one entity and reports whether it changed.</summary>
+    public bool Remove(ComponentId[] componentIds, Entity entity)
     {
         Span<Entity> entities = stackalloc Entity[1];
         entities.GetRefAtZero() = entity;
-        _ = ApplyComponents(false, componentIds, entities);
+        return ApplyComponents(false, componentIds, entities) == 1;
     }
 
     public int Remove(ComponentId[] componentIds, ReadOnlySpan<Entity> entities) => ApplyComponents(false, componentIds, entities);
@@ -885,7 +889,7 @@ public sealed partial class World : IDisposable
             ClearChunkComponentStamps(archetype.GetChunk(record.Chunk));
         }
 
-        if (moved.IsAlive)
+        if (moved.IsValid)
         {
             ref var movedRecord = ref RecordAt(moved.Index);
             movedRecord.Chunk = record.Chunk;
@@ -953,7 +957,7 @@ public sealed partial class World : IDisposable
         sourceRecord.Archetype = edge.TargetArchetypeId;
         sourceRecord.Chunk = targetChunkIndex;
         sourceRecord.SlotIndex = targetSlotIndex;
-        if (moved.IsAlive)
+        if (moved.IsValid)
         {
             ref var movedRecord = ref RecordAt(moved.Index);
             movedRecord.Chunk = sourceChunkIndex;

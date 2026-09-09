@@ -5,7 +5,9 @@ through entity storage, query descriptions, access tokens or iterators.
 
 ## Identity and registration
 
-- `Entity` is an index/generation handle. Destroyed handles become stale.
+- `Entity` is an index/generation handle. `Entity.IsValid` only rejects the
+  null handle; use `World.IsAlive(entity)` to test liveness in a particular
+  world. Destroyed handles become stale.
 - `ComponentId` is a world-local component identity.
 - `SchemaId` is stable tooling/schema identity.
 - `ComponentLayoutRegistry` registers layouts and resolves primary component
@@ -37,7 +39,7 @@ int createdIntoBuffer = world.Create(stackalloc[] { positionId }, 1_000, destina
 bool destroyed = world.Destroy(entity);
 int destroyedCount = world.Destroy(entities);
 
-world.Add(componentIds, entity);
+bool addedToEntity = world.Add(componentIds, entity);
 int added = world.Add(componentIds, entities);
 int queryAdded = world.Add(in query, componentIds);
 ```
@@ -50,11 +52,17 @@ and `world.Remove<Position, Velocity>(in query)` on demand.
 Structural changes are immediate. Mutation is rejected while a conflicting
 query scope owns a row lease.
 
+The single-entity `Add` and `Remove` overloads return `true` only when the
+entity made a structural transition. Stale entities, duplicate additions and
+missing removals return `false`; batch overloads return the number of changed
+entities.
+
 ## Explicit query traversal
 
 `QuerySpec` selects component masks. `Query` is world-owned and caches matching
-archetype plans. `ReadAccess` and `WriteAccess` declare row intent without a
-generic component type.
+archetype plans. A query becomes invalid when its owning world is disposed.
+`ReadAccess` and `WriteAccess` declare row intent without a generic component
+type.
 
 ```csharp
 var spec = QuerySpec.WhereAll(positionId, velocityId);

@@ -12,8 +12,8 @@ archetypes or structural kernels.
 
 - Zero-component delegate overloads are handwritten in DeltaECS. Component-
   bearing delegate and functor overloads are generated from the consumer's
-  demand and start at arity one. The built-in marker-only functor entry points
-  are not a generated zero-component execution path.
+  demand and start at arity one. A zero-component functor `Invoke()` is also
+  generated on demand; there is no no-op runtime fallback for a functor call.
 - Component-bearing callback arities start at one and may extend to 256. This
   is a generator limit, not a limit on the dynamically sized component mask.
 - Component parameters use four access literals in generated callback names:

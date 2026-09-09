@@ -209,7 +209,7 @@ public sealed class ParallelIterationTests
         QueryChunkAction action = TryCreate;
 
         Assert.Throws<InvalidOperationException>(() => world.ForEachParallel(in query, action, workerCount: 4));
-        Assert.That(world.Create(new[] { positionId }).IsAlive, Is.True);
+        Assert.That(world.IsAlive(world.Create(new[] { positionId })), Is.True);
 
         void TryCreate(QueryChunk _)
         {

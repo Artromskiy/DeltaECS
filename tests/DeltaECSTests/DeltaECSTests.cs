@@ -52,7 +52,7 @@ public sealed class DeltaECSDeliveryTests
 
         var entities = new Entity[2];
         Assert.That(world.Create(first, entities), Is.EqualTo(2));
-        Assert.That(world.Create(first).IsAlive, Is.True);
+        Assert.That(world.IsAlive(world.Create(first)), Is.True);
         Assert.That(world.AliveEntityCount, Is.EqualTo(3));
     }
 
@@ -444,7 +444,7 @@ public sealed class DeltaECSDeliveryTests
                     while (slots.MoveNext())
                     {
                         Assert.That(slots.CurrentIndex, Is.EqualTo(expectedSlot++));
-                        Assert.That(entities[slots.CurrentIndex].IsAlive, Is.True);
+                        Assert.That(world.IsAlive(entities[slots.CurrentIndex]), Is.True);
                         Assert.That(positions.Ref<Position>(slots).X, Is.EqualTo(slots.CurrentIndex));
                         fullChunkCount++;
                     }

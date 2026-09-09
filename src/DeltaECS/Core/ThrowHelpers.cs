@@ -144,6 +144,12 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowGeneratedFunctorRequired()
+        => throw new InvalidOperationException(
+            "Functor iteration requires the DeltaECS.Generators analyzer and a generated ref overload.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowAccessModeMismatch()
         => throw new InvalidOperationException("The access mode does not match the requested row operation.");
 
