@@ -11,8 +11,9 @@ dependency on the generator assembly.
 ```
 
 The package places its assembly under `analyzers/dotnet/cs`. It generates
-consumer-side `ForEach`/`ForEachEntity` callback forms on demand; storage and
-runtime execution remain in `DeltaECS`.
+consumer-side `ForEach`/`ForEachEntity` callback forms and generic primary
+component `Add`/`Remove` structural façades on demand; storage and runtime
+execution remain in `DeltaECS`.
 
 For the optional interceptor path, configure the consumer project as described
 in the [generator documentation](https://github.com/Artromskiy/DeltaECS/blob/main/docs/src/DeltaECS.Generators/README.md).

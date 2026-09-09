@@ -59,6 +59,76 @@ public sealed class GenericSingleItemApiTests
     }
 
     [Test]
+    public void BatchCreateSupportsOwnedAndCallerOwnedEntityStorage()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_031));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_032));
+        using var world = new World(layouts, chunkCapacity: 2);
+
+        Entity[] created = world.Create(new[] { positionId, velocityId }, 5);
+        var destination = new Entity[3];
+        int written = world.Create(stackalloc[] { positionId }, 3, destination);
+        var typedDestination = new Entity[2];
+        int typedWritten = world.Create<Position>(positionId, 2, typedDestination);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(created, Has.Length.EqualTo(5));
+            Assert.That(written, Is.EqualTo(3));
+            Assert.That(typedWritten, Is.EqualTo(2));
+            Assert.That(world.AliveEntityCount, Is.EqualTo(10));
+            Assert.That(created, Has.All.Matches<Entity>(entity => entity.IsAlive));
+            Assert.That(destination, Has.All.Matches<Entity>(entity => entity.IsAlive));
+            Assert.That(typedDestination, Has.All.Matches<Entity>(entity => entity.IsAlive));
+        });
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => world.Create(stackalloc[] { positionId }, -1));
+        Assert.Throws<ArgumentException>(() => world.Create(stackalloc[] { positionId }, 2, new Entity[1]));
+    }
+
+    [Test]
+    public void TypedBatchAddInitializesOnlyNewComponentsAndRemoveSkipsIneligibleEntities()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_041));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_042));
+        using var world = new World(layouts);
+        Entity[] entities = world.Create(stackalloc[] { positionId }, 4);
+        Entity stale = entities[1];
+        Assert.That(world.Destroy(stale), Is.True);
+
+        var velocity = new Velocity { X = 5, Y = 6 };
+        Assert.That(world.Add(entities, velocityId, in velocity), Is.EqualTo(3));
+        Assert.That(world.Add(entities, velocityId, in velocity), Is.EqualTo(0));
+        Assert.That(world.TryGet(entities[0], velocityId, out Velocity initialized), Is.True);
+        Assert.That(initialized, Is.EqualTo(velocity));
+        Assert.That(world.TryGet(stale, velocityId, out Velocity _), Is.False);
+
+        Assert.That(world.Remove<Velocity>(entities, velocityId), Is.EqualTo(3));
+        Assert.That(world.Remove<Velocity>(entities, velocityId), Is.EqualTo(0));
+        Assert.That(world.TryGet(entities[0], velocityId, out Velocity _), Is.False);
+        Assert.That(world.TryGet(entities[2], positionId, out Position _), Is.True);
+    }
+
+    [Test]
+    public void TypedBatchOperationsRejectMismatchedComponentTypes()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_051));
+        using var world = new World(layouts);
+        Entity[] entities = world.Create(stackalloc[] { positionId }, 2);
+        var velocity = new Velocity { X = 1, Y = 2 };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(world.Add(entities, positionId, in velocity), Is.Zero);
+            Assert.That(world.Remove<Velocity>(entities, positionId), Is.Zero);
+            Assert.That(world.TryGet(entities[0], positionId, out Position _), Is.True);
+        });
+    }
+
+    [Test]
     public void StaleAndMismatchedHandlesDoNotMutateThroughTheGenericBoundary()
     {
         var layouts = new ComponentLayoutRegistry();

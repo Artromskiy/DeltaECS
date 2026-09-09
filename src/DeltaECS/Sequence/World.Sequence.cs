@@ -127,12 +127,12 @@ public sealed partial class World
         }
     }
 
-    internal int Add(ReadOnlySpan<Entity> entities, in Query query, ComponentId[] componentIds)
+    internal int Add(ReadOnlySpan<Entity> entities, in Query query, ReadOnlySpan<ComponentId> componentIds)
     {
         return ApplyFilteredSequenceComponents(entities, in query, componentIds, isAdd: true);
     }
 
-    internal int Remove(ReadOnlySpan<Entity> entities, in Query query, ComponentId[] componentIds)
+    internal int Remove(ReadOnlySpan<Entity> entities, in Query query, ReadOnlySpan<ComponentId> componentIds)
     {
         return ApplyFilteredSequenceComponents(entities, in query, componentIds, isAdd: false);
     }
@@ -153,7 +153,7 @@ public sealed partial class World
     private int ApplyFilteredSequenceComponents(
         ReadOnlySpan<Entity> entities,
         in Query query,
-        ComponentId[] componentIds,
+        ReadOnlySpan<ComponentId> componentIds,
         bool isAdd)
     {
         ValidateQuery(in query);

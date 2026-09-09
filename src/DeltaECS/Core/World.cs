@@ -138,6 +138,28 @@ public sealed partial class World : IDisposable
         return CreateBatch(archetype, output);
     }
 
+    /// <summary>Creates <paramref name="count"/> entities with the supplied component set.</summary>
+    /// <remarks>The returned array owns the entity handles and is allocated once for the batch.</remarks>
+    public Entity[] Create(ReadOnlySpan<ComponentId> componentIds, int count)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        var output = new Entity[count];
+        Create(componentIds, output);
+        return output;
+    }
+
+    /// <summary>Creates a requested number of entities into caller-owned storage.</summary>
+    public int Create(ReadOnlySpan<ComponentId> componentIds, int count, Span<Entity> output)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        if (output.Length < count)
+        {
+            ThrowHelper.ThrowEntityDestinationTooSmall(nameof(output));
+        }
+
+        return Create(componentIds, output[..count]);
+    }
+
     public Entity Create(ArchetypeHandle handle)
     {
         Span<Entity> entities = stackalloc Entity[1];
@@ -411,6 +433,10 @@ public sealed partial class World : IDisposable
 
     public int Add(ComponentId[] componentIds, ReadOnlySpan<Entity> entities) => ApplyComponents(true, componentIds, entities);
 
+    /// <summary>Adds a component set to every eligible entity in a caller-owned batch.</summary>
+    public int Add(ReadOnlySpan<ComponentId> componentIds, ReadOnlySpan<Entity> entities)
+        => ApplyComponents(true, componentIds, entities);
+
     public void Remove(ComponentId[] componentIds, Entity entity)
     {
         Span<Entity> entities = stackalloc Entity[1];
@@ -420,9 +446,21 @@ public sealed partial class World : IDisposable
 
     public int Remove(ComponentId[] componentIds, ReadOnlySpan<Entity> entities) => ApplyComponents(false, componentIds, entities);
 
+    /// <summary>Removes a component set from every eligible entity in a caller-owned batch.</summary>
+    public int Remove(ReadOnlySpan<ComponentId> componentIds, ReadOnlySpan<Entity> entities)
+        => ApplyComponents(false, componentIds, entities);
+
     public int Add(in Query query, ComponentId[] componentIds) => ApplyQueryComponents(query, true, componentIds);
 
+    /// <summary>Adds a component set to every entity matched by a query.</summary>
+    public int Add(in Query query, ReadOnlySpan<ComponentId> componentIds)
+        => ApplyQueryComponents(query, true, componentIds);
+
     public int Remove(in Query query, ComponentId[] componentIds) => ApplyQueryComponents(query, false, componentIds);
+
+    /// <summary>Removes a component set from every entity matched by a query.</summary>
+    public int Remove(in Query query, ReadOnlySpan<ComponentId> componentIds)
+        => ApplyQueryComponents(query, false, componentIds);
 
     public int Destroy(in Query query)
     {
@@ -587,7 +625,7 @@ public sealed partial class World : IDisposable
         _queryWriteSessionPool = session;
     }
 
-    private int ApplyComponents(bool isAdd, ComponentId[] componentIds, ReadOnlySpan<Entity> entities)
+    private int ApplyComponents(bool isAdd, ReadOnlySpan<ComponentId> componentIds, ReadOnlySpan<Entity> entities)
     {
         EnsureNoActiveLease(isAdd ? "add components" : "remove components");
         if (componentIds.Length == 0 || entities.Length == 0)
@@ -632,7 +670,7 @@ public sealed partial class World : IDisposable
         return changed;
     }
 
-    private int ApplyQueryComponents(in Query query, bool isAdd, ComponentId[] componentIds)
+    private int ApplyQueryComponents(in Query query, bool isAdd, ReadOnlySpan<ComponentId> componentIds)
     {
         ValidateQuery(query);
         EnsureNoActiveLease(isAdd ? "add components" : "remove components");
@@ -861,6 +899,15 @@ public sealed partial class World : IDisposable
 
     private void MoveEntity(int recordIndex, TransitionEdge edge)
     {
+        MoveEntity(recordIndex, edge, out _, out _);
+    }
+
+    private void MoveEntity(
+        int recordIndex,
+        TransitionEdge edge,
+        out int targetChunkIndex,
+        out int targetSlotIndex)
+    {
         ref var sourceRecord = ref RecordAt(recordIndex);
         var sourceArchetype = _archetypes[sourceRecord.Archetype];
         var targetArchetype = _archetypes[edge.TargetArchetypeId];
@@ -871,8 +918,8 @@ public sealed partial class World : IDisposable
         targetArchetype.AddEntity(
             new Entity(recordIndex, sourceRecord.Generation),
             targetChunkId,
-            out int targetChunkIndex,
-            out int targetSlotIndex,
+            out targetChunkIndex,
+            out targetSlotIndex,
             out bool reusedTargetSlot);
         var targetChunk = targetArchetype.GetChunk(targetChunkIndex);
         RegisterChunkStampStorage(targetChunk);

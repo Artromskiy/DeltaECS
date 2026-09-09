@@ -445,13 +445,47 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(checksum, Is.GreaterThan(0));
     }
 
+    [Test]
+    public void RealConsumerProjectExecutesGeneratedStructuralPaths()
+    {
+        Assert.That(ConsumerProof.RunStructural(), Is.EqualTo(32));
+    }
+
+    [Test]
+    public void StructuralGeneratorEmitsOnlyUsedGenericShapes()
+    {
+        GeneratorDriverRunResult run = RunGenerator(StructuralSource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty);
+        Assert.That(generated, Does.Contain("public static int Add<T1, T2>(this World target"));
+        Assert.That(generated, Does.Contain("public static int Remove<T1, T2>(this World target"));
+        Assert.That(generated, Does.Contain("public static int Add<T1, T2>(this EntitySequence target"));
+        Assert.That(generated, Does.Contain("public static int Remove<T1, T2>(this FilteredEntitySequence target"));
+        Assert.That(generated, Does.Contain("GetPrimary<T1>()"));
+        Assert.That(generated, Does.Contain("stackalloc ComponentId[2]"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, StructuralSource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
     private static GeneratorDriverRunResult RunGenerator()
         => RunGenerator(ConsumerSource);
 
     private static GeneratorDriverRunResult RunGenerator(string consumerSource)
     {
         CSharpCompilation compilation = CreateCompilation(new[] { RuntimeStubSource, consumerSource });
-        GeneratorDriver driver = CSharpGeneratorDriver.Create(new DemandDrivenForEachGenerator().AsSourceGenerator());
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            new ISourceGenerator[]
+            {
+                new DemandDrivenForEachGenerator().AsSourceGenerator(),
+                new GeneratedStructuralGenerator().AsSourceGenerator()
+            });
         driver = driver.RunGenerators(compilation);
         return driver.GetRunResult();
     }
@@ -463,7 +497,11 @@ public sealed class DemandDrivenForEachGeneratorTests
     {
         CSharpCompilation compilation = CreateCompilation(new[] { RuntimeStubSource }.Concat(consumerSources));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
-            new[] { new DemandDrivenForEachGenerator().AsSourceGenerator() },
+            new ISourceGenerator[]
+            {
+                new DemandDrivenForEachGenerator().AsSourceGenerator(),
+                new GeneratedStructuralGenerator().AsSourceGenerator()
+            },
             Array.Empty<AdditionalText>(),
             new CSharpParseOptions(LanguageVersion.Latest),
             new FixedAnalyzerConfigOptionsProvider("Delta.ECS.Generated"),
@@ -574,6 +612,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         public sealed class ComponentLayoutRegistry
         {
             public ComponentId GetPrimary(Type type) => default;
+            public ComponentId GetPrimary<T>() => default;
         }
         public ref struct ReadRow
         {
@@ -692,8 +731,13 @@ public sealed class DemandDrivenForEachGeneratorTests
         public sealed partial class World
         {
             public ComponentLayoutRegistry Layouts { get; } = new();
+            public EntitySequence From(ReadOnlySpan<Entity> entities) => default;
             public Query CreateQuery(in QuerySpec spec) => default;
             public QueryScope BeginScope(in Query query) => default;
+            public int Add(ReadOnlySpan<ComponentId> components, ReadOnlySpan<Entity> entities) => 0;
+            public int Remove(ReadOnlySpan<ComponentId> components, ReadOnlySpan<Entity> entities) => 0;
+            public int Add(in Query query, ReadOnlySpan<ComponentId> components) => 0;
+            public int Remove(in Query query, ReadOnlySpan<ComponentId> components) => 0;
             public void ForEach(in Query query, ForEachAction action) { }
             public void ForEachEntity(in Query query, ForEachEntityAction action) { }
             public void ForEach<TContext>(in Query query, ref TContext context, ForEachContextAction<TContext> action) { }
@@ -730,12 +774,40 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public World GeneratedWorld => new();
             public ReadOnlySpan<Entity> GeneratedEntities => default;
+            public FilteredEntitySequence Where(in Query query) => default;
+            public int Add(ReadOnlySpan<ComponentId> components) => 0;
+            public int Remove(ReadOnlySpan<ComponentId> components) => 0;
         }
         public readonly ref partial struct FilteredEntitySequence
         {
             public World GeneratedWorld => new();
             public ReadOnlySpan<Entity> GeneratedEntities => default;
             public Query GeneratedQuery => default;
+            public int Add(ReadOnlySpan<ComponentId> components) => 0;
+            public int Remove(ReadOnlySpan<ComponentId> components) => 0;
+        }
+        """;
+
+    private const string StructuralSource = """
+        namespace Delta.ECS;
+        using System;
+        struct Position { }
+        struct Velocity { }
+        static class StructuralConsumer
+        {
+            public static void Use(World world, Query query, ReadOnlySpan<Entity> entities)
+            {
+                world.Add<Position, Velocity>(entities);
+                world.Remove<Position, Velocity>(entities);
+                world.Add<Position, Velocity>(in query);
+                world.Remove<Position, Velocity>(in query);
+                EntitySequence sequence = world.From(entities);
+                sequence.Add<Position, Velocity>();
+                sequence.Remove<Position, Velocity>();
+                FilteredEntitySequence filtered = sequence.Where(in query);
+                filtered.Add<Position, Velocity>();
+                filtered.Remove<Position, Velocity>();
+            }
         }
         """;
 

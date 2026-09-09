@@ -266,6 +266,11 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowEntityDestinationTooSmall(string parameterName)
+        => throw new ArgumentException("Destination is too small for the requested entity count.", parameterName);
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static int ThrowComponentIdOutOfRange()
         => throw new ArgumentOutOfRangeException("componentId", "ComponentId must be a non-negative value.");
 

@@ -197,4 +197,31 @@ public static class ConsumerProof
         var sequenceFunctor = new SequenceFunctor();
         sequence.ForEachEntity(ref sequenceFunctor);
     }
+
+    public static int RunStructural()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(11));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(12));
+        ComponentId accelerationId = layouts.Register<Acceleration>(new SchemaId(13));
+        using var world = new World(layouts);
+        Entity[] entities = world.Create(stackalloc[] { positionId }, 4);
+
+        int total = world.Add<Velocity, Acceleration>(entities);
+        total += world.Remove<Velocity, Acceleration>(entities);
+
+        Query query = world.CreateQuery(QuerySpec.WhereAll(stackalloc[] { positionId }));
+        total += world.Add<Velocity, Acceleration>(in query);
+        total += world.Remove<Velocity, Acceleration>(in query);
+
+        EntitySequence sequence = world.From(entities);
+        total += sequence.Add<Velocity, Acceleration>();
+        total += sequence.Remove<Velocity, Acceleration>();
+
+        FilteredEntitySequence filtered = sequence.Where(in query);
+        total += filtered.Add<Velocity, Acceleration>();
+        total += filtered.Remove<Velocity, Acceleration>();
+
+        return total;
+    }
 }

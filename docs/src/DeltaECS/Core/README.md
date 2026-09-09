@@ -29,7 +29,10 @@ Atomic and batch operations use the same names through overloads:
 
 ```csharp
 Entity entity = world.Create(positionId, velocityId);
+var destination = new Entity[1_000];
 int created = world.Create(moving, destination);
+Entity[] createdBatch = world.Create(stackalloc[] { positionId, velocityId }, 1_000);
+int createdIntoBuffer = world.Create(stackalloc[] { positionId }, 1_000, destination);
 
 bool destroyed = world.Destroy(entity);
 int destroyedCount = world.Destroy(entities);
@@ -38,6 +41,11 @@ world.Add(componentIds, entity);
 int added = world.Add(componentIds, entities);
 int queryAdded = world.Add(in query, componentIds);
 ```
+
+The same kernels also accept `ReadOnlySpan<ComponentId>` for caller-owned
+stack-only component sets. The `DeltaECS.Generators` analyzer builds generic
+primary-component façades such as `world.Add<Position, Velocity>(entities)`
+and `world.Remove<Position, Velocity>(in query)` on demand.
 
 Structural changes are immediate. Mutation is rejected while a conflicting
 query scope owns a row lease.

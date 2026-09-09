@@ -37,7 +37,13 @@ public readonly ref partial struct EntitySequence
 
     public int Add(ComponentId[] componentIds) => _world.Add(componentIds, _entities);
 
+    /// <summary>Adds a component set to every live entity in this sequence.</summary>
+    public int Add(ReadOnlySpan<ComponentId> componentIds) => _world.Add(componentIds, _entities);
+
     public int Remove(ComponentId[] componentIds) => _world.Remove(componentIds, _entities);
+
+    /// <summary>Removes a component set from every live entity in this sequence.</summary>
+    public int Remove(ReadOnlySpan<ComponentId> componentIds) => _world.Remove(componentIds, _entities);
 
     public int Destroy() => _world.Destroy(_entities);
 }
@@ -78,7 +84,13 @@ public readonly ref partial struct FilteredEntitySequence
 
     public int Add(ComponentId[] componentIds) => _world.Add(_entities, in _query, componentIds);
 
+    /// <summary>Adds a component set to every entity passing this sequence filter.</summary>
+    public int Add(ReadOnlySpan<ComponentId> componentIds) => _world.Add(_entities, in _query, componentIds);
+
     public int Remove(ComponentId[] componentIds) => _world.Remove(_entities, in _query, componentIds);
+
+    /// <summary>Removes a component set from every entity passing this sequence filter.</summary>
+    public int Remove(ReadOnlySpan<ComponentId> componentIds) => _world.Remove(_entities, in _query, componentIds);
 
     public int Destroy() => _world.Destroy(_entities, in _query);
 }

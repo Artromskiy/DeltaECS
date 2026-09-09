@@ -55,6 +55,17 @@ int removed = world.From(entities).Where(in query).Remove(componentIds);
 int destroyed = world.From(entities).Destroy();
 ```
 
+When the consumer references `DeltaECS.Generators`, the same terminals can
+resolve primary component registrations by generic type without an ID array:
+
+```csharp
+int added = world.From(entities).Add<Position, Velocity>();
+int removed = world.From(entities).Where(in query).Remove<Position, Velocity>();
+```
+
+The generated façade uses a stack-only ID span and delegates to these existing
+sequence kernels. Added components are default-initialized.
+
 `Add`, `Remove`, and `Destroy` forward to the world batch kernels. Filtered
 terminals collect matching candidates in reusable world-owned scratch before
 calling those kernels; they do not rent a new array per call.

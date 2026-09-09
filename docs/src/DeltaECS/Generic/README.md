@@ -18,7 +18,11 @@ first primary registration.
 
 ```csharp
 Entity entity = world.Create(positionId, new Position());
+Entity[] entities = world.Create(stackalloc[] { positionId }, 10);
+var destination = new Entity[10];
+int typedCreated = world.Create<Position>(positionId, 10, destination);
 world.Add(entity, velocityId, new Velocity());
+int added = world.Add(entities, velocityId, new Velocity());
 
 if (world.TryGet(entity, positionId, out Position position))
 {
@@ -27,11 +31,35 @@ if (world.TryGet(entity, positionId, out Position position))
 }
 
 world.Remove<Velocity>(entity, velocityId);
+int removed = world.Remove<Velocity>(entities, velocityId);
 ```
 
 These helpers validate `ComponentId` against `T` and delegate to the core
-structural/storage operations. They are intended for individual entities, not
-as an iteration kernel.
+structural/storage operations. Batch `Add<T>` initializes the newly added row
+with the same value for every eligible entity; batch `Remove<T>` returns the
+number of structural transitions. Stale handles and entities that already have
+or do not have the component are skipped.
+
+## Generated primary-component batches
+
+With the `DeltaECS.Generators` analyzer, generic structural façades are emitted
+for the arities used by the consumer:
+
+```csharp
+int added = world.Add<Position, Velocity>(entities);
+int removed = world.Remove<Position, Velocity>(entities);
+int queryAdded = world.Add<Position, Velocity>(in query);
+int queryRemoved = world.Remove<Position, Velocity>(in query);
+
+int sequenceAdded = world.From(entities).Add<Position, Velocity>();
+int sequenceRemoved = world.From(entities).Remove<Position, Velocity>();
+```
+
+These forms operate on the primary registration of each type, pass a generated
+stack-only component-ID span to the existing structural kernels, and return the
+number of changed entities. Added rows are default-initialized. The generator
+supports arities one through 256 on demand; the limit applies to generated
+generic methods, not to the number of component IDs registered by a world.
 
 ## Terminal row access
 

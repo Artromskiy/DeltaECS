@@ -6,9 +6,9 @@ it is build-time input and must not be deployed as a runtime dependency. The
 package README is at
 [docs/packages/DeltaECS.Generators.README.md](../../packages/DeltaECS.Generators.README.md).
 
-The analyzer emits only the `ForEach` and `ForEachEntity` shapes requested by a
-consumer compilation. It does not generate storage, queries, archetypes or
-structural kernels.
+The analyzer emits only the callback and generic structural-operation shapes
+requested by a consumer compilation. It does not generate storage, queries,
+archetypes or structural kernels.
 
 - Zero-component delegate overloads are handwritten in DeltaECS. Component-
   bearing delegate and functor overloads are generated from the consumer's
@@ -46,6 +46,32 @@ structural kernels.
 - Functors implement only `IForEach`, `IForEachEntity`,
   `IForEachContext<TContext>`, or `IForEachContextEntity<TContext>`; generated
   interface names never contain component types or read/write patterns.
+
+## Generic structural operations
+
+The generator also emits only the generic `Add`/`Remove` arities used by the
+consumer. The type arguments resolve each type's primary registration and the
+runtime receives a stack-only `ReadOnlySpan<ComponentId>`; no `ComponentId[]`
+is allocated by the generated façade:
+
+```csharp
+int added = world.Add<Position, Velocity>(entities);
+int removed = world.Remove<Position, Velocity>(entities);
+
+int queryAdded = world.Add<Position, Velocity>(in query);
+int queryRemoved = world.Remove<Position, Velocity>(in query);
+
+int sequenceAdded = world.From(entities).Add<Position, Velocity>();
+int sequenceRemoved = world.From(entities).Remove<Position, Velocity>();
+```
+
+The same sequence terminals are available after `Where(in query)`. Structural
+operations add or remove the primary component registrations and return the
+number of entities changed. Newly added rows are default-initialized; use the
+existing typed `World.Add<T>(..., ComponentId, in T)` overload when a value must
+be initialized during the transition. Generic structural forms support arity
+one through 256 on demand; this generator limit is independent of the dynamic
+number of registered component IDs.
 
 ## Optional Roslyn interceptor path
 
