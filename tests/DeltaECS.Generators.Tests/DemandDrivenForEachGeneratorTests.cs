@@ -330,6 +330,19 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void CSharp9FallsBackToOrdinaryGeneratedForEach()
+    {
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(
+            InterceptionSource,
+            LanguageVersion.CSharp9);
+        string generated = GeneratedText(run);
+
+        Assert.That(generated, Does.Not.Contain("DemandForEachInterceptor_"));
+        Assert.That(generated, Does.Not.Contain("InterceptsLocationAttribute"));
+        Assert.That(run.Diagnostics, Is.Empty, string.Join(Environment.NewLine, run.Diagnostics.Select(static diagnostic => diagnostic.ToString())));
+    }
+
+    [Test]
     public void InterceptedCallSitesKeepTheirUsingAliasesIsolated()
     {
         string[] consumerSources =
@@ -522,9 +535,21 @@ public sealed class DemandDrivenForEachGeneratorTests
     private static GeneratorDriverRunResult RunGeneratorWithInterceptors(string consumerSource)
         => RunGeneratorWithInterceptors(new[] { consumerSource });
 
+    private static GeneratorDriverRunResult RunGeneratorWithInterceptors(
+        string consumerSource,
+        LanguageVersion languageVersion)
+        => RunGeneratorWithInterceptors(new[] { consumerSource }, languageVersion);
+
     private static GeneratorDriverRunResult RunGeneratorWithInterceptors(IEnumerable<string> consumerSources)
+        => RunGeneratorWithInterceptors(consumerSources, LanguageVersion.Latest);
+
+    private static GeneratorDriverRunResult RunGeneratorWithInterceptors(
+        IEnumerable<string> consumerSources,
+        LanguageVersion languageVersion)
     {
-        CSharpCompilation compilation = CreateCompilation(new[] { RuntimeStubSource }.Concat(consumerSources));
+        CSharpCompilation compilation = CreateCompilation(
+            new[] { RuntimeStubSource }.Concat(consumerSources),
+            languageVersion);
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             new ISourceGenerator[]
             {
@@ -533,7 +558,7 @@ public sealed class DemandDrivenForEachGeneratorTests
                 new GeneratedQueryGenerator().AsSourceGenerator()
             },
             Array.Empty<AdditionalText>(),
-            new CSharpParseOptions(LanguageVersion.Latest),
+            new CSharpParseOptions(languageVersion),
             new FixedAnalyzerConfigOptionsProvider("Delta.ECS.Generated"),
             default);
         driver = driver.RunGenerators(compilation);
@@ -547,14 +572,16 @@ public sealed class DemandDrivenForEachGeneratorTests
                 .OrderBy(static tree => tree.FilePath, StringComparer.Ordinal)
                 .Select(static tree => tree.GetText().ToString()));
 
-    private static CSharpCompilation CreateCompilation(IEnumerable<string> sources)
+    private static CSharpCompilation CreateCompilation(
+        IEnumerable<string> sources,
+        LanguageVersion languageVersion = LanguageVersion.Latest)
     {
         var references = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
             .Select(static path => MetadataReference.CreateFromFile(path));
         return CSharpCompilation.Create(
             "DeltaEcsGeneratorHarness",
-            sources.Select(static source => CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Latest))),
+            sources.Select(source => CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(languageVersion))),
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
     }

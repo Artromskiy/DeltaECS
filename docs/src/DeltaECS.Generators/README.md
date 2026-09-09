@@ -91,10 +91,9 @@ the existing `World.CreateQuery(in QuerySpec)` path. The factories are emitted
 on demand for arities one through 256; no generic query plan or runtime type
 dictionary is introduced.
 
-`DeltaECS.Generators` builds for both `netstandard2.0` and `netstandard2.1`.
-The analyzer package keeps its broadly compatible `netstandard2.0` assembly in
-`analyzers/dotnet/cs`; the additional `netstandard2.1` target is available for
-host/build validation without creating duplicate analyzer loads.
+`DeltaECS.Generators` targets `netstandard2.0`. The analyzer package keeps this
+broadly compatible assembly in `analyzers/dotnet/cs`; the target of the
+consumer project remains independent from the target of the analyzer.
 
 ## Optional Roslyn interceptor path
 
@@ -127,6 +126,13 @@ functor; a method group functor forwards directly to its resolved static
 method. Both forms enter the same closed dense execution method as the
 explicit functor API. Query ownership, leases, mutation stamps and write-row
 marking therefore remain in the shared runtime path.
+
+When the consumer uses C# 9 or C# 10, including Unity projects with a
+`netstandard2.1` API profile, the generator skips interceptor source because
+the language cannot parse the required interceptor/file declarations. Ordinary
+demand-generated `ForEach` overloads remain available and the public API is
+unchanged. Interception is used only when the consumer language version
+supports it.
 
 Capturing and async lambdas, instance or ambiguous method groups, pre-created
 delegates, generic method-group targets, generic containing types/methods,

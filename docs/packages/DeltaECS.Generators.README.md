@@ -21,10 +21,14 @@ Query any = world.WhereAny<Velocity, Acceleration>();
 Query none = world.WhereNone<Lifetime>();
 ```
 
-The generator project targets both `netstandard2.0` and `netstandard2.1`.
-The package uses the `netstandard2.0` analyzer asset for compatibility with
-Roslyn hosts while the `netstandard2.1` target is built and verified as part
-of the generator project.
+The generator targets `netstandard2.0` and is shipped from
+`analyzers/dotnet/cs`. Its target is independent from the target framework of
+the consumer project.
+
+Consumers using C# 9 or C# 10, including Unity projects with a
+`netstandard2.1` API profile, automatically use ordinary generated `ForEach`
+overloads. Interceptor source is emitted only when the consumer language
+version can parse the required interceptor declarations.
 
 For the optional interceptor path, configure the consumer project as described
 in the [generator documentation](https://github.com/Artromskiy/DeltaECS/blob/main/docs/src/DeltaECS.Generators/README.md).

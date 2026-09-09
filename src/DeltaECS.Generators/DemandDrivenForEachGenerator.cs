@@ -102,6 +102,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
     {
         bool profiling = compilation.GetTypeByMetadataName("DeltaECS.Profiling.ProfilerRuntime") is not null
             && compilation.GetTypeByMetadataName("DeltaECS.Profiling.ProfiledMethodMetadataAttribute") is not null;
+        bool languageSupportsInterceptors = SupportsInterceptors(compilation);
         var shapes = new Dictionary<string, Shape>(StringComparer.Ordinal);
         var interceptionSites = new Dictionary<string, List<InterceptionSite>>(StringComparer.Ordinal);
         foreach (SyntaxTree tree in compilation.SyntaxTrees)
@@ -137,7 +138,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                     shapes.Add(key, candidate);
                 }
 
-                if (interceptorsEnabled && !candidate.IsFunctor)
+                if (interceptorsEnabled && languageSupportsInterceptors && !candidate.IsFunctor)
                 {
                     if (TryCreateInterceptionSite(model, invocation, candidate, tree, out InterceptionSite? site, out string? reason)
                         && site is { } interceptionSite)
@@ -190,6 +191,10 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             && namespaces
                 .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
                 .Any(static value => string.Equals(value.Trim(), InterceptorNamespace, StringComparison.Ordinal));
+
+    private static bool SupportsInterceptors(Compilation compilation)
+        => compilation.SyntaxTrees.FirstOrDefault()?.Options is CSharpParseOptions options
+            && options.LanguageVersion >= LanguageVersion.CSharp11;
 
     private static bool TryCreateInterceptionSite(
         SemanticModel model,
