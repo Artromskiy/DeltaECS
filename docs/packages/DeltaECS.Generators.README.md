@@ -25,6 +25,11 @@ The generator targets `netstandard2.0` and is shipped from
 `analyzers/dotnet/cs`. Its target is independent from the target framework of
 the consumer project.
 
+The generator is compiled against `Microsoft.CodeAnalysis.CSharp 4.3.0`, which
+is the Roslyn version required by Unity 6 source-generator projects. On newer
+Roslyn hosts the optional interceptor path is detected dynamically; Unity/C# 9
+consumers use the ordinary generated path.
+
 Consumers using C# 9 or C# 10, including Unity projects with a
 `netstandard2.1` API profile, automatically use ordinary generated `ForEach`
 overloads. Interceptor source is emitted only when the consumer language

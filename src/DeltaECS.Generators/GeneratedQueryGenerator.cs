@@ -159,7 +159,7 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
         source.AppendLine("    }");
         source.AppendLine("}");
         source.AppendLine("}");
-        return source.ToString();
+        return GeneratedSourceFormatter.Format(source.ToString());
     }
 
     private static string GenericTypes(int arity)

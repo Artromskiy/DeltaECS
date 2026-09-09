@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -15,6 +16,7 @@ namespace Delta.ECS.Generators;
 [Generator]
 public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 {
+    private const int FirstInterceptorLanguageVersion = 1100;
     private const string InterceptorNamespace = "Delta.ECS.Generated";
     private const int FirstDemandArity = 1;
     private const int MaxArity = 256;
@@ -195,7 +197,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
     private static bool SupportsInterceptors(Compilation compilation)
         => compilation.SyntaxTrees.FirstOrDefault()?.Options is CSharpParseOptions options
-            && options.LanguageVersion >= LanguageVersion.CSharp11;
+            && (int)options.LanguageVersion >= FirstInterceptorLanguageVersion;
 
     private static bool TryCreateInterceptionSite(
         SemanticModel model,
@@ -315,8 +317,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return false;
         }
 
-        InterceptableLocation? location = model.GetInterceptableLocation(invocation, default);
-        if (location is null)
+        if (!TryGetInterceptionLocation(model, invocation, out string locationData, out string attributeSyntax))
         {
             reason = "Roslyn did not provide an interceptable location for this call";
             return false;
@@ -358,15 +359,75 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             }
         }
 
-        string id = StableName(shape.Key + "|" + location.Data);
+        string id = StableName(shape.Key + "|" + locationData);
         site = new InterceptionSite(
             id,
             shape,
             lambda,
             methodGroup,
-            location.GetInterceptsLocationAttributeSyntax().ToString(),
+            attributeSyntax,
             usings);
         return true;
+    }
+
+    private static bool TryGetInterceptionLocation(
+        SemanticModel model,
+        InvocationExpressionSyntax invocation,
+        out string data,
+        out string attributeSyntax)
+    {
+        data = string.Empty;
+        attributeSyntax = string.Empty;
+        MethodInfo? getLocation = typeof(Microsoft.CodeAnalysis.CSharp.CSharpExtensions)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .FirstOrDefault(static method =>
+            {
+                if (method.Name != "GetInterceptableLocation")
+                {
+                    return false;
+                }
+
+                ParameterInfo[] parameters = method.GetParameters();
+                return parameters.Length == 3
+                    && parameters[0].ParameterType == typeof(SemanticModel)
+                    && parameters[1].ParameterType == typeof(InvocationExpressionSyntax);
+            });
+        if (getLocation is null)
+        {
+            return false;
+        }
+
+        object? location = getLocation.Invoke(null, new object?[] { model, invocation, default });
+        if (location is null)
+        {
+            return false;
+        }
+
+        PropertyInfo? dataProperty = location.GetType().GetProperty("Data");
+        data = dataProperty?.GetValue(location) as string ?? string.Empty;
+        if (data.Length == 0)
+        {
+            return false;
+        }
+
+        MethodInfo? getAttribute = typeof(Microsoft.CodeAnalysis.CSharp.CSharpExtensions)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .FirstOrDefault(static method =>
+            {
+                if (method.Name != "GetInterceptsLocationAttributeSyntax")
+                {
+                    return false;
+                }
+
+                return method.GetParameters().Length == 1;
+            });
+        if (getAttribute is null)
+        {
+            return false;
+        }
+
+        attributeSyntax = getAttribute.Invoke(null, new[] { location })?.ToString() ?? string.Empty;
+        return attributeSyntax.Length > 0;
     }
 
     private static bool AreLambdaReferencesAccessible(
@@ -881,20 +942,25 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         => string.Join(string.Empty, method.Parameters.Select(static parameter => PatternLetter(parameter.RefKind)));
 
     private static bool IsSupportedComponentRefKind(RefKind refKind)
-        => refKind is RefKind.None
-            or RefKind.In
-            or RefKind.Ref
-            or RefKind.RefReadOnly
-            or RefKind.RefReadOnlyParameter;
+        => refKind == RefKind.None
+            || refKind == RefKind.In
+            || refKind == RefKind.Ref
+            || (int)refKind is 4 or 5;
 
     private static char PatternLetter(RefKind refKind)
-        => refKind switch
+    {
+        if (refKind == RefKind.Ref)
         {
-            RefKind.Ref => 'W',
-            RefKind.In => 'I',
-            RefKind.RefReadOnly or RefKind.RefReadOnlyParameter => 'R',
-            _ => 'V'
-        };
+            return 'W';
+        }
+
+        if (refKind == RefKind.In)
+        {
+            return 'I';
+        }
+
+        return (int)refKind is 4 or 5 ? 'R' : 'V';
+    }
 
     private static bool IsAccessibleToGeneratedCode(INamedTypeSymbol functorType)
     {
@@ -1199,7 +1265,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         RenderExtensions(source, shape, profiling);
         source.AppendLine("}");
-        return source.ToString();
+        return GeneratedSourceFormatter.Format(source.ToString());
     }
 
     private static void RenderContracts(StringBuilder source, Shape shape)
@@ -1779,7 +1845,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         RenderInterceptor(source, shape, site);
 
         source.Append(InterceptorSourceFooter);
-        return source.ToString();
+        return GeneratedSourceFormatter.Format(source.ToString());
     }
 
     private static void RenderInterceptedCallback(StringBuilder source, InterceptionSite site)

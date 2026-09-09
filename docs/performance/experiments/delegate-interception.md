@@ -73,10 +73,12 @@ interceptor method model.
 ## Current SDK
 
 The worktree's .NET SDK 10.0.301 / Roslyn compiler accepts the generated
-interceptors. The generator references Microsoft.CodeAnalysis.CSharp 4.13.0
-because the earlier 4.9.2 package did not expose the interceptable-location
-generation API used here. The implementation remains opt-in and does not
-claim support for SDKs whose compiler does not expose that API.
+interceptors. The generator itself is compiled against
+`Microsoft.CodeAnalysis.CSharp 4.3.0`, matching Unity 6's source-generator
+requirement. Interceptable-location APIs are discovered optionally at runtime:
+newer Roslyn hosts can use the interceptor path, while Unity/Roslyn 4.3 hosts
+fall back to ordinary generated `ForEach` source without loading newer Roslyn
+types.
 
 Benchmark and JIT results for the baseline delegate path versus the
 intercepted path are recorded in the [experiment ledger](README.md).
