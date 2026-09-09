@@ -224,4 +224,43 @@ public static class ConsumerProof
 
         return total;
     }
+
+    public static int RunGenericQueries()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(21));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(22));
+        ComponentId accelerationId = layouts.Register<Acceleration>(new SchemaId(23));
+        ComponentId lifetimeId = layouts.Register<Lifetime>(new SchemaId(24));
+        using var world = new World(layouts, chunkCapacity: 2);
+        world.Create(stackalloc[] { positionId, velocityId });
+        world.Create(stackalloc[] { positionId, accelerationId });
+
+        Query all = world.WhereAll<Position, Velocity>();
+        Query any = world.WhereAny<Velocity, Acceleration>();
+        Query none = world.WhereNone<Lifetime>();
+
+        return Count(world, all) == 1 && Count(world, any) == 2 && Count(world, none) == 2 ? 1 : 0;
+    }
+
+    private static int Count(World world, in Query query)
+    {
+        int count = 0;
+        using var scope = world.BeginScope(in query);
+        var archetypes = scope.Archetypes;
+        while (archetypes.MoveNext())
+        {
+            var chunks = archetypes.Current.Chunks;
+            while (chunks.MoveNext())
+            {
+                var slots = chunks.Current.Slots;
+                while (slots.MoveNext())
+                {
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
 }

@@ -73,6 +73,29 @@ be initialized during the transition. Generic structural forms support arity
 one through 256 on demand; this generator limit is independent of the dynamic
 number of registered component IDs.
 
+## Generic query factories
+
+The generator also emits only the typed query factories used by a consumer.
+They are extensions on `World`, so the runtime query and storage types remain
+non-generic:
+
+```csharp
+Query movement = world.WhereAll<Position, Velocity>();
+Query movingOrAccelerating = world.WhereAny<Velocity, Acceleration>();
+Query withoutLifetime = world.WhereNone<Lifetime>();
+```
+
+Each generated factory resolves primary component registrations through
+`world.Layouts.GetPrimary<T>()`, fills a stack-only `ComponentId` span and calls
+the existing `World.CreateQuery(in QuerySpec)` path. The factories are emitted
+on demand for arities one through 256; no generic query plan or runtime type
+dictionary is introduced.
+
+`DeltaECS.Generators` builds for both `netstandard2.0` and `netstandard2.1`.
+The analyzer package keeps its broadly compatible `netstandard2.0` assembly in
+`analyzers/dotnet/cs`; the additional `netstandard2.1` target is available for
+host/build validation without creating duplicate analyzer loads.
+
 ## Optional Roslyn interceptor path
 
 Consumers targeting an SDK with Roslyn interceptor support may opt in per

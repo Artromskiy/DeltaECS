@@ -2554,7 +2554,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         if (hasAction)
         {
-            body.Append(indent).AppendLine("ArgumentNullException.ThrowIfNull(action);");
+            body.Append(indent).AppendLine(
+                "global::Delta.ECS.GeneratedForEachRuntime.ThrowIfNull(action, nameof(action));");
         }
 
         body.Append(indent).Append(setup);

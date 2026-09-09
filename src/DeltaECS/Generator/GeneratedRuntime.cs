@@ -352,6 +352,12 @@ public ref struct GeneratedSequenceCursor
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static class GeneratedForEachRuntime
 {
+    /// <summary>Validates a generated callback without requiring a modern BCL.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ThrowIfNull(object? value, string parameterName)
+        => ThrowHelper.ThrowIfNull(value, parameterName);
+
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void IncrementArchetypeStamp(Stamp[] stamps, int componentIndex)

@@ -452,6 +452,12 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void RealConsumerProjectExecutesGeneratedQueryPaths()
+    {
+        Assert.That(ConsumerProof.RunGenericQueries(), Is.EqualTo(1));
+    }
+
+    [Test]
     public void StructuralGeneratorEmitsOnlyUsedGenericShapes()
     {
         GeneratorDriverRunResult run = RunGenerator(StructuralSource);
@@ -474,6 +480,28 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
+    [Test]
+    public void QueryGeneratorEmitsTypedWorldFactories()
+    {
+        GeneratorDriverRunResult run = RunGenerator(GenericQuerySource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty);
+        Assert.That(generated, Does.Contain("public static Query WhereAll<T1, T2>(this World world)"));
+        Assert.That(generated, Does.Contain("public static Query WhereAny<T1, T2, T3>(this World world)"));
+        Assert.That(generated, Does.Contain("public static Query WhereNone<T1>(this World world)"));
+        Assert.That(generated, Does.Contain("world.Layouts.GetPrimary<T1>()"));
+        Assert.That(generated, Does.Contain("QuerySpec.WhereAny(components)"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, GenericQuerySource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
     private static GeneratorDriverRunResult RunGenerator()
         => RunGenerator(ConsumerSource);
 
@@ -484,7 +512,8 @@ public sealed class DemandDrivenForEachGeneratorTests
             new ISourceGenerator[]
             {
                 new DemandDrivenForEachGenerator().AsSourceGenerator(),
-                new GeneratedStructuralGenerator().AsSourceGenerator()
+                new GeneratedStructuralGenerator().AsSourceGenerator(),
+                new GeneratedQueryGenerator().AsSourceGenerator()
             });
         driver = driver.RunGenerators(compilation);
         return driver.GetRunResult();
@@ -500,7 +529,8 @@ public sealed class DemandDrivenForEachGeneratorTests
             new ISourceGenerator[]
             {
                 new DemandDrivenForEachGenerator().AsSourceGenerator(),
-                new GeneratedStructuralGenerator().AsSourceGenerator()
+                new GeneratedStructuralGenerator().AsSourceGenerator(),
+                new GeneratedQueryGenerator().AsSourceGenerator()
             },
             Array.Empty<AdditionalText>(),
             new CSharpParseOptions(LanguageVersion.Latest),
@@ -597,6 +627,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         public readonly struct QuerySpec
         {
             public static QuerySpec WhereAll(ReadOnlySpan<ComponentId> components) => default;
+            public static QuerySpec WhereAny(ReadOnlySpan<ComponentId> components) => default;
+            public static QuerySpec WhereNone(ReadOnlySpan<ComponentId> components) => default;
         }
         public readonly struct Query { }
         public readonly struct ReadAccess { }
@@ -701,6 +733,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         public interface IGeneratedArchetypeStampWriter { void Write(Stamp[] stamps); }
         public static class GeneratedForEachRuntime
         {
+            public static void ThrowIfNull(object? value, string parameterName) { }
             public static ref T GetGeneratedRow<T>(Array[] componentRows, int queryComponentIndex) => throw new NotImplementedException();
             public static GeneratedDenseExecution OpenDense(World world, in Query query, bool hasWrites) => default;
             public static GeneratedDenseExecution OpenWriteDense(World world, in Query query) => default;
@@ -807,6 +840,25 @@ public sealed class DemandDrivenForEachGeneratorTests
                 FilteredEntitySequence filtered = sequence.Where(in query);
                 filtered.Add<Position, Velocity>();
                 filtered.Remove<Position, Velocity>();
+            }
+        }
+        """;
+
+    private const string GenericQuerySource = """
+        namespace Delta.ECS;
+        struct Position { }
+        struct Velocity { }
+        struct Acceleration { }
+        static class QueryConsumer
+        {
+            public static void Use(World world)
+            {
+                Query all = world.WhereAll<Position, Velocity>();
+                Query any = world.WhereAny<Position, Velocity, Acceleration>();
+                Query none = world.WhereNone<Acceleration>();
+                _ = all;
+                _ = any;
+                _ = none;
             }
         }
         """;
