@@ -49,6 +49,8 @@ internal struct DeltaCompositionPadding3
 
 internal static class DeltaOperations
 {
+    internal const int ParallelWorkerCount = 4;
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void Update(ref DeltaComponent1 component)
     {
@@ -77,12 +79,15 @@ internal sealed class DeltaCreateOneContext : IDisposable
 
     internal DeltaComponentId[] Components { get; }
 
+    internal DeltaEntity[] Entities { get; }
+
     internal DeltaCreateOneContext()
     {
         DeltaLayoutRegistry layouts = new();
         DeltaComponentId component = layouts.Register<DeltaComponent1>(new DeltaSchemaId(900_001));
         World = new DeltaWorld(layouts, initialEntityCapacity: BenchmarkConfiguration.EntityCount);
         Components = [component];
+        Entities = new DeltaEntity[BenchmarkConfiguration.EntityCount];
     }
 
     void IDisposable.Dispose() => World.Dispose();
@@ -94,6 +99,8 @@ internal sealed class DeltaCreateTwoContext : IDisposable
 
     internal DeltaComponentId[] Components { get; }
 
+    internal DeltaEntity[] Entities { get; }
+
     internal DeltaCreateTwoContext()
     {
         DeltaLayoutRegistry layouts = new();
@@ -101,6 +108,7 @@ internal sealed class DeltaCreateTwoContext : IDisposable
         DeltaComponentId second = layouts.Register<DeltaComponent2>(new DeltaSchemaId(900_003));
         World = new DeltaWorld(layouts, initialEntityCapacity: BenchmarkConfiguration.EntityCount);
         Components = [first, second];
+        Entities = new DeltaEntity[BenchmarkConfiguration.EntityCount];
     }
 
     void IDisposable.Dispose() => World.Dispose();
@@ -112,6 +120,8 @@ internal sealed class DeltaCreateThreeContext : IDisposable
 
     internal DeltaComponentId[] Components { get; }
 
+    internal DeltaEntity[] Entities { get; }
+
     internal DeltaCreateThreeContext()
     {
         DeltaLayoutRegistry layouts = new();
@@ -120,6 +130,7 @@ internal sealed class DeltaCreateThreeContext : IDisposable
         DeltaComponentId third = layouts.Register<DeltaComponent3>(new DeltaSchemaId(900_006));
         World = new DeltaWorld(layouts, initialEntityCapacity: BenchmarkConfiguration.EntityCount);
         Components = [first, second, third];
+        Entities = new DeltaEntity[BenchmarkConfiguration.EntityCount];
     }
 
     void IDisposable.Dispose() => World.Dispose();
@@ -138,14 +149,17 @@ internal sealed class DeltaSystemOneContext : IDisposable
         DeltaComponentId padding = layouts.Register<DeltaComponentPadding>(new DeltaSchemaId(901_000));
         World = new DeltaWorld(layouts, initialEntityCapacity: entityCount * (entityPadding + 1));
 
-        for (int i = 0; i < entityCount; i++)
+        if (entityPadding != 0)
         {
-            for (int j = 0; j < entityPadding; j++)
-            {
-                World.Create(padding);
-            }
+            DeltaEntity[] paddingEntities = new DeltaEntity[entityCount * entityPadding];
+            World.Create(stackalloc[] { padding }, paddingEntities.Length, paddingEntities);
+        }
 
-            DeltaEntity entity = World.Create(component);
+        DeltaEntity[] entities = new DeltaEntity[entityCount];
+        World.Create(stackalloc[] { component }, entityCount, entities);
+        for (int i = 0; i < entities.Length; i++)
+        {
+            DeltaEntity entity = entities[i];
             World.Set(entity, component, new DeltaComponent1 { Value = 1 });
         }
 
@@ -173,14 +187,17 @@ internal sealed class DeltaSystemTwoContext : IDisposable
         DeltaComponentId padding = layouts.Register<DeltaComponentPadding>(new DeltaSchemaId(901_000));
         World = new DeltaWorld(layouts, initialEntityCapacity: entityCount * (entityPadding + 1));
 
-        for (int i = 0; i < entityCount; i++)
+        if (entityPadding != 0)
         {
-            for (int j = 0; j < entityPadding; j++)
-            {
-                World.Create(padding);
-            }
+            DeltaEntity[] paddingEntities = new DeltaEntity[entityCount * entityPadding];
+            World.Create(stackalloc[] { padding }, paddingEntities.Length, paddingEntities);
+        }
 
-            DeltaEntity entity = World.Create(First, Second);
+        DeltaEntity[] entities = new DeltaEntity[entityCount];
+        World.Create(stackalloc[] { First, Second }, entityCount, entities);
+        for (int i = 0; i < entities.Length; i++)
+        {
+            DeltaEntity entity = entities[i];
             World.Set(entity, First, new DeltaComponent1 { Value = 1 });
             World.Set(entity, Second, new DeltaComponent2 { Value = 2 });
         }
@@ -212,14 +229,17 @@ internal sealed class DeltaSystemThreeContext : IDisposable
         DeltaComponentId padding = layouts.Register<DeltaComponentPadding>(new DeltaSchemaId(901_000));
         World = new DeltaWorld(layouts, initialEntityCapacity: entityCount * (entityPadding + 1));
 
-        for (int i = 0; i < entityCount; i++)
+        if (entityPadding != 0)
         {
-            for (int j = 0; j < entityPadding; j++)
-            {
-                World.Create(padding);
-            }
+            DeltaEntity[] paddingEntities = new DeltaEntity[entityCount * entityPadding];
+            World.Create(stackalloc[] { padding }, paddingEntities.Length, paddingEntities);
+        }
 
-            DeltaEntity entity = World.Create(First, Second, Third);
+        DeltaEntity[] entities = new DeltaEntity[entityCount];
+        World.Create(stackalloc[] { First, Second, Third }, entityCount, entities);
+        for (int i = 0; i < entities.Length; i++)
+        {
+            DeltaEntity entity = entities[i];
             World.Set(entity, First, new DeltaComponent1 { Value = 1 });
             World.Set(entity, Second, new DeltaComponent2 { Value = 2 });
             World.Set(entity, Third, new DeltaComponent3 { Value = 3 });
@@ -257,21 +277,24 @@ internal sealed class DeltaSystemMultipleCompositionContext : IDisposable
         DeltaComponentId[] composition2 = [First, Second, padding2];
         DeltaComponentId[] composition3 = [First, Second, padding3];
 
-        for (int i = 0; i < entityCount; i++)
+        CreateComposition(composition0, (entityCount + 3) / 4);
+        CreateComposition(composition1, (entityCount + 2) / 4);
+        CreateComposition(composition2, (entityCount + 1) / 4);
+        CreateComposition(composition3, entityCount / 4);
+
+        Query = World.CreateQuery(DeltaQuerySpec.WhereAll(First, Second));
+    }
+
+    private void CreateComposition(DeltaComponentId[] composition, int count)
+    {
+        DeltaEntity[] entities = new DeltaEntity[count];
+        World.Create(composition, count, entities);
+        for (int index = 0; index < entities.Length; index++)
         {
-            DeltaComponentId[] composition = (i & 3) switch
-            {
-                0 => composition0,
-                1 => composition1,
-                2 => composition2,
-                _ => composition3
-            };
-            DeltaEntity entity = World.Create(composition);
+            DeltaEntity entity = entities[index];
             World.Set(entity, First, new DeltaComponent1 { Value = 1 });
             World.Set(entity, Second, new DeltaComponent2 { Value = 2 });
         }
-
-        Query = World.CreateQuery(DeltaQuerySpec.WhereAll(First, Second));
     }
 
     void IDisposable.Dispose() => World.Dispose();
@@ -292,6 +315,13 @@ public partial class CreateEntityWithOneComponent
             _deltaEcs.World.Create(_deltaEcs.Components);
         }
     }
+
+    [BenchmarkCategory(Categories.DeltaECSBatch)]
+    [Benchmark]
+    public void DeltaECS_Batch()
+    {
+        _deltaEcs.World.Create(_deltaEcs.Components, EntityCount, _deltaEcs.Entities);
+    }
 }
 
 public partial class CreateEntityWithTwoComponents
@@ -309,6 +339,13 @@ public partial class CreateEntityWithTwoComponents
             _deltaEcs.World.Create(_deltaEcs.Components);
         }
     }
+
+    [BenchmarkCategory(Categories.DeltaECSBatch)]
+    [Benchmark]
+    public void DeltaECS_Batch()
+    {
+        _deltaEcs.World.Create(_deltaEcs.Components, EntityCount, _deltaEcs.Entities);
+    }
 }
 
 public partial class CreateEntityWithThreeComponents
@@ -325,6 +362,13 @@ public partial class CreateEntityWithThreeComponents
         {
             _deltaEcs.World.Create(_deltaEcs.Components);
         }
+    }
+
+    [BenchmarkCategory(Categories.DeltaECSBatch)]
+    [Benchmark]
+    public void DeltaECS_Batch()
+    {
+        _deltaEcs.World.Create(_deltaEcs.Components, EntityCount, _deltaEcs.Entities);
     }
 }
 
@@ -350,7 +394,8 @@ public partial class SystemWithOneComponent
     {
         _deltaEcs.World.ForEachParallel(
             in _deltaEcs.Query,
-            static (ref DeltaComponent1 component) => DeltaOperations.Update(ref component));
+            static (ref DeltaComponent1 component) => DeltaOperations.Update(ref component),
+            workerCount: DeltaOperations.ParallelWorkerCount);
     }
 }
 
@@ -378,7 +423,8 @@ public partial class SystemWithTwoComponents
         _deltaEcs.World.ForEachParallel(
             in _deltaEcs.Query,
             static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second) =>
-                DeltaOperations.Update(ref first, in second));
+                DeltaOperations.Update(ref first, in second),
+            workerCount: DeltaOperations.ParallelWorkerCount);
     }
 }
 
@@ -406,7 +452,8 @@ public partial class SystemWithThreeComponents
         _deltaEcs.World.ForEachParallel(
             in _deltaEcs.Query,
             static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second, ref readonly DeltaComponent3 third) =>
-                DeltaOperations.Update(ref first, in second, in third));
+                DeltaOperations.Update(ref first, in second, in third),
+            workerCount: DeltaOperations.ParallelWorkerCount);
     }
 }
 
@@ -434,7 +481,8 @@ public partial class SystemWithTwoComponentsMultipleComposition
         _deltaEcs.World.ForEachParallel(
             in _deltaEcs.Query,
             static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second) =>
-                DeltaOperations.Update(ref first, in second));
+                DeltaOperations.Update(ref first, in second),
+            workerCount: DeltaOperations.ParallelWorkerCount);
     }
 }
 
@@ -444,22 +492,13 @@ internal static class DeltaEcsSmoke
     {
         BenchmarkConfiguration.EntityCount = 32;
         using DeltaCreateOneContext createOne = new();
-        for (int i = 0; i < 32; i++)
-        {
-            createOne.World.Create(createOne.Components);
-        }
+        createOne.World.Create(createOne.Components, 32, new DeltaEntity[32]);
 
         using DeltaCreateTwoContext createTwo = new();
-        for (int i = 0; i < 32; i++)
-        {
-            createTwo.World.Create(createTwo.Components);
-        }
+        createTwo.World.Create(createTwo.Components, 32, new DeltaEntity[32]);
 
         using DeltaCreateThreeContext createThree = new();
-        for (int i = 0; i < 32; i++)
-        {
-            createThree.World.Create(createThree.Components);
-        }
+        createThree.World.Create(createThree.Components, 32, new DeltaEntity[32]);
 
         using DeltaSystemOneContext one = new(32, 1);
         one.World.ForEach(in one.Query, static (ref DeltaComponent1 component) => DeltaOperations.Update(ref component));
