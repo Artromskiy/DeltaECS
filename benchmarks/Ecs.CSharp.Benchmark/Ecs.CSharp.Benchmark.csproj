@@ -71,8 +71,8 @@
   </ItemGroup>
 
   <ItemGroup Label="DeltaECS">
-    <PackageReference Include="DeltaECS" Version="0.0.14" />
-    <PackageReference Include="DeltaECS.Generators" Version="0.0.14" PrivateAssets="all" />
+    <PackageReference Include="DeltaECS" Version="0.0.15" />
+    <PackageReference Include="DeltaECS.Generators" Version="0.0.15" PrivateAssets="all" />
     <CompilerVisibleProperty Include="InterceptorsNamespaces" />
   </ItemGroup>
 
