@@ -37,9 +37,9 @@ internal sealed class ParallelQueryExecutor : IDisposable
         QueryChunkAction action,
         int requestedWorkerCount)
     {
-        ArgumentNullException.ThrowIfNull(owner);
-        ArgumentNullException.ThrowIfNull(action);
-        ArgumentOutOfRangeException.ThrowIfNegative(requestedWorkerCount);
+        ThrowHelper.ThrowIfNull(owner, nameof(owner));
+        ThrowHelper.ThrowIfNull(action, nameof(action));
+        ThrowHelper.ThrowIfNegative(requestedWorkerCount, nameof(requestedWorkerCount));
         if (Volatile.Read(ref _disposed))
         {
             ThrowHelper.ThrowDisposedWorld();

@@ -8,7 +8,7 @@ public sealed partial class World
     /// </summary>
     public void ForEach(in Query query, ForEachAction action)
     {
-        ArgumentNullException.ThrowIfNull(action);
+        ThrowHelper.ThrowIfNull(action, nameof(action));
         using var execution = GeneratedForEachRuntime.OpenReadDense(this, in query);
         while (execution.MoveNextTrusted(out var slots))
         {
@@ -26,7 +26,7 @@ public sealed partial class World
     /// </summary>
     public void ForEachEntity(in Query query, ForEachEntityAction action)
     {
-        ArgumentNullException.ThrowIfNull(action);
+        ThrowHelper.ThrowIfNull(action, nameof(action));
         using var execution = GeneratedForEachRuntime.OpenReadDense(this, in query);
         while (execution.MoveNextTrusted(out var slots))
         {
@@ -44,7 +44,7 @@ public sealed partial class World
     /// </summary>
     public void ForEach<TContext>(in Query query, ref TContext context, ForEachContextAction<TContext> action)
     {
-        ArgumentNullException.ThrowIfNull(action);
+        ThrowHelper.ThrowIfNull(action, nameof(action));
         using var execution = GeneratedForEachRuntime.OpenReadDense(this, in query);
         while (execution.MoveNextTrusted(out var slots))
         {
@@ -62,7 +62,7 @@ public sealed partial class World
     /// </summary>
     public void ForEachEntity<TContext>(in Query query, ref TContext context, ForEachContextEntityAction<TContext> action)
     {
-        ArgumentNullException.ThrowIfNull(action);
+        ThrowHelper.ThrowIfNull(action, nameof(action));
         using var execution = GeneratedForEachRuntime.OpenReadDense(this, in query);
         while (execution.MoveNextTrusted(out var slots))
         {

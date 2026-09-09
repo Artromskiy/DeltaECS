@@ -12,8 +12,8 @@ internal struct ComponentStampStorage : IDisposable
 
     internal ComponentStampStorage(int componentCount, int capacity)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(componentCount);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
+        ThrowHelper.ThrowIfNegative(componentCount, nameof(componentCount));
+        ThrowHelper.ThrowIfNegativeOrZero(capacity, nameof(capacity));
         _capacity = capacity;
         _componentCount = componentCount;
         _values = new NativeMemory<Stamp>(checked(componentCount * capacity));

@@ -276,12 +276,12 @@ internal sealed class QueryPlan
         _matchingChunkCount = 0;
         _matchingVersion = 0;
         _primaryReadRoutesByType.Clear();
-        Array.Clear(_preparedReadAccessesByComponent);
-        Array.Clear(_preparedWriteAccessesByComponent);
-        Array.Clear(_primaryTypeHandles);
+        _preparedReadAccessesByComponent.AsSpan().Clear();
+        _preparedWriteAccessesByComponent.AsSpan().Clear();
+        _primaryTypeHandles.AsSpan().Clear();
         _primaryTypeCount = 0;
         Array.Fill(_readRoutesByComponent, -1);
-        Array.Clear(_readRouteTypesByComponent);
+        _readRouteTypesByComponent.AsSpan().Clear();
     }
 
     private void ValidatePreparedRuntimeType(ComponentId component, Type runtimeType)

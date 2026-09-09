@@ -2,7 +2,6 @@ namespace Delta.ECS;
 
 using System;
 using System.Diagnostics.CodeAnalysis;
-using System.Numerics;
 using System.Runtime.CompilerServices;
 
 public readonly struct ComponentId : IEquatable<ComponentId>, IComparable<ComponentId>
@@ -203,11 +202,11 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
         int rank = 0;
         for (int index = 0; index < wordIndex; index++)
         {
-            rank += BitOperations.PopCount(_storage!.RefAt(index));
+            rank += BitOperationsCompat.PopCount(_storage!.RefAt(index));
         }
 
         uint lowerBits = _storage!.RefAt(wordIndex) & ((1u << (componentId.Value & 31)) - 1u);
-        return rank + BitOperations.PopCount(lowerBits);
+        return rank + BitOperationsCompat.PopCount(lowerBits);
     }
 
     public int Count => _storage?.Count ?? 0;
@@ -250,7 +249,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
                 return false;
             }
 
-            int bit = BitOperations.TrailingZeroCount(_remaining);
+            int bit = BitOperationsCompat.TrailingZeroCount(_remaining);
             _remaining &= _remaining - 1;
             Current = new ComponentId(((_wordIndex - 1) * 32) + bit);
             return true;
@@ -406,7 +405,7 @@ internal sealed class NativeComponentMaskStorage
         for (int index = 0; index < Length; index++)
         {
             uint word = _words.RefAt(index);
-            count += BitOperations.PopCount(word);
+            count += BitOperationsCompat.PopCount(word);
             hash.Add(word);
         }
 
@@ -451,7 +450,7 @@ public readonly struct ComponentLayout : IEquatable<ComponentLayout>
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType,
         int alignment = 1)
     {
-        ArgumentNullException.ThrowIfNull(runtimeType);
+        ThrowHelper.ThrowIfNull(runtimeType, nameof(runtimeType));
 
         if (alignment <= 0)
         {
@@ -475,7 +474,7 @@ public readonly struct ComponentLayout : IEquatable<ComponentLayout>
         int size,
         int alignment)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size);
+        ThrowHelper.ThrowIfNegativeOrZero(size, nameof(size));
 
         if (alignment <= 0)
         {

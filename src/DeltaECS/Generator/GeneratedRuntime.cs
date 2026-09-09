@@ -656,15 +656,15 @@ public static class GeneratedForEachRuntime
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static QueryPlan ValidateQuery(World world, in Query query, Type runtimeType)
     {
-        ArgumentNullException.ThrowIfNull(world);
-        ArgumentNullException.ThrowIfNull(runtimeType);
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        ThrowHelper.ThrowIfNull(runtimeType, nameof(runtimeType));
         return ValidateQuery(world, in query);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static QueryPlan ValidateQuery(World world, in Query query)
     {
-        ArgumentNullException.ThrowIfNull(world);
+        ThrowHelper.ThrowIfNull(world, nameof(world));
         if (!ReferenceEquals(query.Owner, world) || !query.IsValid)
         {
             ThrowHelper.ThrowGeneratedQueryInvalid(nameof(query));

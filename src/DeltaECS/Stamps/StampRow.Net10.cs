@@ -15,14 +15,14 @@ public readonly ref struct StampRow
         Chunk chunk,
         int componentIndex,
         int count,
-        ref Stamp chunkStamp,
-        ref Stamp archetypeStamp)
+        NativeMemory<Stamp> chunkStamps,
+        Stamp[] archetypeStamps)
     {
         _chunk = chunk;
         _componentIndex = componentIndex;
         _count = count;
-        _chunkStamp = ref chunkStamp;
-        _archetypeStamp = ref archetypeStamp;
+        _chunkStamp = ref chunkStamps.RefAt(componentIndex);
+        _archetypeStamp = ref archetypeStamps.RefAt(componentIndex);
     }
 
     /// <summary>Reads the stamp for the current slot of the supplied chunk slot iterator.</summary>

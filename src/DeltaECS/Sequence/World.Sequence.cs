@@ -12,14 +12,14 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void ExecuteSequence(ReadOnlySpan<Entity> entities, ForEachEntityAction action)
     {
-        ArgumentNullException.ThrowIfNull(action);
+        ThrowHelper.ThrowIfNull(action, nameof(action));
         ExecuteUnfilteredSequenceCore(entities, action);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void ExecuteSequence(ReadOnlySpan<Entity> entities, in Query query, ForEachEntityAction action)
     {
-        ArgumentNullException.ThrowIfNull(action);
+        ThrowHelper.ThrowIfNull(action, nameof(action));
         ValidateQuery(in query);
         ExecuteFilteredSequenceCore(entities, query.Cached, action);
     }
@@ -27,14 +27,14 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void ExecuteSequence<TContext>(ReadOnlySpan<Entity> entities, ref TContext context, ForEachContextEntityAction<TContext> action)
     {
-        ArgumentNullException.ThrowIfNull(action);
+        ThrowHelper.ThrowIfNull(action, nameof(action));
         ExecuteUnfilteredSequenceCore(entities, ref context, action);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void ExecuteSequence<TContext>(ReadOnlySpan<Entity> entities, in Query query, ref TContext context, ForEachContextEntityAction<TContext> action)
     {
-        ArgumentNullException.ThrowIfNull(action);
+        ThrowHelper.ThrowIfNull(action, nameof(action));
         ValidateQuery(in query);
         ExecuteFilteredSequenceCore(entities, query.Cached, ref context, action);
     }

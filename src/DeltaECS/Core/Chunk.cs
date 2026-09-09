@@ -19,7 +19,7 @@ internal sealed class Chunk
         ComponentRowOperations[] rowOperations,
         int globalId)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
+        ThrowHelper.ThrowIfNegativeOrZero(capacity, nameof(capacity));
         if (rowOperations.Length != layouts.Length)
         {
             ThrowHelper.ThrowChunkRowOperationsMismatch(nameof(rowOperations));

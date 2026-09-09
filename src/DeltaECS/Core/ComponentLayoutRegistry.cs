@@ -99,7 +99,7 @@ public sealed partial class ComponentLayoutRegistry
     /// </summary>
     public bool TryGetPrimary(Type runtimeType, out ComponentId componentId)
     {
-        ArgumentNullException.ThrowIfNull(runtimeType);
+        ThrowHelper.ThrowIfNull(runtimeType, nameof(runtimeType));
         if (_primaryIdsByType.TryGetValue(runtimeType, out componentId))
         {
             return true;

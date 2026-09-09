@@ -34,7 +34,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         ref TInvoker invoker,
         int requestedWorkerCount)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(requestedWorkerCount);
+        ThrowHelper.ThrowIfNegative(requestedWorkerCount, nameof(requestedWorkerCount));
         if (Volatile.Read(ref _disposed))
         {
             ThrowHelper.ThrowDisposedWorld();

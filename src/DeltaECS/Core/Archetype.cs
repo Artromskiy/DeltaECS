@@ -128,7 +128,7 @@ internal sealed class Archetype
 
     internal int ReserveRange(int count, int chunkId, out int chunkIndex, out Chunk chunk, out int reusedCount)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
+        ThrowHelper.ThrowIfNegativeOrZero(count, nameof(count));
 
         if (TryTakeAvailableChunk(out int availableIndex, out var available))
         {

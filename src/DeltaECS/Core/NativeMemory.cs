@@ -1,7 +1,6 @@
 namespace Delta.ECS;
 
 using System.Runtime.CompilerServices;
-using RuntimeNativeMemory = System.Runtime.InteropServices.NativeMemory;
 
 /// <summary>Trusted native storage owned and disposed by its containing ECS object.</summary>
 internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
@@ -11,7 +10,7 @@ internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
 
     internal NativeMemory(int length)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(length);
+        ThrowHelper.ThrowIfNegative(length, nameof(length));
         _length = length;
         _address = Allocate(length);
     }
@@ -45,7 +44,7 @@ internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
 
     internal void Resize(int length)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(length);
+        ThrowHelper.ThrowIfNegative(length, nameof(length));
         if (length == _length) return;
 
         nint replacement = Allocate(length);
@@ -58,7 +57,7 @@ internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
 
     internal void Clear()
     {
-        if (_length != 0) RuntimeNativeMemory.Clear((void*)_address, ByteLength(_length));
+        if (_length != 0) NativeMemoryCompat.Clear((void*)_address, ByteLength(_length));
     }
 
     internal void Dispose()
@@ -73,8 +72,8 @@ internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
     {
         if (length == 0) return 0;
         nuint bytes = ByteLength(length);
-        nint address = (nint)RuntimeNativeMemory.Alloc(bytes);
-        RuntimeNativeMemory.Clear((void*)address, bytes);
+        nint address = NativeMemoryCompat.Alloc(bytes);
+        NativeMemoryCompat.Clear((void*)address, bytes);
         return address;
     }
 
@@ -82,7 +81,7 @@ internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
 
     private void ReleaseBuffer()
     {
-        RuntimeNativeMemory.Free((void*)_address);
+        NativeMemoryCompat.Free((void*)_address);
         _address = 0;
     }
 }

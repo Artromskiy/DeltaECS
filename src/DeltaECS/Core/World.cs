@@ -3,7 +3,6 @@ namespace Delta.ECS;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 public sealed partial class World : IDisposable
 {
@@ -14,7 +13,7 @@ public sealed partial class World : IDisposable
     private readonly int _chunkCapacity;
     private readonly List<Archetype> _archetypes = new();
     private readonly Dictionary<ComponentMask, int> _archetypeByMask = new();
-    private readonly List<EntityRecord> _records = new();
+    private readonly EntityRecordStorage _records = new();
     private NativeMemory<int> _freeRecords = new(16);
     private int _freeCount;
     private readonly Dictionary<TransitionKey, TransitionEdge> _transitionCache = new();
@@ -40,9 +39,9 @@ public sealed partial class World : IDisposable
         int initialEntityCapacity = DefaultInitialCapacity,
         int chunkCapacity = DefaultChunkCapacity)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(initialEntityCapacity);
+        ThrowHelper.ThrowIfNegative(initialEntityCapacity, nameof(initialEntityCapacity));
 
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(chunkCapacity);
+        ThrowHelper.ThrowIfNegativeOrZero(chunkCapacity, nameof(chunkCapacity));
 
         _layouts = layouts ?? new ComponentLayoutRegistry();
         _chunkCapacity = chunkCapacity;
@@ -142,7 +141,7 @@ public sealed partial class World : IDisposable
     /// <remarks>The returned array owns the entity handles and is allocated once for the batch.</remarks>
     public Entity[] Create(ReadOnlySpan<ComponentId> componentIds, int count)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        ThrowHelper.ThrowIfNegative(count, nameof(count));
         var output = new Entity[count];
         Create(componentIds, output);
         return output;
@@ -151,7 +150,7 @@ public sealed partial class World : IDisposable
     /// <summary>Creates a requested number of entities into caller-owned storage.</summary>
     public int Create(ReadOnlySpan<ComponentId> componentIds, int count, Span<Entity> output)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        ThrowHelper.ThrowIfNegative(count, nameof(count));
         if (output.Length < count)
         {
             ThrowHelper.ThrowEntityDestinationTooSmall(nameof(output));
@@ -277,7 +276,7 @@ public sealed partial class World : IDisposable
             return DestroyAscendingBatch(count);
         }
 
-        _destroyScratch.Span[..count].Sort(DestroyEntryComparer.Instance);
+        SpanSortCompat.Sort(_destroyScratch.Span[..count], DestroyEntryComparer.Instance);
         EnsureFreeRecordCapacity(_freeCount + count);
         int destroyed = 0;
         int groupStart = 0;
@@ -501,6 +500,10 @@ public sealed partial class World : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref Stamp GetChunkComponentStampReference(Chunk chunk, int componentIndex)
         => ref _chunkComponentWriteStamps.RefAt(chunk.GlobalId).RefAt(componentIndex);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal NativeMemory<Stamp> GetChunkComponentStamps(Chunk chunk)
+        => _chunkComponentWriteStamps.RefAt(chunk.GlobalId);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref Stamp GetArchetypeComponentStampReference(int archetypeId, int componentIndex)
@@ -1197,7 +1200,7 @@ public sealed partial class World : IDisposable
     private int AllocateChunkId() => _nextChunkId++;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ref EntityRecord RecordAt(int recordIndex) => ref CollectionsMarshal.AsSpan(_records).RefAt(recordIndex);
+    private ref EntityRecord RecordAt(int recordIndex) => ref _records.RefAt(recordIndex);
 
     private bool TryResolve(Entity entity, out int recordIndex)
     {

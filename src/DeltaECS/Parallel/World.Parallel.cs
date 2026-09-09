@@ -26,7 +26,7 @@ public sealed partial class World
         QueryChunkAction action,
         int workerCount = 0)
     {
-        ArgumentNullException.ThrowIfNull(action);
+        ThrowHelper.ThrowIfNull(action, nameof(action));
         EnterParallelExecution();
         try
         {
@@ -58,7 +58,7 @@ public sealed partial class World
 
         lock (_parallelExecutorGate)
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
+            ThrowHelper.ThrowIfDisposed(_disposed, this);
             executors = _generatedParallelExecutors;
             if (executors is not null
                 && executors.TryGetValue(invokerType, out IDisposable? existing))
@@ -83,7 +83,7 @@ public sealed partial class World
 
         lock (_parallelExecutorGate)
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
+            ThrowHelper.ThrowIfDisposed(_disposed, this);
             executor = _parallelQueryExecutor;
             if (executor is not null)
             {
@@ -98,7 +98,7 @@ public sealed partial class World
 
     internal void EnterParallelExecution()
     {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed), this);
+        ThrowHelper.ThrowIfDisposed(Volatile.Read(ref _disposed), this);
         if (Interlocked.CompareExchange(ref _parallelExecutionActive, 1, 0) != 0)
         {
             ThrowHelper.ThrowParallelExecutionActive();

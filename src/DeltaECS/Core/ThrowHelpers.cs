@@ -8,6 +8,58 @@ using System.Runtime.CompilerServices;
 
 internal static class ThrowHelper
 {
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void ThrowIfNull(object? value, string parameterName)
+    {
+#if NETSTANDARD2_1
+        if (value is null)
+        {
+            throw new ArgumentNullException(parameterName);
+        }
+#else
+        ArgumentNullException.ThrowIfNull(value, parameterName);
+#endif
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void ThrowIfNegative(int value, string parameterName)
+    {
+#if NETSTANDARD2_1
+        if (value < 0)
+        {
+            throw new ArgumentOutOfRangeException(parameterName);
+        }
+#else
+        ArgumentOutOfRangeException.ThrowIfNegative(value, parameterName);
+#endif
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void ThrowIfNegativeOrZero(int value, string parameterName)
+    {
+#if NETSTANDARD2_1
+        if (value <= 0)
+        {
+            throw new ArgumentOutOfRangeException(parameterName);
+        }
+#else
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value, parameterName);
+#endif
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void ThrowIfDisposed(bool disposed, object instance)
+    {
+#if NETSTANDARD2_1
+        if (disposed)
+        {
+            throw new ObjectDisposedException(instance.GetType().Name);
+        }
+#else
+        ObjectDisposedException.ThrowIf(disposed, instance);
+#endif
+    }
+
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal static int ThrowInvalidReadRoute(ComponentId component)

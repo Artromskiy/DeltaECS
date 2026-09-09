@@ -297,7 +297,7 @@ public sealed partial class World : IEcsWorld
 
     private void ThrowIfDisposed()
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ThrowHelper.ThrowIfDisposed(_disposed, this);
     }
 
     private static bool SupportsObjectAccess(ComponentLayout layout)

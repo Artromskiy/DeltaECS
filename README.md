@@ -58,7 +58,11 @@ fastest generated execution. For ordered candidates, use
 
 ## Capabilities and limits
 
-- Targets modern .NET runtimes supported by the package.
+- Ships runtime assets for `netstandard2.1` and `net10.0`. The
+  `netstandard2.1` asset is suitable for hosts such as Unity profiles that
+  expose the .NET Standard 2.1 API surface; the `net10.0` asset keeps the
+  ref-backed row representation available on runtimes that support ref
+  fields.
 - Structural changes are immediate; no command-buffer playback phase is
   required.
 - Query and sequence views are borrowed and must not outlive their scope.
