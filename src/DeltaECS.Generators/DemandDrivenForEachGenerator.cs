@@ -587,7 +587,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         bool sequence = receiver is ReceiverKind.EntitySequence or ReceiverKind.FilteredEntitySequence;
         var typeArguments = genericName?.TypeArgumentList.Arguments
-            .Select(argument => model.GetTypeInfo(argument).Type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? argument.ToString())
+            .Select(argument => model.GetTypeInfo(argument).Type is { } type
+                ? DisplayType(type)
+                : argument.ToString())
             .ToArray()
             ?? LambdaComponentTypes(model, lambda, prefixCount, hasEntity);
         int componentStart = genericName is null ? 0 : prefixCount;
@@ -607,7 +609,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                     ? lambdaParameters[0].Type
                     : null;
             lambdaContextType = contextSyntax is not null
-                ? model.GetTypeInfo(contextSyntax).Type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                ? model.GetTypeInfo(contextSyntax).Type is { } type
+                    ? DisplayType(type)
+                    : null
                 : null;
         }
 
@@ -712,7 +716,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         string[] components;
         string? contextType = hasContext
-            ? methodTarget.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+            ? DisplayType(methodTarget.Parameters[0].Type)
             : null;
         if (genericName is not null)
         {
@@ -745,20 +749,20 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 ITypeSymbol requestedType = requestedTypes[requestedComponentStart + index] is { } type
                     ? type
                     : ThrowHelper.ThrowValidatedComponentTypeUnavailable();
-                components[index] = requestedType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                components[index] = DisplayType(requestedType);
             }
 
             if (hasContext)
             {
                 contextType = requestedTypes[0] is { } requestedContextType
-                    ? requestedContextType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                    ? DisplayType(requestedContextType)
                     : ThrowHelper.ThrowValidatedContextTypeUnavailable();
             }
         }
         else
         {
             components = componentParameters
-                .Select(static parameter => parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
+                .Select(static parameter => DisplayType(parameter.Type))
                 .ToArray();
         }
 
@@ -862,7 +866,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         string pattern = new(componentParameters.Select(static parameter => PatternLetter(parameter.RefKind)).ToArray());
         string[] components = componentParameters
-            .Select(static parameter => parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
+            .Select(static parameter => DisplayType(parameter.Type))
             .ToArray();
         bool sequence = receiver is ReceiverKind.EntitySequence or ReceiverKind.FilteredEntitySequence;
         if (parallel && receiver != ReceiverKind.World)
@@ -881,8 +885,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             implicitComponents: false,
             pattern,
             components,
-            functorType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-            contextType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            DisplayType(functorType),
+            contextType is { } resolvedContextType ? DisplayType(resolvedContextType) : null,
             parallel: parallel);
         return true;
     }
@@ -1072,6 +1076,17 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
     private static bool IsEntityType(ITypeSymbol type)
         => type.Name == "Entity" && type.ContainingNamespace.ToDisplayString() == "Delta.ECS";
 
+    private static string DisplayType(ITypeSymbol type)
+    {
+        // Tuple element names are not part of the CLR type or method signature.
+        if (type is INamedTypeSymbol { IsTupleType: true } tuple)
+        {
+            return "(" + string.Join(", ", tuple.TupleElements.Select(static element => DisplayType(element.Type))) + ")";
+        }
+
+        return type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+    }
+
     private static bool IsStaticMethodGroupExpression(SemanticModel model, ExpressionSyntax expression)
     {
         if (expression is IdentifierNameSyntax)
@@ -1143,7 +1158,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 return Array.Empty<string>();
             }
 
-            result[index] = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            result[index] = DisplayType(type);
         }
 
         return result;

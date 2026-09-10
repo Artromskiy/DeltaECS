@@ -275,7 +275,7 @@ public static class ConsumerProof
 
         int destroyed = world.Where(
                 in query,
-                static (Entity entity, ref Health health, in Team team) => health.Value <= 0 && team.Id == 1)
+                static (Entity entity, in Health health, in Team team) => health.Value <= 0 && team.Id == 1)
             .Destroy();
 
         return destroyed == 1 && !world.IsAlive(entities[0]) && world.IsAlive(entities[1]) && world.IsAlive(entities[2])
@@ -292,19 +292,15 @@ public static class ConsumerProof
 
         int added = world.Where(
                 in query,
-                static (Entity entity, ref Health health) =>
-                {
-                    health.Value++;
-                    return health.Value <= 0;
-                })
+                static (Entity entity, in Health health) => health.Value <= 0)
             .Add<Dead>();
 
         return added == 2
             && world.TryGet<Dead>(entities[0], out _)
             && !world.TryGet<Dead>(entities[1], out _)
             && world.TryGet<Dead>(entities[2], out _)
-            && world.Get<Health>(entities[0], healthId).Value == 0
-            && world.Get<Health>(entities[2], healthId).Value == 0
+            && world.Get<Health>(entities[0], healthId).Value == -1
+            && world.Get<Health>(entities[2], healthId).Value == -1
             ? 1
             : 0;
     }
@@ -318,7 +314,7 @@ public static class ConsumerProof
 
         int removed = world.Where(
                 in query,
-                static (Entity entity, ref Health health, in Team team) => health.Value <= 0 && team.Id == 1)
+                static (Entity entity, in Health health, in Team team) => health.Value <= 0 && team.Id == 1)
             .Remove<Alive>();
 
         return removed == 1 && !world.TryGet<Alive>(entities[0], out _) && world.TryGet<Alive>(entities[1], out _)
@@ -336,18 +332,18 @@ public static class ConsumerProof
 
         world.Where(
                 in query,
-                static (Entity entity, ref Health health) => health.Value <= 0)
+                static (Entity entity, in Health health) => health.Value <= 0)
             .ForEachEntity(static (Entity entity, ref Health health, in Team team) =>
             {
                 health.Value = team.DefaultHealth + entity.Index;
             });
         world.Where(
                 in query,
-                static (Entity entity, ref Health health) => health.Value > 0)
+                static (Entity entity, in Health health) => health.Value > 0)
             .ForEachEntity(static entity => _ = entity);
         world.Where(
                 in query,
-                static (Entity entity, ref Health health) => health.Value >= 0)
+                static (Entity entity, in Health health) => health.Value >= 0)
             .ForEach(static (ref Health health, in Team team) => health.Value = team.DefaultHealth);
 
         bool rejectedStructuralNesting = false;
@@ -357,7 +353,7 @@ public static class ConsumerProof
             {
                 world.Where(
                         in query,
-                        static (Entity entity, ref Health health) => health.Value <= 0)
+                        static (Entity entity, in Health health) => health.Value <= 0)
                     .Destroy();
             }
             catch (InvalidOperationException)

@@ -36,6 +36,15 @@ archetypes or structural kernels.
 
 - Calls may include an `Entity`, mutable caller context, primary registrations,
   or explicit `ComponentId` arguments.
+- Query-wide `world.Where(in query, predicate)` predicates are read-only. Use
+  `in T` or `ref readonly T` component parameters; a writable `ref T` reports
+  `DECSGEN006`. Use the terminal `ForEach` callback for component mutations:
+
+  ```csharp
+  world.Where(in query,
+      static (Entity entity, ref readonly Health health) => health.Value <= 0)
+      .ForEach(static (ref Health health) => health.Value = 0);
+  ```
 - Generated extensions live in the consumer assembly while execution enters a
   shared non-generic DeltaECS runtime bridge.
 - Dense generated callbacks enter a closed execution method. The runtime

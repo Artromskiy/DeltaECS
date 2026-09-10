@@ -132,6 +132,26 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void TupleContextElementNamesDoNotCreateDuplicateForEachShapes()
+    {
+        GeneratorDriverRunResult run = RunGenerator(TupleContextElementNamesSource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty);
+        Assert.That(
+            run.GeneratedTrees.Count(static tree => tree.FilePath.Contains("DemandForEach_", StringComparison.Ordinal)),
+            Is.EqualTo(1));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, TupleContextElementNamesSource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
     public void RefReadonlyInAndValueParametersGenerateDistinctModes()
     {
         const string source = """
@@ -599,6 +619,36 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
+    [Test]
+    public void WherePredicateSupportsInAndRefReadonlyComponents()
+    {
+        GeneratorDriverRunResult run = RunGenerator(WhereReadonlyPredicateSource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty);
+        Assert.That(generated, Does.Contain("Entity entity, in T1 component0"));
+        Assert.That(generated, Does.Contain("Entity entity, ref readonly T1 component0, in T2 component1"));
+        Assert.That(generated, Does.Contain("ref readonly T1 component0"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, WhereReadonlyPredicateSource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
+    public void WherePredicateRejectsWritableComponents()
+    {
+        GeneratorDriverRunResult run = RunGenerator(WhereWritablePredicateSource);
+
+        Diagnostic diagnostic = run.Diagnostics.Single(static value => value.Id == "DECSGEN006");
+        Assert.That(diagnostic.GetMessage(CultureInfo.InvariantCulture), Does.Contain("cannot write components"));
+        Assert.That(run.GeneratedTrees, Is.Empty);
+    }
+
     private static GeneratorDriverRunResult RunGenerator()
         => RunGenerator(ConsumerSource);
 
@@ -1042,6 +1092,45 @@ public sealed class DemandDrivenForEachGeneratorTests
         }
         """;
 
+    private const string TupleContextElementNamesSource = """
+        namespace Delta.ECS;
+        struct SquadMember { public Entity Squad; }
+        static class EcsEntryPoint
+        {
+            public static void Use(World world, Query query, Entity squad)
+            {
+                var state = (Squad: squad, AliveMembers: 0);
+                world.ForEach(
+                    in query,
+                    ref state,
+                    static (ref (Entity Squad, int AliveMembers) state, in SquadMember member) =>
+                    {
+                        if (member.Squad.Index == state.Squad.Index)
+                        {
+                            state.AliveMembers++;
+                        }
+                    });
+            }
+        }
+        static class SurvivorJoinSystem
+        {
+            public static void Tick(World world, Query query, Entity squad)
+            {
+                var memberState = (Squad: squad, Count: 0);
+                world.ForEach(
+                    in query,
+                    ref memberState,
+                    static (ref (Entity Squad, int Count) state, in SquadMember member) =>
+                    {
+                        if (member.Squad.Index == state.Squad.Index)
+                        {
+                            state.Count++;
+                        }
+                    });
+            }
+        }
+        """;
+
     private const string WhereMutationSource = """
         namespace Delta.ECS;
         struct Health { public int Value; }
@@ -1052,28 +1141,65 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public static void Run(World world, in Query query)
             {
-                world.Where(in query, static (Entity entity, ref Health health) => health.Value <= 0).Destroy();
-                world.Where(in query, static (Entity entity, ref Health health) => health.Value <= 0).Add<Dead>();
-                world.Where(in query, static (Entity entity, ref Health health) => health.Value <= 0).Remove<Alive>();
-                world.Where(in query, static (Entity entity, ref Health health) => health.Value <= 0)
+                world.Where(in query, static (Entity entity, in Health health) => health.Value <= 0).Destroy();
+                world.Where(in query, static (Entity entity, in Health health) => health.Value <= 0).Add<Dead>();
+                world.Where(in query, static (Entity entity, in Health health) => health.Value <= 0).Remove<Alive>();
+                world.Where(in query, static (Entity entity, in Health health) => health.Value <= 0)
                     .ForEachEntity(static entity => _ = entity);
-                world.Where(in query, static (Entity entity, ref Health health) => health.Value <= 0)
+                world.Where(in query, static (Entity entity, in Health health) => health.Value <= 0)
                     .ForEach(static (ref Health health) => health.Value = 0);
-                world.Where(in query, static (Entity entity, ref Health health, in Team team) =>
+                world.Where(in query, static (Entity entity, in Health health, in Team team) =>
                     health.Value <= 0 && team.Id == 1)
                     .Destroy();
-                world.Where(in query, static (Entity entity, ref Health health, in Team team) =>
+                world.Where(in query, static (Entity entity, in Health health, in Team team) =>
                     health.Value <= 0 && team.Id == 1)
                     .Add<Dead>();
-                world.Where(in query, static (Entity entity, ref Health health, in Team team) =>
+                world.Where(in query, static (Entity entity, in Health health, in Team team) =>
                     health.Value <= 0 && team.Id == 1)
                     .Remove<Alive>();
-                world.Where(in query, static (Entity entity, ref Health health, in Team team) =>
+                world.Where(in query, static (Entity entity, in Health health, in Team team) =>
                     health.Value <= 0 && team.Id == 1)
                     .ForEachEntity(static (Entity current, ref Health health, in Team team) => _ = current.Index + team.Id);
-                world.Where(in query, static (Entity entity, ref Health health, in Team team) =>
+                world.Where(in query, static (Entity entity, in Health health, in Team team) =>
                     health.Value <= 0 && team.Id == 1)
                     .ForEach(static (ref Health health, in Team team) => health.Value = team.DefaultHealth);
+            }
+        }
+        """;
+
+    private const string WhereReadonlyPredicateSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        struct Team { public int Id; }
+        struct Dead { }
+        static class ReadonlyPredicateSystem
+        {
+            public static void Run(World world, in Query query)
+            {
+                world.Where(
+                        in query,
+                        static (Entity entity, in Health health) => health.Value <= 0)
+                    .Destroy();
+                world.Where(
+                        in query,
+                        static (Entity entity, ref readonly Health health, in Team team) =>
+                            health.Value <= 0 && team.Id == 1)
+                    .Add<Dead>();
+            }
+        }
+        """;
+
+    private const string WhereWritablePredicateSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        static class WritablePredicateSystem
+        {
+            public static void Run(World world, in Query query)
+            {
+                world.Where(
+                        in query,
+                        static (Entity entity, ref Health health) => health.Value <= 0)
+                    .Destroy();
             }
         }
         """;

@@ -142,7 +142,7 @@ when that component is absent.
 
 `world.Where(in query, predicate)` creates a stack-only view over every entity
 matched by `query`. The generated predicate receives `Entity` first, followed
-by typed component references. Its terminal completes the entire operation
+by read-only typed component references. Its terminal completes the entire operation
 before returning:
 
 These examples use the following component markers:
@@ -157,26 +157,36 @@ public struct Alive { }
 ```csharp
 int destroyed = world.Where(
         in query,
-        static (Entity current, ref Health health) => health.Value <= 0)
+        static (Entity current, in Health health) => health.Value <= 0)
     .Destroy();
 
 int tagged = world.Where(
         in query,
-        static (Entity current, ref Health health, in Team team) =>
+        static (Entity current, in Health health, in Team team) =>
             health.Value <= 0 && team.Id == 1)
     .Add<Dead>();
 
 world.Where(
         in query,
-        static (Entity current, ref Health health, in Team team) =>
+        static (Entity current, in Health health, in Team team) =>
             health.Value <= 0 && team.Id == 1)
     .Remove<Alive>();
 ```
 
+Use either `in` or `ref readonly` for a zero-copy read-only component reference:
+
+```csharp
+world.Where(
+        in query,
+        static (Entity current, ref readonly Health health) => health.Value <= 0)
+    .Destroy();
+```
+
 `Destroy`, `Add` and `Remove` first collect matching handles in query order,
 close the query scope, then call the normal immediate world operation. The
-predicate may update `ref` components; those writes happen before a structural
-terminal is applied. Because the scope is closed first, a structural terminal
+predicate is read-only: `in` and `ref readonly` component parameters cannot
+mutate storage. Use a terminal callback such as `ForEach` when the selected
+components need to be changed. Because the scope is closed first, a structural terminal
 called from an already active traversal callback still raises the runtime's
 active-lease error.
 
@@ -186,14 +196,14 @@ or `ForEach` when it needs only components:
 ```csharp
 world.Where(
         in query,
-        static (Entity current, ref Health health, in Team team) =>
+        static (Entity current, in Health health, in Team team) =>
             health.Value <= 0 && team.Id == 1)
-    .ForEachEntity(static (Entity current, ref Health health, in Team team) =>
+    .ForEachEntity(static (Entity current, in Health health, in Team team) =>
         LogDeath(current, team));
 
 world.Where(
         in query,
-        static (Entity current, ref Health health, in Team team) =>
+        static (Entity current, in Health health, in Team team) =>
             health.Value <= 0 && team.Id == 1)
     .ForEach(static (ref Health health, in Team team) =>
         health.Value = team.DefaultHealth);

@@ -178,4 +178,24 @@ public sealed class StampTests
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp after), Is.True);
         Assert.That(after, Is.EqualTo(before));
     }
+
+    [Test]
+    public void GeneratedWhereReadOnlyPredicateDoesNotChangeComponentStamp()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(40_062));
+        using var world = new World(layouts);
+        Entity entity = world.Create(positionId, new Position { X = 1 });
+        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
+
+        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp before), Is.True);
+
+        world.Where(
+                in query,
+                static (Entity current, in Position position) => position.X > 0)
+            .ForEachEntity(static current => _ = current);
+
+        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp after), Is.True);
+        Assert.That(after, Is.EqualTo(before));
+    }
 }
