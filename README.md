@@ -64,7 +64,7 @@ stored struct in place. `Set<T>` fails fast when the entity is stale or the
 component row is missing; use `TryGet` when the row is optional.
 `GetRef<T>` returns a writable component reference for direct edits; the
 reference must not be used after a structural operation can move that entity.
-`RefRead<T>` returns the same row as `ref readonly` without changing its
+`GetReadRef<T>` returns the same row as `ref readonly` without changing its
 component stamp.
 `default(Entity)` (`[0:0]`) is the invalid sentinel; valid entity handles use a
 positive generation. Use `World.IsAlive` for world-specific liveness checks.

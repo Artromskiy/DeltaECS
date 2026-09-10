@@ -94,7 +94,7 @@ public sealed class GenericSingleItemApiTests
     }
 
     [Test]
-    public void RefReadReturnsPrimaryAndExplicitRowsWithoutChangingStamp()
+    public void GetReadRefReturnsPrimaryAndExplicitRowsWithoutChangingStamp()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_006));
@@ -102,8 +102,8 @@ public sealed class GenericSingleItemApiTests
         Entity entity = world.Create(positionId, new Position { X = 5, Y = 6 });
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp before), Is.True);
 
-        ref readonly Position primary = ref world.RefRead<Position>(entity);
-        ref readonly Position explicitId = ref world.RefRead<Position>(entity, positionId);
+        ref readonly Position primary = ref world.GetReadRef<Position>(entity);
+        ref readonly Position explicitId = ref world.GetReadRef<Position>(entity, positionId);
 
         Assert.That(primary, Is.EqualTo(new Position { X = 5, Y = 6 }));
         Assert.That(explicitId, Is.EqualTo(primary));

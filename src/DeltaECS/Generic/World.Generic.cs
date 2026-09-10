@@ -165,7 +165,7 @@ public sealed partial class World
     /// The reference is invalid after a structural operation moves the entity
     /// or changes its component rows.
     /// </remarks>
-    public ref readonly T RefRead<T>(Entity entity, ComponentId componentId)
+    public ref readonly T GetReadRef<T>(Entity entity, ComponentId componentId)
     {
         EnsureRegisteredType<T>(componentId);
         if (!TryResolve(entity, out int recordIndex))
@@ -186,8 +186,8 @@ public sealed partial class World
     }
 
     /// <summary>Returns a read-only reference to the primary component row.</summary>
-    public ref readonly T RefRead<T>(Entity entity)
-        => ref RefRead<T>(entity, _layouts.GetPrimary<T>());
+    public ref readonly T GetReadRef<T>(Entity entity)
+        => ref GetReadRef<T>(entity, _layouts.GetPrimary<T>());
 
     /// <summary>Writes one component value and throws when the entity lacks the component.</summary>
     public bool Set<T>(Entity entity, ComponentId componentId, in T value)
