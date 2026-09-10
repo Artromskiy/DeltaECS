@@ -16,6 +16,8 @@ iterate the same data shape?
   suite. It keeps the competitor implementations and adds DeltaECS to every
   create/system scenario group, consuming the published `DeltaECS` and
   `DeltaECS.Generators` packages.
+- [Complete fork result tables](ecs-csharp-results.md) — the full 2026-09-09
+  run, including every create and system implementation.
 
 The supported comparative route is `iteration`. The version suite is also
 iteration-only; it is intentionally separate because it builds the same

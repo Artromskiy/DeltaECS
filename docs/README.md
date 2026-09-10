@@ -25,6 +25,7 @@ performance evidence stay in their dedicated documents.
 - [Performance index](performance/README.md)
 - [Benchmark guide](benchmarks/README.md)
 - [C# benchmark details](benchmarks/ecs-csharp-benchmark.md)
+- [C# benchmark results](benchmarks/ecs-csharp-results.md)
 - [GitHub benchmark workflow](github-benchmarks.md)
 
 Historical JIT and BenchmarkDotNet documents are evidence for past decisions,

@@ -127,24 +127,7 @@ functor by `ref` keeps its accumulated state. Lambda parameters must be typed:
 
 ## Benchmark snapshot
 
-The forked [`Ecs.CSharp.Benchmark`](docs/benchmarks/ecs-csharp-benchmark.md)
-suite runs the same create and system scenarios against several .NET ECS
-implementations. The latest saved run used 100,000 entities, zero padding and
-four DeltaECS workers. Lower is better; all system rows allocated `0 B`.
-
-| Fork workload | **DeltaECS** | **DeltaECS_Parallel (4 workers)** | Fastest external method |
-|---|---:|---:|---:|
-| SystemWithOneComponent | 28.341 μs | **8.377 μs** | Frent_Simd — 5.821 μs |
-| SystemWithTwoComponents | 28.685 μs | **9.615 μs** | Frent_Simd — 9.202 μs |
-| SystemWithThreeComponents | 36.861 μs | **12.872 μs** | Friflo SIMD — 9.260 μs |
-| TwoComponentsMultipleComposition | 28.266 μs | **9.300 μs** | Frent_Simd — 9.528 μs |
-
-DeltaECS_Parallel is the fastest method in the multiple-composition scenario
-and stays within 5% of the fastest external method in the two-component case,
-without managed allocations. Recorded 2026-09-09 with BenchmarkDotNet 0.13.12
-on an Apple M4 Pro, macOS 26.5.2 and .NET 10.0.9 Arm64 RyuJIT. See the
-[benchmark guide](docs/benchmarks/README.md) and [fork details](docs/benchmarks/ecs-csharp-benchmark.md)
-for workload and reproduction details.
+[Complete `Ecs.CSharp.Benchmark` result table](docs/benchmarks/ecs-csharp-results.md)
 
 ## Capabilities and limits
 
