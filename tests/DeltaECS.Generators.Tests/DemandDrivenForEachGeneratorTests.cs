@@ -609,6 +609,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereAdd"));
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereRemove"));
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereForEach"));
+        Assert.That(generated, Does.Contain("public int Collect(ref GeneratedQuerySlots slots, Span<Entity> destination)"));
+        Assert.That(generated, Does.Contain("public void Invoke(ref GeneratedQuerySlots slots)"));
+        Assert.That(generated, Does.Not.Contain("Invoke(ref GeneratedQuerySlots slots, int index)"));
 
         CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
             new[] { RuntimeStubSource, WhereMutationSource },
@@ -810,7 +813,11 @@ public sealed class DemandDrivenForEachGeneratorTests
         public interface IForEachContextEntity<TContext> { }
         public interface IGeneratedWhereInvoker
         {
-            bool Invoke(ref GeneratedQuerySlots slots, int index);
+            void Invoke(ref GeneratedQuerySlots slots);
+        }
+        public interface IGeneratedWhereCollector
+        {
+            int Collect(ref GeneratedQuerySlots slots, Span<Entity> destination);
         }
         public sealed class ComponentLayoutRegistry
         {
@@ -926,11 +933,11 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static Query ComposeGeneratedQuery(in Query query, QuerySpec additions) => default;
             public static ComponentId GetGeneratedPrimary<T>(in Query query) => default;
             public static int ExecuteGeneratedWhereDestroy<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices)
-                where TInvoker : struct, IGeneratedWhereInvoker => 0;
+                where TInvoker : struct, IGeneratedWhereCollector => 0;
             public static int ExecuteGeneratedWhereAdd<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, ReadOnlySpan<ComponentId> componentIds)
-                where TInvoker : struct, IGeneratedWhereInvoker => 0;
+                where TInvoker : struct, IGeneratedWhereCollector => 0;
             public static int ExecuteGeneratedWhereRemove<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, ReadOnlySpan<ComponentId> componentIds)
-                where TInvoker : struct, IGeneratedWhereInvoker => 0;
+                where TInvoker : struct, IGeneratedWhereCollector => 0;
             public static void ExecuteGeneratedWhereForEach<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices)
                 where TInvoker : struct, IGeneratedWhereInvoker { }
             public static ReadAccess GetPreparedReadAccess(in Query query, ComponentId component, Type runtimeType) => default;

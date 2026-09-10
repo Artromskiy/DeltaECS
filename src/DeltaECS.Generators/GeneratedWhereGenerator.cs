@@ -356,7 +356,8 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         string terminalHash = StableName(terminal.Key);
         string invokerName = "GeneratedWhereInvoker_" + hash + '_' + terminalHash;
         string generic = JoinGeneric(GenericList(shape.Arity), terminal.IsCallback ? GenericList(terminal.Arity, "U") : string.Empty);
-        source.Append("internal struct ").Append(invokerName).Append(GenericParameters(generic)).AppendLine(" : IGeneratedWhereInvoker");
+        string contract = terminal.IsCallback ? "IGeneratedWhereInvoker" : "IGeneratedWhereCollector";
+        source.Append("internal struct ").Append(invokerName).Append(GenericParameters(generic)).Append(" : ").AppendLine(contract);
         source.AppendLine("{");
         source.Append("    private readonly GeneratedWherePredicate_").Append(hash).Append(GenericTypes(shape.Arity)).AppendLine(" _predicate;");
         if (terminal.IsCallback)
@@ -400,24 +401,45 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
 
         source.AppendLine("    }");
         source.AppendLine();
-        source.AppendLine("    public bool Invoke(ref GeneratedQuerySlots slots, int index)");
+        if (terminal.IsCallback)
+        {
+            source.AppendLine("    public void Invoke(ref GeneratedQuerySlots slots)");
+        }
+        else
+        {
+            source.AppendLine("    public int Collect(ref GeneratedQuerySlots slots, Span<Entity> destination)");
+        }
+
         source.AppendLine("    {");
-        RenderComponentLocals(source, shape.Pattern, shape.Arity, "T", "        ");
-        source.AppendLine("        Entity entity = slots.EntityAt(index);");
-        source.Append("        if (!_predicate(entity");
+        RenderRowLocals(source, shape.Pattern, shape.Arity, "T", "        ");
+        if (terminal.IsCallback)
+        {
+            RenderRowLocals(source, terminal.Pattern, terminal.Arity, "U", "        ", shape.Arity);
+        }
+
+        if (!terminal.IsCallback)
+        {
+            source.AppendLine("        int matched = 0;");
+        }
+
+        source.AppendLine("        for (int index = 0; index < slots.Count; index++)");
+        source.AppendLine("        {");
+        RenderComponentLocals(source, shape.Pattern, shape.Arity, "T", "            ");
+        source.AppendLine("            Entity entity = slots.EntityAt(index);");
+        source.Append("            if (!_predicate(entity");
         for (int index = 0; index < shape.Arity; index++)
         {
             source.Append(", ").Append(InvocationPrefix(shape.Pattern[index])).Append("component").Append(index);
         }
 
         source.AppendLine("))");
-        source.AppendLine("        {");
-        source.AppendLine("            return false;");
-        source.AppendLine("        }");
+        source.AppendLine("            {");
+        source.AppendLine("                continue;");
+        source.AppendLine("            }");
         if (terminal.IsCallback)
         {
-            RenderComponentLocals(source, terminal.Pattern, terminal.Arity, "U", "        ", shape.Arity);
-            source.Append("        _action(");
+            RenderComponentLocals(source, terminal.Pattern, terminal.Arity, "U", "            ", shape.Arity);
+            source.Append("            _action(");
             var arguments = new List<string>();
             if (terminal.HasEntity)
             {
@@ -431,14 +453,23 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
 
             source.Append(string.Join(", ", arguments)).AppendLine(");");
         }
+        else
+        {
+            source.AppendLine("            destination[matched++] = entity;");
+        }
 
-        source.AppendLine("        return true;");
+        source.AppendLine("        }");
+        if (!terminal.IsCallback)
+        {
+            source.AppendLine("        return matched;");
+        }
+
         source.AppendLine("    }");
         source.AppendLine("}");
         source.AppendLine();
     }
 
-    private static void RenderComponentLocals(
+    private static void RenderRowLocals(
         StringBuilder source,
         string pattern,
         int arity,
@@ -453,6 +484,20 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
                 .Append(genericPrefix).Append(index + 1).Append(" row").Append(accessIndex)
                 .Append(" = ref slots.GetGenerated").Append(IsWrite(pattern[index]) ? "Write" : "Read")
                 .Append("Reference<").Append(genericPrefix).Append(index + 1).Append(">(_access").Append(accessIndex).AppendLine(");");
+        }
+    }
+
+    private static void RenderComponentLocals(
+        StringBuilder source,
+        string pattern,
+        int arity,
+        string genericPrefix,
+        string indent,
+        int indexOffset = 0)
+    {
+        for (int index = 0; index < arity; index++)
+        {
+            int accessIndex = index + indexOffset;
             source.Append(indent).Append(IsWrite(pattern[index]) ? "ref " : "ref readonly ")
                 .Append(genericPrefix).Append(index + 1).Append(" component").Append(accessIndex)
                 .Append(" = ref global::System.Runtime.CompilerServices.Unsafe.Add(")

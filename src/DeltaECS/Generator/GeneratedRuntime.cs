@@ -17,7 +17,15 @@ public interface IGeneratedSequenceInvoker
 public interface IGeneratedWhereInvoker
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    bool Invoke(ref GeneratedQuerySlots slots, int index);
+    void Invoke(ref GeneratedQuerySlots slots);
+}
+
+/// <summary>Compiler-support contract for a generated query predicate collector.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public interface IGeneratedWhereCollector
+{
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    int Collect(ref GeneratedQuerySlots slots, Span<Entity> destination);
 }
 
 /// <summary>Compiler-support contract for one direct generated parallel chunk invocation.</summary>
@@ -433,10 +441,10 @@ public static class GeneratedForEachRuntime
         in Query query,
         ref TInvoker invoker,
         scoped ReadOnlySpan<int> writeComponentIndices)
-        where TInvoker : struct, IGeneratedWhereInvoker
+        where TInvoker : struct, IGeneratedWhereCollector
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
-        int count = ExecuteGeneratedWhereCore(world, in query, ref invoker, writeComponentIndices, collect: true);
+        int count = ExecuteGeneratedWhereCore(world, in query, ref invoker, writeComponentIndices);
         return world.Destroy(world.GetGeneratedWhereScratch(count));
     }
 
@@ -449,10 +457,10 @@ public static class GeneratedForEachRuntime
         ref TInvoker invoker,
         scoped ReadOnlySpan<int> writeComponentIndices,
         scoped ReadOnlySpan<ComponentId> componentIds)
-        where TInvoker : struct, IGeneratedWhereInvoker
+        where TInvoker : struct, IGeneratedWhereCollector
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
-        int count = ExecuteGeneratedWhereCore(world, in query, ref invoker, writeComponentIndices, collect: true);
+        int count = ExecuteGeneratedWhereCore(world, in query, ref invoker, writeComponentIndices);
         return world.Add(componentIds, world.GetGeneratedWhereScratch(count));
     }
 
@@ -465,10 +473,10 @@ public static class GeneratedForEachRuntime
         ref TInvoker invoker,
         scoped ReadOnlySpan<int> writeComponentIndices,
         scoped ReadOnlySpan<ComponentId> componentIds)
-        where TInvoker : struct, IGeneratedWhereInvoker
+        where TInvoker : struct, IGeneratedWhereCollector
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
-        int count = ExecuteGeneratedWhereCore(world, in query, ref invoker, writeComponentIndices, collect: true);
+        int count = ExecuteGeneratedWhereCore(world, in query, ref invoker, writeComponentIndices);
         return world.Remove(componentIds, world.GetGeneratedWhereScratch(count));
     }
 
@@ -483,7 +491,12 @@ public static class GeneratedForEachRuntime
         where TInvoker : struct, IGeneratedWhereInvoker
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
-        _ = ExecuteGeneratedWhereCore(world, in query, ref invoker, writeComponentIndices, collect: false);
+        using var execution = OpenDense(world, in query, hasWrites: writeComponentIndices.Length != 0);
+        execution.MarkArchetypeWrites(writeComponentIndices);
+        while (execution.MoveNextTrusted(out var slots))
+        {
+            invoker.Invoke(ref slots);
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -491,28 +504,18 @@ public static class GeneratedForEachRuntime
         World world,
         in Query query,
         ref TInvoker invoker,
-        scoped ReadOnlySpan<int> writeComponentIndices,
-        bool collect)
-        where TInvoker : struct, IGeneratedWhereInvoker
+        scoped ReadOnlySpan<int> writeComponentIndices)
+        where TInvoker : struct, IGeneratedWhereCollector
     {
         using var execution = OpenDense(world, in query, hasWrites: writeComponentIndices.Length != 0);
         execution.MarkArchetypeWrites(writeComponentIndices);
         int matched = 0;
         while (execution.MoveNextTrusted(out var slots))
         {
-            int count = slots.Count;
-            for (int index = 0; index < count; index++)
-            {
-                if (!invoker.Invoke(ref slots, index))
-                {
-                    continue;
-                }
-
-                if (collect)
-                {
-                    world.GetGeneratedWhereScratchSpan(matched + 1)[matched++] = slots.EntityAt(index);
-                }
-            }
+            Span<Entity> destination = world
+                .GetGeneratedWhereScratchSpan(matched + slots.Count)
+                .Slice(matched, slots.Count);
+            matched += invoker.Collect(ref slots, destination);
         }
 
         return matched;
