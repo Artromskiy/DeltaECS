@@ -160,6 +160,35 @@ public sealed partial class World
     public ref T GetRef<T>(Entity entity)
         => ref GetRef<T>(entity, _layouts.GetPrimary<T>());
 
+    /// <summary>Returns a read-only reference to one component row.</summary>
+    /// <remarks>
+    /// The reference is invalid after a structural operation moves the entity
+    /// or changes its component rows.
+    /// </remarks>
+    public ref readonly T RefRead<T>(Entity entity, ComponentId componentId)
+    {
+        EnsureRegisteredType<T>(componentId);
+        if (!TryResolve(entity, out int recordIndex))
+        {
+            ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+        }
+
+        ref readonly var record = ref RecordAt(recordIndex);
+        var archetype = _archetypes[record.Archetype];
+        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
+        {
+            ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+        }
+
+        return ref archetype.GetChunk(record.Chunk)
+            .GetComponentRow<T>(componentIndex)
+            .RefAt(record.SlotIndex);
+    }
+
+    /// <summary>Returns a read-only reference to the primary component row.</summary>
+    public ref readonly T RefRead<T>(Entity entity)
+        => ref RefRead<T>(entity, _layouts.GetPrimary<T>());
+
     /// <summary>Writes one component value and throws when the entity lacks the component.</summary>
     public bool Set<T>(Entity entity, ComponentId componentId, in T value)
     {
