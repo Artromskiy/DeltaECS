@@ -284,7 +284,7 @@ public sealed class StructuralAlgorithmTests
                 }
             };
 
-            var parent = parentIndices[i] < 0 ? Entity.Null : entities[parentIndices[i]];
+            var parent = parentIndices[i] < 0 ? default : entities[parentIndices[i]];
             Assert.That(world.Set(entities[i], parentId, new ParentLink { Parent = parent }), Is.True);
             Assert.That(world.Set(entities[i], localId, expectedLocal[i]), Is.True);
             Assert.That(world.Set(entities[i], worldId, expectedWorld[i]), Is.True);

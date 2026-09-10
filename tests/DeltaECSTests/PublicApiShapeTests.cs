@@ -41,6 +41,19 @@ public sealed class PublicApiShapeTests
     }
 
     [Test]
+    public void Entity_Uses_Default_Handle_And_Does_Not_Expose_Null()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(default(Entity).IsValid, Is.False);
+            Assert.That(
+                typeof(Entity).GetField("Null", BindingFlags.Public | BindingFlags.Static),
+                Is.Null,
+                "The named null handle is replaced by default(Entity).");
+        });
+    }
+
+    [Test]
     public void QueryAccessAndRowChainIsTypeErasedUntilTerminalRef()
     {
         var genericTypes = QueryChainTypes

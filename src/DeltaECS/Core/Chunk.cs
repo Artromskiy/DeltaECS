@@ -109,11 +109,11 @@ internal sealed class Chunk
             _componentStamps.CopySlot(lastSlotIndex, slotIndex);
         }
 
-        _entities.RefAt(lastSlotIndex) = Entity.Null;
+        _entities.RefAt(lastSlotIndex) = default;
         ClearReferenceRows(lastSlotIndex);
         _componentStamps.ClearSlot(lastSlotIndex);
         _count = lastSlotIndex;
-        return slotIndex < lastSlotIndex ? moved : Entity.Null;
+        return slotIndex < lastSlotIndex ? moved : default;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -119,7 +119,7 @@ public sealed partial class World : IDisposable
     public Entity Create(params ReadOnlySpan<ComponentId> componentIds)
     {
         Span<Entity> entities = stackalloc Entity[1];
-        return Create(componentIds, entities) == 0 ? Entity.Null : entities.GetRefAtZero();
+        return Create(componentIds, entities) == 0 ? default : entities.GetRefAtZero();
     }
 
     public int Create(ReadOnlySpan<ComponentId> componentIds, Span<Entity> output)
@@ -164,7 +164,7 @@ public sealed partial class World : IDisposable
     public Entity Create(ArchetypeHandle handle)
     {
         Span<Entity> entities = stackalloc Entity[1];
-        return Create(handle, entities) == 0 ? Entity.Null : entities.GetRefAtZero();
+        return Create(handle, entities) == 0 ? default : entities.GetRefAtZero();
     }
 
     public int Create(ArchetypeHandle handle, Span<Entity> output)
@@ -817,7 +817,7 @@ public sealed partial class World : IDisposable
             record.Archetype = -1;
             record.Chunk = -1;
             record.SlotIndex = -1;
-            record.Generation++;
+            record.Generation = NextGeneration(record.Generation);
             _freeRecords.RefAt(_freeCount++) = entity.Index;
         }
 
@@ -905,7 +905,7 @@ public sealed partial class World : IDisposable
         record.Archetype = -1;
         record.Chunk = -1;
         record.SlotIndex = -1;
-        record.Generation++;
+        record.Generation = NextGeneration(record.Generation);
         PushFree(recordIndex);
         AliveEntityCount--;
     }
@@ -1187,9 +1187,12 @@ public sealed partial class World : IDisposable
         }
 
         int index = _records.Count;
-        _records.Add(new EntityRecord { Generation = 0, Archetype = -1, Chunk = -1, SlotIndex = -1 });
+        _records.Add(new EntityRecord { Generation = 1, Archetype = -1, Chunk = -1, SlotIndex = -1 });
         return index;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int NextGeneration(int generation) => generation == int.MaxValue ? 1 : generation + 1;
 
     private void PushFree(int recordIndex)
     {

@@ -144,7 +144,7 @@ public sealed class ComponentRowOperationTests
         var layouts = new ComponentLayoutRegistry();
         var id = layouts.Register(typeof(int), SchemaId.FromUInt64(10_051));
         var world = new World(layouts);
-        var invalid = new Entity(999_999, 0);
+        var invalid = default(Entity);
 
         Assert.That(world.IsAlive(invalid), Is.False);
         Assert.That(world.TryGet(invalid, id, out int _), Is.False);

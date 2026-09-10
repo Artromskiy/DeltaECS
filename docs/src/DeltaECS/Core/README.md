@@ -5,9 +5,10 @@ through entity storage, query descriptions, access tokens or iterators.
 
 ## Identity and registration
 
-- `Entity` is an index/generation handle. `Entity.IsValid` only rejects the
-  null handle; use `World.IsAlive(entity)` to test liveness in a particular
-  world. Destroyed handles become stale.
+- `Entity` is an index/generation handle. `default(Entity)` (`[0:0]`) is the
+  only invalid sentinel; valid handles have a non-negative index and a
+  positive generation. Use `World.IsAlive(entity)` to test liveness in a
+  particular world. Destroyed handles become stale.
 - `ComponentId` is a world-local component identity.
 - `SchemaId` is stable tooling/schema identity.
 - `ComponentLayoutRegistry` registers layouts and resolves primary component

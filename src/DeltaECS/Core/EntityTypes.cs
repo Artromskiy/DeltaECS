@@ -15,14 +15,14 @@ public readonly struct Entity : IEquatable<Entity>
     }
 
     /// <summary>
-    /// Gets whether this handle is non-null.
+    /// Gets whether this handle has a non-negative index and a positive generation.
     /// </summary>
     /// <remarks>
     /// An entity handle does not own a reference to a world and therefore
     /// cannot determine whether it is currently alive. Use
     /// <see cref="World.IsAlive(Entity)"/> for a world-specific liveness check.
     /// </remarks>
-    public bool IsValid => this != Null;
+    public bool IsValid => Index >= 0 && Generation > 0;
 
     public bool Equals(Entity other) => Index == other.Index && Generation == other.Generation;
 
@@ -33,8 +33,6 @@ public readonly struct Entity : IEquatable<Entity>
     public static bool operator ==(Entity left, Entity right) => left.Equals(right);
 
     public static bool operator !=(Entity left, Entity right) => !left.Equals(right);
-
-    public static readonly Entity Null = new(-1, -1);
 
     public override string ToString() => $"[{Index}:{Generation}]";
 }

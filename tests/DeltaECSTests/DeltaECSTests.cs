@@ -19,11 +19,14 @@ public sealed class DeltaECSDeliveryTests
     [Test]
     public void Entity_Create_Destroy_RecyclesGeneration()
     {
+        Assert.That(default(Entity).IsValid, Is.False);
+
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
         var world = new World(layouts);
 
         var e1 = world.Create(new[] { PositionId, VelocityId });
+        Assert.That(e1.Generation, Is.GreaterThan(0));
         Assert.True(world.IsAlive(e1));
 
         var destroyed = world.Destroy(e1);
