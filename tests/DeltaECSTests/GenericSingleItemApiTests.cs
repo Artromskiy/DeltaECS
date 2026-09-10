@@ -75,6 +75,25 @@ public sealed class GenericSingleItemApiTests
     }
 
     [Test]
+    public void GetRefReturnsMutablePrimaryAndExplicitComponentRows()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_005));
+        using var world = new World(layouts);
+        Entity entity = world.Create(positionId, new Position { X = 1, Y = 2 });
+        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp before), Is.True);
+
+        ref Position primary = ref world.GetRef<Position>(entity);
+        primary.X = 3;
+        ref Position explicitId = ref world.GetRef<Position>(entity, positionId);
+        explicitId.Y = 4;
+
+        Assert.That(world.Get<Position>(entity), Is.EqualTo(new Position { X = 3, Y = 4 }));
+        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp after), Is.True);
+        Assert.That(after, Is.Not.EqualTo(before));
+    }
+
+    [Test]
     public void SetFailsFastWhenTheEntityDoesNotContainTheComponent()
     {
         var layouts = new ComponentLayoutRegistry();

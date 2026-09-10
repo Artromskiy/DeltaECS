@@ -124,6 +124,42 @@ public sealed partial class World
     public T Get<T>(Entity entity)
         => Get<T>(entity, _layouts.GetPrimary<T>());
 
+    /// <summary>
+    /// Returns a writable reference to one component row.
+    /// </summary>
+    /// <remarks>
+    /// The reference is invalid after a structural operation moves the entity
+    /// or changes its component rows.
+    /// </remarks>
+    public ref T GetRef<T>(Entity entity, ComponentId componentId)
+    {
+        EnsureRegisteredType<T>(componentId);
+        if (!TryResolve(entity, out int recordIndex))
+        {
+            ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+        }
+
+        ref readonly var record = ref RecordAt(recordIndex);
+        var archetype = _archetypes[record.Archetype];
+        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
+        {
+            ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+        }
+
+        var chunk = archetype.GetChunk(record.Chunk);
+        Stamp stamp = chunk.IncrementComponentStamp(componentIndex, record.SlotIndex);
+        CreateEntityComponentStampWriter(
+            chunk,
+            componentIndex,
+            record.SlotIndex,
+            stamp).MarkPoint();
+        return ref chunk.GetComponentRow<T>(componentIndex).RefAt(record.SlotIndex);
+    }
+
+    /// <summary>Returns a writable reference to the primary component row.</summary>
+    public ref T GetRef<T>(Entity entity)
+        => ref GetRef<T>(entity, _layouts.GetPrimary<T>());
+
     /// <summary>Writes one component value and throws when the entity lacks the component.</summary>
     public bool Set<T>(Entity entity, ComponentId componentId, in T value)
     {
