@@ -474,6 +474,22 @@ internal static class MicroContractSmoke
         if (apiComparison.FunctorContext() != expectedApiComparison)
             throw new InvalidOperationException("Functor-context Movement4 checksum mismatch.");
 
-        Console.WriteLine("Micro contract smoke passed: dense Movement2/Movement4 and API-shape comparisons.");
+        var whereApi = new WhereApiMicroBenchmarkImplementation { Amount = 8 };
+        whereApi.Setup();
+        try
+        {
+            if (whereApi.DirectForEach() != whereApi.ExpectedIterationCount
+                || whereApi.WhereForEachIn() != whereApi.ExpectedIterationCount
+                || whereApi.WhereAddRemove() != whereApi.ExpectedStructuralCount)
+            {
+                throw new InvalidOperationException("Where API checksum mismatch.");
+            }
+        }
+        finally
+        {
+            whereApi.Cleanup();
+        }
+
+        Console.WriteLine("Micro contract smoke passed: dense Movement2/Movement4, API-shape comparisons and Where API.");
     }
 }
