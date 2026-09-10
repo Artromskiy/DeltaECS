@@ -52,10 +52,12 @@ int removed = world.Remove<Velocity>(entities, velocityId);
 The overloads without a `ComponentId` resolve the registered primary component
 for `T` once at the API boundary, so the type and component ID cannot be
 supplied inconsistently. The explicit-ID overloads remain available for
-secondary registrations and validate `ComponentId` against `T`. Batch `Add<T>`
-initializes the newly added row with the same value for every eligible entity;
-batch `Remove<T>` returns the number of structural transitions. Stale handles
-and entities that already have or do not have the component are skipped.
+secondary registrations and validate `ComponentId` against `T`. `Set<T>`
+expects the row to exist and throws when the entity is stale or lacks it; use
+`TryGet` when the component is optional. Batch `Add<T>` initializes the newly
+added row with the same value for every eligible entity; batch `Remove<T>`
+returns the number of structural transitions. Batch structural operations skip
+stale handles and entities that already have or do not have the component.
 
 ## Generated primary-component batches
 

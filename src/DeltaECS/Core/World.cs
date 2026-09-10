@@ -374,7 +374,13 @@ public sealed partial class World : IDisposable
     {
         if (!TryResolve(entity, out int recordIndex))
         {
-            return false;
+            ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+        }
+
+        ref readonly var record = ref RecordAt(recordIndex);
+        if (!_archetypes[record.Archetype].Contains(componentId))
+        {
+            ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }
 
         return SetComponentUnchecked(recordIndex, componentId, value);

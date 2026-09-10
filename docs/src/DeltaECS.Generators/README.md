@@ -76,20 +76,24 @@ number of registered component IDs.
 ## Generic query factories
 
 The generator also emits only the typed query factories used by a consumer.
-They are extensions on `World`, so the runtime query and storage types remain
-non-generic:
+Initial factories are extensions on `World`; the same names are emitted as
+extensions on `Query` for fluent composition. The runtime query and storage
+types remain non-generic:
 
 ```csharp
-Query movement = world.WhereAll<Position, Velocity>();
-Query movingOrAccelerating = world.WhereAny<Velocity, Acceleration>();
-Query withoutLifetime = world.WhereNone<Lifetime>();
+Query combatants = world
+    .WhereAll<Position, Health, Human>()
+    .WhereNone<Dead, Escaped>()
+    .WhereAny<Armed, Berserk>();
 ```
 
-Each generated factory resolves primary component registrations through
-`world.Layouts.GetPrimary<T>()`, fills a stack-only `ComponentId` span and calls
-the existing `World.CreateQuery(in QuerySpec)` path. The factories are emitted
-on demand for arities one through 256; no generic query plan or runtime type
-dictionary is introduced.
+Each generated factory resolves primary component registrations, fills a
+stack-only `ComponentId` span and calls the existing `World.CreateQuery` path.
+The initial call uses `world.Layouts.GetPrimary<T>()`; a `Query` extension
+resolves the same registration through the query's owning world and composes
+the masks into a new `QuerySpec`. Equivalent specifications continue to share
+the existing query-plan cache. Factories are emitted on demand for arities one
+through 256; no generic query plan or runtime type dictionary is introduced.
 
 `DeltaECS.Generators` targets `netstandard2.0`. The analyzer package keeps this
 broadly compatible assembly in `analyzers/dotnet/cs`; the target of the

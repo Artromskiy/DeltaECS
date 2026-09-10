@@ -12,6 +12,14 @@ public interface IGeneratedSequenceInvoker
     void Invoke(ref GeneratedSequenceCursor cursor);
 }
 
+/// <summary>Compiler-support contract for a generated query predicate.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public interface IGeneratedWhereInvoker
+{
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    bool Invoke(ref GeneratedQuerySlots slots, int index);
+}
+
 /// <summary>Compiler-support contract for one direct generated parallel chunk invocation.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public interface IGeneratedParallelInvoker
@@ -102,9 +110,21 @@ public ref struct GeneratedDenseExecution
             Stamp[] stamps = plan.ArchetypeStamps;
             for (int accessIndex = 0; accessIndex < queryComponentIndices.Length; accessIndex++)
             {
+                int queryComponentIndex = queryComponentIndices.RefAt(accessIndex);
+                bool duplicate = false;
+                for (int previous = 0; previous < accessIndex; previous++)
+                {
+                    duplicate |= queryComponentIndices.RefAt(previous) == queryComponentIndex;
+                }
+
+                if (duplicate)
+                {
+                    continue;
+                }
+
                 GeneratedForEachRuntime.IncrementArchetypeStamp(
                     stamps,
-                    queryComponentIndices.RefAt(accessIndex));
+                    queryComponentIndex);
             }
         }
     }
@@ -371,6 +391,132 @@ public static class GeneratedForEachRuntime
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ref T GetGeneratedRow<T>(Array[] componentRows, int queryComponentIndex)
         => ref Unsafe.As<T[]>(componentRows.RefAt(queryComponentIndex)).GetRefAtZero();
+
+    /// <summary>Validates the world/query pair used by a generated mutation view.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ValidateGeneratedWhere(World world, in Query query)
+        => _ = ValidateQuery(world, in query);
+
+    /// <summary>Composes a generated typed query with an additional query specification.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Query ComposeGeneratedQuery(in Query query, QuerySpec additions)
+    {
+        if (!query.IsValid)
+        {
+            ThrowHelper.ThrowInvalidEntityQueryHandle();
+        }
+
+        QuerySpec composed = query.Description.Compose(in additions);
+        return query.Owner.CreateQuery(in composed);
+    }
+
+    /// <summary>Resolves a primary component registration for a generated query composition.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ComponentId GetGeneratedPrimary<T>(in Query query)
+    {
+        if (!query.IsValid)
+        {
+            ThrowHelper.ThrowInvalidEntityQueryHandle();
+        }
+
+        return query.Owner.Layouts.GetPrimary<T>();
+    }
+
+    /// <summary>Executes a generated predicate and destroys its collected matches.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int ExecuteGeneratedWhereDestroy<TInvoker>(
+        World world,
+        in Query query,
+        ref TInvoker invoker,
+        scoped ReadOnlySpan<int> writeComponentIndices)
+        where TInvoker : struct, IGeneratedWhereInvoker
+    {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        int count = ExecuteGeneratedWhereCore(world, in query, ref invoker, writeComponentIndices, collect: true);
+        return world.Destroy(world.GetGeneratedWhereScratch(count));
+    }
+
+    /// <summary>Executes a generated predicate and adds components to its collected matches.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int ExecuteGeneratedWhereAdd<TInvoker>(
+        World world,
+        in Query query,
+        ref TInvoker invoker,
+        scoped ReadOnlySpan<int> writeComponentIndices,
+        scoped ReadOnlySpan<ComponentId> componentIds)
+        where TInvoker : struct, IGeneratedWhereInvoker
+    {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        int count = ExecuteGeneratedWhereCore(world, in query, ref invoker, writeComponentIndices, collect: true);
+        return world.Add(componentIds, world.GetGeneratedWhereScratch(count));
+    }
+
+    /// <summary>Executes a generated predicate and removes components from its collected matches.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int ExecuteGeneratedWhereRemove<TInvoker>(
+        World world,
+        in Query query,
+        ref TInvoker invoker,
+        scoped ReadOnlySpan<int> writeComponentIndices,
+        scoped ReadOnlySpan<ComponentId> componentIds)
+        where TInvoker : struct, IGeneratedWhereInvoker
+    {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        int count = ExecuteGeneratedWhereCore(world, in query, ref invoker, writeComponentIndices, collect: true);
+        return world.Remove(componentIds, world.GetGeneratedWhereScratch(count));
+    }
+
+    /// <summary>Executes a generated predicate and a terminal callback while the query lease is active.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ExecuteGeneratedWhereForEach<TInvoker>(
+        World world,
+        in Query query,
+        ref TInvoker invoker,
+        scoped ReadOnlySpan<int> writeComponentIndices)
+        where TInvoker : struct, IGeneratedWhereInvoker
+    {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        _ = ExecuteGeneratedWhereCore(world, in query, ref invoker, writeComponentIndices, collect: false);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int ExecuteGeneratedWhereCore<TInvoker>(
+        World world,
+        in Query query,
+        ref TInvoker invoker,
+        scoped ReadOnlySpan<int> writeComponentIndices,
+        bool collect)
+        where TInvoker : struct, IGeneratedWhereInvoker
+    {
+        using var execution = OpenDense(world, in query, hasWrites: writeComponentIndices.Length != 0);
+        execution.MarkArchetypeWrites(writeComponentIndices);
+        int matched = 0;
+        while (execution.MoveNextTrusted(out var slots))
+        {
+            int count = slots.Count;
+            for (int index = 0; index < count; index++)
+            {
+                if (!invoker.Invoke(ref slots, index))
+                {
+                    continue;
+                }
+
+                if (collect)
+                {
+                    world.GetGeneratedWhereScratchSpan(matched + 1)[matched++] = slots.EntityAt(index);
+                }
+            }
+        }
+
+        return matched;
+    }
 
     /// <summary>
     /// Executes a generated invoker over disjoint chunks. The query and access

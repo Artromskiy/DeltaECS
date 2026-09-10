@@ -478,6 +478,18 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void RealConsumerProjectExecutesGeneratedWherePaths()
+    {
+        Assert.That(ConsumerProof.RunGeneratedWhere(), Is.EqualTo(1));
+    }
+
+    [Test]
+    public void RealConsumerProjectExecutesGeneratedQueryComposition()
+    {
+        Assert.That(ConsumerProof.RunGenericQueries(), Is.EqualTo(1));
+    }
+
+    [Test]
     public void StructuralGeneratorEmitsOnlyUsedGenericShapes()
     {
         GeneratorDriverRunResult run = RunGenerator(StructuralSource);
@@ -522,6 +534,71 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
+    [Test]
+    public void QueryGeneratorEmitsComposableQueryFactories()
+    {
+        GeneratorDriverRunResult run = RunGenerator(GenericQueryChainSource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty);
+        Assert.That(generated, Does.Contain("public static Query WhereAll<T1, T2, T3>(this Query query)"));
+        Assert.That(generated, Does.Contain("public static Query WhereNone<T1, T2>(this Query query)"));
+        Assert.That(generated, Does.Contain("public static Query WhereAny<T1, T2>(this Query query)"));
+        Assert.That(generated, Does.Contain("ComposeGeneratedQuery(in query, additions)"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, GenericQueryChainSource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
+    public void QueryGeneratorSharesFactoriesWithTheSameSignatureAcrossSystems()
+    {
+        GeneratorDriverRunResult run = RunGenerator(QueryFactoriesWithDuplicateSignaturesSource);
+
+        Assert.That(run.Diagnostics, Is.Empty);
+        Assert.That(
+            run.GeneratedTrees.Count(static tree => tree.FilePath.Contains("GeneratedQuery_", StringComparison.Ordinal)),
+            Is.EqualTo(1));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, QueryFactoriesWithDuplicateSignaturesSource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
+    public void WhereGeneratorEmitsPredicateViewsAndMutationTerminals()
+    {
+        GeneratorDriverRunResult run = RunGenerator(WhereMutationSource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty);
+        Assert.That(
+            run.GeneratedTrees.Count(static tree => tree.FilePath.Contains("GeneratedWhere_", StringComparison.Ordinal)),
+            Is.EqualTo(2));
+        Assert.That(generated, Does.Contain("GeneratedWhereQuery_"));
+        Assert.That(generated, Does.Contain("ExecuteGeneratedWhereDestroy"));
+        Assert.That(generated, Does.Contain("ExecuteGeneratedWhereAdd"));
+        Assert.That(generated, Does.Contain("ExecuteGeneratedWhereRemove"));
+        Assert.That(generated, Does.Contain("ExecuteGeneratedWhereForEach"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, WhereMutationSource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
     private static GeneratorDriverRunResult RunGenerator()
         => RunGenerator(ConsumerSource);
 
@@ -533,7 +610,8 @@ public sealed class DemandDrivenForEachGeneratorTests
             {
                 new DemandDrivenForEachGenerator().AsSourceGenerator(),
                 new GeneratedStructuralGenerator().AsSourceGenerator(),
-                new GeneratedQueryGenerator().AsSourceGenerator()
+                new GeneratedQueryGenerator().AsSourceGenerator(),
+                new GeneratedWhereGenerator().AsSourceGenerator()
             });
         driver = driver.RunGenerators(compilation);
         return driver.GetRunResult();
@@ -562,7 +640,8 @@ public sealed class DemandDrivenForEachGeneratorTests
             {
                 new DemandDrivenForEachGenerator().AsSourceGenerator(),
                 new GeneratedStructuralGenerator().AsSourceGenerator(),
-                new GeneratedQueryGenerator().AsSourceGenerator()
+                new GeneratedQueryGenerator().AsSourceGenerator(),
+                new GeneratedWhereGenerator().AsSourceGenerator()
             },
             Array.Empty<AdditionalText>(),
             new CSharpParseOptions(languageVersion),
@@ -679,6 +758,10 @@ public sealed class DemandDrivenForEachGeneratorTests
         public interface IForEachEntity { }
         public interface IForEachContext<TContext> { }
         public interface IForEachContextEntity<TContext> { }
+        public interface IGeneratedWhereInvoker
+        {
+            bool Invoke(ref GeneratedQuerySlots slots, int index);
+        }
         public sealed class ComponentLayoutRegistry
         {
             public ComponentId GetPrimary(Type type) => default;
@@ -789,6 +872,17 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static int GetPreparedWriteRoute<T>(in Query query) => default;
             public static int GetPreparedWriteRoute<T>(in Query query, ComponentId component) => default;
             public static void ValidateSequenceQuery(World world, in Query query) { }
+            public static void ValidateGeneratedWhere(World world, in Query query) { }
+            public static Query ComposeGeneratedQuery(in Query query, QuerySpec additions) => default;
+            public static ComponentId GetGeneratedPrimary<T>(in Query query) => default;
+            public static int ExecuteGeneratedWhereDestroy<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices)
+                where TInvoker : struct, IGeneratedWhereInvoker => 0;
+            public static int ExecuteGeneratedWhereAdd<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, ReadOnlySpan<ComponentId> componentIds)
+                where TInvoker : struct, IGeneratedWhereInvoker => 0;
+            public static int ExecuteGeneratedWhereRemove<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, ReadOnlySpan<ComponentId> componentIds)
+                where TInvoker : struct, IGeneratedWhereInvoker => 0;
+            public static void ExecuteGeneratedWhereForEach<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices)
+                where TInvoker : struct, IGeneratedWhereInvoker { }
             public static ReadAccess GetPreparedReadAccess(in Query query, ComponentId component, Type runtimeType) => default;
             public static WriteAccess GetPreparedWriteAccess(in Query query, ComponentId component, Type runtimeType) => default;
             public static int GetWriteQueryComponentIndex(WriteAccess access) => default;
@@ -897,6 +991,89 @@ public sealed class DemandDrivenForEachGeneratorTests
                 _ = all;
                 _ = any;
                 _ = none;
+            }
+        }
+        """;
+
+    private const string GenericQueryChainSource = """
+        namespace Delta.ECS;
+        struct Position { }
+        struct Health { }
+        struct Human { }
+        struct Dead { }
+        struct Escaped { }
+        struct Armed { }
+        struct Berserk { }
+        static class QueryConsumer
+        {
+            public static Query Build(World world)
+                => world
+                    .WhereAll<Position, Health, Human>()
+                    .WhereNone<Dead, Escaped>()
+                    .WhereAny<Armed, Berserk>();
+
+            public static Query BuildWithLocal(World world)
+            {
+                Query query = world.WhereAll<Position, Health, Human>();
+                return query.WhereNone<Dead, Escaped>().WhereAny<Armed, Berserk>();
+            }
+
+            public static Query BuildWithVar(World world)
+            {
+                var query = world.WhereAll<Position, Health>();
+                return query.WhereNone<Dead, Escaped, Human>().WhereAny<Armed>();
+            }
+        }
+        """;
+
+    private const string QueryFactoriesWithDuplicateSignaturesSource = """
+        namespace Delta.ECS;
+        struct Position { }
+        struct Velocity { }
+        struct Acceleration { }
+        struct Lifetime { }
+        static class MovementSystem
+        {
+            public static Query Build(World world) => world.WhereAll<Position, Velocity>();
+        }
+        static class LifetimeSystem
+        {
+            public static Query Build(World world) => world.WhereAll<Acceleration, Lifetime>();
+        }
+        """;
+
+    private const string WhereMutationSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        struct Team { public int Id; public int DefaultHealth; }
+        struct Dead { }
+        struct Alive { }
+        static class MutationSystems
+        {
+            public static void Run(World world, in Query query)
+            {
+                world.Where(in query, static (Entity entity, ref Health health) => health.Value <= 0).Destroy();
+                world.Where(in query, static (Entity entity, ref Health health) => health.Value <= 0).Add<Dead>();
+                world.Where(in query, static (Entity entity, ref Health health) => health.Value <= 0).Remove<Alive>();
+                world.Where(in query, static (Entity entity, ref Health health) => health.Value <= 0)
+                    .ForEachEntity(static entity => _ = entity);
+                world.Where(in query, static (Entity entity, ref Health health) => health.Value <= 0)
+                    .ForEach(static (ref Health health) => health.Value = 0);
+                world.Where(in query, static (Entity entity, ref Health health, in Team team) =>
+                    health.Value <= 0 && team.Id == 1)
+                    .Destroy();
+                world.Where(in query, static (Entity entity, ref Health health, in Team team) =>
+                    health.Value <= 0 && team.Id == 1)
+                    .Add<Dead>();
+                world.Where(in query, static (Entity entity, ref Health health, in Team team) =>
+                    health.Value <= 0 && team.Id == 1)
+                    .Remove<Alive>();
+                world.Where(in query, static (Entity entity, ref Health health, in Team team) =>
+                    health.Value <= 0 && team.Id == 1)
+                    .ForEachEntity(static (Entity current, ref Health health, in Team team) => _ = current.Index + team.Id);
+                world.Where(in query, static (Entity entity, ref Health health, in Team team) =>
+                    health.Value <= 0 && team.Id == 1)
+                    .ForEach(static (ref Health health, in Team team) => health.Value = team.DefaultHealth);
             }
         }
         """;

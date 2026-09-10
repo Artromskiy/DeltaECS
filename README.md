@@ -5,81 +5,169 @@ fast, typed iteration and immediate world updates in .NET applications.
 
 ## What it provides
 
-- Compact entities with generation safety.
-- Component registration by `ComponentId`.
-- Reusable queries over required and optional component sets.
-- Typed `ForEach` callbacks and struct functors with read/write modes.
-- Explicit chunk traversal for systems needing lower-level control.
-- Ordered entity sequences with filtering and batch structural operations.
-- Mutation stamps for inexpensive change observation by integrations.
+- Generation-checked entity handles and registered component types.
+- Reusable queries requiring, allowing or excluding component sets.
+- Typed callbacks with explicit read/write access and caller-owned context.
+- Source-generated query factories, callbacks and batch component operations.
+- Source-generated query-wide mutation views with predicate terminals.
+- Stateful struct functors and explicit chunk traversal.
+- Ordered entity sequences with filtering and structural operations.
+- Component revision stamps for change observation by integrations.
 
 ## Quick start
 
+For a .NET 10 console application, use this project file and `Program.cs`:
+
 ```xml
-<PackageReference Include="DeltaECS" Version="*" />
-<PackageReference Include="DeltaECS.Generators" Version="*"
-                  OutputItemType="Analyzer" />
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="DeltaECS" Version="*" />
+    <PackageReference Include="DeltaECS.Generators" Version="*"
+                      PrivateAssets="all" />
+  </ItemGroup>
+</Project>
 ```
 
 ```csharp
+using System;
 using Delta.ECS;
 
-var world = new World();
-var positionId = world.Register<Position>();
-var velocityId = world.Register<Velocity>();
-var entities = new Entity[1_000];
-world.Create(stackalloc[] { positionId, velocityId }, entities);
+var layouts = new ComponentLayoutRegistry();
+var positionId = layouts.Register<Position>(new SchemaId(1));
+var velocityId = layouts.Register<Velocity>(new SchemaId(2));
+using var world = new World(layouts);
 
-var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+var entity = world.Create(positionId, new Position { X = 10 });
+world.Add(entity, velocityId, new Velocity { X = 2 });
+var query = world.WhereAll<Position, Velocity>();
 world.ForEach(in query,
     static (ref Position position, in Velocity velocity) =>
         position.X += velocity.X);
+Console.WriteLine(world.Get<Position>(entity).X); // 12
 
 public struct Position { public float X; }
 public struct Velocity { public float X; }
 ```
 
-The callback updates every matching position. The source generator emits the
-callback shape used by the consumer, so component count is not limited to a
-handwritten overload set.
+Register types before using them. `ComponentId` identifies a registration in
+this world; `SchemaId` is the application's stable identity for that component
+layout. Generic calls select a type's primary registration. Use explicit IDs
+when one CLR type has several registrations.
 
-## Core concepts
+`World` owns component storage and is disposable. `Get<T>` returns a value;
+use `Set` to replace an existing component or a `ref` callback to modify a
+stored struct in place. `Set<T>` fails fast when the entity is stale or the
+component row is missing; use `TryGet` when the row is optional.
+The generator runs during compilation in the consuming project: no attributes
+or hand-written generated files are needed for these calls.
 
-`World` owns entities and components. `QuerySpec` describes selection and
-`CreateQuery` produces a reusable query. `ForEach` is the convenient terminal
-operation; `BeginScope` exposes borrowed chunk and slot views for explicit
-traversal.
+Each variation reuses the quick-start world independently. Put statements
+before its component declarations.
 
-Read parameters use `in` or `ref readonly`; writable parameters use `ref`.
-Non-capturing static callbacks can use the optional interceptor path for the
-fastest generated execution. For ordered candidates, use
-`world.From(entities).Where(in query)` and finish with `ForEachEntity`, `Add`,
-`Remove`, or `Destroy`.
+### Read, replace and remove a component
+
+```csharp
+world.Set(entity, new Position { X = 20 });
+if (world.TryGet<Position>(entity, out var position))
+    Console.WriteLine(position.X); // 20
+world.Remove<Velocity>(entity);
+world.Destroy(entity);
+Console.WriteLine(world.IsAlive(entity)); // False
+```
+
+### Create and process a batch
+
+```csharp
+var entities = new Entity[3];
+world.Create(stackalloc[] { positionId }, entities);
+int added = world.From(entities).Add<Velocity>(); // 3; default values
+world.From(entities).Where(in query).ForEachEntity(
+    static (Entity current, ref Position position, in Velocity velocity) =>
+        position.X = current.Index + velocity.X);
+int removed = world.Remove<Position, Velocity>(entities); // 3
+world.From(entities).Destroy();
+```
+
+Sequence callbacks follow candidate order, preserve duplicates and skip stale
+handles. `Where(in query)` filters those candidates. Batch structural methods
+return the number of entities changed; adding an existing component preserves
+its value. Components added without values start at `default`.
+
+### Generate a stateful system
+
+```csharp
+var movement = new Movement { DeltaTime = 0.5f };
+world.ForEach(in query, ref movement);
+Console.WriteLine(movement.Updated); // 1
+Console.WriteLine(world.Get<Position>(entity).X); // 13
+```
+
+Add this type alongside the component declarations:
+
+```csharp
+public struct Movement : IForEach
+{
+    public float DeltaTime;
+    public int Updated;
+    public void Invoke(ref Position position, in Velocity velocity)
+    {
+        position.X += velocity.X * DeltaTime;
+        Updated++;
+    }
+}
+```
+
+The generator reads `Invoke` and emits the required overload. Passing the
+functor by `ref` keeps its accumulated state. Lambda parameters must be typed:
+`ref T` writes, `in T` / `ref readonly T` read, and `T` reads a value copy.
+
+## Benchmark snapshot
+
+The forked [`Ecs.CSharp.Benchmark`](docs/benchmarks/ecs-csharp-benchmark.md)
+suite runs the same create and system scenarios against several .NET ECS
+implementations. The latest saved run used 100,000 entities, zero padding and
+four DeltaECS workers. Lower is better; all system rows allocated `0 B`.
+
+| Fork workload | **DeltaECS** | **DeltaECS_Parallel (4 workers)** | Fastest external method |
+|---|---:|---:|---:|
+| SystemWithOneComponent | 28.341 μs | **8.377 μs** | Frent_Simd — 5.821 μs |
+| SystemWithTwoComponents | 28.685 μs | **9.615 μs** | Frent_Simd — 9.202 μs |
+| SystemWithThreeComponents | 36.861 μs | **12.872 μs** | Friflo SIMD — 9.260 μs |
+| TwoComponentsMultipleComposition | 28.266 μs | **9.300 μs** | Frent_Simd — 9.528 μs |
+
+DeltaECS_Parallel is the fastest method in the multiple-composition scenario
+and stays within 5% of the fastest external method in the two-component case,
+without managed allocations. Recorded 2026-09-09 with BenchmarkDotNet 0.13.12
+on an Apple M4 Pro, macOS 26.5.2 and .NET 10.0.9 Arm64 RyuJIT. See the
+[benchmark guide](docs/benchmarks/README.md) and [fork details](docs/benchmarks/ecs-csharp-benchmark.md)
+for workload and reproduction details.
 
 ## Capabilities and limits
 
-- Ships runtime assets for `netstandard2.1` and `net10.0`. The
-  `netstandard2.1` asset is suitable for hosts such as Unity profiles that
-  expose the .NET Standard 2.1 API surface; the `net10.0` asset keeps the
-  ref-backed row representation available on runtimes that support ref
-  fields.
-- Structural changes are immediate; no command-buffer playback phase is
-  required.
-- Query and sequence views are borrowed and must not outlive their scope.
-- Generated component callbacks support up to 256 component parameters; this
-  is a source-generation limit, not a limit on registered component IDs.
-- Mutation stamps track ECS writes. Changes made inside reference-type
-  components remain the caller's responsibility.
-- Interceptors are optional and apply only to eligible call sites.
+- Runtime targets: `netstandard2.1` and `net10.0`; the console example uses
+  .NET 10. Compatible Unity profiles can use the .NET Standard 2.1 asset.
+- Queries are reusable selections; callback components must exist on every
+  match. An `Any` match alone does not guarantee each requested component.
+- Structural changes are immediate. Perform create/add/remove/destroy outside
+  active iteration scopes and callbacks; collect handles for a later batch.
+- Chunk and sequence views borrow storage. Keep them within their valid scope.
+- Generated callbacks, structural operations and query factories support up
+  to 256 component type parameters per call; registered IDs have no such cap.
+- Mutation stamps track ECS writes, not mutations inside reference objects.
+- Interceptors are optional; ordinary generated callbacks work without them.
 
 ## Packages and examples
 
-- [Runtime package guide](docs/packages/DeltaECS.README.md)
-- [Source generator guide](docs/packages/DeltaECS.Generators.README.md)
-- [Runnable samples](samples)
+- [API and code-generation cookbook](docs/usage-examples.md): query filters,
+  context callbacks, explicit IDs, chunk traversal and interceptor setup.
+- [Runtime package](docs/packages/DeltaECS.README.md) and
+  [generator package](docs/packages/DeltaECS.Generators.README.md).
+- [Runnable console / NativeAOT sample](samples/DeltaECS.AotSample/Program.cs).
 
-## Further reading
-
-- [API map](docs/APIMAP.md)
+- [Public behavior and documentation index](docs/README.md)
+- [Generator reference](docs/src/DeltaECS.Generators/README.md)
 - [Integration API](docs/src/DeltaECS/API/README.md)
-- [Documentation index](docs/README.md)

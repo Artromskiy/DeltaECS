@@ -11,6 +11,10 @@ public struct ComponentSix { public int Value; }
 public struct ComponentSeven { public int Value; }
 public struct ComponentEight { public int Value; }
 public struct Extra { public int Value; }
+public struct Health { public int Value; }
+public struct Team { public int Id; public int DefaultHealth; }
+public struct Dead { }
+public struct Alive { }
 
 public struct ConsumerContext { public int Value; }
 
@@ -239,9 +243,165 @@ public static class ConsumerProof
         Query all = world.WhereAll<Position, Velocity>();
         Query any = world.WhereAny<Velocity, Acceleration>();
         Query none = world.WhereNone<Lifetime>();
+        Query composed = world
+            .WhereAll<Position>()
+            .WhereNone<Lifetime>()
+            .WhereAny<Velocity>()
+            .WhereAny<Acceleration>();
 
-        return Count(world, all) == 1 && Count(world, any) == 2 && Count(world, none) == 2 ? 1 : 0;
+        return Count(world, all) == 1
+            && Count(world, any) == 2
+            && Count(world, none) == 2
+            && Count(world, composed) == 2
+            ? 1
+            : 0;
     }
+
+    public static int RunGeneratedWhere()
+    {
+        int destroyed = RunGeneratedWhereDestroy();
+        int added = RunGeneratedWhereAdd();
+        int removed = RunGeneratedWhereRemove();
+        int callbacks = RunGeneratedWhereCallbacks();
+        return destroyed == 1 && added == 1 && removed == 1 && callbacks == 3 ? 1 : 0;
+    }
+
+    private static int RunGeneratedWhereDestroy()
+    {
+        using var world = new World(chunkCapacity: 2);
+        (ComponentId healthId, ComponentId teamId, ComponentId aliveId, _) = RegisterMutationLayouts(world);
+        Entity[] entities = CreateMutationEntities(world, healthId, teamId, aliveId);
+        Query query = CreateMutationQuery(world, healthId, teamId, aliveId);
+
+        int destroyed = world.Where(
+                in query,
+                static (Entity entity, ref Health health, in Team team) => health.Value <= 0 && team.Id == 1)
+            .Destroy();
+
+        return destroyed == 1 && !world.IsAlive(entities[0]) && world.IsAlive(entities[1]) && world.IsAlive(entities[2])
+            ? destroyed
+            : 0;
+    }
+
+    private static int RunGeneratedWhereAdd()
+    {
+        using var world = new World(chunkCapacity: 2);
+        (ComponentId healthId, ComponentId teamId, ComponentId aliveId, _) = RegisterMutationLayouts(world);
+        Entity[] entities = CreateMutationEntities(world, healthId, teamId, aliveId);
+        Query query = CreateMutationQuery(world, healthId, teamId, aliveId);
+
+        int added = world.Where(
+                in query,
+                static (Entity entity, ref Health health) =>
+                {
+                    health.Value++;
+                    return health.Value <= 0;
+                })
+            .Add<Dead>();
+
+        return added == 2
+            && world.TryGet<Dead>(entities[0], out _)
+            && !world.TryGet<Dead>(entities[1], out _)
+            && world.TryGet<Dead>(entities[2], out _)
+            && world.Get<Health>(entities[0], healthId).Value == 0
+            && world.Get<Health>(entities[2], healthId).Value == 0
+            ? 1
+            : 0;
+    }
+
+    private static int RunGeneratedWhereRemove()
+    {
+        using var world = new World(chunkCapacity: 2);
+        (ComponentId healthId, ComponentId teamId, ComponentId aliveId, _) = RegisterMutationLayouts(world);
+        Entity[] entities = CreateMutationEntities(world, healthId, teamId, aliveId);
+        Query query = CreateMutationQuery(world, healthId, teamId, aliveId);
+
+        int removed = world.Where(
+                in query,
+                static (Entity entity, ref Health health, in Team team) => health.Value <= 0 && team.Id == 1)
+            .Remove<Alive>();
+
+        return removed == 1 && !world.TryGet<Alive>(entities[0], out _) && world.TryGet<Alive>(entities[1], out _)
+            ? removed
+            : 0;
+    }
+
+    private static int RunGeneratedWhereCallbacks()
+    {
+        using var world = new World(chunkCapacity: 2);
+        (ComponentId healthId, ComponentId teamId, ComponentId aliveId, _) = RegisterMutationLayouts(world);
+        Entity[] entities = CreateMutationEntities(world, healthId, teamId, aliveId);
+        Query query = CreateMutationQuery(world, healthId, teamId, aliveId);
+        int entityCallbackCount = 0;
+
+        world.Where(
+                in query,
+                static (Entity entity, ref Health health) => health.Value <= 0)
+            .ForEachEntity(static (Entity entity, ref Health health, in Team team) =>
+            {
+                health.Value = team.DefaultHealth + entity.Index;
+            });
+        world.Where(
+                in query,
+                static (Entity entity, ref Health health) => health.Value > 0)
+            .ForEachEntity(static entity => _ = entity);
+        world.Where(
+                in query,
+                static (Entity entity, ref Health health) => health.Value >= 0)
+            .ForEach(static (ref Health health, in Team team) => health.Value = team.DefaultHealth);
+
+        bool rejectedStructuralNesting = false;
+        world.ForEach(in query, () =>
+        {
+            try
+            {
+                world.Where(
+                        in query,
+                        static (Entity entity, ref Health health) => health.Value <= 0)
+                    .Destroy();
+            }
+            catch (InvalidOperationException)
+            {
+                rejectedStructuralNesting = true;
+            }
+        });
+        if (!rejectedStructuralNesting)
+        {
+            return 0;
+        }
+
+        for (int index = 0; index < entities.Length; index++)
+        {
+            if (world.Get<Health>(entities[index], healthId).Value == world.Get<Team>(entities[index], teamId).DefaultHealth)
+            {
+                entityCallbackCount++;
+            }
+        }
+
+        return entityCallbackCount;
+    }
+
+    private static (ComponentId Health, ComponentId Team, ComponentId Alive, ComponentId Dead) RegisterMutationLayouts(World world)
+        => (
+            world.Layouts.Register<Health>(new SchemaId(31)),
+            world.Layouts.Register<Team>(new SchemaId(32)),
+            world.Layouts.Register<Alive>(new SchemaId(33)),
+            world.Layouts.Register<Dead>(new SchemaId(34)));
+
+    private static Entity[] CreateMutationEntities(World world, ComponentId healthId, ComponentId teamId, ComponentId aliveId)
+    {
+        Entity[] entities = world.Create(stackalloc[] { healthId, teamId, aliveId }, 3);
+        world.Set(entities[0], healthId, new Health { Value = -1 });
+        world.Set(entities[1], healthId, new Health { Value = 5 });
+        world.Set(entities[2], healthId, new Health { Value = -1 });
+        world.Set(entities[0], teamId, new Team { Id = 1, DefaultHealth = 100 });
+        world.Set(entities[1], teamId, new Team { Id = 1, DefaultHealth = 200 });
+        world.Set(entities[2], teamId, new Team { Id = 2, DefaultHealth = 300 });
+        return entities;
+    }
+
+    private static Query CreateMutationQuery(World world, ComponentId healthId, ComponentId teamId, ComponentId aliveId)
+        => world.CreateQuery(QuerySpec.WhereAll(stackalloc[] { healthId, teamId, aliveId }));
 
     private static int Count(World world, in Query query)
     {

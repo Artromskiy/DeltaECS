@@ -124,11 +124,14 @@ public sealed partial class World
     public T Get<T>(Entity entity)
         => Get<T>(entity, _layouts.GetPrimary<T>());
 
-    /// <summary>Writes one component value and reports whether the row was updated.</summary>
+    /// <summary>Writes one component value and throws when the entity lacks the component.</summary>
     public bool Set<T>(Entity entity, ComponentId componentId, in T value)
-        => SetCore(entity, componentId, in value);
+    {
+        EnsureRegisteredType<T>(componentId);
+        return SetCore(entity, componentId, in value);
+    }
 
-    /// <summary>Writes the primary component for <typeparamref name="T"/>.</summary>
+    /// <summary>Writes the primary component for <typeparamref name="T"/> and throws when it is missing.</summary>
     public bool Set<T>(Entity entity, in T value)
         => Set(entity, _layouts.GetPrimary<T>(), in value);
 

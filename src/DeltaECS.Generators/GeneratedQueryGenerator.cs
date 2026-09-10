@@ -9,8 +9,8 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace Delta.ECS.Generators;
 
 /// <summary>
-/// Generates typed query factories only for the WhereAll, WhereAny and
-/// WhereNone shapes used by a consumer compilation.
+/// Generates typed World factories and composable Query extensions only for
+/// the WhereAll, WhereAny and WhereNone shapes used by a consumer compilation.
 /// </summary>
 [Generator]
 public sealed class GeneratedQueryGenerator : IIncrementalGenerator
@@ -45,6 +45,11 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
                     continue;
                 }
 
+                // The emitted extension signature depends only on the query
+                // kind and arity. Component types are supplied by the call's
+                // type arguments, so different systems using the same arity
+                // must share one generated method instead of declaring
+                // duplicate extension methods with identical signatures.
                 if (!shapes.ContainsKey(shape.Key))
                 {
                     shapes.Add(shape.Key, shape);
@@ -74,8 +79,8 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
             return false;
         }
 
-        if (model.GetTypeInfo(member.Expression).Type is not INamedTypeSymbol receiver
-            || receiver.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) != "global::Delta.ECS.World")
+        if (!IsWorldReceiver(model, member.Expression)
+            && !IsQueryReceiver(model, member.Expression))
         {
             return false;
         }
@@ -86,7 +91,6 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
             return false;
         }
 
-        var componentTypes = new string[arity];
         for (int index = 0; index < arity; index++)
         {
             ITypeSymbol? type = model.GetTypeInfo(genericName.TypeArgumentList.Arguments[index]).Type;
@@ -97,13 +101,51 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
             {
                 return false;
             }
-
-            componentTypes[index] = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         }
 
-        shape = new QueryShape(genericName.Identifier.ValueText, componentTypes);
+        shape = new QueryShape(genericName.Identifier.ValueText, arity);
         return true;
     }
+
+    private static bool IsWorldReceiver(SemanticModel model, ExpressionSyntax expression)
+        => IsNamedType(model.GetTypeInfo(expression).Type, "World");
+
+    private static bool IsQueryReceiver(SemanticModel model, ExpressionSyntax expression)
+    {
+        if (IsNamedType(model.GetTypeInfo(expression).Type, "Query"))
+        {
+            return true;
+        }
+
+        // Earlier generated extension calls are not part of the input
+        // compilation's semantic model, so recognize a fluent factory chain
+        // syntactically as well as a resolved Query receiver.
+        if (expression is InvocationExpressionSyntax invocation
+            && invocation.ArgumentList.Arguments.Count == 0
+            && invocation.Expression is MemberAccessExpressionSyntax member
+            && member.Name is GenericNameSyntax genericName
+            && genericName.Identifier.ValueText is ("WhereAll" or "WhereAny" or "WhereNone"))
+        {
+            return IsWorldReceiver(model, member.Expression)
+                || IsQueryReceiver(model, member.Expression);
+        }
+
+        if (expression is IdentifierNameSyntax identifier
+            && model.GetSymbolInfo(identifier).Symbol is ILocalSymbol local
+            && local.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is VariableDeclaratorSyntax declarator
+            && declarator.Initializer?.Value is ExpressionSyntax initializer)
+        {
+            return IsWorldReceiver(model, initializer)
+                || IsQueryReceiver(model, initializer);
+        }
+
+        return false;
+    }
+
+    private static bool IsNamedType(ITypeSymbol? type, string name)
+        => type is INamedTypeSymbol named
+            && named.Name == name
+            && named.ContainingNamespace.ToDisplayString() == "Delta.ECS";
 
     private static bool IsAccessibleToGeneratedCode(ITypeSymbol type)
     {
@@ -133,12 +175,30 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
             .Append(StableName(shape.Key))
             .AppendLine();
         source.AppendLine("{");
+        RenderFactory(source, shape, "World", "world", "world.CreateQuery");
+        RenderFactory(source, shape, "Query", "query", "GeneratedForEachRuntime.ComposeGeneratedQuery");
+        source.AppendLine("}");
+        source.AppendLine("}");
+        return GeneratedSourceFormatter.Format(source.ToString());
+    }
+
+    private static void RenderFactory(
+        StringBuilder source,
+        QueryShape shape,
+        string receiverType,
+        string receiverName,
+        string createCall)
+    {
         source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         source.Append("    public static Query ")
             .Append(shape.Kind)
             .Append('<')
             .Append(GenericTypes(shape.Arity))
-            .AppendLine(">(this World world)");
+            .Append(">(this ")
+            .Append(receiverType)
+            .Append(' ')
+            .Append(receiverName)
+            .AppendLine(")");
         source.AppendLine("    {");
         source.Append("        global::System.Span<ComponentId> components = stackalloc ComponentId[")
             .Append(shape.Arity.ToString(CultureInfo.InvariantCulture))
@@ -148,18 +208,30 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
         {
             source.Append("        components[")
                 .Append(index.ToString(CultureInfo.InvariantCulture))
-                .Append("] = world.Layouts.GetPrimary<T")
+                .Append("] = ")
+                .Append(receiverType == "World"
+                    ? "world.Layouts.GetPrimary<T"
+                    : "GeneratedForEachRuntime.GetGeneratedPrimary<T")
                 .Append((index + 1).ToString(CultureInfo.InvariantCulture))
-                .AppendLine(">();");
+                .Append(receiverType == "World"
+                    ? ">();"
+                    : ">(in query);")
+                .AppendLine();
         }
 
-        source.Append("        return world.CreateQuery(QuerySpec.")
+        source.Append("        QuerySpec additions = QuerySpec.")
             .Append(shape.Kind)
-            .AppendLine("(components));");
+            .AppendLine("(components);");
+        if (receiverType == "World")
+        {
+            source.Append("        return ").Append(createCall).AppendLine("(additions);");
+        }
+        else
+        {
+            source.Append("        return ").Append(createCall).Append("(in ").Append(receiverName).AppendLine(", additions);");
+        }
+
         source.AppendLine("    }");
-        source.AppendLine("}");
-        source.AppendLine("}");
-        return GeneratedSourceFormatter.Format(source.ToString());
     }
 
     private static string GenericTypes(int arity)
@@ -189,15 +261,14 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
 
     private sealed class QueryShape
     {
-        internal QueryShape(string kind, string[] componentTypes)
+        internal QueryShape(string kind, int arity)
         {
             Kind = kind;
-            ComponentTypes = componentTypes;
+            Arity = arity;
         }
 
         internal string Kind { get; }
-        internal string[] ComponentTypes { get; }
-        internal int Arity => ComponentTypes.Length;
-        internal string Key => Kind + "|" + string.Join("|", ComponentTypes);
+        internal int Arity { get; }
+        internal string Key => Kind + "|" + Arity.ToString(CultureInfo.InvariantCulture);
     }
 }

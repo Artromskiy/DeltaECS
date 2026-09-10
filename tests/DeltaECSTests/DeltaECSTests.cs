@@ -577,6 +577,37 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
+    public void GeneratedQueryCompositionExtendsMasksAndReusesTheQueryCache()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        using var world = new World(layouts);
+        QuerySpec expectedSpec = new(
+            new[] { PositionId },
+            new[] { VelocityId, HealthId },
+            new[] { HealthId });
+        Query expected = world.CreateQuery(in expectedSpec);
+
+        Query composed = world
+            .WhereAll<Position>()
+            .WhereNone<Health>()
+            .WhereAny<Velocity>()
+            .WhereAny<Health>();
+        Query repeated = world
+            .WhereAll<Position>()
+            .WhereNone<Health>()
+            .WhereAny<Velocity>()
+            .WhereAny<Health>();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(composed.Description, Is.EqualTo(expectedSpec));
+            Assert.That(composed.Cached, Is.SameAs(expected.Cached));
+            Assert.That(repeated.Cached, Is.SameAs(composed.Cached));
+        });
+    }
+
+    [Test]
     public void QueryPlan_ComponentRowPlan_Uses_Deterministic_Mask_Order()
     {
         var layouts = new ComponentLayoutRegistry();

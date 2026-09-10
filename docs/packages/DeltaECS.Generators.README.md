@@ -16,10 +16,16 @@ primary-component `Add`/`Remove` structural façades, and typed `World` query
 factories on demand; storage and runtime execution remain in `DeltaECS`.
 
 ```csharp
-Query all = world.WhereAll<Position, Velocity>();
-Query any = world.WhereAny<Velocity, Acceleration>();
-Query none = world.WhereNone<Lifetime>();
+Query combatants = world
+    .WhereAll<Position, Health, Human>()
+    .WhereNone<Dead, Escaped>()
+    .WhereAny<Armed, Berserk>();
 ```
+
+`WhereAll`, `WhereNone`, and `WhereAny` are generated for both `World` and
+`Query`. The first call creates a query; each following call composes another
+`QuerySpec` and returns a new query handle while reusing the world's existing
+query-plan cache.
 
 The generator targets `netstandard2.0` and is shipped from
 `analyzers/dotnet/cs`. Its target is independent from the target framework of

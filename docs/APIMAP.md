@@ -52,6 +52,7 @@ The consumer source generator is documented in
 | `ReadRow`, `WriteRow` | Non-generic row values; terminal `Ref<T>` is the typed boundary | `src/DeltaECS/Core/Rows.cs`, `src/DeltaECS/Generic/Rows.cs` |
 | `World.Create<T>`, `Add<T>`, `Remove<T>`, `TryGet<T>`, `Get<T>`, `Set<T>` | Single-component typed conveniences over core operations | `src/DeltaECS/Generic/World.Generic.cs` |
 | Generated `World.Add<T1,...>`, `Remove<T1,...>` and sequence terminals | On-demand primary-component structural batches using stack-only ID spans | `src/DeltaECS.Generators/GeneratedStructuralGenerator.cs` |
+| Generated `World/Query.WhereAll<T1,...>`, `WhereAny<T1,...>`, `WhereNone<T1,...>` | On-demand typed query factories and mask composition through the existing query cache | `src/DeltaECS.Generators/GeneratedQueryGenerator.cs`, `src/DeltaECS/Core/QuerySpec.cs` |
 | `World.ForEach`, `ForEachEntity` | Delegate callback entry points, including handwritten zero-component forms | `src/DeltaECS/Delegate/ForEachZeroArity.cs` |
 | `IForEach*` | Stable functor marker contracts | `src/DeltaECS/Functor/ForEachFunctorContracts.cs` |
 | `World.From` and `ForEachEntity` | Ordered entity-sequence entry points and terminals | `src/DeltaECS/Sequence/World.Sequence.cs`, `EntitySequence.cs` |

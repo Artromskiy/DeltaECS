@@ -62,6 +62,12 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
         Hash = ComputeHash();
     }
 
+    internal QuerySpec Compose(in QuerySpec additions)
+        => new(
+            _allMask.Or(additions._allMask),
+            _anyMask.Or(additions._anyMask),
+            _noneMask.Or(additions._noneMask));
+
     public static QuerySpec WhereAll(params ReadOnlySpan<ComponentId> components)
         => new(components, ReadOnlySpan<ComponentId>.Empty, ReadOnlySpan<ComponentId>.Empty);
 

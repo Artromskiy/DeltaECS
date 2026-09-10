@@ -75,6 +75,25 @@ public sealed class GenericSingleItemApiTests
     }
 
     [Test]
+    public void SetFailsFastWhenTheEntityDoesNotContainTheComponent()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_081));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_082));
+        using var world = new World(layouts);
+        Entity entity = world.Create(positionId, new Position());
+        Entity missing = world.Create(velocityId, new Velocity());
+
+        Assert.Throws<InvalidOperationException>(
+            () => world.Set(missing, positionId, new Position()));
+        Assert.Throws<InvalidOperationException>(
+            () => world.Set(entity, velocityId, new Velocity()));
+        Assert.Throws<ArgumentException>(
+            () => world.Set<Velocity>(entity, positionId, new Velocity()));
+        Assert.That(world.Get<Position>(entity), Is.EqualTo(new Position()));
+    }
+
+    [Test]
     public void TypedAddAndRemoveAreSingleComponentStructuralTransitions()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -184,7 +203,8 @@ public sealed class GenericSingleItemApiTests
         Assert.Multiple(() =>
         {
             Assert.That(world.TryGet(entity, positionId, out Position _), Is.False);
-            Assert.That(world.Set(entity, positionId, new Position()), Is.False);
+            Assert.Throws<InvalidOperationException>(
+                () => world.Set(entity, positionId, new Position()));
             Assert.That(world.Add(entity, positionId, new Position()), Is.False);
             Assert.That(world.Remove<Position>(entity, positionId), Is.False);
         });

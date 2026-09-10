@@ -491,6 +491,14 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return false;
         }
 
+        if (member.Expression is InvocationExpressionSyntax whereInvocation
+            && whereInvocation.Expression is MemberAccessExpressionSyntax whereMember
+            && whereMember.Name.Identifier.ValueText == "Where"
+            && ReceiverKindFrom(model.GetTypeInfo(whereMember.Expression).Type) == ReceiverKind.World)
+        {
+            return false;
+        }
+
         GenericNameSyntax? genericName = member.Name as GenericNameSyntax;
         bool parallel = member.Name.Identifier.ValueText is "ForEachParallel" or "ForEachParallelEntity";
         bool hasLambda = invocation.ArgumentList.Arguments.Any(static argument => argument.Expression is LambdaExpressionSyntax);

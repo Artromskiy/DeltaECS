@@ -208,4 +208,23 @@ public sealed partial class World
             _sequenceScratch.Resize(length);
         }
     }
+
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    internal Span<Entity> GetGeneratedWhereScratchSpan(int minimumLength)
+    {
+        if (_sequenceScratch.Length < minimumLength)
+        {
+            int doubled = _sequenceScratch.Length > int.MaxValue / 2
+                ? int.MaxValue
+                : _sequenceScratch.Length * 2;
+            int capacity = Math.Max(minimumLength, doubled == 0 ? 16 : doubled);
+            _sequenceScratch.Resize(capacity);
+        }
+
+        return _sequenceScratch.Span;
+    }
+
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    internal ReadOnlySpan<Entity> GetGeneratedWhereScratch(int count)
+        => _sequenceScratch.ReadOnlySpan[..count];
 }
