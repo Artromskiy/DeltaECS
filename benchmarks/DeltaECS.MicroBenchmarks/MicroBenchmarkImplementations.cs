@@ -479,7 +479,7 @@ internal static class MicroContractSmoke
         try
         {
             if (whereApi.DirectForEach() != whereApi.ExpectedIterationCount
-                || whereApi.WhereForEachIn() != whereApi.ExpectedIterationCount
+                || whereApi.WhereForEachRefReadonly() != whereApi.ExpectedIterationCount
                 || whereApi.WhereAddRemove() != whereApi.ExpectedStructuralCount)
             {
                 throw new InvalidOperationException("Where API checksum mismatch.");
