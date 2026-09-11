@@ -136,6 +136,31 @@ needs the current `Entity`. Use `in T` or `ref readonly T` for predicate
 components; mutate selected components in a terminal callback such as
 `ForEach`.
 
+### Parallel typed iteration
+
+Use `ForEachParallel` or `ForEachEntityParallel` for generated component
+callbacks. State is read-only or copied by design, so the callback makes the
+ownership of mutation explicit:
+
+```csharp
+var settings = new MovementSettings { Step = 2 };
+world.ForEachParallel(in query, in settings,
+    static (in MovementSettings value, ref Position position) =>
+        position.X += value.Step,
+    workerCount: 4);
+world.ForEachEntityParallel(in query, settings,
+    static (MovementSettings value, Entity entity, ref Position position) =>
+        position.X += value.Step + entity.Index,
+    workerCount: 4);
+```
+
+`in` and `ref readonly` callback state are read-only; an unmodified value
+state is copied to each worker. The `ref readonly` callback form uses the same
+`in` state argument so the two read-only overloads cannot become ambiguous.
+Parallel callbacks do not expose a `ref` state overload. For an explicit
+non-intercepted callback, implement `IForEach`, `IForEachEntity`, or the
+corresponding context marker and pass the functor by `ref`.
+
 ## Benchmark snapshot
 
 [Complete `Ecs.CSharp.Benchmark` result table](docs/benchmarks/ecs-csharp-results.md)

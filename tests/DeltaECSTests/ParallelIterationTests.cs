@@ -2,11 +2,142 @@ namespace Delta.ECS.Tests;
 
 using NUnit.Framework;
 
+internal struct ParallelState
+{
+    public float Delta;
+}
+
+internal struct ParallelIncrementFunctor : IForEach
+{
+    public void Invoke(ref Position position, in Velocity velocity) => position.X += velocity.X;
+}
+
+internal struct ParallelContextFunctor : IForEachContext<ParallelState>
+{
+    public void Invoke(in ParallelState state, ref Position position, in Velocity velocity) => position.X += state.Delta + velocity.X;
+}
+
 [TestFixture]
 public sealed class ParallelIterationTests
 {
     private static readonly ForEachAction_WI<Position, Velocity> s_incrementAction = Increment;
     internal static int s_generatedCallbackThreadId;
+    private static int s_readOnlyContextVisits;
+    private static int s_refReadonlyContextVisits;
+    private static int s_valueEntityContextVisits;
+
+    [Test]
+    public void GeneratedForEachParallelSupportsReadOnlyAndValueState()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(70_090));
+        using var world = new World(layouts, initialEntityCapacity: 2_048, chunkCapacity: 128);
+        var entities = new Entity[2_048];
+        world.Create([positionId], entities);
+        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
+        var state = new ParallelState { Delta = 2 };
+        Assert.That(world.TryGetComponentStamp(entities[0], positionId, out Stamp stampBefore), Is.True);
+
+        world.ForEachParallel(
+            in query,
+            in state,
+            static (in ParallelState value, ref Position position) => position.X += value.Delta,
+            workerCount: 4);
+        world.ForEachParallel(
+            in query,
+            in state,
+            static (ref readonly ParallelState value, ref Position position) => position.X += value.Delta,
+            workerCount: 4);
+        world.ForEachEntityParallel(
+            in query,
+            state,
+            static (ParallelState value, Entity entity, ref Position position) =>
+            {
+                _ = entity;
+                position.X += value.Delta;
+            },
+            workerCount: 4);
+
+        for (int index = 0; index < entities.Length; index++)
+        {
+            Assert.That(world.Get<Position>(entities[index], positionId).X, Is.EqualTo(6));
+        }
+
+        Assert.That(world.TryGetComponentStamp(entities[0], positionId, out Stamp stampAfter), Is.True);
+        Assert.That(stampAfter, Is.EqualTo(new Stamp(stampBefore.Value + 3)));
+    }
+
+    [Test]
+    public void GeneratedForEachParallelSupportsZeroComponentEntityAndNonEntityCallbacks()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(70_093));
+        using var world = new World(layouts, initialEntityCapacity: 256, chunkCapacity: 128);
+        var entities = new Entity[256];
+        world.Create([positionId], entities);
+        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
+        int visited = 0;
+        int visitedEntities = 0;
+        Volatile.Write(ref s_readOnlyContextVisits, 0);
+        Volatile.Write(ref s_refReadonlyContextVisits, 0);
+        Volatile.Write(ref s_valueEntityContextVisits, 0);
+
+        world.ForEachParallel(in query, () => Interlocked.Increment(ref visited), workerCount: 4);
+        world.ForEachEntityParallel(in query, entity =>
+        {
+            _ = entity;
+            Interlocked.Increment(ref visitedEntities);
+        }, workerCount: 4);
+        var state = new ParallelState();
+        world.ForEachParallel(
+            in query,
+            in state,
+            static (in ParallelState _) => Interlocked.Increment(ref s_readOnlyContextVisits),
+            workerCount: 4);
+        world.ForEachParallel(
+            in query,
+            in state,
+            static (ref readonly ParallelState _) => Interlocked.Increment(ref s_refReadonlyContextVisits),
+            workerCount: 4);
+        world.ForEachEntityParallel(
+            in query,
+            state,
+            static (ParallelState _, Entity _) => Interlocked.Increment(ref s_valueEntityContextVisits),
+            workerCount: 4);
+
+        Assert.That(visited, Is.EqualTo(entities.Length));
+        Assert.That(visitedEntities, Is.EqualTo(entities.Length));
+        Assert.That(Volatile.Read(ref s_readOnlyContextVisits), Is.EqualTo(entities.Length));
+        Assert.That(Volatile.Read(ref s_refReadonlyContextVisits), Is.EqualTo(entities.Length));
+        Assert.That(Volatile.Read(ref s_valueEntityContextVisits), Is.EqualTo(entities.Length));
+    }
+
+    [Test]
+    public void GeneratedForEachParallelSupportsExplicitFunctorsAndContext()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(70_091));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(70_092));
+        using var world = new World(layouts, initialEntityCapacity: 2_048, chunkCapacity: 128);
+        var entities = new Entity[2_048];
+        world.Create([positionId, velocityId], entities);
+        for (int index = 0; index < entities.Length; index++)
+        {
+            world.Set(entities[index], velocityId, new Velocity { X = 1 });
+        }
+
+        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+        var action = new ParallelIncrementFunctor();
+        world.ForEachParallel(in query, ref action, workerCount: 4);
+        var state = new ParallelState { Delta = 2 };
+        var contextual = new ParallelContextFunctor();
+        world.ForEachParallel(in query, in state, ref contextual, workerCount: 4);
+
+        for (int index = 0; index < entities.Length; index++)
+        {
+            Assert.That(world.Get<Position>(entities[index], positionId).X, Is.EqualTo(4));
+        }
+    }
 
     [Test]
     public void GeneratedForEachParallel_ProcessesEveryEntity()

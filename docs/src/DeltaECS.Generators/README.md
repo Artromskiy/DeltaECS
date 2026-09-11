@@ -36,6 +36,11 @@ archetypes or structural kernels.
 
 - Calls may include an `Entity`, mutable caller context, primary registrations,
   or explicit `ComponentId` arguments.
+- Parallel typed callbacks use `ForEachParallel` and `ForEachEntityParallel`.
+  Their state parameter is `in`, `ref readonly`, or by value; the old parallel
+  `ref` state form is not generated. Read-only/value state is copied into each
+  worker invoker. Implement `IForEach`/`IForEachEntity` for an explicit
+  non-intercepted functor call.
 - Query-wide `world.Where(in query, predicate)` predicates are read-only and
   receive only typed components. `WhereEntity` is the corresponding form that
   also receives `Entity` first. Use `in T` or `ref readonly T` component

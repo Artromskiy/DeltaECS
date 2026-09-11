@@ -22,12 +22,59 @@ references, a `QueryChunk`, or a row view after returning. Captured mutable
 state remains the caller's responsibility; use a per-worker result or another
 explicit synchronization strategy when the callback shares state.
 
+`ForEachEntityParallel` has the same generated forms and puts the current
+`Entity` before component parameters:
+
+```csharp
+world.ForEachEntityParallel(
+    in query,
+    in settings,
+    static (in Settings settings, Entity entity, ref Position position) =>
+        position.X += settings.Step + entity.Index,
+    workerCount: 4);
+```
+
+For queries without component parameters, the runtime also exposes direct
+`ForEachParallel(in query, ForEachAction, workerCount)` and
+`ForEachEntityParallel(in query, ForEachEntityAction, workerCount)` overloads.
+
+Read-only state is passed at the call site with `in`; the callback can spell
+its first parameter as `in` or `ref readonly`. The latter uses the same
+overload to avoid an ambiguous pair of read-only APIs. A value state is copied
+for each worker. The callback must use the corresponding first parameter
+shape:
+
+```csharp
+world.ForEachParallel(in query, in settings,
+    static (in Settings s, ref Position p) => p.X += s.Step);
+world.ForEachParallel(in query, in settings,
+    static (ref readonly Settings s, ref Position p) => p.X += s.Step);
+world.ForEachParallel(in query, settings,
+    static (Settings s, ref Position p) => p.X += s.Step);
+```
+
+The old parallel `ref state` form is not generated. Use an explicit functor
+when a stateful callback is more convenient; functors are generated directly
+and are not intercepted. A parallel functor is copied to each worker, so
+mutable fields in the functor itself need an explicit synchronization strategy:
+
+```csharp
+struct MoveFunctor : IForEach
+{
+    public void Invoke(ref Position position, in Velocity velocity) =>
+        position.X += velocity.X;
+}
+
+var move = new MoveFunctor();
+world.ForEachParallel(in query, ref move, workerCount: 4);
+```
+
 `workerCount: 0` selects the runtime default worker count and always uses the
 parallel worker protocol for a non-empty query. `workerCount: 1` explicitly
-selects one worker and therefore runs sequentially. Context and functor forms
-are currently serialized when their state cannot be safely merged between
-worker-local invoker copies. Any requested value above the available processor
-count is clamped to `Environment.ProcessorCount`.
+selects one worker and therefore runs sequentially. Read-only and value state
+forms, and functors without a mutable shared reference, use worker-local
+invoker copies. Any requested value above the available processor count is
+clamped to `Environment.ProcessorCount`.
 
 ## Coordination model
 

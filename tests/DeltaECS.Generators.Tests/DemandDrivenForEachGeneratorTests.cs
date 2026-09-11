@@ -185,6 +185,119 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void ParallelContextModesGenerateCompilableOverloads()
+    {
+        const string source = """
+            namespace Delta.ECS;
+            struct Position { public int Value; }
+            struct State { public int Value; }
+            static class ParallelConsumer
+            {
+                public static void Use(World world, Query query)
+                {
+                    var state = new State();
+                    ComponentId positionId = default;
+                    world.ForEachParallel(in query, in state,
+                        static (in State value, ref Position position) => position.Value += value.Value,
+                        workerCount: 2);
+                    world.ForEachParallel(in query, in state,
+                        static (ref readonly State value, ref Position position) => position.Value += value.Value,
+                        workerCount: 2);
+                    world.ForEachEntityParallel(in query, state,
+                        static (State value, Entity entity, ref Position position) => position.Value += value.Value + entity.Index,
+                        workerCount: 2);
+                    world.ForEachParallel<State, Position>(in query, positionId, in state,
+                        static (in State value, ref Position position) => position.Value += value.Value,
+                        workerCount: 2);
+                }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGenerator(source);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty, string.Join(Environment.NewLine, run.Diagnostics.Select(static value => value.ToString())));
+        Assert.That(generated, Does.Contain("ForEachContextAction_In<TContext, T1>"));
+        Assert.That(generated, Does.Contain("ForEachContextEntityAction_Value<TContext, T1>"));
+        Assert.That(generated, Does.Contain("public bool RequiresSingleThread => false;"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, source },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
+    public void ParallelRefStateIsRejected()
+    {
+        const string source = """
+            namespace Delta.ECS;
+            struct Position { public int Value; }
+            struct State { public int Value; }
+            static class ParallelConsumer
+            {
+                public static void Use(World world, Query query)
+                {
+                    var state = new State();
+                    world.ForEachParallel(in query, ref state,
+                        static (ref State value, ref Position position) => position.Value += value.Value);
+                }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGenerator(source);
+
+        Assert.That(run.Diagnostics.Any(static diagnostic => diagnostic.Id == "DECSGEN001"), Is.True);
+        Assert.That(GeneratedText(run), Does.Not.Contain("ForEachContextAction<State"));
+    }
+
+    [Test]
+    public void ParallelContextInterceptionKeepsReadOnlyContextModifiers()
+    {
+        const string source = """
+            namespace Delta.ECS;
+            struct Position { public int Value; }
+            struct State { public int Value; }
+            static class ParallelConsumer
+            {
+                public static void Use(World world, Query query)
+                {
+                    var state = new State();
+                    world.ForEachParallel(in query, in state,
+                        static (in State value, ref Position position) =>
+                        {
+                            if (position.Value < 0)
+                            {
+                                return;
+                            }
+
+                            position.Value += value.Value;
+                        },
+                        workerCount: 2);
+                }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(source);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
+        Assert.That(generated, Does.Contain("InterceptedParallelInvoker_"));
+        Assert.That(generated, Does.Contain("in value"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, source },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
     public void DemandDrivenGenerationIsNotLimitedToLegacySixteenComponentMatrix()
     {
         const int arity = 32;
@@ -405,6 +518,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("global::Delta.ECS.Consumer.Update(ref component0)"));
         Assert.That(generated, Does.Contain("global::Delta.ECS.Callbacks.Update(ref component0)"));
         Assert.That(generated, Does.Contain("global::Delta.ECS.Consumer.UpdateWithContext(ref context, in component0)"));
+        Assert.That(generated, Does.Contain("global::Delta.ECS.Consumer.UpdateParallel(in context, ref component0)"));
         Assert.That(generated, Does.Contain("global::Delta.ECS.Consumer.UpdateEntity(entity, ref component0)"));
         Assert.That(generated, Does.Contain("ExecuteInterceptedClosed_"));
         Assert.That(generated, Does.Not.Contain("InterceptedFunctor_"));
@@ -895,6 +1009,11 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             void Execute(scoped ref GeneratedQuerySlots slots, ref GeneratedWhereStructuralContext context);
         }
+        public interface IGeneratedParallelInvoker
+        {
+            bool RequiresSingleThread { get; }
+            void Invoke(ref GeneratedQuerySlots slots);
+        }
         public sealed class ComponentLayoutRegistry
         {
             public ComponentId GetPrimary(Type type) => default;
@@ -1017,6 +1136,8 @@ public sealed class DemandDrivenForEachGeneratorTests
                 where TInvoker : struct, IGeneratedWhereStructuralInvoker => 0;
             public static void ExecuteGeneratedWhereForEach<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices)
                 where TInvoker : struct, IGeneratedWhereInvoker { }
+            public static void ExecuteParallelDense<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, int workerCount = 0)
+                where TInvoker : struct, IGeneratedParallelInvoker { }
             public static ReadAccess GetPreparedReadAccess(in Query query, ComponentId component, Type runtimeType) => default;
             public static WriteAccess GetPreparedWriteAccess(in Query query, ComponentId component, Type runtimeType) => default;
             public static int GetWriteQueryComponentIndex(WriteAccess access) => default;
@@ -1512,6 +1633,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public static void Update(ref T1 value) => value.Value++;
             public static void UpdateWithContext(ref Context context, in T1 value) => context.Value += value.Value;
+            public static void UpdateParallel(in Context context, ref T1 value) => value.Value += context.Value;
             public static void UpdateEntity(Entity entity, ref T1 value) => value.Value += entity.Index;
 
             public static void Use(World world, Query query)
@@ -1520,6 +1642,7 @@ public sealed class DemandDrivenForEachGeneratorTests
                 world.ForEach<T1>(in query, Update);
                 world.ForEach<T1>(in query, Callbacks.Update);
                 world.ForEach<Context, T1>(in query, ref context, UpdateWithContext);
+                world.ForEachParallel<Context, T1>(in query, in context, UpdateParallel, workerCount: 2);
                 world.ForEachEntity<T1>(in query, UpdateEntity);
             }
         }
