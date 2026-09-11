@@ -13,7 +13,8 @@ internal static class MicroBenchmarkCatalog
         typeof(Movement4ApiComparisonMicroBenchmarks),
         typeof(RemainingApiOptimizationMicroBenchmarks),
         typeof(WhereApiMicroBenchmarks),
-        typeof(StructuralOperationsMicroBenchmarks)
+        typeof(StructuralOperationsMicroBenchmarks),
+        typeof(QueryBatchStructuralOperationsMicroBenchmarks)
     ];
 }
 
@@ -49,5 +50,10 @@ public class WhereApiMicroBenchmarks : WhereApiMicroBenchmarkImplementation
 
 [MemoryDiagnoser]
 public class StructuralOperationsMicroBenchmarks : StructuralOperationsMicroBenchmarkImplementation
+{
+}
+
+[MemoryDiagnoser]
+public class QueryBatchStructuralOperationsMicroBenchmarks : QueryBatchStructuralOperationsMicroBenchmarkImplementation
 {
 }

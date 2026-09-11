@@ -265,6 +265,13 @@ internal sealed class QueryPlan
         _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
     }
 
+    internal void RefreshArchetype(int planIndex, Archetype archetype)
+    {
+        _matchingPlans.RefAt(planIndex).RefreshChunks(archetype);
+        RebuildMatchingChunkPlans();
+        _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
+    }
+
     internal void Dispose()
     {
         _matchingArchetypes = Array.Empty<int>();
@@ -461,7 +468,12 @@ internal struct ArchetypePlan
         }
 
         var sourceRows = chunk.RawComponentRows;
-        var resolvedRows = new Array[ComponentRows.Length];
+        Array[] resolvedRows = _chunks.RefAt(_chunkCount).ComponentRows;
+        if (resolvedRows is null || resolvedRows.Length != ComponentRows.Length)
+        {
+            resolvedRows = new Array[ComponentRows.Length];
+        }
+
         for (int queryRow = 0; queryRow < ComponentRows.Length; queryRow++)
         {
             resolvedRows.RefAt(queryRow) = sourceRows.RefAt(ComponentRows.RefAt(queryRow));
@@ -482,8 +494,36 @@ internal struct ArchetypePlan
             _chunks.RefAt(activePosition) = _chunks.RefAt(lastPosition);
         }
 
-        _chunks.RefAt(lastPosition) = default;
         _chunkCount--;
+    }
+
+    internal void RefreshChunks(Archetype archetype)
+    {
+        int activeCount = archetype.ActiveChunkCount;
+        if (activeCount > _chunks.Length)
+        {
+            Array.Resize(ref _chunks, Math.Max(activeCount, _chunks.Length == 0 ? 4 : _chunks.Length * 2));
+        }
+
+        for (int chunkIndex = 0; chunkIndex < activeCount; chunkIndex++)
+        {
+            Chunk chunk = archetype.GetActiveChunk(chunkIndex);
+            Array[]? resolvedRows = _chunks.RefAt(chunkIndex).ComponentRows;
+            if (resolvedRows is null || resolvedRows.Length != ComponentRows.Length)
+            {
+                resolvedRows = new Array[ComponentRows.Length];
+            }
+
+            var sourceRows = chunk.RawComponentRows;
+            for (int queryRow = 0; queryRow < ComponentRows.Length; queryRow++)
+            {
+                resolvedRows.RefAt(queryRow) = sourceRows.RefAt(ComponentRows.RefAt(queryRow));
+            }
+
+            _chunks.RefAt(chunkIndex) = new ChunkPlan(chunk, resolvedRows);
+        }
+
+        _chunkCount = activeCount;
     }
 }
 

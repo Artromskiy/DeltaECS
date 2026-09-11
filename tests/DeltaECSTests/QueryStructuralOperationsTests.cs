@@ -84,6 +84,26 @@ public sealed class QueryStructuralOperationsTests
     }
 
     [Test]
+    public void ScalarTransition_ReusesDestroyedChunk_AndKeepsStaleHandlesInvalid()
+    {
+        var layouts = CreateLayouts();
+        var world = new World(layouts, chunkCapacity: 2);
+        var live = world.Create(new[] { PositionId });
+        var destroyed = new Entity[2];
+        world.Create(new[] { VelocityId }, destroyed);
+
+        var query = world.CreateQuery(QuerySpec.WhereAll(VelocityId));
+        Assert.That(world.Destroy(in query), Is.EqualTo(destroyed.Length));
+
+        Assert.That(world.Add(new[] { VelocityId }, live), Is.True);
+        Assert.That(world.IsAlive(live), Is.True);
+        foreach (var entity in destroyed)
+        {
+            Assert.That(world.IsAlive(entity), Is.False);
+        }
+    }
+
+    [Test]
     public void QueryStructuralOperations_Reject_DefaultForeignAndActiveLeaseHandles()
     {
         var layouts = CreateLayouts();

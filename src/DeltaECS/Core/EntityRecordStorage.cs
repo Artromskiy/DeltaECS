@@ -1,6 +1,7 @@
 namespace Delta.ECS;
 
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 internal sealed class EntityRecordStorage
 {
@@ -15,5 +16,6 @@ internal sealed class EntityRecordStorage
 
     internal void Add(EntityRecord value) => _items.Add(value);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref EntityRecord RefAt(int index) => ref ListSpanCompat.AsSpan(_items)[index];
 }

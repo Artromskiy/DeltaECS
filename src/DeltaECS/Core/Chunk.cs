@@ -14,6 +14,7 @@ internal sealed class Chunk
     private int _archetypeIndex;
     private int _count;
     private int _highWaterMark;
+    private int _deferredDestroyedRecordCount;
 
     internal Chunk(
         int capacity,
@@ -64,6 +65,8 @@ internal sealed class Chunk
     internal bool IsFull => _count >= _capacity;
 
     internal bool IsEmpty => _count == 0;
+
+    internal int DeferredDestroyedRecordCount => _deferredDestroyedRecordCount;
 
     internal Span<Entity> Entities => _entities.Span[.._count];
 
@@ -193,6 +196,44 @@ internal sealed class Chunk
         ComponentStampStorage replacement = _componentStamps.Remap(sourceToTarget, targetRows.Length);
         _componentStamps.Dispose();
         _componentStamps = replacement;
+        _componentRows = targetRows;
+        _rowOperations = rowOperations;
+        StampRowsRange(0, _count, addedTargetRows, new Stamp(1));
+    }
+
+    internal void AdoptLayoutFromEmptyChunk(
+        Chunk donor,
+        ComponentLayout[] layouts,
+        ComponentRowOperations[] rowOperations,
+        ReadOnlySpan<int> sourceToTarget,
+        ReadOnlySpan<int> addedTargetRows)
+    {
+        if (!donor.IsEmpty
+            || donor.Capacity != _capacity
+            || sourceToTarget.Length != _componentRows.Length
+            || donor._componentRows.Length != layouts.Length)
+        {
+            ThrowHelper.ThrowChunkRowOperationsMismatch(nameof(sourceToTarget));
+        }
+
+        Array[] targetRows = donor._componentRows;
+        for (int sourceIndex = 0; sourceIndex < sourceToTarget.Length; sourceIndex++)
+        {
+            int targetIndex = sourceToTarget.RefAt(sourceIndex);
+            if (targetIndex >= 0)
+            {
+                targetRows[targetIndex] = _componentRows.RefAt(sourceIndex);
+            }
+        }
+
+        _componentStamps.CopyRemappedTo(
+            ref donor._componentStamps,
+            sourceToTarget,
+            _count);
+        _componentStamps.Dispose();
+        _componentStamps = donor._componentStamps;
+        donor._componentStamps = default;
+        donor._componentRows = Array.Empty<Array>();
         _componentRows = targetRows;
         _rowOperations = rowOperations;
         StampRowsRange(0, _count, addedTargetRows, new Stamp(1));
@@ -361,9 +402,25 @@ internal sealed class Chunk
             }
         }
 
-        _entities.Span[.._count].Clear();
         _componentStamps.ClearRange(0, _count);
         _count = 0;
+    }
+
+    internal void DeferDestroyedRecords(int count)
+    {
+        if (count < 0 || count > _capacity || _deferredDestroyedRecordCount != 0)
+        {
+            ThrowHelper.ThrowChunkCountOutOfRange(nameof(count));
+        }
+
+        _deferredDestroyedRecordCount = count;
+    }
+
+    internal int TakeDeferredDestroyedRecords()
+    {
+        int count = _deferredDestroyedRecordCount;
+        _deferredDestroyedRecordCount = 0;
+        return count;
     }
 
     internal void Dispose()

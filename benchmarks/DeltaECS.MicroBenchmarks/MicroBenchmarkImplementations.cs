@@ -527,6 +527,43 @@ internal static class MicroContractSmoke
             structural.Cleanup();
         }
 
+        var queryStructural = new QueryBatchStructuralOperationsMicroBenchmarkImplementation { Amount = 8 };
+        queryStructural.Setup();
+        try
+        {
+            queryStructural.PrepareDeltaAdd();
+            if (queryStructural.DeltaQueryAdd() != queryStructural.ExpectedCount)
+                throw new InvalidOperationException("Delta query Add count mismatch.");
+            queryStructural.PrepareArchAdd();
+            if (queryStructural.ArchQueryAdd() != queryStructural.ExpectedCount)
+                throw new InvalidOperationException("Arch query Add count mismatch.");
+
+            queryStructural.PrepareDeltaRemove();
+            if (queryStructural.DeltaQueryRemove() != queryStructural.ExpectedCount)
+                throw new InvalidOperationException("Delta query Remove count mismatch.");
+            queryStructural.PrepareArchRemove();
+            if (queryStructural.ArchQueryRemove() != queryStructural.ExpectedCount)
+                throw new InvalidOperationException("Arch query Remove count mismatch.");
+
+            queryStructural.PrepareDeltaDestroy();
+            if (queryStructural.DeltaQueryDestroy() != queryStructural.ExpectedCount)
+                throw new InvalidOperationException("Delta query Destroy count mismatch.");
+            queryStructural.PrepareArchDestroy();
+            if (queryStructural.ArchQueryDestroy() != queryStructural.ExpectedCount)
+                throw new InvalidOperationException("Arch query Destroy count mismatch.");
+
+            queryStructural.PrepareDeltaCreateForSmoke();
+            if (queryStructural.DeltaCreateBatch() != queryStructural.ExpectedCount)
+                throw new InvalidOperationException("Delta batch Create count mismatch.");
+            queryStructural.PrepareArchCreateForSmoke();
+            if (queryStructural.ArchCreateGeneric() != queryStructural.ExpectedCount)
+                throw new InvalidOperationException("Arch generic Create count mismatch.");
+        }
+        finally
+        {
+            queryStructural.Cleanup();
+        }
+
         Console.WriteLine("Micro contract smoke passed: dense iteration, API-shape comparisons, Where API and structural operations.");
     }
 }

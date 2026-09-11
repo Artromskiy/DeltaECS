@@ -19,6 +19,7 @@ internal sealed class Archetype
     private NativeMemory<int> _activeChunkPositions = new(0);
     private readonly List<QueryPlanLink> _queryPlans = new();
     private int _activeChunkCount;
+    private bool _deferQueryPlanUpdates;
 
     internal Archetype(
         int id,
@@ -62,6 +63,31 @@ internal sealed class Archetype
         _queryPlans.Add(new QueryPlanLink(query.WeakReference, planIndex));
     }
 
+    internal void DeferQueryPlanUpdates() => _deferQueryPlanUpdates = true;
+
+    internal void RefreshQueryPlans()
+    {
+        if (!_deferQueryPlanUpdates)
+        {
+            return;
+        }
+
+        _deferQueryPlanUpdates = false;
+        for (int index = 0; index < _queryPlans.Count;)
+        {
+            QueryPlanLink link = _queryPlans[index];
+            if (link.Query.TryGetTarget(out QueryPlan? query))
+            {
+                query.RefreshArchetype(link.PlanIndex, this);
+                index++;
+            }
+            else
+            {
+                RemoveQueryPlanLink(index);
+            }
+        }
+    }
+
     internal int EntityCount
     {
         get
@@ -92,6 +118,22 @@ internal sealed class Archetype
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool HasAvailableChunk() => _availableChunkStack.Count != 0;
+
+    internal bool TryPeekAvailableChunk(out Chunk chunk)
+    {
+        for (int stackIndex = _availableChunkStack.Count - 1; stackIndex >= 0; stackIndex--)
+        {
+            Chunk candidate = _chunks[_availableChunkStack[stackIndex]];
+            if (!candidate.IsFull)
+            {
+                chunk = candidate;
+                return true;
+            }
+        }
+
+        chunk = null!;
+        return false;
+    }
 
     internal void AddEntity(
         Entity entity,
@@ -192,7 +234,7 @@ internal sealed class Archetype
         return true;
     }
 
-    internal bool TryGetAvailablePartialChunk(int maximumChunkIndex, out int chunkIndex, out Chunk chunk)
+    internal bool TryGetAvailableNonEmptyPartialChunk(int maximumChunkIndex, out int chunkIndex, out Chunk chunk)
     {
         for (int stackIndex = _availableChunkStack.Count - 1; stackIndex >= 0; stackIndex--)
         {
@@ -203,7 +245,33 @@ internal sealed class Archetype
             }
 
             var candidate = _chunks[candidateIndex];
-            if (candidate.IsFull)
+            if (candidate.IsEmpty || candidate.IsFull)
+            {
+                continue;
+            }
+
+            chunkIndex = candidateIndex;
+            chunk = candidate;
+            return true;
+        }
+
+        chunkIndex = -1;
+        chunk = null!;
+        return false;
+    }
+
+    internal bool TryGetAvailableEmptyChunk(int maximumChunkIndex, out int chunkIndex, out Chunk chunk)
+    {
+        for (int stackIndex = _availableChunkStack.Count - 1; stackIndex >= 0; stackIndex--)
+        {
+            int candidateIndex = _availableChunkStack[stackIndex];
+            if (candidateIndex >= maximumChunkIndex)
+            {
+                continue;
+            }
+
+            var candidate = _chunks[candidateIndex];
+            if (!candidate.IsEmpty)
             {
                 continue;
             }
@@ -260,6 +328,34 @@ internal sealed class Archetype
         }
 
         return chunkIndex;
+    }
+
+    internal Chunk ReplaceEmptyChunk(int chunkIndex, Chunk adopted)
+    {
+        if ((uint)chunkIndex >= (uint)_chunks.Count)
+        {
+            ThrowHelper.ThrowInvalidChunkLocation();
+        }
+
+        Chunk donor = _chunks[chunkIndex];
+        if (!donor.IsEmpty || adopted.IsEmpty)
+        {
+            ThrowHelper.ThrowInvalidChunkLocation();
+        }
+
+        RemoveAvailableChunk(chunkIndex);
+        _activeChunkPositions.RefAt(chunkIndex) = -1;
+        _availableChunkFlags.RefAt(chunkIndex) = false;
+        _chunks[chunkIndex] = adopted;
+        adopted.SetArchetypeLocation(_id, chunkIndex);
+        ActivateChunk(chunkIndex);
+        if (!adopted.IsFull)
+        {
+            PushAvailableChunk(chunkIndex);
+        }
+
+        donor.SetArchetypeLocation(-1, -1);
+        return donor;
     }
 
     internal Chunk DetachChunk(int chunkIndex)
@@ -399,6 +495,11 @@ internal sealed class Archetype
         int activePosition = _activeChunkCount;
         var chunk = _chunks[chunkIndex];
         _activeChunks.RefAt(_activeChunkCount++) = chunk;
+        if (_deferQueryPlanUpdates)
+        {
+            return;
+        }
+
         for (int index = 0; index < _queryPlans.Count;)
         {
             QueryPlanLink link = _queryPlans[index];
@@ -434,6 +535,11 @@ internal sealed class Archetype
         _activeChunkIndices.RefAt(lastPosition) = -1;
         _activeChunks.RefAt(lastPosition) = null!;
         _activeChunkPositions.RefAt(chunkIndex) = -1;
+        if (_deferQueryPlanUpdates)
+        {
+            return;
+        }
+
         for (int index = 0; index < _queryPlans.Count;)
         {
             QueryPlanLink link = _queryPlans[index];
