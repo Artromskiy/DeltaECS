@@ -190,7 +190,7 @@ internal struct ComponentStampStorage : IDisposable
         target.Set(targetComponentIndex, targetSlotIndex, Get(sourceComponentIndex, sourceSlotIndex));
     }
 
-    internal readonly void CopyComponentRangeTo(
+    internal void CopyComponentRangeTo(
         ref ComponentStampStorage target,
         int sourceSlotIndex,
         int targetSlotIndex,
@@ -200,13 +200,40 @@ internal struct ComponentStampStorage : IDisposable
     {
         ValidateRange(sourceComponentIndex, sourceSlotIndex, count);
         target.ValidateRange(targetComponentIndex, targetSlotIndex, count);
-        for (int index = 0; index < count; index++)
+        if (count == 0)
         {
-            target.Set(
-                targetComponentIndex,
-                targetSlotIndex + index,
-                Get(sourceComponentIndex, sourceSlotIndex + index));
+            return;
         }
+
+        int sourceUniformCount = _uniformCounts.RefAt(sourceComponentIndex);
+        int sourceEnd = sourceSlotIndex + count;
+        int uniformStart = sourceSlotIndex;
+        int uniformEnd = Math.Min(sourceEnd, sourceUniformCount);
+        if (uniformEnd > uniformStart)
+        {
+            target.SetComponentRange(
+                targetComponentIndex,
+                targetSlotIndex + (uniformStart - sourceSlotIndex),
+                uniformEnd - uniformStart,
+                _uniformStamps.RefAt(sourceComponentIndex));
+        }
+
+        int copiedTailStart = Math.Max(sourceSlotIndex, sourceUniformCount);
+        int copiedTailCount = sourceEnd - copiedTailStart;
+        if (copiedTailCount == 0)
+        {
+            return;
+        }
+
+        Materialize(sourceComponentIndex);
+        target.Materialize(targetComponentIndex);
+        int targetTailStart = targetSlotIndex + (copiedTailStart - sourceSlotIndex);
+        _values.ReadOnlySpan
+            .Slice((sourceComponentIndex * _capacity) + copiedTailStart, copiedTailCount)
+            .CopyTo(target._values.Span.Slice(
+                (targetComponentIndex * target._capacity) + targetTailStart,
+                copiedTailCount));
+        target._uniformCounts.RefAt(targetComponentIndex) = 0;
     }
 
     internal void CopySlot(int sourceSlotIndex, int targetSlotIndex)

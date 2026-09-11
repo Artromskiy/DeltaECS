@@ -6,6 +6,13 @@ public sealed partial class World
     public int Create<T>(int count, Span<Entity> output)
         => Create<T>(_layouts.GetPrimary<T>(), count, output);
 
+    /// <summary>Creates entities with the primary component for <typeparamref name="T"/> without retaining handles.</summary>
+    public int Create<T>(int count)
+    {
+        ThrowHelper.ThrowIfNegative(count, nameof(count));
+        return Create(GetOrCreateArchetype(_layouts.GetPrimary<T>()), count);
+    }
+
     /// <summary>
     /// Creates an entity containing one component and initializes its value.
     /// </summary>
@@ -213,6 +220,10 @@ public sealed partial class World
         ComponentMask changeMask = ComponentMask.From(stackalloc[] { componentId });
         int edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
         int changed = 0;
+        Chunk? pendingChunk = null;
+        int pendingComponentIndex = -1;
+        int pendingSlotIndex = 0;
+        int pendingCount = 0;
         for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
         {
             Entity entity = entities.RefAt(entityIndex);
@@ -238,13 +249,45 @@ public sealed partial class World
             var targetChunk = GetRecordChunk(targetRecord);
             var targetArchetype = _archetypes[targetChunk.ArchetypeId];
             int targetComponentIndex = targetArchetype.Mask.Rank(componentId);
-            targetChunk
-                .GetComponentRow<T>(targetComponentIndex)
-                .RefAt(targetSlotIndex) = value;
+            if (pendingChunk is not null
+                && ReferenceEquals(pendingChunk, targetChunk)
+                && pendingComponentIndex == targetComponentIndex
+                && targetSlotIndex == pendingSlotIndex + pendingCount)
+            {
+                pendingCount++;
+            }
+            else
+            {
+                FillComponentRange(pendingChunk, pendingComponentIndex, pendingSlotIndex, pendingCount, in value);
+                pendingChunk = targetChunk;
+                pendingComponentIndex = targetComponentIndex;
+                pendingSlotIndex = targetSlotIndex;
+                pendingCount = 1;
+            }
+
             changed++;
         }
 
+        FillComponentRange(pendingChunk, pendingComponentIndex, pendingSlotIndex, pendingCount, in value);
         return changed;
+    }
+
+    private static void FillComponentRange<T>(
+        Chunk? chunk,
+        int componentIndex,
+        int slotIndex,
+        int count,
+        in T value)
+    {
+        if (chunk is null || count == 0)
+        {
+            return;
+        }
+
+        chunk
+            .GetComponentRow<T>(componentIndex)
+            .Slice(slotIndex, count)
+            .Fill(value);
     }
 
     private int RemoveComponentBatch<T>(ReadOnlySpan<Entity> entities, ComponentId componentId)

@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 internal sealed class Chunk
 {
     private readonly int _capacity;
+    private readonly ComponentRowArrayPool _componentRowArrayPool;
     private Array[] _componentRows;
     private ComponentRowOperations[] _rowOperations;
     private NativeMemory<Entity> _entities;
@@ -15,6 +16,7 @@ internal sealed class Chunk
     private int _count;
     private int _highWaterMark;
     private int _deferredDestroyedRecordCount;
+    private int _deferredDestroyedListIndex = -1;
 
     internal Chunk(
         int capacity,
@@ -22,7 +24,8 @@ internal sealed class Chunk
         ComponentRowOperations[] rowOperations,
         int globalId,
         int archetypeId,
-        int archetypeIndex)
+        int archetypeIndex,
+        ComponentRowArrayPool componentRowArrayPool)
     {
         ThrowHelper.ThrowIfNegativeOrZero(capacity, nameof(capacity));
         if (rowOperations.Length != layouts.Length)
@@ -31,6 +34,7 @@ internal sealed class Chunk
         }
 
         _capacity = capacity;
+        _componentRowArrayPool = componentRowArrayPool;
         GlobalId = globalId;
         _archetypeId = archetypeId;
         _archetypeIndex = archetypeIndex;
@@ -46,7 +50,10 @@ internal sealed class Chunk
                 ThrowHelper.ThrowArrayRowsRequiresRuntimeType();
             }
 
-            _componentRows.RefAt(index) = _rowOperations.RefAt(index).CreateArray(runtimeType, capacity);
+            _componentRows.RefAt(index) = _componentRowArrayPool.Rent(
+                runtimeType,
+                _rowOperations.RefAt(index),
+                capacity);
         }
     }
 
@@ -67,6 +74,10 @@ internal sealed class Chunk
     internal bool IsEmpty => _count == 0;
 
     internal int DeferredDestroyedRecordCount => _deferredDestroyedRecordCount;
+
+    internal int DeferredDestroyedListIndex => _deferredDestroyedListIndex;
+
+    internal void SetDeferredDestroyedListIndex(int index) => _deferredDestroyedListIndex = index;
 
     internal Span<Entity> Entities => _entities.Span[.._count];
 
@@ -164,22 +175,21 @@ internal sealed class Chunk
 
         var sourceRows = _componentRows;
         var targetRows = new Array[layouts.Length];
-        var copiedRows = new bool[layouts.Length];
         for (int sourceIndex = 0; sourceIndex < sourceToTarget.Length; sourceIndex++)
         {
             int targetIndex = sourceToTarget.RefAt(sourceIndex);
             if (targetIndex < 0)
             {
+                _componentRowArrayPool.Return(sourceRows[sourceIndex]);
                 continue;
             }
 
             targetRows[targetIndex] = sourceRows[sourceIndex];
-            copiedRows[targetIndex] = true;
         }
 
         for (int targetIndex = 0; targetIndex < targetRows.Length; targetIndex++)
         {
-            if (copiedRows[targetIndex])
+            if (targetRows[targetIndex] is not null)
             {
                 continue;
             }
@@ -190,7 +200,10 @@ internal sealed class Chunk
                 ThrowHelper.ThrowArrayRowsRequiresRuntimeType();
             }
 
-            targetRows[targetIndex] = rowOperations.RefAt(targetIndex).CreateArray(runtimeType, _capacity);
+            targetRows[targetIndex] = _componentRowArrayPool.Rent(
+                runtimeType,
+                rowOperations.RefAt(targetIndex),
+                _capacity);
         }
 
         ComponentStampStorage replacement = _componentStamps.Remap(sourceToTarget, targetRows.Length);
@@ -222,7 +235,12 @@ internal sealed class Chunk
             int targetIndex = sourceToTarget.RefAt(sourceIndex);
             if (targetIndex >= 0)
             {
+                _componentRowArrayPool.Return(targetRows[targetIndex]);
                 targetRows[targetIndex] = _componentRows.RefAt(sourceIndex);
+            }
+            else
+            {
+                _componentRowArrayPool.Return(_componentRows.RefAt(sourceIndex));
             }
         }
 
@@ -425,6 +443,12 @@ internal sealed class Chunk
 
     internal void Dispose()
     {
+        for (int componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
+        {
+            _componentRowArrayPool.Return(_componentRows.RefAt(componentIndex));
+        }
+
+        _componentRows = Array.Empty<Array>();
         _componentStamps.Dispose();
         _entities.Dispose();
     }

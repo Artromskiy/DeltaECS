@@ -188,6 +188,23 @@ public sealed class GenericSingleItemApiTests
     }
 
     [Test]
+    public void HandleCreateCanSkipEntityOutputStorage()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_035));
+        using var world = new World(layouts, chunkCapacity: 2);
+        ArchetypeHandle handle = world.GetOrCreateArchetype(positionId);
+
+        Assert.That(world.Create(handle, 5), Is.EqualTo(5));
+        Assert.That(world.Create<Position>(2), Is.EqualTo(2));
+        Assert.That(world.AliveEntityCount, Is.EqualTo(7));
+
+        Span<Entity> entities = stackalloc Entity[7];
+        Assert.That(world.CollectAliveEntities(entities), Is.EqualTo(7));
+        Assert.That(entities.ToArray(), Has.All.Matches<Entity>(entity => world.IsAlive(entity)));
+    }
+
+    [Test]
     public void TypedBatchAddInitializesOnlyNewComponentsAndRemoveSkipsIneligibleEntities()
     {
         var layouts = new ComponentLayoutRegistry();

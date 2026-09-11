@@ -14,6 +14,14 @@ internal sealed class EntityRecordStorage
         set => _items.Capacity = value;
     }
 
+    internal void EnsureCapacity(int capacity)
+    {
+        if (capacity > _items.Capacity)
+        {
+            _items.Capacity = capacity;
+        }
+    }
+
     internal void Add(EntityRecord value) => _items.Add(value);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

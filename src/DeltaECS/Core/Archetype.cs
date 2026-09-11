@@ -8,11 +8,14 @@ internal sealed class Archetype
 {
     private readonly int _id;
     private readonly int _chunkCapacity;
+    private readonly ComponentRowArrayPool _componentRowArrayPool;
     private NativeMemory<ComponentId> _componentIds;
     private readonly ComponentLayout[] _layouts;
     private readonly ComponentRowOperations[] _rowOperations;
     private readonly List<Chunk> _chunks = new();
     private readonly List<int> _availableChunkStack = new();
+    private readonly List<int> _blockPartialChunkCandidates = new();
+    private readonly List<int> _blockEmptyChunkCandidates = new();
     private NativeMemory<bool> _availableChunkFlags = new(0);
     private NativeMemory<int> _availableChunkPositions = new(0);
     private NativeMemory<int> _activeChunkIndices = new(0);
@@ -21,6 +24,8 @@ internal sealed class Archetype
     private readonly List<QueryPlanLink> _queryPlans = new();
     private int _activeChunkCount;
     private bool _deferQueryPlanUpdates;
+    private int _blockPartialCandidateCount;
+    private int _blockEmptyCandidateCount;
 
     internal Archetype(
         int id,
@@ -28,7 +33,8 @@ internal sealed class Archetype
         ComponentLayout[] layouts,
         ComponentRowOperations[] rowOperations,
         ComponentId[] componentIds,
-        int chunkCapacity)
+        int chunkCapacity,
+        ComponentRowArrayPool componentRowArrayPool)
     {
         if (layouts.Length != componentIds.Length
             || rowOperations.Length != componentIds.Length)
@@ -39,6 +45,7 @@ internal sealed class Archetype
         _id = id;
         Mask = mask;
         _chunkCapacity = chunkCapacity;
+        _componentRowArrayPool = componentRowArrayPool;
         _componentIds = new NativeMemory<ComponentId>(componentIds);
         _layouts = layouts;
         _rowOperations = rowOperations;
@@ -162,7 +169,14 @@ internal sealed class Archetype
         }
 
         chunkIndex = _chunks.Count;
-        _chunks.Add(new Chunk(_chunkCapacity, _layouts, _rowOperations, chunkId, _id, chunkIndex));
+        _chunks.Add(new Chunk(
+            _chunkCapacity,
+            _layouts,
+            _rowOperations,
+            chunkId,
+            _id,
+            chunkIndex,
+            _componentRowArrayPool));
         EnsureAvailableChunkCapacity(chunkIndex);
         _activeChunkPositions.RefAt(chunkIndex) = -1;
         _availableChunkPositions.RefAt(chunkIndex) = -1;
@@ -186,7 +200,14 @@ internal sealed class Archetype
         else
         {
             chunkIndex = _chunks.Count;
-            chunk = new Chunk(_chunkCapacity, _layouts, _rowOperations, chunkId, _id, chunkIndex);
+            chunk = new Chunk(
+                _chunkCapacity,
+                _layouts,
+                _rowOperations,
+                chunkId,
+                _id,
+                chunkIndex,
+                _componentRowArrayPool);
             _chunks.Add(chunk);
             EnsureAvailableChunkCapacity(chunkIndex);
             _activeChunkPositions.RefAt(chunkIndex) = -1;
@@ -237,8 +258,10 @@ internal sealed class Archetype
         return true;
     }
 
-    internal bool TryGetAvailableNonEmptyPartialChunk(int maximumChunkIndex, out int chunkIndex, out Chunk chunk)
+    internal void PrepareBlockMoveCandidates(int maximumChunkIndex)
     {
+        _blockPartialChunkCandidates.Clear();
+        _blockEmptyChunkCandidates.Clear();
         for (int stackIndex = _availableChunkStack.Count - 1; stackIndex >= 0; stackIndex--)
         {
             int candidateIndex = _availableChunkStack[stackIndex];
@@ -247,41 +270,66 @@ internal sealed class Archetype
                 continue;
             }
 
+            var candidate = _chunks[candidateIndex];
+            if (candidate.IsEmpty)
+            {
+                _blockEmptyChunkCandidates.Add(candidateIndex);
+                continue;
+            }
+
+            if (!candidate.IsFull)
+            {
+                _blockPartialChunkCandidates.Add(candidateIndex);
+            }
+        }
+
+        _blockPartialCandidateCount = _blockPartialChunkCandidates.Count;
+        _blockEmptyCandidateCount = _blockEmptyChunkCandidates.Count;
+    }
+
+    internal bool TryTakeBlockPartialChunk(out Chunk chunk)
+    {
+        while (_blockPartialCandidateCount > 0)
+        {
+            int candidateIndex = _blockPartialChunkCandidates[--_blockPartialCandidateCount];
             var candidate = _chunks[candidateIndex];
             if (candidate.IsEmpty || candidate.IsFull)
             {
                 continue;
             }
 
-            chunkIndex = candidateIndex;
             chunk = candidate;
             return true;
         }
 
-        chunkIndex = -1;
         chunk = null!;
         return false;
     }
 
-    internal bool TryGetAvailableEmptyChunk(int maximumChunkIndex, out int chunkIndex, out Chunk chunk)
+    internal void RequeueBlockPartialChunk(Chunk chunk)
     {
-        for (int stackIndex = _availableChunkStack.Count - 1; stackIndex >= 0; stackIndex--)
+        if (_blockPartialCandidateCount == _blockPartialChunkCandidates.Count)
         {
-            int candidateIndex = _availableChunkStack[stackIndex];
-            if (candidateIndex >= maximumChunkIndex)
-            {
-                continue;
-            }
+            _blockPartialChunkCandidates.Add(chunk.ArchetypeIndex);
+        }
+        else
+        {
+            _blockPartialChunkCandidates[_blockPartialCandidateCount] = chunk.ArchetypeIndex;
+        }
 
-            var candidate = _chunks[candidateIndex];
-            if (!candidate.IsEmpty)
-            {
-                continue;
-            }
+        _blockPartialCandidateCount++;
+    }
 
-            chunkIndex = candidateIndex;
-            chunk = candidate;
-            return true;
+    internal bool TryTakeBlockEmptyChunk(out int chunkIndex, out Chunk chunk)
+    {
+        while (_blockEmptyCandidateCount > 0)
+        {
+            chunkIndex = _blockEmptyChunkCandidates[--_blockEmptyCandidateCount];
+            chunk = _chunks[chunkIndex];
+            if (chunk.IsEmpty)
+            {
+                return true;
+            }
         }
 
         chunkIndex = -1;
