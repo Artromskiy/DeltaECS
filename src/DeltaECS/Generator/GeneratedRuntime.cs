@@ -20,26 +20,168 @@ public interface IGeneratedWhereInvoker
     void Invoke(ref GeneratedQuerySlots slots);
 }
 
-/// <summary>Compiler-support contract for a generated query predicate collector.</summary>
+/// <summary>Compiler-support contract for a generated structural query predicate.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IGeneratedWhereCollector
+public interface IGeneratedWhereStructuralInvoker
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    int Collect(scoped ref GeneratedQuerySlots slots, GeneratedWhereMatchBuffer matches);
+    void Execute(
+        scoped ref GeneratedQuerySlots slots,
+        ref GeneratedWhereStructuralContext context);
 }
 
-/// <summary>Compiler-support match sink used by generated structural Where terminals.</summary>
+internal sealed class GeneratedWhereTargetCursor
+{
+    internal Chunk? Chunk;
+    internal int Slot;
+    internal int Remaining;
+
+    internal void Reset()
+    {
+        Chunk = null;
+        Slot = 0;
+        Remaining = 0;
+    }
+}
+
+internal readonly struct GeneratedWhereStructuralPlan
+{
+    internal GeneratedWhereStructuralPlan(
+        Archetype sourceArchetype,
+        Archetype? targetArchetype,
+        int[] sourceToTargetRows,
+        int[] addedTargetRows,
+        GeneratedWhereTargetCursor? targetCursor,
+        bool isDestroy)
+    {
+        SourceArchetype = sourceArchetype;
+        TargetArchetype = targetArchetype;
+        SourceToTargetRows = sourceToTargetRows;
+        AddedTargetRows = addedTargetRows;
+        TargetCursor = targetCursor;
+        IsDestroy = isDestroy;
+    }
+
+    internal Archetype SourceArchetype { get; }
+    internal Archetype? TargetArchetype { get; }
+    internal int[] SourceToTargetRows { get; }
+    internal int[] AddedTargetRows { get; }
+    internal GeneratedWhereTargetCursor? TargetCursor { get; }
+    internal bool IsDestroy { get; }
+
+    internal bool IsNoOp => !IsDestroy && TargetArchetype is null;
+}
+
+/// <summary>Compiler-support state for one immediate structural Where chunk.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public ref struct GeneratedWhereMatchBuffer
+public struct GeneratedWhereStructuralContext
 {
     private readonly World _world;
+    private readonly Chunk _sourceChunk;
+    private readonly GeneratedWhereStructuralPlan _plan;
+    private readonly int _sourceCount;
+    private int _writeSlot;
+    private int _changedCount;
+    private bool _completed;
 
-    internal GeneratedWhereMatchBuffer(World world) => _world = world;
+    internal GeneratedWhereStructuralContext(
+        World world,
+        Chunk sourceChunk,
+        in GeneratedWhereStructuralPlan plan,
+        int sourceCount)
+    {
+        _world = world;
+        _sourceChunk = sourceChunk;
+        _plan = plan;
+        _sourceCount = sourceCount;
+        _writeSlot = 0;
+        _changedCount = 0;
+        _completed = false;
+    }
 
-    /// <summary>Records one predicate match in the current query chunk.</summary>
+    /// <summary>Processes one contiguous predicate run in source order.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Add(int chunkId, int sourceCount, int slotIndex)
-        => _world.AddGeneratedWhereMatch(chunkId, sourceCount, slotIndex);
+    public void ProcessRun(int sourceSlot, int count, bool selected)
+    {
+        if (count == 0)
+        {
+            return;
+        }
+
+        if (_plan.IsNoOp)
+        {
+            _writeSlot = sourceSlot + count;
+            return;
+        }
+
+        if (selected)
+        {
+            _changedCount += count;
+            if (_plan.IsDestroy)
+            {
+                _world.FreeGeneratedWhereRun(_sourceChunk, sourceSlot, count);
+            }
+            else
+            {
+                _world.CopyGeneratedWhereRun(
+                    _sourceChunk,
+                    sourceSlot,
+                    count,
+                    _plan.TargetArchetype!,
+                    _plan.SourceToTargetRows,
+                    _plan.AddedTargetRows,
+                    _plan.TargetCursor!);
+            }
+
+            return;
+        }
+
+        if (_writeSlot != sourceSlot)
+        {
+            _world.CopyChunkRangeWithin(_sourceChunk, sourceSlot, _writeSlot, count);
+            _world.UpdateChunkRecordSlotsSameChunk(_sourceChunk, _writeSlot, count);
+        }
+
+        _writeSlot += count;
+    }
+
+    /// <summary>Finishes source compaction and returns the changed row count.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public int Complete()
+    {
+        if (_completed)
+        {
+            return 0;
+        }
+
+        _completed = true;
+        if (_changedCount == 0)
+        {
+            return 0;
+        }
+
+        int appendedCount = _sourceChunk.Count - _sourceCount;
+        if (appendedCount != 0 && _writeSlot != _sourceCount)
+        {
+            _world.CopyChunkRangeWithin(_sourceChunk, _sourceCount, _writeSlot, appendedCount);
+            _world.UpdateChunkRecordSlotsSameChunk(_sourceChunk, _writeSlot, appendedCount);
+        }
+
+        _sourceChunk.TrimTail(_sourceCount - _writeSlot);
+        _plan.SourceArchetype.ReleaseChunk(_sourceChunk.ArchetypeIndex);
+        if (_plan.IsDestroy)
+        {
+            _world.CommitGeneratedWhereDestroy(_changedCount);
+        }
+
+        _world.MarkGeneratedWhereAffected(_plan.SourceArchetype);
+        if (_plan.TargetArchetype is { } targetArchetype)
+        {
+            _world.MarkGeneratedWhereAffected(targetArchetype);
+        }
+
+        return _changedCount;
+    }
 }
 
 /// <summary>Compiler-support contract for one direct generated parallel chunk invocation.</summary>
@@ -67,16 +209,22 @@ public ref struct GeneratedDenseExecution
     private World? _owner;
     private readonly ReadOnlySpan<ArchetypePlan> _plans;
     private readonly ReadOnlySpan<ChunkPlan> _chunkPlans;
+    private readonly ReadOnlySpan<int> _chunkCounts;
+    private readonly bool _ownsLease;
     private int _chunkIndex;
 
     internal GeneratedDenseExecution(
         World owner,
         ReadOnlySpan<ArchetypePlan> plans,
-        ReadOnlySpan<ChunkPlan> chunkPlans)
+        ReadOnlySpan<ChunkPlan> chunkPlans,
+        ReadOnlySpan<int> chunkCounts = default,
+        bool ownsLease = true)
     {
         _owner = owner;
         _plans = plans;
         _chunkPlans = chunkPlans;
+        _chunkCounts = chunkCounts;
+        _ownsLease = ownsLease;
         _chunkIndex = -1;
     }
 
@@ -195,7 +343,9 @@ public ref struct GeneratedDenseExecution
         if ((uint)nextChunk < (uint)_chunkPlans.Length)
         {
             _chunkIndex = nextChunk;
-            slots = new GeneratedQuerySlots(in _chunkPlans.RefAt(_chunkIndex));
+            ref readonly ChunkPlan chunkPlan = ref _chunkPlans.RefAt(_chunkIndex);
+            int count = _chunkCounts.IsEmpty ? chunkPlan.Chunk.Count : _chunkCounts.RefAt(_chunkIndex);
+            slots = new GeneratedQuerySlots(in chunkPlan, count);
             return true;
         }
         _chunkIndex = _chunkPlans.Length;
@@ -233,7 +383,11 @@ public ref struct GeneratedDenseExecution
             return;
         }
 
-        owner.EndQueryLease();
+        if (_ownsLease)
+        {
+            owner.EndQueryLease();
+        }
+
         _owner = null;
     }
 }
@@ -447,7 +601,7 @@ public static class GeneratedForEachRuntime
         return query.Owner.Layouts.GetPrimary<T>();
     }
 
-    /// <summary>Executes a generated predicate and destroys its collected matches.</summary>
+    /// <summary>Executes a generated predicate and immediately destroys its matches.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int ExecuteGeneratedWhereDestroy<TInvoker>(
@@ -455,14 +609,20 @@ public static class GeneratedForEachRuntime
         in Query query,
         ref TInvoker invoker,
         scoped ReadOnlySpan<int> writeComponentIndices)
-        where TInvoker : struct, IGeneratedWhereCollector
+        where TInvoker : struct, IGeneratedWhereStructuralInvoker
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
-        int count = ExecuteGeneratedWhereCore(world, in query, ref invoker, writeComponentIndices);
-        return world.DestroyGeneratedWhereMatches(count);
+        return ExecuteGeneratedWhereStructural(
+            world,
+            in query,
+            ref invoker,
+            writeComponentIndices,
+            isDestroy: true,
+            isAdd: false,
+            componentIds: default);
     }
 
-    /// <summary>Executes a generated predicate and adds components to its collected matches.</summary>
+    /// <summary>Executes a generated predicate and immediately adds components to its matches.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int ExecuteGeneratedWhereAdd<TInvoker>(
@@ -471,14 +631,20 @@ public static class GeneratedForEachRuntime
         ref TInvoker invoker,
         scoped ReadOnlySpan<int> writeComponentIndices,
         scoped ReadOnlySpan<ComponentId> componentIds)
-        where TInvoker : struct, IGeneratedWhereCollector
+        where TInvoker : struct, IGeneratedWhereStructuralInvoker
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
-        int count = ExecuteGeneratedWhereCore(world, in query, ref invoker, writeComponentIndices);
-        return world.AddGeneratedWhereMatches(componentIds, count);
+        return ExecuteGeneratedWhereStructural(
+            world,
+            in query,
+            ref invoker,
+            writeComponentIndices,
+            isDestroy: false,
+            isAdd: true,
+            componentIds);
     }
 
-    /// <summary>Executes a generated predicate and removes components from its collected matches.</summary>
+    /// <summary>Executes a generated predicate and immediately removes components from its matches.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int ExecuteGeneratedWhereRemove<TInvoker>(
@@ -487,11 +653,17 @@ public static class GeneratedForEachRuntime
         ref TInvoker invoker,
         scoped ReadOnlySpan<int> writeComponentIndices,
         scoped ReadOnlySpan<ComponentId> componentIds)
-        where TInvoker : struct, IGeneratedWhereCollector
+        where TInvoker : struct, IGeneratedWhereStructuralInvoker
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
-        int count = ExecuteGeneratedWhereCore(world, in query, ref invoker, writeComponentIndices);
-        return world.RemoveGeneratedWhereMatches(componentIds, count);
+        return ExecuteGeneratedWhereStructural(
+            world,
+            in query,
+            ref invoker,
+            writeComponentIndices,
+            isDestroy: false,
+            isAdd: false,
+            componentIds);
     }
 
     /// <summary>Executes a generated predicate and a terminal callback while the query lease is active.</summary>
@@ -514,23 +686,46 @@ public static class GeneratedForEachRuntime
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int ExecuteGeneratedWhereCore<TInvoker>(
+    private static int ExecuteGeneratedWhereStructural<TInvoker>(
         World world,
         in Query query,
         ref TInvoker invoker,
-        scoped ReadOnlySpan<int> writeComponentIndices)
-        where TInvoker : struct, IGeneratedWhereCollector
+        scoped ReadOnlySpan<int> writeComponentIndices,
+        bool isDestroy,
+        bool isAdd,
+        scoped ReadOnlySpan<ComponentId> componentIds)
+        where TInvoker : struct, IGeneratedWhereStructuralInvoker
     {
-        GeneratedWhereMatchBuffer matches = world.BeginGeneratedWhereMatches();
-        using var execution = OpenDense(world, in query, hasWrites: writeComponentIndices.Length != 0);
-        execution.MarkArchetypeWrites(writeComponentIndices);
-        int matched = 0;
-        while (execution.MoveNextTrusted(out var slots))
+        if (!world.BeginGeneratedWhereStructural(
+                in query,
+                isDestroy,
+                isAdd,
+                componentIds,
+                out GeneratedDenseExecution execution))
         {
-            matched += invoker.Collect(ref slots, matches);
+            return 0;
         }
 
-        return matched;
+        int changed = 0;
+        try
+        {
+            execution.MarkArchetypeWrites(writeComponentIndices);
+            while (execution.MoveNextTrusted(out var slots))
+            {
+                GeneratedWhereStructuralContext context = world.BeginGeneratedWhereChunk(
+                    slots.ChunkId,
+                    slots.Count);
+                invoker.Execute(ref slots, ref context);
+                changed += context.Complete();
+            }
+        }
+        finally
+        {
+            execution.Dispose();
+            world.EndGeneratedWhereStructural();
+        }
+
+        return changed;
     }
 
     /// <summary>

@@ -115,7 +115,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
                 if (interceptorsEnabled
                     && languageSupportsInterceptors
                     && !shape.IsFunctor
-                    && terminal.IsCallback
+                    && (terminal.IsCallback || terminal.Kind is TerminalKind.Destroy or TerminalKind.Add or TerminalKind.Remove)
                     && TryCreateInterceptionSite(model, whereInvocation, invocation, shape, terminal, tree, out WhereInterceptionSite? site)
                     && site is { } interceptionSite)
                 {
@@ -172,7 +172,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         }
 
         LambdaExpressionSyntax? action = null;
-        if (!terminal.IsFunctor)
+        if (terminal.IsCallback && !terminal.IsFunctor)
         {
             if (terminalInvocation.ArgumentList.Arguments.Count != 1
                 || terminalInvocation.ArgumentList.Arguments[0].Expression is not LambdaExpressionSyntax lambda
@@ -183,8 +183,9 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
 
             action = lambda;
         }
-        else if (terminalInvocation.ArgumentList.Arguments.Count != (terminal.HasContext ? 2 : 1)
-            || !terminalInvocation.ArgumentList.Arguments.Last().RefKindKeyword.IsKind(SyntaxKind.RefKeyword))
+        else if (terminal.IsCallback
+            && (terminalInvocation.ArgumentList.Arguments.Count != (terminal.HasContext ? 2 : 1)
+                || !terminalInvocation.ArgumentList.Arguments.Last().RefKindKeyword.IsKind(SyntaxKind.RefKeyword)))
         {
             return false;
         }
@@ -330,17 +331,31 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             .Append(site.Id).AppendLine();
         source.AppendLine("{");
         RenderInterceptedPredicate(source, site);
-        if (!terminal.IsFunctor)
+        if (terminal.IsCallback && !terminal.IsFunctor)
         {
             RenderInterceptedAction(source, site);
         }
-        RenderInterceptedWhereLoop(source, site);
-        source.Append("    ").Append(site.Attribute).AppendLine();
-        source.Append("    internal static void Intercept_").Append(site.Id)
-            .Append("(this in global::Delta.ECS.GeneratedWhereQuery_")
-            .Append(hash).Append(TypeArguments(site.PredicateComponents)).Append(" view, ");
-        if (terminal.IsFunctor)
+        if (terminal.IsCallback)
         {
+            RenderInterceptedWhereLoop(source, site);
+        }
+        else
+        {
+            RenderInterceptedStructuralLoop(source, site);
+        }
+        source.Append("    ").Append(site.Attribute).AppendLine();
+        source.Append("    internal static ")
+            .Append(terminal.IsCallback ? "void" : "int")
+            .Append(" Intercept_").Append(site.Id)
+            .Append("(this in global::Delta.ECS.GeneratedWhereQuery_")
+            .Append(hash).Append(TypeArguments(site.PredicateComponents)).Append(" view");
+        if (!terminal.IsCallback)
+        {
+            source.AppendLine(")");
+        }
+        else if (terminal.IsFunctor)
+        {
+            source.Append(", ");
             if (terminal.HasContext)
             {
                 source.Append("ref ").Append(terminal.ContextType).Append(" context, ");
@@ -350,12 +365,20 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         }
         else
         {
+            source.Append(", ");
             source.Append("global::Delta.ECS.GeneratedWhereAction_").Append(hash).Append('_').Append(terminalHash)
                 .Append(TypeArguments(site.ActionComponents)).AppendLine(" _)");
         }
         source.AppendLine("    {");
         source.AppendLine("        global::Delta.ECS.Query query = view.Query;");
-        source.Append("        Execute_").Append(site.Id).Append("(view.World, in query");
+        if (!terminal.IsCallback)
+        {
+            source.Append("        return Execute_").Append(site.Id).Append("(view.World, in query");
+        }
+        else
+        {
+            source.Append("        Execute_").Append(site.Id).Append("(view.World, in query");
+        }
         if (terminal.IsFunctor)
         {
             if (terminal.HasContext)
@@ -616,6 +639,144 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         source.AppendLine();
     }
 
+    private static void RenderInterceptedStructuralLoop(StringBuilder source, WhereInterceptionSite site)
+    {
+        PredicateShape shape = site.Shape;
+        TerminalShape terminal = site.Terminal;
+        string invokerName = "StructuralInvoker_" + site.Id;
+        string executeName = "Execute_" + site.Id;
+
+        source.Append("    private struct ").Append(invokerName).AppendLine(" : global::Delta.ECS.IGeneratedWhereStructuralInvoker");
+        source.AppendLine("    {");
+        for (int index = 0; index < shape.Arity; index++)
+        {
+            source.Append("        private readonly int _access").Append(index).AppendLine(";");
+        }
+
+        source.Append("        internal ").Append(invokerName).Append('(');
+        for (int index = 0; index < shape.Arity; index++)
+        {
+            if (index > 0)
+            {
+                source.Append(", ");
+            }
+
+            source.Append("int access").Append(index);
+        }
+
+        source.AppendLine(")");
+        source.AppendLine("        {");
+        for (int index = 0; index < shape.Arity; index++)
+        {
+            source.Append("            _access").Append(index).Append(" = access").Append(index).AppendLine(";");
+        }
+
+        source.AppendLine("        }");
+        source.AppendLine();
+        source.AppendLine("        public void Execute(scoped ref GeneratedQuerySlots slots, ref GeneratedWhereStructuralContext context)");
+        source.AppendLine("        {");
+        source.AppendLine("            if (slots.Count == 0)");
+        source.AppendLine("            {");
+        source.AppendLine("                return;");
+        source.AppendLine("            }");
+        RenderRowLocals(source, shape.Pattern, shape.Arity, site.PredicateComponents, "T", "            ");
+        source.AppendLine("            int runStart = 0;");
+        source.AppendLine("            bool runSelected = false;");
+        source.AppendLine("            for (int index = 0; index < slots.Count; index++)");
+        source.AppendLine("            {");
+        RenderComponentLocals(source, shape.Pattern, shape.Arity, site.PredicateComponents, "T", "                ");
+        source.AppendLine("                Entity entity = slots.EntityAt(index);");
+        source.Append("                bool selected = Predicate_").Append(site.Id).Append('(');
+        AppendInterceptedPredicateArguments(source, shape);
+        source.AppendLine(");");
+        source.AppendLine("                if (index != 0 && selected != runSelected)");
+        source.AppendLine("                {");
+        source.AppendLine("                    context.ProcessRun(runStart, index - runStart, runSelected);");
+        source.AppendLine("                    runStart = index;");
+        source.AppendLine("                }");
+        source.AppendLine("                runSelected = selected;");
+        source.AppendLine("            }");
+        source.AppendLine("            context.ProcessRun(runStart, slots.Count - runStart, runSelected);");
+        source.AppendLine("        }");
+        source.AppendLine("    }");
+        source.AppendLine();
+
+        source.Append("    private static int ").Append(executeName)
+            .AppendLine("(global::Delta.ECS.World world, in global::Delta.ECS.Query query)");
+        source.AppendLine("    {");
+        for (int index = 0; index < shape.Arity; index++)
+        {
+            source.Append("        var access").Append(index).Append(" = global::Delta.ECS.GeneratedForEachRuntime.GetPrepared")
+                .Append(IsWrite(shape.Pattern[index]) ? "Write" : "Read")
+                .Append("Access<").Append(site.PredicateComponents[index]).AppendLine(">(in query);");
+        }
+
+        source.Append("        var invoker = new ").Append(invokerName).Append('(');
+        for (int index = 0; index < shape.Arity; index++)
+        {
+            if (index > 0)
+            {
+                source.Append(", ");
+            }
+
+            source.Append("global::Delta.ECS.GeneratedForEachRuntime.Get")
+                .Append(IsWrite(shape.Pattern[index]) ? "Write" : "Read")
+                .Append("QueryComponentIndex(access").Append(index).Append(')');
+        }
+
+        source.AppendLine(");");
+        if (terminal.Kind is TerminalKind.Add or TerminalKind.Remove)
+        {
+            source.Append("        global::System.Span<global::Delta.ECS.ComponentId> components = stackalloc global::Delta.ECS.ComponentId[")
+                .Append(terminal.Arity).AppendLine("];");
+            for (int index = 0; index < terminal.Arity; index++)
+            {
+                source.Append("        components[").Append(index).Append("] = world.Layouts.GetPrimary<")
+                    .Append(site.ActionComponents[index]).AppendLine(">();");
+            }
+        }
+
+        source.Append("        return global::Delta.ECS.GeneratedForEachRuntime.ExecuteGeneratedWhere");
+        source.Append(terminal.Kind switch
+        {
+            TerminalKind.Destroy => "Destroy",
+            TerminalKind.Add => "Add",
+            TerminalKind.Remove => "Remove",
+            _ => string.Empty
+        });
+        source.Append("(world, in query, ref invoker, ")
+            .Append(WriteIndices(shape.Pattern, string.Empty, shape.Arity));
+        if (terminal.Kind is TerminalKind.Add or TerminalKind.Remove)
+        {
+            source.Append(", components");
+        }
+
+        source.AppendLine(");");
+        source.AppendLine("    }");
+        source.AppendLine();
+    }
+
+    private static void AppendInterceptedPredicateArguments(StringBuilder source, PredicateShape shape)
+    {
+        bool hasArgument = false;
+        if (shape.HasEntity)
+        {
+            source.Append("entity");
+            hasArgument = true;
+        }
+
+        for (int index = 0; index < shape.Arity; index++)
+        {
+            if (hasArgument)
+            {
+                source.Append(", ");
+            }
+
+            source.Append(InvocationPrefix(shape.Pattern[index])).Append("component").Append(index);
+            hasArgument = true;
+        }
+    }
+
     private static void AppendIndented(StringBuilder source, string text, string indent)
     {
         foreach (string line in text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None))
@@ -872,7 +1033,10 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
                 name == "Add" ? TerminalKind.Add : TerminalKind.Remove,
                 string.Empty,
                 genericName.TypeArgumentList.Arguments.Count,
-                hasEntity: false);
+                hasEntity: false,
+                components: genericName.TypeArgumentList.Arguments
+                    .Select(argument => DisplayType(model.GetTypeInfo(argument).Type!))
+                    .ToArray());
             return true;
         }
 
@@ -1271,7 +1435,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         string generic = JoinGeneric(
             shape.IsFunctor ? string.Empty : PredicateGenericList(shape),
             terminal.IsCallback && !terminal.IsFunctor ? GenericList(terminal.Arity, "U") : string.Empty);
-        string contract = terminal.IsCallback ? "IGeneratedWhereInvoker" : "IGeneratedWhereCollector";
+        string contract = terminal.IsCallback ? "IGeneratedWhereInvoker" : "IGeneratedWhereStructuralInvoker";
         source.Append("internal struct ").Append(invokerName).Append(GenericParameters(generic)).Append(" : ").AppendLine(contract);
         source.AppendLine("{");
         source.Append("    private readonly ").Append(PredicateType(shape, hash)).AppendLine(" _predicate;");
@@ -1370,7 +1534,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         }
         else
         {
-            source.AppendLine("    public int Collect(scoped ref GeneratedQuerySlots slots, GeneratedWhereMatchBuffer matches)");
+            source.AppendLine("    public void Execute(scoped ref GeneratedQuerySlots slots, ref GeneratedWhereStructuralContext context)");
         }
 
         source.AppendLine("    {");
@@ -1382,83 +1546,43 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
 
         if (!terminal.IsCallback)
         {
-            source.AppendLine("        int matched = 0;");
+            source.AppendLine("        if (slots.Count == 0)");
+            source.AppendLine("        {");
+            source.AppendLine("            return;");
+            source.AppendLine("        }");
+            source.AppendLine("        int runStart = 0;");
+            source.AppendLine("        bool runSelected = false;");
         }
 
         source.AppendLine("        for (int index = 0; index < slots.Count; index++)");
         source.AppendLine("        {");
         RenderComponentLocals(source, shape.Pattern, shape.Arity, shape.IsFunctor ? shape.Components : null, "T", "            ");
         source.AppendLine("            Entity entity = slots.EntityAt(index);");
-        source.Append("            if (!");
-        if (shape.IsFunctor)
+        if (terminal.IsCallback)
         {
-            source.Append("_predicate.Invoke(");
-            bool hasPredicateArgument = false;
-            if (shape.HasContext)
-            {
-                source.Append("ref _predicateContext");
-                hasPredicateArgument = true;
-            }
-
-            if (shape.HasEntity)
-            {
-                if (hasPredicateArgument)
-                {
-                    source.Append(", ");
-                }
-
-                source.Append("entity");
-                hasPredicateArgument = true;
-            }
-
-            for (int index = 0; index < shape.Arity; index++)
-            {
-                if (hasPredicateArgument)
-                {
-                    source.Append(", ");
-                }
-
-                source.Append(InvocationPrefix(shape.Pattern[index])).Append("component").Append(index);
-                hasPredicateArgument = true;
-            }
+            source.Append("            if (!");
+            RenderPredicateInvocation(source, shape);
+            source.AppendLine(")");
+            source.AppendLine("            {");
+            source.AppendLine("                continue;");
+            source.AppendLine("            }");
         }
         else
         {
-            source.Append("_predicate(");
-            bool hasPredicateArgument = false;
-            if (shape.HasContext)
-            {
-                source.Append("ref _predicateContext");
-                hasPredicateArgument = true;
-            }
-
-            if (shape.HasEntity)
-            {
-                if (hasPredicateArgument)
-                {
-                    source.Append(", ");
-                }
-
-                source.Append("entity");
-                hasPredicateArgument = true;
-            }
-
-            for (int index = 0; index < shape.Arity; index++)
-            {
-                if (hasPredicateArgument)
-                {
-                    source.Append(", ");
-                }
-
-                source.Append(InvocationPrefix(shape.Pattern[index])).Append("component").Append(index);
-                hasPredicateArgument = true;
-            }
+            source.Append("            bool selected = ");
+            RenderPredicateInvocation(source, shape);
+            source.AppendLine(";");
+            source.AppendLine("            if (index != 0 && selected != runSelected)");
+            source.AppendLine("            {");
+            source.AppendLine("                context.ProcessRun(runStart, index - runStart, runSelected);");
+            source.AppendLine("                runStart = index;");
+            source.AppendLine("            }");
+            source.AppendLine("            runSelected = selected;");
+            source.AppendLine("            if (!selected)");
+            source.AppendLine("            {");
+            source.AppendLine("                continue;");
+            source.AppendLine("            }");
         }
-
-        source.AppendLine("))");
-        source.AppendLine("            {");
-        source.AppendLine("                continue;");
-        source.AppendLine("            }");
         if (terminal.IsCallback)
         {
             RenderComponentLocals(source, terminal.Pattern, terminal.Arity, terminal.IsFunctor ? terminal.Components : null, "U", "            ", shape.Arity);
@@ -1491,21 +1615,51 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
 
             source.Append(string.Join(", ", arguments)).AppendLine(");");
         }
-        else
-        {
-            source.AppendLine("            matches.Add(slots.ChunkId, slots.Count, index);");
-            source.AppendLine("            matched++;");
-        }
 
         source.AppendLine("        }");
         if (!terminal.IsCallback)
         {
-            source.AppendLine("        return matched;");
+            source.AppendLine("        context.ProcessRun(runStart, slots.Count - runStart, runSelected);");
         }
 
         source.AppendLine("    }");
         source.AppendLine("}");
         source.AppendLine();
+    }
+
+    private static void RenderPredicateInvocation(StringBuilder source, PredicateShape shape)
+    {
+        source.Append(shape.IsFunctor ? "_predicate.Invoke(" : "_predicate(");
+        bool hasArgument = false;
+        if (shape.HasContext)
+        {
+            source.Append("ref _predicateContext");
+            hasArgument = true;
+        }
+
+        if (shape.HasEntity)
+        {
+            if (hasArgument)
+            {
+                source.Append(", ");
+            }
+
+            source.Append("entity");
+            hasArgument = true;
+        }
+
+        for (int index = 0; index < shape.Arity; index++)
+        {
+            if (hasArgument)
+            {
+                source.Append(", ");
+            }
+
+            source.Append(InvocationPrefix(shape.Pattern[index])).Append("component").Append(index);
+            hasArgument = true;
+        }
+
+        source.Append(')');
     }
 
     private static void RenderRowLocals(

@@ -23,12 +23,19 @@ public sealed partial class World : IDisposable
     private int _queryCacheSweepCountdown = 64;
     private NativeMemory<DestroyEntry> _destroyScratch = new(32);
     private NativeMemory<Entity> _sequenceScratch = new(0);
-    private NativeMemory<GeneratedWhereChunkMatch> _generatedWhereChunks = new(0);
-    private NativeMemory<ulong> _generatedWhereBits = new(0);
     private readonly List<Archetype> _generatedWhereAffectedArchetypes = new(16);
-    private int _generatedWhereChunkCount;
-    private int _generatedWhereBitCount;
-    private int _generatedWhereLastChunkId = -1;
+    private GeneratedWhereStructuralPlan[] _generatedWhereArchetypePlans = Array.Empty<GeneratedWhereStructuralPlan>();
+    private GeneratedWhereTargetCursor?[] _generatedWhereTargetCursors = Array.Empty<GeneratedWhereTargetCursor?>();
+    private NativeMemory<int> _generatedWhereTargetCursorStamps = new(0);
+    private NativeMemory<int> _generatedWhereAffectedArchetypeStamps = new(0);
+    private Archetype[] _generatedWhereSourceArchetypes = Array.Empty<Archetype>();
+    private NativeMemory<int> _generatedWhereSourceCounts = new(0);
+    private int _generatedWhereSourceArchetypeCount;
+    private int _generatedWherePlanStamp;
+    private int _generatedWhereAffectedArchetypeStamp;
+    private int _generatedWhereDestroyCapacity;
+    private bool _generatedWhereDestroyCapacityReserved;
+    private bool _generatedWhereStructuralActive;
     private TransitionEdge[] _batchEdgeSlots = Array.Empty<TransitionEdge>();
     private NativeMemory<int> _batchEdgeStamps = new(0);
     private int _batchEdgeStamp;
@@ -101,8 +108,9 @@ public sealed partial class World : IDisposable
         _freeRecords.Dispose();
         _destroyScratch.Dispose();
         _sequenceScratch.Dispose();
-        _generatedWhereChunks.Dispose();
-        _generatedWhereBits.Dispose();
+        _generatedWhereSourceCounts.Dispose();
+        _generatedWhereTargetCursorStamps.Dispose();
+        _generatedWhereAffectedArchetypeStamps.Dispose();
         _batchEdgeStamps.Dispose();
         DisposeStampLayers();
         _componentRowArrayPool.Clear();
@@ -789,210 +797,257 @@ public sealed partial class World : IDisposable
         return changed;
     }
 
-    internal GeneratedWhereMatchBuffer BeginGeneratedWhereMatches()
+    internal bool BeginGeneratedWhereStructural(
+        in Query query,
+        bool isDestroy,
+        bool isAdd,
+        ReadOnlySpan<ComponentId> componentIds,
+        out GeneratedDenseExecution execution)
     {
-        _generatedWhereChunkCount = 0;
-        _generatedWhereBitCount = 0;
-        _generatedWhereLastChunkId = -1;
+        EnsureNoActiveLease(isDestroy
+            ? "destroy entities"
+            : isAdd ? "add components" : "remove components");
+        ValidateQuery(in query);
+
+        ComponentMask changeMask = default;
+        if (!isDestroy && (componentIds.Length == 0 || !TryBuildComponentMask(componentIds, out changeMask)))
+        {
+            execution = default;
+            return false;
+        }
+
+        QueryPlan plan = query.Cached;
+        ReadOnlySpan<ArchetypePlan> matchingPlans = plan.MatchingPlans();
+        EnsureGeneratedWhereSourceArchetypeCapacity(matchingPlans.Length);
+        _generatedWhereSourceArchetypeCount = matchingPlans.Length;
+        for (int index = 0; index < matchingPlans.Length; index++)
+        {
+            _generatedWhereSourceArchetypes[index] = matchingPlans.RefAt(index).Archetype;
+        }
+
         _generatedWhereAffectedArchetypes.Clear();
-        return new GeneratedWhereMatchBuffer(this);
+        _generatedWhereAffectedArchetypeStamp = NextGeneratedWhereStamp(_generatedWhereAffectedArchetypeStamp);
+        BeginGeneratedWherePlanCache();
+        int edgeStamp = isDestroy ? 0 : BeginBatchEdgeCache();
+        for (int index = 0; index < _generatedWhereSourceArchetypeCount; index++)
+        {
+            Archetype sourceArchetype = _generatedWhereSourceArchetypes[index];
+            Archetype? targetArchetype = null;
+            int[] sourceToTargetRows = Array.Empty<int>();
+            int[] addedTargetRows = Array.Empty<int>();
+            GeneratedWhereTargetCursor? targetCursor = null;
+
+            if (sourceArchetype.ActiveChunkCount == 0)
+            {
+                _generatedWhereArchetypePlans.RefAt(sourceArchetype.Id) =
+                    new GeneratedWhereStructuralPlan(
+                        sourceArchetype,
+                        targetArchetype,
+                        sourceToTargetRows,
+                        addedTargetRows,
+                        targetCursor,
+                        isDestroy);
+                continue;
+            }
+
+            if (isDestroy)
+            {
+                sourceArchetype.DeferQueryPlanUpdates();
+                MarkGeneratedWhereAffected(sourceArchetype);
+            }
+            else
+            {
+                bool noOp = isAdd
+                    ? sourceArchetype.Mask.ContainsAll(changeMask)
+                    : !sourceArchetype.Mask.Intersects(changeMask);
+                if (!noOp)
+                {
+                    TransitionEdge edge = GetBatchTransitionEdge(
+                        sourceArchetype.Id,
+                        changeMask,
+                        isAdd,
+                        edgeStamp);
+                    targetArchetype = _archetypes[edge.TargetArchetypeId];
+                    sourceToTargetRows = edge.SourceToTargetRowIndices;
+                    addedTargetRows = edge.AddedTargetRowIndices;
+                    targetCursor = GetGeneratedWhereTargetCursor(targetArchetype.Id);
+                    sourceArchetype.DeferQueryPlanUpdates();
+                    targetArchetype.DeferQueryPlanUpdates();
+                    MarkGeneratedWhereAffected(sourceArchetype);
+                    MarkGeneratedWhereAffected(targetArchetype);
+                }
+            }
+
+            _generatedWhereArchetypePlans.RefAt(sourceArchetype.Id) =
+                new GeneratedWhereStructuralPlan(
+                    sourceArchetype,
+                    targetArchetype,
+                    sourceToTargetRows,
+                    addedTargetRows,
+                    targetCursor,
+                    isDestroy);
+        }
+
+        ReadOnlySpan<ChunkPlan> matchingChunks = plan.MatchingChunkPlans();
+        EnsureGeneratedWhereSourceCountCapacity(matchingChunks.Length);
+        _generatedWhereDestroyCapacity = 0;
+        _generatedWhereDestroyCapacityReserved = false;
+        for (int index = 0; index < matchingChunks.Length; index++)
+        {
+            int count = matchingChunks.RefAt(index).Chunk.Count;
+            _generatedWhereSourceCounts.RefAt(index) = count;
+            if (isDestroy)
+            {
+                _generatedWhereDestroyCapacity = checked(_generatedWhereDestroyCapacity + count);
+            }
+        }
+
+        _generatedWhereStructuralActive = true;
+        execution = new GeneratedDenseExecution(
+            this,
+            plan.MatchingPlans(),
+            matchingChunks,
+            _generatedWhereSourceCounts.ReadOnlySpan[..matchingChunks.Length],
+            ownsLease: false);
+        return true;
+    }
+
+    internal GeneratedWhereStructuralContext BeginGeneratedWhereChunk(int chunkId, int sourceCount)
+    {
+        Chunk sourceChunk = GetChunkById(chunkId);
+        ref readonly GeneratedWhereStructuralPlan plan =
+            ref _generatedWhereArchetypePlans.RefAt(sourceChunk.ArchetypeId);
+        return new GeneratedWhereStructuralContext(
+            this,
+            sourceChunk,
+            in plan,
+            sourceCount);
+    }
+
+    internal void EndGeneratedWhereStructural()
+    {
+        try
+        {
+            RefreshGeneratedWhereAffectedArchetypes();
+        }
+        finally
+        {
+            _generatedWhereStructuralActive = false;
+            _generatedWhereSourceArchetypeCount = 0;
+            _generatedWhereDestroyCapacity = 0;
+            _generatedWhereDestroyCapacityReserved = false;
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void AddGeneratedWhereMatch(int chunkId, int sourceCount, int slotIndex)
+    internal void MarkGeneratedWhereAffected(Archetype archetype)
     {
-        if (_generatedWhereLastChunkId != chunkId)
+        int archetypeId = archetype.Id;
+        EnsureGeneratedWhereArchetypeCapacity(archetypeId + 1);
+        if (_generatedWhereAffectedArchetypeStamps.RefAt(archetypeId) == _generatedWhereAffectedArchetypeStamp)
         {
-            int wordCount = (sourceCount + 63) >> 6;
-            EnsureGeneratedWhereChunkCapacity(_generatedWhereChunkCount + 1);
-            EnsureGeneratedWhereBitCapacity(_generatedWhereBitCount + wordCount);
-            ref GeneratedWhereChunkMatch match = ref _generatedWhereChunks.RefAt(_generatedWhereChunkCount++);
-            match.ChunkId = chunkId;
-            match.SourceCount = sourceCount;
-            match.BitOffset = _generatedWhereBitCount;
-            match.MatchedCount = 0;
-            _generatedWhereBits.Span.Slice(_generatedWhereBitCount, wordCount).Clear();
-            _generatedWhereBitCount += wordCount;
-            _generatedWhereLastChunkId = chunkId;
+            return;
         }
 
-        ref GeneratedWhereChunkMatch active = ref _generatedWhereChunks.RefAt(_generatedWhereChunkCount - 1);
-        int wordIndex = slotIndex >> 6;
-        ulong bit = 1UL << (slotIndex & 63);
-        ref ulong word = ref _generatedWhereBits.RefAt(active.BitOffset + wordIndex);
-        word |= bit;
-        active.MatchedCount++;
+        _generatedWhereAffectedArchetypeStamps.RefAt(archetypeId) = _generatedWhereAffectedArchetypeStamp;
+        _generatedWhereAffectedArchetypes.Add(archetype);
     }
 
-    internal int DestroyGeneratedWhereMatches(int matchedCount)
+    private void RefreshGeneratedWhereAffectedArchetypes()
     {
-        EnsureNoActiveLease("destroy entities");
-        if (matchedCount == 0)
+        for (int index = 0; index < _generatedWhereAffectedArchetypes.Count; index++)
         {
-            return 0;
+            _generatedWhereAffectedArchetypes[index].RefreshQueryPlans();
         }
-
-        EnsureFreeRecordCapacity(_freeCount + matchedCount);
-        int destroyed = 0;
-        for (int matchIndex = 0; matchIndex < _generatedWhereChunkCount; matchIndex++)
-        {
-            ref readonly GeneratedWhereChunkMatch match = ref _generatedWhereChunks.ReadOnlySpan.RefAt(matchIndex);
-            if (match.MatchedCount == 0)
-            {
-                continue;
-            }
-
-            Chunk sourceChunk = GetChunkById(match.ChunkId);
-            Archetype sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
-            sourceArchetype.DeferQueryPlanUpdates();
-            destroyed += FilterGeneratedWhereChunk(
-                sourceArchetype,
-                sourceChunk,
-                in match,
-                targetArchetype: null,
-                edge: default,
-                isDestroy: true);
-            _generatedWhereAffectedArchetypes.Add(sourceArchetype);
-        }
-
-        RefreshGeneratedWhereAffectedArchetypes();
-        AliveEntityCount -= destroyed;
-        return destroyed;
     }
 
-    internal int AddGeneratedWhereMatches(ReadOnlySpan<ComponentId> componentIds, int matchedCount)
-        => ApplyGeneratedWhereMatches(isAdd: true, componentIds, matchedCount);
-
-    internal int RemoveGeneratedWhereMatches(ReadOnlySpan<ComponentId> componentIds, int matchedCount)
-        => ApplyGeneratedWhereMatches(isAdd: false, componentIds, matchedCount);
-
-    private int ApplyGeneratedWhereMatches(bool isAdd, ReadOnlySpan<ComponentId> componentIds, int matchedCount)
+    private void BeginGeneratedWherePlanCache()
     {
-        EnsureNoActiveLease(isAdd ? "add components" : "remove components");
-        if (matchedCount == 0 || !TryBuildComponentMask(componentIds, out ComponentMask changeMask))
-        {
-            return 0;
-        }
-
-        int edgeStamp = BeginBatchEdgeCache();
-        int changed = 0;
-        for (int matchIndex = 0; matchIndex < _generatedWhereChunkCount; matchIndex++)
-        {
-            ref readonly GeneratedWhereChunkMatch match = ref _generatedWhereChunks.ReadOnlySpan.RefAt(matchIndex);
-            if (match.MatchedCount == 0)
-            {
-                continue;
-            }
-
-            Chunk sourceChunk = GetChunkById(match.ChunkId);
-            Archetype sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
-            if (isAdd
-                ? sourceArchetype.Mask.ContainsAll(changeMask)
-                : !sourceArchetype.Mask.Intersects(changeMask))
-            {
-                continue;
-            }
-
-            TransitionEdge edge = GetBatchTransitionEdge(
-                sourceArchetype.Id,
-                changeMask,
-                isAdd,
-                edgeStamp);
-            Archetype targetArchetype = _archetypes[edge.TargetArchetypeId];
-            sourceArchetype.DeferQueryPlanUpdates();
-            targetArchetype.DeferQueryPlanUpdates();
-            changed += FilterGeneratedWhereChunk(
-                sourceArchetype,
-                sourceChunk,
-                in match,
-                targetArchetype,
-                edge,
-                isDestroy: false);
-            _generatedWhereAffectedArchetypes.Add(sourceArchetype);
-            _generatedWhereAffectedArchetypes.Add(targetArchetype);
-        }
-
-        RefreshGeneratedWhereAffectedArchetypes();
-        return changed;
+        _generatedWherePlanStamp = NextGeneratedWhereStamp(_generatedWherePlanStamp);
+        EnsureGeneratedWhereArchetypeCapacity(_archetypes.Count);
     }
 
-    private int FilterGeneratedWhereChunk(
-        Archetype sourceArchetype,
-        Chunk sourceChunk,
-        in GeneratedWhereChunkMatch match,
-        Archetype? targetArchetype,
-        TransitionEdge edge,
-        bool isDestroy)
+    private GeneratedWhereTargetCursor GetGeneratedWhereTargetCursor(int archetypeId)
     {
-        int originalCount = match.SourceCount;
-        int sourceCount = sourceChunk.Count;
-        int writeSlot = 0;
-        Chunk? targetChunk = null;
-        int targetSlot = 0;
-        int targetRemaining = 0;
-        int selectedCount = match.MatchedCount;
-        int readSlot = 0;
-        while (readSlot < sourceCount)
+        EnsureGeneratedWhereArchetypeCapacity(archetypeId + 1);
+        if (_generatedWhereTargetCursorStamps.RefAt(archetypeId) != _generatedWherePlanStamp)
         {
-            bool selected = readSlot < originalCount && IsGeneratedWhereMatch(in match, readSlot);
-            int runStart = readSlot;
-            readSlot++;
-            while (readSlot < sourceCount
-                && (readSlot < originalCount && IsGeneratedWhereMatch(in match, readSlot)) == selected)
+            GeneratedWhereTargetCursor? cursor = _generatedWhereTargetCursors[archetypeId];
+            if (cursor is null)
             {
-                readSlot++;
+                cursor = new GeneratedWhereTargetCursor();
+                _generatedWhereTargetCursors[archetypeId] = cursor;
             }
 
-            int runCount = readSlot - runStart;
-            if (selected)
-            {
-                if (isDestroy)
-                {
-                    FreeGeneratedWhereRun(sourceChunk, runStart, runCount);
-                }
-                else
-                {
-                    CopyGeneratedWhereRun(
-                        sourceChunk,
-                        runStart,
-                        runCount,
-                        targetArchetype!,
-                        edge,
-                        ref targetChunk,
-                        ref targetSlot,
-                        ref targetRemaining);
-                }
-
-                continue;
-            }
-
-            if (writeSlot != runStart)
-            {
-                CopyChunkRangeWithin(sourceChunk, runStart, writeSlot, runCount);
-                UpdateChunkRecordSlots(sourceChunk, writeSlot, runCount);
-            }
-
-            writeSlot += runCount;
+            cursor.Reset();
+            _generatedWhereTargetCursorStamps.RefAt(archetypeId) = _generatedWherePlanStamp;
         }
 
-        sourceChunk.TrimTail(sourceCount - writeSlot);
-        sourceArchetype.ReleaseChunk(sourceChunk.ArchetypeIndex);
-        return selectedCount;
+        return _generatedWhereTargetCursors[archetypeId]!;
     }
 
-    private void CopyGeneratedWhereRun(
+    private void EnsureGeneratedWhereArchetypeCapacity(int required)
+    {
+        if (required <= _generatedWhereArchetypePlans.Length)
+        {
+            return;
+        }
+
+        int previousLength = _generatedWhereArchetypePlans.Length;
+        int capacity = Math.Max(required, previousLength == 0 ? 4 : previousLength * 2);
+        Array.Resize(ref _generatedWhereArchetypePlans, capacity);
+        Array.Resize(ref _generatedWhereTargetCursors, capacity);
+        _generatedWhereTargetCursorStamps.Resize(capacity);
+        _generatedWhereAffectedArchetypeStamps.Resize(capacity);
+    }
+
+    private void EnsureGeneratedWhereSourceArchetypeCapacity(int required)
+    {
+        if (required <= _generatedWhereSourceArchetypes.Length)
+        {
+            return;
+        }
+
+        int capacity = Math.Max(required, _generatedWhereSourceArchetypes.Length == 0 ? 4 : _generatedWhereSourceArchetypes.Length * 2);
+        Array.Resize(ref _generatedWhereSourceArchetypes, capacity);
+    }
+
+    private void EnsureGeneratedWhereSourceCountCapacity(int required)
+    {
+        if (required <= _generatedWhereSourceCounts.Length)
+        {
+            return;
+        }
+
+        _generatedWhereSourceCounts.Resize(Math.Max(required, _generatedWhereSourceCounts.Length == 0 ? 4 : _generatedWhereSourceCounts.Length * 2));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private int NextGeneratedWhereStamp(int stamp)
+    {
+        if (stamp == int.MaxValue)
+        {
+            _generatedWhereTargetCursorStamps.Span.Clear();
+            _generatedWhereAffectedArchetypeStamps.Span.Clear();
+            return 1;
+        }
+
+        return stamp + 1;
+    }
+
+    internal void CopyGeneratedWhereRun(
         Chunk sourceChunk,
         int sourceSlot,
         int count,
         Archetype targetArchetype,
-        TransitionEdge edge,
-        ref Chunk? targetChunk,
-        ref int targetSlot,
-        ref int targetRemaining)
+        int[] sourceToTargetRows,
+        int[] addedTargetRows,
+        GeneratedWhereTargetCursor targetCursor)
     {
+        TransitionEdge edge = new(targetArchetype.Id, sourceToTargetRows, addedTargetRows);
         while (count != 0)
         {
-            if (targetRemaining == 0)
+            if (targetCursor.Remaining == 0)
             {
                 int chunkId = targetArchetype.HasAvailableChunk(count, allowFreeRecordBlocks: false)
                     ? -1
@@ -1001,36 +1056,56 @@ public sealed partial class World : IDisposable
                     count,
                     chunkId,
                     out _,
-                    out targetChunk,
+                    out Chunk targetChunk,
                     out _,
                     allowFreeRecordBlocks: false);
                 RegisterChunkStampStorage(targetChunk);
-                targetSlot = targetChunk.Count - reserved;
-                targetRemaining = reserved;
+                targetCursor.Chunk = targetChunk;
+                targetCursor.Slot = targetChunk.Count - reserved;
+                targetCursor.Remaining = reserved;
             }
 
-            int copied = Math.Min(count, targetRemaining);
-            CopyChunkRange(sourceChunk, targetChunk!, sourceSlot, targetSlot, copied, edge);
+            int copied = Math.Min(count, targetCursor.Remaining);
+            CopyChunkRange(
+                sourceChunk,
+                targetCursor.Chunk!,
+                sourceSlot,
+                targetCursor.Slot,
+                copied,
+                edge);
             sourceSlot += copied;
-            targetSlot += copied;
-            targetRemaining -= copied;
+            targetCursor.Slot += copied;
+            targetCursor.Remaining -= copied;
             count -= copied;
         }
     }
 
-    private void FreeGeneratedWhereRun(Chunk sourceChunk, int sourceSlot, int count)
+    internal void FreeGeneratedWhereRun(Chunk sourceChunk, int sourceSlot, int count)
     {
-        Span<Entity> entities = sourceChunk.RawEntities.Slice(sourceSlot, count);
-        for (int index = 0; index < entities.Length; index++)
+        if (!_generatedWhereDestroyCapacityReserved)
         {
-            ref var record = ref RecordAt(entities.RefAt(index).Index);
+            EnsureFreeRecordCapacity(_freeCount + _generatedWhereDestroyCapacity);
+            _generatedWhereDestroyCapacityReserved = true;
+        }
+
+        Span<int> freeRecords = _freeRecords.Span.Slice(_freeCount, count);
+        Span<Entity> entities = sourceChunk.RawEntities.Slice(sourceSlot, count);
+        for (int index = 0; index < count; index++)
+        {
+            Entity entity = entities.RefAt(index);
+            ref var record = ref RecordAt(entity.Index);
             record.ChunkId = -1;
             record.SlotIndex = -1;
-            PushFree(entities.RefAt(index).Index);
+            freeRecords.RefAt(index) = entity.Index;
         }
+
+        _freeCount += count;
     }
 
-    private void CopyChunkRangeWithin(Chunk chunk, int sourceSlot, int targetSlot, int count)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void CommitGeneratedWhereDestroy(int count) => AliveEntityCount -= count;
+
+    internal void CopyChunkRangeWithin(Chunk chunk, int sourceSlot, int targetSlot, int count)
     {
         if (sourceSlot == targetSlot || count == 0)
         {
@@ -1056,47 +1131,28 @@ public sealed partial class World : IDisposable
         }
     }
 
-    private void UpdateChunkRecordSlots(Chunk chunk, int slotIndex, int count)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void UpdateChunkRecordSlotsSameChunk(Chunk chunk, int slotIndex, int count)
     {
         Span<Entity> entities = chunk.RawEntities.Slice(slotIndex, count);
-        for (int index = 0; index < entities.Length; index++)
+        for (int index = 0; index < count; index++)
         {
             ref var record = ref RecordAt(entities.RefAt(index).Index);
-            record.ChunkId = chunk.GlobalId;
             record.SlotIndex = slotIndex + index;
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool IsGeneratedWhereMatch(in GeneratedWhereChunkMatch match, int slotIndex)
-        => (_generatedWhereBits.RefAt(match.BitOffset + (slotIndex >> 6)) & (1UL << (slotIndex & 63))) != 0;
-
-    private void RefreshGeneratedWhereAffectedArchetypes()
+    private void UpdateChunkRecordLocations(Chunk chunk, int slotIndex, int count)
     {
-        for (int index = 0; index < _generatedWhereAffectedArchetypes.Count; index++)
+        int chunkId = chunk.GlobalId;
+        Span<Entity> entities = chunk.RawEntities.Slice(slotIndex, count);
+        for (int index = 0; index < count; index++)
         {
-            _generatedWhereAffectedArchetypes[index].RefreshQueryPlans();
+            ref var record = ref RecordAt(entities.RefAt(index).Index);
+            record.ChunkId = chunkId;
+            record.SlotIndex = slotIndex + index;
         }
-    }
-
-    private void EnsureGeneratedWhereChunkCapacity(int required)
-    {
-        if (required <= _generatedWhereChunks.Length)
-        {
-            return;
-        }
-
-        _generatedWhereChunks.Resize(Math.Max(required, _generatedWhereChunks.Length == 0 ? 4 : _generatedWhereChunks.Length * 2));
-    }
-
-    private void EnsureGeneratedWhereBitCapacity(int required)
-    {
-        if (required <= _generatedWhereBits.Length)
-        {
-            return;
-        }
-
-        _generatedWhereBits.Resize(Math.Max(required, _generatedWhereBits.Length == 0 ? 4 : _generatedWhereBits.Length * 2));
     }
 
     private int MoveArchetypeBlocks(Archetype sourceArchetype, TransitionEdge edge)
@@ -1226,13 +1282,7 @@ public sealed partial class World : IDisposable
 
         target.InitializeRowsRange(targetSlot, count, edge.AddedTargetRowIndices);
         target.StampRowsRange(targetSlot, count, edge.AddedTargetRowIndices, new Stamp(1));
-        for (int slot = 0; slot < count; slot++)
-        {
-            Entity entity = target.RawEntities.RefAt(targetSlot + slot);
-            ref var record = ref RecordAt(entity.Index);
-            record.ChunkId = target.GlobalId;
-            record.SlotIndex = targetSlot + slot;
-        }
+        UpdateChunkRecordLocations(target, targetSlot, count);
     }
 
     private int DestroyChunk(Archetype archetype, int chunkIndex)
@@ -1871,7 +1921,7 @@ public sealed partial class World : IDisposable
 
     private void EnsureNoActiveLease(string operation)
     {
-        if (_activeChunkLeases > 0)
+        if (_activeChunkLeases > 0 || _generatedWhereStructuralActive)
         {
             ThrowHelper.ThrowStructuralChangeWhileLeased(operation);
         }
@@ -2025,14 +2075,6 @@ public sealed partial class World : IDisposable
         public int Archetype { get; }
         public int ChunkId { get; }
         public int SlotIndex { get; }
-    }
-
-    private struct GeneratedWhereChunkMatch
-    {
-        internal int ChunkId;
-        internal int SourceCount;
-        internal int BitOffset;
-        internal int MatchedCount;
     }
 
     private sealed class DestroyEntryComparer : IComparer<DestroyEntry>

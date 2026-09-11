@@ -612,7 +612,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereAdd"));
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereRemove"));
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereForEach"));
-        Assert.That(generated, Does.Contain("public int Collect(scoped ref GeneratedQuerySlots slots, GeneratedWhereMatchBuffer matches)"));
+        Assert.That(generated, Does.Contain("public void Execute(scoped ref GeneratedQuerySlots slots, ref GeneratedWhereStructuralContext context)"));
         Assert.That(generated, Does.Contain("public void Invoke(ref GeneratedQuerySlots slots)"));
         Assert.That(generated, Does.Not.Contain("Invoke(ref GeneratedQuerySlots slots, int index)"));
 
@@ -709,6 +709,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("execution.MarkArchetypeWrites"));
         Assert.That(generated, Does.Contain("ref global::Delta.ECS.InterceptedWhereSystem.Mutation action"));
         Assert.That(generated, Does.Contain("action.Invoke"));
+        Assert.That(generated, Does.Contain("private struct StructuralInvoker_"));
+        Assert.That(generated, Does.Contain("IGeneratedWhereStructuralInvoker"));
+        Assert.That(generated, Does.Contain("context.ProcessRun"));
 
         CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
             new[] { RuntimeStubSource, WhereInterceptionSource },
@@ -880,17 +883,17 @@ public sealed class DemandDrivenForEachGeneratorTests
         public interface IForEachContext<TContext> { }
         public interface IForEachContextEntity<TContext> { }
         public interface IWherePredicate { }
-        public ref struct GeneratedWhereMatchBuffer
+        public struct GeneratedWhereStructuralContext
         {
-            public void Add(int chunkId, int sourceCount, int slotIndex) { }
+            public void ProcessRun(int sourceSlot, int count, bool selected) { }
         }
         public interface IGeneratedWhereInvoker
         {
             void Invoke(ref GeneratedQuerySlots slots);
         }
-        public interface IGeneratedWhereCollector
+        public interface IGeneratedWhereStructuralInvoker
         {
-            int Collect(scoped ref GeneratedQuerySlots slots, GeneratedWhereMatchBuffer matches);
+            void Execute(scoped ref GeneratedQuerySlots slots, ref GeneratedWhereStructuralContext context);
         }
         public sealed class ComponentLayoutRegistry
         {
@@ -1007,11 +1010,11 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static Query ComposeGeneratedQuery(in Query query, QuerySpec additions) => default;
             public static ComponentId GetGeneratedPrimary<T>(in Query query) => default;
             public static int ExecuteGeneratedWhereDestroy<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices)
-                where TInvoker : struct, IGeneratedWhereCollector => 0;
+                where TInvoker : struct, IGeneratedWhereStructuralInvoker => 0;
             public static int ExecuteGeneratedWhereAdd<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, ReadOnlySpan<ComponentId> componentIds)
-                where TInvoker : struct, IGeneratedWhereCollector => 0;
+                where TInvoker : struct, IGeneratedWhereStructuralInvoker => 0;
             public static int ExecuteGeneratedWhereRemove<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, ReadOnlySpan<ComponentId> componentIds)
-                where TInvoker : struct, IGeneratedWhereCollector => 0;
+                where TInvoker : struct, IGeneratedWhereStructuralInvoker => 0;
             public static void ExecuteGeneratedWhereForEach<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices)
                 where TInvoker : struct, IGeneratedWhereInvoker { }
             public static ReadAccess GetPreparedReadAccess(in Query query, ComponentId component, Type runtimeType) => default;
@@ -1615,6 +1618,7 @@ public sealed class DemandDrivenForEachGeneratorTests
     private const string WhereInterceptionSource = """
         namespace Delta.ECS;
         struct Health { public int Value; }
+        struct Dead { }
         static class InterceptedWhereSystem
         {
             internal struct Mutation : IForEach
@@ -1649,6 +1653,14 @@ public sealed class DemandDrivenForEachGeneratorTests
                         in query,
                         static (in Health health) => health.Value > 0)
                     .ForEach(static (ref Health health) => health.Value++);
+                world.WhereEntity(
+                        in query,
+                        static (Entity entity, in Health health) => health.Value <= entity.Index)
+                    .Destroy();
+                world.Where(
+                        in query,
+                        static (in Health health) => health.Value > 0)
+                    .Add<Dead>();
                 var action = new Mutation();
                 world.WhereEntity(
                         in query,

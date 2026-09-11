@@ -64,6 +64,7 @@ public sealed class FunctorForEachTests
 
         Assert.That(destroyed, Is.EqualTo(1));
         Assert.That(predicateState.Visited, Is.EqualTo(2));
+        Assert.That(world.AliveEntityCount, Is.EqualTo(1));
         Assert.That(world.IsAlive(dead), Is.False);
         Assert.That(world.IsAlive(alive), Is.True);
     }

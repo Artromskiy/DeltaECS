@@ -14,10 +14,15 @@ public ref struct GeneratedQuerySlots
     private int _index;
 
     internal GeneratedQuerySlots(in ChunkPlan chunkPlan)
+        : this(in chunkPlan, chunkPlan.Chunk.Count)
+    {
+    }
+
+    internal GeneratedQuerySlots(in ChunkPlan chunkPlan, int count)
     {
         _chunk = chunkPlan.Chunk;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
-        _count = chunkPlan.Chunk.Count;
+        _count = count;
         _index = -1;
     }
 
