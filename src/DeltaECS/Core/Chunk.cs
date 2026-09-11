@@ -15,6 +15,9 @@ internal sealed class Chunk
     private int _archetypeIndex;
     private int _count;
     private int _highWaterMark;
+    private int _freeRecordBlockCount;
+    private int _freeRecordBlockNextSlot;
+    private int _freeRecordListIndex = -1;
 
     internal Chunk(
         int capacity,
@@ -70,6 +73,14 @@ internal sealed class Chunk
     internal bool IsFull => _count >= _capacity;
 
     internal bool IsEmpty => _count == 0;
+
+    internal bool HasFreeRecordBlock => _freeRecordBlockCount != 0;
+
+    internal int FreeRecordBlockCount => _freeRecordBlockCount;
+
+    internal int FreeRecordListIndex => _freeRecordListIndex;
+
+    internal void SetFreeRecordListIndex(int index) => _freeRecordListIndex = index;
 
     internal Span<Entity> Entities => _entities.Span[.._count];
 
@@ -414,6 +425,42 @@ internal sealed class Chunk
 
         _componentStamps.ClearRange(0, _count);
         _count = 0;
+    }
+
+    internal void BeginFreeRecordBlock(int count)
+    {
+        if (count <= 0 || count > _capacity || HasFreeRecordBlock)
+        {
+            ThrowHelper.ThrowChunkCountOutOfRange(nameof(count));
+        }
+
+        _freeRecordBlockCount = count;
+        _freeRecordBlockNextSlot = 0;
+    }
+
+    internal int TakeFreeRecordIndex()
+    {
+        if (!HasFreeRecordBlock)
+        {
+            ThrowHelper.ThrowChunkCountOutOfRange(nameof(_freeRecordBlockCount));
+        }
+
+        int recordIndex = _entities.RefAt(_freeRecordBlockNextSlot++).Index;
+        _freeRecordBlockCount--;
+        return recordIndex;
+    }
+
+    internal bool TryTakeFreeRecordForSlot(int slotIndex, out int recordIndex)
+    {
+        if (!HasFreeRecordBlock || slotIndex != _freeRecordBlockNextSlot)
+        {
+            recordIndex = -1;
+            return false;
+        }
+
+        recordIndex = _entities.RefAt(_freeRecordBlockNextSlot++).Index;
+        _freeRecordBlockCount--;
+        return true;
     }
 
     internal void Dispose()

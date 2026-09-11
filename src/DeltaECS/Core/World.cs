@@ -13,6 +13,7 @@ public sealed partial class World : IDisposable
     private readonly int _chunkCapacity;
     private readonly List<Archetype> _archetypes = new();
     private readonly ComponentRowArrayPool _componentRowArrayPool = new();
+    private readonly List<Chunk> _freeRecordChunks = new();
     private readonly Dictionary<ComponentMask, int> _archetypeByMask = new();
     private readonly EntityRecordStorage _records = new();
     private NativeMemory<int> _freeRecords = new(16);
@@ -98,6 +99,7 @@ public sealed partial class World : IDisposable
         DisposeStampLayers();
         _componentRowArrayPool.Clear();
         _chunksById = Array.Empty<Chunk?>();
+        _freeRecordChunks.Clear();
         GC.SuppressFinalize(this);
     }
 
@@ -213,9 +215,10 @@ public sealed partial class World : IDisposable
         int outputIndex = 0;
         while (outputIndex < count)
         {
-            int chunkId = archetype.HasAvailableChunk() ? -1 : AllocateChunkId();
+            int remaining = count - outputIndex;
+            int chunkId = archetype.HasAvailableChunk(remaining) ? -1 : AllocateChunkId();
             int reserved = archetype.ReserveRange(
-                count - outputIndex,
+                remaining,
                 chunkId,
                 out _,
                 out var chunk,
@@ -230,12 +233,27 @@ public sealed partial class World : IDisposable
             chunk.StampAllRange(slotIndex, reserved, new Stamp(1));
             for (int reservedIndex = 0; reservedIndex < reserved; reservedIndex++)
             {
-                int recordIndex = AllocateRecord();
+                int reservedSlot = slotIndex + reservedIndex;
+                int recordIndex;
+                if (chunk.TryTakeFreeRecordForSlot(reservedSlot, out int freeRecordIndex))
+                {
+                    if (!chunk.HasFreeRecordBlock)
+                    {
+                        CompleteFreeRecordBlock(chunk);
+                    }
+
+                    recordIndex = RecycleRecord(freeRecordIndex);
+                }
+                else
+                {
+                    recordIndex = AllocateRecord();
+                }
+
                 ref var record = ref RecordAt(recordIndex);
                 var entity = new Entity(recordIndex, record.Generation);
                 record.ChunkId = chunk.GlobalId;
-                record.SlotIndex = slotIndex + reservedIndex;
-                chunk.RawEntities.RefAt(slotIndex + reservedIndex) = entity;
+                record.SlotIndex = reservedSlot;
+                chunk.RawEntities.RefAt(reservedSlot) = entity;
                 if (!output.IsEmpty)
                 {
                     output.RefAt(outputIndex) = entity;
@@ -908,19 +926,9 @@ public sealed partial class World : IDisposable
             return 0;
         }
 
-        // The chunk is already removed from the active set, so release every
-        // entity record here and keep Destroy fully immediate.
-        EnsureFreeRecordCapacity(_freeCount + count);
-        var entities = chunk.RawEntities;
-        for (int slot = count - 1; slot >= 0; slot--)
-        {
-            int recordIndex = entities.RefAt(slot).Index;
-            ref var record = ref RecordAt(recordIndex);
-            record.ChunkId = -1;
-            record.SlotIndex = -1;
-            _freeRecords.RefAt(_freeCount++) = recordIndex;
-        }
-
+        chunk.BeginFreeRecordBlock(count);
+        chunk.SetFreeRecordListIndex(_freeRecordChunks.Count);
+        _freeRecordChunks.Add(chunk);
         chunk.ClearAll();
         ClearChunkComponentStamps(chunk);
         archetype.ReleaseChunk(chunkIndex);
@@ -1026,7 +1034,7 @@ public sealed partial class World : IDisposable
 
         int sourceSlotIndex = sourceRecord.SlotIndex;
         int sourceChunkIndex = sourceChunk.ArchetypeIndex;
-        int targetChunkId = targetArchetype.HasAvailableChunk() ? -1 : AllocateChunkId();
+        int targetChunkId = targetArchetype.HasAvailableChunk(0) ? -1 : AllocateChunkId();
         targetArchetype.AddEntity(
             new Entity(recordIndex, sourceRecord.Generation),
             targetChunkId,
@@ -1373,15 +1381,56 @@ public sealed partial class World : IDisposable
     {
         if (_freeCount > 0)
         {
-            int recycledIndex = _freeRecords.RefAt(--_freeCount);
-            ref var record = ref RecordAt(recycledIndex);
-            record.Generation = NextGeneration(record.Generation);
-            return recycledIndex;
+            return RecycleRecord(_freeRecords.RefAt(--_freeCount));
+        }
+
+        if (_freeRecordChunks.Count != 0)
+        {
+            Chunk chunk = _freeRecordChunks[^1];
+            int recycledIndex = chunk.TakeFreeRecordIndex();
+            if (!chunk.HasFreeRecordBlock)
+            {
+                CompleteFreeRecordBlock(chunk);
+            }
+
+            return RecycleRecord(recycledIndex);
         }
 
         int index = _records.Count;
         _records.Add(new EntityRecord { Generation = 1, ChunkId = -1, SlotIndex = -1 });
         return index;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private int RecycleRecord(int recordIndex)
+    {
+        ref var record = ref RecordAt(recordIndex);
+        record.Generation = NextGeneration(record.Generation);
+        return recordIndex;
+    }
+
+    private void CompleteFreeRecordBlock(Chunk chunk)
+    {
+        int listIndex = chunk.FreeRecordListIndex;
+        if ((uint)listIndex < (uint)_freeRecordChunks.Count
+            && ReferenceEquals(_freeRecordChunks[listIndex], chunk))
+        {
+            int lastIndex = _freeRecordChunks.Count - 1;
+            if (listIndex != lastIndex)
+            {
+                Chunk moved = _freeRecordChunks[lastIndex];
+                _freeRecordChunks[listIndex] = moved;
+                moved.SetFreeRecordListIndex(listIndex);
+            }
+
+            _freeRecordChunks.RemoveAt(lastIndex);
+        }
+
+        chunk.SetFreeRecordListIndex(-1);
+        if (chunk.ArchetypeId >= 0)
+        {
+            _archetypes[chunk.ArchetypeId].RequeueFreedRecordChunk(chunk);
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

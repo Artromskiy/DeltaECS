@@ -125,21 +125,19 @@ internal sealed class Archetype
     internal ComponentRowOperations[] RowOperations => _rowOperations;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool HasAvailableChunk() => _availableChunkStack.Count != 0;
-
-    internal bool TryPeekAvailableChunk(out Chunk chunk)
+    internal bool HasAvailableChunk(int requestedCount)
     {
         for (int stackIndex = _availableChunkStack.Count - 1; stackIndex >= 0; stackIndex--)
         {
             Chunk candidate = _chunks[_availableChunkStack[stackIndex]];
-            if (!candidate.IsFull)
+            if (!candidate.IsFull
+                && (!candidate.HasFreeRecordBlock
+                    || (candidate.IsEmpty && candidate.FreeRecordBlockCount <= requestedCount)))
             {
-                chunk = candidate;
                 return true;
             }
         }
 
-        chunk = null!;
         return false;
     }
 
@@ -150,7 +148,7 @@ internal sealed class Archetype
         out int slotIndex,
         out bool reusedSlot)
     {
-        if (TryTakeAvailableChunk(out int availableIndex, out var available))
+        if (TryTakeAvailableChunk(0, out int availableIndex, out var available))
         {
             chunkIndex = availableIndex;
             bool wasEmpty = available.IsEmpty;
@@ -192,7 +190,7 @@ internal sealed class Archetype
     {
         ThrowHelper.ThrowIfNegativeOrZero(count, nameof(count));
 
-        if (TryTakeAvailableChunk(out int availableIndex, out var available))
+        if (TryTakeAvailableChunk(count, out int availableIndex, out var available))
         {
             chunkIndex = availableIndex;
             chunk = available;
@@ -271,6 +269,11 @@ internal sealed class Archetype
             }
 
             var candidate = _chunks[candidateIndex];
+            if (candidate.HasFreeRecordBlock)
+            {
+                continue;
+            }
+
             if (candidate.IsEmpty)
             {
                 _blockEmptyChunkCandidates.Add(candidateIndex);
@@ -326,7 +329,7 @@ internal sealed class Archetype
         {
             chunkIndex = _blockEmptyChunkCandidates[--_blockEmptyCandidateCount];
             chunk = _chunks[chunkIndex];
-            if (chunk.IsEmpty)
+            if (chunk.IsEmpty && !chunk.HasFreeRecordBlock)
             {
                 return true;
             }
@@ -463,7 +466,8 @@ internal sealed class Archetype
 
     internal void ReleaseChunk(int chunkIndex)
     {
-        if (_chunks[chunkIndex].IsEmpty)
+        Chunk chunk = _chunks[chunkIndex];
+        if (chunk.IsEmpty)
         {
             DeactivateChunk(chunkIndex);
         }
@@ -471,20 +475,34 @@ internal sealed class Archetype
         PushAvailableChunk(chunkIndex);
     }
 
-    private bool TryTakeAvailableChunk(out int chunkIndex, out Chunk chunk)
+    internal void RequeueFreedRecordChunk(Chunk chunk)
     {
-        while (_availableChunkStack.Count != 0)
+        int chunkIndex = chunk.ArchetypeIndex;
+        if ((uint)chunkIndex >= (uint)_chunks.Count || !ReferenceEquals(_chunks[chunkIndex], chunk))
         {
-            int stackIndex = _availableChunkStack.Count - 1;
-            chunkIndex = _availableChunkStack[stackIndex];
-            _availableChunkStack.RemoveAt(stackIndex);
-            _availableChunkFlags.RefAt(chunkIndex) = false;
-            _availableChunkPositions.RefAt(chunkIndex) = -1;
-            chunk = _chunks[chunkIndex];
-            if (!chunk.IsFull)
+            ThrowHelper.ThrowInvalidChunkLocation();
+        }
+
+        PushAvailableChunk(chunkIndex);
+    }
+
+    private bool TryTakeAvailableChunk(int requestedCount, out int chunkIndex, out Chunk chunk)
+    {
+        for (int stackIndex = _availableChunkStack.Count - 1; stackIndex >= 0; stackIndex--)
+        {
+            int candidateIndex = _availableChunkStack[stackIndex];
+            Chunk candidate = _chunks[candidateIndex];
+            if (candidate.IsFull
+                || (candidate.HasFreeRecordBlock
+                    && (!candidate.IsEmpty || candidate.FreeRecordBlockCount > requestedCount)))
             {
-                return true;
+                continue;
             }
+
+            RemoveAvailableChunk(candidateIndex);
+            chunkIndex = candidateIndex;
+            chunk = candidate;
+            return true;
         }
 
         chunkIndex = -1;
