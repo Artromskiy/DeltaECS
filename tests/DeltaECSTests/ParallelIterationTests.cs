@@ -6,6 +6,7 @@ using NUnit.Framework;
 public sealed class ParallelIterationTests
 {
     private static readonly ForEachAction_WI<Position, Velocity> s_incrementAction = Increment;
+    internal static int s_generatedCallbackThreadId;
 
     [Test]
     public void GeneratedForEachParallel_ProcessesEveryEntity()
@@ -38,6 +39,30 @@ public sealed class ParallelIterationTests
             Assert.That(actual.X, Is.EqualTo(4));
             Assert.That(actual.Y, Is.EqualTo(6));
         }
+    }
+
+    [Test]
+    public void GeneratedForEachParallel_UsesBackgroundWorkerForSmallQuery()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(70_080));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(70_081));
+        using var world = new World(layouts, initialEntityCapacity: 8, chunkCapacity: 8);
+        world.Create([positionId, velocityId], 2);
+        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+        s_generatedCallbackThreadId = 0;
+        int callerThreadId = Environment.CurrentManagedThreadId;
+
+        world.ForEachParallel(
+            in query,
+            static (ref Position position, in Velocity velocity) =>
+            {
+                Volatile.Write(ref s_generatedCallbackThreadId, Environment.CurrentManagedThreadId);
+                position.X += velocity.X;
+            },
+            workerCount: 2);
+
+        Assert.That(Volatile.Read(ref s_generatedCallbackThreadId), Is.Not.EqualTo(callerThreadId));
     }
 
     [Test]
@@ -133,7 +158,7 @@ public sealed class ParallelIterationTests
     }
 
     [Test]
-    public void ForEachParallel_UsesCallerThreadBelowParallelThreshold()
+    public void ForEachParallel_UsesBackgroundWorkerForSmallQuery()
     {
         var layouts = new ComponentLayoutRegistry();
         var positionId = layouts.Register(typeof(Position), new SchemaId(70_060));
@@ -151,7 +176,7 @@ public sealed class ParallelIterationTests
         };
         world.ForEachParallel(in query, action, workerCount: 4);
 
-        Assert.That(callbackThreadId, Is.EqualTo(callerThreadId));
+        Assert.That(callbackThreadId, Is.Not.EqualTo(callerThreadId));
     }
 
     [Test]

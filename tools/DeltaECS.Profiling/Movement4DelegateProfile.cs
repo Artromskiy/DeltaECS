@@ -25,7 +25,7 @@ internal static class Movement4DelegateProfile
         ComponentId[] components = [aId, bId, cId, dId];
         var entities = new Entity[EntityCount];
 
-        using var world = new World(layouts, EntityCount, chunkCapacity: 1024);
+        using var world = new World(layouts, EntityCount, chunkCapacity: 512);
         world.Create(components, entities);
         for (int index = 0; index < entities.Length; index++)
         {

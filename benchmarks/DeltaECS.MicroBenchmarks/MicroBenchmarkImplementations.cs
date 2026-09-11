@@ -39,7 +39,7 @@ internal sealed class MicroWorld
     public readonly ComponentId Movement4C;
     public readonly ComponentId Movement4D;
 
-    public MicroWorld(int chunkCapacity = 64, int initialEntityCapacity = 100_000)
+    public MicroWorld(int chunkCapacity = 512, int initialEntityCapacity = 100_000)
     {
         (Position, Velocity, Auxiliary, Reference, Movement4A, Movement4B, Movement4C, Movement4D) = MicroIds.Register(Layouts);
         World = new World(Layouts, initialEntityCapacity: initialEntityCapacity, chunkCapacity: chunkCapacity);

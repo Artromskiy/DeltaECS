@@ -7,7 +7,6 @@ using System.Threading;
 internal sealed class ParallelQueryExecutor : IDisposable
 {
     private const int DefaultWorkerCount = 2;
-    private const int MinimumParallelEntityCount = 250_000;
     private readonly object _lifecycle = new();
     private Worker[] _workers = Array.Empty<Worker>();
     private ExceptionDispatchInfo?[] _workerFailures = Array.Empty<ExceptionDispatchInfo?>();
@@ -23,7 +22,6 @@ internal sealed class ParallelQueryExecutor : IDisposable
     private QueryChunkAction? _activeAction;
     private int _activeGeneration;
     private int _chunkCount;
-    private int _entityCount;
     private int _runVersion;
     private int _publishedRun;
     private int _remainingWorkers;
@@ -59,8 +57,8 @@ internal sealed class ParallelQueryExecutor : IDisposable
             int workerCount = requestedWorkerCount == 0
                 ? DefaultWorkerCount
                 : requestedWorkerCount;
-            workerCount = Math.Max(1, Math.Min(workerCount, _chunkCount));
-            if (workerCount == 1 || _entityCount < MinimumParallelEntityCount)
+            workerCount = Math.Max(1, workerCount);
+            if (workerCount == 1)
             {
                 ExecuteSingleThread(plan, session, generation, action);
                 return;
@@ -240,18 +238,15 @@ internal sealed class ParallelQueryExecutor : IDisposable
         ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
         ReadOnlySpan<int> planIndices = plan.MatchingChunkPlanIndices();
         EnsureChunkCapacity(chunks.Length);
-        int entityCount = 0;
         for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
         {
             ChunkPlan chunk = chunks.RefAt(chunkIndex);
             _chunks.RefAt(chunkIndex) = new ParallelChunk(
                 plans.RefAt(planIndices.RefAt(chunkIndex)),
                 chunk);
-            entityCount += chunk.Chunk.Count;
         }
 
         _chunkCount = chunks.Length;
-        _entityCount = entityCount;
         _cachedPlan = plan;
         _cachedPlanVersion = plan.MatchingVersion;
         _cachedRangePlan = null;

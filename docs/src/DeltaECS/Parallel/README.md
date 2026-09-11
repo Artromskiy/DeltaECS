@@ -22,11 +22,11 @@ references, a `QueryChunk`, or a row view after returning. Captured mutable
 state remains the caller's responsibility; use a per-worker result or another
 explicit synchronization strategy when the callback shares state.
 
-`workerCount: 0` selects the runtime default. The default keeps small workloads
-on the sequential generated path because waking workers costs more than the
-work. An explicit count greater than one requests parallel execution. Context
-and functor forms are currently serialized when their state cannot be safely
-merged between worker-local invoker copies.
+`workerCount: 0` selects the runtime default worker count and always uses the
+parallel worker protocol for a non-empty query. `workerCount: 1` explicitly
+selects one worker and therefore runs sequentially. Context and functor forms
+are currently serialized when their state cannot be safely merged between
+worker-local invoker copies.
 
 ## Coordination model
 
@@ -77,10 +77,10 @@ dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net10.0/DeltaECS.Benchmarks.dl
 ```
 
 The bounded smoke run in this experiment used two warmups and five 100 ms
-measurements on Apple M4 Pro / .NET 10.0.9. It showed the parallel terminal
-behind the sequential terminal at 100 and 1,000 entities, ahead at 10,000 and
-100,000, and a noisy 1,000,000 result because two samples included worker
-scheduling delays. Both paths reported zero GC collections during measured
-operations. This is evidence that the protocol works and that its benefit is
-workload-dependent; a longer isolated run is required before merging it as a
-performance improvement.
+measurements on Apple M4 Pro / .NET 10.0.9, before the automatic small-workload
+threshold was removed. It showed the parallel terminal behind the sequential
+terminal at 100 and 1,000 entities, ahead at 10,000 and 100,000, and a noisy
+1,000,000 result because two samples included worker scheduling delays. Both
+paths reported zero GC collections during measured operations. These historical
+numbers describe the old dispatch policy; the current API leaves the choice to
+the caller through `workerCount`.

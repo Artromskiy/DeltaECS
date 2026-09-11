@@ -10,7 +10,6 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
     where TInvoker : struct, IGeneratedParallelInvoker
 {
     private const int DefaultWorkerCount = 2;
-    private const int MinimumParallelEntityCount = 32_768;
     private readonly object _lifecycle = new();
     private WorkerSlot[] _workerSlots = Array.Empty<WorkerSlot>();
     private Worker[] _workers = Array.Empty<Worker>();
@@ -24,7 +23,6 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
     private int _cachedRangeVersion = -1;
     private int _cachedRangeWorkerCount;
     private int _chunkCount;
-    private int _entityCount;
     private int _runVersion;
     private int _stopping;
     private bool _disposed;
@@ -49,11 +47,9 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         int workerCount = requestedWorkerCount == 0
             ? DefaultWorkerCount
             : requestedWorkerCount;
-        workerCount = Math.Max(1, Math.Min(workerCount, _chunkCount));
+        workerCount = Math.Max(1, workerCount);
 
-        if (invoker.RequiresSingleThread
-            || workerCount == 1
-            || requestedWorkerCount == 0 && _entityCount < MinimumParallelEntityCount)
+        if (invoker.RequiresSingleThread || workerCount == 1)
         {
             ExecuteSingleThread(ref invoker);
             return;
@@ -154,18 +150,15 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
         ReadOnlySpan<int> planIndices = plan.MatchingChunkPlanIndices();
         EnsureChunkCapacity(chunks.Length);
-        int entityCount = 0;
         for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
         {
             ChunkPlan chunk = chunks.RefAt(chunkIndex);
             _chunks.RefAt(chunkIndex) = new ParallelChunk(
                 plans.RefAt(planIndices.RefAt(chunkIndex)),
                 chunk);
-            entityCount += chunk.Chunk.Count;
         }
 
         _chunkCount = chunks.Length;
-        _entityCount = entityCount;
         _cachedPlan = plan;
         _cachedPlanVersion = plan.MatchingVersion;
         _cachedRangePlan = null;

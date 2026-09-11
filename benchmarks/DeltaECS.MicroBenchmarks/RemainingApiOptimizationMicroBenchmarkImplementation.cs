@@ -36,7 +36,7 @@ public class RemainingApiOptimizationMicroBenchmarkImplementation
         _aId = layouts.Register<RemainingApiA>(new SchemaId(91_001));
         ComponentId bId = layouts.Register<RemainingApiB>(new SchemaId(91_002));
         ComponentId markerId = layouts.Register<RemainingApiMarker>(new SchemaId(91_003));
-        _world = new World(layouts, initialEntityCapacity: Amount, chunkCapacity: 128);
+        _world = new World(layouts, initialEntityCapacity: Amount, chunkCapacity: 512);
         _entities = new Entity[Amount];
 
         for (int index = 0; index < Amount; index++)
