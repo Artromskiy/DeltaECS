@@ -1370,7 +1370,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         }
         else
         {
-            source.AppendLine("    public int Collect(ref GeneratedQuerySlots slots, Span<Entity> destination)");
+            source.AppendLine("    public int Collect(scoped ref GeneratedQuerySlots slots, GeneratedWhereMatchBuffer matches)");
         }
 
         source.AppendLine("    {");
@@ -1493,7 +1493,8 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         }
         else
         {
-            source.AppendLine("            destination[matched++] = entity;");
+            source.AppendLine("            matches.Add(slots.ChunkId, slots.Count, index);");
+            source.AppendLine("            matched++;");
         }
 
         source.AppendLine("        }");

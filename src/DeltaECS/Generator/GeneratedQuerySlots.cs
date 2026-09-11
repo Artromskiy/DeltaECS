@@ -34,6 +34,10 @@ public ref struct GeneratedQuerySlots
         get => _count;
     }
 
+    /// <summary>Gets the stable identity of the current chunk.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public int ChunkId => _chunk.GlobalId;
+
     public Entity CurrentEntity
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

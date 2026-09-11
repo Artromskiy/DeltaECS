@@ -612,7 +612,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereAdd"));
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereRemove"));
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereForEach"));
-        Assert.That(generated, Does.Contain("public int Collect(ref GeneratedQuerySlots slots, Span<Entity> destination)"));
+        Assert.That(generated, Does.Contain("public int Collect(scoped ref GeneratedQuerySlots slots, GeneratedWhereMatchBuffer matches)"));
         Assert.That(generated, Does.Contain("public void Invoke(ref GeneratedQuerySlots slots)"));
         Assert.That(generated, Does.Not.Contain("Invoke(ref GeneratedQuerySlots slots, int index)"));
 
@@ -880,13 +880,17 @@ public sealed class DemandDrivenForEachGeneratorTests
         public interface IForEachContext<TContext> { }
         public interface IForEachContextEntity<TContext> { }
         public interface IWherePredicate { }
+        public ref struct GeneratedWhereMatchBuffer
+        {
+            public void Add(int chunkId, int sourceCount, int slotIndex) { }
+        }
         public interface IGeneratedWhereInvoker
         {
             void Invoke(ref GeneratedQuerySlots slots);
         }
         public interface IGeneratedWhereCollector
         {
-            int Collect(ref GeneratedQuerySlots slots, Span<Entity> destination);
+            int Collect(scoped ref GeneratedQuerySlots slots, GeneratedWhereMatchBuffer matches);
         }
         public sealed class ComponentLayoutRegistry
         {
@@ -908,6 +912,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         public ref struct GeneratedQuerySlots
         {
             public Entity CurrentEntity => default;
+            public int ChunkId => 0;
             public int CurrentIndex => 0;
             public int Count => 0;
             public Entity EntityAt(int index) => default;

@@ -125,12 +125,13 @@ internal sealed class Archetype
     internal ComponentRowOperations[] RowOperations => _rowOperations;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool HasAvailableChunk(int requestedCount)
+    internal bool HasAvailableChunk(int requestedCount, bool allowFreeRecordBlocks = true)
     {
         for (int stackIndex = _availableChunkStack.Count - 1; stackIndex >= 0; stackIndex--)
         {
             Chunk candidate = _chunks[_availableChunkStack[stackIndex]];
             if (!candidate.IsFull
+                && (allowFreeRecordBlocks || !candidate.HasFreeRecordBlock)
                 && (!candidate.HasFreeRecordBlock
                     || (candidate.IsEmpty && candidate.FreeRecordBlockCount <= requestedCount)))
             {
@@ -148,7 +149,7 @@ internal sealed class Archetype
         out int slotIndex,
         out bool reusedSlot)
     {
-        if (TryTakeAvailableChunk(0, out int availableIndex, out var available))
+        if (TryTakeAvailableChunk(0, false, out int availableIndex, out var available))
         {
             chunkIndex = availableIndex;
             bool wasEmpty = available.IsEmpty;
@@ -186,11 +187,17 @@ internal sealed class Archetype
         }
     }
 
-    internal int ReserveRange(int count, int chunkId, out int chunkIndex, out Chunk chunk, out int reusedCount)
+    internal int ReserveRange(
+        int count,
+        int chunkId,
+        out int chunkIndex,
+        out Chunk chunk,
+        out int reusedCount,
+        bool allowFreeRecordBlocks = true)
     {
         ThrowHelper.ThrowIfNegativeOrZero(count, nameof(count));
 
-        if (TryTakeAvailableChunk(count, out int availableIndex, out var available))
+        if (TryTakeAvailableChunk(count, allowFreeRecordBlocks, out int availableIndex, out var available))
         {
             chunkIndex = availableIndex;
             chunk = available;
@@ -486,13 +493,18 @@ internal sealed class Archetype
         PushAvailableChunk(chunkIndex);
     }
 
-    private bool TryTakeAvailableChunk(int requestedCount, out int chunkIndex, out Chunk chunk)
+    private bool TryTakeAvailableChunk(
+        int requestedCount,
+        bool allowFreeRecordBlocks,
+        out int chunkIndex,
+        out Chunk chunk)
     {
         for (int stackIndex = _availableChunkStack.Count - 1; stackIndex >= 0; stackIndex--)
         {
             int candidateIndex = _availableChunkStack[stackIndex];
             Chunk candidate = _chunks[candidateIndex];
             if (candidate.IsFull
+                || (!allowFreeRecordBlocks && candidate.HasFreeRecordBlock)
                 || (candidate.HasFreeRecordBlock
                     && (!candidate.IsEmpty || candidate.FreeRecordBlockCount > requestedCount)))
             {

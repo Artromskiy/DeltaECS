@@ -25,7 +25,21 @@ public interface IGeneratedWhereInvoker
 public interface IGeneratedWhereCollector
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    int Collect(ref GeneratedQuerySlots slots, Span<Entity> destination);
+    int Collect(scoped ref GeneratedQuerySlots slots, GeneratedWhereMatchBuffer matches);
+}
+
+/// <summary>Compiler-support match sink used by generated structural Where terminals.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public ref struct GeneratedWhereMatchBuffer
+{
+    private readonly World _world;
+
+    internal GeneratedWhereMatchBuffer(World world) => _world = world;
+
+    /// <summary>Records one predicate match in the current query chunk.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Add(int chunkId, int sourceCount, int slotIndex)
+        => _world.AddGeneratedWhereMatch(chunkId, sourceCount, slotIndex);
 }
 
 /// <summary>Compiler-support contract for one direct generated parallel chunk invocation.</summary>
@@ -445,7 +459,7 @@ public static class GeneratedForEachRuntime
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
         int count = ExecuteGeneratedWhereCore(world, in query, ref invoker, writeComponentIndices);
-        return world.Destroy(world.GetGeneratedWhereScratch(count));
+        return world.DestroyGeneratedWhereMatches(count);
     }
 
     /// <summary>Executes a generated predicate and adds components to its collected matches.</summary>
@@ -461,7 +475,7 @@ public static class GeneratedForEachRuntime
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
         int count = ExecuteGeneratedWhereCore(world, in query, ref invoker, writeComponentIndices);
-        return world.Add(componentIds, world.GetGeneratedWhereScratch(count));
+        return world.AddGeneratedWhereMatches(componentIds, count);
     }
 
     /// <summary>Executes a generated predicate and removes components from its collected matches.</summary>
@@ -477,7 +491,7 @@ public static class GeneratedForEachRuntime
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
         int count = ExecuteGeneratedWhereCore(world, in query, ref invoker, writeComponentIndices);
-        return world.Remove(componentIds, world.GetGeneratedWhereScratch(count));
+        return world.RemoveGeneratedWhereMatches(componentIds, count);
     }
 
     /// <summary>Executes a generated predicate and a terminal callback while the query lease is active.</summary>
@@ -507,15 +521,13 @@ public static class GeneratedForEachRuntime
         scoped ReadOnlySpan<int> writeComponentIndices)
         where TInvoker : struct, IGeneratedWhereCollector
     {
+        GeneratedWhereMatchBuffer matches = world.BeginGeneratedWhereMatches();
         using var execution = OpenDense(world, in query, hasWrites: writeComponentIndices.Length != 0);
         execution.MarkArchetypeWrites(writeComponentIndices);
         int matched = 0;
         while (execution.MoveNextTrusted(out var slots))
         {
-            Span<Entity> destination = world
-                .GetGeneratedWhereScratchSpan(matched + slots.Count)
-                .Slice(matched, slots.Count);
-            matched += invoker.Collect(ref slots, destination);
+            matched += invoker.Collect(ref slots, matches);
         }
 
         return matched;

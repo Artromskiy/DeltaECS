@@ -220,7 +220,7 @@ internal struct ComponentStampStorage : IDisposable
 
         int copiedTailStart = Math.Max(sourceSlotIndex, sourceUniformCount);
         int copiedTailCount = sourceEnd - copiedTailStart;
-        if (copiedTailCount == 0)
+        if (copiedTailCount <= 0)
         {
             return;
         }
@@ -228,10 +228,12 @@ internal struct ComponentStampStorage : IDisposable
         Materialize(sourceComponentIndex);
         target.Materialize(targetComponentIndex);
         int targetTailStart = targetSlotIndex + (copiedTailStart - sourceSlotIndex);
+        int sourceOffset = (sourceComponentIndex * _capacity) + copiedTailStart;
+        int targetOffset = (targetComponentIndex * target._capacity) + targetTailStart;
         _values.ReadOnlySpan
-            .Slice((sourceComponentIndex * _capacity) + copiedTailStart, copiedTailCount)
+            .Slice(sourceOffset, copiedTailCount)
             .CopyTo(target._values.Span.Slice(
-                (targetComponentIndex * target._capacity) + targetTailStart,
+                targetOffset,
                 copiedTailCount));
         target._uniformCounts.RefAt(targetComponentIndex) = 0;
     }
