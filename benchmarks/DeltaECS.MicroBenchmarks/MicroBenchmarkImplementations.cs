@@ -490,6 +490,43 @@ internal static class MicroContractSmoke
             whereApi.Cleanup();
         }
 
-        Console.WriteLine("Micro contract smoke passed: dense Movement2/Movement4, API-shape comparisons and Where API.");
+        var structural = new StructuralOperationsMicroBenchmarkImplementation { Amount = 8 };
+        structural.Setup();
+        try
+        {
+            structural.PrepareAdd();
+            if (structural.AddBatch() != structural.ExpectedCount)
+                throw new InvalidOperationException("Batch Add count mismatch.");
+            structural.PrepareAdd();
+            if (structural.AddAtomic() != structural.ExpectedCount)
+                throw new InvalidOperationException("Atomic Add count mismatch.");
+
+            structural.PrepareRemove();
+            if (structural.RemoveBatch() != structural.ExpectedCount)
+                throw new InvalidOperationException("Batch Remove count mismatch.");
+            structural.PrepareRemove();
+            if (structural.RemoveAtomic() != structural.ExpectedCount)
+                throw new InvalidOperationException("Atomic Remove count mismatch.");
+
+            structural.PrepareDestroy();
+            if (structural.DestroyBatch() != structural.ExpectedCount)
+                throw new InvalidOperationException("Batch Destroy count mismatch.");
+            structural.PrepareDestroy();
+            if (structural.DestroyAtomic() != structural.ExpectedCount)
+                throw new InvalidOperationException("Atomic Destroy count mismatch.");
+
+            structural.PrepareCreate();
+            if (structural.CreateBatch() != structural.ExpectedCount)
+                throw new InvalidOperationException("Batch Create count mismatch.");
+            structural.PrepareCreate();
+            if (structural.CreateAtomic() != structural.ExpectedCount)
+                throw new InvalidOperationException("Atomic Create count mismatch.");
+        }
+        finally
+        {
+            structural.Cleanup();
+        }
+
+        Console.WriteLine("Micro contract smoke passed: dense iteration, API-shape comparisons, Where API and structural operations.");
     }
 }

@@ -28,6 +28,7 @@ internal static class MicroBenchmarkConfiguration
         nameof(Movement4ApiComparisonMicroBenchmarks) => [100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000],
         nameof(RemainingApiOptimizationMicroBenchmarks) => [100, 1_000, 10_000],
         nameof(WhereApiMicroBenchmarks) => [100, 1_000, 10_000, 100_000],
+        nameof(StructuralOperationsMicroBenchmarks) => [100, 1_000, 10_000, 100_000],
         _ => throw new ArgumentOutOfRangeException(nameof(benchmarkType), benchmarkType, "Unknown microbenchmark type.")
     };
 
