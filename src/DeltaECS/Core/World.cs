@@ -13,7 +13,6 @@ public sealed partial class World : IDisposable
     private readonly int _chunkCapacity;
     private readonly List<Archetype> _archetypes = new();
     private readonly ComponentRowArrayPool _componentRowArrayPool = new();
-    private readonly List<Chunk> _deferredDestroyedChunks = new();
     private readonly Dictionary<ComponentMask, int> _archetypeByMask = new();
     private readonly EntityRecordStorage _records = new();
     private NativeMemory<int> _freeRecords = new(16);
@@ -91,15 +90,6 @@ public sealed partial class World : IDisposable
             archetype.Dispose();
         }
 
-        for (int index = 0; index < _deferredDestroyedChunks.Count; index++)
-        {
-            Chunk chunk = _deferredDestroyedChunks[index];
-            if (chunk.ArchetypeId < 0)
-            {
-                DisposeDetachedChunk(chunk);
-            }
-        }
-
         DisposeParallelQueryExecutor();
         _freeRecords.Dispose();
         _destroyScratch.Dispose();
@@ -108,7 +98,6 @@ public sealed partial class World : IDisposable
         DisposeStampLayers();
         _componentRowArrayPool.Clear();
         _chunksById = Array.Empty<Chunk?>();
-        _deferredDestroyedChunks.Clear();
         GC.SuppressFinalize(this);
     }
 
@@ -231,7 +220,6 @@ public sealed partial class World : IDisposable
                 out _,
                 out var chunk,
                 out int reusedCount);
-            DrainDeferredDestroyedRecords(chunk);
             RegisterChunkStampStorage(chunk);
             int slotIndex = chunk.Count - reserved;
             if (reusedCount != 0)
@@ -835,10 +823,7 @@ public sealed partial class World : IDisposable
                     edge.SourceToTargetRowIndices,
                     targetArchetype.ComponentCount);
                 Chunk replacedDonor = targetArchetype.ReplaceEmptyChunk(donorChunkIndex, adopted);
-                if (replacedDonor.DeferredDestroyedRecordCount == 0)
-                {
-                    DisposeDetachedChunk(replacedDonor);
-                }
+                DisposeDetachedChunk(replacedDonor);
             }
 
             if (!hasDonor)
@@ -923,10 +908,20 @@ public sealed partial class World : IDisposable
             return 0;
         }
 
+        // The chunk is already removed from the active set, so release every
+        // entity record here and keep Destroy fully immediate.
+        EnsureFreeRecordCapacity(_freeCount + count);
+        var entities = chunk.RawEntities;
+        for (int slot = count - 1; slot >= 0; slot--)
+        {
+            int recordIndex = entities.RefAt(slot).Index;
+            ref var record = ref RecordAt(recordIndex);
+            record.ChunkId = -1;
+            record.SlotIndex = -1;
+            _freeRecords.RefAt(_freeCount++) = recordIndex;
+        }
+
         chunk.ClearAll();
-        chunk.DeferDestroyedRecords(count);
-        chunk.SetDeferredDestroyedListIndex(_deferredDestroyedChunks.Count);
-        _deferredDestroyedChunks.Add(chunk);
         ClearChunkComponentStamps(chunk);
         archetype.ReleaseChunk(chunkIndex);
         AliveEntityCount -= count;
@@ -1028,10 +1023,6 @@ public sealed partial class World : IDisposable
         Chunk sourceChunk = GetRecordChunk(sourceRecord);
         var sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
         var targetArchetype = _archetypes[edge.TargetArchetypeId];
-        if (targetArchetype.TryPeekAvailableChunk(out Chunk availableTargetChunk))
-        {
-            DrainDeferredDestroyedRecords(availableTargetChunk);
-        }
 
         int sourceSlotIndex = sourceRecord.SlotIndex;
         int sourceChunkIndex = sourceChunk.ArchetypeIndex;
@@ -1380,12 +1371,6 @@ public sealed partial class World : IDisposable
 
     private int AllocateRecord()
     {
-        if (_freeCount == 0 && _deferredDestroyedChunks.Count != 0)
-        {
-            int chunkIndex = _deferredDestroyedChunks.Count - 1;
-            DrainDeferredDestroyedRecords(_deferredDestroyedChunks[chunkIndex]);
-        }
-
         if (_freeCount > 0)
         {
             int recycledIndex = _freeRecords.RefAt(--_freeCount);
@@ -1397,44 +1382,6 @@ public sealed partial class World : IDisposable
         int index = _records.Count;
         _records.Add(new EntityRecord { Generation = 1, ChunkId = -1, SlotIndex = -1 });
         return index;
-    }
-
-    private void DrainDeferredDestroyedRecords(Chunk chunk)
-    {
-        int count = chunk.TakeDeferredDestroyedRecords();
-        if (count == 0)
-        {
-            return;
-        }
-
-        int deferredIndex = chunk.DeferredDestroyedListIndex;
-        if ((uint)deferredIndex < (uint)_deferredDestroyedChunks.Count
-            && ReferenceEquals(_deferredDestroyedChunks[deferredIndex], chunk))
-        {
-            int lastIndex = _deferredDestroyedChunks.Count - 1;
-            if (deferredIndex != lastIndex)
-            {
-                Chunk moved = _deferredDestroyedChunks[lastIndex];
-                _deferredDestroyedChunks[deferredIndex] = moved;
-                moved.SetDeferredDestroyedListIndex(deferredIndex);
-            }
-
-            _deferredDestroyedChunks.RemoveAt(lastIndex);
-        }
-
-        chunk.SetDeferredDestroyedListIndex(-1);
-
-        EnsureFreeRecordCapacity(_freeCount + count);
-        var entities = chunk.RawEntities;
-        for (int slot = count - 1; slot >= 0; slot--)
-        {
-            _freeRecords.RefAt(_freeCount++) = entities.RefAt(slot).Index;
-        }
-
-        if (chunk.ArchetypeId < 0)
-        {
-            DisposeDetachedChunk(chunk);
-        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

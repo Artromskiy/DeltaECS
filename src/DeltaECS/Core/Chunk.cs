@@ -15,8 +15,6 @@ internal sealed class Chunk
     private int _archetypeIndex;
     private int _count;
     private int _highWaterMark;
-    private int _deferredDestroyedRecordCount;
-    private int _deferredDestroyedListIndex = -1;
 
     internal Chunk(
         int capacity,
@@ -72,12 +70,6 @@ internal sealed class Chunk
     internal bool IsFull => _count >= _capacity;
 
     internal bool IsEmpty => _count == 0;
-
-    internal int DeferredDestroyedRecordCount => _deferredDestroyedRecordCount;
-
-    internal int DeferredDestroyedListIndex => _deferredDestroyedListIndex;
-
-    internal void SetDeferredDestroyedListIndex(int index) => _deferredDestroyedListIndex = index;
 
     internal Span<Entity> Entities => _entities.Span[.._count];
 
@@ -422,23 +414,6 @@ internal sealed class Chunk
 
         _componentStamps.ClearRange(0, _count);
         _count = 0;
-    }
-
-    internal void DeferDestroyedRecords(int count)
-    {
-        if (count < 0 || count > _capacity || _deferredDestroyedRecordCount != 0)
-        {
-            ThrowHelper.ThrowChunkCountOutOfRange(nameof(count));
-        }
-
-        _deferredDestroyedRecordCount = count;
-    }
-
-    internal int TakeDeferredDestroyedRecords()
-    {
-        int count = _deferredDestroyedRecordCount;
-        _deferredDestroyedRecordCount = 0;
-        return count;
     }
 
     internal void Dispose()

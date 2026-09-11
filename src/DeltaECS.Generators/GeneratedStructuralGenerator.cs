@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace Delta.ECS.Generators;
 
 /// <summary>
-/// Generates generic structural-operation façades only for the Add/Remove
+/// Generates generic structural-operation façades only for the Add/Remove/Create
 /// shapes used by a consumer assembly.
 /// </summary>
 [Generator]
@@ -68,7 +68,7 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         shape = null;
         if (invocation.Expression is not MemberAccessExpressionSyntax member
             || member.Name is not GenericNameSyntax genericName
-            || genericName.Identifier.ValueText is not ("Add" or "Remove"))
+            || genericName.Identifier.ValueText is not ("Add" or "Remove" or "Create"))
         {
             return false;
         }
@@ -83,6 +83,19 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         if (receiver == Receiver.None)
         {
             return false;
+        }
+
+        if (genericName.Identifier.ValueText == "Create")
+        {
+            if (receiver != Receiver.World
+                || invocation.ArgumentList.Arguments.Count != 1
+                || !IsInt32(model.GetTypeInfo(invocation.ArgumentList.Arguments[0].Expression).Type))
+            {
+                return false;
+            }
+
+            shape = new StructuralShape(receiver, StructuralMode.Create, false, arity);
+            return true;
         }
 
         StructuralMode mode;
@@ -143,6 +156,9 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             && named.Name == name
             && named.ContainingNamespace.ToDisplayString() == "Delta.ECS";
 
+    private static bool IsInt32(ITypeSymbol? type)
+        => type?.SpecialType == SpecialType.System_Int32;
+
     private static bool IsEntityBatch(ITypeSymbol? type)
     {
         if (type is IArrayTypeSymbol array)
@@ -170,7 +186,8 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             .AppendLine();
         source.AppendLine("{");
         source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        source.Append("    public static ").Append(shape.IsAdd ? "int Add" : "int Remove");
+        source.Append("    public static ")
+            .Append(shape.Mode == StructuralMode.Create ? "int Create" : shape.IsAdd ? "int Add" : "int Remove");
         source.Append('<').Append(GenericTypes(shape.Arity)).Append('>');
         source.Append("(this ").Append(ReceiverType(shape.Receiver)).Append(" target");
         switch (shape.Mode)
@@ -181,11 +198,23 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             case StructuralMode.Query:
                 source.Append(", in Query query");
                 break;
+            case StructuralMode.Create:
+                source.Append(", int count");
+                break;
         }
 
         source.AppendLine(")");
         source.AppendLine("    {");
-        if (shape.Mode == StructuralMode.Sequence)
+        if (shape.Mode == StructuralMode.Create)
+        {
+            source.Append("        global::System.Span<ComponentId> components = stackalloc ComponentId[")
+                .Append(shape.Arity)
+                .AppendLine("];");
+            AppendPrimaryAssignments(source, "target.Layouts", "components", shape.Arity, "        ");
+            source.AppendLine("        var archetype = target.GetOrCreateArchetype(components);");
+            source.AppendLine("        return target.Create(archetype, count);");
+        }
+        else if (shape.Mode == StructuralMode.Sequence)
         {
             source.Append("        global::System.Span<ComponentId> components = stackalloc ComponentId[")
                 .Append(shape.Arity)
@@ -283,7 +312,8 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
     {
         Entities,
         Query,
-        Sequence
+        Sequence,
+        Create
     }
 
     private sealed class StructuralShape

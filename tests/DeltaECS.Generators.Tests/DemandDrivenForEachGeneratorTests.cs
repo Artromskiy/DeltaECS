@@ -489,7 +489,7 @@ public sealed class DemandDrivenForEachGeneratorTests
     [Test]
     public void RealConsumerProjectExecutesGeneratedStructuralPaths()
     {
-        Assert.That(ConsumerProof.RunStructural(), Is.EqualTo(32));
+        Assert.That(ConsumerProof.RunStructural(), Is.EqualTo(35));
     }
 
     [Test]
@@ -519,6 +519,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(run.Diagnostics, Is.Empty);
         Assert.That(generated, Does.Contain("public static int Add<T1, T2>(this World target"));
         Assert.That(generated, Does.Contain("public static int Remove<T1, T2>(this World target"));
+        Assert.That(generated, Does.Contain("public static int Create<T1, T2>(this World target"));
+        Assert.That(generated, Does.Contain("target.GetOrCreateArchetype(components)"));
         Assert.That(generated, Does.Contain("public static int Add<T1, T2>(this EntitySequence target"));
         Assert.That(generated, Does.Contain("public static int Remove<T1, T2>(this FilteredEntitySequence target"));
         Assert.That(generated, Does.Contain("GetPrimary<T1>()"));
@@ -866,6 +868,7 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static QuerySpec WhereNone(ReadOnlySpan<ComponentId> components) => default;
         }
         public readonly struct Query { }
+        public readonly struct ArchetypeHandle { }
         public readonly struct ReadAccess { }
         public readonly struct WriteAccess { }
         public delegate void ForEachAction();
@@ -1019,6 +1022,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         public sealed partial class World
         {
             public ComponentLayoutRegistry Layouts { get; } = new();
+            public ArchetypeHandle GetOrCreateArchetype(ReadOnlySpan<ComponentId> components) => default;
+            public int Create(ArchetypeHandle handle, int count) => count;
             public EntitySequence From(ReadOnlySpan<Entity> entities) => default;
             public Query CreateQuery(in QuerySpec spec) => default;
             public QueryScope BeginScope(in Query query) => default;
@@ -1085,6 +1090,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public static void Use(World world, Query query, ReadOnlySpan<Entity> entities)
             {
+                world.Create<Position, Velocity>(2);
                 world.Add<Position, Velocity>(entities);
                 world.Remove<Position, Velocity>(entities);
                 world.Add<Position, Velocity>(in query);
