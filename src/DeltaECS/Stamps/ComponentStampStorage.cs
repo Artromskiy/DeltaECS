@@ -106,6 +106,42 @@ internal struct ComponentStampStorage : IDisposable
         }
     }
 
+    internal ComponentStampStorage Remap(ReadOnlySpan<int> sourceToTarget, int targetComponentCount)
+    {
+        if (sourceToTarget.Length != _componentCount)
+        {
+            ThrowHelper.ThrowStampRange(nameof(sourceToTarget));
+        }
+
+        var replacement = new ComponentStampStorage(targetComponentCount, _capacity);
+        for (int sourceComponentIndex = 0; sourceComponentIndex < sourceToTarget.Length; sourceComponentIndex++)
+        {
+            int targetComponentIndex = sourceToTarget.RefAt(sourceComponentIndex);
+            if (targetComponentIndex < 0)
+            {
+                continue;
+            }
+
+            int uniformCount = _uniformCounts.RefAt(sourceComponentIndex);
+            Span<Stamp> targetValues = replacement._values.Span
+                .Slice(targetComponentIndex * _capacity, _capacity);
+            if (uniformCount != 0)
+            {
+                targetValues[..uniformCount].Fill(_uniformStamps.RefAt(sourceComponentIndex));
+            }
+
+            int copiedTail = _capacity - uniformCount;
+            if (copiedTail != 0)
+            {
+                _values.ReadOnlySpan
+                    .Slice((sourceComponentIndex * _capacity) + uniformCount, copiedTail)
+                    .CopyTo(targetValues[uniformCount..]);
+            }
+        }
+
+        return replacement;
+    }
+
     internal readonly void CopyComponentSlotTo(
         ref ComponentStampStorage target,
         int sourceSlotIndex,

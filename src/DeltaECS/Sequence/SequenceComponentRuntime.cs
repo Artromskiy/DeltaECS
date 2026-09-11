@@ -45,9 +45,10 @@ public sealed partial class World
                 }
 
                 ref readonly EntityRecord record = ref RecordAt(recordIndex);
-                if (record.Archetype != lastArchetype)
+                int archetypeId = GetChunkById(record.ChunkId).ArchetypeId;
+                if (archetypeId != lastArchetype)
                 {
-                    lastArchetype = record.Archetype;
+                    lastArchetype = archetypeId;
                     lastPlanIndex = cached.MatchingPlanIndex(lastArchetype);
                 }
 
@@ -57,9 +58,15 @@ public sealed partial class World
                 }
 
                 ref readonly ArchetypePlan plan = ref plans.RefAt(lastPlanIndex);
+                int chunkIndex = plan.FindChunkIndex(record.ChunkId);
+                if (chunkIndex < 0)
+                {
+                    continue;
+                }
+
                 var cursor = new GeneratedSequenceCursor(
                     in plan,
-                    in plan.Chunks.RefAt(record.Chunk),
+                    in plan.Chunks.RefAt(chunkIndex),
                     record.SlotIndex,
                     entity,
                     hasWrites);

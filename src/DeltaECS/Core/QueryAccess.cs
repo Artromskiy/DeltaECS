@@ -429,6 +429,19 @@ internal struct ArchetypePlan
     internal int[] ComponentRows { get; }
     internal Stamp[] ArchetypeStamps { get; }
     internal ReadOnlySpan<ChunkPlan> Chunks => _chunks.AsSpan(0, _chunkCount);
+
+    internal int FindChunkIndex(int globalChunkId)
+    {
+        for (int index = 0; index < _chunkCount; index++)
+        {
+            if (_chunks.RefAt(index).Chunk.GlobalId == globalChunkId)
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
     internal ChunkPlan[] ChunkArray => _chunks;
     internal int ChunkCount => _chunkCount;
 

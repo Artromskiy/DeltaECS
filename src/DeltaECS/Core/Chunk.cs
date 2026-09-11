@@ -6,10 +6,12 @@ using System.Runtime.CompilerServices;
 internal sealed class Chunk
 {
     private readonly int _capacity;
-    private readonly Array[] _componentRows;
-    private readonly ComponentRowOperations[] _rowOperations;
+    private Array[] _componentRows;
+    private ComponentRowOperations[] _rowOperations;
     private NativeMemory<Entity> _entities;
     private ComponentStampStorage _componentStamps;
+    private int _archetypeId;
+    private int _archetypeIndex;
     private int _count;
     private int _highWaterMark;
 
@@ -17,7 +19,9 @@ internal sealed class Chunk
         int capacity,
         ComponentLayout[] layouts,
         ComponentRowOperations[] rowOperations,
-        int globalId)
+        int globalId,
+        int archetypeId,
+        int archetypeIndex)
     {
         ThrowHelper.ThrowIfNegativeOrZero(capacity, nameof(capacity));
         if (rowOperations.Length != layouts.Length)
@@ -27,6 +31,8 @@ internal sealed class Chunk
 
         _capacity = capacity;
         GlobalId = globalId;
+        _archetypeId = archetypeId;
+        _archetypeIndex = archetypeIndex;
         _entities = new NativeMemory<Entity>(capacity);
         _componentStamps = new ComponentStampStorage(layouts.Length, capacity);
         _componentRows = new Array[layouts.Length];
@@ -44,6 +50,10 @@ internal sealed class Chunk
     }
 
     internal int GlobalId { get; }
+
+    internal int ArchetypeId => _archetypeId;
+
+    internal int ArchetypeIndex => _archetypeIndex;
 
     internal int Capacity => _capacity;
 
@@ -131,6 +141,85 @@ internal sealed class Chunk
     internal Span<Entity> RawEntities => _entities.Span;
 
     internal Array[] RawComponentRows => _componentRows;
+
+    internal void SetArchetypeLocation(int archetypeId, int archetypeIndex)
+    {
+        _archetypeId = archetypeId;
+        _archetypeIndex = archetypeIndex;
+    }
+
+    internal void AdoptLayout(
+        ComponentLayout[] layouts,
+        ComponentRowOperations[] rowOperations,
+        ReadOnlySpan<int> sourceToTarget,
+        ReadOnlySpan<int> addedTargetRows)
+    {
+        if (sourceToTarget.Length != _componentRows.Length)
+        {
+            ThrowHelper.ThrowChunkRowOperationsMismatch(nameof(sourceToTarget));
+        }
+
+        var sourceRows = _componentRows;
+        var targetRows = new Array[layouts.Length];
+        var copiedRows = new bool[layouts.Length];
+        for (int sourceIndex = 0; sourceIndex < sourceToTarget.Length; sourceIndex++)
+        {
+            int targetIndex = sourceToTarget.RefAt(sourceIndex);
+            if (targetIndex < 0)
+            {
+                continue;
+            }
+
+            targetRows[targetIndex] = sourceRows[sourceIndex];
+            copiedRows[targetIndex] = true;
+        }
+
+        for (int targetIndex = 0; targetIndex < targetRows.Length; targetIndex++)
+        {
+            if (copiedRows[targetIndex])
+            {
+                continue;
+            }
+
+            Type? runtimeType = layouts.RefAt(targetIndex).RuntimeType;
+            if (runtimeType is null)
+            {
+                ThrowHelper.ThrowArrayRowsRequiresRuntimeType();
+            }
+
+            targetRows[targetIndex] = rowOperations.RefAt(targetIndex).CreateArray(runtimeType, _capacity);
+        }
+
+        ComponentStampStorage replacement = _componentStamps.Remap(sourceToTarget, targetRows.Length);
+        _componentStamps.Dispose();
+        _componentStamps = replacement;
+        _componentRows = targetRows;
+        _rowOperations = rowOperations;
+        StampRowsRange(0, _count, addedTargetRows, new Stamp(1));
+    }
+
+    internal void TrimTail(int count)
+    {
+        if (count < 0 || count > _count)
+        {
+            ThrowHelper.ThrowChunkCountOutOfRange(nameof(count));
+        }
+
+        if (count == 0)
+        {
+            return;
+        }
+
+        int start = _count - count;
+        for (int slotIndex = start; slotIndex < _count; slotIndex++)
+        {
+            ClearReferenceRows(slotIndex);
+        }
+
+        _componentStamps.ClearRange(start, count);
+        _entities.Span.Slice(start, count).Clear();
+        _count = start;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal Span<T> GetComponentRow<T>(Array[] componentRows, int componentIndex)

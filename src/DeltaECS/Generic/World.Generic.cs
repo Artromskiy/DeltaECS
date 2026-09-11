@@ -140,13 +140,13 @@ public sealed partial class World
         }
 
         ref readonly var record = ref RecordAt(recordIndex);
-        var archetype = _archetypes[record.Archetype];
+        var chunk = GetRecordChunk(record);
+        var archetype = _archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
         {
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }
 
-        var chunk = archetype.GetChunk(record.Chunk);
         Stamp stamp = chunk.IncrementComponentStamp(componentIndex, record.SlotIndex);
         CreateEntityComponentStampWriter(
             chunk,
@@ -174,13 +174,14 @@ public sealed partial class World
         }
 
         ref readonly var record = ref RecordAt(recordIndex);
-        var archetype = _archetypes[record.Archetype];
+        var chunk = GetRecordChunk(record);
+        var archetype = _archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
         {
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }
 
-        return ref archetype.GetChunk(record.Chunk)
+        return ref chunk
             .GetComponentRow<T>(componentIndex)
             .RefAt(record.SlotIndex);
     }
@@ -221,7 +222,7 @@ public sealed partial class World
             }
 
             ref readonly var record = ref RecordAt(recordIndex);
-            var sourceArchetype = _archetypes[record.Archetype];
+            var sourceArchetype = _archetypes[GetRecordChunk(record).ArchetypeId];
             if (sourceArchetype.Contains(componentId))
             {
                 continue;
@@ -231,12 +232,13 @@ public sealed partial class World
             var edge = edgeStamp == 0
                 ? GetTransitionEdge(sourceArchetype.Id, changeMask, true, targetMask)
                 : GetBatchTransitionEdge(sourceArchetype.Id, changeMask, true, targetMask, edgeStamp);
-            MoveEntity(recordIndex, edge, out int targetChunkIndex, out int targetSlotIndex);
+            MoveEntity(recordIndex, edge, out _, out int targetSlotIndex);
 
             ref readonly var targetRecord = ref RecordAt(recordIndex);
-            var targetArchetype = _archetypes[targetRecord.Archetype];
+            var targetChunk = GetRecordChunk(targetRecord);
+            var targetArchetype = _archetypes[targetChunk.ArchetypeId];
             int targetComponentIndex = targetArchetype.Mask.Rank(componentId);
-            targetArchetype.GetChunk(targetChunkIndex)
+            targetChunk
                 .GetComponentRow<T>(targetComponentIndex)
                 .RefAt(targetSlotIndex) = value;
             changed++;
@@ -260,7 +262,7 @@ public sealed partial class World
             }
 
             ref readonly var record = ref RecordAt(recordIndex);
-            var sourceArchetype = _archetypes[record.Archetype];
+            var sourceArchetype = _archetypes[GetRecordChunk(record).ArchetypeId];
             if (!sourceArchetype.Contains(componentId))
             {
                 continue;
@@ -298,12 +300,13 @@ public sealed partial class World
         }
 
         ref readonly var record = ref RecordAt(recordIndex);
-        var archetype = _archetypes[record.Archetype];
+        var chunk = GetRecordChunk(record);
+        var archetype = _archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
         {
             ThrowHelper.ThrowStructuralComponentMissing();
         }
 
-        archetype.GetChunk(record.Chunk).GetComponentRow<T>(componentIndex).RefAt(record.SlotIndex) = value;
+        chunk.GetComponentRow<T>(componentIndex).RefAt(record.SlotIndex) = value;
     }
 }

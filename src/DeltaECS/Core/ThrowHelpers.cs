@@ -255,6 +255,11 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowInvalidChunkLocation()
+        => throw new InvalidOperationException("The chunk is not attached to the expected archetype.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowInvalidComponentList()
         => throw new InvalidOperationException("Component list is empty or invalid.");
 

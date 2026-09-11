@@ -25,6 +25,7 @@ public sealed partial class World : IDisposable
     private NativeMemory<int> _batchEdgeStamps = new(0);
     private int _batchEdgeStamp;
     private int _nextChunkId;
+    private Chunk?[] _chunksById = Array.Empty<Chunk?>();
     private int _activeChunkLeases;
     private QueryWriteSession? _queryWriteSessionPool;
     private int _archetypeVersion;
@@ -94,6 +95,7 @@ public sealed partial class World : IDisposable
         _sequenceScratch.Dispose();
         _batchEdgeStamps.Dispose();
         DisposeStampLayers();
+        _chunksById = Array.Empty<Chunk?>();
         GC.SuppressFinalize(this);
     }
 
@@ -193,7 +195,7 @@ public sealed partial class World : IDisposable
             int reserved = archetype.ReserveRange(
                 output.Length - outputIndex,
                 chunkId,
-                out int chunkIndex,
+                out _,
                 out var chunk,
                 out int reusedCount);
             RegisterChunkStampStorage(chunk);
@@ -209,8 +211,7 @@ public sealed partial class World : IDisposable
                 int recordIndex = AllocateRecord();
                 ref var record = ref RecordAt(recordIndex);
                 var entity = new Entity(recordIndex, record.Generation);
-                record.Archetype = archetype.Id;
-                record.Chunk = chunkIndex;
+                record.ChunkId = chunk.GlobalId;
                 record.SlotIndex = slotIndex + reservedIndex;
                 chunk.RawEntities.RefAt(slotIndex + reservedIndex) = entity;
                 output.RefAt(outputIndex++) = entity;
@@ -255,7 +256,13 @@ public sealed partial class World : IDisposable
             if (TryResolve(entities.RefAt(i), out int recordIndex))
             {
                 ref readonly var record = ref RecordAt(recordIndex);
-                _destroyScratch.RefAt(count++) = new DestroyEntry(entities.RefAt(i), recordIndex, record.Archetype, record.Chunk, record.SlotIndex);
+                Chunk chunk = GetRecordChunk(record);
+                _destroyScratch.RefAt(count++) = new DestroyEntry(
+                    entities.RefAt(i),
+                    recordIndex,
+                    chunk.ArchetypeId,
+                    chunk.GlobalId,
+                    record.SlotIndex);
             }
         }
 
@@ -289,7 +296,7 @@ public sealed partial class World : IDisposable
             while (groupEnd < count)
             {
                 var next = _destroyScratch.RefAt(groupEnd);
-                if (next.Archetype != first.Archetype || next.Chunk != first.Chunk)
+                if (next.Archetype != first.Archetype || next.ChunkId != first.ChunkId)
                 {
                     break;
                 }
@@ -299,10 +306,10 @@ public sealed partial class World : IDisposable
 
             int groupCount = groupEnd - groupStart;
             var archetype = _archetypes[first.Archetype];
-            var chunk = archetype.GetChunk(first.Chunk);
+            var chunk = GetChunkById(first.ChunkId);
             if (groupCount == chunk.Count && IsCompleteDestroyChunk(groupStart, groupCount))
             {
-                destroyed += DestroyChunk(archetype, first.Chunk);
+                destroyed += DestroyChunk(archetype, chunk.ArchetypeIndex);
             }
             else
             {
@@ -334,7 +341,7 @@ public sealed partial class World : IDisposable
             while (groupStart > 0)
             {
                 var previous = _destroyScratch.RefAt(groupStart - 1);
-                if (previous.Archetype != last.Archetype || previous.Chunk != last.Chunk)
+                if (previous.Archetype != last.Archetype || previous.ChunkId != last.ChunkId)
                 {
                     break;
                 }
@@ -344,10 +351,10 @@ public sealed partial class World : IDisposable
 
             int groupCount = groupEnd - groupStart;
             var archetype = _archetypes[last.Archetype];
-            var chunk = archetype.GetChunk(last.Chunk);
+            var chunk = GetChunkById(last.ChunkId);
             if (groupCount == chunk.Count && IsCompleteAscendingDestroyChunk(groupStart, groupCount))
             {
-                destroyed += DestroyChunk(archetype, last.Chunk);
+                destroyed += DestroyChunk(archetype, chunk.ArchetypeIndex);
             }
             else
             {
@@ -378,7 +385,7 @@ public sealed partial class World : IDisposable
         }
 
         ref readonly var record = ref RecordAt(recordIndex);
-        if (!_archetypes[record.Archetype].Contains(componentId))
+        if (!GetRecordArchetype(record).Contains(componentId))
         {
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }
@@ -395,7 +402,8 @@ public sealed partial class World : IDisposable
         }
 
         ref readonly var record = ref RecordAt(recordIndex);
-        var archetype = _archetypes[record.Archetype];
+        var chunk = GetRecordChunk(record);
+        var archetype = _archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
         {
             return false;
@@ -403,7 +411,7 @@ public sealed partial class World : IDisposable
 
         stamp = GetComponentStamp(
             archetype.Id,
-            archetype.GetChunk(record.Chunk),
+            chunk,
             componentIndex,
             record.SlotIndex);
         return true;
@@ -418,7 +426,8 @@ public sealed partial class World : IDisposable
         }
 
         ref readonly var record = ref RecordAt(recordIndex);
-        var archetype = _archetypes[record.Archetype];
+        var chunk = GetRecordChunk(record);
+        var archetype = _archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(componentId, out int componentIndex)
             || !_layouts.TryGet(componentId, out var layout)
             || !IsCompatibleComponentType<T>(layout))
@@ -427,7 +436,7 @@ public sealed partial class World : IDisposable
             return false;
         }
 
-        value = archetype.GetChunk(record.Chunk).GetComponentRow<T>(componentIndex).RefAt(record.SlotIndex);
+        value = chunk.GetComponentRow<T>(componentIndex).RefAt(record.SlotIndex);
         return true;
     }
 
@@ -586,7 +595,7 @@ public sealed partial class World : IDisposable
         for (int i = 0; i < _records.Count; i++)
         {
             ref readonly var record = ref RecordAt(i);
-            if (record.Archetype < 0)
+            if (record.ChunkId < 0)
             {
                 continue;
             }
@@ -662,7 +671,7 @@ public sealed partial class World : IDisposable
             }
 
             ref readonly var record = ref RecordAt(recordIndex);
-            int sourceArchetypeId = record.Archetype;
+            int sourceArchetypeId = GetRecordChunk(record).ArchetypeId;
             var sourceArchetype = _archetypes[sourceArchetypeId];
             ComponentMask targetMask = isAdd
                 ? sourceArchetype.Mask.Or(changeMask)
@@ -728,75 +737,95 @@ public sealed partial class World : IDisposable
     {
         int movedCount = 0;
         var targetArchetype = _archetypes[edge.TargetArchetypeId];
-        for (int sourceChunkIndex = sourceArchetype.ChunkCount - 1; sourceChunkIndex >= 0; sourceChunkIndex--)
+        int initialTargetChunkCount = targetArchetype.ChunkCount;
+        while (sourceArchetype.TryGetLastActiveChunk(out int sourceChunkIndex, out Chunk sourceChunk))
         {
-            var sourceChunk = sourceArchetype.GetChunk(sourceChunkIndex);
-            int sourceCount = sourceChunk.Count;
-            if (sourceCount == 0)
+            while (sourceChunk.Count != 0
+                && targetArchetype.TryGetAvailablePartialChunk(initialTargetChunkCount, out _, out Chunk targetChunk))
+            {
+                int copied = Math.Min(sourceChunk.Count, targetChunk.Capacity - targetChunk.Count);
+                int sourceSlot = sourceChunk.Count - copied;
+                int targetSlot = targetChunk.Count;
+                targetArchetype.ReserveExistingChunk(targetChunk, copied, out _);
+                CopyChunkRange(sourceChunk, targetChunk, sourceSlot, targetSlot, copied, edge);
+                sourceChunk.TrimTail(copied);
+                movedCount += copied;
+            }
+
+            if (sourceChunk.Count == 0)
+            {
+                Chunk detached = sourceArchetype.DetachChunk(sourceChunkIndex);
+                DisposeDetachedChunk(detached);
+                continue;
+            }
+
+            Chunk adopted = sourceArchetype.DetachChunk(sourceChunkIndex);
+            adopted.AdoptLayout(
+                targetArchetype.Layouts,
+                targetArchetype.RowOperations,
+                edge.SourceToTargetRowIndices,
+                edge.AddedTargetRowIndices);
+            RemapChunkStampStorage(adopted, edge.SourceToTargetRowIndices, targetArchetype.ComponentCount);
+            targetArchetype.AttachAdoptedChunk(adopted);
+            movedCount += adopted.Count;
+        }
+
+        return movedCount;
+    }
+
+    private void DisposeDetachedChunk(Chunk chunk)
+    {
+        ClearChunkComponentStamps(chunk);
+        if ((uint)chunk.GlobalId < (uint)_chunksById.Length
+            && ReferenceEquals(_chunksById[chunk.GlobalId], chunk))
+        {
+            _chunksById[chunk.GlobalId] = null;
+        }
+
+        chunk.Dispose();
+    }
+
+    private void CopyChunkRange(
+        Chunk source,
+        Chunk target,
+        int sourceSlot,
+        int targetSlot,
+        int count,
+        TransitionEdge edge)
+    {
+        source.RawEntities.Slice(sourceSlot, count).CopyTo(target.RawEntities.Slice(targetSlot, count));
+        for (int sourceComponentIndex = 0; sourceComponentIndex < edge.SourceToTargetRowIndices.Length; sourceComponentIndex++)
+        {
+            int targetComponentIndex = edge.SourceToTargetRowIndices.RefAt(sourceComponentIndex);
+            if (targetComponentIndex < 0)
             {
                 continue;
             }
 
-            var sourceEntities = sourceChunk.RawEntities;
-            int sourceEnd = sourceCount;
-            while (sourceEnd > 0)
-            {
-                int targetChunkId = targetArchetype.HasAvailableChunk() ? -1 : AllocateChunkId();
-                int reserved = targetArchetype.ReserveRange(
-                    sourceEnd,
-                    targetChunkId,
-                    out int targetChunkIndex,
-                    out var targetChunk,
-                    out _);
-                RegisterChunkStampStorage(targetChunk);
-                int targetSlot = targetChunk.Count - reserved;
-                int sourceSlot = sourceEnd - reserved;
-
-                sourceEntities.Slice(sourceSlot, reserved).CopyTo(targetChunk.RawEntities.Slice(targetSlot, reserved));
-                for (int sourceComponentIndex = 0; sourceComponentIndex < edge.SourceToTargetRowIndices.Length; sourceComponentIndex++)
-                {
-                    int targetComponentIndex = edge.SourceToTargetRowIndices.RefAt(sourceComponentIndex);
-                    if (targetComponentIndex < 0)
-                    {
-                        continue;
-                    }
-
-                    Array.Copy(
-                        sourceChunk.GetRawComponentRowTrusted(sourceComponentIndex),
-                        sourceSlot,
-                        targetChunk.GetRawComponentRowTrusted(targetComponentIndex),
-                        targetSlot,
-                        reserved);
-                    sourceChunk.CopyStampRangeTo(
-                        targetChunk,
-                        sourceSlot,
-                        targetSlot,
-                        reserved,
-                        sourceComponentIndex,
-                        targetComponentIndex);
-                }
-
-                targetChunk.InitializeRowsRange(targetSlot, reserved, edge.AddedTargetRowIndices);
-                targetChunk.StampRowsRange(targetSlot, reserved, edge.AddedTargetRowIndices, new Stamp(1));
-                for (int slot = 0; slot < reserved; slot++)
-                {
-                    var entity = sourceEntities.RefAt(sourceSlot + slot);
-                    ref var record = ref RecordAt(entity.Index);
-                    record.Archetype = targetArchetype.Id;
-                    record.Chunk = targetChunkIndex;
-                    record.SlotIndex = targetSlot + slot;
-                }
-
-                sourceEnd = sourceSlot;
-                movedCount += reserved;
-            }
-
-            sourceChunk.ClearAll();
-            ClearChunkComponentStamps(sourceChunk);
-            sourceArchetype.ReleaseChunk(sourceChunkIndex);
+            Array.Copy(
+                source.GetRawComponentRowTrusted(sourceComponentIndex),
+                sourceSlot,
+                target.GetRawComponentRowTrusted(targetComponentIndex),
+                targetSlot,
+                count);
+            source.CopyStampRangeTo(
+                target,
+                sourceSlot,
+                targetSlot,
+                count,
+                sourceComponentIndex,
+                targetComponentIndex);
         }
 
-        return movedCount;
+        target.InitializeRowsRange(targetSlot, count, edge.AddedTargetRowIndices);
+        target.StampRowsRange(targetSlot, count, edge.AddedTargetRowIndices, new Stamp(1));
+        for (int slot = 0; slot < count; slot++)
+        {
+            Entity entity = target.RawEntities.RefAt(targetSlot + slot);
+            ref var record = ref RecordAt(entity.Index);
+            record.ChunkId = target.GlobalId;
+            record.SlotIndex = targetSlot + slot;
+        }
     }
 
     private int DestroyChunk(Archetype archetype, int chunkIndex)
@@ -814,8 +843,7 @@ public sealed partial class World : IDisposable
         {
             var entity = entities.RefAt(slot);
             ref var record = ref RecordAt(entity.Index);
-            record.Archetype = -1;
-            record.Chunk = -1;
+            record.ChunkId = -1;
             record.SlotIndex = -1;
             record.Generation = NextGeneration(record.Generation);
             _freeRecords.RefAt(_freeCount++) = entity.Index;
@@ -863,9 +891,9 @@ public sealed partial class World : IDisposable
             var previous = _destroyScratch.RefAt(index - 1);
             var current = _destroyScratch.RefAt(index);
             if (current.Archetype < previous.Archetype
-                || (current.Archetype == previous.Archetype && current.Chunk < previous.Chunk)
+                || (current.Archetype == previous.Archetype && current.ChunkId < previous.ChunkId)
                 || (current.Archetype == previous.Archetype
-                    && current.Chunk == previous.Chunk
+                    && current.ChunkId == previous.ChunkId
                     && current.SlotIndex < previous.SlotIndex))
             {
                 return false;
@@ -880,30 +908,30 @@ public sealed partial class World : IDisposable
     {
         ref readonly var record = ref RecordAt(entry.RecordIndex);
         return record.Generation == entry.Entity.Generation
-            && record.Archetype == entry.Archetype
-            && record.Chunk == entry.Chunk
+            && record.ChunkId == entry.ChunkId
             && record.SlotIndex == entry.SlotIndex;
     }
 
     private void DestroyResolved(int recordIndex)
     {
         ref var record = ref RecordAt(recordIndex);
-        var archetype = _archetypes[record.Archetype];
-        var moved = archetype.RemoveEntity(record.Chunk, record.SlotIndex);
-        if (archetype.GetChunk(record.Chunk).IsEmpty)
+        Chunk chunk = GetRecordChunk(record);
+        var archetype = _archetypes[chunk.ArchetypeId];
+        int chunkIndex = chunk.ArchetypeIndex;
+        var moved = archetype.RemoveEntity(chunkIndex, record.SlotIndex);
+        if (chunk.IsEmpty)
         {
-            ClearChunkComponentStamps(archetype.GetChunk(record.Chunk));
+            ClearChunkComponentStamps(chunk);
         }
 
         if (moved.IsValid)
         {
             ref var movedRecord = ref RecordAt(moved.Index);
-            movedRecord.Chunk = record.Chunk;
+            movedRecord.ChunkId = chunk.GlobalId;
             movedRecord.SlotIndex = record.SlotIndex;
         }
 
-        record.Archetype = -1;
-        record.Chunk = -1;
+        record.ChunkId = -1;
         record.SlotIndex = -1;
         record.Generation = NextGeneration(record.Generation);
         PushFree(recordIndex);
@@ -922,11 +950,11 @@ public sealed partial class World : IDisposable
         out int targetSlotIndex)
     {
         ref var sourceRecord = ref RecordAt(recordIndex);
-        var sourceArchetype = _archetypes[sourceRecord.Archetype];
+        Chunk sourceChunk = GetRecordChunk(sourceRecord);
+        var sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
         var targetArchetype = _archetypes[edge.TargetArchetypeId];
-        var sourceChunk = sourceArchetype.GetChunk(sourceRecord.Chunk);
         int sourceSlotIndex = sourceRecord.SlotIndex;
-        int sourceChunkIndex = sourceRecord.Chunk;
+        int sourceChunkIndex = sourceChunk.ArchetypeIndex;
         int targetChunkId = targetArchetype.HasAvailableChunk() ? -1 : AllocateChunkId();
         targetArchetype.AddEntity(
             new Entity(recordIndex, sourceRecord.Generation),
@@ -960,13 +988,12 @@ public sealed partial class World : IDisposable
         {
             ClearChunkComponentStamps(sourceChunk);
         }
-        sourceRecord.Archetype = edge.TargetArchetypeId;
-        sourceRecord.Chunk = targetChunkIndex;
+        sourceRecord.ChunkId = targetChunk.GlobalId;
         sourceRecord.SlotIndex = targetSlotIndex;
         if (moved.IsValid)
         {
             ref var movedRecord = ref RecordAt(moved.Index);
-            movedRecord.Chunk = sourceChunkIndex;
+            movedRecord.ChunkId = sourceChunk.GlobalId;
             movedRecord.SlotIndex = sourceSlotIndex;
         }
     }
@@ -1019,7 +1046,8 @@ public sealed partial class World : IDisposable
     private bool SetComponentUnchecked<T>(int recordIndex, ComponentId componentId, T value)
     {
         ref readonly var record = ref RecordAt(recordIndex);
-        var archetype = _archetypes[record.Archetype];
+        Chunk chunk = GetRecordChunk(record);
+        var archetype = _archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(componentId, out int componentIndex)
             || !_layouts.TryGet(componentId, out var layout)
             || !IsCompatibleComponentType<T>(layout))
@@ -1027,7 +1055,6 @@ public sealed partial class World : IDisposable
             return false;
         }
 
-        var chunk = archetype.GetChunk(record.Chunk);
         chunk.GetComponentRow<T>(componentIndex).RefAt(record.SlotIndex) = value;
         Stamp stamp = chunk.IncrementComponentStamp(componentIndex, record.SlotIndex);
         CreateEntityComponentStampWriter(
@@ -1112,6 +1139,8 @@ public sealed partial class World : IDisposable
 
     internal void RegisterChunkStampStorage(Chunk chunk)
     {
+        EnsureChunkReferenceCapacity(chunk.GlobalId + 1);
+        _chunksById[chunk.GlobalId] = chunk;
         if (chunk.ComponentCount == 0)
         {
             return;
@@ -1127,6 +1156,57 @@ public sealed partial class World : IDisposable
             _chunkComponentWriteStamps.RefAt(chunkId) = new NativeMemory<Stamp>(chunk.ComponentCount);
             _chunkStampComponentCounts.RefAt(chunkId) = chunk.ComponentCount;
         }
+    }
+
+    private void EnsureChunkReferenceCapacity(int required)
+    {
+        if (required <= _chunksById.Length)
+        {
+            return;
+        }
+
+        int capacity = Math.Max(required, _chunksById.Length == 0 ? 4 : _chunksById.Length * 2);
+        Array.Resize(ref _chunksById, capacity);
+    }
+
+    private void RemapChunkStampStorage(Chunk chunk, ReadOnlySpan<int> sourceToTarget, int targetComponentCount)
+    {
+        int chunkId = chunk.GlobalId;
+        EnsureChunkReferenceCapacity(chunkId + 1);
+        _chunksById[chunkId] = chunk;
+        EnsureStampStorageCapacity(
+            ref _chunkComponentWriteStamps,
+            ref _chunkStampComponentCounts,
+            chunkId + 1);
+        if (targetComponentCount == 0)
+        {
+            if (_chunkStampComponentCounts.RefAt(chunkId) != 0)
+            {
+                _chunkComponentWriteStamps.RefAt(chunkId).Dispose();
+                _chunkStampComponentCounts.RefAt(chunkId) = 0;
+            }
+
+            return;
+        }
+
+        NativeMemory<Stamp> replacement = new(targetComponentCount);
+        if (_chunkStampComponentCounts.RefAt(chunkId) != 0)
+        {
+            NativeMemory<Stamp> source = _chunkComponentWriteStamps.RefAt(chunkId);
+            for (int sourceIndex = 0; sourceIndex < sourceToTarget.Length; sourceIndex++)
+            {
+                int targetIndex = sourceToTarget.RefAt(sourceIndex);
+                if (targetIndex >= 0)
+                {
+                    replacement.RefAt(targetIndex) = source.RefAt(sourceIndex);
+                }
+            }
+
+            source.Dispose();
+        }
+
+        _chunkComponentWriteStamps.RefAt(chunkId) = replacement;
+        _chunkStampComponentCounts.RefAt(chunkId) = targetComponentCount;
     }
 
     private static void EnsureStampStorageCapacity<T>(
@@ -1187,7 +1267,7 @@ public sealed partial class World : IDisposable
         }
 
         int index = _records.Count;
-        _records.Add(new EntityRecord { Generation = 1, Archetype = -1, Chunk = -1, SlotIndex = -1 });
+        _records.Add(new EntityRecord { Generation = 1, ChunkId = -1, SlotIndex = -1 });
         return index;
     }
 
@@ -1213,6 +1293,36 @@ public sealed partial class World : IDisposable
     private int AllocateChunkId() => _nextChunkId++;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Chunk GetChunkById(int chunkId)
+    {
+        if ((uint)chunkId >= (uint)_chunksById.Length || _chunksById[chunkId] is null)
+        {
+            ThrowHelper.ThrowInvalidChunkLocation();
+        }
+
+        return _chunksById[chunkId]!;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryGetChunkById(int chunkId, out Chunk chunk)
+    {
+        if ((uint)chunkId < (uint)_chunksById.Length && _chunksById[chunkId] is { } found)
+        {
+            chunk = found;
+            return true;
+        }
+
+        chunk = null!;
+        return false;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private Chunk GetRecordChunk(in EntityRecord record) => GetChunkById(record.ChunkId);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private Archetype GetRecordArchetype(in EntityRecord record) => _archetypes[GetRecordChunk(record).ArchetypeId];
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private ref EntityRecord RecordAt(int recordIndex) => ref _records.RefAt(recordIndex);
 
     private bool TryResolve(Entity entity, out int recordIndex)
@@ -1224,7 +1334,9 @@ public sealed partial class World : IDisposable
         }
 
         ref readonly var record = ref RecordAt(recordIndex);
-        return record.Archetype >= 0 && record.Generation == entity.Generation;
+        return record.ChunkId >= 0
+            && record.Generation == entity.Generation
+            && TryGetChunkById(record.ChunkId, out _);
     }
 
     private QueryPlan GetOrCreateQuery(QuerySpec spec)
@@ -1384,19 +1496,19 @@ public sealed partial class World : IDisposable
 
     private readonly struct DestroyEntry
     {
-        public DestroyEntry(Entity entity, int recordIndex, int archetype, int chunk, int slotIndex)
+        public DestroyEntry(Entity entity, int recordIndex, int archetype, int chunkId, int slotIndex)
         {
             Entity = entity;
             RecordIndex = recordIndex;
             Archetype = archetype;
-            Chunk = chunk;
+            ChunkId = chunkId;
             SlotIndex = slotIndex;
         }
 
         public Entity Entity { get; }
         public int RecordIndex { get; }
         public int Archetype { get; }
-        public int Chunk { get; }
+        public int ChunkId { get; }
         public int SlotIndex { get; }
     }
 
@@ -1408,7 +1520,7 @@ public sealed partial class World : IDisposable
         {
             int result = x.Archetype.CompareTo(y.Archetype);
             if (result != 0) return result;
-            result = x.Chunk.CompareTo(y.Chunk);
+            result = x.ChunkId.CompareTo(y.ChunkId);
             return result != 0 ? result : y.SlotIndex.CompareTo(x.SlotIndex);
         }
     }

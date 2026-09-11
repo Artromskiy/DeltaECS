@@ -93,7 +93,7 @@ public sealed partial class World : IEcsWorld
         }
 
         ref readonly var record = ref RecordAt(recordIndex);
-        ReadOnlySpan<ComponentId> components = _archetypes[record.Archetype].ComponentIds;
+        ReadOnlySpan<ComponentId> components = GetRecordArchetype(record).ComponentIds;
         totalCount = components.Length;
         components[..Math.Min(components.Length, destination.Length)].CopyTo(destination);
         return true;
@@ -122,7 +122,8 @@ public sealed partial class World : IEcsWorld
         }
 
         ref readonly var record = ref RecordAt(recordIndex);
-        var archetype = _archetypes[record.Archetype];
+        var chunk = GetRecordChunk(record);
+        var archetype = _archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(component, out int componentIndex))
         {
             error = new EcsReadError(EcsReadErrorCode.ComponentMissing);
@@ -135,7 +136,6 @@ public sealed partial class World : IEcsWorld
             return false;
         }
 
-        var chunk = archetype.GetChunk(record.Chunk);
         object? value = chunk.GetRawComponentRow(componentIndex).GetValue(record.SlotIndex);
         Stamp componentStamp = GetComponentStamp(
             archetype.Id,
@@ -172,7 +172,8 @@ public sealed partial class World : IEcsWorld
         }
 
         ref readonly var record = ref RecordAt(recordIndex);
-        var archetype = _archetypes[record.Archetype];
+        var chunk = GetRecordChunk(record);
+        var archetype = _archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(component, out int componentIndex))
         {
             error = new EcsWriteError(EcsWriteErrorCode.ComponentMissing);
@@ -186,7 +187,6 @@ public sealed partial class World : IEcsWorld
             return false;
         }
 
-        var chunk = archetype.GetChunk(record.Chunk);
         if (GetComponentStamp(archetype.Id, chunk, componentIndex, record.SlotIndex) != expectedStamp)
         {
             error = new EcsWriteError(EcsWriteErrorCode.StaleStamp);

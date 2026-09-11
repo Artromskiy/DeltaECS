@@ -69,9 +69,10 @@ public sealed partial class World
             }
 
             ref readonly var record = ref RecordAt(recordIndex);
-            if (record.Archetype != lastArchetype)
+            int archetypeId = GetRecordChunk(record).ArchetypeId;
+            if (archetypeId != lastArchetype)
             {
-                lastArchetype = record.Archetype;
+                lastArchetype = archetypeId;
                 lastMatches = plan.MatchesArchetype(lastArchetype);
             }
 
@@ -114,9 +115,10 @@ public sealed partial class World
             }
 
             ref readonly EntityRecord record = ref RecordAt(recordIndex);
-            if (record.Archetype != lastArchetype)
+            int archetypeId = GetRecordChunk(record).ArchetypeId;
+            if (archetypeId != lastArchetype)
             {
-                lastArchetype = record.Archetype;
+                lastArchetype = archetypeId;
                 lastMatches = plan.MatchesArchetype(lastArchetype);
             }
 
@@ -186,9 +188,10 @@ public sealed partial class World
             }
 
             ref readonly var record = ref RecordAt(recordIndex);
-            if (record.Archetype != lastArchetype)
+            int archetypeId = GetRecordChunk(record).ArchetypeId;
+            if (archetypeId != lastArchetype)
             {
-                lastArchetype = record.Archetype;
+                lastArchetype = archetypeId;
                 lastMatches = plan.MatchesArchetype(lastArchetype);
             }
 
