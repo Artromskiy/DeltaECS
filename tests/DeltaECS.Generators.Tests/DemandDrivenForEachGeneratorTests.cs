@@ -119,6 +119,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(run);
 
         Assert.That(run.Diagnostics, Is.Empty);
+        Assert.That(run.GeneratedTrees.Count, Is.GreaterThan(0), string.Join(Environment.NewLine, run.Diagnostics.Select(static value => value.ToString())));
         Assert.That(generated, Does.Contain("ForEachAction_WI<global::Delta.ECS.Position, global::Delta.ECS.Velocity>"));
         Assert.That(generated, Does.Contain("cursor.GetGeneratedWriteReferenceTrusted<global::Delta.ECS.Position>(_access0)"));
         Assert.That(generated, Does.Contain("cursor.GetGeneratedReadReferenceTrusted<global::Delta.ECS.Velocity>(_access1)"));
@@ -643,6 +644,27 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void WhereSupportsPredicatesWithoutEntityAndWhereEntityKeepsEntityForm()
+    {
+        GeneratorDriverRunResult run = RunGenerator(WhereWithoutEntitySource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty);
+        Assert.That(generated, Does.Contain(" Where<T1>(this World world, in Query query"));
+        Assert.That(generated, Does.Contain(" WhereEntity<T1>(this World world, in Query query"));
+        Assert.That(generated, Does.Contain("GeneratedWherePredicate_"));
+        Assert.That(generated, Does.Contain("bool GeneratedWherePredicate_"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, WhereWithoutEntitySource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
     public void WherePredicateRejectsWritableComponents()
     {
         GeneratorDriverRunResult run = RunGenerator(WhereWritablePredicateSource);
@@ -650,6 +672,49 @@ public sealed class DemandDrivenForEachGeneratorTests
         Diagnostic diagnostic = run.Diagnostics.Single(static value => value.Id == "DECSGEN006");
         Assert.That(diagnostic.GetMessage(CultureInfo.InvariantCulture), Does.Contain("cannot write components"));
         Assert.That(run.GeneratedTrees, Is.Empty);
+    }
+
+    [Test]
+    public void WhereGeneratorSupportsFunctorPredicatesAndContextTerminals()
+    {
+        GeneratorDriverRunResult run = RunGenerator(WhereFunctorSource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty);
+        Assert.That(run.GeneratedTrees.Count, Is.GreaterThan(0));
+        Assert.That(generated, Does.Contain("_predicate.Invoke(ref _predicateContext, entity"));
+        Assert.That(generated, Does.Contain("_action.Invoke(ref _context, entity"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, WhereFunctorSource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
+    public void WhereGeneratorEmitsInterceptionForStaticTerminalCallbacks()
+    {
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(WhereInterceptionSource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty);
+        Assert.That(generated, Does.Contain("GeneratedWhereInterceptor_"));
+        Assert.That(generated, Does.Contain("InterceptsLocationAttribute"));
+        Assert.That(generated, Does.Contain("Predicate_"));
+        Assert.That(generated, Does.Contain("execution.MarkArchetypeWrites"));
+        Assert.That(generated, Does.Contain("ref global::Delta.ECS.InterceptedWhereSystem.Mutation action"));
+        Assert.That(generated, Does.Contain("action.Invoke"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, WhereInterceptionSource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
     private static GeneratorDriverRunResult RunGenerator()
@@ -811,6 +876,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         public interface IForEachEntity { }
         public interface IForEachContext<TContext> { }
         public interface IForEachContextEntity<TContext> { }
+        public interface IWherePredicate { }
         public interface IGeneratedWhereInvoker
         {
             void Invoke(ref GeneratedQuerySlots slots);
@@ -1148,26 +1214,26 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public static void Run(World world, in Query query)
             {
-                world.Where(in query, static (Entity entity, in Health health) => health.Value <= 0).Destroy();
-                world.Where(in query, static (Entity entity, in Health health) => health.Value <= 0).Add<Dead>();
-                world.Where(in query, static (Entity entity, in Health health) => health.Value <= 0).Remove<Alive>();
-                world.Where(in query, static (Entity entity, in Health health) => health.Value <= 0)
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Destroy();
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Add<Dead>();
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Remove<Alive>();
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
                     .ForEachEntity(static entity => _ = entity);
-                world.Where(in query, static (Entity entity, in Health health) => health.Value <= 0)
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
                     .ForEach(static (ref Health health) => health.Value = 0);
-                world.Where(in query, static (Entity entity, in Health health, in Team team) =>
+                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
                     health.Value <= 0 && team.Id == 1)
                     .Destroy();
-                world.Where(in query, static (Entity entity, in Health health, in Team team) =>
+                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
                     health.Value <= 0 && team.Id == 1)
                     .Add<Dead>();
-                world.Where(in query, static (Entity entity, in Health health, in Team team) =>
+                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
                     health.Value <= 0 && team.Id == 1)
                     .Remove<Alive>();
-                world.Where(in query, static (Entity entity, in Health health, in Team team) =>
+                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
                     health.Value <= 0 && team.Id == 1)
                     .ForEachEntity(static (Entity current, ref Health health, in Team team) => _ = current.Index + team.Id);
-                world.Where(in query, static (Entity entity, in Health health, in Team team) =>
+                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
                     health.Value <= 0 && team.Id == 1)
                     .ForEach(static (ref Health health, in Team team) => health.Value = team.DefaultHealth);
             }
@@ -1183,15 +1249,56 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public static void Run(World world, in Query query)
             {
-                world.Where(
+                world.WhereEntity(
                         in query,
                         static (Entity entity, in Health health) => health.Value <= 0)
                     .Destroy();
-                world.Where(
+                world.WhereEntity(
                         in query,
                         static (Entity entity, ref readonly Health health, in Team team) =>
                             health.Value <= 0 && team.Id == 1)
                     .Add<Dead>();
+            }
+        }
+        """;
+
+    private const string WhereWithoutEntitySource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        struct Dead { }
+        struct PredicateState { public int Seen; }
+        struct HealthPredicate : IWherePredicate
+        {
+            public bool Invoke(in Health health) => health.Value <= 0;
+        }
+        struct ContextPredicate : IWherePredicate
+        {
+            public bool Invoke(ref PredicateState state, in Health health)
+            {
+                state.Seen++;
+                return health.Value <= 0;
+            }
+        }
+        static class ReadonlyPredicateSystem
+        {
+            public static void Run(World world, in Query query)
+            {
+                world.Where(in query, static (in Health health) => health.Value <= 0).Destroy();
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= entity.Index).Destroy();
+                var state = new PredicateState();
+                world.Where(
+                        in query,
+                        ref state,
+                        static (ref PredicateState state, in Health health) =>
+                        {
+                            state.Seen++;
+                            return health.Value <= 0;
+                        })
+                    .Add<Dead>();
+                var predicate = new HealthPredicate();
+                world.Where(in query, ref predicate).Remove<Dead>();
+                var contextPredicate = new ContextPredicate();
+                world.Where(in query, ref state, ref contextPredicate).Destroy();
             }
         }
         """;
@@ -1203,7 +1310,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public static void Run(World world, in Query query)
             {
-                world.Where(
+                world.WhereEntity(
                         in query,
                         static (Entity entity, ref Health health) => health.Value <= 0)
                     .Destroy();
@@ -1454,6 +1561,94 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static void Use(World world, Query query)
             {
                 world.ForEach<T1>(in query, static (ref T1 value) => value.Value += Delta);
+            }
+        }
+        """;
+
+    private const string WhereFunctorSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        struct Dead { }
+        struct PredicateState { public int Seen; }
+        struct ActionState { public int Count; }
+        struct HealthPredicate : IWherePredicate
+        {
+            public bool Invoke(ref PredicateState state, Entity entity, in Health health)
+            {
+                state.Seen += entity.Index;
+                return health.Value <= 0;
+            }
+        }
+        struct HealthAction : IForEachContextEntity<ActionState>
+        {
+            public void Invoke(ref ActionState state, Entity entity, ref Health health)
+            {
+                state.Count += entity.Index;
+                health.Value = 0;
+            }
+        }
+        static class FunctorWhereSystem
+        {
+            public static void Run(World world, in Query query)
+            {
+                var predicateState = new PredicateState();
+                var predicate = new HealthPredicate();
+                var actionState = new ActionState();
+                var action = new HealthAction();
+                world.WhereEntity(in query, ref predicateState, ref predicate)
+                    .ForEachEntity(ref actionState, ref action);
+            }
+        }
+        """;
+
+    private const string WhereInterceptionSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        static class InterceptedWhereSystem
+        {
+            internal struct Mutation : IForEach
+            {
+                public void Invoke(ref Health health) => health.Value++;
+            }
+
+            internal struct Context
+            {
+                public int Count;
+            }
+
+            internal struct EntityMutation : IForEachContextEntity<Context>
+            {
+                public void Invoke(ref Context context, Entity entity, ref Health health)
+                {
+                    context.Count += entity.Index;
+                    health.Value++;
+                }
+            }
+
+            public static void Run(World world, in Query query)
+            {
+                world.WhereEntity(
+                        in query,
+                        static (Entity entity, in Health health) => health.Value <= entity.Index)
+                    .ForEach(static (ref Health health) =>
+                    {
+                        health.Value = 0;
+                    });
+                world.Where(
+                        in query,
+                        static (in Health health) => health.Value > 0)
+                    .ForEach(static (ref Health health) => health.Value++);
+                var action = new Mutation();
+                world.WhereEntity(
+                        in query,
+                        static (Entity entity, in Health health) => health.Value <= entity.Index)
+                    .ForEach(ref action);
+                var context = new Context();
+                var entityAction = new EntityMutation();
+                world.WhereEntity(
+                        in query,
+                        static (Entity entity, in Health health) => health.Value <= entity.Index)
+                    .ForEachEntity(ref context, ref entityAction);
             }
         }
         """;

@@ -190,7 +190,7 @@ public sealed class StampTests
 
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp before), Is.True);
 
-        world.Where(
+        world.WhereEntity(
                 in query,
                 static (Entity current, in Position position) => position.X > 0)
             .ForEachEntity(static current => _ = current);

@@ -47,6 +47,34 @@ var movement = new Movement();
 world.ForEach(in query, ref movement);
 ```
 
+Query-wide filters use the same value-type callback model. Implement
+`IWherePredicate` for a read-only predicate and keep writes in the terminal
+`IForEach*` functor. Use `Where` when the predicate needs only components and
+`WhereEntity` when it also needs the current entity:
+
+```csharp
+var predicateState = new PredicateState();
+var predicate = new IsDeadPredicate();
+var actionState = new ActionState();
+var action = new ResetHealthAction();
+world.WhereEntity(in query, ref predicateState, ref predicate)
+    .ForEachEntity(ref actionState, ref action);
+```
+
+The predicate `Invoke` order is `ref context` when a context is supplied,
+then `Entity` for `WhereEntity`, then read-only components. Terminal functors
+follow the regular `ForEach` ordering and keep their caller-owned context by
+reference. A no-entity predicate can be as small as:
+
+```csharp
+struct IsDead : IWherePredicate
+{
+    public bool Invoke(in Health health) => health.Value <= 0;
+}
+
+world.Where(in query, ref predicate).Destroy();
+```
+
 The compiler-support runtime bridge is implemented under
 `src/DeltaECS/Generator/GeneratedRuntime.cs`. Consumers should call
 `World.ForEach`/`ForEachEntity`, not the runtime bridge directly.

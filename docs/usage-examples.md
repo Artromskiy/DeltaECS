@@ -100,6 +100,26 @@ Functor equivalents implement `IForEachContext<TContext>` or
 `Invoke`. The [README](../README.md#generate-a-stateful-system) demonstrates a
 functor carrying its own state instead.
 
+The same functor contracts work after a query-wide `Where`. A predicate uses
+`IWherePredicate` and remains read-only; a terminal functor can mutate
+components and receive its own context:
+
+```csharp
+var predicateState = new PredicateState();
+var predicate = new IsDeadPredicate();
+var actionState = new ActionState();
+var action = new ResetHealthAction();
+world.WhereEntity(in query, ref predicateState, ref predicate)
+    .ForEachEntity(ref actionState, ref action);
+```
+
+`Invoke` receives `ref TContext` when a context is supplied, then `Entity` for
+`WhereEntity`, then predicate components. `Where` omits `Entity`. Terminal
+`ForEach` uses the usual component-only form; `ForEachEntity` includes the
+entity after its context. Static-lambda terminals can be lowered by the
+optional interceptor path to the same chunk execution as ordinary generated
+`ForEach`.
+
 ## Use explicit component IDs
 
 This is the runtime query equivalent of `world.WhereAll<Position, Velocity>()`:
@@ -141,9 +161,9 @@ when that component is absent.
 ## Filter the whole query before a mutation
 
 `world.Where(in query, predicate)` creates a stack-only view over every entity
-matched by `query`. The generated predicate receives `Entity` first, followed
-by read-only typed component references. Its terminal completes the entire operation
-before returning:
+matched by `query`. Its predicate receives only read-only typed component
+references. `WhereEntity` is the form that receives `Entity` first. Its
+terminal completes the entire operation before returning:
 
 These examples use the following component markers:
 
@@ -155,18 +175,18 @@ public struct Alive { }
 ```
 
 ```csharp
-int destroyed = world.Where(
+int destroyed = world.WhereEntity(
         in query,
         static (Entity current, in Health health) => health.Value <= 0)
     .Destroy();
 
-int tagged = world.Where(
+int tagged = world.WhereEntity(
         in query,
         static (Entity current, in Health health, in Team team) =>
             health.Value <= 0 && team.Id == 1)
     .Add<Dead>();
 
-world.Where(
+world.WhereEntity(
         in query,
         static (Entity current, in Health health, in Team team) =>
             health.Value <= 0 && team.Id == 1)
@@ -176,9 +196,18 @@ world.Where(
 Use either `in` or `ref readonly` for a zero-copy read-only component reference:
 
 ```csharp
-world.Where(
+world.WhereEntity(
         in query,
         static (Entity current, ref readonly Health health) => health.Value <= 0)
+    .Destroy();
+```
+
+When identity is not needed, omit the entity parameter:
+
+```csharp
+int destroyed = world.Where(
+        in query,
+        static (in Health health) => health.Value <= 0)
     .Destroy();
 ```
 
@@ -194,7 +223,7 @@ For non-structural work, use `ForEachEntity` when the callback needs identity,
 or `ForEach` when it needs only components:
 
 ```csharp
-world.Where(
+world.WhereEntity(
         in query,
         static (Entity current, in Health health, in Team team) =>
             health.Value <= 0 && team.Id == 1)
@@ -203,13 +232,13 @@ world.Where(
 
 world.Where(
         in query,
-        static (Entity current, in Health health, in Team team) =>
+        static (in Health health, in Team team) =>
             health.Value <= 0 && team.Id == 1)
     .ForEach(static (ref Health health, in Team team) =>
         health.Value = team.DefaultHealth);
 ```
 
-The intermediate view is a `readonly ref struct`, so it cannot be stored in a
+The intermediate view is a stack-only `ref struct`, so it cannot be stored in a
 class, boxed, or returned. It holds the predicate only for the duration of the
 terminal call; no command is retained. `Where` scans all query matches;
 `world.From(items).Where(in query)` remains the API for filtering only an

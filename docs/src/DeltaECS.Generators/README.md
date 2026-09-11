@@ -36,12 +36,14 @@ archetypes or structural kernels.
 
 - Calls may include an `Entity`, mutable caller context, primary registrations,
   or explicit `ComponentId` arguments.
-- Query-wide `world.Where(in query, predicate)` predicates are read-only. Use
-  `in T` or `ref readonly T` component parameters; a writable `ref T` reports
-  `DECSGEN006`. Use the terminal `ForEach` callback for component mutations:
+- Query-wide `world.Where(in query, predicate)` predicates are read-only and
+  receive only typed components. `WhereEntity` is the corresponding form that
+  also receives `Entity` first. Use `in T` or `ref readonly T` component
+  parameters; a writable `ref T` reports `DECSGEN006`. Use the terminal
+  `ForEach` callback for component mutations:
 
   ```csharp
-  world.Where(in query,
+  world.WhereEntity(in query,
       static (Entity entity, ref readonly Health health) => health.Value <= 0)
       .ForEach(static (ref Health health) => health.Value = 0);
   ```
@@ -55,6 +57,54 @@ archetypes or structural kernels.
 - Functors implement only `IForEach`, `IForEachEntity`,
   `IForEachContext<TContext>`, or `IForEachContextEntity<TContext>`; generated
   interface names never contain component types or read/write patterns.
+- Query predicate functors implement `IWherePredicate`. The no-entity form
+  starts with typed read-only components; `WhereEntity` adds `Entity` before
+  them. When a separate caller-owned context is needed, pass it by `ref` and
+  put `ref TContext` first in `Invoke`, just as with a `ForEach` callback. A
+  terminal functor can keep its own context too:
+
+  ```csharp
+  struct IsDead : IWherePredicate
+  {
+      public bool Invoke(ref PredicateState state, Entity entity, in Health health)
+      {
+          state.Visited++;
+          return health.Value <= 0;
+      }
+  }
+
+  struct Reset : IForEachContextEntity<ActionState>
+  {
+      public void Invoke(ref ActionState state, Entity entity, ref Health health)
+      {
+          state.Matched++;
+          health.Value = 0;
+      }
+  }
+
+  var predicateState = new PredicateState();
+  var predicate = new IsDead();
+  var actionState = new ActionState();
+  var action = new Reset();
+  world.WhereEntity(in query, ref predicateState, ref predicate)
+      .ForEachEntity(ref actionState, ref action);
+  ```
+
+  The lambda form follows the same ordering:
+
+  ```csharp
+  world.Where(in query,
+      ref predicateState,
+      static (ref PredicateState state, in Health health) =>
+      {
+          state.Visited++;
+          return health.Value <= 0;
+      }).Destroy();
+  ```
+
+  `Where` predicates remain read-only; component writes belong in the terminal
+  functor. The generated view and functors stay stack-only and copy caller
+  state back before the terminal returns.
 
 ## Generic structural operations
 
@@ -136,9 +186,12 @@ enabled, a supported `World.ForEach`/`ForEachEntity` call with a synchronous
 static non-capturing lambda or an unambiguous static method group receives a
 generated interceptor. A lambda body is copied into a generated struct
 functor; a method group functor forwards directly to its resolved static
-method. Both forms enter the same closed dense execution method as the
-explicit functor API. Query ownership, leases, mutation stamps and write-row
-marking therefore remain in the shared runtime path.
+method. The same lowering is used for a static-lambda
+`world.Where(...).ForEach(...)` or `world.WhereEntity(...).ForEach(...)` terminal
+and for a functor terminal with a
+static-lambda predicate. These forms enter a closed dense execution method with
+chunk-level row resolution. Query ownership, leases, mutation stamps and
+write-row marking therefore remain in the shared runtime path.
 
 When the consumer uses C# 9 or C# 10, including Unity projects with a
 `netstandard2.1` API profile, the generator skips interceptor source because

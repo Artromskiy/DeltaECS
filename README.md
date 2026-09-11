@@ -130,9 +130,11 @@ public struct Movement : IForEach
 The generator reads `Invoke` and emits the required overload. Passing the
 functor by `ref` keeps its accumulated state. Lambda parameters must be typed:
 `ref T` writes, `in T` / `ref readonly T` read, and `T` reads a value copy.
-The predicate in `world.Where(in query, predicate)` is read-only, so use
-`in T` or `ref readonly T` there; mutate selected components in a terminal
-callback such as `ForEach`.
+`world.Where(in query, predicate)` is the component-only read-only predicate
+form. Use `world.WhereEntity(in query, predicate)` when the predicate also
+needs the current `Entity`. Use `in T` or `ref readonly T` for predicate
+components; mutate selected components in a terminal callback such as
+`ForEach`.
 
 ## Benchmark snapshot
 

@@ -11,9 +11,10 @@ dependency on the generator assembly.
 ```
 
 The package places its analyzer assembly under `analyzers/dotnet/cs`. It
-generates consumer-side `ForEach`/`ForEachEntity` callback forms, generic
-primary-component `Add`/`Remove` structural façades, and typed `World` query
-factories on demand; storage and runtime execution remain in `DeltaECS`.
+generates consumer-side `ForEach`/`ForEachEntity` callback forms, query-wide
+`Where` predicate terminals, generic primary-component `Add`/`Remove`
+structural façades, and typed `World` query factories on demand; storage and
+runtime execution remain in `DeltaECS`.
 
 ```csharp
 Query combatants = world
@@ -30,6 +31,13 @@ query-plan cache.
 The generator targets `netstandard2.0` and is shipped from
 `analyzers/dotnet/cs`. Its target is independent from the target framework of
 the consumer project.
+
+Where functors implement `IWherePredicate`. Use `Where` for component-only
+predicates and `WhereEntity` when the predicate also needs the current entity.
+Terminal functors reuse the regular `IForEach*` contracts, including their
+`ref` context forms. See the
+[generator API guide](../src/DeltaECS.Generators/README.md) for complete syntax
+and interceptor configuration.
 
 The generator is compiled against `Microsoft.CodeAnalysis.CSharp 4.3.0`, which
 is the Roslyn version required by Unity 6 source-generator projects. On newer

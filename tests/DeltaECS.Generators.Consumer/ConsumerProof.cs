@@ -273,7 +273,7 @@ public static class ConsumerProof
         Entity[] entities = CreateMutationEntities(world, healthId, teamId, aliveId);
         Query query = CreateMutationQuery(world, healthId, teamId, aliveId);
 
-        int destroyed = world.Where(
+        int destroyed = world.WhereEntity(
                 in query,
                 static (Entity entity, in Health health, in Team team) => health.Value <= 0 && team.Id == 1)
             .Destroy();
@@ -290,7 +290,7 @@ public static class ConsumerProof
         Entity[] entities = CreateMutationEntities(world, healthId, teamId, aliveId);
         Query query = CreateMutationQuery(world, healthId, teamId, aliveId);
 
-        int added = world.Where(
+        int added = world.WhereEntity(
                 in query,
                 static (Entity entity, in Health health) => health.Value <= 0)
             .Add<Dead>();
@@ -312,7 +312,7 @@ public static class ConsumerProof
         Entity[] entities = CreateMutationEntities(world, healthId, teamId, aliveId);
         Query query = CreateMutationQuery(world, healthId, teamId, aliveId);
 
-        int removed = world.Where(
+        int removed = world.WhereEntity(
                 in query,
                 static (Entity entity, in Health health, in Team team) => health.Value <= 0 && team.Id == 1)
             .Remove<Alive>();
@@ -330,18 +330,18 @@ public static class ConsumerProof
         Query query = CreateMutationQuery(world, healthId, teamId, aliveId);
         int entityCallbackCount = 0;
 
-        world.Where(
+        world.WhereEntity(
                 in query,
                 static (Entity entity, in Health health) => health.Value <= 0)
             .ForEachEntity(static (Entity entity, ref Health health, in Team team) =>
             {
                 health.Value = team.DefaultHealth + entity.Index;
             });
-        world.Where(
+        world.WhereEntity(
                 in query,
                 static (Entity entity, in Health health) => health.Value > 0)
             .ForEachEntity(static entity => _ = entity);
-        world.Where(
+        world.WhereEntity(
                 in query,
                 static (Entity entity, in Health health) => health.Value >= 0)
             .ForEach(static (ref Health health, in Team team) => health.Value = team.DefaultHealth);
@@ -351,7 +351,7 @@ public static class ConsumerProof
         {
             try
             {
-                world.Where(
+                world.WhereEntity(
                         in query,
                         static (Entity entity, in Health health) => health.Value <= 0)
                     .Destroy();
