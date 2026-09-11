@@ -14,6 +14,7 @@ internal sealed class Archetype
     private readonly List<Chunk> _chunks = new();
     private readonly List<int> _availableChunkStack = new();
     private NativeMemory<bool> _availableChunkFlags = new(0);
+    private NativeMemory<int> _availableChunkPositions = new(0);
     private NativeMemory<int> _activeChunkIndices = new(0);
     private Chunk[] _activeChunks = Array.Empty<Chunk>();
     private NativeMemory<int> _activeChunkPositions = new(0);
@@ -164,6 +165,7 @@ internal sealed class Archetype
         _chunks.Add(new Chunk(_chunkCapacity, _layouts, _rowOperations, chunkId, _id, chunkIndex));
         EnsureAvailableChunkCapacity(chunkIndex);
         _activeChunkPositions.RefAt(chunkIndex) = -1;
+        _availableChunkPositions.RefAt(chunkIndex) = -1;
         slotIndex = _chunks[chunkIndex].Add(entity, out reusedSlot);
         ActivateChunk(chunkIndex);
         if (!_chunks[chunkIndex].IsFull)
@@ -188,6 +190,7 @@ internal sealed class Archetype
             _chunks.Add(chunk);
             EnsureAvailableChunkCapacity(chunkIndex);
             _activeChunkPositions.RefAt(chunkIndex) = -1;
+            _availableChunkPositions.RefAt(chunkIndex) = -1;
         }
 
         bool wasEmpty = chunk.IsEmpty;
@@ -315,6 +318,7 @@ internal sealed class Archetype
         _chunks.Add(chunk);
         EnsureAvailableChunkCapacity(chunkIndex);
         _activeChunkPositions.RefAt(chunkIndex) = -1;
+        _availableChunkPositions.RefAt(chunkIndex) = -1;
         _availableChunkFlags.RefAt(chunkIndex) = false;
         chunk.SetArchetypeLocation(_id, chunkIndex);
         if (!chunk.IsEmpty)
@@ -345,7 +349,6 @@ internal sealed class Archetype
 
         RemoveAvailableChunk(chunkIndex);
         _activeChunkPositions.RefAt(chunkIndex) = -1;
-        _availableChunkFlags.RefAt(chunkIndex) = false;
         _chunks[chunkIndex] = adopted;
         adopted.SetArchetypeLocation(_id, chunkIndex);
         ActivateChunk(chunkIndex);
@@ -383,8 +386,10 @@ internal sealed class Archetype
             _chunks[chunkIndex] = replacement;
             replacement.SetArchetypeLocation(_id, chunkIndex);
             _availableChunkFlags.RefAt(lastIndex) = false;
+            _availableChunkPositions.RefAt(lastIndex) = -1;
             _activeChunkPositions.RefAt(lastIndex) = -1;
             _availableChunkFlags.RefAt(chunkIndex) = false;
+            _availableChunkPositions.RefAt(chunkIndex) = -1;
             _activeChunkPositions.RefAt(chunkIndex) = replacementActivePosition;
             if (replacementActivePosition >= 0)
             {
@@ -399,6 +404,7 @@ internal sealed class Archetype
         else
         {
             _availableChunkFlags.RefAt(chunkIndex) = false;
+            _availableChunkPositions.RefAt(chunkIndex) = -1;
             _activeChunkPositions.RefAt(chunkIndex) = -1;
         }
 
@@ -425,6 +431,7 @@ internal sealed class Archetype
             chunkIndex = _availableChunkStack[stackIndex];
             _availableChunkStack.RemoveAt(stackIndex);
             _availableChunkFlags.RefAt(chunkIndex) = false;
+            _availableChunkPositions.RefAt(chunkIndex) = -1;
             chunk = _chunks[chunkIndex];
             if (!chunk.IsFull)
             {
@@ -445,6 +452,7 @@ internal sealed class Archetype
         }
 
         _availableChunkFlags.RefAt(chunkIndex) = true;
+        _availableChunkPositions.RefAt(chunkIndex) = _availableChunkStack.Count;
         _availableChunkStack.Add(chunkIndex);
     }
 
@@ -455,15 +463,25 @@ internal sealed class Archetype
             return;
         }
 
-        for (int stackIndex = _availableChunkStack.Count - 1; stackIndex >= 0; stackIndex--)
+        int stackIndex = _availableChunkPositions.RefAt(chunkIndex);
+        if ((uint)stackIndex >= (uint)_availableChunkStack.Count)
         {
-            if (_availableChunkStack[stackIndex] == chunkIndex)
-            {
-                _availableChunkStack.RemoveAt(stackIndex);
-            }
+            _availableChunkFlags.RefAt(chunkIndex) = false;
+            _availableChunkPositions.RefAt(chunkIndex) = -1;
+            return;
         }
 
+        int lastStackIndex = _availableChunkStack.Count - 1;
+        if (stackIndex != lastStackIndex)
+        {
+            int movedChunkIndex = _availableChunkStack[lastStackIndex];
+            _availableChunkStack[stackIndex] = movedChunkIndex;
+            _availableChunkPositions.RefAt(movedChunkIndex) = stackIndex;
+        }
+
+        _availableChunkStack.RemoveAt(lastStackIndex);
         _availableChunkFlags.RefAt(chunkIndex) = false;
+        _availableChunkPositions.RefAt(chunkIndex) = -1;
     }
 
     private void EnsureAvailableChunkCapacity(int chunkIndex)
@@ -472,6 +490,7 @@ internal sealed class Archetype
         {
             int capacity = Math.Max(chunkIndex + 1, _availableChunkFlags.Length == 0 ? 4 : _availableChunkFlags.Length * 2);
             _availableChunkFlags.Resize(capacity);
+            _availableChunkPositions.Resize(capacity);
             _activeChunkPositions.Resize(capacity);
         }
     }
@@ -599,6 +618,7 @@ internal sealed class Archetype
 
         _componentIds.Dispose();
         _availableChunkFlags.Dispose();
+        _availableChunkPositions.Dispose();
         _activeChunkIndices.Dispose();
         _activeChunkPositions.Dispose();
         _queryPlans.Clear();
