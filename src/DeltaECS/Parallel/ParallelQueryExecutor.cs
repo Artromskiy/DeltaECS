@@ -57,7 +57,9 @@ internal sealed class ParallelQueryExecutor : IDisposable
             int workerCount = requestedWorkerCount == 0
                 ? DefaultWorkerCount
                 : requestedWorkerCount;
-            workerCount = Math.Max(1, workerCount);
+            workerCount = Math.Min(
+                Math.Max(1, Environment.ProcessorCount),
+                Math.Max(1, workerCount));
             if (workerCount == 1)
             {
                 ExecuteSingleThread(plan, session, generation, action);

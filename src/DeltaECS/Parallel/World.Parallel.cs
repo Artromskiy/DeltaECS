@@ -20,8 +20,9 @@ public sealed partial class World
     /// worker threads and grow reusable buffers; subsequent calls do not allocate for the
     /// same or smaller query topology. A non-empty query always uses the worker protocol
     /// regardless of its entity count; <paramref name="workerCount"/> equal to one explicitly
-    /// selects a single worker. The callback must not retain <paramref name="action"/> data or
-    /// the supplied chunk after it returns.
+    /// selects a single worker. Requested worker counts are clamped to the available processor
+    /// count. The callback must not retain <paramref name="action"/> data or the supplied chunk
+    /// after it returns.
     /// </remarks>
     public void ForEachParallel(
         in Query query,

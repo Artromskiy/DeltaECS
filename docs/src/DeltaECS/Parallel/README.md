@@ -26,7 +26,8 @@ explicit synchronization strategy when the callback shares state.
 parallel worker protocol for a non-empty query. `workerCount: 1` explicitly
 selects one worker and therefore runs sequentially. Context and functor forms
 are currently serialized when their state cannot be safely merged between
-worker-local invoker copies.
+worker-local invoker copies. Any requested value above the available processor
+count is clamped to `Environment.ProcessorCount`.
 
 ## Coordination model
 

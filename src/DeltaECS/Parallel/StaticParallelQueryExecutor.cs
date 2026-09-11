@@ -47,7 +47,9 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         int workerCount = requestedWorkerCount == 0
             ? DefaultWorkerCount
             : requestedWorkerCount;
-        workerCount = Math.Max(1, workerCount);
+        workerCount = Math.Min(
+            Math.Max(1, Environment.ProcessorCount),
+            Math.Max(1, workerCount));
 
         if (invoker.RequiresSingleThread || workerCount == 1)
         {
