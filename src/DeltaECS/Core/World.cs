@@ -218,16 +218,24 @@ public sealed partial class World : IDisposable
         => CreateBatch(archetype, output.Length, output);
 
     private int CreateBatch(Archetype archetype, int count)
-        => CreateBatch(archetype, count, Span<Entity>.Empty);
+        => CreateBatchNoOutput(archetype, count);
 
     private int CreateBatch(Archetype archetype, int count, Span<Entity> output)
     {
+        if (output.IsEmpty)
+        {
+            return CreateBatchNoOutput(archetype, count);
+        }
+
         if (count == 0)
         {
             return 0;
         }
 
         _records.EnsureCapacity(checked(_records.Count + count));
+        bool appendOnly = _freeCount == 0 && _freeRecordChunks.Count == 0;
+        int appendedRecordStart = _records.Count;
+        Span<EntityRecord> appendedRecords = appendOnly ? _records.Append(count) : default;
         int outputIndex = 0;
         while (outputIndex < count)
         {
@@ -247,39 +255,137 @@ public sealed partial class World : IDisposable
             }
 
             chunk.StampAllRange(slotIndex, reserved, new Stamp(1));
-            for (int reservedIndex = 0; reservedIndex < reserved; reservedIndex++)
+            Span<Entity> chunkEntities = chunk.RawEntities;
+            if (appendOnly)
             {
-                int reservedSlot = slotIndex + reservedIndex;
-                int recordIndex;
-                if (chunk.TryTakeFreeRecordForSlot(reservedSlot, out int freeRecordIndex))
+                int recordOffset = outputIndex;
+                for (int reservedIndex = 0; reservedIndex < reserved; reservedIndex++)
                 {
-                    if (!chunk.HasFreeRecordBlock)
+                    int reservedSlot = slotIndex + reservedIndex;
+                    int recordIndex = appendedRecordStart + recordOffset + reservedIndex;
+                    appendedRecords[recordOffset + reservedIndex] = new EntityRecord
                     {
-                        CompleteFreeRecordBlock(chunk);
+                        Generation = 1,
+                        ChunkId = chunk.GlobalId,
+                        SlotIndex = reservedSlot
+                    };
+                    var entity = new Entity(recordIndex, 1);
+                    chunkEntities[reservedSlot] = entity;
+                    output.RefAt(outputIndex++) = entity;
+                }
+            }
+            else
+            {
+                for (int reservedIndex = 0; reservedIndex < reserved; reservedIndex++)
+                {
+                    int reservedSlot = slotIndex + reservedIndex;
+                    int recordIndex;
+                    if (chunk.TryTakeFreeRecordForSlot(reservedSlot, out int freeRecordIndex))
+                    {
+                        if (!chunk.HasFreeRecordBlock)
+                        {
+                            CompleteFreeRecordBlock(chunk);
+                        }
+
+                        recordIndex = RecycleRecord(freeRecordIndex);
+                    }
+                    else
+                    {
+                        recordIndex = AllocateRecord();
                     }
 
-                    recordIndex = RecycleRecord(freeRecordIndex);
+                    ref var record = ref RecordAt(recordIndex);
+                    var entity = new Entity(recordIndex, record.Generation);
+                    record.ChunkId = chunk.GlobalId;
+                    record.SlotIndex = reservedSlot;
+                    chunkEntities[reservedSlot] = entity;
+                    output.RefAt(outputIndex++) = entity;
                 }
-                else
-                {
-                    recordIndex = AllocateRecord();
-                }
-
-                ref var record = ref RecordAt(recordIndex);
-                var entity = new Entity(recordIndex, record.Generation);
-                record.ChunkId = chunk.GlobalId;
-                record.SlotIndex = reservedSlot;
-                chunk.RawEntities.RefAt(reservedSlot) = entity;
-                if (!output.IsEmpty)
-                {
-                    output.RefAt(outputIndex) = entity;
-                }
-
-                outputIndex++;
-                AliveEntityCount++;
             }
         }
 
+        AliveEntityCount += count;
+        return count;
+    }
+
+    private int CreateBatchNoOutput(Archetype archetype, int count)
+    {
+        if (count == 0)
+        {
+            return 0;
+        }
+
+        _records.EnsureCapacity(checked(_records.Count + count));
+        bool appendOnly = _freeCount == 0 && _freeRecordChunks.Count == 0;
+        int appendedRecordStart = _records.Count;
+        Span<EntityRecord> appendedRecords = appendOnly ? _records.Append(count) : default;
+        int created = 0;
+        while (created < count)
+        {
+            int remaining = count - created;
+            int chunkId = archetype.HasAvailableChunk(remaining) ? -1 : AllocateChunkId();
+            int reserved = archetype.ReserveRange(
+                remaining,
+                chunkId,
+                out _,
+                out var chunk,
+                out int reusedCount);
+            RegisterChunkStampStorage(chunk);
+            int slotIndex = chunk.Count - reserved;
+            if (reusedCount != 0)
+            {
+                chunk.InitializeSlotRange(slotIndex, reusedCount);
+            }
+
+            chunk.StampAllRange(slotIndex, reserved, new Stamp(1));
+            Span<Entity> chunkEntities = chunk.RawEntities;
+            if (appendOnly)
+            {
+                for (int reservedIndex = 0; reservedIndex < reserved; reservedIndex++)
+                {
+                    int reservedSlot = slotIndex + reservedIndex;
+                    int recordIndex = appendedRecordStart + created + reservedIndex;
+                    appendedRecords[created + reservedIndex] = new EntityRecord
+                    {
+                        Generation = 1,
+                        ChunkId = chunk.GlobalId,
+                        SlotIndex = reservedSlot
+                    };
+                    chunkEntities[reservedSlot] = new Entity(recordIndex, 1);
+                }
+            }
+            else
+            {
+                for (int reservedIndex = 0; reservedIndex < reserved; reservedIndex++)
+                {
+                    int reservedSlot = slotIndex + reservedIndex;
+                    int recordIndex;
+                    if (chunk.TryTakeFreeRecordForSlot(reservedSlot, out int freeRecordIndex))
+                    {
+                        if (!chunk.HasFreeRecordBlock)
+                        {
+                            CompleteFreeRecordBlock(chunk);
+                        }
+
+                        recordIndex = RecycleRecord(freeRecordIndex);
+                    }
+                    else
+                    {
+                        recordIndex = AllocateRecord();
+                    }
+
+                    ref var record = ref RecordAt(recordIndex);
+                    var entity = new Entity(recordIndex, record.Generation);
+                    record.ChunkId = chunk.GlobalId;
+                    record.SlotIndex = reservedSlot;
+                    chunkEntities[reservedSlot] = entity;
+                }
+            }
+
+            created += reserved;
+        }
+
+        AliveEntityCount += count;
         return count;
     }
 

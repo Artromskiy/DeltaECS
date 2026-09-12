@@ -16,7 +16,7 @@ internal struct ComponentStampStorage : IDisposable
         ThrowHelper.ThrowIfNegativeOrZero(capacity, nameof(capacity));
         _capacity = capacity;
         _componentCount = componentCount;
-        _values = new NativeMemory<Stamp>(checked(componentCount * capacity));
+        _values = new NativeMemory<Stamp>(0);
         _uniformStamps = new NativeMemory<Stamp>(componentCount);
         _uniformCounts = new NativeMemory<int>(componentCount);
     }
@@ -24,8 +24,13 @@ internal struct ComponentStampStorage : IDisposable
     internal readonly Stamp Get(int componentIndex, int slotIndex)
     {
         int offset = Offset(componentIndex, slotIndex);
-        return slotIndex < _uniformCounts.ReadOnlySpan.RefAt(componentIndex)
-            ? _uniformStamps.ReadOnlySpan.RefAt(componentIndex)
+        if (slotIndex < _uniformCounts.ReadOnlySpan.RefAt(componentIndex))
+        {
+            return _uniformStamps.ReadOnlySpan.RefAt(componentIndex);
+        }
+
+        return _values.Length == 0
+            ? default
             : _values.ReadOnlySpan.RefAt(offset);
     }
 
@@ -33,8 +38,13 @@ internal struct ComponentStampStorage : IDisposable
     internal readonly Stamp GetTrusted(int componentIndex, int slotIndex)
     {
         int offset = (componentIndex * _capacity) + slotIndex;
-        return slotIndex < _uniformCounts.ReadOnlySpan.RefAt(componentIndex)
-            ? _uniformStamps.ReadOnlySpan.RefAt(componentIndex)
+        if (slotIndex < _uniformCounts.ReadOnlySpan.RefAt(componentIndex))
+        {
+            return _uniformStamps.ReadOnlySpan.RefAt(componentIndex);
+        }
+
+        return _values.Length == 0
+            ? default
             : _values.ReadOnlySpan.RefAt(offset);
     }
 
@@ -114,19 +124,17 @@ internal struct ComponentStampStorage : IDisposable
             }
 
             int uniformCount = _uniformCounts.RefAt(sourceComponentIndex);
-            Span<Stamp> targetValues = replacement._values.Span
-                .Slice(targetComponentIndex * _capacity, _capacity);
-            if (uniformCount != 0)
-            {
-                targetValues[..uniformCount].Fill(_uniformStamps.RefAt(sourceComponentIndex));
-            }
-
             int copiedTail = _capacity - uniformCount;
-            if (copiedTail != 0)
+            replacement._uniformStamps.RefAt(targetComponentIndex) = _uniformStamps.RefAt(sourceComponentIndex);
+            replacement._uniformCounts.RefAt(targetComponentIndex) = uniformCount;
+            if (copiedTail != 0 && _values.Length != 0)
             {
+                replacement.EnsureValues();
                 _values.ReadOnlySpan
                     .Slice((sourceComponentIndex * _capacity) + uniformCount, copiedTail)
-                    .CopyTo(targetValues[uniformCount..]);
+                    .CopyTo(replacement._values.Span.Slice(
+                        (targetComponentIndex * _capacity) + uniformCount,
+                        copiedTail));
             }
         }
 
@@ -165,9 +173,22 @@ internal struct ComponentStampStorage : IDisposable
             }
 
             int copiedCount = activeCount - uniformCount;
-            _values.ReadOnlySpan
-                .Slice((sourceComponentIndex * _capacity) + uniformCount, copiedCount)
-                .CopyTo(target._values.Span.Slice((targetComponentIndex * _capacity) + uniformCount, copiedCount));
+            if (uniformCount == 0 && _values.Length == 0)
+            {
+                target._uniformStamps.RefAt(targetComponentIndex) = default;
+                target._uniformCounts.RefAt(targetComponentIndex) = activeCount;
+                continue;
+            }
+
+            target.EnsureValues();
+            if (_values.Length != 0)
+            {
+                _values.ReadOnlySpan
+                    .Slice((sourceComponentIndex * _capacity) + uniformCount, copiedCount)
+                    .CopyTo(target._values.Span.Slice(
+                        (targetComponentIndex * _capacity) + uniformCount,
+                        copiedCount));
+            }
         }
     }
 
@@ -216,16 +237,27 @@ internal struct ComponentStampStorage : IDisposable
             return;
         }
 
-        Materialize(sourceComponentIndex);
-        target.Materialize(targetComponentIndex);
         int targetTailStart = targetSlotIndex + (copiedTailStart - sourceSlotIndex);
-        int sourceOffset = (sourceComponentIndex * _capacity) + copiedTailStart;
-        int targetOffset = (targetComponentIndex * target._capacity) + targetTailStart;
-        _values.ReadOnlySpan
-            .Slice(sourceOffset, copiedTailCount)
-            .CopyTo(target._values.Span.Slice(
-                targetOffset,
-                copiedTailCount));
+        if (_values.Length == 0)
+        {
+            target.Materialize(targetComponentIndex);
+            target._values.Span
+                .Slice(
+                    (targetComponentIndex * target._capacity) + targetTailStart,
+                    copiedTailCount)
+                .Clear();
+        }
+        else
+        {
+            target.Materialize(targetComponentIndex);
+            int sourceOffset = (sourceComponentIndex * _capacity) + copiedTailStart;
+            int targetOffset = (targetComponentIndex * target._capacity) + targetTailStart;
+            _values.ReadOnlySpan
+                .Slice(sourceOffset, copiedTailCount)
+                .CopyTo(target._values.Span.Slice(
+                    targetOffset,
+                    copiedTailCount));
+        }
         target._uniformCounts.RefAt(targetComponentIndex) = 0;
     }
 
@@ -273,6 +305,7 @@ internal struct ComponentStampStorage : IDisposable
     private void Materialize(int componentIndex)
     {
         int count = _uniformCounts.RefAt(componentIndex);
+        EnsureValues();
         if (count == 0)
         {
             return;
@@ -281,6 +314,15 @@ internal struct ComponentStampStorage : IDisposable
         int offset = checked(componentIndex * _capacity);
         _values.Span.Slice(offset, count).Fill(_uniformStamps.RefAt(componentIndex));
         _uniformCounts.RefAt(componentIndex) = 0;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void EnsureValues()
+    {
+        if (_values.Length == 0)
+        {
+            _values = new NativeMemory<Stamp>(checked(_componentCount * _capacity));
+        }
     }
 
     private readonly int Offset(int componentIndex, int slotIndex)
