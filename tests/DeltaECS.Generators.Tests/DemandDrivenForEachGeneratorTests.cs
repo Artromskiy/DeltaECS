@@ -1084,19 +1084,12 @@ public sealed class DemandDrivenForEachGeneratorTests
         }
         public ref struct GeneratedDenseExecution
         {
-            public int ChunkCount => 0;
-            public bool MoveNext(out GeneratedQuerySlots slots) { slots = default; return false; }
             public bool MoveNextTrusted(out GeneratedQuerySlots slots) { slots = default; return false; }
             public bool MoveNextTrusted(out Array[] componentRows, out int count)
             {
                 componentRows = Array.Empty<Array>();
                 count = 0;
                 return false;
-            }
-            public void GetChunkRowsTrusted(int chunkIndex, out Array[] componentRows, out int count)
-            {
-                componentRows = Array.Empty<Array>();
-                count = 0;
             }
             public void MarkArchetypeWrite(int queryComponentIndex) { }
             public void MarkArchetypeWrites(scoped ReadOnlySpan<int> queryComponentIndices) { }
@@ -1106,18 +1099,12 @@ public sealed class DemandDrivenForEachGeneratorTests
         }
         public ref struct GeneratedReadDenseExecution
         {
-            public int ChunkCount => 0;
             public bool MoveNextTrusted(out GeneratedReadQuerySlots slots) { slots = default; return false; }
             public bool MoveNextTrusted(out Array[] componentRows, out int count)
             {
                 componentRows = Array.Empty<Array>();
                 count = 0;
                 return false;
-            }
-            public void GetChunkRowsTrusted(int chunkIndex, out Array[] componentRows, out int count)
-            {
-                componentRows = Array.Empty<Array>();
-                count = 0;
             }
             public void Dispose() { }
         }
@@ -1137,18 +1124,12 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public static void ThrowIfNull(object? value, string parameterName) { }
             public static ref T GetGeneratedRow<T>(Array[] componentRows, int queryComponentIndex) => throw new NotImplementedException();
-            public static GeneratedDenseExecution OpenDense(World world, in Query query, bool hasWrites) => default;
+            public static GeneratedDenseExecution OpenDense(World world, in Query query) => default;
             public static GeneratedDenseExecution OpenWriteDense(World world, in Query query) => default;
             public static GeneratedReadDenseExecution OpenReadDense(World world, in Query query) => default;
-            public static ReadAccess CreateReadAccess(World world, in Query query, Type runtimeType) => default;
-            public static WriteAccess CreateWriteAccess(World world, in Query query, Type runtimeType) => default;
-            public static ReadAccess CreateReadAccess(World world, in Query query, ComponentId component, Type runtimeType) => default;
-            public static WriteAccess CreateWriteAccess(World world, in Query query, ComponentId component, Type runtimeType) => default;
-            public static ReadAccess GetPreparedReadAccess(in Query query, Type runtimeType) => default;
             public static ReadAccess GetPreparedReadAccess<T>(in Query query) => default;
             public static int GetPreparedReadRoute<T>(in Query query) => default;
             public static int GetPreparedReadRoute<T>(in Query query, ComponentId component) => default;
-            public static WriteAccess GetPreparedWriteAccess(in Query query, Type runtimeType) => default;
             public static WriteAccess GetPreparedWriteAccess<T>(in Query query) => default;
             public static int GetPreparedWriteRoute<T>(in Query query) => default;
             public static int GetPreparedWriteRoute<T>(in Query query, ComponentId component) => default;
@@ -1171,10 +1152,6 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static int GetWriteQueryComponentIndex(WriteAccess access) => default;
             public static int GetReadQueryComponentIndex(ReadAccess access) => default;
             public static void IncrementArchetypeStamp(Stamp[] stamps, int componentIndex) { }
-            public static int AccessRead(World world, in Query query, ComponentId component, Type runtimeType) => default;
-            public static int AccessWrite(World world, in Query query, ComponentId component, Type runtimeType) => default;
-            public static int AccessRead(World world, in Query query, Type runtimeType) => default;
-            public static int AccessWrite(World world, in Query query, Type runtimeType) => default;
         }
         public sealed partial class World
         {

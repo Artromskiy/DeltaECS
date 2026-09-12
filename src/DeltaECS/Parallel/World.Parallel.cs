@@ -112,10 +112,6 @@ public sealed partial class World
         ExecuteGeneratedParallel(in query, ref invoker, workerCount);
     }
 
-    /// <summary>Compatibility alias for the historical entity-suffix spelling.</summary>
-    public void ForEachParallelEntity(in Query query, ForEachEntityAction action, int workerCount = 0) =>
-        ForEachEntityParallel(in query, action, workerCount);
-
     internal QueryPlan ValidateParallelQuery(in Query query)
     {
         ValidateQuery(in query);

@@ -104,30 +104,10 @@ internal sealed class QueryPlan
         return route;
     }
 
-    internal int ResolvePrimaryReadRoute(Type runtimeType)
-    {
-        if (TryGetPrimaryRoute(runtimeType, out int route))
-        {
-            return route;
-        }
-
-        return ThrowHelper.ThrowMissingPrimaryRoute(runtimeType);
-    }
-
     internal int UpgradeReadRouteToWrite(int route)
     {
         _hasWriteAccess = true;
         return route;
-    }
-
-    internal ReadAccess GetPreparedPrimaryReadAccess(Type runtimeType)
-    {
-        if (TryGetPrimaryRoute(runtimeType, out int route))
-        {
-            return new ReadAccess(this, route);
-        }
-
-        return ThrowHelper.ThrowMissingPrimaryReadAccess(runtimeType);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -139,17 +119,6 @@ internal sealed class QueryPlan
         }
 
         return ThrowHelper.ThrowMissingPrimaryReadAccess(typeof(T));
-    }
-
-    internal WriteAccess GetPreparedPrimaryWriteAccess(Type runtimeType)
-    {
-        _hasWriteAccess = true;
-        if (TryGetPrimaryRoute(runtimeType, out int route))
-        {
-            return new WriteAccess(this, route);
-        }
-
-        return ThrowHelper.ThrowMissingPrimaryWriteAccess(runtimeType);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -328,10 +297,6 @@ internal sealed class QueryPlan
             route++;
         }
     }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TryGetPrimaryRoute(Type runtimeType, out int route)
-        => TryGetPrimaryRoute(runtimeType.TypeHandle, out route);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryGetPrimaryRoute(RuntimeTypeHandle runtimeType, out int route)

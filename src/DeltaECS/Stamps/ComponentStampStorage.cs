@@ -76,15 +76,6 @@ internal struct ComponentStampStorage : IDisposable
         _uniformCounts.RefAt(componentIndex) = count;
     }
 
-    internal void SetSlot(int slotIndex, Stamp stamp)
-    {
-        ValidateSlot(slotIndex);
-        for (int componentIndex = 0; componentIndex < _componentCount; componentIndex++)
-        {
-            Set(componentIndex, slotIndex, stamp);
-        }
-    }
-
     internal void SetSlotRange(int slotIndex, int count, Stamp stamp)
     {
         if (slotIndex < 0 || count < 0 || slotIndex > _capacity - count)

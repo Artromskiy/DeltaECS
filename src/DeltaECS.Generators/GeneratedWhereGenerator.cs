@@ -260,7 +260,6 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             terminal,
             predicate,
             action,
-            terminal.IsFunctor ? terminal.FunctorType : null,
             predicateComponents,
             actionComponents,
             attributeSyntax,
@@ -531,8 +530,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
 
         source.AppendLine(")");
         source.AppendLine("    {");
-        source.Append("        using var execution = global::Delta.ECS.GeneratedForEachRuntime.OpenDense(world, in query, ")
-            .Append(terminal.Pattern.Contains('W') ? "true" : "false").AppendLine(");");
+        source.AppendLine("        using var execution = global::Delta.ECS.GeneratedForEachRuntime.OpenDense(world, in query);");
         int accessCount = shape.Arity + terminal.Arity;
         for (int index = 0; index < accessCount; index++)
         {
@@ -2207,7 +2205,6 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             TerminalShape terminal,
             LambdaExpressionSyntax predicate,
             LambdaExpressionSyntax? action,
-            string? actionFunctorType,
             string[] predicateComponents,
             string[] actionComponents,
             string attribute,
@@ -2218,7 +2215,6 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             Terminal = terminal;
             Predicate = predicate;
             Action = action;
-            ActionFunctorType = actionFunctorType;
             PredicateComponents = predicateComponents;
             ActionComponents = actionComponents;
             Attribute = attribute;
@@ -2230,7 +2226,6 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         internal TerminalShape Terminal { get; }
         internal LambdaExpressionSyntax Predicate { get; }
         internal LambdaExpressionSyntax? Action { get; }
-        internal string? ActionFunctorType { get; }
         internal string[] PredicateComponents { get; }
         internal string[] ActionComponents { get; }
         internal string Attribute { get; }

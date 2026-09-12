@@ -63,8 +63,6 @@ internal sealed class Archetype
 
     internal int ActiveChunkCount => _activeChunkCount;
 
-    internal ReadOnlySpan<Chunk> ActiveChunks => _activeChunks.AsSpan(0, _activeChunkCount);
-
     internal void Attach(QueryPlan query, int planIndex)
     {
         CompactDeadQueryPlanLinks();
@@ -117,8 +115,6 @@ internal sealed class Archetype
         index = Mask.Rank(componentId);
         return index >= 0;
     }
-
-    internal ref readonly ComponentLayout GetLayout(int index) => ref _layouts.RefAt(index);
 
     internal ComponentLayout[] Layouts => _layouts;
 
@@ -677,9 +673,6 @@ internal sealed class Archetype
             }
         }
     }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal int GetChunkGlobalId(int chunkIndex) => _chunks[chunkIndex].GlobalId;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal Chunk GetChunk(int chunkIndex) => _chunks[chunkIndex];

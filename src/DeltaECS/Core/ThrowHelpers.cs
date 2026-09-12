@@ -69,13 +69,6 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static int ThrowMissingPrimaryRoute(Type runtimeType)
-        => throw new ArgumentException(
-            $"The primary component for {runtimeType} is not guaranteed by the query All mask.",
-            nameof(runtimeType));
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static ReadAccess ThrowMissingPrimaryReadAccess(Type runtimeType)
         => throw new ArgumentException(
             $"The primary component for {runtimeType} is not guaranteed by the query All mask.",
@@ -119,11 +112,6 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowAccessTypeMismatch()
-        => throw new InvalidOperationException("The row access type does not match the registered component type.");
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowMissingWriteIntent()
         => throw new InvalidOperationException("The query did not register its write row access.");
 
@@ -147,11 +135,6 @@ internal static class ThrowHelper
     internal static void ThrowGeneratedFunctorRequired()
         => throw new InvalidOperationException(
             "Functor iteration requires the DeltaECS.Generators analyzer and a generated ref overload.");
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowAccessModeMismatch()
-        => throw new InvalidOperationException("The access mode does not match the requested row operation.");
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]

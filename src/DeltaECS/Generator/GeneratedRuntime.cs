@@ -228,17 +228,6 @@ public ref struct GeneratedDenseExecution
         _chunkIndex = -1;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool MoveNext(out GeneratedQuerySlots slots)
-    {
-        if (_owner is null)
-        {
-            ThrowHelper.ThrowDisposedQueryExecution();
-        }
-
-        return MoveNextTrusted(out slots);
-    }
-
     /// <summary>
     /// Marks one write component for every non-empty matching archetype once
     /// before the generated chunk loop starts.
@@ -317,23 +306,6 @@ public ref struct GeneratedDenseExecution
         }
     }
 
-    /// <summary>Returns one validated chunk's rows for an indexed generated traversal.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public int ChunkCount
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _chunkPlans.Length;
-    }
-
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void GetChunkRowsTrusted(int chunkIndex, out Array[] componentRows, out int count)
-    {
-        ref readonly ChunkPlan chunkPlan = ref _chunkPlans.RefAt(chunkIndex);
-        componentRows = chunkPlan.ComponentRows;
-        count = chunkPlan.Chunk.Count;
-    }
-
     /// <summary>Advances a validated generated execution without repeating the lifetime guard.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -405,23 +377,6 @@ public ref struct GeneratedReadDenseExecution
         _owner = owner;
         _chunkPlans = chunkPlans;
         _chunkIndex = -1;
-    }
-
-    /// <summary>Returns the number of validated chunks available to generated code.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public int ChunkCount
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _chunkPlans.Length;
-    }
-
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void GetChunkRowsTrusted(int chunkIndex, out Array[] componentRows, out int count)
-    {
-        ref readonly ChunkPlan chunkPlan = ref _chunkPlans.RefAt(chunkIndex);
-        componentRows = chunkPlan.ComponentRows;
-        count = chunkPlan.Chunk.Count;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -677,7 +632,7 @@ public static class GeneratedForEachRuntime
         where TInvoker : struct, IGeneratedWhereInvoker
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
-        using var execution = OpenDense(world, in query, hasWrites: writeComponentIndices.Length != 0);
+        using var execution = OpenDense(world, in query);
         execution.MarkArchetypeWrites(writeComponentIndices);
         while (execution.MoveNextTrusted(out var slots))
         {
@@ -802,7 +757,7 @@ public static class GeneratedForEachRuntime
     /// <summary>Opens the trusted dense execution used by generated callbacks.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static GeneratedDenseExecution OpenDense(World world, in Query query, bool hasWrites)
+    public static GeneratedDenseExecution OpenDense(World world, in Query query)
     {
         QueryPlan plan = ValidateQuery(world, in query);
         ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
@@ -834,68 +789,6 @@ public static class GeneratedForEachRuntime
         return new GeneratedDenseExecution(world, plans, chunks);
     }
 
-    /// <summary>Creates a validated read access token for a closed generated dense path.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ReadAccess CreateReadAccess(
-        World world,
-        in Query query,
-        Type runtimeType)
-    {
-        QueryPlan plan = ValidateQuery(world, in query, runtimeType);
-        return new ReadAccess(plan, plan.ResolvePrimaryReadRoute(runtimeType));
-    }
-
-    /// <summary>Creates a validated write access token for a closed generated dense path.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static WriteAccess CreateWriteAccess(
-        World world,
-        in Query query,
-        Type runtimeType)
-    {
-        QueryPlan plan = ValidateQuery(world, in query, runtimeType);
-        int route = plan.ResolvePrimaryReadRoute(runtimeType);
-        return new WriteAccess(plan, plan.UpgradeReadRouteToWrite(route));
-    }
-
-    /// <summary>Creates a validated explicit-component read access token for a closed generated dense path.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ReadAccess CreateReadAccess(
-        World world,
-        in Query query,
-        ComponentId component,
-        Type runtimeType)
-    {
-        QueryPlan plan = ValidateQuery(world, in query, runtimeType);
-        return new ReadAccess(plan, plan.ResolveReadRoute(component, runtimeType));
-    }
-
-    /// <summary>Creates a validated explicit-component write access token for a closed generated dense path.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static WriteAccess CreateWriteAccess(
-        World world,
-        in Query query,
-        ComponentId component,
-        Type runtimeType)
-    {
-        QueryPlan plan = ValidateQuery(world, in query, runtimeType);
-        int route = plan.ResolveReadRoute(component, runtimeType);
-        return new WriteAccess(plan, plan.UpgradeReadRouteToWrite(route));
-    }
-
-    /// <summary>
-    /// Returns a cached primary read access after the generated dense scope has
-    /// validated the query. This is compiler support and must not be called
-    /// without the preceding <see cref="OpenDense"/> validation.
-    /// </summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ReadAccess GetPreparedReadAccess(in Query query, Type runtimeType)
-        => query.Cached.GetPreparedPrimaryReadAccess(runtimeType);
-
     /// <summary>Returns a cached primary read access using the generated component type.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -913,16 +806,6 @@ public static class GeneratedForEachRuntime
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int GetPreparedReadRoute<T>(in Query query, ComponentId component)
         => query.Cached.GetPreparedReadAccess(component, typeof(T)).QueryComponentIndex;
-
-    /// <summary>
-    /// Returns a cached primary write access after the generated dense scope has
-    /// validated the query. This is compiler support and must not be called
-    /// without the preceding <see cref="OpenDense"/> validation.
-    /// </summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static WriteAccess GetPreparedWriteAccess(in Query query, Type runtimeType)
-        => query.Cached.GetPreparedPrimaryWriteAccess(runtimeType);
 
     /// <summary>Returns a cached primary write access using the generated component type.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -985,45 +868,6 @@ public static class GeneratedForEachRuntime
         => query.Cached.GetPreparedWriteAccess(component, runtimeType);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static int AccessRead(
-        World world,
-        in Query query,
-        Type runtimeType)
-    {
-        QueryPlan plan = ValidateQuery(world, in query, runtimeType);
-        return plan.ResolvePrimaryReadRoute(runtimeType);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static int AccessWrite(
-        World world,
-        in Query query,
-        Type runtimeType)
-    {
-        QueryPlan plan = ValidateQuery(world, in query, runtimeType);
-        return plan.UpgradeReadRouteToWrite(plan.ResolvePrimaryReadRoute(runtimeType));
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static int AccessRead(
-        World world,
-        in Query query,
-        ComponentId component,
-        Type runtimeType)
-    {
-        QueryPlan plan = ValidateQuery(world, in query, runtimeType);
-        return plan.ResolveReadRoute(component, runtimeType);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static QueryPlan ValidateQuery(World world, in Query query, Type runtimeType)
-    {
-        ThrowHelper.ThrowIfNull(world, nameof(world));
-        ThrowHelper.ThrowIfNull(runtimeType, nameof(runtimeType));
-        return ValidateQuery(world, in query);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static QueryPlan ValidateQuery(World world, in Query query)
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
@@ -1035,15 +879,4 @@ public static class GeneratedForEachRuntime
         return query.Cached;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static int AccessWrite(
-        World world,
-        in Query query,
-        ComponentId component,
-        Type runtimeType)
-    {
-        QueryPlan plan = ValidateQuery(world, in query, runtimeType);
-        int readRoute = plan.ResolveReadRoute(component, runtimeType);
-        return plan.UpgradeReadRouteToWrite(readRoute);
-    }
 }

@@ -581,16 +581,8 @@ public sealed partial class World : IDisposable
             _archetypeComponentWriteStamps.RefAt(archetypeId).RefAt(componentIndex));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ref Stamp GetChunkComponentStampReference(Chunk chunk, int componentIndex)
-        => ref _chunkComponentWriteStamps.RefAt(chunk.GlobalId).RefAt(componentIndex);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal NativeMemory<Stamp> GetChunkComponentStamps(Chunk chunk)
         => _chunkComponentWriteStamps.RefAt(chunk.GlobalId);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ref Stamp GetArchetypeComponentStampReference(int archetypeId, int componentIndex)
-        => ref _archetypeComponentWriteStamps.RefAt(archetypeId).RefAt(componentIndex);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void MarkChunkComponentWritten(Chunk chunk, int componentIndex, Stamp stamp)
@@ -604,16 +596,6 @@ public sealed partial class World : IDisposable
     internal Stamp IncrementChunkComponentStamp(Chunk chunk, int componentIndex)
     {
         NativeMemory<Stamp> stamps = _chunkComponentWriteStamps.RefAt(chunk.GlobalId);
-        ref Stamp value = ref stamps.RefAt(componentIndex);
-        Stamp stamp = value.Next();
-        value = stamp;
-        return stamp;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Stamp IncrementArchetypeComponentStamp(int archetypeId, int componentIndex)
-    {
-        Stamp[] stamps = _archetypeComponentWriteStamps.RefAt(archetypeId);
         ref Stamp value = ref stamps.RefAt(componentIndex);
         Stamp stamp = value.Next();
         value = stamp;

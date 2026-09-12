@@ -503,7 +503,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 "ForEach"
                 or "ForEachEntity"
                 or "ForEachParallel"
-                or "ForEachParallelEntity"
                 or "ForEachEntityParallel"))
         {
             return false;
@@ -1135,10 +1134,10 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         => parallel && mode == ContextMode.RefReadonly ? ContextMode.In : mode;
 
     private static bool IsParallelName(string name)
-        => name is "ForEachParallel" or "ForEachParallelEntity" or "ForEachEntityParallel";
+        => name is "ForEachParallel" or "ForEachEntityParallel";
 
     private static bool IsEntityName(string name)
-        => name is "ForEachEntity" or "ForEachParallelEntity" or "ForEachEntityParallel";
+        => name is "ForEachEntity" or "ForEachEntityParallel";
 
     private static bool IsSequenceReceiver(ReceiverKind receiver)
         => receiver is ReceiverKind.EntitySequence or ReceiverKind.FilteredEntitySequence;

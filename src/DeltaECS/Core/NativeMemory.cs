@@ -24,8 +24,6 @@ internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
 
     internal int Length => _length;
 
-    internal nint Address => _address;
-
     internal ref T this[int index]
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

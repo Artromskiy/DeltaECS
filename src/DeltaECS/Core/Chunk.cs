@@ -306,8 +306,6 @@ internal sealed class Chunk
     internal void MarkComponentStamped(int componentIndex, int slotIndex, Stamp stamp)
         => _componentStamps.Set(componentIndex, slotIndex, stamp);
 
-    internal void StampAll(int slotIndex, Stamp stamp) => _componentStamps.SetSlot(slotIndex, stamp);
-
     internal void StampAllRange(int slotIndex, int count, Stamp stamp)
         => _componentStamps.SetSlotRange(slotIndex, count, stamp);
 
@@ -379,9 +377,6 @@ internal sealed class Chunk
             }
         }
     }
-
-    internal void InitializeSlot(int slotIndex)
-        => InitializeSlotRange(slotIndex, 1);
 
     internal void InitializeSlotRange(int slotIndex, int count)
     {
