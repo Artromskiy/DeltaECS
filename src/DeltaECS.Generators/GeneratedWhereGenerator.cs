@@ -149,7 +149,9 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             {
                 foreach (WhereInterceptionSite site in sites)
                 {
-                    context.AddSource("GeneratedWhereInterceptor_" + site.Id + ".g.cs", RenderInterceptor(site));
+                    context.AddSource(
+                        "GeneratedWhereInterceptor_" + site.Id + ".g.cs",
+                        RenderInterceptor(site));
                 }
             }
         }
@@ -549,7 +551,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         {
             string componentType = index < shape.Arity ? site.PredicateComponents[index] : site.ActionComponents[index - shape.Arity];
             string pattern = index < shape.Arity ? shape.Pattern : terminal.Pattern;
-            source.Append("            ").Append(IsWrite(pattern[index < shape.Arity ? index : index - shape.Arity]) ? "ref " : "ref readonly ")
+            source.Append("            ref ")
                 .Append(componentType).Append(" row").Append(index).Append(" = ref slots.GetGenerated")
                 .Append(IsWrite(pattern[index < shape.Arity ? index : index - shape.Arity]) ? "Write" : "Read")
                 .Append("Reference<").Append(componentType).Append(">(access").Append(index).AppendLine(");");
@@ -560,11 +562,11 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         source.Append("                Entity __whereEntity_").Append(site.Id).AppendLine(" = slots.EntityAt(index);");
         for (int index = 0; index < shape.Arity; index++)
         {
-            source.Append("                ").Append(IsWrite(shape.Pattern[index]) ? "ref " : "ref readonly ")
+            source.Append("                ref ")
                 .Append(site.PredicateComponents[index]).Append(" __wherePredicateComponent").Append(index)
                 .Append(" = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref ")
-                .Append(IsWrite(shape.Pattern[index]) ? "row" : "global::System.Runtime.CompilerServices.Unsafe.AsRef(in row")
-                .Append(index).Append(IsWrite(shape.Pattern[index]) ? ", index);" : "), index);").AppendLine();
+                .Append("row")
+                .Append(index).Append(", index);").AppendLine();
         }
 
         source.Append("                if (!Predicate_").Append(site.Id).Append('(');
@@ -589,11 +591,11 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         source.AppendLine("                }");
         for (int index = 0; index < terminal.Arity; index++)
         {
-            source.Append("                ").Append(IsWrite(terminal.Pattern[index]) ? "ref " : "ref readonly ")
+            source.Append("                ref ")
                 .Append(site.ActionComponents[index]).Append(" __whereActionComponent").Append(index)
                 .Append(" = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref ")
-                .Append(IsWrite(terminal.Pattern[index]) ? "row" : "global::System.Runtime.CompilerServices.Unsafe.AsRef(in row")
-                .Append(shape.Arity + index).Append(IsWrite(terminal.Pattern[index]) ? ", index);" : "), index);").AppendLine();
+                .Append("row")
+                .Append(shape.Arity + index).Append(", index);").AppendLine();
         }
 
         if (terminal.IsFunctor)
@@ -682,7 +684,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
 
         source.AppendLine("        }");
         source.AppendLine();
-        source.AppendLine("        public void Execute(scoped ref GeneratedQuerySlots slots, ref GeneratedWhereStructuralContext context)");
+        source.AppendLine("        public void Execute(ref GeneratedQuerySlots slots, ref GeneratedWhereStructuralContext context)");
         source.AppendLine("        {");
         source.AppendLine("            if (slots.Count == 0)");
         source.AppendLine("            {");
@@ -1589,7 +1591,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         }
         else
         {
-            source.AppendLine("    public void Execute(scoped ref GeneratedQuerySlots slots, ref GeneratedWhereStructuralContext context)");
+            source.AppendLine("    public void Execute(ref GeneratedQuerySlots slots, ref GeneratedWhereStructuralContext context)");
         }
 
         source.AppendLine("    {");
@@ -1730,7 +1732,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         {
             int accessIndex = index + indexOffset;
             string componentType = concreteTypes is null ? genericPrefix + (index + 1).ToString(CultureInfo.InvariantCulture) : concreteTypes[index];
-            source.Append(indent).Append(IsWrite(pattern[index]) ? "ref " : "ref readonly ")
+            source.Append(indent).Append("ref ")
                 .Append(componentType).Append(" row").Append(accessIndex)
                 .Append(" = ref slots.GetGenerated").Append(IsWrite(pattern[index]) ? "Write" : "Read")
                 .Append("Reference<").Append(componentType).Append(">(_access").Append(accessIndex).AppendLine(");");
@@ -1750,14 +1752,12 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         {
             int accessIndex = index + indexOffset;
             string componentType = concreteTypes is null ? genericPrefix + (index + 1).ToString(CultureInfo.InvariantCulture) : concreteTypes[index];
-            source.Append(indent).Append(IsWrite(pattern[index]) ? "ref " : "ref readonly ")
+            source.Append(indent).Append("ref ")
                 .Append(componentType).Append(" component").Append(accessIndex)
                 .Append(" = ref global::System.Runtime.CompilerServices.Unsafe.Add(")
-                .Append(IsWrite(pattern[index])
-                    ? "ref row"
-                    : "ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in row")
+                .Append("ref row")
                 .Append(accessIndex)
-                .Append(IsWrite(pattern[index]) ? ", index);" : "), index);")
+                .Append(", index);")
                 .AppendLine();
         }
     }
@@ -1782,12 +1782,12 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         source.AppendLine("    private readonly Query _query;");
         if (shape.HasContext)
         {
-            source.Append("    private ref ").Append(PredicateContextType(shape)).AppendLine(" _predicateContext;");
+            source.Append("    private Span<").Append(PredicateContextType(shape)).AppendLine("> _predicateContext;");
         }
 
         if (shape.IsFunctor)
         {
-            source.Append("    private ref ").Append(shape.FunctorType).AppendLine(" _predicate;");
+            source.Append("    private Span<").Append(shape.FunctorType).AppendLine("> _predicate;");
         }
         else
         {
@@ -1813,12 +1813,12 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         source.AppendLine("        _query = query;");
         if (shape.HasContext)
         {
-            source.AppendLine("        _predicateContext = ref context;");
+            source.Append("        _predicateContext = global::System.Runtime.InteropServices.MemoryMarshal.CreateSpan(ref context, 1);").AppendLine();
         }
 
         if (shape.IsFunctor)
         {
-            source.AppendLine("        _predicate = ref predicate;");
+            source.Append("        _predicate = global::System.Runtime.InteropServices.MemoryMarshal.CreateSpan(ref predicate, 1);").AppendLine();
         }
         else
         {
@@ -1886,10 +1886,11 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             JoinGeneric(
                 shape.IsFunctor ? string.Empty : PredicateGenericList(shape),
                 terminal.IsCallback && !terminal.IsFunctor ? GenericList(terminal.Arity, "U") : string.Empty));
-        source.Append("        var invoker = new ").Append(invokerName).Append(invokerGeneric).Append("(_predicate");
+        source.Append("        var invoker = new ").Append(invokerName).Append(invokerGeneric)
+            .Append(shape.IsFunctor ? "(_predicate[0]" : "(_predicate");
         if (shape.HasContext)
         {
-            source.Append(", _predicateContext");
+            source.Append(", _predicateContext[0]");
         }
 
         if (terminal.IsCallback)
@@ -1942,12 +1943,12 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
 
         if (shape.IsFunctor)
         {
-            source.AppendLine("        _predicate = invoker.Predicate;");
+            source.AppendLine("        _predicate[0] = invoker.Predicate;");
         }
 
         if (shape.HasContext)
         {
-            source.AppendLine("        _predicateContext = invoker.PredicateContext;");
+            source.AppendLine("        _predicateContext[0] = invoker.PredicateContext;");
         }
 
         if (terminal.IsFunctor && terminal.IsCallback)

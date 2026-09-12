@@ -17,6 +17,7 @@ namespace Delta.ECS.Generators;
 public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 {
     private const int FirstInterceptorLanguageVersion = 1100;
+    private const int FirstRefReadonlyParameterLanguageVersion = 1200;
     private const string InterceptorNamespace = "Delta.ECS.Generated";
     private const string EcsNamespace = "Delta.ECS";
     private const int FirstDemandArity = 1;
@@ -114,6 +115,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         bool profiling = compilation.GetTypeByMetadataName("DeltaECS.Profiling.ProfilerRuntime") is not null
             && compilation.GetTypeByMetadataName("DeltaECS.Profiling.ProfiledMethodMetadataAttribute") is not null;
         bool languageSupportsInterceptors = SupportsInterceptors(compilation);
+        bool languageSupportsRefReadonlyParameters = SupportsRefReadonlyParameters(compilation);
         var shapes = new Dictionary<string, Shape>(StringComparer.Ordinal);
         var interceptionSites = new Dictionary<string, List<InterceptionSite>>(StringComparer.Ordinal);
         foreach (SyntaxTree tree in compilation.SyntaxTrees)
@@ -178,7 +180,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             {
                 context.AddSource(
                     $"DemandForEach_{StableName(shape.Key)}.g.cs",
-                    Render(shape, renderContracts, profiling));
+                    Render(shape, renderContracts, profiling, languageSupportsRefReadonlyParameters));
                 if (interceptionSites.TryGetValue(shape.Key, out List<InterceptionSite>? interceptorSites))
                 {
                     foreach (InterceptionSite interceptorSite in interceptorSites)
@@ -205,6 +207,10 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
     private static bool SupportsInterceptors(Compilation compilation)
         => compilation.SyntaxTrees.FirstOrDefault()?.Options is CSharpParseOptions options
             && (int)options.LanguageVersion >= FirstInterceptorLanguageVersion;
+
+    private static bool SupportsRefReadonlyParameters(Compilation compilation)
+        => compilation.SyntaxTrees.FirstOrDefault()?.Options is CSharpParseOptions options
+            && (int)options.LanguageVersion >= FirstRefReadonlyParameterLanguageVersion;
 
     private static bool TryCreateInterceptionSite(
         SemanticModel model,
@@ -1423,13 +1429,14 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
     private static string Render(
         Shape shape,
         bool renderContracts,
-        bool profiling)
+        bool profiling,
+        bool languageSupportsRefReadonlyParameters)
     {
         var source = new StringBuilder(32 * 1024);
         source.Append(GeneratedSourceHeader);
         if (renderContracts && !shape.IsFunctor && shape.Components.Length > 0)
         {
-            RenderContracts(source, shape);
+            RenderContracts(source, shape, languageSupportsRefReadonlyParameters);
         }
         if (!shape.Sequence && shape.Pattern.Count(IsWrite) > 1)
         {
@@ -1449,7 +1456,10 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         return GeneratedSourceFormatter.Format(source.ToString());
     }
 
-    private static void RenderContracts(StringBuilder source, Shape shape)
+    private static void RenderContracts(
+        StringBuilder source,
+        Shape shape,
+        bool languageSupportsRefReadonlyParameters)
     {
         string generic = shape.IsFunctor ? string.Empty : GenericTypes(shape.Components.Length);
         string parameters = RefParameters(shape.Pattern);
@@ -1458,6 +1468,11 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         AppendContract(source, "ForEachEntityAction" + suffix, generic, JoinParameters("Entity entity", parameters));
         foreach (ContextMode mode in ContextModes)
         {
+            if (mode == ContextMode.RefReadonly && !languageSupportsRefReadonlyParameters)
+            {
+                continue;
+            }
+
             string context = ContextParameter(mode, "TContext", "context");
             string contextGeneric = JoinGeneric("TContext", generic);
             string modeSuffix = ContextDelegateSuffix(mode);

@@ -26,7 +26,7 @@ public interface IGeneratedWhereStructuralInvoker
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     void Execute(
-        scoped ref GeneratedQuerySlots slots,
+        ref GeneratedQuerySlots slots,
         ref GeneratedWhereStructuralContext context);
 }
 

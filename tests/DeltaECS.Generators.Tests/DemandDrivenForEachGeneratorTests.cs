@@ -484,6 +484,48 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void CSharp9ForEachInContextOmitsRefReadonlyDelegateContracts()
+    {
+        const string source = """
+            namespace Delta.ECS
+            {
+            struct Position { public int Value; }
+            struct Range { public int Value; }
+            struct Target { public int Value; }
+            struct State { public int Value; }
+            static class Consumer
+            {
+                public static void Use(World world, Query query)
+                {
+                    var state = new State();
+                    world.ForEachParallel<State, Position, Range, Target>(
+                        in query,
+                        in state,
+                        static (in State value, in Position position, in Range range, ref Target target) =>
+                            target.Value += value.Value + position.Value + range.Value,
+                        workerCount: 2);
+                }
+            }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(source, LanguageVersion.CSharp9);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty, string.Join(Environment.NewLine, run.Diagnostics.Select(static value => value.ToString())));
+        Assert.That(generated, Does.Not.Contain("ForEachContextAction_RefReadonly"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubFor(LanguageVersion.CSharp9), source },
+            run.GeneratedTrees,
+            LanguageVersion.CSharp9);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
     public void InterceptedCallSitesKeepTheirUsingAliasesIsolated()
     {
         string[] consumerSources =
@@ -726,13 +768,33 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereAdd"));
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereRemove"));
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereForEach"));
-        Assert.That(generated, Does.Contain("public void Execute(scoped ref GeneratedQuerySlots slots, ref GeneratedWhereStructuralContext context)"));
+        Assert.That(generated, Does.Contain("public void Execute(ref GeneratedQuerySlots slots, ref GeneratedWhereStructuralContext context)"));
         Assert.That(generated, Does.Contain("public void Invoke(ref GeneratedQuerySlots slots)"));
         Assert.That(generated, Does.Not.Contain("Invoke(ref GeneratedQuerySlots slots, int index)"));
 
         CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
             new[] { RuntimeStubSource, WhereMutationSource },
             run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
+    public void CSharp9WhereGenerationCompilesStructuralTerminals()
+    {
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(WhereMutationSource, LanguageVersion.CSharp9);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty, string.Join(Environment.NewLine, run.Diagnostics.Select(static value => value.ToString())));
+        Assert.That(generated, Does.Not.Contain("scoped ref GeneratedQuerySlots"));
+        Assert.That(generated, Does.Not.Contain("private ref "));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubFor(LanguageVersion.CSharp9), WhereMutationSource },
+            run.GeneratedTrees,
+            LanguageVersion.CSharp9);
         var errors = compilation.GetDiagnostics()
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
             .ToArray();
@@ -799,6 +861,26 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void CSharp9WhereWithoutEntityStructuralTerminalCompiles()
+    {
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(WhereWithoutEntitySource, LanguageVersion.CSharp9);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty, string.Join(Environment.NewLine, run.Diagnostics.Select(static value => value.ToString())));
+        Assert.That(generated, Does.Not.Contain("scoped ref GeneratedQuerySlots"));
+        Assert.That(generated, Does.Not.Contain("private ref "));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubFor(LanguageVersion.CSharp9), WhereWithoutEntitySource },
+            run.GeneratedTrees,
+            LanguageVersion.CSharp9);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
     public void WhereRejectsEntityParameterAndRequiresWhereEntity()
     {
         GeneratorDriverRunResult run = RunGenerator(WhereEntityParameterSource);
@@ -832,6 +914,28 @@ public sealed class DemandDrivenForEachGeneratorTests
         CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
             new[] { RuntimeStubSource, WhereFunctorSource },
             run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
+    public void CSharp9WhereFunctorContextUsesSafeByrefLikeStorage()
+    {
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(WhereFunctorSource, LanguageVersion.CSharp9);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty, string.Join(Environment.NewLine, run.Diagnostics.Select(static value => value.ToString())));
+        Assert.That(generated, Does.Contain("Span<global::Delta.ECS.PredicateState> _predicateContext"));
+        Assert.That(generated, Does.Contain("Span<global::Delta.ECS.HealthPredicate> _predicate"));
+        Assert.That(generated, Does.Not.Contain("private ref PredicateState _predicateContext"));
+        Assert.That(generated, Does.Not.Contain("private ref HealthPredicate _predicate"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubFor(LanguageVersion.CSharp9), WhereFunctorSource },
+            run.GeneratedTrees,
+            LanguageVersion.CSharp9);
         var errors = compilation.GetDiagnostics()
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
             .ToArray();
@@ -1001,8 +1105,15 @@ public sealed class DemandDrivenForEachGeneratorTests
         }
     }
 
+    private static string RuntimeStubFor(LanguageVersion languageVersion)
+        => languageVersion < LanguageVersion.CSharp11
+            ? RuntimeStubSource
+                .Replace("scoped ReadOnlySpan<int>", "ReadOnlySpan<int>", StringComparison.Ordinal)
+            : RuntimeStubSource;
+
     private const string RuntimeStubSource = """
-        namespace Delta.ECS;
+        namespace Delta.ECS
+        {
         using System;
         public readonly struct Entity { public int Index { get; } }
         public readonly struct ComponentId { }
@@ -1035,7 +1146,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         }
         public interface IGeneratedWhereStructuralInvoker
         {
-            void Execute(scoped ref GeneratedQuerySlots slots, ref GeneratedWhereStructuralContext context);
+            void Execute(ref GeneratedQuerySlots slots, ref GeneratedWhereStructuralContext context);
         }
         public interface IGeneratedParallelInvoker
         {
@@ -1213,6 +1324,7 @@ public sealed class DemandDrivenForEachGeneratorTests
             public int Add(ReadOnlySpan<ComponentId> components) => 0;
             public int Remove(ReadOnlySpan<ComponentId> components) => 0;
         }
+        }
         """;
 
     private const string StructuralSource = """
@@ -1345,7 +1457,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         """;
 
     private const string WhereMutationSource = """
-        namespace Delta.ECS;
+        namespace Delta.ECS
+        {
         struct Health { public int Value; }
         struct Team { public int Id; public int DefaultHealth; }
         struct Dead { }
@@ -1377,6 +1490,7 @@ public sealed class DemandDrivenForEachGeneratorTests
                     health.Value <= 0 && team.Id == 1)
                     .ForEach(static (ref Health health, in Team team) => health.Value = team.DefaultHealth);
             }
+        }
         }
         """;
 
@@ -1431,7 +1545,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         """;
 
     private const string WhereWithoutEntitySource = """
-        namespace Delta.ECS;
+        namespace Delta.ECS
+        {
         struct Health { public int Value; }
         struct Dead { }
         struct PredicateState { public int Seen; }
@@ -1468,6 +1583,7 @@ public sealed class DemandDrivenForEachGeneratorTests
                 var contextPredicate = new ContextPredicate();
                 world.Where(in query, ref state, ref contextPredicate).Destroy();
             }
+        }
         }
         """;
 
@@ -1736,7 +1852,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         """;
 
     private const string WhereFunctorSource = """
-        namespace Delta.ECS;
+        namespace Delta.ECS
+        {
         struct Health { public int Value; }
         struct Dead { }
         struct PredicateState { public int Seen; }
@@ -1768,6 +1885,7 @@ public sealed class DemandDrivenForEachGeneratorTests
                 world.WhereEntity(in query, ref predicateState, ref predicate)
                     .ForEachEntity(ref actionState, ref action);
             }
+        }
         }
         """;
 
