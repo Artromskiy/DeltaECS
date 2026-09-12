@@ -10,3 +10,4 @@ DECSGEN001 | ForEach | Error | Reports unsupported demand-driven ForEach call sh
 DECSGEN002 | ForEach | Error | Reports component callback arities above the generator maximum
 DECSGEN005 | ForEach | Info | Explains why an opt-in Roslyn interception site used the delegate fallback
 DECSGEN006 | Where | Error | Rejects writable component parameters in query predicates
+DECSGEN007 | Where | Error | Requires `WhereEntity` for entity parameters in query predicates

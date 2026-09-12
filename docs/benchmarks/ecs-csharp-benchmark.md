@@ -18,17 +18,20 @@ The fork contains the complete upstream scenario groups:
 
 Each group keeps the upstream ECS implementations and has a `DeltaECS`
 benchmark using the same component cardinality, padding rules and terminal
-operation. The three create groups also expose a separate `DeltaECS_Batch`
-measurement for the caller-owned batch-create API. It is reported separately
-because the upstream create workload is one entity per operation and must stay
-an apples-to-apples comparison. System contexts use batch create only during
-setup; setup is outside the measured method.
+operation. The three create groups also expose separate `DeltaECS_Batch` and
+`DeltaECS_Batch_Generic` measurements for the no-output batch-create APIs. The
+first reuses an `ArchetypeHandle`; the second resolves the archetype through
+the generated variadic generic overload. Neither benchmark returns entity
+handles. They are reported separately because the upstream create workload is
+one entity per operation and must stay an apples-to-apples comparison. System
+contexts use batch create only during setup; setup is outside the measured
+method.
 
-The fork consumes the matching `DeltaECS` and `DeltaECS.Generators` package
-version. For a local unreleased version, pack both projects into a local feed
-and restore the benchmark against that feed; the generator package is attached
-as an analyzer, and no runtime adapter assembly or third-party dependency is
-added to the ECS library.
+The fork references the local `DeltaECS` and `DeltaECS.Generators` projects so
+the benchmark always exercises the current source APIs. For a published
+package comparison, replace those references with matching package versions;
+the generator package is attached as an analyzer, and no runtime adapter
+assembly or third-party dependency is added to the ECS library.
 
 The default build omits the slowest upstream implementations from comparative
 runs: Morpeh, RelEcs, MonoGame.Extended, Svelto.ECS and Myriad's enumerable

@@ -1,5 +1,6 @@
 namespace Delta.ECS;
 
+using System.Runtime.CompilerServices;
 using System.Threading;
 
 public sealed partial class World
@@ -52,7 +53,7 @@ public sealed partial class World
     {
         ThrowHelper.ThrowIfNull(action, nameof(action));
         var invoker = new ParallelActionInvoker(action);
-        GeneratedForEachRuntime.ExecuteParallelDense(this, in query, ref invoker, ReadOnlySpan<int>.Empty, workerCount);
+        ExecuteGeneratedParallel(in query, ref invoker, workerCount);
     }
 
     /// <summary>Executes an entity callback without component parameters in parallel.</summary>
@@ -60,7 +61,7 @@ public sealed partial class World
     {
         ThrowHelper.ThrowIfNull(action, nameof(action));
         var invoker = new ParallelEntityActionInvoker(action);
-        GeneratedForEachRuntime.ExecuteParallelDense(this, in query, ref invoker, ReadOnlySpan<int>.Empty, workerCount);
+        ExecuteGeneratedParallel(in query, ref invoker, workerCount);
     }
 
     /// <summary>Executes a generated callback with read-only context and no component parameters.</summary>
@@ -72,7 +73,7 @@ public sealed partial class World
     {
         ThrowHelper.ThrowIfNull(action, nameof(action));
         var invoker = new ParallelContextActionInvoker<TContext>(context, action);
-        GeneratedForEachRuntime.ExecuteParallelDense(this, in query, ref invoker, ReadOnlySpan<int>.Empty, workerCount);
+        ExecuteGeneratedParallel(in query, ref invoker, workerCount);
     }
 
     /// <summary>Executes a generated callback with value context and no component parameters.</summary>
@@ -84,7 +85,7 @@ public sealed partial class World
     {
         ThrowHelper.ThrowIfNull(action, nameof(action));
         var invoker = new ParallelValueContextActionInvoker<TContext>(context, action);
-        GeneratedForEachRuntime.ExecuteParallelDense(this, in query, ref invoker, ReadOnlySpan<int>.Empty, workerCount);
+        ExecuteGeneratedParallel(in query, ref invoker, workerCount);
     }
 
     /// <summary>Executes an entity callback with read-only context and no component parameters.</summary>
@@ -96,7 +97,7 @@ public sealed partial class World
     {
         ThrowHelper.ThrowIfNull(action, nameof(action));
         var invoker = new ParallelContextEntityActionInvoker<TContext>(context, action);
-        GeneratedForEachRuntime.ExecuteParallelDense(this, in query, ref invoker, ReadOnlySpan<int>.Empty, workerCount);
+        ExecuteGeneratedParallel(in query, ref invoker, workerCount);
     }
 
     /// <summary>Executes an entity callback with value context and no component parameters.</summary>
@@ -108,7 +109,7 @@ public sealed partial class World
     {
         ThrowHelper.ThrowIfNull(action, nameof(action));
         var invoker = new ParallelValueContextEntityActionInvoker<TContext>(context, action);
-        GeneratedForEachRuntime.ExecuteParallelDense(this, in query, ref invoker, ReadOnlySpan<int>.Empty, workerCount);
+        ExecuteGeneratedParallel(in query, ref invoker, workerCount);
     }
 
     /// <summary>Compatibility alias for the historical entity-suffix spelling.</summary>
@@ -119,6 +120,13 @@ public sealed partial class World
     {
         ValidateQuery(in query);
         return query.Cached;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void ExecuteGeneratedParallel<TInvoker>(in Query query, ref TInvoker invoker, int workerCount)
+        where TInvoker : struct, IGeneratedParallelInvoker
+    {
+        GeneratedForEachRuntime.ExecuteParallelDense(this, in query, ref invoker, ReadOnlySpan<int>.Empty, workerCount);
     }
 
     internal StaticParallelQueryExecutor<TInvoker> GetParallelQueryExecutor<TInvoker>()

@@ -79,7 +79,7 @@ internal sealed class DeltaCreateOneContext : IDisposable
 
     internal DeltaComponentId[] Components { get; }
 
-    internal DeltaEntity[] Entities { get; }
+    internal ArchetypeHandle Archetype { get; }
 
     internal DeltaCreateOneContext()
     {
@@ -87,7 +87,7 @@ internal sealed class DeltaCreateOneContext : IDisposable
         DeltaComponentId component = layouts.Register<DeltaComponent1>(new DeltaSchemaId(900_001));
         World = new DeltaWorld(layouts, initialEntityCapacity: BenchmarkConfiguration.EntityCount);
         Components = [component];
-        Entities = new DeltaEntity[BenchmarkConfiguration.EntityCount];
+        Archetype = World.GetOrCreateArchetype(Components);
     }
 
     void IDisposable.Dispose() => World.Dispose();
@@ -99,7 +99,7 @@ internal sealed class DeltaCreateTwoContext : IDisposable
 
     internal DeltaComponentId[] Components { get; }
 
-    internal DeltaEntity[] Entities { get; }
+    internal ArchetypeHandle Archetype { get; }
 
     internal DeltaCreateTwoContext()
     {
@@ -108,7 +108,7 @@ internal sealed class DeltaCreateTwoContext : IDisposable
         DeltaComponentId second = layouts.Register<DeltaComponent2>(new DeltaSchemaId(900_003));
         World = new DeltaWorld(layouts, initialEntityCapacity: BenchmarkConfiguration.EntityCount);
         Components = [first, second];
-        Entities = new DeltaEntity[BenchmarkConfiguration.EntityCount];
+        Archetype = World.GetOrCreateArchetype(Components);
     }
 
     void IDisposable.Dispose() => World.Dispose();
@@ -120,7 +120,7 @@ internal sealed class DeltaCreateThreeContext : IDisposable
 
     internal DeltaComponentId[] Components { get; }
 
-    internal DeltaEntity[] Entities { get; }
+    internal ArchetypeHandle Archetype { get; }
 
     internal DeltaCreateThreeContext()
     {
@@ -130,7 +130,7 @@ internal sealed class DeltaCreateThreeContext : IDisposable
         DeltaComponentId third = layouts.Register<DeltaComponent3>(new DeltaSchemaId(900_006));
         World = new DeltaWorld(layouts, initialEntityCapacity: BenchmarkConfiguration.EntityCount);
         Components = [first, second, third];
-        Entities = new DeltaEntity[BenchmarkConfiguration.EntityCount];
+        Archetype = World.GetOrCreateArchetype(Components);
     }
 
     void IDisposable.Dispose() => World.Dispose();
@@ -320,7 +320,14 @@ public partial class CreateEntityWithOneComponent
     [Benchmark]
     public void DeltaECS_Batch()
     {
-        _deltaEcs.World.Create(_deltaEcs.Components, EntityCount, _deltaEcs.Entities);
+        _deltaEcs.World.Create(_deltaEcs.Archetype, EntityCount);
+    }
+
+    [BenchmarkCategory(Categories.DeltaECSBatch)]
+    [Benchmark]
+    public void DeltaECS_Batch_Generic()
+    {
+        _deltaEcs.World.Create<DeltaComponent1>(EntityCount);
     }
 }
 
@@ -344,7 +351,14 @@ public partial class CreateEntityWithTwoComponents
     [Benchmark]
     public void DeltaECS_Batch()
     {
-        _deltaEcs.World.Create(_deltaEcs.Components, EntityCount, _deltaEcs.Entities);
+        _deltaEcs.World.Create(_deltaEcs.Archetype, EntityCount);
+    }
+
+    [BenchmarkCategory(Categories.DeltaECSBatch)]
+    [Benchmark]
+    public void DeltaECS_Batch_Generic()
+    {
+        _deltaEcs.World.Create<DeltaComponent1, DeltaComponent2>(EntityCount);
     }
 }
 
@@ -368,7 +382,14 @@ public partial class CreateEntityWithThreeComponents
     [Benchmark]
     public void DeltaECS_Batch()
     {
-        _deltaEcs.World.Create(_deltaEcs.Components, EntityCount, _deltaEcs.Entities);
+        _deltaEcs.World.Create(_deltaEcs.Archetype, EntityCount);
+    }
+
+    [BenchmarkCategory(Categories.DeltaECSBatch)]
+    [Benchmark]
+    public void DeltaECS_Batch_Generic()
+    {
+        _deltaEcs.World.Create<DeltaComponent1, DeltaComponent2, DeltaComponent3>(EntityCount);
     }
 }
 

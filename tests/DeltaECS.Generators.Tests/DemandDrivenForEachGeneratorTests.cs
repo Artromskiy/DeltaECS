@@ -740,6 +740,24 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void WhereGeneratorDeduplicatesGenericMutationTerminalsAcrossComponentTypes()
+    {
+        GeneratorDriverRunResult run = RunGenerator(WhereDuplicateMutationSource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty);
+        Assert.That(generated.Split("public int Add<U1>()", StringSplitOptions.None).Length - 1, Is.EqualTo(1));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, WhereDuplicateMutationSource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
     public void WherePredicateSupportsInAndRefReadonlyComponents()
     {
         GeneratorDriverRunResult run = RunGenerator(WhereReadonlyPredicateSource);
@@ -778,6 +796,16 @@ public sealed class DemandDrivenForEachGeneratorTests
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
             .ToArray();
         Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
+    public void WhereRejectsEntityParameterAndRequiresWhereEntity()
+    {
+        GeneratorDriverRunResult run = RunGenerator(WhereEntityParameterSource);
+
+        Diagnostic diagnostic = run.Diagnostics.Single(static value => value.Id == "DECSGEN007");
+        Assert.That(diagnostic.GetMessage(CultureInfo.InvariantCulture), Does.Contain("WhereEntity"));
+        Assert.That(run.GeneratedTrees, Is.Empty);
     }
 
     [Test]
@@ -1371,6 +1399,34 @@ public sealed class DemandDrivenForEachGeneratorTests
                 world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
                     health.Value <= 0 && team.Id == 1)
                     .ForEach(static (ref Health health, in Team team) => health.Value = team.DefaultHealth);
+            }
+        }
+        """;
+
+    private const string WhereDuplicateMutationSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        struct Position { public int Value; }
+        struct Dead { }
+        struct Selected { }
+        static class DuplicateMutationSystem
+        {
+            public static void Run(World world, in Query query)
+            {
+                world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>();
+                world.Where(in query, static (in Position position) => position.Value < 0).Add<Selected>();
+            }
+        }
+        """;
+
+    private const string WhereEntityParameterSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        static class InvalidWhereSystem
+        {
+            public static void Run(World world, in Query query)
+            {
+                world.Where(in query, static (Entity entity, in Health health) => health.Value <= entity.Index);
             }
         }
         """;
