@@ -173,8 +173,8 @@ corresponding context marker and pass the functor by `ref`.
 - Structural changes are immediate. Perform create/add/remove/destroy outside
   active iteration scopes and callbacks; collect handles for a later batch.
 - Chunk and query views borrow storage. Keep them within their valid scope.
-- Generated callbacks, structural operations and query factories support up
-  to 256 component type parameters per call; registered IDs have no such cap.
+- Generated callbacks, structural operations and query factories follow the
+  component-list forms in the [API grammar](docs/API-GRAMMAR.md).
 - Mutation stamps track ECS writes, not mutations inside reference objects.
 - Interceptors are optional; ordinary generated callbacks work without them.
 

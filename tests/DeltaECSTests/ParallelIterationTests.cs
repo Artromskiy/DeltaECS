@@ -23,9 +23,6 @@ public sealed class ParallelIterationTests
 {
     private static readonly ForEachAction_WI<Position, Velocity> s_incrementAction = Increment;
     internal static int s_generatedCallbackThreadId;
-    private static int s_readOnlyContextVisits;
-    private static int s_refReadonlyContextVisits;
-    private static int s_valueEntityContextVisits;
 
     [Test]
     public void GeneratedForEachParallelSupportsReadOnlyAndValueState()
@@ -69,48 +66,29 @@ public sealed class ParallelIterationTests
     }
 
     [Test]
-    public void GeneratedForEachParallelSupportsZeroComponentEntityAndNonEntityCallbacks()
+    public void ZeroArityParallelAnchorsRequireGeneratedComponentCallbacks()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(70_093));
-        using var world = new World(layouts, initialEntityCapacity: 256, chunkCapacity: 128);
-        var entities = new Entity[256];
-        world.Create([positionId], entities);
+        using var world = new World(layouts);
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
-        int visited = 0;
-        int visitedEntities = 0;
-        Volatile.Write(ref s_readOnlyContextVisits, 0);
-        Volatile.Write(ref s_refReadonlyContextVisits, 0);
-        Volatile.Write(ref s_valueEntityContextVisits, 0);
-
-        world.ForEachParallel(in query, () => Interlocked.Increment(ref visited), workerCount: 4);
-        world.ForEachEntityParallel(in query, entity =>
-        {
-            _ = entity;
-            Interlocked.Increment(ref visitedEntities);
-        }, workerCount: 4);
         var state = new ParallelState();
-        world.ForEachParallel(
-            in query,
-            in state,
-            static (in ParallelState _) => Interlocked.Increment(ref s_readOnlyContextVisits),
-            workerCount: 4);
-        world.ForEachParallel(
-            in query,
-            in state,
-            static (ref readonly ParallelState _) => Interlocked.Increment(ref s_refReadonlyContextVisits),
-            workerCount: 4);
-        world.ForEachEntityParallel(
-            in query,
-            state,
-            static (ParallelState _, Entity _) => Interlocked.Increment(ref s_valueEntityContextVisits),
-            workerCount: 4);
+        ForEachAction action = static () => { };
+        ForEachEntityAction entityAction = static _ => { };
+        ForEachContextAction_In<ParallelState> readOnlyAction = static (in ParallelState _) => { };
+        ForEachContextAction_Value<ParallelState> valueAction = static _ => { };
+        ForEachContextEntityAction_In<ParallelState> readOnlyEntityAction = static (in ParallelState _, Entity __) => { };
+        ForEachContextEntityAction_Value<ParallelState> valueEntityAction = static (ParallelState _, Entity __) => { };
 
-        Assert.That(visited, Is.EqualTo(entities.Length));
-        Assert.That(visitedEntities, Is.EqualTo(entities.Length));
-        Assert.That(Volatile.Read(ref s_readOnlyContextVisits), Is.EqualTo(entities.Length));
-        Assert.That(Volatile.Read(ref s_refReadonlyContextVisits), Is.EqualTo(entities.Length));
-        Assert.That(Volatile.Read(ref s_valueEntityContextVisits), Is.EqualTo(entities.Length));
+        Assert.Multiple(() =>
+        {
+            Assert.That(() => world.ForEachParallel(in query, action, workerCount: 4), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEachEntityParallel(in query, entityAction, workerCount: 4), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEachParallel(in query, in state, readOnlyAction, workerCount: 4), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEachParallel(in query, state, valueAction, workerCount: 4), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEachEntityParallel(in query, in state, readOnlyEntityAction, workerCount: 4), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEachEntityParallel(in query, state, valueEntityAction, workerCount: 4), Throws.InvalidOperationException);
+        });
     }
 
     [Test]

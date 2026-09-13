@@ -1,6 +1,5 @@
 namespace Delta.ECS;
 
-using System.Runtime.CompilerServices;
 using System.Threading;
 
 public sealed partial class World
@@ -48,81 +47,98 @@ public sealed partial class World
         }
     }
 
-    /// <summary>Executes a generated callback without component parameters in parallel.</summary>
+    /// <summary>
+    /// Zero-component parallel callback overload.
+    /// Use a component-bearing generated <c>ForEachParallel</c> callback with
+    /// one or more component parameters. Generated forms can target the
+    /// query or an explicit entity span, with optional <c>ComponentId</c>
+    /// selectors, context and worker count.
+    /// </summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
     public void ForEachParallel(in Query query, ForEachAction action, int workerCount = 0)
-    {
-        ThrowHelper.ThrowIfNull(action, nameof(action));
-        var invoker = new ParallelActionInvoker(action);
-        ExecuteGeneratedParallel(in query, ref invoker, workerCount);
-    }
+        => ThrowHelper.ThrowGeneratedIterationRequired();
 
-    /// <summary>Executes an entity callback without component parameters in parallel.</summary>
+    /// <summary>
+    /// Zero-component parallel entity callback overload.
+    /// Use a component-bearing generated <c>ForEachEntityParallel</c> callback;
+    /// it puts <c>Entity</c> first and supports one or more component parameters.
+    /// Generated forms can target the query or an explicit entity span, with
+    /// optional <c>ComponentId</c> selectors, context and worker count.
+    /// </summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
     public void ForEachEntityParallel(in Query query, ForEachEntityAction action, int workerCount = 0)
-    {
-        ThrowHelper.ThrowIfNull(action, nameof(action));
-        var invoker = new ParallelEntityActionInvoker(action);
-        ExecuteGeneratedParallel(in query, ref invoker, workerCount);
-    }
+        => ThrowHelper.ThrowGeneratedIterationRequired();
 
-    /// <summary>Executes a generated callback with read-only context and no component parameters.</summary>
+    /// <summary>
+    /// Zero-component parallel context callback overload.
+    /// Use a component-bearing generated <c>ForEachParallel</c> callback with
+    /// <c>in</c>, <c>ref readonly</c>, or value context, one or more component
+    /// parameters, and a worker count. The target can be the query or an explicit
+    /// entity span, with optional <c>ComponentId</c> selectors.
+    /// </summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
     public void ForEachParallel<TContext>(
         in Query query,
         in TContext context,
         ForEachContextAction_In<TContext> action,
         int workerCount = 0)
-    {
-        ThrowHelper.ThrowIfNull(action, nameof(action));
-        var invoker = new ParallelContextActionInvoker<TContext>(context, action);
-        ExecuteGeneratedParallel(in query, ref invoker, workerCount);
-    }
+        => ThrowHelper.ThrowGeneratedIterationRequired();
 
-    /// <summary>Executes a generated callback with value context and no component parameters.</summary>
+    /// <summary>
+    /// Zero-component parallel value-context callback overload.
+    /// Use a component-bearing generated <c>ForEachParallel</c> callback with one
+    /// or more component parameters and a worker count. The target can be the
+    /// query or an explicit entity span, with optional <c>ComponentId</c> selectors.
+    /// </summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
     public void ForEachParallel<TContext>(
         in Query query,
         TContext context,
         ForEachContextAction_Value<TContext> action,
         int workerCount = 0)
-    {
-        ThrowHelper.ThrowIfNull(action, nameof(action));
-        var invoker = new ParallelValueContextActionInvoker<TContext>(context, action);
-        ExecuteGeneratedParallel(in query, ref invoker, workerCount);
-    }
+        => ThrowHelper.ThrowGeneratedIterationRequired();
 
-    /// <summary>Executes an entity callback with read-only context and no component parameters.</summary>
+    /// <summary>
+    /// Zero-component parallel entity context callback overload.
+    /// Use a component-bearing generated <c>ForEachEntityParallel</c> callback;
+    /// it puts <c>Entity</c> first, supports one or more component parameters,
+    /// and accepts <c>in</c>, <c>ref readonly</c>, or value context plus a worker count.
+    /// The target can be the query or an explicit entity span, with optional
+    /// <c>ComponentId</c> selectors.
+    /// </summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
     public void ForEachEntityParallel<TContext>(
         in Query query,
         in TContext context,
         ForEachContextEntityAction_In<TContext> action,
         int workerCount = 0)
-    {
-        ThrowHelper.ThrowIfNull(action, nameof(action));
-        var invoker = new ParallelContextEntityActionInvoker<TContext>(context, action);
-        ExecuteGeneratedParallel(in query, ref invoker, workerCount);
-    }
+        => ThrowHelper.ThrowGeneratedIterationRequired();
 
-    /// <summary>Executes an entity callback with value context and no component parameters.</summary>
+    /// <summary>
+    /// Zero-component parallel entity value-context callback overload.
+    /// Use a component-bearing generated <c>ForEachEntityParallel</c> callback;
+    /// it puts <c>Entity</c> first, supports one or more component parameters,
+    /// and accepts value context plus a worker count. The target can be the query
+    /// or an explicit entity span, with optional <c>ComponentId</c> selectors.
+    /// </summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
     public void ForEachEntityParallel<TContext>(
         in Query query,
         TContext context,
         ForEachContextEntityAction_Value<TContext> action,
         int workerCount = 0)
-    {
-        ThrowHelper.ThrowIfNull(action, nameof(action));
-        var invoker = new ParallelValueContextEntityActionInvoker<TContext>(context, action);
-        ExecuteGeneratedParallel(in query, ref invoker, workerCount);
-    }
+        => ThrowHelper.ThrowGeneratedIterationRequired();
 
     internal QueryPlan ValidateParallelQuery(in Query query)
     {
         ValidateQuery(in query);
         return query.Cached;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void ExecuteGeneratedParallel<TInvoker>(in Query query, ref TInvoker invoker, int workerCount)
-        where TInvoker : struct, IGeneratedParallelInvoker
-    {
-        GeneratedForEachRuntime.ExecuteParallelDense(this, in query, ref invoker, ReadOnlySpan<int>.Empty, workerCount);
     }
 
     internal StaticParallelQueryExecutor<TInvoker> GetParallelQueryExecutor<TInvoker>()
@@ -211,131 +227,4 @@ public sealed partial class World
         }
     }
 
-    private readonly struct ParallelActionInvoker : IGeneratedParallelInvoker
-    {
-        private readonly ForEachAction _action;
-
-        internal ParallelActionInvoker(ForEachAction action) => _action = action;
-
-        public bool RequiresSingleThread => false;
-
-        public void Invoke(ref GeneratedQuerySlots slots)
-        {
-            int count = slots.Count;
-            for (int index = 0; index < count; index++)
-            {
-                _action();
-            }
-        }
-    }
-
-    private readonly struct ParallelEntityActionInvoker : IGeneratedParallelInvoker
-    {
-        private readonly ForEachEntityAction _action;
-
-        internal ParallelEntityActionInvoker(ForEachEntityAction action) => _action = action;
-
-        public bool RequiresSingleThread => false;
-
-        public void Invoke(ref GeneratedQuerySlots slots)
-        {
-            int count = slots.Count;
-            for (int index = 0; index < count; index++)
-            {
-                _action(slots.EntityAt(index));
-            }
-        }
-    }
-
-    private readonly struct ParallelContextActionInvoker<TContext> : IGeneratedParallelInvoker
-    {
-        private readonly TContext _context;
-        private readonly ForEachContextAction_In<TContext> _action;
-
-        internal ParallelContextActionInvoker(TContext context, ForEachContextAction_In<TContext> action)
-        {
-            _context = context;
-            _action = action;
-        }
-
-        public bool RequiresSingleThread => false;
-
-        public void Invoke(ref GeneratedQuerySlots slots)
-        {
-            int count = slots.Count;
-            for (int index = 0; index < count; index++)
-            {
-                _action(in _context);
-            }
-        }
-    }
-
-    private readonly struct ParallelValueContextActionInvoker<TContext> : IGeneratedParallelInvoker
-    {
-        private readonly TContext _context;
-        private readonly ForEachContextAction_Value<TContext> _action;
-
-        internal ParallelValueContextActionInvoker(TContext context, ForEachContextAction_Value<TContext> action)
-        {
-            _context = context;
-            _action = action;
-        }
-
-        public bool RequiresSingleThread => false;
-
-        public void Invoke(ref GeneratedQuerySlots slots)
-        {
-            int count = slots.Count;
-            for (int index = 0; index < count; index++)
-            {
-                _action(_context);
-            }
-        }
-    }
-
-    private readonly struct ParallelContextEntityActionInvoker<TContext> : IGeneratedParallelInvoker
-    {
-        private readonly TContext _context;
-        private readonly ForEachContextEntityAction_In<TContext> _action;
-
-        internal ParallelContextEntityActionInvoker(TContext context, ForEachContextEntityAction_In<TContext> action)
-        {
-            _context = context;
-            _action = action;
-        }
-
-        public bool RequiresSingleThread => false;
-
-        public void Invoke(ref GeneratedQuerySlots slots)
-        {
-            int count = slots.Count;
-            for (int index = 0; index < count; index++)
-            {
-                _action(in _context, slots.EntityAt(index));
-            }
-        }
-    }
-
-    private readonly struct ParallelValueContextEntityActionInvoker<TContext> : IGeneratedParallelInvoker
-    {
-        private readonly TContext _context;
-        private readonly ForEachContextEntityAction_Value<TContext> _action;
-
-        internal ParallelValueContextEntityActionInvoker(TContext context, ForEachContextEntityAction_Value<TContext> action)
-        {
-            _context = context;
-            _action = action;
-        }
-
-        public bool RequiresSingleThread => false;
-
-        public void Invoke(ref GeneratedQuerySlots slots)
-        {
-            int count = slots.Count;
-            for (int index = 0; index < count; index++)
-            {
-                _action(_context, slots.EntityAt(index));
-            }
-        }
-    }
 }

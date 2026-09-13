@@ -19,3 +19,11 @@ projects whose selected compatibility profile is .NET Standard 2.1. The
 preserving the same public API.
 
 Repository documentation: <https://github.com/Artromskiy/DeltaECS/tree/main/docs>.
+
+Zero-component callbacks
+
+The zero-component delegate and parallel overloads describe the generated
+component-bearing forms and throw `InvalidOperationException` when called; add
+at least one component parameter so `DeltaECS.Generators` can emit the typed
+overload. Functor overloads also require at least one component parameter;
+zero-component functor calls are not generated and their overload throws.

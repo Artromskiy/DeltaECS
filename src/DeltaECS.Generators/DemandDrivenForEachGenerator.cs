@@ -1007,6 +1007,12 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         contextMode = NormalizeParallelContext(parallel, invokeContextMode);
         int prefixCount = (hasContext ? 1 : 0) + (hasEntity ? 1 : 0);
         IParameterSymbol[] componentParameters = invoke.Parameters.Skip(prefixCount).ToArray();
+        if (componentParameters.Length < FirstDemandArity)
+        {
+            diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
+            return false;
+        }
+
         if (componentParameters.Length > MaxArity)
         {
             diagnostic = Diagnostic.Create(TooManyComponents, invocation.GetLocation(), componentParameters.Length, MaxArity);

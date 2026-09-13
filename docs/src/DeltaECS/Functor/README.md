@@ -2,9 +2,8 @@
 
 The functor API is the struct-based counterpart to delegate `ForEach`. It uses
 constrained value-type dispatch and carries mutable functor state by reference.
-Component-bearing shapes are generated on demand for arities 1 through 256.
-The runtime component mask is dynamic; this callback arity limit does not limit
-registered component IDs.
+Component-bearing shapes are generated on demand from the functor's
+component-bearing `Invoke` signature.
 
 The stable marker contracts are:
 
@@ -27,11 +26,10 @@ world.ForEachEntity(in query, ref counter);
 The interfaces are markers only: they do not declare `Invoke` and never encode
 component types or access patterns in their names. Concrete extension methods
 are generated in the consumer assembly from the functor's `Invoke` signature.
-The handwritten marker overloads are compiler anchors and report a clear error
-if called without generated lowering; they are not a silent no-op runtime
-fallback. A functor call must be lowered by the analyzer to a generated
-extension, including a zero-component `Invoke()` shape. Use the handwritten
-delegate overloads when a runtime delegate callback is required.
+The marker overloads throw `InvalidOperationException` when no generated
+component-bearing overload is selected; zero-component functor calls are not
+generated. Use the handwritten delegate overloads when a runtime delegate
+callback is required.
 `in T` means read and `ref T` means write. The generator diagnoses missing,
 ambiguous, or incompatible `Invoke` implementations rather than selecting one
 through reflection at runtime.
@@ -74,7 +72,3 @@ struct IsDead : IWherePredicate
 
 world.Where(in query, ref predicate).Destroy();
 ```
-
-The compiler-support runtime bridge is implemented under
-`src/DeltaECS/Generator/GeneratedRuntime.cs`. Consumers should call
-`World.ForEach`/`ForEachEntity`, not the runtime bridge directly.

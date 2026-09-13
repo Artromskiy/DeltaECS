@@ -5,14 +5,9 @@ component storage.
 
 ## `ForEach` delegates
 
-Zero-component forms are handwritten:
-
-```csharp
-world.ForEach(in query, static () => Tick());
-world.ForEachEntity(in query, static entity => Observe(entity));
-```
-
-Component-bearing overloads are emitted into the consumer assembly on demand:
+The zero-component overloads document the generated forms and throw
+`InvalidOperationException` when called. Add one or more component parameters
+so the analyzer emits the matching overload into the consumer assembly:
 
 ```csharp
 world.ForEach<Position, Velocity>(
@@ -25,9 +20,12 @@ world.ForEach<Position, Velocity>(
 
 `in T` declares read access and `ref T` declares write access. Generated forms
 also support an `Entity` argument, caller context, explicit component IDs, and
-component-bearing arities from 1 through the generator's maximum of 256. This
-callback-parameter limit is independent of the dynamic component-ID mask. See
-the generator README for the generation boundary.
+component-bearing callback shapes. See the generator README for the available
+forms.
+
+The same rule applies to the zero-component context and entity forms. Their
+signatures remain available for source compatibility, but each throws until a
+component-bearing generated overload is selected.
 
 With the project-local Roslyn interceptor opt-in enabled, supported static
 lambdas and static method groups keep this delegate-shaped source API but are

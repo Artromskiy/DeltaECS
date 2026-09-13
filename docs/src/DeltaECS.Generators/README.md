@@ -10,12 +10,10 @@ The analyzer emits only the callback and generic structural-operation shapes
 requested by a consumer compilation. It does not generate storage, queries,
 archetypes or structural kernels.
 
-- Zero-component delegate overloads are handwritten in DeltaECS. Component-
-  bearing delegate and functor overloads are generated from the consumer's
-  demand and start at arity one. A zero-component functor `Invoke()` is also
-  generated on demand; there is no no-op runtime fallback for a functor call.
-- Component-bearing callback arities start at one and may extend to 256. This
-  is a generator limit, not a limit on the dynamically sized component mask.
+- Zero-component delegate and parallel overloads throw
+  `InvalidOperationException` when called. Component-bearing delegate and
+  functor overloads are generated from the consumer's demand. Zero-component
+  functor calls are not generated.
 - Component parameters use four access literals in generated callback names:
   `R` for `ref readonly T`, `W` for `ref T`, `I` for `in T`, and `V` for a
   by-value `T` copy. `W` is the only writing mode; the other three use a read
@@ -125,9 +123,8 @@ int queryRemoved = world.Remove<Position, Velocity>(in query);
 Structural operations add or remove the primary component registrations and return the
 number of entities changed. Newly added rows are default-initialized; use the
 existing typed `World.Add<T>(..., ComponentId, in T)` overload when a value must
-be initialized during the transition. Generic structural forms support arity
-one through 256 on demand; this generator limit is independent of the dynamic
-number of registered component IDs.
+be initialized during the transition. Generic structural forms follow the
+component lists used by the consumer.
 
 When component registrations are already runtime values, the generator also
 provides the positional counted form:
@@ -157,9 +154,8 @@ Each generated factory resolves primary component registrations, fills a
 stack-only `ComponentId` span and calls the existing `World.CreateQuery` path.
 The initial call uses `world.Layouts.GetPrimary<T>()`; a `Query` extension
 resolves the same registration through the query's owning world and composes
-the masks into a new `QuerySpec`. Equivalent specifications continue to share
-the existing query-plan cache. Factories are emitted on demand for arities one
-through 256; no generic query plan or runtime type dictionary is introduced.
+the masks into a new query. Equivalent specifications continue to share the
+same query behavior.
 
 `DeltaECS.Generators` targets `netstandard2.0`. The analyzer package keeps this
 broadly compatible assembly in `analyzers/dotnet/cs`; the target of the
@@ -216,10 +212,10 @@ stay on the ordinary delegate path. The generator reports `DECSGEN005` at
 informational severity with the fallback reason; the diagnostic never turns a
 fallback call into a build failure.
 
-The generator reports diagnostics for unsupported arity, ambiguous functor
-`Invoke` shapes, invalid ref kinds and calls whose requested component pattern
-cannot be represented safely. It does not use runtime reflection to choose a
-callback overload.
+The generator reports diagnostics for invalid callback shapes, ambiguous
+functor `Invoke` implementations, invalid ref kinds and calls whose requested
+component pattern cannot be represented safely. It does not use runtime
+reflection to choose a callback overload.
 
 Fixed multi-line source templates in the generator use C# raw string literals.
 Dynamic symbols, callback bodies and access lists are still appended separately,

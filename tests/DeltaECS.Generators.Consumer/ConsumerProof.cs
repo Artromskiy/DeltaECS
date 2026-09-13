@@ -292,8 +292,12 @@ public static class ConsumerProof
         world.Create(stackalloc[] { positionId, accelerationId });
 
         Query all = world.WhereAll<Position, Velocity>();
-        Query any = world.WhereAny<Velocity, Acceleration>();
-        Query none = world.WhereNone<Lifetime>();
+        Query any = world
+            .WhereAll<Position>()
+            .WhereAny<Velocity, Acceleration>();
+        Query none = world
+            .WhereAll<Position>()
+            .WhereNone<Lifetime>();
         Query composed = world
             .WhereAll<Position>()
             .WhereNone<Lifetime>()
@@ -403,8 +407,9 @@ public static class ConsumerProof
             .ForEach(static (ref Health health, in Team team) => health.Value = team.DefaultHealth);
 
         bool rejectedStructuralNesting = false;
-        world.ForEach(in query, () =>
+        world.ForEach(in query, (ref Health health) =>
         {
+            _ = health;
             try
             {
                 world.WhereEntity(
@@ -459,10 +464,9 @@ public static class ConsumerProof
     private static int Count(World world, in Query query)
     {
         int count = 0;
-        world.ForEachEntity(
+        world.ForEach<Position>(
             in query,
-            ref count,
-            static (ref int value, Entity _) => value++);
+            (ref Position _) => count++);
         return count;
     }
 }

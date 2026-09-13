@@ -34,9 +34,9 @@ world.ForEachEntityParallel(
     workerCount: 4);
 ```
 
-For queries without component parameters, the runtime also exposes direct
-`ForEachParallel(in query, ForEachAction, workerCount)` and
-`ForEachEntityParallel(in query, ForEachEntityAction, workerCount)` overloads.
+The no-component parallel overloads describe the generated component-bearing
+forms and throw `InvalidOperationException` when called; use one or more
+component parameters in the callback.
 
 Read-only state is passed at the call site with `in`; the callback can spell
 its first parameter as `in` or `ref readonly`. The latter uses the same

@@ -7,6 +7,43 @@ namespace Delta.ECS.Tests;
 public sealed class PipelineApiTests
 {
     [Test]
+    public void ZeroArityAnchorsRequireGeneratedComponentCallbacks()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_004));
+        using var world = new World(layouts);
+        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
+        int context = 0;
+        ForEachAction action = static () => { };
+        ForEachEntityAction entityAction = static _ => { };
+        ForEachContextAction<int> contextAction = static (ref int _) => { };
+        ForEachContextEntityAction<int> contextEntityAction = static (ref int _, Entity __) => { };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(() => world.ForEach(in query, action), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEachEntity(in query, entityAction), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEach(in query, ref context, contextAction), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEachEntity(in query, ref context, contextEntityAction), Throws.InvalidOperationException);
+        });
+
+        ForEachContextAction_In<int> readOnlyContextAction = static (in int _) => { };
+        ForEachContextAction_Value<int> valueContextAction = static _ => { };
+        ForEachContextEntityAction_In<int> readOnlyEntityContextAction = static (in int _, Entity __) => { };
+        ForEachContextEntityAction_Value<int> valueEntityContextAction = static (int _, Entity __) => { };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(() => world.ForEachParallel(in query, action, workerCount: 1), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEachEntityParallel(in query, entityAction, workerCount: 1), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEachParallel(in query, in context, readOnlyContextAction, workerCount: 1), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEachParallel(in query, context, valueContextAction, workerCount: 1), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEachEntityParallel(in query, in context, readOnlyEntityContextAction, workerCount: 1), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEachEntityParallel(in query, context, valueEntityContextAction, workerCount: 1), Throws.InvalidOperationException);
+        });
+    }
+
+    [Test]
     public void InferredForEachCachesPrimaryRoutesPerQueryPlan()
     {
         var layouts = new ComponentLayoutRegistry();

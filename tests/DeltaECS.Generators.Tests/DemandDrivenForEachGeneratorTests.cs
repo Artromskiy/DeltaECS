@@ -71,6 +71,31 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void ZeroArityFunctorIsRejectedWithoutGeneratedOverload()
+    {
+        const string source = """
+            namespace Delta.ECS;
+            struct EmptyFunctor : IForEach
+            {
+                public void Invoke() { }
+            }
+            static class Consumer
+            {
+                public static void Use(World world, Query query)
+                {
+                    var functor = new EmptyFunctor();
+                    world.ForEach(in query, ref functor);
+                }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGenerator(source);
+
+        Assert.That(run.Diagnostics.Any(static diagnostic => diagnostic.Id == "DECSGEN001"), Is.True);
+        Assert.That(GeneratedText(run), Does.Not.Contain("EmptyFunctor"));
+    }
+
+    [Test]
     public void PrivateFunctorReportsGeneratorDiagnostic()
     {
         GeneratorDriverRunResult run = RunGenerator(PrivateFunctorSource);
@@ -1616,10 +1641,6 @@ public sealed class DemandDrivenForEachGeneratorTests
         struct T7 { public int Value; }
         struct T8 { public int Value; }
         struct Context { public int Value; }
-        struct EmptyFunctor : IForEach
-        {
-            public void Invoke() { }
-        }
         struct Functor : IForEachContextEntity<Context>
         {
             public void Invoke(ref Context context, Entity entity, in T1 a, ref T2 b, in T3 c, ref T4 d) { context.Value += entity.Index + a.Value + c.Value; b.Value++; d.Value++; }
@@ -1636,8 +1657,6 @@ public sealed class DemandDrivenForEachGeneratorTests
                 world.ForEachEntity(in query, static (Entity entity) => { _ = entity; });
                 var context = new Context();
                 world.ForEach<Context>(in query, ref context, static (ref Context value) => value.Value++);
-                var emptyFunctor = new EmptyFunctor();
-                world.ForEach(in query, ref emptyFunctor);
                 var allModesFunctor = new AllModesFunctor();
                 world.ForEach(in query, ref allModesFunctor);
                 world.ForEach<T1>(in query, static (ref T1 value) => value.Value++);

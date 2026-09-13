@@ -8,7 +8,7 @@ on implementation. They do not create separate storage models or namespaces.
 |---|---|---|
 | `Core` | World, entities, component identities and structural operations | [Core API](Core/README.md) |
 | `Generic` | Typed registration, single-component helpers and terminal row references | [Generic API](Generic/README.md) |
-| `Delegate` | Delegate callback contracts and zero-component entry points | [Delegate API](Delegate/README.md) |
+| `Delegate` | Delegate callback contracts and zero-component callbacks | [Delegate API](Delegate/README.md) |
 | `Functor` | Struct-functor marker contracts | [Functor API](Functor/README.md) |
 | `Parallel` | Chunk-disjoint multi-threaded query execution | [Parallel API](Parallel/README.md) |
 | `API` | Neutral engine/editor integration contract | [Integration API](API/README.md) |

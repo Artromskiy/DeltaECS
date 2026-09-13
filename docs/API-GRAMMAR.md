@@ -1,14 +1,13 @@
 # DeltaECS API grammar
 
-This is the canonical internal contract for the generated DeltaECS API. Read
-it before changing a public overload, a generator template, or a consumer
-example. The public entry points use the same argument order across generic,
-non-generic, delegate, functor, and parallel forms.
+This is the canonical public grammar for the DeltaECS API. Read it when using
+the public entry points or documenting a consumer example. The same argument
+order applies to generic, non-generic, delegate, functor, and parallel forms.
 
 ## Grammar symbols
 
 ```text
-T...  — list of CLR components, 1..256
+T...  — one or more CLR component types
 I...  — positional list of ComponentId values
 e     — one Entity
 E     — ReadOnlySpan<Entity> or an entity array
@@ -66,8 +65,8 @@ world.ForEachEntityParallel<T...>(Q | E, I..., C, F, W)
 
 `ForEach` callbacks receive component rows. `ForEachEntity` callbacks also
 receive the current `Entity` as their first row argument. Parallel callbacks
-are always dispatched through the parallel executor; `W` is the caller's
-worker-count choice, clamped to the supported range by the runtime.
+always use parallel execution; `W` is the caller's worker-count choice,
+clamped to the supported range.
 
 ## Structural forms
 
@@ -82,13 +81,12 @@ world.Add(e | E | Q, I...)
 world.Remove(e | E | Q, I...)
 
 world.Create<T...>(N, O?)
+world.Create<T...>(I..., N, O?)
 world.Create(I..., N, O?)
 ```
 
 The `I...` forms are positional `ComponentId` arguments. `Add` and `Remove`
-accept them directly as a trailing `params ReadOnlySpan<ComponentId>`; the
-counted `Create` forms are emitted by the consumer generator because `params`
-cannot precede `N` in a C# declaration.
+accept them after the target; `Create` places them before `N` and `O`.
 
 `O` is optional caller-owned output storage. Omitting it creates entities
 without retaining handles. Structural terminals are immediate operations and
@@ -120,8 +118,7 @@ query
 ```
 
 `WhereAll` appends components to `All`, `WhereNone` appends to `None`, and
-`WhereAny` appends to the shared `Any` mask. The existing query cache remains
-the runtime source of composed query plans.
+`WhereAny` appends to the shared `Any` filter.
 
 ## Where pipeline
 
@@ -142,20 +139,9 @@ view.ForEachEntity(...)
 
 The ordinary `Where` predicate is component-only. `WhereEntity` adds the
 current `Entity` as its first predicate parameter. Predicate component rows
-may use `in`, `ref readonly`, or `ref` according to the requested access; a
-structural terminal applies any component writes before it performs the
-structural change.
+use `in` or `ref readonly`. A structural terminal applies component writes
+before it performs the structural change.
 
-## Removed surface
-
-The canonical API no longer includes `ArchetypeHandle`, public
-`GetOrCreateArchetype`, handle-based `Create`, `World.From`,
-`EntitySequence`, or `FilteredEntitySequence`. Explicit entity operations use
-the direct `World` overloads above.
-
-The three-loop traversal (`BeginScope`, `QueryArchetypes`, `QueryChunks`,
-`QuerySlots`, `ReadRow` and `WriteRow`) is an internal runtime implementation
-detail. It is not a consumer API and must not be used in generated examples,
-benchmarks or integration contracts. The chunk callback overload of
-`ForEachParallel` is internal for the same reason; consumers use the generated
-typed `ForEachParallel` and `ForEachEntityParallel` forms.
+The zero-component delegate, parallel, and functor overloads throw
+`InvalidOperationException`. Use a component-bearing callback or functor for
+iteration; a functor must provide at least one component parameter.

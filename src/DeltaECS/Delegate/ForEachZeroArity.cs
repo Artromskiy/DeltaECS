@@ -2,95 +2,80 @@ namespace Delta.ECS;
 
 public sealed partial class World
 {
-    /// <summary>Executes a zero-component callback for every matching entity.
-    /// Generated component-bearing forms support callback arity 1-256, for example
-    /// <code> world.ForEach(in query, static (ref Position p, in Velocity v) =&gt; p += v);</code>
+    /// <summary>
+    /// Zero-component delegate callback overload.
+    /// Use a component-bearing generated form such as
+    /// <c>world.ForEach(in query, static (ref Position position, in Velocity velocity) =&gt; ...)</c>.
+    /// Generated callbacks use one or more component parameters and may target
+    /// the query or an explicit entity span, with optional <c>ComponentId</c>
+    /// selectors and caller context.
     /// </summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
     public void ForEach(in Query query, ForEachAction action)
-    {
-        ThrowHelper.ThrowIfNull(action, nameof(action));
-        using var execution = GeneratedForEachRuntime.OpenReadDense(this, in query);
-        while (execution.MoveNextTrusted(out var slots))
-        {
-            while (slots.MoveNext())
-            {
-                action();
-            }
-        }
-    }
+        => ThrowHelper.ThrowGeneratedIterationRequired();
 
     /// <summary>
-    /// Executes a zero-component callback with the current entity.
-    /// Generated component-bearing forms support callback arity 1-256, for example
-    /// <code>world.ForEachEntity(in query, static entity =&gt; Log(entity));</code>
+    /// Zero-component entity callback overload.
+    /// Use a component-bearing generated <c>ForEachEntity</c> form such as
+    /// <c>world.ForEachEntity(in query, static (Entity entity, in Position position) =&gt; ...)</c>.
+    /// Generated forms put <c>Entity</c> first, use one or more component
+    /// parameters, may target the query or an explicit entity span, and may
+    /// include explicit <c>ComponentId</c> selectors and context.
     /// </summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
     public void ForEachEntity(in Query query, ForEachEntityAction action)
-    {
-        ThrowHelper.ThrowIfNull(action, nameof(action));
-        using var execution = GeneratedForEachRuntime.OpenReadDense(this, in query);
-        while (execution.MoveNextTrusted(out var slots))
-        {
-            while (slots.MoveNext())
-            {
-                action(slots.CurrentEntity);
-            }
-        }
-    }
+        => ThrowHelper.ThrowGeneratedIterationRequired();
 
     /// <summary>
-    /// Executes a zero-component callback with caller-owned context.
-    /// Generated component-bearing forms support callback arity 1-256, for example
-    /// <code>world.ForEach(in query, ref state, static (ref State s, ref Position p) =&gt; s.Sum += p.X);</code>
+    /// Zero-component context callback overload.
+    /// Use a component-bearing generated form such as
+    /// <c>world.ForEach(in query, ref state, static (ref State value, ref Position position) =&gt; ...)</c>.
+    /// Generated forms support caller context, query or explicit entity-span
+    /// targets, explicit <c>ComponentId</c> selectors, and one or more component
+    /// parameters.
     /// </summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
     public void ForEach<TContext>(in Query query, ref TContext context, ForEachContextAction<TContext> action)
-    {
-        ThrowHelper.ThrowIfNull(action, nameof(action));
-        using var execution = GeneratedForEachRuntime.OpenReadDense(this, in query);
-        while (execution.MoveNextTrusted(out var slots))
-        {
-            while (slots.MoveNext())
-            {
-                action(ref context);
-            }
-        }
-    }
+        => ThrowHelper.ThrowGeneratedIterationRequired();
 
     /// <summary>
-    /// Executes a zero-component callback with context and entity.
-    /// Generated component-bearing forms support callback arity 1-256, for example
-    /// <code>world.ForEachEntity(in query, ref state, static (ref State s, Entity entity, ref Position p) =&gt; s.Sum += p.X + entity.Index);</code>
+    /// Zero-component entity context callback overload.
+    /// Use a component-bearing generated form such as
+    /// <c>world.ForEachEntity(in query, ref state, static (ref State value, Entity entity, ref Position position) =&gt; ...)</c>.
+    /// Generated forms put <c>Entity</c> first, support caller context, query or
+    /// explicit entity-span targets, explicit <c>ComponentId</c> selectors, and
+    /// one or more component parameters.
     /// </summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
     public void ForEachEntity<TContext>(in Query query, ref TContext context, ForEachContextEntityAction<TContext> action)
-    {
-        ThrowHelper.ThrowIfNull(action, nameof(action));
-        using var execution = GeneratedForEachRuntime.OpenReadDense(this, in query);
-        while (execution.MoveNextTrusted(out var slots))
-        {
-            while (slots.MoveNext())
-            {
-                action(ref context, slots.CurrentEntity);
-            }
-        }
-    }
+        => ThrowHelper.ThrowGeneratedIterationRequired();
 
     /// <summary>
-    /// Entry point for a functor that processes matching entities without components.
-    /// Generated component-bearing forms support callback arity 1-256, for example
-    /// <code>world.ForEachEntity(in query, ref functor);</code>
+    /// Zero-component entity functor overload.
+    /// Use a component-bearing generated <c>ForEachEntity</c> form with a functor
+    /// implementing <c>IForEachEntity</c>; generated forms use one or more
+    /// component parameters and may include caller context or explicit
+    /// <c>ComponentId</c> selectors.
     /// </summary>
+    /// <remarks>This zero-component overload always throws; no generated zero-component functor form exists.</remarks>
+    /// <exception cref="System.InvalidOperationException">Zero-component functor iteration is not supported.</exception>
     public void ForEachEntity<T>(in Query query, T action) where T : IForEachEntity
-    {
-        ThrowHelper.ThrowGeneratedFunctorRequired();
-    }
+        => ThrowHelper.ThrowGeneratedFunctorRequired();
 
     /// <summary>
-    /// Entry point for a functor that processes matching components.
-    /// Generated component-bearing forms support callback arity 1-256, for example
-    /// <code>world.ForEach(in query, ref functor);</code>
+    /// Zero-component functor overload.
+    /// Use a component-bearing generated <c>ForEach</c> form with a functor
+    /// implementing <c>IForEach</c>; generated forms use one or more component
+    /// parameters and may include caller context or explicit <c>ComponentId</c>
+    /// selectors.
     /// </summary>
+    /// <remarks>This zero-component overload always throws; no generated zero-component functor form exists.</remarks>
+    /// <exception cref="System.InvalidOperationException">Zero-component functor iteration is not supported.</exception>
     public void ForEach<T>(in Query query, T action) where T : IForEach
-    {
-        ThrowHelper.ThrowGeneratedFunctorRequired();
-    }
+        => ThrowHelper.ThrowGeneratedFunctorRequired();
 
 }

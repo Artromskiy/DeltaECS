@@ -52,7 +52,7 @@ The trusted runtime keeps the write state proportional to the operation:
 | --- | --- |
 | `Set` or integration point write | `EntityComponentStampWriter` for the current entity/component |
 | Generated dense `ForEach` write | `ArchetypeComponentStampWriter` for the matching archetype/component |
-| Generated read-only or zero-arity traversal | no write stamp or writer state |
+| Generated read-only traversal or zero-arity anchor | no write stamp or writer state |
 
 This distinction is intentional: read-only and entity-selected paths do not
 carry broader write data, while a dense generated write marks the archetype

@@ -138,6 +138,12 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowGeneratedIterationRequired()
+        => throw new InvalidOperationException(
+            "Zero-component iteration is not supported; add one or more component parameters for a generated overload.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowArchetypeIteratorNotPositioned()
         => throw new InvalidOperationException("The archetype iterator is not positioned on an archetype.");
 

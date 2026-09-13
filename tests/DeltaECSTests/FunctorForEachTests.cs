@@ -7,7 +7,7 @@ using NUnit.Framework;
 public sealed class FunctorForEachTests
 {
     [Test]
-    public void ZeroArityFunctorUsesTheGeneratedExecutionPath()
+    public void ZeroArityFunctorAnchorThrows()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_081));
@@ -16,9 +16,9 @@ public sealed class FunctorForEachTests
         var query = world.CreateQuery(QuerySpec.WhereAll(positionId));
         var functor = new ZeroArityFunctor();
 
-        world.ForEach(in query, ref functor);
+        Assert.That(() => world.ForEach(in query, functor), Throws.InvalidOperationException);
 
-        Assert.That(functor.Count, Is.EqualTo(1));
+        Assert.That(functor.Count, Is.EqualTo(0));
     }
 
     [Test]
