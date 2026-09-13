@@ -14,7 +14,7 @@ public sealed partial class World
     public int Create<T>(int count)
     {
         ThrowHelper.ThrowIfNegative(count, nameof(count));
-        return Create(count, stackalloc[] { _layouts.GetPrimary<T>() });
+        return Create(stackalloc[] { _layouts.GetPrimary<T>() }, count);
     }
 
     /// <summary>
@@ -37,7 +37,7 @@ public sealed partial class World
     }
 
     /// <summary>Creates typed entities with the specified component registration and returns their handles.</summary>
-    public Entity[] Create<T>(ComponentId componentId, int count)
+    public int Create<T>(ComponentId componentId, int count)
     {
         EnsureRegisteredType<T>(componentId);
         return Create(stackalloc[] { componentId }, count);

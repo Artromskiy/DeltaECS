@@ -150,7 +150,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                     shapes.Add(key, shape);
                 }
 
-                if (interceptorsEnabled && languageSupportsInterceptors && !shape.IsFunctor)
+                if (interceptorsEnabled && languageSupportsInterceptors && !shape.IsFunctor && !shape.HasEntityTarget)
                 {
                     if (TryCreateInterceptionSite(model, invocation, shape, tree, out InterceptionSite? site, out string? reason)
                         && site is { } interceptionSite)
@@ -225,6 +225,12 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         if (shape.Receiver != ReceiverKind.World)
         {
             reason = "only World.ForEach call sites are currently supported";
+            return false;
+        }
+
+        if (shape.HasEntityTarget)
+        {
+            reason = "entity-list ForEach call sites do not use interception";
             return false;
         }
 
@@ -550,10 +556,21 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         int genericCount = genericName?.TypeArgumentList.Arguments.Count ?? 0;
         var arguments = invocation.ArgumentList.Arguments;
+        bool hasEntityTarget = arguments.Count > 0
+            && IsEntityBatch(model.GetTypeInfo(arguments[0].Expression).Type);
+        bool hasQuery = !hasEntityTarget;
+        if (hasEntityTarget && arguments.Count > 1
+            && arguments[1].RefKindKeyword.IsKind(SyntaxKind.InKeyword)
+            && model.GetTypeInfo(arguments[1].Expression).Type is { } queryType
+            && IsEcsType(queryType, "Query"))
+        {
+            hasQuery = true;
+        }
         bool namedEntity = IsEntityName(member.Name.Identifier.ValueText);
-        int componentIdCount = CountComponentIds(model, arguments);
+        int targetArgumentCount = hasEntityTarget ? 1 : 0;
+        int componentIdCount = CountComponentIds(model, arguments, targetArgumentCount);
         int callbackArgumentIndex = arguments.IndexOf(arguments.First(static argument => argument.Expression is LambdaExpressionSyntax));
-        int contextArgumentIndex = ContextArgumentIndex(receiver, componentIdCount, callbackArgumentIndex);
+        int contextArgumentIndex = ContextArgumentIndex(targetArgumentCount + (hasQuery ? 1 : 0) + componentIdCount, callbackArgumentIndex);
         bool hasContext = contextArgumentIndex >= 0;
         ContextMode contextMode = hasContext
             ? ContextModeFromArgument(arguments[contextArgumentIndex])
@@ -668,7 +685,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             contextType: lambdaContextType,
             parallel: parallel,
             contextMode: contextMode,
-            methodName: member.Name.Identifier.ValueText);
+            methodName: member.Name.Identifier.ValueText,
+            hasEntityTarget: hasEntityTarget,
+            hasQuery: hasQuery);
         return true;
     }
 
@@ -728,8 +747,20 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         {
             return false;
         }
-        int componentIdCount = CountComponentIds(model, invocation.ArgumentList.Arguments);
-        int contextArgumentIndex = ContextArgumentIndex(receiver, componentIdCount, callbackArgumentIndex);
+        var arguments = invocation.ArgumentList.Arguments;
+        bool hasEntityTarget = arguments.Count > 0
+            && IsEntityBatch(model.GetTypeInfo(arguments[0].Expression).Type);
+        bool hasQuery = !hasEntityTarget;
+        if (hasEntityTarget && arguments.Count > 1
+            && arguments[1].RefKindKeyword.IsKind(SyntaxKind.InKeyword)
+            && model.GetTypeInfo(arguments[1].Expression).Type is { } queryType
+            && IsEcsType(queryType, "Query"))
+        {
+            hasQuery = true;
+        }
+        int targetArgumentCount = hasEntityTarget ? 1 : 0;
+        int componentIdCount = CountComponentIds(model, arguments, targetArgumentCount);
+        int contextArgumentIndex = ContextArgumentIndex(targetArgumentCount + (hasQuery ? 1 : 0) + componentIdCount, callbackArgumentIndex);
         bool hasContext = contextArgumentIndex >= 0;
         ContextMode contextMode = hasContext
             ? ContextModeFromArgument(invocation.ArgumentList.Arguments[contextArgumentIndex])
@@ -851,7 +882,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             contextType,
             parallel: parallel,
             contextMode: contextMode,
-            methodName: member.Name.Identifier.ValueText);
+            methodName: member.Name.Identifier.ValueText,
+            hasEntityTarget: hasEntityTarget,
+            hasQuery: hasQuery);
         return true;
     }
 
@@ -911,9 +944,21 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return false;
         }
 
-        int componentIdCount = CountComponentIds(model, invocation.ArgumentList.Arguments);
+        var arguments = invocation.ArgumentList.Arguments;
+        bool hasEntityTarget = arguments.Count > 0
+            && IsEntityBatch(model.GetTypeInfo(arguments[0].Expression).Type);
+        bool hasQuery = !hasEntityTarget;
+        if (hasEntityTarget && arguments.Count > 1
+            && arguments[1].RefKindKeyword.IsKind(SyntaxKind.InKeyword)
+            && model.GetTypeInfo(arguments[1].Expression).Type is { } queryType
+            && IsEcsType(queryType, "Query"))
+        {
+            hasQuery = true;
+        }
+        int targetArgumentCount = hasEntityTarget ? 1 : 0;
+        int componentIdCount = CountComponentIds(model, arguments, targetArgumentCount);
         int contextArgumentIndex = hasContext
-            ? ContextArgumentIndex(receiver, componentIdCount, functorArgumentIndex)
+            ? ContextArgumentIndex(targetArgumentCount + (hasQuery ? 1 : 0) + componentIdCount, functorArgumentIndex)
             : -1;
         ContextMode contextMode = ContextMode.None;
         if (hasContext)
@@ -997,7 +1042,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             contextType is { } resolvedContextType ? DisplayType(resolvedContextType) : null,
             parallel: parallel,
             contextMode: contextMode,
-            methodName: member.Name.Identifier.ValueText);
+            methodName: member.Name.Identifier.ValueText,
+            hasEntityTarget: hasEntityTarget,
+            hasQuery: hasQuery);
         return true;
     }
 
@@ -1108,12 +1155,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         => argumentMode == callbackMode
             || (argumentMode == ContextMode.In && callbackMode == ContextMode.RefReadonly);
 
-    private static int ContextArgumentIndex(
-        ReceiverKind receiver,
-        int componentIdCount,
-        int callbackArgumentIndex)
+    private static int ContextArgumentIndex(int prefixArgumentCount, int callbackArgumentIndex)
     {
-        int expectedWithoutContext = 1 + componentIdCount;
+        int expectedWithoutContext = prefixArgumentCount;
         return callbackArgumentIndex > expectedWithoutContext ? expectedWithoutContext : -1;
     }
 
@@ -1213,13 +1257,16 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             and not Accessibility.Protected
             and not Accessibility.ProtectedAndInternal;
 
-    private static int CountComponentIds(SemanticModel model, SeparatedSyntaxList<ArgumentSyntax> arguments)
+    private static int CountComponentIds(
+        SemanticModel model,
+        SeparatedSyntaxList<ArgumentSyntax> arguments,
+        int targetArgumentCount = 0)
     {
-        int start = arguments.Count > 0
-            && model.GetTypeInfo(arguments[0].Expression).Type is { } firstType
+        int start = arguments.Count > targetArgumentCount
+            && model.GetTypeInfo(arguments[targetArgumentCount].Expression).Type is { } firstType
             && IsEcsType(firstType, "Query")
-            ? 1
-            : 0;
+            ? targetArgumentCount + 1
+            : targetArgumentCount;
         int count = 0;
         for (int index = start; index < arguments.Count; index++)
         {
@@ -1257,6 +1304,20 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
     private static bool IsEntityType(ITypeSymbol type)
         => IsEcsType(type, "Entity");
+
+    private static bool IsEntityBatch(ITypeSymbol? type)
+    {
+        if (type is IArrayTypeSymbol array)
+        {
+            return IsEntityType(array.ElementType);
+        }
+
+        return type is INamedTypeSymbol named
+            && named.TypeArguments.Length == 1
+            && IsEntityType(named.TypeArguments[0])
+            && named.ContainingNamespace.ToDisplayString() == "System"
+            && named.Name is "Span" or "ReadOnlySpan";
+    }
 
     private static bool IsEcsType(ITypeSymbol type, string name)
         => type.Name == name && type.ContainingNamespace.ToDisplayString() == EcsNamespace;
@@ -1439,7 +1500,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         {
             RenderArchetypeStampWriter(source, shape);
         }
-        if (shape.Parallel)
+        if (shape.Parallel || shape.HasEntityTarget)
         {
             RenderParallelInvoker(source, shape);
         }
@@ -1679,13 +1740,44 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         source.Append("    private static void ").Append(methodName).Append(genericPrefix)
-            .Append("(World world, in Query query")
+            .Append("(World world")
+            .Append(shape.HasEntityTarget ? ", global::System.ReadOnlySpan<Entity> entities, in Query query" : ", in Query query")
             .Append(componentParameters)
             .Append(contextParameter)
             .Append(callbackParameter)
             .Append(workerCountParameter)
             .AppendLine(")");
         source.AppendLine("    {");
+        if (shape.HasEntityTarget)
+        {
+            source.Append("        ").Append(AccessSetup(shape, ids, closed: true, prepared: true));
+            string entityInvokerType = ParallelInvokerName(shape) + StateGeneric(shape, generic);
+            source.Append("        var invoker = new ").Append(entityInvokerType).Append('(');
+            var entityConstructorArguments = new List<string>();
+            if (shape.HasContext)
+            {
+                entityConstructorArguments.Add("context");
+            }
+
+            entityConstructorArguments.Add(shape.IsFunctor ? "functor" : "action");
+            entityConstructorArguments.Add(AccessArguments(shape.Pattern));
+            source.Append(string.Join(", ", entityConstructorArguments)).AppendLine(");");
+            source.Append("        GeneratedForEachRuntime.ExecuteEntityListParallel(world, in query, entities, ref invoker, ");
+            AppendParallelWriteIndices(source, shape);
+            source.AppendLine(", workerCount);");
+            if (shape.HasContext && shape.ContextMode == ContextMode.Ref)
+            {
+                source.AppendLine("        context = invoker.Context;");
+            }
+
+            if (shape.IsFunctor)
+            {
+                source.AppendLine("        functor = invoker.Functor;");
+            }
+
+            source.AppendLine("    }");
+            return;
+        }
         source.Append("        ").Append(AccessSetup(shape, ids, closed: true, prepared: true));
         source.Append("        var invoker = new ").Append(invokerType).Append('(');
         var constructorArguments = new List<string>();
@@ -1806,8 +1898,10 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string componentParameters = shape.ExplicitIds
             ? ", " + ClosedComponentParameters(shape.Components.Length)
             : string.Empty;
-        string prefix = "this World world";
-        string query = ", in Query query";
+        string prefix = shape.HasEntityTarget
+            ? "this World world, global::System.ReadOnlySpan<Entity> entities"
+            : "this World world";
+        string query = shape.HasQuery ? ", in Query query" : string.Empty;
         string contextParameter = shape.HasContext
             ? ", " + ContextParameter(shape.ContextMode, ContextType(shape), "context")
             : string.Empty;
@@ -2465,12 +2559,43 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         source.AppendLine("    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         source.Append("    private static void ").Append(methodName).Append(genericPrefix)
-            .Append("(World world, in Query query")
+            .Append("(World world")
+            .Append(shape.HasEntityTarget ? ", global::System.ReadOnlySpan<Entity> entities, in Query query" : ", in Query query")
             .Append(componentParameters)
             .Append(contextParameter)
             .Append(callbackParameter)
             .AppendLine(")");
         source.AppendLine("    {");
+        if (shape.HasEntityTarget)
+        {
+            source.Append("        ").Append(AccessSetup(shape, ids, closed: true, prepared: true));
+            string invokerType = ParallelInvokerName(shape) + StateGeneric(shape, generic);
+            source.Append("        var invoker = new ").Append(invokerType).Append('(');
+            var constructorArguments = new List<string>();
+            if (shape.HasContext)
+            {
+                constructorArguments.Add("context");
+            }
+
+            constructorArguments.Add(shape.IsFunctor ? "functor" : "action");
+            constructorArguments.Add(AccessArguments(shape.Pattern));
+            source.Append(string.Join(", ", constructorArguments)).AppendLine(");");
+            source.Append("        GeneratedForEachRuntime.ExecuteEntityList(world, in query, entities, ref invoker, ");
+            AppendParallelWriteIndices(source, shape);
+            source.AppendLine(");");
+            if (shape.HasContext && shape.ContextMode == ContextMode.Ref)
+            {
+                source.AppendLine("        context = invoker.Context;");
+            }
+
+            if (shape.IsFunctor)
+            {
+                source.AppendLine("        functor = invoker.Functor;");
+            }
+
+            source.AppendLine("    }");
+            return;
+        }
         source.Append("        using var execution = GeneratedForEachRuntime.")
             .Append(BoolHasWrites(shape.Pattern) == "true" ? "OpenWriteDense" : "OpenReadDense")
             .AppendLine("(world, in query);");
@@ -2593,7 +2718,10 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
     {
         string accesses = accessArguments;
 
-        var closedArguments = new List<string> { "world", "in query" };
+        var body = new StringBuilder();
+        var closedArguments = shape.HasEntityTarget
+            ? new List<string> { "world", "entities", "in query" }
+            : new List<string> { "world", "in query" };
         if (shape.ExplicitIds)
         {
             closedArguments.Add(ComponentNames(shape.Components.Length));
@@ -2615,8 +2743,14 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         string invoke = closedMethodName + "(" + string.Join(", ", closedArguments) + ");";
-        var body = new StringBuilder();
         body.AppendLine("{");
+        if (!shape.HasQuery)
+        {
+            string queryComponents = shape.ExplicitIds ? ComponentNames(shape.Components.Length) : PrimaryArguments(shape);
+            body.Append("    Query query = world.WhereAll(stackalloc ComponentId[] { ")
+                .Append(queryComponents)
+                .AppendLine(" });");
+        }
         string indent = "    ";
         if (profiling)
         {
@@ -2748,7 +2882,11 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         var result = new StringBuilder();
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
-            bool routeOnly = prepared && !shape.HasEntity && !shape.ExplicitIds && !shape.Parallel;
+            bool routeOnly = prepared
+                && !shape.HasEntity
+                && !shape.HasEntityTarget
+                && !shape.ExplicitIds
+                && !shape.Parallel;
             result.Append(routeOnly ? "int route" : "var access")
                 .Append(index)
                 .Append(" = GeneratedForEachRuntime.");
@@ -3034,7 +3172,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             string? contextType,
             bool parallel = false,
             ContextMode contextMode = ContextMode.None,
-            string methodName = "ForEach")
+            string methodName = "ForEach",
+            bool hasEntityTarget = false,
+            bool hasQuery = true)
         {
             Receiver = receiver;
             ExplicitIds = explicitIds;
@@ -3049,6 +3189,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             Parallel = parallel;
             ContextMode = contextMode;
             MethodName = methodName;
+            HasEntityTarget = hasEntityTarget;
+            HasQuery = hasQuery;
         }
 
         public ReceiverKind Receiver { get; }
@@ -3063,7 +3205,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         public string? ContextType { get; }
         public bool Parallel { get; }
         public ContextMode ContextMode { get; }
+        public bool HasEntityTarget { get; }
+        public bool HasQuery { get; }
         public string MethodName { get; }
-        public string Key => $"{Receiver}|{ExplicitIds}|{HasEntity}|{HasContext}|{ContextMode}|{IsFunctor}|{ImplicitComponents}|{Parallel}|{MethodName}|{Pattern}|{FunctorType}|{ContextType}|{string.Join(";", Components)}";
+        public string Key => $"{Receiver}|{HasEntityTarget}|{HasQuery}|{ExplicitIds}|{HasEntity}|{HasContext}|{ContextMode}|{IsFunctor}|{ImplicitComponents}|{Parallel}|{MethodName}|{Pattern}|{FunctorType}|{ContextType}|{string.Join(";", Components)}";
     }
 }

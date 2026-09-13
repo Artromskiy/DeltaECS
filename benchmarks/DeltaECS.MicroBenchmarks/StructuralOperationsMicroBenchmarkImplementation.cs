@@ -22,7 +22,8 @@ public class StructuralOperationsMicroBenchmarkImplementation
         _fixture = new MicroWorld(chunkCapacity: 512, initialEntityCapacity: Amount * 2);
         _baseComponents = [_fixture.Position];
         _markerComponents = [_fixture.Auxiliary];
-        _entities = _fixture.World.Create(_baseComponents, Amount);
+        _entities = new Entity[Amount];
+        _fixture.World.Create(_baseComponents, Amount, _entities);
         _createdEntities = new Entity[Amount];
     }
 

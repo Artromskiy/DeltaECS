@@ -102,27 +102,60 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
                 return false;
             }
 
-            switch (invocation.ArgumentList.Arguments.Count)
+            SeparatedSyntaxList<ArgumentSyntax> arguments = invocation.ArgumentList.Arguments;
+            int countIndex = arguments.Count - 1;
+            bool hasOutput = countIndex >= 0
+                && IsEntityOutput(model.GetTypeInfo(arguments[countIndex].Expression).Type);
+            if (hasOutput)
             {
-                case 0:
-                    shape = new StructuralShape(receiver, StructuralMode.CreateSingle, false, arity);
-                    return true;
-                case 1 when IsInt32(model.GetTypeInfo(invocation.ArgumentList.Arguments[0].Expression).Type):
-                    shape = new StructuralShape(receiver, StructuralMode.Create, false, arity);
-                    return true;
-                case 2 when IsInt32(model.GetTypeInfo(invocation.ArgumentList.Arguments[0].Expression).Type)
-                    && IsEntityOutput(model.GetTypeInfo(invocation.ArgumentList.Arguments[1].Expression).Type):
-                    shape = new StructuralShape(receiver, StructuralMode.CreateOutput, false, arity);
-                    return true;
-                default:
-                    return false;
+                countIndex--;
             }
+
+            if (countIndex >= 0 && IsInt32(model.GetTypeInfo(arguments[countIndex].Expression).Type))
+            {
+                int selectorCount = countIndex;
+                bool hasExplicitSelectors = selectorCount == arity;
+                if (hasExplicitSelectors)
+                {
+                    for (int index = 0; index < selectorCount; index++)
+                    {
+                        if (!IsComponentId(model.GetTypeInfo(arguments[index].Expression).Type))
+                        {
+                            hasExplicitSelectors = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (selectorCount != 0 && !hasExplicitSelectors)
+                {
+                    return false;
+                }
+
+                shape = new StructuralShape(
+                    receiver,
+                    hasOutput ? StructuralMode.CreateOutput : StructuralMode.Create,
+                    false,
+                    arity,
+                    isExplicitIds: hasExplicitSelectors);
+                return true;
+            }
+
+            if (arguments.Count == 0)
+            {
+                shape = new StructuralShape(receiver, StructuralMode.CreateSingle, false, arity);
+                return true;
+            }
+
+            return false;
         }
 
         StructuralMode mode;
+        bool explicitIds = false;
         if (receiver == Receiver.World)
         {
-            if (invocation.ArgumentList.Arguments.Count != 1)
+            int argumentCount = invocation.ArgumentList.Arguments.Count;
+            if (argumentCount != 1 && argumentCount != arity + 1)
             {
                 return false;
             }
@@ -145,6 +178,19 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             {
                 return false;
             }
+
+            if (argumentCount == arity + 1)
+            {
+                for (int index = 1; index < argumentCount; index++)
+                {
+                    if (!IsComponentId(model.GetTypeInfo(invocation.ArgumentList.Arguments[index].Expression).Type))
+                    {
+                        return false;
+                    }
+                }
+
+                explicitIds = true;
+            }
         }
         else
         {
@@ -155,7 +201,8 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             receiver,
             mode,
             genericName.Identifier.ValueText == "Add",
-            arity);
+            arity,
+            isExplicitIds: explicitIds);
         return true;
     }
 
@@ -285,9 +332,17 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
                 source.Append(", in Query query");
                 break;
             case StructuralMode.Create:
+                if (shape.IsExplicitIds)
+                {
+                    source.Append(", ").Append(ComponentParameters(shape.Arity));
+                }
                 source.Append(", int count");
                 break;
             case StructuralMode.CreateOutput:
+                if (shape.IsExplicitIds)
+                {
+                    source.Append(", ").Append(ComponentParameters(shape.Arity));
+                }
                 source.Append(", int count, global::System.Span<Entity> output");
                 break;
             case StructuralMode.ExplicitCreate:
@@ -296,6 +351,12 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             case StructuralMode.ExplicitCreateOutput:
                 source.Append(", ").Append(ComponentParameters(shape.Arity)).Append(", int count, global::System.Span<Entity> output");
                 break;
+        }
+
+        if (shape.IsExplicitIds
+            && shape.Mode is not (StructuralMode.Create or StructuralMode.CreateOutput))
+        {
+            source.Append(", ").Append(ComponentParameters(shape.Arity));
         }
 
         source.AppendLine(")");
@@ -307,14 +368,21 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             source.Append("        global::System.Span<ComponentId> components = stackalloc ComponentId[")
                 .Append(shape.Arity)
                 .AppendLine("];");
-            AppendPrimaryAssignments(source, "target.Layouts", "components", shape.Arity, "        ");
+            if (shape.IsExplicitIds)
+            {
+                AppendComponentAssignments(source, "components", shape.Arity, "component", "        ");
+            }
+            else
+            {
+                AppendPrimaryAssignments(source, "target.Layouts", "components", shape.Arity, "        ");
+            }
             switch (shape.Mode)
             {
                 case StructuralMode.CreateSingle:
                     source.AppendLine("        return target.Create(components);");
                     break;
                 case StructuralMode.Create:
-                    source.AppendLine("        return target.Create(count, components);");
+                    source.AppendLine("        return target.Create(components, count);");
                     break;
                 case StructuralMode.CreateOutput:
                     source.AppendLine("        return target.Create(components, count, output);");
@@ -325,14 +393,14 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         {
             source.Append("        global::System.Span<ComponentId> components = stackalloc ComponentId[")
                 .Append(shape.Arity)
-                .AppendLine("]; ");
+                .AppendLine("];");
             for (int index = 0; index < shape.Arity; index++)
             {
                 source.Append("        components[").Append(index).Append("] = component").Append(index).AppendLine(";");
             }
 
             source.AppendLine(shape.Mode == StructuralMode.ExplicitCreate
-                ? "        return target.Create(count, components);"
+                ? "        return target.Create(components, count);"
                 : "        return target.Create(components, count, output);");
         }
         else
@@ -340,7 +408,17 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             source.Append("        global::System.Span<ComponentId> components = stackalloc ComponentId[")
                 .Append(shape.Arity)
                 .AppendLine("];");
-            AppendPrimaryAssignments(source, "target.Layouts", "components", shape.Arity, "        ");
+            if (shape.IsExplicitIds)
+            {
+                for (int index = 0; index < shape.Arity; index++)
+                {
+                    source.Append("        components[").Append(index).Append("] = component").Append(index).AppendLine(";");
+                }
+            }
+            else
+            {
+                AppendPrimaryAssignments(source, "target.Layouts", "components", shape.Arity, "        ");
+            }
             source.Append("        return target.").Append(shape.IsAdd ? "Add" : "Remove");
             if (shape.Mode == StructuralMode.Query)
             {
@@ -360,6 +438,20 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         source.AppendLine("}");
         source.AppendLine("}");
         return GeneratedSourceFormatter.Format(source.ToString());
+    }
+
+    private static void AppendComponentAssignments(
+        StringBuilder source,
+        string destination,
+        int arity,
+        string parameterPrefix,
+        string indent)
+    {
+        for (int index = 0; index < arity; index++)
+        {
+            source.Append(indent).Append(destination).Append('[').Append(index).Append("] = ")
+                .Append(parameterPrefix).Append(index).AppendLine(";");
+        }
     }
 
     private static string MethodName(StructuralShape shape)
@@ -454,13 +546,20 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
 
     private sealed class StructuralShape
     {
-        internal StructuralShape(Receiver receiver, StructuralMode mode, bool isAdd, int arity, bool isGeneric = true)
+        internal StructuralShape(
+            Receiver receiver,
+            StructuralMode mode,
+            bool isAdd,
+            int arity,
+            bool isGeneric = true,
+            bool isExplicitIds = false)
         {
             Receiver = receiver;
             Mode = mode;
             IsAdd = isAdd;
             Arity = arity;
             IsGeneric = isGeneric;
+            IsExplicitIds = isExplicitIds;
         }
 
         internal Receiver Receiver { get; }
@@ -468,6 +567,7 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         internal bool IsAdd { get; }
         internal int Arity { get; }
         internal bool IsGeneric { get; }
-        internal string Key => $"{Receiver}|{Mode}|{IsAdd}|{Arity}|{IsGeneric}";
+        internal bool IsExplicitIds { get; }
+        internal string Key => $"{Receiver}|{Mode}|{IsAdd}|{Arity}|{IsGeneric}|{IsExplicitIds}";
     }
 }

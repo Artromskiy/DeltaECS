@@ -19,7 +19,7 @@ public sealed partial class World : IDisposable
     private NativeMemory<int> _freeRecords = new(16);
     private int _freeCount;
     private readonly Dictionary<TransitionKey, TransitionEdge> _transitionCache = new();
-    private readonly Dictionary<QuerySpec, WeakReference<QueryPlan>> _queryCache = new(QuerySpec.Comparer);
+    private readonly Dictionary<QuerySpec, WeakReference<QueryPlan>> _queryCache = new();
     private int _queryCacheSweepCountdown = 64;
     private NativeMemory<DestroyEntry> _destroyScratch = new(32);
     private readonly List<Archetype> _generatedWhereAffectedArchetypes = new(16);
@@ -160,45 +160,37 @@ public sealed partial class World : IDisposable
         return CreateBatch(archetype, output);
     }
 
-    /// <summary>Creates entities with the supplied component set without retaining entity handles.</summary>
-    public int Create(int count, ReadOnlySpan<ComponentId> componentIds)
-    {
-        ThrowHelper.ThrowIfNegative(count, nameof(count));
-        EnsureNoActiveLease("create entities");
-        if (count == 0)
-        {
-            return 0;
-        }
-
-        if (!TryBuildComponentMask(componentIds, out var mask))
-        {
-            ThrowHelper.ThrowInvalidComponentList();
-        }
-
-        return CreateBatch(GetOrCreateArchetype(mask), count);
-    }
-
-    /// <summary>Creates <paramref name="count"/> entities with the supplied component set.</summary>
-    /// <remarks>The returned array owns the entity handles and is allocated once for the batch.</remarks>
-    public Entity[] Create(ReadOnlySpan<ComponentId> componentIds, int count)
-    {
-        ThrowHelper.ThrowIfNegative(count, nameof(count));
-        var output = new Entity[count];
-        Create(componentIds, output);
-        return output;
-    }
-
     /// <summary>Creates a requested number of entities into caller-owned storage.</summary>
+    /// <remarks>When <paramref name="output"/> is empty, handles are not retained.</remarks>
     public int Create(ReadOnlySpan<ComponentId> componentIds, int count, Span<Entity> output)
     {
         ThrowHelper.ThrowIfNegative(count, nameof(count));
-        if (output.Length < count)
+        if (output.Length != 0 && output.Length < count)
         {
             ThrowHelper.ThrowEntityDestinationTooSmall(nameof(output));
+        }
+        if (output.Length == 0)
+        {
+            EnsureNoActiveLease("create entities");
+            if (count == 0)
+            {
+                return 0;
+            }
+
+            if (!TryBuildComponentMask(componentIds, out var mask))
+            {
+                ThrowHelper.ThrowInvalidComponentList();
+            }
+
+            return CreateBatch(GetOrCreateArchetype(mask), count);
         }
 
         return Create(componentIds, output[..count]);
     }
+
+    /// <summary>Creates entities with the supplied component set without retaining entity handles.</summary>
+    public int Create(ReadOnlySpan<ComponentId> componentIds, int count)
+        => Create(componentIds, count, Span<Entity>.Empty);
 
     private int CreateBatch(Archetype archetype, Span<Entity> output)
         => CreateBatch(archetype, output.Length, output);
@@ -1817,7 +1809,7 @@ public sealed partial class World : IDisposable
         {
             if (!componentIds.RefAt(i).IsValid)
             {
-                continue;
+                ThrowHelper.ThrowComponentIdOutOfRange();
             }
 
             if (!_layouts.TryGet(componentIds.RefAt(i), out _))
@@ -1826,7 +1818,7 @@ public sealed partial class World : IDisposable
             }
         }
 
-        mask = ComponentMask.FromValidated(componentIds);
+        mask = ComponentMask.From(componentIds);
         return !mask.IsEmpty;
     }
 
@@ -1961,6 +1953,22 @@ public sealed partial class World : IDisposable
         }
 
         return chunk.RawEntities.RefAt(record.SlotIndex) == entity;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryResolveEntityLocation(Entity entity, out Chunk chunk, out int slotIndex)
+    {
+        if (!TryResolve(entity, out int recordIndex))
+        {
+            chunk = null!;
+            slotIndex = -1;
+            return false;
+        }
+
+        ref readonly EntityRecord record = ref RecordAt(recordIndex);
+        chunk = GetRecordChunk(record);
+        slotIndex = record.SlotIndex;
+        return true;
     }
 
     private QueryPlan GetOrCreateQuery(QuerySpec spec)

@@ -37,7 +37,7 @@ public sealed partial class ComponentLayoutRegistry
             new ComponentLayout(schemaId, runtimeType),
             ComponentRowOperations.ForRuntimeType(containsReferences));
 
-    public ComponentId Register(ComponentLayout layout)
+    internal ComponentId Register(ComponentLayout layout)
         => Register(
             layout,
             ComponentRowOperations.ForRuntimeType(

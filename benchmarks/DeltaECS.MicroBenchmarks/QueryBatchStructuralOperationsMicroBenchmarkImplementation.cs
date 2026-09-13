@@ -47,9 +47,11 @@ public class QueryBatchStructuralOperationsMicroBenchmarkImplementation
         _deltaBaseComponents = [_deltaFixture.Position];
         _deltaMarkerComponents = [_deltaFixture.Auxiliary];
         _deltaMarkedComponents = [_deltaFixture.Position, _deltaFixture.Auxiliary];
-        Entity[] markedReserve = _deltaWorld.Create(_deltaMarkedComponents, Amount);
+        Entity[] markedReserve = new Entity[Amount];
+        _deltaWorld.Create(_deltaMarkedComponents, Amount, markedReserve);
         _ = _deltaWorld.Destroy(markedReserve);
-        _deltaEntities = _deltaWorld.Create(_deltaBaseComponents, Amount);
+        _deltaEntities = new Entity[Amount];
+        _deltaWorld.Create(_deltaBaseComponents, Amount, _deltaEntities);
         _deltaCreatedEntities = new Entity[Amount];
         var deltaBaseSpec = QuerySpec.WhereAll(_deltaFixture.Position);
         _deltaBaseQuery = _deltaWorld.CreateQuery(in deltaBaseSpec);
@@ -182,7 +184,8 @@ public class QueryBatchStructuralOperationsMicroBenchmarkImplementation
     {
         EnsureDeltaBaseEntitiesAlive();
         _ = _deltaWorld.Remove(in _deltaMarkedQuery, _deltaMarkerComponents);
-        Entity[] markedReserve = _deltaWorld.Create(_deltaMarkedComponents, Amount);
+        Entity[] markedReserve = new Entity[Amount];
+        _deltaWorld.Create(_deltaMarkedComponents, Amount, markedReserve);
         _ = _deltaWorld.Destroy(markedReserve);
     }
 

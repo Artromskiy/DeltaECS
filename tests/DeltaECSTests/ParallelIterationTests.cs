@@ -1,5 +1,6 @@
 namespace Delta.ECS.Tests;
 
+using System;
 using NUnit.Framework;
 
 internal struct ParallelState
@@ -179,7 +180,7 @@ public sealed class ParallelIterationTests
         ComponentId positionId = layouts.Register<Position>(new SchemaId(70_080));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(70_081));
         using var world = new World(layouts, initialEntityCapacity: 8, chunkCapacity: 8);
-        world.Create([positionId, velocityId], 2);
+        world.Create([positionId, velocityId], 2, Span<Entity>.Empty);
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
         s_generatedCallbackThreadId = 0;
         int callerThreadId = Environment.CurrentManagedThreadId;

@@ -191,8 +191,10 @@ public sealed class QueryStructuralOperationsTests
         var markerId = layouts.Register(typeof(byte), new SchemaId(40));
         var world = new World(layouts, chunkCapacity: 4);
 
-        var existingTarget = world.Create(new[] { PositionId, markerId }, 2);
-        var source = world.Create(new[] { PositionId }, 6);
+        var existingTarget = new Entity[2];
+        world.Create(new[] { PositionId, markerId }, existingTarget.Length, existingTarget);
+        var source = new Entity[6];
+        world.Create(new[] { PositionId }, source.Length, source);
         for (int index = 0; index < source.Length; index++)
         {
             Assert.That(world.Set(source[index], PositionId, new Position { X = index + 10, Y = -index }), Is.True);
@@ -248,8 +250,10 @@ public sealed class QueryStructuralOperationsTests
         var markerId = layouts.Register(typeof(byte), new SchemaId(41));
         var world = new World(layouts, chunkCapacity: 4);
 
-        var existingTarget = world.Create(new[] { PositionId }, 2);
-        var source = world.Create(new[] { PositionId, markerId }, 6);
+        var existingTarget = new Entity[2];
+        world.Create(new[] { PositionId }, existingTarget.Length, existingTarget);
+        var source = new Entity[6];
+        world.Create(new[] { PositionId, markerId }, source.Length, source);
         for (int index = 0; index < source.Length; index++)
         {
             Assert.That(world.Set(source[index], PositionId, new Position { X = index + 20, Y = index }), Is.True);

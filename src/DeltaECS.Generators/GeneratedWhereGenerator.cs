@@ -177,8 +177,8 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         out WhereInterceptionSite? site)
     {
         site = null;
-        if (whereInvocation.ArgumentList.Arguments.Count != 2
-            || whereInvocation.ArgumentList.Arguments[1].Expression is not LambdaExpressionSyntax predicate
+        if (whereInvocation.ArgumentList.Arguments.Count is not (2 or 3)
+            || whereInvocation.ArgumentList.Arguments[whereInvocation.ArgumentList.Arguments.Count - 1].Expression is not LambdaExpressionSyntax predicate
             || !predicate.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.StaticKeyword)))
         {
             return false;
@@ -216,8 +216,9 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
 
         ParameterSyntax[] predicateParameters = LambdaParameters(predicate);
         ParameterSyntax[] actionParameters = action is null ? Array.Empty<ParameterSyntax>() : LambdaParameters(action);
+        int predicateComponentStart = (shape.HasContext ? 1 : 0) + (shape.HasEntity ? 1 : 0);
         string[] predicateComponents = predicateParameters
-            .Skip(shape.HasEntity ? 1 : 0)
+            .Skip(predicateComponentStart)
             .Select(parameter => DisplayType(model.GetTypeInfo(parameter.Type!).Type!))
             .ToArray();
         int actionComponentStart = terminal.HasEntity ? 1 : 0;
@@ -327,6 +328,9 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         TerminalShape terminal = site.Terminal;
         string hash = StableName(shape.Key);
         string terminalHash = StableName(terminal.SignatureKey);
+        string[] viewTypeArguments = shape.HasContext
+            ? new[] { InterceptedPredicateContextType(shape) }.Concat(site.PredicateComponents).ToArray()
+            : site.PredicateComponents;
         var source = new StringBuilder(24 * 1024);
         source.Append(InterceptorHeader);
         if (!site.Usings.Any(static value => value.Trim() is "using Delta.ECS;" or "using global::Delta.ECS;"))
@@ -359,8 +363,10 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         source.Append("    internal static ")
             .Append(terminal.IsCallback ? "void" : "int")
             .Append(" Intercept_").Append(site.Id)
-            .Append("(this in global::Delta.ECS.GeneratedWhereQuery_")
-            .Append(hash).Append(TypeArguments(site.PredicateComponents)).Append(" view");
+            .Append(shape.HasContext
+                ? "(this ref global::Delta.ECS.GeneratedWhereQuery_"
+                : "(this in global::Delta.ECS.GeneratedWhereQuery_")
+            .Append(hash).Append(TypeArguments(viewTypeArguments)).Append(" view");
         if (!terminal.IsCallback)
         {
             source.AppendLine(")");
@@ -391,6 +397,11 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         {
             source.Append("        Execute_").Append(site.Id).Append("(view.World, in query");
         }
+        if (shape.HasContext)
+        {
+            source.Append(", ref view.PredicateContext");
+        }
+
         if (terminal.IsFunctor)
         {
             if (terminal.HasContext)
@@ -444,8 +455,19 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         source.Append("    private static bool Predicate_").Append(site.Id).Append('(');
         int parameterIndex = 0;
+        if (shape.HasContext)
+        {
+            source.Append("ref ").Append(InterceptedPredicateContextType(shape)).Append(' ')
+                .Append(parameters[parameterIndex++].Identifier.ValueText);
+        }
+
         if (shape.HasEntity)
         {
+            if (parameterIndex > 0)
+            {
+                source.Append(", ");
+            }
+
             source.Append("Entity ").Append(parameters[parameterIndex++].Identifier.ValueText);
         }
 
@@ -520,6 +542,11 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         source.Append("    private static void ").Append(executeName)
             .Append("(global::Delta.ECS.World world, in global::Delta.ECS.Query query");
+        if (shape.HasContext)
+        {
+            source.Append(", ref ").Append(InterceptedPredicateContextType(shape)).Append(" predicateContext");
+        }
+
         if (terminal.IsFunctor && terminal.HasContext)
         {
             source.Append(", ref ").Append(terminal.ContextType).Append(" context");
@@ -570,14 +597,24 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         }
 
         source.Append("                if (!Predicate_").Append(site.Id).Append('(');
+        if (shape.HasContext)
+        {
+            source.Append("ref predicateContext");
+        }
+
         if (shape.HasEntity)
         {
+            if (shape.HasContext)
+            {
+                source.Append(", ");
+            }
+
             source.Append("__whereEntity_").Append(site.Id);
         }
 
         for (int index = 0; index < shape.Arity; index++)
         {
-            if (shape.HasEntity || index > 0)
+            if (shape.HasContext || shape.HasEntity || index > 0)
             {
                 source.Append(", ");
             }
@@ -659,15 +696,25 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
 
         source.Append("    private struct ").Append(invokerName).AppendLine(" : global::Delta.ECS.IGeneratedWhereStructuralInvoker");
         source.AppendLine("    {");
+        if (shape.HasContext)
+        {
+            source.Append("        private ").Append(InterceptedPredicateContextType(shape)).AppendLine(" _predicateContext;");
+        }
+
         for (int index = 0; index < shape.Arity; index++)
         {
             source.Append("        private readonly int _access").Append(index).AppendLine(";");
         }
 
         source.Append("        internal ").Append(invokerName).Append('(');
+        if (shape.HasContext)
+        {
+            source.Append(InterceptedPredicateContextType(shape)).Append(" predicateContext");
+        }
+
         for (int index = 0; index < shape.Arity; index++)
         {
-            if (index > 0)
+            if (index > 0 || shape.HasContext)
             {
                 source.Append(", ");
             }
@@ -677,6 +724,11 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
 
         source.AppendLine(")");
         source.AppendLine("        {");
+        if (shape.HasContext)
+        {
+            source.AppendLine("            _predicateContext = predicateContext;");
+        }
+
         for (int index = 0; index < shape.Arity; index++)
         {
             source.Append("            _access").Append(index).Append(" = access").Append(index).AppendLine(";");
@@ -698,7 +750,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         RenderComponentLocals(source, shape.Pattern, shape.Arity, site.PredicateComponents, "T", "                ");
         source.AppendLine("                Entity entity = slots.EntityAt(index);");
         source.Append("                bool selected = Predicate_").Append(site.Id).Append('(');
-        AppendInterceptedPredicateArguments(source, shape);
+        AppendInterceptedPredicateArguments(source, shape, "_predicateContext");
         source.AppendLine(");");
         source.AppendLine("                if (index != 0 && selected != runSelected)");
         source.AppendLine("                {");
@@ -709,11 +761,22 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         source.AppendLine("            }");
         source.AppendLine("            context.ProcessRun(runStart, slots.Count - runStart, runSelected);");
         source.AppendLine("        }");
+        if (shape.HasContext)
+        {
+            source.Append("        internal ").Append(InterceptedPredicateContextType(shape)).AppendLine(" PredicateContext => _predicateContext;");
+        }
+
         source.AppendLine("    }");
         source.AppendLine();
 
         source.Append("    private static int ").Append(executeName)
-            .AppendLine("(global::Delta.ECS.World world, in global::Delta.ECS.Query query)");
+            .Append("(global::Delta.ECS.World world, in global::Delta.ECS.Query query");
+        if (shape.HasContext)
+        {
+            source.Append(", ref ").Append(InterceptedPredicateContextType(shape)).Append(" predicateContext");
+        }
+
+        source.AppendLine(")");
         source.AppendLine("    {");
         for (int index = 0; index < shape.Arity; index++)
         {
@@ -723,9 +786,14 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         }
 
         source.Append("        var invoker = new ").Append(invokerName).Append('(');
+        if (shape.HasContext)
+        {
+            source.Append("predicateContext");
+        }
+
         for (int index = 0; index < shape.Arity; index++)
         {
-            if (index > 0)
+            if (index > 0 || shape.HasContext)
             {
                 source.Append(", ");
             }
@@ -747,7 +815,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             }
         }
 
-        source.Append("        return global::Delta.ECS.GeneratedForEachRuntime.ExecuteGeneratedWhere");
+        source.Append("        int result = global::Delta.ECS.GeneratedForEachRuntime.ExecuteGeneratedWhere");
         source.Append(terminal.Kind switch
         {
             TerminalKind.Destroy => "Destroy",
@@ -763,15 +831,35 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         }
 
         source.AppendLine(");");
+        if (shape.HasContext)
+        {
+            source.AppendLine("        predicateContext = invoker.PredicateContext;");
+        }
+
+        source.AppendLine("        return result;");
         source.AppendLine("    }");
         source.AppendLine();
     }
 
-    private static void AppendInterceptedPredicateArguments(StringBuilder source, PredicateShape shape)
+    private static void AppendInterceptedPredicateArguments(
+        StringBuilder source,
+        PredicateShape shape,
+        string contextName = "predicateContext")
     {
         bool hasArgument = false;
+        if (shape.HasContext)
+        {
+            source.Append("ref ").Append(contextName);
+            hasArgument = true;
+        }
+
         if (shape.HasEntity)
         {
+            if (hasArgument)
+            {
+                source.Append(", ");
+            }
+
             source.Append("entity");
             hasArgument = true;
         }
@@ -1828,6 +1916,10 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         source.AppendLine();
         source.AppendLine("    internal World World => _world;");
         source.AppendLine("    internal Query Query => _query;");
+        if (shape.HasContext)
+        {
+            source.Append("    internal ref ").Append(PredicateContextType(shape)).AppendLine(" PredicateContext => ref _predicateContext[0];");
+        }
 
         foreach (TerminalShape terminal in shape.Terminals.Values.OrderBy(static value => value.SignatureKey, StringComparer.Ordinal))
         {
@@ -2093,6 +2185,9 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
 
     private static string PredicateContextType(PredicateShape shape)
         => shape.IsFunctor ? shape.ContextType! : "C";
+
+    private static string InterceptedPredicateContextType(PredicateShape shape)
+        => shape.ContextType ?? "global::System.Object";
 
     private static string TypeArguments(string[] types)
         => types.Length == 0 ? string.Empty : "<" + string.Join(", ", types) + ">";

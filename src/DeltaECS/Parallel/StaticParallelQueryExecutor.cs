@@ -1,5 +1,6 @@
 namespace Delta.ECS;
 
+using System;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 
@@ -16,7 +17,12 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
     private TInvoker[] _workerInvokers = Array.Empty<TInvoker>();
     private ExceptionDispatchInfo?[] _workerFailures = Array.Empty<ExceptionDispatchInfo?>();
     private ParallelChunk[] _chunks = Array.Empty<ParallelChunk>();
+    private Entity[] _entities = Array.Empty<Entity>();
     private ParallelRange[] _ranges = Array.Empty<ParallelRange>();
+    private World? _entityWorld;
+    private QueryPlan? _entityPlan;
+    private int _entityCount;
+    private bool _entityMode;
     private QueryPlan? _cachedPlan;
     private int _cachedPlanVersion = -1;
     private QueryPlan? _cachedRangePlan;
@@ -96,6 +102,92 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         }
     }
 
+    internal void ExecuteEntityList(
+        World world,
+        QueryPlan plan,
+        ReadOnlySpan<Entity> entities,
+        ref TInvoker invoker,
+        int requestedWorkerCount)
+    {
+        ThrowHelper.ThrowIfNegative(requestedWorkerCount, nameof(requestedWorkerCount));
+        if (Volatile.Read(ref _disposed))
+        {
+            ThrowHelper.ThrowDisposedWorld();
+        }
+
+        EnsureEntityCapacity(entities.Length);
+        entities.CopyTo(_entities.AsSpan(0, entities.Length));
+        _entityWorld = world;
+        _entityPlan = plan;
+        _entityCount = entities.Length;
+        _entityMode = true;
+        try
+        {
+            if (_entityCount == 0)
+            {
+                return;
+            }
+
+            int workerCount = requestedWorkerCount == 0
+                ? DefaultWorkerCount
+                : requestedWorkerCount;
+            workerCount = Math.Min(
+                Math.Max(1, Environment.ProcessorCount),
+                Math.Max(1, workerCount));
+
+            if (invoker.RequiresSingleThread || workerCount == 1)
+            {
+                ExecuteEntityRange(ref invoker, 0, _entityCount);
+                return;
+            }
+
+            EnsureWorkerCapacity(workerCount - 1);
+            PrepareEntityRanges(_entityCount, workerCount);
+
+            for (int workerIndex = 0; workerIndex < workerCount; workerIndex++)
+            {
+                _workerInvokers.RefAt(workerIndex) = invoker;
+                _workerFailures.RefAt(workerIndex) = null;
+            }
+
+            int run = _runVersion == int.MaxValue ? 1 : _runVersion + 1;
+            _runVersion = run;
+            for (int workerIndex = 1; workerIndex < workerCount; workerIndex++)
+            {
+                ParallelRange range = _ranges.RefAt(workerIndex);
+                WorkerSlot slot = _workerSlots.RefAt(workerIndex);
+                slot.StartChunk = range.StartChunk;
+                slot.EndChunk = range.EndChunk;
+                Volatile.Write(ref slot.PublishedRun, run);
+            }
+
+            ExecuteRange(0, run, workerSlot: null);
+            for (int workerIndex = 1; workerIndex < workerCount; workerIndex++)
+            {
+                while (Volatile.Read(ref _workerSlots.RefAt(workerIndex).CompletedRun) != run)
+                {
+                    Thread.SpinWait(8);
+                }
+            }
+
+            invoker = _workerInvokers.GetRefAtZero();
+            for (int workerIndex = 0; workerIndex < workerCount; workerIndex++)
+            {
+                if (_workerFailures.RefAt(workerIndex) is { } failure)
+                {
+                    failure.Throw();
+                }
+            }
+        }
+        finally
+        {
+            _entityMode = false;
+            _entityWorld = null;
+            _entityPlan = null;
+            _entityCount = 0;
+        }
+    }
+
     private void ExecuteSingleThread(ref TInvoker invoker)
     {
         try
@@ -138,6 +230,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         _workerInvokers = Array.Empty<TInvoker>();
         _workerFailures = Array.Empty<ExceptionDispatchInfo?>();
         _chunks = Array.Empty<ParallelChunk>();
+        _entities = Array.Empty<Entity>();
         _ranges = Array.Empty<ParallelRange>();
     }
 
@@ -195,6 +288,15 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         ParallelRange range = _ranges.RefAt(workerIndex);
         try
         {
+            if (_entityMode)
+            {
+                ExecuteEntityRange(
+                    ref _workerInvokers.RefAt(workerIndex),
+                    range.StartChunk,
+                    range.EndChunk);
+                return;
+            }
+
             for (int chunkIndex = range.StartChunk; chunkIndex < range.EndChunk; chunkIndex++)
             {
                 ParallelChunk work = _chunks.RefAt(chunkIndex);
@@ -212,6 +314,24 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             {
                 Volatile.Write(ref workerSlot.CompletedRun, run);
             }
+        }
+    }
+
+    private void ExecuteEntityRange(ref TInvoker invoker, int start, int end)
+    {
+        World world = _entityWorld!;
+        QueryPlan plan = _entityPlan!;
+        for (int index = start; index < end; index++)
+        {
+            Entity entity = _entities[index];
+            if (!world.TryResolveEntityLocation(entity, out Chunk chunk, out int slot)
+                || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk.GlobalId, out ChunkPlan chunkPlan))
+            {
+                continue;
+            }
+
+            var slots = new GeneratedQuerySlots(in chunkPlan, 1, slot);
+            invoker.Invoke(ref slots);
         }
     }
 
@@ -302,6 +422,22 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         Array.Resize(ref _chunks, capacity);
     }
 
+    private void EnsureEntityCapacity(int required)
+    {
+        if (required <= _entities.Length)
+        {
+            return;
+        }
+
+        int capacity = _entities.Length == 0 ? 4 : _entities.Length;
+        while (capacity < required)
+        {
+            capacity = checked(capacity * 2);
+        }
+
+        Array.Resize(ref _entities, capacity);
+    }
+
     private void EnsureRangeCapacity(int required)
     {
         if (required <= _ranges.Length)
@@ -310,6 +446,17 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         }
 
         Array.Resize(ref _ranges, required);
+    }
+
+    private void PrepareEntityRanges(int entityCount, int workerCount)
+    {
+        EnsureRangeCapacity(workerCount);
+        for (int workerIndex = 0; workerIndex < workerCount; workerIndex++)
+        {
+            _ranges.RefAt(workerIndex) = new ParallelRange(
+                (int)((long)workerIndex * entityCount / workerCount),
+                (int)((long)(workerIndex + 1) * entityCount / workerCount));
+        }
     }
 
     [System.Runtime.InteropServices.StructLayout(

@@ -76,7 +76,8 @@ public sealed class GenericSingleItemApiTests
         using var world = new World(layouts);
         Entity generic = world.Create<Position>();
         Entity nonGeneric = world.Create(stackalloc[] { positionId });
-        Entity[] typedBatch = world.Create<Position>(positionId, 2);
+        Entity[] typedBatch = new Entity[2];
+        world.Create<Position>(positionId, typedBatch.Length, typedBatch);
 
         Assert.Multiple(() =>
         {
@@ -262,7 +263,8 @@ public sealed class GenericSingleItemApiTests
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_032));
         using var world = new World(layouts, chunkCapacity: 2);
 
-        Entity[] created = world.Create(new[] { positionId, velocityId }, 5);
+        Entity[] created = new Entity[5];
+        world.Create(new[] { positionId, velocityId }, created.Length, created);
         var destination = new Entity[3];
         int written = world.Create(stackalloc[] { positionId }, 3, destination);
         var typedDestination = new Entity[2];
@@ -290,7 +292,8 @@ public sealed class GenericSingleItemApiTests
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_041));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_042));
         using var world = new World(layouts);
-        Entity[] entities = world.Create(stackalloc[] { positionId }, 4);
+        Entity[] entities = new Entity[4];
+        world.Create(stackalloc[] { positionId }, entities.Length, entities);
         Entity stale = entities[1];
         Assert.That(world.Destroy(stale), Is.True);
 
@@ -313,7 +316,8 @@ public sealed class GenericSingleItemApiTests
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_051));
         using var world = new World(layouts);
-        Entity[] entities = world.Create(stackalloc[] { positionId }, 2);
+        Entity[] entities = new Entity[2];
+        world.Create(stackalloc[] { positionId }, entities.Length, entities);
         var velocity = new Velocity { X = 1, Y = 2 };
 
         Assert.Multiple(() =>

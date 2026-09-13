@@ -37,7 +37,8 @@ public class WhereApiMicroBenchmarkImplementation
         ComponentId accumulatorId = layouts.Register<WhereApiAccumulator>(new SchemaId(92_002));
         ComponentId deadId = layouts.Register<WhereApiDead>(new SchemaId(92_003));
         _world = new World(layouts, initialEntityCapacity: Amount, chunkCapacity: 512);
-        _entities = _world.Create(stackalloc[] { _valueId, accumulatorId }, Amount);
+        _entities = new Entity[Amount];
+        _world.Create(stackalloc[] { _valueId, accumulatorId }, Amount, _entities);
         _targetCount = (Amount + 1) / 2;
 
         for (int index = 0; index < _entities.Length; index++)

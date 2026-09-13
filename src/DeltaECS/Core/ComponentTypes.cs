@@ -55,10 +55,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
     public bool IsEmpty => _storage is null;
 
     public static ComponentMask From(ReadOnlySpan<ComponentId> componentIds)
-        => FromCore(componentIds, skipInvalid: false);
-
-    internal static ComponentMask FromValidated(ReadOnlySpan<ComponentId> componentIds)
-        => FromCore(componentIds, skipInvalid: true);
+        => FromCore(componentIds);
 
     public ComponentMask Set(ComponentId componentId)
     {
@@ -301,7 +298,7 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
             ? _storage.RefAt(index)
             : 0;
 
-    private static ComponentMask FromCore(ReadOnlySpan<ComponentId> componentIds, bool skipInvalid)
+    private static ComponentMask FromCore(ReadOnlySpan<ComponentId> componentIds)
     {
         int maxValue = -1;
         for (int index = 0; index < componentIds.Length; index++)
@@ -309,11 +306,6 @@ public readonly struct ComponentMask : IEquatable<ComponentMask>
             ComponentId componentId = componentIds.RefAt(index);
             if (!componentId.IsValid)
             {
-                if (skipInvalid)
-                {
-                    continue;
-                }
-
                 Validate(componentId);
             }
 
@@ -461,7 +453,7 @@ public readonly struct ComponentLayout : IEquatable<ComponentLayout>
         Stride = 0;
     }
 
-    public ComponentLayout(
+    internal ComponentLayout(
         SchemaId schemaId,
         int size,
         int alignment)

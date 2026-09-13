@@ -311,7 +311,7 @@ public partial class CreateEntityWithOneComponent
     [Benchmark]
     public void DeltaECS_Batch()
     {
-        _deltaEcs.World.Create(EntityCount, _deltaEcs.Components);
+        _deltaEcs.World.Create(_deltaEcs.Components, EntityCount);
     }
 
     [BenchmarkCategory(Categories.DeltaECSBatch)]
@@ -342,7 +342,7 @@ public partial class CreateEntityWithTwoComponents
     [Benchmark]
     public void DeltaECS_Batch()
     {
-        _deltaEcs.World.Create(EntityCount, _deltaEcs.Components);
+        _deltaEcs.World.Create(_deltaEcs.Components, EntityCount);
     }
 
     [BenchmarkCategory(Categories.DeltaECSBatch)]
@@ -373,7 +373,7 @@ public partial class CreateEntityWithThreeComponents
     [Benchmark]
     public void DeltaECS_Batch()
     {
-        _deltaEcs.World.Create(EntityCount, _deltaEcs.Components);
+        _deltaEcs.World.Create(_deltaEcs.Components, EntityCount);
     }
 
     [BenchmarkCategory(Categories.DeltaECSBatch)]

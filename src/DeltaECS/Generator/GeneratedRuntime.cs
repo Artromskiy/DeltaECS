@@ -178,12 +178,9 @@ public struct GeneratedWhereStructuralContext
 
 /// <summary>Compiler-support contract for one direct generated parallel chunk invocation.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IGeneratedParallelInvoker
+public interface IGeneratedParallelInvoker : IGeneratedWhereInvoker
 {
     bool RequiresSingleThread { get; }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    void Invoke(ref GeneratedQuerySlots slots);
 }
 
 /// <summary>Compiler-support contract for generated archetype stamp writers.</summary>
@@ -562,6 +559,82 @@ public static class GeneratedForEachRuntime
         }
     }
 
+    /// <summary>Executes a generated callback for the alive entities selected by a caller-owned list.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ExecuteEntityList<TInvoker>(
+        World world,
+        in Query query,
+        ReadOnlySpan<Entity> entities,
+        ref TInvoker invoker,
+        scoped ReadOnlySpan<int> writeComponentIndices)
+        where TInvoker : struct, IGeneratedParallelInvoker
+    {
+        QueryPlan plan = ValidateQuery(world, in query);
+        MarkArchetypeWrites(plan.MatchingPlans(), writeComponentIndices);
+        world.BeginQueryLease();
+        try
+        {
+            for (int index = 0; index < entities.Length; index++)
+            {
+                Entity entity = entities.RefAt(index);
+                if (!world.TryResolveEntityLocation(entity, out Chunk chunk, out int slot)
+                    || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk.GlobalId, out ChunkPlan chunkPlan))
+                {
+                    continue;
+                }
+
+                var slots = new GeneratedQuerySlots(in chunkPlan, 1, slot);
+                invoker.Invoke(ref slots);
+            }
+        }
+        finally
+        {
+            world.EndQueryLease();
+        }
+    }
+
+    /// <summary>Executes a generated callback for a caller-owned entity list in parallel.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ExecuteEntityListParallel<TInvoker>(
+        World world,
+        in Query query,
+        ReadOnlySpan<Entity> entities,
+        ref TInvoker invoker,
+        scoped ReadOnlySpan<int> writeComponentIndices,
+        int requestedWorkerCount = 0)
+        where TInvoker : struct, IGeneratedParallelInvoker
+    {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        QueryPlan plan = ValidateQuery(world, in query);
+        ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
+        MarkArchetypeWrites(plans, writeComponentIndices);
+        QueryWriteSession session = world.RentQueryWriteSession(plan, out int generation);
+        world.BeginQueryLease();
+        bool entered = false;
+        try
+        {
+            world.EnterParallelExecution();
+            entered = true;
+            world.GetParallelQueryExecutor<TInvoker>().ExecuteEntityList(
+                world,
+                plan,
+                entities,
+                ref invoker,
+                requestedWorkerCount);
+        }
+        finally
+        {
+            if (entered)
+            {
+                world.ExitParallelExecution();
+            }
+
+            world.ReturnQueryWriteSession(session, generation);
+        }
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int ExecuteGeneratedWhereStructural<TInvoker>(
         World world,
@@ -789,7 +862,7 @@ public static class GeneratedForEachRuntime
         ThrowHelper.ThrowIfNull(world, nameof(world));
         if (!ReferenceEquals(query.Owner, world) || !query.IsValid)
         {
-            ThrowHelper.ThrowGeneratedQueryInvalid(nameof(query));
+            ThrowHelper.ThrowInvalidQuery(nameof(query));
         }
 
         return query.Cached;

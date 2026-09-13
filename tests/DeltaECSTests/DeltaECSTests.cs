@@ -488,8 +488,8 @@ public sealed class DeltaECSDeliveryTests
     public void QuerySpec_ComponentMasks_Deduplicate_Filter_And_Enumerate_In_Order()
     {
         var query = new QuerySpec(
-            new[] { new ComponentId(129), new ComponentId(7), PositionId, new ComponentId(193), new ComponentId(65), new ComponentId(7), ComponentId.Invalid },
-            new[] { VelocityId, VelocityId, ComponentId.Invalid },
+            new[] { new ComponentId(129), new ComponentId(7), PositionId, new ComponentId(193), new ComponentId(65), new ComponentId(7) },
+            new[] { VelocityId, VelocityId },
             new[] { HealthId, HealthId });
         var equivalent = new QuerySpec(
             new[] { new ComponentId(65), new ComponentId(193), new ComponentId(129), PositionId, new ComponentId(7) },
@@ -511,6 +511,10 @@ public sealed class DeltaECSDeliveryTests
         }
 
         Assert.That(index, Is.EqualTo(expected.Length));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new QuerySpec(
+            new[] { ComponentId.Invalid },
+            Array.Empty<ComponentId>(),
+            Array.Empty<ComponentId>()));
         var dynamicQuery = new QuerySpec(
             new[] { new ComponentId(256) },
             Array.Empty<ComponentId>(), Array.Empty<ComponentId>());

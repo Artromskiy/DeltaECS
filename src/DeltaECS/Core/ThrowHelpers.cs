@@ -208,11 +208,6 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowGeneratedQueryInvalid(string parameterName)
-        => throw new ArgumentException("Query handle does not belong to this world.", parameterName);
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowChunkRowOperationsMismatch(string parameterName)
         => throw new ArgumentException("Each component row must have cached operations.", parameterName);
 
@@ -271,7 +266,7 @@ internal static class ThrowHelper
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowInvalidQuery(string parameterName)
-        => throw new ArgumentException("Query handle does not belong to this world.", parameterName);
+        => throw new ArgumentException("Query handle is invalid or belongs to another world.", parameterName);
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -281,7 +276,7 @@ internal static class ThrowHelper
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowInvalidEntityQueryHandle()
-        => throw new InvalidOperationException("Cannot bind a row from an invalid query handle.");
+        => throw new InvalidOperationException("Query handle is invalid or belongs to another world.");
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -318,7 +313,7 @@ internal static class ThrowHelper
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowInvalidQueryScopeHandle(string parameterName)
-        => throw new ArgumentException("Query handle does not belong to this world.", parameterName);
+        => throw new ArgumentException("Query handle is invalid or belongs to another world.", parameterName);
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]

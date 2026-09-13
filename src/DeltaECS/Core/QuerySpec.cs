@@ -1,7 +1,6 @@
 namespace Delta.ECS;
 
 using System;
-using System.Collections.Generic;
 
 public readonly struct QuerySpec : IEquatable<QuerySpec>
 {
@@ -38,7 +37,7 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
     }
 
     private static ComponentMask BuildMask(ReadOnlySpan<ComponentId> ids)
-        => ComponentMask.FromValidated(ids);
+        => ComponentMask.From(ids);
 
     public bool Equals(QuerySpec other) => Hash == other.Hash
         && _allMask == other._allMask
@@ -77,12 +76,4 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
     public static QuerySpec WhereNone(params ReadOnlySpan<ComponentId> components)
         => new(ReadOnlySpan<ComponentId>.Empty, ReadOnlySpan<ComponentId>.Empty, components);
 
-    public static IEqualityComparer<QuerySpec> Comparer { get; } = new QuerySpecComparer();
-}
-
-internal sealed class QuerySpecComparer : IEqualityComparer<QuerySpec>
-{
-    bool IEqualityComparer<QuerySpec>.Equals(QuerySpec x, QuerySpec y) => x.Equals(y);
-
-    int IEqualityComparer<QuerySpec>.GetHashCode(QuerySpec obj) => obj.GetHashCode();
 }

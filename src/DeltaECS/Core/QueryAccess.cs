@@ -191,6 +191,25 @@ internal sealed class QueryPlan
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool MatchesArchetype(int archetypeId) => MatchingPlanIndex(archetypeId) >= 0;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetChunkPlan(int archetypeId, int globalChunkId, out ChunkPlan chunkPlan)
+    {
+        int planIndex = MatchingPlanIndex(archetypeId);
+        if (planIndex >= 0)
+        {
+            ArchetypePlan plan = _matchingPlans.RefAt(planIndex);
+            int chunkIndex = plan.FindChunkIndex(globalChunkId);
+            if (chunkIndex >= 0)
+            {
+                chunkPlan = plan.ChunkArray.RefAt(chunkIndex);
+                return true;
+            }
+        }
+
+        chunkPlan = default;
+        return false;
+    }
+
     internal void OnArchetypeCreated(Archetype archetype)
     {
         EnsureArchetypeCapacity(archetype.Id + 1);

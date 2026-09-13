@@ -611,7 +611,7 @@ public sealed class DemandDrivenForEachGeneratorTests
     [Test]
     public void RealConsumerProjectExecutesGeneratedStructuralPaths()
     {
-        Assert.That(ConsumerProof.RunStructural(), Is.EqualTo(19));
+        Assert.That(ConsumerProof.RunStructural(), Is.EqualTo(21));
     }
 
     [Test]
@@ -1261,7 +1261,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public ComponentLayoutRegistry Layouts { get; } = new();
             public Entity Create(ReadOnlySpan<ComponentId> components) => default;
-            public int Create(int count, ReadOnlySpan<ComponentId> components) => count;
+            public int Create(ReadOnlySpan<ComponentId> components, int count) => count;
             public int Create(ReadOnlySpan<ComponentId> components, int count, Span<Entity> output) => count;
             public Query CreateQuery(in QuerySpec spec) => default;
             public QueryScope BeginScope(in Query query) => default;

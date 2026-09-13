@@ -28,7 +28,7 @@ as needed and is not limited to the original four-word representation.
 
 The implementation provides dynamic `Set`, `Contains`, `ContainsAll`,
 `Intersects`, `Rank`, enumeration, equality, hashing and copying. Internal
-query builders use one bulk `FromValidated` allocation. `Count` and the hash
+query builders use one bulk mask construction. `Count` and the hash
 are cached after construction or mutation. A regression test covers adding a
 low component ID after a higher word has already been populated.
 

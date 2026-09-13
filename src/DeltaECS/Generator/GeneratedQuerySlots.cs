@@ -11,6 +11,7 @@ public ref struct GeneratedQuerySlots
     private readonly Chunk _chunk;
     private readonly Array[] _resolvedRowsByQuery;
     private readonly int _count;
+    private readonly int _offset;
     private int _index;
 
     internal GeneratedQuerySlots(in ChunkPlan chunkPlan)
@@ -19,10 +20,16 @@ public ref struct GeneratedQuerySlots
     }
 
     internal GeneratedQuerySlots(in ChunkPlan chunkPlan, int count)
+        : this(in chunkPlan, count, 0)
+    {
+    }
+
+    internal GeneratedQuerySlots(in ChunkPlan chunkPlan, int count, int offset)
     {
         _chunk = chunkPlan.Chunk;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
         _count = count;
+        _offset = offset;
         _index = -1;
     }
 
@@ -46,13 +53,13 @@ public ref struct GeneratedQuerySlots
     public Entity CurrentEntity
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _chunk.RawEntities.RefAt(_index);
+        get => _chunk.RawEntities.RefAt(_offset + _index);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public Entity EntityAt(int index)
-        => _chunk.RawEntities.RefAt(index);
+        => _chunk.RawEntities.RefAt(_offset + index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNext() => ++_index < _count;
@@ -61,7 +68,9 @@ public ref struct GeneratedQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public ref T GetGeneratedReadReference<T>(int queryComponentIndex)
-        => ref Unsafe.As<T[]>(_resolvedRowsByQuery.RefAt(queryComponentIndex)).GetRefAtZero();
+        => ref Unsafe.Add(
+            ref Unsafe.As<T[]>(_resolvedRowsByQuery.RefAt(queryComponentIndex)).GetRefAtZero(),
+            _offset);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -72,7 +81,9 @@ public ref struct GeneratedQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public ref T GetGeneratedWriteReference<T>(int queryComponentIndex)
-        => ref Unsafe.As<T[]>(_resolvedRowsByQuery.RefAt(queryComponentIndex)).GetRefAtZero();
+        => ref Unsafe.Add(
+            ref Unsafe.As<T[]>(_resolvedRowsByQuery.RefAt(queryComponentIndex)).GetRefAtZero(),
+            _offset);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]

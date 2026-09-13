@@ -1,3 +1,4 @@
+using System;
 using Delta.ECS;
 
 namespace Delta.ECS.Generators.Consumer;
@@ -47,6 +48,9 @@ public static class ConsumerProof
         context.Value++;
         value.Value++;
     }
+
+    public static void ApplyEntityMethodGroup(Entity entity, ref Position value)
+        => value.Value += entity.Index;
 
     public static int Run()
     {
@@ -174,6 +178,45 @@ public static class ConsumerProof
 
     }
 
+    /// <summary>Compile-only coverage for caller-selected entity-list iteration.</summary>
+    public static void CompileEntityListForms(World world, in Query query, ReadOnlySpan<Entity> entities)
+    {
+        world.ForEach<Position>(
+            entities,
+            in query,
+            static (ref Position position) => position.Value++);
+        world.ForEachEntity<Position>(
+            entities,
+            in query,
+            static (Entity entity, ref Position position) => position.Value += entity.Index);
+        world.ForEach<Position>(
+            entities,
+            in query,
+            world.Layouts.GetPrimary<Position>(),
+            static (ref Position position) => position.Value++);
+        world.ForEachEntityParallel<Position>(
+            entities,
+            in query,
+            static (Entity entity, ref Position position) => position.Value += entity.Index,
+            2);
+        world.ForEach<Position>(
+            entities,
+            static (ref Position position) => position.Value++);
+        world.ForEachEntityParallel<Position>(
+            entities,
+            static (Entity entity, ref Position position) => position.Value += entity.Index,
+            2);
+        world.ForEach<Position>(
+            entities,
+            world.Layouts.GetPrimary<Position>(),
+            static (ref Position position) => position.Value++);
+        world.ForEach<Position>(entities, ApplyStaticMethodGroup);
+        world.ForEachEntity<Position>(entities, ApplyEntityMethodGroup);
+        var context = new ConsumerContext();
+        var functor = new ContextEntityFunctor();
+        world.ForEachEntity(entities, ref context, ref functor);
+    }
+
     public static int RunStructural()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -182,9 +225,12 @@ public static class ConsumerProof
         ComponentId accelerationId = layouts.Register<Acceleration>(new SchemaId(13));
         using var createWorld = new World(layouts);
         int total = createWorld.Create<Position, Velocity>(3);
+        total += createWorld.Create<Position, Velocity>(positionId, velocityId, 1);
         Entity created = createWorld.Create<Position, Velocity>();
         Span<Entity> createdOutput = stackalloc Entity[2];
         int outputCount = createWorld.Create<Position, Velocity>(2, createdOutput);
+        Span<Entity> explicitGenericOutput = stackalloc Entity[1];
+        total += createWorld.Create<Position, Velocity>(positionId, velocityId, 1, explicitGenericOutput);
         if (outputCount != createdOutput.Length
             || !createWorld.Has<Position>(created)
             || !createWorld.Has(created, positionId)
@@ -203,6 +249,13 @@ public static class ConsumerProof
             return 0;
         }
 
+        Entity explicitGenericTarget = createWorld.Create(positionId);
+        if (!createWorld.Add<Velocity, Acceleration>(explicitGenericTarget, velocityId, accelerationId)
+            || !createWorld.Remove<Velocity, Acceleration>(explicitGenericTarget, velocityId, accelerationId))
+        {
+            return 0;
+        }
+
         Span<Entity> explicitOutput = stackalloc Entity[2];
         if (createWorld.Create(positionId, velocityId, 2, explicitOutput) != explicitOutput.Length
             || !createWorld.Add(untypedCreated, velocityId)
@@ -214,7 +267,8 @@ public static class ConsumerProof
         }
 
         using var world = new World(layouts);
-        Entity[] entities = world.Create(stackalloc[] { positionId }, 4);
+        Entity[] entities = new Entity[4];
+        world.Create(stackalloc[] { positionId }, entities.Length, entities);
 
         total += world.Add<Velocity, Acceleration>(entities);
         total += world.Remove<Velocity, Acceleration>(entities);
@@ -388,7 +442,8 @@ public static class ConsumerProof
 
     private static Entity[] CreateMutationEntities(World world, ComponentId healthId, ComponentId teamId, ComponentId aliveId)
     {
-        Entity[] entities = world.Create(stackalloc[] { healthId, teamId, aliveId }, 3);
+        Entity[] entities = new Entity[3];
+        world.Create(stackalloc[] { healthId, teamId, aliveId }, entities.Length, entities);
         world.Set(entities[0], healthId, new Health { Value = -1 });
         world.Set(entities[1], healthId, new Health { Value = 5 });
         world.Set(entities[2], healthId, new Health { Value = -1 });
