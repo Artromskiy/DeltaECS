@@ -47,15 +47,13 @@ public sealed class ComponentLayoutRegistryTests
     }
 
     [Test]
-    public void ConflictingSchemaOrLayoutIsRejectedWithoutChangingPrimary()
+    public void ConflictingSchemaIsRejectedWithoutChangingPrimary()
     {
         var layouts = new ComponentLayoutRegistry();
         var position = layouts.Register<Position>(new SchemaId(70_021));
 
         Assert.Throws<InvalidOperationException>(() =>
             layouts.Register<Velocity>(new SchemaId(70_021)));
-        Assert.Throws<InvalidOperationException>(() =>
-            layouts.Register(new ComponentLayout(new SchemaId(70_021), size: 8, alignment: 8)));
 
         Assert.That(layouts.GetPrimary<Position>(), Is.EqualTo(position));
         Assert.That(layouts.TryGetPrimary<Velocity>(out _), Is.False);
@@ -86,15 +84,12 @@ public sealed class ComponentLayoutRegistryTests
         int registrationCount = 256 + 64;
         for (var index = 1; index < registrationCount; index++)
         {
-            layouts.Register(new ComponentLayout(
-                new SchemaId((ulong)(70_041 + index)),
-                size: 4,
-                alignment: 4));
+            layouts.Register(typeof(int), new SchemaId((ulong)(70_041 + index)));
         }
 
         Assert.That(layouts.Count, Is.EqualTo(registrationCount));
         Assert.That(layouts.GetPrimary<Position>(), Is.EqualTo(primary));
-        Assert.That(layouts.Register(new ComponentLayout(new SchemaId(71_000), size: 4, alignment: 4)).Value,
+        Assert.That(layouts.Register(typeof(int), new SchemaId(71_000)).Value,
             Is.EqualTo(registrationCount));
     }
 

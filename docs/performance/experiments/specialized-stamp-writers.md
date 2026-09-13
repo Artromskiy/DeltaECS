@@ -1,5 +1,8 @@
 # Operation-specific stamp writers
 
+> Historical note: the `QuerySlots` row route in this experiment was removed.
+> Generated dense execution is the current query writer path.
+
 ## Hypothesis
 
 The hierarchical stamp storage is world-owned, but one universal write state
@@ -18,7 +21,7 @@ change the public API or the meaning of `Stamp` equality.
 | Runtime path | Route | Reason |
 | --- | --- | --- |
 | `World.Set` and integration `TryWrite` | `EntityComponentStampWriter.MarkPoint` | Updates the exact entity/component term without introducing a chunk write intent |
-| `QuerySlots.GetRow(WriteAccess)` / object write row | `ChunkComponentStampWriter.Mark` | The borrowed write row represents the complete component row in the current chunk |
+| Former `QuerySlots.GetRow(WriteAccess)` / object write row | `ChunkComponentStampWriter.Mark` | Historical borrowed-row route; retained here only as evidence |
 | Generated dense write | `GeneratedDenseExecution.MarkArchetypeWrite` | Marks the archetype/component term once before the slot loop |
 | Archetype internal endpoints | `ArchetypeComponentStampWriter` | Keep broad mutation routes available without putting their storage on `Chunk` or `Archetype` |
 | Generated read-only execution and zero-arity anchors | `GeneratedReadDenseExecution` + `GeneratedReadQuerySlots` | Read execution carries no tick, stamp, native stamp buffer, or writer state; anchors do not execute |

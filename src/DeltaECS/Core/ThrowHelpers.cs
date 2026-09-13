@@ -107,11 +107,6 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowAccessMismatch()
-        => throw new InvalidOperationException("The row access does not belong to this query or world.");
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowMissingWriteIntent()
         => throw new InvalidOperationException("The query did not register its write row access.");
 
@@ -144,21 +139,6 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowArchetypeIteratorNotPositioned()
-        => throw new InvalidOperationException("The archetype iterator is not positioned on an archetype.");
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowChunkIteratorNotPositioned()
-        => throw new InvalidOperationException("The chunk iterator is not positioned on a chunk.");
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowSlotIteratorNotPositioned()
-        => throw new InvalidOperationException("The slot iterator is not positioned on a slot.");
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowIntegrationAlreadyInitialized()
         => throw new InvalidOperationException("The ECS world can be initialized exactly once.");
 
@@ -166,11 +146,6 @@ internal static class ThrowHelper
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowIntegrationComponentNotRegistered(int component, string parameterName)
         => throw new ArgumentException($"Component {component} is not registered in this world.", parameterName);
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowIntegrationRawComponentUnsupported(int component)
-        => throw new NotSupportedException($"Component {component} has a raw layout that the typed-array world cannot materialize.");
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -249,11 +224,6 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowWorldDestinationOutOfRange(string parameterName)
-        => throw new ArgumentOutOfRangeException(parameterName);
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowMissingComponentLayout(int component)
         => throw new InvalidOperationException($"Missing component layout for {component}.");
 
@@ -286,23 +256,6 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static Type ThrowNonArrayComponentRow(string parameterName)
-        => throw new ArgumentException("The component row must be a CLR array.", parameterName);
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowExactComponentValueType(Type elementType, string parameterName)
-        => throw new ArgumentException($"Component value must be exactly {elementType}.", parameterName);
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowComponentValueTypeMismatch(Type valueType, Type registeredType, string parameterName)
-        => throw new ArgumentException(
-            $"Component value type {valueType} does not match registered type {registeredType}.",
-            parameterName);
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowComponentDestinationTooSmall(string parameterName)
         => throw new ArgumentException("Destination is too small.", parameterName);
 
@@ -315,16 +268,6 @@ internal static class ThrowHelper
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal static int ThrowComponentIdOutOfRange()
         => throw new ArgumentOutOfRangeException("componentId", "ComponentId must be a non-negative value.");
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowInvalidQueryScopeHandle(string parameterName)
-        => throw new ArgumentException("Query handle is invalid or belongs to another world.", parameterName);
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowDisposedQueryScope()
-        => throw new InvalidOperationException("The query scope has been disposed.");
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]

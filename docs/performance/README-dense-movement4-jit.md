@@ -14,8 +14,8 @@ The production traversal is implemented by the generated runtime bridge:
 - `benchmarks/DeltaECS.MicroBenchmarks/MicroBenchmarkImplementations.cs` for
   the observable Movement4 checksum.
 
-The former `QueryScope`/iterator/row chain remains internal legacy support and
-is not a consumer entry point.
+The former `QueryScope`/iterator/row chain was removed. Generated callbacks
+are the only supported consumer traversal entry point.
 
 Row-array selection occurs at the chunk boundary. The slot loop performs the
 component arithmetic and checksum; query ownership, plan refresh and write

@@ -35,41 +35,11 @@ public sealed class StampTests
         Archetype archetype = world.Archetypes[0];
         Chunk chunk = archetype.GetChunk(0);
         Stamp entityTerm = chunk.GetComponentStamp(0, 0);
-        world.MarkChunkComponentWritten(chunk, 0, new Stamp(2));
-        world.MarkArchetypeComponentWritten(archetype.Id, 0, new Stamp(3));
+        world.GetChunkComponentStamps(chunk).RefAt(0) = new Stamp(2);
+        world.GetArchetypeComponentStamps(archetype.Id)[0] = new Stamp(3);
 
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp actual), Is.True);
         Assert.That(actual, Is.EqualTo(new Stamp(entityTerm.Value + 2 + 3)));
-    }
-
-    [Test]
-    public void StampRowUsesPreparedHierarchyReferencesAndMatchesPointLookup()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        ComponentId positionId = layouts.Register<Position>(new SchemaId(40_002));
-        using var world = new World(layouts, chunkCapacity: 2);
-        Entity entity = world.Create(positionId);
-        Archetype archetype = world.Archetypes[0];
-        Chunk storageChunk = archetype.GetChunk(0);
-        world.MarkChunkComponentWritten(storageChunk, 0, new Stamp(2));
-        world.MarkArchetypeComponentWritten(archetype.Id, 0, new Stamp(3));
-        var query = world.CreateQuery(QuerySpec.WhereAll(positionId));
-        ReadAccess access = query.AccessRead(positionId);
-
-        Stamp rowStamp;
-        using (var scope = world.BeginScope(in query))
-        {
-            QueryChunks chunks = scope.Chunks;
-            Assert.That(chunks.MoveNext(), Is.True);
-            QueryChunk chunk = chunks.Current;
-            StampRow stamps = chunk.GetStampRow(access);
-            QuerySlots slots = chunk.Slots;
-            Assert.That(slots.MoveNext(), Is.True);
-            rowStamp = stamps.Get(in slots);
-        }
-
-        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp pointStamp), Is.True);
-        Assert.That(rowStamp, Is.EqualTo(pointStamp));
     }
 
     [Test]
@@ -126,57 +96,6 @@ public sealed class StampTests
             Assert.That(positionAfterRemove, Is.EqualTo(positionBefore));
             Assert.That(world.TryGetComponentStamp(entity, velocityId, out _), Is.False);
         });
-    }
-
-    [Test]
-    public void QueryWritesIncrementArchetypeAndChunkTermsWithoutWorldStamp()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        ComponentId positionId = layouts.Register<Position>(new SchemaId(40_051));
-        using var world = new World(layouts);
-        Entity entity = world.Create(positionId);
-        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp before), Is.True);
-        var query = world.CreateQuery(QuerySpec.WhereAll(positionId));
-        WriteAccess access = query.AccessWrite(positionId);
-
-        using (var scope = world.BeginScope(in query))
-        {
-            var chunks = scope.Chunks;
-            Assert.That(chunks.MoveNext(), Is.True);
-            QueryChunk chunk = chunks.Current;
-            QuerySlots slots = chunk.Slots;
-            WriteRow row = slots.GetRow(access);
-            Assert.That(slots.MoveNext(), Is.True);
-            _ = row.Ref<Position>(in slots);
-        }
-
-        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp after), Is.True);
-        Assert.That(after, Is.Not.EqualTo(before));
-    }
-
-    [Test]
-    public void ReadOnlyQueryDoesNotChangeComponentStamp()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        ComponentId positionId = layouts.Register<Position>(new SchemaId(40_061));
-        using var world = new World(layouts);
-        Entity entity = world.Create(positionId);
-        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp before), Is.True);
-        var query = world.CreateQuery(QuerySpec.WhereAll(positionId));
-        ReadAccess access = query.AccessRead(positionId);
-
-        using (var scope = world.BeginScope(in query))
-        {
-            var chunks = scope.Chunks;
-            Assert.That(chunks.MoveNext(), Is.True);
-            QuerySlots slots = chunks.Current.Slots;
-            ReadRow row = slots.GetRow(access);
-            Assert.That(slots.MoveNext(), Is.True);
-            _ = row.Ref<Position>(in slots);
-        }
-
-        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp after), Is.True);
-        Assert.That(after, Is.EqualTo(before));
     }
 
     [Test]

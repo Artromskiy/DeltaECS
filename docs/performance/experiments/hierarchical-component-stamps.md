@@ -35,8 +35,8 @@ conservative:
 - clearing a physical chunk clears its chunk-level terms before reuse, while
   archetype- and world-level terms retain their own scope.
 
-The public `World.TryGetComponentStamp` and `StampRow` return the combined
-value. No public type or call shape changed.
+The public `World.TryGetComponentStamp` and the then-existing row API returned
+the combined value. No public type or call shape changed in that experiment.
 
 ## Correctness evidence
 

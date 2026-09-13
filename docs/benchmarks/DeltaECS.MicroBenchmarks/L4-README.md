@@ -1,11 +1,14 @@
 # L4 type-erased access experiment
 
+> Historical experiment. The row-wrapper API measured here was removed; this
+> document is retained only for the recorded comparison.
+
 This experiment is based directly on `6fc0e9c` and is intentionally isolated
 from the comparative/version benchmark migration.
 
 ## API under test
 
-The dense path is:
+The former dense path was:
 
 ```text
 ReadAccess/WriteAccess -> ReadRow/WriteRow -> Ref<T>

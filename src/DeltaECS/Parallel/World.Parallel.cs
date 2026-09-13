@@ -5,47 +5,8 @@ using System.Threading;
 public sealed partial class World
 {
     private readonly object _parallelExecutorGate = new();
-    private ParallelQueryExecutor? _parallelQueryExecutor;
     private Dictionary<Type, IDisposable>? _generatedParallelExecutors;
     private int _parallelExecutionActive;
-
-    /// <summary>
-    /// Executes a callback once for every active matching chunk using reusable workers.
-    /// </summary>
-    /// <remarks>
-    /// The query must have registered every write access before this call. Each matching
-    /// chunk is owned by one worker for the duration of the callback, so component rows may
-    /// be read and written without locks when the callback does not share mutable state.
-    /// Structural changes remain forbidden until the call returns. The first call may create
-    /// worker threads and grow reusable buffers; subsequent calls do not allocate for the
-    /// same or smaller query topology. A non-empty query always uses the worker protocol
-    /// regardless of its entity count; <paramref name="workerCount"/> equal to one explicitly
-    /// selects a single worker. Requested worker counts are clamped to the available processor
-    /// count. The callback must not retain <paramref name="action"/> data or the supplied chunk
-    /// after it returns.
-    /// Generated typed overloads are named <c>ForEachParallel</c> and
-    /// <c>ForEachEntityParallel</c>. Their optional state parameter is
-    /// <c>in</c>, <c>ref readonly</c>, or by value; a parallel <c>ref</c> state
-    /// overload is intentionally not provided. Functor calls use the same
-    /// generated names and bypass interception.
-    /// </remarks>
-    internal void ForEachParallel(
-        in Query query,
-        QueryChunkAction action,
-        int workerCount = 0)
-    {
-        ThrowHelper.ThrowIfNull(action, nameof(action));
-        EnterParallelExecution();
-        try
-        {
-            ParallelQueryExecutor executor = GetParallelQueryExecutor();
-            executor.Execute(this, in query, action, workerCount);
-        }
-        finally
-        {
-            ExitParallelExecution();
-        }
-    }
 
     /// <summary>
     /// Zero-component parallel callback overload.
@@ -151,12 +112,6 @@ public sealed partial class World
         int workerCount = 0)
         => ThrowHelper.ThrowGeneratedIterationRequired();
 
-    internal QueryPlan ValidateParallelQuery(in Query query)
-    {
-        ValidateQuery(in query);
-        return query.Cached;
-    }
-
     internal StaticParallelQueryExecutor<TInvoker> GetParallelQueryExecutor<TInvoker>()
         where TInvoker : struct, IGeneratedParallelInvoker
     {
@@ -185,29 +140,6 @@ public sealed partial class World
         }
     }
 
-    private ParallelQueryExecutor GetParallelQueryExecutor()
-    {
-        ParallelQueryExecutor? executor = Volatile.Read(ref _parallelQueryExecutor);
-        if (executor is not null)
-        {
-            return executor;
-        }
-
-        lock (_parallelExecutorGate)
-        {
-            ThrowHelper.ThrowIfDisposed(_disposed, this);
-            executor = _parallelQueryExecutor;
-            if (executor is not null)
-            {
-                return executor;
-            }
-
-            executor = new ParallelQueryExecutor();
-            Volatile.Write(ref _parallelQueryExecutor, executor);
-            return executor;
-        }
-    }
-
     internal void EnterParallelExecution()
     {
         ThrowHelper.ThrowIfDisposed(Volatile.Read(ref _disposed), this);
@@ -222,21 +154,17 @@ public sealed partial class World
         Volatile.Write(ref _parallelExecutionActive, 0);
     }
 
-    private void DisposeParallelQueryExecutor()
+    private void DisposeGeneratedParallelExecutors()
     {
-        ParallelQueryExecutor? executor;
         IDisposable[] generatedExecutors;
         lock (_parallelExecutorGate)
         {
-            executor = _parallelQueryExecutor;
-            _parallelQueryExecutor = null;
             generatedExecutors = _generatedParallelExecutors is { } executors
                 ? executors.Values.ToArray()
                 : Array.Empty<IDisposable>();
             _generatedParallelExecutors?.Clear();
         }
 
-        executor?.Dispose();
         for (int index = 0; index < generatedExecutors.Length; index++)
         {
             generatedExecutors.RefAt(index).Dispose();

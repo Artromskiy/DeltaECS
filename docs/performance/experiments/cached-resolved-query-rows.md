@@ -1,23 +1,25 @@
 # Prepared query-row evidence
 
-The current query plan prepares direct component-array references per active
-chunk. `QuerySlots.GetRow(ReadAccess)` and `QuerySlots.GetRow(WriteAccess)` use
-that prepared table; the slot loop then reaches `ReadRow.Ref<T>` or
-`WriteRow.Ref<T>` without repeating the physical-row lookup.
+> Historical experiment. The `QueryScope`/row-wrapper implementation described
+> here was removed; generated dense execution is the current path.
+
+The former query plan prepared direct component-array references per active
+chunk. Its row wrappers were removed; the same invariant is now implemented by
+`GeneratedQuerySlots` and generated dense callbacks.
 
 ## Scope
 
-This is an implementation note for the current `QueryScope` path, not a
-separate public API. It applies to `Movement2Components`,
+This is an implementation note for a removed path, not a public API. It applies
+to `Movement2Components`,
 `Movement4Components` and any generated callback that enters the same query
 plan.
 
 ## Correctness boundary
 
-- `Query.AccessRead` and `Query.AccessWrite` validate the component against the
-  query's `All` mask before a scope is opened.
-- `QueryScope` validates query ownership and owns the active
-  structural lease.
+- Query access validates the component against the query's `All` mask before
+  generated dense execution starts.
+- Generated execution validates query ownership and owns the active structural
+  lease.
 - `ArchetypePlan.RefreshChunks` rebuilds the direct row table when the active
   chunk set changes.
 - Write access records the physical row through the active query write session.

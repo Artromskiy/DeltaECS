@@ -1,5 +1,8 @@
 # ADR-0002: Prepared chunk rows for dense queries
 
+> Superseded: the scope/iterator/row API described below was removed as a
+> breaking change. Current traversal uses the generated dense execution path.
+
 ## Context
 
 Dense query execution must keep storage and traversal type-erased while
@@ -13,12 +16,10 @@ The public API also needs one clear owner for the structural mutation lease.
 - The plan refreshes matching archetypes when the world's archetype version
   changes. Each `ArchetypePlan` refreshes active chunks and resolves its
   requested `Array[]` rows into `ChunkPlan` values once per chunk.
-- `World.BeginScope(in Query)` creates a stack-only `QueryScope`. The scope owns
-  the structural lease; `QueryArchetypes`, `QueryChunks` and `QuerySlots` are
-  borrowed traversal views.
-- `Query.AccessRead` and `Query.AccessWrite` validate the requested component
-  against the query and register write intent before traversal. `ReadRow` and
-  `WriteRow` remain non-generic until the terminal `Ref<T>` call.
+- The former `World.BeginScope`/iterator/row chain owned the structural lease
+  and resolved rows through borrowed views. That implementation was removed.
+- Generated callbacks now validate access and register write intent at the
+  dense execution boundary, using prepared query-plan routes.
 - Generated delegate and functor callbacks use the same query plan, access
   declarations and chunk-row preparation. They are a convenience surface, not
   a second storage or traversal model.
@@ -26,9 +27,10 @@ The public API also needs one clear owner for the structural mutation lease.
 ## Consequences
 
 Physical row resolution is performed at the chunk boundary rather than for
-each slot. The scope lifetime prevents structural changes from invalidating
-borrowed row values. The callback generator may specialize callback shapes,
-but query plans, storage and traversal remain shared and type-erased.
+each slot. Generated execution owns the traversal lifetime and prevents
+structural changes from invalidating prepared routes. The callback generator
+may specialize callback shapes, but query plans and storage remain shared and
+type-erased.
 
 The implementation does not claim a throughput result from code size alone.
 Assembly observations and BenchmarkDotNet measurements belong in the separate

@@ -94,20 +94,6 @@ internal sealed class Archetype
         }
     }
 
-    internal int EntityCount
-    {
-        get
-        {
-            int count = 0;
-            for (int i = 0; i < _chunks.Count; i++)
-            {
-                count += _chunks[i].Count;
-            }
-
-            return count;
-        }
-    }
-
     internal bool Contains(ComponentId componentId) => Mask.Contains(componentId);
 
     internal bool TryGetComponentIndex(ComponentId componentId, out int index)

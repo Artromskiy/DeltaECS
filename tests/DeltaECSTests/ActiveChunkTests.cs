@@ -48,19 +48,9 @@ public sealed class ActiveChunkTests
     private static int CountQueriedSlots(World world, in Query query)
     {
         var count = 0;
-        using var scope = world.BeginScope(in query);
-        var archetypes = scope.Archetypes;
-        while (archetypes.MoveNext())
+        foreach (ref readonly ChunkPlan chunk in query.Cached.MatchingChunkPlans())
         {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
-            {
-                var slots = chunks.Current.Slots;
-                while (slots.MoveNext())
-                {
-                    count++;
-                }
-            }
+            count += chunk.Chunk.Count;
         }
 
         return count;
@@ -69,23 +59,7 @@ public sealed class ActiveChunkTests
     private static float SumPositions(World world, in Query query)
     {
         float sum = 0;
-        var access = query.AccessRead(PositionId);
-        using var scope = world.BeginScope(in query);
-        var prepared = access;
-        var archetypes = scope.Archetypes;
-        while (archetypes.MoveNext())
-        {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
-            {
-                var slots = chunks.Current.Slots;
-                var positions = slots.GetRow(prepared);
-                while (slots.MoveNext())
-                {
-                    sum += positions.Ref<Position>(slots).X;
-                }
-            }
-        }
+        world.ForEach(in query, ref sum, static (ref float total, in Position position) => total += position.X);
 
         return sum;
     }

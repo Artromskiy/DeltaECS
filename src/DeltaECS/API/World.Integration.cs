@@ -180,7 +180,9 @@ public sealed partial class World : IEcsWorld
             return false;
         }
 
-        if (layout.RuntimeType is not { IsByRefLike: false, IsPointer: false } valueType
+        Type valueType = layout.RuntimeType;
+        if (valueType.IsByRefLike
+            || valueType.IsPointer
             || Nullable.GetUnderlyingType(valueType) is not null)
         {
             error = new EcsWriteError(EcsWriteErrorCode.Unsupported);
@@ -248,21 +250,17 @@ public sealed partial class World : IEcsWorld
         {
             var id = new ComponentId(index);
             var layout = _layouts.Get(id);
-            Type? runtimeType = layout.RuntimeType;
-            Type valueType = runtimeType ?? typeof(object);
+            Type runtimeType = layout.RuntimeType;
             ComponentCapabilities capabilities = SupportsObjectAccess(layout)
                 ? ComponentCapabilities.Read | ComponentCapabilities.Write
                 : ComponentCapabilities.None;
-            string name = runtimeType is null
-                ? $"Raw component {index}"
-                : runtimeType.FullName ?? runtimeType.Name;
             descriptors.RefAt(index) = new ComponentDescriptor(
                 id,
                 layout.SchemaId,
-                name,
-                valueType,
+                runtimeType.FullName ?? runtimeType.Name,
+                runtimeType,
                 capabilities,
-                runtimeType is not null && AllowsNull(runtimeType));
+                AllowsNull(runtimeType));
         }
 
         _integrationCatalog = new ComponentCatalog(descriptors, _catalogStamps.Next());
@@ -277,11 +275,6 @@ public sealed partial class World : IEcsWorld
             if (!_layouts.TryGet(component, out var layout))
             {
                 ThrowHelper.ThrowIntegrationComponentNotRegistered(component.Value, nameof(components));
-            }
-
-            if (layout.RuntimeType is null)
-            {
-                ThrowHelper.ThrowIntegrationRawComponentUnsupported(component.Value);
             }
         }
     }
@@ -301,8 +294,9 @@ public sealed partial class World : IEcsWorld
     }
 
     private static bool SupportsObjectAccess(ComponentLayout layout)
-        => layout.RuntimeType is { IsByRefLike: false, IsPointer: false } runtimeType
-            && Nullable.GetUnderlyingType(runtimeType) is null;
+        => !layout.RuntimeType.IsByRefLike
+            && !layout.RuntimeType.IsPointer
+            && Nullable.GetUnderlyingType(layout.RuntimeType) is null;
 
     private static bool AllowsNull(Type valueType)
         => !valueType.IsValueType || Nullable.GetUnderlyingType(valueType) is not null;

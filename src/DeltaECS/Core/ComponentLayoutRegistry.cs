@@ -37,12 +37,6 @@ public sealed partial class ComponentLayoutRegistry
             new ComponentLayout(schemaId, runtimeType),
             ComponentRowOperations.ForRuntimeType(containsReferences));
 
-    internal ComponentId Register(ComponentLayout layout)
-        => Register(
-            layout,
-            ComponentRowOperations.ForRuntimeType(
-                layout.RuntimeType is not { } runtimeType || ContainsReferences(runtimeType)));
-
     private bool ContainsReferences(
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType)
     {
@@ -73,10 +67,7 @@ public sealed partial class ComponentLayoutRegistry
         _layouts.Add(layout);
         _rowOperations.Add(rowOperations);
         _idsBySchema.Add(layout.SchemaId, id.Value);
-        if (layout.RuntimeType is { } runtimeType)
-        {
-            _primaryIdsByType.TryAdd(runtimeType, id);
-        }
+        _primaryIdsByType.TryAdd(layout.RuntimeType, id);
 
         return id;
     }

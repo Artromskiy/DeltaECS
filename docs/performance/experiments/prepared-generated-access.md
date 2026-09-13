@@ -92,9 +92,9 @@ requested 100-entity row from the eight completed cases.
 
 The candidate is `+1.17%` (`+1.3 ns`) in this run. The result is accepted as a
 small change within the requested tolerance, not as a throughput improvement.
-The benchmark uses the existing three-loop `BeginScope` path, so it does not
-isolate the generated `MoveNextTrusted` loop; it is a regression check for the
-shared runtime path rather than direct proof of a generated-path speedup.
+The benchmark used the then-existing three-loop `BeginScope` path, so it did
+not isolate the generated `MoveNextTrusted` loop; it was a regression check for
+the shared runtime path rather than direct proof of a generated-path speedup.
 
 The raw BDN output was generated under the removed experiment worktree and is
 not tracked; the durable result is recorded above and in the ledger.

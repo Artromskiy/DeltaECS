@@ -8,23 +8,6 @@ using NUnit.Framework;
 [TestFixture]
 public sealed class PublicApiShapeTests
 {
-    private static readonly Type[] InternalQueryTypes =
-    [
-        typeof(QueryScope),
-        typeof(QueryArchetypes),
-        typeof(QueryArchetype),
-        typeof(QueryChunks),
-        typeof(QueryArchetypeChunks),
-        typeof(QueryChunk),
-        typeof(QuerySlots),
-        typeof(ReadRow),
-        typeof(WriteRow),
-        typeof(ObjectReadValues),
-        typeof(ObjectWriteValues),
-        typeof(StampRow),
-        typeof(QueryChunkAction)
-    ];
-
     [Test]
     public void TypeErasedStructuralKernelOverloadsRemainAvailable()
     {
@@ -53,17 +36,33 @@ public sealed class PublicApiShapeTests
     }
 
     [Test]
-    public void LowLevelQueryTraversalIsInternal()
+    public void RemovedLowLevelQueryTraversalIsAbsent()
     {
+        var assembly = typeof(World).Assembly;
         Assert.Multiple(() =>
         {
-            foreach (var type in InternalQueryTypes)
+            foreach (var typeName in new[]
             {
-                Assert.That(type.IsPublic, Is.False, $"{type.Name} must stay outside the public API.");
+                "Delta.ECS.QueryScope",
+                "Delta.ECS.QueryArchetypes",
+                "Delta.ECS.QueryArchetype",
+                "Delta.ECS.QueryChunks",
+                "Delta.ECS.QueryArchetypeChunks",
+                "Delta.ECS.QueryChunk",
+                "Delta.ECS.QuerySlots",
+                "Delta.ECS.ReadRow",
+                "Delta.ECS.WriteRow",
+                "Delta.ECS.ObjectReadValues",
+                "Delta.ECS.ObjectWriteValues",
+                "Delta.ECS.StampRow",
+                "Delta.ECS.QueryChunkAction"
+            })
+            {
+                Assert.That(assembly.GetType(typeName), Is.Null, $"Removed type {typeName} must stay absent.");
             }
 
             Assert.That(
-                typeof(World).GetMethod(nameof(World.BeginScope), BindingFlags.Public | BindingFlags.Instance),
+                typeof(World).GetMethod("BeginScope", BindingFlags.Public | BindingFlags.Instance),
                 Is.Null);
             Assert.That(
                 typeof(Query).GetMethod(nameof(Query.AccessRead), BindingFlags.Public | BindingFlags.Instance),
@@ -72,16 +71,31 @@ public sealed class PublicApiShapeTests
                 typeof(Query).GetMethod(nameof(Query.AccessWrite), BindingFlags.Public | BindingFlags.Instance),
                 Is.Null);
             Assert.That(
-                typeof(World).GetProperty(nameof(World.ArchetypeVersion), BindingFlags.Public | BindingFlags.Instance),
-                Is.Null);
-            Assert.That(
-                typeof(World).GetMethod(nameof(World.CollectAliveEntities), BindingFlags.Public | BindingFlags.Instance),
-                Is.Null);
-            Assert.That(
                 typeof(World).GetMethods(BindingFlags.Public | BindingFlags.Instance)
                     .Any(static method => method.Name == nameof(World.ForEachParallel)
-                        && method.GetParameters().Any(static parameter => parameter.ParameterType == typeof(QueryChunkAction))),
+                        && method.GetParameters().Any(static parameter => parameter.ParameterType.FullName == "Delta.ECS.QueryChunkAction")),
                 Is.False);
+        });
+    }
+
+    [Test]
+    public void RemovedRawLayoutSurfaceIsAbsent()
+    {
+        const BindingFlags allInstance = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                typeof(SchemaId).GetMethod("FromUInt64", BindingFlags.Public | BindingFlags.Static),
+                Is.Null);
+            Assert.That(
+                typeof(ComponentLayout).GetConstructor(allInstance, null, new[] { typeof(SchemaId), typeof(int), typeof(int) }, null),
+                Is.Null);
+            foreach (string property in new[] { "Size", "Alignment", "Stride", "RuntimeTypeHandle" })
+            {
+                Assert.That(typeof(ComponentLayout).GetProperty(property, allInstance), Is.Null, property);
+            }
+
+            Assert.That(typeof(ComponentLayout).GetMethod("Align", BindingFlags.Public | BindingFlags.Static), Is.Null);
         });
     }
 

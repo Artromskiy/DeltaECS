@@ -75,7 +75,6 @@ internal sealed class QueryPlan
     internal bool HasWriteAccess => _hasWriteAccess;
     internal World Owner => _owner;
     internal WeakReference<QueryPlan> WeakReference => _weakReference;
-    internal int PreparedPrimaryReadRouteCount { get; private set; }
     internal int MatchingVersion => _matchingVersion;
 
     internal int ResolveReadRoute(ComponentId component)
@@ -180,16 +179,10 @@ internal sealed class QueryPlan
     internal ReadOnlySpan<int> MatchingChunkPlanIndices() => _matchingChunkPlanIndices.AsSpan(0, _matchingChunkCount);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ReadOnlySpan<int> ComponentRowIndices(int matchingIndex) => _matchingPlans.RefAt(matchingIndex).ComponentRows;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal int MatchingPlanIndex(int archetypeId)
         => (uint)archetypeId < (uint)_planIndicesByArchetype.Length
             ? _planIndicesByArchetype.RefAt(archetypeId)
             : -1;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool MatchesArchetype(int archetypeId) => MatchingPlanIndex(archetypeId) >= 0;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetChunkPlan(int archetypeId, int globalChunkId, out ChunkPlan chunkPlan)
@@ -300,17 +293,14 @@ internal sealed class QueryPlan
             _readRoutesByComponent.RefAt(component.Value) = route;
             _preparedReadAccessesByComponent.RefAt(component.Value) = new ReadAccess(this, route);
             _preparedWriteAccessesByComponent.RefAt(component.Value) = new WriteAccess(this, route);
-            if (layout.RuntimeType is { } runtimeType)
+            Type runtimeType = layout.RuntimeType;
+            _readRouteTypesByComponent.RefAt(component.Value) = runtimeType;
+            if (world.Layouts.TryGetPrimary(runtimeType, out ComponentId primary)
+                && primary == component)
             {
-                _readRouteTypesByComponent.RefAt(component.Value) = runtimeType;
-                if (world.Layouts.TryGetPrimary(runtimeType, out ComponentId primary)
-                    && primary == component)
-                {
-                    _primaryReadRoutesByType.Add(runtimeType.TypeHandle, route);
-                    _primaryTypeHandles.RefAt(_primaryTypeCount) = runtimeType.TypeHandle;
-                    _primaryRoutes.RefAt(_primaryTypeCount++) = route;
-                    PreparedPrimaryReadRouteCount++;
-                }
+                _primaryReadRoutesByType.Add(runtimeType.TypeHandle, route);
+                _primaryTypeHandles.RefAt(_primaryTypeCount) = runtimeType.TypeHandle;
+                _primaryRoutes.RefAt(_primaryTypeCount++) = route;
             }
 
             route++;

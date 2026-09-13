@@ -65,7 +65,7 @@ Consumers use the generated `ForEach`, `ForEachEntity`, `ForEachParallel` and
 `ForEachEntityParallel` methods listed in [API-GRAMMAR.md](API-GRAMMAR.md).
 They validate the query, acquire the structural lease, prepare typed component
 routes and execute the dense chunk loop. The former `BeginScope`/iterator/row
-chain is internal runtime support and is not a supported consumer shape.
+chain was removed; generated callbacks are the supported consumer shape.
 
 ## Generated callback path
 

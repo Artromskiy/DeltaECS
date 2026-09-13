@@ -4,6 +4,10 @@ This is the authoritative ledger for DeltaECS performance experiments. Record
 every measured candidate here whether it is accepted, rejected or inconclusive.
 An entry is not a performance claim unless it names a workload and evidence.
 
+Entries that mention `QueryScope`, row wrappers or entity sequences describe
+historical implementations. Those APIs were removed in the grammar-only
+breaking change; their measurements remain as archival evidence.
+
 Do not repeat a rejected or inconclusive mechanism unless the new experiment
 states what changed: runtime, architecture, workload, implementation mechanism
 or measurement quality. Raw BenchmarkDotNet and JIT output stays under ignored

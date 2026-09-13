@@ -1231,26 +1231,11 @@ public sealed class DemandDrivenForEachGeneratorTests
             public ComponentId GetPrimary(Type type) => default;
             public ComponentId GetPrimary<T>() => default;
         }
-        public ref struct ReadRow
-        {
-            public ref T Ref<T>(QuerySlots slots) => throw new NotImplementedException();
-            public ref T Ref<T>(int index) => throw new NotImplementedException();
-        }
-        public ref struct QuerySlots
-        {
-            public Entity CurrentEntity => default;
-            public bool MoveNext() => false;
-            public ReadRow GetRow(ReadAccess access) => default;
-            public ReadRow GetRow(WriteAccess access) => default;
-        }
         public ref struct GeneratedQuerySlots
         {
-            public Entity CurrentEntity => default;
             public int ChunkId => 0;
-            public int CurrentIndex => 0;
             public int Count => 0;
             public Entity EntityAt(int index) => default;
-            public bool MoveNext() => false;
             public ref T GetGeneratedReadReference<T>(int queryComponentIndex) => throw new NotImplementedException();
             public ref T GetGeneratedReadReference<T>(ReadAccess access) => throw new NotImplementedException();
             public ref T GetGeneratedWriteReference<T>(int queryComponentIndex) => throw new NotImplementedException();
@@ -1258,11 +1243,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         }
         public ref struct GeneratedReadQuerySlots
         {
-            public Entity CurrentEntity => default;
-            public int CurrentIndex => 0;
             public int Count => 0;
             public Entity EntityAt(int index) => default;
-            public bool MoveNext() => false;
             public ref T GetGeneratedReadReference<T>(int queryComponentIndex) => throw new NotImplementedException();
             public ref T GetGeneratedReadReference<T>(ReadAccess access) => throw new NotImplementedException();
         }
@@ -1337,7 +1319,6 @@ public sealed class DemandDrivenForEachGeneratorTests
             public int Create(ReadOnlySpan<ComponentId> components, int count) => count;
             public int Create(ReadOnlySpan<ComponentId> components, int count, Span<Entity> output) => count;
             public Query CreateQuery(in QuerySpec spec) => default;
-            public QueryScope BeginScope(in Query query) => default;
             public bool Add(Entity entity, ReadOnlySpan<ComponentId> components) => true;
             public int Add(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> components) => 0;
             public bool Remove(Entity entity, ReadOnlySpan<ComponentId> components) => true;
@@ -1348,29 +1329,6 @@ public sealed class DemandDrivenForEachGeneratorTests
             public void ForEachEntity(in Query query, ForEachEntityAction action) { }
             public void ForEach<TContext>(in Query query, ref TContext context, ForEachContextAction<TContext> action) { }
             public void ForEachEntity<TContext>(in Query query, ref TContext context, ForEachContextEntityAction<TContext> action) { }
-        }
-        public ref struct QueryScope
-        {
-            public QueryArchetypes Archetypes => default;
-            public void Dispose() { }
-        }
-        public ref struct QueryArchetypes
-        {
-            public QueryArchetype Current => default;
-            public bool MoveNext() => false;
-        }
-        public readonly ref struct QueryArchetype
-        {
-            public QueryArchetypeChunks Chunks => default;
-        }
-        public ref struct QueryArchetypeChunks
-        {
-            public QueryChunk Current => default;
-            public bool MoveNext() => false;
-        }
-        public readonly ref struct QueryChunk
-        {
-            public QuerySlots Slots => default;
         }
         }
         """;

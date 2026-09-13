@@ -12,7 +12,6 @@ public ref struct GeneratedQuerySlots
     private readonly Array[] _resolvedRowsByQuery;
     private readonly int _count;
     private readonly int _offset;
-    private int _index;
 
     internal GeneratedQuerySlots(in ChunkPlan chunkPlan)
         : this(in chunkPlan, chunkPlan.Chunk.Count)
@@ -30,13 +29,6 @@ public ref struct GeneratedQuerySlots
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
         _count = count;
         _offset = offset;
-        _index = -1;
-    }
-
-    public int CurrentIndex
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _index;
     }
 
     /// <summary>Gets the number of entities in the validated chunk.</summary>
@@ -50,19 +42,10 @@ public ref struct GeneratedQuerySlots
     [EditorBrowsable(EditorBrowsableState.Never)]
     public int ChunkId => _chunk.GlobalId;
 
-    public Entity CurrentEntity
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _chunk.RawEntities.RefAt(_offset + _index);
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public Entity EntityAt(int index)
         => _chunk.RawEntities.RefAt(_offset + index);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool MoveNext() => ++_index < _count;
 
     /// <summary>Gets the trusted first element of a validated read row.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -98,20 +81,12 @@ public ref struct GeneratedReadQuerySlots
     private readonly Chunk _chunk;
     private readonly Array[] _resolvedRowsByQuery;
     private readonly int _count;
-    private int _index;
 
     internal GeneratedReadQuerySlots(in ChunkPlan chunkPlan)
     {
         _chunk = chunkPlan.Chunk;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
         _count = chunkPlan.Chunk.Count;
-        _index = -1;
-    }
-
-    public int CurrentIndex
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _index;
     }
 
     public int Count
@@ -120,18 +95,9 @@ public ref struct GeneratedReadQuerySlots
         get => _count;
     }
 
-    public Entity CurrentEntity
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _chunk.RawEntities.RefAt(_index);
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity EntityAt(int index)
         => _chunk.RawEntities.RefAt(index);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool MoveNext() => ++_index < _count;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetGeneratedReadReference<T>(int queryComponentIndex)

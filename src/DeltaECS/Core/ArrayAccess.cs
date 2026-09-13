@@ -7,10 +7,6 @@ using System.Runtime.InteropServices;
 internal static class ArrayAccess
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static ref byte DataReference(Array array) =>
-        ref Unsafe.As<byte[]>(array).GetRefAtZero();
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static ref T GetRefAtZero<T>(this T[] array) =>
 #if NETSTANDARD2_1
         ref MemoryMarshal.GetReference(array.AsSpan());

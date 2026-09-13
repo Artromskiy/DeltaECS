@@ -423,74 +423,28 @@ public readonly struct SchemaId : IEquatable<SchemaId>
     public static bool operator ==(SchemaId left, SchemaId right) => left.Equals(right);
 
     public static bool operator !=(SchemaId left, SchemaId right) => !left.Equals(right);
-
-    public static SchemaId FromUInt64(ulong value) => new(value);
 }
 
 public readonly struct ComponentLayout : IEquatable<ComponentLayout>
 {
     public ComponentLayout(
         SchemaId schemaId,
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType,
-        int alignment = 1)
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType)
     {
         ThrowHelper.ThrowIfNull(runtimeType, nameof(runtimeType));
 
-        if (alignment <= 0)
-        {
-            alignment = 1;
-        }
-
         SchemaId = schemaId;
-        // A Type-backed layout is an ArrayRows layout. Its CLR element size is
-        // not a byte-storage contract. Rows may contain value types, managed-field
-        // structs, or object references, so keep byte size/stride unavailable
-        // instead of guessing with Buffer.ByteLength or Marshal.SizeOf.
-        Size = 0;
-        Alignment = alignment;
         RuntimeType = runtimeType;
-        RuntimeTypeHandle = runtimeType.TypeHandle;
-        Stride = 0;
-    }
-
-    internal ComponentLayout(
-        SchemaId schemaId,
-        int size,
-        int alignment)
-    {
-        ThrowHelper.ThrowIfNegativeOrZero(size, nameof(size));
-
-        if (alignment <= 0)
-        {
-            alignment = 1;
-        }
-
-        SchemaId = schemaId;
-        Size = size;
-        Alignment = alignment;
-        Stride = Align(size, alignment);
-        RuntimeType = null;
-        RuntimeTypeHandle = default;
     }
 
     public SchemaId SchemaId { get; }
 
-    public int Size { get; }
-
-    public int Alignment { get; }
-
-    public int Stride { get; }
-
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
-    public Type? RuntimeType { get; }
+    public Type RuntimeType { get; }
 
-    public RuntimeTypeHandle RuntimeTypeHandle { get; }
-
-    public static int Align(int size, int alignment) => (size + alignment - 1) / alignment * alignment;
-
-    public bool Equals(ComponentLayout other) => SchemaId == other.SchemaId && Size == other.Size && Alignment == other.Alignment && Stride == other.Stride && RuntimeType == other.RuntimeType;
+    public bool Equals(ComponentLayout other) => SchemaId == other.SchemaId && RuntimeType == other.RuntimeType;
 
     public override bool Equals(object? obj) => obj is ComponentLayout other && Equals(other);
 
-    public override int GetHashCode() => HashCode.Combine(SchemaId.Value, Size, Alignment, Stride, RuntimeType);
+    public override int GetHashCode() => HashCode.Combine(SchemaId.Value, RuntimeType);
 }

@@ -33,7 +33,7 @@ public sealed class ComparativeBenchmarkContractTests
     }
 
     [Test]
-    public void Benchmark_sources_use_slot_row_access()
+    public void Benchmark_sources_use_generated_access()
     {
         var benchmarkRoot = FindBenchmarkRoot();
         var ordinalAccess = new Regex(@"GetComponentRow<[^>]+>\(\s*\d+\s*\)", RegexOptions.CultureInvariant);

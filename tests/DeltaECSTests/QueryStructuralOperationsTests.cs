@@ -117,8 +117,10 @@ public sealed class QueryStructuralOperationsTests
         Assert.Throws<ArgumentException>(() => world.Add(in invalid, new[] { VelocityId }));
         Assert.Throws<ArgumentException>(() => world.Remove(in foreignQuery, new[] { VelocityId }));
         Assert.Throws<ArgumentException>(() => world.Destroy(in foreignQuery));
-        using var scope = world.BeginScope(in query);
-        Assert.Throws<InvalidOperationException>(() => world.Add(in query, new[] { VelocityId }));
+        Assert.Throws<InvalidOperationException>(() => world.ForEachEntity(
+            in query,
+            ref world,
+            static (ref World owner, Entity current, in Position _) => owner.Destroy(current)));
         Assert.That(world.IsAlive(entity), Is.True);
     }
 
@@ -143,14 +145,12 @@ public sealed class QueryStructuralOperationsTests
         var entity = world.Create(new[] { PositionId });
         var query = world.CreateQuery(QuerySpec.WhereAll(VelocityId));
         var aliveBefore = world.AliveEntityCount;
-        var archetypeVersionBefore = world.ArchetypeVersion;
 
         Assert.That(world.Add(in query, new[] { HealthId }), Is.EqualTo(0));
         Assert.That(world.Remove(in query, new[] { PositionId }), Is.EqualTo(0));
         Assert.That(world.Destroy(in query), Is.EqualTo(0));
 
         Assert.That(world.AliveEntityCount, Is.EqualTo(aliveBefore));
-        Assert.That(world.ArchetypeVersion, Is.EqualTo(archetypeVersionBefore));
         Assert.That(world.IsAlive(entity), Is.True);
         Assert.That(world.TryGet<Position>(entity, PositionId, out _), Is.True);
     }
@@ -162,12 +162,10 @@ public sealed class QueryStructuralOperationsTests
         var world = new World(layouts);
         var entity = world.Create(new[] { PositionId });
         var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
-        var versionBefore = world.ArchetypeVersion;
 
         Assert.That(world.Add(in query, new[] { PositionId }), Is.EqualTo(0));
         Assert.That(world.Remove(in query, new[] { VelocityId }), Is.EqualTo(0));
 
-        Assert.That(world.ArchetypeVersion, Is.EqualTo(versionBefore));
         Assert.That(world.IsAlive(entity), Is.True);
         Assert.That(world.TryGet<Position>(entity, PositionId, out _), Is.True);
         Assert.That(world.TryGet<Velocity>(entity, VelocityId, out _), Is.False);
@@ -228,17 +226,10 @@ public sealed class QueryStructuralOperationsTests
         Assert.That(world.TryGetComponentStamp(source[0], PositionId, out var migratedStamp), Is.True);
         Assert.That(migratedStamp, Is.EqualTo(sourceStamp));
 
-        {
-            using var scope = world.BeginScope(in targetQuery);
-            int observed = 0;
-            var chunks = scope.Chunks;
-            while (chunks.MoveNext())
-            {
-                observed += chunks.Current.SlotCount;
-            }
-
-            Assert.That(observed, Is.EqualTo(existingTarget.Length + source.Length));
-        }
+        var observed = targetQuery.Cached.MatchingChunkPlans().Length == 0
+            ? 0
+            : CountMatchingEntities(targetQuery);
+        Assert.That(observed, Is.EqualTo(existingTarget.Length + source.Length));
         Assert.That(world.Destroy(in targetQuery), Is.EqualTo(existingTarget.Length + source.Length));
         Assert.That(world.AliveEntityCount, Is.Zero);
     }
@@ -324,14 +315,23 @@ public sealed class QueryStructuralOperationsTests
     private static HashSet<int> CollectChunkIds(in Query query, World world)
     {
         var ids = new HashSet<int>();
-        using var scope = world.BeginScope(in query);
-        var chunks = scope.Chunks;
-        while (chunks.MoveNext())
+        foreach (ref readonly ChunkPlan chunk in query.Cached.MatchingChunkPlans())
         {
-            ids.Add(chunks.Current.GlobalChunkId);
+            ids.Add(chunk.Chunk.GlobalId);
         }
 
         return ids;
+    }
+
+    private static int CountMatchingEntities(in Query query)
+    {
+        var count = 0;
+        foreach (ref readonly ChunkPlan chunk in query.Cached.MatchingChunkPlans())
+        {
+            count += chunk.Chunk.Count;
+        }
+
+        return count;
     }
 
     private static void AssertAddedComponents(World world, Entity entity, ComponentId velocityId, params ComponentId[] ids)

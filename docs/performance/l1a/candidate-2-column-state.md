@@ -1,7 +1,7 @@
 # Prepared column state evidence
 
 This archived probe tested whether keeping the current chunk's component-row
-table in `QuerySlots` changed the generated dense-loop code. The public API and
+table in the former row iterator changed the generated dense-loop code. The public API and
 query execution contract were unchanged.
 
 ## Result
@@ -13,5 +13,5 @@ short for a stable throughput claim.
 
 The current implementation has a stronger, explicit chunk plan: it resolves
 the direct `Array[]` rows in `ArchetypePlan.RefreshChunks` and passes that table
-to `QuerySlots`. Use [performance README](../README.md) for the current path
+to the former row iterator. Use [performance README](../README.md) for the current path
 and [benchmarks/README.md](../../benchmarks/README.md) for reproduction.

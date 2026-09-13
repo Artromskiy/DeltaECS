@@ -236,141 +236,6 @@ public sealed class StructuralAlgorithmTests
         }
     }
 
-    [Test]
-    public void HierarchyFixture_RandomizedStorageHasTopologicalOrderAndReferenceChecksum()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        var parentId = layouts.Register(typeof(ParentLink), new SchemaId(30_030));
-        var localId = layouts.Register(typeof(LocalTransform), new SchemaId(30_031));
-        var worldId = layouts.Register(typeof(WorldTransform), new SchemaId(30_032));
-        var world = new World(layouts, chunkCapacity: 8);
-        const int count = 127;
-        var random = new Random(0x1E_2); // fixed seed; no timing or ambient state
-        var parentIndices = new int[count];
-        var levels = new int[count];
-        parentIndices[0] = -1;
-        levels[0] = 0;
-        for (var i = 1; i < count; i++)
-        {
-            parentIndices[i] = random.Next(i);
-            levels[i] = levels[parentIndices[i]] + 1;
-        }
-
-        var storageOrder = new List<int>(count);
-        for (var i = 0; i < count; i++)
-        {
-            storageOrder.Add(i);
-        }
-
-        Shuffle(storageOrder, random);
-        var entities = new Entity[count];
-        foreach (var node in storageOrder)
-        {
-            entities[node] = world.Create(new[] { parentId, localId, worldId });
-        }
-
-        var expectedWorld = new WorldTransform[count];
-        var expectedLocal = new LocalTransform[count];
-        for (var i = 0; i < count; i++)
-        {
-            expectedLocal[i] = new LocalTransform { Value = new TransformPod { X = 1 + i, Y = (i * 17) % 101 } };
-            var parentWorld = parentIndices[i] < 0 ? default : expectedWorld[parentIndices[i]];
-            expectedWorld[i] = new WorldTransform
-            {
-                Value = new TransformPod
-                {
-                    X = parentWorld.Value.X + expectedLocal[i].Value.X,
-                    Y = parentWorld.Value.Y + expectedLocal[i].Value.Y
-                }
-            };
-
-            var parent = parentIndices[i] < 0 ? default : entities[parentIndices[i]];
-            Assert.That(world.Set(entities[i], parentId, new ParentLink { Parent = parent }), Is.True);
-            Assert.That(world.Set(entities[i], localId, expectedLocal[i]), Is.True);
-            Assert.That(world.Set(entities[i], worldId, expectedWorld[i]), Is.True);
-        }
-
-        var observed = new Dictionary<Entity, HierarchyObserved>();
-        var spec = QuerySpec.WhereAll(parentId, localId, worldId);
-        var query = world.CreateQuery(in spec);
-        var parentBinding = query.AccessRead(parentId);
-        var local = query.AccessRead(localId);
-        var worldTransform = query.AccessRead(worldId);
-        using (var scope = world.BeginScope(in query))
-        {
-            var preparedParent = parentBinding;
-            var preparedLocal = local;
-            var preparedWorld = worldTransform;
-            var archetypes = scope.Archetypes;
-            while (archetypes.MoveNext())
-            {
-                var chunks = archetypes.Current.Chunks;
-                while (chunks.MoveNext())
-                {
-                    var chunk = chunks.Current;
-                    var entitiesInChunk = chunk.Entities;
-                    var slots = chunk.Slots;
-                    var parents = slots.GetRow(preparedParent);
-                    var locals = slots.GetRow(preparedLocal);
-                    var worlds = slots.GetRow(preparedWorld);
-                    while (slots.MoveNext())
-                    {
-                        var entity = entitiesInChunk[slots.CurrentIndex];
-                        observed[entity] = new HierarchyObserved
-                        {
-                            Parent = parents.Ref<ParentLink>(slots).Parent,
-                            Local = locals.Ref<LocalTransform>(slots),
-                            World = worlds.Ref<WorldTransform>(slots)
-                        };
-                    }
-                }
-            }
-        }
-
-        Assert.That(observed.Count, Is.EqualTo(count));
-        var topological = new List<int>(count);
-        for (var level = 0; level <= Max(levels); level++)
-        {
-            for (var i = 0; i < count; i++)
-            {
-                if (levels[i] == level)
-                {
-                    topological.Add(i);
-                }
-            }
-        }
-
-        var position = new Dictionary<Entity, int>();
-        for (var i = 0; i < topological.Count; i++)
-        {
-            position[entities[topological[i]]] = i;
-        }
-
-        long checksum = 0;
-        for (var i = 0; i < count; i++)
-        {
-            var item = observed[entities[i]];
-            Assert.That(item.Local.Value, Is.EqualTo(expectedLocal[i].Value));
-            Assert.That(item.World.Value, Is.EqualTo(expectedWorld[i].Value));
-            if (parentIndices[i] >= 0)
-            {
-                Assert.That(position[item.Parent], Is.LessThan(position[entities[i]]));
-            }
-
-            checksum += (long)(i + 1) * (expectedWorld[i].Value.X * 1_003L + expectedWorld[i].Value.Y);
-        }
-
-        long observedChecksum = 0;
-        for (var i = 0; i < topological.Count; i++)
-        {
-            var node = topological[i];
-            var value = observed[entities[node]].World.Value;
-            observedChecksum += (long)(node + 1) * (value.X * 1_003L + value.Y);
-        }
-
-        Assert.That(observedChecksum, Is.EqualTo(checksum));
-    }
-
     private static void AssertTransitionModel(
         World world,
         Dictionary<Entity, TransitionState> model,
@@ -379,13 +244,10 @@ public sealed class StructuralAlgorithmTests
         ComponentId healthId)
     {
         Assert.That(world.AliveEntityCount, Is.EqualTo(model.Count));
-        var alive = new Entity[Math.Max(1, model.Count)];
-        var aliveCount = world.CollectAliveEntities(alive);
-        Assert.That(aliveCount, Is.EqualTo(model.Count));
-        for (var i = 0; i < aliveCount; i++)
+        foreach (var pair in model)
         {
-            var entity = alive[i];
-            Assert.That(model.TryGetValue(entity, out var expected), Is.True);
+            var entity = pair.Key;
+            var expected = pair.Value;
             Assert.That(world.TryGet<TransitionPosition>(entity, positionId, out var position), Is.True);
             Assert.That(position.Value, Is.EqualTo(expected.Position.Value));
             Assert.That(world.TryGet<TransitionVelocity>(entity, velocityId, out var velocity), Is.EqualTo(expected.HasVelocity),
@@ -421,26 +283,6 @@ public sealed class StructuralAlgorithmTests
         return selected;
     }
 
-    private static void Shuffle(List<int> values, Random random)
-    {
-        for (var i = values.Count - 1; i > 0; i--)
-        {
-            var j = random.Next(i + 1);
-            (values[i], values[j]) = (values[j], values[i]);
-        }
-    }
-
-    private static int Max(int[] values)
-    {
-        var max = 0;
-        foreach (var value in values)
-        {
-            max = Math.Max(max, value);
-        }
-
-        return max;
-    }
-
     private readonly struct DestroyValue
     {
         public int Value { get; init; }
@@ -461,29 +303,6 @@ public sealed class StructuralAlgorithmTests
         public int Value;
     }
 
-    private struct ParentLink
-    {
-        public Entity Parent;
-    }
-
-    private struct TransformPod : IEquatable<TransformPod>
-    {
-        public int X;
-        public int Y;
-
-        public bool Equals(TransformPod other) => X == other.X && Y == other.Y;
-    }
-
-    private struct LocalTransform
-    {
-        public TransformPod Value;
-    }
-
-    private struct WorldTransform
-    {
-        public TransformPod Value;
-    }
-
     private struct TransitionState
     {
         public Entity Entity;
@@ -492,13 +311,6 @@ public sealed class StructuralAlgorithmTests
         public TransitionHealth Health;
         public bool HasVelocity;
         public bool HasHealth;
-    }
-
-    private struct HierarchyObserved
-    {
-        public Entity Parent;
-        public LocalTransform Local;
-        public WorldTransform World;
     }
 
     // Span<T> cannot be obtained from List<T> on all target SDKs.  Keep the

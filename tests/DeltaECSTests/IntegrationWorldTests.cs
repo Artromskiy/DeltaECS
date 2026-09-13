@@ -26,7 +26,7 @@ public sealed class IntegrationWorldTests
     }
 
     [Test]
-    public void CatalogRefreshesIndependentlyAndDescribesUnsupportedRawLayouts()
+    public void CatalogRefreshesIndependentlyForTypedLayouts()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register(typeof(Position), new SchemaId(50_001));
@@ -34,7 +34,7 @@ public sealed class IntegrationWorldTests
         IEcsWorld world = storage;
 
         ComponentCatalog first = world.Catalog;
-        ComponentId rawId = layouts.Register(new ComponentLayout(new SchemaId(50_002), size: 16, alignment: 8));
+        ComponentId velocityId = layouts.Register(typeof(Velocity), new SchemaId(50_002));
         ComponentCatalog second = world.Catalog;
 
         Assert.Multiple(() =>
@@ -47,17 +47,15 @@ public sealed class IntegrationWorldTests
             Assert.That(first.Stamp, Is.Not.EqualTo(second.Stamp));
             Assert.That(second.Components.Length, Is.EqualTo(2));
             Assert.That(second.Components.Span[0].Id.Value, Is.LessThan(second.Components.Span[1].Id.Value));
-            Assert.That(second.Components.Span[1].Id, Is.EqualTo(rawId));
+            Assert.That(second.Components.Span[1].Id, Is.EqualTo(velocityId));
             Assert.That(second.Components.Span[1].Schema, Is.EqualTo(new SchemaId(50_002)));
-            Assert.That(second.Components.Span[1].Capabilities, Is.EqualTo(ComponentCapabilities.None));
+            Assert.That(second.Components.Span[1].ValueType, Is.EqualTo(typeof(Velocity)));
+            Assert.That(second.Components.Span[1].Capabilities, Is.EqualTo(ComponentCapabilities.Read | ComponentCapabilities.Write));
         });
 
         world.Initialize();
         _ = world.Create(ReadOnlySpan<ComponentId>.Empty);
-        Assert.Multiple(() =>
-        {
-            Assert.That(world.Catalog.Stamp, Is.EqualTo(second.Stamp));
-        });
+        Assert.That(world.Catalog.Stamp, Is.EqualTo(second.Stamp));
         world.Shutdown();
     }
 

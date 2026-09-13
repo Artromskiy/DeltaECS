@@ -45,12 +45,7 @@ internal sealed class Chunk
         _rowOperations = rowOperations;
         for (int index = 0; index < layouts.Length; index++)
         {
-            var runtimeType = layouts.RefAt(index).RuntimeType;
-            if (runtimeType is null)
-            {
-                ThrowHelper.ThrowArrayRowsRequiresRuntimeType();
-            }
-
+            Type runtimeType = layouts.RefAt(index).RuntimeType;
             _componentRows.RefAt(index) = _componentRowArrayPool.Rent(
                 runtimeType,
                 _rowOperations.RefAt(index),
@@ -81,8 +76,6 @@ internal sealed class Chunk
     internal int FreeRecordListIndex => _freeRecordListIndex;
 
     internal void SetFreeRecordListIndex(int index) => _freeRecordListIndex = index;
-
-    internal Span<Entity> Entities => _entities.Span[.._count];
 
     internal int Add(Entity entity, out bool reusedSlot)
     {
@@ -197,12 +190,7 @@ internal sealed class Chunk
                 continue;
             }
 
-            Type? runtimeType = layouts.RefAt(targetIndex).RuntimeType;
-            if (runtimeType is null)
-            {
-                ThrowHelper.ThrowArrayRowsRequiresRuntimeType();
-            }
-
+            Type runtimeType = layouts.RefAt(targetIndex).RuntimeType;
             targetRows[targetIndex] = _componentRowArrayPool.Rent(
                 runtimeType,
                 rowOperations.RefAt(targetIndex),

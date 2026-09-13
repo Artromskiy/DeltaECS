@@ -1,5 +1,8 @@
 # Arity trusted chunk kernel experiment
 
+> Historical experiment. Row-wrapper terminology in this record refers to the
+> pre-grammar implementation and is not a current API.
+
 Status: **rejected**. A fresh serialized comparison showed material regressions
 for both generated Functor and Delegate paths at every measured size. An older
 candidate BenchmarkDotNet run started on 2026-08-26 was interrupted after
@@ -19,8 +22,8 @@ it is evidence.
   public signatures, query/world ownership, lease lifetime, write stamps,
   empty-query behavior and generic/type-erasure
   boundaries are unchanged.
-- Managed rows remain CLR interior references held in stack-only `ReadRow` and
-  `WriteRow` values. The candidate adds no rents, allocations, pointers,
+- Managed rows remained CLR interior references held by stack-only row wrappers.
+  The candidate added no rents, allocations, pointers,
   function pointers, or advancing `ref byte` cursor.
 
 The Movement4 workload has one archetype with four `int` components. A/B/C are
@@ -157,8 +160,7 @@ extra helper block or call overhead.
   standard-analysis warnings and 0 errors.
 - `DeltaECSTests`: 131 passed, 0 failed, 0 skipped.
 - `DeltaECS.Generators.Tests`: 13 passed, 0 failed, 0 skipped. The generated
-  consumer compilation test covers the explicit `ReadRow`/`WriteRow` helper
-  output.
+  consumer compilation test covered the explicit row-helper output.
 - Code metrics: passed with 893 advisory warning lines and 417 SARIF results,
   exactly equal to baseline (`delta 0`). SARIF categories were CA1067 1,
   CA1307 2, CA1502 2, CA1505 15, CA1506 8, CA1515 15, CA1707 62, CA1822 1,

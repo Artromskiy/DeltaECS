@@ -42,7 +42,6 @@ public sealed partial class World : IDisposable
     private Chunk?[] _chunksById = Array.Empty<Chunk?>();
     private int _activeChunkLeases;
     private QueryWriteSession? _queryWriteSessionPool;
-    private int _archetypeVersion;
     private Stamp[][] _archetypeComponentWriteStamps = Array.Empty<Stamp[]>();
     private NativeMemory<Stamp>[] _chunkComponentWriteStamps = Array.Empty<NativeMemory<Stamp>>();
     private int[] _archetypeStampComponentCounts = Array.Empty<int>();
@@ -62,8 +61,6 @@ public sealed partial class World : IDisposable
         _chunkCapacity = chunkCapacity;
         _records.Capacity = initialEntityCapacity;
     }
-
-    internal int ArchetypeVersion => _archetypeVersion;
 
     public int AliveEntityCount { get; private set; }
 
@@ -103,7 +100,7 @@ public sealed partial class World : IDisposable
             archetype.Dispose();
         }
 
-        DisposeParallelQueryExecutor();
+        DisposeGeneratedParallelExecutors();
         _freeRecords.Dispose();
         _destroyScratch.Dispose();
         _generatedWhereSourceCounts.Dispose();
@@ -133,9 +130,6 @@ public sealed partial class World : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Query WhereNone(params ReadOnlySpan<ComponentId> components)
         => CreateQuery(QuerySpec.WhereNone(components));
-
-    /// <summary>Begins a validated query execution scope with independent iterators.</summary>
-    internal QueryScope BeginScope(in Query handle) => new QueryScope(this, handle);
 
     public Entity Create(params ReadOnlySpan<ComponentId> componentIds)
     {
@@ -680,24 +674,6 @@ public sealed partial class World : IDisposable
         => _chunkComponentWriteStamps.RefAt(chunk.GlobalId);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void MarkChunkComponentWritten(Chunk chunk, int componentIndex, Stamp stamp)
-        => CreateChunkComponentStampWriter(chunk, componentIndex, stamp).Mark();
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void MarkArchetypeComponentWritten(int archetypeId, int componentIndex, Stamp stamp)
-        => CreateArchetypeComponentStampWriter(archetypeId, componentIndex, stamp).Mark();
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Stamp IncrementChunkComponentStamp(Chunk chunk, int componentIndex)
-    {
-        NativeMemory<Stamp> stamps = _chunkComponentWriteStamps.RefAt(chunk.GlobalId);
-        ref Stamp value = ref stamps.RefAt(componentIndex);
-        Stamp stamp = value.Next();
-        value = stamp;
-        return stamp;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal EntityComponentStampWriter CreateEntityComponentStampWriter(
         Chunk chunk,
         int componentIndex,
@@ -706,51 +682,12 @@ public sealed partial class World : IDisposable
         => new(chunk, componentIndex, slotIndex, stamp);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ChunkComponentStampWriter CreateChunkComponentStampWriter(
-        Chunk chunk,
-        int componentIndex,
-        Stamp stamp)
-        => new(
-            _chunkComponentWriteStamps.RefAt(chunk.GlobalId),
-            componentIndex,
-            stamp);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ArchetypeComponentStampWriter CreateArchetypeComponentStampWriter(
-        int archetypeId,
-        int componentIndex,
-        Stamp stamp)
-        => new(_archetypeComponentWriteStamps.RefAt(archetypeId), componentIndex, stamp);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal Stamp[] GetArchetypeComponentStamps(int archetypeId)
         => _archetypeComponentWriteStamps.RefAt(archetypeId);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void ClearChunkComponentStamps(Chunk chunk)
         => _chunkComponentWriteStamps.RefAt(chunk.GlobalId).Clear();
-
-    internal int CollectAliveEntities(Span<Entity> destination)
-    {
-        int count = 0;
-        for (int i = 0; i < _records.Count; i++)
-        {
-            ref readonly var record = ref RecordAt(i);
-            if (!TryResolve(new Entity(i, record.Generation), out _))
-            {
-                continue;
-            }
-
-            if (count >= destination.Length)
-            {
-                ThrowHelper.ThrowWorldDestinationOutOfRange(nameof(destination));
-            }
-
-            destination.RefAt(count++) = new Entity(i, record.Generation);
-        }
-
-        return count;
-    }
 
     internal void BeginQueryLease() => _activeChunkLeases++;
 
@@ -1622,7 +1559,6 @@ public sealed partial class World : IDisposable
         _archetypeByMask.Add(mask, archetype.Id);
         _archetypes.Add(archetype);
         RegisterArchetypeStampStorage(archetype.Id, archetype.ComponentCount);
-        _archetypeVersion++;
         List<QuerySpec>? deadQueries = null;
         foreach (var entry in _queryCache)
         {

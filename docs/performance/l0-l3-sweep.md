@@ -2,8 +2,8 @@
 
 This archived record summarizes the accepted internal changes from a focused
 ARM64 JIT sweep. The measurements below describe the former three-loop
-`QueryScope`/`QueryArchetypes`/`QueryChunks`/`QuerySlots` implementation; that
-path is now internal and generated callbacks are the public query API.
+`QueryScope`/`QueryArchetypes`/`QueryChunks`/`QuerySlots` implementation. That
+path was removed; generated callbacks are the current public query API.
 
 ## Recorded JIT signal
 

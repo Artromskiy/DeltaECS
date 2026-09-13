@@ -44,7 +44,7 @@ public sealed class PipelineApiTests
     }
 
     [Test]
-    public void InferredForEachCachesPrimaryRoutesPerQueryPlan()
+    public void InferredForEachUpgradesPreparedWriteRoutes()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_005));
@@ -55,19 +55,16 @@ public sealed class PipelineApiTests
         Assert.That(world.Set(entity, velocityId, new PipelineVelocity { Value = 2 }), Is.True);
 
         var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
-        Assert.That(query.Cached.PreparedPrimaryReadRouteCount, Is.EqualTo(2));
         Assert.That(query.Cached.HasWriteAccess, Is.False);
 
         world.ForEach(in query, static (ref PipelinePosition position, in PipelineVelocity velocity) =>
             position.Value += velocity.Value);
 
-        Assert.That(query.Cached.PreparedPrimaryReadRouteCount, Is.EqualTo(2));
         Assert.That(query.Cached.HasWriteAccess, Is.True);
 
         world.ForEach(in query, static (ref PipelinePosition position, in PipelineVelocity velocity) =>
             position.Value += velocity.Value);
 
-        Assert.That(query.Cached.PreparedPrimaryReadRouteCount, Is.EqualTo(2));
         Assert.That(world.Get<PipelinePosition>(entity, positionId).Value, Is.EqualTo(5));
     }
 
