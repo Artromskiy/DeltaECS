@@ -54,7 +54,7 @@ public class StructuralOperationsMicroBenchmarkImplementation
     public void PrepareCreateAtomic() => PrepareCreate();
 
     [Benchmark]
-    public int AddBatch() => _fixture.World.Add(_markerComponents, _entities);
+    public int AddBatch() => _fixture.World.Add(_entities, _markerComponents);
 
     [Benchmark]
     public int AddAtomic()
@@ -62,7 +62,7 @@ public class StructuralOperationsMicroBenchmarkImplementation
         int changed = 0;
         for (int index = 0; index < _entities.Length; index++)
         {
-            if (_fixture.World.Add(_markerComponents, _entities[index]))
+            if (_fixture.World.Add(_entities[index], _markerComponents))
             {
                 changed++;
             }
@@ -72,7 +72,7 @@ public class StructuralOperationsMicroBenchmarkImplementation
     }
 
     [Benchmark]
-    public int RemoveBatch() => _fixture.World.Remove(_markerComponents, _entities);
+    public int RemoveBatch() => _fixture.World.Remove(_entities, _markerComponents);
 
     [Benchmark]
     public int RemoveAtomic()
@@ -80,7 +80,7 @@ public class StructuralOperationsMicroBenchmarkImplementation
         int changed = 0;
         for (int index = 0; index < _entities.Length; index++)
         {
-            if (_fixture.World.Remove(_markerComponents, _entities[index]))
+            if (_fixture.World.Remove(_entities[index], _markerComponents))
             {
                 changed++;
             }
@@ -148,13 +148,13 @@ public class StructuralOperationsMicroBenchmarkImplementation
     private void PrepareWithoutMarker()
     {
         EnsureEntitiesAlive();
-        _ = _fixture.World.Remove(_markerComponents, _entities);
+        _ = _fixture.World.Remove(_entities, _markerComponents);
     }
 
     private void PrepareWithMarker()
     {
         EnsureEntitiesAlive();
-        _ = _fixture.World.Add(_markerComponents, _entities);
+        _ = _fixture.World.Add(_entities, _markerComponents);
     }
 
     private void PrepareCreateState()

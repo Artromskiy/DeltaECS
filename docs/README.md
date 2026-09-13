@@ -4,6 +4,10 @@ The [project README](../README.md) is the public entry point. This page is a
 navigation index; detailed contracts, implementation notes and historical
 performance evidence stay in their dedicated documents.
 
+The canonical generated API grammar and argument order are in
+[API grammar](API-GRAMMAR.md). Update that contract together with generator
+or public API changes.
+
 ## Public and integration API
 
 - [API map](APIMAP.md)
@@ -16,7 +20,6 @@ performance evidence stay in their dedicated documents.
 
 - [Core storage](src/DeltaECS/Core/README.md)
 - [Generic API](src/DeltaECS/Generic/README.md)
-- [Sequence API](src/DeltaECS/Sequence/README.md)
 - [Parallel API](src/DeltaECS/Parallel/README.md)
 - [Architecture decisions](adr/0001-archetype-and-chunk-storage.md)
 

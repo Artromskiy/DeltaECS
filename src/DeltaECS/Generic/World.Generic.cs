@@ -2,6 +2,10 @@ namespace Delta.ECS;
 
 public sealed partial class World
 {
+    /// <summary>Creates one entity with the primary component for <typeparamref name="T"/>.</summary>
+    public Entity Create<T>()
+        => Create(_layouts.GetPrimary<T>());
+
     /// <summary>Creates entities with the primary component for <typeparamref name="T"/> into caller-owned storage.</summary>
     public int Create<T>(int count, Span<Entity> output)
         => Create<T>(_layouts.GetPrimary<T>(), count, output);
@@ -10,7 +14,7 @@ public sealed partial class World
     public int Create<T>(int count)
     {
         ThrowHelper.ThrowIfNegative(count, nameof(count));
-        return Create(GetOrCreateArchetype(_layouts.GetPrimary<T>()), count);
+        return Create(count, stackalloc[] { _layouts.GetPrimary<T>() });
     }
 
     /// <summary>
@@ -32,9 +36,29 @@ public sealed partial class World
         return Create(stackalloc[] { componentId }, count, output);
     }
 
+    /// <summary>Creates typed entities with the specified component registration and returns their handles.</summary>
+    public Entity[] Create<T>(ComponentId componentId, int count)
+    {
+        EnsureRegisteredType<T>(componentId);
+        return Create(stackalloc[] { componentId }, count);
+    }
+
     /// <summary>Adds and initializes the primary component for <typeparamref name="T"/> on one entity.</summary>
     public bool Add<T>(Entity entity, in T value)
         => Add(entity, _layouts.GetPrimary<T>(), in value);
+
+    /// <summary>Adds and initializes two primary components on one entity.</summary>
+    public bool Add<T1, T2>(Entity entity, in T1 firstValue, in T2 secondValue)
+    {
+        ComponentId firstComponent = _layouts.GetPrimary<T1>();
+        ComponentId secondComponent = _layouts.GetPrimary<T2>();
+        return AddComponentPair(
+            entity,
+            firstComponent,
+            secondComponent,
+            in firstValue,
+            in secondValue);
+    }
 
     /// <summary>Adds and initializes the primary component for <typeparamref name="T"/> on every eligible entity.</summary>
     public int Add<T>(ReadOnlySpan<Entity> entities, in T value)
@@ -111,6 +135,45 @@ public sealed partial class World
     /// <summary>Reads one component when the entity owns a matching component row.</summary>
     public bool TryGet<T>(Entity entity, ComponentId componentId, out T value)
         => TryGetCore(entity, componentId, out value);
+
+    /// <summary>Reports whether an alive entity owns the primary component for <typeparamref name="T"/>.</summary>
+    public bool Has<T>(Entity entity)
+    {
+        if (!_layouts.TryGetPrimary<T>(out ComponentId componentId))
+        {
+            return false;
+        }
+
+        return Has(entity, componentId);
+    }
+
+    /// <summary>Reports whether an alive entity owns a typed component registration.</summary>
+    public bool Has<T>(Entity entity, ComponentId componentId)
+        => IsRegisteredType<T>(componentId) && Has(entity, componentId);
+
+    /// <summary>Reads the primary component stamp when present.</summary>
+    public bool TryGetComponentStamp<T>(Entity entity, out Stamp stamp)
+    {
+        if (!_layouts.TryGetPrimary<T>(out ComponentId componentId))
+        {
+            stamp = default;
+            return false;
+        }
+
+        return TryGetComponentStamp(entity, componentId, out stamp);
+    }
+
+    /// <summary>Reads a typed component stamp when the entity owns the matching registration.</summary>
+    public bool TryGetComponentStamp<T>(Entity entity, ComponentId componentId, out Stamp stamp)
+    {
+        if (!IsRegisteredType<T>(componentId))
+        {
+            stamp = default;
+            return false;
+        }
+
+        return TryGetComponentStamp(entity, componentId, out stamp);
+    }
 
     /// <summary>
     /// Reads one component, throwing when the entity is stale, missing the row,
@@ -270,6 +333,50 @@ public sealed partial class World
 
         FillComponentRange(pendingChunk, pendingComponentIndex, pendingSlotIndex, pendingCount, in value);
         return changed;
+    }
+
+    private bool AddComponentPair<T1, T2>(
+        Entity entity,
+        ComponentId firstComponent,
+        ComponentId secondComponent,
+        in T1 firstValue,
+        in T2 secondValue)
+    {
+        EnsureNoActiveLease("add components");
+        if (!TryResolve(entity, out int recordIndex))
+        {
+            return false;
+        }
+
+        ref readonly var record = ref RecordAt(recordIndex);
+        Chunk sourceChunk = GetRecordChunk(record);
+        Archetype sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
+        bool addFirst = !sourceArchetype.Contains(firstComponent);
+        bool addSecond = !sourceArchetype.Contains(secondComponent);
+        if (!addFirst && !addSecond)
+        {
+            return false;
+        }
+
+        ComponentMask changeMask = ComponentMask.From(stackalloc[] { firstComponent, secondComponent });
+        ComponentMask targetMask = sourceArchetype.Mask.Or(changeMask);
+        TransitionEdge edge = GetTransitionEdge(sourceArchetype.Id, changeMask, true, targetMask);
+        MoveEntity(recordIndex, edge, out _, out int targetSlotIndex);
+
+        ref readonly var targetRecord = ref RecordAt(recordIndex);
+        Chunk targetChunk = GetRecordChunk(targetRecord);
+        Archetype targetArchetype = _archetypes[targetChunk.ArchetypeId];
+        if (addFirst)
+        {
+            targetChunk.GetComponentRow<T1>(targetArchetype.Mask.Rank(firstComponent)).RefAt(targetSlotIndex) = firstValue;
+        }
+
+        if (addSecond)
+        {
+            targetChunk.GetComponentRow<T2>(targetArchetype.Mask.Rank(secondComponent)).RefAt(targetSlotIndex) = secondValue;
+        }
+
+        return true;
     }
 
     private static void FillComponentRange<T>(

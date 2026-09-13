@@ -10,7 +10,7 @@ dotnet run --project playground/DeltaECS.Playground/DeltaECS.Playground.csproj -
 ```
 
 The sample demonstrates two compact entry points: a generated component
-callback and an ordered, query-filtered entity sequence.
+callback and direct query traversal.
 
 Add temporary components, queries and experiments to `Program.cs`. Keep
 performance measurements in the benchmark projects instead.

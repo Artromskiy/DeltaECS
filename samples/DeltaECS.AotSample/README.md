@@ -1,8 +1,8 @@
 # DeltaECS NativeAOT sample
 
 This sample exercises the typed registration and single-item API, a generated
-static delegate callback, a generated struct-functor callback, an ordered
-`Sequence` callback, query construction, and structural entity destruction.
+static delegate callback, a generated struct-functor callback, query
+construction, and structural entity destruction.
 The sample also enables the optional Roslyn interceptor path. The static
 non-capturing `World.ForEach` callback is lowered to the generated trusted
 struct-functor path while retaining the same source spelling. The analyzer
@@ -21,8 +21,7 @@ same two settings when their SDK supports Roslyn interceptors:
 </ItemGroup>
 ```
 
-Only supported static non-capturing callbacks are intercepted. Capturing,
-instance, pre-created, ambiguous, async, and sequence callbacks retain the
+Only supported static non-capturing callbacks are intercepted. Capturing, instance, pre-created, ambiguous, and async callbacks retain the
 ordinary delegate path.
 
 From the repository root, publish for the local Apple Silicon RID:

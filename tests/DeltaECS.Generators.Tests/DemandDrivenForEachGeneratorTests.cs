@@ -99,40 +99,6 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
-    public void ImplicitLambdaComponentTypesGenerateTheSameShape()
-    {
-        const string source = """
-            namespace Delta.ECS;
-            struct Position { public int Value; }
-            struct Velocity { public int Value; }
-            static class Consumer
-            {
-                public static void Use(FilteredEntitySequence sequence)
-                {
-                    sequence.ForEach(static (ref Position position, in Velocity velocity) =>
-                        position.Value += velocity.Value);
-                }
-            }
-            """;
-
-        GeneratorDriverRunResult run = RunGenerator(source);
-        string generated = GeneratedText(run);
-
-        Assert.That(run.Diagnostics, Is.Empty);
-        Assert.That(run.GeneratedTrees.Count, Is.GreaterThan(0), string.Join(Environment.NewLine, run.Diagnostics.Select(static value => value.ToString())));
-        Assert.That(generated, Does.Contain("ForEachAction_WI<global::Delta.ECS.Position, global::Delta.ECS.Velocity>"));
-        Assert.That(generated, Does.Contain("cursor.GetGeneratedWriteReferenceTrusted<global::Delta.ECS.Position>(_access0)"));
-        Assert.That(generated, Does.Contain("cursor.GetGeneratedReadReferenceTrusted<global::Delta.ECS.Velocity>(_access1)"));
-        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.ValidateSequenceQuery(sequence.GeneratedWorld, in query)"));
-        Assert.That(generated, Does.Contain("GetPreparedWriteRoute<global::Delta.ECS.Position>(in query)"));
-        Assert.That(generated, Does.Contain("GetPreparedReadRoute<global::Delta.ECS.Velocity>(in query)"));
-        Assert.That(generated, Does.Contain("ExecuteGeneratedSequenceTrusted"));
-        Assert.That(generated, Does.Not.Contain("AccessWrite(sequence.GeneratedWorld"));
-        Assert.That(generated, Does.Not.Contain("AccessRead(sequence.GeneratedWorld"));
-        Assert.That(generated, Does.Not.Contain("GetReadRow"));
-    }
-
-    [Test]
     public void TupleContextElementNamesDoNotCreateDuplicateForEachShapes()
     {
         GeneratorDriverRunResult run = RunGenerator(TupleContextElementNamesSource);
@@ -635,7 +601,7 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
-    public void RealConsumerProjectExecutesDenseAndSequenceGeneratedPaths()
+    public void RealConsumerProjectExecutesDenseGeneratedPaths()
     {
         int checksum = ConsumerProof.Run();
 
@@ -645,7 +611,7 @@ public sealed class DemandDrivenForEachGeneratorTests
     [Test]
     public void RealConsumerProjectExecutesGeneratedStructuralPaths()
     {
-        Assert.That(ConsumerProof.RunStructural(), Is.EqualTo(35));
+        Assert.That(ConsumerProof.RunStructural(), Is.EqualTo(19));
     }
 
     [Test]
@@ -673,17 +639,37 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(run);
 
         Assert.That(run.Diagnostics, Is.Empty);
+        Assert.That(generated, Does.Contain("public static Entity Create<T1, T2>(this World target)"));
+        Assert.That(generated, Does.Contain("public static int Create<T1, T2>(this World target, int count, global::System.Span<Entity> output)"));
+        Assert.That(generated, Does.Contain("public static bool Add<T1, T2>(this World target, Entity entity)"));
         Assert.That(generated, Does.Contain("public static int Add<T1, T2>(this World target"));
         Assert.That(generated, Does.Contain("public static int Remove<T1, T2>(this World target"));
         Assert.That(generated, Does.Contain("public static int Create<T1, T2>(this World target"));
-        Assert.That(generated, Does.Contain("target.GetOrCreateArchetype(components)"));
-        Assert.That(generated, Does.Contain("public static int Add<T1, T2>(this EntitySequence target"));
-        Assert.That(generated, Does.Contain("public static int Remove<T1, T2>(this FilteredEntitySequence target"));
         Assert.That(generated, Does.Contain("GetPrimary<T1>()"));
         Assert.That(generated, Does.Contain("stackalloc ComponentId[2]"));
 
         CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
             new[] { RuntimeStubSource, StructuralSource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
+    public void StructuralGeneratorEmitsPositionalComponentIdCreateShapes()
+    {
+        GeneratorDriverRunResult run = RunGenerator(ExplicitCreateSource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty);
+        Assert.That(generated, Does.Contain("public static int Create(this World target, ComponentId component0, ComponentId component1, int count)"));
+        Assert.That(generated, Does.Contain("public static int Create(this World target, ComponentId component0, int count, global::System.Span<Entity> output)"));
+        Assert.That(generated, Does.Contain("components[0] = component0;"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, ExplicitCreateSource },
             run.GeneratedTrees);
         var errors = compilation.GetDiagnostics()
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
@@ -746,6 +732,26 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
             new[] { RuntimeStubSource, QueryFactoriesWithDuplicateSignaturesSource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
+    public void DemandDrivenGeneratorSupportsPositionalComponentIdSelectors()
+    {
+        GeneratorDriverRunResult run = RunGenerator(ExplicitSelectorSource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty, string.Join(Environment.NewLine, run.Diagnostics.Select(static error => error.ToString())));
+        Assert.That(generated, Does.Contain("ComponentId component0, ComponentId component1"));
+        Assert.That(generated, Does.Contain("GetPreparedWriteAccess(in query, componentId0"));
+        Assert.That(generated, Does.Contain("GetPreparedReadAccess(in query, componentId1"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, ExplicitSelectorSource },
             run.GeneratedTrees);
         var errors = compilation.GetDiagnostics()
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
@@ -1124,7 +1130,6 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static QuerySpec WhereNone(ReadOnlySpan<ComponentId> components) => default;
         }
         public readonly struct Query { }
-        public readonly struct ArchetypeHandle { }
         public readonly struct ReadAccess { }
         public readonly struct WriteAccess { }
         public delegate void ForEachAction();
@@ -1219,17 +1224,6 @@ public sealed class DemandDrivenForEachGeneratorTests
             }
             public void Dispose() { }
         }
-        public ref struct GeneratedSequenceCursor
-        {
-            public Entity Entity => default;
-            public int Slot => 0;
-            public ref readonly T GetGeneratedReadReference<T>(int queryComponentIndex) => throw new NotImplementedException();
-            public ref T GetGeneratedWriteReference<T>(int queryComponentIndex) => throw new NotImplementedException();
-            public ref readonly T GetGeneratedReadReferenceTrusted<T>(int queryComponentIndex) => throw new NotImplementedException();
-            public ref T GetGeneratedWriteReferenceTrusted<T>(int queryComponentIndex) => throw new NotImplementedException();
-        }
-
-        public interface IGeneratedSequenceInvoker { void Invoke(ref GeneratedSequenceCursor cursor); }
         public interface IGeneratedArchetypeStampWriter { void Write(Stamp[] stamps); }
         public static class GeneratedForEachRuntime
         {
@@ -1244,7 +1238,6 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static WriteAccess GetPreparedWriteAccess<T>(in Query query) => default;
             public static int GetPreparedWriteRoute<T>(in Query query) => default;
             public static int GetPreparedWriteRoute<T>(in Query query, ComponentId component) => default;
-            public static void ValidateSequenceQuery(World world, in Query query) { }
             public static void ValidateGeneratedWhere(World world, in Query query) { }
             public static Query ComposeGeneratedQuery(in Query query, QuerySpec additions) => default;
             public static ComponentId GetGeneratedPrimary<T>(in Query query) => default;
@@ -1267,23 +1260,21 @@ public sealed class DemandDrivenForEachGeneratorTests
         public sealed partial class World
         {
             public ComponentLayoutRegistry Layouts { get; } = new();
-            public ArchetypeHandle GetOrCreateArchetype(ReadOnlySpan<ComponentId> components) => default;
-            public int Create(ArchetypeHandle handle, int count) => count;
-            public EntitySequence From(ReadOnlySpan<Entity> entities) => default;
+            public Entity Create(ReadOnlySpan<ComponentId> components) => default;
+            public int Create(int count, ReadOnlySpan<ComponentId> components) => count;
+            public int Create(ReadOnlySpan<ComponentId> components, int count, Span<Entity> output) => count;
             public Query CreateQuery(in QuerySpec spec) => default;
             public QueryScope BeginScope(in Query query) => default;
-            public int Add(ReadOnlySpan<ComponentId> components, ReadOnlySpan<Entity> entities) => 0;
-            public int Remove(ReadOnlySpan<ComponentId> components, ReadOnlySpan<Entity> entities) => 0;
+            public bool Add(Entity entity, ReadOnlySpan<ComponentId> components) => true;
+            public int Add(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> components) => 0;
+            public bool Remove(Entity entity, ReadOnlySpan<ComponentId> components) => true;
+            public int Remove(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> components) => 0;
             public int Add(in Query query, ReadOnlySpan<ComponentId> components) => 0;
             public int Remove(in Query query, ReadOnlySpan<ComponentId> components) => 0;
             public void ForEach(in Query query, ForEachAction action) { }
             public void ForEachEntity(in Query query, ForEachEntityAction action) { }
             public void ForEach<TContext>(in Query query, ref TContext context, ForEachContextAction<TContext> action) { }
             public void ForEachEntity<TContext>(in Query query, ref TContext context, ForEachContextEntityAction<TContext> action) { }
-            public void ExecuteGeneratedSequence<TInvoker>(ReadOnlySpan<Entity> entities, in Query query, ref TInvoker invoker, bool hasWrites)
-                where TInvoker : struct, IGeneratedSequenceInvoker { }
-            public void ExecuteGeneratedSequenceTrusted<TInvoker>(ReadOnlySpan<Entity> entities, in Query query, ref TInvoker invoker, bool hasWrites)
-                where TInvoker : struct, IGeneratedSequenceInvoker { }
         }
         public ref struct QueryScope
         {
@@ -1308,22 +1299,6 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public QuerySlots Slots => default;
         }
-        public readonly ref partial struct EntitySequence
-        {
-            public World GeneratedWorld => new();
-            public ReadOnlySpan<Entity> GeneratedEntities => default;
-            public FilteredEntitySequence Where(in Query query) => default;
-            public int Add(ReadOnlySpan<ComponentId> components) => 0;
-            public int Remove(ReadOnlySpan<ComponentId> components) => 0;
-        }
-        public readonly ref partial struct FilteredEntitySequence
-        {
-            public World GeneratedWorld => new();
-            public ReadOnlySpan<Entity> GeneratedEntities => default;
-            public Query GeneratedQuery => default;
-            public int Add(ReadOnlySpan<ComponentId> components) => 0;
-            public int Remove(ReadOnlySpan<ComponentId> components) => 0;
-        }
         }
         """;
 
@@ -1336,17 +1311,30 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public static void Use(World world, Query query, ReadOnlySpan<Entity> entities)
             {
+                _ = world.Create<Position, Velocity>();
                 world.Create<Position, Velocity>(2);
+                Span<Entity> output = stackalloc Entity[2];
+                world.Create<Position, Velocity>(2, output);
+                Entity entity = default;
+                world.Add<Position, Velocity>(entity);
                 world.Add<Position, Velocity>(entities);
+                world.Remove<Position, Velocity>(entity);
                 world.Remove<Position, Velocity>(entities);
                 world.Add<Position, Velocity>(in query);
                 world.Remove<Position, Velocity>(in query);
-                EntitySequence sequence = world.From(entities);
-                sequence.Add<Position, Velocity>();
-                sequence.Remove<Position, Velocity>();
-                FilteredEntitySequence filtered = sequence.Where(in query);
-                filtered.Add<Position, Velocity>();
-                filtered.Remove<Position, Velocity>();
+            }
+        }
+        """;
+
+    private const string ExplicitCreateSource = """
+        namespace Delta.ECS;
+        using System;
+        static class ExplicitStructuralConsumer
+        {
+            public static void Use(World world, ComponentId position, ComponentId velocity, Span<Entity> output)
+            {
+                _ = world.Create(position, velocity, 2);
+                _ = world.Create(position, 2, output);
             }
         }
         """;
@@ -1397,6 +1385,20 @@ public sealed class DemandDrivenForEachGeneratorTests
             {
                 var query = world.WhereAll<Position, Health>();
                 return query.WhereNone<Dead, Escaped, Human>().WhereAny<Armed>();
+            }
+        }
+        """;
+
+    private const string ExplicitSelectorSource = """
+        namespace Delta.ECS;
+        struct Position { public int Value; }
+        struct Velocity { public int Value; }
+        static class ExplicitSelectorConsumer
+        {
+            public static void Use(World world, Query query, ComponentId position, ComponentId velocity)
+            {
+                world.ForEach(in query, position, velocity,
+                    static (ref Position value, in Velocity source) => value.Value += source.Value);
             }
         }
         """;
@@ -1644,10 +1646,6 @@ public sealed class DemandDrivenForEachGeneratorTests
                 world.ForEach<T1, T2, T3, T4, T5, T6, T7, T8>(in query, static (ref T1 a, in T2 b, ref T3 c, in T4 d, ref T5 e, in T6 f, ref T7 g, in T8 h) => { a.Value += b.Value; c.Value += d.Value; e.Value += f.Value; g.Value += h.Value; });
                 var functor = new Functor();
                 world.ForEachEntity(in query, ref context, ref functor);
-                EntitySequence sequence = new();
-                sequence.ForEachEntity<T1>(static (Entity entity, ref T1 value) => value.Value += entity.Index);
-                FilteredEntitySequence filtered = new();
-                filtered.ForEachEntity<T1, T2>(static (Entity entity, in T1 a, ref T2 b) => b.Value += a.Value + entity.Index);
             }
         }
         """;

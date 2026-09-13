@@ -78,12 +78,12 @@ public sealed class ComponentLayoutRegistryTests
     }
 
     [Test]
-    public void RegistrationContinuesBeyondTheLegacyMaskCapacity()
+    public void RegistrationContinuesBeyondTheOriginalFourWordBoundary()
     {
         var layouts = new ComponentLayoutRegistry();
         var primary = layouts.Register<Position>(new SchemaId(70_041));
 
-        int registrationCount = ComponentMask.Capacity + 64;
+        int registrationCount = 256 + 64;
         for (var index = 1; index < registrationCount; index++)
         {
             layouts.Register(new ComponentLayout(

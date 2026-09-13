@@ -14,10 +14,8 @@ public sealed class ComponentRowOperationTests
         var managedStructId = layouts.Register(typeof(ManagedPayload), SchemaId.FromUInt64(10_002));
         var classId = layouts.Register(typeof(ReferencePayload), SchemaId.FromUInt64(10_003));
         var world = new World(layouts, chunkCapacity: 4);
-        var archetype = world.GetOrCreateArchetype(valueId, managedStructId, classId);
-
-        var removed = world.Create(archetype);
-        var survivor = world.Create(archetype);
+        var removed = world.Create(stackalloc[] { valueId, managedStructId, classId });
+        var survivor = world.Create(stackalloc[] { valueId, managedStructId, classId });
         var reference = new ReferencePayload("survivor");
         world.Set(survivor, valueId, 42);
         world.Set(survivor, managedStructId, new ManagedPayload("managed"));
@@ -43,15 +41,13 @@ public sealed class ComponentRowOperationTests
         var managedStructId = layouts.Register(typeof(ManagedPayload), SchemaId.FromUInt64(10_012));
         var classId = layouts.Register(typeof(ReferencePayload), SchemaId.FromUInt64(10_013));
         var world = new World(layouts, chunkCapacity: 1);
-        var archetype = world.GetOrCreateArchetype(valueId, managedStructId, classId);
-
-        var old = world.Create(archetype);
+        var old = world.Create(stackalloc[] { valueId, managedStructId, classId });
         world.Set(old, valueId, 99);
         world.Set(old, managedStructId, new ManagedPayload("old"));
         world.Set(old, classId, new ReferencePayload("old"));
         world.Destroy(old);
 
-        var current = world.Create(archetype);
+        var current = world.Create(stackalloc[] { valueId, managedStructId, classId });
         world.TryGet(current, valueId, out int value);
         world.TryGet(current, managedStructId, out ManagedPayload managed);
         world.TryGet(current, classId, out ReferencePayload? reference);
@@ -72,14 +68,14 @@ public sealed class ComponentRowOperationTests
         var addedReferenceId = layouts.Register(typeof(ReferencePayload), SchemaId.FromUInt64(10_023));
         var world = new World(layouts, chunkCapacity: 1);
 
-        var oldTarget = world.Create(world.GetOrCreateArchetype(sharedId, addedValueId, addedReferenceId));
+        var oldTarget = world.Create(stackalloc[] { sharedId, addedValueId, addedReferenceId });
         world.Set(oldTarget, addedValueId, 123);
         world.Set(oldTarget, addedReferenceId, new ReferencePayload("old"));
         world.Destroy(oldTarget);
 
-        var source = world.Create(world.GetOrCreateArchetype(sharedId));
+        var source = world.Create(stackalloc[] { sharedId });
         world.Set(source, sharedId, 77);
-        world.Add(new[] { addedValueId, addedReferenceId }, source);
+        world.Add(source, new[] { addedValueId, addedReferenceId });
 
         world.TryGet(source, sharedId, out int shared);
         world.TryGet(source, addedValueId, out int addedValue);
@@ -99,16 +95,15 @@ public sealed class ComponentRowOperationTests
         var valueId = layouts.Register(typeof(int), SchemaId.FromUInt64(10_031));
         var referenceId = layouts.Register(typeof(ReferencePayload), SchemaId.FromUInt64(10_032));
         var world = new World(layouts, chunkCapacity: 4);
-        var archetypeHandle = world.GetOrCreateArchetype(valueId, referenceId);
-        var removed = world.Create(archetypeHandle);
-        var survivor = world.Create(archetypeHandle);
+        var removed = world.Create(stackalloc[] { valueId, referenceId });
+        var survivor = world.Create(stackalloc[] { valueId, referenceId });
         var survivorReference = new ReferencePayload("survivor");
         world.Set(removed, valueId, 11);
         world.Set(survivor, valueId, 22);
         world.Set(survivor, referenceId, survivorReference);
 
         Assert.That(world.Destroy(removed), Is.True);
-        var archetype = world.Archetypes[archetypeHandle.ArchetypeId];
+        var archetype = world.Archetypes[0];
         var chunk = archetype.GetChunk(0);
         var valueRow = (int[])chunk.GetRawComponentRow(0);
         var referenceRow = (ReferencePayload[])chunk.GetRawComponentRow(1);

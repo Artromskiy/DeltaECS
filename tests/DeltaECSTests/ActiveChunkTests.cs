@@ -14,11 +14,10 @@ public sealed class ActiveChunkTests
         var layouts = new ComponentLayoutRegistry();
         layouts.Register(typeof(Position), new SchemaId(1));
         var world = new World(layouts, chunkCapacity: 2);
-        var handle = world.GetOrCreateArchetype(PositionId);
         var entities = new Entity[6];
-        world.Create(handle, entities);
+        world.Create(stackalloc[] { PositionId }, entities);
 
-        var archetype = world.Archetypes[handle.ArchetypeId];
+        var archetype = world.Archetypes[0];
         Assert.That(archetype.ChunkCount, Is.EqualTo(3));
         Assert.That(archetype.ActiveChunkCount, Is.EqualTo(3));
         AssertActiveChunks(archetype);
@@ -35,7 +34,7 @@ public sealed class ActiveChunkTests
         Assert.That(queriedSlots, Is.EqualTo(4));
 
         var replacement = new Entity[2];
-        Assert.That(world.Create(handle, replacement), Is.EqualTo(2));
+        Assert.That(world.Create(stackalloc[] { PositionId }, replacement), Is.EqualTo(2));
         Assert.That(world.Set(replacement[0], PositionId, new Position { X = 11 }), Is.True);
         Assert.That(world.Set(replacement[1], PositionId, new Position { X = 13 }), Is.True);
         Assert.That(archetype.ActiveChunkCount, Is.EqualTo(3));

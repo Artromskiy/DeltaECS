@@ -43,16 +43,8 @@ public readonly struct ComponentId : IEquatable<ComponentId>, IComparable<Compon
 /// <summary>
 /// Immutable set of component ids backed by dynamically sized native words.
 /// </summary>
-/// <remarks>
-/// <see cref="Capacity"/> is retained as the legacy four-word baseline for source
-/// compatibility. It is not a maximum: masks grow to address every non-negative
-/// <see cref="ComponentId"/> value, subject to available native memory.
-/// </remarks>
 public readonly struct ComponentMask : IEquatable<ComponentMask>
 {
-    // Kept for source compatibility with the former four-word implementation.
-    public const int Capacity = 256;
-
     private readonly NativeComponentMaskStorage? _storage;
 
     private ComponentMask(NativeComponentMaskStorage storage)

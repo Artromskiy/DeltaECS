@@ -37,6 +37,71 @@ public sealed class GenericSingleItemApiTests
     }
 
     [Test]
+    public void HasChecksPrimaryComponentWithoutReadingOrChangingStamp()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_003));
+        layouts.Register<Velocity>(new SchemaId(60_004));
+        using var world = new World(layouts);
+        Entity entity = world.Create(positionId, new Position { X = 1, Y = 2 });
+        Entity stale = entity;
+        world.Destroy(stale);
+
+        Entity current = world.Create(positionId, new Position { X = 3, Y = 4 });
+        Assert.That(world.TryGetComponentStamp(current, positionId, out Stamp before), Is.True);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(world.Has<Position>(current), Is.True);
+            Assert.That(world.Has<Velocity>(current), Is.False);
+            Assert.That(world.Has<NamedRef>(current), Is.False);
+            Assert.That(world.Has(current, positionId), Is.True);
+            Assert.That(world.Has(current, layouts.GetPrimary<Velocity>()), Is.False);
+            Assert.That(world.Has<Position>(stale), Is.False);
+            Assert.That(world.Has(stale, positionId), Is.False);
+            Assert.That(world.Has<Position>(default), Is.False);
+            Assert.That(world.Has(default, positionId), Is.False);
+        });
+
+        Assert.That(world.TryGetComponentStamp(current, positionId, out Stamp after), Is.True);
+        Assert.That(after, Is.EqualTo(before));
+    }
+
+    [Test]
+    public void GenericAndNonGenericSingleEntityOperationsHaveEquivalentResults()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_007));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_008));
+        using var world = new World(layouts);
+        Entity generic = world.Create<Position>();
+        Entity nonGeneric = world.Create(stackalloc[] { positionId });
+        Entity[] typedBatch = world.Create<Position>(positionId, 2);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(typedBatch, Has.Length.EqualTo(2));
+            Assert.That(typedBatch, Has.All.Matches<Entity>(entity => world.IsAlive(entity)));
+            Assert.That(world.Has<Position>(generic), Is.True);
+            Assert.That(world.Has(generic, positionId), Is.True);
+            Assert.That(world.Has<Position>(generic, positionId), Is.True);
+            Assert.That(world.TryGetComponentStamp<Position>(generic, out Stamp genericStamp), Is.True);
+            Assert.That(world.TryGetComponentStamp(generic, positionId, out Stamp nonGenericStamp), Is.True);
+            Assert.That(genericStamp, Is.EqualTo(nonGenericStamp));
+        });
+
+        var value = new Velocity { X = 3, Y = 4 };
+        Assert.That(world.Add<Velocity>(generic, in value), Is.True);
+        Assert.That(world.Add(nonGeneric, stackalloc[] { velocityId }), Is.True);
+        Assert.That(world.Has<Velocity>(generic), Is.True);
+        Assert.That(world.Has(nonGeneric, velocityId), Is.True);
+        Assert.That(world.Remove<Velocity>(generic), Is.True);
+        Assert.That(world.Remove(nonGeneric, stackalloc[] { velocityId }), Is.True);
+        Assert.That(world.Has<Velocity>(generic), Is.False);
+        Assert.That(world.Has(nonGeneric, velocityId), Is.False);
+    }
+
+    [Test]
     public void UntypedSingleEntityStructuralOperationsReportWhetherTheyChanged()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -45,10 +110,10 @@ public sealed class GenericSingleItemApiTests
         using var world = new World(layouts);
         Entity entity = world.Create(new[] { positionId });
 
-        Assert.That(world.Add(new[] { velocityId }, entity), Is.True);
-        Assert.That(world.Add(new[] { velocityId }, entity), Is.False);
-        Assert.That(world.Remove(new[] { velocityId }, entity), Is.True);
-        Assert.That(world.Remove(new[] { velocityId }, entity), Is.False);
+        Assert.That(world.Add(entity, new[] { velocityId }), Is.True);
+        Assert.That(world.Add(entity, new[] { velocityId }), Is.False);
+        Assert.That(world.Remove(entity, new[] { velocityId }), Is.True);
+        Assert.That(world.Remove(entity, new[] { velocityId }), Is.False);
     }
 
     [Test]
@@ -159,6 +224,37 @@ public sealed class GenericSingleItemApiTests
     }
 
     [Test]
+    public void TypedPairAddInitializesBothComponentsInOneTransition()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId healthId = layouts.Register<Health>(new SchemaId(60_013));
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_014));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_015));
+        using var world = new World(layouts);
+        Entity entity = world.Create(healthId, new Health { Value = 7 });
+        var position = new Position { X = 1, Y = 2 };
+        var velocity = new Velocity { X = 3, Y = 4 };
+
+        Assert.That(world.Add(entity, in position, in velocity), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(world.TryGet(entity, positionId, out Position actualPosition), Is.True);
+            Assert.That(world.TryGet(entity, velocityId, out Velocity actualVelocity), Is.True);
+            Assert.That(actualPosition, Is.EqualTo(position));
+            Assert.That(actualVelocity, Is.EqualTo(velocity));
+            Assert.That(world.Get<Health>(entity), Is.EqualTo(new Health { Value = 7 }));
+        });
+
+        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionStamp), Is.True);
+        Assert.That(world.TryGetComponentStamp(entity, velocityId, out Stamp velocityStamp), Is.True);
+        Assert.That(positionStamp, Is.EqualTo(new Stamp(1)));
+        Assert.That(velocityStamp, Is.EqualTo(new Stamp(1)));
+        Assert.That(world.Add(entity, new Position { X = 9 }, new Velocity { X = 9 }), Is.False);
+        Assert.That(world.TryGet(entity, positionId, out Position unchangedPosition), Is.True);
+        Assert.That(unchangedPosition, Is.EqualTo(position));
+    }
+
+    [Test]
     public void BatchCreateSupportsOwnedAndCallerOwnedEntityStorage()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -185,23 +281,6 @@ public sealed class GenericSingleItemApiTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() => world.Create(stackalloc[] { positionId }, -1));
         Assert.Throws<ArgumentException>(() => world.Create(stackalloc[] { positionId }, 2, new Entity[1]));
-    }
-
-    [Test]
-    public void HandleCreateCanSkipEntityOutputStorage()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_035));
-        using var world = new World(layouts, chunkCapacity: 2);
-        ArchetypeHandle handle = world.GetOrCreateArchetype(positionId);
-
-        Assert.That(world.Create(handle, 5), Is.EqualTo(5));
-        Assert.That(world.Create<Position>(2), Is.EqualTo(2));
-        Assert.That(world.AliveEntityCount, Is.EqualTo(7));
-
-        Span<Entity> entities = stackalloc Entity[7];
-        Assert.That(world.CollectAliveEntities(entities), Is.EqualTo(7));
-        Assert.That(entities.ToArray(), Has.All.Matches<Entity>(entity => world.IsAlive(entity)));
     }
 
     [Test]

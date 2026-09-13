@@ -6,8 +6,7 @@ var velocityId = layouts.Register<Velocity>(new SchemaId(2));
 using var world = new World(layouts, chunkCapacity: 4);
 
 var entities = new Entity[8];
-var archetype = world.GetOrCreateArchetype(positionId, velocityId);
-world.Create(archetype, entities);
+world.Create(stackalloc[] { positionId, velocityId }, entities);
 
 for (var i = 0; i < entities.Length; i++)
 {
@@ -25,7 +24,7 @@ world.ForEach(in query, static (ref Position position, in Velocity velocity) =>
     position.Y += velocity.Y;
 });
 
-world.From(entities).Where(in query).ForEachEntity(static entity => Console.WriteLine($"updated {entity}"));
+world.ForEachEntity(in query, static (Entity entity) => Console.WriteLine($"updated {entity}"));
 //world.ForEach<Position>(in query, Test);
 world.ForEach(in query, (ref Position p) => { });
 

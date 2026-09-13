@@ -34,20 +34,6 @@ public struct ContextEntityFunctor : IForEachContextEntity<ConsumerContext>
     }
 }
 
-public struct SequenceFunctor : IForEachEntity
-{
-    public void Invoke(
-        Entity entity,
-        in Position position,
-        ref Velocity velocity,
-        in Acceleration acceleration,
-        ref Lifetime lifetime)
-    {
-        velocity.Value += position.Value + acceleration.Value + entity.Index;
-        lifetime.Value++;
-    }
-}
-
 /// <summary>
 /// Consumer-side fixture. The demand-driven generator is attached to this
 /// project as an analyzer; no runtime stubs or pre-generated matrix are used.
@@ -157,16 +143,6 @@ public static class ConsumerProof
                 seven.Value++;
             });
 
-        Entity[] entities = { primary, secondary };
-        EntitySequence sequence = world.From(entities);
-        sequence.ForEachEntity<Position>(
-            static (Entity entity, ref Position position) => position.Value += entity.Index);
-
-        FilteredEntitySequence filtered = sequence.Where(in allNine);
-        filtered.ForEachEntity<Position, Velocity>(
-            static (Entity entity, in Position position, ref Velocity velocity) =>
-                velocity.Value += position.Value + entity.Index);
-
         return world.Get<Position>(primary, positionId).Value
             + world.Get<Velocity>(primary, velocityId).Value
             + world.Get<Position>(secondary, secondaryPositionId).Value;
@@ -196,10 +172,6 @@ public static class ConsumerProof
         var functor = new ContextEntityFunctor();
         world.ForEachEntity(in query, ref context, ref functor);
 
-        Entity[] entities = Array.Empty<Entity>();
-        EntitySequence sequence = world.From(entities);
-        var sequenceFunctor = new SequenceFunctor();
-        sequence.ForEachEntity(ref sequenceFunctor);
     }
 
     public static int RunStructural()
@@ -210,6 +182,37 @@ public static class ConsumerProof
         ComponentId accelerationId = layouts.Register<Acceleration>(new SchemaId(13));
         using var createWorld = new World(layouts);
         int total = createWorld.Create<Position, Velocity>(3);
+        Entity created = createWorld.Create<Position, Velocity>();
+        Span<Entity> createdOutput = stackalloc Entity[2];
+        int outputCount = createWorld.Create<Position, Velocity>(2, createdOutput);
+        if (outputCount != createdOutput.Length
+            || !createWorld.Has<Position>(created)
+            || !createWorld.Has(created, positionId)
+            || !createWorld.TryGetComponentStamp<Position>(created, out _)
+            || !createWorld.TryGetComponentStamp(created, positionId, out _)
+            || !createWorld.Add<Acceleration, Position>(created)
+            || !createWorld.Remove<Acceleration, Position>(created))
+        {
+            return 0;
+        }
+
+        Entity untypedCreated = createWorld.Create(stackalloc[] { positionId });
+        if (!createWorld.Add(untypedCreated, stackalloc[] { velocityId, accelerationId })
+            || !createWorld.Remove(untypedCreated, stackalloc[] { velocityId, accelerationId }))
+        {
+            return 0;
+        }
+
+        Span<Entity> explicitOutput = stackalloc Entity[2];
+        if (createWorld.Create(positionId, velocityId, 2, explicitOutput) != explicitOutput.Length
+            || !createWorld.Add(untypedCreated, velocityId)
+            || !createWorld.Remove(untypedCreated, velocityId)
+            || !createWorld.Add(untypedCreated, velocityId, accelerationId)
+            || !createWorld.Remove(untypedCreated, velocityId, accelerationId))
+        {
+            return 0;
+        }
+
         using var world = new World(layouts);
         Entity[] entities = world.Create(stackalloc[] { positionId }, 4);
 
@@ -219,14 +222,6 @@ public static class ConsumerProof
         Query query = world.CreateQuery(QuerySpec.WhereAll(stackalloc[] { positionId }));
         total += world.Add<Velocity, Acceleration>(in query);
         total += world.Remove<Velocity, Acceleration>(in query);
-
-        EntitySequence sequence = world.From(entities);
-        total += sequence.Add<Velocity, Acceleration>();
-        total += sequence.Remove<Velocity, Acceleration>();
-
-        FilteredEntitySequence filtered = sequence.Where(in query);
-        total += filtered.Add<Velocity, Acceleration>();
-        total += filtered.Remove<Velocity, Acceleration>();
 
         return total;
     }
@@ -250,11 +245,16 @@ public static class ConsumerProof
             .WhereNone<Lifetime>()
             .WhereAny<Velocity>()
             .WhereAny<Acceleration>();
+        Query explicitQuery = world
+            .WhereAll(positionId)
+            .WhereNone(lifetimeId)
+            .WhereAny(velocityId, accelerationId);
 
         return Count(world, all) == 1
             && Count(world, any) == 2
             && Count(world, none) == 2
             && Count(world, composed) == 2
+            && Count(world, explicitQuery) == 2
             ? 1
             : 0;
     }

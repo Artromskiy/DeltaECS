@@ -248,11 +248,6 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowArchetypeHandleInvalid(string parameterName)
-        => throw new ArgumentException("Archetype handle does not belong to this world.", parameterName);
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowWorldDestinationOutOfRange(string parameterName)
         => throw new ArgumentOutOfRangeException(parameterName);
 

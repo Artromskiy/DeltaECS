@@ -12,9 +12,10 @@ dependency on the generator assembly.
 
 The package places its analyzer assembly under `analyzers/dotnet/cs`. It
 generates consumer-side `ForEach`/`ForEachEntity` callback forms, query-wide
-`Where` predicate terminals, generic primary-component `Add`/`Remove`
-structural façades, and typed `World` query factories on demand; storage and
-runtime execution remain in `DeltaECS`.
+`Where` predicate terminals, generic primary-component structural façades for
+`Create`/`Add`/`Remove`, and typed `World` query factories on demand. Runtime
+`ComponentId` query factories are provided by `DeltaECS`; storage and runtime
+execution remain there as well.
 
 ```csharp
 Query combatants = world
@@ -23,10 +24,11 @@ Query combatants = world
     .WhereAny<Armed, Berserk>();
 ```
 
-`WhereAll`, `WhereNone`, and `WhereAny` are generated for both `World` and
-`Query`. The first call creates a query; each following call composes another
-`QuerySpec` and returns a new query handle while reusing the world's existing
-query-plan cache.
+Typed `WhereAll`, `WhereNone`, and `WhereAny` are generated for both `World`
+and `Query`. The runtime also provides the same three names for positional
+`ComponentId` values. The first call creates a query; each following call
+composes another `QuerySpec` and returns a new query handle while reusing the
+world's existing query-plan cache.
 
 The generator targets `netstandard2.0` and is shipped from
 `analyzers/dotnet/cs`. Its target is independent from the target framework of

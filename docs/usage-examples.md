@@ -13,9 +13,12 @@ at the end of `Program.cs`, after all top-level statements.
 | Single-component `Add<T>(entity, value)` / `Remove<T>(entity)` | Runtime |
 | `QuerySpec`, `CreateQuery`, `BeginScope` | Runtime |
 | Typed `WhereAll<T...>` / `WhereAny<T...>` / `WhereNone<T...>` | Generator |
+| `WhereAll` / `WhereAny` / `WhereNone` with `ComponentId` values | Runtime |
 | Component-bearing `ForEach` / `ForEachEntity` | Generator |
+| Positional `ComponentId` selectors for `ForEach` / `ForEachEntity` | Generator |
 | Struct functor overloads inferred from `Invoke` | Generator |
 | Generic batch `Add<T...>` / `Remove<T...>` | Generator |
+| Positional `ComponentId` `Create(I..., N, O?)` forms | Generator |
 | Query-wide `Where(...).Destroy/Add/Remove/ForEach` | Generator |
 
 Keep `using Delta.ECS;` in the consuming source and reference the analyzer in
@@ -54,6 +57,28 @@ extension on `Query` and returns a new query handle. `WhereAll` adds to the
 `All` mask, `WhereNone` to `None`, and `WhereAny` to the shared `Any` mask.
 Each composed specification goes through `World.CreateQuery`, so equivalent
 chains reuse the existing query-plan cache.
+
+The same factories accept positional `ComponentId` values when the component
+registration is selected at runtime:
+
+```csharp
+var explicitCombatants = world
+    .WhereAll(positionId, healthId)
+    .WhereNone(deadId)
+    .WhereAny(armedId, berserkId);
+```
+
+These runtime overloads use the same `World`/`Query` chaining and query-plan
+cache as the generated typed factories.
+
+The same positional IDs can select callback rows when a CLR type has multiple
+registrations:
+
+```csharp
+world.ForEach(in query, positionId, velocityId,
+    static (ref Position position, in Velocity velocity) =>
+        position.X += velocity.X);
+```
 
 For combined conditions, construct a `QuerySpec` using explicit IDs:
 
@@ -139,24 +164,31 @@ access must refer to the same registrations.
 stale or does not contain `T`. Use `TryGet` when the component may be absent;
 `Add<T>` is the operation that creates a missing row.
 
-## Change only a selected batch
+## Change an explicit batch
 
 ```csharp
 var candidates = new[] { entity };
-int removed = world.From(candidates).Where(in query).Remove<Velocity>();
+int removed = world.Remove<Velocity>(candidates);
 Console.WriteLine(removed); // 1
 Console.WriteLine(world.TryGet<Velocity>(entity, out _)); // False
-int added = world.From(candidates).Add<Velocity>();
+int added = world.Add<Velocity>(candidates);
 Console.WriteLine(added); // 1
 Console.WriteLine(world.Get<Velocity>(entity).X); // 0
 ```
 
-The filtered sequence uses only the supplied candidates, not all world matches.
-Do structural work after iteration has finished. Removing a component leaves
+The batch overload uses only the supplied candidates. Removing a component leaves
 the entity alive; destroying it invalidates its handle. Adding a component
 without an initialization value gives it the default value. To initialize
 while adding, use `world.Add(entity, velocityId, new Velocity { X = 2 })`
 when that component is absent.
+
+For a runtime-selected component set with a batch count, keep the IDs before
+the count; the generator emits this positional form:
+
+```csharp
+Span<Entity> output = stackalloc Entity[2];
+int created = world.Create(positionId, velocityId, 2, output);
+```
 
 ## Filter the whole query before a mutation
 
@@ -241,8 +273,6 @@ world.Where(
 The intermediate view is a stack-only `ref struct`, so it cannot be stored in a
 class, boxed, or returned. It holds the predicate only for the duration of the
 terminal call; no command is retained. `Where` scans all query matches;
-`world.From(items).Where(in query)` remains the API for filtering only an
-explicit candidate sequence.
 
 ## Traverse chunks explicitly
 
@@ -295,8 +325,8 @@ README. On a compiler supporting interceptors, the optional configuration is:
 
 Eligible synchronous static, non-capturing `World.ForEach` / `ForEachEntity`
 callbacks can then use generated functor execution while keeping the same
-source call. Capturing callbacks and sequence receivers keep ordinary delegate
-execution. C# 9/10 consumers use ordinary generated overloads. `DECSGEN005`
+source call. Capturing callbacks keep ordinary delegate execution. C# 9/10
+consumers use ordinary generated overloads. `DECSGEN005`
 explains an interceptor fallback and is informational.
 
 To inspect generated C# in a consumer project, optionally enable:
@@ -312,4 +342,4 @@ Generated files belong under the intermediate output directory; do not copy
 them into application source. See the [generator reference](src/DeltaECS.Generators/README.md)
 for supported callback shapes and diagnostics, and the
 [console / NativeAOT sample](../samples/DeltaECS.AotSample/Program.cs) for a
-complete application combining callbacks, a functor and ordered sequences.
+complete application combining callbacks and a functor.

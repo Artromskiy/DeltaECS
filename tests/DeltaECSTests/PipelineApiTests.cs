@@ -119,25 +119,6 @@ public sealed class PipelineApiTests
         Assert.That(world.Get<PipelinePosition>(entity, positionId).Value, Is.EqualTo(4));
     }
 
-    [Test]
-    public void FromPipelineFiltersAndDestroysCandidates()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_003));
-        ComponentId markerId = layouts.Register<PipelineMarker>(new SchemaId(70_004));
-        using var world = new World(layouts);
-        Entity matching = world.Create(positionId, markerId);
-        Entity nonMatching = world.Create(markerId);
-        Entity[] candidates = { matching, nonMatching };
-        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
-
-        int destroyed = world.From(candidates).Where(in query).Destroy();
-
-        Assert.That(destroyed, Is.EqualTo(1));
-        Assert.That(world.IsAlive(matching), Is.False);
-        Assert.That(world.IsAlive(nonMatching), Is.True);
-    }
-
     internal struct PipelinePosition
     {
         public int Value;

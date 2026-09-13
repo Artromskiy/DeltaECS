@@ -13,7 +13,6 @@ through entity storage, query descriptions, access tokens or iterators.
 - `SchemaId` is stable tooling/schema identity.
 - `ComponentLayoutRegistry` registers layouts and resolves primary component
   registrations by CLR `Type`.
-- `ArchetypeHandle` is a world-owned cached component-set handle.
 
 ```csharp
 var positionId = layouts.Register(
@@ -21,7 +20,6 @@ var positionId = layouts.Register(
     positionSchema);
 
 var primaryPosition = layouts.GetPrimary(typeof(Position));
-var moving = world.GetOrCreateArchetype(positionId, velocityId);
 ```
 
 The generic registration convenience belongs to `Generic`, not this folder.
@@ -33,22 +31,26 @@ Atomic and batch operations use the same names through overloads:
 ```csharp
 Entity entity = world.Create(positionId, velocityId);
 var destination = new Entity[1_000];
-int created = world.Create(moving, destination);
+int created = world.Create(stackalloc[] { positionId, velocityId }, 1_000, destination);
 Entity[] createdBatch = world.Create(stackalloc[] { positionId, velocityId }, 1_000);
 int createdIntoBuffer = world.Create(stackalloc[] { positionId }, 1_000, destination);
 
 bool destroyed = world.Destroy(entity);
 int destroyedCount = world.Destroy(entities);
 
-bool addedToEntity = world.Add(componentIds, entity);
-int added = world.Add(componentIds, entities);
+bool addedToEntity = world.Add(entity, componentIds);
+bool addedFromSpan = world.Add(entity, stackalloc[] { positionId });
+bool addedFromIds = world.Add(entity, positionId, velocityId);
+int added = world.Add(entities, componentIds);
 int queryAdded = world.Add(in query, componentIds);
 ```
 
 The same kernels also accept `ReadOnlySpan<ComponentId>` for caller-owned
 stack-only component sets. The `DeltaECS.Generators` analyzer builds generic
 primary-component façades such as `world.Add<Position, Velocity>(entities)`
-and `world.Remove<Position, Velocity>(in query)` on demand.
+and `world.Remove<Position, Velocity>(in query)` on demand. It also emits
+`world.Create(positionId, velocityId, count, output)` when a runtime-selected
+component set must be created with the canonical positional-ID order.
 
 Structural changes are immediate. Mutation is rejected while a conflicting
 query scope owns a row lease.
@@ -95,6 +97,19 @@ while (archetypes.MoveNext())
 }
 ```
 
+For the same query composition when registrations are selected at runtime,
+use the direct `World` and `Query` factories:
+
+```csharp
+var explicitQuery = world
+    .WhereAll(positionId, velocityId)
+    .WhereNone(deadId)
+    .WhereAny(armedId, berserkId);
+```
+
+The `ComponentId` forms return a new `Query` at every step and reuse the same
+world query-plan cache as the generated typed forms.
+
 `GetRow` validates the access token against the active query and resolves one
 component row for the current chunk. The terminal `Ref<T>` is the typed boundary and `T` must
 match the registered component type. `ReadRow`, `WriteRow`, and all iterators
@@ -114,9 +129,7 @@ API does not synthesize an aggregate entity stamp.
 
 Generated `ForEach` APIs use the same validated plan but enter a closed trusted
 execution method. Dense callbacks resolve each requested row once per chunk and
-advance typed references inside the generated slot loop. Ordered sequence
-callbacks use the same direct reference endpoints against the current entity's
-chunk; they do not construct `ReadRow`/`WriteRow` values for every callback.
+advance typed references inside the generated slot loop.
 The public callback/ref boundary remains typed, while validation and lifetime
 checks stay in the runtime bridge.
 
@@ -131,9 +144,8 @@ world.ForEach(in query,
         position.X += velocity.X);
 ```
 
-There is no deferred `QuerySpec` facade. `World.From(entities)` is the
-separate fluent entry point for ordered entity sequences; its `Where(in Query)`
-method applies an existing query filter.
+There is no deferred `QuerySpec` facade. Structural operations use direct
+`World` overloads for entities, queries and caller-owned spans.
 
 For type-erased tooling inside a query execution, `GetObject` returns
 `ObjectReadValues` or `ObjectWriteValues`. Their `Get`/`Set` methods operate on

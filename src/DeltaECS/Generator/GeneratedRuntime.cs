@@ -4,14 +4,6 @@ using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-/// <summary>Compiler-support contract for generated entity-sequence functor invokers.</summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
-public interface IGeneratedSequenceInvoker
-{
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    void Invoke(ref GeneratedSequenceCursor cursor);
-}
-
 /// <summary>Compiler-support contract for a generated query predicate.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public interface IGeneratedWhereInvoker
@@ -429,76 +421,6 @@ public ref struct GeneratedReadDenseExecution
     }
 }
 
-/// <summary>Compiler-support cursor used by generated entity-sequence code.</summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
-public ref struct GeneratedSequenceCursor
-{
-    private readonly Chunk _chunk;
-    private readonly ReadOnlySpan<int> _componentRows;
-    private readonly Array[] _resolvedRowsByQuery;
-    private readonly bool _writeEnabled;
-
-    internal GeneratedSequenceCursor(
-        in ArchetypePlan plan,
-        in ChunkPlan chunkPlan,
-        int slot,
-        Entity entity,
-        bool writeEnabled)
-    {
-        Chunk chunk = chunkPlan.Chunk;
-        _chunk = chunk;
-        _componentRows = plan.ComponentRows;
-        _resolvedRowsByQuery = chunkPlan.ComponentRows;
-        _writeEnabled = writeEnabled;
-        Slot = slot;
-        Entity = entity;
-    }
-
-    public int Slot { get; }
-
-    public Entity Entity { get; }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref readonly T GetGeneratedReadReference<T>(int queryComponentIndex)
-        => ref GetGeneratedReadReferenceTrusted<T>(queryComponentIndex);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetGeneratedWriteReference<T>(int queryComponentIndex)
-    {
-        if (!_writeEnabled)
-        {
-            ThrowHelper.ThrowMissingWriteIntent();
-        }
-
-        return ref GetGeneratedWriteReferenceTrusted<T>(queryComponentIndex);
-    }
-
-    /// <summary>Gets a generated read reference after the sequence execution boundary was validated.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref readonly T GetGeneratedReadReferenceTrusted<T>(int queryComponentIndex)
-        => ref Unsafe.Add(
-            ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.RefAt(queryComponentIndex))),
-            Slot);
-
-    /// <summary>Gets and stamps a generated write reference after validation.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetGeneratedWriteReferenceTrusted<T>(int queryComponentIndex)
-    {
-        int physicalRow = _componentRows.RefAt(queryComponentIndex);
-        Stamp stamp = _chunk.IncrementComponentStamp(physicalRow, Slot);
-        new EntityComponentStampWriter(
-            _chunk,
-            physicalRow,
-            Slot,
-            stamp).Mark();
-        return ref Unsafe.Add(
-            ref Unsafe.As<byte, T>(ref ArrayAccess.DataReference(_resolvedRowsByQuery.RefAt(queryComponentIndex))),
-            Slot);
-    }
-}
-
 /// <summary>Non-generic runtime services consumed by generated ForEach code.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static class GeneratedForEachRuntime
@@ -824,12 +746,6 @@ public static class GeneratedForEachRuntime
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int GetPreparedWriteRoute<T>(in Query query, ComponentId component)
         => query.Cached.GetPreparedWriteAccess(component, typeof(T)).QueryComponentIndex;
-
-    /// <summary>Validates a filtered sequence before generated prepared routes are consumed.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ValidateSequenceQuery(World world, in Query query)
-        => _ = ValidateQuery(world, in query);
 
     /// <summary>Returns the trusted query-local route used by batch write marking.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]

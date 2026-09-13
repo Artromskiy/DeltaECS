@@ -53,8 +53,8 @@ interceptor sources only when the exact namespace is present.
 ## Fallback contract
 
 Capturing and async lambdas, instance or ambiguous method groups, pre-created
-delegates, generic method-group targets, generic containing types/methods,
-entity-sequence receivers, and calls for which Roslyn supplies no
+delegates, generic method-group targets, generic containing types/methods, and
+calls for which Roslyn supplies no
 interceptable location remain ordinary delegate calls. `DECSGEN005` reports
 the reason at informational severity, so fallback does not break the build.
 

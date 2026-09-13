@@ -10,8 +10,9 @@ fast, typed iteration and immediate world updates in .NET applications.
 - Typed callbacks with explicit read/write access and caller-owned context.
 - Source-generated query factories, callbacks and batch component operations.
 - Source-generated query-wide mutation views with predicate terminals.
+- [Generated API grammar](docs/API-GRAMMAR.md) for canonical overload shapes.
 - Stateful struct functors and explicit chunk traversal.
-- Ordered entity sequences with filtering and structural operations.
+- Immediate structural operations over entities, batches and queries.
 - Component revision stamps for change observation by integrations.
 
 ## Quick start
@@ -90,17 +91,15 @@ Console.WriteLine(world.IsAlive(entity)); // False
 ```csharp
 var entities = new Entity[3];
 world.Create(stackalloc[] { positionId }, entities);
-int added = world.From(entities).Add<Velocity>(); // 3; default values
-world.From(entities).Where(in query).ForEachEntity(
+int added = world.Add<Velocity>(entities); // 3; default values
+world.ForEachEntity(in query,
     static (Entity current, ref Position position, in Velocity velocity) =>
         position.X = current.Index + velocity.X);
 int removed = world.Remove<Position, Velocity>(entities); // 3
-world.From(entities).Destroy();
+world.Destroy(entities);
 ```
 
-Sequence callbacks follow candidate order, preserve duplicates and skip stale
-handles. `Where(in query)` filters those candidates. Batch structural methods
-return the number of entities changed; adding an existing component preserves
+Batch structural methods return the number of entities changed; adding an existing component preserves
 its value. Components added without values start at `default`.
 
 ### Generate a stateful system
@@ -173,7 +172,7 @@ corresponding context marker and pass the functor by `ref`.
   match. An `Any` match alone does not guarantee each requested component.
 - Structural changes are immediate. Perform create/add/remove/destroy outside
   active iteration scopes and callbacks; collect handles for a later batch.
-- Chunk and sequence views borrow storage. Keep them within their valid scope.
+- Chunk and query views borrow storage. Keep them within their valid scope.
 - Generated callbacks, structural operations and query factories support up
   to 256 component type parameters per call; registered IDs have no such cap.
 - Mutation stamps track ECS writes, not mutations inside reference objects.

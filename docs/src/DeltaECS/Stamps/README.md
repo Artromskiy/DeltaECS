@@ -50,7 +50,7 @@ The trusted runtime keeps the write state proportional to the operation:
 
 | Operation | Trusted stamp state carried into the hot path |
 | --- | --- |
-| `Set`, integration point write, or selected-entity sequence | `EntityComponentStampWriter` for the current entity/component |
+| `Set` or integration point write | `EntityComponentStampWriter` for the current entity/component |
 | `QuerySlots.GetRow(WriteAccess)` / complete row traversal | `ChunkComponentStampWriter` for the current chunk/component |
 | Generated dense `ForEach` write | `ArchetypeComponentStampWriter` for the matching archetype/component |
 | Generated read-only or zero-arity traversal | no write stamp or writer state |
@@ -58,7 +58,7 @@ The trusted runtime keeps the write state proportional to the operation:
 This distinction is intentional: read-only and entity-selected paths do not
 carry broader write data, while a dense generated write marks the archetype
 override once before its entity loop. It is an internal lowering choice; the
-public delegate, functor, sequence and query APIs remain unchanged.
+public delegate, functor and query APIs remain unchanged.
 
 `StampCounter`, `ComponentStampStorage` and the centralized hierarchy
 buffers are internal implementation types. Consumers exchange only `Stamp`

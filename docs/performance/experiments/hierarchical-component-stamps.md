@@ -27,7 +27,7 @@ additional hierarchy fields or references.
 At the time of this experiment the mutation mapping was deliberately
 conservative:
 
-- point `Set` and sequence writes update the entity/component term;
+- point `Set` writes update the entity/component term;
 - a validated dense query write updates the chunk/component term once its
   trusted row endpoint is entered;
 - internal trusted endpoints could update the archetype/component or

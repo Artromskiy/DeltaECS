@@ -17,7 +17,7 @@ it is evidence.
   the generated invoker.
 - Scope: generated dense `World.ForEach` invokers only. Public and generated
   public signatures, query/world ownership, lease lifetime, write stamps,
-  empty-query behavior, sequence execution, and generic/type-erasure
+  empty-query behavior and generic/type-erasure
   boundaries are unchanged.
 - Managed rows remain CLR interior references held in stack-only `ReadRow` and
   `WriteRow` values. The candidate adds no rents, allocations, pointers,

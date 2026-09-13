@@ -95,7 +95,7 @@ public sealed class QueryStructuralOperationsTests
         var query = world.CreateQuery(QuerySpec.WhereAll(VelocityId));
         Assert.That(world.Destroy(in query), Is.EqualTo(destroyed.Length));
 
-        Assert.That(world.Add(new[] { VelocityId }, live), Is.True);
+        Assert.That(world.Add(live, new[] { VelocityId }), Is.True);
         Assert.That(world.IsAlive(live), Is.True);
         foreach (var entity in destroyed)
         {

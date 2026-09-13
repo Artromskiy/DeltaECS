@@ -107,27 +107,6 @@ public class RemainingApiOptimizationMicroBenchmarkImplementation
     }
 
     [Benchmark]
-    public int FilteredSequence()
-    {
-        int checksum = 0;
-        _world.From(_entities).Where(in _query).ForEachEntity(
-            ref checksum,
-            static (ref int value, Entity entity) => value += entity.Index);
-        return checksum;
-    }
-
-    [Benchmark]
-    public int GeneratedFilteredSequence()
-    {
-        int checksum = 0;
-        _world.From(_entities).Where(in _query).ForEach<int, RemainingApiA, RemainingApiB>(
-            ref checksum,
-            static (ref int value, in RemainingApiA a, in RemainingApiB b) =>
-                value += a.Value + b.Value);
-        return checksum;
-    }
-
-    [Benchmark]
     public ulong StampRows()
     {
         ulong checksum = 0;

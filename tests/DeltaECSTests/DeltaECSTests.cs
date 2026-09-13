@@ -39,43 +39,6 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
-    public void ArchetypeHandle_Canonicalizes_And_Creates_Entities()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        RegisterComponentLayouts(layouts);
-        var world = new World(layouts);
-
-        var first = world.GetOrCreateArchetype(VelocityId, PositionId, PositionId);
-        var version = world.ArchetypeVersion;
-        var same = world.GetOrCreateArchetype(PositionId, VelocityId);
-
-        Assert.That(first.IsValid, Is.True);
-        Assert.That(first, Is.EqualTo(same));
-        Assert.That(world.ArchetypeVersion, Is.EqualTo(version));
-
-        var entities = new Entity[2];
-        Assert.That(world.Create(first, entities), Is.EqualTo(2));
-        Assert.That(world.IsAlive(world.Create(first)), Is.True);
-        Assert.That(world.AliveEntityCount, Is.EqualTo(3));
-    }
-
-    [Test]
-    public void ArchetypeHandle_Rejects_Invalid_And_Foreign_World_Handles()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        RegisterComponentLayouts(layouts);
-        var world = new World(layouts);
-        var foreignWorld = new World(layouts);
-        var handle = world.GetOrCreateArchetype(PositionId);
-
-        Assert.Throws<ArgumentException>(() => foreignWorld.Create(handle));
-        Assert.Throws<ArgumentException>(() => world.Create(ArchetypeHandle.Invalid));
-        Assert.Throws<ArgumentException>(() => foreignWorld.Create(handle, new Entity[1]));
-        Assert.Throws<ArgumentException>(() => world.Create(ArchetypeHandle.Invalid, new Entity[1]));
-        Assert.That(ArchetypeHandle.Invalid.IsValid, Is.False);
-    }
-
-    [Test]
     public void DenseBatch_Create_Destroy_Succeeds_And_Query()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -467,14 +430,14 @@ public sealed class DeltaECSDeliveryTests
         var entities = new Entity[5];
         world.Create(new[] { PositionId }, entities);
 
-        Assert.That(world.Add(new[] { VelocityId }, entities), Is.EqualTo(entities.Length));
+        Assert.That(world.Add(entities, new[] { VelocityId }), Is.EqualTo(entities.Length));
         foreach (var entity in entities)
         {
             Assert.That(world.TryGet<Velocity>(entity, VelocityId, out _), Is.True);
         }
 
-        Assert.That(world.Add(new[] { VelocityId }, entities), Is.EqualTo(0));
-        Assert.That(world.Remove(new[] { VelocityId }, entities), Is.EqualTo(entities.Length));
+        Assert.That(world.Add(entities, new[] { VelocityId }), Is.EqualTo(0));
+        Assert.That(world.Remove(entities, new[] { VelocityId }), Is.EqualTo(entities.Length));
         foreach (var entity in entities)
         {
             Assert.That(world.TryGet<Velocity>(entity, VelocityId, out _), Is.False);
@@ -549,9 +512,9 @@ public sealed class DeltaECSDeliveryTests
 
         Assert.That(index, Is.EqualTo(expected.Length));
         var dynamicQuery = new QuerySpec(
-            new[] { new ComponentId(ComponentMask.Capacity) },
+            new[] { new ComponentId(256) },
             Array.Empty<ComponentId>(), Array.Empty<ComponentId>());
-        Assert.That(dynamicQuery.AllMask.Contains(new ComponentId(ComponentMask.Capacity)), Is.True);
+        Assert.That(dynamicQuery.AllMask.Contains(new ComponentId(256)), Is.True);
     }
 
     [Test]
@@ -601,6 +564,36 @@ public sealed class DeltaECSDeliveryTests
             .WhereNone<Health>()
             .WhereAny<Velocity>()
             .WhereAny<Health>();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(composed.Description, Is.EqualTo(expectedSpec));
+            Assert.That(composed.Cached, Is.SameAs(expected.Cached));
+            Assert.That(repeated.Cached, Is.SameAs(composed.Cached));
+        });
+    }
+
+    [Test]
+    public void ComponentIdQueryFactoriesComposeFromWorldAndQuery()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        RegisterComponentLayouts(layouts);
+        using var world = new World(layouts);
+
+        QuerySpec expectedSpec = new(
+            new[] { PositionId },
+            new[] { VelocityId },
+            new[] { HealthId });
+        Query expected = world.CreateQuery(in expectedSpec);
+
+        Query composed = world
+            .WhereAll(PositionId)
+            .WhereNone(HealthId)
+            .WhereAny(VelocityId);
+        Query repeated = world
+            .WhereAll(PositionId)
+            .WhereNone(HealthId)
+            .WhereAny(VelocityId);
 
         Assert.Multiple(() =>
         {
@@ -1031,7 +1024,7 @@ public sealed class DeltaECSDeliveryTests
             }
         }
 
-        world.Add(new[] { markerId }, entity);
+        world.Add(entity, new[] { markerId });
 
         Assert.That(world.TryGet(entity, referenceId, out actual), Is.True);
         Assert.That(actual, Is.SameAs(component));
@@ -1052,14 +1045,14 @@ public sealed class DeltaECSDeliveryTests
 
         world.Set(entity, localId, new NamedRef { Name = "local", Id = 11 });
         world.Set(entity, worldId, new NamedRef { Name = "world", Id = 22 });
-        world.Add(new[] { markerId }, entity);
+        world.Add(entity, new[] { markerId });
 
         Assert.True(world.TryGet(entity, localId, out NamedRef localAfterAdd));
         Assert.True(world.TryGet(entity, worldId, out NamedRef worldAfterAdd));
         Assert.AreEqual(11, localAfterAdd.Id);
         Assert.AreEqual(22, worldAfterAdd.Id);
 
-        world.Remove(new[] { markerId }, entity);
+        world.Remove(entity, new[] { markerId });
         Assert.True(world.TryGet(entity, localId, out NamedRef localAfterRemove));
         Assert.True(world.TryGet(entity, worldId, out NamedRef worldAfterRemove));
         Assert.AreEqual("local", localAfterRemove.Name);
@@ -1100,7 +1093,7 @@ public sealed class DeltaECSDeliveryTests
         world.Set(first, PositionId, new Position { X = 10, Y = 11 });
         world.Set(first, VelocityId, new Velocity { X = 20, Y = 21 });
 
-        world.Add(new[] { HealthId }, first);
+        world.Add(first, new[] { HealthId });
 
         Assert.True(world.TryGet<Position>(first, PositionId, out var posAfterAdd));
         Assert.True(world.TryGet<Velocity>(first, VelocityId, out var velAfterAdd));
@@ -1109,7 +1102,7 @@ public sealed class DeltaECSDeliveryTests
         Assert.AreEqual(21, velAfterAdd.Y);
         Assert.AreEqual(0, healthAfterAdd.Value);
 
-        world.Remove(new[] { VelocityId }, first);
+        world.Remove(first, new[] { VelocityId });
 
         Assert.True(world.TryGet<Position>(first, PositionId, out var posAfterRemove));
         Assert.True(world.TryGet<Health>(first, HealthId, out _));
@@ -1193,7 +1186,7 @@ public sealed class DeltaECSDeliveryTests
 
                 if (addVelocity)
                 {
-                    world.Add(new[] { VelocityId }, entity);
+                    world.Add(entity, new[] { VelocityId });
 
                     if (!current.Velocity.HasValue)
                     {
@@ -1202,7 +1195,7 @@ public sealed class DeltaECSDeliveryTests
                 }
                 else
                 {
-                    world.Remove(new[] { VelocityId }, entity);
+                    world.Remove(entity, new[] { VelocityId });
                     current.Velocity = null;
                 }
 

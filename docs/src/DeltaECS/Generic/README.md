@@ -17,11 +17,17 @@ first primary registration.
 ## Single-component operations
 
 ```csharp
+Entity defaultPosition = world.Create<Position>();
 Entity primaryEntity = world.Create(positionId, new Position());
 var primaryDestination = new Entity[10];
 int primaryCreated = world.Create<Position>(10, primaryDestination);
+Entity[] explicitBatch = world.Create<Position>(positionId, 10);
 bool primaryAdded = world.Add(primaryEntity, new Velocity());
 int primaryBatchAdded = world.Add<Velocity>(primaryDestination, new Velocity());
+
+bool hasPosition = world.Has<Position>(primaryEntity);
+bool hasExplicitPosition = world.Has<Position>(primaryEntity, positionId);
+bool hasStamp = world.TryGetComponentStamp<Position>(primaryEntity, out Stamp stamp);
 
 if (world.TryGet(primaryEntity, out Position primaryPosition))
 {
@@ -67,18 +73,26 @@ for the arities used by the consumer:
 ```csharp
 int added = world.Add<Position, Velocity>(entities);
 int removed = world.Remove<Position, Velocity>(entities);
+bool addedToEntity = world.Add<Position, Velocity>(entity);
+bool removedFromEntity = world.Remove<Position, Velocity>(entity);
+
+Entity created = world.Create<Position, Velocity>();
+int createdCount = world.Create<Position, Velocity>(10);
+Span<Entity> output = stackalloc Entity[10];
+int createdIntoOutput = world.Create<Position, Velocity>(10, output);
 int queryAdded = world.Add<Position, Velocity>(in query);
 int queryRemoved = world.Remove<Position, Velocity>(in query);
 
-int sequenceAdded = world.From(entities).Add<Position, Velocity>();
-int sequenceRemoved = world.From(entities).Remove<Position, Velocity>();
 ```
 
-These forms operate on the primary registration of each type, pass a generated
-stack-only component-ID span to the existing structural kernels, and return the
-number of changed entities. Added rows are default-initialized. The generator
-supports arities one through 256 on demand; the limit applies to generated
-generic methods, not to the number of component IDs registered by a world.
+These forms operate on the primary registration of each type and pass a
+generated stack-only component-ID span to the existing structural kernels.
+Single-entity `Add`/`Remove` return `bool`; batch and query forms return the
+number of changed entities. `Create` returns an `Entity` for one entity and an
+`int` for batches; the output overload writes to caller-owned storage. Added
+rows are default-initialized. The generator supports arities one through 256
+on demand; the limit applies to generated generic methods, not to the number
+of component IDs registered by a world.
 
 ## Terminal row access
 

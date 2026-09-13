@@ -25,9 +25,6 @@ archetypes or structural kernels.
   from `ref readonly T`/`ref T`/`in T`/`T` parameters. For example:
 
   ```csharp
-  sequence.ForEach(static (ref Position position, in Velocity velocity) =>
-      position.X += velocity.X);
-
   world.ForEach(in query,
       static (ref readonly Position position, ref Velocity velocity,
               in Acceleration acceleration, Scale scale) =>
@@ -56,9 +53,7 @@ archetypes or structural kernels.
   shared non-generic DeltaECS runtime bridge.
 - Dense generated callbacks enter a closed execution method. The runtime
   validates the query once, resolves each row once per chunk, and the generated
-  loop advances direct typed references. Sequence callbacks use direct trusted
-  reference endpoints over the current entity chunk instead of creating a row
-  view for each callback.
+  loop advances direct typed references.
 - Functors implement only `IForEach`, `IForEachEntity`,
   `IForEachContext<TContext>`, or `IForEachContextEntity<TContext>`; generated
   interface names never contain component types or read/write patterns.
@@ -125,17 +120,24 @@ int removed = world.Remove<Position, Velocity>(entities);
 int queryAdded = world.Add<Position, Velocity>(in query);
 int queryRemoved = world.Remove<Position, Velocity>(in query);
 
-int sequenceAdded = world.From(entities).Add<Position, Velocity>();
-int sequenceRemoved = world.From(entities).Remove<Position, Velocity>();
 ```
 
-The same sequence terminals are available after `Where(in query)`. Structural
-operations add or remove the primary component registrations and return the
+Structural operations add or remove the primary component registrations and return the
 number of entities changed. Newly added rows are default-initialized; use the
 existing typed `World.Add<T>(..., ComponentId, in T)` overload when a value must
 be initialized during the transition. Generic structural forms support arity
 one through 256 on demand; this generator limit is independent of the dynamic
 number of registered component IDs.
+
+When component registrations are already runtime values, the generator also
+provides the positional counted form:
+
+```csharp
+int created = world.Create(positionId, velocityId, count, output);
+```
+
+The IDs precede `count` and the optional output span to keep structural calls
+consistent with the API grammar.
 
 ## Generic query factories
 
@@ -161,7 +163,9 @@ through 256; no generic query plan or runtime type dictionary is introduced.
 
 `DeltaECS.Generators` targets `netstandard2.0`. The analyzer package keeps this
 broadly compatible assembly in `analyzers/dotnet/cs`; the target of the
-consumer project remains independent from the target of the analyzer.
+consumer project remains independent from the target of the analyzer. Runtime
+`ComponentId` query factories are available without the analyzer and follow
+the same `World`/`Query` chaining grammar.
 
 ## Optional Roslyn interceptor path
 
@@ -206,8 +210,8 @@ unchanged. Interception is used only when the consumer language version
 supports it.
 
 Capturing and async lambdas, instance or ambiguous method groups, pre-created
-delegates, generic method-group targets, generic containing types/methods,
-sequence receivers, and call sites without an interceptable Roslyn location
+delegates, generic method-group targets, generic containing types/methods, and
+call sites without an interceptable Roslyn location
 stay on the ordinary delegate path. The generator reports `DECSGEN005` at
 informational severity with the fallback reason; the diagnostic never turns a
 fallback call into a build failure.

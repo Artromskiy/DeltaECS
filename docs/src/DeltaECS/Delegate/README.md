@@ -40,5 +40,5 @@ For the maximum performance of delegate-shaped iteration, enable that opt-in
 in the consumer project. This is a compile-time lowering contract: the public
 delegate API and callback source spelling stay unchanged, while eligible
 static non-capturing `World.ForEach` calls enter the closed trusted execution
-method. The interceptor is not applied to sequence callbacks or callbacks
+method. The interceptor is not applied to callbacks
 whose shape cannot be proven safe by the generator.

@@ -23,9 +23,8 @@ historical evidence locations.
 ## Implementation
 
 `ComponentMask` stores a managed reference to an internal owner containing a
-native `uint` buffer. The owner is released by its finalizer. The existing
-`ComponentMask.Capacity` value remains only as a source-compatibility
-constant; it is no longer a storage limit.
+native `uint` buffer. The owner is released by its finalizer. The storage grows
+as needed and is not limited to the original four-word representation.
 
 The implementation provides dynamic `Set`, `Contains`, `ContainsAll`,
 `Intersects`, `Rank`, enumeration, equality, hashing and copying. Internal

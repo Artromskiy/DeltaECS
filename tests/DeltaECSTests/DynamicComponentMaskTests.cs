@@ -8,7 +8,7 @@ namespace Delta.ECS.Tests;
 public sealed class DynamicComponentMaskTests
 {
     [Test]
-    public void MaskSupportsComponentIdsAboveTheLegacyCapacity()
+    public void MaskSupportsComponentIdsBeyondTheOriginalFourWordBoundary()
     {
         var mask = ComponentMask.From(new[]
         {
@@ -64,10 +64,10 @@ public sealed class DynamicComponentMaskTests
     }
 
     [Test]
-    public void WorldCreatesArchetypeWithMoreThanLegacyMaskCapacity()
+    public void WorldCreatesArchetypeWithMoreThanTheOriginalFourWordBoundary()
     {
         var layouts = new ComponentLayoutRegistry();
-        var ids = new ComponentId[ComponentMask.Capacity + 1];
+        var ids = new ComponentId[257];
         for (int index = 0; index < ids.Length; index++)
         {
             ids[index] = layouts.Register(typeof(int), new SchemaId((ulong)(80_000 + index)));

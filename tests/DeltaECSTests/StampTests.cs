@@ -109,7 +109,7 @@ public sealed class StampTests
         Assert.That(world.Set(entity, positionId, new Position { X = 7 }), Is.True);
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionBefore), Is.True);
 
-        world.Add(new[] { velocityId }, entity);
+        world.Add(entity, new[] { velocityId });
 
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionAfterAdd), Is.True);
         Assert.That(world.TryGetComponentStamp(entity, velocityId, out Stamp velocityAfterAdd), Is.True);
@@ -119,7 +119,7 @@ public sealed class StampTests
             Assert.That(velocityAfterAdd, Is.EqualTo(new Stamp(1)));
         });
 
-        world.Remove(new[] { velocityId }, entity);
+        world.Remove(entity, new[] { velocityId });
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionAfterRemove), Is.True);
         Assert.Multiple(() =>
         {

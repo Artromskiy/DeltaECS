@@ -13,9 +13,8 @@ namespace DeltaECS.AotSample
             ComponentId markerId = layouts.Register<Marker>(new SchemaId(3));
 
             using var world = new World(layouts, chunkCapacity: 4);
-            ArchetypeHandle movementArchetype = world.GetOrCreateArchetype(positionId, velocityId);
             Span<Entity> entities = stackalloc Entity[4];
-            world.Create(movementArchetype, entities);
+            world.Create(stackalloc[] { positionId, velocityId }, entities);
 
             for (int index = 0; index < entities.Length; index++)
             {
@@ -37,13 +36,12 @@ namespace DeltaECS.AotSample
             var movement = new MovementFunctor();
             world.ForEach(in query, ref movement);
 
-            world.From(entities)
-                .Where(in query)
-                .ForEachEntity(
-                    static (Entity entity, ref Position position, in Velocity velocity) =>
-                    {
-                        position.X += entity.Index + velocity.X;
-                    });
+            world.ForEachEntity(
+                in query,
+                static (Entity entity, ref Position position, in Velocity velocity) =>
+                {
+                    position.X += entity.Index + velocity.X;
+                });
 
             Entity marker = world.Create(markerId);
             world.Set(marker, markerId, new Marker(42));

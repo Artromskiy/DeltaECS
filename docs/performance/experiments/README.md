@@ -256,7 +256,7 @@ location API is consumed by the generator and the generated bridge keeps the
 delegate-compatible parameter list, while the bridge ignores the delegate and
 enters the existing closed struct-functor execution path. Capturing lambdas,
 instance or ambiguous method groups, pre-created delegates,
-async/generic/unsupported forms and sequence receivers remain on the ordinary
+async/generic/unsupported forms remain on the ordinary
 delegate path; unambiguous static method groups now use the same intercepted
 struct-functor path as static lambdas.
 

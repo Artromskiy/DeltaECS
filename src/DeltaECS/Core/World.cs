@@ -22,7 +22,6 @@ public sealed partial class World : IDisposable
     private readonly Dictionary<QuerySpec, WeakReference<QueryPlan>> _queryCache = new(QuerySpec.Comparer);
     private int _queryCacheSweepCountdown = 64;
     private NativeMemory<DestroyEntry> _destroyScratch = new(32);
-    private NativeMemory<Entity> _sequenceScratch = new(0);
     private readonly List<Archetype> _generatedWhereAffectedArchetypes = new(16);
     private GeneratedWhereStructuralPlan[] _generatedWhereArchetypePlans = Array.Empty<GeneratedWhereStructuralPlan>();
     private GeneratedWhereTargetCursor?[] _generatedWhereTargetCursors = Array.Empty<GeneratedWhereTargetCursor?>();
@@ -107,7 +106,6 @@ public sealed partial class World : IDisposable
         DisposeParallelQueryExecutor();
         _freeRecords.Dispose();
         _destroyScratch.Dispose();
-        _sequenceScratch.Dispose();
         _generatedWhereSourceCounts.Dispose();
         _generatedWhereTargetCursorStamps.Dispose();
         _generatedWhereAffectedArchetypeStamps.Dispose();
@@ -119,21 +117,22 @@ public sealed partial class World : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public ArchetypeHandle GetOrCreateArchetype(params ReadOnlySpan<ComponentId> componentIds)
-    {
-        EnsureNoActiveLease("create an archetype");
-        if (!TryBuildComponentMask(componentIds, out var mask))
-        {
-            ThrowHelper.ThrowInvalidComponentList();
-        }
-
-        return new ArchetypeHandle(this, GetOrCreateArchetype(mask).Id);
-    }
-
-    public ArchetypeHandle GetOrCreateArchetype(ComponentId first, ComponentId second)
-        => GetOrCreateArchetype(stackalloc[] { first, second });
-
     public Query CreateQuery(in QuerySpec spec) => new Query(this, GetOrCreateQuery(spec), spec);
+
+    /// <summary>Creates a query requiring the supplied component registrations.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Query WhereAll(params ReadOnlySpan<ComponentId> components)
+        => CreateQuery(QuerySpec.WhereAll(components));
+
+    /// <summary>Creates a query matching at least one supplied component registration.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Query WhereAny(params ReadOnlySpan<ComponentId> components)
+        => CreateQuery(QuerySpec.WhereAny(components));
+
+    /// <summary>Creates a query excluding the supplied component registrations.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Query WhereNone(params ReadOnlySpan<ComponentId> components)
+        => CreateQuery(QuerySpec.WhereNone(components));
 
     /// <summary>Begins a validated query execution scope with independent iterators.</summary>
     public QueryScope BeginScope(in Query handle) => new QueryScope(this, handle);
@@ -161,8 +160,8 @@ public sealed partial class World : IDisposable
         return CreateBatch(archetype, output);
     }
 
-    /// <summary>Creates entities into the supplied archetype without allocating entity output storage.</summary>
-    public int Create(ArchetypeHandle handle, int count)
+    /// <summary>Creates entities with the supplied component set without retaining entity handles.</summary>
+    public int Create(int count, ReadOnlySpan<ComponentId> componentIds)
     {
         ThrowHelper.ThrowIfNegative(count, nameof(count));
         EnsureNoActiveLease("create entities");
@@ -171,7 +170,12 @@ public sealed partial class World : IDisposable
             return 0;
         }
 
-        return CreateBatch(ResolveArchetype(handle), count);
+        if (!TryBuildComponentMask(componentIds, out var mask))
+        {
+            ThrowHelper.ThrowInvalidComponentList();
+        }
+
+        return CreateBatch(GetOrCreateArchetype(mask), count);
     }
 
     /// <summary>Creates <paramref name="count"/> entities with the supplied component set.</summary>
@@ -194,24 +198,6 @@ public sealed partial class World : IDisposable
         }
 
         return Create(componentIds, output[..count]);
-    }
-
-    public Entity Create(ArchetypeHandle handle)
-    {
-        Span<Entity> entities = stackalloc Entity[1];
-        return Create(handle, entities) == 0 ? default : entities.GetRefAtZero();
-    }
-
-    public int Create(ArchetypeHandle handle, Span<Entity> output)
-    {
-        EnsureNoActiveLease("create entities");
-        if (output.Length == 0)
-        {
-            return 0;
-        }
-
-        var archetype = ResolveArchetype(handle);
-        return CreateBatch(archetype, output);
     }
 
     private int CreateBatch(Archetype archetype, Span<Entity> output)
@@ -389,18 +375,6 @@ public sealed partial class World : IDisposable
         return count;
     }
 
-    private Archetype ResolveArchetype(ArchetypeHandle handle)
-    {
-        if (!handle.IsValid
-            || !ReferenceEquals(handle.Owner, this)
-            || (uint)handle.ArchetypeId >= (uint)_archetypes.Count)
-        {
-            ThrowHelper.ThrowArchetypeHandleInvalid(nameof(handle));
-        }
-
-        return _archetypes[handle.ArchetypeId];
-    }
-
     public bool Destroy(Entity entity)
     {
         EnsureNoActiveLease("destroy entities");
@@ -544,6 +518,17 @@ public sealed partial class World : IDisposable
 
     public bool IsAlive(Entity entity) => TryResolve(entity, out _);
 
+    /// <summary>Reports whether an alive entity owns the specified component.</summary>
+    public bool Has(Entity entity, ComponentId componentId)
+    {
+        if (!TryResolve(entity, out int recordIndex))
+        {
+            return false;
+        }
+
+        return GetRecordArchetype(RecordAt(recordIndex)).Contains(componentId);
+    }
+
     private bool SetCore<T>(Entity entity, ComponentId componentId, in T value)
     {
         if (!TryResolve(entity, out int recordIndex))
@@ -608,43 +593,55 @@ public sealed partial class World : IDisposable
     }
 
     /// <summary>Adds the component set to one entity and reports whether it changed.</summary>
-    public bool Add(ComponentId[] componentIds, Entity entity)
+    public bool Add(Entity entity, params ReadOnlySpan<ComponentId> componentIds)
     {
         Span<Entity> entities = stackalloc Entity[1];
         entities.GetRefAtZero() = entity;
         return ApplyComponents(true, componentIds, entities) == 1;
     }
 
-    public int Add(ComponentId[] componentIds, ReadOnlySpan<Entity> entities) => ApplyComponents(true, componentIds, entities);
+    /// <summary>Adds the component set to one entity and reports whether it changed.</summary>
+    public bool Add(Entity entity, ComponentId[] componentIds)
+        => Add(entity, (ReadOnlySpan<ComponentId>)componentIds);
 
-    /// <summary>Adds a component set to every eligible entity in a caller-owned batch.</summary>
-    public int Add(ReadOnlySpan<ComponentId> componentIds, ReadOnlySpan<Entity> entities)
+    /// <summary>Adds the component set to every entity in a caller-owned batch.</summary>
+    public int Add(ReadOnlySpan<Entity> entities, params ReadOnlySpan<ComponentId> componentIds)
         => ApplyComponents(true, componentIds, entities);
 
+    /// <summary>Adds the component set to every entity in a caller-owned batch.</summary>
+    public int Add(ReadOnlySpan<Entity> entities, ComponentId[] componentIds)
+        => Add(entities, (ReadOnlySpan<ComponentId>)componentIds);
+
     /// <summary>Removes the component set from one entity and reports whether it changed.</summary>
-    public bool Remove(ComponentId[] componentIds, Entity entity)
+    public bool Remove(Entity entity, params ReadOnlySpan<ComponentId> componentIds)
     {
         Span<Entity> entities = stackalloc Entity[1];
         entities.GetRefAtZero() = entity;
         return ApplyComponents(false, componentIds, entities) == 1;
     }
 
-    public int Remove(ComponentId[] componentIds, ReadOnlySpan<Entity> entities) => ApplyComponents(false, componentIds, entities);
+    /// <summary>Removes the component set from one entity and reports whether it changed.</summary>
+    public bool Remove(Entity entity, ComponentId[] componentIds)
+        => Remove(entity, (ReadOnlySpan<ComponentId>)componentIds);
 
-    /// <summary>Removes a component set from every eligible entity in a caller-owned batch.</summary>
-    public int Remove(ReadOnlySpan<ComponentId> componentIds, ReadOnlySpan<Entity> entities)
+    /// <summary>Removes the component set from every entity in a caller-owned batch.</summary>
+    public int Remove(ReadOnlySpan<Entity> entities, params ReadOnlySpan<ComponentId> componentIds)
         => ApplyComponents(false, componentIds, entities);
+
+    /// <summary>Removes the component set from every entity in a caller-owned batch.</summary>
+    public int Remove(ReadOnlySpan<Entity> entities, ComponentId[] componentIds)
+        => Remove(entities, (ReadOnlySpan<ComponentId>)componentIds);
 
     public int Add(in Query query, ComponentId[] componentIds) => ApplyQueryComponents(query, true, componentIds);
 
     /// <summary>Adds a component set to every entity matched by a query.</summary>
-    public int Add(in Query query, ReadOnlySpan<ComponentId> componentIds)
+    public int Add(in Query query, params ReadOnlySpan<ComponentId> componentIds)
         => ApplyQueryComponents(query, true, componentIds);
 
     public int Remove(in Query query, ComponentId[] componentIds) => ApplyQueryComponents(query, false, componentIds);
 
     /// <summary>Removes a component set from every entity matched by a query.</summary>
-    public int Remove(in Query query, ReadOnlySpan<ComponentId> componentIds)
+    public int Remove(in Query query, params ReadOnlySpan<ComponentId> componentIds)
         => ApplyQueryComponents(query, false, componentIds);
 
     public int Destroy(in Query query)

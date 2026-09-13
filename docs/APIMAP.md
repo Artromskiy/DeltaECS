@@ -4,10 +4,14 @@ This file is a contributor navigation map. It is intentionally smaller than
 the public contract: stable behavior belongs in `docs/README.md`, and
 folder-specific API details are kept in the corresponding `docs/src/` tree.
 
+The canonical generated API grammar is [API-GRAMMAR.md](API-GRAMMAR.md).
+Consult it before changing overload shapes or generator templates.
+
 ## Fast read order
 
 1. Read the repository and project `AGENTS.md` files.
-2. Read `docs/README.md` for stable behavior and `WORKFLOW.md` before commands.
+2. Read [API-GRAMMAR.md](API-GRAMMAR.md) for overload shapes, then `docs/README.md`
+   for stable behavior and `WORKFLOW.md` before commands.
 3. Use the folder map below to choose the smallest source slice.
 4. Read the nearest focused test only after locating the implementation.
 
@@ -26,7 +30,6 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `Generic` | CLR-type registration and single-component convenience operations | [Generic API](src/DeltaECS/Generic/README.md) |
 | `Delegate` | Delegate callback contracts and zero-component callback entry points | [Delegate API](src/DeltaECS/Delegate/README.md) |
 | `Functor` | Marker contracts for generated struct-functor callbacks | [Functor API](src/DeltaECS/Functor/README.md) |
-| `Sequence` | Ordered execution over an explicit entity span | [Sequence API](src/DeltaECS/Sequence/README.md) |
 | `Parallel` | Chunk-disjoint multi-threaded query execution | [Parallel API](src/DeltaECS/Parallel/README.md) |
 | `API` | Neutral integration contract implemented by `World` | [Integration API](src/DeltaECS/API/README.md) |
 | `Stamps` | Catalog and entity/component revision values | [Stamp contract](src/DeltaECS/Stamps/README.md) |
@@ -50,12 +53,11 @@ The consumer source generator is documented in
 | `QueryScope` | One validated query execution and its structural lease | `src/DeltaECS/Core/QueryScope.cs` |
 | `QueryArchetypes`, `QueryChunks`, `QuerySlots` | Independent traversal levels | `src/DeltaECS/Core/QueryArchetypes.cs`, `QueryChunks.cs`, `QuerySlots.cs` |
 | `ReadRow`, `WriteRow` | Non-generic row values; terminal `Ref<T>` is the typed boundary | `src/DeltaECS/Core/Rows.cs`, `src/DeltaECS/Generic/Rows.cs` |
-| `World.Create<T>`, `Add<T>`, `Remove<T>`, `TryGet<T>`, `Get<T>`, `Set<T>` | Single-component typed conveniences over core operations | `src/DeltaECS/Generic/World.Generic.cs` |
-| Generated `World.Add<T1,...>`, `Remove<T1,...>` and sequence terminals | On-demand primary-component structural batches using stack-only ID spans | `src/DeltaECS.Generators/GeneratedStructuralGenerator.cs` |
-| Generated `World/Query.WhereAll<T1,...>`, `WhereAny<T1,...>`, `WhereNone<T1,...>` | On-demand typed query factories and mask composition through the existing query cache | `src/DeltaECS.Generators/GeneratedQueryGenerator.cs`, `src/DeltaECS/Core/QuerySpec.cs` |
+| `World.Create<T>`, `Add<T>`, `Remove<T>`, `TryGet<T>`, `Has<T>`, `Get<T>`, `Set<T>` and typed stamps | Single-component typed conveniences over core operations | `src/DeltaECS/Generic/World.Generic.cs` |
+| Generated `World.Create<T1,...>`, `Add<T1,...>`, `Remove<T1,...>` | On-demand primary-component structural operations using stack-only ID spans | `src/DeltaECS.Generators/GeneratedStructuralGenerator.cs` |
+| `World/Query.WhereAll`, `WhereAny`, `WhereNone` | Runtime `ComponentId` factories; generated typed variants compose through the existing query cache | `src/DeltaECS/Core/World.cs`, `src/DeltaECS/Core/EntityTypes.cs`, `src/DeltaECS.Generators/GeneratedQueryGenerator.cs`, `src/DeltaECS/Core/QuerySpec.cs` |
 | `World.ForEach`, `ForEachEntity` | Delegate callback entry points, including handwritten zero-component forms | `src/DeltaECS/Delegate/ForEachZeroArity.cs` |
 | `IForEach*` | Stable functor marker contracts | `src/DeltaECS/Functor/ForEachFunctorContracts.cs` |
-| `World.From` and `ForEachEntity` | Ordered entity-sequence entry points and terminals | `src/DeltaECS/Sequence/World.Sequence.cs`, `EntitySequence.cs` |
 | `World.ForEachParallel` | Chunk-disjoint parallel query callback entry point | `src/DeltaECS/Parallel/World.Parallel.cs`, `QueryChunkAction.cs` |
 | `IEcsWorld` | Neutral lifecycle, structural and object-value integration contract | `src/DeltaECS/API/IntegrationContracts.cs` |
 | `Stamp` | 64-bit equality token for exact component revisions | `src/DeltaECS/Stamps/Stamp.cs` |
@@ -138,14 +140,6 @@ API but lower to the generated trusted struct-functor path. Unsupported or
 capturing callbacks retain ordinary delegate semantics; the analyzer remains
 build-time only and is not part of a NativeAOT deployment.
 
-## Ordered sequence path
-
-`World.From(ReadOnlySpan<Entity>)` creates a non-owning ordered facade.
-`Where(in Query)` narrows that candidate span; it does not enumerate all
-entities matching the query. Callback terminals preserve input order and
-duplicates while skipping stale or foreign handles. `Add`, `Remove` and
-`Destroy` forward to the existing structural batch kernels.
-
 ## Structural and storage navigation
 
 - Entity resolution and structural transitions: `src/DeltaECS/Core/World.cs`.
@@ -186,7 +180,6 @@ See the [integration README](src/DeltaECS/API/README.md) and
 | Active chunk reuse | `tests/DeltaECSTests/ActiveChunkTests.cs` |
 | Structural transitions and records | `tests/DeltaECSTests/StructuralAlgorithmTests.cs` |
 | Generic single-item boundary | `tests/DeltaECSTests/GenericSingleItemApiTests.cs` |
-| Ordered sequence facade | `tests/DeltaECSTests/SequenceExecutionTests.cs` |
 | Parallel chunk execution | `tests/DeltaECSTests/ParallelIterationTests.cs` |
 | Consumer source generation | `tests/DeltaECS.Generators.Tests/DemandDrivenForEachGeneratorTests.cs`, `tests/DeltaECS.Generators.Consumer/` |
 
