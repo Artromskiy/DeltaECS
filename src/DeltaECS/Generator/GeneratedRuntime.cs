@@ -191,6 +191,70 @@ public interface IGeneratedArchetypeStampWriter
     void Write(Stamp[] stamps);
 }
 
+/// <summary>Compiler-support contract for generated multi-component value operations.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public interface IGeneratedComponentValueInitializer
+{
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    void Initialize(ref GeneratedComponentValueWriter writer);
+}
+
+/// <summary>Trusted writer for values written by generated structural operations.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public ref struct GeneratedComponentValueWriter
+{
+    private readonly Chunk _targetChunk;
+    private readonly Archetype _targetArchetype;
+    private readonly int _targetSlotIndex;
+    private readonly ReadOnlySpan<int> _addedTargetRows;
+
+    internal GeneratedComponentValueWriter(
+        Chunk targetChunk,
+        Archetype targetArchetype,
+        int targetSlotIndex,
+        ReadOnlySpan<int> addedTargetRows)
+    {
+        _targetChunk = targetChunk;
+        _targetArchetype = targetArchetype;
+        _targetSlotIndex = targetSlotIndex;
+        _addedTargetRows = addedTargetRows;
+    }
+
+    internal GeneratedComponentValueWriter(
+        Chunk targetChunk,
+        Archetype targetArchetype,
+        int targetSlotIndex)
+        : this(targetChunk, targetArchetype, targetSlotIndex, default)
+    {
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Set<T>(ComponentId componentId, in T value)
+    {
+        int componentIndex = _targetArchetype.Mask.Rank(componentId);
+        for (int index = 0; index < _addedTargetRows.Length; index++)
+        {
+            if (_addedTargetRows[index] != componentIndex)
+            {
+                continue;
+            }
+
+            _targetChunk.GetComponentRow<T>(componentIndex).RefAt(_targetSlotIndex) = value;
+            return;
+        }
+    }
+
+    /// <summary>Writes a component after the generated runtime validated its archetype.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void SetUnsafe<T>(ComponentId componentId, in T value)
+    {
+        int componentIndex = _targetArchetype.Mask.Rank(componentId);
+        _targetChunk.GetComponentRow<T>(componentIndex).RefAt(_targetSlotIndex) = value;
+        Stamp stamp = _targetChunk.IncrementComponentStamp(componentIndex, _targetSlotIndex);
+        _targetChunk.MarkComponentStamped(componentIndex, _targetSlotIndex, stamp);
+    }
+}
+
 /// <summary>Trusted compiler-support execution state for generated write queries.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public ref struct GeneratedDenseExecution
@@ -422,6 +486,34 @@ public ref struct GeneratedReadDenseExecution
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static class GeneratedForEachRuntime
 {
+    /// <summary>Executes one generated multi-component value add without an intermediate transition.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool ExecuteGeneratedAdd<TInitializer>(
+        World world,
+        Entity entity,
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
+    {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        return world.AddGeneratedComponentValues(entity, componentIds, ref initializer);
+    }
+
+    /// <summary>Executes a generated multi-component Set after one archetype validation.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool ExecuteGeneratedSet<TInitializer>(
+        World world,
+        Entity entity,
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
+    {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        return world.SetGeneratedComponentValues(entity, componentIds, ref initializer);
+    }
+
     /// <summary>Validates a generated callback without requiring a modern BCL.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

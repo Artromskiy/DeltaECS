@@ -75,6 +75,7 @@ int added = world.Add<Position, Velocity>(entities);
 int removed = world.Remove<Position, Velocity>(entities);
 bool addedToEntity = world.Add<Position, Velocity>(entity);
 bool removedFromEntity = world.Remove<Position, Velocity>(entity);
+bool setOnEntity = world.Set(entity, new Position { X = 10 }, new Velocity { X = 20 });
 
 Entity created = world.Create<Position, Velocity>();
 int createdCount = world.Create<Position, Velocity>(10);

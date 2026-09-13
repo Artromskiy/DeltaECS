@@ -689,6 +689,11 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("public static Entity Create<T1, T2>(this World target)"));
         Assert.That(generated, Does.Contain("public static int Create<T1, T2>(this World target, int count, global::System.Span<Entity> output)"));
         Assert.That(generated, Does.Contain("public static bool Add<T1, T2>(this World target, Entity entity)"));
+        Assert.That(generated, Does.Contain("public static bool Add<T1, T2>(this World target, Entity entity, in T1 value0, in T2 value1)"));
+        Assert.That(generated, Does.Contain("ExecuteGeneratedAdd"));
+        Assert.That(generated, Does.Contain("public static bool Set<T1, T2>(this World target, Entity entity, in T1 value0, in T2 value1)"));
+        Assert.That(generated, Does.Contain("ExecuteGeneratedSet"));
+        Assert.That(generated, Does.Contain("SetUnsafe(component0, in value0)"));
         Assert.That(generated, Does.Contain("public static int Add<T1, T2>(this World target"));
         Assert.That(generated, Does.Contain("public static int Remove<T1, T2>(this World target"));
         Assert.That(generated, Does.Contain("public static int Create<T1, T2>(this World target"));
@@ -1275,9 +1280,22 @@ public sealed class DemandDrivenForEachGeneratorTests
             public void Dispose() { }
         }
         public interface IGeneratedArchetypeStampWriter { void Write(Stamp[] stamps); }
+        public interface IGeneratedComponentValueInitializer
+        {
+            void Initialize(ref GeneratedComponentValueWriter writer);
+        }
+        public ref struct GeneratedComponentValueWriter
+        {
+            public void Set<T>(ComponentId component, in T value) { }
+            public void SetUnsafe<T>(ComponentId component, in T value) { }
+        }
         public static class GeneratedForEachRuntime
         {
             public static void ThrowIfNull(object? value, string parameterName) { }
+            public static bool ExecuteGeneratedAdd<TInitializer>(World world, Entity entity, ReadOnlySpan<ComponentId> components, ref TInitializer initializer)
+                where TInitializer : struct, IGeneratedComponentValueInitializer => true;
+            public static bool ExecuteGeneratedSet<TInitializer>(World world, Entity entity, ReadOnlySpan<ComponentId> components, ref TInitializer initializer)
+                where TInitializer : struct, IGeneratedComponentValueInitializer => true;
             public static ref T GetGeneratedRow<T>(Array[] componentRows, int queryComponentIndex) => throw new NotImplementedException();
             public static GeneratedDenseExecution OpenDense(World world, in Query query) => default;
             public static GeneratedDenseExecution OpenWriteDense(World world, in Query query) => default;
@@ -1323,6 +1341,7 @@ public sealed class DemandDrivenForEachGeneratorTests
             public int Add(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> components) => 0;
             public bool Remove(Entity entity, ReadOnlySpan<ComponentId> components) => true;
             public int Remove(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> components) => 0;
+            public bool Set<T>(Entity entity, in T value) => true;
             public int Add(in Query query, ReadOnlySpan<ComponentId> components) => 0;
             public int Remove(in Query query, ReadOnlySpan<ComponentId> components) => 0;
             public void ForEach(in Query query, ForEachAction action) { }
@@ -1353,6 +1372,10 @@ public sealed class DemandDrivenForEachGeneratorTests
                 world.Remove<Position, Velocity>(entities);
                 world.Add<Position, Velocity>(in query);
                 world.Remove<Position, Velocity>(in query);
+                world.Add(entity, new Position(), new Velocity());
+                world.Add<Position, Velocity>(entity, new Position(), new Velocity());
+                world.Set(entity, new Position(), new Velocity());
+                world.Set<Position, Velocity>(entity, new Position(), new Velocity());
             }
         }
         """;

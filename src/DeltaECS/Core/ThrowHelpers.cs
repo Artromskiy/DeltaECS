@@ -160,6 +160,12 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowMissingComponent(Entity entity, ComponentId componentId)
+        => throw new InvalidOperationException(
+            $"Entity {entity} does not contain the component registered as {componentId}.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowComponentNotRegistered(ComponentId componentId)
         => throw new ArgumentException(
             $"Component {componentId} is not registered in this world.",

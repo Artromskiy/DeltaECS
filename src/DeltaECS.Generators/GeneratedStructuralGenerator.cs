@@ -10,7 +10,7 @@ namespace Delta.ECS.Generators;
 
 /// <summary>
 /// Generates generic structural-operation façades only for the
-/// Add/Remove/Create shapes used by a consumer assembly.
+/// Add/Remove/Set/Create shapes used by a consumer assembly.
 /// </summary>
 [Generator]
 public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
@@ -71,14 +71,19 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             return false;
         }
 
-        if (member.Name is IdentifierNameSyntax identifier
-            && identifier.Identifier.ValueText == "Create")
+        if (member.Name is IdentifierNameSyntax identifier)
         {
-            return TryReadExplicitCreateShape(model, invocation, out shape);
+            return identifier.Identifier.ValueText switch
+            {
+                "Add" => TryReadValueShape(model, invocation, isAdd: true, out shape),
+                "Set" => TryReadValueShape(model, invocation, isAdd: false, out shape),
+                "Create" => TryReadExplicitCreateShape(model, invocation, out shape),
+                _ => false
+            };
         }
 
         if (member.Name is not GenericNameSyntax genericName
-            || genericName.Identifier.ValueText is not ("Add" or "Remove" or "Create"))
+            || genericName.Identifier.ValueText is not ("Add" or "Remove" or "Set" or "Create"))
         {
             return false;
         }
@@ -150,6 +155,21 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             return false;
         }
 
+        if (genericName.Identifier.ValueText is "Add" or "Set"
+            && TryReadValueShape(
+                model,
+                invocation,
+                genericName.Identifier.ValueText == "Add",
+                out shape))
+        {
+            return true;
+        }
+
+        if (genericName.Identifier.ValueText == "Set")
+        {
+            return false;
+        }
+
         StructuralMode mode;
         bool explicitIds = false;
         if (receiver == Receiver.World)
@@ -203,6 +223,44 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             genericName.Identifier.ValueText == "Add",
             arity,
             isExplicitIds: explicitIds);
+        return true;
+    }
+
+    private static bool TryReadValueShape(
+        SemanticModel model,
+        InvocationExpressionSyntax invocation,
+        bool isAdd,
+        out StructuralShape? shape)
+    {
+        shape = null;
+        if (ReadReceiver(model.GetTypeInfo(((MemberAccessExpressionSyntax)invocation.Expression).Expression).Type)
+            != Receiver.World)
+        {
+            return false;
+        }
+
+        SeparatedSyntaxList<ArgumentSyntax> arguments = invocation.ArgumentList.Arguments;
+        int arity = arguments.Count - 1;
+        if (arity is < 2 or > MaxArity
+            || !IsEntity(model.GetTypeInfo(arguments[0].Expression).Type))
+        {
+            return false;
+        }
+
+        for (int index = 1; index < arguments.Count; index++)
+        {
+            ITypeSymbol? valueType = model.GetTypeInfo(arguments[index].Expression).Type;
+            if (valueType is null || IsComponentId(valueType))
+            {
+                return false;
+            }
+        }
+
+        shape = new StructuralShape(
+            Receiver.World,
+            StructuralMode.ValueSingleEntity,
+            isAdd,
+            arity: arity);
         return true;
     }
 
@@ -328,6 +386,10 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             case StructuralMode.SingleEntity:
                 source.Append(", Entity entity");
                 break;
+            case StructuralMode.ValueSingleEntity:
+                source.Append(", Entity entity, ")
+                    .Append(ValueParameters(shape.Arity));
+                break;
             case StructuralMode.Query:
                 source.Append(", in Query query");
                 break;
@@ -361,7 +423,34 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
 
         source.AppendLine(")");
         source.AppendLine("    {");
-        if (shape.Mode is StructuralMode.CreateSingle
+        if (shape.Mode == StructuralMode.ValueSingleEntity)
+        {
+            source.Append("        global::System.Span<ComponentId> components = stackalloc ComponentId[")
+                .Append(shape.Arity)
+                .AppendLine("];");
+            AppendPrimaryAssignments(source, "target.Layouts", "components", shape.Arity, "        ");
+            source.Append("        var initializer = new Generated")
+                .Append(shape.IsAdd ? "Add" : "Set")
+                .Append("Values<")
+                .Append(GenericTypes(shape.Arity))
+                .AppendLine(">");
+            source.AppendLine("        (");
+            for (int index = 0; index < shape.Arity; index++)
+            {
+                source.Append("            components[").Append(index).Append("], in value").Append(index);
+                source.AppendLine(index == shape.Arity - 1 ? string.Empty : ",");
+            }
+
+            source.AppendLine("        );");
+            source.Append("        return GeneratedForEachRuntime.ExecuteGenerated")
+                .Append(shape.IsAdd ? "Add" : "Set")
+                .AppendLine("(");
+            source.AppendLine("            target,");
+            source.AppendLine("            entity,");
+            source.AppendLine("            components,");
+            source.AppendLine("            ref initializer);");
+        }
+        else if (shape.Mode is StructuralMode.CreateSingle
             or StructuralMode.Create
             or StructuralMode.CreateOutput)
         {
@@ -435,9 +524,70 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         }
 
         source.AppendLine("    }");
+
+        if (shape.Mode == StructuralMode.ValueSingleEntity)
+        {
+            RenderValueInitializer(source, shape.Arity, shape.IsAdd);
+        }
+
         source.AppendLine("}");
         source.AppendLine("}");
         return GeneratedSourceFormatter.Format(source.ToString());
+    }
+
+    private static void RenderValueInitializer(StringBuilder source, int arity, bool isAdd)
+    {
+        source.Append("    private struct Generated")
+            .Append(isAdd ? "Add" : "Set")
+            .Append("Values<")
+            .Append(GenericTypes(arity))
+            .AppendLine("> : global::Delta.ECS.IGeneratedComponentValueInitializer");
+        source.AppendLine("    {");
+        for (int index = 0; index < arity; index++)
+        {
+            source.Append("        private readonly ComponentId component").Append(index).AppendLine(";");
+            source.Append("        private readonly T").Append(index + 1).Append(" value").Append(index).AppendLine(";");
+        }
+
+        source.Append("        public Generated")
+            .Append(isAdd ? "Add" : "Set")
+            .Append("Values(");
+        for (int index = 0; index < arity; index++)
+        {
+            if (index != 0)
+            {
+                source.Append(", ");
+            }
+
+            source.Append("ComponentId component").Append(index)
+                .Append(", in T").Append(index + 1).Append(" value").Append(index);
+        }
+
+        source.AppendLine(")");
+        source.AppendLine("        {");
+        for (int index = 0; index < arity; index++)
+        {
+            source.Append("            this.component").Append(index).Append(" = component").Append(index).AppendLine(";");
+            source.Append("            this.value").Append(index).Append(" = value").Append(index).AppendLine(";");
+        }
+
+        source.AppendLine("        }");
+        source.AppendLine();
+        source.AppendLine("        public void Initialize(ref global::Delta.ECS.GeneratedComponentValueWriter writer)");
+        source.AppendLine("        {");
+        for (int index = 0; index < arity; index++)
+        {
+            source.Append("            writer.Set")
+                .Append(isAdd ? string.Empty : "Unsafe")
+                .Append("(component")
+                .Append(index)
+                .Append(", in value")
+                .Append(index)
+                .AppendLine(");");
+        }
+
+        source.AppendLine("        }");
+        source.AppendLine("    }");
     }
 
     private static void AppendComponentAssignments(
@@ -459,6 +609,7 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         {
             StructuralMode.CreateSingle or StructuralMode.Create or StructuralMode.CreateOutput
                 or StructuralMode.ExplicitCreate or StructuralMode.ExplicitCreateOutput => "Create",
+            StructuralMode.ValueSingleEntity => shape.IsAdd ? "Add" : "Set",
             _ => shape.IsAdd ? "Add" : "Remove"
         };
 
@@ -466,12 +617,15 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         => shape.Mode switch
         {
             StructuralMode.CreateSingle => "Entity",
-            StructuralMode.SingleEntity => "bool",
+            StructuralMode.SingleEntity or StructuralMode.ValueSingleEntity => "bool",
             _ => "int"
         };
 
     private static string ComponentParameters(int arity)
         => string.Join(", ", Enumerable.Range(0, arity).Select(static index => "ComponentId component" + index));
+
+    private static string ValueParameters(int arity)
+        => string.Join(", ", Enumerable.Range(0, arity).Select(static index => "in T" + (index + 1) + " value" + index));
 
     private static void AppendPrimaryAssignments(
         StringBuilder source,
@@ -537,6 +691,7 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         Entities,
         SingleEntity,
         Query,
+        ValueSingleEntity,
         CreateSingle,
         Create,
         CreateOutput,

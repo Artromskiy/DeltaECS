@@ -18,6 +18,7 @@ F     — functor
 N     — entity count
 O     — Span<Entity> output
 W     — worker count
+V...  — values corresponding positionally to T...
 ```
 
 The canonical argument order is:
@@ -75,10 +76,12 @@ Typed and non-generic structural operations have matching target shapes:
 ```text
 world.Add<T...>(e | E | Q, I...)
 world.Remove<T...>(e | E | Q, I...)
+world.Set<T...>(e, V...)
 world.Destroy(e | E | Q)
 
 world.Add(e | E | Q, I...)
 world.Remove(e | E | Q, I...)
+world.Set(e, V...)
 
 world.Create<T...>(N, O?)
 world.Create<T...>(I..., N, O?)

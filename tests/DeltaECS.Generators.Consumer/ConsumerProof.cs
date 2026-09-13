@@ -54,7 +54,7 @@ public static class ConsumerProof
 
     public static int Run()
     {
-        using var world = new World(chunkCapacity: 2);
+        using var world = new World();
         ComponentId positionId = world.Layouts.Register<Position>(new SchemaId(1));
         ComponentId secondaryPositionId = world.Layouts.Register<Position>(new SchemaId(2));
         ComponentId velocityId = world.Layouts.Register<Velocity>(new SchemaId(3));
@@ -231,6 +231,14 @@ public static class ConsumerProof
         int outputCount = createWorld.Create<Position, Velocity>(2, createdOutput);
         Span<Entity> explicitGenericOutput = stackalloc Entity[1];
         total += createWorld.Create<Position, Velocity>(positionId, velocityId, 1, explicitGenericOutput);
+        if (!createWorld.Set(created, new Position { Value = 1 }, new Velocity { Value = 2 })
+            || !createWorld.Set<Position, Velocity>(created, new Position { Value = 3 }, new Velocity { Value = 4 })
+            || createWorld.Get<Position>(created).Value != 3
+            || createWorld.Get<Velocity>(created).Value != 4)
+        {
+            return 0;
+        }
+
         if (outputCount != createdOutput.Length
             || !createWorld.Has<Position>(created)
             || !createWorld.Has(created, positionId)
@@ -287,7 +295,7 @@ public static class ConsumerProof
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(22));
         ComponentId accelerationId = layouts.Register<Acceleration>(new SchemaId(23));
         ComponentId lifetimeId = layouts.Register<Lifetime>(new SchemaId(24));
-        using var world = new World(layouts, chunkCapacity: 2);
+        using var world = new World(layouts);
         world.Create(stackalloc[] { positionId, velocityId });
         world.Create(stackalloc[] { positionId, accelerationId });
 
@@ -328,7 +336,7 @@ public static class ConsumerProof
 
     private static int RunGeneratedWhereDestroy()
     {
-        using var world = new World(chunkCapacity: 2);
+        using var world = new World();
         (ComponentId healthId, ComponentId teamId, ComponentId aliveId, _) = RegisterMutationLayouts(world);
         Entity[] entities = CreateMutationEntities(world, healthId, teamId, aliveId);
         Query query = CreateMutationQuery(world, healthId, teamId, aliveId);
@@ -345,7 +353,7 @@ public static class ConsumerProof
 
     private static int RunGeneratedWhereAdd()
     {
-        using var world = new World(chunkCapacity: 2);
+        using var world = new World();
         (ComponentId healthId, ComponentId teamId, ComponentId aliveId, _) = RegisterMutationLayouts(world);
         Entity[] entities = CreateMutationEntities(world, healthId, teamId, aliveId);
         Query query = CreateMutationQuery(world, healthId, teamId, aliveId);
@@ -367,7 +375,7 @@ public static class ConsumerProof
 
     private static int RunGeneratedWhereRemove()
     {
-        using var world = new World(chunkCapacity: 2);
+        using var world = new World();
         (ComponentId healthId, ComponentId teamId, ComponentId aliveId, _) = RegisterMutationLayouts(world);
         Entity[] entities = CreateMutationEntities(world, healthId, teamId, aliveId);
         Query query = CreateMutationQuery(world, healthId, teamId, aliveId);
@@ -384,7 +392,7 @@ public static class ConsumerProof
 
     private static int RunGeneratedWhereCallbacks()
     {
-        using var world = new World(chunkCapacity: 2);
+        using var world = new World();
         (ComponentId healthId, ComponentId teamId, ComponentId aliveId, _) = RegisterMutationLayouts(world);
         Entity[] entities = CreateMutationEntities(world, healthId, teamId, aliveId);
         Query query = CreateMutationQuery(world, healthId, teamId, aliveId);

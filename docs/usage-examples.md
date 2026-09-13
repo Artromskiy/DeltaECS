@@ -17,7 +17,7 @@ at the end of `Program.cs`, after all top-level statements.
 | Component-bearing `ForEach` / `ForEachEntity` | Generator |
 | Positional `ComponentId` selectors for `ForEach` / `ForEachEntity` | Generator |
 | Struct functor overloads inferred from `Invoke` | Generator |
-| Generic batch `Add<T...>` / `Remove<T...>` | Generator |
+| Generic batch `Add<T...>` / `Remove<T...>` and multi-value `Set<T...>` | Generator |
 | Positional `ComponentId` `Create(I..., N, O?)` forms | Generator |
 | Query-wide `Where(...).Destroy/Add/Remove/ForEach` | Generator |
 
@@ -80,14 +80,12 @@ world.ForEach(in query, positionId, velocityId,
         position.X += velocity.X);
 ```
 
-For combined conditions, construct a `QuerySpec` using explicit IDs:
+For combined conditions, continue the query chain with explicit IDs:
 
 ```csharp
-var spec = new QuerySpec(
-    allComponents: new[] { positionId },
-    anyComponents: Array.Empty<ComponentId>(),
-    noneComponents: new[] { velocityId });
-var stationary = world.CreateQuery(in spec);
+var stationary = world
+    .WhereAll(positionId)
+    .WhereNone(velocityId);
 world.Remove<Velocity>(entity);
 world.ForEach(in stationary,
     static (ref Position position) => position.X = 0);
@@ -150,7 +148,7 @@ optional interceptor path to the same chunk execution as ordinary generated
 This is the runtime query equivalent of `world.WhereAll<Position, Velocity>()`:
 
 ```csharp
-var explicitQuery = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+var explicitQuery = world.WhereAll(positionId, velocityId);
 world.Set(entity, positionId, new Position { X = 30 });
 Console.WriteLine(world.Get<Position>(entity, positionId).X); // 30
 ```

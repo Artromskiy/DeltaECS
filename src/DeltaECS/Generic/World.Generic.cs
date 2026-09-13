@@ -43,22 +43,23 @@ public sealed partial class World
         return Create(stackalloc[] { componentId }, count);
     }
 
-    /// <summary>Adds and initializes the primary component for <typeparamref name="T"/> on one entity.</summary>
+    /// <summary>
+    /// Adds and initializes the primary component for <typeparamref name="T"/> on one entity.
+    /// </summary>
+    /// <example>
+    /// <para>For one component:</para>
+    /// <code>world.Add(entity, new Health { Value = 100 });</code>
+    /// <para>For multiple components, the generator emits a one-transition overload:</para>
+    /// <code>
+    /// world.Add(entity,
+    ///     new Weapon(equipped),
+    ///     new Damage(damage),
+    ///     new Attack(0f),
+    ///     Target.None);
+    /// </code>
+    /// </example>
     public bool Add<T>(Entity entity, in T value)
         => Add(entity, _layouts.GetPrimary<T>(), in value);
-
-    /// <summary>Adds and initializes two primary components on one entity.</summary>
-    public bool Add<T1, T2>(Entity entity, in T1 firstValue, in T2 secondValue)
-    {
-        ComponentId firstComponent = _layouts.GetPrimary<T1>();
-        ComponentId secondComponent = _layouts.GetPrimary<T2>();
-        return AddComponentPair(
-            entity,
-            firstComponent,
-            secondComponent,
-            in firstValue,
-            in secondValue);
-    }
 
     /// <summary>Adds and initializes the primary component for <typeparamref name="T"/> on every eligible entity.</summary>
     public int Add<T>(ReadOnlySpan<Entity> entities, in T value)
@@ -335,15 +336,14 @@ public sealed partial class World
         return changed;
     }
 
-    private bool AddComponentPair<T1, T2>(
+    internal bool AddGeneratedComponentValues<TInitializer>(
         Entity entity,
-        ComponentId firstComponent,
-        ComponentId secondComponent,
-        in T1 firstValue,
-        in T2 secondValue)
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
     {
         EnsureNoActiveLease("add components");
-        if (!TryResolve(entity, out int recordIndex))
+        if (componentIds.Length == 0 || !TryResolve(entity, out int recordIndex))
         {
             return false;
         }
@@ -351,31 +351,58 @@ public sealed partial class World
         ref readonly var record = ref RecordAt(recordIndex);
         Chunk sourceChunk = GetRecordChunk(record);
         Archetype sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
-        bool addFirst = !sourceArchetype.Contains(firstComponent);
-        bool addSecond = !sourceArchetype.Contains(secondComponent);
-        if (!addFirst && !addSecond)
+        ComponentMask changeMask = ComponentMask.From(componentIds);
+        ComponentMask targetMask = sourceArchetype.Mask.Or(changeMask);
+        if (targetMask == sourceArchetype.Mask)
         {
             return false;
         }
 
-        ComponentMask changeMask = ComponentMask.From(stackalloc[] { firstComponent, secondComponent });
-        ComponentMask targetMask = sourceArchetype.Mask.Or(changeMask);
         TransitionEdge edge = GetTransitionEdge(sourceArchetype.Id, changeMask, true, targetMask);
         MoveEntity(recordIndex, edge, out _, out int targetSlotIndex);
 
         ref readonly var targetRecord = ref RecordAt(recordIndex);
         Chunk targetChunk = GetRecordChunk(targetRecord);
         Archetype targetArchetype = _archetypes[targetChunk.ArchetypeId];
-        if (addFirst)
+        var writer = new GeneratedComponentValueWriter(
+            targetChunk,
+            targetArchetype,
+            targetSlotIndex,
+            edge.AddedTargetRowIndices);
+        initializer.Initialize(ref writer);
+        return true;
+    }
+
+    internal bool SetGeneratedComponentValues<TInitializer>(
+        Entity entity,
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
+    {
+        EnsureNoActiveLease("set components");
+        if (componentIds.Length == 0)
         {
-            targetChunk.GetComponentRow<T1>(targetArchetype.Mask.Rank(firstComponent)).RefAt(targetSlotIndex) = firstValue;
+            ThrowHelper.ThrowInvalidComponentList();
         }
 
-        if (addSecond)
+        if (!TryResolve(entity, out int recordIndex))
         {
-            targetChunk.GetComponentRow<T2>(targetArchetype.Mask.Rank(secondComponent)).RefAt(targetSlotIndex) = secondValue;
+            ThrowHelper.ThrowMissingComponent(entity, componentIds[0]);
         }
 
+        ref readonly var record = ref RecordAt(recordIndex);
+        Chunk chunk = GetRecordChunk(record);
+        Archetype archetype = _archetypes[chunk.ArchetypeId];
+        for (int index = 0; index < componentIds.Length; index++)
+        {
+            if (!archetype.Contains(componentIds[index]))
+            {
+                ThrowHelper.ThrowMissingComponent(entity, componentIds[index]);
+            }
+        }
+
+        var writer = new GeneratedComponentValueWriter(chunk, archetype, record.SlotIndex);
+        initializer.Initialize(ref writer);
         return true;
     }
 

@@ -44,14 +44,14 @@ The consumer source generator is documented in
 |---|---|---|
 | `World` | World ownership, entity lifecycle, structural operations and query entry points | `src/DeltaECS/Core/World.cs` and partials |
 | `Entity` | Index/generation entity handle | `src/DeltaECS/Core/EntityTypes.cs` |
-| `ComponentId`, `ComponentMask` | World-local identity and query matching | `src/DeltaECS/Core/ComponentTypes.cs` |
-| `ComponentLayout`, `SchemaId` | Registered CLR layout and stable schema identity | `src/DeltaECS/Core/ComponentTypes.cs` |
-| `ComponentLayoutRegistry` | Non-generic layout registration and lookup | `src/DeltaECS/Core/ComponentLayoutRegistry.cs` |
-| `QuerySpec` | `All`/`Any`/`None` selection masks | `src/DeltaECS/Core/QuerySpec.cs` |
+| `ComponentId` | World-local component identity | `src/DeltaECS/Core/ComponentTypes.cs` |
+| `SchemaId` | Stable schema identity used during component registration | `src/DeltaECS/Core/ComponentTypes.cs` |
+| `ComponentLayoutRegistry` | Component registration and primary CLR-type lookup | `src/DeltaECS/Core/ComponentLayoutRegistry.cs` |
+| `QuerySpec` | Opaque `All`/`Any`/`None` selection description created by the fluent query factories | `src/DeltaECS/Core/QuerySpec.cs` |
 | `Query` | World-owned cached query and generated API input | `src/DeltaECS/Core/EntityTypes.cs` |
 | `ReadAccess`, `WriteAccess` | Compiler-support access tokens used by generated callbacks | `src/DeltaECS/Core/QueryAccess.cs` |
 | `World.Create<T>`, `Add<T>`, `Remove<T>`, `TryGet<T>`, `Has<T>`, `Get<T>`, `Set<T>` and typed stamps | Single-component typed conveniences over core operations | `src/DeltaECS/Generic/World.Generic.cs` |
-| Generated `World.Create<T1,...>`, `Add<T1,...>`, `Remove<T1,...>` | On-demand primary-component structural operations using stack-only ID spans | `src/DeltaECS.Generators/GeneratedStructuralGenerator.cs` |
+| Generated `World.Create<T1,...>`, `Add<T1,...>`, `Remove<T1,...>`, multi-value `Set<T1,...>` | On-demand primary-component structural operations and archetype-validated value writes | `src/DeltaECS.Generators/GeneratedStructuralGenerator.cs` |
 | `World/Query.WhereAll`, `WhereAny`, `WhereNone` | Runtime `ComponentId` factories; generated typed variants compose through the existing query cache | `src/DeltaECS/Core/World.cs`, `src/DeltaECS/Core/EntityTypes.cs`, `src/DeltaECS.Generators/GeneratedQueryGenerator.cs`, `src/DeltaECS/Core/QuerySpec.cs` |
 | `World.ForEach`, `ForEachEntity` | Delegate callback entry points and throwing zero-component compiler anchors | `src/DeltaECS/Delegate/ForEachZeroArity.cs` |
 | `IForEach*` | Stable functor marker contracts | `src/DeltaECS/Functor/ForEachFunctorContracts.cs` |

@@ -13,7 +13,8 @@ dependency on the generator assembly.
 The package places its analyzer assembly under `analyzers/dotnet/cs`. It
 generates consumer-side `ForEach`/`ForEachEntity` callback forms, query-wide
 `Where` predicate terminals, generic primary-component structural façades for
-`Create`/`Add`/`Remove`, and typed `World` query factories on demand. Runtime
+`Create`/`Add`/`Remove` (including multi-value `Add` and `Set` calls), and typed `World`
+query factories on demand. Runtime
 `ComponentId` query factories are provided by `DeltaECS`; storage and runtime
 execution remain there as well.
 

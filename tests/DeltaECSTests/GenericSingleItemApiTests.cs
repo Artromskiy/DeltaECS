@@ -13,7 +13,7 @@ public sealed class GenericSingleItemApiTests
         var layouts = new ComponentLayoutRegistry();
         layouts.Register<Position>(new SchemaId(60_061));
         layouts.Register<Velocity>(new SchemaId(60_062));
-        using var world = new World(layouts, chunkCapacity: 2);
+        using var world = new World(layouts);
 
         var initial = new Position { X = 1, Y = 2 };
         ComponentId positionId = layouts.GetPrimary<Position>();
@@ -256,12 +256,76 @@ public sealed class GenericSingleItemApiTests
     }
 
     [Test]
+    public void TypedMultiValueSetValidatesTheArchetypeBeforeWriting()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_022));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_023));
+        using var world = new World(layouts);
+        Entity complete = world.Create(stackalloc[] { positionId, velocityId });
+        Entity positionOnly = world.Create(positionId, new Position { X = 1, Y = 2 });
+
+        Assert.That(world.Set(complete, new Position { X = 3, Y = 4 }, new Velocity { X = 5, Y = 6 }), Is.True);
+        Assert.That(world.Set<Position, Velocity>(complete, new Position { X = 7, Y = 8 }, new Velocity { X = 9, Y = 10 }), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(world.Get<Position>(complete), Is.EqualTo(new Position { X = 7, Y = 8 }));
+            Assert.That(world.Get<Velocity>(complete), Is.EqualTo(new Velocity { X = 9, Y = 10 }));
+        });
+
+        Assert.Throws<InvalidOperationException>(() =>
+            world.Set(positionOnly, new Position { X = 11, Y = 12 }, new Velocity { X = 13, Y = 14 }));
+        Assert.That(world.Get<Position>(positionOnly), Is.EqualTo(new Position { X = 1, Y = 2 }));
+    }
+
+    [Test]
+    public void TypedValueAddInitializesFourComponentsInOneTransition()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_016));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_017));
+        ComponentId healthId = layouts.Register<Health>(new SchemaId(60_018));
+        ComponentId namedRefId = layouts.Register<NamedRef>(new SchemaId(60_019));
+        ComponentId refMarkerId = layouts.Register<RefMarker>(new SchemaId(60_020));
+        using var world = new World(layouts);
+        Entity entity = world.Create(positionId, new Position { X = 1, Y = 2 });
+        var velocity = new Velocity { X = 3, Y = 4 };
+        var health = new Health { Value = 5 };
+        var named = new NamedRef { Name = "equipped", Id = 6 };
+        var marker = new RefMarker { Payload = new RefPayload(7), Value = 8 };
+
+        Assert.That(world.Add(entity, velocity, health, named, marker), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(world.Get<Position>(entity, positionId), Is.EqualTo(new Position { X = 1, Y = 2 }));
+            Assert.That(world.Get<Velocity>(entity, velocityId), Is.EqualTo(velocity));
+            Assert.That(world.Get<Health>(entity, healthId), Is.EqualTo(health));
+            Assert.That(world.Get<NamedRef>(entity, namedRefId), Is.EqualTo(named));
+            Assert.That(world.Get<RefMarker>(entity, refMarkerId), Is.EqualTo(marker));
+        });
+
+        Assert.That(world.Add(
+            entity,
+            new Velocity { X = 10, Y = 10 },
+            new Health { Value = 10 },
+            new NamedRef { Name = "changed", Id = 10 },
+            new RefMarker { Payload = new RefPayload(10), Value = 10 }), Is.False);
+        Assert.Multiple(() =>
+        {
+            Assert.That(world.Get<Velocity>(entity, velocityId), Is.EqualTo(velocity));
+            Assert.That(world.Get<Health>(entity, healthId), Is.EqualTo(health));
+            Assert.That(world.Get<NamedRef>(entity, namedRefId), Is.EqualTo(named));
+            Assert.That(world.Get<RefMarker>(entity, refMarkerId), Is.EqualTo(marker));
+        });
+    }
+
+    [Test]
     public void BatchCreateSupportsOwnedAndCallerOwnedEntityStorage()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_031));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_032));
-        using var world = new World(layouts, chunkCapacity: 2);
+        using var world = new World(layouts);
 
         Entity[] created = new Entity[5];
         world.Create(new[] { positionId, velocityId }, created.Length, created);
