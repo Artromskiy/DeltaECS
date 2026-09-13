@@ -179,7 +179,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             foreach (Shape shape in patternGroup)
             {
                 context.AddSource(
-                    $"DemandForEach_{StableName(shape.Key)}.g.cs",
+                    $"DemandForEach_{GeneratorSupport.StableName(shape.Key)}.g.cs",
                     Render(shape, renderContracts, profiling, languageSupportsRefReadonlyParameters));
                 if (interceptionSites.TryGetValue(shape.Key, out List<InterceptionSite>? interceptorSites))
                 {
@@ -382,7 +382,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             }
         }
 
-        string id = StableName(shape.Key + "|" + locationData);
+        string id = GeneratorSupport.StableName(shape.Key + "|" + locationData);
         site = new InterceptionSite(
             id,
             shape,
@@ -1615,7 +1615,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         Shape shape,
         bool languageSupportsRefReadonlyParameters)
     {
-        string generic = GenericTypes(shape.Components.Length);
+        string generic = GeneratorSupport.GenericTypes(shape.Components.Length);
         string parameters = RefParameters(shape.Pattern);
         string suffix = IsAllWrite(shape.Pattern) ? string.Empty : "_" + shape.Pattern;
         AppendContract(source, "ForEachAction" + suffix, generic, parameters);
@@ -1690,12 +1690,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
     private static void RenderParallelInvoker(StringBuilder source, Shape shape)
     {
-        if (shape.IsStamp)
-        {
-            RenderStampParallelInvoker(source, shape);
-            return;
-        }
-
         string generic = ComponentGenericTypes(shape);
         string stateGeneric = StateGeneric(shape, generic);
         string name = ParallelInvokerName(shape);
@@ -1712,12 +1706,15 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         source.AppendLine("    public void Invoke(ref GeneratedQuerySlots slots)");
         source.AppendLine("    {");
-        for (int index = 0; index < shape.Pattern.Length; index++)
+        if (!shape.IsStamp)
         {
-            string componentType = ComponentType(shape, index);
-            source.Append("        ref ").Append(componentType).Append(" row").Append(index)
-                .Append(" = ref slots.GetGeneratedReadReference<").Append(componentType).Append(">(_access")
-                .Append(index).AppendLine(");");
+            for (int index = 0; index < shape.Pattern.Length; index++)
+            {
+                string componentType = ComponentType(shape, index);
+                source.Append("        ref ").Append(componentType).Append(" row").Append(index)
+                    .Append(" = ref slots.GetGeneratedReadReference<").Append(componentType).Append(">(_access")
+                    .Append(index).AppendLine(");");
+            }
         }
 
         source.AppendLine("        int count = slots.Count;");
@@ -1726,48 +1723,19 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
             string componentType = ComponentType(shape, index);
-            source.Append("            ")
-                .Append(IsWrite(shape.Pattern[index]) ? "ref " : "ref readonly ")
-                .Append(componentType).Append(" component").Append(index)
-                .Append(" = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row")
-                .Append(index).AppendLine(", index);");
-        }
-
-        source.Append("            ");
-        AppendClosedInvocation(source, shape, "_action", "_functor", "_context", "component", "slots.EntityAt(index)");
-        source.AppendLine(";");
-        source.AppendLine("        }");
-        source.AppendLine("    }");
-        AppendInvokerProperties(source, shape);
-        source.AppendLine("}");
-        source.AppendLine();
-    }
-
-    private static void RenderStampParallelInvoker(StringBuilder source, Shape shape)
-    {
-        string generic = ComponentGenericTypes(shape);
-        string stateGeneric = StateGeneric(shape, generic);
-        string name = ParallelInvokerName(shape);
-        string actionType = ActionType(shape);
-        source.Append("internal struct ").Append(name).Append(stateGeneric).AppendLine(" : IGeneratedParallelInvoker");
-        source.AppendLine("{");
-        AppendInvokerFields(source, shape, actionType);
-        AppendInvokerConstructor(source, shape, name, actionType, parallel: true);
-        source.AppendLine();
-        source.Append("    public bool RequiresSingleThread => ")
-            .Append(shape.ContextMode == ContextMode.Ref ? "true" : "false")
-            .AppendLine(";");
-        source.AppendLine();
-        source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        source.AppendLine("    public void Invoke(ref GeneratedQuerySlots slots)");
-        source.AppendLine("    {");
-        source.AppendLine("        int count = slots.Count;");
-        source.AppendLine("        for (int index = 0; index < count; index++)");
-        source.AppendLine("        {");
-        for (int index = 0; index < shape.Pattern.Length; index++)
-        {
-            source.Append("            Stamp component").Append(index)
-                .Append(" = slots.GetGeneratedStamp(_access").Append(index).AppendLine(", index);");
+            if (shape.IsStamp)
+            {
+                source.Append("            Stamp component").Append(index)
+                    .Append(" = slots.GetGeneratedStamp(_access").Append(index).AppendLine(", index);");
+            }
+            else
+            {
+                source.Append("            ")
+                    .Append(IsWrite(shape.Pattern[index]) ? "ref " : "ref readonly ")
+                    .Append(componentType).Append(" component").Append(index)
+                    .Append(" = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row")
+                    .Append(index).AppendLine(", index);");
+            }
         }
 
         source.Append("            ");
@@ -1871,12 +1839,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string ids,
         string componentParameters)
     {
-        if (shape.IsStamp)
-        {
-            RenderClosedStampMethod(source, shape, methodName, ids, componentParameters);
-            return;
-        }
-
         string generic = ComponentGenericTypes(shape);
         string genericPrefix = StateGeneric(shape, generic);
         string contextParameter = shape.HasContext
@@ -1885,7 +1847,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string callbackParameter = shape.IsFunctor
             ? ", ref " + shape.FunctorType + " functor"
             : ", " + ActionType(shape) + " action";
-        string workerCountParameter = shape.Parallel ? ", int workerCount" : string.Empty;
         string invokerType = ParallelInvokerName(shape) + StateGeneric(shape, generic);
 
         source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
@@ -1895,39 +1856,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             .Append(componentParameters)
             .Append(contextParameter)
             .Append(callbackParameter)
-            .Append(workerCountParameter)
+            .Append(", int workerCount")
             .AppendLine(")");
         source.AppendLine("    {");
-        if (shape.HasEntityTarget)
-        {
-            source.Append("        ").Append(AccessSetup(shape, ids, closed: true, prepared: true));
-            string entityInvokerType = ParallelInvokerName(shape) + StateGeneric(shape, generic);
-            source.Append("        var invoker = new ").Append(entityInvokerType).Append('(');
-            var entityConstructorArguments = new List<string>();
-            if (shape.HasContext)
-            {
-                entityConstructorArguments.Add("context");
-            }
-
-            entityConstructorArguments.Add(shape.IsFunctor ? "functor" : "action");
-            entityConstructorArguments.Add(AccessArguments(shape.Pattern));
-            source.Append(string.Join(", ", entityConstructorArguments)).AppendLine(");");
-            source.Append("        GeneratedForEachRuntime.ExecuteEntityListParallel(world, in query, entities, ref invoker, ");
-            AppendParallelWriteIndices(source, shape);
-            source.AppendLine(", workerCount);");
-            if (shape.HasContext && shape.ContextMode == ContextMode.Ref)
-            {
-                source.AppendLine("        context = invoker.Context;");
-            }
-
-            if (shape.IsFunctor)
-            {
-                source.AppendLine("        functor = invoker.Functor;");
-            }
-
-            source.AppendLine("    }");
-            return;
-        }
         source.Append("        ").Append(AccessSetup(shape, ids, closed: true, prepared: true));
         source.Append("        var invoker = new ").Append(invokerType).Append('(');
         var constructorArguments = new List<string>();
@@ -1939,15 +1870,21 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         constructorArguments.Add(shape.IsFunctor ? "functor" : "action");
         constructorArguments.Add(AccessArguments(shape.Pattern));
         source.Append(string.Join(", ", constructorArguments)).AppendLine(");");
-        source.Append("        GeneratedForEachRuntime.ExecuteParallelDense(world, in query, ref invoker, ");
+        source.Append("        GeneratedForEachRuntime.Execute");
+        if (shape.HasEntityTarget)
+        {
+            source.Append("EntityListParallel(world, in query, entities, ref invoker, ");
+        }
+        else
+        {
+            source.Append("ParallelDense(world, in query, ref invoker, ");
+        }
+
         AppendParallelWriteIndices(source, shape);
         source.AppendLine(", workerCount);");
-        if (shape.HasContext)
+        if (shape.HasContext && shape.ContextMode == ContextMode.Ref)
         {
-            if (shape.ContextMode == ContextMode.Ref)
-            {
-                source.AppendLine("        context = invoker.Context;");
-            }
+            source.AppendLine("        context = invoker.Context;");
         }
 
         if (shape.IsFunctor)
@@ -2035,8 +1972,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         Shape shape,
         bool profiling)
     {
-        string className = "DemandForEachExtensions_" + StableName(shape.Key);
-        string generic = shape.GenericSelectors ? GenericTypes(shape.Components.Length) : string.Empty;
+        string className = "DemandForEachExtensions_" + GeneratorSupport.StableName(shape.Key);
+        string generic = shape.GenericSelectors ? GeneratorSupport.GenericTypes(shape.Components.Length) : string.Empty;
         string ids = shape.ExplicitIds ? ComponentParameters(shape.Components.Length) : string.Empty;
         string idArguments = shape.ExplicitIds ? ComponentNames(shape.Components.Length) : PrimaryArguments(shape);
         string closedIdArguments = shape.ExplicitIds ? ClosedComponentNames(shape.Components.Length) : string.Empty;
@@ -2058,7 +1995,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string genericPrefix = StateGeneric(shape, generic);
         source.Append(shape.IsFunctor ? "internal static class " : "public static class ").Append(className).AppendLine();
         source.AppendLine("{");
-        string closedMethodName = "ExecuteClosed_" + StableName(shape.Key);
+        string closedMethodName = "ExecuteClosed_" + GeneratorSupport.StableName(shape.Key);
         if (shape.Parallel)
         {
             RenderClosedParallelMethod(source, shape, closedMethodName, closedIdArguments, componentParameters);
@@ -2121,7 +2058,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         if (shape.HasEntityTarget)
         {
             RenderInterceptedParallelInvoker(source, shape, site);
-            RenderInterceptedEntityListClosedMethod(source, shape, site);
+            RenderInterceptedParallelClosedMethod(source, shape, site);
         }
         else if (shape.Parallel)
         {
@@ -2243,13 +2180,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         Shape shape,
         InterceptionSite site)
     {
-        if (shape.IsStamp)
-        {
-            RenderInterceptedStampClosedMethod(source, shape, site);
-            return;
-        }
-
-        var closedShape = new Shape(
+        Shape closedShape = new(
             ReceiverKind.World,
             shape.ExplicitIds,
             shape.HasEntity,
@@ -2261,16 +2192,19 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             functorType: null,
             shape.ContextType,
             contextMode: shape.ContextMode,
-            methodName: shape.MethodName);
+            methodName: shape.MethodName,
+            isStamp: shape.IsStamp);
         string[] parameters = InterceptedParameterNames(site);
         string methodName = "ExecuteInterceptedClosed_" + site.Id;
         bool inlineBody = CanInlineInterceptedLambda(site);
         string callbackName = "InvokeInterceptedCallback_" + site.Id;
         string countName = GeneratedLocalName(site, "count", 0);
         string indexName = GeneratedLocalName(site, "index", 0);
-        string[] rowNames = Enumerable.Range(0, closedShape.Pattern.Length)
-            .Select(index => GeneratedLocalName(site, "row", index))
-            .ToArray();
+        string[] rowNames = shape.IsStamp
+            ? Array.Empty<string>()
+            : Enumerable.Range(0, closedShape.Pattern.Length)
+                .Select(index => GeneratedLocalName(site, "row", index))
+                .ToArray();
         string componentParameters = closedShape.ExplicitIds
             ? ", " + ClosedComponentParameters(closedShape.Components.Length)
             : string.Empty;
@@ -2285,17 +2219,25 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             .Append(contextParameter)
             .AppendLine(")");
         source.AppendLine("{");
-        source.Append("    using var execution = GeneratedForEachRuntime.")
-            .Append(BoolHasWrites(closedShape.Pattern) == "true" ? "OpenWriteDense" : "OpenReadDense")
-            .AppendLine("(world, in query);");
         source.Append("    ").Append(AccessSetup(
             closedShape,
             closedShape.ExplicitIds ? ClosedComponentNames(closedShape.Components.Length) : string.Empty,
             closed: true,
             prepared: true));
-        AppendQueryComponentRoutes(source, closedShape, "    ");
-        AppendArchetypeWriteSetup(source, shape, "    ");
-        if (closedShape.HasEntity)
+        if (shape.IsStamp)
+        {
+            source.AppendLine("    using var execution = GeneratedForEachRuntime.OpenReadDense(world, in query);");
+        }
+        else
+        {
+            source.Append("    using var execution = GeneratedForEachRuntime.")
+                .Append(BoolHasWrites(closedShape.Pattern) == "true" ? "OpenWriteDense" : "OpenReadDense")
+                .AppendLine("(world, in query);");
+            AppendQueryComponentRoutes(source, closedShape, "    ");
+            AppendArchetypeWriteSetup(source, shape, "    ");
+        }
+
+        if (shape.IsStamp || closedShape.HasEntity)
         {
             source.AppendLine("    while (execution.MoveNextTrusted(out var slots))");
         }
@@ -2304,33 +2246,34 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             source.Append("    while (execution.MoveNextTrusted(out var componentRows, out int ")
                 .Append(countName).AppendLine("))");
         }
+
         source.AppendLine("    {");
-        for (int index = 0; index < closedShape.Pattern.Length; index++)
+        if (!shape.IsStamp)
         {
-            string componentType = closedShape.Components[index];
-            string rowName = rowNames[index];
-            if (closedShape.HasEntity)
+            for (int index = 0; index < closedShape.Pattern.Length; index++)
             {
-                source.Append("        ")
-                    .Append("ref ")
-                    .Append(componentType).Append(' ').Append(rowName)
-                    .Append(" = ref slots.GetGenerated")
-                    .Append(IsWrite(closedShape.Pattern[index]) ? "Write" : "Read")
-                    .Append("Reference<").Append(componentType).Append(">(access").Append(index).AppendLine(");");
-            }
-            else
-            {
-                source.Append("        ref ").Append(componentType).Append(' ').Append(rowName)
-                    .Append(" = ref GeneratedForEachRuntime.GetGeneratedRow<")
-                    .Append(componentType).Append(">(componentRows, route").Append(index).AppendLine(");");
+                string componentType = closedShape.Components[index];
+                string rowName = rowNames[index];
+                source.Append("        ref ").Append(componentType).Append(' ').Append(rowName);
+                if (closedShape.HasEntity)
+                {
+                    source.Append(" = ref slots.GetGenerated")
+                        .Append(IsWrite(closedShape.Pattern[index]) ? "Write" : "Read")
+                        .Append("Reference<").Append(componentType).Append(">(access").Append(index).AppendLine(");");
+                }
+                else
+                {
+                    source.Append(" = ref GeneratedForEachRuntime.GetGeneratedRow<")
+                        .Append(componentType).Append(">(componentRows, route").Append(index).AppendLine(");");
+                }
             }
         }
 
-        if (closedShape.HasEntity)
+        if (shape.IsStamp || closedShape.HasEntity)
         {
             source.Append("        int ").Append(countName).AppendLine(" = slots.Count;");
         }
-        if (closedShape.HasEntity)
+        if (closedShape.HasEntity || shape.IsStamp)
         {
             source.Append("        for (int ").Append(indexName).Append(" = 0; ").Append(indexName)
                 .Append(" < ").Append(countName).Append("; ").Append(indexName).AppendLine("++)");
@@ -2340,6 +2283,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             source.Append("        int ").Append(indexName).AppendLine(" = 0;");
             source.Append("        while (").Append(indexName).Append(" < ").Append(countName).AppendLine(")");
         }
+
         source.AppendLine("        {");
         int parameterIndex = 0;
         if (closedShape.HasContext)
@@ -2356,18 +2300,25 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         for (int index = 0; index < closedShape.Pattern.Length; index++)
         {
-            string componentType = closedShape.Components[index];
-            source.Append("            ")
-                .Append(IsWrite(closedShape.Pattern[index]) ? "ref " : "ref readonly ")
-                .Append(componentType).Append(' ').Append(parameters[parameterIndex + index]);
-            if (closedShape.HasEntity)
+            if (shape.IsStamp)
             {
-                source.Append(" = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref ")
-                    .Append(rowNames[index]).Append(", ").Append(indexName).AppendLine(");");
+                source.Append("            Stamp ").Append(parameters[parameterIndex + index])
+                    .Append(" = slots.GetGeneratedStamp(access").Append(index).Append(", ").Append(indexName).AppendLine(");");
             }
             else
             {
-                source.Append(" = ref ").Append(rowNames[index]).AppendLine(";");
+                source.Append("            ")
+                    .Append(IsWrite(closedShape.Pattern[index]) ? "ref " : "ref readonly ")
+                    .Append(closedShape.Components[index]).Append(' ').Append(parameters[parameterIndex + index]);
+                if (closedShape.HasEntity)
+                {
+                    source.Append(" = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref ")
+                        .Append(rowNames[index]).Append(", ").Append(indexName).AppendLine(");");
+                }
+                else
+                {
+                    source.Append(" = ref ").Append(rowNames[index]).AppendLine(";");
+                }
             }
         }
 
@@ -2379,7 +2330,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         {
             AppendCallbackInvocation(source, closedShape, callbackName, parameters, "            ");
         }
-        if (!closedShape.HasEntity)
+        if (!shape.IsStamp && !closedShape.HasEntity)
         {
             for (int index = 0; index < closedShape.Pattern.Length; index++)
             {
@@ -2396,111 +2347,22 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         source.AppendLine();
     }
 
-    private static void RenderInterceptedStampClosedMethod(
-        StringBuilder source,
-        Shape shape,
-        InterceptionSite site)
-    {
-        Shape closedShape = new(
-            ReceiverKind.World,
-            shape.ExplicitIds,
-            shape.HasEntity,
-            shape.HasContext,
-            isFunctor: true,
-            implicitComponents: true,
-            shape.Pattern,
-            shape.Components,
-            functorType: null,
-            shape.ContextType,
-            contextMode: shape.ContextMode,
-            methodName: shape.MethodName,
-            isStamp: true);
-        string[] parameters = InterceptedParameterNames(site);
-        string methodName = "ExecuteInterceptedClosed_" + site.Id;
-        string callbackName = "InvokeInterceptedCallback_" + site.Id;
-        string countName = GeneratedLocalName(site, "count", 0);
-        string indexName = GeneratedLocalName(site, "index", 0);
-        string componentParameters = closedShape.ExplicitIds
-            ? ", " + ClosedComponentParameters(closedShape.Components.Length)
-            : string.Empty;
-        string contextParameter = closedShape.HasContext
-            ? ", " + ContextParameter(closedShape.ContextMode, InterceptedContextType(closedShape), parameters[0])
-            : string.Empty;
-        bool inlineBody = CanInlineInterceptedLambda(site);
-
-        source.AppendLine("[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        source.Append("private static void ").Append(methodName)
-            .Append("(global::Delta.ECS.World world, in global::Delta.ECS.Query query")
-            .Append(componentParameters)
-            .Append(contextParameter)
-            .AppendLine(")");
-        source.AppendLine("{");
-        source.Append("    ").Append(AccessSetup(
-            closedShape,
-            closedShape.ExplicitIds ? ClosedComponentNames(closedShape.Components.Length) : string.Empty,
-            closed: true,
-            prepared: true));
-        source.AppendLine("    using var execution = GeneratedForEachRuntime.OpenReadDense(world, in query);");
-        source.AppendLine("    while (execution.MoveNextTrusted(out var slots))");
-        source.AppendLine("    {");
-        source.Append("        int ").Append(countName).AppendLine(" = slots.Count;");
-        source.Append("        for (int ").Append(indexName).Append(" = 0; ").Append(indexName)
-            .Append(" < ").Append(countName).Append("; ").Append(indexName).AppendLine("++)");
-        source.AppendLine("        {");
-        int parameterIndex = 0;
-        if (closedShape.HasContext)
-        {
-            parameterIndex++;
-        }
-
-        if (closedShape.HasEntity)
-        {
-            source.Append("            global::Delta.ECS.Entity ").Append(parameters[parameterIndex])
-                .Append(" = slots.EntityAt(").Append(indexName).AppendLine(");");
-            parameterIndex++;
-        }
-
-        for (int index = 0; index < closedShape.Pattern.Length; index++)
-        {
-            source.Append("            Stamp ").Append(parameters[parameterIndex + index])
-                .Append(" = slots.GetGeneratedStamp(access").Append(index).Append(", ").Append(indexName).AppendLine(");");
-        }
-
-        if (inlineBody)
-        {
-            AppendInterceptedLambdaBody(source, site, "            ");
-        }
-        else
-        {
-            AppendCallbackInvocation(source, closedShape, callbackName, parameters, "            ");
-        }
-
-        source.AppendLine("        }");
-        source.AppendLine("    }");
-        source.AppendLine("}");
-        source.AppendLine();
-    }
-
     private static void RenderInterceptedParallelInvoker(
         StringBuilder source,
         Shape shape,
         InterceptionSite site)
     {
-        if (shape.IsStamp)
-        {
-            RenderInterceptedStampParallelInvoker(source, shape, site);
-            return;
-        }
-
         string name = "InterceptedParallelInvoker_" + site.Id;
         string[] parameters = InterceptedParameterNames(site);
         bool inlineBody = CanInlineInterceptedLambda(site);
         string callbackName = "InvokeInterceptedCallback_" + site.Id;
         string countName = GeneratedLocalName(site, "count", 0);
         string indexName = GeneratedLocalName(site, "index", 0);
-        string[] rowNames = Enumerable.Range(0, shape.Pattern.Length)
-            .Select(index => GeneratedLocalName(site, "row", index))
-            .ToArray();
+        string[] rowNames = shape.IsStamp
+            ? Array.Empty<string>()
+            : Enumerable.Range(0, shape.Pattern.Length)
+                .Select(index => GeneratedLocalName(site, "row", index))
+                .ToArray();
         source.Append("private struct ").Append(name).AppendLine(" : IGeneratedParallelInvoker");
         source.AppendLine("{");
         if (shape.HasContext)
@@ -2531,7 +2393,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
             source.Append("        _access").Append(index).Append(" = GeneratedForEachRuntime.Get")
-                .Append(IsWrite(shape.Pattern[index]) ? "Write" : "Read")
+                .Append(shape.IsStamp || !IsWrite(shape.Pattern[index]) ? "Read" : "Write")
                 .AppendLine("QueryComponentIndex(access" + index + ");");
         }
 
@@ -2564,16 +2426,19 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         int parameterIndex = shape.HasContext ? 1 : 0;
-        for (int index = 0; index < shape.Pattern.Length; index++)
+        if (!shape.IsStamp)
         {
-            source.Append("        ref ").Append(shape.Components[index]).Append(' ').Append(rowNames[index])
-                .Append(" = ref slots.GetGeneratedReadReference<").Append(shape.Components[index]).Append(">(_access")
-                .Append(index).AppendLine(");");
+            for (int index = 0; index < shape.Pattern.Length; index++)
+            {
+                source.Append("        ref ").Append(shape.Components[index]).Append(' ').Append(rowNames[index])
+                    .Append(" = ref slots.GetGeneratedReadReference<").Append(shape.Components[index]).Append(">( _access")
+                    .Append(index).AppendLine(");".Replace("( ", "("));
+            }
         }
 
         source.Append("        int ").Append(countName).AppendLine(" = slots.Count;");
-        source.Append("        for (int ").Append(indexName).Append(" = 0; ").Append(indexName)
-            .Append(" < ").Append(countName).Append("; ").Append(indexName).AppendLine("++)");
+        source.Append("        for (int ").Append(indexName).Append(" = 0; ").Append(indexName).Append(" < ")
+            .Append(countName).Append("; ").Append(indexName).AppendLine("++)");
         source.AppendLine("        {");
         if (shape.HasEntity)
         {
@@ -2584,118 +2449,19 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
-            source.Append("            ")
-                .Append(IsWrite(shape.Pattern[index]) ? "ref " : "ref readonly ")
-                .Append(shape.Components[index]).Append(' ').Append(parameters[parameterIndex + index])
-                .Append(" = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref ")
-                .Append(rowNames[index]).Append(", ").Append(indexName).AppendLine(");");
-        }
-
-        if (inlineBody)
-        {
-            AppendInterceptedLambdaBody(source, site, "            ");
-        }
-        else
-        {
-            AppendCallbackInvocation(source, shape, callbackName, parameters, "            ");
-        }
-
-        source.AppendLine("        }");
-        source.AppendLine("    }");
-        if (shape.HasContext)
-        {
-            source.Append("    internal ").Append(InterceptedContextType(shape)).AppendLine(" Context => _context;");
-        }
-
-        source.AppendLine("}");
-        source.AppendLine();
-    }
-
-    private static void RenderInterceptedStampParallelInvoker(
-        StringBuilder source,
-        Shape shape,
-        InterceptionSite site)
-    {
-        string name = "InterceptedParallelInvoker_" + site.Id;
-        string[] parameters = InterceptedParameterNames(site);
-        bool inlineBody = CanInlineInterceptedLambda(site);
-        string callbackName = "InvokeInterceptedCallback_" + site.Id;
-        source.Append("private struct ").Append(name).AppendLine(" : IGeneratedParallelInvoker");
-        source.AppendLine("{");
-        if (shape.HasContext)
-        {
-            source.Append("    private ").Append(InterceptedContextType(shape)).AppendLine(" _context;");
-        }
-
-        for (int index = 0; index < shape.Pattern.Length; index++)
-        {
-            source.Append("    private readonly int _access").Append(index).AppendLine(";");
-        }
-
-        source.Append("    internal ").Append(name).Append('(');
-        var constructorParameters = new List<string>();
-        if (shape.HasContext)
-        {
-            constructorParameters.Add(InterceptedContextType(shape) + " context");
-        }
-
-        constructorParameters.Add(AccessTokenParameters(shape.Pattern));
-        source.Append(string.Join(", ", constructorParameters)).AppendLine(")");
-        source.AppendLine("    {");
-        if (shape.HasContext)
-        {
-            source.AppendLine("        _context = context;");
-        }
-
-        for (int index = 0; index < shape.Pattern.Length; index++)
-        {
-            source.Append("        _access").Append(index).Append(" = GeneratedForEachRuntime.GetReadQueryComponentIndex(access")
-                .Append(index).AppendLine(");");
-        }
-
-        source.AppendLine("    }");
-        source.AppendLine();
-        source.Append("    public bool RequiresSingleThread => ")
-            .Append(shape.ContextMode == ContextMode.Ref ? "true" : "false")
-            .AppendLine(";");
-        source.AppendLine();
-        source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        source.AppendLine("    public void Invoke(ref GeneratedQuerySlots slots)");
-        source.AppendLine("    {");
-        if (shape.HasContext)
-        {
-            if (shape.ContextMode == ContextMode.Value)
+            if (shape.IsStamp)
             {
-                source.Append("        ").Append(InterceptedContextType(shape)).Append(' ')
-                    .Append(parameters[0]).AppendLine(" = _context;");
-            }
-            else if (shape.ContextMode == ContextMode.Ref)
-            {
-                source.Append("        ref ").Append(InterceptedContextType(shape)).Append(' ')
-                    .Append(parameters[0]).AppendLine(" = ref _context;");
+                source.Append("            Stamp ").Append(parameters[parameterIndex + index])
+                    .Append(" = slots.GetGeneratedStamp(_access").Append(index).Append(", ").Append(indexName).AppendLine(");");
             }
             else
             {
-                source.Append("        ref readonly ").Append(InterceptedContextType(shape)).Append(' ')
-                    .Append(parameters[0]).AppendLine(" = ref _context;");
+                source.Append("            ")
+                    .Append(IsWrite(shape.Pattern[index]) ? "ref " : "ref readonly ")
+                    .Append(shape.Components[index]).Append(' ').Append(parameters[parameterIndex + index])
+                    .Append(" = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref ")
+                    .Append(rowNames[index]).Append(", ").Append(indexName).AppendLine(");");
             }
-        }
-
-        int parameterIndex = shape.HasContext ? 1 : 0;
-        source.AppendLine("        int count = slots.Count;");
-        source.AppendLine("        for (int index = 0; index < count; index++)");
-        source.AppendLine("        {");
-        if (shape.HasEntity)
-        {
-            source.Append("            global::Delta.ECS.Entity ").Append(parameters[parameterIndex])
-                .AppendLine(" = slots.EntityAt(index);");
-            parameterIndex++;
-        }
-
-        for (int index = 0; index < shape.Pattern.Length; index++)
-        {
-            source.Append("            Stamp ").Append(parameters[parameterIndex + index])
-                .Append(" = slots.GetGeneratedStamp(_access").Append(index).AppendLine(", index);");
         }
 
         if (inlineBody)
@@ -2753,25 +2519,23 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         Shape shape,
         InterceptionSite site)
     {
-        Shape accessShape = shape.IsStamp
-            ? new Shape(
-                ReceiverKind.World,
-                shape.ExplicitIds,
-                shape.HasEntity,
-                shape.HasContext,
-                isFunctor: true,
-                implicitComponents: true,
-                shape.Pattern,
-                shape.Components,
-                functorType: null,
-                shape.ContextType,
-                parallel: true,
-                contextMode: shape.ContextMode,
-                methodName: shape.MethodName,
-                hasEntityTarget: shape.HasEntityTarget,
-                hasQuery: shape.HasQuery,
-                isStamp: true)
-            : shape;
+        Shape accessShape = new(
+            ReceiverKind.World,
+            shape.ExplicitIds,
+            shape.HasEntity,
+            shape.HasContext,
+            isFunctor: true,
+            implicitComponents: true,
+            shape.Pattern,
+            shape.Components,
+            functorType: null,
+            shape.ContextType,
+            parallel: shape.Parallel,
+            contextMode: shape.ContextMode,
+            methodName: shape.MethodName,
+            hasEntityTarget: shape.HasEntityTarget,
+            hasQuery: true,
+            isStamp: shape.IsStamp);
         string[] parameters = InterceptedParameterNames(site);
         string methodName = "ExecuteInterceptedClosed_" + site.Id;
         string invokerType = "InterceptedParallelInvoker_" + site.Id;
@@ -2784,11 +2548,21 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         source.AppendLine("[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         source.Append("private static void ").Append(methodName)
-            .Append("(global::Delta.ECS.World world, in global::Delta.ECS.Query query")
+            .Append("(global::Delta.ECS.World world");
+        if (shape.HasEntityTarget)
+        {
+            source.Append(", global::System.ReadOnlySpan<global::Delta.ECS.Entity> entities");
+        }
+
+        source.Append(", in global::Delta.ECS.Query query")
             .Append(componentParameters)
-            .Append(contextParameter)
-            .Append(", int workerCount")
-            .AppendLine(")");
+            .Append(contextParameter);
+        if (shape.Parallel)
+        {
+            source.Append(", int workerCount");
+        }
+
+        source.AppendLine(")");
         source.AppendLine("{");
         source.Append("    ").Append(AccessSetup(
             accessShape,
@@ -2804,86 +2578,23 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         constructorArguments.Add(AccessArguments(shape.Pattern));
         source.Append(string.Join(", ", constructorArguments)).AppendLine(");");
-        source.Append("    GeneratedForEachRuntime.ExecuteParallelDense(world, in query, ref invoker, ");
+        source.Append("    GeneratedForEachRuntime.Execute");
+        if (shape.HasEntityTarget)
+        {
+            source.Append("EntityList");
+            if (shape.Parallel)
+            {
+                source.Append("Parallel");
+            }
+
+            source.Append("(world, in query, entities, ref invoker, ");
+        }
+        else
+        {
+            source.Append("ParallelDense(world, in query, ref invoker, ");
+        }
+
         AppendParallelWriteIndices(source, accessShape);
-        source.AppendLine(", workerCount);");
-        if (shape.HasContext && shape.ContextMode == ContextMode.Ref)
-        {
-            source.Append("    ").Append(parameters[0]).AppendLine(" = invoker.Context;");
-        }
-
-        source.AppendLine("}");
-        source.AppendLine();
-    }
-
-    private static void RenderInterceptedEntityListClosedMethod(
-        StringBuilder source,
-        Shape shape,
-        InterceptionSite site)
-    {
-        var closedShape = new Shape(
-            ReceiverKind.World,
-            shape.ExplicitIds,
-            shape.HasEntity,
-            shape.HasContext,
-            isFunctor: true,
-            implicitComponents: true,
-            shape.Pattern,
-            shape.Components,
-            functorType: null,
-            shape.ContextType,
-            parallel: shape.Parallel,
-            contextMode: shape.ContextMode,
-            methodName: shape.MethodName,
-            hasEntityTarget: true,
-            hasQuery: true,
-            isStamp: shape.IsStamp);
-        string[] parameters = InterceptedParameterNames(site);
-        string methodName = "ExecuteInterceptedClosed_" + site.Id;
-        string invokerType = "InterceptedParallelInvoker_" + site.Id;
-        string componentParameters = shape.ExplicitIds
-            ? ", " + ClosedComponentParameters(shape.Components.Length)
-            : string.Empty;
-        string contextParameter = shape.HasContext
-            ? ", " + ContextParameter(shape.ContextMode, InterceptedContextType(shape), parameters[0])
-            : string.Empty;
-
-        source.AppendLine("[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        source.Append("private static void ").Append(methodName)
-            .Append("(global::Delta.ECS.World world, global::System.ReadOnlySpan<global::Delta.ECS.Entity> entities");
-        source.Append(", in global::Delta.ECS.Query query");
-        source.Append(componentParameters)
-            .Append(contextParameter);
-        if (shape.Parallel)
-        {
-            source.Append(", int workerCount");
-        }
-
-        source.AppendLine(")");
-        source.AppendLine("{");
-        source.Append("    ").Append(AccessSetup(
-            closedShape,
-            closedShape.ExplicitIds ? ClosedComponentNames(closedShape.Components.Length) : string.Empty,
-            closed: true,
-            prepared: true));
-        source.Append("    var invoker = new ").Append(invokerType).Append('(');
-        var constructorArguments = new List<string>();
-        if (shape.HasContext)
-        {
-            constructorArguments.Add(parameters[0]);
-        }
-
-        constructorArguments.Add(AccessArguments(shape.Pattern));
-        source.Append(string.Join(", ", constructorArguments)).AppendLine(");");
-        source.Append("    GeneratedForEachRuntime.ExecuteEntityList");
-        if (shape.Parallel)
-        {
-            source.Append("Parallel");
-        }
-
-        source.Append("(world, in query, ");
-        source.Append("entities, ref invoker, ");
-        AppendParallelWriteIndices(source, closedShape);
         if (shape.Parallel)
         {
             source.Append(", workerCount");
@@ -3036,12 +2747,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string ids,
         string componentParameters)
     {
-        if (shape.IsStamp)
-        {
-            RenderClosedStampMethod(source, shape, methodName, ids, componentParameters);
-            return;
-        }
-
         string generic = ComponentGenericTypes(shape);
         string genericPrefix = StateGeneric(shape, generic);
         string contextParameter = shape.HasContext
@@ -3060,9 +2765,10 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             .Append(callbackParameter)
             .AppendLine(")");
         source.AppendLine("    {");
+        source.Append("        ").Append(AccessSetup(shape, ids, closed: true, prepared: true));
+
         if (shape.HasEntityTarget)
         {
-            source.Append("        ").Append(AccessSetup(shape, ids, closed: true, prepared: true));
             string invokerType = ParallelInvokerName(shape) + StateGeneric(shape, generic);
             source.Append("        var invoker = new ").Append(invokerType).Append('(');
             var constructorArguments = new List<string>();
@@ -3090,13 +2796,21 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             source.AppendLine("    }");
             return;
         }
-        source.Append("        using var execution = GeneratedForEachRuntime.")
-            .Append(BoolHasWrites(shape.Pattern) == "true" ? "OpenWriteDense" : "OpenReadDense")
-            .AppendLine("(world, in query);");
-        source.Append("        ").Append(AccessSetup(shape, ids, closed: true, prepared: true));
-        AppendQueryComponentRoutes(source, shape, "        ");
-        AppendArchetypeWriteSetup(source, shape, "        ");
-        if (shape.HasEntity)
+
+        if (shape.IsStamp)
+        {
+            source.AppendLine("        using var execution = GeneratedForEachRuntime.OpenReadDense(world, in query);");
+        }
+        else
+        {
+            source.Append("        using var execution = GeneratedForEachRuntime.")
+                .Append(BoolHasWrites(shape.Pattern) == "true" ? "OpenWriteDense" : "OpenReadDense")
+                .AppendLine("(world, in query);");
+            AppendQueryComponentRoutes(source, shape, "        ");
+            AppendArchetypeWriteSetup(source, shape, "        ");
+        }
+
+        if (shape.IsStamp || shape.HasEntity)
         {
             source.AppendLine("        while (execution.MoveNextTrusted(out var slots))");
         }
@@ -3104,18 +2818,25 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         {
             source.AppendLine("        while (execution.MoveNextTrusted(out var componentRows, out int count))");
         }
+
         source.AppendLine("        {");
+        if (shape.IsStamp || shape.HasEntity)
+        {
+            source.AppendLine("            int count = slots.Count;");
+        }
+
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
             string componentType = ComponentType(shape, index);
+            if (shape.IsStamp)
+            {
+                continue;
+            }
+
+            source.Append("            ref ").Append(componentType).Append(" row").Append(index);
             if (shape.HasEntity)
             {
-                source.Append("                ")
-                    .Append("ref ")
-                    .Append(componentType)
-                    .Append(" row")
-                    .Append(index)
-                    .Append(" = ref slots.GetGenerated")
+                source.Append(" = ref slots.GetGenerated")
                     .Append(IsWrite(shape.Pattern[index]) ? "Write" : "Read")
                     .Append("Reference<")
                     .Append(componentType)
@@ -3125,142 +2846,14 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             }
             else
             {
-                source.Append("                ref ").Append(componentType).Append(" row").Append(index)
-                    .Append(" = ref GeneratedForEachRuntime.GetGeneratedRow<")
-                    .Append(componentType).Append(">(componentRows, route").Append(index).AppendLine(");");
+                source.Append(" = ref GeneratedForEachRuntime.GetGeneratedRow<")
+                    .Append(componentType)
+                    .Append(">(componentRows, route")
+                    .Append(index)
+                    .AppendLine(");");
             }
         }
 
-        if (shape.HasEntity)
-        {
-            source.AppendLine("                int count = slots.Count;");
-        }
-        source.AppendLine("                for (int index = 0; index < count; index++)");
-        source.AppendLine("                {");
-        for (int index = 0; index < shape.Pattern.Length; index++)
-        {
-            string componentType = ComponentType(shape, index);
-            source.Append("                    ")
-                .Append(IsWrite(shape.Pattern[index]) ? "ref " : "ref readonly ")
-                .Append(componentType)
-                .Append(" component")
-                .Append(index)
-                .Append(" = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row")
-                .Append(index)
-                .AppendLine(", index);");
-        }
-        source.Append("                    ");
-        AppendClosedInvocation(source, shape, "action", "functor", "context", "component", "slots.EntityAt(index)");
-        source.AppendLine(";");
-        source.AppendLine("                }");
-        source.AppendLine("        }");
-        source.AppendLine("    }");
-    }
-
-    private static void RenderClosedStampMethod(
-        StringBuilder source,
-        Shape shape,
-        string methodName,
-        string ids,
-        string componentParameters)
-    {
-        string generic = ComponentGenericTypes(shape);
-        string genericPrefix = StateGeneric(shape, generic);
-        string contextParameter = shape.HasContext
-            ? ", " + ContextParameter(shape.ContextMode, ContextType(shape), "context")
-            : string.Empty;
-        string callbackParameter = shape.IsFunctor
-            ? ", ref " + shape.FunctorType + " functor"
-            : ", " + ActionType(shape) + " action";
-        string workerCountParameter = shape.Parallel ? ", int workerCount" : string.Empty;
-
-        source.AppendLine("    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        source.Append("    private static void ").Append(methodName).Append(genericPrefix)
-            .Append("(World world")
-            .Append(shape.HasEntityTarget ? ", global::System.ReadOnlySpan<Entity> entities, in Query query" : ", in Query query")
-            .Append(componentParameters)
-            .Append(contextParameter)
-            .Append(callbackParameter)
-            .Append(workerCountParameter)
-            .AppendLine(")");
-        source.AppendLine("    {");
-        source.Append("        ").Append(AccessSetup(shape, ids, closed: true, prepared: true));
-
-        if (shape.HasEntityTarget)
-        {
-            string invokerType = ParallelInvokerName(shape) + StateGeneric(shape, generic);
-            source.Append("        var invoker = new ").Append(invokerType).Append('(');
-            var constructorArguments = new List<string>();
-            if (shape.HasContext)
-            {
-                constructorArguments.Add("context");
-            }
-
-            constructorArguments.Add(shape.IsFunctor ? "functor" : "action");
-            constructorArguments.Add(AccessArguments(shape.Pattern));
-            source.Append(string.Join(", ", constructorArguments)).AppendLine(");");
-            source.Append("        GeneratedForEachRuntime.ExecuteEntityList");
-            if (shape.Parallel)
-            {
-                source.Append("Parallel");
-            }
-
-            source.Append("(world, in query, entities, ref invoker, ");
-            AppendParallelWriteIndices(source, shape);
-            if (shape.Parallel)
-            {
-                source.Append(", workerCount");
-            }
-
-            source.AppendLine(");");
-            if (shape.HasContext && shape.ContextMode == ContextMode.Ref)
-            {
-                source.AppendLine("        context = invoker.Context;");
-            }
-
-            if (shape.IsFunctor)
-            {
-                source.AppendLine("        functor = invoker.Functor;");
-            }
-
-            source.AppendLine("    }");
-            return;
-        }
-
-        if (shape.Parallel)
-        {
-            string invokerType = ParallelInvokerName(shape) + StateGeneric(shape, generic);
-            source.Append("        var invoker = new ").Append(invokerType).Append('(');
-            var constructorArguments = new List<string>();
-            if (shape.HasContext)
-            {
-                constructorArguments.Add("context");
-            }
-
-            constructorArguments.Add(shape.IsFunctor ? "functor" : "action");
-            constructorArguments.Add(AccessArguments(shape.Pattern));
-            source.Append(string.Join(", ", constructorArguments)).AppendLine(");");
-            source.Append("        GeneratedForEachRuntime.ExecuteParallelDense(world, in query, ref invoker, ");
-            AppendParallelWriteIndices(source, shape);
-            source.AppendLine(", workerCount);");
-            if (shape.HasContext && shape.ContextMode == ContextMode.Ref)
-            {
-                source.AppendLine("        context = invoker.Context;");
-            }
-
-            if (shape.IsFunctor)
-            {
-                source.AppendLine("        functor = invoker.Functor;");
-            }
-
-            source.AppendLine("    }");
-            return;
-        }
-
-        source.AppendLine("        using var execution = GeneratedForEachRuntime.OpenReadDense(world, in query);");
-        source.AppendLine("        while (execution.MoveNextTrusted(out var slots))");
-        source.AppendLine("        {");
-        source.AppendLine("            int count = slots.Count;");
         source.AppendLine("            for (int index = 0; index < count; index++)");
         source.AppendLine("            {");
         if (shape.HasEntity)
@@ -3270,8 +2863,23 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         for (int index = 0; index < shape.Pattern.Length; index++)
         {
-            source.Append("                Stamp component").Append(index)
-                .Append(" = slots.GetGeneratedStamp(access").Append(index).AppendLine(", index);");
+            string componentType = ComponentType(shape, index);
+            if (shape.IsStamp)
+            {
+                source.Append("                Stamp component").Append(index)
+                    .Append(" = slots.GetGeneratedStamp(access").Append(index).AppendLine(", index);");
+            }
+            else
+            {
+                source.Append("                ")
+                    .Append(IsWrite(shape.Pattern[index]) ? "ref " : "ref readonly ")
+                    .Append(componentType)
+                    .Append(" component")
+                    .Append(index)
+                    .Append(" = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row")
+                    .Append(index)
+                    .AppendLine(", index);");
+            }
         }
 
         source.Append("                ");
@@ -3613,7 +3221,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string generic = shape.IsStamp
             ? string.Join(", ", Enumerable.Repeat("Stamp", shape.Components.Length))
             : shape.GenericSelectors
-                ? GenericTypes(shape.Components.Length)
+                ? GeneratorSupport.GenericTypes(shape.Components.Length)
                 : string.Join(", ", shape.Components);
         string suffix = IsAllWrite(shape.Pattern) ? string.Empty : "_" + shape.Pattern;
         if (shape.HasContext)
@@ -3658,19 +3266,16 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             ? string.Empty
             : TypeParameterList(shape.IsFunctor ? generic : shape.HasContext ? JoinGeneric("TContext", generic) : generic);
 
-    private static string InvokerName(Shape shape) => "DemandForEachInvoker_" + StableName(shape.Key);
+    private static string InvokerName(Shape shape) => "DemandForEachInvoker_" + GeneratorSupport.StableName(shape.Key);
 
     private static string ParallelInvokerName(Shape shape)
-        => "DemandForEachParallelInvoker_" + StableName(shape.Key);
+        => "DemandForEachParallelInvoker_" + GeneratorSupport.StableName(shape.Key);
 
     private static string ArchetypeStampWriterName(Shape shape)
-        => "DemandForEachArchetypeStampWriter_" + StableName(shape.Key);
-
-    private static string GenericTypes(int arity)
-        => JoinIndexed(arity, static index => "T" + (index + 1));
+        => "DemandForEachArchetypeStampWriter_" + GeneratorSupport.StableName(shape.Key);
 
     private static string ComponentGenericTypes(Shape shape)
-        => shape.GenericSelectors ? GenericTypes(shape.Components.Length) : string.Empty;
+        => shape.GenericSelectors ? GeneratorSupport.GenericTypes(shape.Components.Length) : string.Empty;
 
     private static string JoinIndexed(int count, Func<int, string> format)
     {
@@ -3744,20 +3349,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         => mode is 'R' or 'I' ? "in " : mode == 'W' ? "ref " : string.Empty;
 
     private static string BoolHasWrites(string pattern) => pattern.Contains('W') ? "true" : "false";
-
-    private static string StableName(string key)
-    {
-        unchecked
-        {
-            uint hash = 2166136261;
-            foreach (char value in key)
-            {
-                hash = (hash ^ value) * 16777619;
-            }
-
-            return hash.ToString("X8");
-        }
-    }
 
     private enum ReceiverKind
     {

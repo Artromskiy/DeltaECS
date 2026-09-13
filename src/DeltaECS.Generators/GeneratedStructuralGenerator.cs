@@ -55,7 +55,7 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         foreach (StructuralShape shape in shapes.Values.OrderBy(static value => value.Key, StringComparer.Ordinal))
         {
             context.AddSource(
-                "GeneratedStructural_" + StableName(shape.Key) + ".g.cs",
+                "GeneratedStructural_" + GeneratorSupport.StableName(shape.Key) + ".g.cs",
                 Render(shape));
         }
     }
@@ -182,7 +182,7 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
 
             ArgumentSyntax argument = invocation.ArgumentList.Arguments[0];
             if (argument.RefKindKeyword.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.InKeyword)
-                && IsNamedType(model.GetTypeInfo(argument.Expression).Type, "Query"))
+                && GeneratorSupport.IsNamedType(model.GetTypeInfo(argument.Expression).Type, "Query"))
             {
                 mode = StructuralMode.Query;
             }
@@ -323,11 +323,6 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         };
     }
 
-    private static bool IsNamedType(ITypeSymbol? type, string name)
-        => type is INamedTypeSymbol named
-            && named.Name == name
-            && named.ContainingNamespace.ToDisplayString() == "Delta.ECS";
-
     private static bool IsInt32(ITypeSymbol? type)
         => type?.SpecialType == SpecialType.System_Int32;
 
@@ -335,12 +330,12 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
     {
         if (type is IArrayTypeSymbol array)
         {
-            return IsNamedType(array.ElementType, "Entity");
+            return GeneratorSupport.IsNamedType(array.ElementType, "Entity");
         }
 
         if (type is not INamedTypeSymbol named
             || named.TypeArguments.Length != 1
-            || !IsNamedType(named.TypeArguments[0], "Entity"))
+            || !GeneratorSupport.IsNamedType(named.TypeArguments[0], "Entity"))
         {
             return false;
         }
@@ -353,19 +348,19 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         => type is INamedTypeSymbol named
             && named.Name == "Span"
             && named.TypeArguments.Length == 1
-            && IsNamedType(named.TypeArguments[0], "Entity")
+            && GeneratorSupport.IsNamedType(named.TypeArguments[0], "Entity")
             && named.ContainingNamespace.ToDisplayString() == "System";
 
-    private static bool IsEntity(ITypeSymbol? type) => IsNamedType(type, "Entity");
+    private static bool IsEntity(ITypeSymbol? type) => GeneratorSupport.IsNamedType(type, "Entity");
 
-    private static bool IsComponentId(ITypeSymbol? type) => IsNamedType(type, "ComponentId");
+    private static bool IsComponentId(ITypeSymbol? type) => GeneratorSupport.IsNamedType(type, "ComponentId");
 
     private static string Render(StructuralShape shape)
     {
         var source = new StringBuilder(8 * 1024);
         source.Append(Header);
         source.Append("public static class GeneratedStructuralExtensions_")
-            .Append(StableName(shape.Key))
+            .Append(GeneratorSupport.StableName(shape.Key))
             .AppendLine();
         source.AppendLine("{");
         source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
@@ -375,7 +370,7 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             .Append(MethodName(shape));
         if (shape.IsGeneric)
         {
-            source.Append('<').Append(GenericTypes(shape.Arity)).Append('>');
+            source.Append('<').Append(GeneratorSupport.GenericTypes(shape.Arity)).Append('>');
         }
         source.Append("(this ").Append(ReceiverType(shape.Receiver)).Append(" target");
         switch (shape.Mode)
@@ -425,14 +420,11 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         source.AppendLine("    {");
         if (shape.Mode == StructuralMode.ValueSingleEntity)
         {
-            source.Append("        global::System.Span<ComponentId> components = stackalloc ComponentId[")
-                .Append(shape.Arity)
-                .AppendLine("];");
-            AppendPrimaryAssignments(source, "target.Layouts", "components", shape.Arity, "        ");
+            AppendComponents(source, shape);
             source.Append("        var initializer = new Generated")
                 .Append(shape.IsAdd ? "Add" : "Set")
                 .Append("Values<")
-                .Append(GenericTypes(shape.Arity))
+                .Append(GeneratorSupport.GenericTypes(shape.Arity))
                 .AppendLine(">");
             source.AppendLine("        (");
             for (int index = 0; index < shape.Arity; index++)
@@ -454,17 +446,7 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             or StructuralMode.Create
             or StructuralMode.CreateOutput)
         {
-            source.Append("        global::System.Span<ComponentId> components = stackalloc ComponentId[")
-                .Append(shape.Arity)
-                .AppendLine("];");
-            if (shape.IsExplicitIds)
-            {
-                AppendComponentAssignments(source, "components", shape.Arity, "component", "        ");
-            }
-            else
-            {
-                AppendPrimaryAssignments(source, "target.Layouts", "components", shape.Arity, "        ");
-            }
+            AppendComponents(source, shape);
             switch (shape.Mode)
             {
                 case StructuralMode.CreateSingle:
@@ -480,13 +462,7 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         }
         else if (shape.Mode is StructuralMode.ExplicitCreate or StructuralMode.ExplicitCreateOutput)
         {
-            source.Append("        global::System.Span<ComponentId> components = stackalloc ComponentId[")
-                .Append(shape.Arity)
-                .AppendLine("];");
-            for (int index = 0; index < shape.Arity; index++)
-            {
-                source.Append("        components[").Append(index).Append("] = component").Append(index).AppendLine(";");
-            }
+            AppendComponents(source, shape);
 
             source.AppendLine(shape.Mode == StructuralMode.ExplicitCreate
                 ? "        return target.Create(components, count);"
@@ -494,20 +470,7 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         }
         else
         {
-            source.Append("        global::System.Span<ComponentId> components = stackalloc ComponentId[")
-                .Append(shape.Arity)
-                .AppendLine("];");
-            if (shape.IsExplicitIds)
-            {
-                for (int index = 0; index < shape.Arity; index++)
-                {
-                    source.Append("        components[").Append(index).Append("] = component").Append(index).AppendLine(";");
-                }
-            }
-            else
-            {
-                AppendPrimaryAssignments(source, "target.Layouts", "components", shape.Arity, "        ");
-            }
+            AppendComponents(source, shape);
             source.Append("        return target.").Append(shape.IsAdd ? "Add" : "Remove");
             if (shape.Mode == StructuralMode.Query)
             {
@@ -540,7 +503,7 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         source.Append("    private struct Generated")
             .Append(isAdd ? "Add" : "Set")
             .Append("Values<")
-            .Append(GenericTypes(arity))
+            .Append(GeneratorSupport.GenericTypes(arity))
             .AppendLine("> : global::Delta.ECS.IGeneratedComponentValueInitializer");
         source.AppendLine("    {");
         for (int index = 0; index < arity; index++)
@@ -588,6 +551,23 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
 
         source.AppendLine("        }");
         source.AppendLine("    }");
+    }
+
+    private static void AppendComponents(StringBuilder source, StructuralShape shape)
+    {
+        source.Append("        global::System.Span<ComponentId> components = stackalloc ComponentId[")
+            .Append(shape.Arity)
+            .AppendLine("];");
+        bool explicitIds = shape.IsExplicitIds
+            || shape.Mode is StructuralMode.ExplicitCreate or StructuralMode.ExplicitCreateOutput;
+        if (explicitIds)
+        {
+            AppendComponentAssignments(source, "components", shape.Arity, "component", "        ");
+        }
+        else
+        {
+            AppendPrimaryAssignments(source, "target.Layouts", "components", shape.Arity, "        ");
+        }
     }
 
     private static void AppendComponentAssignments(
@@ -654,31 +634,6 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             Receiver.World => "World",
             _ => string.Empty
         };
-
-    private static string GenericTypes(int arity)
-    {
-        var values = new string[arity];
-        for (int index = 0; index < arity; index++)
-        {
-            values[index] = "T" + (index + 1).ToString(CultureInfo.InvariantCulture);
-        }
-
-        return string.Join(", ", values);
-    }
-
-    private static string StableName(string value)
-    {
-        unchecked
-        {
-            uint hash = 2166136261;
-            foreach (char character in value)
-            {
-                hash = (hash ^ character) * 16777619;
-            }
-
-            return hash.ToString("X8", CultureInfo.InvariantCulture);
-        }
-    }
 
     private enum Receiver
     {

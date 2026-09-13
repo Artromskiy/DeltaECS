@@ -60,7 +60,7 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
         foreach (QueryShape shape in shapes.Values.OrderBy(static value => value.Key, StringComparer.Ordinal))
         {
             context.AddSource(
-                "GeneratedQuery_" + StableName(shape.Key) + ".g.cs",
+                "GeneratedQuery_" + GeneratorSupport.StableName(shape.Key) + ".g.cs",
                 Render(shape));
         }
     }
@@ -108,11 +108,11 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
     }
 
     private static bool IsWorldReceiver(SemanticModel model, ExpressionSyntax expression)
-        => IsNamedType(model.GetTypeInfo(expression).Type, "World");
+        => GeneratorSupport.IsNamedType(model.GetTypeInfo(expression).Type, "World");
 
     private static bool IsQueryReceiver(SemanticModel model, ExpressionSyntax expression)
     {
-        if (IsNamedType(model.GetTypeInfo(expression).Type, "Query"))
+        if (GeneratorSupport.IsNamedType(model.GetTypeInfo(expression).Type, "Query"))
         {
             return true;
         }
@@ -142,11 +142,6 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
         return false;
     }
 
-    private static bool IsNamedType(ITypeSymbol? type, string name)
-        => type is INamedTypeSymbol named
-            && named.Name == name
-            && named.ContainingNamespace.ToDisplayString() == "Delta.ECS";
-
     private static bool IsAccessibleToGeneratedCode(ITypeSymbol type)
     {
         if (type is IArrayTypeSymbol array)
@@ -172,7 +167,7 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
         var source = new StringBuilder(8 * 1024);
         source.Append(Header);
         source.Append("public static class GeneratedQueryExtensions_")
-            .Append(StableName(shape.Key))
+            .Append(GeneratorSupport.StableName(shape.Key))
             .AppendLine();
         source.AppendLine("{");
         RenderFactory(source, shape, "World", "world", "world.CreateQuery");
@@ -193,7 +188,7 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
         source.Append("    public static Query ")
             .Append(shape.Kind)
             .Append('<')
-            .Append(GenericTypes(shape.Arity))
+            .Append(GeneratorSupport.GenericTypes(shape.Arity))
             .Append(">(this ")
             .Append(receiverType)
             .Append(' ')
@@ -232,31 +227,6 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
         }
 
         source.AppendLine("    }");
-    }
-
-    private static string GenericTypes(int arity)
-    {
-        var values = new string[arity];
-        for (int index = 0; index < arity; index++)
-        {
-            values[index] = "T" + (index + 1).ToString(CultureInfo.InvariantCulture);
-        }
-
-        return string.Join(", ", values);
-    }
-
-    private static string StableName(string value)
-    {
-        unchecked
-        {
-            uint hash = 2166136261;
-            foreach (char character in value)
-            {
-                hash = (hash ^ character) * 16777619;
-            }
-
-            return hash.ToString("X8", CultureInfo.InvariantCulture);
-        }
     }
 
     private sealed class QueryShape
