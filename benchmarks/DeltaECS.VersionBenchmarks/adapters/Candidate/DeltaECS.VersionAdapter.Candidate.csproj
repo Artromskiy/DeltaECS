@@ -19,6 +19,10 @@
     <Compile Include="IterationScenario.cs" />
     <ProjectReference Include="$(CandidateRoot)/src/DeltaECS/DeltaECS.csproj"
                       AdditionalProperties="AssemblyName=DeltaECS.Candidate" />
+    <ProjectReference Include="$(CandidateRoot)/src/DeltaECS.Generators/DeltaECS.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      GlobalPropertiesToRemove="PublishAot;PublishTrimmed;SelfContained;RuntimeIdentifier" />
   </ItemGroup>
 
 </Project>

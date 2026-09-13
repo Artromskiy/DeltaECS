@@ -60,45 +60,11 @@ entity made a structural transition. Stale entities, duplicate additions and
 missing removals return `false`; batch overloads return the number of changed
 entities.
 
-## Explicit query traversal
+## Query factories
 
-`QuerySpec` selects component masks. `Query` is world-owned and caches matching
-archetype plans. A query becomes invalid when its owning world is disposed.
-`ReadAccess` and `WriteAccess` declare row intent without a generic component
-type.
-
-```csharp
-var spec = QuerySpec.WhereAll(positionId, velocityId);
-var query = world.CreateQuery(in spec);
-var writePosition = query.AccessWrite(positionId);
-var readVelocity = query.AccessRead(velocityId);
-
-using var scope = world.BeginScope(in query);
-var position = writePosition;
-var velocity = readVelocity;
-var archetypes = scope.Archetypes;
-
-while (archetypes.MoveNext())
-{
-    var chunks = archetypes.Current.Chunks;
-    while (chunks.MoveNext())
-    {
-        var slots = chunks.Current.Slots;
-        WriteRow positions = slots.GetRow(position);
-        ReadRow velocities = slots.GetRow(velocity);
-
-        while (slots.MoveNext())
-        {
-            ref Position p = ref positions.Ref<Position>(slots);
-            ref readonly Velocity v = ref velocities.Ref<Velocity>(slots);
-            p.X += v.X;
-        }
-    }
-}
-```
-
-For the same query composition when registrations are selected at runtime,
-use the direct `World` and `Query` factories:
+`QuerySpec` is the type-erased selection description used by runtime and
+integration code. For consumer code, use the direct `World` and `Query`
+factories so every chain step returns a cached `Query`:
 
 ```csharp
 var explicitQuery = world
@@ -108,24 +74,14 @@ var explicitQuery = world
 ```
 
 The `ComponentId` forms return a new `Query` at every step and reuse the same
-world query-plan cache as the generated typed forms.
+world query-plan cache as the generated typed forms. `Query` becomes invalid
+when its owning world is disposed.
 
-`GetRow` validates the access token against the active query and resolves one
-component row for the current chunk. The terminal `Ref<T>` is the typed boundary and `T` must
-match the registered component type. `ReadRow`, `WriteRow`, and all iterators
-are borrowed `ref struct` values and must not escape their execution scope.
-
-For change detection, `QueryChunk.GetStampRow(ReadAccess)` prepares a
-non-generic borrowed `StampRow` once per component and chunk. Its
-`Get(in QuerySlots)` method returns the effective three-level component stamp
-for the current entity without repeating entity, type or dictionary lookup.
-The stamp combines entity/component, chunk/component and archetype/component
-terms. There is no aggregate world mutation stamp; the world exposes only
-exact component stamps.
-Use
-`World.TryGetComponentStamp(Entity, ComponentId, out Stamp)` for a single
-entity outside a query scope. Stamps identify an entity/component pair; the
-API does not synthesize an aggregate entity stamp.
+The three-loop row traversal and its access tokens are internal compiler and
+runtime support. Consumers use generated `ForEach` terminals, which prepare
+typed rows and manage the structural lease automatically. For change
+detection outside a traversal, use
+`World.TryGetComponentStamp(Entity, ComponentId, out Stamp)`.
 
 Generated `ForEach` APIs use the same validated plan but enter a closed trusted
 execution method. Dense callbacks resolve each requested row once per chunk and
@@ -146,11 +102,6 @@ world.ForEach(in query,
 
 There is no deferred `QuerySpec` facade. Structural operations use direct
 `World` overloads for entities, queries and caller-owned spans.
-
-For type-erased tooling inside a query execution, `GetObject` returns
-`ObjectReadValues` or `ObjectWriteValues`. Their `Get`/`Set` methods operate on
-the current slot; object writes validate the supplied value against the
-registered CLR type. This is a tooling path, not the typed hot-loop endpoint.
 
 ## Internal storage
 

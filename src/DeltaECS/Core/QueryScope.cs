@@ -4,7 +4,7 @@ namespace Delta.ECS;
 /// Owns one validated query execution and its structural lease.
 /// Child iterators are trusted stack-only views and do not own the lease.
 /// </summary>
-public ref struct QueryScope
+internal ref struct QueryScope
 {
     private readonly World _owner;
     private readonly QueryPlan _query;
@@ -26,7 +26,7 @@ public ref struct QueryScope
         _owner.BeginQueryLease();
     }
 
-    public QueryArchetypes Archetypes
+    internal QueryArchetypes Archetypes
     {
         get
         {
@@ -36,7 +36,7 @@ public ref struct QueryScope
     }
 
     /// <summary>Iterates every active chunk across all matching archetypes.</summary>
-    public QueryChunks Chunks
+    internal QueryChunks Chunks
     {
         get
         {
@@ -45,7 +45,7 @@ public ref struct QueryScope
         }
     }
 
-    public void Dispose()
+    internal void Dispose()
     {
         if (_owner is null)
         {

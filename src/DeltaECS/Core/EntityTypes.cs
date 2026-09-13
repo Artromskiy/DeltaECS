@@ -81,14 +81,14 @@ public readonly struct Query
     public Query WhereNone(params ReadOnlySpan<ComponentId> components)
         => Compose(QuerySpec.WhereNone(components));
 
-    public ReadAccess AccessRead(ComponentId componentId)
+    internal ReadAccess AccessRead(ComponentId componentId)
     {
         EnsureValid();
         int rowIndex = _cached.ResolveReadRoute(componentId);
         return new ReadAccess(_cached, rowIndex);
     }
 
-    public WriteAccess AccessWrite(ComponentId componentId)
+    internal WriteAccess AccessWrite(ComponentId componentId)
     {
         EnsureValid();
         int rowIndex = _cached.UpgradeReadRouteToWrite(_cached.ResolveReadRoute(componentId));

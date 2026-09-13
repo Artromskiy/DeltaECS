@@ -63,7 +63,7 @@ public sealed partial class World : IDisposable
         _records.Capacity = initialEntityCapacity;
     }
 
-    public int ArchetypeVersion => _archetypeVersion;
+    internal int ArchetypeVersion => _archetypeVersion;
 
     public int AliveEntityCount { get; private set; }
 
@@ -135,7 +135,7 @@ public sealed partial class World : IDisposable
         => CreateQuery(QuerySpec.WhereNone(components));
 
     /// <summary>Begins a validated query execution scope with independent iterators.</summary>
-    public QueryScope BeginScope(in Query handle) => new QueryScope(this, handle);
+    internal QueryScope BeginScope(in Query handle) => new QueryScope(this, handle);
 
     public Entity Create(params ReadOnlySpan<ComponentId> componentIds)
     {
@@ -730,7 +730,7 @@ public sealed partial class World : IDisposable
     internal void ClearChunkComponentStamps(Chunk chunk)
         => _chunkComponentWriteStamps.RefAt(chunk.GlobalId).Clear();
 
-    public int CollectAliveEntities(Span<Entity> destination)
+    internal int CollectAliveEntities(Span<Entity> destination)
     {
         int count = 0;
         for (int i = 0; i < _records.Count; i++)

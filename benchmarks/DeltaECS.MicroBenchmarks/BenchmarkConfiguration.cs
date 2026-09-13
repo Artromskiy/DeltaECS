@@ -23,10 +23,8 @@ internal static class MicroBenchmarkConfiguration
     internal static int[] DefaultAmounts(Type benchmarkType) => benchmarkType.Name switch
     {
         nameof(DenseIterationMicroBenchmarks) => [100, 1_000, 10_000, 100_000, 1_000_000],
-        nameof(Movement4OrderMicroBenchmarks) => [100_000, 1_000_000],
         nameof(GeneratedFunctorMovement4MicroBenchmarks) => [1_000_000],
         nameof(Movement4ApiComparisonMicroBenchmarks) => [100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000],
-        nameof(RemainingApiOptimizationMicroBenchmarks) => [100, 1_000, 10_000],
         nameof(WhereApiMicroBenchmarks) => [100, 1_000, 10_000, 100_000],
         nameof(StructuralOperationsMicroBenchmarks) => [100, 1_000, 10_000, 100_000],
         nameof(QueryBatchStructuralOperationsMicroBenchmarks) => [100, 1_000, 10_000, 100_000],

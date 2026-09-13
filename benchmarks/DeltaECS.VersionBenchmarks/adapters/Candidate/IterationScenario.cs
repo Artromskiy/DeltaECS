@@ -15,13 +15,6 @@ public sealed class IterationScenario
     private readonly ComponentId[] _movement4Ids;
     private readonly Entity[] _movement2Entities;
     private readonly Entity[] _movement4Entities;
-    private readonly ReadAccess _denseBinding;
-    private readonly WriteAccess _positionBinding;
-    private readonly ReadAccess _velocityBinding;
-    private readonly WriteAccess _movementABinding;
-    private readonly WriteAccess _movementBBinding;
-    private readonly WriteAccess _movementCBinding;
-    private readonly ReadAccess _movementDBinding;
 
     public IterationScenario(int amount)
     {
@@ -59,13 +52,6 @@ public sealed class IterationScenario
 
         var denseDescription = QuerySpec.WhereAll(_dense);
         _denseQuery = _world.CreateQuery(in denseDescription);
-        _denseBinding = _denseQuery.AccessRead(_dense);
-        _positionBinding = _movement2Query.AccessWrite(_position);
-        _velocityBinding = _movement2Query.AccessRead(_velocity);
-        _movementABinding = _movement4Query.AccessWrite(_movement4Ids[0]);
-        _movementBBinding = _movement4Query.AccessWrite(_movement4Ids[1]);
-        _movementCBinding = _movement4Query.AccessWrite(_movement4Ids[2]);
-        _movementDBinding = _movement4Query.AccessRead(_movement4Ids[3]);
         ResetMovements();
     }
 
@@ -85,22 +71,8 @@ public sealed class IterationScenario
     public long DenseRead()
     {
         long sum = 0;
-        using var scope = _world.BeginScope(in _denseQuery);
-        var dense = _denseBinding;
-        var archetypes = scope.Archetypes;
-        while (archetypes.MoveNext())
-        {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
-            {
-                var slots = chunks.Current.Slots;
-                var row = slots.GetRow(dense);
-                while (slots.MoveNext())
-                {
-                    sum += row.Ref<DenseValue>(slots).Value;
-                }
-            }
-        }
+        _world.ForEach(in _denseQuery, ref sum,
+            static (ref long checksum, in DenseValue value) => checksum += value.Value);
 
         var expected = (long)_amount * (_amount + 1) / 2;
         return sum == expected ? sum : throw new InvalidOperationException($"Dense checksum mismatch: {sum} != {expected}.");
@@ -109,28 +81,13 @@ public sealed class IterationScenario
     public double Movement2()
     {
         double sum = 0;
-        using var scope = _world.BeginScope(in _movement2Query);
-        var position = _positionBinding;
-        var velocity = _velocityBinding;
-        var archetypes = scope.Archetypes;
-        while (archetypes.MoveNext())
-        {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
+        _world.ForEach(in _movement2Query, ref sum,
+            static (ref double checksum, ref Position position, in Velocity velocity) =>
             {
-                var slots = chunks.Current.Slots;
-                var positions = slots.GetRow(position);
-                var velocities = slots.GetRow(velocity);
-                while (slots.MoveNext())
-                {
-                    ref var currentPosition = ref positions.Ref<Position>(slots);
-                    ref readonly var currentVelocity = ref velocities.Ref<Velocity>(slots);
-                    currentPosition.X += currentVelocity.X / 60f;
-                    currentPosition.Y += currentVelocity.Y / 60f;
-                    sum += currentPosition.X + currentPosition.Y;
-                }
-            }
-        }
+                position.X += velocity.X / 60f;
+                position.Y += velocity.Y / 60f;
+                checksum += position.X + position.Y;
+            });
 
         return sum;
     }
@@ -138,33 +95,20 @@ public sealed class IterationScenario
     public int Movement4()
     {
         int sum = 0;
-        using var scope = _world.BeginScope(in _movement4Query);
-        var aAccess = _movementABinding;
-        var bAccess = _movementBBinding;
-        var cAccess = _movementCBinding;
-        var dAccess = _movementDBinding;
-        var archetypes = scope.Archetypes;
-        while (archetypes.MoveNext())
-        {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
+        _world.ForEach(in _movement4Query, ref sum,
+            static (ref int checksum,
+                ref MovementA a,
+                ref MovementB b,
+                ref MovementC c,
+                in MovementD d) =>
             {
-                var slots = chunks.Current.Slots;
-                var a = slots.GetRow(aAccess);
-                var b = slots.GetRow(bAccess);
-                var c = slots.GetRow(cAccess);
-                var d = slots.GetRow(dAccess);
-                while (slots.MoveNext())
-                {
-                    var updatedA = a.Ref<MovementA>(slots).Value + d.Ref<MovementD>(slots).Value;
-                    var updatedB = b.Ref<MovementB>(slots).Value + d.Ref<MovementD>(slots).Value;
-                    a.Ref<MovementA>(slots).Value = updatedA;
-                    b.Ref<MovementB>(slots).Value = updatedB;
-                    c.Ref<MovementC>(slots).Value = (updatedA + updatedB) / 2;
-                    sum += a.Ref<MovementA>(slots).Value + b.Ref<MovementB>(slots).Value + c.Ref<MovementC>(slots).Value + d.Ref<MovementD>(slots).Value;
-                }
-            }
-        }
+                var updatedA = a.Value + d.Value;
+                var updatedB = b.Value + d.Value;
+                a.Value = updatedA;
+                b.Value = updatedB;
+                c.Value = (updatedA + updatedB) / 2;
+                checksum += a.Value + b.Value + c.Value + d.Value;
+            });
 
         return sum;
     }

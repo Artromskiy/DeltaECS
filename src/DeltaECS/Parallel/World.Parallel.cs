@@ -30,7 +30,7 @@ public sealed partial class World
     /// overload is intentionally not provided. Functor calls use the same
     /// generated names and bypass interception.
     /// </remarks>
-    public void ForEachParallel(
+    internal void ForEachParallel(
         in Query query,
         QueryChunkAction action,
         int workerCount = 0)

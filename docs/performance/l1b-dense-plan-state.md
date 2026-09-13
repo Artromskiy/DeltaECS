@@ -1,7 +1,8 @@
 # Dense plan-state evidence
 
 This archived probe compared small internal representations of dense query
-plan state. The public three-loop API and the storage contract were unchanged.
+plan state. The former three-loop implementation and the storage contract were
+unchanged in that historical measurement; the traversal is now internal.
 
 ## JIT result
 

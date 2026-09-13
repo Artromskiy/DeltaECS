@@ -8,10 +8,10 @@ does not justify keeping the representation in its current unconditional form.
 ## Hypothesis and implementation
 
 Hypothesis: a `QueryPlan`-owned flat active `ChunkPlan` view, maintained once
-on chunk activation/deactivation, can remove the archetype scan from the public
+on chunk activation/deactivation, can remove the archetype scan from the then-public
 two-loop `QueryChunks` path and make generated write-tick reservation use an
-exact O(1) active count. Generated `ForEach` and the public two-loop path consume
-the flat view; the public three-loop archetype path is unchanged.
+exact O(1) active count. Generated `ForEach` and the old two-loop path consumed
+the flat view; both explicit traversal forms are now internal.
 
 Source commit: `6cc65a109c5e0a91b40d0a63a80c265e226afb8d`
 (`Optimize active query chunk traversal`), based on

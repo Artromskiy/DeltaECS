@@ -4,7 +4,7 @@ using System;
 using System.Runtime.CompilerServices;
 
 /// <summary>Forward slot iterator for one already-selected chunk.</summary>
-public ref struct QuerySlots
+internal ref struct QuerySlots
 {
     private readonly int[] _componentRowsByQuery;
     private readonly Chunk _chunk;
@@ -32,26 +32,26 @@ public ref struct QuerySlots
         _index = -1;
     }
 
-    public int CurrentIndex
+    internal int CurrentIndex
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => _index;
     }
 
-    public Entity CurrentEntity
+    internal Entity CurrentEntity
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => _chunk.RawEntities.RefAt(_index);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool MoveNext()
+    internal bool MoveNext()
     {
         return ++_index < _count;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ReadRow GetRow(ReadAccess access)
+    internal ReadRow GetRow(ReadAccess access)
     {
         _writeSession.EnsureActive(_sessionGeneration);
         if (!ReferenceEquals(access.Query, _query))
@@ -63,7 +63,7 @@ public ref struct QuerySlots
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public WriteRow GetRow(WriteAccess access)
+    internal WriteRow GetRow(WriteAccess access)
     {
         if (!ReferenceEquals(access.Query, _query))
         {
@@ -76,7 +76,7 @@ public ref struct QuerySlots
         return new WriteRow(_resolvedRowsByQuery.RefAt(access.QueryComponentIndex));
     }
 
-    public ObjectReadValues GetObject(ReadAccess access)
+    internal ObjectReadValues GetObject(ReadAccess access)
     {
         _writeSession.EnsureActive(_sessionGeneration);
         if (!ReferenceEquals(access.Query, _query))
@@ -87,7 +87,7 @@ public ref struct QuerySlots
         return new ObjectReadValues(_resolvedRowsByQuery.RefAt(access.QueryComponentIndex));
     }
 
-    public ObjectWriteValues GetObject(WriteAccess access)
+    internal ObjectWriteValues GetObject(WriteAccess access)
     {
         if (!ReferenceEquals(access.Query, _query))
         {

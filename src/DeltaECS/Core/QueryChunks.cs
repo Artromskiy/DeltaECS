@@ -3,7 +3,7 @@ namespace Delta.ECS;
 using System.Runtime.CompilerServices;
 
 /// <summary>Independent iterator over every active chunk in a query scope.</summary>
-public ref struct QueryChunks
+internal ref struct QueryChunks
 {
     private readonly ReadOnlySpan<ArchetypePlan> _plans;
     private readonly QueryPlan _query;
@@ -28,7 +28,7 @@ public ref struct QueryChunks
         _chunkIndex = -1;
     }
 
-    public QueryChunk Current
+    internal QueryChunk Current
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
@@ -49,7 +49,7 @@ public ref struct QueryChunks
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool MoveNext()
+    internal bool MoveNext()
     {
         _writeSession.EnsureActive(_sessionGeneration);
         int nextChunk = _chunkIndex + 1;
@@ -82,7 +82,7 @@ public ref struct QueryChunks
 }
 
 /// <summary>Independent iterator over the active chunks of one selected archetype.</summary>
-public ref struct QueryArchetypeChunks
+internal ref struct QueryArchetypeChunks
 {
     private readonly ArchetypePlan _plan;
     private readonly QueryPlan _query;
@@ -105,7 +105,7 @@ public ref struct QueryArchetypeChunks
         _index = -1;
     }
 
-    public QueryChunk Current
+    internal QueryChunk Current
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
@@ -120,7 +120,7 @@ public ref struct QueryArchetypeChunks
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool MoveNext()
+    internal bool MoveNext()
     {
         _writeSession.EnsureActive(_sessionGeneration);
         if ((uint)++_index >= (uint)_chunks.Length)
@@ -133,7 +133,7 @@ public ref struct QueryArchetypeChunks
 }
 
 /// <summary>Current chunk without archetype- or query-iterator state.</summary>
-public readonly ref struct QueryChunk
+internal readonly ref struct QueryChunk
 {
     private readonly ArchetypePlan _plan;
     private readonly ChunkPlan _chunk;
@@ -155,31 +155,31 @@ public readonly ref struct QueryChunk
         _sessionGeneration = sessionGeneration;
     }
 
-    public int ArchetypeId
+    internal int ArchetypeId
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => _plan.Archetype.Id;
     }
 
-    public int GlobalChunkId
+    internal int GlobalChunkId
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => _chunk.Chunk.GlobalId;
     }
 
-    public int SlotCount
+    internal int SlotCount
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => _chunk.Chunk.Count;
     }
 
-    public ReadOnlySpan<Entity> Entities
+    internal ReadOnlySpan<Entity> Entities
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => _chunk.Chunk.Entities;
     }
 
-    public QuerySlots Slots
+    internal QuerySlots Slots
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => new(_plan, _chunk, _query, _writeSession, _sessionGeneration);
@@ -188,7 +188,7 @@ public readonly ref struct QueryChunk
     /// <summary>Prepares exact component stamps for this chunk.</summary>
     /// <remarks>Access validation occurs once here; reading stamps never marks a component written.</remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public StampRow GetStampRow(ReadAccess access)
+    internal StampRow GetStampRow(ReadAccess access)
     {
         _writeSession.EnsureActive(_sessionGeneration);
         if (!ReferenceEquals(access.Query, _query))

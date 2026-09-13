@@ -1,8 +1,9 @@
 # Dense Movement4 optimization sweep
 
 This archived record summarizes the accepted internal changes from a focused
-ARM64 JIT sweep. The public query API remained the three-loop
-`QueryScope`/`QueryArchetypes`/`QueryChunks`/`QuerySlots` path.
+ARM64 JIT sweep. The measurements below describe the former three-loop
+`QueryScope`/`QueryArchetypes`/`QueryChunks`/`QuerySlots` implementation; that
+path is now internal and generated callbacks are the public query API.
 
 ## Recorded JIT signal
 

@@ -94,9 +94,6 @@ rows are default-initialized. The generator supports arities one through 256
 on demand; the limit applies to generated generic methods, not to the number
 of component IDs registered by a world.
 
-## Terminal row access
-
-`ReadRow.Ref<T>` returns `ref readonly T`; `WriteRow.Ref<T>` returns `ref T`.
-The overload accepts `QuerySlots` or an explicit slot index. The row must come
-from the same active query execution and `T` must match the access
-registration.
+Generated `ForEach` terminals are the only consumer row-access surface. The
+runtime's non-generic access tokens and row cursors remain compiler-support
+implementation details and are not part of the generic API.

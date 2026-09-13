@@ -6,15 +6,16 @@ READMEs for that.
 
 ## Current code path
 
-The production traversal is implemented by:
+The production traversal is implemented by the generated runtime bridge:
 
-- `src/DeltaECS/Core/QueryScope.cs` for the execution lease;
-- `src/DeltaECS/Core/QueryArchetypes.cs` and `QueryChunks.cs` for outer loops;
-- `src/DeltaECS/Core/QuerySlots.cs` for slot state and row preparation;
-- `src/DeltaECS/Core/Rows.cs` and `src/DeltaECS/Generic/Rows.cs` for the final
-  `Ref<T>` endpoint;
+- `src/DeltaECS/Generator/GeneratedRuntime.cs` for the execution lease and
+  prepared chunk plans;
+- `src/DeltaECS/Generator/GeneratedQuerySlots.cs` for typed row references;
 - `benchmarks/DeltaECS.MicroBenchmarks/MicroBenchmarkImplementations.cs` for
   the observable Movement4 checksum.
+
+The former `QueryScope`/iterator/row chain remains internal legacy support and
+is not a consumer entry point.
 
 Row-array selection occurs at the chunk boundary. The slot loop performs the
 component arithmetic and checksum; query ownership, plan refresh and write

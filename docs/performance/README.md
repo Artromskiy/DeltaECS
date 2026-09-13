@@ -11,27 +11,26 @@ before starting a candidate so an exhausted mechanism is not repeated.
 
 ## Current dense execution
 
-The public low-level path is:
+The generated callback path is:
 
 ```text
-QuerySpec -> Query -> QueryScope
-  -> QueryArchetypes -> QueryChunks -> QuerySlots
-  -> ReadRow/WriteRow.Ref<T>
+QuerySpec -> Query -> generated ForEach
+  -> prepared component routes -> GeneratedQuerySlots
+  -> typed callback
 ```
 
 `QueryPlan` caches matching archetypes and maps query component ordinals to
 physical component rows. `ArchetypePlan.RefreshChunks` prepares a
 `ChunkPlan` for every active chunk. Each `ChunkPlan` stores direct `Array`
-references in query order, so `QuerySlots.GetRow` resolves one row per chunk,
-not once per entity. Write access marks the physical component row through the
-same chunk boundary and the operation-specific stamp route. The query write
-session carries only scope lifetime and write intent; it is not a global
-mutation tick.
+references in query order, so generated row preparation resolves one row per
+chunk, not once per entity. Write access marks the physical component row
+through the same chunk boundary and the operation-specific stamp route. The
+query write session carries only scope lifetime and write intent; it is not a
+global mutation tick.
 
-`QueryScope` is the owner of the structural lease. `QueryArchetypes`,
-`QueryChunks` and `QuerySlots` are borrowed stack-only views. Their values are
-valid only while the scope is active; structural mutation cannot invalidate a
-row while that lease is held.
+The generated execution owns the structural lease for the duration of the
+callback. Its compiler-support cursors are internal stack-only views;
+structural mutation cannot invalidate a row while that lease is held.
 
 `World` uses a default chunk capacity of 512 entities. The constructor still
 accepts an explicit capacity so storage-layout experiments can compare the
@@ -48,9 +47,9 @@ callback syntax, not storage or public safety guarantees.
   structural index tables remain separate.
 - Query plans refresh only when the world's archetype version changes.
 - Component row arrays are resolved once at the chunk boundary and reused by
-  the slot loop.
-- The public row endpoint is `ReadRow.Ref<T>` or `WriteRow.Ref<T>`; no raw
-  pointer or ordinal row API is exposed to consumers.
+  the generated slot loop.
+- Typed component references are exposed only through generated callback
+  parameters; raw row, pointer and ordinal APIs remain internal.
 - Opt-in Roslyn interception lowers supported static delegate call sites to
   generated struct functors while retaining the same `World.ForEach` spelling,
   validation, lease and write-stamp path. Unsupported callbacks use the

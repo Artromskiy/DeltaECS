@@ -18,7 +18,7 @@ world.ForEachParallel(
 
 The generated callback is invoked inside the worker-owned chunk range. The
 callback may mutate its declared write rows, but it must not retain component
-references, a `QueryChunk`, or a row view after returning. Captured mutable
+references or row views after returning. Captured mutable
 state remains the caller's responsibility; use a per-worker result or another
 explicit synchronization strategy when the callback shares state.
 
@@ -96,10 +96,9 @@ own completion value. There is no lock in a warmed frame, no per-chunk
 `MemoryBarrier` in the execution path. `Interlocked.CompareExchange` is used
 once per public call only to reject overlapping executions on one `World`.
 
-The low-level overload
-`World.ForEachParallel(in Query, QueryChunkAction, int)` uses the same static
-range protocol. It exists for code that intentionally owns the chunk-level
-loop; the generated typed overload is the preferred user-facing form.
+The chunk-level callback overload is an internal runtime detail. Consumers use
+the generated typed overloads so the generator owns row preparation and callback
+shape.
 
 Structural changes are rejected until the call returns. The first call may
 grow caches and create worker threads; disposal joins those workers. This is a

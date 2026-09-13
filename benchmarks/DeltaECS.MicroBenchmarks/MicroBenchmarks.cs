@@ -8,10 +8,8 @@ internal static class MicroBenchmarkCatalog
     public static readonly Type[] Types =
     [
         typeof(DenseIterationMicroBenchmarks),
-        typeof(Movement4OrderMicroBenchmarks),
         typeof(GeneratedFunctorMovement4MicroBenchmarks),
         typeof(Movement4ApiComparisonMicroBenchmarks),
-        typeof(RemainingApiOptimizationMicroBenchmarks),
         typeof(WhereApiMicroBenchmarks),
         typeof(StructuralOperationsMicroBenchmarks),
         typeof(QueryBatchStructuralOperationsMicroBenchmarks)
@@ -24,22 +22,12 @@ public class DenseIterationMicroBenchmarks : DenseIterationMicroBenchmarkImpleme
 }
 
 [MemoryDiagnoser]
-public class Movement4OrderMicroBenchmarks : Movement4OrderMicroBenchmarkImplementation
-{
-}
-
-[MemoryDiagnoser]
 public class GeneratedFunctorMovement4MicroBenchmarks : GeneratedFunctorMovement4MicroBenchmarkImplementation
 {
 }
 
 [MemoryDiagnoser]
 public class Movement4ApiComparisonMicroBenchmarks : Movement4ApiComparisonMicroBenchmarkImplementation
-{
-}
-
-[MemoryDiagnoser]
-public class RemainingApiOptimizationMicroBenchmarks : RemainingApiOptimizationMicroBenchmarkImplementation
 {
 }
 

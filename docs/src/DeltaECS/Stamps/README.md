@@ -51,7 +51,6 @@ The trusted runtime keeps the write state proportional to the operation:
 | Operation | Trusted stamp state carried into the hot path |
 | --- | --- |
 | `Set` or integration point write | `EntityComponentStampWriter` for the current entity/component |
-| `QuerySlots.GetRow(WriteAccess)` / complete row traversal | `ChunkComponentStampWriter` for the current chunk/component |
 | Generated dense `ForEach` write | `ArchetypeComponentStampWriter` for the matching archetype/component |
 | Generated read-only or zero-arity traversal | no write stamp or writer state |
 
@@ -67,7 +66,7 @@ component obtained by reference remains the component owner's responsibility;
 that operation is outside ECS write tracking unless it goes through an ECS
 write endpoint.
 
-## Query stamp access
+## Stamp access
 
 The cold single-entity contract is:
 
@@ -80,38 +79,9 @@ public bool TryGetComponentStamp(
 
 It returns `false` for a stale entity or when the entity does not contain the
 component. It performs no CLR type lookup and does not return the component
-value.
+value. Generated `ForEach` callbacks receive the appropriate read/write intent
+and stamp behavior automatically; the former borrowed query stamp rows are
+internal runtime support.
 
-For dense query traversal, prepare a borrowed stamp row once per chunk:
-
-```csharp
-var transformAccess = query.AccessRead(transformId);
-var parentAccess = query.AccessRead(parentId);
-
-using var scope = world.BeginScope(in query);
-var chunks = scope.Chunks;
-
-while (chunks.MoveNext())
-{
-    var chunk = chunks.Current;
-    var slots = chunk.Slots;
-    var transformStamps = chunk.GetStampRow(transformAccess);
-    var parentStamps = chunk.GetStampRow(parentAccess);
-
-    while (slots.MoveNext())
-    {
-        Stamp transformStamp = transformStamps.Get(in slots);
-        Stamp parentStamp = parentStamps.Get(in slots);
-        // Compare with the consumer's cached revisions.
-    }
-}
-```
-
-`StampRow` is a non-generic borrowed `readonly ref struct`. `GetStampRow`
-validates the access token once for the current chunk and prepares direct
-references to the chunk- and archetype-level stamp cells. `StampRow.Get` then
-reads only those references plus the current entity cell; it performs no world
-hierarchy lookup, entity lookup, CLR `Type` lookup, dictionary lookup or object
-boxing. The row is valid only while its query scope and current chunk remain
-active. There is deliberately no aggregate `EntityStamp`: the exact contract
-is one stamp per entity/component pair.
+There is deliberately no aggregate `EntityStamp`: the exact contract is one
+stamp per entity/component pair.

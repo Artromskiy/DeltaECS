@@ -26,7 +26,7 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 
 | Folder | Responsibility | Documentation |
 |---|---|---|
-| `Core` | World, identity, storage-facing structural operations and explicit query traversal | [Core API](src/DeltaECS/Core/README.md) |
+| `Core` | World, identity and storage-facing structural operations | [Core API](src/DeltaECS/Core/README.md) |
 | `Generic` | CLR-type registration and single-component convenience operations | [Generic API](src/DeltaECS/Generic/README.md) |
 | `Delegate` | Delegate callback contracts and zero-component callback entry points | [Delegate API](src/DeltaECS/Delegate/README.md) |
 | `Functor` | Marker contracts for generated struct-functor callbacks | [Functor API](src/DeltaECS/Functor/README.md) |
@@ -48,65 +48,24 @@ The consumer source generator is documented in
 | `ComponentLayout`, `SchemaId` | Registered CLR layout and stable schema identity | `src/DeltaECS/Core/ComponentTypes.cs` |
 | `ComponentLayoutRegistry` | Non-generic layout registration and lookup | `src/DeltaECS/Core/ComponentLayoutRegistry.cs` |
 | `QuerySpec` | `All`/`Any`/`None` selection masks | `src/DeltaECS/Core/QuerySpec.cs` |
-| `Query` | World-owned cached query and access factory | `src/DeltaECS/Core/EntityTypes.cs` |
-| `ReadAccess`, `WriteAccess` | Non-generic query access declarations | `src/DeltaECS/Core/QueryAccess.cs` |
-| `QueryScope` | One validated query execution and its structural lease | `src/DeltaECS/Core/QueryScope.cs` |
-| `QueryArchetypes`, `QueryChunks`, `QuerySlots` | Independent traversal levels | `src/DeltaECS/Core/QueryArchetypes.cs`, `QueryChunks.cs`, `QuerySlots.cs` |
-| `ReadRow`, `WriteRow` | Non-generic row values; terminal `Ref<T>` is the typed boundary | `src/DeltaECS/Core/Rows.cs`, `src/DeltaECS/Generic/Rows.cs` |
+| `Query` | World-owned cached query and generated API input | `src/DeltaECS/Core/EntityTypes.cs` |
+| `ReadAccess`, `WriteAccess` | Compiler-support access tokens used by generated callbacks | `src/DeltaECS/Core/QueryAccess.cs` |
 | `World.Create<T>`, `Add<T>`, `Remove<T>`, `TryGet<T>`, `Has<T>`, `Get<T>`, `Set<T>` and typed stamps | Single-component typed conveniences over core operations | `src/DeltaECS/Generic/World.Generic.cs` |
 | Generated `World.Create<T1,...>`, `Add<T1,...>`, `Remove<T1,...>` | On-demand primary-component structural operations using stack-only ID spans | `src/DeltaECS.Generators/GeneratedStructuralGenerator.cs` |
 | `World/Query.WhereAll`, `WhereAny`, `WhereNone` | Runtime `ComponentId` factories; generated typed variants compose through the existing query cache | `src/DeltaECS/Core/World.cs`, `src/DeltaECS/Core/EntityTypes.cs`, `src/DeltaECS.Generators/GeneratedQueryGenerator.cs`, `src/DeltaECS/Core/QuerySpec.cs` |
 | `World.ForEach`, `ForEachEntity` | Delegate callback entry points, including handwritten zero-component forms | `src/DeltaECS/Delegate/ForEachZeroArity.cs` |
 | `IForEach*` | Stable functor marker contracts | `src/DeltaECS/Functor/ForEachFunctorContracts.cs` |
-| `World.ForEachParallel` | Chunk-disjoint parallel query callback entry point | `src/DeltaECS/Parallel/World.Parallel.cs`, `QueryChunkAction.cs` |
+| `World.ForEachParallel` | Generated typed parallel query callback entry point | `src/DeltaECS/Parallel/World.Parallel.cs` |
 | `IEcsWorld` | Neutral lifecycle, structural and object-value integration contract | `src/DeltaECS/API/IntegrationContracts.cs` |
 | `Stamp` | 64-bit equality token for exact component revisions | `src/DeltaECS/Stamps/Stamp.cs` |
 
-## Explicit query traversal
+## Query execution boundary
 
-Read this chain for the three-loop API:
-
-```text
-World.BeginScope(in Query)
-  -> QueryScope.Archetypes
-  -> QueryArchetypes.MoveNext()
-  -> QueryArchetypes.Current.Chunks
-  -> QueryChunks.MoveNext()
-  -> QueryChunks.Current.Slots
-  -> QuerySlots.GetRow(access)
-  -> QuerySlots.MoveNext()
-  -> ReadRow/WriteRow.Ref<T>(slots)
-```
-
-The public shape is:
-
-```csharp
-using var scope = world.BeginScope(in query);
-var positionAccess = query.AccessWrite(positionId);
-var position = positionAccess;
-var archetypes = scope.Archetypes;
-
-while (archetypes.MoveNext())
-{
-    var chunks = archetypes.Current.Chunks;
-    while (chunks.MoveNext())
-    {
-        var slots = chunks.Current.Slots;
-        var positions = slots.GetRow(position);
-        while (slots.MoveNext())
-        {
-            ref Position value = ref positions.Ref<Position>(slots);
-            value.X++;
-        }
-    }
-}
-```
-
-`QueryScope` validates query ownership and owns the active structural lease.
-The child iterators are borrowed stack-only views. `GetRow` validates that an
-access token belongs to the current query and then resolves the current
-chunk's prepared row table. `ReadRow`, `WriteRow` and the iterators must not
-escape the scope.
+Consumers use the generated `ForEach`, `ForEachEntity`, `ForEachParallel` and
+`ForEachEntityParallel` methods listed in [API-GRAMMAR.md](API-GRAMMAR.md).
+They validate the query, acquire the structural lease, prepare typed component
+routes and execute the dense chunk loop. The former `BeginScope`/iterator/row
+chain is internal runtime support and is not a supported consumer shape.
 
 ## Generated callback path
 
@@ -121,11 +80,11 @@ observed by that consumer. It supports:
 - primary component lookup or explicit `ComponentId` selection;
 - delegate and struct-functor forms.
 
-The generated callback is a convenience surface over the same type-erased
-query plan, access declarations and chunk traversal used by `BeginScope`. CLR
-component types appear at registration and at the callback/ref boundary; they
-are not carried by query, access, plan or iterator storage. See the generator
-README for lambda inference and diagnostics.
+The generated callback is the supported consumer surface over the type-erased
+query plan and compiler-support access declarations. CLR component types appear
+at registration and at the callback/ref boundary; they are not carried by
+query or plan storage. See the generator README for lambda inference and
+diagnostics.
 
 For maximum performance on delegate-shaped hot loops, the consumer should
 enable the project-local Roslyn interceptor opt-in:

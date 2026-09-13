@@ -11,7 +11,7 @@ at the end of `Program.cs`, after all top-level statements.
 |---|---|
 | Register layouts, create entities, `Get` / `Set` / `TryGet` | Runtime |
 | Single-component `Add<T>(entity, value)` / `Remove<T>(entity)` | Runtime |
-| `QuerySpec`, `CreateQuery`, `BeginScope` | Runtime |
+| `QuerySpec`, `CreateQuery` | Runtime |
 | Typed `WhereAll<T...>` / `WhereAny<T...>` / `WhereNone<T...>` | Generator |
 | `WhereAll` / `WhereAny` / `WhereNone` with `ComponentId` values | Runtime |
 | Component-bearing `ForEach` / `ForEachEntity` | Generator |
@@ -273,41 +273,6 @@ world.Where(
 The intermediate view is a stack-only `ref struct`, so it cannot be stored in a
 class, boxed, or returned. It holds the predicate only for the duration of the
 terminal call; no command is retained. `Where` scans all query matches;
-
-## Traverse chunks explicitly
-
-For systems that need direct control over traversal, declare query accesses
-and keep all borrowed rows inside a scope:
-
-```csharp
-{
-    using var scope = world.BeginScope(in query);
-    var positionAccess = query.AccessWrite(positionId);
-    var velocityAccess = query.AccessRead(velocityId);
-    var archetypes = scope.Archetypes;
-    while (archetypes.MoveNext())
-    {
-        var chunks = archetypes.Current.Chunks;
-        while (chunks.MoveNext())
-        {
-            var slots = chunks.Current.Slots;
-            var positions = slots.GetRow(positionAccess);
-            var velocities = slots.GetRow(velocityAccess);
-            while (slots.MoveNext())
-            {
-                ref Position position = ref positions.Ref<Position>(slots);
-                ref readonly Velocity velocity = ref velocities.Ref<Velocity>(slots);
-                position.X += velocity.X;
-            }
-        }
-    }
-}
-Console.WriteLine(world.Get<Position>(entity).X); // 14
-```
-
-Disposing the scope ends the structural lease. Accesses belong to their query;
-rows and child iterators must not escape the scope. The callback and explicit
-traversal APIs both enforce access intent and participate in change tracking.
 
 ## Opt into interceptors
 

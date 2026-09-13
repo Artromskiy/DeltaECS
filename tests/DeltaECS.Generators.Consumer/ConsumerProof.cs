@@ -459,21 +459,10 @@ public static class ConsumerProof
     private static int Count(World world, in Query query)
     {
         int count = 0;
-        using var scope = world.BeginScope(in query);
-        var archetypes = scope.Archetypes;
-        while (archetypes.MoveNext())
-        {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
-            {
-                var slots = chunks.Current.Slots;
-                while (slots.MoveNext())
-                {
-                    count++;
-                }
-            }
-        }
-
+        world.ForEachEntity(
+            in query,
+            ref count,
+            static (ref int value, Entity _) => value++);
         return count;
     }
 }

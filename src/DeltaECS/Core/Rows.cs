@@ -1,17 +1,17 @@
 namespace Delta.ECS;
 
 using System;
-public readonly ref struct ObjectReadValues
+internal readonly ref struct ObjectReadValues
 {
     private readonly Array _row;
 
     internal ObjectReadValues(Array row) => _row = row;
 
-    public object? Get(QuerySlots slots) => _row.GetValue(slots.CurrentIndex);
+    internal object? Get(QuerySlots slots) => _row.GetValue(slots.CurrentIndex);
 
 }
 
-public readonly ref struct ObjectWriteValues
+internal readonly ref struct ObjectWriteValues
 {
     private readonly Array _row;
     private readonly Type _elementType;
@@ -23,7 +23,7 @@ public readonly ref struct ObjectWriteValues
             ?? ThrowHelper.ThrowNonArrayComponentRow(nameof(row));
     }
 
-    public void Set(QuerySlots slots, object? value) => Set(slots.CurrentIndex, value);
+    internal void Set(QuerySlots slots, object? value) => Set(slots.CurrentIndex, value);
 
 
     private void Set(int index, object? value)

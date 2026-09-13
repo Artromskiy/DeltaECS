@@ -3,7 +3,7 @@ namespace Delta.ECS;
 using System.Runtime.CompilerServices;
 
 /// <summary>Independent iterator over the query's matching archetypes.</summary>
-public ref struct QueryArchetypes
+internal ref struct QueryArchetypes
 {
     private readonly ReadOnlySpan<ArchetypePlan> _plans;
     private readonly QueryPlan _query;
@@ -24,7 +24,7 @@ public ref struct QueryArchetypes
         _index = -1;
     }
 
-    public QueryArchetype Current
+    internal QueryArchetype Current
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
@@ -39,7 +39,7 @@ public ref struct QueryArchetypes
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool MoveNext()
+    internal bool MoveNext()
     {
         _writeSession.EnsureActive(_sessionGeneration);
         if ((uint)++_index >= (uint)_plans.Length)
@@ -52,7 +52,7 @@ public ref struct QueryArchetypes
 }
 
 /// <summary>Current matching archetype and its row plan.</summary>
-public readonly ref struct QueryArchetype
+internal readonly ref struct QueryArchetype
 {
     private readonly ArchetypePlan _plan;
     private readonly QueryPlan _query;
@@ -67,11 +67,11 @@ public readonly ref struct QueryArchetype
         _sessionGeneration = sessionGeneration;
     }
 
-    public int ArchetypeId => _plan.Archetype.Id;
+    internal int ArchetypeId => _plan.Archetype.Id;
 
-    public int EntityCount => _plan.Archetype.EntityCount;
+    internal int EntityCount => _plan.Archetype.EntityCount;
 
-    public int ChunkCount => _plan.Archetype.ActiveChunkCount;
+    internal int ChunkCount => _plan.Archetype.ActiveChunkCount;
 
-    public QueryArchetypeChunks Chunks => new(_plan, _query, _writeSession, _sessionGeneration);
+    internal QueryArchetypeChunks Chunks => new(_plan, _query, _writeSession, _sessionGeneration);
 }

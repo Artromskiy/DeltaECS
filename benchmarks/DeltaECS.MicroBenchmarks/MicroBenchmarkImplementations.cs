@@ -91,12 +91,8 @@ internal static class MicroBenchmarkKernels
 {
     public static int IterateMovement2Dense(
         MicroWorld fixture,
-        in Query query,
-        WriteAccess position,
-        ReadAccess velocity)
+        in Query query)
     {
-        _ = position;
-        _ = velocity;
         var checksum = 0;
         fixture.World.ForEach(
             in query,
@@ -112,16 +108,8 @@ internal static class MicroBenchmarkKernels
 
     public static int IterateMovement4Dense(
         MicroWorld fixture,
-        in Query query,
-        WriteAccess aBinding,
-        WriteAccess bBinding,
-        WriteAccess cBinding,
-        ReadAccess dBinding)
+        in Query query)
     {
-        _ = aBinding;
-        _ = bBinding;
-        _ = cBinding;
-        _ = dBinding;
         var checksum = 0;
         fixture.World.ForEach(
             in query,
@@ -136,92 +124,6 @@ internal static class MicroBenchmarkKernels
         return checksum;
     }
 
-    public static int IterateMovement4ForwardFor(
-        MicroWorld fixture,
-        in Query query,
-        WriteAccess aBinding,
-        WriteAccess bBinding,
-        WriteAccess cBinding,
-        ReadAccess dBinding)
-    {
-        var checksum = 0;
-        using var scope = fixture.World.BeginScope(in query);
-        var preparedA = aBinding;
-        var preparedB = bBinding;
-        var preparedC = cBinding;
-        var preparedD = dBinding;
-        var archetypes = scope.Archetypes;
-        while (archetypes.MoveNext())
-        {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
-            {
-                var chunk = chunks.Current;
-                var slots = chunk.Slots;
-                var a = slots.GetRow(preparedA);
-                var b = slots.GetRow(preparedB);
-                var c = slots.GetRow(preparedC);
-                var d = slots.GetRow(preparedD);
-                var slotCount = chunk.SlotCount;
-                for (var slot = 0; slot < slotCount; slot++)
-                {
-                    ref var rowA = ref a.Ref<Movement4A>(slot);
-                    ref var rowB = ref b.Ref<Movement4B>(slot);
-                    ref var rowC = ref c.Ref<Movement4C>(slot);
-                    ref readonly var rowD = ref d.Ref<Movement4D>(slot);
-                    rowA.Value += rowD.Value;
-                    rowB.Value += rowD.Value;
-                    rowC.Value = (rowA.Value + rowB.Value) / 2;
-                    checksum += rowA.Value + rowB.Value + rowC.Value + rowD.Value;
-                }
-            }
-        }
-
-        return checksum;
-    }
-
-    public static int IterateMovement4ReverseFor(
-        MicroWorld fixture,
-        in Query query,
-        WriteAccess aBinding,
-        WriteAccess bBinding,
-        WriteAccess cBinding,
-        ReadAccess dBinding)
-    {
-        var checksum = 0;
-        using var scope = fixture.World.BeginScope(in query);
-        var preparedA = aBinding;
-        var preparedB = bBinding;
-        var preparedC = cBinding;
-        var preparedD = dBinding;
-        var archetypes = scope.Archetypes;
-        while (archetypes.MoveNext())
-        {
-            var chunks = archetypes.Current.Chunks;
-            while (chunks.MoveNext())
-            {
-                var chunk = chunks.Current;
-                var slots = chunk.Slots;
-                var a = slots.GetRow(preparedA);
-                var b = slots.GetRow(preparedB);
-                var c = slots.GetRow(preparedC);
-                var d = slots.GetRow(preparedD);
-                for (var slot = chunk.SlotCount - 1; slot >= 0; slot--)
-                {
-                    ref var rowA = ref a.Ref<Movement4A>(slot);
-                    ref var rowB = ref b.Ref<Movement4B>(slot);
-                    ref var rowC = ref c.Ref<Movement4C>(slot);
-                    ref readonly var rowD = ref d.Ref<Movement4D>(slot);
-                    rowA.Value += rowD.Value;
-                    rowB.Value += rowD.Value;
-                    rowC.Value = (rowA.Value + rowB.Value) / 2;
-                    checksum += rowA.Value + rowB.Value + rowC.Value + rowD.Value;
-                }
-            }
-        }
-
-        return checksum;
-    }
 }
 
 public class DenseIterationMicroBenchmarkImplementation
@@ -233,12 +135,6 @@ public class DenseIterationMicroBenchmarkImplementation
     private Entity[] _movement4Entities = null!;
     private Query _movement2Query;
     private Query _movement4Query;
-    private WriteAccess _movement2Position;
-    private ReadAccess _movement2Velocity;
-    private WriteAccess _movement4A;
-    private WriteAccess _movement4B;
-    private WriteAccess _movement4C;
-    private ReadAccess _movement4D;
 
     [GlobalSetup]
     public void Setup()
@@ -249,8 +145,6 @@ public class DenseIterationMicroBenchmarkImplementation
 
         var movement2 = QuerySpec.WhereAll(_fixture.Position, _fixture.Velocity);
         _movement2Query = _fixture.World.CreateQuery(in movement2);
-        _movement2Position = _movement2Query.AccessWrite(_fixture.Position);
-        _movement2Velocity = _movement2Query.AccessRead(_fixture.Velocity);
 
         var movement4 = QuerySpec.WhereAll(
             _fixture.Movement4A,
@@ -258,10 +152,6 @@ public class DenseIterationMicroBenchmarkImplementation
             _fixture.Movement4C,
             _fixture.Movement4D);
         _movement4Query = _fixture.World.CreateQuery(in movement4);
-        _movement4A = _movement4Query.AccessWrite(_fixture.Movement4A);
-        _movement4B = _movement4Query.AccessWrite(_fixture.Movement4B);
-        _movement4C = _movement4Query.AccessWrite(_fixture.Movement4C);
-        _movement4D = _movement4Query.AccessRead(_fixture.Movement4D);
     }
 
     [IterationSetup(Target = nameof(Movement2Components))]
@@ -274,71 +164,13 @@ public class DenseIterationMicroBenchmarkImplementation
     public int Movement2Components() =>
         MicroBenchmarkKernels.IterateMovement2Dense(
             _fixture,
-            in _movement2Query,
-            _movement2Position,
-            _movement2Velocity);
+            in _movement2Query);
 
     [Benchmark]
     public int Movement4Components() =>
         MicroBenchmarkKernels.IterateMovement4Dense(
             _fixture,
-            in _movement4Query,
-            _movement4A,
-            _movement4B,
-            _movement4C,
-            _movement4D);
-}
-
-public class Movement4OrderMicroBenchmarkImplementation
-{
-    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
-
-    private MicroWorld _fixture = null!;
-    private Entity[] _entities = null!;
-    private Query _query;
-    private WriteAccess _a;
-    private WriteAccess _b;
-    private WriteAccess _c;
-    private ReadAccess _d;
-
-    [GlobalSetup]
-    public void Setup()
-    {
-        _fixture = new MicroWorld(initialEntityCapacity: Amount);
-        _entities = _fixture.CreateMovement4(Amount);
-
-        var description = QuerySpec.WhereAll(
-            _fixture.Movement4A,
-            _fixture.Movement4B,
-            _fixture.Movement4C,
-            _fixture.Movement4D);
-        _query = _fixture.World.CreateQuery(in description);
-        _a = _query.AccessWrite(_fixture.Movement4A);
-        _b = _query.AccessWrite(_fixture.Movement4B);
-        _c = _query.AccessWrite(_fixture.Movement4C);
-        _d = _query.AccessRead(_fixture.Movement4D);
-    }
-
-    [IterationSetup]
-    public void Reset() => _fixture.ResetMovement4(_entities);
-
-    [Benchmark(Baseline = true)]
-    public int ForwardFor() => MicroBenchmarkKernels.IterateMovement4ForwardFor(
-        _fixture,
-        in _query,
-        _a,
-        _b,
-        _c,
-        _d);
-
-    [Benchmark]
-    public int ReverseFor() => MicroBenchmarkKernels.IterateMovement4ReverseFor(
-        _fixture,
-        in _query,
-        _a,
-        _b,
-        _c,
-        _d);
+            in _movement4Query);
 }
 
 internal record struct GeneratedMovement4Functor : IForEach
@@ -400,14 +232,9 @@ internal static class MicroContractSmoke
         var movement2Entities = fixture.CreateMoving(8);
         var movement2Description = QuerySpec.WhereAll(fixture.Position, fixture.Velocity);
         var movement2Query = fixture.World.CreateQuery(in movement2Description);
-        var movement2Position = movement2Query.AccessWrite(fixture.Position);
-        var movement2Velocity = movement2Query.AccessRead(fixture.Velocity);
-
         var movement2Sum = MicroBenchmarkKernels.IterateMovement2Dense(
             fixture,
-            in movement2Query,
-            movement2Position,
-            movement2Velocity);
+            in movement2Query);
         if (movement2Sum != movement2Entities.Length * (movement2Entities.Length + 3))
             throw new InvalidOperationException("Dense Movement2 checksum mismatch.");
 
@@ -419,50 +246,15 @@ internal static class MicroContractSmoke
             fixture.Movement4C,
             fixture.Movement4D);
         var movement4Query = fixture.World.CreateQuery(in movement4Description);
-        var movement4A = movement4Query.AccessWrite(fixture.Movement4A);
-        var movement4B = movement4Query.AccessWrite(fixture.Movement4B);
-        var movement4C = movement4Query.AccessWrite(fixture.Movement4C);
-        var movement4D = movement4Query.AccessRead(fixture.Movement4D);
-
         var movement4Sum = MicroBenchmarkKernels.IterateMovement4Dense(
             fixture,
-            in movement4Query,
-            movement4A,
-            movement4B,
-            movement4C,
-            movement4D);
+            in movement4Query);
         if (movement4Sum != movement4Entities.Length * 20)
             throw new InvalidOperationException("Dense Movement4 checksum mismatch.");
 
-        fixture.ResetMovement4(movement4Entities);
-        var movement4ForwardSum = MicroBenchmarkKernels.IterateMovement4ForwardFor(
-            fixture,
-            in movement4Query,
-            movement4A,
-            movement4B,
-            movement4C,
-            movement4D);
-        if (movement4ForwardSum != movement4Entities.Length * 20)
-            throw new InvalidOperationException("Forward Movement4 checksum mismatch.");
-
-        fixture.ResetMovement4(movement4Entities);
-        var movement4ReverseSum = MicroBenchmarkKernels.IterateMovement4ReverseFor(
-            fixture,
-            in movement4Query,
-            movement4A,
-            movement4B,
-            movement4C,
-            movement4D);
-        if (movement4ReverseSum != movement4Entities.Length * 20)
-            throw new InvalidOperationException("Reverse Movement4 checksum mismatch.");
-
         var apiComparison = new Movement4ApiComparisonMicroBenchmarkImplementation { Amount = 8 };
         apiComparison.Setup();
-        var expectedApiComparison = apiComparison.ThreeWhile();
-        if (apiComparison.TwoWhile() != expectedApiComparison)
-            throw new InvalidOperationException("Two-while Movement4 checksum mismatch.");
-        if (apiComparison.Functor() != expectedApiComparison)
-            throw new InvalidOperationException("Functor Movement4 checksum mismatch.");
+        var expectedApiComparison = apiComparison.Functor();
         if (apiComparison.Delegate() != expectedApiComparison)
             throw new InvalidOperationException("Delegate Movement4 checksum mismatch.");
         if (apiComparison.Intercepted() != expectedApiComparison)

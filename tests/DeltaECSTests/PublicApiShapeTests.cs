@@ -8,9 +8,8 @@ using NUnit.Framework;
 [TestFixture]
 public sealed class PublicApiShapeTests
 {
-    private static readonly Type[] QueryChainTypes =
+    private static readonly Type[] InternalQueryTypes =
     [
-        typeof(Query),
         typeof(QueryScope),
         typeof(QueryArchetypes),
         typeof(QueryArchetype),
@@ -18,12 +17,12 @@ public sealed class PublicApiShapeTests
         typeof(QueryArchetypeChunks),
         typeof(QueryChunk),
         typeof(QuerySlots),
-        typeof(ReadAccess),
-        typeof(WriteAccess),
         typeof(ReadRow),
         typeof(WriteRow),
         typeof(ObjectReadValues),
-        typeof(ObjectWriteValues)
+        typeof(ObjectWriteValues),
+        typeof(StampRow),
+        typeof(QueryChunkAction)
     ];
 
     [Test]
@@ -54,74 +53,35 @@ public sealed class PublicApiShapeTests
     }
 
     [Test]
-    public void QueryAccessAndRowChainIsTypeErasedUntilTerminalRef()
+    public void LowLevelQueryTraversalIsInternal()
     {
-        var genericTypes = QueryChainTypes
-            .Where(static type => type.IsGenericType)
-            .ToArray();
-        var genericMethods = QueryChainTypes
-            .SelectMany(static type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance))
-            .Where(static method => method.IsGenericMethod)
-            .ToArray();
-        var nonTerminalGenericMethods = genericMethods
-            .Where(static method => method.Name != nameof(ReadRow.Ref))
-            .ToArray();
-        var invalidTerminalMethods = genericMethods
-            .Where(static method => method.Name == nameof(ReadRow.Ref))
-            .Where(static method => method.GetGenericArguments().Length != 1)
-            .ToArray();
-
         Assert.Multiple(() =>
         {
-            Assert.That(genericTypes, Is.Empty, "Query/access/row types must not be generic types.");
-            Assert.That(
-                nonTerminalGenericMethods,
-                Is.Empty,
-                "Only terminal ReadRow.Ref<T>/WriteRow.Ref<T> may be generic: "
-                    + string.Join(", ", nonTerminalGenericMethods.Select(static method => method.ToString())));
-            Assert.That(invalidTerminalMethods, Is.Empty);
-            Assert.That(genericMethods, Is.Not.Empty, "The typed row boundary must remain present.");
-        });
-    }
+            foreach (var type in InternalQueryTypes)
+            {
+                Assert.That(type.IsPublic, Is.False, $"{type.Name} must stay outside the public API.");
+            }
 
-    [Test]
-    public void ExplicitQueryPathPreservesThreeLoopPublicShape()
-    {
-        var createQuery = PublicInstanceMethod(typeof(World), nameof(World.CreateQuery), typeof(QuerySpec).MakeByRefType());
-        var beginScope = PublicInstanceMethod(typeof(World), nameof(World.BeginScope), typeof(Query).MakeByRefType());
-        var archetypeMoveNext = PublicInstanceMethod(typeof(QueryArchetypes), nameof(QueryArchetypes.MoveNext));
-        var chunkMoveNext = PublicInstanceMethod(typeof(QueryChunks), nameof(QueryChunks.MoveNext));
-        var archetypeChunkMoveNext = PublicInstanceMethod(typeof(QueryArchetypeChunks), nameof(QueryArchetypeChunks.MoveNext));
-        var slotMoveNext = PublicInstanceMethod(typeof(QuerySlots), nameof(QuerySlots.MoveNext));
-        var getRead = PublicInstanceMethod(typeof(QuerySlots), nameof(QuerySlots.GetRow), typeof(ReadAccess));
-        var getWrite = PublicInstanceMethod(typeof(QuerySlots), nameof(QuerySlots.GetRow), typeof(WriteAccess));
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(createQuery.ReturnType, Is.EqualTo(typeof(Query)));
-            Assert.That(beginScope.ReturnType, Is.EqualTo(typeof(QueryScope)));
             Assert.That(
-                typeof(World).GetMethod("OpenQuery", BindingFlags.Public | BindingFlags.Instance),
-                Is.Null,
-                "The renamed scope entry point must not leave the misleading OpenQuery API behind.");
-            Assert.That(typeof(QueryScope).GetProperty(nameof(QueryScope.Archetypes))?.PropertyType, Is.EqualTo(typeof(QueryArchetypes)));
-            Assert.That(typeof(QueryScope).GetProperty(nameof(QueryScope.Chunks))?.PropertyType, Is.EqualTo(typeof(QueryChunks)));
+                typeof(World).GetMethod(nameof(World.BeginScope), BindingFlags.Public | BindingFlags.Instance),
+                Is.Null);
             Assert.That(
-                typeof(QueryScope).GetMethods(BindingFlags.Public | BindingFlags.Instance)
-                    .Any(static method => method.Name == "Bind"),
-                Is.False,
-                "QueryScope must not expose a redundant Bind validation layer.");
-            Assert.That(archetypeMoveNext.ReturnType, Is.EqualTo(typeof(bool)));
-            Assert.That(typeof(QueryArchetypes).GetProperty(nameof(QueryArchetypes.Current))?.PropertyType, Is.EqualTo(typeof(QueryArchetype)));
-            Assert.That(chunkMoveNext.ReturnType, Is.EqualTo(typeof(bool)));
-            Assert.That(archetypeChunkMoveNext.ReturnType, Is.EqualTo(typeof(bool)));
-            Assert.That(typeof(QueryArchetype).GetProperty(nameof(QueryArchetype.Chunks))?.PropertyType, Is.EqualTo(typeof(QueryArchetypeChunks)));
-            Assert.That(typeof(QueryChunks).GetProperty(nameof(QueryChunks.Current))?.PropertyType, Is.EqualTo(typeof(QueryChunk)));
-            Assert.That(typeof(QueryArchetypeChunks).GetProperty(nameof(QueryArchetypeChunks.Current))?.PropertyType, Is.EqualTo(typeof(QueryChunk)));
-            Assert.That(slotMoveNext.ReturnType, Is.EqualTo(typeof(bool)));
-            Assert.That(typeof(QueryChunk).GetProperty(nameof(QueryChunk.Slots))?.PropertyType, Is.EqualTo(typeof(QuerySlots)));
-            Assert.That(getRead.ReturnType, Is.EqualTo(typeof(ReadRow)));
-            Assert.That(getWrite.ReturnType, Is.EqualTo(typeof(WriteRow)));
+                typeof(Query).GetMethod(nameof(Query.AccessRead), BindingFlags.Public | BindingFlags.Instance),
+                Is.Null);
+            Assert.That(
+                typeof(Query).GetMethod(nameof(Query.AccessWrite), BindingFlags.Public | BindingFlags.Instance),
+                Is.Null);
+            Assert.That(
+                typeof(World).GetProperty(nameof(World.ArchetypeVersion), BindingFlags.Public | BindingFlags.Instance),
+                Is.Null);
+            Assert.That(
+                typeof(World).GetMethod(nameof(World.CollectAliveEntities), BindingFlags.Public | BindingFlags.Instance),
+                Is.Null);
+            Assert.That(
+                typeof(World).GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                    .Any(static method => method.Name == nameof(World.ForEachParallel)
+                        && method.GetParameters().Any(static parameter => parameter.ParameterType == typeof(QueryChunkAction))),
+                Is.False);
         });
     }
 

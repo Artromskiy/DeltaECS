@@ -152,3 +152,10 @@ The canonical API no longer includes `ArchetypeHandle`, public
 `GetOrCreateArchetype`, handle-based `Create`, `World.From`,
 `EntitySequence`, or `FilteredEntitySequence`. Explicit entity operations use
 the direct `World` overloads above.
+
+The three-loop traversal (`BeginScope`, `QueryArchetypes`, `QueryChunks`,
+`QuerySlots`, `ReadRow` and `WriteRow`) is an internal runtime implementation
+detail. It is not a consumer API and must not be used in generated examples,
+benchmarks or integration contracts. The chunk callback overload of
+`ForEachParallel` is internal for the same reason; consumers use the generated
+typed `ForEachParallel` and `ForEachEntityParallel` forms.

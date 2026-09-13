@@ -3,7 +3,7 @@ namespace Delta.ECS;
 using System.Runtime.CompilerServices;
 
 /// <summary>Borrowed read-only view of one component's mutation stamps in a chunk.</summary>
-public readonly ref struct StampRow
+internal readonly ref struct StampRow
 {
     private readonly Chunk _chunk;
     private readonly int _componentIndex;
@@ -27,7 +27,7 @@ public readonly ref struct StampRow
 
     /// <summary>Reads the stamp for the current slot of the supplied chunk slot iterator.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Stamp Get(in QuerySlots slots)
+    internal Stamp Get(in QuerySlots slots)
     {
         int slotIndex = slots.CurrentIndex;
         if ((uint)slotIndex >= (uint)_count)

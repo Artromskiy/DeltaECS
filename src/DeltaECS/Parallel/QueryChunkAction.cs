@@ -7,4 +7,4 @@ namespace Delta.ECS;
 /// retain the chunk after the callback returns. ECS component storage is disjoint by chunk;
 /// user-owned state captured by the callback remains the caller's responsibility.
 /// </remarks>
-public delegate void QueryChunkAction(QueryChunk chunk);
+internal delegate void QueryChunkAction(QueryChunk chunk);
