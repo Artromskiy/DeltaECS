@@ -189,14 +189,15 @@ The generator keeps this opt-in isolated to `Delta.ECS.Generated`; it does not
 enable a global preview switch or add `InterceptorsPreviewNamespaces`. When
 enabled, a supported `World.ForEach`/`ForEachEntity` call with a synchronous
 static non-capturing lambda or an unambiguous static method group receives a
-generated interceptor. A lambda body is copied into a generated struct
-functor; a method group functor forwards directly to its resolved static
-method. The same lowering is used for a static-lambda
-`world.Where(...).ForEach(...)` or `world.WhereEntity(...).ForEach(...)` terminal
-and for a functor terminal with a
-static-lambda predicate. These forms enter a closed dense execution method with
-chunk-level row resolution. Query ownership, leases, mutation stamps and
-write-row marking therefore remain in the shared runtime path.
+generated interceptor. This includes query-wide and explicit entity-list forms,
+as well as their parallel variants. A lambda body is copied into a generated
+struct functor; a method group functor forwards directly to its resolved static
+method. The same lowering is used for `world.Where(...).ForEach(...)` and
+`world.WhereEntity(...).ForEach(...)` pipelines when the predicate and terminal
+are static lambdas or static method groups. These forms enter a closed trusted
+execution method with chunk-level row resolution. Query ownership, leases,
+mutation stamps and write-row marking therefore remain in the shared runtime
+path.
 
 When the consumer uses C# 9 or C# 10, including Unity projects with a
 `netstandard2.1` API profile, the generator skips interceptor source because

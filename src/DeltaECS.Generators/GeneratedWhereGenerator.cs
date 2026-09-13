@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Immutable;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -100,6 +101,10 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
                     shape = candidate;
                     shapes.Add(shape.Key, shape);
                 }
+                else
+                {
+                    shape.Merge(candidate);
+                }
 
                 whereCalls[invocation] = shape;
             }
@@ -121,6 +126,10 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
                 if (!shape.Terminals.ContainsKey(terminal.SignatureKey))
                 {
                     shape.Terminals.Add(terminal.SignatureKey, terminal);
+                }
+                else
+                {
+                    shape.Terminals[terminal.SignatureKey].Merge(terminal);
                 }
 
                 if (interceptorsEnabled
@@ -177,24 +186,48 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         out WhereInterceptionSite? site)
     {
         site = null;
-        if (whereInvocation.ArgumentList.Arguments.Count is not (2 or 3)
-            || whereInvocation.ArgumentList.Arguments[whereInvocation.ArgumentList.Arguments.Count - 1].Expression is not LambdaExpressionSyntax predicate
-            || !predicate.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.StaticKeyword)))
+        if (whereInvocation.ArgumentList.Arguments.Count is not (2 or 3))
+        {
+            return false;
+        }
+
+        ExpressionSyntax predicateExpression = whereInvocation.ArgumentList.Arguments[whereInvocation.ArgumentList.Arguments.Count - 1].Expression;
+        LambdaExpressionSyntax? predicate = predicateExpression as LambdaExpressionSyntax;
+        IMethodSymbol? predicateMethod = null;
+        if (predicate is not null)
+        {
+            if (!predicate.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.StaticKeyword)))
+            {
+                return false;
+            }
+        }
+        else if (!TryGetStaticMethodGroupTarget(model, predicateExpression, out predicateMethod))
         {
             return false;
         }
 
         LambdaExpressionSyntax? action = null;
+        IMethodSymbol? actionMethod = null;
         if (terminal.IsCallback && !terminal.IsFunctor)
         {
-            if (terminalInvocation.ArgumentList.Arguments.Count != 1
-                || terminalInvocation.ArgumentList.Arguments[0].Expression is not LambdaExpressionSyntax lambda
-                || !lambda.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.StaticKeyword)))
+            if (terminalInvocation.ArgumentList.Arguments.Count != 1)
             {
                 return false;
             }
 
-            action = lambda;
+            ExpressionSyntax actionExpression = terminalInvocation.ArgumentList.Arguments[0].Expression;
+            action = actionExpression as LambdaExpressionSyntax;
+            if (action is not null)
+            {
+                if (!action.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.StaticKeyword)))
+                {
+                    return false;
+                }
+            }
+            else if (!TryGetStaticMethodGroupTarget(model, actionExpression, out actionMethod))
+            {
+                return false;
+            }
         }
         else if (terminal.IsCallback
             && (terminalInvocation.ArgumentList.Arguments.Count != (terminal.HasContext ? 2 : 1)
@@ -208,19 +241,21 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             return false;
         }
 
-        if (!AreLambdaReferencesAccessible(model, predicate)
+        if ((predicate is not null && !AreLambdaReferencesAccessible(model, predicate))
             || (action is not null && !AreLambdaReferencesAccessible(model, action)))
         {
             return false;
         }
 
-        ParameterSyntax[] predicateParameters = LambdaParameters(predicate);
+        ParameterSyntax[] predicateParameters = predicate is null ? Array.Empty<ParameterSyntax>() : LambdaParameters(predicate);
         ParameterSyntax[] actionParameters = action is null ? Array.Empty<ParameterSyntax>() : LambdaParameters(action);
         int predicateComponentStart = (shape.HasContext ? 1 : 0) + (shape.HasEntity ? 1 : 0);
-        string[] predicateComponents = predicateParameters
-            .Skip(predicateComponentStart)
-            .Select(parameter => DisplayType(model.GetTypeInfo(parameter.Type!).Type!))
-            .ToArray();
+        string[] predicateComponents = predicate is null
+            ? shape.Components
+            : predicateParameters
+                .Skip(predicateComponentStart)
+                .Select(parameter => DisplayType(model.GetTypeInfo(parameter.Type!).Type!))
+                .ToArray();
         int actionComponentStart = terminal.HasEntity ? 1 : 0;
         string[] actionComponents = action is null
             ? terminal.Components
@@ -263,6 +298,8 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             terminal,
             predicate,
             action,
+            predicateMethod,
+            actionMethod,
             predicateComponents,
             actionComponents,
             attributeSyntax,
@@ -451,14 +488,16 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
     private static void RenderInterceptedPredicate(StringBuilder source, WhereInterceptionSite site)
     {
         PredicateShape shape = site.Shape;
-        ParameterSyntax[] parameters = LambdaParameters(site.Predicate);
+        string[] parameters = site.Predicate is not null
+            ? LambdaParameters(site.Predicate).Select(static parameter => parameter.Identifier.ValueText).ToArray()
+            : InterceptedPredicateParameterNames(shape);
         source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         source.Append("    private static bool Predicate_").Append(site.Id).Append('(');
         int parameterIndex = 0;
         if (shape.HasContext)
         {
             source.Append("ref ").Append(InterceptedPredicateContextType(shape)).Append(' ')
-                .Append(parameters[parameterIndex++].Identifier.ValueText);
+            .Append(parameters[parameterIndex++]);
         }
 
         if (shape.HasEntity)
@@ -468,7 +507,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
                 source.Append(", ");
             }
 
-            source.Append("Entity ").Append(parameters[parameterIndex++].Identifier.ValueText);
+            source.Append("Entity ").Append(parameters[parameterIndex++]);
         }
 
         for (int index = 0; index < shape.Arity; index++)
@@ -479,18 +518,24 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             }
 
             source.Append(ParameterPrefix(shape.Pattern[index])).Append(site.PredicateComponents[index]).Append(' ')
-                .Append(parameters[parameterIndex++].Identifier.ValueText);
+                .Append(parameters[parameterIndex++]);
         }
 
         source.AppendLine(")");
         source.AppendLine("    {");
-        if (site.Predicate.Body is BlockSyntax block)
+        if (site.Predicate is { Body: BlockSyntax block })
         {
             AppendIndented(source, block.Statements.ToFullString(), "        ");
         }
+        else if (site.Predicate is { } lambda)
+        {
+            source.Append("        return ").Append(lambda.Body).AppendLine(";");
+        }
         else
         {
-            source.Append("        return ").Append(site.Predicate.Body).AppendLine(";");
+            source.Append("        return ");
+            AppendMethodGroupInvocation(source, site.PredicateMethodGroupTarget!, shape.HasContext, shape.HasEntity, shape.Pattern, parameters);
+            source.AppendLine(";");
         }
 
         source.AppendLine("    }");
@@ -500,14 +545,16 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
     private static void RenderInterceptedAction(StringBuilder source, WhereInterceptionSite site)
     {
         TerminalShape terminal = site.Terminal;
-        ParameterSyntax[] parameters = LambdaParameters(site.Action!);
+        string[] parameters = site.Action is not null
+            ? LambdaParameters(site.Action).Select(static parameter => parameter.Identifier.ValueText).ToArray()
+            : InterceptedActionParameterNames(terminal);
         int parameterIndex = 0;
         source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         source.Append("    private static void Action_").Append(site.Id).Append("(");
         var declarations = new List<string>();
         if (terminal.HasEntity)
         {
-            declarations.Add("Entity " + parameters[parameterIndex++].Identifier.ValueText);
+            declarations.Add("Entity " + parameters[parameterIndex++]);
         }
 
         for (int index = 0; index < terminal.Arity; index++)
@@ -516,22 +563,85 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
                 ParameterPrefix(terminal.Pattern[index])
                 + site.ActionComponents[index]
                 + " "
-                + parameters[parameterIndex++].Identifier.ValueText);
+                + parameters[parameterIndex++]);
         }
 
         source.Append(string.Join(", ", declarations)).AppendLine(")");
         source.AppendLine("    {");
-        if (site.Action!.Body is BlockSyntax block)
+        if (site.Action is { Body: BlockSyntax block })
         {
             AppendIndented(source, block.Statements.ToFullString(), "        ");
         }
+        else if (site.Action is { } lambda)
+        {
+            source.Append("        ").Append(lambda.Body).AppendLine(";");
+        }
         else
         {
-            source.Append("        ").Append(site.Action!.Body).AppendLine(";");
+            source.Append("        ");
+            AppendMethodGroupInvocation(source, site.ActionMethodGroupTarget!, terminal.HasContext, terminal.HasEntity, terminal.Pattern, parameters);
+            source.AppendLine(";");
         }
 
         source.AppendLine("    }");
         source.AppendLine();
+    }
+
+    private static string[] InterceptedPredicateParameterNames(PredicateShape shape)
+    {
+        var names = new List<string>();
+        if (shape.HasContext)
+        {
+            names.Add("context");
+        }
+
+        if (shape.HasEntity)
+        {
+            names.Add("entity");
+        }
+
+        names.AddRange(Enumerable.Range(0, shape.Arity).Select(static index => "component" + index));
+        return names.ToArray();
+    }
+
+    private static string[] InterceptedActionParameterNames(TerminalShape terminal)
+    {
+        var names = new List<string>();
+        if (terminal.HasEntity)
+        {
+            names.Add("entity");
+        }
+
+        names.AddRange(Enumerable.Range(0, terminal.Arity).Select(static index => "component" + index));
+        return names.ToArray();
+    }
+
+    private static void AppendMethodGroupInvocation(
+        StringBuilder source,
+        string target,
+        bool hasContext,
+        bool hasEntity,
+        string pattern,
+        IReadOnlyList<string> parameters)
+    {
+        var arguments = new List<string>();
+        int parameterIndex = 0;
+        if (hasContext)
+        {
+            arguments.Add("ref " + parameters[parameterIndex++]);
+        }
+
+        if (hasEntity)
+        {
+            arguments.Add(parameters[parameterIndex++]);
+        }
+
+        for (int index = 0; index < pattern.Length; index++)
+        {
+            arguments.Add(InvocationPrefix(pattern[index]) + parameters[parameterIndex++]);
+        }
+
+        source.Append(target).Append('(').Append(string.Join(", ", arguments)).Append(')');
     }
 
     private static void RenderInterceptedWhereLoop(StringBuilder source, WhereInterceptionSite site)
@@ -905,6 +1015,11 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         ArgumentSyntax predicateArgument = invocation.ArgumentList.Arguments[invocation.ArgumentList.Arguments.Count - 1];
         if (predicateArgument.Expression is not LambdaExpressionSyntax lambda)
         {
+            if (TryReadStaticPredicateMethodGroup(model, invocation, predicateArgument.Expression, hasEntity, out shape))
+            {
+                return true;
+            }
+
             ArgumentSyntax? contextArgument = invocation.ArgumentList.Arguments.Count == 3
                 ? invocation.ArgumentList.Arguments[1]
                 : null;
@@ -1034,6 +1149,172 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             components: components.Select(static parameter => DisplayType(parameter.Type)).ToArray());
         return true;
     }
+
+    private static bool TryReadStaticPredicateMethodGroup(
+        SemanticModel model,
+        InvocationExpressionSyntax invocation,
+        ExpressionSyntax expression,
+        bool hasEntity,
+        out PredicateShape? shape)
+    {
+        shape = null;
+        if (!TryGetStaticMethodGroupTarget(model, expression, out IMethodSymbol? method)
+            || method is not { ReturnsVoid: false, ReturnType.SpecialType: SpecialType.System_Boolean })
+        {
+            return false;
+        }
+
+        int argumentCount = invocation.ArgumentList.Arguments.Count;
+        bool hasContext = argumentCount == 3;
+        int parameterIndex = 0;
+        ITypeSymbol? contextType = null;
+        if (hasContext)
+        {
+            ArgumentSyntax contextArgument = invocation.ArgumentList.Arguments[1];
+            if (!contextArgument.RefKindKeyword.IsKind(SyntaxKind.RefKeyword)
+                || method.Parameters.Length == 0
+                || method.Parameters[0].RefKind != RefKind.Ref
+                || model.GetTypeInfo(contextArgument.Expression).Type is not ITypeSymbol actualContext
+                || !SymbolEqualityComparer.Default.Equals(actualContext, method.Parameters[0].Type))
+            {
+                return false;
+            }
+
+            contextType = method.Parameters[0].Type;
+            parameterIndex++;
+        }
+
+        if (hasEntity)
+        {
+            if (method.Parameters.Length <= parameterIndex
+                || method.Parameters[parameterIndex].RefKind != RefKind.None
+                || !IsEntityType(method.Parameters[parameterIndex].Type))
+            {
+                return false;
+            }
+
+            parameterIndex++;
+        }
+
+        IParameterSymbol[] components = method.Parameters.Skip(parameterIndex).ToArray();
+        if (components.Length > MaxArity
+            || components.Any(static parameter => !IsAccessibleToGeneratedCode(parameter.Type)
+                || !IsSupportedPredicateRefKind(parameter.RefKind)))
+        {
+            return false;
+        }
+
+        if (!hasEntity && components.Any(static parameter => parameter.RefKind == RefKind.None && IsEntityType(parameter.Type)))
+        {
+            return false;
+        }
+
+        shape = new PredicateShape(
+            new string(components.Select(static parameter => PatternLetter(parameter.RefKind)).ToArray()),
+            isFunctor: false,
+            functorType: null,
+            hasEntity,
+            hasContext,
+            contextType is null ? null : DisplayType(contextType),
+            components.Select(static parameter => DisplayType(parameter.Type)).ToArray());
+        shape.RegisterStaticMethodGroup();
+        return true;
+    }
+
+    private static bool TryReadStaticTerminalMethodGroup(
+        SemanticModel model,
+        InvocationExpressionSyntax invocation,
+        bool hasEntity,
+        out TerminalShape? terminal)
+    {
+        terminal = null;
+        if (!TryGetStaticMethodGroupTarget(model, invocation.ArgumentList.Arguments[0].Expression, out IMethodSymbol? method)
+            || method is not { ReturnsVoid: true, MethodKind: MethodKind.Ordinary, Arity: 0 }
+            || !IsAccessibleToGeneratedCode(method))
+        {
+            return false;
+        }
+
+        int parameterIndex = 0;
+        if (hasEntity)
+        {
+            if (method.Parameters.Length == 0
+                || method.Parameters[0].RefKind != RefKind.None
+                || !IsEntityType(method.Parameters[0].Type))
+            {
+                return false;
+            }
+
+            parameterIndex++;
+        }
+
+        IParameterSymbol[] components = method.Parameters.Skip(parameterIndex).ToArray();
+        if (components.Length > MaxArity
+            || components.Any(static parameter => !IsAccessibleToGeneratedCode(parameter.Type)
+                || !IsSupportedCallbackRefKind(parameter.RefKind)))
+        {
+            return false;
+        }
+
+        terminal = new TerminalShape(
+            hasEntity ? TerminalKind.ForEachEntity : TerminalKind.ForEach,
+            new string(components.Select(static parameter => PatternLetter(parameter.RefKind)).ToArray()),
+            components.Length,
+            hasEntity,
+            components: components.Select(static parameter => DisplayType(parameter.Type)).ToArray(),
+            methodGroupTarget: StaticMethodGroupTarget(method));
+        terminal.RegisterStaticMethodGroup();
+        return true;
+    }
+
+    private static bool TryGetStaticMethodGroupTarget(
+        SemanticModel model,
+        ExpressionSyntax expression,
+        out IMethodSymbol? method)
+    {
+        while (expression is ParenthesizedExpressionSyntax parenthesized)
+        {
+            expression = parenthesized.Expression;
+        }
+
+        if (expression is CastExpressionSyntax cast)
+        {
+            expression = cast.Expression;
+        }
+
+        ImmutableArray<ISymbol> members = model.GetMemberGroup(expression);
+        if (members.Length == 1
+            && members[0] is IMethodSymbol candidate
+            && candidate.IsStatic
+            && candidate.MethodKind == MethodKind.Ordinary
+            && candidate.Arity == 0
+            && candidate.ContainingType is not null
+            && HasOnlyNonGenericContainingTypes(candidate.ContainingType)
+            && IsAccessibleToGeneratedCode(candidate))
+        {
+            method = candidate;
+            return true;
+        }
+
+        method = null;
+        return false;
+    }
+
+    private static bool HasOnlyNonGenericContainingTypes(INamedTypeSymbol type)
+    {
+        for (INamedTypeSymbol? current = type; current is not null; current = current.ContainingType)
+        {
+            if (current.Arity != 0)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string StaticMethodGroupTarget(IMethodSymbol method)
+        => method.ContainingType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "." + method.Name;
 
     private static bool HasPredicateMarker(INamedTypeSymbol functorType)
     {
@@ -1194,10 +1475,14 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
 
         if (name is not ("ForEach" or "ForEachEntity")
             || member.Name is not IdentifierNameSyntax
-            || invocation.ArgumentList.Arguments.Count != 1
-            || invocation.ArgumentList.Arguments[0].Expression is not LambdaExpressionSyntax lambda)
+            || invocation.ArgumentList.Arguments.Count != 1)
         {
             return false;
+        }
+
+        if (invocation.ArgumentList.Arguments[0].Expression is not LambdaExpressionSyntax lambda)
+        {
+            return TryReadStaticTerminalMethodGroup(model, invocation, name == "ForEachEntity", out terminal);
         }
 
         ParameterSyntax[] parameters = LambdaParameters(lambda);
@@ -2060,6 +2345,20 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
 
         source.AppendLine("    }");
         source.AppendLine();
+        if (terminal.IsCallback && !terminal.IsFunctor)
+        {
+            foreach (string[] components in terminal.StaticMethodGroupComponents)
+            {
+                string concreteActionType = "GeneratedWhereAction_" + hash + '_' + terminalHash + TypeArguments(components);
+                string method = terminal.HasEntity ? "ForEachEntity" : "ForEach";
+                source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+                source.Append("    internal void ").Append(method).Append('(').Append(concreteActionType).AppendLine(" action)");
+                source.AppendLine("    {");
+                source.Append("        ").Append(method).Append(TypeArguments(components)).AppendLine("(action);");
+                source.AppendLine("    }");
+                source.AppendLine();
+            }
+        }
     }
 
     private static void RenderExtension(StringBuilder source, PredicateShape shape, string hash)
@@ -2107,6 +2406,29 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             source.AppendLine("predicate);");
         }
         source.AppendLine("    }");
+        foreach (string[] components in shape.StaticMethodGroupComponents)
+        {
+            string concretePredicateType = "GeneratedWherePredicate_" + hash + TypeArguments(components);
+            string method = shape.HasEntity ? "WhereEntity" : "Where";
+            source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+            source.Append("    internal static ").Append(typeName).Append(TypeArguments(components)).Append(' ').Append(method)
+                .Append("(this World world, in Query query, ");
+            if (shape.HasContext)
+            {
+                source.Append("ref ").Append(shape.ContextType).Append(" context, ");
+            }
+
+            source.Append(concretePredicateType).AppendLine(" predicate)");
+            source.AppendLine("    {");
+            source.Append("        return ").Append(method).Append(TypeArguments(components)).Append("(world, in query, ");
+            if (shape.HasContext)
+            {
+                source.Append("ref context, ");
+            }
+
+            source.AppendLine("predicate);");
+            source.AppendLine("    }");
+        }
         source.AppendLine("}");
     }
 
@@ -2243,9 +2565,29 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         internal string? ContextType { get; }
         internal string[] Components { get; }
         internal Dictionary<string, TerminalShape> Terminals { get; } = new(StringComparer.Ordinal);
+        internal List<string[]> StaticMethodGroupComponents { get; } = new();
         internal string Key => IsFunctor
             ? "Where|Functor|" + HasEntity + "|" + FunctorType + "|" + ContextType + "|" + Pattern + "|" + string.Join(";", Components)
             : "Where|" + HasEntity + "|" + ContextType + "|" + Pattern;
+
+        internal void Merge(PredicateShape candidate)
+        {
+            if (!IsFunctor && candidate.Components.Length > 0)
+            {
+                AddUnique(StaticMethodGroupComponents, candidate.Components);
+            }
+        }
+
+        internal void RegisterStaticMethodGroup()
+            => AddUnique(StaticMethodGroupComponents, Components);
+
+        private static void AddUnique(List<string[]> values, string[] candidate)
+        {
+            if (!values.Any(existing => existing.SequenceEqual(candidate, StringComparer.Ordinal)))
+            {
+                values.Add(candidate);
+            }
+        }
     }
 
     private sealed class TerminalShape
@@ -2259,7 +2601,8 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             string? functorType = null,
             bool hasContext = false,
             string? contextType = null,
-            string[]? components = null)
+            string[]? components = null,
+            string? methodGroupTarget = null)
         {
             Kind = kind;
             Pattern = pattern;
@@ -2270,6 +2613,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             HasContext = hasContext;
             ContextType = contextType;
             Components = components ?? Array.Empty<string>();
+            MethodGroupTarget = methodGroupTarget;
         }
 
         internal TerminalKind Kind { get; }
@@ -2281,6 +2625,8 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         internal bool HasContext { get; }
         internal string? ContextType { get; }
         internal string[] Components { get; }
+        internal string? MethodGroupTarget { get; }
+        internal List<string[]> StaticMethodGroupComponents { get; } = new();
         internal bool IsCallback => Kind is TerminalKind.ForEach or TerminalKind.ForEachEntity;
         internal string SignatureKey => Kind
             + "|" + Pattern
@@ -2291,6 +2637,25 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             + "|" + ContextType;
         internal string Key => SignatureKey
             + "|" + string.Join(";", Components);
+
+        internal void Merge(TerminalShape candidate)
+        {
+            if (!IsFunctor && candidate.MethodGroupTarget is not null)
+            {
+                AddUnique(StaticMethodGroupComponents, candidate.Components);
+            }
+        }
+
+        internal void RegisterStaticMethodGroup()
+            => AddUnique(StaticMethodGroupComponents, Components);
+
+        private static void AddUnique(List<string[]> values, string[] candidate)
+        {
+            if (!values.Any(existing => existing.SequenceEqual(candidate, StringComparer.Ordinal)))
+            {
+                values.Add(candidate);
+            }
+        }
     }
 
     private sealed class WhereInterceptionSite
@@ -2299,8 +2664,10 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             string id,
             PredicateShape shape,
             TerminalShape terminal,
-            LambdaExpressionSyntax predicate,
+            LambdaExpressionSyntax? predicate,
             LambdaExpressionSyntax? action,
+            IMethodSymbol? predicateMethodGroup,
+            IMethodSymbol? actionMethodGroup,
             string[] predicateComponents,
             string[] actionComponents,
             string attribute,
@@ -2311,6 +2678,8 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             Terminal = terminal;
             Predicate = predicate;
             Action = action;
+            PredicateMethodGroupTarget = predicateMethodGroup is null ? null : StaticMethodGroupTarget(predicateMethodGroup);
+            ActionMethodGroupTarget = actionMethodGroup is null ? null : StaticMethodGroupTarget(actionMethodGroup);
             PredicateComponents = predicateComponents;
             ActionComponents = actionComponents;
             Attribute = attribute;
@@ -2320,8 +2689,10 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         internal string Id { get; }
         internal PredicateShape Shape { get; }
         internal TerminalShape Terminal { get; }
-        internal LambdaExpressionSyntax Predicate { get; }
+        internal LambdaExpressionSyntax? Predicate { get; }
         internal LambdaExpressionSyntax? Action { get; }
+        internal string? PredicateMethodGroupTarget { get; }
+        internal string? ActionMethodGroupTarget { get; }
         internal string[] PredicateComponents { get; }
         internal string[] ActionComponents { get; }
         internal string Attribute { get; }

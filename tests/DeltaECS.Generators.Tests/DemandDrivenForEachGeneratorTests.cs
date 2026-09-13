@@ -444,6 +444,27 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void StaticEntityListLambdasUseTheInterceptedEntityListKernel()
+    {
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(EntityListInterceptionSource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
+        Assert.That(generated, Does.Contain("ExecuteEntityList(world, in query, entities, ref invoker"));
+        Assert.That(generated, Does.Contain("ExecuteEntityListParallel(world, in query, entities, ref invoker"));
+        Assert.That(generated, Does.Contain("value.Value++"));
+        Assert.That(generated, Does.Contain("entity.Index"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, EntityListInterceptionSource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
     public void InterceptedLambdaWithReturnKeepsCallbackBoundary()
     {
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(ReturningInterceptionSource);
@@ -553,6 +574,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("global::Delta.ECS.Consumer.UpdateWithContext(ref context, in component0)"));
         Assert.That(generated, Does.Contain("global::Delta.ECS.Consumer.UpdateParallel(in context, ref component0)"));
         Assert.That(generated, Does.Contain("global::Delta.ECS.Consumer.UpdateEntity(entity, ref component0)"));
+        Assert.That(generated, Does.Contain("global::Delta.ECS.Consumer.UpdateEntityParallel(in context, entity, ref component0)"));
         Assert.That(generated, Does.Contain("ExecuteInterceptedClosed_"));
         Assert.That(generated, Does.Not.Contain("InterceptedFunctor_"));
 
@@ -999,6 +1021,27 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
+    [Test]
+    public void WhereInterceptionSupportsStaticMethodGroups()
+    {
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(WhereMethodGroupInterceptionSource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty, string.Join(Environment.NewLine, run.Diagnostics.Select(static diagnostic => diagnostic.ToString())));
+        Assert.That(generated, Does.Contain("InterceptedWhereSystem.IsDead(in component0)"));
+        Assert.That(generated, Does.Contain("InterceptedWhereSystem.Reset(ref component0)"));
+        Assert.That(generated, Does.Contain("InterceptedWhereSystem.IsDeadEntity(entity, in component0)"));
+        Assert.That(generated, Does.Contain("InterceptedWhereSystem.ResetEntity(entity, ref component0)"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, WhereMethodGroupInterceptionSource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
     private static GeneratorDriverRunResult RunGenerator()
         => RunGenerator(ConsumerSource);
 
@@ -1276,6 +1319,10 @@ public sealed class DemandDrivenForEachGeneratorTests
                 where TInvoker : struct, IGeneratedWhereInvoker { }
             public static void ExecuteParallelDense<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, int workerCount = 0)
                 where TInvoker : struct, IGeneratedParallelInvoker { }
+            public static void ExecuteEntityList<TInvoker>(World world, in Query query, ReadOnlySpan<Entity> entities, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices)
+                where TInvoker : struct, IGeneratedParallelInvoker { }
+            public static void ExecuteEntityListParallel<TInvoker>(World world, in Query query, ReadOnlySpan<Entity> entities, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, int workerCount = 0)
+                where TInvoker : struct, IGeneratedParallelInvoker { }
             public static ReadAccess GetPreparedReadAccess(in Query query, ComponentId component, Type runtimeType) => default;
             public static WriteAccess GetPreparedWriteAccess(in Query query, ComponentId component, Type runtimeType) => default;
             public static int GetWriteQueryComponentIndex(WriteAccess access) => default;
@@ -1285,6 +1332,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         public sealed partial class World
         {
             public ComponentLayoutRegistry Layouts { get; } = new();
+            public Query WhereAll(ReadOnlySpan<ComponentId> components) => default;
             public Entity Create(ReadOnlySpan<ComponentId> components) => default;
             public int Create(ReadOnlySpan<ComponentId> components, int count) => count;
             public int Create(ReadOnlySpan<ComponentId> components, int count, Span<Entity> output) => count;
@@ -1734,6 +1782,26 @@ public sealed class DemandDrivenForEachGeneratorTests
         }
         """;
 
+    private const string EntityListInterceptionSource = """
+        namespace Delta.ECS;
+        using System;
+        struct T1 { public int Value; }
+        static class Consumer
+        {
+            public static void Update(ref T1 value) => value.Value++;
+            public static void UpdateEntity(Entity entity, ref T1 value) => value.Value += entity.Index;
+
+            public static void Use(World world, Query query, ReadOnlySpan<Entity> entities)
+            {
+                world.ForEach<T1>(entities, in query, static (ref T1 value) => value.Value++);
+                world.ForEachEntity<T1>(entities, in query, static (Entity entity, ref T1 value) => value.Value += entity.Index);
+                world.ForEachParallel<T1>(entities, in query, static (ref T1 value) => value.Value++, workerCount: 2);
+                world.ForEachEntityParallel<T1>(entities, in query, UpdateEntity, workerCount: 2);
+                world.ForEach<T1>(entities, Update);
+            }
+        }
+        """;
+
     private const string ReturningInterceptionSource = """
         namespace Delta.ECS;
         struct T1 { public int Value; }
@@ -1801,6 +1869,7 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static void UpdateWithContext(ref Context context, in T1 value) => context.Value += value.Value;
             public static void UpdateParallel(in Context context, ref T1 value) => value.Value += context.Value;
             public static void UpdateEntity(Entity entity, ref T1 value) => value.Value += entity.Index;
+            public static void UpdateEntityParallel(in Context context, Entity entity, ref T1 value) => value.Value += context.Value + entity.Index;
 
             public static void Use(World world, Query query)
             {
@@ -1810,6 +1879,7 @@ public sealed class DemandDrivenForEachGeneratorTests
                 world.ForEach<Context, T1>(in query, ref context, UpdateWithContext);
                 world.ForEachParallel<Context, T1>(in query, in context, UpdateParallel, workerCount: 2);
                 world.ForEachEntity<T1>(in query, UpdateEntity);
+                world.ForEachEntityParallel<Context, T1>(in query, in context, UpdateEntityParallel, workerCount: 2);
             }
         }
         """;
@@ -1963,6 +2033,24 @@ public sealed class DemandDrivenForEachGeneratorTests
                         in query,
                         static (Entity entity, in Health health) => health.Value <= entity.Index)
                     .ForEachEntity(ref context, ref entityAction);
+            }
+        }
+        """;
+
+    private const string WhereMethodGroupInterceptionSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        static class InterceptedWhereSystem
+        {
+            public static bool IsDead(in Health health) => health.Value <= 0;
+            public static bool IsDeadEntity(Entity entity, in Health health) => health.Value <= entity.Index;
+            public static void Reset(ref Health health) => health.Value = 0;
+            public static void ResetEntity(Entity entity, ref Health health) => health.Value += entity.Index;
+
+            public static void Run(World world, in Query query)
+            {
+                world.Where(in query, IsDead).ForEach(Reset);
+                world.WhereEntity(in query, IsDeadEntity).ForEachEntity(ResetEntity);
             }
         }
         """;

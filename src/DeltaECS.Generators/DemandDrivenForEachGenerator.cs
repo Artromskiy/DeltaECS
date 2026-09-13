@@ -150,7 +150,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                     shapes.Add(key, shape);
                 }
 
-                if (interceptorsEnabled && languageSupportsInterceptors && !shape.IsFunctor && !shape.HasEntityTarget)
+                if (interceptorsEnabled && languageSupportsInterceptors && !shape.IsFunctor)
                 {
                     if (TryCreateInterceptionSite(model, invocation, shape, tree, out InterceptionSite? site, out string? reason)
                         && site is { } interceptionSite)
@@ -225,12 +225,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         if (shape.Receiver != ReceiverKind.World)
         {
             reason = "only World.ForEach call sites are currently supported";
-            return false;
-        }
-
-        if (shape.HasEntityTarget)
-        {
-            reason = "entity-list ForEach call sites do not use interception";
             return false;
         }
 
@@ -1974,7 +1968,12 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             RenderInterceptedCallback(source, site);
         }
 
-        if (shape.Parallel)
+        if (shape.HasEntityTarget)
+        {
+            RenderInterceptedParallelInvoker(source, shape, site);
+            RenderInterceptedEntityListClosedMethod(source, shape, site);
+        }
+        else if (shape.Parallel)
         {
             RenderInterceptedParallelInvoker(source, shape, site);
             RenderInterceptedParallelClosedMethod(source, shape, site);
@@ -2444,6 +2443,88 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         source.AppendLine();
     }
 
+    private static void RenderInterceptedEntityListClosedMethod(
+        StringBuilder source,
+        Shape shape,
+        InterceptionSite site)
+    {
+        var closedShape = new Shape(
+            ReceiverKind.World,
+            shape.ExplicitIds,
+            shape.HasEntity,
+            shape.HasContext,
+            isFunctor: true,
+            implicitComponents: true,
+            shape.Pattern,
+            shape.Components,
+            functorType: null,
+            shape.ContextType,
+            parallel: shape.Parallel,
+            contextMode: shape.ContextMode,
+            methodName: shape.MethodName,
+            hasEntityTarget: true,
+            hasQuery: true);
+        string[] parameters = InterceptedParameterNames(site);
+        string methodName = "ExecuteInterceptedClosed_" + site.Id;
+        string invokerType = "InterceptedParallelInvoker_" + site.Id;
+        string componentParameters = shape.ExplicitIds
+            ? ", " + ClosedComponentParameters(shape.Components.Length)
+            : string.Empty;
+        string contextParameter = shape.HasContext
+            ? ", " + ContextParameter(shape.ContextMode, InterceptedContextType(shape), parameters[0])
+            : string.Empty;
+
+        source.AppendLine("[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        source.Append("private static void ").Append(methodName)
+            .Append("(global::Delta.ECS.World world, global::System.ReadOnlySpan<global::Delta.ECS.Entity> entities");
+        source.Append(", in global::Delta.ECS.Query query");
+        source.Append(componentParameters)
+            .Append(contextParameter);
+        if (shape.Parallel)
+        {
+            source.Append(", int workerCount");
+        }
+
+        source.AppendLine(")");
+        source.AppendLine("{");
+        source.Append("    ").Append(AccessSetup(
+            closedShape,
+            closedShape.ExplicitIds ? ClosedComponentNames(closedShape.Components.Length) : string.Empty,
+            closed: true,
+            prepared: true));
+        source.Append("    var invoker = new ").Append(invokerType).Append('(');
+        var constructorArguments = new List<string>();
+        if (shape.HasContext)
+        {
+            constructorArguments.Add(parameters[0]);
+        }
+
+        constructorArguments.Add(AccessArguments(shape.Pattern));
+        source.Append(string.Join(", ", constructorArguments)).AppendLine(");");
+        source.Append("    GeneratedForEachRuntime.ExecuteEntityList");
+        if (shape.Parallel)
+        {
+            source.Append("Parallel");
+        }
+
+        source.Append("(world, in query, ");
+        source.Append("entities, ref invoker, ");
+        AppendParallelWriteIndices(source, closedShape);
+        if (shape.Parallel)
+        {
+            source.Append(", workerCount");
+        }
+
+        source.AppendLine(");");
+        if (shape.HasContext && shape.ContextMode == ContextMode.Ref)
+        {
+            source.Append("    ").Append(parameters[0]).AppendLine(" = invoker.Context;");
+        }
+
+        source.AppendLine("}");
+        source.AppendLine();
+    }
+
     private static string[] InterceptedParameterNames(InterceptionSite site)
     {
         if (site.Lambda is { } lambda)
@@ -2476,7 +2557,16 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         source.AppendLine("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         source.Append("    ").AppendLine(site.Attribute);
         source.Append("    internal static void Intercept_").Append(site.Id).Append("(");
-        var parameters = new List<string> { "this global::Delta.ECS.World world", "in global::Delta.ECS.Query query" };
+        var parameters = new List<string> { "this global::Delta.ECS.World world" };
+        if (shape.HasEntityTarget)
+        {
+            parameters.Add("global::System.ReadOnlySpan<global::Delta.ECS.Entity> entities");
+        }
+
+        if (shape.HasQuery)
+        {
+            parameters.Add("in global::Delta.ECS.Query query");
+        }
         if (shape.ExplicitIds)
         {
             parameters.Add(
@@ -2496,9 +2586,25 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
         source.Append(string.Join(", ", parameters)).AppendLine(")");
         source.AppendLine("    {");
+        if (!shape.HasQuery)
+        {
+            string queryComponents = shape.ExplicitIds
+                ? ComponentNames(shape.Components.Length)
+                : string.Join(", ", shape.Components.Select(component => "world.Layouts.GetPrimary(typeof(" + component + "))"));
+            source.Append("        global::Delta.ECS.Query query = world.WhereAll(stackalloc global::Delta.ECS.ComponentId[] { ")
+                .Append(queryComponents)
+                .AppendLine(" });");
+        }
+
         source.Append("        ExecuteInterceptedClosed_")
             .Append(site.Id)
-            .Append("(world, in query");
+            .Append("(world");
+        if (shape.HasEntityTarget)
+        {
+            source.Append(", entities");
+        }
+
+        source.Append(", in query");
         if (shape.ExplicitIds)
         {
             source.Append(", ").Append(ComponentNames(shape.Components.Length));

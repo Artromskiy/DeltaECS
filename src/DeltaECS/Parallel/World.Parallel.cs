@@ -53,6 +53,8 @@ public sealed partial class World
     /// one or more component parameters. Generated forms can target the
     /// query or an explicit entity span, with optional <c>ComponentId</c>
     /// selectors, context and worker count.
+    /// For example: <c>world.ForEachParallel(in query,
+    /// static (ref Position position) =&gt; position.X++, workerCount: 4)</c>.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
     /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
@@ -65,6 +67,8 @@ public sealed partial class World
     /// it puts <c>Entity</c> first and supports one or more component parameters.
     /// Generated forms can target the query or an explicit entity span, with
     /// optional <c>ComponentId</c> selectors, context and worker count.
+    /// For example: <c>world.ForEachEntityParallel(in query,
+    /// static (Entity entity, ref Position position) =&gt; Log(entity), workerCount: 4)</c>.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
     /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
@@ -77,6 +81,9 @@ public sealed partial class World
     /// <c>in</c>, <c>ref readonly</c>, or value context, one or more component
     /// parameters, and a worker count. The target can be the query or an explicit
     /// entity span, with optional <c>ComponentId</c> selectors.
+    /// For example: <c>world.ForEachParallel(in query, in settings,
+    /// static (in Settings value, ref Position position) =&gt; position.X += value.Step,
+    /// workerCount: 4)</c>.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
     /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
@@ -92,6 +99,9 @@ public sealed partial class World
     /// Use a component-bearing generated <c>ForEachParallel</c> callback with one
     /// or more component parameters and a worker count. The target can be the
     /// query or an explicit entity span, with optional <c>ComponentId</c> selectors.
+    /// For example: <c>world.ForEachParallel(in query, settings,
+    /// static (Settings value, ref Position position) =&gt; position.X += value.Step,
+    /// workerCount: 4)</c>.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
     /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
@@ -105,10 +115,13 @@ public sealed partial class World
     /// <summary>
     /// Zero-component parallel entity context callback overload.
     /// Use a component-bearing generated <c>ForEachEntityParallel</c> callback;
-    /// it puts <c>Entity</c> first, supports one or more component parameters,
+    /// it places <c>Entity</c> before component parameters, after any context,
     /// and accepts <c>in</c>, <c>ref readonly</c>, or value context plus a worker count.
     /// The target can be the query or an explicit entity span, with optional
     /// <c>ComponentId</c> selectors.
+    /// For example: <c>world.ForEachEntityParallel(in query, in settings,
+    /// static (in Settings value, Entity entity, ref Position position) =&gt;
+    /// position.X += value.Step + entity.Index, workerCount: 4)</c>.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
     /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
@@ -122,9 +135,12 @@ public sealed partial class World
     /// <summary>
     /// Zero-component parallel entity value-context callback overload.
     /// Use a component-bearing generated <c>ForEachEntityParallel</c> callback;
-    /// it puts <c>Entity</c> first, supports one or more component parameters,
+    /// it places <c>Entity</c> before component parameters, after the context,
     /// and accepts value context plus a worker count. The target can be the query
     /// or an explicit entity span, with optional <c>ComponentId</c> selectors.
+    /// For example: <c>world.ForEachEntityParallel(in query, settings,
+    /// static (Settings value, Entity entity, ref Position position) =&gt;
+    /// position.X += value.Step + entity.Index, workerCount: 4)</c>.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
     /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>

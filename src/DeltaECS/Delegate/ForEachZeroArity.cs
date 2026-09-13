@@ -45,9 +45,9 @@ public sealed partial class World
     /// Zero-component entity context callback overload.
     /// Use a component-bearing generated form such as
     /// <c>world.ForEachEntity(in query, ref state, static (ref State value, Entity entity, ref Position position) =&gt; ...)</c>.
-    /// Generated forms put <c>Entity</c> first, support caller context, query or
-    /// explicit entity-span targets, explicit <c>ComponentId</c> selectors, and
-    /// one or more component parameters.
+    /// Generated forms place <c>Entity</c> before component parameters, after
+    /// any caller context; they support query or explicit entity-span targets,
+    /// explicit <c>ComponentId</c> selectors, and one or more components.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
     /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
@@ -60,6 +60,8 @@ public sealed partial class World
     /// implementing <c>IForEachEntity</c>; generated forms use one or more
     /// component parameters and may include caller context or explicit
     /// <c>ComponentId</c> selectors.
+    /// For example: <c>world.ForEachEntity(in query, ref action)</c>, where
+    /// <c>action.Invoke</c> receives <c>Entity</c> followed by components.
     /// </summary>
     /// <remarks>This zero-component overload always throws; no generated zero-component functor form exists.</remarks>
     /// <exception cref="System.InvalidOperationException">Zero-component functor iteration is not supported.</exception>
@@ -72,6 +74,8 @@ public sealed partial class World
     /// implementing <c>IForEach</c>; generated forms use one or more component
     /// parameters and may include caller context or explicit <c>ComponentId</c>
     /// selectors.
+    /// For example: <c>world.ForEach(in query, ref action)</c>, where
+    /// <c>action.Invoke</c> receives the requested components.
     /// </summary>
     /// <remarks>This zero-component overload always throws; no generated zero-component functor form exists.</remarks>
     /// <exception cref="System.InvalidOperationException">Zero-component functor iteration is not supported.</exception>
