@@ -158,6 +158,13 @@ internal sealed class QueryPlan
         return _preparedReadAccessesByComponent.RefAt(component.Value);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ReadAccess GetPreparedStampAccess(ComponentId component)
+    {
+        ResolveReadRoute(component);
+        return _preparedReadAccessesByComponent.RefAt(component.Value);
+    }
+
     internal WriteAccess GetPreparedWriteAccess(ComponentId component, Type runtimeType)
     {
         ResolveReadRoute(component);
@@ -453,7 +460,7 @@ internal struct ArchetypePlan
             resolvedRows.RefAt(queryRow) = sourceRows.RefAt(ComponentRows.RefAt(queryRow));
         }
 
-        _chunks.RefAt(_chunkCount++) = new ChunkPlan(chunk, resolvedRows);
+        _chunks.RefAt(_chunkCount++) = new ChunkPlan(chunk, resolvedRows, ComponentRows);
     }
 
     internal void OnChunkDeactivated(int activePosition, int lastPosition)
@@ -494,7 +501,7 @@ internal struct ArchetypePlan
                 resolvedRows.RefAt(queryRow) = sourceRows.RefAt(ComponentRows.RefAt(queryRow));
             }
 
-            _chunks.RefAt(chunkIndex) = new ChunkPlan(chunk, resolvedRows);
+            _chunks.RefAt(chunkIndex) = new ChunkPlan(chunk, resolvedRows, ComponentRows);
         }
 
         _chunkCount = activeCount;
@@ -503,14 +510,16 @@ internal struct ArchetypePlan
 
 internal readonly struct ChunkPlan
 {
-    internal ChunkPlan(Chunk chunk, Array[] componentRows)
+    internal ChunkPlan(Chunk chunk, Array[] componentRows, int[] componentIndices)
     {
         Chunk = chunk;
         ComponentRows = componentRows;
+        ComponentIndices = componentIndices;
     }
 
     internal Chunk Chunk { get; }
     internal Array[] ComponentRows { get; }
+    internal int[] ComponentIndices { get; }
 }
 
 internal readonly struct QueryPlanLink

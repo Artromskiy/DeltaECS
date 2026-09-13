@@ -176,6 +176,26 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void StampIterationGeneratesTypedSelectorsAndAllCallbackForms()
+    {
+        GeneratorDriverRunResult run = RunGenerator(StampIterationSource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics, Is.Empty, string.Join(Environment.NewLine, run.Diagnostics.Select(static value => value.ToString())));
+        Assert.That(generated, Does.Contain("ForEachAction_I<Stamp>"));
+        Assert.That(generated, Does.Contain("GetGeneratedStamp(access0, index)"));
+        Assert.That(generated, Does.Contain("ExecuteEntityListParallel"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, StampIterationSource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
     public void ParallelContextModesGenerateCompilableOverloads()
     {
         const string source = """
@@ -580,6 +600,24 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
             new[] { RuntimeStubSource, StaticMethodGroupInterceptionSource },
+            run.GeneratedTrees);
+        var errors = compilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
+    public void StampMethodGroupsGenerateDirectReadOnlyCallbacks()
+    {
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(StampMethodGroupSource);
+        string generated = GeneratedText(run);
+
+        Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
+        Assert.That(generated, Does.Contain("global::Delta.ECS.StampCallbacks.Update(in component0)"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+            new[] { RuntimeStubSource, StampMethodGroupSource },
             run.GeneratedTrees);
         var errors = compilation.GetDiagnostics()
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
@@ -1196,6 +1234,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         using System;
         public readonly struct Entity { public int Index { get; } }
         public readonly struct ComponentId { }
+        public readonly struct Stamp { }
         public readonly struct QuerySpec
         {
             public static QuerySpec WhereAll(ReadOnlySpan<ComponentId> components) => default;
@@ -1245,6 +1284,8 @@ public sealed class DemandDrivenForEachGeneratorTests
             public ref T GetGeneratedReadReference<T>(ReadAccess access) => throw new NotImplementedException();
             public ref T GetGeneratedWriteReference<T>(int queryComponentIndex) => throw new NotImplementedException();
             public ref T GetGeneratedWriteReference<T>(WriteAccess access) => throw new NotImplementedException();
+            public Stamp GetGeneratedStamp(ReadAccess access, int index) => default;
+            public Stamp GetGeneratedStamp(int queryComponentIndex, int index) => default;
         }
         public ref struct GeneratedReadQuerySlots
         {
@@ -1252,6 +1293,8 @@ public sealed class DemandDrivenForEachGeneratorTests
             public Entity EntityAt(int index) => default;
             public ref T GetGeneratedReadReference<T>(int queryComponentIndex) => throw new NotImplementedException();
             public ref T GetGeneratedReadReference<T>(ReadAccess access) => throw new NotImplementedException();
+            public Stamp GetGeneratedStamp(ReadAccess access, int index) => default;
+            public Stamp GetGeneratedStamp(int queryComponentIndex, int index) => default;
         }
         public ref struct GeneratedDenseExecution
         {
@@ -1303,6 +1346,9 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static ReadAccess GetPreparedReadAccess<T>(in Query query) => default;
             public static int GetPreparedReadRoute<T>(in Query query) => default;
             public static int GetPreparedReadRoute<T>(in Query query, ComponentId component) => default;
+            public static ReadAccess GetPreparedStampAccess<T>(in Query query) => default;
+            public static ReadAccess GetPreparedStampAccess(in Query query, ComponentId component) => default;
+            public static ReadAccess GetPreparedStampAccess<T>(in Query query, ComponentId component) => default;
             public static WriteAccess GetPreparedWriteAccess<T>(in Query query) => default;
             public static int GetPreparedWriteRoute<T>(in Query query) => default;
             public static int GetPreparedWriteRoute<T>(in Query query, ComponentId component) => default;
@@ -1658,6 +1704,40 @@ public sealed class DemandDrivenForEachGeneratorTests
         }
         """;
 
+    private const string StampIterationSource = """
+        namespace Delta.ECS;
+        using System;
+        struct Health { public int Value; }
+        struct StampContext { public int Value; }
+        struct StampFunctor : IForEach
+        {
+            public void Invoke(in Stamp stamp) { }
+        }
+        struct StampContextFunctor : IForEachContext<StampContext>
+        {
+            public void Invoke(ref StampContext context, in Stamp stamp) { context.Value += stamp.GetHashCode(); }
+        }
+        static class StampConsumer
+        {
+            public static void Use(World world, in Query query, ComponentId healthId, ReadOnlySpan<Entity> entities)
+            {
+                var context = new StampContext();
+                world.ForEachStamp<Health>(in query, static (in Stamp stamp) => { _ = stamp; });
+                world.ForEachEntityStamp<Health>(in query, static (Entity entity, ref readonly Stamp stamp) => { _ = entity; _ = stamp; });
+                world.ForEachStamp<StampContext, Health>(in query, ref context, static (ref StampContext state, in Stamp stamp) => state.Value += stamp.GetHashCode());
+                world.ForEachStamp(in query, healthId, static (in Stamp stamp) => { _ = stamp; });
+                world.ForEachEntityStamp(entities, in query, healthId, static (Entity entity, in Stamp stamp) => { _ = entity; _ = stamp; });
+                world.ForEachEntityStampParallel(entities, in query, healthId, static (Entity entity, in Stamp stamp) => { _ = entity; _ = stamp; }, workerCount: 2);
+                world.ForEachStampParallel<Health>(in query, static (in Stamp stamp) => { _ = stamp; }, workerCount: 2);
+                world.ForEachEntityStampParallel<StampContext, Health>(in query, in context, static (in StampContext state, Entity entity, in Stamp stamp) => { _ = state; _ = entity; _ = stamp; }, workerCount: 2);
+                var functor = new StampFunctor();
+                world.ForEachStamp<Health>(in query, ref functor);
+                var contextFunctor = new StampContextFunctor();
+                world.ForEachStamp<Health>(in query, ref context, ref contextFunctor);
+            }
+        }
+        """;
+
     private const string ConsumerSource = """
         namespace Delta.ECS;
         using System;
@@ -1861,6 +1941,29 @@ public sealed class DemandDrivenForEachGeneratorTests
                 world.ForEachParallel<Context, T1>(in query, in context, UpdateParallel, workerCount: 2);
                 world.ForEachEntity<T1>(in query, UpdateEntity);
                 world.ForEachEntityParallel<Context, T1>(in query, in context, UpdateEntityParallel, workerCount: 2);
+            }
+        }
+        """;
+
+    private const string StampMethodGroupSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        static class StampCallbacks
+        {
+            public static void Update(in Stamp stamp) => _ = stamp;
+            public static void UpdateReadonly(ref readonly Stamp stamp) => _ = stamp;
+            public static void UpdateEntity(Entity entity, in Stamp stamp) => _ = entity;
+        }
+        static class StampConsumer
+        {
+            public static void Use(World world, Query query, ComponentId healthId)
+            {
+                world.ForEachStamp<Health>(in query, StampCallbacks.Update);
+                world.ForEachStamp<Health>(in query, StampCallbacks.UpdateReadonly);
+                world.ForEachEntityStamp<Health>(in query, StampCallbacks.UpdateEntity);
+                world.ForEachStamp(in query, healthId, StampCallbacks.Update);
+                world.ForEachStampParallel<Health>(in query, StampCallbacks.Update, workerCount: 2);
+                world.ForEachEntityStampParallel<Health>(in query, StampCallbacks.UpdateEntity, workerCount: 2);
             }
         }
         """;

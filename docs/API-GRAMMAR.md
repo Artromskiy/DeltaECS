@@ -69,6 +69,64 @@ receive the current `Entity` as their first row argument. Parallel callbacks
 always use parallel execution; `W` is the caller's worker-count choice,
 clamped to the supported range.
 
+## Stamp iteration forms
+
+Stamp iteration uses the same target, query, selector, context, callback, and
+worker ordering. It is read-only: callbacks receive `in Stamp` (or
+`ref readonly Stamp` where the language supports it), and no stamp is changed.
+
+Query-wide forms:
+
+```text
+world.ForEachStamp<T...>(Q, C?, A | F)
+world.ForEachEntityStamp<T...>(Q, C?, A | F)
+world.ForEachStamp(Q, I..., C?, A | F)
+world.ForEachEntityStamp(Q, I..., C?, A | F)
+
+world.ForEachStampParallel<T...>(Q, C?, A | F, W)
+world.ForEachEntityStampParallel<T...>(Q, C?, A | F, W)
+world.ForEachStampParallel(Q, I..., C?, A | F, W)
+world.ForEachEntityStampParallel(Q, I..., C?, A | F, W)
+```
+
+Entity-list forms accept `E` first and an optional `Q` after it:
+
+```text
+world.ForEachStamp<T...>(E, Q?, C?, A | F)
+world.ForEachEntityStamp<T...>(E, Q?, C?, A | F)
+world.ForEachStamp(E, Q?, I..., C?, A | F)
+world.ForEachEntityStamp(E, Q?, I..., C?, A | F)
+
+world.ForEachStampParallel<T...>(E, Q?, C?, A | F, W)
+world.ForEachEntityStampParallel<T...>(E, Q?, C?, A | F, W)
+world.ForEachStampParallel(E, Q?, I..., C?, A | F, W)
+world.ForEachEntityStampParallel(E, Q?, I..., C?, A | F, W)
+```
+
+`ForEachStamp` callbacks receive only the requested stamps. The
+`ForEachEntityStamp` variants put `Entity` first:
+
+```csharp
+world.ForEachEntityStamp<Health>(
+    in query,
+    static (Entity entity, in Stamp stamp) => Process(entity, stamp));
+
+world.ForEachStampParallel<Health>(
+    in query,
+    static (in Stamp stamp) => Process(stamp),
+    workerCount: 4);
+
+world.ForEachEntityStamp(
+    entities,
+    in query,
+    healthId,
+    static (Entity entity, in Stamp stamp) => Process(entity, stamp));
+```
+
+The zero-component stamp overloads are documentation anchors and throw
+`InvalidOperationException`; a generated stamp form must name at least one
+typed component or provide the corresponding `ComponentId` selector.
+
 ## Structural forms
 
 Typed and non-generic structural operations have matching target shapes:

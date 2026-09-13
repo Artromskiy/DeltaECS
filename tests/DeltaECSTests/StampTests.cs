@@ -1,5 +1,6 @@
 namespace Delta.ECS.Tests;
 
+using System;
 using Delta.ECS;
 using NUnit.Framework;
 
@@ -116,5 +117,59 @@ public sealed class StampTests
 
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp after), Is.True);
         Assert.That(after, Is.EqualTo(before));
+    }
+
+    [Test]
+    public void GeneratedStampIterationReadsStampsWithoutChangingThem()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(40_063));
+        using var world = new World(layouts);
+        Entity first = world.Create(positionId, new Position { X = 1 });
+        Entity second = world.Create(positionId, new Position { X = 2 });
+        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
+        Entity[] entities = { first, second };
+        int visited = 0;
+
+        Assert.That(world.TryGetComponentStamp(first, positionId, out Stamp firstBefore), Is.True);
+        Assert.That(world.TryGetComponentStamp(second, positionId, out Stamp secondBefore), Is.True);
+
+        world.ForEachStamp<int, Position>(
+            in query,
+            ref visited,
+            static (ref int count, in Stamp stamp) =>
+            {
+                if (stamp.Value <= 0)
+                {
+                    throw new InvalidOperationException();
+                }
+
+                count++;
+            });
+        world.ForEachEntityStamp(
+            entities,
+            in query,
+            positionId,
+            static (Entity entity, in Stamp stamp) =>
+            {
+                _ = entity;
+                if (stamp.Value <= 0)
+                {
+                    throw new InvalidOperationException();
+                }
+            });
+        world.ForEachStampParallel<Position>(
+            in query,
+            static (in Stamp stamp) => _ = stamp.Value,
+            workerCount: 2);
+
+        Assert.That(visited, Is.EqualTo(2));
+        Assert.That(world.TryGetComponentStamp(first, positionId, out Stamp firstAfter), Is.True);
+        Assert.That(world.TryGetComponentStamp(second, positionId, out Stamp secondAfter), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(firstAfter, Is.EqualTo(firstBefore));
+            Assert.That(secondAfter, Is.EqualTo(secondBefore));
+        });
     }
 }

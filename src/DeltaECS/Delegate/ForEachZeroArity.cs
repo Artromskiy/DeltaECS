@@ -82,4 +82,41 @@ public sealed partial class World
     public void ForEach<T>(in Query query, T action) where T : IForEach
         => ThrowHelper.ThrowGeneratedFunctorRequired();
 
+    /// <summary>
+    /// Zero-component stamp callback anchor. Use a generated
+    /// <c>ForEachStamp</c> form with one or more <c>in Stamp</c> parameters,
+    /// for example <c>world.ForEachStamp&lt;Health&gt;(in query,
+    /// static (in Stamp stamp) =&gt; Process(stamp))</c>.
+    /// </summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    public void ForEachStamp(in Query query, ForEachAction action)
+        => ThrowHelper.ThrowGeneratedIterationRequired();
+
+    /// <summary>
+    /// Zero-component entity stamp callback anchor. Generated
+    /// <c>ForEachEntityStamp</c> callbacks receive <c>Entity</c> followed by
+    /// one or more <c>in Stamp</c> parameters.
+    /// </summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    public void ForEachEntityStamp(in Query query, ForEachEntityAction action)
+        => ThrowHelper.ThrowGeneratedIterationRequired();
+
+    /// <summary>
+    /// Zero-component stamp functor anchor. Use a generated
+    /// <c>ForEachStamp</c> form whose functor receives one or more
+    /// <c>in Stamp</c> parameters.
+    /// </summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    public void ForEachStamp<T>(in Query query, T action) where T : IForEach
+        => ThrowHelper.ThrowGeneratedFunctorRequired();
+
+    /// <summary>
+    /// Zero-component entity stamp functor anchor. Use a generated
+    /// <c>ForEachEntityStamp</c> form whose functor receives <c>Entity</c>
+    /// followed by one or more <c>in Stamp</c> parameters.
+    /// </summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    public void ForEachEntityStamp<T>(in Query query, T action) where T : IForEachEntity
+        => ThrowHelper.ThrowGeneratedFunctorRequired();
+
 }

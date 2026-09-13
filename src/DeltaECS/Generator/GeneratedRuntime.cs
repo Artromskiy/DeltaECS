@@ -370,7 +370,7 @@ public ref struct GeneratedDenseExecution
             _chunkIndex = nextChunk;
             ref readonly ChunkPlan chunkPlan = ref _chunkPlans.RefAt(_chunkIndex);
             int count = _chunkCounts.IsEmpty ? chunkPlan.Chunk.Count : _chunkCounts.RefAt(_chunkIndex);
-            slots = new GeneratedQuerySlots(in chunkPlan, count);
+            slots = new GeneratedQuerySlots(_owner!, in chunkPlan, count);
             return true;
         }
         _chunkIndex = _chunkPlans.Length;
@@ -439,7 +439,7 @@ public ref struct GeneratedReadDenseExecution
         if ((uint)nextChunk < (uint)_chunkPlans.Length)
         {
             _chunkIndex = nextChunk;
-            slots = new GeneratedReadQuerySlots(in _chunkPlans.RefAt(_chunkIndex));
+            slots = new GeneratedReadQuerySlots(_owner!, in _chunkPlans.RefAt(_chunkIndex));
             return true;
         }
         _chunkIndex = _chunkPlans.Length;
@@ -676,7 +676,7 @@ public static class GeneratedForEachRuntime
                     continue;
                 }
 
-                var slots = new GeneratedQuerySlots(in chunkPlan, 1, slot);
+                var slots = new GeneratedQuerySlots(world, in chunkPlan, 1, slot);
                 invoker.Invoke(ref slots);
             }
         }
@@ -893,6 +893,24 @@ public static class GeneratedForEachRuntime
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int GetPreparedReadRoute<T>(in Query query, ComponentId component)
         => query.Cached.GetPreparedReadAccess(component, typeof(T)).QueryComponentIndex;
+
+    /// <summary>Returns a cached stamp access for a generated primary component.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ReadAccess GetPreparedStampAccess<T>(in Query query)
+        => query.Cached.GetPreparedPrimaryReadAccess<T>();
+
+    /// <summary>Returns a cached stamp access for an explicit component registration.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ReadAccess GetPreparedStampAccess(in Query query, ComponentId component)
+        => query.Cached.GetPreparedStampAccess(component);
+
+    /// <summary>Returns a cached typed stamp access for an explicit component registration.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ReadAccess GetPreparedStampAccess<T>(in Query query, ComponentId component)
+        => query.Cached.GetPreparedReadAccess(component, typeof(T));
 
     /// <summary>Returns a cached primary write access using the generated component type.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]

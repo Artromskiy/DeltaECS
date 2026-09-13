@@ -112,6 +112,75 @@ public sealed partial class World
         int workerCount = 0)
         => ThrowHelper.ThrowGeneratedIterationRequired();
 
+    /// <summary>
+    /// Zero-component parallel stamp callback anchor. Use a generated
+    /// <c>ForEachStampParallel</c> form with one or more <c>in Stamp</c>
+    /// parameters and an explicit worker count.
+    /// </summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    public void ForEachStampParallel(in Query query, ForEachAction action, int workerCount = 0)
+        => ThrowHelper.ThrowGeneratedIterationRequired();
+
+    /// <summary>
+    /// Zero-component parallel entity stamp callback anchor. Generated
+    /// <c>ForEachEntityStampParallel</c> callbacks receive <c>Entity</c>
+    /// followed by one or more <c>in Stamp</c> parameters.
+    /// </summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    public void ForEachEntityStampParallel(in Query query, ForEachEntityAction action, int workerCount = 0)
+        => ThrowHelper.ThrowGeneratedIterationRequired();
+
+    /// <summary>
+    /// Zero-component parallel stamp context anchor. Generated forms support
+    /// read-only or value context and one or more <c>in Stamp</c> parameters.
+    /// </summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    public void ForEachStampParallel<TContext>(
+        in Query query,
+        in TContext context,
+        ForEachContextAction_In<TContext> action,
+        int workerCount = 0)
+        => ThrowHelper.ThrowGeneratedIterationRequired();
+
+    /// <summary>Zero-component parallel value-context stamp anchor.</summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    public void ForEachStampParallel<TContext>(
+        in Query query,
+        TContext context,
+        ForEachContextAction_Value<TContext> action,
+        int workerCount = 0)
+        => ThrowHelper.ThrowGeneratedIterationRequired();
+
+    /// <summary>Zero-component parallel entity stamp context anchor.</summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    public void ForEachEntityStampParallel<TContext>(
+        in Query query,
+        in TContext context,
+        ForEachContextEntityAction_In<TContext> action,
+        int workerCount = 0)
+        => ThrowHelper.ThrowGeneratedIterationRequired();
+
+    /// <summary>Zero-component parallel entity value-context stamp anchor.</summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    public void ForEachEntityStampParallel<TContext>(
+        in Query query,
+        TContext context,
+        ForEachContextEntityAction_Value<TContext> action,
+        int workerCount = 0)
+        => ThrowHelper.ThrowGeneratedIterationRequired();
+
+    /// <summary>Zero-component parallel stamp functor anchor.</summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    public void ForEachStampParallel<T>(in Query query, T action, int workerCount = 0)
+        where T : IForEach
+        => ThrowHelper.ThrowGeneratedFunctorRequired();
+
+    /// <summary>Zero-component parallel entity stamp functor anchor.</summary>
+    /// <remarks>This zero-component overload always throws.</remarks>
+    public void ForEachEntityStampParallel<T>(in Query query, T action, int workerCount = 0)
+        where T : IForEachEntity
+        => ThrowHelper.ThrowGeneratedFunctorRequired();
+
     internal StaticParallelQueryExecutor<TInvoker> GetParallelQueryExecutor<TInvoker>()
         where TInvoker : struct, IGeneratedParallelInvoker
     {

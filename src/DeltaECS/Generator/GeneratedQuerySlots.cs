@@ -8,25 +8,29 @@ using System.Runtime.CompilerServices;
 [EditorBrowsable(EditorBrowsableState.Never)]
 public ref struct GeneratedQuerySlots
 {
+    private readonly World _world;
     private readonly Chunk _chunk;
     private readonly Array[] _resolvedRowsByQuery;
+    private readonly int[] _componentIndices;
     private readonly int _count;
     private readonly int _offset;
 
-    internal GeneratedQuerySlots(in ChunkPlan chunkPlan)
-        : this(in chunkPlan, chunkPlan.Chunk.Count)
+    internal GeneratedQuerySlots(World world, in ChunkPlan chunkPlan)
+        : this(world, in chunkPlan, chunkPlan.Chunk.Count)
     {
     }
 
-    internal GeneratedQuerySlots(in ChunkPlan chunkPlan, int count)
-        : this(in chunkPlan, count, 0)
+    internal GeneratedQuerySlots(World world, in ChunkPlan chunkPlan, int count)
+        : this(world, in chunkPlan, count, 0)
     {
     }
 
-    internal GeneratedQuerySlots(in ChunkPlan chunkPlan, int count, int offset)
+    internal GeneratedQuerySlots(World world, in ChunkPlan chunkPlan, int count, int offset)
     {
+        _world = world;
         _chunk = chunkPlan.Chunk;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
+        _componentIndices = chunkPlan.ComponentIndices;
         _count = count;
         _offset = offset;
     }
@@ -72,20 +76,38 @@ public ref struct GeneratedQuerySlots
     [EditorBrowsable(EditorBrowsableState.Never)]
     public ref T GetGeneratedWriteReference<T>(WriteAccess access)
         => ref GetGeneratedWriteReference<T>(access.QueryComponentIndex);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public Stamp GetGeneratedStamp(int queryComponentIndex, int index)
+        => _world.GetComponentStamp(
+            _chunk.ArchetypeId,
+            _chunk,
+            _componentIndices.RefAt(queryComponentIndex),
+            _offset + index);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public Stamp GetGeneratedStamp(ReadAccess access, int index)
+        => GetGeneratedStamp(access.QueryComponentIndex, index);
 }
 
 /// <summary>Trusted compiler-support slot iterator for a read-only query chunk.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public ref struct GeneratedReadQuerySlots
 {
+    private readonly World _world;
     private readonly Chunk _chunk;
     private readonly Array[] _resolvedRowsByQuery;
+    private readonly int[] _componentIndices;
     private readonly int _count;
 
-    internal GeneratedReadQuerySlots(in ChunkPlan chunkPlan)
+    internal GeneratedReadQuerySlots(World world, in ChunkPlan chunkPlan)
     {
+        _world = world;
         _chunk = chunkPlan.Chunk;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
+        _componentIndices = chunkPlan.ComponentIndices;
         _count = chunkPlan.Chunk.Count;
     }
 
@@ -106,4 +128,18 @@ public ref struct GeneratedReadQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetGeneratedReadReference<T>(ReadAccess access)
         => ref GetGeneratedReadReference<T>(access.QueryComponentIndex);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public Stamp GetGeneratedStamp(int queryComponentIndex, int index)
+        => _world.GetComponentStamp(
+            _chunk.ArchetypeId,
+            _chunk,
+            _componentIndices.RefAt(queryComponentIndex),
+            index);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public Stamp GetGeneratedStamp(ReadAccess access, int index)
+        => GetGeneratedStamp(access.QueryComponentIndex, index);
 }

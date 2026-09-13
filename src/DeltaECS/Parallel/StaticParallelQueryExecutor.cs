@@ -20,6 +20,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
     private Entity[] _entities = Array.Empty<Entity>();
     private ParallelRange[] _ranges = Array.Empty<ParallelRange>();
     private World? _entityWorld;
+    private World? _world;
     private QueryPlan? _entityPlan;
     private int _entityCount;
     private bool _entityMode;
@@ -45,6 +46,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         }
 
         BuildChunkList(plan);
+        _world = plan.Owner;
         if (_chunkCount == 0)
         {
             return;
@@ -195,7 +197,8 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             for (int chunkIndex = 0; chunkIndex < _chunkCount; chunkIndex++)
             {
                 ParallelChunk work = _chunks.RefAt(chunkIndex);
-                GeneratedQuerySlots slots = new(work.Chunk);
+                ChunkPlan chunkPlan = work.Chunk;
+                GeneratedQuerySlots slots = new(_world!, in chunkPlan);
                 invoker.Invoke(ref slots);
             }
         }
@@ -300,7 +303,8 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             for (int chunkIndex = range.StartChunk; chunkIndex < range.EndChunk; chunkIndex++)
             {
                 ParallelChunk work = _chunks.RefAt(chunkIndex);
-                GeneratedQuerySlots slots = new(work.Chunk);
+                ChunkPlan chunkPlan = work.Chunk;
+                GeneratedQuerySlots slots = new(_world!, in chunkPlan);
                 _workerInvokers.RefAt(workerIndex).Invoke(ref slots);
             }
         }
@@ -330,7 +334,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
                 continue;
             }
 
-            var slots = new GeneratedQuerySlots(in chunkPlan, 1, slot);
+            var slots = new GeneratedQuerySlots(world, in chunkPlan, 1, slot);
             invoker.Invoke(ref slots);
         }
     }
