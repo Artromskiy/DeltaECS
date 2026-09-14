@@ -3,7 +3,6 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -77,16 +76,6 @@ internal static class GeneratorSupport
         attributeSyntax = getAttribute.Invoke(null, new[] { location })?.ToString() ?? string.Empty;
         return attributeSyntax.Length > 0;
     }
-
-    internal static StringBuilder CreateSource(int capacity, string header)
-    {
-        var source = new StringBuilder(capacity);
-        source.Append(header);
-        return source;
-    }
-
-    internal static string FinishSource(StringBuilder source)
-        => GeneratedSourceFormatter.Format(source.ToString());
 
     internal static IncrementalValuesProvider<InvocationCandidate> InvocationProvider(
         IncrementalGeneratorInitializationContext context)
@@ -225,20 +214,24 @@ internal static class GeneratorSupport
     internal static string GenericList(int arity, string prefix = "T")
         => GenericTypes(arity, prefix);
 
-    internal static ImmutableArray<ComponentSlot> ComponentSlots(
+    internal static ImmutableArray<ComponentModel> ComponentModels(
         int arity,
         SelectorKind selector,
         AccessKind access,
         string prefix = "T")
     {
-        var slots = ImmutableArray.CreateBuilder<ComponentSlot>(arity);
+        var slots = ImmutableArray.CreateBuilder<ComponentModel>(arity);
         for (int index = 0; index < arity; index++)
         {
-            slots.Add(new ComponentSlot(
+            slots.Add(new ComponentModel(
                 index,
                 prefix + (index + 1).ToString(CultureInfo.InvariantCulture),
                 selector,
-                access));
+                access,
+                "component" + index.ToString(CultureInfo.InvariantCulture),
+                selector == SelectorKind.ComponentIds
+                    ? "componentId" + index.ToString(CultureInfo.InvariantCulture)
+                    : null));
         }
 
         return slots.ToImmutable();
@@ -345,7 +338,7 @@ internal static class GeneratorSupport
         return symbol is not ITypeSymbol typeSymbol || IsAccessibleType(typeSymbol);
     }
 
-    internal static ApiShape CreateIterationShape(
+    internal static ApiModel CreateIterationShape(
         string receiver,
         bool isStamp,
         bool parallel,
@@ -370,31 +363,33 @@ internal static class GeneratorSupport
         SelectorKind selectorKind = explicitIds
             ? SelectorKind.ComponentIds
             : genericSelectors ? SelectorKind.Generic : SelectorKind.Inferred;
-        var slots = ImmutableArray.CreateBuilder<ComponentSlot>(components.Length);
+        var slots = ImmutableArray.CreateBuilder<ComponentModel>(components.Length);
         for (int index = 0; index < components.Length; index++)
         {
-            slots.Add(new ComponentSlot(
+            slots.Add(new ComponentModel(
                 index,
                 components[index],
                 selectorKind,
                 isStamp
                     ? AccessKind.StampRead
-                    : AccessKindFrom(index < pattern.Length ? pattern[index] : 'I')));
+                    : AccessKindFrom(index < pattern.Length ? pattern[index] : 'I'),
+                "component" + index.ToString(CultureInfo.InvariantCulture),
+                explicitIds ? "componentId" + index.ToString(CultureInfo.InvariantCulture) : null));
         }
 
         ContextModeKind mode = hasContext ? contextMode : ContextModeKind.None;
-        var callback = new CallbackSpec(
+        var callback = new CallbackModel(
             isFunctor ? CallbackSource.Functor : CallbackSource.Lambda,
             hasEntity,
             functorType);
-        return new ApiShape(
+        return new ApiModel(
             isStamp ? OperationKind.StampIteration : OperationKind.Iteration,
             target,
             hasQuery ? (target == TargetKind.EntityList ? QueryMode.Optional : QueryMode.Required) : QueryMode.None,
-            new SelectorSpec(selectorKind, slots.ToImmutable()),
-            new ContextSpec(hasContext ? mode : ContextModeKind.None, contextType),
+            new SelectorModel(selectorKind, slots.ToImmutable()),
+            new ContextModel(hasContext ? mode : ContextModeKind.None, contextType),
             callback,
-            new ExecutionSpec(
+            new ExecutionModel(
                 parallel ? ExecutionKind.Parallel : target == TargetKind.EntityList ? ExecutionKind.EntityList : ExecutionKind.Dense,
                 isStamp ? ValueKind.Stamp : ValueKind.Component),
             name: methodName + "|" + (!implicitComponents ? "Explicit" : "Implicit"),

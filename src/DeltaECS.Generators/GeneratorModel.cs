@@ -98,38 +98,57 @@ internal enum StructuralOperation
     Create
 }
 
-internal readonly struct ComponentSlot
+internal readonly struct ComponentModel
 {
-    internal ComponentSlot(int position, string typeName, SelectorKind selector, AccessKind access)
+    internal ComponentModel(
+        int position,
+        string typeName,
+        SelectorKind selector,
+        AccessKind access,
+        string? parameterName = null,
+        string? componentIdExpression = null)
     {
         Position = position;
         TypeName = typeName;
         Selector = selector;
         Access = access;
+        ParameterName = parameterName ?? "component" + position.ToString(CultureInfo.InvariantCulture);
+        ComponentIdExpression = componentIdExpression;
     }
 
     internal int Position { get; }
+    internal int Index => Position;
     internal string TypeName { get; }
+    internal string ParameterName { get; }
     internal SelectorKind Selector { get; }
     internal AccessKind Access { get; }
+    internal char AccessMode => Access switch
+    {
+        AccessKind.RowWrite => 'W',
+        AccessKind.RefReadonly => 'R',
+        AccessKind.StampRead => 'S',
+        AccessKind.RowRead => 'I',
+        _ => 'V'
+    };
+    internal string? ComponentIdExpression { get; }
 
 }
 
-internal readonly struct SelectorSpec
+internal readonly struct SelectorModel
 {
-    internal SelectorSpec(SelectorKind kind, ImmutableArray<ComponentSlot> components)
+    internal SelectorModel(SelectorKind kind, ImmutableArray<ComponentModel> components)
     {
         Kind = kind;
         Components = components;
     }
 
     internal SelectorKind Kind { get; }
-    internal ImmutableArray<ComponentSlot> Components { get; }
+    internal ImmutableArray<ComponentModel> Components { get; }
 }
 
-internal readonly struct ContextSpec
+internal readonly struct ContextModel
 {
-    internal ContextSpec(ContextModeKind mode, string? typeName)
+    internal ContextModel(ContextModeKind mode, string? typeName)
     {
         Mode = mode;
         TypeName = typeName;
@@ -139,9 +158,9 @@ internal readonly struct ContextSpec
     internal string? TypeName { get; }
 }
 
-internal readonly struct CallbackSpec
+internal readonly struct CallbackModel
 {
-    internal CallbackSpec(CallbackSource source, bool hasEntity, string? typeName)
+    internal CallbackModel(CallbackSource source, bool hasEntity, string? typeName)
     {
         Source = source;
         HasEntity = hasEntity;
@@ -153,9 +172,9 @@ internal readonly struct CallbackSpec
     internal string? TypeName { get; }
 }
 
-internal readonly struct ExecutionSpec
+internal readonly struct ExecutionModel
 {
-    internal ExecutionSpec(ExecutionKind kind, ValueKind value)
+    internal ExecutionModel(ExecutionKind kind, ValueKind value)
     {
         Kind = kind;
         Value = value;
@@ -165,16 +184,16 @@ internal readonly struct ExecutionSpec
     internal ValueKind Value { get; }
 }
 
-internal sealed class ApiShape
+internal sealed class ApiModel
 {
-    internal ApiShape(
+    internal ApiModel(
         OperationKind operation,
         TargetKind target,
         QueryMode query,
-        SelectorSpec selector,
-        ContextSpec context,
-        CallbackSpec? callback,
-        ExecutionSpec execution,
+        SelectorModel selector,
+        ContextModel context,
+        CallbackModel? callback,
+        ExecutionModel execution,
         string? name = null,
         string? pattern = null)
     {
@@ -193,10 +212,10 @@ internal sealed class ApiShape
     internal OperationKind Operation { get; }
     internal TargetKind Target { get; }
     internal QueryMode Query { get; }
-    internal SelectorSpec Selector { get; }
-    internal ContextSpec Context { get; }
-    internal CallbackSpec? Callback { get; }
-    internal ExecutionSpec Execution { get; }
+    internal SelectorModel Selector { get; }
+    internal ContextModel Context { get; }
+    internal CallbackModel? Callback { get; }
+    internal ExecutionModel Execution { get; }
     internal string? Name { get; }
     internal string? Pattern { get; }
 
@@ -224,7 +243,10 @@ internal sealed class ApiShape
                 component.Position.ToString(CultureInfo.InvariantCulture)
                 + ":" + component.TypeName
                 + ":" + component.Selector
-                + ":" + component.Access)));
+                + ":" + component.Access
+                + ":" + component.ParameterName
+                + ":" + component.AccessMode
+                + ":" + component.ComponentIdExpression)));
 }
 
 internal sealed class StructuralPlan
