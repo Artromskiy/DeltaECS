@@ -20,7 +20,7 @@ namespace Ecs.CSharp.Benchmark
                 }
             }
 
-            public IParallelRunner Runner { get; }
+            public DefaultParallelRunner Runner { get; }
 
             public ISystem<int> MonoThreadEntitySetSystem { get; }
 

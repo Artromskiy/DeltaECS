@@ -13,12 +13,7 @@ namespace Ecs.CSharp.Benchmark
         [Benchmark]
         public void Fennecs()
         {
-            World world = _fennecs.World;
-
-            for (int i = 0; i < EntityCount; ++i)
-            {
-                world.Spawn().Add<Component1>();
-            }
+            _fennecs.Component1Template.Spawn(EntityCount, new Component1());
         }
     }
 }

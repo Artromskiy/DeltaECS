@@ -82,7 +82,6 @@
 
   <ItemGroup Label="Ecs">
 		<PackageReference Include="Arch" Version="2.1.0" />
-    <PackageReference Include="Frent" Version="0.8.0-beta" />
     <PackageReference Include="DefaultEcs" Version="0.17.2" />
     <PackageReference Include="DefaultEcs.Analyzer" Version="0.17.0" PrivateAssets="all" />
 

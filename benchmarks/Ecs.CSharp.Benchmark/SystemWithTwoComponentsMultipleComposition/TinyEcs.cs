@@ -12,10 +12,10 @@ namespace Ecs.CSharp.Benchmark
         private sealed class TinyEcsContext : TinyEcsBaseContext
         {
 
-            private record struct Padding1();
-            private record struct Padding2();
-            private record struct Padding3();
-            private record struct Padding4();
+            private record struct Padding1(int Value);
+            private record struct Padding2(int Value);
+            private record struct Padding3(int Value);
+            private record struct Padding4(int Value);
             public Query Query { get; }
 
 

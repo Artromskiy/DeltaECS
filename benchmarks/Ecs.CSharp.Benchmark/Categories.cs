@@ -4,7 +4,6 @@ namespace Ecs.CSharp.Benchmark
     {
         public const string Arch = "Arch";
         public const string DefaultEcs = "DefaultEcs";
-        public const string Frent = "Frent";
         public const string FrifloEngineEcs = "FrifloEngineEcs";
         public const string HypEcs = "HypEcs";
         public const string LeopotamEcs = "Leopotam.Ecs";
