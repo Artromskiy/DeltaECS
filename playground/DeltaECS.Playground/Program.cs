@@ -3,7 +3,7 @@ using Delta.ECS;
 var layouts = new ComponentLayoutRegistry();
 var positionId = layouts.Register<Position>(new SchemaId(1));
 var velocityId = layouts.Register<Velocity>(new SchemaId(2));
-using var world = new World(layouts, chunkCapacity: 4);
+using var world = new World(layouts);
 
 var entities = new Entity[8];
 world.Create(stackalloc[] { positionId, velocityId }, entities);

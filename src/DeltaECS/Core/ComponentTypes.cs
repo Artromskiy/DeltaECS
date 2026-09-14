@@ -43,7 +43,7 @@ public readonly struct ComponentId : IEquatable<ComponentId>, IComparable<Compon
 /// <summary>
 /// Immutable set of component ids backed by dynamically sized native words.
 /// </summary>
-public readonly struct ComponentMask : IEquatable<ComponentMask>
+internal readonly struct ComponentMask : IEquatable<ComponentMask>
 {
     private readonly NativeComponentMaskStorage? _storage;
 
@@ -425,9 +425,9 @@ public readonly struct SchemaId : IEquatable<SchemaId>
     public static bool operator !=(SchemaId left, SchemaId right) => !left.Equals(right);
 }
 
-public readonly struct ComponentLayout : IEquatable<ComponentLayout>
+internal readonly struct ComponentLayout : IEquatable<ComponentLayout>
 {
-    public ComponentLayout(
+    internal ComponentLayout(
         SchemaId schemaId,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType)
     {
@@ -437,10 +437,10 @@ public readonly struct ComponentLayout : IEquatable<ComponentLayout>
         RuntimeType = runtimeType;
     }
 
-    public SchemaId SchemaId { get; }
+    internal SchemaId SchemaId { get; }
 
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
-    public Type RuntimeType { get; }
+    internal Type RuntimeType { get; }
 
     public bool Equals(ComponentLayout other) => SchemaId == other.SchemaId && RuntimeType == other.RuntimeType;
 

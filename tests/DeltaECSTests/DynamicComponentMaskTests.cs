@@ -73,7 +73,7 @@ public sealed class DynamicComponentMaskTests
             ids[index] = layouts.Register(typeof(int), new SchemaId((ulong)(80_000 + index)));
         }
 
-        using var world = new World(layouts, initialEntityCapacity: 1, chunkCapacity: 1);
+        using var world = new World(layouts, initialEntityCapacity: 1);
         Entity entity = world.Create(ids);
 
         Assert.That(world.IsAlive(entity), Is.True);

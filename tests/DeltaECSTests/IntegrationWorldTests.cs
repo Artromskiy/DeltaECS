@@ -64,7 +64,7 @@ public sealed class IntegrationWorldTests
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register(typeof(Position), new SchemaId(50_011));
-        using var storage = new World(layouts, chunkCapacity: 2);
+        using var storage = new World(layouts);
         IEcsWorld world = storage;
         world.Initialize();
 

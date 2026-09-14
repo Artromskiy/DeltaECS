@@ -39,10 +39,10 @@ internal sealed class MicroWorld
     public readonly ComponentId Movement4C;
     public readonly ComponentId Movement4D;
 
-    public MicroWorld(int chunkCapacity = 512, int initialEntityCapacity = 100_000)
+    public MicroWorld(int initialEntityCapacity = 100_000)
     {
         (Position, Velocity, Auxiliary, Reference, Movement4A, Movement4B, Movement4C, Movement4D) = MicroIds.Register(Layouts);
-        World = new World(Layouts, initialEntityCapacity: initialEntityCapacity, chunkCapacity: chunkCapacity);
+        World = new World(Layouts, initialEntityCapacity: initialEntityCapacity);
     }
 
     public World World { get; }
@@ -228,7 +228,7 @@ internal static class MicroContractSmoke
 {
     public static void Run()
     {
-        var fixture = new MicroWorld(chunkCapacity: 4);
+        var fixture = new MicroWorld();
         var movement2Entities = fixture.CreateMoving(8);
         var movement2Description = QuerySpec.WhereAll(fixture.Position, fixture.Velocity);
         var movement2Query = fixture.World.CreateQuery(in movement2Description);
@@ -280,6 +280,31 @@ internal static class MicroContractSmoke
         finally
         {
             whereApi.Cleanup();
+        }
+
+        var whereIteration = new WhereIterationMicroBenchmarkImplementation { Amount = 8 };
+        whereIteration.Setup();
+        try
+        {
+            int direct = whereIteration.ForEach();
+            int directSum = whereIteration.SumAccumulators();
+            int where = whereIteration.WhereForEachTrue();
+            int whereSum = whereIteration.SumAccumulators();
+            int whereEntity = whereIteration.WhereEntityForEachTrue();
+            int whereEntitySum = whereIteration.SumAccumulators();
+            if (direct != whereIteration.ExpectedIterationCount
+                || directSum != whereIteration.ExpectedIterationCount
+                || where != whereIteration.ExpectedIterationCount
+                || whereSum != whereIteration.ExpectedIterationCount * 2
+                || whereEntity != whereIteration.ExpectedIterationCount
+                || whereEntitySum != whereIteration.ExpectedIterationCount * 3)
+            {
+                throw new InvalidOperationException($"Where iteration checksum mismatch: {direct}/{directSum}, {where}/{whereSum}, {whereEntity}/{whereEntitySum}.");
+            }
+        }
+        finally
+        {
+            whereIteration.Cleanup();
         }
 
         var structural = new StructuralOperationsMicroBenchmarkImplementation { Amount = 8 };

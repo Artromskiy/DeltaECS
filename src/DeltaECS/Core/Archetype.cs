@@ -7,7 +7,6 @@ using System.Runtime.CompilerServices;
 internal sealed class Archetype
 {
     private readonly int _id;
-    private readonly int _chunkCapacity;
     private readonly ComponentRowArrayPool _componentRowArrayPool;
     private NativeMemory<ComponentId> _componentIds;
     private readonly ComponentLayout[] _layouts;
@@ -33,7 +32,6 @@ internal sealed class Archetype
         ComponentLayout[] layouts,
         ComponentRowOperations[] rowOperations,
         ComponentId[] componentIds,
-        int chunkCapacity,
         ComponentRowArrayPool componentRowArrayPool)
     {
         if (layouts.Length != componentIds.Length
@@ -44,7 +42,6 @@ internal sealed class Archetype
 
         _id = id;
         Mask = mask;
-        _chunkCapacity = chunkCapacity;
         _componentRowArrayPool = componentRowArrayPool;
         _componentIds = new NativeMemory<ComponentId>(componentIds);
         _layouts = layouts;
@@ -151,7 +148,6 @@ internal sealed class Archetype
 
         chunkIndex = _chunks.Count;
         _chunks.Add(new Chunk(
-            _chunkCapacity,
             _layouts,
             _rowOperations,
             chunkId,
@@ -188,7 +184,6 @@ internal sealed class Archetype
         {
             chunkIndex = _chunks.Count;
             chunk = new Chunk(
-                _chunkCapacity,
                 _layouts,
                 _rowOperations,
                 chunkId,
@@ -202,7 +197,7 @@ internal sealed class Archetype
         }
 
         bool wasEmpty = chunk.IsEmpty;
-        int reserved = Math.Min(count, chunk.Capacity - chunk.Count);
+        int reserved = Math.Min(count, Chunk.Capacity - chunk.Count);
         chunk.ReserveRange(reserved, out reusedCount);
         if (wasEmpty && reserved > 0)
         {

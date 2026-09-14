@@ -5,7 +5,7 @@
 assigns disjoint active chunks to a reusable worker pool:
 
 ```csharp
-var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+var query = world.WhereAll(positionId, velocityId);
 
 world.ForEachParallel(
     in query,

@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 
 internal sealed class Chunk
 {
-    private readonly int _capacity;
+    internal const int Capacity = 512;
     private readonly ComponentRowArrayPool _componentRowArrayPool;
     private Array[] _componentRows;
     private ComponentRowOperations[] _rowOperations;
@@ -20,7 +20,6 @@ internal sealed class Chunk
     private int _freeRecordListIndex = -1;
 
     internal Chunk(
-        int capacity,
         ComponentLayout[] layouts,
         ComponentRowOperations[] rowOperations,
         int globalId,
@@ -28,19 +27,17 @@ internal sealed class Chunk
         int archetypeIndex,
         ComponentRowArrayPool componentRowArrayPool)
     {
-        ThrowHelper.ThrowIfNegativeOrZero(capacity, nameof(capacity));
         if (rowOperations.Length != layouts.Length)
         {
             ThrowHelper.ThrowChunkRowOperationsMismatch(nameof(rowOperations));
         }
 
-        _capacity = capacity;
         _componentRowArrayPool = componentRowArrayPool;
         GlobalId = globalId;
         _archetypeId = archetypeId;
         _archetypeIndex = archetypeIndex;
-        _entities = new NativeMemory<Entity>(capacity);
-        _componentStamps = new ComponentStampStorage(layouts.Length, capacity);
+        _entities = new NativeMemory<Entity>(Capacity);
+        _componentStamps = new ComponentStampStorage(layouts.Length, Capacity);
         _componentRows = new Array[layouts.Length];
         _rowOperations = rowOperations;
         for (int index = 0; index < layouts.Length; index++)
@@ -49,7 +46,7 @@ internal sealed class Chunk
             _componentRows.RefAt(index) = _componentRowArrayPool.Rent(
                 runtimeType,
                 _rowOperations.RefAt(index),
-                capacity);
+                Capacity);
         }
     }
 
@@ -59,13 +56,11 @@ internal sealed class Chunk
 
     internal int ArchetypeIndex => _archetypeIndex;
 
-    internal int Capacity => _capacity;
-
     internal int Count => _count;
 
     internal int ComponentCount => _componentRows.Length;
 
-    internal bool IsFull => _count >= _capacity;
+    internal bool IsFull => _count >= Capacity;
 
     internal bool IsEmpty => _count == 0;
 
@@ -97,7 +92,7 @@ internal sealed class Chunk
 
     internal int ReserveRange(int count, out int reusedCount)
     {
-        if (count < 0 || _count + count > _capacity)
+        if (count < 0 || _count + count > Capacity)
         {
             ThrowHelper.ThrowChunkCountOutOfRange(nameof(count));
         }
@@ -194,7 +189,7 @@ internal sealed class Chunk
             targetRows[targetIndex] = _componentRowArrayPool.Rent(
                 runtimeType,
                 rowOperations.RefAt(targetIndex),
-                _capacity);
+                Capacity);
         }
 
         ComponentStampStorage replacement = _componentStamps.Remap(sourceToTarget, targetRows.Length);
@@ -213,7 +208,6 @@ internal sealed class Chunk
         ReadOnlySpan<int> addedTargetRows)
     {
         if (!donor.IsEmpty
-            || donor.Capacity != _capacity
             || sourceToTarget.Length != _componentRows.Length
             || donor._componentRows.Length != layouts.Length)
         {
@@ -412,7 +406,7 @@ internal sealed class Chunk
 
     internal void BeginFreeRecordBlock(int count)
     {
-        if (count <= 0 || count > _capacity || HasFreeRecordBlock)
+        if (count <= 0 || count > Capacity || HasFreeRecordBlock)
         {
             ThrowHelper.ThrowChunkCountOutOfRange(nameof(count));
         }

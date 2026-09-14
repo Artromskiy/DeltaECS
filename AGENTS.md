@@ -12,6 +12,8 @@ bounded request. Preserve active branches and unrelated dirty changes.
 - IDEAS.md — ECS research/options only when explicitly requested.
 - WORKFLOW.md — correctness, format/metrics and benchmark routing.
 - docs/API-GRAMMAR.md — canonical generated API grammar and argument order.
+- docs/src/DeltaECS.Generators/ARCHITECTURE.md — generator pipeline and
+  extension-point contract.
 - docs/APIMAP.md — source/API navigation map.
 - docs/README.md — nested leaf documentation; open only for a named docs task.
 - src/DeltaECS and src/DeltaECS.Generators — production kernel and generator.
@@ -19,3 +21,6 @@ bounded request. Preserve active branches and unrelated dirty changes.
 
 Do not add editor/render dependencies or mandatory command buffers. Raw row
 lookup stays internal; public hot loops use validated typed bindings.
+
+When introducing a replacement generation system, mark the old path
+`[Obsolete]` before migration and remove it with its tests after callers move.

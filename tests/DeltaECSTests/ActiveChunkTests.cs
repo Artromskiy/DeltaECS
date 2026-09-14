@@ -13,8 +13,9 @@ public sealed class ActiveChunkTests
     {
         var layouts = new ComponentLayoutRegistry();
         layouts.Register(typeof(Position), new SchemaId(1));
-        var world = new World(layouts, chunkCapacity: 2);
-        var entities = new Entity[6];
+        var world = new World(layouts);
+        const int chunkSize = 512;
+        var entities = new Entity[chunkSize * 3];
         world.Create(stackalloc[] { PositionId }, entities);
 
         var archetype = world.Archetypes[0];
@@ -22,8 +23,7 @@ public sealed class ActiveChunkTests
         Assert.That(archetype.ActiveChunkCount, Is.EqualTo(3));
         AssertActiveChunks(archetype);
 
-        Assert.That(world.Destroy(entities[0]), Is.True);
-        Assert.That(world.Destroy(entities[1]), Is.True);
+        Assert.That(world.Destroy(entities.AsSpan(0, chunkSize)), Is.EqualTo(chunkSize));
         Assert.That(archetype.ChunkCount, Is.EqualTo(3));
         Assert.That(archetype.ActiveChunkCount, Is.EqualTo(2));
         AssertActiveChunks(archetype);
@@ -31,17 +31,17 @@ public sealed class ActiveChunkTests
         var query = QuerySpec.WhereAll(PositionId);
         var queryHandle = world.CreateQuery(in query);
         var queriedSlots = CountQueriedSlots(world, queryHandle);
-        Assert.That(queriedSlots, Is.EqualTo(4));
+        Assert.That(queriedSlots, Is.EqualTo(chunkSize * 2));
 
-        var replacement = new Entity[2];
-        Assert.That(world.Create(stackalloc[] { PositionId }, replacement), Is.EqualTo(2));
+        var replacement = new Entity[chunkSize];
+        Assert.That(world.Create(stackalloc[] { PositionId }, replacement), Is.EqualTo(chunkSize));
         Assert.That(world.Set(replacement[0], PositionId, new Position { X = 11 }), Is.True);
         Assert.That(world.Set(replacement[1], PositionId, new Position { X = 13 }), Is.True);
         Assert.That(archetype.ActiveChunkCount, Is.EqualTo(3));
         AssertActiveChunks(archetype);
 
         queriedSlots = CountQueriedSlots(world, queryHandle);
-        Assert.That(queriedSlots, Is.EqualTo(6));
+        Assert.That(queriedSlots, Is.EqualTo(chunkSize * 3));
         Assert.That(SumPositions(world, queryHandle), Is.EqualTo(24));
     }
 

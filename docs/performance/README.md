@@ -32,9 +32,8 @@ The generated execution owns the structural lease for the duration of the
 callback. Its compiler-support cursors are internal stack-only views;
 structural mutation cannot invalidate a row while that lease is held.
 
-`World` uses a default chunk capacity of 512 entities. The constructor still
-accepts an explicit capacity so storage-layout experiments can compare the
-trade-off between chunk setup overhead, locality and partial-chunk waste.
+`World` stores 512 entities per chunk. The capacity is an implementation
+constant; callers configure initial entity-record capacity only.
 
 The generated delegate and functor surfaces enter the same type-erased plan and
 row preparation. Generated callbacks use prepared routes and a trusted advance

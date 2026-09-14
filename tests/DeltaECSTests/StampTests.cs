@@ -30,7 +30,7 @@ public sealed class StampTests
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(40_001));
-        using var world = new World(layouts, chunkCapacity: 2);
+        using var world = new World(layouts);
         Entity entity = world.Create(positionId);
 
         Archetype archetype = world.Archetypes[0];
@@ -49,7 +49,7 @@ public sealed class StampTests
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(40_005));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(40_006));
-        using var world = new World(layouts, chunkCapacity: 2);
+        using var world = new World(layouts);
         Entity first = world.Create(positionId, velocityId);
         Entity second = world.Create(positionId, velocityId);
         Assert.That(world.TryGetComponentStamp(first, positionId, out Stamp firstBefore), Is.True);
@@ -75,7 +75,7 @@ public sealed class StampTests
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register(typeof(Position), new SchemaId(40_011));
         ComponentId velocityId = layouts.Register(typeof(Velocity), new SchemaId(40_012));
-        using var world = new World(layouts, chunkCapacity: 2);
+        using var world = new World(layouts);
         Entity entity = world.Create(positionId);
         Assert.That(world.Set(entity, positionId, new Position { X = 7 }), Is.True);
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionBefore), Is.True);

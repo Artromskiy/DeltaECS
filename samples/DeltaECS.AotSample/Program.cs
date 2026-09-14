@@ -12,7 +12,7 @@ namespace DeltaECS.AotSample
             ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(2));
             ComponentId markerId = layouts.Register<Marker>(new SchemaId(3));
 
-            using var world = new World(layouts, chunkCapacity: 4);
+            using var world = new World(layouts);
             Span<Entity> entities = stackalloc Entity[4];
             world.Create(stackalloc[] { positionId, velocityId }, entities);
 

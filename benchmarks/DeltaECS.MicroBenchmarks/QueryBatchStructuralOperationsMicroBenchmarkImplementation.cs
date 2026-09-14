@@ -40,9 +40,9 @@ public class QueryBatchStructuralOperationsMicroBenchmarkImplementation
     public void Setup()
     {
         // Arch computes 800 entities per chunk for the Position+Auxiliary
-        // archetype on its default 16 KB chunk size. Use that capacity here
-        // so the structural migration has the same destination chunk count.
-        _deltaFixture = new MicroWorld(chunkCapacity: 800, initialEntityCapacity: Amount * 2);
+        // archetype on its default 16 KB chunk size. Delta uses its fixed
+        // 512-entity chunk size, so both implementations run their own layout.
+        _deltaFixture = new MicroWorld(initialEntityCapacity: Amount * 2);
         _deltaWorld = _deltaFixture.World;
         _deltaBaseComponents = [_deltaFixture.Position];
         _deltaMarkerComponents = [_deltaFixture.Auxiliary];

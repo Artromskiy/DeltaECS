@@ -8,7 +8,7 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
     private readonly ComponentMask _anyMask;
     private readonly ComponentMask _noneMask;
 
-    public QuerySpec(
+    internal QuerySpec(
         ReadOnlySpan<ComponentId> allComponents,
         ReadOnlySpan<ComponentId> anyComponents,
         ReadOnlySpan<ComponentId> noneComponents)
@@ -19,11 +19,11 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
         Hash = ComputeHash();
     }
 
-    public ComponentMask AllMask => _allMask;
+    internal ComponentMask AllMask => _allMask;
 
-    public ComponentMask AnyMask => _anyMask;
+    internal ComponentMask AnyMask => _anyMask;
 
-    public ComponentMask NoneMask => _noneMask;
+    internal ComponentMask NoneMask => _noneMask;
 
     internal int Hash { get; }
 

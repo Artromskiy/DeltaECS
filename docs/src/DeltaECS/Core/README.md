@@ -62,9 +62,8 @@ entities.
 
 ## Query factories
 
-`QuerySpec` is the type-erased selection description used by runtime and
-integration code. For consumer code, use the direct `World` and `Query`
-factories so every chain step returns a cached `Query`:
+Query selection is built through the direct `World` and `Query` factories so
+every chain step returns a cached `Query`:
 
 ```csharp
 var explicitQuery = world
@@ -94,7 +93,7 @@ checks stay in the runtime bridge.
 Generated `ForEach` callbacks execute against an explicit world-owned `Query`:
 
 ```csharp
-var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+var query = world.WhereAll(positionId, velocityId);
 world.ForEach(in query,
     static (ref Position position, in Velocity velocity) =>
         position.X += velocity.X);

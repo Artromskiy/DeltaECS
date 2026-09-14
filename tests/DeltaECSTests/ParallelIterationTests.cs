@@ -29,7 +29,7 @@ public sealed class ParallelIterationTests
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(70_090));
-        using var world = new World(layouts, initialEntityCapacity: 2_048, chunkCapacity: 128);
+        using var world = new World(layouts, initialEntityCapacity: 2_048);
         var entities = new Entity[2_048];
         world.Create([positionId], entities);
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
@@ -97,7 +97,7 @@ public sealed class ParallelIterationTests
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(70_091));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(70_092));
-        using var world = new World(layouts, initialEntityCapacity: 2_048, chunkCapacity: 128);
+        using var world = new World(layouts, initialEntityCapacity: 2_048);
         var entities = new Entity[2_048];
         world.Create([positionId, velocityId], entities);
         for (int index = 0; index < entities.Length; index++)
@@ -124,7 +124,7 @@ public sealed class ParallelIterationTests
         var layouts = new ComponentLayoutRegistry();
         var positionId = layouts.Register(typeof(Position), new SchemaId(70_020));
         var velocityId = layouts.Register(typeof(Velocity), new SchemaId(70_021));
-        using var world = new World(layouts, initialEntityCapacity: 2_048, chunkCapacity: 128);
+        using var world = new World(layouts, initialEntityCapacity: 2_048);
         var entities = new Entity[2_048];
         world.Create(new[] { positionId, velocityId }, entities);
         for (int index = 0; index < entities.Length; index++)
@@ -157,7 +157,7 @@ public sealed class ParallelIterationTests
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(70_080));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(70_081));
-        using var world = new World(layouts, initialEntityCapacity: 8, chunkCapacity: 8);
+        using var world = new World(layouts, initialEntityCapacity: 8);
         world.Create([positionId, velocityId], 2, Span<Entity>.Empty);
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
         s_generatedCallbackThreadId = 0;
@@ -181,7 +181,7 @@ public sealed class ParallelIterationTests
         var layouts = new ComponentLayoutRegistry();
         var positionId = layouts.Register(typeof(Position), new SchemaId(70_030));
         var velocityId = layouts.Register(typeof(Velocity), new SchemaId(70_031));
-        using var world = new World(layouts, initialEntityCapacity: 256, chunkCapacity: 128);
+        using var world = new World(layouts, initialEntityCapacity: 256);
         var firstBatch = new Entity[128];
         world.Create(new[] { positionId, velocityId }, firstBatch);
         var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
@@ -211,7 +211,7 @@ public sealed class ParallelIterationTests
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(70_070));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(70_071));
-        using var world = new World(layouts, initialEntityCapacity: 2_048, chunkCapacity: 128);
+        using var world = new World(layouts, initialEntityCapacity: 2_048);
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
         var entities = new Entity[2_048];
         world.Create([positionId, velocityId], entities);
@@ -230,7 +230,7 @@ public sealed class ParallelIterationTests
         var layouts = new ComponentLayoutRegistry();
         var positionId = layouts.Register(typeof(Position), new SchemaId(70_050));
         var velocityId = layouts.Register(typeof(Velocity), new SchemaId(70_051));
-        using var world = new World(layouts, initialEntityCapacity: 1_024, chunkCapacity: 128);
+        using var world = new World(layouts, initialEntityCapacity: 1_024);
         var entities = new Entity[1_024];
         world.Create(new[] { positionId, velocityId }, entities);
         var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
@@ -251,7 +251,7 @@ public sealed class ParallelIterationTests
         var layouts = new ComponentLayoutRegistry();
         var positionId = layouts.Register(typeof(Position), new SchemaId(70_040));
         var velocityId = layouts.Register(typeof(Velocity), new SchemaId(70_041));
-        using var world = new World(layouts, initialEntityCapacity: 2_048, chunkCapacity: 128);
+        using var world = new World(layouts, initialEntityCapacity: 2_048);
         var entities = new Entity[2_048];
         world.Create(new[] { positionId, velocityId }, entities);
         var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));

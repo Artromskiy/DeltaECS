@@ -19,7 +19,7 @@ public sealed class QueryStructuralOperationsTests
         var extraA = layouts.Register(typeof(int), new SchemaId(20));
         var extraB = layouts.Register(typeof(int), new SchemaId(21));
         var extraC = layouts.Register(typeof(int), new SchemaId(22));
-        var world = new World(layouts, chunkCapacity: 2);
+        var world = new World(layouts);
 
         var first = new Entity[3];
         var second = new Entity[2];
@@ -62,7 +62,7 @@ public sealed class QueryStructuralOperationsTests
     public void QueryDestroy_UpdatesGenerationsFreeRecordsAndAliveCount()
     {
         var layouts = CreateLayouts();
-        var world = new World(layouts, chunkCapacity: 2);
+        var world = new World(layouts);
         var destroyed = new Entity[5];
         var survivor = world.Create(new[] { HealthId });
         world.Create(new[] { PositionId }, destroyed);
@@ -87,7 +87,7 @@ public sealed class QueryStructuralOperationsTests
     public void ScalarTransition_ReusesDestroyedChunk_AndKeepsStaleHandlesInvalid()
     {
         var layouts = CreateLayouts();
-        var world = new World(layouts, chunkCapacity: 2);
+        var world = new World(layouts);
         var live = world.Create(new[] { PositionId });
         var destroyed = new Entity[2];
         world.Create(new[] { VelocityId }, destroyed);
@@ -187,11 +187,11 @@ public sealed class QueryStructuralOperationsTests
     {
         var layouts = CreateLayouts();
         var markerId = layouts.Register(typeof(byte), new SchemaId(40));
-        var world = new World(layouts, chunkCapacity: 4);
+        var world = new World(layouts);
 
         var existingTarget = new Entity[2];
         world.Create(new[] { PositionId, markerId }, existingTarget.Length, existingTarget);
-        var source = new Entity[6];
+        var source = new Entity[1_026];
         world.Create(new[] { PositionId }, source.Length, source);
         for (int index = 0; index < source.Length; index++)
         {
@@ -206,7 +206,7 @@ public sealed class QueryStructuralOperationsTests
         var targetQuery = world.CreateQuery(QuerySpec.WhereAll(PositionId, markerId));
         int existingTargetChunkId = CollectChunkIds(targetQuery, world).Single();
         var sourceChunkIds = CollectChunkIds(sourceQuery, world);
-        Assert.That(sourceChunkIds.Count, Is.EqualTo(2));
+        Assert.That(sourceChunkIds.Count, Is.EqualTo(3));
 
         Assert.That(world.Add(in sourceQuery, new[] { markerId }), Is.EqualTo(source.Length));
 
@@ -239,11 +239,11 @@ public sealed class QueryStructuralOperationsTests
     {
         var layouts = CreateLayouts();
         var markerId = layouts.Register(typeof(byte), new SchemaId(41));
-        var world = new World(layouts, chunkCapacity: 4);
+        var world = new World(layouts);
 
         var existingTarget = new Entity[2];
         world.Create(new[] { PositionId }, existingTarget.Length, existingTarget);
-        var source = new Entity[6];
+        var source = new Entity[1_026];
         world.Create(new[] { PositionId, markerId }, source.Length, source);
         for (int index = 0; index < source.Length; index++)
         {
@@ -257,7 +257,7 @@ public sealed class QueryStructuralOperationsTests
             new[] { markerId }));
         int existingTargetChunkId = CollectChunkIds(targetQuery, world).Single();
         var sourceChunkIds = CollectChunkIds(sourceQuery, world);
-        Assert.That(sourceChunkIds.Count, Is.EqualTo(2));
+        Assert.That(sourceChunkIds.Count, Is.EqualTo(3));
 
         Assert.That(world.Remove(in sourceQuery, new[] { markerId }), Is.EqualTo(source.Length));
 
@@ -278,7 +278,7 @@ public sealed class QueryStructuralOperationsTests
         var layouts = CreateLayouts();
         var referenceId = layouts.Register(typeof(ReferenceComponent), new SchemaId(30));
         var markerId = layouts.Register(typeof(RefMarker), new SchemaId(31));
-        var world = new World(layouts, chunkCapacity: 2);
+        var world = new World(layouts);
         var entities = new Entity[4];
         world.Create(new[] { referenceId }, entities);
         var weakReferences = new List<WeakReference<ReferenceComponent>>();

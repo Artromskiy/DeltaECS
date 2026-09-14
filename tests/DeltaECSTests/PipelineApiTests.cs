@@ -74,7 +74,7 @@ public sealed class PipelineApiTests
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_020));
         ComponentId velocityId = layouts.Register<PipelineVelocity>(new SchemaId(70_021));
-        using var world = new World(layouts, chunkCapacity: 2);
+        using var world = new World(layouts);
         var entities = new Entity[3];
         world.Create(stackalloc[] { positionId, velocityId }, entities.Length, entities);
         Entity withoutVelocity = world.Create(positionId);
@@ -124,7 +124,7 @@ public sealed class PipelineApiTests
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_026));
-        using var world = new World(layouts, chunkCapacity: 2);
+        using var world = new World(layouts);
         var entities = new Entity[8];
         world.Create(stackalloc[] { positionId }, entities.Length, entities);
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));

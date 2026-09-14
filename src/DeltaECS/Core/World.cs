@@ -6,11 +6,9 @@ using System.Runtime.CompilerServices;
 
 public sealed partial class World : IDisposable
 {
-    private const int DefaultChunkCapacity = 512;
     private const int DefaultInitialCapacity = 1024;
 
     private readonly ComponentLayoutRegistry _layouts;
-    private readonly int _chunkCapacity;
     private readonly List<Archetype> _archetypes = new();
     private readonly ComponentRowArrayPool _componentRowArrayPool = new();
     private readonly List<Chunk> _freeRecordChunks = new();
@@ -50,15 +48,11 @@ public sealed partial class World : IDisposable
 
     public World(
         ComponentLayoutRegistry? layouts = null,
-        int initialEntityCapacity = DefaultInitialCapacity,
-        int chunkCapacity = DefaultChunkCapacity)
+        int initialEntityCapacity = DefaultInitialCapacity)
     {
         ThrowHelper.ThrowIfNegative(initialEntityCapacity, nameof(initialEntityCapacity));
 
-        ThrowHelper.ThrowIfNegativeOrZero(chunkCapacity, nameof(chunkCapacity));
-
         _layouts = layouts ?? new ComponentLayoutRegistry();
-        _chunkCapacity = chunkCapacity;
         _records.Capacity = initialEntityCapacity;
     }
 
@@ -1182,7 +1176,7 @@ public sealed partial class World : IDisposable
             while (sourceChunk.Count != 0
                 && targetArchetype.TryTakeBlockPartialChunk(out Chunk targetChunk))
             {
-                int copied = Math.Min(sourceChunk.Count, targetChunk.Capacity - targetChunk.Count);
+                int copied = Math.Min(sourceChunk.Count, Chunk.Capacity - targetChunk.Count);
                 int sourceSlot = sourceChunk.Count - copied;
                 int targetSlot = targetChunk.Count;
                 targetArchetype.ReserveExistingChunk(targetChunk, copied, out _);
@@ -1554,7 +1548,6 @@ public sealed partial class World : IDisposable
             layouts,
             rowOperations,
             componentIds,
-            _chunkCapacity,
             _componentRowArrayPool);
         _archetypeByMask.Add(mask, archetype.Id);
         _archetypes.Add(archetype);

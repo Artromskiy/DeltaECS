@@ -13,7 +13,7 @@ public sealed class ComponentRowOperationTests
         var valueId = layouts.Register(typeof(int), new SchemaId(10_001));
         var managedStructId = layouts.Register(typeof(ManagedPayload), new SchemaId(10_002));
         var classId = layouts.Register(typeof(ReferencePayload), new SchemaId(10_003));
-        var world = new World(layouts, chunkCapacity: 4);
+        var world = new World(layouts);
         var removed = world.Create(stackalloc[] { valueId, managedStructId, classId });
         var survivor = world.Create(stackalloc[] { valueId, managedStructId, classId });
         var reference = new ReferencePayload("survivor");
@@ -40,7 +40,7 @@ public sealed class ComponentRowOperationTests
         var valueId = layouts.Register(typeof(int), new SchemaId(10_011));
         var managedStructId = layouts.Register(typeof(ManagedPayload), new SchemaId(10_012));
         var classId = layouts.Register(typeof(ReferencePayload), new SchemaId(10_013));
-        var world = new World(layouts, chunkCapacity: 1);
+        var world = new World(layouts);
         var old = world.Create(stackalloc[] { valueId, managedStructId, classId });
         world.Set(old, valueId, 99);
         world.Set(old, managedStructId, new ManagedPayload("old"));
@@ -66,7 +66,7 @@ public sealed class ComponentRowOperationTests
         var sharedId = layouts.Register(typeof(int), new SchemaId(10_021));
         var addedValueId = layouts.Register(typeof(int), new SchemaId(10_022));
         var addedReferenceId = layouts.Register(typeof(ReferencePayload), new SchemaId(10_023));
-        var world = new World(layouts, chunkCapacity: 1);
+        var world = new World(layouts);
 
         var oldTarget = world.Create(stackalloc[] { sharedId, addedValueId, addedReferenceId });
         world.Set(oldTarget, addedValueId, 123);
@@ -94,7 +94,7 @@ public sealed class ComponentRowOperationTests
         var layouts = new ComponentLayoutRegistry();
         var valueId = layouts.Register(typeof(int), new SchemaId(10_031));
         var referenceId = layouts.Register(typeof(ReferencePayload), new SchemaId(10_032));
-        var world = new World(layouts, chunkCapacity: 4);
+        var world = new World(layouts);
         var removed = world.Create(stackalloc[] { valueId, referenceId });
         var survivor = world.Create(stackalloc[] { valueId, referenceId });
         var survivorReference = new ReferencePayload("survivor");
@@ -120,7 +120,7 @@ public sealed class ComponentRowOperationTests
     {
         var layouts = new ComponentLayoutRegistry();
         var id = layouts.Register(typeof(int), new SchemaId(10_041));
-        var world = new World(layouts, chunkCapacity: 2);
+        var world = new World(layouts);
         var first = world.Create(new[] { id });
         var second = world.Create(new[] { id });
         world.Set(second, id, 42);

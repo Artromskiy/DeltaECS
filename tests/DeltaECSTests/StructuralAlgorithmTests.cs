@@ -7,8 +7,8 @@ namespace Delta.ECS.Tests;
 
 /// <summary>
 /// Deterministic regression coverage for the structural algorithms.  These tests
-/// intentionally use a small chunk size in most cases so that swap-back is
-/// exercised across several chunks.
+/// intentionally use enough entities in the cases that need several chunks so
+/// that swap-back is exercised with the fixed runtime chunk size.
 /// </summary>
 [TestFixture]
 public sealed class StructuralAlgorithmTests
@@ -18,7 +18,7 @@ public sealed class StructuralAlgorithmTests
     {
         var layouts = new ComponentLayoutRegistry();
         var valueId = layouts.Register(typeof(DestroyValue), new SchemaId(30_001));
-        var world = new World(layouts, chunkCapacity: 7);
+        var world = new World(layouts);
         var entities = new Entity[96];
         world.Create(new[] { valueId }, entities);
         for (var i = 0; i < entities.Length; i++)
@@ -75,7 +75,7 @@ public sealed class StructuralAlgorithmTests
     {
         var layouts = new ComponentLayoutRegistry();
         var valueId = layouts.Register(typeof(DestroyValue), new SchemaId(30_002));
-        var world = new World(layouts, chunkCapacity: 5);
+        var world = new World(layouts);
         var old = new Entity[64];
         world.Create(new[] { valueId }, old);
 
@@ -104,7 +104,7 @@ public sealed class StructuralAlgorithmTests
     {
         var layouts = new ComponentLayoutRegistry();
         var valueId = layouts.Register(typeof(DestroyValue), new SchemaId(30_003));
-        var world = new World(layouts, chunkCapacity: 257);
+        var world = new World(layouts);
         var entities = new Entity[10_000];
         world.Create(new[] { valueId }, entities);
 
@@ -135,7 +135,7 @@ public sealed class StructuralAlgorithmTests
         var positionId = layouts.Register(typeof(TransitionPosition), new SchemaId(30_010));
         var velocityId = layouts.Register(typeof(TransitionVelocity), new SchemaId(30_011));
         var healthId = layouts.Register(typeof(TransitionHealth), new SchemaId(30_012));
-        var world = new World(layouts, chunkCapacity: 9);
+        var world = new World(layouts);
         var random = new Random(0x51A_7E);
         var model = new Dictionary<Entity, TransitionState>();
         var entities = new List<Entity>();

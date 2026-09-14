@@ -84,6 +84,7 @@ public sealed class PublicApiShapeTests
         const BindingFlags allInstance = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
         Assert.Multiple(() =>
         {
+            Assert.That(typeof(ComponentLayout).IsPublic, Is.False);
             Assert.That(
                 typeof(SchemaId).GetMethod("FromUInt64", BindingFlags.Public | BindingFlags.Static),
                 Is.Null);
@@ -96,6 +97,47 @@ public sealed class PublicApiShapeTests
             }
 
             Assert.That(typeof(ComponentLayout).GetMethod("Align", BindingFlags.Public | BindingFlags.Static), Is.Null);
+            Assert.That(typeof(ComponentLayoutRegistry).GetProperty(nameof(ComponentLayoutRegistry.Count), BindingFlags.Public | BindingFlags.Instance), Is.Null);
+            Assert.That(typeof(ComponentLayoutRegistry).GetMethod(nameof(ComponentLayoutRegistry.TryGetId), BindingFlags.Public | BindingFlags.Instance), Is.Null);
+            Assert.That(typeof(ComponentLayoutRegistry).GetMethod(nameof(ComponentLayoutRegistry.Get), BindingFlags.Public | BindingFlags.Instance), Is.Null);
+            Assert.That(typeof(ComponentLayoutRegistry).GetMethod(nameof(ComponentLayoutRegistry.TryGet), BindingFlags.Public | BindingFlags.Instance), Is.Null);
+        });
+    }
+
+    [Test]
+    public void QuerySpecificationKeepsMasksAndConstructionInternal()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(typeof(ComponentMask).IsPublic, Is.False);
+            Assert.That(
+                typeof(QuerySpec).GetConstructor(
+                    BindingFlags.Public | BindingFlags.Instance,
+                    binder: null,
+                    new[] { typeof(ReadOnlySpan<ComponentId>), typeof(ReadOnlySpan<ComponentId>), typeof(ReadOnlySpan<ComponentId>) },
+                    modifiers: null),
+                Is.Null);
+            foreach (string property in new[] { nameof(QuerySpec.AllMask), nameof(QuerySpec.AnyMask), nameof(QuerySpec.NoneMask) })
+            {
+                Assert.That(
+                    typeof(QuerySpec).GetProperty(property, BindingFlags.Public | BindingFlags.Instance),
+                    Is.Null,
+                    property);
+            }
+        });
+    }
+
+    [Test]
+    public void WorldUsesFixedChunkCapacity()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(Chunk.Capacity, Is.EqualTo(512));
+            Assert.That(
+                typeof(World).GetConstructors(BindingFlags.Public | BindingFlags.Instance)
+                    .SelectMany(static constructor => constructor.GetParameters())
+                    .Any(static parameter => parameter.Name == "chunkCapacity"),
+                Is.False);
         });
     }
 

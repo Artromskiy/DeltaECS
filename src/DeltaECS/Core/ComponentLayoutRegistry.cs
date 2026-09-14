@@ -19,7 +19,7 @@ public sealed partial class ComponentLayoutRegistry
     private readonly List<ComponentLayout> _layouts = new();
     private readonly List<ComponentRowOperations> _rowOperations = new();
 
-    public int Count => _layouts.Count;
+    internal int Count => _layouts.Count;
 
     public ComponentId Register(
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType,
@@ -72,7 +72,7 @@ public sealed partial class ComponentLayoutRegistry
         return id;
     }
 
-    public bool TryGetId(SchemaId schemaId, out ComponentId componentId)
+    internal bool TryGetId(SchemaId schemaId, out ComponentId componentId)
     {
         if (_idsBySchema.TryGetValue(schemaId, out int id))
         {
@@ -111,7 +111,7 @@ public sealed partial class ComponentLayoutRegistry
         return ThrowHelper.ThrowComponentTypeNotRegistered(runtimeType);
     }
 
-    public ComponentLayout Get(ComponentId id)
+    internal ComponentLayout Get(ComponentId id)
     {
         if (!id.IsValid || id.Value >= _layouts.Count)
         {
@@ -121,7 +121,7 @@ public sealed partial class ComponentLayoutRegistry
         return _layouts[id.Value];
     }
 
-    public bool TryGet(ComponentId id, out ComponentLayout layout)
+    internal bool TryGet(ComponentId id, out ComponentLayout layout)
     {
         if (id.IsValid && id.Value < _layouts.Count)
         {

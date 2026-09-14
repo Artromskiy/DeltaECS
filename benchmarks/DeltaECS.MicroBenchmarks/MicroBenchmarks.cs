@@ -10,6 +10,7 @@ internal static class MicroBenchmarkCatalog
         typeof(DenseIterationMicroBenchmarks),
         typeof(GeneratedFunctorMovement4MicroBenchmarks),
         typeof(Movement4ApiComparisonMicroBenchmarks),
+        typeof(WhereIterationMicroBenchmarks),
         typeof(WhereApiMicroBenchmarks),
         typeof(StructuralOperationsMicroBenchmarks),
         typeof(QueryBatchStructuralOperationsMicroBenchmarks)
@@ -28,6 +29,11 @@ public class GeneratedFunctorMovement4MicroBenchmarks : GeneratedFunctorMovement
 
 [MemoryDiagnoser]
 public class Movement4ApiComparisonMicroBenchmarks : Movement4ApiComparisonMicroBenchmarkImplementation
+{
+}
+
+[MemoryDiagnoser]
+public class WhereIterationMicroBenchmarks : WhereIterationMicroBenchmarkImplementation
 {
 }
 

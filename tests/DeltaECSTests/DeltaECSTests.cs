@@ -73,7 +73,7 @@ public sealed class DeltaECSDeliveryTests
     {
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
-        var world = new World(layouts, chunkCapacity: 2);
+        var world = new World(layouts);
         var entities = new Entity[5];
         world.Create(new[] { PositionId }, entities);
 
@@ -285,7 +285,7 @@ public sealed class DeltaECSDeliveryTests
     {
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
-        var world = new World(layouts, chunkCapacity: 4);
+        var world = new World(layouts);
 
         var initial = new Entity[16];
         world.Create(new[] { PositionId }, initial);

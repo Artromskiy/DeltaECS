@@ -32,7 +32,7 @@ public sealed class StampInvariantTests
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(41_011));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(41_012));
-        using var world = new World(layouts, chunkCapacity: 2);
+        using var world = new World(layouts);
         Entity entity = world.Create(positionId);
         Assert.That(world.Set(entity, positionId, new Position { X = 7 }), Is.True);
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionBefore), Is.True);

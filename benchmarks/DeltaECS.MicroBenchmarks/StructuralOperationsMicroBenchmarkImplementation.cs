@@ -19,7 +19,7 @@ public class StructuralOperationsMicroBenchmarkImplementation
     [GlobalSetup]
     public void Setup()
     {
-        _fixture = new MicroWorld(chunkCapacity: 512, initialEntityCapacity: Amount * 2);
+        _fixture = new MicroWorld(initialEntityCapacity: Amount * 2);
         _baseComponents = [_fixture.Position];
         _markerComponents = [_fixture.Auxiliary];
         _entities = new Entity[Amount];

@@ -256,3 +256,6 @@ execution into a template or reflection path.
 
 The public source spelling remains `world.ForEach(...)`. Consumers must include
 the DeltaECS analyzer reference for component-bearing generated overloads.
+
+The internal extension point for adding a generated API is documented in
+[the generator architecture guide](ARCHITECTURE.md).
