@@ -53,8 +53,10 @@ namespace Ecs.CSharp.Benchmark
         [Benchmark]
         public void FlecsNet_Each()
         {
-            _flecs.query.Each((ref Component1 c1, ref Component2 c2) =>
+            _flecs.query.Each((Iter it, int index) =>
             {
+                ref Component1 c1 = ref it.FieldAt<Component1>(0, index);
+                ref Component2 c2 = ref it.FieldAt<Component2>(1, index);
                 c1.Value += c2.Value;
             });
         }
@@ -63,8 +65,10 @@ namespace Ecs.CSharp.Benchmark
         [Benchmark]
         public void FlecsNet_Iter()
         {
-            _flecs.query.Iter((Iter it, Column<Component1> c1, Column<Component2> c2) =>
+            _flecs.query.Iter(it =>
             {
+                Field<Component1> c1 = it.Field<Component1>(0);
+                Field<Component2> c2 = it.Field<Component2>(1);
                 foreach (int i in it)
                 {
                     c1[i].Value += c2[i].Value;

@@ -8,7 +8,7 @@ namespace Ecs.CSharp.Benchmark
 {
     public partial class CreateEntityWithOneComponent
     {
-        private static readonly EntityType _entityType = Entity.EntityTypeOf([Component<Component1>.ID], []);
+        private static readonly EntityType _entityType = EntityType.EntityTypeOf([Component<Component1>.ID], []);
 
         [Context]
         private readonly FrentBaseContext _frent;
@@ -29,10 +29,8 @@ namespace Ecs.CSharp.Benchmark
         public void Frent_Bulk()
         {
             World world = _frent.World;
-            var chunks = world.CreateMany<Component1>(EntityCount);
-
-            for (int i = 0; i < chunks.Span.Length; i++)
-                chunks.Span[i] = new();
+            for (int i = 0; i < EntityCount; i++)
+                world.Create<Component1>(default);
         }
     }
 }

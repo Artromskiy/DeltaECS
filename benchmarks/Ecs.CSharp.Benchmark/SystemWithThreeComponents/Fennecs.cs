@@ -13,11 +13,11 @@ namespace Ecs.CSharp.Benchmark
 
         private sealed class FennecsContext : FennecsBaseContext
         {
-            public Query<Component1, Component2, Component3> query;
+            public Stream<Component1, Component2, Component3> query;
 
             public FennecsContext(int entityCount, int entityPadding)
             {
-                query = World.Query<Component1, Component2, Component3>().Build();
+                query = World.Query<Component1, Component2, Component3>().Stream();
                 for (int i = 0; i < entityCount; ++i)
                 {
                     for (int j = 0; j < entityPadding; ++j)
@@ -55,7 +55,7 @@ namespace Ecs.CSharp.Benchmark
         [Benchmark]
         public void Fennecs_Job()
         {
-            _fennecs.query.Job(delegate (ref Component1 c1, ref Component2 c2, ref Component3 c3) { c1.Value += c2.Value + c3.Value; }, 1024);
+            _fennecs.query.Job(delegate (ref Component1 c1, ref Component2 c2, ref Component3 c3) { c1.Value += c2.Value + c3.Value; });
         }
 
         [BenchmarkCategory(Categories.Fennecs)]

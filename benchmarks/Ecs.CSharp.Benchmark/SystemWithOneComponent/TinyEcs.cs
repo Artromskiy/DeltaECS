@@ -11,7 +11,7 @@ namespace Ecs.CSharp.Benchmark
 
         private sealed class TinyEcsContext : TinyEcsBaseContext
         {
-            public Query<Component1> Query { get; }
+            public Query Query { get; }
             public TinyEcsContext(int entityCount, int entityPadding) : base()
             {
                 for (int i = 0; i < entityCount; ++i)
@@ -21,10 +21,10 @@ namespace Ecs.CSharp.Benchmark
                         World.Entity();
                     }
 
-                    World.Entity().Set<Component1>();
+                    World.Entity().Set(new Component1());
                 }
 
-                Query = World.Query<Component1>();
+                Query = World.QueryBuilder().Data<Component1>().Build();
             }
         }
 
@@ -32,14 +32,24 @@ namespace Ecs.CSharp.Benchmark
         [Benchmark]
         public void TinyEcs_Each()
         {
-            _tinyEcs.Query.Each((ref Component1 c1) => c1.Value++);
+            var data = Data<Component1>.CreateIterator(_tinyEcs.Query.Iter());
+            while (data.MoveNext())
+            {
+                data.Deconstruct(out Ptr<Component1> c1);
+                c1.Ref.Value++;
+            }
         }
 
         [BenchmarkCategory(Categories.TinyEcs)]
         [Benchmark]
         public void TinyEcs_EachJob()
         {
-            _tinyEcs.Query.EachJob((ref Component1 c1) => c1.Value++);
+            var data = Data<Component1>.CreateIterator(_tinyEcs.Query.Iter());
+            while (data.MoveNext())
+            {
+                data.Deconstruct(out Ptr<Component1> c1);
+                c1.Ref.Value++;
+            }
         }
     }
 }

@@ -35,7 +35,7 @@ namespace Ecs.CSharp.Benchmark
                     World.Entity()
                         .Set(new Component1())
                         .Set(new Component2 { Value = 1 });
-                    Query = World.QueryBuilder().With<Component1>().With<Component2>().Build();
+                    Query = World.QueryBuilder().Data<Component1>().Data<Component2>().Build();
                 }
             }
         }
@@ -44,14 +44,24 @@ namespace Ecs.CSharp.Benchmark
         [Benchmark]
         public void TinyEcs_Each()
         {
-            _tinyEcs.Query.Each((ref Component1 c1, ref Component2 c2) => c1.Value += c2.Value);
+            var data = Data<Component1, Component2>.CreateIterator(_tinyEcs.Query.Iter());
+            while (data.MoveNext())
+            {
+                data.Deconstruct(out Ptr<Component1> c1, out Ptr<Component2> c2);
+                c1.Ref.Value += c2.Ref.Value;
+            }
         }
 
         [BenchmarkCategory(Categories.TinyEcs)]
         [Benchmark]
         public void TinyEcs_EachJob()
         {
-            _tinyEcs.Query.EachJob((ref Component1 c1, ref Component2 c2) => c1.Value += c2.Value);
+            var data = Data<Component1, Component2>.CreateIterator(_tinyEcs.Query.Iter());
+            while (data.MoveNext())
+            {
+                data.Deconstruct(out Ptr<Component1> c1, out Ptr<Component2> c2);
+                c1.Ref.Value += c2.Ref.Value;
+            }
         }
     }
 }

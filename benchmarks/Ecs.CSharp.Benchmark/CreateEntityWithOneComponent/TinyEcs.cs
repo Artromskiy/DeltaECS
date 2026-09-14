@@ -16,7 +16,7 @@ namespace Ecs.CSharp.Benchmark
         {
             for (int i = 0; i < EntityCount; ++i)
             {
-                _tinyEcs.World.Entity().Set<Component1>();
+                _tinyEcs.World.Entity().Set(new Component1());
             }
         }
     }

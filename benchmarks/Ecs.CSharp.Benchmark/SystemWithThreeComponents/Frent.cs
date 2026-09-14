@@ -5,6 +5,7 @@ using BenchmarkDotNet.Attributes;
 using Ecs.CSharp.Benchmark.Contexts;
 using Frent;
 using Frent.Systems;
+using Frent.Systems.Queries;
 using static Ecs.CSharp.Benchmark.Contexts.FrentBaseContext;
 
 namespace Ecs.CSharp.Benchmark
@@ -23,7 +24,7 @@ namespace Ecs.CSharp.Benchmark
                     World.Create<Component1, Component2, Component3>(default, new() { Value = 1 }, new() { Value = 1 });
                 }
 
-                Query = World.Query<With<Component1>, With<Component2>, With<Component3>>();
+                Query = World.CreateQuery().With<Component1>().With<Component2>().With<Component3>().Build();
             }
 
             public Query Query;

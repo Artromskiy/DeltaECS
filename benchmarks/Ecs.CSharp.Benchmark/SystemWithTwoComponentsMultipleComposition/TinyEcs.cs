@@ -24,30 +24,30 @@ namespace Ecs.CSharp.Benchmark
                 for (int i = 0; i < entityCount; ++i)
                 {
                     var entity = World.Entity();
-                    entity.Set<Component1>();
+                    entity.Set(new Component1());
                     entity.Set(new Component2 { Value = 1 });
 
                     switch (i % 4)
                     {
                         case 0:
-                            entity.Set<Padding1>();
+                            entity.Set(new Padding1());
                             break;
 
                         case 1:
-                            entity.Set<Padding2>();
+                            entity.Set(new Padding2());
                             break;
 
                         case 2:
-                            entity.Set<Padding3>();
+                            entity.Set(new Padding3());
                             break;
 
                         case 3:
-                            entity.Set<Padding4>();
+                            entity.Set(new Padding4());
                             break;
                     }
                 }
 
-                Query = World.QueryBuilder().With<Component1>().With<Component2>().Build();
+                Query = World.QueryBuilder().Data<Component1>().Data<Component2>().Build();
             }
         }
 
@@ -55,14 +55,24 @@ namespace Ecs.CSharp.Benchmark
         [Benchmark]
         public void TinyEcs_Each()
         {
-            _tinyEcs.Query.Each((ref Component1 c1, ref Component2 c2) => c1.Value += c2.Value);
+            var data = Data<Component1, Component2>.CreateIterator(_tinyEcs.Query.Iter());
+            while (data.MoveNext())
+            {
+                data.Deconstruct(out Ptr<Component1> c1, out Ptr<Component2> c2);
+                c1.Ref.Value += c2.Ref.Value;
+            }
         }
 
         [BenchmarkCategory(Categories.TinyEcs)]
         [Benchmark]
         public void TinyEcs_EachJob()
         {
-            _tinyEcs.Query.EachJob((ref Component1 c1, ref Component2 c2) => c1.Value += c2.Value);
+            var data = Data<Component1, Component2>.CreateIterator(_tinyEcs.Query.Iter());
+            while (data.MoveNext())
+            {
+                data.Deconstruct(out Ptr<Component1> c1, out Ptr<Component2> c2);
+                c1.Ref.Value += c2.Ref.Value;
+            }
         }
     }
 }
