@@ -26,7 +26,7 @@ public sealed class StampTests
     }
 
     [Test]
-    public void ComponentStampSumsEntityChunkAndArchetypeTerms()
+    public void ComponentStampCombinesEntityAndArchetypeTerms()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(40_001));
@@ -35,12 +35,11 @@ public sealed class StampTests
 
         Archetype archetype = world.Archetypes[0];
         Chunk chunk = archetype.GetChunk(0);
-        Stamp entityTerm = chunk.GetComponentStamp(0, 0);
-        world.GetChunkComponentStamps(chunk).RefAt(0) = new Stamp(2);
+        Stamp entityTerm = chunk.GetComponentStampTrusted(0, 0);
         world.GetArchetypeComponentStamps(archetype.Id)[0] = new Stamp(3);
 
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp actual), Is.True);
-        Assert.That(actual, Is.EqualTo(new Stamp(entityTerm.Value + 2 + 3)));
+        Assert.That(actual, Is.EqualTo(new Stamp(entityTerm.Value + 3)));
     }
 
     [Test]
@@ -113,7 +112,7 @@ public sealed class StampTests
         world.WhereEntity(
                 in query,
                 static (Entity current, in Position position) => position.X > 0)
-            .ForEachEntity(static current => _ = current);
+            .ForEachEntity(static (Entity current, in Position position) => _ = (current, position));
 
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp after), Is.True);
         Assert.That(after, Is.EqualTo(before));

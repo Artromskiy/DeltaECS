@@ -81,20 +81,6 @@ public readonly struct Query
     public Query WhereNone(params ReadOnlySpan<ComponentId> components)
         => Compose(QuerySpec.WhereNone(components));
 
-    internal ReadAccess AccessRead(ComponentId componentId)
-    {
-        EnsureValid();
-        int rowIndex = _cached.ResolveReadRoute(componentId);
-        return new ReadAccess(_cached, rowIndex);
-    }
-
-    internal WriteAccess AccessWrite(ComponentId componentId)
-    {
-        EnsureValid();
-        int rowIndex = _cached.UpgradeReadRouteToWrite(_cached.ResolveReadRoute(componentId));
-        return new WriteAccess(_cached, rowIndex);
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private Query Compose(QuerySpec additions)
     {

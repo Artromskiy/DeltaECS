@@ -72,18 +72,6 @@ public sealed partial class ComponentLayoutRegistry
         return id;
     }
 
-    internal bool TryGetId(SchemaId schemaId, out ComponentId componentId)
-    {
-        if (_idsBySchema.TryGetValue(schemaId, out int id))
-        {
-            componentId = new ComponentId(id);
-            return true;
-        }
-
-        componentId = ComponentId.Invalid;
-        return false;
-    }
-
     /// <summary>
     /// Tries to resolve the primary component registration for a CLR type.
     /// Later registrations of the same type remain addressable by their explicit ids.

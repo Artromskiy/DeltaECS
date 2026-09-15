@@ -30,8 +30,6 @@ public sealed class ComponentLayoutRegistryTests
         Assert.That(layouts.GetPrimary<Position>(), Is.EqualTo(first));
         Assert.That(layouts.GetPrimary(typeof(Position)), Is.EqualTo(first));
         Assert.That(second, Is.Not.EqualTo(first));
-        Assert.That(layouts.TryGetId(new SchemaId(70_002), out ComponentId explicitSecond), Is.True);
-        Assert.That(explicitSecond, Is.EqualTo(second));
     }
 
     [Test]

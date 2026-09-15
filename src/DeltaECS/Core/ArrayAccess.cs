@@ -31,10 +31,6 @@ internal static class ArrayAccess
 #endif
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static ref T RefAt<T>(Array array, int index) =>
-        ref Unsafe.As<T[]>(array).RefAt(index);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static ref T RefAt<T>(this Span<T> span, int index) =>
         ref Unsafe.Add(ref MemoryMarshal.GetReference(span), index);
 

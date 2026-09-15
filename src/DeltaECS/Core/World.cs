@@ -17,6 +17,7 @@ public sealed partial class World : IDisposable
     private NativeMemory<int> _freeRecords = new(16);
     private int _freeCount;
     private readonly Dictionary<TransitionKey, TransitionEdge> _transitionCache = new();
+    private readonly ComponentSetCache _componentSetCache = new();
     private readonly Dictionary<QuerySpec, WeakReference<QueryPlan>> _queryCache = new();
     private int _queryCacheSweepCountdown = 64;
     private NativeMemory<DestroyEntry> _destroyScratch = new(32);
@@ -39,11 +40,7 @@ public sealed partial class World : IDisposable
     private int _nextChunkId;
     private Chunk?[] _chunksById = Array.Empty<Chunk?>();
     private int _activeChunkLeases;
-    private QueryWriteSession? _queryWriteSessionPool;
     private Stamp[][] _archetypeComponentWriteStamps = Array.Empty<Stamp[]>();
-    private NativeMemory<Stamp>[] _chunkComponentWriteStamps = Array.Empty<NativeMemory<Stamp>>();
-    private int[] _archetypeStampComponentCounts = Array.Empty<int>();
-    private int[] _chunkStampComponentCounts = Array.Empty<int>();
     private bool _disposed;
 
     public World(
@@ -88,6 +85,7 @@ public sealed partial class World : IDisposable
         }
 
         _queryCache.Clear();
+        _componentSetCache.Clear();
 
         foreach (var archetype in _archetypes)
         {
@@ -101,7 +99,7 @@ public sealed partial class World : IDisposable
         _generatedWhereTargetCursorStamps.Dispose();
         _generatedWhereAffectedArchetypeStamps.Dispose();
         _batchEdgeStamps.Dispose();
-        DisposeStampLayers();
+        _archetypeComponentWriteStamps = Array.Empty<Stamp[]>();
         _componentRowArrayPool.Clear();
         _chunksById = Array.Empty<Chunk?>();
         _freeRecordChunks.Clear();
@@ -213,7 +211,7 @@ public sealed partial class World : IDisposable
                 out _,
                 out var chunk,
                 out int reusedCount);
-            RegisterChunkStampStorage(chunk);
+            RegisterChunk(chunk);
             int slotIndex = chunk.Count - reserved;
             if (reusedCount != 0)
             {
@@ -296,7 +294,7 @@ public sealed partial class World : IDisposable
                 out _,
                 out var chunk,
                 out int reusedCount);
-            RegisterChunkStampStorage(chunk);
+            RegisterChunk(chunk);
             int slotIndex = chunk.Count - reserved;
             if (reusedCount != 0)
             {
@@ -658,14 +656,9 @@ public sealed partial class World : IDisposable
         Chunk chunk,
         int componentIndex,
         int slotIndex)
-        => StampMath.Sum(
-            chunk.GetComponentStampTrusted(componentIndex, slotIndex),
-            _chunkComponentWriteStamps.RefAt(chunk.GlobalId).RefAt(componentIndex),
-            _archetypeComponentWriteStamps.RefAt(archetypeId).RefAt(componentIndex));
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal NativeMemory<Stamp> GetChunkComponentStamps(Chunk chunk)
-        => _chunkComponentWriteStamps.RefAt(chunk.GlobalId);
+        => new(unchecked(
+            chunk.GetComponentStampTrusted(componentIndex, slotIndex).Value
+            + _archetypeComponentWriteStamps.RefAt(archetypeId).RefAt(componentIndex).Value));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal EntityComponentStampWriter CreateEntityComponentStampWriter(
@@ -679,45 +672,9 @@ public sealed partial class World : IDisposable
     internal Stamp[] GetArchetypeComponentStamps(int archetypeId)
         => _archetypeComponentWriteStamps.RefAt(archetypeId);
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void ClearChunkComponentStamps(Chunk chunk)
-        => _chunkComponentWriteStamps.RefAt(chunk.GlobalId).Clear();
-
     internal void BeginQueryLease() => _activeChunkLeases++;
 
     internal void EndQueryLease() => _activeChunkLeases--;
-
-    internal QueryWriteSession RentQueryWriteSession(QueryPlan query, out int generation)
-        => RentQueryWriteSession(query.HasWriteAccess, out generation);
-
-    internal QueryWriteSession RentQueryWriteSession(bool writeEnabled, out int generation)
-    {
-        QueryWriteSession session;
-        if (_queryWriteSessionPool is { } pooled)
-        {
-            session = pooled;
-            _queryWriteSessionPool = pooled.Next;
-        }
-        else
-        {
-            session = new QueryWriteSession();
-        }
-
-        generation = session.Reset(writeEnabled);
-        return session;
-    }
-
-    internal void ReturnQueryWriteSession(QueryWriteSession session, int generation)
-    {
-        if (!session.TryRelease(generation))
-        {
-            return;
-        }
-
-        _activeChunkLeases--;
-        session.Next = _queryWriteSessionPool;
-        _queryWriteSessionPool = session;
-    }
 
     private int ApplyComponents(bool isAdd, ReadOnlySpan<ComponentId> componentIds, ReadOnlySpan<Entity> entities)
     {
@@ -1043,14 +1000,16 @@ public sealed partial class World : IDisposable
         return stamp + 1;
     }
 
-    internal void CopyGeneratedWhereRun(
+    internal void CopyGeneratedWhereRun<TInitializer>(
         Chunk sourceChunk,
         int sourceSlot,
         int count,
         Archetype targetArchetype,
         int[] sourceToTargetRows,
         int[] addedTargetRows,
-        GeneratedWhereTargetCursor targetCursor)
+        GeneratedWhereTargetCursor targetCursor,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
     {
         TransitionEdge edge = new(targetArchetype.Id, sourceToTargetRows, addedTargetRows);
         while (count != 0)
@@ -1067,20 +1026,29 @@ public sealed partial class World : IDisposable
                     out Chunk targetChunk,
                     out _,
                     allowFreeRecordBlocks: false);
-                RegisterChunkStampStorage(targetChunk);
+                RegisterChunk(targetChunk);
                 targetCursor.Chunk = targetChunk;
                 targetCursor.Slot = targetChunk.Count - reserved;
                 targetCursor.Remaining = reserved;
             }
 
             int copied = Math.Min(count, targetCursor.Remaining);
+            Chunk target = targetCursor.Chunk!;
+            int targetSlot = targetCursor.Slot;
             CopyChunkRange(
                 sourceChunk,
-                targetCursor.Chunk!,
+                target,
                 sourceSlot,
-                targetCursor.Slot,
+                targetSlot,
                 copied,
                 edge);
+            var writer = new GeneratedComponentValueWriter(
+                target,
+                targetArchetype,
+                targetSlot,
+                edge.AddedTargetRowIndices,
+                copied);
+            initializer.Initialize(ref writer);
             sourceSlot += copied;
             targetCursor.Slot += copied;
             targetCursor.Remaining -= copied;
@@ -1217,18 +1185,8 @@ public sealed partial class World : IDisposable
                     targetArchetype.RowOperations,
                     edge.SourceToTargetRowIndices,
                     edge.AddedTargetRowIndices);
-                RemapChunkStampStorageFromEmptyChunk(
-                    adopted,
-                    donor,
-                    edge.SourceToTargetRowIndices,
-                    targetArchetype.ComponentCount);
                 Chunk replacedDonor = targetArchetype.ReplaceEmptyChunk(donorChunkIndex, adopted);
                 DisposeDetachedChunk(replacedDonor);
-            }
-
-            if (!hasDonor)
-            {
-                RemapChunkStampStorage(adopted, edge.SourceToTargetRowIndices, targetArchetype.ComponentCount);
             }
 
             if (!hasDonor)
@@ -1246,7 +1204,6 @@ public sealed partial class World : IDisposable
 
     private void DisposeDetachedChunk(Chunk chunk)
     {
-        ClearChunkComponentStamps(chunk);
         if ((uint)chunk.GlobalId < (uint)_chunksById.Length
             && ReferenceEquals(_chunksById[chunk.GlobalId], chunk))
         {
@@ -1306,7 +1263,6 @@ public sealed partial class World : IDisposable
         chunk.SetFreeRecordListIndex(_freeRecordChunks.Count);
         _freeRecordChunks.Add(chunk);
         chunk.ClearAll();
-        ClearChunkComponentStamps(chunk);
         archetype.ReleaseChunk(chunkIndex);
         AliveEntityCount -= count;
         return count;
@@ -1375,11 +1331,6 @@ public sealed partial class World : IDisposable
         var archetype = _archetypes[chunk.ArchetypeId];
         int chunkIndex = chunk.ArchetypeIndex;
         var moved = archetype.RemoveEntity(chunkIndex, record.SlotIndex);
-        if (chunk.IsEmpty)
-        {
-            ClearChunkComponentStamps(chunk);
-        }
-
         if (moved.IsValid)
         {
             ref var movedRecord = ref RecordAt(moved.Index);
@@ -1418,7 +1369,7 @@ public sealed partial class World : IDisposable
             out targetSlotIndex,
             out bool reusedTargetSlot);
         var targetChunk = targetArchetype.GetChunk(targetChunkIndex);
-        RegisterChunkStampStorage(targetChunk);
+        RegisterChunk(targetChunk);
 
         for (int sourceIndex = 0; sourceIndex < edge.SourceToTargetRowIndices.Length; sourceIndex++)
         {
@@ -1439,10 +1390,6 @@ public sealed partial class World : IDisposable
         }
 
         var moved = sourceArchetype.RemoveEntity(sourceChunkIndex, sourceSlotIndex);
-        if (sourceChunk.IsEmpty)
-        {
-            ClearChunkComponentStamps(sourceChunk);
-        }
         sourceRecord.ChunkId = targetChunk.GlobalId;
         sourceRecord.SlotIndex = targetSlotIndex;
         if (moved.IsValid)
@@ -1578,38 +1525,25 @@ public sealed partial class World : IDisposable
 
     private void RegisterArchetypeStampStorage(int archetypeId, int componentCount)
     {
-        EnsureStampStorageCapacity(
-            ref _archetypeComponentWriteStamps,
-            ref _archetypeStampComponentCounts,
-            archetypeId + 1);
-        if (componentCount == 0)
+        if (archetypeId >= _archetypeComponentWriteStamps.Length)
         {
-            return;
+            int capacity = Math.Max(
+                archetypeId + 1,
+                _archetypeComponentWriteStamps.Length == 0
+                    ? 4
+                    : _archetypeComponentWriteStamps.Length * 2);
+            Array.Resize(ref _archetypeComponentWriteStamps, capacity);
         }
 
-        _archetypeComponentWriteStamps.RefAt(archetypeId) = new Stamp[componentCount];
-        _archetypeStampComponentCounts.RefAt(archetypeId) = componentCount;
+        _archetypeComponentWriteStamps.RefAt(archetypeId) = componentCount == 0
+            ? Array.Empty<Stamp>()
+            : new Stamp[componentCount];
     }
 
-    internal void RegisterChunkStampStorage(Chunk chunk)
+    private void RegisterChunk(Chunk chunk)
     {
         EnsureChunkReferenceCapacity(chunk.GlobalId + 1);
         _chunksById[chunk.GlobalId] = chunk;
-        if (chunk.ComponentCount == 0)
-        {
-            return;
-        }
-
-        int chunkId = chunk.GlobalId;
-        EnsureStampStorageCapacity(
-            ref _chunkComponentWriteStamps,
-            ref _chunkStampComponentCounts,
-            chunkId + 1);
-        if (_chunkStampComponentCounts.RefAt(chunkId) == 0)
-        {
-            _chunkComponentWriteStamps.RefAt(chunkId) = new NativeMemory<Stamp>(chunk.ComponentCount);
-            _chunkStampComponentCounts.RefAt(chunkId) = chunk.ComponentCount;
-        }
     }
 
     private void EnsureChunkReferenceCapacity(int required)
@@ -1623,132 +1557,102 @@ public sealed partial class World : IDisposable
         Array.Resize(ref _chunksById, capacity);
     }
 
-    private void RemapChunkStampStorage(Chunk chunk, ReadOnlySpan<int> sourceToTarget, int targetComponentCount)
-    {
-        int chunkId = chunk.GlobalId;
-        EnsureChunkReferenceCapacity(chunkId + 1);
-        _chunksById[chunkId] = chunk;
-        EnsureStampStorageCapacity(
-            ref _chunkComponentWriteStamps,
-            ref _chunkStampComponentCounts,
-            chunkId + 1);
-        if (targetComponentCount == 0)
-        {
-            if (_chunkStampComponentCounts.RefAt(chunkId) != 0)
-            {
-                _chunkComponentWriteStamps.RefAt(chunkId).Dispose();
-                _chunkStampComponentCounts.RefAt(chunkId) = 0;
-            }
-
-            return;
-        }
-
-        NativeMemory<Stamp> replacement = new(targetComponentCount);
-        if (_chunkStampComponentCounts.RefAt(chunkId) != 0)
-        {
-            NativeMemory<Stamp> source = _chunkComponentWriteStamps.RefAt(chunkId);
-            for (int sourceIndex = 0; sourceIndex < sourceToTarget.Length; sourceIndex++)
-            {
-                int targetIndex = sourceToTarget.RefAt(sourceIndex);
-                if (targetIndex >= 0)
-                {
-                    replacement.RefAt(targetIndex) = source.RefAt(sourceIndex);
-                }
-            }
-
-            source.Dispose();
-        }
-
-        _chunkComponentWriteStamps.RefAt(chunkId) = replacement;
-        _chunkStampComponentCounts.RefAt(chunkId) = targetComponentCount;
-    }
-
-    private void RemapChunkStampStorageFromEmptyChunk(
-        Chunk sourceChunk,
-        Chunk donorChunk,
-        ReadOnlySpan<int> sourceToTarget,
-        int targetComponentCount)
-    {
-        int sourceChunkId = sourceChunk.GlobalId;
-        int donorChunkId = donorChunk.GlobalId;
-        EnsureChunkReferenceCapacity(Math.Max(sourceChunkId, donorChunkId) + 1);
-        EnsureStampStorageCapacity(
-            ref _chunkComponentWriteStamps,
-            ref _chunkStampComponentCounts,
-            Math.Max(sourceChunkId, donorChunkId) + 1);
-
-        ref NativeMemory<Stamp> sourceStamps = ref _chunkComponentWriteStamps.RefAt(sourceChunkId);
-        NativeMemory<Stamp> donorStamps = _chunkComponentWriteStamps.RefAt(donorChunkId);
-        int sourceComponentCount = _chunkStampComponentCounts.RefAt(sourceChunkId);
-        for (int sourceIndex = 0; sourceIndex < sourceToTarget.Length; sourceIndex++)
-        {
-            int targetIndex = sourceToTarget.RefAt(sourceIndex);
-            if (targetIndex >= 0 && sourceIndex < sourceComponentCount)
-            {
-                donorStamps.RefAt(targetIndex) = sourceStamps.RefAt(sourceIndex);
-            }
-        }
-
-        sourceStamps.Dispose();
-        _chunkComponentWriteStamps.RefAt(sourceChunkId) = donorStamps;
-        _chunkStampComponentCounts.RefAt(sourceChunkId) = targetComponentCount;
-        _chunkComponentWriteStamps.RefAt(donorChunkId) = default;
-        _chunkStampComponentCounts.RefAt(donorChunkId) = 0;
-        if ((uint)donorChunkId < (uint)_chunksById.Length
-            && ReferenceEquals(_chunksById[donorChunkId], donorChunk))
-        {
-            _chunksById[donorChunkId] = null;
-        }
-    }
-
-    private static void EnsureStampStorageCapacity<T>(
-        ref T[] storage,
-        ref int[] componentCounts,
-        int required)
-    {
-        if (required <= storage.Length)
-        {
-            return;
-        }
-
-        int capacity = Math.Max(required, storage.Length == 0 ? 4 : storage.Length * 2);
-        Array.Resize(ref storage, capacity);
-        Array.Resize(ref componentCounts, capacity);
-    }
-
-    private void DisposeStampLayers()
-    {
-        for (int index = 0; index < _chunkStampComponentCounts.Length; index++)
-        {
-            if (_chunkStampComponentCounts.RefAt(index) != 0)
-            {
-                _chunkComponentWriteStamps.RefAt(index).Dispose();
-            }
-        }
-
-        _archetypeComponentWriteStamps = Array.Empty<Stamp[]>();
-        _chunkComponentWriteStamps = Array.Empty<NativeMemory<Stamp>>();
-        _archetypeStampComponentCounts = Array.Empty<int>();
-        _chunkStampComponentCounts = Array.Empty<int>();
-    }
-
     private bool TryBuildComponentMask(ReadOnlySpan<ComponentId> componentIds, out ComponentMask mask)
     {
-        for (int i = 0; i < componentIds.Length; i++)
+        if (componentIds.Length == 0)
         {
-            if (!componentIds.RefAt(i).IsValid)
+            mask = default;
+            return false;
+        }
+
+        mask = GetOrCreateComponentSet(componentIds).Mask;
+        return true;
+    }
+
+    internal ComponentSet GetOrCreateComponentSet(ReadOnlySpan<ComponentId> componentIds)
+    {
+        if (componentIds.Length == 0)
+        {
+            return ComponentSet.Empty;
+        }
+
+        if (_componentSetCache.TryGet(componentIds, out ComponentSet? cached))
+        {
+            return cached;
+        }
+
+        ComponentSet set = CreateComponentSet(componentIds);
+        _componentSetCache.Add(set);
+        return set;
+    }
+
+    internal ComponentSet GetOrCreateComponentSet(
+        RuntimeTypeHandle key,
+        ReadOnlySpan<ComponentId> componentIds)
+    {
+        if (_componentSetCache.TryGet(key, out ComponentSet? cached))
+        {
+            return cached;
+        }
+
+        if (componentIds.Length == 0)
+        {
+            return ComponentSet.Empty;
+        }
+
+        ComponentSet set = CreateComponentSet(componentIds);
+        _componentSetCache.Add(key, set);
+        return set;
+    }
+
+    internal ComponentSet GetOrCreateComponentSet(
+        RuntimeTypeHandle key,
+        Func<World, ComponentId[]> resolver)
+    {
+        if (_componentSetCache.TryGet(key, out ComponentSet? cached))
+        {
+            return cached;
+        }
+
+        ComponentId[] componentIds = resolver(this);
+        if (componentIds.Length == 0)
+        {
+            return ComponentSet.Empty;
+        }
+
+        ComponentSet set = CreateComponentSet(componentIds);
+        _componentSetCache.Add(key, set);
+        return set;
+    }
+
+    private ComponentSet CreateComponentSet(ReadOnlySpan<ComponentId> componentIds)
+    {
+        var ownedIds = new ComponentId[componentIds.Length];
+        componentIds.CopyTo(ownedIds);
+        return CreateComponentSet(ownedIds);
+    }
+
+    private ComponentSet CreateComponentSet(ComponentId[] componentIds)
+    {
+        ValidateComponentIds(componentIds);
+        return new ComponentSet(componentIds, ComponentMask.From(componentIds));
+    }
+
+    private void ValidateComponentIds(ReadOnlySpan<ComponentId> componentIds)
+    {
+        for (int index = 0; index < componentIds.Length; index++)
+        {
+            ComponentId componentId = componentIds[index];
+            if (!componentId.IsValid)
             {
                 ThrowHelper.ThrowComponentIdOutOfRange();
             }
 
-            if (!_layouts.TryGet(componentIds.RefAt(i), out _))
+            if (!_layouts.TryGet(componentId, out _))
             {
-                ThrowHelper.ThrowWorldComponentNotRegistered(componentIds.RefAt(i).Value, nameof(componentIds));
+                ThrowHelper.ThrowWorldComponentNotRegistered(componentId.Value, nameof(componentIds));
             }
         }
-
-        mask = ComponentMask.From(componentIds);
-        return !mask.IsEmpty;
     }
 
     private int AllocateRecord()
@@ -1864,18 +1768,15 @@ public sealed partial class World : IDisposable
     private bool TryResolve(Entity entity, out int recordIndex)
     {
         recordIndex = entity.Index;
-        if (recordIndex < 0 || recordIndex >= _records.Count)
+        if ((uint)recordIndex >= (uint)_records.Count)
         {
             return false;
         }
 
         ref readonly var record = ref RecordAt(recordIndex);
-        if (record.ChunkId < 0 || record.Generation != entity.Generation)
-        {
-            return false;
-        }
-
-        if (!TryGetChunkById(record.ChunkId, out Chunk? chunk)
+        if (record.Generation != entity.Generation
+            || record.ChunkId < 0
+            || !TryGetChunkById(record.ChunkId, out Chunk chunk)
             || (uint)record.SlotIndex >= (uint)chunk.Count)
         {
             return false;

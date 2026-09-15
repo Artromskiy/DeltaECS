@@ -64,7 +64,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGenerator(SingleFunctorSource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN003"), Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN003"));
         Assert.That(generated, Does.Contain("ref global::Delta.ECS.SimpleFunctor functor"));
         Assert.That(generated, Does.Contain("GetGeneratedWriteReference<global::Delta.ECS.T1>(access0)"));
         Assert.That(generated, Does.Not.Contain("IForEachEntity_W"));
@@ -129,18 +129,13 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGenerator(TupleContextElementNamesSource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(
             run.GeneratedTrees.Count(static tree => tree.FilePath.Contains("DemandForEach_", StringComparison.Ordinal)),
             Is.EqualTo(1));
-
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+        AssertCompiles(
             new[] { RuntimeStubSource, TupleContextElementNamesSource },
             run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
     [Test]
@@ -168,7 +163,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGenerator(source);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("ForEachAction_RWIV<T1, T2, T3, T4>"));
         Assert.That(generated, Does.Contain("ref readonly T1 component0"));
         Assert.That(generated, Does.Contain("in T3 component2"));
@@ -181,18 +176,14 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGenerator(StampIterationSource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty, string.Join(Environment.NewLine, run.Diagnostics.Select(static value => value.ToString())));
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("ForEachAction_I<Stamp>"));
         Assert.That(generated, Does.Contain("GetGeneratedStamp(access0, index)"));
         Assert.That(generated, Does.Contain("ExecuteEntityListParallel"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+        AssertCompiles(
             new[] { RuntimeStubSource, StampIterationSource },
             run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
     [Test]
@@ -227,18 +218,12 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGenerator(source);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty, string.Join(Environment.NewLine, run.Diagnostics.Select(static value => value.ToString())));
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("ForEachContextAction_In<TContext, T1>"));
         Assert.That(generated, Does.Contain("ForEachContextEntityAction_Value<TContext, T1>"));
         Assert.That(generated, Does.Contain("public bool RequiresSingleThread => false;"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
-            new[] { RuntimeStubSource, source },
-            run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+        AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
     }
 
     [Test]
@@ -295,17 +280,11 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(source);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"));
         Assert.That(generated, Does.Contain("InterceptedParallelInvoker_"));
         Assert.That(generated, Does.Contain("in value"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
-            new[] { RuntimeStubSource, source },
-            run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+        AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
     }
 
     [Test]
@@ -439,12 +418,7 @@ public sealed class DemandDrivenForEachGeneratorTests
     {
         GeneratorDriverRunResult run = RunGenerator();
         var generated = run.GeneratedTrees.Select(static tree => tree.GetText().ToString());
-        CSharpCompilation compilation = CreateCompilation(new[] { RuntimeStubSource, ConsumerSource }.Concat(generated));
-
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+        AssertCompiles(CreateCompilation(new[] { RuntimeStubSource, ConsumerSource }.Concat(generated)));
     }
 
     [Test]
@@ -453,7 +427,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(InterceptionSource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"));
         Assert.That(generated, Does.Not.Contain("InvokeInterceptedCallback_"));
         Assert.That(generated, Does.Contain("InterceptsLocationAttribute"));
         Assert.That(generated, Does.Contain("ExecuteInterceptedClosed_"));
@@ -469,19 +443,15 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(EntityListInterceptionSource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"));
         Assert.That(generated, Does.Contain("ExecuteEntityList(world, in query, entities, ref invoker"));
         Assert.That(generated, Does.Contain("ExecuteEntityListParallel(world, in query, entities, ref invoker"));
         Assert.That(generated, Does.Contain("value.Value++"));
         Assert.That(generated, Does.Contain("entity.Index"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+        AssertCompiles(
             new[] { RuntimeStubSource, EntityListInterceptionSource },
             run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
     [Test]
@@ -490,7 +460,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(ReturningInterceptionSource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"));
         Assert.That(generated, Does.Contain("InvokeInterceptedCallback_"));
         Assert.That(generated, Does.Contain("return;"));
     }
@@ -505,14 +475,12 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         Assert.That(generated, Does.Not.Contain("DemandForEachInterceptor_"));
         Assert.That(generated, Does.Not.Contain("InterceptsLocationAttribute"));
-        Assert.That(run.Diagnostics, Is.Empty, string.Join(Environment.NewLine, run.Diagnostics.Select(static diagnostic => diagnostic.ToString())));
+        AssertNoDiagnostics(run.Diagnostics);
 
-        var errors = run.GeneratedTrees
+        AssertNoDiagnostics(run.GeneratedTrees
             .Select(tree => CSharpSyntaxTree.ParseText(tree.GetText(), new CSharpParseOptions(LanguageVersion.CSharp9), tree.FilePath))
             .SelectMany(static tree => tree.GetDiagnostics())
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
     }
 
     [Test]
@@ -544,17 +512,13 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(source, LanguageVersion.CSharp9);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty, string.Join(Environment.NewLine, run.Diagnostics.Select(static value => value.ToString())));
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Not.Contain("ForEachContextAction_RefReadonly"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+        AssertCompiles(
             new[] { RuntimeStubFor(LanguageVersion.CSharp9), source },
             run.GeneratedTrees,
             LanguageVersion.CSharp9);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
     [Test]
@@ -568,18 +532,12 @@ public sealed class DemandDrivenForEachGeneratorTests
         };
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(consumerSources);
 
-        Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"));
         Assert.That(
             run.GeneratedTrees.Count(static tree => tree.FilePath.Contains("DemandForEachInterceptor_", StringComparison.Ordinal)),
             Is.EqualTo(2));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
-            new[] { RuntimeStubSource }.Concat(consumerSources),
-            run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+        AssertCompiles(new[] { RuntimeStubSource }.Concat(consumerSources), run.GeneratedTrees);
     }
 
     [Test]
@@ -588,7 +546,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(StaticMethodGroupInterceptionSource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"));
         Assert.That(generated, Does.Contain("global::Delta.ECS.Consumer.Update(ref component0)"));
         Assert.That(generated, Does.Contain("global::Delta.ECS.Callbacks.Update(ref component0)"));
         Assert.That(generated, Does.Contain("global::Delta.ECS.Consumer.UpdateWithContext(ref context, in component0)"));
@@ -598,13 +556,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("ExecuteInterceptedClosed_"));
         Assert.That(generated, Does.Not.Contain("InterceptedFunctor_"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+        AssertCompiles(
             new[] { RuntimeStubSource, StaticMethodGroupInterceptionSource },
             run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
     [Test]
@@ -613,16 +567,12 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(StampMethodGroupSource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"));
         Assert.That(generated, Does.Contain("global::Delta.ECS.StampCallbacks.Update(in component0)"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+        AssertCompiles(
             new[] { RuntimeStubSource, StampMethodGroupSource },
             run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
     [Test]
@@ -631,16 +581,12 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(ImplicitStaticMethodGroupInterceptionSource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"), Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"));
         Assert.That(generated, Does.Contain("global::Delta.ECS.Consumer.Update(ref component0)"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+        AssertCompiles(
             new[] { RuntimeStubSource, ImplicitStaticMethodGroupInterceptionSource },
             run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
     [Test]
@@ -653,13 +599,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(GeneratedText(run), Does.Contain("ForEachAction<T1>"));
         Assert.That(GeneratedText(run), Does.Not.Contain("InterceptedFunctor_"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+        AssertCompiles(
             new[] { RuntimeStubSource, InstanceMethodGroupInterceptionSource },
             run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static value => value.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
     [Test]
@@ -723,8 +665,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGenerator(StructuralSource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty);
-        Assert.That(generated, Does.Contain("public static Entity Create<T1, T2>(this World target)"));
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(generated, Does.Not.Contain("public static Entity Create<T1, T2>(this World target)"));
         Assert.That(generated, Does.Contain("public static int Create<T1, T2>(this World target, int count, global::System.Span<Entity> output)"));
         Assert.That(generated, Does.Contain("public static bool Add<T1, T2>(this World target, Entity entity)"));
         Assert.That(generated, Does.Contain("public static bool Add<T1, T2>(this World target, Entity entity, in T1 value0, in T2 value1)"));
@@ -738,13 +680,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("GetPrimary<T1>()"));
         Assert.That(generated, Does.Contain("stackalloc ComponentId[2]"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
-            new[] { RuntimeStubSource, StructuralSource },
-            run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+        AssertCompiles(new[] { RuntimeStubSource, StructuralSource }, run.GeneratedTrees);
     }
 
     [Test]
@@ -753,18 +689,28 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGenerator(ExplicitCreateSource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("public static int Create(this World target, ComponentId component0, ComponentId component1, int count)"));
         Assert.That(generated, Does.Contain("public static int Create(this World target, ComponentId component0, int count, global::System.Span<Entity> output)"));
         Assert.That(generated, Does.Contain("components[0] = component0;"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
-            new[] { RuntimeStubSource, ExplicitCreateSource },
-            run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+        AssertCompiles(new[] { RuntimeStubSource, ExplicitCreateSource }, run.GeneratedTrees);
+    }
+
+    [Test]
+    public void GeneratedGrammarMatrixCompilesTypedAndExplicitSelectors()
+    {
+        GeneratorDriverRunResult run = RunGenerator(GrammarMatrixSource);
+        string generated = GeneratedText(run);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(generated, Does.Contain("public static void ForEach<T1, T2>(this World world"));
+        Assert.That(generated, Does.Contain("public static void ForEachParallel<T1, T2>(this World world"));
+        Assert.That(generated, Does.Contain("public static int Add<T1, T2>(this World target"));
+        Assert.That(generated, Does.Contain("public static int Remove<T1, T2>(this World target"));
+        Assert.That(generated, Does.Contain("public static int Create<T1, T2>(this World target"));
+
+        AssertCompiles(new[] { RuntimeStubSource, GrammarMatrixSource }, run.GeneratedTrees);
     }
 
     [Test]
@@ -773,20 +719,38 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGenerator(GenericQuerySource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("public static Query WhereAll<T1, T2>(this World world)"));
         Assert.That(generated, Does.Contain("public static Query WhereAny<T1, T2, T3>(this World world)"));
         Assert.That(generated, Does.Contain("public static Query WhereNone<T1>(this World world)"));
         Assert.That(generated, Does.Contain("world.Layouts.GetPrimary<T1>()"));
         Assert.That(generated, Does.Contain("QuerySpec.WhereAny(components)"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
-            new[] { RuntimeStubSource, GenericQuerySource },
-            run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+        AssertCompiles(new[] { RuntimeStubSource, GenericQuerySource }, run.GeneratedTrees);
+    }
+
+    [Test]
+    public void QueryGeneratorSupportsPrivateNestedComponentTypes()
+    {
+        GeneratorDriverRunResult run = RunGenerator(PrivateNestedQueryComponentSource);
+        string generated = GeneratedText(run);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(generated, Does.Contain("public static Query WhereAll<T1>(this World world)"));
+        AssertCompiles(new[] { RuntimeStubSource, PrivateNestedQueryComponentSource }, run.GeneratedTrees);
+    }
+
+    [Test]
+    public void StructuralDocumentationUsesTheOperationName()
+    {
+        GeneratorDriverRunResult run = RunGenerator(StructuralSource);
+        string generated = GeneratedText(run);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(generated, Does.Contain("Executes the generated Add operation."));
+        Assert.That(generated, Does.Contain("Executes the generated Create operation."));
+        Assert.That(generated, Does.Not.Contain("Executes the generated Add|"));
+        AssertCompiles(new[] { RuntimeStubSource, StructuralSource }, run.GeneratedTrees);
     }
 
     [Test]
@@ -795,19 +759,13 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGenerator(GenericQueryChainSource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("public static Query WhereAll<T1, T2, T3>(this Query query)"));
         Assert.That(generated, Does.Contain("public static Query WhereNone<T1, T2>(this Query query)"));
         Assert.That(generated, Does.Contain("public static Query WhereAny<T1, T2>(this Query query)"));
         Assert.That(generated, Does.Contain("ComposeGeneratedQuery(in query, additions)"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
-            new[] { RuntimeStubSource, GenericQueryChainSource },
-            run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+        AssertCompiles(new[] { RuntimeStubSource, GenericQueryChainSource }, run.GeneratedTrees);
     }
 
     [Test]
@@ -815,18 +773,14 @@ public sealed class DemandDrivenForEachGeneratorTests
     {
         GeneratorDriverRunResult run = RunGenerator(QueryFactoriesWithDuplicateSignaturesSource);
 
-        Assert.That(run.Diagnostics, Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(
             run.GeneratedTrees.Count(static tree => tree.FilePath.Contains("GeneratedQuery_", StringComparison.Ordinal)),
             Is.EqualTo(1));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+        AssertCompiles(
             new[] { RuntimeStubSource, QueryFactoriesWithDuplicateSignaturesSource },
             run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
     [Test]
@@ -835,18 +789,12 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGenerator(ExplicitSelectorSource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty, string.Join(Environment.NewLine, run.Diagnostics.Select(static error => error.ToString())));
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("ComponentId component0, ComponentId component1"));
         Assert.That(generated, Does.Contain("GetPreparedWriteAccess(in query, componentId0"));
         Assert.That(generated, Does.Contain("GetPreparedReadAccess(in query, componentId1"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
-            new[] { RuntimeStubSource, ExplicitSelectorSource },
-            run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+        AssertCompiles(new[] { RuntimeStubSource, ExplicitSelectorSource }, run.GeneratedTrees);
     }
 
     [Test]
@@ -855,7 +803,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGenerator(WhereMutationSource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(
             run.GeneratedTrees.Count(static tree => tree.FilePath.Contains("GeneratedWhere_", StringComparison.Ordinal)),
             Is.EqualTo(2));
@@ -864,17 +812,29 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereAdd"));
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereRemove"));
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereForEach"));
+        Assert.That(generated, Does.Contain("public int Add<U1>(in U1 value0)"));
+        Assert.That(generated, Does.Contain("public int Add<U1>(ComponentId component0, in U1 value0)"));
+        Assert.That(generated, Does.Contain("public int Add<U1>(ComponentId component0)"));
+        Assert.That(generated, Does.Contain("public int Remove<U1>(ComponentId component0)"));
+        Assert.That(generated, Does.Contain("public int Remove<U1, U2>(ComponentId component0, ComponentId component1)"));
+        Assert.That(generated, Does.Contain("public int Add<U1, U2>(in U1 value0, in U2 value1)"));
+        Assert.That(generated, Does.Contain("public int Add<U1, U2>(ComponentId component0, ComponentId component1, in U1 value0, in U2 value1)"));
         Assert.That(generated, Does.Contain("public void Execute(ref GeneratedQuerySlots slots, ref GeneratedWhereStructuralContext context)"));
         Assert.That(generated, Does.Contain("public void Invoke(ref GeneratedQuerySlots slots)"));
         Assert.That(generated, Does.Not.Contain("Invoke(ref GeneratedQuerySlots slots, int index)"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
-            new[] { RuntimeStubSource, WhereMutationSource },
-            run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+        AssertCompiles(new[] { RuntimeStubSource, WhereMutationSource }, run.GeneratedTrees);
+    }
+
+    [Test]
+    public void WhereZeroArityTerminalStaysOnTheFailFastAnchor()
+    {
+        GeneratorDriverRunResult run = RunGenerator(WhereZeroArityTerminalSource);
+        string generated = GeneratedText(run);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(generated, Does.Not.Contain("ExecuteGeneratedWhereForEach"));
+        Assert.That(generated, Does.Not.Contain("GeneratedWhereAction_"));
     }
 
     [Test]
@@ -883,18 +843,14 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(WhereMutationSource, LanguageVersion.CSharp9);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty, string.Join(Environment.NewLine, run.Diagnostics.Select(static value => value.ToString())));
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Not.Contain("scoped ref GeneratedQuerySlots"));
         Assert.That(generated, Does.Not.Contain("private ref "));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+        AssertCompiles(
             new[] { RuntimeStubFor(LanguageVersion.CSharp9), WhereMutationSource },
             run.GeneratedTrees,
             LanguageVersion.CSharp9);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
     [Test]
@@ -903,16 +859,72 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGenerator(WhereDuplicateMutationSource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated.Split("public int Add<U1>()", StringSplitOptions.None).Length - 1, Is.EqualTo(1));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
-            new[] { RuntimeStubSource, WhereDuplicateMutationSource },
-            run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+        AssertCompiles(new[] { RuntimeStubSource, WhereDuplicateMutationSource }, run.GeneratedTrees);
+    }
+
+    [Test]
+    public void GenericCallSitesShareThePublicShapeWhileKeepingConcreteContexts()
+    {
+        GeneratorDriverRunResult run = RunGenerator(GenericCallSitesSource);
+        string generated = GeneratedText(run);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(
+            run.GeneratedTrees.Count(static tree => tree.FilePath.Contains("DemandForEach_", StringComparison.Ordinal)),
+            Is.EqualTo(1));
+        Assert.That(
+            run.GeneratedTrees.Count(static tree => tree.FilePath.Contains("GeneratedWhere_", StringComparison.Ordinal)
+                && !tree.FilePath.Contains("Interceptor", StringComparison.Ordinal)),
+            Is.EqualTo(1));
+        Assert.That(generated, Does.Contain("ForEachContextAction<TContext, T1>"));
+        AssertCompiles(new[] { RuntimeStubSource, GenericCallSitesSource }, run.GeneratedTrees);
+    }
+
+    [Test]
+    public void GenericInterceptionSitesKeepTheirConcreteComponentAndContextTypes()
+    {
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(GenericCallSitesSource);
+        string generated = GeneratedText(run);
+
+        AssertNoDiagnostics(run.Diagnostics.Where(static diagnostic => diagnostic.Id != "DECSGEN005"));
+        Assert.That(
+            run.GeneratedTrees.Count(static tree => tree.FilePath.Contains("DemandForEach_", StringComparison.Ordinal)
+                && !tree.FilePath.Contains("Interceptor", StringComparison.Ordinal)),
+            Is.EqualTo(1));
+        Assert.That(
+            run.GeneratedTrees.Count(static tree => tree.FilePath.Contains("DemandForEachInterceptor_", StringComparison.Ordinal)),
+            Is.EqualTo(2));
+        Assert.That(generated, Does.Contain("PositionContext"));
+        Assert.That(generated, Does.Contain("VelocityContext"));
+        AssertCompiles(new[] { RuntimeStubSource, GenericCallSitesSource }, run.GeneratedTrees);
+    }
+
+    [Test]
+    public void WhereStructuralTerminalsSeparateExplicitIdsFromValues()
+    {
+        GeneratorDriverRunResult run = RunGenerator(WhereStructuralParameterMatrixSource);
+        string generated = GeneratedText(run);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(generated, Does.Contain("public int Add<U1>()"));
+        Assert.That(generated, Does.Contain("public int Add<U1>(ComponentId component0)"));
+        Assert.That(generated, Does.Contain("public int Add<U1>(in U1 value0)"));
+        Assert.That(generated, Does.Contain("public int Add<U1>(ComponentId component0, in U1 value0)"));
+        Assert.That(generated, Does.Contain("public int Remove<U1>()"));
+        Assert.That(generated, Does.Contain("public int Remove<U1>(ComponentId component0)"));
+        Assert.That(generated, Does.Contain("public int Remove<U1, U2>()"));
+        Assert.That(generated, Does.Contain("public int Remove<U1, U2>(ComponentId component0, ComponentId component1)"));
+        AssertCompiles(new[] { RuntimeStubSource, WhereStructuralParameterMatrixSource }, run.GeneratedTrees);
+
+        GeneratorDriverRunResult intercepted = RunGeneratorWithInterceptors(WhereStructuralParameterMatrixSource);
+        AssertNoDiagnostics(intercepted.Diagnostics.Where(static diagnostic => diagnostic.Id != "DECSGEN005"));
+        string interceptedText = GeneratedText(intercepted);
+        Assert.That(interceptedText, Does.Contain("ValueStructuralInvoker_"));
+        Assert.That(interceptedText, Does.Not.Contain("return view.Add"));
+        AssertCompiles(new[] { RuntimeStubSource, WhereStructuralParameterMatrixSource }, intercepted.GeneratedTrees);
     }
 
     [Test]
@@ -921,18 +933,12 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGenerator(WhereReadonlyPredicateSource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("Entity entity, in T1 component0"));
         Assert.That(generated, Does.Contain("Entity entity, ref readonly T1 component0, in T2 component1"));
         Assert.That(generated, Does.Contain("ref readonly T1 component0"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
-            new[] { RuntimeStubSource, WhereReadonlyPredicateSource },
-            run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+        AssertCompiles(new[] { RuntimeStubSource, WhereReadonlyPredicateSource }, run.GeneratedTrees);
     }
 
     [Test]
@@ -941,19 +947,13 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGenerator(WhereWithoutEntitySource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain(" Where<T1>(this World world, in Query query"));
         Assert.That(generated, Does.Contain(" WhereEntity<T1>(this World world, in Query query"));
         Assert.That(generated, Does.Contain("GeneratedWherePredicate_"));
         Assert.That(generated, Does.Contain("bool GeneratedWherePredicate_"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
-            new[] { RuntimeStubSource, WhereWithoutEntitySource },
-            run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+        AssertCompiles(new[] { RuntimeStubSource, WhereWithoutEntitySource }, run.GeneratedTrees);
     }
 
     [Test]
@@ -962,18 +962,14 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(WhereWithoutEntitySource, LanguageVersion.CSharp9);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty, string.Join(Environment.NewLine, run.Diagnostics.Select(static value => value.ToString())));
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Not.Contain("scoped ref GeneratedQuerySlots"));
         Assert.That(generated, Does.Not.Contain("private ref "));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+        AssertCompiles(
             new[] { RuntimeStubFor(LanguageVersion.CSharp9), WhereWithoutEntitySource },
             run.GeneratedTrees,
             LanguageVersion.CSharp9);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
     [Test]
@@ -1002,18 +998,12 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGenerator(WhereFunctorSource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(run.GeneratedTrees.Count, Is.GreaterThan(0));
         Assert.That(generated, Does.Contain("_predicate.Invoke(ref _predicateContext, entity"));
         Assert.That(generated, Does.Contain("_action.Invoke(ref _context, entity"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
-            new[] { RuntimeStubSource, WhereFunctorSource },
-            run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+        AssertCompiles(new[] { RuntimeStubSource, WhereFunctorSource }, run.GeneratedTrees);
     }
 
     [Test]
@@ -1022,20 +1012,16 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(WhereFunctorSource, LanguageVersion.CSharp9);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty, string.Join(Environment.NewLine, run.Diagnostics.Select(static value => value.ToString())));
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("Span<global::Delta.ECS.PredicateState> _predicateContext"));
         Assert.That(generated, Does.Contain("Span<global::Delta.ECS.HealthPredicate> _predicate"));
         Assert.That(generated, Does.Not.Contain("private ref PredicateState _predicateContext"));
         Assert.That(generated, Does.Not.Contain("private ref HealthPredicate _predicate"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+        AssertCompiles(
             new[] { RuntimeStubFor(LanguageVersion.CSharp9), WhereFunctorSource },
             run.GeneratedTrees,
             LanguageVersion.CSharp9);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
     [Test]
@@ -1044,7 +1030,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(WhereInterceptionSource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty);
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("GeneratedWhereInterceptor_"));
         Assert.That(generated, Does.Contain("InterceptsLocationAttribute"));
         Assert.That(generated, Does.Contain("Predicate_"));
@@ -1055,13 +1041,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("IGeneratedWhereStructuralInvoker"));
         Assert.That(generated, Does.Contain("context.ProcessRun"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
-            new[] { RuntimeStubSource, WhereInterceptionSource },
-            run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+        AssertCompiles(new[] { RuntimeStubSource, WhereInterceptionSource }, run.GeneratedTrees);
     }
 
     [Test]
@@ -1070,19 +1050,34 @@ public sealed class DemandDrivenForEachGeneratorTests
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(WhereMethodGroupInterceptionSource);
         string generated = GeneratedText(run);
 
-        Assert.That(run.Diagnostics, Is.Empty, string.Join(Environment.NewLine, run.Diagnostics.Select(static diagnostic => diagnostic.ToString())));
+        AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("InterceptedWhereSystem.IsDead(in component0)"));
         Assert.That(generated, Does.Contain("InterceptedWhereSystem.Reset(ref component0)"));
         Assert.That(generated, Does.Contain("InterceptedWhereSystem.IsDeadEntity(entity, in component0)"));
         Assert.That(generated, Does.Contain("InterceptedWhereSystem.ResetEntity(entity, ref component0)"));
 
-        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(
+        AssertCompiles(
             new[] { RuntimeStubSource, WhereMethodGroupInterceptionSource },
             run.GeneratedTrees);
-        var errors = compilation.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
+    [Test]
+    public void WhereStaticMethodGroupsKeepConcreteContextBindingsAcrossDiscoveryOrders()
+    {
+        foreach (string source in new[] { WhereContextBindingSource, WhereContextBindingReversedSource })
+        {
+            GeneratorDriverRunResult run = RunGeneratorWithInterceptors(source);
+            string generated = GeneratedText(run);
+
+            AssertNoDiagnostics(run.Diagnostics);
+            Assert.That(generated, Does.Contain("GeneratedWhereQuery_"));
+            Assert.That(generated, Does.Contain("global::Delta.ECS.FirstContext, global::Delta.ECS.Health"));
+            Assert.That(generated, Does.Contain("global::Delta.ECS.SecondContext, global::Delta.ECS.Health"));
+            Assert.That(generated, Does.Contain("return Where<global::Delta.ECS.FirstContext, global::Delta.ECS.Health>"));
+            Assert.That(generated, Does.Contain("return Where<global::Delta.ECS.SecondContext, global::Delta.ECS.Health>"));
+
+            AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
+        }
     }
 
     private static GeneratorDriverRunResult RunGenerator()
@@ -1143,6 +1138,21 @@ public sealed class DemandDrivenForEachGeneratorTests
             run.GeneratedTrees
                 .OrderBy(static tree => tree.FilePath, StringComparer.Ordinal)
                 .Select(static tree => tree.GetText().ToString()));
+
+    private static void AssertNoDiagnostics(IEnumerable<Diagnostic> diagnostics)
+    {
+        Diagnostic[] values = diagnostics.ToArray();
+        Assert.That(values, Is.Empty, string.Join(Environment.NewLine, values.Select(static value => value.ToString())));
+    }
+
+    private static void AssertCompiles(CSharpCompilation compilation)
+        => AssertNoDiagnostics(compilation.GetDiagnostics().Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
+
+    private static void AssertCompiles(
+        IEnumerable<string> sources,
+        IEnumerable<SyntaxTree> generatedTrees,
+        LanguageVersion languageVersion = LanguageVersion.Latest)
+        => AssertCompiles(CreateCompilationWithGeneratedTrees(sources, generatedTrees, languageVersion));
 
     private static CSharpCompilation CreateCompilation(
         IEnumerable<string> sources,
@@ -1256,6 +1266,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         public struct GeneratedWhereStructuralContext
         {
             public void ProcessRun(int sourceSlot, int count, bool selected) { }
+            public void ProcessRun<TInitializer>(int sourceSlot, int count, bool selected, ref TInitializer initializer)
+                where TInitializer : struct, IGeneratedComponentValueInitializer { }
         }
         public interface IGeneratedWhereInvoker
         {
@@ -1405,19 +1417,31 @@ public sealed class DemandDrivenForEachGeneratorTests
         struct Velocity { }
         static class StructuralConsumer
         {
-            public static void Use(World world, Query query, ReadOnlySpan<Entity> entities)
+            public static void Use(
+                World world,
+                Query query,
+                ReadOnlySpan<Entity> entities,
+                ComponentId position,
+                ComponentId velocity)
             {
-                _ = world.Create<Position, Velocity>();
                 world.Create<Position, Velocity>(2);
                 Span<Entity> output = stackalloc Entity[2];
                 world.Create<Position, Velocity>(2, output);
+                world.Create<Position, Velocity>(position, velocity, 2);
+                world.Create<Position, Velocity>(position, velocity, 2, output);
                 Entity entity = default;
                 world.Add<Position, Velocity>(entity);
+                world.Add<Position, Velocity>(entity, position, velocity);
                 world.Add<Position, Velocity>(entities);
+                world.Add<Position, Velocity>(entities, position, velocity);
                 world.Remove<Position, Velocity>(entity);
+                world.Remove<Position, Velocity>(entity, position, velocity);
                 world.Remove<Position, Velocity>(entities);
+                world.Remove<Position, Velocity>(entities, position, velocity);
                 world.Add<Position, Velocity>(in query);
+                world.Add<Position, Velocity>(in query, position, velocity);
                 world.Remove<Position, Velocity>(in query);
+                world.Remove<Position, Velocity>(in query, position, velocity);
                 world.Add(entity, new Position(), new Velocity());
                 world.Add<Position, Velocity>(entity, new Position(), new Velocity());
                 world.Set(entity, new Position(), new Velocity());
@@ -1455,6 +1479,17 @@ public sealed class DemandDrivenForEachGeneratorTests
                 _ = any;
                 _ = none;
             }
+        }
+        """;
+
+    private const string PrivateNestedQueryComponentSource = """
+        namespace Delta.ECS;
+        static class PrivateQueryConsumer
+        {
+            private struct Position { }
+
+            public static Query Build(World world)
+                => world.WhereAll<Position>();
         }
         """;
 
@@ -1499,6 +1534,48 @@ public sealed class DemandDrivenForEachGeneratorTests
             {
                 world.ForEach(in query, position, velocity,
                     static (ref Position value, in Velocity source) => value.Value += source.Value);
+            }
+        }
+        """;
+
+    private const string GrammarMatrixSource = """
+        namespace Delta.ECS;
+        using System;
+        struct T1 { public int Value; }
+        struct T2 { public int Value; }
+        struct Context { public int Value; }
+        static class GrammarMatrixConsumer
+        {
+            public static void ApplyEntity(Entity entity, ref T1 first, in T2 second) => first.Value += entity.Index + second.Value;
+
+            public static void Use(
+                World world,
+                in Query query,
+                ReadOnlySpan<Entity> entities,
+                ComponentId first,
+                ComponentId second,
+                ref Context context)
+            {
+                world.ForEach<T1, T2>(in query, first, second, static (ref T1 a, in T2 b) => a.Value += b.Value);
+                world.ForEachEntity<T1, T2>(entities, first, second, ApplyEntity);
+                world.ForEachParallel<T1, T2>(in query, first, second, static (ref T1 a, in T2 b) => a.Value += b.Value, workerCount: 2);
+                world.ForEachEntityParallel<T1, T2>(entities, in query, first, second, ApplyEntity, workerCount: 2);
+
+                world.ForEach<Context, T1, T2>(in query, first, second, ref context,
+                    static (ref Context state, ref T1 a, in T2 b) =>
+                    {
+                        state.Value++;
+                        a.Value += b.Value;
+                    });
+
+                Entity entity = default;
+                world.Add<T1, T2>(entity, first, second);
+                world.Remove<T1, T2>(entity, first, second);
+                world.Add<T1, T2>(entities, first, second);
+                world.Remove<T1, T2>(entities, first, second);
+                world.Add<T1, T2>(in query, first, second);
+                world.Remove<T1, T2>(in query, first, second);
+                world.Create<T1, T2>(first, second, 2);
             }
         }
         """;
@@ -1567,13 +1644,17 @@ public sealed class DemandDrivenForEachGeneratorTests
         struct Alive { }
         static class MutationSystems
         {
-            public static void Run(World world, in Query query)
+            public static void Run(World world, in Query query, ComponentId deadId, ComponentId aliveId)
             {
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Destroy();
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Add<Dead>();
-                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Remove<Alive>();
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Add<Dead>(deadId);
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
-                    .ForEachEntity(static entity => _ = entity);
+                    .Add<Dead>(new Dead());
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
+                    .Add<Dead>(world.Layouts.GetPrimary<Dead>(), new Dead());
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Remove<Alive>();
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Remove<Alive>(aliveId);
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
                     .ForEach(static (ref Health health) => health.Value = 0);
                 world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
@@ -1591,8 +1672,33 @@ public sealed class DemandDrivenForEachGeneratorTests
                 world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
                     health.Value <= 0 && team.Id == 1)
                     .ForEach(static (ref Health health, in Team team) => health.Value = team.DefaultHealth);
+                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
+                    health.Value <= 0 && team.Id == 1)
+                    .Add<Dead, Alive>(new Dead(), new Alive());
+                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
+                    health.Value <= 0 && team.Id == 1)
+                    .Add<Dead, Alive>(deadId, aliveId, new Dead(), new Alive());
+                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
+                    health.Value <= 0 && team.Id == 1)
+                    .Remove<Dead, Alive>(deadId, aliveId);
             }
         }
+        }
+        """;
+
+    private const string WhereZeroArityTerminalSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        struct Dead { }
+        static class ZeroArityWhereSystem
+        {
+            public static void Run(World world, in Query query)
+            {
+                world.Where(in query, static (in Health health) => health.Value <= 0)
+                    .ForEach(static () => { });
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= entity.Index)
+                    .ForEachEntity(static (Entity entity) => _ = entity);
+            }
         }
         """;
 
@@ -1608,6 +1714,68 @@ public sealed class DemandDrivenForEachGeneratorTests
             {
                 world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>();
                 world.Where(in query, static (in Position position) => position.Value < 0).Add<Selected>();
+            }
+        }
+        """;
+
+    private const string GenericCallSitesSource = """
+        namespace Delta.ECS;
+        struct Position { public int Value; }
+        struct Velocity { public int Value; }
+        struct PositionContext { public int Value; }
+        struct VelocityContext { public int Value; }
+        struct Health { public int Value; }
+        static class GenericCallSites
+        {
+            public static void Use(
+                World world,
+                in Query query,
+                ref PositionContext positionContext,
+                ref VelocityContext velocityContext)
+            {
+                world.ForEach<PositionContext, Position>(in query, ref positionContext,
+                    static (ref PositionContext context, ref Position position) =>
+                    {
+                        context.Value += position.Value;
+                    });
+                world.ForEach<VelocityContext, Velocity>(in query, ref velocityContext,
+                    static (ref VelocityContext context, ref Velocity velocity) =>
+                    {
+                        context.Value += velocity.Value;
+                    });
+                world.Where(in query, ref positionContext,
+                    static (ref PositionContext context, in Health health) =>
+                    {
+                        context.Value += health.Value;
+                        return health.Value >= 0;
+                    });
+                world.Where(in query, ref velocityContext,
+                    static (ref VelocityContext context, in Health health) =>
+                    {
+                        context.Value += health.Value;
+                        return health.Value >= 0;
+                    });
+            }
+        }
+        """;
+
+    private const string WhereStructuralParameterMatrixSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        struct Dead { }
+        struct Alive { }
+        static class WhereStructuralParameterMatrix
+        {
+            public static void Use(World world, in Query query, ComponentId deadId, ComponentId aliveId)
+            {
+                world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>();
+                world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>(deadId);
+                world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>(new Dead());
+                world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>(deadId, new Dead());
+                world.Where(in query, static (in Health health) => health.Value <= 0).Remove<Dead>();
+                world.Where(in query, static (in Health health) => health.Value <= 0).Remove<Dead>(deadId);
+                world.Where(in query, static (in Health health) => health.Value <= 0).Remove<Dead, Alive>();
+                world.Where(in query, static (in Health health) => health.Value <= 0).Remove<Dead, Alive>(deadId, aliveId);
             }
         }
         """;
@@ -1726,9 +1894,10 @@ public sealed class DemandDrivenForEachGeneratorTests
                 world.ForEachEntityStamp<Health>(in query, static (Entity entity, ref readonly Stamp stamp) => { _ = entity; _ = stamp; });
                 world.ForEachStamp<StampContext, Health>(in query, ref context, static (ref StampContext state, in Stamp stamp) => state.Value += stamp.GetHashCode());
                 world.ForEachStamp(in query, healthId, static (in Stamp stamp) => { _ = stamp; });
-                world.ForEachEntityStamp(entities, in query, healthId, static (Entity entity, in Stamp stamp) => { _ = entity; _ = stamp; });
-                world.ForEachEntityStampParallel(entities, in query, healthId, static (Entity entity, in Stamp stamp) => { _ = entity; _ = stamp; }, workerCount: 2);
                 world.ForEachStampParallel<Health>(in query, static (in Stamp stamp) => { _ = stamp; }, workerCount: 2);
+                world.ForEachStamp(entities, in query, healthId, static (in Stamp stamp) => { _ = stamp; });
+                world.ForEachEntityStampParallel(entities, in query, healthId, static (Entity entity, in Stamp stamp) => { _ = entity; _ = stamp; }, workerCount: 2);
+                world.ForEachStampParallel(in query, healthId, static (in Stamp stamp) => { _ = stamp; }, workerCount: 2);
                 world.ForEachEntityStampParallel<StampContext, Health>(in query, in context, static (in StampContext state, Entity entity, in Stamp stamp) => { _ = state; _ = entity; _ = stamp; }, workerCount: 2);
                 var functor = new StampFunctor();
                 world.ForEachStamp<Health>(in query, ref functor);
@@ -1919,6 +2088,7 @@ public sealed class DemandDrivenForEachGeneratorTests
     private const string StaticMethodGroupInterceptionSource = """
         namespace Delta.ECS;
         struct T1 { public int Value; }
+        struct T2 { public int Value; }
         struct Context { public int Value; }
         static class Callbacks
         {
@@ -1927,6 +2097,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         static class Consumer
         {
             public static void Update(ref T1 value) => value.Value++;
+            public static void Update(ref T2 value) => value.Value += 2;
             public static void UpdateWithContext(ref Context context, in T1 value) => context.Value += value.Value;
             public static void UpdateParallel(in Context context, ref T1 value) => value.Value += context.Value;
             public static void UpdateEntity(Entity entity, ref T1 value) => value.Value += entity.Index;
@@ -1936,6 +2107,7 @@ public sealed class DemandDrivenForEachGeneratorTests
             {
                 var context = new Context();
                 world.ForEach<T1>(in query, Update);
+                world.ForEach<T2>(in query, Update);
                 world.ForEach<T1>(in query, Callbacks.Update);
                 world.ForEach<Context, T1>(in query, ref context, UpdateWithContext);
                 world.ForEachParallel<Context, T1>(in query, in context, UpdateParallel, workerCount: 2);
@@ -2135,6 +2307,60 @@ public sealed class DemandDrivenForEachGeneratorTests
             {
                 world.Where(in query, IsDead).ForEach(Reset);
                 world.WhereEntity(in query, IsDeadEntity).ForEachEntity(ResetEntity);
+            }
+        }
+        """;
+
+    private const string WhereContextBindingSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        struct FirstContext { public int Value; }
+        struct SecondContext { public int Value; }
+        static class ContextBindingSystem
+        {
+            public static bool IsFirstDead(ref FirstContext context, in Health health)
+            {
+                context.Value++;
+                return health.Value <= 0;
+            }
+
+            public static bool IsSecondDead(ref SecondContext context, in Health health)
+            {
+                context.Value++;
+                return health.Value <= 0;
+            }
+
+            public static void Run(World world, in Query query, ref FirstContext first, ref SecondContext second)
+            {
+                world.Where(in query, ref first, IsFirstDead).Destroy();
+                world.Where(in query, ref second, IsSecondDead).Destroy();
+            }
+        }
+        """;
+
+    private const string WhereContextBindingReversedSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        struct FirstContext { public int Value; }
+        struct SecondContext { public int Value; }
+        static class ContextBindingSystem
+        {
+            public static bool IsFirstDead(ref FirstContext context, in Health health)
+            {
+                context.Value++;
+                return health.Value <= 0;
+            }
+
+            public static bool IsSecondDead(ref SecondContext context, in Health health)
+            {
+                context.Value++;
+                return health.Value <= 0;
+            }
+
+            public static void Run(World world, in Query query, ref FirstContext first, ref SecondContext second)
+            {
+                world.Where(in query, ref second, IsSecondDead).Destroy();
+                world.Where(in query, ref first, IsFirstDead).Destroy();
             }
         }
         """;

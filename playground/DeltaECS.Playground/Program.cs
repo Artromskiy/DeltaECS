@@ -25,16 +25,10 @@ world.ForEach(in query, static (ref Position position, in Velocity velocity) =>
 });
 
 world.ForEachEntity(in query, static (Entity entity) => Console.WriteLine($"updated {entity}"));
-//world.ForEach<Position>(in query, Test);
 world.ForEach(in query, (ref Position p) => { });
 
 var functor = new Functor();
 world.ForEach(in query, ref functor);
-
-static void Test(ref Position p)
-{
-
-}
 
 public struct Position
 {

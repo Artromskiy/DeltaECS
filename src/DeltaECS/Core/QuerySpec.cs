@@ -48,11 +48,6 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
 
     public override int GetHashCode() => Hash;
 
-    private QuerySpec(ReadOnlySpan<ComponentId> components)
-        : this(components, ReadOnlySpan<ComponentId>.Empty, ReadOnlySpan<ComponentId>.Empty)
-    {
-    }
-
     private QuerySpec(ComponentMask allMask, ComponentMask anyMask, ComponentMask noneMask)
     {
         _allMask = allMask;

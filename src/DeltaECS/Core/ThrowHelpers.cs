@@ -107,16 +107,6 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowMissingWriteIntent()
-        => throw new InvalidOperationException("The query did not register its write row access.");
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowDisposedQueryExecution()
-        => throw new InvalidOperationException("The query execution has ended.");
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowParallelExecutionActive()
         => throw new InvalidOperationException("Another parallel query execution is already active for this world.");
 

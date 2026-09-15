@@ -1,6 +1,5 @@
 namespace Delta.ECS;
 
-using System;
 #if NETSTANDARD2_1
 using System.Runtime.InteropServices;
 #endif

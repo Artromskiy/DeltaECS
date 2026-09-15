@@ -3,40 +3,66 @@
 The generator is organized as a small pipeline with a shared model boundary:
 
 ```text
-syntax provider -> InvocationCandidate -> semantic shape reader
-                  -> ApiModel/SignatureKey -> ShapeRegistry
-                  -> RenderModel -> pure templates -> generated C#
+syntax provider -> InvocationCandidate
+                -> ApiDescriptor + InvocationCursor + CallbackReader
+                -> family model backed by ApiModel
+                -> declaration SignatureKey -> ShapeRegistry
+                -> SignatureProjection
+                -> family render fragments -> GeneratedFileModel
+                -> raw-string templates -> generated C#
 ```
 
-`GeneratorSupport` owns the vocabulary shared by all generated APIs: API-name
-classification, receiver and component type checks, access/ref modes, generic
-parameter spelling, type display and stable generated names. Add a new method
-name to `GeneratorSupport.ApiKind` there first so discovery and generated-source exclusion stay
-in sync.
+`ApiDescriptor` owns the names and fixed grammar facts shared by all generated
+APIs. `InvocationCursor` reads the ordered target, query, registration,
+context, callback and option slots. `CallbackReader` normalizes lambda,
+method-group and functor signatures. Add a public generated method name to the
+descriptor table first so discovery and parsing stay in sync.
+
+`GeneratorSupport` owns Roslyn and symbol operations: receiver and component
+type checks, access/ref interpretation, type display, interception locations
+and stable generated names. It does not own emitted generic, parameter or
+argument spelling; those are template concerns.
 
 `GeneratorModel` contains the neutral API representation. A shape
 describes target, query mode, selector kind, context, callback source,
 execution kind and component slots. Renderers consume this model and must not
 re-derive its signature key. The key is constructed once, so independently
 discovered call sites with the same emitted signature share one declaration.
+Concrete callback targets, closed call-site types, source locations and local
+names belong to a separate call-site binding. They may specialize an
+interceptor, but they must never split or contaminate the public declaration
+identity.
 
-`GeneratorRenderModel` is the second boundary. `GeneratedFileModel` contains
-only a namespace, imports and already-renderable members. Each named template
-(`FileTemplate`, `ExtensionTemplate`, `WhereViewTemplate`,
-`ActionDelegateTemplate`, `InvokerTemplate` and `InterceptorTemplate`) lives in
-its own source file and joins the shared partial `GeneratorTemplates` facade.
-Semantic readers never pass syntax nodes or `SemanticModel` into these
-templates. `InvokerModel` carries the already-rendered invoker fragment, so
-optional initializer and access blocks are assembled before the template
-boundary rather than selected inside a file-level branch. Fixed source
-skeletons use raw interpolated literals; repeated lines use joins and
-conditional fragments instead of append chains.
+Each `ApiModel` materializes one `SignatureProjection`. The projection owns the
+ordered arity-dependent C# slots: generic type names, positional
+`ComponentId` selectors, component/value/access parameters and arguments, and
+context modifiers. Declaration modifiers and invocation modifiers remain
+separate, so a renderer cannot accidentally emit a `ref readonly` declaration
+as a call-site modifier. Family renderers still decide the semantic order of
+target, query, callback and operation-specific options.
 
-The four generators use the same path: their semantic readers produce an
-`ApiModel`-backed model, render fragments become `RenderModel` values, and the
-file template joins deterministic members. Interception readers materialize
-lambda bodies, parameter names and method targets as strings before rendering;
-the interception templates therefore do not inspect syntax nodes.
+`GeneratorRenderModel` is the next boundary. `GeneratedFileModel` contains
+only a namespace, imports and already-renderable member strings. `FileTemplate`,
+`ExtensionTemplate`, `DocumentationTemplate` and `InterceptorTemplate` remain
+named templates in separate files; the former one-line member wrappers were
+removed because they only stored a string alongside the `ApiModel` that had
+already produced it. Semantic readers never pass syntax nodes or
+`SemanticModel` into these templates. Family renderers assemble optional
+initializer and access blocks before the raw-string template boundary.
+
+`GeneratorTemplates` owns syntax-neutral composition helpers: deterministic
+joins, documentation, declarations, code blocks, write-index selection and
+row/element references. Query, structural, iteration and `Where` renderers use
+`SignatureProjection` for repeated arity fragments while retaining their
+specialized dense, entity-list, parallel, stamp and fused structural kernels.
+
+The four generators use the same semantic and arity vocabulary. Their readers
+produce an `ApiModel`-backed model; pure renderers project it into deterministic
+strings. Ordinary generated files pass those strings through
+`GeneratedFileModel` and `FileTemplate`. Interceptor files use the dedicated
+interceptor template because their source location and imports are call-site
+data. Templates never receive syntax nodes, a `SemanticModel` or a
+`Compilation`.
 
 `GeneratorPipeline.ShapeProvider` is the preferred entry point when a shape can
 be resolved from one invocation's semantic model. It keeps query factories and

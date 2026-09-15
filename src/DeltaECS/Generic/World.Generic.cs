@@ -281,7 +281,7 @@ public sealed partial class World
     private int AddComponentBatch<T>(ReadOnlySpan<Entity> entities, ComponentId componentId, in T value)
     {
         EnsureNoActiveLease("add components");
-        ComponentMask changeMask = ComponentMask.From(stackalloc[] { componentId });
+        ComponentMask changeMask = GetOrCreateComponentSet(stackalloc[] { componentId }).Mask;
         int edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
         int changed = 0;
         Chunk? pendingChunk = null;
@@ -351,7 +351,7 @@ public sealed partial class World
         ref readonly var record = ref RecordAt(recordIndex);
         Chunk sourceChunk = GetRecordChunk(record);
         Archetype sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
-        ComponentMask changeMask = ComponentMask.From(componentIds);
+        ComponentMask changeMask = GetOrCreateComponentSet(componentIds).Mask;
         ComponentMask targetMask = sourceArchetype.Mask.Or(changeMask);
         if (targetMask == sourceArchetype.Mask)
         {
@@ -427,7 +427,7 @@ public sealed partial class World
     private int RemoveComponentBatch<T>(ReadOnlySpan<Entity> entities, ComponentId componentId)
     {
         EnsureNoActiveLease("remove components");
-        ComponentMask changeMask = ComponentMask.From(stackalloc[] { componentId });
+        ComponentMask changeMask = GetOrCreateComponentSet(stackalloc[] { componentId }).Mask;
         int edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
         int changed = 0;
         for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)

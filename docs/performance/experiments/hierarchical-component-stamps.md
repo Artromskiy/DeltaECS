@@ -1,9 +1,10 @@
 # Historical four-term component stamp experiment
 
-> Superseded by the current three-term contract in
+> Superseded by the current two-term contract in
 > [`src/DeltaECS/Stamps/README.md`](../../src/DeltaECS/Stamps/README.md).
 > The measurements below are retained as historical evidence for the removed
-> world/component term and must not be read as the current formula.
+> world/component and chunk/component terms and must not be read as the current
+> formula.
 
 ## Scope
 

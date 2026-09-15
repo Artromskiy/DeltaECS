@@ -44,7 +44,7 @@ public sealed class PipelineApiTests
     }
 
     [Test]
-    public void InferredForEachUpgradesPreparedWriteRoutes()
+    public void InferredForEachUsesPreparedWriteRoutes()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_005));
@@ -55,12 +55,8 @@ public sealed class PipelineApiTests
         Assert.That(world.Set(entity, velocityId, new PipelineVelocity { Value = 2 }), Is.True);
 
         var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
-        Assert.That(query.Cached.HasWriteAccess, Is.False);
-
         world.ForEach(in query, static (ref PipelinePosition position, in PipelineVelocity velocity) =>
             position.Value += velocity.Value);
-
-        Assert.That(query.Cached.HasWriteAccess, Is.True);
 
         world.ForEach(in query, static (ref PipelinePosition position, in PipelineVelocity velocity) =>
             position.Value += velocity.Value);
@@ -180,24 +176,6 @@ public sealed class PipelineApiTests
             .Add<PipelineMarker>();
 
         Assert.That(world.Has<PipelineMarker>(entity), Is.True);
-    }
-
-    [Test]
-    public void WriteAccessUpgradesPreparedReadRoute()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_007));
-        using var world = new World(layouts);
-        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
-
-        ReadAccess read = query.AccessRead(positionId);
-        Assert.That(query.Cached.HasWriteAccess, Is.False);
-
-        WriteAccess write = query.AccessWrite(positionId);
-
-        Assert.That(write.Query, Is.SameAs(read.Query));
-        Assert.That(write.QueryComponentIndex, Is.EqualTo(read.QueryComponentIndex));
-        Assert.That(query.Cached.HasWriteAccess, Is.True);
     }
 
     [Test]

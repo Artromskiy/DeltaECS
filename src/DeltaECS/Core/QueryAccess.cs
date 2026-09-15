@@ -42,15 +42,21 @@ internal sealed class QueryPlan
     private readonly int[] _readRoutesByComponent;
     private readonly Type?[] _readRouteTypesByComponent;
     private readonly Dictionary<RuntimeTypeHandle, int> _primaryReadRoutesByType;
-    private readonly RuntimeTypeHandle[] _primaryTypeHandles;
-    private readonly int[] _primaryRoutes;
-    private int _primaryTypeCount;
     private int _matchingChunkCount;
     private readonly ReadAccess[] _preparedReadAccessesByComponent;
     private readonly WriteAccess[] _preparedWriteAccessesByComponent;
     private int _matchingCount;
     private int _matchingVersion;
-    private bool _hasWriteAccess;
+    private sealed class RuntimeTypeHandleComparer : IEqualityComparer<RuntimeTypeHandle>
+    {
+        internal static readonly RuntimeTypeHandleComparer Instance = new();
+
+        bool IEqualityComparer<RuntimeTypeHandle>.Equals(RuntimeTypeHandle x, RuntimeTypeHandle y)
+            => x.Value == y.Value;
+
+        int IEqualityComparer<RuntimeTypeHandle>.GetHashCode(RuntimeTypeHandle obj)
+            => obj.Value.GetHashCode();
+    }
 
     internal QueryPlan(World world, QuerySpec spec)
     {
@@ -61,9 +67,9 @@ internal sealed class QueryPlan
         _readRouteTypesByComponent = new Type?[world.Layouts.Count];
         _preparedReadAccessesByComponent = new ReadAccess[world.Layouts.Count];
         _preparedWriteAccessesByComponent = new WriteAccess[world.Layouts.Count];
-        _primaryReadRoutesByType = new Dictionary<RuntimeTypeHandle, int>(_description.AllMask.Count);
-        _primaryTypeHandles = new RuntimeTypeHandle[_description.AllMask.Count];
-        _primaryRoutes = new int[_description.AllMask.Count];
+        _primaryReadRoutesByType = new Dictionary<RuntimeTypeHandle, int>(
+            _description.AllMask.Count,
+            RuntimeTypeHandleComparer.Instance);
         Array.Fill(_readRoutesByComponent, -1);
         PrepareReadRoutes(world, spec);
         for (int archetypeId = 0; archetypeId < world.Archetypes.Count; archetypeId++)
@@ -72,7 +78,6 @@ internal sealed class QueryPlan
         }
     }
 
-    internal bool HasWriteAccess => _hasWriteAccess;
     internal World Owner => _owner;
     internal WeakReference<QueryPlan> WeakReference => _weakReference;
     internal int MatchingVersion => _matchingVersion;
@@ -92,23 +97,6 @@ internal sealed class QueryPlan
         return ThrowHelper.ThrowInvalidReadRoute(component);
     }
 
-    internal int ResolveReadRoute(ComponentId component, Type runtimeType)
-    {
-        int route = ResolveReadRoute(component);
-        if (!ReferenceEquals(_readRouteTypesByComponent.RefAt(component.Value), runtimeType))
-        {
-            ThrowHelper.ThrowComponentTypeMismatch(component, runtimeType);
-        }
-
-        return route;
-    }
-
-    internal int UpgradeReadRouteToWrite(int route)
-    {
-        _hasWriteAccess = true;
-        return route;
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ReadAccess GetPreparedPrimaryReadAccess<T>()
     {
@@ -123,7 +111,6 @@ internal sealed class QueryPlan
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal WriteAccess GetPreparedPrimaryWriteAccess<T>()
     {
-        _hasWriteAccess = true;
         if (TryGetPreparedPrimaryRoute<T>(out int route))
         {
             return new WriteAccess(this, route);
@@ -141,7 +128,6 @@ internal sealed class QueryPlan
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal int GetPreparedPrimaryWriteRoute<T>()
     {
-        _hasWriteAccess = true;
         return TryGetPreparedPrimaryRoute<T>(out int route)
             ? route
             : ThrowHelper.ThrowMissingPrimaryWriteAccess(typeof(T)).QueryComponentIndex;
@@ -169,7 +155,6 @@ internal sealed class QueryPlan
     {
         ResolveReadRoute(component);
         ValidatePreparedRuntimeType(component, runtimeType);
-        _hasWriteAccess = true;
         return _preparedWriteAccessesByComponent.RefAt(component.Value);
     }
 
@@ -273,8 +258,6 @@ internal sealed class QueryPlan
         _primaryReadRoutesByType.Clear();
         _preparedReadAccessesByComponent.AsSpan().Clear();
         _preparedWriteAccessesByComponent.AsSpan().Clear();
-        _primaryTypeHandles.AsSpan().Clear();
-        _primaryTypeCount = 0;
         Array.Fill(_readRoutesByComponent, -1);
         _readRouteTypesByComponent.AsSpan().Clear();
     }
@@ -306,8 +289,6 @@ internal sealed class QueryPlan
                 && primary == component)
             {
                 _primaryReadRoutesByType.Add(runtimeType.TypeHandle, route);
-                _primaryTypeHandles.RefAt(_primaryTypeCount) = runtimeType.TypeHandle;
-                _primaryRoutes.RefAt(_primaryTypeCount++) = route;
             }
 
             route++;
@@ -316,24 +297,7 @@ internal sealed class QueryPlan
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryGetPrimaryRoute(RuntimeTypeHandle runtimeType, out int route)
-    {
-        if (_primaryTypeCount <= 4)
-        {
-            for (int index = 0; index < _primaryTypeCount; index++)
-            {
-                if (_primaryTypeHandles.RefAt(index).Equals(runtimeType))
-                {
-                    route = _primaryRoutes.RefAt(index);
-                    return true;
-                }
-            }
-
-            route = -1;
-            return false;
-        }
-
-        return _primaryReadRoutesByType.TryGetValue(runtimeType, out route);
-    }
+        => _primaryReadRoutesByType.TryGetValue(runtimeType, out route);
 
     private void EnsureArchetypeCapacity(int required)
     {
@@ -363,9 +327,11 @@ internal sealed class QueryPlan
     private void RebuildMatchingChunkPlans()
     {
         int required = 0;
-        for (int planIndex = 0; planIndex < _matchingCount; planIndex++)
+        Span<ArchetypePlan> matchingPlans = _matchingPlans;
+        int matchingCount = _matchingCount;
+        for (int planIndex = 0; planIndex < matchingCount; planIndex++)
         {
-            required = checked(required + _matchingPlans.RefAt(planIndex).ChunkCount);
+            required = checked(required + matchingPlans.RefAt(planIndex).ChunkCount);
         }
 
         if (required > _matchingChunkPlans.Length)
@@ -376,15 +342,20 @@ internal sealed class QueryPlan
         }
 
         int count = 0;
-        for (int planIndex = 0; planIndex < _matchingCount; planIndex++)
+        Span<ChunkPlan> matchingChunkPlans = _matchingChunkPlans;
+        Span<int> matchingChunkPlanIndices = _matchingChunkPlanIndices;
+        for (int planIndex = 0; planIndex < matchingCount; planIndex++)
         {
-            ArchetypePlan plan = _matchingPlans.RefAt(planIndex);
-            ChunkPlan[] chunks = plan.ChunkArray;
-            for (int chunkIndex = 0; chunkIndex < plan.ChunkCount; chunkIndex++)
+            ArchetypePlan plan = matchingPlans.RefAt(planIndex);
+            int planChunkCount = plan.ChunkCount;
+            if (planChunkCount == 0)
             {
-                _matchingChunkPlans.RefAt(count) = chunks.RefAt(chunkIndex);
-                _matchingChunkPlanIndices.RefAt(count++) = planIndex;
+                continue;
             }
+
+            plan.ChunkArray.AsSpan(0, planChunkCount).CopyTo(matchingChunkPlans.Slice(count, planChunkCount));
+            matchingChunkPlanIndices.Slice(count, planChunkCount).Fill(planIndex);
+            count += planChunkCount;
         }
 
         _matchingChunkCount = count;
@@ -416,8 +387,6 @@ internal struct ArchetypePlan
     internal Archetype Archetype { get; }
     internal int[] ComponentRows { get; }
     internal Stamp[] ArchetypeStamps { get; }
-    internal ReadOnlySpan<ChunkPlan> Chunks => _chunks.AsSpan(0, _chunkCount);
-
     internal int FindChunkIndex(int globalChunkId)
     {
         for (int index = 0; index < _chunkCount; index++)

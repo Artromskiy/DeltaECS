@@ -26,10 +26,3 @@ public readonly struct Stamp : IEquatable<Stamp>
     internal Stamp Next()
         => new(unchecked(Value + 1));
 }
-
-internal static class StampMath
-{
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-    internal static Stamp Sum(Stamp entity, Stamp chunk, Stamp archetype)
-        => new(unchecked(entity.Value + chunk.Value + archetype.Value));
-}

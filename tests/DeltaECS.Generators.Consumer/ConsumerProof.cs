@@ -15,6 +15,7 @@ public struct Extra { public int Value; }
 public struct Health { public int Value; }
 public struct Team { public int Id; public int DefaultHealth; }
 public struct Dead { }
+public struct NeedsRespawn { public int Value; }
 public struct Alive { }
 
 public struct ConsumerContext { public int Value; }
@@ -217,6 +218,30 @@ public static class ConsumerProof
         world.ForEachEntity(entities, ref context, ref functor);
     }
 
+    /// <summary>Compile-only coverage for the canonical typed and ComponentId selector matrix.</summary>
+    public static void CompileGrammarSelectorForms(
+        World world,
+        in Query query,
+        ReadOnlySpan<Entity> entities,
+        Entity entity,
+        ComponentId positionId,
+        ComponentId velocityId)
+    {
+        world.ForEach<Position, Velocity>(in query, positionId, velocityId,
+            static (ref Position position, in Velocity velocity) => position.Value += velocity.Value);
+        world.ForEachEntityParallel<Position, Velocity>(entities, in query, positionId, velocityId,
+            static (Entity current, ref Position position, in Velocity velocity) => position.Value += current.Index + velocity.Value,
+            workerCount: 2);
+
+        world.Add<Position, Velocity>(entity, positionId, velocityId);
+        world.Add<Position, Velocity>(entities, positionId, velocityId);
+        world.Remove<Position, Velocity>(in query, positionId, velocityId);
+
+        world.Create<Position, Velocity>(positionId, velocityId, 2);
+        Span<Entity> output = stackalloc Entity[2];
+        world.Create<Position, Velocity>(positionId, velocityId, 2, output);
+    }
+
     public static int RunStructural()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -226,7 +251,9 @@ public static class ConsumerProof
         using var createWorld = new World(layouts);
         int total = createWorld.Create<Position, Velocity>(3);
         total += createWorld.Create<Position, Velocity>(positionId, velocityId, 1);
-        Entity created = createWorld.Create<Position, Velocity>();
+        Span<Entity> createdHandleOutput = stackalloc Entity[1];
+        createWorld.Create<Position, Velocity>(1, createdHandleOutput);
+        Entity created = createdHandleOutput[0];
         Span<Entity> createdOutput = stackalloc Entity[2];
         int outputCount = createWorld.Create<Position, Velocity>(2, createdOutput);
         Span<Entity> explicitGenericOutput = stackalloc Entity[1];
@@ -355,18 +382,30 @@ public static class ConsumerProof
     {
         using var world = new World();
         (ComponentId healthId, ComponentId teamId, ComponentId aliveId, _) = RegisterMutationLayouts(world);
+        ComponentId needsRespawnId = world.Layouts.Register<NeedsRespawn>(new SchemaId(35));
         Entity[] entities = CreateMutationEntities(world, healthId, teamId, aliveId);
         Query query = CreateMutationQuery(world, healthId, teamId, aliveId);
 
-        int added = world.WhereEntity(
+        int added = world.Where(
                 in query,
-                static (Entity entity, in Health health) => health.Value <= 0)
-            .Add<Dead>();
+                static (in Health health) => health.Value <= 0)
+            .Add<Dead, NeedsRespawn>(new Dead(), new NeedsRespawn { Value = 42 });
+        added += world.WhereEntity(
+                in query,
+                static (Entity entity, in Health health) => health.Value > 0)
+            .Add<Dead, NeedsRespawn>(
+                world.Layouts.GetPrimary<Dead>(),
+                needsRespawnId,
+                new Dead(),
+                new NeedsRespawn { Value = 7 });
 
-        return added == 2
+        return added == 3
             && world.TryGet<Dead>(entities[0], out _)
-            && !world.TryGet<Dead>(entities[1], out _)
+            && world.Get<NeedsRespawn>(entities[0], needsRespawnId).Value == 42
+            && world.TryGet<Dead>(entities[1], out _)
+            && world.Get<NeedsRespawn>(entities[1], needsRespawnId).Value == 7
             && world.TryGet<Dead>(entities[2], out _)
+            && world.Get<NeedsRespawn>(entities[2], needsRespawnId).Value == 42
             && world.Get<Health>(entities[0], healthId).Value == -1
             && world.Get<Health>(entities[2], healthId).Value == -1
             ? 1
@@ -405,10 +444,6 @@ public static class ConsumerProof
             {
                 health.Value = team.DefaultHealth + entity.Index;
             });
-        world.WhereEntity(
-                in query,
-                static (Entity entity, in Health health) => health.Value > 0)
-            .ForEachEntity(static entity => _ = entity);
         world.WhereEntity(
                 in query,
                 static (Entity entity, in Health health) => health.Value >= 0)

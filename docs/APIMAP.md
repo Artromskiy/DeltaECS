@@ -113,16 +113,16 @@ work, inspect the focused test class after locating the source method.
 ## Lifetime, revision and integration rules
 
 - Structural mutation is rejected while a conflicting query scope is active.
-- Read and write access intent is declared before row traversal; write rows are
-  marked through the operation-specific entity, chunk or archetype stamp route.
+- Read and write access intent is declared before row traversal; point writes
+  use entity stamps and generated dense writes use archetype stamps.
 - `Entity` and `ComponentId` are compact world-local core values. `SchemaId`
   is the stable cross-world identity used by integration consumers.
 - `Stamp` is a 64-bit equality token (`ulong Value`). It is not wall-clock
   time; consumers compare exact values and must not infer ordering from them.
-- Effective component stamps combine entity/component, chunk/component and
-  archetype/component overrides. The latter two layers are centrally owned by
-  `World`; they do not enlarge `Chunk` or `Archetype`. There is no aggregate
-  world mutation stamp; consumers use exact entity/component stamps.
+- Effective component stamps combine entity/component and archetype/component
+  terms. Archetype overrides are centrally owned by `World` and do not enlarge
+  `Archetype`. There is no aggregate world mutation stamp; consumers use exact
+  entity/component stamps.
 - `IEcsWorld` (`Delta.ECS.Integration`) is a neutral local .NET boundary. It uses the core `Entity` and
   `ComponentId` types and exposes object snapshots only for integration work.
 

@@ -65,10 +65,10 @@ public sealed class PublicApiShapeTests
                 typeof(World).GetMethod("BeginScope", BindingFlags.Public | BindingFlags.Instance),
                 Is.Null);
             Assert.That(
-                typeof(Query).GetMethod(nameof(Query.AccessRead), BindingFlags.Public | BindingFlags.Instance),
+                typeof(Query).GetMethod("AccessRead", BindingFlags.Public | BindingFlags.Instance),
                 Is.Null);
             Assert.That(
-                typeof(Query).GetMethod(nameof(Query.AccessWrite), BindingFlags.Public | BindingFlags.Instance),
+                typeof(Query).GetMethod("AccessWrite", BindingFlags.Public | BindingFlags.Instance),
                 Is.Null);
             Assert.That(
                 typeof(World).GetMethods(BindingFlags.Public | BindingFlags.Instance)
@@ -98,7 +98,7 @@ public sealed class PublicApiShapeTests
 
             Assert.That(typeof(ComponentLayout).GetMethod("Align", BindingFlags.Public | BindingFlags.Static), Is.Null);
             Assert.That(typeof(ComponentLayoutRegistry).GetProperty(nameof(ComponentLayoutRegistry.Count), BindingFlags.Public | BindingFlags.Instance), Is.Null);
-            Assert.That(typeof(ComponentLayoutRegistry).GetMethod(nameof(ComponentLayoutRegistry.TryGetId), BindingFlags.Public | BindingFlags.Instance), Is.Null);
+            Assert.That(typeof(ComponentLayoutRegistry).GetMethod("TryGetId", BindingFlags.Public | BindingFlags.Instance), Is.Null);
             Assert.That(typeof(ComponentLayoutRegistry).GetMethod(nameof(ComponentLayoutRegistry.Get), BindingFlags.Public | BindingFlags.Instance), Is.Null);
             Assert.That(typeof(ComponentLayoutRegistry).GetMethod(nameof(ComponentLayoutRegistry.TryGet), BindingFlags.Public | BindingFlags.Instance), Is.Null);
         });

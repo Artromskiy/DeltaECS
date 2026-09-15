@@ -23,10 +23,6 @@ internal readonly struct EntityComponentStampWriter
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void Mark()
-        => _chunk.MarkComponentWritten(_componentIndex, _slotIndex, _stamp);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void MarkPoint()
         => _chunk.MarkComponentStamped(_componentIndex, _slotIndex, _stamp);
 }

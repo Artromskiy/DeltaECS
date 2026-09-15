@@ -24,12 +24,6 @@ internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
 
     internal int Length => _length;
 
-    internal ref T this[int index]
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => ref RefAt(index);
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref T RefAt(int index) => ref Unsafe.Add(ref *(T*)_address, index);
 

@@ -95,6 +95,19 @@ public struct GeneratedWhereStructuralContext
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void ProcessRun(int sourceSlot, int count, bool selected)
     {
+        var initializer = new GeneratedWhereNoopInitializer();
+        ProcessRun(sourceSlot, count, selected, ref initializer);
+    }
+
+    /// <summary>Processes a selected run and initializes newly added values in place.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void ProcessRun<TInitializer>(
+        int sourceSlot,
+        int count,
+        bool selected,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
+    {
         if (count == 0)
         {
             return;
@@ -122,7 +135,8 @@ public struct GeneratedWhereStructuralContext
                     _plan.TargetArchetype!,
                     _plan.SourceToTargetRows,
                     _plan.AddedTargetRows,
-                    _plan.TargetCursor!);
+                    _plan.TargetCursor!,
+                    ref initializer);
             }
 
             return;
@@ -135,6 +149,11 @@ public struct GeneratedWhereStructuralContext
         }
 
         _writeSlot += count;
+    }
+
+    private readonly struct GeneratedWhereNoopInitializer : IGeneratedComponentValueInitializer
+    {
+        public void Initialize(ref GeneratedComponentValueWriter writer) { }
     }
 
     /// <summary>Finishes source compaction and returns the changed row count.</summary>
@@ -207,17 +226,20 @@ public ref struct GeneratedComponentValueWriter
     private readonly Archetype _targetArchetype;
     private readonly int _targetSlotIndex;
     private readonly ReadOnlySpan<int> _addedTargetRows;
+    private readonly int _targetCount;
 
     internal GeneratedComponentValueWriter(
         Chunk targetChunk,
         Archetype targetArchetype,
         int targetSlotIndex,
-        ReadOnlySpan<int> addedTargetRows)
+        ReadOnlySpan<int> addedTargetRows,
+        int targetCount = 1)
     {
         _targetChunk = targetChunk;
         _targetArchetype = targetArchetype;
         _targetSlotIndex = targetSlotIndex;
         _addedTargetRows = addedTargetRows;
+        _targetCount = targetCount;
     }
 
     internal GeneratedComponentValueWriter(
@@ -239,7 +261,10 @@ public ref struct GeneratedComponentValueWriter
                 continue;
             }
 
-            _targetChunk.GetComponentRow<T>(componentIndex).RefAt(_targetSlotIndex) = value;
+            _targetChunk
+                .GetComponentRow<T>(componentIndex)
+                .Slice(_targetSlotIndex, _targetCount)
+                .Fill(value);
             return;
         }
     }
@@ -702,7 +727,6 @@ public static class GeneratedForEachRuntime
         QueryPlan plan = ValidateQuery(world, in query);
         ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
         MarkArchetypeWrites(plans, writeComponentIndices);
-        QueryWriteSession session = world.RentQueryWriteSession(plan, out int generation);
         world.BeginQueryLease();
         bool entered = false;
         try
@@ -723,7 +747,7 @@ public static class GeneratedForEachRuntime
                 world.ExitParallelExecution();
             }
 
-            world.ReturnQueryWriteSession(session, generation);
+            world.EndQueryLease();
         }
     }
 
@@ -787,7 +811,6 @@ public static class GeneratedForEachRuntime
         QueryPlan plan = ValidateQuery(world, in query);
         ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
         MarkArchetypeWrites(plans, writeComponentIndices);
-        QueryWriteSession session = world.RentQueryWriteSession(plan, out int generation);
         world.BeginQueryLease();
         bool entered = false;
         try
@@ -806,7 +829,7 @@ public static class GeneratedForEachRuntime
                 world.ExitParallelExecution();
             }
 
-            world.ReturnQueryWriteSession(session, generation);
+            world.EndQueryLease();
         }
     }
 

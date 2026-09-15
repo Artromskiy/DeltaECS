@@ -12,39 +12,34 @@ ordering is not a supported semantic.
 - `TryRead` returns the observed component stamp.
 - `TryWrite` compares `expectedStamp` and reports `StaleStamp` on conflict.
 
-Successful writes advance only the stamp cell for the affected
-entity/component, chunk/component, or archetype/component. Read-only query
-access does not change stamps. Write query access records the write intent
-through the operation-specific stamp route.
+Successful point writes advance the affected entity/component cell. Generated
+dense writes advance the archetype/component override once for each matching
+archetype. Read-only query access does not change stamps.
 
 The effective component stamp is a new opaque value whose unchecked `ulong`
-payload is the sum of three independent overrides:
+payload is the sum of two independent terms:
 
 ```text
-entity/component + chunk/component + archetype/component
+entity/component + archetype/component
 ```
 
-The entity/component term is the existing per-slot stamp. The chunk and
-archetype overrides are centralized in `World`-owned storage; they are
-deliberately not fields on `Chunk` or `Archetype`, so those hot storage objects
-do not grow for the hierarchy. The terms are addressed by stable world-local
-ids and physical component ordinals. A trusted internal operation can update
-the appropriate level without changing the public API. Equality is the only
-supported interpretation: the sum is a change token, not an ordered
-timestamp, and wraparound is allowed.
+The entity/component term is the per-slot stamp stored with the component row.
+Archetype overrides are centralized in `World`-owned storage, so `Archetype`
+does not grow for stamp tracking. The override is addressed by the stable
+world-local archetype id and physical component ordinal. Equality is the only
+supported interpretation: the sum is a change token, not an ordered timestamp,
+and wraparound is allowed.
 
 The generated archetype-write route keeps its override cells as a managed
 `Stamp[]` indexed by the prepared physical component ordinal. It does not pass
 raw addresses or pointers across the generator/runtime boundary. Native storage
-remains an internal implementation detail of the entity and chunk stamp layers.
+remains an internal implementation detail of the entity stamp layer.
 
-The default mutation paths use the entity term for a point write and the chunk
-term for a validated dense query row write. A generated dense query write uses
-the archetype override once for each matching archetype. When a physical chunk
-becomes empty, its chunk-level terms are cleared before the chunk can be
-reused; archetype-level terms remain at archetype scope. There is no aggregate
-world mutation stamp; consumers compare the exact component stamp they
-observed.
+The default mutation paths use the entity term for a point write and the
+archetype override for a generated dense query write. Structural migration
+copies the existing entity terms, initializes newly added components and leaves
+archetype overrides at archetype scope. There is no aggregate world mutation
+stamp; consumers compare the exact component stamp they observed.
 
 The trusted runtime keeps the write state proportional to the operation:
 
@@ -59,12 +54,12 @@ carry broader write data, while a dense generated write marks the archetype
 override once before its entity loop. It is an internal lowering choice; the
 public delegate, functor and query APIs remain unchanged.
 
-`StampCounter`, `ComponentStampStorage` and the centralized hierarchy
-buffers are internal implementation types. Consumers exchange only `Stamp`
-values and compare them for equality. Mutating fields inside a reference-type
-component obtained by reference remains the component owner's responsibility;
-that operation is outside ECS write tracking unless it goes through an ECS
-write endpoint.
+`StampCounter`, `ComponentStampStorage` and the archetype override buffer are
+internal implementation types. Consumers exchange only `Stamp` values and
+compare them for equality. Mutating fields inside a reference-type component
+obtained by reference remains the component owner's responsibility; that
+operation is outside ECS write tracking unless it goes through an ECS write
+endpoint.
 
 ## Stamp access
 
@@ -80,8 +75,7 @@ public bool TryGetComponentStamp(
 It returns `false` for a stale entity or when the entity does not contain the
 component. It performs no CLR type lookup and does not return the component
 value. Generated `ForEach` callbacks receive the appropriate read/write intent
-and stamp behavior automatically; the former borrowed query stamp rows are
-internal runtime support.
+and stamp behavior automatically.
 
 There is deliberately no aggregate `EntityStamp`: the exact contract is one
 stamp per entity/component pair.

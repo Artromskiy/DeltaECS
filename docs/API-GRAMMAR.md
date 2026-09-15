@@ -26,15 +26,20 @@ The canonical argument order is:
 ```text
 target(e | E)?,
 query(Q)?,
-selector(I... | T...)?,
+component-types(T... | inferred)?,
+registrations(I...)?,
 context(C)?,
 callback(A | F)?,
+values(V...)?,
 options(N | O | W)?
 ```
 
-`T...` selects typed component rows and `I...` selects the same rows by
-position with `ComponentId` values. `Q` is required for world-wide query
-iteration and optional after an explicit entity target `E`.
+`T...` identifies the CLR row types. `I...` independently selects the
+registration used for each row; omitting `I...` uses the primary registration.
+Whenever both are present, their counts equal the component arity. Query
+factories are the exception: their typed and `ComponentId` forms are separate.
+`Q` is required for world-wide query iteration and optional after an explicit
+entity target `E`.
 
 ## Generated iteration forms
 
@@ -58,16 +63,22 @@ Functor forms use the same target, query, selector, and context order, with
 `F` in the callback position:
 
 ```text
-world.ForEach<T...>(Q | E, I..., C, F)
-world.ForEachEntity<T...>(Q | E, I..., C, F)
-world.ForEachParallel<T...>(Q | E, I..., C, F, W)
-world.ForEachEntityParallel<T...>(Q | E, I..., C, F, W)
+world.ForEach<T...>(Q, I..., C, F)
+world.ForEachEntity<T...>(Q, I..., C, F)
+world.ForEach<T...>(E, Q?, I..., C, F)
+world.ForEachEntity<T...>(E, Q?, I..., C, F)
+
+world.ForEachParallel<T...>(Q, I..., C, F, W)
+world.ForEachEntityParallel<T...>(Q, I..., C, F, W)
+world.ForEachParallel<T...>(E, Q?, I..., C, F, W)
+world.ForEachEntityParallel<T...>(E, Q?, I..., C, F, W)
 ```
 
 `ForEach` callbacks receive component rows. `ForEachEntity` callbacks also
 receive the current `Entity` as their first row argument. Parallel callbacks
 always use parallel execution; `W` is the caller's worker-count choice,
-clamped to the supported range.
+clamped to the supported range. A parallel context is passed read-only or by
+value; mutable `ref` context is rejected.
 
 ## Stamp iteration forms
 
@@ -134,11 +145,13 @@ Typed and non-generic structural operations have matching target shapes:
 ```text
 world.Add<T...>(e | E | Q, I...)
 world.Remove<T...>(e | E | Q, I...)
+world.Add<T...>(e, V...)
 world.Set<T...>(e, V...)
 world.Destroy(e | E | Q)
 
 world.Add(e | E | Q, I...)
 world.Remove(e | E | Q, I...)
+world.Add(e, V...)
 world.Set(e, V...)
 
 world.Create<T...>(N, O?)
@@ -148,6 +161,8 @@ world.Create(I..., N, O?)
 
 The `I...` forms are positional `ComponentId` arguments. `Add` and `Remove`
 accept them after the target; `Create` places them before `N` and `O`.
+For value forms, generic type arguments may be inferred from `V...`; all
+component values are applied by one generated structural operation.
 
 `O` is optional caller-owned output storage. Omitting it creates entities
 without retaining handles. Structural terminals are immediate operations and
@@ -193,7 +208,11 @@ world.WhereEntity(Q, C?, Predicate) -> WhereView
 
 view.Destroy()
 view.Add<T...>()
+view.Add<T...>(I...)
+view.Add<T...>(V...)
+view.Add<T...>(I..., V...)
 view.Remove<T...>()
+view.Remove<T...>(I...)
 view.ForEach(...)
 view.ForEachEntity(...)
 ```

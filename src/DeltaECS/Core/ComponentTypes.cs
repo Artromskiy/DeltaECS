@@ -57,23 +57,6 @@ internal readonly struct ComponentMask : IEquatable<ComponentMask>
     public static ComponentMask From(ReadOnlySpan<ComponentId> componentIds)
         => FromCore(componentIds);
 
-    public ComponentMask Set(ComponentId componentId)
-    {
-        int value = Validate(componentId);
-        int wordIndex = value >> 5;
-        int requiredLength = Math.Max(_storage?.Length ?? 0, wordIndex + 1);
-        var storage = new NativeComponentMaskStorage(requiredLength);
-
-        if (_storage is not null)
-        {
-            _storage.CopyTo(storage);
-        }
-
-        storage.RefAt(wordIndex) |= 1u << (value & 31);
-        storage.RecalculateMetadata();
-        return new ComponentMask(storage);
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains(ComponentId componentId)
     {
@@ -278,15 +261,7 @@ internal readonly struct ComponentMask : IEquatable<ComponentMask>
             return false;
         }
 
-        for (int index = 0; index < _storage.Length; index++)
-        {
-            if (_storage.RefAt(index) != other._storage.RefAt(index))
-            {
-                return false;
-            }
-        }
-
-        return true;
+        return _storage.ReadOnlySpan.SequenceEqual(other._storage.ReadOnlySpan);
     }
 
     public override bool Equals(object? obj) => obj is ComponentMask other && Equals(other);
@@ -366,7 +341,7 @@ internal sealed class NativeComponentMaskStorage
 
     internal int Hash => _hash;
 
-    internal Span<uint> Span => _words.Span;
+    internal ReadOnlySpan<uint> ReadOnlySpan => _words.ReadOnlySpan;
 
     internal ref uint this[int index]
     {
@@ -375,11 +350,6 @@ internal sealed class NativeComponentMaskStorage
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref uint RefAt(int index) => ref _words.RefAt(index);
-
-    internal void CopyTo(NativeComponentMaskStorage destination)
-    {
-        _words.ReadOnlySpan[..Math.Min(Length, destination.Length)].CopyTo(destination.Span);
-    }
 
     internal void RecalculateMetadata()
     {

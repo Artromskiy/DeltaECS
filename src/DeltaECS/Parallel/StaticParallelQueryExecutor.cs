@@ -78,10 +78,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         _runVersion = run;
         for (int workerIndex = 1; workerIndex < workerCount; workerIndex++)
         {
-            ParallelRange range = _ranges.RefAt(workerIndex);
             WorkerSlot slot = _workerSlots.RefAt(workerIndex);
-            slot.StartChunk = range.StartChunk;
-            slot.EndChunk = range.EndChunk;
             Volatile.Write(ref slot.PublishedRun, run);
         }
 
@@ -156,10 +153,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             _runVersion = run;
             for (int workerIndex = 1; workerIndex < workerCount; workerIndex++)
             {
-                ParallelRange range = _ranges.RefAt(workerIndex);
                 WorkerSlot slot = _workerSlots.RefAt(workerIndex);
-                slot.StartChunk = range.StartChunk;
-                slot.EndChunk = range.EndChunk;
                 Volatile.Write(ref slot.PublishedRun, run);
             }
 
@@ -244,16 +238,11 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             return;
         }
 
-        ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
         ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
-        ReadOnlySpan<int> planIndices = plan.MatchingChunkPlanIndices();
         EnsureChunkCapacity(chunks.Length);
         for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
         {
-            ChunkPlan chunk = chunks.RefAt(chunkIndex);
-            _chunks.RefAt(chunkIndex) = new ParallelChunk(
-                plans.RefAt(planIndices.RefAt(chunkIndex)),
-                chunk);
+            _chunks.RefAt(chunkIndex) = new ParallelChunk(chunks.RefAt(chunkIndex));
         }
 
         _chunkCount = chunks.Length;
@@ -471,10 +460,6 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         internal int PublishedRun;
 
         internal int CompletedRun;
-
-        internal int StartChunk;
-
-        internal int EndChunk;
     }
 
     private readonly struct ParallelRange
@@ -491,13 +476,8 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
 
     private readonly struct ParallelChunk
     {
-        internal ParallelChunk(ArchetypePlan plan, ChunkPlan chunk)
-        {
-            Plan = plan;
-            Chunk = chunk;
-        }
+        internal ParallelChunk(ChunkPlan chunk) => Chunk = chunk;
 
-        internal ArchetypePlan Plan { get; }
         internal ChunkPlan Chunk { get; }
     }
 

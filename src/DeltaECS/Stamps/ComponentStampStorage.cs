@@ -21,19 +21,6 @@ internal struct ComponentStampStorage : IDisposable
         _uniformCounts = new NativeMemory<int>(componentCount);
     }
 
-    internal readonly Stamp Get(int componentIndex, int slotIndex)
-    {
-        int offset = Offset(componentIndex, slotIndex);
-        if (slotIndex < _uniformCounts.ReadOnlySpan.RefAt(componentIndex))
-        {
-            return _uniformStamps.ReadOnlySpan.RefAt(componentIndex);
-        }
-
-        return _values.Length == 0
-            ? default
-            : _values.ReadOnlySpan.RefAt(offset);
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal readonly Stamp GetTrusted(int componentIndex, int slotIndex)
     {
@@ -199,7 +186,7 @@ internal struct ComponentStampStorage : IDisposable
         int sourceComponentIndex,
         int targetComponentIndex)
     {
-        target.Set(targetComponentIndex, targetSlotIndex, Get(sourceComponentIndex, sourceSlotIndex));
+        target.Set(targetComponentIndex, targetSlotIndex, GetTrusted(sourceComponentIndex, sourceSlotIndex));
     }
 
     internal void CopyComponentRangeTo(
@@ -267,7 +254,7 @@ internal struct ComponentStampStorage : IDisposable
         ValidateSlot(targetSlotIndex);
         for (int componentIndex = 0; componentIndex < _componentCount; componentIndex++)
         {
-            Set(componentIndex, targetSlotIndex, Get(componentIndex, sourceSlotIndex));
+            Set(componentIndex, targetSlotIndex, GetTrusted(componentIndex, sourceSlotIndex));
         }
     }
 

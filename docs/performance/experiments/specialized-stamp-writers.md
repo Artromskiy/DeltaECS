@@ -1,22 +1,23 @@
-# Operation-specific stamp writers
+# Historical operation-specific stamp writers
 
-> Historical note: the `QuerySlots` row route in this experiment was removed.
-> Generated dense execution is the current query writer path.
+> This report describes the former three-level stamp implementation. Its
+> `QuerySlots` row route and chunk/component stamp layer were removed. The
+> current contract combines only entity/component and archetype/component terms;
+> generated dense execution writes the archetype term directly.
 
 ## Hypothesis
 
-The hierarchical stamp storage is world-owned, but one universal write state
-should not be carried through every execution path. A point write needs only an
-entity/component stamp writer. A complete row traversal needs a
-chunk/component writer. A generated dense query spans the complete active rows
-of each matching chunk and can use one archetype/component writer per component
-before the entity loop. Read-only
-execution should carry none of that write state.
+At the time of this experiment, the hierarchical stamp storage was world-owned,
+but one universal write state was not carried through every execution path. A
+point write used an entity/component writer, the borrowed row route used a
+chunk/component writer, and a generated dense query used one
+archetype/component writer per component before the entity loop. Read-only
+execution carried none of that write state.
 
 This experiment changes only internal lowering and writer routes. It does not
 change the public API or the meaning of `Stamp` equality.
 
-## Implemented routes
+## Historical implemented routes
 
 | Runtime path | Route | Reason |
 | --- | --- | --- |
