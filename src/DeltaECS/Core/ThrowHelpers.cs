@@ -11,52 +11,77 @@ internal static class ThrowHelper
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void ThrowIfNull(object? value, string parameterName)
     {
-#if NETSTANDARD2_1
         if (value is null)
         {
-            throw new ArgumentNullException(parameterName);
+            ThrowNull(parameterName);
         }
-#else
-        ArgumentNullException.ThrowIfNull(value, parameterName);
-#endif
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void ThrowIfNegative(int value, string parameterName)
     {
-#if NETSTANDARD2_1
         if (value < 0)
         {
-            throw new ArgumentOutOfRangeException(parameterName);
+            ThrowNegative(value, parameterName);
         }
-#else
-        ArgumentOutOfRangeException.ThrowIfNegative(value, parameterName);
-#endif
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void ThrowIfNegativeOrZero(int value, string parameterName)
     {
-#if NETSTANDARD2_1
         if (value <= 0)
         {
-            throw new ArgumentOutOfRangeException(parameterName);
+            ThrowNegativeOrZero(value, parameterName);
         }
-#else
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value, parameterName);
-#endif
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void ThrowIfDisposed(bool disposed, object instance)
     {
-#if NETSTANDARD2_1
         if (disposed)
         {
-            throw new ObjectDisposedException(instance.GetType().Name);
+            ThrowDisposed(instance);
         }
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowNull(string parameterName)
+    {
+#if NETSTANDARD2_1
+        throw new ArgumentNullException(parameterName);
 #else
-        ObjectDisposedException.ThrowIf(disposed, instance);
+        ArgumentNullException.ThrowIfNull((object?)null, parameterName);
+#endif
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowNegative(int value, string parameterName)
+    {
+#if NETSTANDARD2_1
+        throw new ArgumentOutOfRangeException(parameterName);
+#else
+        ArgumentOutOfRangeException.ThrowIfNegative(value, parameterName);
+#endif
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowNegativeOrZero(int value, string parameterName)
+    {
+#if NETSTANDARD2_1
+        throw new ArgumentOutOfRangeException(parameterName);
+#else
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value, parameterName);
+#endif
+    }
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowDisposed(object instance)
+    {
+#if NETSTANDARD2_1
+        throw new ObjectDisposedException(instance.GetType().Name);
+#else
+        ObjectDisposedException.ThrowIf(true, instance);
 #endif
     }
 
