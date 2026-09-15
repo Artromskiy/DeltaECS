@@ -2,6 +2,7 @@ namespace Delta.ECS;
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 public sealed partial class World : IDisposable
@@ -137,12 +138,12 @@ public sealed partial class World : IDisposable
             return 0;
         }
 
-        if (!TryBuildComponentMask(componentIds, out var mask))
+        if (!TryGetComponentSet(componentIds, out ComponentSet? componentSet))
         {
             ThrowHelper.ThrowInvalidComponentList();
         }
 
-        var archetype = GetOrCreateArchetype(mask);
+        var archetype = GetOrCreateArchetype(componentSet.Mask);
         return CreateBatch(archetype, output);
     }
 
@@ -163,12 +164,12 @@ public sealed partial class World : IDisposable
                 return 0;
             }
 
-            if (!TryBuildComponentMask(componentIds, out var mask))
+            if (!TryGetComponentSet(componentIds, out ComponentSet? componentSet))
             {
                 ThrowHelper.ThrowInvalidComponentList();
             }
 
-            return CreateBatch(GetOrCreateArchetype(mask), count);
+            return CreateBatch(GetOrCreateArchetype(componentSet.Mask), count);
         }
 
         return Create(componentIds, output[..count]);
@@ -684,7 +685,7 @@ public sealed partial class World : IDisposable
             return 0;
         }
 
-        if (!TryBuildComponentMask(componentIds, out var changeMask))
+        if (!TryGetComponentSet(componentIds, out ComponentSet? changeSet))
         {
             return 0;
         }
@@ -702,17 +703,13 @@ public sealed partial class World : IDisposable
             ref readonly var record = ref RecordAt(recordIndex);
             int sourceArchetypeId = GetRecordChunk(record).ArchetypeId;
             var sourceArchetype = _archetypes[sourceArchetypeId];
-            ComponentMask targetMask = isAdd
-                ? sourceArchetype.Mask.Or(changeMask)
-                : sourceArchetype.Mask.Except(changeMask);
-            if (targetMask == sourceArchetype.Mask)
+            var edge = edgeStamp == 0
+                ? GetTransitionEdge(sourceArchetypeId, changeSet, isAdd)
+                : GetBatchTransitionEdge(sourceArchetypeId, changeSet, isAdd, edgeStamp);
+            if (edge.IsNoOp)
             {
                 continue;
             }
-
-            var edge = edgeStamp == 0
-                ? GetTransitionEdge(sourceArchetypeId, changeMask, isAdd, targetMask)
-                : GetBatchTransitionEdge(sourceArchetypeId, changeMask, isAdd, targetMask, edgeStamp);
 
             MoveEntity(recordIndex, edge);
             changed++;
@@ -730,7 +727,7 @@ public sealed partial class World : IDisposable
             return 0;
         }
 
-        if (!TryBuildComponentMask(componentIds, out var changeMask))
+        if (!TryGetComponentSet(componentIds, out ComponentSet? changeSet))
         {
             return 0;
         }
@@ -742,20 +739,17 @@ public sealed partial class World : IDisposable
         for (int matchingIndex = 0; matchingIndex < matchingArchetypes.Length; matchingIndex++)
         {
             var sourceArchetype = _archetypes[matchingArchetypes.RefAt(matchingIndex)];
-            ComponentMask targetMask = isAdd
-                ? sourceArchetype.Mask.Or(changeMask)
-                : sourceArchetype.Mask.Except(changeMask);
-            if (targetMask == sourceArchetype.Mask)
-            {
-                continue;
-            }
-
             if (sourceArchetype.ActiveChunkCount == 0)
             {
                 continue;
             }
 
-            var edge = GetBatchTransitionEdge(sourceArchetype.Id, changeMask, isAdd, targetMask, edgeStamp);
+            var edge = GetBatchTransitionEdge(sourceArchetype.Id, changeSet, isAdd, edgeStamp);
+            if (edge.IsNoOp)
+            {
+                continue;
+            }
+
             changed += MoveArchetypeBlocks(sourceArchetype, edge);
         }
 
@@ -774,11 +768,19 @@ public sealed partial class World : IDisposable
             : isAdd ? "add components" : "remove components");
         ValidateQuery(in query);
 
-        ComponentMask changeMask = default;
-        if (!isDestroy && (componentIds.Length == 0 || !TryBuildComponentMask(componentIds, out changeMask)))
+        ComponentSet changeSet;
+        if (isDestroy)
+        {
+            changeSet = ComponentSet.Empty;
+        }
+        else if (!TryGetComponentSet(componentIds, out ComponentSet? resolvedChangeSet))
         {
             execution = default;
             return false;
+        }
+        else
+        {
+            changeSet = resolvedChangeSet;
         }
 
         QueryPlan plan = query.Cached;
@@ -822,16 +824,13 @@ public sealed partial class World : IDisposable
             }
             else
             {
-                bool noOp = isAdd
-                    ? sourceArchetype.Mask.ContainsAll(changeMask)
-                    : !sourceArchetype.Mask.Intersects(changeMask);
-                if (!noOp)
+                TransitionEdge edge = GetBatchTransitionEdge(
+                    sourceArchetype.Id,
+                    changeSet,
+                    isAdd,
+                    edgeStamp);
+                if (!edge.IsNoOp)
                 {
-                    TransitionEdge edge = GetBatchTransitionEdge(
-                        sourceArchetype.Id,
-                        changeMask,
-                        isAdd,
-                        edgeStamp);
                     targetArchetype = _archetypes[edge.TargetArchetypeId];
                     sourceToTargetRows = edge.SourceToTargetRowIndices;
                     addedTargetRows = edge.AddedTargetRowIndices;
@@ -1402,17 +1401,29 @@ public sealed partial class World : IDisposable
 
     private TransitionEdge GetTransitionEdge(
         int sourceArchetypeId,
-        ComponentMask changeMask,
-        bool isAdd,
-        ComponentMask targetMask)
+        ComponentSet changeSet,
+        bool isAdd)
     {
-        var key = new TransitionKey(sourceArchetypeId, changeMask, isAdd);
+        var key = new TransitionKey(sourceArchetypeId, changeSet.Id, isAdd);
         if (_transitionCache.TryGetValue(key, out var edge))
         {
             return edge;
         }
 
         var source = _archetypes[sourceArchetypeId];
+        bool noOp = isAdd
+            ? source.Mask.ContainsAll(changeSet.Mask)
+            : !source.Mask.Intersects(changeSet.Mask);
+        if (noOp)
+        {
+            edge = TransitionEdge.NoOp(sourceArchetypeId);
+            _transitionCache.Add(key, edge);
+            return edge;
+        }
+
+        ComponentMask targetMask = isAdd
+            ? source.Mask.Or(changeSet.Mask)
+            : source.Mask.Except(changeSet.Mask);
         var target = GetOrCreateArchetype(targetMask);
         int[] mapping = new int[source.ComponentCount];
         bool[] copiedTargetRows = new bool[target.ComponentCount];
@@ -1557,15 +1568,17 @@ public sealed partial class World : IDisposable
         Array.Resize(ref _chunksById, capacity);
     }
 
-    private bool TryBuildComponentMask(ReadOnlySpan<ComponentId> componentIds, out ComponentMask mask)
+    private bool TryGetComponentSet(
+        ReadOnlySpan<ComponentId> componentIds,
+        [NotNullWhen(true)] out ComponentSet? componentSet)
     {
         if (componentIds.Length == 0)
         {
-            mask = default;
+            componentSet = null;
             return false;
         }
 
-        mask = GetOrCreateComponentSet(componentIds).Mask;
+        componentSet = GetOrCreateComponentSet(componentIds);
         return true;
     }
 
@@ -1586,24 +1599,8 @@ public sealed partial class World : IDisposable
         return set;
     }
 
-    internal ComponentSet GetOrCreateComponentSet(
-        RuntimeTypeHandle key,
-        ReadOnlySpan<ComponentId> componentIds)
-    {
-        if (_componentSetCache.TryGet(key, out ComponentSet? cached))
-        {
-            return cached;
-        }
-
-        if (componentIds.Length == 0)
-        {
-            return ComponentSet.Empty;
-        }
-
-        ComponentSet set = CreateComponentSet(componentIds);
-        _componentSetCache.Add(key, set);
-        return set;
-    }
+    internal bool TryGetComponentSet(ComponentSetId id, out ComponentSet? set)
+        => _componentSetCache.TryGet(id, out set);
 
     internal ComponentSet GetOrCreateComponentSet(
         RuntimeTypeHandle key,
@@ -1620,7 +1617,7 @@ public sealed partial class World : IDisposable
             return ComponentSet.Empty;
         }
 
-        ComponentSet set = CreateComponentSet(componentIds);
+        ComponentSet set = GetOrCreateComponentSet(componentIds);
         _componentSetCache.Add(key, set);
         return set;
     }
@@ -1876,7 +1873,7 @@ public sealed partial class World : IDisposable
 
     private TransitionEdge GetBatchTransitionEdge(
         int sourceArchetypeId,
-        ComponentMask changeMask,
+        ComponentSet changeSet,
         bool isAdd,
         int stamp)
     {
@@ -1890,34 +1887,7 @@ public sealed partial class World : IDisposable
             return _batchEdgeSlots.RefAt(sourceArchetypeId);
         }
 
-        Archetype source = _archetypes[sourceArchetypeId];
-        ComponentMask targetMask = isAdd
-            ? source.Mask.Or(changeMask)
-            : source.Mask.Except(changeMask);
-        TransitionEdge edge = GetTransitionEdge(sourceArchetypeId, changeMask, isAdd, targetMask);
-        _batchEdgeSlots.RefAt(sourceArchetypeId) = edge;
-        _batchEdgeStamps.RefAt(sourceArchetypeId) = stamp;
-        return edge;
-    }
-
-    private TransitionEdge GetBatchTransitionEdge(
-        int sourceArchetypeId,
-        ComponentMask changeMask,
-        bool isAdd,
-        ComponentMask targetMask,
-        int stamp)
-    {
-        if ((uint)sourceArchetypeId >= (uint)_batchEdgeStamps.Length)
-        {
-            EnsureBatchEdgeCapacity(sourceArchetypeId + 1);
-        }
-
-        if (_batchEdgeStamps.RefAt(sourceArchetypeId) == stamp)
-        {
-            return _batchEdgeSlots.RefAt(sourceArchetypeId);
-        }
-
-        var edge = GetTransitionEdge(sourceArchetypeId, changeMask, isAdd, targetMask);
+        var edge = GetTransitionEdge(sourceArchetypeId, changeSet, isAdd);
         _batchEdgeSlots.RefAt(sourceArchetypeId) = edge;
         _batchEdgeStamps.RefAt(sourceArchetypeId) = stamp;
         return edge;
@@ -1947,22 +1917,29 @@ public sealed partial class World : IDisposable
 
     private readonly struct TransitionKey : IEquatable<TransitionKey>
     {
-        public TransitionKey(int sourceArchetypeId, ComponentMask changeMask, bool isAdd)
+        public TransitionKey(int sourceArchetypeId, ComponentSetId changeSetId, bool isAdd)
         {
             SourceArchetypeId = sourceArchetypeId;
-            ChangeMask = changeMask;
+            ChangeSetId = changeSetId;
             IsAdd = isAdd;
         }
 
         public int SourceArchetypeId { get; }
-        public ComponentMask ChangeMask { get; }
+        public ComponentSetId ChangeSetId { get; }
         public bool IsAdd { get; }
 
         public bool Equals(TransitionKey other) => SourceArchetypeId == other.SourceArchetypeId
-            && ChangeMask == other.ChangeMask && IsAdd == other.IsAdd;
+            && ChangeSetId == other.ChangeSetId && IsAdd == other.IsAdd;
 
         public override bool Equals(object? obj) => obj is TransitionKey other && Equals(other);
-        public override int GetHashCode() => HashCode.Combine(SourceArchetypeId, ChangeMask, IsAdd);
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = (SourceArchetypeId * 397) ^ ChangeSetId.Value;
+                return (hash * 397) ^ (IsAdd ? 1 : 0);
+            }
+        }
     }
 
     private readonly struct TransitionEdge
@@ -1970,16 +1947,22 @@ public sealed partial class World : IDisposable
         public TransitionEdge(
             int targetArchetypeId,
             int[] sourceToTargetRowIndices,
-            int[] addedTargetRowIndices)
+            int[] addedTargetRowIndices,
+            bool isNoOp = false)
         {
             TargetArchetypeId = targetArchetypeId;
             SourceToTargetRowIndices = sourceToTargetRowIndices;
             AddedTargetRowIndices = addedTargetRowIndices;
+            IsNoOp = isNoOp;
         }
 
         public int TargetArchetypeId { get; }
         public int[] SourceToTargetRowIndices { get; }
         public int[] AddedTargetRowIndices { get; }
+        public bool IsNoOp { get; }
+
+        public static TransitionEdge NoOp(int sourceArchetypeId)
+            => new(sourceArchetypeId, Array.Empty<int>(), Array.Empty<int>(), isNoOp: true);
     }
 
     private readonly struct DestroyEntry

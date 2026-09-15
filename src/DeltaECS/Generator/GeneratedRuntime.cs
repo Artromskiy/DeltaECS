@@ -579,17 +579,32 @@ public static class GeneratedForEachRuntime
         return query.Owner.CreateQuery(in composed);
     }
 
-    /// <summary>Resolves a primary component registration for a generated query composition.</summary>
+    /// <summary>Resolves and caches an ordered primary component set for generated code.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ComponentId GetGeneratedPrimary<T>(in Query query)
+    public static ReadOnlySpan<ComponentId> GetGeneratedPrimaryComponentIds<TKey>(
+        World world,
+        Func<World, ComponentId[]> resolver)
+    {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        ThrowHelper.ThrowIfNull(resolver, nameof(resolver));
+        return world.GetOrCreateComponentSet(typeof(TKey).TypeHandle, resolver).ComponentIds;
+    }
+
+    /// <summary>Resolves and caches an ordered primary component set owned by a generated query.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ReadOnlySpan<ComponentId> GetGeneratedPrimaryComponentIds<TKey>(
+        in Query query,
+        Func<World, ComponentId[]> resolver)
     {
         if (!query.IsValid)
         {
             ThrowHelper.ThrowInvalidEntityQueryHandle();
         }
 
-        return query.Owner.Layouts.GetPrimary<T>();
+        ThrowHelper.ThrowIfNull(resolver, nameof(resolver));
+        return query.Owner.GetOrCreateComponentSet(typeof(TKey).TypeHandle, resolver).ComponentIds;
     }
 
     /// <summary>Executes a generated predicate and immediately destroys its matches.</summary>

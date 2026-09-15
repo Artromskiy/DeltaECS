@@ -26,7 +26,7 @@ internal static class GeneratedStructuralTemplates
             declaration,
             body,
             "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        string members = GeneratorTemplates.JoinNonEmpty(new[]
+        string extensionMembers = GeneratorTemplates.JoinNonEmpty(new[]
         {
             method,
             shape.HasValues
@@ -38,14 +38,23 @@ internal static class GeneratedStructuralTemplates
                 : string.Empty
         }, "\n\n");
 
-        string member = GeneratorTemplates.ExtensionTemplate(
+        string extension = GeneratorTemplates.ExtensionTemplate(
             $$"""GeneratedStructuralExtensions_{{hash}}""",
             isInternal: false,
-            GeneratorTemplates.Indent(members, "    "));
+            GeneratorTemplates.Indent(extensionMembers, "    "));
+        string[] members = new[]
+            {
+                slots.HasExplicitIds
+                    ? null
+                    : GeneratorTemplates.PrimaryComponentSetKeyDeclaration(slots.Arity),
+                extension
+            }
+            .OfType<string>()
+            .ToArray();
         return GeneratorTemplates.FileTemplate(new GeneratedFileModel(
             "Delta.ECS",
             ImmutableArray<string>.Empty,
-            ImmutableArray.Create(member)));
+            members.ToImmutableArray()));
     }
 
     private static IEnumerable<string> ParameterFragments(StructuralModel shape, SignatureProjection slots)
@@ -151,9 +160,15 @@ internal static class GeneratedStructuralTemplates
 
     private static string RenderComponents(StructuralModel shape, SignatureProjection slots)
     {
-        string assignments = slots.HasExplicitIds
-            ? RenderComponentAssignments("components", slots, "component")
-            : RenderPrimaryAssignments("target.Layouts", "components", slots);
+        if (!slots.HasExplicitIds)
+        {
+            string components = GeneratorTemplates.PrimaryComponentIds(
+                "target",
+                GeneratorTemplates.Indexed(slots.Arity, index => slots.GenericType(index)).ToArray());
+            return $$"""global::System.ReadOnlySpan<ComponentId> components = {{components}};""";
+        }
+
+        string assignments = RenderComponentAssignments("components", slots, "component");
         return $$"""
             global::System.Span<ComponentId> components = stackalloc ComponentId[{{slots.Arity}}];
             {{assignments}}
@@ -162,9 +177,6 @@ internal static class GeneratedStructuralTemplates
 
     private static string RenderComponentAssignments(string destination, SignatureProjection slots, string parameterPrefix)
         => GeneratorTemplates.JoinIndexed(slots.Arity, index => $$"""{{destination}}[{{index}}] = {{parameterPrefix}}{{index}};""", "\n");
-
-    private static string RenderPrimaryAssignments(string registry, string destination, SignatureProjection slots)
-        => GeneratorTemplates.JoinIndexed(slots.Arity, index => $$"""{{destination}}[{{index}}] = {{registry}}.GetPrimary<{{slots.GenericType(index)}}>();""", "\n");
 
     private static string MethodName(StructuralModel shape)
         => shape.Operation switch

@@ -19,6 +19,30 @@ public sealed class ComponentSetCacheTests
 
         Assert.That(second, Is.SameAs(first));
         Assert.That(second.Mask, Is.EqualTo(first.Mask));
+        Assert.That(first.Id.IsValid, Is.True);
+        Assert.That(second.Id, Is.EqualTo(first.Id));
+        Assert.That(world.TryGetComponentSet(first.Id, out ComponentSet? cached), Is.True);
+        Assert.That(cached, Is.SameAs(first));
+    }
+
+    [Test]
+    public void EquivalentSelectorsWithDifferentOrderShareOneSetIdentity()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(90_005));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(90_006));
+        using var world = new World(layouts);
+
+        ComponentSet forward = world.GetOrCreateComponentSet(new[] { positionId, velocityId });
+        ComponentSet reverse = world.GetOrCreateComponentSet(new[] { velocityId, positionId });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(reverse, Is.Not.SameAs(forward));
+            Assert.That(reverse.Id, Is.EqualTo(forward.Id));
+            Assert.That(forward.ComponentIds[0], Is.EqualTo(positionId));
+            Assert.That(reverse.ComponentIds[0], Is.EqualTo(velocityId));
+        });
     }
 
     [Test]
@@ -30,23 +54,29 @@ public sealed class ComponentSetCacheTests
         using var world = new World(layouts);
         int factoryCalls = 0;
 
-        ComponentSet first = world.GetOrCreateComponentSet(
-            typeof(TypedSetKey).TypeHandle,
+        ReadOnlySpan<ComponentId> first = GeneratedForEachRuntime.GetGeneratedPrimaryComponentIds<TypedSetKey>(
+            world,
             _ =>
             {
                 factoryCalls++;
                 return new[] { positionId, velocityId };
             });
-        ComponentSet second = world.GetOrCreateComponentSet(
-            typeof(TypedSetKey).TypeHandle,
+        ReadOnlySpan<ComponentId> second = GeneratedForEachRuntime.GetGeneratedPrimaryComponentIds<TypedSetKey>(
+            world,
             _ =>
             {
                 factoryCalls++;
                 return new[] { positionId, velocityId };
             });
 
-        Assert.That(second, Is.SameAs(first));
+        Assert.That(second.Length, Is.EqualTo(2));
+        Assert.That(second[0], Is.EqualTo(first[0]));
+        Assert.That(second[1], Is.EqualTo(first[1]));
         Assert.That(factoryCalls, Is.EqualTo(1));
+
+        ComponentSet positional = world.GetOrCreateComponentSet(first);
+        Assert.That(world.TryGetComponentSet(positional.Id, out ComponentSet? cached), Is.True);
+        Assert.That(cached, Is.SameAs(positional));
     }
 
     [Test]

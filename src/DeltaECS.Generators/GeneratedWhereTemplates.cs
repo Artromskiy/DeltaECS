@@ -343,16 +343,18 @@ internal static class GeneratedWhereTemplates
             .Concat(GeneratorTemplates.Indexed(shape.Arity, index =>
                 $"global::Delta.ECS.GeneratedForEachRuntime.Get{(shape.ComponentModels[index].IsWrite ? "Write" : "Read")}QueryComponentIndex(access{index})"))
             .Where(static argument => argument.Length != 0));
-        string componentSetup = terminal.Kind is TerminalKind.Add or TerminalKind.Remove
-            ? GeneratorTemplates.JoinNonEmpty(new[]
-            {
-                $"global::System.Span<global::Delta.ECS.ComponentId> components = stackalloc global::Delta.ECS.ComponentId[{terminal.Arity}];",
-                GeneratorTemplates.JoinIndexed(terminal.Arity, index =>
-                    terminalSlots.HasExplicitIds
-                        ? $$"""components[{{index}}] = component{{index}};"""
-                        : $$"""components[{{index}}] = world.Layouts.GetPrimary<{{site.ActionComponents[index]}}>();""", "\n")
-            })
-            : string.Empty;
+        string componentSetup = terminal.Kind is not (TerminalKind.Add or TerminalKind.Remove)
+            ? string.Empty
+            : terminalSlots.HasExplicitIds
+                ? GeneratorTemplates.JoinNonEmpty(new[]
+                {
+                    $"global::System.Span<global::Delta.ECS.ComponentId> components = stackalloc global::Delta.ECS.ComponentId[{terminal.Arity}];",
+                    GeneratorTemplates.JoinIndexed(
+                        terminal.Arity,
+                        static index => $$"""components[{{index}}] = component{{index}};""",
+                        "\n")
+                })
+                : $$"""global::System.ReadOnlySpan<global::Delta.ECS.ComponentId> components = {{GeneratorTemplates.PrimaryComponentIds("world", site.ActionComponents)}};""";
 
         string operationName = terminal.Kind switch
         {
@@ -423,18 +425,23 @@ internal static class GeneratedWhereTemplates
             })
             .OfType<string>()
             .ToArray();
-        string[] members = new[]
-        {
-            predicate.Length == 0 ? null : predicate
-        }
-        .Concat(terminalMembers)
-        .Append(GeneratorTemplates.RenderBlock(ViewDeclaration(shape, hash), RenderViewBody(shape, hash)))
-        .Append(GeneratorTemplates.ExtensionTemplate(
-            "GeneratedWhereExtensions_" + hash,
-            shape.IsFunctor,
-            RenderExtensionBody(shape, hash)))
-        .OfType<string>()
-        .ToArray();
+        IEnumerable<string> componentSetKeys = shape.Terminals.Ordered()
+            .Where(static terminal => terminal.Kind is TerminalKind.Add or TerminalKind.Remove
+                && !terminal.Api.Signature.HasExplicitIds)
+            .Select(static terminal => terminal.Arity)
+            .Distinct()
+            .OrderBy(static arity => arity)
+            .Select(GeneratorTemplates.PrimaryComponentSetKeyDeclaration);
+        string[] members = componentSetKeys
+            .Concat(new[] { predicate.Length == 0 ? null : predicate })
+            .Concat(terminalMembers)
+            .Append(GeneratorTemplates.RenderBlock(ViewDeclaration(shape, hash), RenderViewBody(shape, hash)))
+            .Append(GeneratorTemplates.ExtensionTemplate(
+                "GeneratedWhereExtensions_" + hash,
+                shape.IsFunctor,
+                RenderExtensionBody(shape, hash)))
+            .OfType<string>()
+            .ToArray();
         return GeneratorTemplates.FileTemplate(new GeneratedFileModel(
             "Delta.ECS",
             ImmutableArray.Create("using global::System;"),
@@ -916,11 +923,20 @@ internal static class GeneratedWhereTemplates
 
         if (terminal.Kind is TerminalKind.Add or TerminalKind.Remove)
         {
-            body.Add($"Span<ComponentId> components = stackalloc ComponentId[{terminal.Arity}];");
-            body.AddRange(GeneratorTemplates.Indexed(terminal.Arity, index =>
-                terminalSlots.HasExplicitIds
-                    ? $$"""components[{{index}}] = component{{index}};"""
-                    : $$"""components[{{index}}] = _world.Layouts.GetPrimary<U{{index + 1}}>();"""));
+            if (terminalSlots.HasExplicitIds)
+            {
+                body.Add($"Span<ComponentId> components = stackalloc ComponentId[{terminal.Arity}];");
+                body.AddRange(GeneratorTemplates.Indexed(
+                    terminal.Arity,
+                    static index => $$"""components[{{index}}] = component{{index}};"""));
+            }
+            else
+            {
+                string components = GeneratorTemplates.PrimaryComponentIds(
+                    "_world",
+                    GeneratorTemplates.Indexed(terminal.Arity, index => terminalSlots.GenericType(index, "U")).ToArray());
+                body.Add($"global::System.ReadOnlySpan<ComponentId> components = {components};");
+            }
         }
 
         if (terminal.HasValues)

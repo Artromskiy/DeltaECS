@@ -15,6 +15,23 @@ internal static partial class GeneratorTemplates
     internal static IEnumerable<string> Indexed(int count, Func<int, bool> include, Func<int, string> render) => Enumerable.Range(0, count).Where(include).Select(render);
 
     internal static IEnumerable<int> WriteIndices(IReadOnlyList<ComponentModel> components) => Enumerable.Range(0, components.Count).Where(index => components[index].IsWrite);
+
+    internal static string PrimaryComponentIds(
+        string owner,
+        IReadOnlyList<string> componentTypes,
+        bool query = false)
+    {
+        string key = "global::Delta.ECS.GeneratedPrimaryComponentSetKey"
+            + SignatureProjection.TypeArguments(componentTypes);
+        string registrations = string.Join(", ", componentTypes.Select(
+            static type => "cacheWorld.Layouts.GetPrimary<" + type + ">()"));
+        string target = query ? "in " + owner : owner;
+        return $$"""global::Delta.ECS.GeneratedForEachRuntime.GetGeneratedPrimaryComponentIds<{{key}}>({{target}}, static cacheWorld => new global::Delta.ECS.ComponentId[] { {{registrations}} })""";
+    }
+
+    internal static string PrimaryComponentSetKeyDeclaration(int arity)
+        => $$"""internal sealed partial class GeneratedPrimaryComponentSetKey{{SignatureProjection.TypeArguments(JoinIndexed(arity, index => "T" + (index + 1)))}} { }""";
+
     internal static string WriteSpan(IEnumerable<ComponentModel> components)
     {
         string indices = string.Join(", ", components.Select((component, index) => component.IsWrite ? $"GeneratedForEachRuntime.GetWriteQueryComponentIndex(access{index})" : string.Empty).Where(static value => value.Length != 0));

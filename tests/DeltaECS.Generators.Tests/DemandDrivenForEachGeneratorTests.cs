@@ -677,8 +677,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("public static int Add<T1, T2>(this World target"));
         Assert.That(generated, Does.Contain("public static int Remove<T1, T2>(this World target"));
         Assert.That(generated, Does.Contain("public static int Create<T1, T2>(this World target"));
-        Assert.That(generated, Does.Contain("GetPrimary<T1>()"));
-        Assert.That(generated, Does.Contain("stackalloc ComponentId[2]"));
+        Assert.That(generated, Does.Contain("GetGeneratedPrimaryComponentIds<global::Delta.ECS.GeneratedPrimaryComponentSetKey<T1, T2>>"));
 
         AssertCompiles(new[] { RuntimeStubSource, StructuralSource }, run.GeneratedTrees);
     }
@@ -723,7 +722,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("public static Query WhereAll<T1, T2>(this World world)"));
         Assert.That(generated, Does.Contain("public static Query WhereAny<T1, T2, T3>(this World world)"));
         Assert.That(generated, Does.Contain("public static Query WhereNone<T1>(this World world)"));
-        Assert.That(generated, Does.Contain("world.Layouts.GetPrimary<T1>()"));
+        Assert.That(generated, Does.Contain("GetGeneratedPrimaryComponentIds<global::Delta.ECS.GeneratedPrimaryComponentSetKey<T1, T2>>"));
         Assert.That(generated, Does.Contain("QuerySpec.WhereAny(components)"));
 
         AssertCompiles(new[] { RuntimeStubSource, GenericQuerySource }, run.GeneratedTrees);
@@ -1366,7 +1365,8 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static int GetPreparedWriteRoute<T>(in Query query, ComponentId component) => default;
             public static void ValidateGeneratedWhere(World world, in Query query) { }
             public static Query ComposeGeneratedQuery(in Query query, QuerySpec additions) => default;
-            public static ComponentId GetGeneratedPrimary<T>(in Query query) => default;
+            public static ReadOnlySpan<ComponentId> GetGeneratedPrimaryComponentIds<TKey>(World world, Func<World, ComponentId[]> resolver) => resolver(world);
+            public static ReadOnlySpan<ComponentId> GetGeneratedPrimaryComponentIds<TKey>(in Query query, Func<World, ComponentId[]> resolver) => default;
             public static int ExecuteGeneratedWhereDestroy<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices)
                 where TInvoker : struct, IGeneratedWhereStructuralInvoker => 0;
             public static int ExecuteGeneratedWhereAdd<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, ReadOnlySpan<ComponentId> componentIds)

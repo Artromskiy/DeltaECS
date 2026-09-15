@@ -42,7 +42,10 @@ internal static class DemandDrivenForEachTemplates
             $$"""DemandForEachExtensions_{{GeneratorSupport.StableName(shape.Key)}}""",
             shape.IsFunctor,
             RenderExtensionsBody(model));
-        string[] members = new[] { contracts, stampWriter, invoker, extension }
+        string? componentSetKey = !shape.HasQuery && !shape.Api.Signature.HasExplicitIds
+            ? GeneratorTemplates.PrimaryComponentSetKeyDeclaration(shape.Api.Selector.Arity)
+            : null;
+        string[] members = new[] { componentSetKey, contracts, stampWriter, invoker, extension }
             .OfType<string>()
             .ToArray();
         return GeneratorTemplates.FileTemplate(new GeneratedFileModel(
@@ -718,13 +721,16 @@ internal static class DemandDrivenForEachTemplates
         }
         string query = shape.HasQuery
             ? string.Empty
-            : $$"""
+            : slots.HasExplicitIds
+                ? $$"""
                     global::Delta.ECS.Query query = world.WhereAll(stackalloc global::Delta.ECS.ComponentId[]
                     {
-                        {{(slots.HasExplicitIds
-                            ? slots.ComponentIdArguments()
-                            : string.Join(", ", shape.Components.Select(component => "world.Layouts.GetPrimary(typeof(" + component + "))")))}}
+                        {{slots.ComponentIdArguments()}}
                     });
+                """
+                : $$"""
+                    global::System.ReadOnlySpan<global::Delta.ECS.ComponentId> components = {{GeneratorTemplates.PrimaryComponentIds("world", shape.Components)}};
+                    global::Delta.ECS.Query query = world.WhereAll(components);
                 """;
         var invocation = new List<string> { "world" };
         if (shape.HasEntityTarget)
@@ -945,8 +951,18 @@ internal static class DemandDrivenForEachTemplates
         var lines = new List<string> { "{" };
         if (!shape.HasQuery)
         {
-            string queryComponents = slots.HasExplicitIds ? slots.ComponentIdArguments() : PrimaryArguments(shape);
-            lines.Add($"    Query query = world.WhereAll(stackalloc ComponentId[] {{ {queryComponents} }});");
+            if (slots.HasExplicitIds)
+            {
+                lines.Add($"    Query query = world.WhereAll(stackalloc ComponentId[] {{ {slots.ComponentIdArguments()} }});");
+            }
+            else
+            {
+                string components = GeneratorTemplates.PrimaryComponentIds(
+                    "world",
+                    GeneratorTemplates.Indexed(shape.ComponentModels.Length, index => ComponentType(shape, index)).ToArray());
+                lines.Add($"    global::System.ReadOnlySpan<ComponentId> components = {components};");
+                lines.Add("    Query query = world.WhereAll(components);");
+            }
         }
         string indent = "    ";
         if (profiling)
@@ -1049,19 +1065,6 @@ internal static class DemandDrivenForEachTemplates
             }.Where(static value => !string.IsNullOrEmpty(value)));
             return $"{variable} = GeneratedForEachRuntime.{method}{generic}({arguments});";
         }));
-    }
-
-    private static string PrimaryArguments(IterationModel shape)
-    {
-        var result = new string[shape.ComponentModels.Length];
-        const string owner = "world";
-        for (int index = 0; index < shape.ComponentModels.Length; index++)
-        {
-            string componentType = ComponentType(shape, index);
-            result[index] = owner + ".Layouts.GetPrimary(typeof(" + componentType + "))";
-        }
-
-        return string.Join(", ", result);
     }
 
     private static string ActionType(IterationModel shape)

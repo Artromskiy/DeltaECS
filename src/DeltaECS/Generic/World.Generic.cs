@@ -281,7 +281,7 @@ public sealed partial class World
     private int AddComponentBatch<T>(ReadOnlySpan<Entity> entities, ComponentId componentId, in T value)
     {
         EnsureNoActiveLease("add components");
-        ComponentMask changeMask = GetOrCreateComponentSet(stackalloc[] { componentId }).Mask;
+        ComponentSet changeSet = GetOrCreateComponentSet(stackalloc[] { componentId });
         int edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
         int changed = 0;
         Chunk? pendingChunk = null;
@@ -298,15 +298,14 @@ public sealed partial class World
 
             ref readonly var record = ref RecordAt(recordIndex);
             var sourceArchetype = _archetypes[GetRecordChunk(record).ArchetypeId];
-            if (sourceArchetype.Contains(componentId))
+            var edge = edgeStamp == 0
+                ? GetTransitionEdge(sourceArchetype.Id, changeSet, true)
+                : GetBatchTransitionEdge(sourceArchetype.Id, changeSet, true, edgeStamp);
+            if (edge.IsNoOp)
             {
                 continue;
             }
 
-            ComponentMask targetMask = sourceArchetype.Mask.Or(changeMask);
-            var edge = edgeStamp == 0
-                ? GetTransitionEdge(sourceArchetype.Id, changeMask, true, targetMask)
-                : GetBatchTransitionEdge(sourceArchetype.Id, changeMask, true, targetMask, edgeStamp);
             MoveEntity(recordIndex, edge, out _, out int targetSlotIndex);
 
             ref readonly var targetRecord = ref RecordAt(recordIndex);
@@ -351,14 +350,13 @@ public sealed partial class World
         ref readonly var record = ref RecordAt(recordIndex);
         Chunk sourceChunk = GetRecordChunk(record);
         Archetype sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
-        ComponentMask changeMask = GetOrCreateComponentSet(componentIds).Mask;
-        ComponentMask targetMask = sourceArchetype.Mask.Or(changeMask);
-        if (targetMask == sourceArchetype.Mask)
+        ComponentSet changeSet = GetOrCreateComponentSet(componentIds);
+        TransitionEdge edge = GetTransitionEdge(sourceArchetype.Id, changeSet, true);
+        if (edge.IsNoOp)
         {
             return false;
         }
 
-        TransitionEdge edge = GetTransitionEdge(sourceArchetype.Id, changeMask, true, targetMask);
         MoveEntity(recordIndex, edge, out _, out int targetSlotIndex);
 
         ref readonly var targetRecord = ref RecordAt(recordIndex);
@@ -427,7 +425,7 @@ public sealed partial class World
     private int RemoveComponentBatch<T>(ReadOnlySpan<Entity> entities, ComponentId componentId)
     {
         EnsureNoActiveLease("remove components");
-        ComponentMask changeMask = GetOrCreateComponentSet(stackalloc[] { componentId }).Mask;
+        ComponentSet changeSet = GetOrCreateComponentSet(stackalloc[] { componentId });
         int edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
         int changed = 0;
         for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
@@ -440,15 +438,14 @@ public sealed partial class World
 
             ref readonly var record = ref RecordAt(recordIndex);
             var sourceArchetype = _archetypes[GetRecordChunk(record).ArchetypeId];
-            if (!sourceArchetype.Contains(componentId))
+            var edge = edgeStamp == 0
+                ? GetTransitionEdge(sourceArchetype.Id, changeSet, false)
+                : GetBatchTransitionEdge(sourceArchetype.Id, changeSet, false, edgeStamp);
+            if (edge.IsNoOp)
             {
                 continue;
             }
 
-            ComponentMask targetMask = sourceArchetype.Mask.Except(changeMask);
-            var edge = edgeStamp == 0
-                ? GetTransitionEdge(sourceArchetype.Id, changeMask, false, targetMask)
-                : GetBatchTransitionEdge(sourceArchetype.Id, changeMask, false, targetMask, edgeStamp);
             MoveEntity(recordIndex, edge);
             changed++;
         }
