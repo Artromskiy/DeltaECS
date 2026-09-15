@@ -4,6 +4,17 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 
+internal sealed class RuntimeTypeHandleComparer : IEqualityComparer<RuntimeTypeHandle>
+{
+    internal static readonly RuntimeTypeHandleComparer Instance = new();
+
+    bool IEqualityComparer<RuntimeTypeHandle>.Equals(RuntimeTypeHandle x, RuntimeTypeHandle y)
+        => x.Value == y.Value;
+
+    int IEqualityComparer<RuntimeTypeHandle>.GetHashCode(RuntimeTypeHandle obj)
+        => obj.Value.GetHashCode();
+}
+
 internal readonly struct ComponentSetId : IEquatable<ComponentSetId>
 {
     internal ComponentSetId(int value)
@@ -73,7 +84,8 @@ internal sealed class ComponentSet
 /// <summary>World-owned cache for immutable component sets.</summary>
 internal sealed class ComponentSetCache
 {
-    private readonly Dictionary<RuntimeTypeHandle, ComponentSet> _typed = new();
+    private readonly Dictionary<RuntimeTypeHandle, ComponentSet> _typed =
+        new(RuntimeTypeHandleComparer.Instance);
     private readonly Dictionary<int, List<ComponentSet>> _dynamic = new();
     private readonly Dictionary<ComponentMask, ComponentSetId> _idsByMask = new();
     private ComponentSet?[] _setsById = new ComponentSet?[4];

@@ -47,16 +47,6 @@ internal sealed class QueryPlan
     private readonly WriteAccess[] _preparedWriteAccessesByComponent;
     private int _matchingCount;
     private int _matchingVersion;
-    private sealed class RuntimeTypeHandleComparer : IEqualityComparer<RuntimeTypeHandle>
-    {
-        internal static readonly RuntimeTypeHandleComparer Instance = new();
-
-        bool IEqualityComparer<RuntimeTypeHandle>.Equals(RuntimeTypeHandle x, RuntimeTypeHandle y)
-            => x.Value == y.Value;
-
-        int IEqualityComparer<RuntimeTypeHandle>.GetHashCode(RuntimeTypeHandle obj)
-            => obj.Value.GetHashCode();
-    }
 
     internal QueryPlan(World world, QuerySpec spec)
     {

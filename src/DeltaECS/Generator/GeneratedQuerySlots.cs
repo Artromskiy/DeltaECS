@@ -10,6 +10,7 @@ public ref struct GeneratedQuerySlots
 {
     private readonly World _world;
     private readonly Chunk _chunk;
+    private readonly Span<Entity> _entities;
     private readonly Array[] _resolvedRowsByQuery;
     private readonly int[] _componentIndices;
     private readonly int _count;
@@ -29,6 +30,7 @@ public ref struct GeneratedQuerySlots
     {
         _world = world;
         _chunk = chunkPlan.Chunk;
+        _entities = _chunk.RawEntities;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
         _componentIndices = chunkPlan.ComponentIndices;
         _count = count;
@@ -49,7 +51,7 @@ public ref struct GeneratedQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public Entity EntityAt(int index)
-        => _chunk.RawEntities.RefAt(_offset + index);
+        => _entities.RefAt(_offset + index);
 
     /// <summary>Gets the trusted first element of a validated read row.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -98,6 +100,7 @@ public ref struct GeneratedReadQuerySlots
 {
     private readonly World _world;
     private readonly Chunk _chunk;
+    private readonly ReadOnlySpan<Entity> _entities;
     private readonly Array[] _resolvedRowsByQuery;
     private readonly int[] _componentIndices;
     private readonly int _count;
@@ -106,6 +109,7 @@ public ref struct GeneratedReadQuerySlots
     {
         _world = world;
         _chunk = chunkPlan.Chunk;
+        _entities = _chunk.RawEntities;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
         _componentIndices = chunkPlan.ComponentIndices;
         _count = chunkPlan.Chunk.Count;
@@ -119,7 +123,7 @@ public ref struct GeneratedReadQuerySlots
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity EntityAt(int index)
-        => _chunk.RawEntities.RefAt(index);
+        => _entities.RefAt(index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetGeneratedReadReference<T>(int queryComponentIndex)
