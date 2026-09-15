@@ -22,6 +22,7 @@ internal sealed class Archetype
     private NativeMemory<int> _activeChunkPositions = new(0);
     private readonly List<QueryPlanLink> _queryPlans = new();
     private int _activeChunkCount;
+    private int _chunkTopologyVersion;
     private bool _deferQueryPlanUpdates;
     private int _blockPartialCandidateCount;
     private int _blockEmptyCandidateCount;
@@ -60,6 +61,8 @@ internal sealed class Archetype
 
     internal int ActiveChunkCount => _activeChunkCount;
 
+    internal int ChunkTopologyVersion => _chunkTopologyVersion;
+
     internal void Attach(QueryPlan query, int planIndex)
     {
         CompactDeadQueryPlanLinks();
@@ -68,7 +71,7 @@ internal sealed class Archetype
 
     internal void DeferQueryPlanUpdates() => _deferQueryPlanUpdates = true;
 
-    internal void RefreshQueryPlans()
+    internal void RefreshQueryPlans(List<QueryPlan>? dirtyPlans = null)
     {
         if (!_deferQueryPlanUpdates)
         {
@@ -81,7 +84,7 @@ internal sealed class Archetype
             QueryPlanLink link = _queryPlans[index];
             if (link.Query.TryGetTarget(out QueryPlan? query))
             {
-                query.RefreshArchetype(link.PlanIndex, this);
+                query.RefreshArchetype(link.PlanIndex, this, dirtyPlans);
                 index++;
             }
             else
@@ -569,6 +572,7 @@ internal sealed class Archetype
         int activePosition = _activeChunkCount;
         var chunk = _chunks[chunkIndex];
         _activeChunks.RefAt(_activeChunkCount++) = chunk;
+        IncrementChunkTopologyVersion();
         if (_deferQueryPlanUpdates)
         {
             return;
@@ -609,6 +613,7 @@ internal sealed class Archetype
         _activeChunkIndices.RefAt(lastPosition) = -1;
         _activeChunks.RefAt(lastPosition) = null!;
         _activeChunkPositions.RefAt(chunkIndex) = -1;
+        IncrementChunkTopologyVersion();
         if (_deferQueryPlanUpdates)
         {
             return;
@@ -654,6 +659,10 @@ internal sealed class Archetype
             }
         }
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void IncrementChunkTopologyVersion()
+        => _chunkTopologyVersion = _chunkTopologyVersion == int.MaxValue ? 1 : _chunkTopologyVersion + 1;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal Chunk GetChunk(int chunkIndex) => _chunks[chunkIndex];

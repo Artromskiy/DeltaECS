@@ -1,6 +1,7 @@
 namespace Delta.ECS;
 
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
 /// <summary>Non-generic query access token for a read row.</summary>
@@ -47,7 +48,7 @@ internal sealed class QueryPlan
     private readonly WriteAccess[] _preparedWriteAccessesByComponent;
     private int _matchingCount;
     private int _matchingVersion;
-
+    private bool _matchingChunkPlansDirty;
     internal QueryPlan(World world, QuerySpec spec)
     {
         _owner = world;
@@ -209,30 +210,66 @@ internal sealed class QueryPlan
         _matchingArchetypes.RefAt(_matchingCount) = archetype.Id;
         _matchingPlans.RefAt(_matchingCount) = plan;
         _planIndicesByArchetype.RefAt(archetype.Id) = _matchingCount++;
-        RebuildMatchingChunkPlans();
+        AppendMatchingChunkPlans(planIndex, plan);
         _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
         archetype.Attach(this, planIndex);
     }
 
     internal void OnChunkActivated(int planIndex, Chunk chunk, int activePosition)
     {
-        _matchingPlans.RefAt(planIndex).OnChunkActivated(chunk, activePosition);
-        RebuildMatchingChunkPlans();
+        ref ArchetypePlan plan = ref _matchingPlans.RefAt(planIndex);
+        int previousChunkCount = plan.ChunkCount;
+        plan.OnChunkActivated(chunk, activePosition);
+        plan.SetChunkTopologyVersion(plan.Archetype.ChunkTopologyVersion);
+        SynchronizeMatchingChunkPlans(planIndex, previousChunkCount);
         _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
     }
 
     internal void OnChunkDeactivated(int planIndex, int activePosition, int lastPosition)
     {
-        _matchingPlans.RefAt(planIndex).OnChunkDeactivated(activePosition, lastPosition);
-        RebuildMatchingChunkPlans();
+        ref ArchetypePlan plan = ref _matchingPlans.RefAt(planIndex);
+        int previousChunkCount = plan.ChunkCount;
+        plan.OnChunkDeactivated(activePosition, lastPosition);
+        plan.SetChunkTopologyVersion(plan.Archetype.ChunkTopologyVersion);
+        SynchronizeMatchingChunkPlans(planIndex, previousChunkCount);
         _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
     }
 
-    internal void RefreshArchetype(int planIndex, Archetype archetype)
+    internal void RefreshArchetype(
+        int planIndex,
+        Archetype archetype,
+        List<QueryPlan>? dirtyPlans = null)
     {
-        _matchingPlans.RefAt(planIndex).RefreshChunks(archetype);
-        RebuildMatchingChunkPlans();
-        _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
+        ref ArchetypePlan plan = ref _matchingPlans.RefAt(planIndex);
+        int previousChunkCount = plan.ChunkCount;
+        if (!plan.RefreshChunks(archetype))
+        {
+            return;
+        }
+
+        SynchronizeMatchingChunkPlans(planIndex, previousChunkCount);
+        if (dirtyPlans is null)
+        {
+            IncrementMatchingVersion();
+            return;
+        }
+
+        if (!_matchingChunkPlansDirty)
+        {
+            _matchingChunkPlansDirty = true;
+            dirtyPlans.Add(this);
+        }
+    }
+
+    internal void CompleteChunkPlanRefresh()
+    {
+        if (!_matchingChunkPlansDirty)
+        {
+            return;
+        }
+
+        _matchingChunkPlansDirty = false;
+        IncrementMatchingVersion();
     }
 
     internal void Dispose()
@@ -245,6 +282,7 @@ internal sealed class QueryPlan
         _matchingCount = 0;
         _matchingChunkCount = 0;
         _matchingVersion = 0;
+        _matchingChunkPlansDirty = false;
         _primaryReadRoutesByType.Clear();
         _preparedReadAccessesByComponent.AsSpan().Clear();
         _preparedWriteAccessesByComponent.AsSpan().Clear();
@@ -314,46 +352,92 @@ internal sealed class QueryPlan
         Array.Resize(ref _matchingPlans, capacity);
     }
 
-    private void RebuildMatchingChunkPlans()
+    private void AppendMatchingChunkPlans(int planIndex, in ArchetypePlan plan)
     {
-        int required = 0;
-        Span<ArchetypePlan> matchingPlans = _matchingPlans;
-        int matchingCount = _matchingCount;
-        for (int planIndex = 0; planIndex < matchingCount; planIndex++)
+        int count = plan.ChunkCount;
+        EnsureMatchingChunkPlanCapacity(_matchingChunkCount + count);
+        if (count == 0)
         {
-            required = checked(required + matchingPlans.RefAt(planIndex).ChunkCount);
+            return;
         }
 
-        if (required > _matchingChunkPlans.Length)
+        plan.ChunkArray.AsSpan(0, count).CopyTo(_matchingChunkPlans.AsSpan(_matchingChunkCount, count));
+        _matchingChunkPlanIndices.AsSpan(_matchingChunkCount, count).Fill(planIndex);
+        _matchingChunkCount += count;
+    }
+
+    private void SynchronizeMatchingChunkPlans(int planIndex, int previousChunkCount)
+    {
+        ref ArchetypePlan plan = ref _matchingPlans.RefAt(planIndex);
+        int currentChunkCount = plan.ChunkCount;
+        int start = 0;
+        for (int index = 0; index < planIndex; index++)
         {
-            int capacity = Math.Max(required, _matchingChunkPlans.Length == 0 ? 4 : _matchingChunkPlans.Length * 2);
-            Array.Resize(ref _matchingChunkPlans, capacity);
-            Array.Resize(ref _matchingChunkPlanIndices, capacity);
+            start += _matchingPlans.RefAt(index).ChunkCount;
         }
 
-        int count = 0;
-        Span<ChunkPlan> matchingChunkPlans = _matchingChunkPlans;
-        Span<int> matchingChunkPlanIndices = _matchingChunkPlanIndices;
-        for (int planIndex = 0; planIndex < matchingCount; planIndex++)
+        int delta = currentChunkCount - previousChunkCount;
+        if (delta > 0)
         {
-            ArchetypePlan plan = matchingPlans.RefAt(planIndex);
-            int planChunkCount = plan.ChunkCount;
-            if (planChunkCount == 0)
+            EnsureMatchingChunkPlanCapacity(_matchingChunkCount + delta);
+            int tailCount = _matchingChunkCount - start - previousChunkCount;
+            _matchingChunkPlans.AsSpan(start + previousChunkCount, tailCount)
+                .CopyTo(_matchingChunkPlans.AsSpan(start + currentChunkCount, tailCount));
+            _matchingChunkPlanIndices.AsSpan(start + previousChunkCount, tailCount)
+                .CopyTo(_matchingChunkPlanIndices.AsSpan(start + currentChunkCount, tailCount));
+            _matchingChunkCount += delta;
+        }
+        else if (delta < 0)
+        {
+            int tailCount = _matchingChunkCount - start - previousChunkCount;
+            _matchingChunkPlans.AsSpan(start + previousChunkCount, tailCount)
+                .CopyTo(_matchingChunkPlans.AsSpan(start + currentChunkCount, tailCount));
+            _matchingChunkPlanIndices.AsSpan(start + previousChunkCount, tailCount)
+                .CopyTo(_matchingChunkPlanIndices.AsSpan(start + currentChunkCount, tailCount));
+            _matchingChunkCount += delta;
+            _matchingChunkPlans.AsSpan(_matchingChunkCount, -delta).Clear();
+        }
+
+        if (currentChunkCount == 0)
+        {
+            return;
+        }
+
+        ReadOnlySpan<ChunkPlan> refreshed = plan.ChunkArray.AsSpan(0, currentChunkCount);
+        Span<ChunkPlan> current = _matchingChunkPlans.AsSpan(start, currentChunkCount);
+        for (int index = 0; index < currentChunkCount; index++)
+        {
+            ChunkPlan next = refreshed.RefAt(index);
+            ChunkPlan previous = current.RefAt(index);
+            if (!ReferenceEquals(previous.Chunk, next.Chunk)
+                || !ReferenceEquals(previous.ComponentRows, next.ComponentRows))
             {
-                continue;
+                current.RefAt(index) = next;
             }
-
-            plan.ChunkArray.AsSpan(0, planChunkCount).CopyTo(matchingChunkPlans.Slice(count, planChunkCount));
-            matchingChunkPlanIndices.Slice(count, planChunkCount).Fill(planIndex);
-            count += planChunkCount;
         }
 
-        _matchingChunkCount = count;
+        _matchingChunkPlanIndices.AsSpan(start, currentChunkCount).Fill(planIndex);
+    }
+
+    private void EnsureMatchingChunkPlanCapacity(int required)
+    {
+        if (required <= _matchingChunkPlans.Length)
+        {
+            return;
+        }
+
+        int capacity = Math.Max(required, _matchingChunkPlans.Length == 0 ? 4 : _matchingChunkPlans.Length * 2);
+        Array.Resize(ref _matchingChunkPlans, capacity);
+        Array.Resize(ref _matchingChunkPlanIndices, capacity);
     }
 
     private bool Matches(Archetype archetype) => archetype.Mask.ContainsAll(_description.AllMask)
         && (_description.AnyMask.IsEmpty || archetype.Mask.Intersects(_description.AnyMask))
         && !archetype.Mask.Intersects(_description.NoneMask);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void IncrementMatchingVersion()
+        => _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
 
 }
 
@@ -368,6 +452,7 @@ internal struct ArchetypePlan
         ComponentRows = componentRows;
         ArchetypeStamps = archetypeStamps ?? Array.Empty<Stamp>();
         _chunks = Array.Empty<ChunkPlan>();
+        _chunkTopologyVersion = archetype.ChunkTopologyVersion;
         for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
         {
             OnChunkActivated(archetype.GetActiveChunk(chunkIndex), chunkIndex);
@@ -377,9 +462,10 @@ internal struct ArchetypePlan
     internal Archetype Archetype { get; }
     internal int[] ComponentRows { get; }
     internal Stamp[] ArchetypeStamps { get; }
-    internal int FindChunkIndex(int globalChunkId)
+    internal int FindChunkIndex(int globalChunkId, int startIndex = 0, int endIndex = -1)
     {
-        for (int index = 0; index < _chunkCount; index++)
+        int end = endIndex < 0 ? _chunkCount : Math.Min(endIndex, _chunkCount);
+        for (int index = startIndex; index < end; index++)
         {
             if (_chunks.RefAt(index).Chunk.GlobalId == globalChunkId)
             {
@@ -394,6 +480,9 @@ internal struct ArchetypePlan
 
     private ChunkPlan[] _chunks;
     private int _chunkCount;
+    private int _chunkTopologyVersion;
+
+    internal void SetChunkTopologyVersion(int version) => _chunkTopologyVersion = version;
 
     internal void OnChunkActivated(Chunk chunk, int activePosition)
     {
@@ -407,19 +496,7 @@ internal struct ArchetypePlan
             Array.Resize(ref _chunks, Math.Max(4, _chunks.Length * 2));
         }
 
-        var sourceRows = chunk.RawComponentRows;
-        Array[] resolvedRows = _chunks.RefAt(_chunkCount).ComponentRows;
-        if (resolvedRows is null || resolvedRows.Length != ComponentRows.Length)
-        {
-            resolvedRows = new Array[ComponentRows.Length];
-        }
-
-        for (int queryRow = 0; queryRow < ComponentRows.Length; queryRow++)
-        {
-            resolvedRows.RefAt(queryRow) = sourceRows.RefAt(ComponentRows.RefAt(queryRow));
-        }
-
-        _chunks.RefAt(_chunkCount++) = new ChunkPlan(chunk, resolvedRows, ComponentRows);
+        _chunks.RefAt(_chunkCount++) = CreateChunkPlan(chunk);
     }
 
     internal void OnChunkDeactivated(int activePosition, int lastPosition)
@@ -437,33 +514,62 @@ internal struct ArchetypePlan
         _chunkCount--;
     }
 
-    internal void RefreshChunks(Archetype archetype)
+    internal bool RefreshChunks(Archetype archetype)
     {
+        if (_chunkTopologyVersion == archetype.ChunkTopologyVersion)
+        {
+            return false;
+        }
+
         int activeCount = archetype.ActiveChunkCount;
         if (activeCount > _chunks.Length)
         {
             Array.Resize(ref _chunks, Math.Max(activeCount, _chunks.Length == 0 ? 4 : _chunks.Length * 2));
         }
 
+        int previousCount = _chunkCount;
         for (int chunkIndex = 0; chunkIndex < activeCount; chunkIndex++)
         {
             Chunk chunk = archetype.GetActiveChunk(chunkIndex);
-            Array[]? resolvedRows = _chunks.RefAt(chunkIndex).ComponentRows;
-            if (resolvedRows is null || resolvedRows.Length != ComponentRows.Length)
+            if (chunkIndex < previousCount
+                && ReferenceEquals(_chunks.RefAt(chunkIndex).Chunk, chunk))
             {
-                resolvedRows = new Array[ComponentRows.Length];
+                continue;
             }
 
-            var sourceRows = chunk.RawComponentRows;
-            for (int queryRow = 0; queryRow < ComponentRows.Length; queryRow++)
+            int existingIndex = FindChunkIndex(chunk.GlobalId, chunkIndex + 1, previousCount);
+            if (existingIndex >= 0)
             {
-                resolvedRows.RefAt(queryRow) = sourceRows.RefAt(ComponentRows.RefAt(queryRow));
+                ChunkPlan moved = _chunks.RefAt(existingIndex);
+                _chunks.RefAt(existingIndex) = _chunks.RefAt(chunkIndex);
+                _chunks.RefAt(chunkIndex) = moved;
             }
-
-            _chunks.RefAt(chunkIndex) = new ChunkPlan(chunk, resolvedRows, ComponentRows);
+            else
+            {
+                _chunks.RefAt(chunkIndex) = CreateChunkPlan(chunk);
+            }
         }
 
         _chunkCount = activeCount;
+        for (int index = activeCount; index < previousCount; index++)
+        {
+            _chunks.RefAt(index) = default;
+        }
+
+        _chunkTopologyVersion = archetype.ChunkTopologyVersion;
+        return true;
+    }
+
+    private ChunkPlan CreateChunkPlan(Chunk chunk)
+    {
+        Array[] resolvedRows = new Array[ComponentRows.Length];
+        var sourceRows = chunk.RawComponentRows;
+        for (int queryRow = 0; queryRow < ComponentRows.Length; queryRow++)
+        {
+            resolvedRows.RefAt(queryRow) = sourceRows.RefAt(ComponentRows.RefAt(queryRow));
+        }
+
+        return new ChunkPlan(chunk, resolvedRows, ComponentRows);
     }
 }
 
