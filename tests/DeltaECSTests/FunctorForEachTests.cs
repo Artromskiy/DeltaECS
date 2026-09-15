@@ -6,6 +6,8 @@ using NUnit.Framework;
 [TestFixture]
 public sealed class FunctorForEachTests
 {
+    private static int s_zeroArityWhereVisits;
+
     [Test]
     public void ZeroArityFunctorAnchorThrows()
     {
@@ -19,6 +21,55 @@ public sealed class FunctorForEachTests
         Assert.That(() => world.ForEach(in query, functor), Throws.InvalidOperationException);
 
         Assert.That(functor.Count, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void ZeroArityEntityFunctorsVisitEveryEntity()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_086));
+        using var world = new World(layouts);
+        var entities = new Entity[3];
+        world.Create([positionId], entities);
+        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
+        var functor = new ZeroArityEntityFunctor();
+        var contextFunctor = new ZeroArityEntityContextFunctor();
+        int context = 0;
+
+        world.ForEachEntity(in query, ref functor);
+        world.ForEachEntity(in query, ref context, ref contextFunctor);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(functor.Count, Is.EqualTo(entities.Length));
+            Assert.That(context, Is.EqualTo(entities.Length));
+        });
+    }
+
+    [Test]
+    public void WhereSupportsZeroArityEntityTerminals()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId healthId = layouts.Register<Health>(new SchemaId(60_087));
+        using var world = new World(layouts);
+        Entity dead = world.Create([healthId]);
+        Entity alive = world.Create([healthId]);
+        world.GetRef<Health>(dead, healthId).Value = -1;
+        world.GetRef<Health>(alive, healthId).Value = 10;
+        Query query = world.CreateQuery(QuerySpec.WhereAll(healthId));
+        var functor = new ZeroArityWhereEntityFunctor();
+        s_zeroArityWhereVisits = 0;
+
+        world.Where(in query, static (in Health health) => health.Value <= 0)
+            .ForEachEntity(CountZeroArityWhereEntity);
+        world.Where(in query, static (in Health health) => health.Value <= 0)
+            .ForEachEntity(ref functor);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(s_zeroArityWhereVisits, Is.EqualTo(1));
+            Assert.That(functor.Count, Is.EqualTo(1));
+        });
     }
 
     [Test]
@@ -113,6 +164,27 @@ public sealed class FunctorForEachTests
 
         public void Invoke() => Count++;
     }
+
+    internal struct ZeroArityEntityFunctor : IForEachEntity
+    {
+        public int Count;
+
+        public void Invoke(Entity _) => Count++;
+    }
+
+    internal struct ZeroArityEntityContextFunctor : IForEachContextEntity<int>
+    {
+        public void Invoke(ref int context, Entity _) => context++;
+    }
+
+    internal struct ZeroArityWhereEntityFunctor : IForEachEntity
+    {
+        public int Count;
+
+        public void Invoke(Entity _) => Count++;
+    }
+
+    private static void CountZeroArityWhereEntity(Entity _) => s_zeroArityWhereVisits++;
 
     internal struct WherePredicateState
     {

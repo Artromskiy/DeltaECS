@@ -4,9 +4,9 @@ namespace Delta.ECS;
 
 [SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Source generator marker contract.")]
 /// <summary>
-/// Marker contract for a functor that processes matching entities without components.
-/// Generated component-bearing forms support one or more component parameters,
-/// for example
+/// Marker contract for a functor that processes matching entities.
+/// <c>Invoke</c> receives <c>Entity</c> first and may omit component parameters
+/// or include generated component-bearing parameters, for example
 /// <code>world.ForEachEntity(in query, ref functor);</code> and
 /// <code>world.ForEachEntityParallel(in query, ref functor, workerCount: 4);</code>.
 /// Functor calls are explicit and are not intercepted.
@@ -45,8 +45,8 @@ public interface IForEachContext<TContext>
 [SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Source generator marker contract.")]
 /// <summary>
 /// Marker contract for a functor that receives context and the current entity.
-/// Generated component-bearing forms support one or more component parameters,
-/// for example
+/// <c>Invoke</c> may stop after <c>Entity</c> or include generated
+/// component-bearing parameters, for example
 /// <code>world.ForEachEntity(in query, ref state, ref functor);</code> and
 /// <code>world.ForEachEntityParallel(in query, in state, ref functor, workerCount: 4);</code>.
 /// Parallel context must be read-only or by value; a parallel <c>ref</c> state

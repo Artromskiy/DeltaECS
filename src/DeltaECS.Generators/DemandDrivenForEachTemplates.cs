@@ -295,7 +295,11 @@ internal static class DemandDrivenForEachTemplates
             invocationArguments.Add(entityExpression);
         }
 
-        invocationArguments.Add(shape.Api.Signature.ComponentArguments(componentPrefix));
+        string componentArguments = shape.Api.Signature.ComponentArguments(componentPrefix);
+        if (componentArguments.Length != 0)
+        {
+            invocationArguments.Add(componentArguments);
+        }
         string invocation = shape.IsFunctor ? $$"""{{functorName}}.Invoke""" : actionName;
         return $$"""{{invocation}}({{string.Join(", ", invocationArguments)}})""";
     }
@@ -558,7 +562,11 @@ internal static class DemandDrivenForEachTemplates
         {
             constructorParameters.Add(InterceptedContextType(shape) + " context");
         }
-        constructorParameters.Add(shape.Api.Signature.AccessParameters(tokens: true));
+        string accessParameters = shape.Api.Signature.AccessParameters(tokens: true);
+        if (accessParameters.Length != 0)
+        {
+            constructorParameters.Add(accessParameters);
+        }
         var constructorAssignments = new List<string>();
         if (shape.HasContext)
         {

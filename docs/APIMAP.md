@@ -53,7 +53,7 @@ The consumer source generator is documented in
 | `World.Create<T>`, `Add<T>`, `Remove<T>`, `TryGet<T>`, `Has<T>`, `Get<T>`, `Set<T>` and typed stamps | Single-component typed conveniences over core operations | `src/DeltaECS/Generic/World.Generic.cs` |
 | Generated `World.Create<T1,...>`, `Add<T1,...>`, `Remove<T1,...>`, multi-value `Set<T1,...>` | On-demand primary-component structural operations and archetype-validated value writes | `src/DeltaECS.Generators/GeneratedStructuralGenerator.cs` |
 | `World/Query.WhereAll`, `WhereAny`, `WhereNone` | Runtime `ComponentId` factories; generated typed variants compose through the existing query cache | `src/DeltaECS/Core/World.cs`, `src/DeltaECS/Core/EntityTypes.cs`, `src/DeltaECS.Generators/GeneratedQueryGenerator.cs`, `src/DeltaECS/Core/QuerySpec.cs` |
-| `World.ForEach`, `ForEachEntity` | Delegate callback entry points and throwing zero-component compiler anchors | `src/DeltaECS/Delegate/ForEachZeroArity.cs` |
+| `World.ForEach`, `ForEachEntity` | Delegate callback entry points; entity-aware iteration may omit component rows, while component-only zero-arity calls remain throwing anchors | `src/DeltaECS/Delegate/ForEachZeroArity.cs` |
 | `IForEach*` | Stable functor marker contracts | `src/DeltaECS/Functor/ForEachFunctorContracts.cs` |
 | `World.ForEachParallel` | Generated typed parallel query callback entry point | `src/DeltaECS/Parallel/World.Parallel.cs` |
 | `IEcsWorld` | Neutral lifecycle, structural and object-value integration contract | `src/DeltaECS/API/IntegrationContracts.cs` |
@@ -74,8 +74,9 @@ observed by that consumer. It supports:
 
 - no context or one caller-provided context;
 - callbacks with or without `Entity`;
-- zero-component callback forms (which throw) and component-bearing generated
-  forms;
+- entity-aware zero-component callbacks and component-bearing generated forms;
+- throwing zero-component anchors for callbacks that receive neither an entity
+  nor components;
 - `ref readonly T`, `in T`, and by-value `T` reads, plus `ref T` writes;
 - primary component lookup or explicit `ComponentId` selection;
 - delegate and struct-functor forms.

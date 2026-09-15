@@ -1,6 +1,7 @@
 namespace Delta.ECS.Tests;
 
 using System;
+using System.Threading;
 using NUnit.Framework;
 
 internal struct ParallelState
@@ -66,28 +67,56 @@ public sealed class ParallelIterationTests
     }
 
     [Test]
-    public void ZeroArityParallelAnchorsRequireGeneratedComponentCallbacks()
+    public void ZeroArityEntityParallelCallbacksVisitEveryEntity()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(70_093));
-        using var world = new World(layouts);
+        using var world = new World(layouts, initialEntityCapacity: 2_048);
+        var entities = new Entity[2_048];
+        world.Create([positionId], entities);
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
         var state = new ParallelState();
         ForEachAction action = static () => { };
-        ForEachEntityAction entityAction = static _ => { };
+        int entityVisits = 0;
+        int readOnlyContextVisits = 0;
+        int valueContextVisits = 0;
+        ForEachEntityAction entityAction = _ => Interlocked.Increment(ref entityVisits);
         ForEachContextAction_In<ParallelState> readOnlyAction = static (in ParallelState _) => { };
         ForEachContextAction_Value<ParallelState> valueAction = static _ => { };
-        ForEachContextEntityAction_In<ParallelState> readOnlyEntityAction = static (in ParallelState _, Entity __) => { };
-        ForEachContextEntityAction_Value<ParallelState> valueEntityAction = static (ParallelState _, Entity __) => { };
+        ForEachContextEntityAction_In<ParallelState> readOnlyEntityAction = (in ParallelState _, Entity __) => Interlocked.Increment(ref readOnlyContextVisits);
+        ForEachContextEntityAction_Value<ParallelState> valueEntityAction = (ParallelState _, Entity __) => Interlocked.Increment(ref valueContextVisits);
 
         Assert.Multiple(() =>
         {
             Assert.That(() => world.ForEachParallel(in query, action, workerCount: 4), Throws.InvalidOperationException);
-            Assert.That(() => world.ForEachEntityParallel(in query, entityAction, workerCount: 4), Throws.InvalidOperationException);
             Assert.That(() => world.ForEachParallel(in query, in state, readOnlyAction, workerCount: 4), Throws.InvalidOperationException);
             Assert.That(() => world.ForEachParallel(in query, state, valueAction, workerCount: 4), Throws.InvalidOperationException);
-            Assert.That(() => world.ForEachEntityParallel(in query, in state, readOnlyEntityAction, workerCount: 4), Throws.InvalidOperationException);
-            Assert.That(() => world.ForEachEntityParallel(in query, state, valueEntityAction, workerCount: 4), Throws.InvalidOperationException);
+        });
+        world.ForEachEntityParallel(in query, entityAction, workerCount: 4);
+        world.ForEachEntityParallel(in query, in state, readOnlyEntityAction, workerCount: 4);
+        world.ForEachEntityParallel(in query, state, valueEntityAction, workerCount: 4);
+
+        int[] entityListVisits = [0];
+        ReadOnlySpan<Entity> selected = entities.AsSpan(0, entities.Length / 2);
+        int selectedCount = selected.Length;
+        world.ForEachEntityParallel(
+            selected,
+            in query,
+            entityListVisits,
+            static (int[] visits, Entity _) => Interlocked.Increment(ref visits[0]),
+            workerCount: 4);
+        world.ForEachEntityParallel(
+            selected,
+            entityListVisits,
+            static (int[] visits, Entity _) => Interlocked.Increment(ref visits[0]),
+            workerCount: 4);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(entityVisits, Is.EqualTo(entities.Length));
+            Assert.That(readOnlyContextVisits, Is.EqualTo(entities.Length));
+            Assert.That(valueContextVisits, Is.EqualTo(entities.Length));
+            Assert.That(entityListVisits[0], Is.EqualTo(selectedCount * 2));
         });
     }
 

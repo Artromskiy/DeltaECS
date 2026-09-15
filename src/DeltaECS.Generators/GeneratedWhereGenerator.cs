@@ -199,6 +199,12 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             return false;
         }
 
+        if ((predicateMethod is not null && !GeneratorSupport.IsAccessibleSymbol(predicateMethod))
+            || (actionMethod is not null && !GeneratorSupport.IsAccessibleSymbol(actionMethod)))
+        {
+            return false;
+        }
+
         if (!GeneratorSupport.TryGetInterceptionLocation(model, terminalInvocation, out string locationData, out string attributeSyntax))
         {
             return false;
@@ -566,9 +572,15 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         out TerminalModel? terminal)
     {
         terminal = null;
-        if (!CallbackReader.TryGetStaticMethodGroupTarget(model, invocation.ArgumentList.Arguments[0].Expression, out IMethodSymbol? method)
-            || method is not { ReturnsVoid: true, MethodKind: MethodKind.Ordinary, Arity: 0 }
-            || !GeneratorSupport.IsAccessibleSymbol(method))
+        if (!CallbackReader.TryGetMethodGroupTarget(model, invocation.ArgumentList.Arguments[0].Expression, out IMethodSymbol? method)
+            || method is not
+            {
+                IsStatic: true,
+                ReturnsVoid: true,
+                MethodKind: MethodKind.Ordinary,
+                Arity: 0,
+                ContainingType: not null
+            })
         {
             return false;
         }
@@ -587,7 +599,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         }
 
         IParameterSymbol[] components = method.Parameters.Skip(parameterIndex).ToArray();
-        if (components.Length == 0
+        if ((!hasEntity && components.Length == 0)
             || components.Any(static parameter => !GeneratorSupport.IsAccessibleSymbol(parameter.Type)
                 || !CallbackReader.IsSupportedRefKind(parameter.RefKind)))
         {
@@ -768,7 +780,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         }
 
         ParameterSyntax[] components = parameters.Skip(componentStart).ToArray();
-        if (components.Length == 0
+        if ((!hasEntity && components.Length == 0)
             || components.Any(parameter => !CallbackReader.HasTypedAccessibleParameter(model, parameter))
             || (!hasEntity && components.Any(parameter => CallbackReader.IsEntityParameter(model, parameter))))
         {
@@ -834,7 +846,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
 
         IMethodSymbol invoke = invokes[0];
         IParameterSymbol[] components = invoke.Parameters.Skip(prefixCount).ToArray();
-        if (components.Length == 0
+        if ((!namedEntity && components.Length == 0)
             || components.Any(static parameter => !GeneratorSupport.IsAccessibleSymbol(parameter.Type)))
         {
             return false;

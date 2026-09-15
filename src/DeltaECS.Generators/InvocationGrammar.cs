@@ -85,7 +85,7 @@ internal readonly struct ApiDescriptor
                 allowsContext: true,
                 requiresCallback: true,
                 parallel ? InvocationTailRule.WorkerCount : InvocationTailRule.None,
-                minimumArity: 1);
+                minimumArity: entity && !stamp ? 0 : 1);
             return true;
         }
 

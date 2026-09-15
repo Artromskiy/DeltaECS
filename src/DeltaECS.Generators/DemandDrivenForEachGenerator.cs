@@ -423,7 +423,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return false;
         }
 
-        bool explicitIds = prefix.ComponentIdCount == componentCount;
+        bool explicitIds = componentCount != 0 && prefix.ComponentIdCount == componentCount;
         var typeArguments = genericName?.TypeArgumentList.Arguments
             .Select(argument => model.GetTypeInfo(argument).Type is { } type
                 ? GeneratorSupport.DisplayType(type)

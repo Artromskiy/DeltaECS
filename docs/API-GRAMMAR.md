@@ -59,6 +59,16 @@ world.ForEachParallel<T...>(E, Q?, I..., C, A, W)
 world.ForEachEntityParallel<T...>(E, Q?, I..., C, A, W)
 ```
 
+Entity-aware iteration may omit the component selector entirely. The callback
+still receives the current entity, so these are useful zero-arity forms:
+
+```text
+world.ForEachEntity(Q, C?, A | F)
+world.ForEachEntity(E, Q?, C?, A | F)
+world.ForEachEntityParallel(Q, C?, A | F, W)
+world.ForEachEntityParallel(E, Q?, C?, A | F, W)
+```
+
 Functor forms use the same target, query, selector, and context order, with
 `F` in the callback position:
 
@@ -214,7 +224,7 @@ view.Add<T...>(I..., V...)
 view.Remove<T...>()
 view.Remove<T...>(I...)
 view.ForEach(...)
-view.ForEachEntity(...)
+view.ForEachEntity(...)              // Entity-only or Entity plus components
 ```
 
 The ordinary `Where` predicate is component-only. `WhereEntity` adds the
@@ -222,6 +232,8 @@ current `Entity` as its first predicate parameter. Predicate component rows
 use `in` or `ref readonly`. A structural terminal applies component writes
 before it performs the structural change.
 
-The zero-component delegate, parallel, and functor overloads throw
-`InvalidOperationException`. Use a component-bearing callback or functor for
-iteration; a functor must provide at least one component parameter.
+Zero-component `ForEach` and all zero-component stamp forms throw
+`InvalidOperationException`. `ForEachEntity`, `ForEachEntityParallel`, and a
+`Where` view's `ForEachEntity` may omit component parameters because the
+callback still receives `Entity`. Functor forms use the generated `ref`
+overload so mutations to the functor are returned to the caller.

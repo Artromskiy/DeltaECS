@@ -568,7 +568,11 @@ internal static class GeneratedWhereTemplates
         constructorParameters.Add(predicateSlots.AccessParameters(tokens: true));
         if (terminal.IsCallback)
         {
-            constructorParameters.Add(terminalSlots.AccessParameters(tokens: true, indexOffset: shape.Arity));
+            string actionAccessParameters = terminalSlots.AccessParameters(tokens: true, indexOffset: shape.Arity);
+            if (actionAccessParameters.Length != 0)
+            {
+                constructorParameters.Add(actionAccessParameters);
+            }
         }
         assignments.AddRange(GeneratorTemplates.Indexed(accessCount, index =>
         {
@@ -670,7 +674,11 @@ internal static class GeneratedWhereTemplates
                 actionArguments.Add("entity");
             }
 
-            actionArguments.Add(terminalSlots.ComponentArguments("component", shape.Arity));
+            string componentArguments = terminalSlots.ComponentArguments("component", shape.Arity);
+            if (componentArguments.Length != 0)
+            {
+                actionArguments.Add(componentArguments);
+            }
             string actionName = terminal.IsFunctor ? "_action.Invoke" : "_action";
             loopLines.Add($$"""            {{actionName}}({{string.Join(", ", actionArguments)}});""");
         }
@@ -997,6 +1005,7 @@ internal static class GeneratedWhereTemplates
         if (terminal.IsCallback && !terminal.IsFunctor)
         {
             methods.AddRange(terminal.StaticMethodGroupComponents
+                .Where(_ => terminal.Arity != 0)
                 .OrderBy(static components => string.Join("|", components), StringComparer.Ordinal)
                 .Select(components =>
             {

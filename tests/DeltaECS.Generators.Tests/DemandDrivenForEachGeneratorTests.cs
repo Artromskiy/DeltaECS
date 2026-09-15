@@ -498,6 +498,16 @@ public sealed class DemandDrivenForEachGeneratorTests
                 public static void Use(World world, Query query)
                 {
                     var state = new State();
+                    System.ReadOnlySpan<Entity> entities = default;
+                    world.ForEachEntity(
+                        entities,
+                        in query,
+                        static (Entity entity) => _ = entity);
+                    world.ForEachEntityParallel(
+                        entities,
+                        in query,
+                        static (Entity entity) => _ = entity,
+                        workerCount: 2);
                     world.ForEachParallel<State, Position, Range, Target>(
                         in query,
                         in state,
@@ -826,14 +836,17 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
-    public void WhereZeroArityTerminalStaysOnTheFailFastAnchor()
+    public void WhereZeroArityEntityTerminalGeneratesValidCode()
     {
         GeneratorDriverRunResult run = RunGenerator(WhereZeroArityTerminalSource);
         string generated = GeneratedText(run);
 
         AssertNoDiagnostics(run.Diagnostics);
-        Assert.That(generated, Does.Not.Contain("ExecuteGeneratedWhereForEach"));
-        Assert.That(generated, Does.Not.Contain("GeneratedWhereAction_"));
+        Assert.That(generated, Does.Contain("ExecuteGeneratedWhereForEach"));
+        Assert.That(generated, Does.Contain("GeneratedWhereAction_"));
+        Assert.That(generated, Does.Contain("(Entity entity)"));
+        Assert.That(generated, Does.Not.Contain("(entity, )"));
+        AssertCompiles(new[] { RuntimeStubSource, WhereZeroArityTerminalSource }, run.GeneratedTrees);
     }
 
     [Test]
@@ -1257,6 +1270,10 @@ public sealed class DemandDrivenForEachGeneratorTests
         public delegate void ForEachEntityAction(Entity entity);
         public delegate void ForEachContextAction<TContext>(ref TContext context);
         public delegate void ForEachContextEntityAction<TContext>(ref TContext context, Entity entity);
+        public delegate void ForEachContextAction_In<TContext>(in TContext context);
+        public delegate void ForEachContextEntityAction_In<TContext>(in TContext context, Entity entity);
+        public delegate void ForEachContextAction_Value<TContext>(TContext context);
+        public delegate void ForEachContextEntityAction_Value<TContext>(TContext context, Entity entity);
         public interface IForEach { }
         public interface IForEachEntity { }
         public interface IForEachContext<TContext> { }
@@ -1694,8 +1711,6 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public static void Run(World world, in Query query)
             {
-                world.Where(in query, static (in Health health) => health.Value <= 0)
-                    .ForEach(static () => { });
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= entity.Index)
                     .ForEachEntity(static (Entity entity) => _ = entity);
             }
@@ -1927,13 +1942,50 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public void Invoke(ref readonly T1 a, ref T2 b, in T3 c, T4 d) { b.Value += a.Value + c.Value + d.Value; }
         }
+        struct EntityOnlyFunctor : IForEachEntity
+        {
+            public void Invoke(Entity entity) { _ = entity; }
+        }
         static class Consumer
         {
             public static void Use(World world, Query query, ComponentId c1, ComponentId c2, ComponentId c3, ComponentId c4, ComponentId c5, ComponentId c6, ComponentId c7, ComponentId c8)
             {
                 world.ForEach(in query, static () => { });
                 world.ForEachEntity(in query, static (Entity entity) => { _ = entity; });
+                ReadOnlySpan<Entity> entities = default;
+                world.ForEachEntity(entities, in query, static (Entity entity) => { _ = entity; });
+                world.ForEachEntity(entities, static (Entity entity) => { _ = entity; });
+                world.ForEachEntityParallel(in query, static (Entity entity) => { _ = entity; }, workerCount: 2);
+                world.ForEachEntityParallel(entities, in query, static (Entity entity) => { _ = entity; }, workerCount: 2);
+                world.ForEachEntityParallel(entities, static (Entity entity) => { _ = entity; }, workerCount: 2);
+                var entityOnlyFunctor = new EntityOnlyFunctor();
+                world.ForEachEntity(in query, ref entityOnlyFunctor);
+                world.ForEachEntity(entities, in query, ref entityOnlyFunctor);
+                world.ForEachEntity(entities, ref entityOnlyFunctor);
+                world.ForEachEntityParallel(in query, ref entityOnlyFunctor, workerCount: 2);
+                world.ForEachEntityParallel(entities, in query, ref entityOnlyFunctor, workerCount: 2);
+                world.ForEachEntityParallel(entities, ref entityOnlyFunctor, workerCount: 2);
                 var context = new Context();
+                world.ForEachEntity(
+                    in query,
+                    ref context,
+                    static (ref Context state, Entity entity) => state.Value += entity.Index);
+                world.ForEachEntityParallel(
+                    in query,
+                    context,
+                    static (Context state, Entity entity) => _ = state.Value + entity.Index,
+                    workerCount: 2);
+                world.ForEachEntity(
+                    entities,
+                    in query,
+                    ref context,
+                    static (ref Context state, Entity entity) => state.Value += entity.Index);
+                world.ForEachEntityParallel(
+                    entities,
+                    in query,
+                    context,
+                    static (Context state, Entity entity) => _ = state.Value + entity.Index,
+                    workerCount: 2);
                 world.ForEach<Context>(in query, ref context, static (ref Context value) => value.Value++);
                 var allModesFunctor = new AllModesFunctor();
                 world.ForEach(in query, ref allModesFunctor);
