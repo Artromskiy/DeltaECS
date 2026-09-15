@@ -1,6 +1,4 @@
-using System;
 using System.Collections.Immutable;
-using System.Linq;
 
 namespace Delta.ECS.Generators;
 
@@ -20,43 +18,7 @@ internal sealed class GeneratedFileModel
         Members = members;
     }
 
-    internal GeneratedFileModel(
-        string namespaceName,
-        ImmutableArray<string> usings,
-        ImmutableArray<RenderModel> members)
-        : this(namespaceName, usings, members.Select(static member => member.Text).ToImmutableArray())
-    {
-    }
-
     internal string Namespace { get; }
     internal ImmutableArray<string> Usings { get; }
     internal ImmutableArray<string> Members { get; }
-}
-
-/// <summary>One renderable member and the semantic API model that produced it.</summary>
-internal sealed class RenderModel
-{
-    internal RenderModel(ApiModel api, string text)
-    {
-        Api = api;
-        Text = text;
-    }
-
-    internal ApiModel Api { get; }
-    internal string Text { get; }
-}
-
-/// <summary>Render-only invoker description kept separate from semantic models.</summary>
-internal sealed class InvokerModel
-{
-    internal InvokerModel(
-        ApiModel api,
-        string source)
-    {
-        Api = api;
-        Source = source;
-    }
-
-    internal ApiModel Api { get; }
-    internal string Source { get; }
 }

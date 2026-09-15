@@ -1,17 +1,8 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Delta.ECS.Generators;
-
-internal delegate bool TryReadGeneratedShape<TShape>(
-    SemanticModel model,
-    InvocationExpressionSyntax invocation,
-    out TShape? shape)
-    where TShape : class;
 
 internal sealed class ShapeRegistry<TShape>
     where TShape : class
@@ -57,38 +48,6 @@ internal static class GeneratorPipeline
         IncrementalGeneratorInitializationContext context)
         => context.CompilationProvider.Combine(
             GeneratorSupport.InvocationProvider(context).Collect());
-
-    internal static void EmitDistinct<TShape>(
-        Compilation compilation,
-        ImmutableArray<InvocationCandidate> discoveredInvocations,
-        SourceProductionContext context,
-        string sourcePrefix,
-        TryReadGeneratedShape<TShape> readShape,
-        Func<TShape, string> key,
-        Func<TShape, string> render)
-        where TShape : class
-    {
-        var shapes = new ShapeRegistry<TShape>(key);
-        foreach (InvocationCandidate candidate in GeneratorSupport.ExcludeGenerated(discoveredInvocations))
-        {
-            InvocationExpressionSyntax invocation = candidate.Invocation;
-            SemanticModel model = compilation.GetSemanticModel(invocation.SyntaxTree);
-            if (!readShape(model, invocation, out TShape? shape) || shape is null)
-            {
-                continue;
-            }
-
-            shapes.GetOrAdd(shape);
-        }
-
-        foreach (TShape shape in shapes.Ordered())
-        {
-            string shapeKey = key(shape);
-            context.AddSource(
-                sourcePrefix + GeneratorSupport.StableName(shapeKey) + ".g.cs",
-                render(shape));
-        }
-    }
 
     internal static void EmitShapes<TShape>(
         ImmutableArray<TShape> discoveredShapes,

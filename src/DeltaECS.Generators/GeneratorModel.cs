@@ -1,6 +1,4 @@
 using System.Collections.Immutable;
-using System.Globalization;
-using System.Linq;
 
 namespace Delta.ECS.Generators;
 
@@ -15,10 +13,27 @@ internal readonly struct InvocationCandidate
 internal enum OperationKind
 {
     Iteration,
-    StampIteration,
     QueryFactory,
     Structural,
     Where
+}
+
+internal enum ValueDomain
+{
+    Component,
+    Stamp
+}
+
+internal enum Schedule
+{
+    Sequential,
+    Parallel
+}
+
+internal enum Scope
+{
+    QueryWide,
+    EntityList
 }
 
 internal enum GeneratedApiKind
@@ -45,11 +60,17 @@ internal enum QueryMode
     Optional
 }
 
-internal enum SelectorKind
+internal enum TypeBindingKind
 {
-    Inferred,
     Generic,
-    ComponentIds
+    CallbackInferred,
+    None
+}
+
+internal enum RegistrationBindingKind
+{
+    Primary,
+    Explicit
 }
 
 internal enum AccessKind
@@ -64,21 +85,7 @@ internal enum AccessKind
 internal enum CallbackSource
 {
     Lambda,
-    MethodGroup,
     Functor
-}
-
-internal enum ExecutionKind
-{
-    Dense,
-    EntityList,
-    Parallel
-}
-
-internal enum ValueKind
-{
-    Component,
-    Stamp
 }
 
 internal enum ContextModeKind
@@ -101,35 +108,18 @@ internal enum StructuralOperation
 internal readonly struct ComponentModel
 {
     internal ComponentModel(
-        int position,
         string typeName,
-        SelectorKind selector,
         AccessKind access,
-        string? parameterName = null,
-        string? componentIdExpression = null,
-        string? resolvedTypeName = null,
-        string? genericTypeName = null)
+        string? resolvedTypeName = null)
     {
-        Position = position;
         TypeName = typeName;
         ResolvedTypeName = resolvedTypeName ?? typeName;
-        GenericTypeName = genericTypeName ?? typeName;
-        Selector = selector;
         Access = access;
-        ParameterName = parameterName ?? "component" + position.ToString(CultureInfo.InvariantCulture);
-        ComponentIdExpression = componentIdExpression;
     }
 
-    internal int Position { get; }
-    internal int Index => Position;
     internal string TypeName { get; }
     internal string ResolvedTypeName { get; }
-    internal string GenericTypeName { get; }
-    internal string ParameterName { get; }
-    internal SelectorKind Selector { get; }
     internal AccessKind Access { get; }
-    internal bool IsGeneric => Selector == SelectorKind.Generic;
-    internal bool IsComponentId => Selector == SelectorKind.ComponentIds;
     internal bool IsWrite => Access == AccessKind.RowWrite;
     internal string ParameterModifier => Access switch
     {
@@ -144,28 +134,24 @@ internal readonly struct ComponentModel
         AccessKind.RefReadonly or AccessKind.StampRead or AccessKind.RowRead => "in ",
         _ => string.Empty
     };
-    internal char AccessMode => Access switch
-    {
-        AccessKind.RowWrite => 'W',
-        AccessKind.RefReadonly => 'R',
-        AccessKind.StampRead => 'S',
-        AccessKind.RowRead => 'I',
-        _ => 'V'
-    };
-    internal string? ComponentIdExpression { get; }
-
 }
 
 internal readonly struct SelectorModel
 {
-    internal SelectorModel(SelectorKind kind, ImmutableArray<ComponentModel> components)
+    internal SelectorModel(
+        TypeBindingKind typeBinding,
+        RegistrationBindingKind registrationBinding,
+        ImmutableArray<ComponentModel> components)
     {
-        Kind = kind;
+        TypeBinding = typeBinding;
+        RegistrationBinding = registrationBinding;
         Components = components;
     }
 
-    internal SelectorKind Kind { get; }
+    internal TypeBindingKind TypeBinding { get; }
+    internal RegistrationBindingKind RegistrationBinding { get; }
     internal ImmutableArray<ComponentModel> Components { get; }
+    internal int Arity => Components.Length;
 }
 
 internal readonly struct ContextModel
@@ -196,14 +182,16 @@ internal readonly struct CallbackModel
 
 internal readonly struct ExecutionModel
 {
-    internal ExecutionModel(ExecutionKind kind, ValueKind value)
+    internal ExecutionModel(Scope scope, ValueDomain value, Schedule schedule)
     {
-        Kind = kind;
+        Scope = scope;
         Value = value;
+        Schedule = schedule;
     }
 
-    internal ExecutionKind Kind { get; }
-    internal ValueKind Value { get; }
+    internal Scope Scope { get; }
+    internal ValueDomain Value { get; }
+    internal Schedule Schedule { get; }
 }
 
 internal sealed class ApiModel
@@ -217,7 +205,6 @@ internal sealed class ApiModel
         CallbackModel? callback,
         ExecutionModel execution,
         string? name = null,
-        string? pattern = null,
         string? summary = null)
     {
         Operation = operation;
@@ -228,8 +215,8 @@ internal sealed class ApiModel
         Callback = callback;
         Execution = execution;
         Name = name;
-        Pattern = pattern;
         Summary = summary ?? BuildSummary();
+        _signature = new SignatureProjection(this);
         _signatureKey = BuildSignatureKey();
     }
 
@@ -241,9 +228,10 @@ internal sealed class ApiModel
     internal CallbackModel? Callback { get; }
     internal ExecutionModel Execution { get; }
     internal string? Name { get; }
-    internal string? Pattern { get; }
     internal string Summary { get; }
+    internal SignatureProjection Signature => _signature;
 
+    private readonly SignatureProjection _signature;
     private readonly string _signatureKey;
 
     internal string SignatureKey => _signatureKey;
@@ -252,43 +240,35 @@ internal sealed class ApiModel
         => Operation switch
         {
             OperationKind.QueryFactory => $"Builds a query using {Name} component constraints.",
-            OperationKind.Structural => $"Executes the generated {Name?.Split('|')[0] ?? "structural"} operation.",
-            OperationKind.StampIteration => $"Iterates matching entities and reads their component stamps.",
-            OperationKind.Iteration => $"Iterates matching entities and components using {Name?.Split('|')[0] ?? "ForEach"}.",
+            OperationKind.Structural => $"Executes the generated {Name ?? "structural"} operation.",
+            OperationKind.Iteration => $"Iterates matching entities and components using {Name ?? "ForEach"}.",
             OperationKind.Where => "Creates a read-only filtered query view.",
             _ => "Executes a generated ECS operation."
         };
 
     private string BuildSignatureKey()
-        => string.Join(
+    {
+        bool genericContext = Callback?.Source != CallbackSource.Functor
+            && (Operation == OperationKind.Where || Selector.TypeBinding == TypeBindingKind.Generic);
+        return string.Join(
             "|",
             Operation,
             Name,
-            Pattern,
             Target,
             Query,
-            Selector.Kind,
+            Selector.TypeBinding,
+            Selector.RegistrationBinding,
             Context.Mode,
-            Context.TypeName,
+            genericContext ? string.Empty : Context.TypeName,
             Callback?.Source,
             Callback?.HasEntity,
             Callback?.TypeName,
-            Execution.Kind,
+            Execution.Scope,
             Execution.Value,
-            string.Join(";", Selector.Components.Select(static component =>
-                component.Position.ToString(CultureInfo.InvariantCulture)
-                + ":" + component.TypeName
-                + ":" + component.Selector
-                + ":" + component.Access
-                + ":" + component.ParameterName
-                + ":" + component.AccessMode
-                + ":" + component.ComponentIdExpression
-                + ":" + component.GenericTypeName)));
-}
-
-internal sealed class StructuralPlan
-{
-    internal StructuralPlan(StructuralOperation operation) => Operation = operation;
-
-    internal StructuralOperation Operation { get; }
+            Execution.Schedule,
+            string.Join(";", Selector.Components.Select((component, index) =>
+                index + ":" + component.TypeName + ":"
+                    + (Selector.TypeBinding == TypeBindingKind.Generic ? string.Empty : component.ResolvedTypeName)
+                    + ":" + component.Access)));
+    }
 }

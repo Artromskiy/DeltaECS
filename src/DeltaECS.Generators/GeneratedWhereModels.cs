@@ -1,8 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
-using System.Linq;
 
 namespace Delta.ECS.Generators;
 
@@ -31,14 +28,13 @@ internal sealed class PredicateModel
             OperationKind.Where,
             TargetKind.World,
             QueryMode.Required,
-            new SelectorModel(isFunctor ? SelectorKind.Inferred : SelectorKind.Generic, ComponentModels),
+            new SelectorModel(TypeBindingKind.CallbackInferred, RegistrationBindingKind.Primary, ComponentModels),
             new ContextModel(hasContext ? ContextModeKind.Value : ContextModeKind.None, contextType),
             new CallbackModel(
                 isFunctor ? CallbackSource.Functor : CallbackSource.Lambda,
                 hasEntity,
                 functorType),
-            new ExecutionModel(ExecutionKind.Dense, ValueKind.Component),
-            pattern: Pattern);
+            new ExecutionModel(Scope.QueryWide, ValueDomain.Component, Schedule.Sequential));
     }
 
     internal string Pattern { get; }
@@ -52,27 +48,48 @@ internal sealed class PredicateModel
     internal ImmutableArray<ComponentModel> ComponentModels { get; }
     internal ApiModel Api { get; }
     internal ShapeRegistry<TerminalModel> Terminals { get; } = new(static terminal => terminal.SignatureKey);
-    internal List<string[]> StaticMethodGroupComponents { get; } = new();
+    internal List<WherePredicateBinding> StaticMethodGroupBindings { get; } = new();
     internal string Key => Api.SignatureKey;
+
+    internal WherePredicateBinding ConcreteBinding
+        => new(ContextType, Components);
 
     internal void Merge(PredicateModel candidate)
     {
         if (!IsFunctor && candidate.Components.Length > 0)
         {
-            AddUnique(StaticMethodGroupComponents, candidate.Components);
+            AddUnique(StaticMethodGroupBindings, candidate.ConcreteBinding);
         }
     }
 
     internal void RegisterStaticMethodGroup()
-        => AddUnique(StaticMethodGroupComponents, Components);
+        => AddUnique(StaticMethodGroupBindings, ConcreteBinding);
 
-    private static void AddUnique(List<string[]> values, string[] candidate)
+    private static void AddUnique(List<WherePredicateBinding> values, WherePredicateBinding candidate)
     {
-        if (!values.Any(existing => existing.SequenceEqual(candidate, StringComparer.Ordinal)))
+        if (!values.Any(existing => existing.Equals(candidate)))
         {
             values.Add(candidate);
         }
     }
+}
+
+/// <summary>Concrete callback types retained for one discovered Where call site.</summary>
+internal sealed class WherePredicateBinding
+{
+    internal WherePredicateBinding(string? contextType, string[] components)
+    {
+        ContextType = contextType;
+        Components = components;
+    }
+
+    internal string? ContextType { get; }
+    internal string[] Components { get; }
+    internal string SortKey => (ContextType ?? string.Empty) + "|" + string.Join("|", Components);
+
+    internal bool Equals(WherePredicateBinding other)
+        => string.Equals(ContextType, other.ContextType, StringComparison.Ordinal)
+            && Components.SequenceEqual(other.Components, StringComparer.Ordinal);
 }
 
 /// <summary>Semantic description of a Where terminal operation.</summary>
@@ -81,18 +98,19 @@ internal sealed class TerminalModel
     internal TerminalModel(
         TerminalKind kind,
         string pattern,
-        int arity,
         bool hasEntity,
         bool isFunctor = false,
         string? functorType = null,
         bool hasContext = false,
         string? contextType = null,
         string[]? components = null,
-        string? methodGroupTarget = null)
+        string? methodGroupTarget = null,
+        bool hasValues = false,
+        TypeBindingKind typeBinding = TypeBindingKind.CallbackInferred,
+        RegistrationBindingKind registrationBinding = RegistrationBindingKind.Primary)
     {
         Kind = kind;
         Pattern = pattern;
-        Arity = arity;
         HasEntity = hasEntity;
         IsFunctor = isFunctor;
         FunctorType = functorType;
@@ -100,32 +118,39 @@ internal sealed class TerminalModel
         ContextType = contextType;
         Components = components ?? Array.Empty<string>();
         MethodGroupTarget = methodGroupTarget;
-        ComponentModels = GeneratorSupport.ComponentModels(Pattern, Components, isFunctor, "U");
+        HasValues = hasValues;
+        int componentCount = pattern.Length == 0 ? Components.Length : pattern.Length;
+        string componentPattern = pattern.Length == 0
+            ? new string('V', componentCount)
+            : pattern;
+        ComponentModels = GeneratorSupport.ComponentModels(componentPattern, Components, isFunctor, "U");
 
         Api = new ApiModel(
             OperationKind.Where,
             TargetKind.World,
             QueryMode.Required,
-            new SelectorModel(isFunctor ? SelectorKind.Inferred : SelectorKind.Generic, ComponentModels),
+            new SelectorModel(typeBinding, registrationBinding, ComponentModels),
             new ContextModel(hasContext ? ContextModeKind.Value : ContextModeKind.None, contextType),
             new CallbackModel(
                 isFunctor ? CallbackSource.Functor : CallbackSource.Lambda,
                 hasEntity,
                 functorType),
-            new ExecutionModel(ExecutionKind.Dense, ValueKind.Component),
-            Kind + "|" + arity.ToString(CultureInfo.InvariantCulture),
+            new ExecutionModel(Scope.QueryWide, ValueDomain.Component, Schedule.Sequential),
+            Kind + "|" + componentCount.ToString(CultureInfo.InvariantCulture)
+                + (hasValues ? "|values|" + registrationBinding : string.Empty),
             Pattern);
     }
 
     internal TerminalKind Kind { get; }
     internal string Pattern { get; }
-    internal int Arity { get; }
+    internal int Arity => Api.Selector.Arity;
     internal bool HasEntity { get; }
     internal bool IsFunctor { get; }
     internal string? FunctorType { get; }
     internal bool HasContext { get; }
     internal string? ContextType { get; }
     internal string[] Components { get; }
+    internal bool HasValues { get; }
     internal ImmutableArray<ComponentModel> ComponentModels { get; }
     internal string? MethodGroupTarget { get; }
     internal ApiModel Api { get; }
@@ -161,6 +186,7 @@ internal sealed class WhereInterceptionSite
         string id,
         PredicateModel shape,
         TerminalModel terminal,
+        WherePredicateBinding predicateShapeBinding,
         string? predicateMethodGroupTarget,
         string? actionMethodGroupTarget,
         string[] predicateParameterNames,
@@ -177,35 +203,35 @@ internal sealed class WhereInterceptionSite
         Id = id;
         Shape = shape;
         Terminal = terminal;
-        PredicateMethodGroupTarget = predicateMethodGroupTarget;
-        ActionMethodGroupTarget = actionMethodGroupTarget;
-        PredicateParameterNames = predicateParameterNames;
-        ActionParameterNames = actionParameterNames;
-        PredicateBody = predicateBody;
-        ActionBody = actionBody;
-        PredicateBodyIsBlock = predicateBodyIsBlock;
-        ActionBodyIsBlock = actionBodyIsBlock;
+        PredicateShapeBinding = predicateShapeBinding;
         PredicateComponents = predicateComponents;
         ActionComponents = actionComponents;
         Attribute = attribute;
         Usings = usings;
+        PredicateBinding = new CallSiteBinding(
+            predicateParameterNames,
+            predicateBody,
+            predicateBodyIsBlock,
+            canInline: predicateBody is not null && !predicateBodyIsBlock,
+            predicateMethodGroupTarget);
+        ActionBinding = new CallSiteBinding(
+            actionParameterNames,
+            actionBody,
+            actionBodyIsBlock,
+            canInline: actionBody is not null && !actionBodyIsBlock,
+            actionMethodGroupTarget);
     }
 
     internal string Id { get; }
     internal PredicateModel Shape { get; }
     internal TerminalModel Terminal { get; }
-    internal string[] PredicateParameterNames { get; }
-    internal string[] ActionParameterNames { get; }
-    internal string? PredicateBody { get; }
-    internal string? ActionBody { get; }
-    internal bool PredicateBodyIsBlock { get; }
-    internal bool ActionBodyIsBlock { get; }
-    internal string? PredicateMethodGroupTarget { get; }
-    internal string? ActionMethodGroupTarget { get; }
+    internal WherePredicateBinding PredicateShapeBinding { get; }
     internal string[] PredicateComponents { get; }
     internal string[] ActionComponents { get; }
     internal string Attribute { get; }
     internal string[] Usings { get; }
+    internal CallSiteBinding PredicateBinding { get; }
+    internal CallSiteBinding ActionBinding { get; }
 }
 
 internal enum TerminalKind

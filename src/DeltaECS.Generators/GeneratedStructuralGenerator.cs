@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Globalization;
-using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -48,185 +43,103 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             return false;
         }
 
-        if (member.Name is IdentifierNameSyntax identifier)
+        string name = member.Name.Identifier.ValueText;
+        if (name is not ("Add" or "Remove" or "Set" or "Create")
+            || !ApiDescriptor.TryGet(name, out ApiDescriptor descriptor)
+            || descriptor.Family != GeneratedApiKind.Structural
+            || !GeneratorSupport.IsNamedType(model.GetTypeInfo(member.Expression).Type, "World"))
         {
-            return identifier.Identifier.ValueText switch
-            {
-                "Add" => TryReadValueShape(model, invocation, isAdd: true, out shape),
-                "Set" => TryReadValueShape(model, invocation, isAdd: false, out shape),
-                "Create" => TryReadExplicitCreateShape(model, invocation, out shape),
-                _ => false
-            };
+            return false;
         }
 
-        if (member.Name is not GenericNameSyntax genericName
-            || genericName.Identifier.ValueText is not ("Add" or "Remove" or "Set" or "Create"))
+        if (name == "Create")
+        {
+            return TryReadCreateShape(
+                model,
+                invocation,
+                member.Name is GenericNameSyntax createName
+                    ? createName.TypeArgumentList.Arguments.Count
+                    : 0,
+                out shape);
+        }
+
+        if (name is "Add" or "Set"
+            && TryReadValueShape(model, invocation, descriptor, name == "Add", out shape))
+        {
+            return true;
+        }
+
+        if (member.Name is not GenericNameSyntax genericName)
         {
             return false;
         }
 
         int arity = genericName.TypeArgumentList.Arguments.Count;
-        if (arity < 1)
-        {
-            return false;
-        }
+        return name != "Set"
+            && TryReadMutationShape(model, invocation, name, descriptor, arity, out shape);
+    }
 
-        Receiver receiver = ReadReceiver(model.GetTypeInfo(member.Expression).Type);
-        if (receiver == Receiver.None)
-        {
-            return false;
-        }
-
-        if (genericName.Identifier.ValueText == "Create")
-        {
-            if (receiver != Receiver.World)
-            {
-                return false;
-            }
-
-            SeparatedSyntaxList<ArgumentSyntax> arguments = invocation.ArgumentList.Arguments;
-            int countIndex = arguments.Count - 1;
-            bool hasOutput = countIndex >= 0
-                && GeneratorSupport.IsEntityOutput(model.GetTypeInfo(arguments[countIndex].Expression).Type);
-            if (hasOutput)
-            {
-                countIndex--;
-            }
-
-            if (countIndex >= 0 && GeneratorSupport.IsInt32(model.GetTypeInfo(arguments[countIndex].Expression).Type))
-            {
-                int selectorCount = countIndex;
-                bool hasExplicitSelectors = selectorCount == arity;
-                if (hasExplicitSelectors)
-                {
-                    for (int index = 0; index < selectorCount; index++)
-                    {
-                        if (!GeneratorSupport.IsComponentId(model.GetTypeInfo(arguments[index].Expression).Type))
-                        {
-                            hasExplicitSelectors = false;
-                            break;
-                        }
-                    }
-                }
-
-                if (selectorCount != 0 && !hasExplicitSelectors)
-                {
-                    return false;
-                }
-
-                shape = new StructuralModel(
-                    receiver,
-                    hasOutput ? StructuralMode.CreateOutput : StructuralMode.Create,
-                    false,
-                    arity,
-                    isExplicitIds: hasExplicitSelectors);
-                return true;
-            }
-
-            if (arguments.Count == 0)
-            {
-                shape = new StructuralModel(receiver, StructuralMode.CreateSingle, false, arity);
-                return true;
-            }
-
-            return false;
-        }
-
-        if (genericName.Identifier.ValueText is "Add" or "Set"
-            && TryReadValueShape(
+    private static bool TryReadMutationShape(
+        SemanticModel model,
+        InvocationExpressionSyntax invocation,
+        string name,
+        ApiDescriptor descriptor,
+        int arity,
+        out StructuralModel? shape)
+    {
+        shape = null;
+        if (!InvocationGrammar.TryReadStructuralMutation(
                 model,
-                invocation,
-                genericName.Identifier.ValueText == "Add",
-                out shape))
-        {
-            return true;
-        }
-
-        if (genericName.Identifier.ValueText == "Set")
-        {
-            return false;
-        }
-
-        StructuralMode mode;
-        bool explicitIds = false;
-        if (receiver == Receiver.World)
-        {
-            int argumentCount = invocation.ArgumentList.Arguments.Count;
-            if (argumentCount != 1 && argumentCount != arity + 1)
-            {
-                return false;
-            }
-
-            ArgumentSyntax argument = invocation.ArgumentList.Arguments[0];
-            if (argument.RefKindKeyword.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.InKeyword)
-                && GeneratorSupport.IsNamedType(model.GetTypeInfo(argument.Expression).Type, "Query"))
-            {
-                mode = StructuralMode.Query;
-            }
-            else if (GeneratorSupport.IsEntityBatch(model.GetTypeInfo(argument.Expression).Type))
-            {
-                mode = StructuralMode.Entities;
-            }
-            else if (GeneratorSupport.IsEntityType(model.GetTypeInfo(argument.Expression).Type))
-            {
-                mode = StructuralMode.SingleEntity;
-            }
-            else
-            {
-                return false;
-            }
-
-            if (argumentCount == arity + 1)
-            {
-                for (int index = 1; index < argumentCount; index++)
-                {
-                    if (!GeneratorSupport.IsComponentId(model.GetTypeInfo(invocation.ArgumentList.Arguments[index].Expression).Type))
-                    {
-                        return false;
-                    }
-                }
-
-                explicitIds = true;
-            }
-        }
-        else
+                invocation.ArgumentList.Arguments,
+                descriptor,
+                arity,
+                valuesAllowed: false,
+                out InvocationCursorResult cursorResult,
+                out int boundArity,
+                out _,
+                out RegistrationBindingKind registrationBinding))
         {
             return false;
         }
 
         shape = new StructuralModel(
-            receiver,
-            mode,
-            genericName.Identifier.ValueText == "Add",
-            arity,
-            isExplicitIds: explicitIds);
+            Operation(name),
+            cursorResult.Target,
+            boundArity,
+            registrationBinding: registrationBinding,
+            hasValues: false);
         return true;
     }
 
     private static bool TryReadValueShape(
         SemanticModel model,
         InvocationExpressionSyntax invocation,
+        ApiDescriptor descriptor,
         bool isAdd,
         out StructuralModel? shape)
     {
         shape = null;
-        if (ReadReceiver(model.GetTypeInfo(((MemberAccessExpressionSyntax)invocation.Expression).Expression).Type)
-            != Receiver.World)
+        if (!InvocationGrammar.TryReadStructuralMutation(
+                model,
+                invocation.ArgumentList.Arguments,
+                descriptor,
+                GenericArity(invocation),
+                valuesAllowed: true,
+                out InvocationCursorResult cursorResult,
+                out int arity,
+                out bool hasValues,
+                out _)
+            || cursorResult.Target != TargetKind.Entity
+            || !hasValues
+            || arity < 2
+            || cursorResult.ComponentIdCount != 0)
         {
             return false;
         }
 
-        SeparatedSyntaxList<ArgumentSyntax> arguments = invocation.ArgumentList.Arguments;
-        int arity = arguments.Count - 1;
-        if (arity < 2
-            || !GeneratorSupport.IsEntityType(model.GetTypeInfo(arguments[0].Expression).Type))
+        for (int index = cursorResult.TailStart; index < cursorResult.TailStart + cursorResult.TailCount; index++)
         {
-            return false;
-        }
-
-        for (int index = 1; index < arguments.Count; index++)
-        {
-            ITypeSymbol? valueType = model.GetTypeInfo(arguments[index].Expression).Type;
+            ITypeSymbol? valueType = model.GetTypeInfo(invocation.ArgumentList.Arguments[index].Expression).Type;
             if (valueType is null || GeneratorSupport.IsComponentId(valueType))
             {
                 return false;
@@ -234,72 +147,60 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         }
 
         shape = new StructuralModel(
-            Receiver.World,
-            StructuralMode.SingleEntity,
-            isAdd,
+            isAdd ? StructuralOperation.Add : StructuralOperation.Set,
+            TargetKind.Entity,
             arity: arity,
             hasValues: true);
         return true;
     }
 
-    private static bool TryReadExplicitCreateShape(
+    private static bool TryReadCreateShape(
         SemanticModel model,
         InvocationExpressionSyntax invocation,
+        int genericArity,
         out StructuralModel? shape)
     {
         shape = null;
-        if (invocation.Expression is not MemberAccessExpressionSyntax member
-            || ReadReceiver(model.GetTypeInfo(member.Expression).Type) != Receiver.World)
-        {
-            return false;
-        }
-
+        bool isGeneric = genericArity > 0;
         SeparatedSyntaxList<ArgumentSyntax> arguments = invocation.ArgumentList.Arguments;
-        if (arguments.Count < 2)
+        if (!ApiDescriptor.TryGet("Create", out ApiDescriptor descriptor)
+            || !new InvocationCursor(model, arguments, descriptor).TryRead(-1, out InvocationCursorResult cursorResult))
         {
             return false;
         }
 
-        int countIndex = arguments.Count - 1;
-        bool hasOutput = false;
-        if (GeneratorSupport.IsEntityOutput(model.GetTypeInfo(arguments[countIndex].Expression).Type))
-        {
-            hasOutput = true;
-            countIndex--;
-        }
-
-        if (countIndex < 1
-            || !GeneratorSupport.IsInt32(model.GetTypeInfo(arguments[countIndex].Expression).Type))
+        int? explicitArity = cursorResult.ComponentIdCount == 0 ? null : cursorResult.ComponentIdCount;
+        var arityEvidence = new ArityEvidence();
+        arityEvidence.Add(isGeneric ? genericArity : null);
+        arityEvidence.Add(explicitArity);
+        if (!arityEvidence.TryBind(descriptor.MinimumArity, out int arity))
         {
             return false;
-        }
-
-        for (int index = 0; index < countIndex; index++)
-        {
-            if (!GeneratorSupport.IsComponentId(model.GetTypeInfo(arguments[index].Expression).Type))
-            {
-                return false;
-            }
         }
 
         shape = new StructuralModel(
-            Receiver.World,
-            hasOutput ? StructuralMode.ExplicitCreateOutput : StructuralMode.ExplicitCreate,
-            isAdd: false,
-            countIndex,
-            isGeneric: false);
+            StructuralOperation.Create,
+            TargetKind.World,
+            arity,
+            typeBinding: isGeneric ? TypeBindingKind.Generic : TypeBindingKind.None,
+            registrationBinding: explicitArity.HasValue
+                ? RegistrationBindingKind.Explicit
+                : RegistrationBindingKind.Primary,
+            hasOutput: cursorResult.HasOutput);
         return true;
     }
 
-    private static Receiver ReadReceiver(ITypeSymbol? type)
-    {
-        string name = type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? string.Empty;
-        return name switch
-        {
-            "global::Delta.ECS.World" => Receiver.World,
-            _ => Receiver.None
-        };
-    }
+    private static int? GenericArity(InvocationExpressionSyntax invocation)
+        => (invocation.Expression as MemberAccessExpressionSyntax)?.Name is GenericNameSyntax genericName
+            ? genericName.TypeArgumentList.Arguments.Count
+            : null;
 
+    private static StructuralOperation Operation(string name)
+        => name switch
+        {
+            "Add" => StructuralOperation.Add,
+            "Remove" => StructuralOperation.Remove,
+            _ => StructuralOperation.Set
+        };
 
 }

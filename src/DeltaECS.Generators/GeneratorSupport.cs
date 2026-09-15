@@ -1,7 +1,5 @@
-using System;
 using System.Collections.Immutable;
 using System.Globalization;
-using System.Linq;
 using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -86,7 +84,7 @@ internal static class GeneratorSupport
             static (syntaxContext, _) => new InvocationCandidate((InvocationExpressionSyntax)syntaxContext.Node));
 
     internal static bool IsGeneratedApiName(string name)
-        => ApiKind(name) != GeneratedApiKind.Unknown;
+        => ApiDescriptor.TryGet(name, out _);
 
     internal static bool IsGeneratedSourcePath(string path)
         => path.EndsWith("ForEach.g.cs", StringComparison.Ordinal)
@@ -95,34 +93,6 @@ internal static class GeneratorSupport
             || path.Contains("GeneratedStructural_", StringComparison.Ordinal)
             || path.Contains("GeneratedWhere_", StringComparison.Ordinal)
             || path.Contains("GeneratedWhereInterceptor_", StringComparison.Ordinal);
-
-    internal static GeneratedApiKind ApiKind(string name)
-        => name switch
-        {
-            "Add" or "Create" or "Destroy" or "Remove" or "Set" => GeneratedApiKind.Structural,
-            "WhereAll" or "WhereAny" or "WhereNone" => GeneratedApiKind.QueryFactory,
-            "Where" or "WhereEntity" => GeneratedApiKind.Where,
-            "ForEach" or "ForEachEntity"
-                or "ForEachParallel" or "ForEachEntityParallel"
-                or "ForEachStamp" or "ForEachEntityStamp"
-                or "ForEachStampParallel" or "ForEachEntityStampParallel" => GeneratedApiKind.Iteration,
-            _ => GeneratedApiKind.Unknown
-        };
-
-    internal static bool IsIterationName(string name)
-        => ApiKind(name) == GeneratedApiKind.Iteration;
-
-    internal static bool IsParallelIterationName(string name)
-        => name is "ForEachParallel" or "ForEachEntityParallel"
-            or "ForEachStampParallel" or "ForEachEntityStampParallel";
-
-    internal static bool IsEntityIterationName(string name)
-        => name is "ForEachEntity" or "ForEachEntityParallel"
-            or "ForEachEntityStamp" or "ForEachEntityStampParallel";
-
-    internal static bool IsStampIterationName(string name)
-        => name is "ForEachStamp" or "ForEachEntityStamp"
-            or "ForEachStampParallel" or "ForEachEntityStampParallel";
 
     internal static ImmutableArray<ComponentModel> ComponentModels(
         string pattern,
@@ -135,12 +105,9 @@ internal static class GeneratorSupport
                 string genericType = genericPrefix + (index + 1).ToString(CultureInfo.InvariantCulture);
                 string typeName = isFunctor ? components[index] : genericType;
                 return new ComponentModel(
-                    index,
                     typeName,
-                    isFunctor ? SelectorKind.Inferred : SelectorKind.Generic,
                     AccessKindFrom(pattern[index]),
-                    resolvedTypeName: typeName,
-                    genericTypeName: genericType);
+                    resolvedTypeName: typeName);
             })
             .ToImmutableArray();
 
@@ -220,23 +187,8 @@ internal static class GeneratorSupport
         return type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
     }
 
-    internal static string GenericTypes(int arity, string prefix = "T")
-    {
-        var values = new string[arity];
-        for (int index = 0; index < arity; index++)
-        {
-            values[index] = prefix + (index + 1).ToString(CultureInfo.InvariantCulture);
-        }
-
-        return string.Join(", ", values);
-    }
-
-    internal static string GenericList(int arity, string prefix = "T")
-        => GenericTypes(arity, prefix);
-
     internal static ImmutableArray<ComponentModel> ComponentModels(
         int arity,
-        SelectorKind selector,
         AccessKind access,
         string prefix = "T")
     {
@@ -244,16 +196,9 @@ internal static class GeneratorSupport
         for (int index = 0; index < arity; index++)
         {
             slots.Add(new ComponentModel(
-                index,
                 prefix + (index + 1).ToString(CultureInfo.InvariantCulture),
-                selector,
                 access,
-                "component" + index.ToString(CultureInfo.InvariantCulture),
-                selector == SelectorKind.ComponentIds
-                    ? "componentId" + index.ToString(CultureInfo.InvariantCulture)
-                    : null,
-                resolvedTypeName: prefix + (index + 1).ToString(CultureInfo.InvariantCulture),
-                genericTypeName: "T" + (index + 1).ToString(CultureInfo.InvariantCulture)));
+                resolvedTypeName: prefix + (index + 1).ToString(CultureInfo.InvariantCulture)));
         }
 
         return slots.ToImmutable();
@@ -285,37 +230,6 @@ internal static class GeneratorSupport
         return hasRef
             ? hasReadonly ? 'R' : 'W'
             : parameter.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.InKeyword)) ? 'I' : 'V';
-    }
-
-    internal static bool IsWrite(char mode) => mode == 'W';
-
-    internal static string ParameterPrefix(char mode)
-        => mode switch
-        {
-            'R' => "ref readonly ",
-            'W' => "ref ",
-            'I' => "in ",
-            _ => string.Empty
-        };
-
-    internal static string InvocationPrefix(char mode)
-        => mode is 'R' or 'I' ? "in " : mode == 'W' ? "ref " : string.Empty;
-
-    internal static string GenericParameters(int arity, string prefix = "T")
-        => arity == 0 ? string.Empty : "<" + GenericTypes(arity, prefix) + ">";
-
-    internal static string GenericParameters(string generic)
-        => string.IsNullOrEmpty(generic) ? string.Empty : "<" + generic + ">";
-
-    internal static string JoinIndexed(int count, Func<int, string> format)
-    {
-        var values = new string[count];
-        for (int index = 0; index < count; index++)
-        {
-            values[index] = format(index);
-        }
-
-        return string.Join(", ", values);
     }
 
     internal static bool IsAccessibleType(ITypeSymbol type)
@@ -362,17 +276,15 @@ internal static class GeneratorSupport
     }
 
     internal static ApiModel CreateIterationShape(
-        string receiver,
         bool isStamp,
         bool parallel,
         bool hasEntity,
         bool hasEntityTarget,
         bool hasQuery,
-        bool explicitIds,
-        bool genericSelectors,
+        RegistrationBindingKind registrationBinding,
+        TypeBindingKind typeBinding,
         bool isFunctor,
         bool hasContext,
-        bool implicitComponents,
         ContextModeKind contextMode,
         string pattern,
         string[] components,
@@ -381,25 +293,19 @@ internal static class GeneratorSupport
         string methodName)
     {
         TargetKind target = hasEntityTarget
-            ? TargetKind.Entity
-            : receiver == "World" ? TargetKind.World : TargetKind.EntityList;
-        SelectorKind selectorKind = explicitIds
-            ? SelectorKind.ComponentIds
-            : genericSelectors ? SelectorKind.Generic : SelectorKind.Inferred;
+            ? TargetKind.EntityList
+            : TargetKind.World;
         var slots = ImmutableArray.CreateBuilder<ComponentModel>(components.Length);
         for (int index = 0; index < components.Length; index++)
         {
             slots.Add(new ComponentModel(
-                index,
-                genericSelectors ? "T" + (index + 1).ToString(CultureInfo.InvariantCulture) : components[index],
-                selectorKind,
+                typeBinding == TypeBindingKind.Generic
+                    ? "T" + (index + 1).ToString(CultureInfo.InvariantCulture)
+                    : components[index],
                 isStamp
                     ? AccessKind.StampRead
                     : AccessKindFrom(index < pattern.Length ? pattern[index] : 'I'),
-                "component" + index.ToString(CultureInfo.InvariantCulture),
-                explicitIds ? "componentId" + index.ToString(CultureInfo.InvariantCulture) : null,
-                components[index],
-                genericTypeName: "T" + (index + 1).ToString(CultureInfo.InvariantCulture)));
+                components[index]));
         }
 
         ContextModeKind mode = hasContext ? contextMode : ContextModeKind.None;
@@ -408,17 +314,17 @@ internal static class GeneratorSupport
             hasEntity,
             functorType);
         return new ApiModel(
-            isStamp ? OperationKind.StampIteration : OperationKind.Iteration,
+            OperationKind.Iteration,
             target,
             hasQuery ? (target == TargetKind.EntityList ? QueryMode.Optional : QueryMode.Required) : QueryMode.None,
-            new SelectorModel(selectorKind, slots.ToImmutable()),
+            new SelectorModel(typeBinding, registrationBinding, slots.ToImmutable()),
             new ContextModel(hasContext ? mode : ContextModeKind.None, contextType),
             callback,
             new ExecutionModel(
-                parallel ? ExecutionKind.Parallel : target == TargetKind.EntityList ? ExecutionKind.EntityList : ExecutionKind.Dense,
-                isStamp ? ValueKind.Stamp : ValueKind.Component),
-            name: methodName + "|" + (!implicitComponents ? "Explicit" : "Implicit"),
-            pattern: pattern);
+                target == TargetKind.EntityList ? Scope.EntityList : Scope.QueryWide,
+                isStamp ? ValueDomain.Stamp : ValueDomain.Component,
+                parallel ? Schedule.Parallel : Schedule.Sequential),
+            name: methodName);
     }
 
     internal static string StableName(string value)

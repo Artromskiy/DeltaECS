@@ -1,23 +1,25 @@
 using System.Collections.Immutable;
-using System.Linq;
+using System.Globalization;
 
 namespace Delta.ECS.Generators;
 
 /// <summary>Raw-string templates for generated fluent query factories.</summary>
 internal static class GeneratedQueryTemplates
 {
+    private static readonly (string Type, string Name, string Resolver, string Result)[] _factories =
+    {
+        ("World", "world", "world.Layouts.GetPrimary<T{0}>()", "world.CreateQuery(additions)"),
+        ("Query", "query", "GeneratedForEachRuntime.GetGeneratedPrimary<T{0}>(in query)",
+            "GeneratedForEachRuntime.ComposeGeneratedQuery(in query, additions)")
+    };
+
     internal static string Render(QueryModel model)
     {
         string hash = GeneratorSupport.StableName(model.Key);
         string members = GeneratorTemplates.JoinNonEmpty(
-            new[]
-            {
-                RenderFactory(model, "World", "world", "world.CreateQuery"),
-                RenderFactory(model, "Query", "query", "GeneratedForEachRuntime.ComposeGeneratedQuery")
-            },
+            _factories.Select(factory => RenderFactory(model, factory)),
             "\n\n");
-        RenderModel extension = GeneratorTemplates.ExtensionTemplate(
-            model.Api,
+        string extension = GeneratorTemplates.ExtensionTemplate(
             $"GeneratedQueryExtensions_{hash}",
             isInternal: false,
             GeneratorTemplates.Indent(members, "    "));
@@ -29,27 +31,22 @@ internal static class GeneratedQueryTemplates
 
     private static string RenderFactory(
         QueryModel model,
-        string receiverType,
-        string receiverName,
-        string createCall)
+        (string Type, string Name, string Resolver, string Result) factory)
     {
-        string components = string.Join(
-            "\n",
-            Enumerable.Range(0, model.Arity).Select(index => receiverType == "World"
-                ? $"components[{index}] = world.Layouts.GetPrimary<T{index + 1}>();"
-                : $"components[{index}] = GeneratedForEachRuntime.GetGeneratedPrimary<T{index + 1}>(in query);"));
+        SignatureProjection slots = model.Api.Signature;
+        string components = GeneratorTemplates.JoinIndexed(
+            slots.Arity,
+            index => $"components[{index}] = {string.Format(CultureInfo.InvariantCulture, factory.Resolver, index + 1)};",
+            "\n");
         string additions = $"QuerySpec additions = QuerySpec.{model.Kind}(components);";
-        string result = receiverType == "World"
-            ? $"return {createCall}(additions);"
-            : $"return {createCall}(in {receiverName}, additions);";
         string declaration = $$"""
-            public static Query {{model.Kind}}<{{GeneratorSupport.GenericTypes(model.Arity)}}>(this {{receiverType}} {{receiverName}})
+            public static Query {{model.Kind}}{{slots.GenericParameters()}}(this {{factory.Type}} {{factory.Name}})
             """.Trim();
         string body = $$"""
-            global::System.Span<ComponentId> components = stackalloc ComponentId[{{model.Arity}}];
+            global::System.Span<ComponentId> components = stackalloc ComponentId[{{slots.Arity}}];
             {{components}}
             {{additions}}
-            {{result}}
+            return {{factory.Result}};
             """;
         return GeneratorTemplates.Method(
             model.Api,

@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -21,7 +17,7 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
                     context,
                     static syntaxContext => TryReadShape(
                         syntaxContext.SemanticModel,
-                        (Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax)syntaxContext.Node,
+                        (InvocationExpressionSyntax)syntaxContext.Node,
                         out QueryModel? shape)
                         ? shape
                         : null)
@@ -44,39 +40,28 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
         shape = null;
         if (invocation.Expression is not MemberAccessExpressionSyntax member
             || member.Name is not GenericNameSyntax genericName
-            || genericName.Identifier.ValueText is not ("WhereAll" or "WhereAny" or "WhereNone")
-            || invocation.ArgumentList.Arguments.Count != 0)
-        {
-            return false;
-        }
-
-        if (!IsWorldReceiver(model, member.Expression)
-            && !IsQueryReceiver(model, member.Expression))
+            || !IsFactoryName(genericName.Identifier.ValueText)
+            || !ApiDescriptor.TryGet(genericName.Identifier.ValueText, out ApiDescriptor descriptor)
+            || descriptor.Family != GeneratedApiKind.QueryFactory
+            || invocation.ArgumentList.Arguments.Count != 0
+            || (!IsWorldReceiver(model, member.Expression)
+                && !IsQueryReceiver(model, member.Expression)))
         {
             return false;
         }
 
         int arity = genericName.TypeArgumentList.Arguments.Count;
-        if (arity < 1)
+        if (arity < descriptor.MinimumArity)
         {
             return false;
-        }
-
-        for (int index = 0; index < arity; index++)
-        {
-            ITypeSymbol? type = model.GetTypeInfo(genericName.TypeArgumentList.Arguments[index]).Type;
-            if (type is null
-                || type.TypeKind == TypeKind.Error
-                || type is ITypeParameterSymbol
-                || !GeneratorSupport.IsAccessibleType(type))
-            {
-                return false;
-            }
         }
 
         shape = new QueryModel(genericName.Identifier.ValueText, arity);
         return true;
     }
+
+    private static bool IsFactoryName(string name)
+        => name is "WhereAll" or "WhereAny" or "WhereNone";
 
     private static bool IsWorldReceiver(SemanticModel model, ExpressionSyntax expression)
         => GeneratorSupport.IsNamedType(model.GetTypeInfo(expression).Type, "World");
@@ -95,7 +80,7 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
             && invocation.ArgumentList.Arguments.Count == 0
             && invocation.Expression is MemberAccessExpressionSyntax member
             && member.Name is GenericNameSyntax genericName
-            && genericName.Identifier.ValueText is ("WhereAll" or "WhereAny" or "WhereNone"))
+            && IsFactoryName(genericName.Identifier.ValueText))
         {
             return IsWorldReceiver(model, member.Expression)
                 || IsQueryReceiver(model, member.Expression);

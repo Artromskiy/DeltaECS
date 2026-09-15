@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
 
 namespace Delta.ECS.Generators;
 
@@ -10,20 +7,19 @@ internal static class GeneratedStructuralTemplates
 {
     internal static string Render(StructuralModel shape)
     {
+        SignatureProjection slots = shape.Api.Signature;
         string hash = GeneratorSupport.StableName(shape.Key);
-        string methodName = MethodName(shape);
         string parameters = GeneratorTemplates.JoinNonEmpty(
-            new[] { $"this {ReceiverType(shape.Receiver)} target" }
-                .Concat(ParameterFragments(shape))
-                .Concat(shape.IsExplicitIds && shape.Mode is not (StructuralMode.Create or StructuralMode.CreateOutput)
-                    ? new[] { ComponentParameters(shape.Arity) }
-                    : Array.Empty<string>()),
+            new[] { "this World target" }
+                .Concat(ParameterFragments(shape, slots)),
             ", ");
-        string body = RenderBody(shape);
+        string body = RenderBody(shape, slots);
 
-        string generic = shape.IsGeneric ? GeneratorSupport.GenericParameters(shape.Arity) : string.Empty;
+        string generic = slots.HasGenericSelectors
+            ? slots.GenericParameters()
+            : string.Empty;
         string declaration = $$"""
-            public static {{ReturnType(shape)}} {{methodName}}{{generic}}({{parameters}})
+            public static {{ReturnType(shape)}} {{MethodName(shape)}}{{generic}}({{parameters}})
             """.Trim();
         string method = GeneratorTemplates.Method(
             shape.Api,
@@ -34,12 +30,15 @@ internal static class GeneratedStructuralTemplates
         {
             method,
             shape.HasValues
-                ? RenderValueInitializer(shape.Arity, shape.Plan.Operation == StructuralOperation.Add)
+                ? GeneratorTemplates.ValueInitializer(
+                    $"Generated{(shape.Operation == StructuralOperation.Add ? "Add" : "Set")}Values",
+                    slots,
+                    "T",
+                    shape.Operation == StructuralOperation.Add ? "Set" : "SetUnsafe")
                 : string.Empty
         }, "\n\n");
 
-        RenderModel member = GeneratorTemplates.ExtensionTemplate(
-            shape.Api,
+        string member = GeneratorTemplates.ExtensionTemplate(
             $$"""GeneratedStructuralExtensions_{{hash}}""",
             isInternal: false,
             GeneratorTemplates.Indent(members, "    "));
@@ -49,55 +48,69 @@ internal static class GeneratedStructuralTemplates
             ImmutableArray.Create(member)));
     }
 
-    private static IEnumerable<string> ParameterFragments(StructuralModel shape)
-        => shape.Mode switch
-        {
-            StructuralMode.Entities => new[] { "global::System.ReadOnlySpan<Entity> entities" },
-            StructuralMode.SingleEntity => new[]
-            {
-                "Entity entity",
-                shape.HasValues ? ValueParameters(shape.Arity) : string.Empty
-            },
-            StructuralMode.Query => new[] { "in Query query" },
-            StructuralMode.Create => new[]
-            {
-                shape.IsExplicitIds ? ComponentParameters(shape.Arity) : string.Empty,
-                "int count"
-            },
-            StructuralMode.CreateOutput => new[]
-            {
-                shape.IsExplicitIds ? ComponentParameters(shape.Arity) : string.Empty,
-                "int count",
-                "global::System.Span<Entity> output"
-            },
-            StructuralMode.ExplicitCreate => new[] { ComponentParameters(shape.Arity), "int count" },
-            StructuralMode.ExplicitCreateOutput => new[]
-            {
-                ComponentParameters(shape.Arity),
-                "int count",
-                "global::System.Span<Entity> output"
-            },
-            _ => Array.Empty<string>()
-        };
-
-    private static string RenderBody(StructuralModel shape)
-        => shape.HasValues
-            ? RenderValueBody(shape)
-            : shape.Mode is StructuralMode.CreateSingle or StructuralMode.Create or StructuralMode.CreateOutput
-                ? RenderCreateBody(shape)
-                : shape.Mode is StructuralMode.ExplicitCreate or StructuralMode.ExplicitCreateOutput
-                    ? RenderExplicitCreateBody(shape)
-                    : RenderMutationBody(shape);
-
-    private static string RenderValueBody(StructuralModel shape)
+    private static IEnumerable<string> ParameterFragments(StructuralModel shape, SignatureProjection slots)
     {
-        string operation = shape.Plan.Operation == StructuralOperation.Add ? "Add" : "Set";
-        string initializerName = $$"""Generated{{operation}}Values<{{GeneratorSupport.GenericTypes(shape.Arity)}}>""";
-        string initializerArguments = string.Join(",\n", Enumerable.Range(0, shape.Arity)
-            .Select(index => $$"""components[{{index}}], in value{{index}}"""));
+        TargetKind target = shape.Api.Target;
+        return shape.Operation == StructuralOperation.Create
+            ? new[] { CreateParameters(shape, slots) }
+            : target switch
+            {
+                TargetKind.EntityList => new[]
+                {
+                "global::System.ReadOnlySpan<Entity> entities",
+                slots.HasExplicitIds
+                    ? slots.ComponentIdParameters()
+                    : string.Empty
+            },
+                TargetKind.Entity => new[]
+                {
+                "Entity entity",
+                shape.HasValues ? slots.ValueParameters() : string.Empty,
+                slots.HasExplicitIds
+                    ? slots.ComponentIdParameters()
+                    : string.Empty
+            },
+                TargetKind.Query => new[]
+                {
+                "in Query query",
+                slots.HasExplicitIds
+                    ? slots.ComponentIdParameters()
+                    : string.Empty
+            },
+                _ => Array.Empty<string>()
+            };
+    }
+
+    private static string CreateParameters(StructuralModel shape, SignatureProjection slots)
+    {
         return GeneratorTemplates.JoinNonEmpty(new[]
         {
-            RenderComponents(shape),
+            slots.HasExplicitIds
+                ? slots.ComponentIdParameters()
+                : string.Empty,
+            "int count",
+            shape.HasOutput ? "global::System.Span<Entity> output" : string.Empty
+        }, ", ");
+    }
+
+    private static string RenderBody(StructuralModel shape, SignatureProjection slots)
+        => shape.HasValues
+            ? RenderValueBody(shape, slots)
+            : shape.Operation == StructuralOperation.Create
+                ? RenderCreateBody(shape, slots)
+                : RenderMutationBody(shape, slots);
+
+    private static string RenderValueBody(StructuralModel shape, SignatureProjection slots)
+    {
+        string operation = shape.Operation == StructuralOperation.Add ? "Add" : "Set";
+        string initializerName = $$"""Generated{{operation}}Values{{slots.GenericParameters()}}""";
+        string initializerArguments = GeneratorTemplates.JoinIndexed(
+            slots.Arity,
+            index => $$"""components[{{index}}], in value{{index}}""",
+            ",\n");
+        return GeneratorTemplates.JoinNonEmpty(new[]
+        {
+            RenderComponents(shape, slots),
             $$"""
                 var initializer = new {{initializerName}}(
                 {{initializerArguments}}
@@ -113,92 +126,48 @@ internal static class GeneratedStructuralTemplates
         });
     }
 
-    private static string RenderCreateBody(StructuralModel shape)
+    private static string RenderCreateBody(StructuralModel shape, SignatureProjection slots)
         => GeneratorTemplates.JoinNonEmpty(new[]
         {
-            RenderComponents(shape),
-            shape.Mode switch
-            {
-                StructuralMode.CreateSingle => "return target.Create(components);",
-                StructuralMode.Create => "return target.Create(components, count);",
-                _ => "return target.Create(components, count, output);"
-            }
+            RenderComponents(shape, slots),
+            $"return target.Create(components, count{(shape.HasOutput ? ", output" : string.Empty)});"
         });
 
-    private static string RenderExplicitCreateBody(StructuralModel shape)
-        => GeneratorTemplates.JoinNonEmpty(new[]
-        {
-            RenderComponents(shape),
-            shape.Mode == StructuralMode.ExplicitCreate
-                ? "return target.Create(components, count);"
-                : "return target.Create(components, count, output);"
-        });
-
-    private static string RenderMutationBody(StructuralModel shape)
+    private static string RenderMutationBody(StructuralModel shape, SignatureProjection slots)
     {
-        string operation = shape.Plan.Operation == StructuralOperation.Add ? "Add" : "Remove";
-        string targetArguments = shape.Mode switch
+        string operation = shape.Operation == StructuralOperation.Add ? "Add" : "Remove";
+        string targetArguments = shape.Api.Target switch
         {
-            StructuralMode.Query => "in query, components",
-            StructuralMode.SingleEntity => "entity, components",
+            TargetKind.Query => "in query, components",
+            TargetKind.Entity => "entity, components",
             _ => "entities, components"
         };
         return GeneratorTemplates.JoinNonEmpty(new[]
         {
-            RenderComponents(shape),
+            RenderComponents(shape, slots),
             $$"""return target.{{operation}}({{targetArguments}});"""
         });
     }
 
-    private static string RenderComponents(StructuralModel shape)
+    private static string RenderComponents(StructuralModel shape, SignatureProjection slots)
     {
-        bool explicitIds = shape.IsExplicitIds
-            || shape.Mode is StructuralMode.ExplicitCreate or StructuralMode.ExplicitCreateOutput;
-        string assignments = explicitIds
-            ? RenderComponentAssignments("components", shape.Arity, "component")
-            : RenderPrimaryAssignments("target.Layouts", "components", shape.Arity);
+        string assignments = slots.HasExplicitIds
+            ? RenderComponentAssignments("components", slots, "component")
+            : RenderPrimaryAssignments("target.Layouts", "components", slots);
         return $$"""
-            global::System.Span<ComponentId> components = stackalloc ComponentId[{{shape.Arity}}];
+            global::System.Span<ComponentId> components = stackalloc ComponentId[{{slots.Arity}}];
             {{assignments}}
             """;
     }
 
-    private static string RenderValueInitializer(int arity, bool isAdd)
-    {
-        string name = $"Generated{(isAdd ? "Add" : "Set")}Values";
-        string generic = GeneratorSupport.GenericTypes(arity);
-        string fields = GeneratorTemplates.JoinNonEmpty(Enumerable.Range(0, arity).Select(index => $$"""
-            private readonly ComponentId component{{index}};
-            private readonly T{{index + 1}} value{{index}};
-            """));
-        string parameters = string.Join(", ", Enumerable.Range(0, arity).Select(index => $$"""ComponentId component{{index}}, in T{{index + 1}} value{{index}}"""));
-        string assignments = GeneratorTemplates.JoinNonEmpty(Enumerable.Range(0, arity).Select(index => $$"""
-            this.component{{index}} = component{{index}};
-            this.value{{index}} = value{{index}};
-            """));
-        string writes = GeneratorTemplates.JoinNonEmpty(Enumerable.Range(0, arity).Select(index => $$"""
-            writer.Set{{(isAdd ? string.Empty : "Unsafe")}}(component{{index}}, in value{{index}});
-            """));
-        string body = GeneratorTemplates.JoinNonEmpty(new[]
-        {
-            GeneratorTemplates.RenderBlock($"internal {name}({parameters})", assignments),
-            GeneratorTemplates.RenderBlock("public void Initialize(ref global::Delta.ECS.GeneratedComponentValueWriter writer)", writes)
-        }, "\n\n");
-        return GeneratorTemplates.RenderBlock(
-            $"private struct {name}<{generic}> : global::Delta.ECS.IGeneratedComponentValueInitializer",
-            GeneratorTemplates.JoinNonEmpty(new[] { fields, body }, "\n\n"));
-    }
+    private static string RenderComponentAssignments(string destination, SignatureProjection slots, string parameterPrefix)
+        => GeneratorTemplates.JoinIndexed(slots.Arity, index => $$"""{{destination}}[{{index}}] = {{parameterPrefix}}{{index}};""", "\n");
 
-    private static string RenderComponentAssignments(string destination, int arity, string parameterPrefix)
-        => GeneratorTemplates.JoinNonEmpty(Enumerable.Range(0, arity)
-            .Select(index => $$"""{{destination}}[{{index}}] = {{parameterPrefix}}{{index}};"""));
-
-    private static string RenderPrimaryAssignments(string registry, string destination, int arity)
-        => GeneratorTemplates.JoinNonEmpty(Enumerable.Range(0, arity)
-            .Select(index => $$"""{{destination}}[{{index}}] = {{registry}}.GetPrimary<T{{index + 1}}>();"""));
+    private static string RenderPrimaryAssignments(string registry, string destination, SignatureProjection slots)
+        => GeneratorTemplates.JoinIndexed(slots.Arity, index => $$"""{{destination}}[{{index}}] = {{registry}}.GetPrimary<{{slots.GenericType(index)}}>();""", "\n");
 
     private static string MethodName(StructuralModel shape)
-        => shape.Plan.Operation switch
+        => shape.Operation switch
         {
             StructuralOperation.Create => "Create",
             StructuralOperation.Set => "Set",
@@ -208,25 +177,7 @@ internal static class GeneratedStructuralTemplates
         };
 
     private static string ReturnType(StructuralModel shape)
-        => shape.Mode switch
-        {
-            StructuralMode.CreateSingle => "Entity",
-            StructuralMode.SingleEntity => "bool",
-            _ => "int"
-        };
-
-    private static string ComponentParameters(int arity)
-        => string.Join(", ", Enumerable.Range(0, arity).Select(static index => $$"""ComponentId component{{index}}"""));
-
-    private static string ValueParameters(int arity)
-        => string.Join(", ", Enumerable.Range(0, arity).Select(static index => $$"""in T{{index + 1}} value{{index}}"""));
-
-    private static string ReceiverType(Receiver receiver)
-        => receiver switch
-        {
-            Receiver.World => "World",
-            _ => string.Empty
-        };
+        => shape.Api.Target == TargetKind.Entity ? "bool" : "int";
 
 
 }
