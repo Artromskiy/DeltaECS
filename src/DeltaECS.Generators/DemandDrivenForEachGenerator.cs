@@ -562,7 +562,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         bool resolved = expectedMethodParameterCount < 0
             ? CallbackReader.TryGetMethodGroupTarget(model, callback.Expression, out method)
             : CallbackReader.TryGetMethodGroupTarget(model, callback.Expression, expectedMethodParameterCount, expectedTypes, namedEntity, out method);
-        if (callback.RefKindKeyword.RawKind != 0
+        if (!callback.RefKindKeyword.IsKind(SyntaxKind.None)
             || !resolved
             || method is not { } methodTarget)
         {
@@ -636,7 +636,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         if (stamp && componentParameters.Any(static parameter =>
                 !GeneratorSupport.IsStampType(parameter.Type)
-                || parameter.RefKind is not (RefKind.In or (RefKind)4 or (RefKind)5)))
+                || parameter.RefKind is not RefKind.In && !GeneratorSupport.IsRefReadonly(parameter.RefKind)))
         {
             diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
             return false;
@@ -870,7 +870,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         IParameterSymbol[] componentParameters = invoke.Parameters.Skip(prefixCount).ToArray();
         if (stamp && componentParameters.Any(static parameter =>
                 !GeneratorSupport.IsStampType(parameter.Type)
-                || parameter.RefKind is not (RefKind.In or (RefKind)4 or (RefKind)5)))
+                || parameter.RefKind is not RefKind.In && !GeneratorSupport.IsRefReadonly(parameter.RefKind)))
         {
             diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
             return false;
@@ -949,8 +949,15 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         => parallel && mode == ContextModeKind.RefReadonly ? ContextModeKind.In : mode;
 
     private static bool IsStampSyntax(ParameterSyntax parameter)
-        => parameter.Type?.ToString() is "Stamp" or "global::Delta.ECS.Stamp"
-            && CallbackReader.ParameterRefKind(parameter) is RefKind.In or (RefKind)4 or (RefKind)5;
+    {
+        if (parameter.Type?.ToString() is not ("Stamp" or "global::Delta.ECS.Stamp"))
+        {
+            return false;
+        }
+
+        RefKind refKind = CallbackReader.ParameterRefKind(parameter);
+        return refKind is RefKind.In || GeneratorSupport.IsRefReadonly(refKind);
+    }
 
     private static string NormalizeStampPattern(string pattern)
         => pattern.Replace('R', 'I');

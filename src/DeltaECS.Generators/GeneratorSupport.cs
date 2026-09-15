@@ -12,6 +12,9 @@ internal static class GeneratorSupport
 {
     private const int FirstInterceptorLanguageVersion = 1100;
     private const string InterceptorNamespace = "Delta.ECS.Generated";
+    private const int RefReadOnlyParameterValue = 5;
+    internal const string EcsNamespace = "Delta.ECS";
+    internal const string SystemNamespace = "System";
 
     internal static bool IsInterceptionEnabled(AnalyzerConfigOptions options)
         => options.TryGetValue("build_property.InterceptorsNamespaces", out string? namespaces)
@@ -137,7 +140,7 @@ internal static class GeneratorSupport
     internal static bool IsNamedType(ITypeSymbol? type, string name)
         => type is INamedTypeSymbol named
             && named.Name == name
-            && named.ContainingNamespace.ToDisplayString() == "Delta.ECS";
+            && named.ContainingNamespace.ToDisplayString() == EcsNamespace;
 
     internal static bool IsEcsType(ITypeSymbol? type, string name)
         => IsNamedType(type, name);
@@ -165,7 +168,7 @@ internal static class GeneratorSupport
             && named.TypeArguments.Length == 1
             && IsEntityType(named.TypeArguments[0])
             && named.Name is "Span" or "ReadOnlySpan"
-            && named.ContainingNamespace.ToDisplayString() == "System";
+            && named.ContainingNamespace.ToDisplayString() == SystemNamespace;
     }
 
     internal static bool IsEntityOutput(ITypeSymbol? type)
@@ -173,7 +176,7 @@ internal static class GeneratorSupport
             && named.Name == "Span"
             && named.TypeArguments.Length == 1
             && IsEntityType(named.TypeArguments[0])
-            && named.ContainingNamespace.ToDisplayString() == "System";
+            && named.ContainingNamespace.ToDisplayString() == SystemNamespace;
 
     internal static string DisplayType(ITypeSymbol type)
     {
@@ -219,9 +222,12 @@ internal static class GeneratorSupport
         {
             RefKind.In => 'I',
             RefKind.Ref => 'W',
-            (RefKind)4 or (RefKind)5 => 'R',
+            _ when IsRefReadonly(refKind) => 'R',
             _ => 'V'
         };
+
+    internal static bool IsRefReadonly(RefKind refKind)
+        => refKind == RefKind.RefReadOnly || (int)refKind == RefReadOnlyParameterValue;
 
     internal static char PatternLetter(ParameterSyntax parameter)
     {

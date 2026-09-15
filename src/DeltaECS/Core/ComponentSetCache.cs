@@ -40,6 +40,9 @@ internal readonly struct ComponentSetId : IEquatable<ComponentSetId>
 /// <summary>Immutable component registrations and their matching mask.</summary>
 internal sealed class ComponentSet
 {
+    private const uint FnvOffsetBasis = 2_166_136_261u;
+    private const uint FnvPrime = 16_777_619u;
+
     internal static readonly ComponentSet Empty =
         new(Array.Empty<ComponentId>(), default);
 
@@ -69,11 +72,11 @@ internal sealed class ComponentSet
     {
         unchecked
         {
-            uint hash = 2_166_136_261u;
-            hash = (hash ^ (uint)componentIds.Length) * 16_777_619u;
+            uint hash = FnvOffsetBasis;
+            hash = (hash ^ (uint)componentIds.Length) * FnvPrime;
             for (int index = 0; index < componentIds.Length; index++)
             {
-                hash = (hash ^ (uint)componentIds[index].Value) * 16_777_619u;
+                hash = (hash ^ (uint)componentIds[index].Value) * FnvPrime;
             }
 
             return (int)hash;

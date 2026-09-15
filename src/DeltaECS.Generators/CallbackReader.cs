@@ -82,11 +82,11 @@ internal static class CallbackReader
 
     internal static bool IsSupportedRefKind(RefKind refKind)
         => refKind is RefKind.None or RefKind.In or RefKind.Ref
-            || (int)refKind is 4 or 5;
+            || GeneratorSupport.IsRefReadonly(refKind);
 
     internal static bool IsSupportedReadRefKind(RefKind refKind)
         => refKind is RefKind.None or RefKind.In
-            || (int)refKind is 4 or 5;
+            || GeneratorSupport.IsRefReadonly(refKind);
 
     internal static RefKind ArgumentRefKind(ArgumentSyntax argument)
         => argument.RefKindKeyword.Kind() switch
@@ -101,7 +101,7 @@ internal static class CallbackReader
         bool hasRef = parameter.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.RefKeyword));
         return hasRef
             ? parameter.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.ReadOnlyKeyword))
-                ? (Microsoft.CodeAnalysis.RefKind)4
+                ? Microsoft.CodeAnalysis.RefKind.RefReadOnly
                 : Microsoft.CodeAnalysis.RefKind.Ref
             : parameter.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.InKeyword))
                 ? Microsoft.CodeAnalysis.RefKind.In
@@ -113,7 +113,7 @@ internal static class CallbackReader
             ? ContextModeKind.Ref
             : refKind == Microsoft.CodeAnalysis.RefKind.In
                 ? ContextModeKind.In
-                : (int)refKind is 4 or 5
+                : GeneratorSupport.IsRefReadonly(refKind)
                     ? ContextModeKind.RefReadonly
                     : ContextModeKind.Value;
 
@@ -301,7 +301,7 @@ internal static class CallbackReader
         out INamedTypeSymbol? marker)
     {
         INamedTypeSymbol[] markers = type.AllInterfaces
-            .Where(static candidate => candidate.ContainingNamespace.ToDisplayString() == "Delta.ECS")
+            .Where(static candidate => candidate.ContainingNamespace.ToDisplayString() == GeneratorSupport.EcsNamespace)
             .Where(candidate => name(candidate.Name))
             .ToArray();
         marker = markers.Length == 1 ? markers[0] : null;

@@ -2,6 +2,8 @@ namespace Delta.ECS;
 
 internal static class BitOperationsCompat
 {
+    private const int BitsPerWord = sizeof(uint) * 8;
+
     internal static int PopCount(uint value)
     {
 #if NETSTANDARD2_1
@@ -23,7 +25,7 @@ internal static class BitOperationsCompat
 #if NETSTANDARD2_1
         if (value == 0)
         {
-            return 32;
+            return BitsPerWord;
         }
 
         int count = 0;

@@ -45,6 +45,9 @@ public readonly struct ComponentId : IEquatable<ComponentId>, IComparable<Compon
 /// </summary>
 internal readonly struct ComponentMask : IEquatable<ComponentMask>
 {
+    private const int BitsPerWord = sizeof(uint) * 8;
+    private const int WordIndexShift = 5;
+    private const int BitIndexMask = BitsPerWord - 1;
     private readonly NativeComponentMaskStorage? _storage;
 
     private ComponentMask(NativeComponentMaskStorage storage)
@@ -65,9 +68,9 @@ internal readonly struct ComponentMask : IEquatable<ComponentMask>
             return false;
         }
 
-        int wordIndex = componentId.Value >> 5;
+        int wordIndex = componentId.Value >> WordIndexShift;
         return wordIndex < _storage.Length
-            && (_storage.RefAt(wordIndex) & (1u << (componentId.Value & 31))) != 0;
+            && (_storage.RefAt(wordIndex) & (1u << (componentId.Value & BitIndexMask))) != 0;
     }
 
     public bool ContainsAll(ComponentMask other)
@@ -170,14 +173,14 @@ internal readonly struct ComponentMask : IEquatable<ComponentMask>
             return -1;
         }
 
-        int wordIndex = componentId.Value >> 5;
+        int wordIndex = componentId.Value >> WordIndexShift;
         int rank = 0;
         for (int index = 0; index < wordIndex; index++)
         {
             rank += BitOperationsCompat.PopCount(_storage!.RefAt(index));
         }
 
-        uint lowerBits = _storage!.RefAt(wordIndex) & ((1u << (componentId.Value & 31)) - 1u);
+        uint lowerBits = _storage!.RefAt(wordIndex) & ((1u << (componentId.Value & BitIndexMask)) - 1u);
         return rank + BitOperationsCompat.PopCount(lowerBits);
     }
 
@@ -223,7 +226,7 @@ internal readonly struct ComponentMask : IEquatable<ComponentMask>
 
             int bit = BitOperationsCompat.TrailingZeroCount(_remaining);
             _remaining &= _remaining - 1;
-            Current = new ComponentId(((_wordIndex - 1) * 32) + bit);
+            Current = new ComponentId(((_wordIndex - 1) * BitsPerWord) + bit);
             return true;
         }
     }
@@ -292,7 +295,7 @@ internal readonly struct ComponentMask : IEquatable<ComponentMask>
             return default;
         }
 
-        var storage = new NativeComponentMaskStorage((maxValue >> 5) + 1);
+        var storage = new NativeComponentMaskStorage((maxValue >> WordIndexShift) + 1);
         for (int index = 0; index < componentIds.Length; index++)
         {
             ComponentId componentId = componentIds.RefAt(index);
@@ -301,7 +304,7 @@ internal readonly struct ComponentMask : IEquatable<ComponentMask>
                 continue;
             }
 
-            storage.RefAt(componentId.Value >> 5) |= 1u << (componentId.Value & 31);
+            storage.RefAt(componentId.Value >> WordIndexShift) |= 1u << (componentId.Value & BitIndexMask);
         }
 
         storage.RecalculateMetadata();

@@ -11,6 +11,8 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
     where TInvoker : struct, IGeneratedParallelInvoker
 {
     private const int DefaultWorkerCount = 2;
+    private const int WorkerPollSpinCount = 8;
+    private const int CacheLineSize = 64;
     private readonly object _lifecycle = new();
     private WorkerSlot[] _workerSlots = Array.Empty<WorkerSlot>();
     private Worker[] _workers = Array.Empty<Worker>();
@@ -87,7 +89,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         {
             while (Volatile.Read(ref _workerSlots.RefAt(workerIndex).CompletedRun) != run)
             {
-                Thread.SpinWait(8);
+                Thread.SpinWait(WorkerPollSpinCount);
             }
         }
 
@@ -162,7 +164,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             {
                 while (Volatile.Read(ref _workerSlots.RefAt(workerIndex).CompletedRun) != run)
                 {
-                    Thread.SpinWait(8);
+                    Thread.SpinWait(WorkerPollSpinCount);
                 }
             }
 
@@ -343,7 +345,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
                     return;
                 }
 
-                Thread.SpinWait(8);
+                Thread.SpinWait(WorkerPollSpinCount);
             }
 
             if (Volatile.Read(ref _stopping) != 0)
@@ -454,7 +456,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
 
     [System.Runtime.InteropServices.StructLayout(
         System.Runtime.InteropServices.LayoutKind.Sequential,
-        Size = 64)]
+        Size = CacheLineSize)]
     private sealed class WorkerSlot
     {
         internal int PublishedRun;

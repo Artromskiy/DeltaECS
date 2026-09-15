@@ -14,7 +14,7 @@ public sealed class ActiveChunkTests
         var layouts = new ComponentLayoutRegistry();
         layouts.Register(typeof(Position), new SchemaId(1));
         var world = new World(layouts);
-        const int chunkSize = 512;
+        const int chunkSize = Chunk.Capacity;
         var entities = new Entity[chunkSize * 3];
         world.Create(stackalloc[] { PositionId }, entities);
 
