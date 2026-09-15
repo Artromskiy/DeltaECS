@@ -1,42 +1,45 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
-using System.Text;
-
 namespace Delta.ECS.Generators;
 
 /// <summary>Shared helpers for the pure generated-source templates.</summary>
 internal static partial class GeneratorTemplates
 {
-    internal static string RenderMember(Action<StringBuilder> render)
+    internal static RenderModel RenderMember(ApiModel api, string source)
+        => new(api, source);
+
+    internal static string JoinNonEmpty(IEnumerable<string> fragments, string separator = "\n")
+        => string.Join(separator, fragments.Where(static fragment => !string.IsNullOrWhiteSpace(fragment)));
+
+    internal static string Method(ApiModel api, string declaration, string body, string? attributes = null)
+        => RenderBlock(
+            JoinNonEmpty(new[] { Documentation(api), attributes ?? string.Empty, declaration }),
+            body);
+
+    internal static string Declaration(ApiModel api, string declaration, string? attributes = null)
+        => JoinNonEmpty(new[] { Documentation(api), attributes ?? string.Empty, declaration });
+
+    internal static string RenderBlock(string declaration, string body)
     {
-        var source = new StringBuilder(8 * 1024);
-        render(source);
-        return source.ToString();
-    }
+        string content = body.Trim();
+        if (content.Length == 0)
+        {
+            return $"{declaration}\n{{\n}}";
+        }
 
-    internal static RenderModel RenderMember(ApiModel api, Action<StringBuilder> render)
-        => new(api, RenderMember(render));
-
-    internal static string JoinLines(IEnumerable<string> lines)
-        => string.Join("\n", lines);
-
-    internal static string RenderParameters(
-        IEnumerable<ComponentModel> components,
-        Func<ComponentModel, string> render)
-        => string.Join(", ", components.Select(render));
-
-    private static string RenderBlock(string declaration, string body)
-    {
-        string newline = body.EndsWith("\n", StringComparison.Ordinal) ? string.Empty : "\n";
         return $$"""
             {{declaration}}
             {
-            {{body}}{{newline}}}
+            {{Indent(content, "    ")}}
+            }
             """;
     }
 
-    private static string RenderLines(ImmutableArray<string> lines)
-        => lines.IsDefaultOrEmpty ? string.Empty : JoinLines(lines);
+    internal static string Indent(string text, string indent)
+        => string.Join(
+            "\n",
+            text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
+                .Select(line => line.Length == 0 ? line : indent + line));
+
 }

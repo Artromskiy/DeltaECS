@@ -55,51 +55,8 @@ internal sealed class InvokerModel
     {
         Api = api;
         Source = source;
-        Name = string.Empty;
-        GenericParameters = string.Empty;
-        Contract = string.Empty;
-        Fields = ImmutableArray<string>.Empty;
-        ConstructorParameters = ImmutableArray<string>.Empty;
-        Assignments = ImmutableArray<string>.Empty;
-        AccessInitializers = ImmutableArray<string>.Empty;
-        ExecuteBody = string.Empty;
-        InitializerBody = string.Empty;
-    }
-
-    internal InvokerModel(
-        ApiModel api,
-        string name,
-        string genericParameters,
-        string contract,
-        ImmutableArray<string> fields,
-        ImmutableArray<string> constructorParameters,
-        ImmutableArray<string> assignments,
-        ImmutableArray<string> accessInitializers,
-        string executeBody,
-        string initializerBody)
-    {
-        Api = api;
-        Source = null;
-        Name = name;
-        GenericParameters = genericParameters;
-        Contract = contract;
-        Fields = fields;
-        ConstructorParameters = constructorParameters;
-        Assignments = assignments;
-        AccessInitializers = accessInitializers;
-        ExecuteBody = executeBody;
-        InitializerBody = initializerBody;
     }
 
     internal ApiModel Api { get; }
-    internal string? Source { get; }
-    internal string Name { get; }
-    internal string GenericParameters { get; }
-    internal string Contract { get; }
-    internal ImmutableArray<string> Fields { get; }
-    internal ImmutableArray<string> ConstructorParameters { get; }
-    internal ImmutableArray<string> Assignments { get; }
-    internal ImmutableArray<string> AccessInitializers { get; }
-    internal string ExecuteBody { get; }
-    internal string InitializerBody { get; }
+    internal string Source { get; }
 }

@@ -124,6 +124,26 @@ internal static class GeneratorSupport
         => name is "ForEachStamp" or "ForEachEntityStamp"
             or "ForEachStampParallel" or "ForEachEntityStampParallel";
 
+    internal static ImmutableArray<ComponentModel> ComponentModels(
+        string pattern,
+        string[] components,
+        bool isFunctor,
+        string genericPrefix)
+        => Enumerable.Range(0, pattern.Length)
+            .Select(index =>
+            {
+                string genericType = genericPrefix + (index + 1).ToString(CultureInfo.InvariantCulture);
+                string typeName = isFunctor ? components[index] : genericType;
+                return new ComponentModel(
+                    index,
+                    typeName,
+                    isFunctor ? SelectorKind.Inferred : SelectorKind.Generic,
+                    AccessKindFrom(pattern[index]),
+                    resolvedTypeName: typeName,
+                    genericTypeName: genericType);
+            })
+            .ToImmutableArray();
+
     internal static ImmutableArray<InvocationCandidate> ExcludeGenerated(
         ImmutableArray<InvocationCandidate> invocations)
     {
@@ -231,7 +251,9 @@ internal static class GeneratorSupport
                 "component" + index.ToString(CultureInfo.InvariantCulture),
                 selector == SelectorKind.ComponentIds
                     ? "componentId" + index.ToString(CultureInfo.InvariantCulture)
-                    : null));
+                    : null,
+                resolvedTypeName: prefix + (index + 1).ToString(CultureInfo.InvariantCulture),
+                genericTypeName: "T" + (index + 1).ToString(CultureInfo.InvariantCulture)));
         }
 
         return slots.ToImmutable();
@@ -243,6 +265,7 @@ internal static class GeneratorSupport
             'W' => AccessKind.RowWrite,
             'R' => AccessKind.RefReadonly,
             'S' => AccessKind.StampRead,
+            'I' => AccessKind.RowRead,
             _ => AccessKind.Value
         };
 
@@ -368,13 +391,15 @@ internal static class GeneratorSupport
         {
             slots.Add(new ComponentModel(
                 index,
-                components[index],
+                genericSelectors ? "T" + (index + 1).ToString(CultureInfo.InvariantCulture) : components[index],
                 selectorKind,
                 isStamp
                     ? AccessKind.StampRead
                     : AccessKindFrom(index < pattern.Length ? pattern[index] : 'I'),
                 "component" + index.ToString(CultureInfo.InvariantCulture),
-                explicitIds ? "componentId" + index.ToString(CultureInfo.InvariantCulture) : null));
+                explicitIds ? "componentId" + index.ToString(CultureInfo.InvariantCulture) : null,
+                components[index],
+                genericTypeName: "T" + (index + 1).ToString(CultureInfo.InvariantCulture)));
         }
 
         ContextModeKind mode = hasContext ? contextMode : ContextModeKind.None;

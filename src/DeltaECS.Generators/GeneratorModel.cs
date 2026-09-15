@@ -106,10 +106,14 @@ internal readonly struct ComponentModel
         SelectorKind selector,
         AccessKind access,
         string? parameterName = null,
-        string? componentIdExpression = null)
+        string? componentIdExpression = null,
+        string? resolvedTypeName = null,
+        string? genericTypeName = null)
     {
         Position = position;
         TypeName = typeName;
+        ResolvedTypeName = resolvedTypeName ?? typeName;
+        GenericTypeName = genericTypeName ?? typeName;
         Selector = selector;
         Access = access;
         ParameterName = parameterName ?? "component" + position.ToString(CultureInfo.InvariantCulture);
@@ -119,9 +123,27 @@ internal readonly struct ComponentModel
     internal int Position { get; }
     internal int Index => Position;
     internal string TypeName { get; }
+    internal string ResolvedTypeName { get; }
+    internal string GenericTypeName { get; }
     internal string ParameterName { get; }
     internal SelectorKind Selector { get; }
     internal AccessKind Access { get; }
+    internal bool IsGeneric => Selector == SelectorKind.Generic;
+    internal bool IsComponentId => Selector == SelectorKind.ComponentIds;
+    internal bool IsWrite => Access == AccessKind.RowWrite;
+    internal string ParameterModifier => Access switch
+    {
+        AccessKind.RowWrite => "ref ",
+        AccessKind.RefReadonly => "ref readonly ",
+        AccessKind.StampRead or AccessKind.RowRead => "in ",
+        _ => string.Empty
+    };
+    internal string InvocationModifier => Access switch
+    {
+        AccessKind.RowWrite => "ref ",
+        AccessKind.RefReadonly or AccessKind.StampRead or AccessKind.RowRead => "in ",
+        _ => string.Empty
+    };
     internal char AccessMode => Access switch
     {
         AccessKind.RowWrite => 'W',
@@ -195,7 +217,8 @@ internal sealed class ApiModel
         CallbackModel? callback,
         ExecutionModel execution,
         string? name = null,
-        string? pattern = null)
+        string? pattern = null,
+        string? summary = null)
     {
         Operation = operation;
         Target = target;
@@ -206,6 +229,7 @@ internal sealed class ApiModel
         Execution = execution;
         Name = name;
         Pattern = pattern;
+        Summary = summary ?? BuildSummary();
         _signatureKey = BuildSignatureKey();
     }
 
@@ -218,10 +242,22 @@ internal sealed class ApiModel
     internal ExecutionModel Execution { get; }
     internal string? Name { get; }
     internal string? Pattern { get; }
+    internal string Summary { get; }
 
     private readonly string _signatureKey;
 
     internal string SignatureKey => _signatureKey;
+
+    private string BuildSummary()
+        => Operation switch
+        {
+            OperationKind.QueryFactory => $"Builds a query using {Name} component constraints.",
+            OperationKind.Structural => $"Executes the generated {Name?.Split('|')[0] ?? "structural"} operation.",
+            OperationKind.StampIteration => $"Iterates matching entities and reads their component stamps.",
+            OperationKind.Iteration => $"Iterates matching entities and components using {Name?.Split('|')[0] ?? "ForEach"}.",
+            OperationKind.Where => "Creates a read-only filtered query view.",
+            _ => "Executes a generated ECS operation."
+        };
 
     private string BuildSignatureKey()
         => string.Join(
@@ -246,7 +282,8 @@ internal sealed class ApiModel
                 + ":" + component.Access
                 + ":" + component.ParameterName
                 + ":" + component.AccessMode
-                + ":" + component.ComponentIdExpression)));
+                + ":" + component.ComponentIdExpression
+                + ":" + component.GenericTypeName)));
 }
 
 internal sealed class StructuralPlan
