@@ -509,15 +509,22 @@ internal static partial class DemandDrivenForEachTemplates
         }
         string chunkIndex = GeneratedLocalName(site, "chunk", 0);
         string batch = GeneratedLocalName(site, "batch", 0);
+        string chunkCount = GeneratedLocalName(site, "chunkCount", 0);
+        string firstBatch = GeneratedLocalName(site, "firstBatch", 0);
+        if (bound)
+        {
+            lines.Add($"    int {chunkCount} = execution.Rows.Length;");
+            lines.Add($"    ref var {firstBatch} = ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(execution.Rows);");
+        }
         lines.Add(bound
-            ? $"    for (int {chunkIndex} = 0; {chunkIndex} < execution.Rows.Length; {chunkIndex}++)"
+            ? $"    for (int {chunkIndex} = 0; {chunkIndex} < {chunkCount}; {chunkIndex}++)"
             : shape.IsStamp || closedShape.HasEntity
             ? "    while (execution.MoveNextTrusted(out var slots))"
             : $$"""    while (execution.MoveNextTrusted(out var componentRows, out int {{countName}}))""");
         lines.Add("    {");
         if (bound)
         {
-            lines.Add($"        ref readonly var {batch} = ref execution.Rows[{chunkIndex}];");
+            lines.Add($"        ref readonly var {batch} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref {firstBatch}, {chunkIndex});");
             lines.Add($"        int {countName} = {batch}.Chunk.Count;");
         }
         if (!shape.IsStamp)
@@ -540,9 +547,7 @@ internal static partial class DemandDrivenForEachTemplates
         {
             lines.Add(bound ? $"        ref global::Delta.ECS.Entity firstEntity = ref {batch}.Chunk.GetEntityReference();" : "        " + entityReference);
         }
-        lines.Add(closedShape.HasEntity || shape.IsStamp
-            ? $"        for (int {indexName} = 0; {indexName} < {countName}; {indexName}++)"
-            : $"        int {indexName} = 0;\n        while ({indexName} < {countName})");
+        lines.Add($"        for (int {indexName} = 0; {indexName} < {countName}; {indexName}++)");
         lines.Add("        {");
         int parameterIndex = closedShape.HasContext ? 1 : 0;
         if (closedShape.HasEntity)
@@ -571,7 +576,6 @@ internal static partial class DemandDrivenForEachTemplates
         {
             lines.AddRange(GeneratorTemplates.Indexed(closedShape.ComponentModels.Length,
                 index => $"        {rowNames[index]} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref {rowNames[index]}, 1);"));
-            lines.Add($"        {indexName}++;");
         }
         lines.Add("        }");
         lines.Add("    }");
@@ -896,15 +900,20 @@ internal static partial class DemandDrivenForEachTemplates
             lines.AddRange(SplitLines(AppendQueryComponentRoutes(shape, "    ")));
             lines.AddRange(SplitLines(AppendArchetypeWriteSetup(shape, "    ")));
         }
+        if (bound)
+        {
+            lines.Add("    int chunkCount = execution.Rows.Length;");
+            lines.Add("    ref var firstBatch = ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(execution.Rows);");
+        }
         lines.Add(bound
-            ? "    for (int chunkIndex = 0; chunkIndex < execution.Rows.Length; chunkIndex++)"
+            ? "    for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)"
             : shape.IsStamp || shape.HasEntity
             ? "    while (execution.MoveNextTrusted(out var slots))"
             : "    while (execution.MoveNextTrusted(out var componentRows, out int count))");
         lines.Add("    {");
         if (bound)
         {
-            lines.Add("        ref readonly var batch = ref execution.Rows[chunkIndex];");
+            lines.Add("        ref readonly var batch = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref firstBatch, chunkIndex);");
             lines.Add("        int count = batch.Chunk.Count;");
         }
         else if (shape.IsStamp || shape.HasEntity)

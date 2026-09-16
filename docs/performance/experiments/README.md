@@ -14,6 +14,15 @@ or measurement quality. Raw BenchmarkDotNet and JIT output stays under ignored
 `artifacts/`; durable conclusions and reproduction details belong here or in a
 linked focused report.
 
+## Typed binding loop traversal — 2026-09-16
+
+Baseline `7f561f8` versus cached chunk count, `Unsafe.Add` descriptor access,
+and an intercepted entity `for` loop. A/B/B/A, 100 and 100000 entities,
+512-slot chunks, unchanged component layout. One of eight scenarios has a
+confirmed improvement: three components at 100000 entities, -1.31%; seven are
+inconclusive. All measurements allocate 0 B. Requested changes are retained.
+See [full measurements and JIT evidence](typed-loop-2026-09-16.md).
+
 ## Measurement corrections
 
 | Correction | Evidence | Result |

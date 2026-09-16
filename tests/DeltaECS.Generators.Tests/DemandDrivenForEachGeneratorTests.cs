@@ -376,7 +376,9 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         Assert.That(generated, Does.Contain("ExecuteClosed_"));
         Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenBoundDense<"));
-        Assert.That(generated, Does.Contain("for (int chunkIndex = 0; chunkIndex < execution.Rows.Length; chunkIndex++)"));
+        Assert.That(generated, Does.Contain("int chunkCount = execution.Rows.Length;"));
+        Assert.That(generated, Does.Contain("for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)"));
+        Assert.That(generated, Does.Contain("Unsafe.Add(ref firstBatch, chunkIndex)"));
         Assert.That(generated, Does.Contain("_route0 = GeneratedForEachRuntime.GetPreparedWriteRoute<T1>(in query);"));
         Assert.That(generated, Does.Contain("ref T1 row0 = ref GeneratedForEachRuntime.GetGeneratedArrayReference(batch.Row0)"));
         Assert.That(generated, Does.Contain("for (int index = 0; index < count; index++)"));
@@ -408,7 +410,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(RunGenerator(source));
 
         Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenBoundDense<"));
-        Assert.That(generated, Does.Contain("for (int chunkIndex = 0; chunkIndex < execution.Rows.Length; chunkIndex++)"));
+        Assert.That(generated, Does.Contain("for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)"));
         Assert.That(generated, Does.Not.Contain("OpenWriteDense(world, in query)"));
         Assert.That(generated, Does.Not.Contain("MarkGeneratedWrite(access0)"));
     }
