@@ -161,6 +161,69 @@ public sealed class SystemSchedulerTests
         scheduler.Add(independent);
 
         Assert.That(() => scheduler.Tick(), Throws.TypeOf<InvalidOperationException>());
+        Assert.That(world.IsAlive(default), Is.False);
+    }
+
+    [Test]
+    public void ExternalWorldAccessFailsFastDuringTick()
+    {
+        using var world = new World();
+        using var started = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        using var scheduler = new SystemScheduler(world, workerCount: 1);
+        scheduler.Add(new BlockingSystem(world, started, release));
+
+        Task tick = Task.Run(scheduler.Tick);
+        Assert.That(started.Wait(TimeSpan.FromSeconds(2)), Is.True);
+        Assert.That(
+            () => Task.Run(() => world.IsAlive(default)).GetAwaiter().GetResult(),
+            Throws.TypeOf<InvalidOperationException>());
+
+        release.Set();
+        tick.GetAwaiter().GetResult();
+    }
+
+    [Test]
+    public void SchedulerWorkersCanAccessTheirWorld()
+    {
+        Assume.That(Environment.ProcessorCount, Is.GreaterThanOrEqualTo(2));
+        using var world = new World();
+        using var scheduler = new SystemScheduler(world, workerCount: 2);
+        scheduler.Add(new WorldAccessSystem(world));
+        scheduler.Add(new WorldAccessSystem(world));
+
+        scheduler.Tick();
+    }
+
+    [Test]
+    public void ForeignSchedulerAndWorldDisposeFailFastDuringTick()
+    {
+        using var world = new World();
+        using var started = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        using var scheduler = new SystemScheduler(world, workerCount: 1);
+        using var foreignScheduler = new SystemScheduler(world, workerCount: 1);
+        scheduler.Add(new BlockingSystem(world, started, release));
+
+        Task tick = Task.Run(scheduler.Tick);
+        Assert.That(started.Wait(TimeSpan.FromSeconds(2)), Is.True);
+        Assert.That(() => foreignScheduler.Tick(), Throws.TypeOf<InvalidOperationException>());
+        Assert.That(() => world.Dispose(), Throws.TypeOf<InvalidOperationException>());
+
+        release.Set();
+        tick.GetAwaiter().GetResult();
+    }
+
+    [Test]
+    public void SchedulerGateIsReleasedAfterAnOrdinaryCompletion()
+    {
+        using var world = new World();
+        using var scheduler = new SystemScheduler(world, workerCount: 1);
+        scheduler.Add(new WorldAccessSystem(world));
+
+        scheduler.Tick();
+
+        Assert.That(world.IsAlive(default), Is.False);
     }
 
     [Test]
@@ -205,6 +268,43 @@ public sealed class SystemSchedulerTests
             if (_failure is not null)
             {
                 throw _failure;
+            }
+        }
+    }
+
+    private sealed class WorldAccessSystem : ISystem
+    {
+        internal WorldAccessSystem(World world) => World = world;
+
+        public World World { get; init; }
+
+        public SystemAccess Access => SystemAccess.None;
+
+        public void Tick() => _ = World.IsAlive(default);
+    }
+
+    private sealed class BlockingSystem : ISystem
+    {
+        private readonly ManualResetEventSlim _started;
+        private readonly ManualResetEventSlim _release;
+
+        internal BlockingSystem(World world, ManualResetEventSlim started, ManualResetEventSlim release)
+        {
+            World = world;
+            _started = started;
+            _release = release;
+        }
+
+        public World World { get; init; }
+
+        public SystemAccess Access => SystemAccess.None;
+
+        public void Tick()
+        {
+            _started.Set();
+            if (!_release.Wait(TimeSpan.FromSeconds(2)))
+            {
+                throw new TimeoutException("Tick was not released.");
             }
         }
     }

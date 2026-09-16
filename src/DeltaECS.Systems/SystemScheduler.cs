@@ -50,7 +50,7 @@ public sealed class SystemScheduler : IDisposable
         _workerCount = Math.Min(workerCount == 0 ? processorCount : workerCount, processorCount);
         if (_workerCount > 1)
         {
-            _workers = new SchedulerWorkers(_workerCount);
+            _workers = new SchedulerWorkers(_world, _workerCount);
         }
     }
 
@@ -211,8 +211,10 @@ public sealed class SystemScheduler : IDisposable
             throw new InvalidOperationException("A system scheduler tick is already active.");
         }
 
+        IDisposable? executionGate = null;
         try
         {
+            executionGate = _world.EnterSchedulerExecution();
             if (!_built)
             {
                 BuildCore();
@@ -245,6 +247,7 @@ public sealed class SystemScheduler : IDisposable
         }
         finally
         {
+            executionGate?.Dispose();
             Volatile.Write(ref _executing, 0);
         }
     }
@@ -345,6 +348,7 @@ public sealed class SystemScheduler : IDisposable
 
     private sealed class SchedulerWorkers : IDisposable
     {
+        private readonly World _world;
         private readonly object _gate = new();
         private readonly Thread[] _threads;
         private Queue<ISystem> _pending = new();
@@ -353,8 +357,9 @@ public sealed class SystemScheduler : IDisposable
         private bool _stopping;
         private ExceptionDispatchInfo? _failure;
 
-        internal SchedulerWorkers(int workerCount)
+        internal SchedulerWorkers(World world, int workerCount)
         {
+            _world = world;
             _threads = new Thread[workerCount];
             for (int index = 0; index < workerCount; index++)
             {
@@ -455,6 +460,7 @@ public sealed class SystemScheduler : IDisposable
 
                 try
                 {
+                    _world.EnterSchedulerWorker();
                     system.Tick();
                 }
                 catch (Exception exception)
@@ -466,6 +472,7 @@ public sealed class SystemScheduler : IDisposable
                 }
                 finally
                 {
+                    _world.ExitSchedulerWorker();
                     lock (_gate)
                     {
                         _remaining--;

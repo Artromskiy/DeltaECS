@@ -281,6 +281,7 @@ public sealed partial class World : IEcsWorld
 
     private void EnsureIntegrationActive()
     {
+        EnsureExecutionAccess();
         ThrowIfDisposed();
         if (_integrationLifecycle != IntegrationLifecycleState.Initialized)
         {

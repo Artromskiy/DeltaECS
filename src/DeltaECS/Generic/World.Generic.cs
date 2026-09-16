@@ -68,6 +68,7 @@ public sealed partial class World
     /// <summary>Adds one typed component to an alive entity and initializes its value.</summary>
     public bool Add<T>(Entity entity, ComponentId componentId, in T value)
     {
+        EnsureExecutionAccess();
         if (!IsRegisteredType<T>(componentId)
             || !IsAlive(entity)
             || TryGetCore<T>(entity, componentId, out _))
@@ -81,6 +82,7 @@ public sealed partial class World
     /// <summary>Adds and initializes one typed component on every eligible entity in a batch.</summary>
     public int Add<T>(ReadOnlySpan<Entity> entities, ComponentId componentId, in T value)
     {
+        EnsureExecutionAccess();
         if (!IsRegisteredType<T>(componentId) || entities.Length == 0)
         {
             return 0;
@@ -100,6 +102,7 @@ public sealed partial class World
     /// <summary>Removes one typed component from an alive entity.</summary>
     public bool Remove<T>(Entity entity, ComponentId componentId)
     {
+        EnsureExecutionAccess();
         if (!IsRegisteredType<T>(componentId)
             || !IsAlive(entity)
             || !TryGetCore<T>(entity, componentId, out _))
@@ -113,6 +116,7 @@ public sealed partial class World
     /// <summary>Removes one typed component from every eligible entity in a batch.</summary>
     public int Remove<T>(ReadOnlySpan<Entity> entities, ComponentId componentId)
     {
+        EnsureExecutionAccess();
         if (!IsRegisteredType<T>(componentId) || entities.Length == 0)
         {
             return 0;
@@ -124,6 +128,7 @@ public sealed partial class World
     /// <summary>Reads the primary component for <typeparamref name="T"/> when present.</summary>
     public bool TryGet<T>(Entity entity, out T value)
     {
+        EnsureExecutionAccess();
         if (!_layouts.TryGetPrimary<T>(out ComponentId componentId))
         {
             value = default!;
@@ -135,11 +140,15 @@ public sealed partial class World
 
     /// <summary>Reads one component when the entity owns a matching component row.</summary>
     public bool TryGet<T>(Entity entity, ComponentId componentId, out T value)
-        => TryGetCore(entity, componentId, out value);
+    {
+        EnsureExecutionAccess();
+        return TryGetCore(entity, componentId, out value);
+    }
 
     /// <summary>Reports whether an alive entity owns the primary component for <typeparamref name="T"/>.</summary>
     public bool Has<T>(Entity entity)
     {
+        EnsureExecutionAccess();
         if (!_layouts.TryGetPrimary<T>(out ComponentId componentId))
         {
             return false;
@@ -150,11 +159,15 @@ public sealed partial class World
 
     /// <summary>Reports whether an alive entity owns a typed component registration.</summary>
     public bool Has<T>(Entity entity, ComponentId componentId)
-        => IsRegisteredType<T>(componentId) && Has(entity, componentId);
+    {
+        EnsureExecutionAccess();
+        return IsRegisteredType<T>(componentId) && Has(entity, componentId);
+    }
 
     /// <summary>Reads the primary component stamp when present.</summary>
     public bool TryGetComponentStamp<T>(Entity entity, out Stamp stamp)
     {
+        EnsureExecutionAccess();
         if (!_layouts.TryGetPrimary<T>(out ComponentId componentId))
         {
             stamp = default;
@@ -167,6 +180,7 @@ public sealed partial class World
     /// <summary>Reads a typed component stamp when the entity owns the matching registration.</summary>
     public bool TryGetComponentStamp<T>(Entity entity, ComponentId componentId, out Stamp stamp)
     {
+        EnsureExecutionAccess();
         if (!IsRegisteredType<T>(componentId))
         {
             stamp = default;
@@ -204,6 +218,7 @@ public sealed partial class World
     /// </remarks>
     public ref T GetRef<T>(Entity entity, ComponentId componentId)
     {
+        EnsureExecutionAccess();
         EnsureRegisteredType<T>(componentId);
         if (!TryResolve(entity, out int recordIndex))
         {
@@ -238,6 +253,7 @@ public sealed partial class World
     /// </remarks>
     public ref readonly T GetReadRef<T>(Entity entity, ComponentId componentId)
     {
+        EnsureExecutionAccess();
         EnsureRegisteredType<T>(componentId);
         if (!TryResolve(entity, out int recordIndex))
         {
@@ -264,6 +280,7 @@ public sealed partial class World
     /// <summary>Writes one component value and throws when the entity lacks the component.</summary>
     public bool Set<T>(Entity entity, ComponentId componentId, in T value)
     {
+        EnsureExecutionAccess();
         EnsureRegisteredType<T>(componentId);
         return SetCore(entity, componentId, in value);
     }

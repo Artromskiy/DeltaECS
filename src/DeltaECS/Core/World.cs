@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 public sealed partial class World : IDisposable
 {
@@ -51,6 +52,10 @@ public sealed partial class World : IDisposable
     private int _activeChunkLeases;
     private Stamp[][] _archetypeComponentWriteStamps = Array.Empty<Stamp[]>();
     private bool _disposed;
+    private int _schedulerExecutionActive;
+
+    [ThreadStatic]
+    private static World? _schedulerExecutionWorld;
 
     public World(
         ComponentLayoutRegistry? layouts = null,
@@ -62,9 +67,26 @@ public sealed partial class World : IDisposable
         _records.Capacity = initialEntityCapacity;
     }
 
-    public int AliveEntityCount { get; private set; }
+    private int _aliveEntityCount;
 
-    public ComponentLayoutRegistry Layouts => _layouts;
+    public int AliveEntityCount
+    {
+        get
+        {
+            EnsureExecutionAccess();
+            return _aliveEntityCount;
+        }
+        private set => _aliveEntityCount = value;
+    }
+
+    public ComponentLayoutRegistry Layouts
+    {
+        get
+        {
+            EnsureExecutionAccess();
+            return _layouts;
+        }
+    }
 
     internal bool IsDisposed => _disposed;
 
@@ -77,6 +99,7 @@ public sealed partial class World : IDisposable
     /// </summary>
     public void Dispose()
     {
+        EnsureExecutionAccess();
         if (_disposed)
         {
             return;
@@ -117,7 +140,11 @@ public sealed partial class World : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public Query CreateQuery(in QuerySpec spec) => new Query(this, GetOrCreateQuery(spec), spec);
+    public Query CreateQuery(in QuerySpec spec)
+    {
+        EnsureExecutionAccess();
+        return new Query(this, GetOrCreateQuery(spec), spec);
+    }
 
     /// <summary>Creates a query requiring the supplied component registrations.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -531,7 +558,11 @@ public sealed partial class World : IDisposable
         return destroyed;
     }
 
-    public bool IsAlive(Entity entity) => TryResolve(entity, out _);
+    public bool IsAlive(Entity entity)
+    {
+        EnsureExecutionAccess();
+        return TryResolve(entity, out _);
+    }
 
     /// <summary>Reports whether an alive entity owns the specified component.</summary>
     public bool Has(Entity entity, ComponentId componentId)
@@ -661,6 +692,7 @@ public sealed partial class World : IDisposable
 
     public int Destroy(in Query query)
     {
+        EnsureExecutionAccess();
         ValidateQuery(query);
         EnsureNoActiveLease("destroy entities");
 
@@ -777,6 +809,7 @@ public sealed partial class World : IDisposable
 
     private int ApplyQueryComponents(in Query query, bool isAdd, ReadOnlySpan<ComponentId> componentIds)
     {
+        EnsureExecutionAccess();
         ValidateQuery(query);
         EnsureNoActiveLease(isAdd ? "add components" : "remove components");
         if (componentIds.Length == 0)
@@ -829,6 +862,7 @@ public sealed partial class World : IDisposable
         ReadOnlySpan<ComponentId> componentIds,
         out GeneratedDenseExecution execution)
     {
+        EnsureExecutionAccess();
         EnsureNoActiveLease(isDestroy
             ? "destroy entities"
             : isAdd ? "add components" : "remove components");
@@ -1691,6 +1725,7 @@ public sealed partial class World : IDisposable
 
     internal ComponentSet GetOrCreateComponentSet(ReadOnlySpan<ComponentId> componentIds)
     {
+        EnsureExecutionAccess();
         if (componentIds.Length == 0)
         {
             return ComponentSet.Empty;
@@ -1907,6 +1942,7 @@ public sealed partial class World : IDisposable
 
     private QueryPlan GetOrCreateQuery(QuerySpec spec)
     {
+        EnsureExecutionAccess();
         if (--_queryCacheSweepCountdown == 0)
         {
             SweepDeadQueryPlans();
@@ -1922,6 +1958,84 @@ public sealed partial class World : IDisposable
         cached = new QueryPlan(this, spec);
         _queryCache[spec] = cached.WeakReference;
         return cached;
+    }
+
+    internal IDisposable EnterSchedulerExecution()
+    {
+        ThrowHelper.ThrowIfDisposed(_disposed, this);
+        if (_schedulerExecutionWorld is not null
+            || Interlocked.CompareExchange(ref _schedulerExecutionActive, 1, 0) != 0)
+        {
+            ThrowHelper.ThrowWorldSchedulerAlreadyExecuting();
+        }
+
+        _schedulerExecutionWorld = this;
+        return new SchedulerExecutionLease(this);
+    }
+
+    internal void EnterSchedulerWorker()
+    {
+        if (Volatile.Read(ref _schedulerExecutionActive) == 0
+            || _schedulerExecutionWorld is not null)
+        {
+            ThrowHelper.ThrowUnauthorizedSchedulerWorker();
+        }
+
+        _schedulerExecutionWorld = this;
+    }
+
+    internal bool TryEnterSchedulerWorker()
+    {
+        if (Volatile.Read(ref _schedulerExecutionActive) == 0)
+        {
+            return false;
+        }
+
+        EnterSchedulerWorker();
+        return true;
+    }
+
+    internal void ExitSchedulerWorker()
+    {
+        if (ReferenceEquals(_schedulerExecutionWorld, this))
+        {
+            _schedulerExecutionWorld = null;
+        }
+    }
+
+    internal void EnsureExecutionAccess()
+    {
+        if (Volatile.Read(ref _schedulerExecutionActive) != 0
+            && !ReferenceEquals(_schedulerExecutionWorld, this))
+        {
+            ThrowHelper.ThrowWorldSchedulerExecutionActive();
+        }
+    }
+
+    private void ExitSchedulerExecution()
+    {
+        if (ReferenceEquals(_schedulerExecutionWorld, this))
+        {
+            _schedulerExecutionWorld = null;
+        }
+
+        Volatile.Write(ref _schedulerExecutionActive, 0);
+    }
+
+    private sealed class SchedulerExecutionLease : IDisposable
+    {
+        private World? _world;
+
+        internal SchedulerExecutionLease(World world) => _world = world;
+
+        public void Dispose()
+        {
+            if (_world is { } world)
+            {
+                _world = null;
+                world.ExitSchedulerExecution();
+            }
+        }
     }
 
     private void SweepDeadQueryPlans()
@@ -1948,6 +2062,7 @@ public sealed partial class World : IDisposable
 
     private void EnsureNoActiveLease(string operation)
     {
+        EnsureExecutionAccess();
         if (_activeChunkLeases > 0 || _generatedWhereStructuralActive)
         {
             ThrowHelper.ThrowStructuralChangeWhileLeased(operation);
