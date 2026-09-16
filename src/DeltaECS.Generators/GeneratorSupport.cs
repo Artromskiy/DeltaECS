@@ -12,7 +12,9 @@ internal static class GeneratorSupport
 {
     private const int FirstInterceptorLanguageVersion = 1100;
     private const string InterceptorNamespace = "Delta.ECS.Generated";
-    private const int RefReadOnlyParameterValue = 5;
+    // RefKind.RefReadOnlyParameter is not available in the oldest Roslyn API
+    // referenced by the generator, so keep the host enum value here.
+    private const int RefReadOnlyParameterValue = 4;
     internal const string EcsNamespace = "Delta.ECS";
     internal const string SystemNamespace = "System";
 
@@ -228,7 +230,7 @@ internal static class GeneratorSupport
         };
 
     internal static bool IsRefReadonly(RefKind refKind)
-        => refKind == RefKind.RefReadOnly || (int)refKind == RefReadOnlyParameterValue;
+        => (int)refKind == RefReadOnlyParameterValue;
 
     internal static char PatternLetter(ParameterSyntax parameter)
     {

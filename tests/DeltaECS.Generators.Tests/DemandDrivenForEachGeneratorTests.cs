@@ -71,6 +71,35 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void RefReadonlyFunctorGeneratesConcreteOverload()
+    {
+        const string source = """
+            namespace Delta.ECS;
+            struct T1 { public int Value; }
+            struct RefReadonlyFunctor : IForEach
+            {
+                public void Invoke(ref readonly T1 value) { _ = value.Value; }
+            }
+            static class Consumer
+            {
+                public static void Use(World world, Query query)
+                {
+                    var functor = new RefReadonlyFunctor();
+                    world.ForEach(in query, ref functor);
+                }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGenerator(source);
+        string generated = GeneratedText(run);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(generated, Does.Contain("ref global::Delta.ECS.RefReadonlyFunctor functor"));
+        Assert.That(generated, Does.Contain("ref readonly global::Delta.ECS.T1 component0"));
+        AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
+    }
+
+    [Test]
     public void ZeroArityFunctorIsRejectedWithoutGeneratedOverload()
     {
         const string source = """
