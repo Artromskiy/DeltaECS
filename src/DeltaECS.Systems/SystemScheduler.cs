@@ -30,27 +30,15 @@ public sealed class SystemScheduler : IDisposable
     /// </param>
     public SystemScheduler(World world, int workerCount = 0)
     {
-#if NETSTANDARD2_1
-        if (world is null)
-        {
-            throw new ArgumentNullException(nameof(world));
-        }
-
-        if (workerCount < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(workerCount));
-        }
-#else
-        ArgumentNullException.ThrowIfNull(world, nameof(world));
-        ArgumentOutOfRangeException.ThrowIfNegative(workerCount, nameof(workerCount));
-#endif
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        ThrowHelper.ThrowIfNegative(workerCount, nameof(workerCount));
 
         _world = world;
         int processorCount = Math.Max(1, Environment.ProcessorCount);
         _workerCount = Math.Min(workerCount == 0 ? processorCount : workerCount, processorCount);
         if (_workerCount > 1)
         {
-            _workers = new SchedulerWorkers(_workerCount);
+            _workers = new SchedulerWorkers(_world, _workerCount);
         }
     }
 
@@ -74,25 +62,18 @@ public sealed class SystemScheduler : IDisposable
     {
         EnsureUsable();
         EnsureNotExecuting();
-#if NETSTANDARD2_1
-        if (system is null)
-        {
-            throw new ArgumentNullException(nameof(system));
-        }
-#else
-        ArgumentNullException.ThrowIfNull(system, nameof(system));
-#endif
+        ThrowHelper.ThrowIfNull(system, nameof(system));
 
         if (!ReferenceEquals(system.World, _world))
         {
-            throw new ArgumentException("A system must reference the scheduler world.", nameof(system));
+            ThrowHelper.ThrowWorldMismatch();
         }
 
         for (int index = 0; index < _systems.Count; index++)
         {
             if (ReferenceEquals(_systems[index], system))
             {
-                throw new ArgumentException("The same system instance cannot be registered twice.", nameof(system));
+                ThrowHelper.ThrowDuplicateSystem();
             }
         }
 
@@ -160,7 +141,7 @@ public sealed class SystemScheduler : IDisposable
             ISystem system = _systems[index];
             if (!ReferenceEquals(system.World, _world))
             {
-                throw new InvalidOperationException("A system changed its world after registration.");
+                ThrowHelper.ThrowSystemWorldChanged();
             }
 
             nodes[index] = new SystemNode(system, system.Access);
@@ -208,11 +189,13 @@ public sealed class SystemScheduler : IDisposable
         EnsureUsable();
         if (Interlocked.Exchange(ref _executing, 1) != 0)
         {
-            throw new InvalidOperationException("A system scheduler tick is already active.");
+            ThrowHelper.ThrowSchedulerAlreadyExecuting();
         }
 
+        IDisposable? executionGate = null;
         try
         {
+            executionGate = _world.EnterSchedulerExecution();
             if (!_built)
             {
                 BuildCore();
@@ -245,6 +228,7 @@ public sealed class SystemScheduler : IDisposable
         }
         finally
         {
+            executionGate?.Dispose();
             Volatile.Write(ref _executing, 0);
         }
     }
@@ -267,7 +251,7 @@ public sealed class SystemScheduler : IDisposable
     {
         if (_disposed)
         {
-            ThrowDisposed();
+            ThrowHelper.ThrowDisposedScheduler();
         }
     }
 
@@ -275,17 +259,8 @@ public sealed class SystemScheduler : IDisposable
     {
         if (Volatile.Read(ref _executing) != 0)
         {
-            throw new InvalidOperationException("The scheduler cannot be changed while a tick is active.");
+            ThrowHelper.ThrowSchedulerChangeDuringExecution();
         }
-    }
-
-    private static void ThrowDisposed()
-    {
-#if NETSTANDARD2_1
-        throw new ObjectDisposedException(nameof(SystemScheduler));
-#else
-        ObjectDisposedException.ThrowIf(true, nameof(SystemScheduler));
-#endif
     }
 
     private static bool Conflicts(in SystemAccess left, in SystemAccess right)
@@ -345,6 +320,7 @@ public sealed class SystemScheduler : IDisposable
 
     private sealed class SchedulerWorkers : IDisposable
     {
+        private readonly World _world;
         private readonly object _gate = new();
         private readonly Thread[] _threads;
         private Queue<ISystem> _pending = new();
@@ -353,8 +329,9 @@ public sealed class SystemScheduler : IDisposable
         private bool _stopping;
         private ExceptionDispatchInfo? _failure;
 
-        internal SchedulerWorkers(int workerCount)
+        internal SchedulerWorkers(World world, int workerCount)
         {
+            _world = world;
             _threads = new Thread[workerCount];
             for (int index = 0; index < workerCount; index++)
             {
@@ -373,7 +350,7 @@ public sealed class SystemScheduler : IDisposable
             {
                 if (_pending.Count != 0 || _batchActive)
                 {
-                    throw new InvalidOperationException("Cannot prepare scheduler workers during execution.");
+                    ThrowHelper.ThrowWorkersPrepareDuringExecution();
                 }
 
                 _pending = new Queue<ISystem>(Math.Max(4, capacity));
@@ -387,11 +364,7 @@ public sealed class SystemScheduler : IDisposable
             {
                 if (_stopping)
                 {
-#if NETSTANDARD2_1
-                    throw new ObjectDisposedException(nameof(SchedulerWorkers));
-#else
-                    ObjectDisposedException.ThrowIf(true, nameof(SchedulerWorkers));
-#endif
+                    ThrowHelper.ThrowDisposedWorkers();
                 }
 
                 _failure = null;
@@ -455,6 +428,7 @@ public sealed class SystemScheduler : IDisposable
 
                 try
                 {
+                    _world.EnterSchedulerWorker();
                     system.Tick();
                 }
                 catch (Exception exception)
@@ -466,6 +440,7 @@ public sealed class SystemScheduler : IDisposable
                 }
                 finally
                 {
+                    _world.ExitSchedulerWorker();
                     lock (_gate)
                     {
                         _remaining--;

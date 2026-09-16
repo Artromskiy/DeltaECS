@@ -14,6 +14,7 @@ public sealed partial class World : IEcsWorld
     {
         get
         {
+            EnsureExecutionAccess();
             ThrowIfDisposed();
             RefreshIntegrationCatalog();
             return _integrationCatalog;
@@ -22,6 +23,7 @@ public sealed partial class World : IEcsWorld
 
     void IEcsWorld.Initialize()
     {
+        EnsureExecutionAccess();
         ThrowIfDisposed();
         if (_integrationLifecycle != IntegrationLifecycleState.Created)
         {
@@ -276,6 +278,7 @@ public sealed partial class World : IEcsWorld
 
     private void EnsureIntegrationActive()
     {
+        EnsureExecutionAccess();
         ThrowIfDisposed();
         if (_integrationLifecycle != IntegrationLifecycleState.Initialized)
         {

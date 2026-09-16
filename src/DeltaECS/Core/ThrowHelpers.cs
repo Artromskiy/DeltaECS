@@ -262,6 +262,21 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowWorldSchedulerExecutionActive()
+        => throw new InvalidOperationException("The world is executing a system scheduler tick.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowWorldSchedulerAlreadyExecuting()
+        => throw new InvalidOperationException("A system scheduler is already executing this world.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowUnauthorizedSchedulerWorker()
+        => throw new InvalidOperationException("The scheduler worker is not authorized for this world.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowInvalidQuery(string parameterName)
         => throw new ArgumentException("Query handle is invalid or belongs to another world.", parameterName);
 

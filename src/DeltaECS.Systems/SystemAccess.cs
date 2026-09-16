@@ -118,7 +118,7 @@ public readonly struct SystemAccess
         {
             if (!copy[index].IsValid)
             {
-                throw new ArgumentException("Component ids must be valid.", parameterName);
+                ThrowHelper.ThrowInvalidComponentIds(parameterName);
             }
         }
 

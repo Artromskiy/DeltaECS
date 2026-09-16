@@ -1028,6 +1028,7 @@ public static partial class GeneratedForEachRuntime
     private static QueryPlan ValidateQuery(World world, in Query query)
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
+        world.EnsureExecutionAccess();
         if (!ReferenceEquals(query.Owner, world) || !query.IsValid)
         {
             ThrowHelper.ThrowInvalidQuery(nameof(query));

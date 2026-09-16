@@ -280,8 +280,15 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
     private void ExecuteRange(int workerIndex, int run, WorkerSlot? workerSlot)
     {
         ParallelRange range = _ranges.RefAt(workerIndex);
+        World? world = _world;
+        bool schedulerWorker = false;
         try
         {
+            if (workerSlot is not null && world is not null)
+            {
+                schedulerWorker = world.TryEnterSchedulerWorker();
+            }
+
             if (_entityMode)
             {
                 ExecuteEntityRange(
@@ -305,6 +312,11 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         }
         finally
         {
+            if (schedulerWorker && world is { } schedulerWorld)
+            {
+                schedulerWorld.ExitSchedulerWorker();
+            }
+
             if (workerSlot is not null)
             {
                 Volatile.Write(ref workerSlot.CompletedRun, run);
