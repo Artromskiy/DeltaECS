@@ -66,7 +66,7 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         AssertNoDiagnostics(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN003"));
         Assert.That(generated, Does.Contain("ref global::Delta.ECS.SimpleFunctor functor"));
-        Assert.That(generated, Does.Contain("GetGeneratedWriteReference<global::Delta.ECS.T1>(access0)"));
+        Assert.That(generated, Does.Contain("GetGeneratedArray<global::Delta.ECS.T1>(rows, _route0)"));
         Assert.That(generated, Does.Not.Contain("IForEachEntity_W"));
     }
 
@@ -338,9 +338,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(RunGenerator(source));
 
         Assert.That(generated, Does.Contain($"ForEachAction<{componentTypes}>"));
-        Assert.That(generated, Does.Contain("DemandForEachArchetypeStampWriter_"));
-        Assert.That(generated, Does.Contain("execution.MarkArchetypeWrites(ref stampWriter)"));
-        Assert.That(generated, Does.Contain("int route31 = GeneratedForEachRuntime.GetPreparedWriteRoute<T32>(in query);"));
+        Assert.That(generated, Does.Contain("SetWriteRoutes(new int[] { _route0,"));
+        Assert.That(generated, Does.Contain("_route31 }"));
+        Assert.That(generated, Does.Contain("_route31 = GeneratedForEachRuntime.GetPreparedWriteRoute<T32>(in query);"));
     }
 
     [Test]
@@ -375,15 +375,15 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(RunGenerator(source));
 
         Assert.That(generated, Does.Contain("ExecuteClosed_"));
-        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenWriteDense(world, in query"));
-        Assert.That(generated, Does.Contain("while (execution.MoveNextTrusted(out var componentRows, out int count))"));
-        Assert.That(generated, Does.Contain("int route0 = GeneratedForEachRuntime.GetPreparedWriteRoute<T1>(in query);"));
-        Assert.That(generated, Does.Contain("ref T1 row0 = ref GeneratedForEachRuntime.GetGeneratedRow<T1>(componentRows, route0)"));
+        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenBoundDense<"));
+        Assert.That(generated, Does.Contain("for (int chunkIndex = 0; chunkIndex < execution.Rows.Length; chunkIndex++)"));
+        Assert.That(generated, Does.Contain("_route0 = GeneratedForEachRuntime.GetPreparedWriteRoute<T1>(in query);"));
+        Assert.That(generated, Does.Contain("ref T1 row0 = ref GeneratedForEachRuntime.GetGeneratedArrayReference(batch.Row0)"));
         Assert.That(generated, Does.Contain("for (int index = 0; index < count; index++)"));
         Assert.That(generated, Does.Contain("ref T1 component0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row0, index)"));
         Assert.That(generated, Does.Contain("action(ref component0)"));
         Assert.That(generated, Does.Contain(
-            "execution.MarkArchetypeWrite(route0);"));
+            "SetWriteRoutes(new int[] { _route0 });"));
         Assert.That(generated, Does.Not.Contain("slots.MarkGeneratedWrite"));
         Assert.That(generated, Does.Not.Contain("Ref<T1>(index)"));
         Assert.That(generated, Does.Not.Contain("ExecuteGeneratedForEach"));
@@ -407,8 +407,8 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         string generated = GeneratedText(RunGenerator(source));
 
-        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenReadDense(world, in query)"));
-        Assert.That(generated, Does.Contain("while (execution.MoveNextTrusted(out var componentRows, out int count))"));
+        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenBoundDense<"));
+        Assert.That(generated, Does.Contain("for (int chunkIndex = 0; chunkIndex < execution.Rows.Length; chunkIndex++)"));
         Assert.That(generated, Does.Not.Contain("OpenWriteDense(world, in query)"));
         Assert.That(generated, Does.Not.Contain("MarkGeneratedWrite(access0)"));
     }
@@ -435,9 +435,7 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         string generated = GeneratedText(RunGenerator(source));
 
-        Assert.That(generated, Does.Contain(
-            "var stampWriter = new DemandForEachArchetypeStampWriter_"));
-        Assert.That(generated, Does.Contain("execution.MarkArchetypeWrites(ref stampWriter);"));
+        Assert.That(generated, Does.Contain("SetWriteRoutes(new int[] { _route0, _route1 });"));
         Assert.That(generated, Does.Not.Contain("execution.MarkArchetypeWrite(access0)"));
         Assert.That(generated, Does.Not.Contain("execution.MarkArchetypeWrite(access1)"));
     }
@@ -1357,6 +1355,22 @@ public sealed class DemandDrivenForEachGeneratorTests
             public Stamp GetGeneratedStamp(ReadAccess access, int index) => default;
             public Stamp GetGeneratedStamp(int queryComponentIndex, int index) => default;
         }
+        public readonly struct GeneratedBoundChunk
+        {
+            public int Count => 0;
+            public ref Entity GetEntityReference() => throw new NotImplementedException();
+        }
+        public abstract class GeneratedDenseBinding<TRows> where TRows : struct
+        {
+            protected abstract void Prepare(in Query query);
+            protected abstract TRows BindRows(Array[] rows, GeneratedBoundChunk chunk);
+            protected void SetWriteRoutes(ReadOnlySpan<int> routes) { }
+        }
+        public ref struct GeneratedBoundExecution<TRows> where TRows : struct
+        {
+            public ReadOnlySpan<TRows> Rows => default;
+            public void Dispose() { }
+        }
         public ref struct GeneratedDenseExecution
         {
             public bool MoveNextTrusted(out GeneratedQuerySlots slots) { slots = default; return false; }
@@ -1395,6 +1409,10 @@ public sealed class DemandDrivenForEachGeneratorTests
         }
         public static class GeneratedForEachRuntime
         {
+            public static GeneratedBoundExecution<TRows> OpenBoundDense<TBinding, TRows>(World world, in Query query)
+                where TBinding : GeneratedDenseBinding<TRows>, new() where TRows : struct => default;
+            public static T[] GetGeneratedArray<T>(Array[] rows, int route) => throw new NotImplementedException();
+            public static ref T GetGeneratedArrayReference<T>(T[] row) => throw new NotImplementedException();
             public static void ThrowIfNull(object? value, string parameterName) { }
             public static bool ExecuteGeneratedAdd<TInitializer>(World world, Entity entity, ReadOnlySpan<ComponentId> components, ref TInitializer initializer)
                 where TInitializer : struct, IGeneratedComponentValueInitializer => true;

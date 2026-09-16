@@ -124,6 +124,18 @@ linked focused report.
 | 16-KiB tiled generated row spans for wide queries | Baseline commit `c2d5b75`; candidate commit `d24535e`; BDN `artifacts/many-components-baseline-20260831/results/Delta.ECS.Benchmarks.ManyComponentIterationBenchmarks-report-default.md` versus `<external-baseline-root>/deltaecs-tiled-row-spans/artifacts/many-components-tiled-final-20260831/results/Delta.ECS.Benchmarks.ManyComponentIterationBenchmarks-report-default.md`; JIT `artifacts/many-components-baseline-20260831/jit/run.log` versus `<external-baseline-root>/deltaecs-tiled-row-spans/artifacts/many-components-tiled-final-20260831/jit/run.log` | Rejected. The unchanged workload is `Movement4 + 16 + 4 + 4 + 4 = 32` `int` rows, with the same 3 writes, 29 reads and checksum at `100/1K/10K/100K` entities. On .NET 10.0.9 / Apple M4 Pro Arm64 RyuJIT, `IterationTime=300 ms`, `WarmupCount=10`, `MinIterationCount=10`, `MaxIterationCount=20`, `LaunchCount=1`, the candidate regressed `+6.69%/+5.27%/+6.58%/+4.52%`: baseline `1.421±0.0183 (0.0121) / 12.704±0.0466 (0.0308) / 127.315±0.4137 (0.2737) / 1,426.386±9.1107 (6.0262) μs`; candidate `1.516±0.0066 (0.0043) / 13.373±0.0641 (0.0424) / 135.696±0.4244 (0.2807) / 1,490.874±18.1234 (10.7850) μs`. Both sides allocated `0 B`. JIT code became smaller (`5048→4332 B`, `1300→1091` instructions; `blr 46→39`, `ldr 312→261`), but tile/span setup increased stores (`str 99→150`) and additions (`add 119→159`). The 16-KiB tiling overhead outweighs cache locality for these small `int` rows; do not retain it without a materially wider/heavier workload. |
 | Wide payload partial-read software prefetch and tile-local `ref` variants | Benchmark commits `54dd044` (main) and `3da51a7` (candidate); [focused evidence](wide-payload-prefetch.md); screening reports under `artifacts/wide-payload-prefetch-*` and candidate worktree reports | Rejected. The workload uses eight `512`-byte component rows but reads only the first and last values. Volatile/sparse loads, tile-boundary loads, tile-size changes, adaptive one-tile thresholds and tile-local `ref` addressing either added hot-loop loads/setup or regressed the direct path. The clean 512-byte comparison was `86.86 ±0.656 / 1,038.73 ±12.131 / 10,332.77 ±251.282 / 351,706.73 ±20,534.79 ns` for main versus `292.17 ±3.109 / 3,012.7 ±58.07 / 30,097.6 ±308.66 / 389,708.6 ±5,294.91 ns` for tile-local `ref` at `100/1K/10K/100K`; no production prefetch change retained. |
 
+## Typed dense signature binding, 2026-09-16
+
+[Focused report](typed-binding-2026-09-16.md), base `6dfaf2b`, isolated branch
+`perf/typed-binding`. Query-owned typed descriptors replace repeated primary
+route lookups and per-chunk Array[] row selection for sequential query-wide
+ForEach/ForEachEntity. Both versions keep 512-slot chunks and scalar loops.
+A1/B1/B2/A2 at 100 and 100K entities confirms non-overlapping intervals in 5/8
+scenarios; 3 remain inconclusive. All 32 cases report 0 B per iteration. The
+implementation is retained as requested, including unproven scenarios. Full
+Mean/Error/StdDev, interval envelopes, JIT evidence, scope and cache costs are
+in the report; raw results are under `artifacts/binding/`.
+
 ## Current uncommitted candidates
 
 | Candidate | Evidence | Interpretation |

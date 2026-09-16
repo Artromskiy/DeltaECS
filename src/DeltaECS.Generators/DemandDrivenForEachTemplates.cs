@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Delta.ECS.Generators;
 
 /// <summary>Raw-string templates for validated demand-driven iteration shapes.</summary>
-internal static class DemandDrivenForEachTemplates
+internal static partial class DemandDrivenForEachTemplates
 {
     private const uint FnvOffsetBasis = 2_166_136_261u;
     private const uint FnvPrime = 16_777_619u;
@@ -35,7 +35,7 @@ internal static class DemandDrivenForEachTemplates
         string? contracts = model.RenderContracts && !shape.IsFunctor && shape.ComponentModels.Length > 0
             ? RenderContracts(model)
             : null;
-        string? stampWriter = shape.ComponentModels.Count(static component => component.IsWrite) > 1
+        string? stampWriter = shape.ComponentModels.Count(static component => component.IsWrite) > 1 && !UsesDenseBinding(shape)
             ? RenderArchetypeStampWriter(shape)
             : null;
         string? invoker = shape.Parallel || shape.HasEntityTarget
@@ -347,7 +347,7 @@ internal static class DemandDrivenForEachTemplates
             className,
             model.Profiling,
             closedMethodName);
-        return closed + "\n" + extension;
+        return RenderDenseBinding(shape) + "\n" + closed + "\n" + extension;
     }
 
     internal static string RenderInterceptorSource(InterceptionSite site)
@@ -464,6 +464,7 @@ internal static class DemandDrivenForEachTemplates
             methodName: shape.MethodName,
             isStamp: shape.IsStamp,
             typeBinding: TypeBindingKind.CallbackInferred);
+        bool bound = UsesDenseBinding(shape);
         string[] parameters = InterceptedParameterNames(site);
         string methodName = "ExecuteInterceptedClosed_" + site.Id;
         string callbackName = "InvokeInterceptedCallback_" + site.Id;
@@ -490,9 +491,13 @@ internal static class DemandDrivenForEachTemplates
             "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]",
             signature,
             "{",
-            GeneratorTemplates.Indent(AccessSetup(closedShape).TrimEnd(), "    "),
+            bound ? string.Empty : GeneratorTemplates.Indent(AccessSetup(closedShape).TrimEnd(), "    "),
         };
-        if (shape.IsStamp)
+        if (bound)
+        {
+            lines.Add("    " + OpenDenseBinding(shape, closed: true));
+        }
+        else if (shape.IsStamp)
         {
             lines.Add("    using var execution = GeneratedForEachRuntime.OpenReadDense(world, in query);");
         }
@@ -502,27 +507,38 @@ internal static class DemandDrivenForEachTemplates
             lines.AddRange(SplitLines(AppendQueryComponentRoutes(closedShape, "    ")));
             lines.AddRange(SplitLines(AppendArchetypeWriteSetup(shape, "    ")));
         }
-        lines.Add(shape.IsStamp || closedShape.HasEntity
+        string chunkIndex = GeneratedLocalName(site, "chunk", 0);
+        string batch = GeneratedLocalName(site, "batch", 0);
+        lines.Add(bound
+            ? $"    for (int {chunkIndex} = 0; {chunkIndex} < execution.Rows.Length; {chunkIndex}++)"
+            : shape.IsStamp || closedShape.HasEntity
             ? "    while (execution.MoveNextTrusted(out var slots))"
             : $$"""    while (execution.MoveNextTrusted(out var componentRows, out int {{countName}}))""");
         lines.Add("    {");
+        if (bound)
+        {
+            lines.Add($"        ref readonly var {batch} = ref execution.Rows[{chunkIndex}];");
+            lines.Add($"        int {countName} = {batch}.Chunk.Count;");
+        }
         if (!shape.IsStamp)
         {
             for (int index = 0; index < closedShape.ComponentModels.Length; index++)
             {
                 string type = closedShape.Components[index];
-                lines.Add(closedShape.HasEntity
+                lines.Add(bound
+                    ? $"        ref {type} {rowNames[index]} = ref GeneratedForEachRuntime.GetGeneratedArrayReference({batch}.Row{index});"
+                    : closedShape.HasEntity
                     ? $"        ref {type} {rowNames[index]} = ref slots.GetGenerated{(closedShape.ComponentModels[index].IsWrite ? "Write" : "Read")}Reference<{type}>(access{index});"
                     : $"        ref {type} {rowNames[index]} = ref GeneratedForEachRuntime.GetGeneratedRow<{type}>(componentRows, route{index});");
             }
         }
-        if (shape.IsStamp || closedShape.HasEntity)
+        if (!bound && (shape.IsStamp || closedShape.HasEntity))
         {
             lines.Add($"        int {countName} = slots.Count;");
         }
         if (closedShape.HasEntity)
         {
-            lines.Add("        " + entityReference);
+            lines.Add(bound ? $"        ref global::Delta.ECS.Entity firstEntity = ref {batch}.Chunk.GetEntityReference();" : "        " + entityReference);
         }
         lines.Add(closedShape.HasEntity || shape.IsStamp
             ? $"        for (int {indexName} = 0; {indexName} < {countName}; {indexName}++)"
@@ -823,6 +839,7 @@ internal static class DemandDrivenForEachTemplates
         string methodName,
         string componentParameters)
     {
+        bool bound = UsesDenseBinding(shape);
         SignatureProjection slots = shape.Api.Signature;
         string generic = slots.HasGenericSelectors ? slots.GenericList() : string.Empty;
         string genericPrefix = StateGeneric(shape, generic);
@@ -839,7 +856,7 @@ internal static class DemandDrivenForEachTemplates
             "[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]",
             signature,
             "{",
-            GeneratorTemplates.Indent(AccessSetup(shape).TrimEnd(), "    "),
+            bound ? string.Empty : GeneratorTemplates.Indent(AccessSetup(shape).TrimEnd(), "    "),
         };
         if (shape.HasEntityTarget)
         {
@@ -865,7 +882,11 @@ internal static class DemandDrivenForEachTemplates
             return GeneratorTemplates.Indent(string.Join("\n", lines), "    ");
         }
 
-        if (shape.IsStamp)
+        if (bound)
+        {
+            lines.Add("    " + OpenDenseBinding(shape, closed: false));
+        }
+        else if (shape.IsStamp)
         {
             lines.Add("    using var execution = GeneratedForEachRuntime.OpenReadDense(world, in query);");
         }
@@ -875,11 +896,18 @@ internal static class DemandDrivenForEachTemplates
             lines.AddRange(SplitLines(AppendQueryComponentRoutes(shape, "    ")));
             lines.AddRange(SplitLines(AppendArchetypeWriteSetup(shape, "    ")));
         }
-        lines.Add(shape.IsStamp || shape.HasEntity
+        lines.Add(bound
+            ? "    for (int chunkIndex = 0; chunkIndex < execution.Rows.Length; chunkIndex++)"
+            : shape.IsStamp || shape.HasEntity
             ? "    while (execution.MoveNextTrusted(out var slots))"
             : "    while (execution.MoveNextTrusted(out var componentRows, out int count))");
         lines.Add("    {");
-        if (shape.IsStamp || shape.HasEntity)
+        if (bound)
+        {
+            lines.Add("        ref readonly var batch = ref execution.Rows[chunkIndex];");
+            lines.Add("        int count = batch.Chunk.Count;");
+        }
+        else if (shape.IsStamp || shape.HasEntity)
         {
             lines.Add("        int count = slots.Count;");
         }
@@ -891,14 +919,18 @@ internal static class DemandDrivenForEachTemplates
             }
             string type = ComponentType(shape, index);
             string row = $"row{index}";
-            lines.Add(shape.HasEntity
+            lines.Add(bound
+                ? $"        ref {type} {row} = ref GeneratedForEachRuntime.GetGeneratedArrayReference(batch.Row{index});"
+                : shape.HasEntity
                 ? $"        ref {type} {row} = ref slots.GetGenerated{(shape.ComponentModels[index].IsWrite ? "Write" : "Read")}Reference<{type}>(access{index});"
                 : $"        ref {type} {row} = ref GeneratedForEachRuntime.GetGeneratedRow<{type}>(componentRows, route{index});");
         }
         bool usesReadSlots = shape.IsStamp || !shape.ComponentModels.Any(static component => component.IsWrite);
         if (shape.HasEntity)
         {
-            lines.Add(usesReadSlots
+            lines.Add(bound
+                ? "        ref Entity firstEntity = ref batch.Chunk.GetEntityReference();"
+                : usesReadSlots
                 ? "        ref readonly Entity firstEntity = ref slots.GetGeneratedEntityReference();"
                 : "        ref Entity firstEntity = ref slots.GetGeneratedEntityReference();");
         }

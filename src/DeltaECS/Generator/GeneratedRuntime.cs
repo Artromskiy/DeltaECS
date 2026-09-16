@@ -524,7 +524,7 @@ public ref struct GeneratedReadDenseExecution
 
 /// <summary>Non-generic runtime services consumed by generated ForEach code.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public static class GeneratedForEachRuntime
+public static partial class GeneratedForEachRuntime
 {
     /// <summary>Executes one generated multi-component value add without an intermediate transition.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]

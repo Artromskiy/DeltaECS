@@ -33,6 +33,39 @@ public readonly struct WriteAccess
 internal sealed class QueryPlan
 {
     private readonly World _owner;
+    private IGeneratedDenseBinding? _lastDenseBinding;
+    private Dictionary<RuntimeTypeHandle, IGeneratedDenseBinding>? _denseBindings;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal TBinding GetDenseBinding<TBinding, TRows>(in Query query)
+        where TBinding : GeneratedDenseBinding<TRows>, new()
+        where TRows : struct
+    {
+        if (_lastDenseBinding is TBinding binding)
+        {
+            return binding;
+        }
+        return ResolveDenseBinding<TBinding, TRows>(in query);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private TBinding ResolveDenseBinding<TBinding, TRows>(in Query query)
+        where TBinding : GeneratedDenseBinding<TRows>, new()
+        where TRows : struct
+    {
+        _denseBindings ??= new Dictionary<RuntimeTypeHandle, IGeneratedDenseBinding>(RuntimeTypeHandleComparer.Instance);
+        RuntimeTypeHandle key = typeof(TBinding).TypeHandle;
+        if (!_denseBindings.TryGetValue(key, out IGeneratedDenseBinding? existing))
+        {
+            var created = new TBinding();
+            created.Initialize(in query);
+            existing = created;
+            _denseBindings.Add(key, created);
+        }
+        _lastDenseBinding = existing;
+        return (TBinding)existing;
+    }
+
     private readonly QuerySpec _description;
     private readonly WeakReference<QueryPlan> _weakReference;
     private int[] _matchingArchetypes = Array.Empty<int>();
@@ -274,6 +307,15 @@ internal sealed class QueryPlan
 
     internal void Dispose()
     {
+        if (_denseBindings is not null)
+        {
+            foreach (IGeneratedDenseBinding binding in _denseBindings.Values)
+            {
+                binding.Clear();
+            }
+            _denseBindings.Clear();
+        }
+        _lastDenseBinding = null;
         _matchingArchetypes = Array.Empty<int>();
         _matchingPlans = Array.Empty<ArchetypePlan>();
         _matchingChunkPlans = Array.Empty<ChunkPlan>();

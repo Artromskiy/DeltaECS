@@ -71,8 +71,8 @@
   </ItemGroup>
 
   <ItemGroup Label="DeltaECS">
-    <PackageReference Include="DeltaECS" Version="0.0.31" />
-    <PackageReference Include="DeltaECS.Generators" Version="0.0.31"
+    <ProjectReference Include="../../src/DeltaECS/DeltaECS.csproj" />
+    <ProjectReference Include="../../src/DeltaECS.Generators/DeltaECS.Generators.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
                       GlobalPropertiesToRemove="PublishAot;PublishTrimmed;SelfContained;RuntimeIdentifier"
