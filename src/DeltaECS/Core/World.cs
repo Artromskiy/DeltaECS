@@ -567,6 +567,7 @@ public sealed partial class World : IDisposable
     /// <summary>Reports whether an alive entity owns the specified component.</summary>
     public bool Has(Entity entity, ComponentId componentId)
     {
+        EnsureExecutionAccess();
         if (!TryResolve(entity, out int recordIndex))
         {
             return false;
@@ -593,6 +594,7 @@ public sealed partial class World : IDisposable
 
     public bool TryGetComponentStamp(Entity entity, ComponentId componentId, out Stamp stamp)
     {
+        EnsureExecutionAccess();
         stamp = default;
         if (!TryResolve(entity, out int recordIndex))
         {
@@ -1748,6 +1750,7 @@ public sealed partial class World : IDisposable
         RuntimeTypeHandle key,
         Func<World, ComponentId[]> resolver)
     {
+        EnsureExecutionAccess();
         if (_componentSetCache.TryGet(key, out ComponentSet? cached))
         {
             return cached;

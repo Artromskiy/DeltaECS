@@ -2,6 +2,7 @@ namespace Delta.ECS.Systems.Tests;
 
 using System.Collections.Concurrent;
 using Delta.ECS;
+using Delta.ECS.Integration;
 using Delta.ECS.Systems;
 using NUnit.Framework;
 
@@ -168,6 +169,10 @@ public sealed class SystemSchedulerTests
     public void ExternalWorldAccessFailsFastDuringTick()
     {
         using var world = new World();
+        world.Layouts.Register<GeneratedSetComponent>(new SchemaId(1));
+        _ = GeneratedForEachRuntime.GetGeneratedPrimaryComponentIds<GeneratedSetKey>(
+            world,
+            static _ => new[] { Position });
         using var started = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
         using var scheduler = new SystemScheduler(world, workerCount: 1);
@@ -177,6 +182,25 @@ public sealed class SystemSchedulerTests
         Assert.That(started.Wait(TimeSpan.FromSeconds(2)), Is.True);
         Assert.That(
             () => Task.Run(() => world.IsAlive(default)).GetAwaiter().GetResult(),
+            Throws.TypeOf<InvalidOperationException>());
+        Assert.That(
+            () => Task.Run(() => world.Has(default, Position)).GetAwaiter().GetResult(),
+            Throws.TypeOf<InvalidOperationException>());
+        Assert.That(
+            () => Task.Run(() => world.TryGetComponentStamp(default, Position, out _)).GetAwaiter().GetResult(),
+            Throws.TypeOf<InvalidOperationException>());
+        Assert.That(
+            () => Task.Run(() => GeneratedForEachRuntime.GetGeneratedPrimaryComponentIds<GeneratedSetKey>(
+                world,
+                static _ => new[] { Position }).Length).GetAwaiter().GetResult(),
+            Throws.TypeOf<InvalidOperationException>());
+
+        var integration = (IEcsWorld)world;
+        Assert.That(
+            () => Task.Run(() => integration.Catalog).GetAwaiter().GetResult(),
+            Throws.TypeOf<InvalidOperationException>());
+        Assert.That(
+            () => Task.Run(integration.Initialize).GetAwaiter().GetResult(),
             Throws.TypeOf<InvalidOperationException>());
 
         release.Set();
@@ -191,6 +215,20 @@ public sealed class SystemSchedulerTests
         using var scheduler = new SystemScheduler(world, workerCount: 2);
         scheduler.Add(new WorldAccessSystem(world));
         scheduler.Add(new WorldAccessSystem(world));
+
+        scheduler.Tick();
+    }
+
+    [Test]
+    public void NestedParallelExecutorWorkersCanAccessSchedulerWorld()
+    {
+        Assume.That(Environment.ProcessorCount, Is.GreaterThanOrEqualTo(2));
+        using var world = new World();
+        ComponentId component = world.Layouts.Register<GeneratedSetComponent>(new SchemaId(2));
+        world.Create([component], 4);
+        Query query = world.WhereAll(component);
+        using var scheduler = new SystemScheduler(world, workerCount: 1);
+        scheduler.Add(new NestedParallelSystem(world, query));
 
         scheduler.Tick();
     }
@@ -307,6 +345,33 @@ public sealed class SystemSchedulerTests
                 throw new TimeoutException("Tick was not released.");
             }
         }
+    }
+
+    private sealed class NestedParallelSystem : ISystem
+    {
+        private readonly Query _query;
+
+        internal NestedParallelSystem(World world, Query query)
+        {
+            World = world;
+            _query = query;
+        }
+
+        public World World { get; init; }
+
+        public SystemAccess Access => new(usesParallelExecutor: true);
+
+        public void Tick() => World.ForEachEntityParallel(in _query, OnEntity, workerCount: 2);
+
+        private void OnEntity(Entity entity) => _ = World.IsAlive(entity);
+    }
+
+    private readonly struct GeneratedSetKey
+    {
+    }
+
+    private readonly struct GeneratedSetComponent
+    {
     }
 
     private sealed class BarrierSystem : ISystem
