@@ -95,7 +95,8 @@ internal static class GeneratorSupport
             || path.Contains("GeneratedQuery_", StringComparison.Ordinal)
             || path.Contains("GeneratedStructural_", StringComparison.Ordinal)
             || path.Contains("GeneratedWhere_", StringComparison.Ordinal)
-            || path.Contains("GeneratedWhereInterceptor_", StringComparison.Ordinal);
+            || path.Contains("GeneratedWhereInterceptor_", StringComparison.Ordinal)
+            || path.Contains("GeneratedSystemAccess_", StringComparison.Ordinal);
 
     internal static ImmutableArray<ComponentModel> ComponentModels(
         string pattern,

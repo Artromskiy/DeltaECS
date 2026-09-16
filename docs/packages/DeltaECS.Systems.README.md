@@ -4,46 +4,36 @@
 batches. Systems that only access different component ids can run together;
 structural and unknown world access forms an exclusive phase.
 
-The package contains the runtime contract and scheduler. Access metadata is
-declared by the system; it does not add a source generator or analyzer.
+The package contains the runtime contract and scheduler. When a system is
+declared as a top-level `partial` class, the DeltaECS generator collects its
+generated API calls and supplies the `Access` property automatically. Keep an
+explicit `Access` property when the access set is dynamic or comes from an
+external source. Explicit `ComponentId` selectors and calls outside the
+generated API are treated as unknown access, so the scheduler keeps them in an
+exclusive phase.
 
 ```csharp
 using Delta.ECS;
 using Delta.ECS.Systems;
 
-public sealed class MovementSystem : ISystem
+public partial class MovementSystem : ISystem
 {
-    private readonly ComponentId _position;
-    private readonly ComponentId _velocity;
-
-    public MovementSystem(ComponentId position, ComponentId velocity)
-    {
-        _position = position;
-        _velocity = velocity;
-    }
+    private readonly Query _query;
 
     public World World { get; init; } = null!;
 
-    public SystemAccess Access => new(
-        reads: new[] { _velocity },
-        writes: new[] { _position });
-
     public void Tick()
     {
-        // Use the regular generated DeltaECS ForEach API here.
+        World.ForEach(in _query,
+            static (ref Position p, in Velocity v) => p.X += v.X);
     }
 }
 
 using var world = new World();
 using var scheduler = new SystemScheduler(world);
-var velocity = world.Layouts.Register<Velocity>(new SchemaId(1));
-var position = world.Layouts.Register<Position>(new SchemaId(2));
-var movement = new MovementSystem(
-    position,
-    velocity)
-{
-    World = world
-};
+world.Layouts.Register<Velocity>(new SchemaId(1));
+world.Layouts.Register<Position>(new SchemaId(2));
+var movement = new MovementSystem { World = world };
 scheduler.Add(movement);
 scheduler.Tick();
 
