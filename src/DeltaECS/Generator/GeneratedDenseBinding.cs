@@ -38,6 +38,8 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
     private int _count;
     private int _version = -1;
     private int[] _writes = Array.Empty<int>();
+    private WriteStampTarget[] _writeTargets = Array.Empty<WriteStampTarget>();
+    private int _writeTargetCount;
 
     /// <summary>Resolves the complete component signature once for the owning query.</summary>
     protected abstract void Prepare(in Query query);
@@ -82,6 +84,7 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
     private void Refresh(QueryPlan plan)
     {
         ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
+        ReadOnlySpan<ArchetypePlan> archetypes = plan.MatchingPlans();
         if (_rows.Length < chunks.Length)
         {
             Array.Resize(ref _rows, Math.Max(chunks.Length, _rows.Length * 2));
@@ -96,35 +99,79 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
             _rows.AsSpan(chunks.Length, _count - chunks.Length).Clear();
         }
         _count = chunks.Length;
+        RefreshWriteTargets(archetypes);
         _version = plan.MatchingVersion;
     }
 
-    internal void MarkWrites(QueryPlan plan)
+    private void RefreshWriteTargets(ReadOnlySpan<ArchetypePlan> archetypes)
     {
-        if (_writes.Length == 0)
+        int targetCount = 0;
+        if (_writes.Length != 0)
         {
-            return;
+            foreach (ref readonly ArchetypePlan archetype in archetypes)
+            {
+                if (archetype.ChunkCount == 0)
+                {
+                    continue;
+                }
+
+                EnsureWriteTargetCapacity(targetCount + _writes.Length);
+                Stamp[] stamps = archetype.ArchetypeStamps;
+                foreach (int route in _writes)
+                {
+                    _writeTargets[targetCount++] = new WriteStampTarget(stamps, route);
+                }
+            }
         }
-        foreach (ref readonly ArchetypePlan archetype in plan.MatchingPlans())
+
+        if (_writeTargetCount > targetCount)
         {
-            if (archetype.ChunkCount == 0)
-            {
-                continue;
-            }
-            foreach (int route in _writes)
-            {
-                GeneratedForEachRuntime.IncrementArchetypeStamp(archetype.ArchetypeStamps, route);
-            }
+            _writeTargets.AsSpan(targetCount, _writeTargetCount - targetCount).Clear();
         }
+        _writeTargetCount = targetCount;
+    }
+
+    private void EnsureWriteTargetCapacity(int required)
+    {
+        if (_writeTargets.Length < required)
+        {
+            int capacity = Math.Max(required, _writeTargets.Length == 0 ? 4 : _writeTargets.Length * 2);
+            Array.Resize(ref _writeTargets, capacity);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void MarkWrites()
+    {
+        for (int index = 0; index < _writeTargetCount; index++)
+        {
+            ref readonly WriteStampTarget target = ref _writeTargets.RefAt(index);
+            GeneratedForEachRuntime.IncrementArchetypeStamp(target.Stamps, target.ComponentIndex);
+        }
+    }
+
+    private readonly struct WriteStampTarget
+    {
+        internal WriteStampTarget(Stamp[] stamps, int componentIndex)
+        {
+            Stamps = stamps;
+            ComponentIndex = componentIndex;
+        }
+
+        internal Stamp[] Stamps { get; }
+        internal int ComponentIndex { get; }
     }
 
     void IGeneratedDenseBinding.Clear()
     {
-        // Clear the existing array as well: an escaped compiler-support binding must not retain rows.
+        // Clear the existing arrays as well: an escaped compiler-support binding must not retain rows or stamps.
         _rows.AsSpan().Clear();
         _rows = Array.Empty<TRows>();
         _count = 0;
         _version = -1;
+        _writeTargets.AsSpan().Clear();
+        _writeTargets = Array.Empty<WriteStampTarget>();
+        _writeTargetCount = 0;
     }
 }
 
@@ -166,7 +213,7 @@ public static partial class GeneratedForEachRuntime
         ReadOnlySpan<TRows> rows = binding.GetRows(plan);
         World owner = plan.Owner;
         owner.BeginQueryLease();
-        binding.MarkWrites(plan);
+        binding.MarkWrites();
         return new GeneratedBoundExecution<TRows>(owner, rows);
     }
 

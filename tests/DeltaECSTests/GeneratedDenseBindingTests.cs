@@ -85,6 +85,36 @@ public sealed class GeneratedDenseBindingTests
     }
 
     [Test]
+    public void WriteTargetsRefreshWhenMatchingArchetypesActivateAndDeactivate()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId health = layouts.Register<Health>(new SchemaId(96008));
+        ComponentId velocity = layouts.Register<Velocity>(new SchemaId(96009));
+        using var world = new World(layouts);
+        Entity healthOnly = world.Create(health);
+        Query query = world.WhereAll<Health>();
+        Assert.That(Visit(world, in query), Is.EqualTo(1));
+
+        Entity healthAndVelocity = world.Create(health, velocity);
+        world.TryGetComponentStamp(healthAndVelocity, health, out Stamp beforeNewArchetype);
+        Assert.That(Visit(world, in query), Is.EqualTo(2));
+        world.TryGetComponentStamp(healthAndVelocity, health, out Stamp afterNewArchetype);
+        Assert.That(afterNewArchetype.Value, Is.EqualTo(beforeNewArchetype.Value + 1));
+
+        world.Destroy(healthOnly);
+        world.TryGetComponentStamp(healthAndVelocity, health, out Stamp beforeDeactivationRefresh);
+        Assert.That(Visit(world, in query), Is.EqualTo(1));
+        world.TryGetComponentStamp(healthAndVelocity, health, out Stamp afterDeactivationRefresh);
+        Assert.That(afterDeactivationRefresh.Value, Is.EqualTo(beforeDeactivationRefresh.Value + 1));
+
+        Entity reactivatedHealthOnly = world.Create(health);
+        world.TryGetComponentStamp(reactivatedHealthOnly, health, out Stamp beforeReactivationRefresh);
+        Assert.That(Visit(world, in query), Is.EqualTo(2));
+        world.TryGetComponentStamp(reactivatedHealthOnly, health, out Stamp afterReactivationRefresh);
+        Assert.That(afterReactivationRefresh.Value, Is.EqualTo(beforeReactivationRefresh.Value + 1));
+    }
+
+    [Test]
     public void ReadOnlySignaturePreservesStampsAndDisposedWorldRejectsCachedBinding()
     {
         var layouts = new ComponentLayoutRegistry();
