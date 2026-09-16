@@ -132,6 +132,12 @@ internal static class DemandDrivenForEachTemplates
                 string componentType = shape.ComponentModels[index].TypeName;
                 return $$"""ref {{componentType}} row{{index}} = ref slots.GetGeneratedReadReference<{{componentType}}>(_access{{index}});""";
             }));
+        string entityBase = shape.HasEntity
+            ? "ref Entity firstEntity = ref slots.GetGeneratedEntityReference();"
+            : string.Empty;
+        string entity = shape.HasEntity
+            ? "Entity entity = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index);"
+            : string.Empty;
         string components = GeneratorTemplates.JoinNonEmpty(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index => shape.IsStamp
             ? $$"""Stamp component{{index}} = slots.GetGeneratedStamp(_access{{index}}, index);"""
             : $$"""{{(shape.ComponentModels[index].IsWrite ? "ref " : "ref readonly ")}}{{shape.ComponentModels[index].TypeName}} component{{index}} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row{{index}}, index);"""));
@@ -147,11 +153,13 @@ internal static class DemandDrivenForEachTemplates
                 public void Invoke(ref GeneratedQuerySlots slots)
                 {
             {{rows}}
+            {{entityBase}}
                     int count = slots.Count;
                     for (int index = 0; index < count; index++)
                     {
+            {{entity}}
             {{components}}
-                        {{AppendClosedInvocation(shape, "_action", "_functor", "_context", "component", "slots.EntityAt(index)")}};
+                        {{AppendClosedInvocation(shape, "_action", "_functor", "_context", "component", "entity")}};
                     }
                 }
             {{AppendInvokerProperties(shape)}}
@@ -464,6 +472,13 @@ internal static class DemandDrivenForEachTemplates
         string[] rowNames = shape.IsStamp
             ? Array.Empty<string>()
             : GeneratorTemplates.Indexed(closedShape.ComponentModels.Length, index => GeneratedLocalName(site, "row", index)).ToArray();
+        bool usesReadSlots = shape.IsStamp || !closedShape.ComponentModels.Any(static component => component.IsWrite);
+        string entityReference = usesReadSlots
+            ? "ref readonly global::Delta.ECS.Entity firstEntity = ref slots.GetGeneratedEntityReference();"
+            : "ref global::Delta.ECS.Entity firstEntity = ref slots.GetGeneratedEntityReference();";
+        string entityAt = usesReadSlots
+            ? $"global::System.Runtime.CompilerServices.Unsafe.Add(ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in firstEntity), {{0}})"
+            : "global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, {0})";
         SignatureProjection slots = closedShape.Api.Signature;
         string componentParameters = slots.HasExplicitIds ? ", " + slots.ComponentIdParameters("componentId") : string.Empty;
         string contextParameter = closedShape.HasContext
@@ -505,6 +520,10 @@ internal static class DemandDrivenForEachTemplates
         {
             lines.Add($"        int {countName} = slots.Count;");
         }
+        if (closedShape.HasEntity)
+        {
+            lines.Add("        " + entityReference);
+        }
         lines.Add(closedShape.HasEntity || shape.IsStamp
             ? $"        for (int {indexName} = 0; {indexName} < {countName}; {indexName}++)"
             : $"        int {indexName} = 0;\n        while ({indexName} < {countName})");
@@ -512,7 +531,7 @@ internal static class DemandDrivenForEachTemplates
         int parameterIndex = closedShape.HasContext ? 1 : 0;
         if (closedShape.HasEntity)
         {
-            lines.Add($"            global::Delta.ECS.Entity {parameters[parameterIndex]} = slots.EntityAt({indexName});");
+            lines.Add($"            global::Delta.ECS.Entity {parameters[parameterIndex]} = {string.Format(entityAt, indexName)};");
             parameterIndex++;
         }
         for (int index = 0; index < closedShape.ComponentModels.Length; index++)
@@ -593,12 +612,16 @@ internal static class DemandDrivenForEachTemplates
                 $"        ref {shape.ComponentModels[index].ResolvedTypeName} {rowNames[index]} = ref slots.GetGeneratedReadReference<{shape.ComponentModels[index].ResolvedTypeName}>(_access{index});"));
         }
         body.Add($"        int {countName} = slots.Count;");
+        if (shape.HasEntity)
+        {
+            body.Add("        ref global::Delta.ECS.Entity firstEntity = ref slots.GetGeneratedEntityReference();");
+        }
         body.Add($"        for (int {indexName} = 0; {indexName} < {countName}; {indexName}++)");
         body.Add("        {");
         int parameterIndex = shape.HasContext ? 1 : 0;
         if (shape.HasEntity)
         {
-            body.Add($"            global::Delta.ECS.Entity {parameters[parameterIndex++]} = slots.EntityAt({indexName});");
+            body.Add($"            global::Delta.ECS.Entity {parameters[parameterIndex++]} = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, {indexName});");
         }
         body.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index => shape.IsStamp
             ? $"            Stamp {parameters[parameterIndex + index]} = slots.GetGeneratedStamp(_access{index}, {indexName});"
@@ -872,11 +895,20 @@ internal static class DemandDrivenForEachTemplates
                 ? $"        ref {type} {row} = ref slots.GetGenerated{(shape.ComponentModels[index].IsWrite ? "Write" : "Read")}Reference<{type}>(access{index});"
                 : $"        ref {type} {row} = ref GeneratedForEachRuntime.GetGeneratedRow<{type}>(componentRows, route{index});");
         }
+        bool usesReadSlots = shape.IsStamp || !shape.ComponentModels.Any(static component => component.IsWrite);
+        if (shape.HasEntity)
+        {
+            lines.Add(usesReadSlots
+                ? "        ref readonly Entity firstEntity = ref slots.GetGeneratedEntityReference();"
+                : "        ref Entity firstEntity = ref slots.GetGeneratedEntityReference();");
+        }
         lines.Add("        for (int index = 0; index < count; index++)");
         lines.Add("        {");
         if (shape.HasEntity)
         {
-            lines.Add("            Entity entity = slots.EntityAt(index);");
+            lines.Add(usesReadSlots
+                ? "            Entity entity = global::System.Runtime.CompilerServices.Unsafe.Add(ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in firstEntity), index);"
+                : "            Entity entity = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index);");
         }
         for (int index = 0; index < shape.ComponentModels.Length; index++)
         {

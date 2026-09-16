@@ -19,9 +19,10 @@ public sealed partial class World
         public void Invoke(ref GeneratedQuerySlots slots)
         {
             int count = slots.Count;
+            ref Entity firstEntity = ref slots.GetGeneratedEntityReference();
             for (int index = 0; index < count; index++)
             {
-                _action(slots.EntityAt(index));
+                _action(global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index));
             }
         }
     }
@@ -42,9 +43,10 @@ public sealed partial class World
         public void Invoke(ref GeneratedQuerySlots slots)
         {
             int count = slots.Count;
+            ref Entity firstEntity = ref slots.GetGeneratedEntityReference();
             for (int index = 0; index < count; index++)
             {
-                _action(in _context, slots.EntityAt(index));
+                _action(in _context, global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index));
             }
         }
     }
@@ -65,9 +67,10 @@ public sealed partial class World
         public void Invoke(ref GeneratedQuerySlots slots)
         {
             int count = slots.Count;
+            ref Entity firstEntity = ref slots.GetGeneratedEntityReference();
             for (int index = 0; index < count; index++)
             {
-                _action(_context, slots.EntityAt(index));
+                _action(_context, global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index));
             }
         }
     }

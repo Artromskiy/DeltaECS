@@ -32,9 +32,12 @@ public sealed partial class World
         while (execution.MoveNextTrusted(out GeneratedReadQuerySlots slots))
         {
             int count = slots.Count;
+            ref readonly Entity firstEntity = ref slots.GetGeneratedEntityReference();
             for (int index = 0; index < count; index++)
             {
-                action(slots.EntityAt(index));
+                action(global::System.Runtime.CompilerServices.Unsafe.Add(
+                    ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in firstEntity),
+                    index));
             }
         }
     }
@@ -68,9 +71,14 @@ public sealed partial class World
         while (execution.MoveNextTrusted(out GeneratedReadQuerySlots slots))
         {
             int count = slots.Count;
+            ref readonly Entity firstEntity = ref slots.GetGeneratedEntityReference();
             for (int index = 0; index < count; index++)
             {
-                action(ref context, slots.EntityAt(index));
+                action(
+                    ref context,
+                    global::System.Runtime.CompilerServices.Unsafe.Add(
+                        ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in firstEntity),
+                        index));
             }
         }
     }

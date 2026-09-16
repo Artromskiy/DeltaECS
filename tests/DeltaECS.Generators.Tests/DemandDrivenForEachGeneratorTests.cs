@@ -964,6 +964,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain(" WhereEntity<T1>(this World world, in Query query"));
         Assert.That(generated, Does.Contain("GeneratedWherePredicate_"));
         Assert.That(generated, Does.Contain("bool GeneratedWherePredicate_"));
+        Assert.That(generated, Does.Contain("firstEntity = ref slots.GetGeneratedEntityReference()"));
+        Assert.That(generated, Does.Not.Contain("slots.EntityAt(index)"));
 
         AssertCompiles(new[] { RuntimeStubSource, WhereWithoutEntitySource }, run.GeneratedTrees);
     }
@@ -1308,6 +1310,7 @@ public sealed class DemandDrivenForEachGeneratorTests
             public int ChunkId => 0;
             public int Count => 0;
             public Entity EntityAt(int index) => default;
+            public ref Entity GetGeneratedEntityReference() => throw new NotImplementedException();
             public ref T GetGeneratedReadReference<T>(int queryComponentIndex) => throw new NotImplementedException();
             public ref T GetGeneratedReadReference<T>(ReadAccess access) => throw new NotImplementedException();
             public ref T GetGeneratedWriteReference<T>(int queryComponentIndex) => throw new NotImplementedException();
@@ -1319,6 +1322,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public int Count => 0;
             public Entity EntityAt(int index) => default;
+            public ref readonly Entity GetGeneratedEntityReference() => throw new NotImplementedException();
             public ref T GetGeneratedReadReference<T>(int queryComponentIndex) => throw new NotImplementedException();
             public ref T GetGeneratedReadReference<T>(ReadAccess access) => throw new NotImplementedException();
             public Stamp GetGeneratedStamp(ReadAccess access, int index) => default;

@@ -53,6 +53,12 @@ public ref struct GeneratedQuerySlots
     public Entity EntityAt(int index)
         => _entities.RefAt(_offset + index);
 
+    /// <summary>Gets the first entity reference for the current validated slot range.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public ref Entity GetGeneratedEntityReference()
+        => ref Unsafe.Add(ref _entities.GetRefAtZero(), _offset);
+
     /// <summary>Gets the trusted first element of a validated read row.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -124,6 +130,11 @@ public ref struct GeneratedReadQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity EntityAt(int index)
         => _entities.RefAt(index);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public ref readonly Entity GetGeneratedEntityReference()
+        => ref _entities.GetRefAtZero();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetGeneratedReadReference<T>(int queryComponentIndex)

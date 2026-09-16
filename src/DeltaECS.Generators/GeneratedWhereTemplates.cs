@@ -206,9 +206,12 @@ internal static class GeneratedWhereTemplates
             shape.HasEntity ? "__whereEntity_" + site.Id : string.Empty
         }.Concat(new[] { predicateSlots.ComponentArguments("__wherePredicateComponent") })
         .Where(static argument => argument.Length != 0));
+        bool needsEntity = shape.HasEntity || terminal.HasEntity;
         string entityBody = GeneratorTemplates.JoinNonEmpty(new[]
         {
-            $$"""Entity __whereEntity_{{site.Id}} = slots.EntityAt(index);""",
+            needsEntity
+                ? $$"""Entity __whereEntity_{{site.Id}} = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index);"""
+                : string.Empty,
             GeneratorTemplates.JoinIndexed(shape.Arity, index =>
                 $$"""ref {{site.PredicateComponents[index]}} __wherePredicateComponent{{index}} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row{{index}}, index);""", "\n"),
             $$"""
@@ -228,9 +231,14 @@ internal static class GeneratedWhereTemplates
                     .Where(static argument => argument.Length != 0))}});
                 """
         });
-        string iteration = GeneratorTemplates.RenderBlock(
-            "for (int index = 0; index < slots.Count; index++)",
-            entityBody);
+        string iteration = GeneratorTemplates.JoinNonEmpty(new[]
+        {
+            needsEntity
+                ? "ref global::Delta.ECS.Entity firstEntity = ref slots.GetGeneratedEntityReference();"
+                : string.Empty,
+            "int count = slots.Count;",
+            GeneratorTemplates.RenderBlock("for (int index = 0; index < count; index++)", entityBody)
+        });
         string executionBody = GeneratorTemplates.JoinNonEmpty(new[]
         {
             "using var execution = global::Delta.ECS.GeneratedForEachRuntime.OpenDense(world, in query);",
@@ -284,7 +292,8 @@ internal static class GeneratedWhereTemplates
         string operationBody = GeneratorTemplates.JoinNonEmpty(new[]
         {
             """
-                if (slots.Count == 0)
+                int count = slots.Count;
+                if (count == 0)
                 {
                     return;
                 }
@@ -292,12 +301,17 @@ internal static class GeneratedWhereTemplates
             RenderSlotLocals(shape.ComponentModels, site.PredicateComponents, "", elements: false),
             "int runStart = 0;",
             "bool runSelected = false;",
+            shape.HasEntity
+                ? "ref global::Delta.ECS.Entity firstEntity = ref slots.GetGeneratedEntityReference();"
+                : string.Empty,
             GeneratorTemplates.RenderBlock(
-                "for (int index = 0; index < slots.Count; index++)",
+                "for (int index = 0; index < count; index++)",
                 string.Join("\n", new[]
                 {
                     RenderSlotLocals(shape.ComponentModels, site.PredicateComponents, "", elements: true),
-                    "Entity entity = slots.EntityAt(index);",
+                    shape.HasEntity
+                        ? "Entity entity = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index);"
+                        : string.Empty,
                     $$"""bool selected = Predicate_{{site.Id}}({{InterceptedPredicateArguments(shape, "_predicateContext")}});""",
                     $$"""
                         if (index != 0 && selected != runSelected)
@@ -308,7 +322,7 @@ internal static class GeneratedWhereTemplates
                         """,
                     "runSelected = selected;"
                 })),
-            $$"""context.ProcessRun(runStart, slots.Count - runStart, runSelected{{processRunInitializer}});"""
+            $$"""context.ProcessRun(runStart, count - runStart, runSelected{{processRunInitializer}});"""
         });
         string invokerExecute = GeneratorTemplates.RenderBlock(
             "public void Execute(ref GeneratedQuerySlots slots, ref GeneratedWhereStructuralContext context)",
@@ -629,7 +643,8 @@ internal static class GeneratedWhereTemplates
         else
         {
             executeLines.Add("""
-                        if (slots.Count == 0)
+                        int count = slots.Count;
+                        if (count == 0)
                         {
                             return;
                         }
@@ -647,7 +662,11 @@ internal static class GeneratedWhereTemplates
             loopLines.Add(componentRows);
         }
 
-        loopLines.Add("            Entity entity = slots.EntityAt(index);");
+        bool needsEntity = shape.HasEntity || terminal.HasEntity;
+        if (needsEntity)
+        {
+            loopLines.Add("            Entity entity = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index);");
+        }
         string predicateInvocation = RenderPredicateInvocation(shape);
         if (terminal.IsCallback)
         {
@@ -699,15 +718,23 @@ internal static class GeneratedWhereTemplates
                         """);
         }
 
+        if (terminal.IsCallback)
+        {
+            executeLines.Add("        int count = slots.Count;");
+        }
+        if (needsEntity)
+        {
+            executeLines.Add("        ref Entity firstEntity = ref slots.GetGeneratedEntityReference();");
+        }
         executeLines.Add($$"""
-                    for (int index = 0; index < slots.Count; index++)
+                    for (int index = 0; index < count; index++)
                     {
                     {{GeneratorTemplates.Indent(string.Join("\n", loopLines), "    ")}}
                     }
                     """);
         if (!terminal.IsCallback)
         {
-            executeLines.Add($$"""        context.ProcessRun(runStart, slots.Count - runStart, runSelected{{(terminal.HasValues ? ", ref _initializer" : string.Empty)}});""");
+            executeLines.Add($$"""        context.ProcessRun(runStart, count - runStart, runSelected{{(terminal.HasValues ? ", ref _initializer" : string.Empty)}});""");
         }
 
         string execute = $$"""
