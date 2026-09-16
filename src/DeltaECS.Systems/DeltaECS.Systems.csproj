@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>
+    <RootNamespace>Delta.ECS.Systems</RootNamespace>
+    <AssemblyName>DeltaECS.Systems</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsPackable>true</IsPackable>
+    <PackageId>DeltaECS.Systems</PackageId>
+    <Version>0.0.1</Version>
+    <Authors>Artromskiy</Authors>
+    <Description>Deterministic and parallel scheduler for DeltaECS systems.</Description>
+    <PackageTags>ecs;entity-component-system;scheduler;parallel;dotnet</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <RepositoryUrl>https://github.com/Artromskiy/DeltaECS</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DeltaECS\DeltaECS.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\..\docs\packages\DeltaECS.Systems.README.md"
+          Pack="true"
+          PackagePath="README.md"
+          Visible="false" />
+  </ItemGroup>
+
+</Project>

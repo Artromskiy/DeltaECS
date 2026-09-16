@@ -15,6 +15,7 @@ or public API changes.
 - [Stamp contract](src/DeltaECS/Stamps/README.md)
 - [Runtime package guide](packages/DeltaECS.README.md)
 - [Generator package guide](packages/DeltaECS.Generators.README.md)
+- [System scheduler package guide](packages/DeltaECS.Systems.README.md)
 
 ## Implementation and decisions
 

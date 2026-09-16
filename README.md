@@ -183,7 +183,8 @@ corresponding context marker and pass the functor by `ref`.
 - [API and code-generation cookbook](docs/usage-examples.md): query filters,
   context callbacks, explicit IDs, chunk traversal and interceptor setup.
 - [Runtime package](docs/packages/DeltaECS.README.md) and
-  [generator package](docs/packages/DeltaECS.Generators.README.md).
+  [generator package](docs/packages/DeltaECS.Generators.README.md), plus the
+  [system scheduler package](docs/packages/DeltaECS.Systems.README.md).
 - [Runnable console / NativeAOT sample](samples/DeltaECS.AotSample/Program.cs).
 
 - [Public behavior and documentation index](docs/README.md)
