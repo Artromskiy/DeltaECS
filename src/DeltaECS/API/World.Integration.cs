@@ -87,13 +87,12 @@ public sealed partial class World : IEcsWorld
         EnsureIntegrationActive();
         EnsureNoActiveLease("inspect entities through the integration API");
         totalCount = 0;
-        if (!TryResolve(entity, out int recordIndex))
+        if (!TryResolve(entity, out _, out Chunk chunk, out _))
         {
             return false;
         }
 
-        ref readonly var record = ref RecordAt(recordIndex);
-        ReadOnlySpan<ComponentId> components = GetRecordArchetype(record).ComponentIds;
+        ReadOnlySpan<ComponentId> components = _archetypes[chunk.ArchetypeId].ComponentIds;
         totalCount = components.Length;
         components[..Math.Min(components.Length, destination.Length)].CopyTo(destination);
         return true;
@@ -109,7 +108,7 @@ public sealed partial class World : IEcsWorld
         EnsureNoActiveLease("read components through the integration API");
         snapshot = default;
 
-        if (!TryResolve(entity, out int recordIndex))
+        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
             error = new EcsReadError(EcsReadErrorCode.EntityNotAlive);
             return false;
@@ -121,8 +120,6 @@ public sealed partial class World : IEcsWorld
             return false;
         }
 
-        ref readonly var record = ref RecordAt(recordIndex);
-        var chunk = GetRecordChunk(record);
         var archetype = _archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(component, out int componentIndex))
         {
@@ -136,12 +133,12 @@ public sealed partial class World : IEcsWorld
             return false;
         }
 
-        object? value = chunk.GetRawComponentRow(componentIndex).GetValue(record.SlotIndex);
+        object? value = chunk.GetRawComponentRow(componentIndex).GetValue(slotIndex);
         Stamp componentStamp = GetComponentStamp(
             archetype.Id,
             chunk,
             componentIndex,
-            record.SlotIndex);
+            slotIndex);
         snapshot = new ComponentSnapshot(value, componentStamp);
         error = new EcsReadError(EcsReadErrorCode.None);
         return true;
@@ -159,7 +156,7 @@ public sealed partial class World : IEcsWorld
         EnsureNoActiveLease("write components through the integration API");
         writtenStamp = default;
 
-        if (!TryResolve(entity, out int recordIndex))
+        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
             error = new EcsWriteError(EcsWriteErrorCode.EntityNotAlive);
             return false;
@@ -171,8 +168,6 @@ public sealed partial class World : IEcsWorld
             return false;
         }
 
-        ref readonly var record = ref RecordAt(recordIndex);
-        var chunk = GetRecordChunk(record);
         var archetype = _archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(component, out int componentIndex))
         {
@@ -189,7 +184,7 @@ public sealed partial class World : IEcsWorld
             return false;
         }
 
-        if (GetComponentStamp(archetype.Id, chunk, componentIndex, record.SlotIndex) != expectedStamp)
+        if (GetComponentStamp(archetype.Id, chunk, componentIndex, slotIndex) != expectedStamp)
         {
             error = new EcsWriteError(EcsWriteErrorCode.StaleStamp);
             return false;
@@ -203,18 +198,18 @@ public sealed partial class World : IEcsWorld
             return false;
         }
 
-        chunk.GetRawComponentRow(componentIndex).SetValue(value, record.SlotIndex);
-        Stamp entityStamp = chunk.IncrementComponentStamp(componentIndex, record.SlotIndex);
+        chunk.GetRawComponentRow(componentIndex).SetValue(value, slotIndex);
+        Stamp entityStamp = chunk.IncrementComponentStamp(componentIndex, slotIndex);
         CreateEntityComponentStampWriter(
             chunk,
             componentIndex,
-            record.SlotIndex,
+            slotIndex,
             entityStamp).MarkPoint();
         writtenStamp = GetComponentStamp(
             archetype.Id,
             chunk,
             componentIndex,
-            record.SlotIndex);
+            slotIndex);
         error = new EcsWriteError(EcsWriteErrorCode.None);
         return true;
     }

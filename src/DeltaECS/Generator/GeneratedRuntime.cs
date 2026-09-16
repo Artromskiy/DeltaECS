@@ -74,6 +74,7 @@ public struct GeneratedWhereStructuralContext
     private readonly int _sourceCount;
     private int _writeSlot;
     private int _changedCount;
+    private bool _queryPlansDeferred;
     private bool _completed;
 
     internal GeneratedWhereStructuralContext(
@@ -88,6 +89,7 @@ public struct GeneratedWhereStructuralContext
         _sourceCount = sourceCount;
         _writeSlot = 0;
         _changedCount = 0;
+        _queryPlansDeferred = false;
         _completed = false;
     }
 
@@ -121,6 +123,14 @@ public struct GeneratedWhereStructuralContext
 
         if (selected)
         {
+            if (!_queryPlansDeferred)
+            {
+                _world.BeginGeneratedWhereMutation(
+                    _plan.SourceArchetype,
+                    _plan.TargetArchetype);
+                _queryPlansDeferred = true;
+            }
+
             _changedCount += count;
             if (_plan.IsDestroy)
             {
@@ -336,6 +346,11 @@ public ref struct GeneratedDenseExecution
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void MarkArchetypeWrites(scoped ReadOnlySpan<int> queryComponentIndices)
     {
+        if (queryComponentIndices.IsEmpty)
+        {
+            return;
+        }
+
         for (int planIndex = 0; planIndex < _plans.Length; planIndex++)
         {
             ref readonly ArchetypePlan plan = ref _plans.RefAt(planIndex);
@@ -853,6 +868,11 @@ public static class GeneratedForEachRuntime
         ReadOnlySpan<ArchetypePlan> plans,
         scoped ReadOnlySpan<int> componentIndices)
     {
+        if (componentIndices.IsEmpty)
+        {
+            return;
+        }
+
         for (int planIndex = 0; planIndex < plans.Length; planIndex++)
         {
             ref readonly ArchetypePlan plan = ref plans.RefAt(planIndex);

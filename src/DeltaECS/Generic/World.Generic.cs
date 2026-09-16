@@ -1,20 +1,22 @@
 namespace Delta.ECS;
 
+using System.Runtime.CompilerServices;
+
 public sealed partial class World
 {
     /// <summary>Creates one entity with the primary component for <typeparamref name="T"/>.</summary>
     public Entity Create<T>()
-        => Create(_layouts.GetPrimary<T>());
+        => Create(GetPrimaryComponentId<T>());
 
     /// <summary>Creates entities with the primary component for <typeparamref name="T"/> into caller-owned storage.</summary>
     public int Create<T>(int count, Span<Entity> output)
-        => Create<T>(_layouts.GetPrimary<T>(), count, output);
+        => Create<T>(GetPrimaryComponentId<T>(), count, output);
 
     /// <summary>Creates entities with the primary component for <typeparamref name="T"/> without retaining handles.</summary>
     public int Create<T>(int count)
     {
         ThrowHelper.ThrowIfNegative(count, nameof(count));
-        return Create(stackalloc[] { _layouts.GetPrimary<T>() }, count);
+        return Create(stackalloc[] { GetPrimaryComponentId<T>() }, count);
     }
 
     /// <summary>
@@ -59,18 +61,19 @@ public sealed partial class World
     /// </code>
     /// </example>
     public bool Add<T>(Entity entity, in T value)
-        => Add(entity, _layouts.GetPrimary<T>(), in value);
+        => AddComponentBatch(
+            stackalloc[] { entity },
+            GetPrimaryComponentId<T>(),
+            in value) == 1;
 
     /// <summary>Adds and initializes the primary component for <typeparamref name="T"/> on every eligible entity.</summary>
     public int Add<T>(ReadOnlySpan<Entity> entities, in T value)
-        => Add(entities, _layouts.GetPrimary<T>(), in value);
+        => AddComponentBatch(entities, GetPrimaryComponentId<T>(), in value);
 
     /// <summary>Adds one typed component to an alive entity and initializes its value.</summary>
     public bool Add<T>(Entity entity, ComponentId componentId, in T value)
     {
-        if (!IsRegisteredType<T>(componentId)
-            || !IsAlive(entity)
-            || TryGetCore<T>(entity, componentId, out _))
+        if (!IsRegisteredType<T>(componentId))
         {
             return false;
         }
@@ -91,23 +94,23 @@ public sealed partial class World
 
     /// <summary>Removes the primary component for <typeparamref name="T"/> from one entity.</summary>
     public bool Remove<T>(Entity entity)
-        => Remove<T>(entity, _layouts.GetPrimary<T>());
+        => RemoveComponentBatch(
+            stackalloc[] { entity },
+            GetPrimaryComponentId<T>()) == 1;
 
     /// <summary>Removes the primary component for <typeparamref name="T"/> from every eligible entity.</summary>
     public int Remove<T>(ReadOnlySpan<Entity> entities)
-        => Remove<T>(entities, _layouts.GetPrimary<T>());
+        => RemoveComponentBatch(entities, GetPrimaryComponentId<T>());
 
     /// <summary>Removes one typed component from an alive entity.</summary>
     public bool Remove<T>(Entity entity, ComponentId componentId)
     {
-        if (!IsRegisteredType<T>(componentId)
-            || !IsAlive(entity)
-            || !TryGetCore<T>(entity, componentId, out _))
+        if (!IsRegisteredType<T>(componentId))
         {
             return false;
         }
 
-        return RemoveComponentBatch<T>(stackalloc[] { entity }, componentId) == 1;
+        return RemoveComponentBatch(stackalloc[] { entity }, componentId) == 1;
     }
 
     /// <summary>Removes one typed component from every eligible entity in a batch.</summary>
@@ -118,29 +121,49 @@ public sealed partial class World
             return 0;
         }
 
-        return RemoveComponentBatch<T>(entities, componentId);
+        return RemoveComponentBatch(entities, componentId);
     }
 
     /// <summary>Reads the primary component for <typeparamref name="T"/> when present.</summary>
     public bool TryGet<T>(Entity entity, out T value)
     {
-        if (!_layouts.TryGetPrimary<T>(out ComponentId componentId))
+        if (!TryGetPrimaryComponentId<T>(out ComponentId componentId))
         {
             value = default!;
             return false;
         }
 
-        return TryGet(entity, componentId, out value);
+        return TryGetRegisteredCore(entity, componentId, out value);
     }
 
     /// <summary>Reads one component when the entity owns a matching component row.</summary>
     public bool TryGet<T>(Entity entity, ComponentId componentId, out T value)
         => TryGetCore(entity, componentId, out value);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryGetRegisteredCore<T>(Entity entity, ComponentId componentId, out T value)
+    {
+        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
+        {
+            value = default!;
+            return false;
+        }
+
+        Archetype archetype = _archetypes[chunk.ArchetypeId];
+        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
+        {
+            value = default!;
+            return false;
+        }
+
+        value = chunk.GetComponentRow<T>(componentIndex).RefAt(slotIndex);
+        return true;
+    }
+
     /// <summary>Reports whether an alive entity owns the primary component for <typeparamref name="T"/>.</summary>
     public bool Has<T>(Entity entity)
     {
-        if (!_layouts.TryGetPrimary<T>(out ComponentId componentId))
+        if (!TryGetPrimaryComponentId<T>(out ComponentId componentId))
         {
             return false;
         }
@@ -155,7 +178,7 @@ public sealed partial class World
     /// <summary>Reads the primary component stamp when present.</summary>
     public bool TryGetComponentStamp<T>(Entity entity, out Stamp stamp)
     {
-        if (!_layouts.TryGetPrimary<T>(out ComponentId componentId))
+        if (!TryGetPrimaryComponentId<T>(out ComponentId componentId))
         {
             stamp = default;
             return false;
@@ -183,7 +206,7 @@ public sealed partial class World
     public T Get<T>(Entity entity, ComponentId componentId)
     {
         EnsureRegisteredType<T>(componentId);
-        if (!TryGet(entity, componentId, out T value))
+        if (!TryGetRegisteredCore(entity, componentId, out T value))
         {
             return ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }
@@ -193,7 +216,15 @@ public sealed partial class World
 
     /// <summary>Reads the primary component for <typeparamref name="T"/> or throws when it is missing.</summary>
     public T Get<T>(Entity entity)
-        => Get<T>(entity, _layouts.GetPrimary<T>());
+    {
+        ComponentId componentId = GetPrimaryComponentId<T>();
+        if (TryGetRegisteredCore(entity, componentId, out T value))
+        {
+            return value;
+        }
+
+        return ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+    }
 
     /// <summary>
     /// Returns a writable reference to one component row.
@@ -205,31 +236,35 @@ public sealed partial class World
     public ref T GetRef<T>(Entity entity, ComponentId componentId)
     {
         EnsureRegisteredType<T>(componentId);
-        if (!TryResolve(entity, out int recordIndex))
+        return ref GetRefUnchecked<T>(entity, componentId);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ref T GetRefUnchecked<T>(Entity entity, ComponentId componentId)
+    {
+        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }
 
-        ref readonly var record = ref RecordAt(recordIndex);
-        var chunk = GetRecordChunk(record);
         var archetype = _archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
         {
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }
 
-        Stamp stamp = chunk.IncrementComponentStamp(componentIndex, record.SlotIndex);
+        Stamp stamp = chunk.IncrementComponentStamp(componentIndex, slotIndex);
         CreateEntityComponentStampWriter(
             chunk,
             componentIndex,
-            record.SlotIndex,
+            slotIndex,
             stamp).MarkPoint();
-        return ref chunk.GetComponentRow<T>(componentIndex).RefAt(record.SlotIndex);
+        return ref chunk.GetComponentRow<T>(componentIndex).RefAt(slotIndex);
     }
 
     /// <summary>Returns a writable reference to the primary component row.</summary>
     public ref T GetRef<T>(Entity entity)
-        => ref GetRef<T>(entity, _layouts.GetPrimary<T>());
+        => ref GetRefUnchecked<T>(entity, GetPrimaryComponentId<T>());
 
     /// <summary>Returns a read-only reference to one component row.</summary>
     /// <remarks>
@@ -239,13 +274,17 @@ public sealed partial class World
     public ref readonly T GetReadRef<T>(Entity entity, ComponentId componentId)
     {
         EnsureRegisteredType<T>(componentId);
-        if (!TryResolve(entity, out int recordIndex))
+        return ref GetReadRefUnchecked<T>(entity, componentId);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ref readonly T GetReadRefUnchecked<T>(Entity entity, ComponentId componentId)
+    {
+        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }
 
-        ref readonly var record = ref RecordAt(recordIndex);
-        var chunk = GetRecordChunk(record);
         var archetype = _archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
         {
@@ -254,12 +293,12 @@ public sealed partial class World
 
         return ref chunk
             .GetComponentRow<T>(componentIndex)
-            .RefAt(record.SlotIndex);
+            .RefAt(slotIndex);
     }
 
     /// <summary>Returns a read-only reference to the primary component row.</summary>
     public ref readonly T GetReadRef<T>(Entity entity)
-        => ref GetReadRef<T>(entity, _layouts.GetPrimary<T>());
+        => ref GetReadRefUnchecked<T>(entity, GetPrimaryComponentId<T>());
 
     /// <summary>Writes one component value and throws when the entity lacks the component.</summary>
     public bool Set<T>(Entity entity, ComponentId componentId, in T value)
@@ -270,8 +309,9 @@ public sealed partial class World
 
     /// <summary>Writes the primary component for <typeparamref name="T"/> and throws when it is missing.</summary>
     public bool Set<T>(Entity entity, in T value)
-        => Set(entity, _layouts.GetPrimary<T>(), in value);
+        => SetCore(entity, GetPrimaryComponentId<T>(), in value);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool IsRegisteredType<T>(ComponentId componentId)
     {
         return _layouts.TryGet(componentId, out var layout)
@@ -280,6 +320,11 @@ public sealed partial class World
 
     private int AddComponentBatch<T>(ReadOnlySpan<Entity> entities, ComponentId componentId, in T value)
     {
+        if (entities.Length == 0)
+        {
+            return 0;
+        }
+
         EnsureNoActiveLease("add components");
         ComponentSet changeSet = GetOrCreateComponentSet(stackalloc[] { componentId });
         int edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
@@ -291,13 +336,12 @@ public sealed partial class World
         for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
         {
             Entity entity = entities.RefAt(entityIndex);
-            if (!TryResolve(entity, out int recordIndex))
+            if (!TryResolve(entity, out int recordIndex, out Chunk sourceChunk, out _))
             {
                 continue;
             }
 
-            ref readonly var record = ref RecordAt(recordIndex);
-            var sourceArchetype = _archetypes[GetRecordChunk(record).ArchetypeId];
+            var sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
             var edge = edgeStamp == 0
                 ? GetTransitionEdge(sourceArchetype.Id, changeSet, true)
                 : GetBatchTransitionEdge(sourceArchetype.Id, changeSet, true, edgeStamp);
@@ -306,10 +350,7 @@ public sealed partial class World
                 continue;
             }
 
-            MoveEntity(recordIndex, edge, out _, out int targetSlotIndex);
-
-            ref readonly var targetRecord = ref RecordAt(recordIndex);
-            var targetChunk = GetRecordChunk(targetRecord);
+            MoveEntity(recordIndex, edge, out Chunk targetChunk, out int targetSlotIndex);
             var targetArchetype = _archetypes[targetChunk.ArchetypeId];
             int targetComponentIndex = targetArchetype.Mask.Rank(componentId);
             if (pendingChunk is not null
@@ -342,13 +383,11 @@ public sealed partial class World
         where TInitializer : struct, IGeneratedComponentValueInitializer
     {
         EnsureNoActiveLease("add components");
-        if (componentIds.Length == 0 || !TryResolve(entity, out int recordIndex))
+        if (componentIds.Length == 0 || !TryResolve(entity, out int recordIndex, out Chunk sourceChunk, out _))
         {
             return false;
         }
 
-        ref readonly var record = ref RecordAt(recordIndex);
-        Chunk sourceChunk = GetRecordChunk(record);
         Archetype sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
         ComponentSet changeSet = GetOrCreateComponentSet(componentIds);
         TransitionEdge edge = GetTransitionEdge(sourceArchetype.Id, changeSet, true);
@@ -357,10 +396,7 @@ public sealed partial class World
             return false;
         }
 
-        MoveEntity(recordIndex, edge, out _, out int targetSlotIndex);
-
-        ref readonly var targetRecord = ref RecordAt(recordIndex);
-        Chunk targetChunk = GetRecordChunk(targetRecord);
+        MoveEntity(recordIndex, edge, out Chunk targetChunk, out int targetSlotIndex);
         Archetype targetArchetype = _archetypes[targetChunk.ArchetypeId];
         var writer = new GeneratedComponentValueWriter(
             targetChunk,
@@ -383,13 +419,11 @@ public sealed partial class World
             ThrowHelper.ThrowInvalidComponentList();
         }
 
-        if (!TryResolve(entity, out int recordIndex))
+        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
             ThrowHelper.ThrowMissingComponent(entity, componentIds[0]);
         }
 
-        ref readonly var record = ref RecordAt(recordIndex);
-        Chunk chunk = GetRecordChunk(record);
         Archetype archetype = _archetypes[chunk.ArchetypeId];
         for (int index = 0; index < componentIds.Length; index++)
         {
@@ -399,7 +433,7 @@ public sealed partial class World
             }
         }
 
-        var writer = new GeneratedComponentValueWriter(chunk, archetype, record.SlotIndex);
+        var writer = new GeneratedComponentValueWriter(chunk, archetype, slotIndex);
         initializer.Initialize(ref writer);
         return true;
     }
@@ -422,8 +456,13 @@ public sealed partial class World
             .Fill(value);
     }
 
-    private int RemoveComponentBatch<T>(ReadOnlySpan<Entity> entities, ComponentId componentId)
+    private int RemoveComponentBatch(ReadOnlySpan<Entity> entities, ComponentId componentId)
     {
+        if (entities.Length == 0)
+        {
+            return 0;
+        }
+
         EnsureNoActiveLease("remove components");
         ComponentSet changeSet = GetOrCreateComponentSet(stackalloc[] { componentId });
         int edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
@@ -431,13 +470,12 @@ public sealed partial class World
         for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
         {
             Entity entity = entities.RefAt(entityIndex);
-            if (!TryResolve(entity, out int recordIndex))
+            if (!TryResolve(entity, out int recordIndex, out Chunk sourceChunk, out _))
             {
                 continue;
             }
 
-            ref readonly var record = ref RecordAt(recordIndex);
-            var sourceArchetype = _archetypes[GetRecordChunk(record).ArchetypeId];
+            var sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
             var edge = edgeStamp == 0
                 ? GetTransitionEdge(sourceArchetype.Id, changeSet, false)
                 : GetBatchTransitionEdge(sourceArchetype.Id, changeSet, false, edgeStamp);
@@ -468,19 +506,17 @@ public sealed partial class World
 
     private void InitializeComponentValue<T>(Entity entity, ComponentId componentId, in T value)
     {
-        if (!TryResolve(entity, out int recordIndex))
+        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
             ThrowHelper.ThrowStructuralCreateFailed();
         }
 
-        ref readonly var record = ref RecordAt(recordIndex);
-        var chunk = GetRecordChunk(record);
         var archetype = _archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
         {
             ThrowHelper.ThrowStructuralComponentMissing();
         }
 
-        chunk.GetComponentRow<T>(componentIndex).RefAt(record.SlotIndex) = value;
+        chunk.GetComponentRow<T>(componentIndex).RefAt(slotIndex) = value;
     }
 }
