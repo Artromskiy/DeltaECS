@@ -510,11 +510,10 @@ internal static partial class DemandDrivenForEachTemplates
         string chunkIndex = GeneratedLocalName(site, "chunk", 0);
         string batch = GeneratedLocalName(site, "batch", 0);
         string chunkCount = GeneratedLocalName(site, "chunkCount", 0);
-        string firstBatch = GeneratedLocalName(site, "firstBatch", 0);
         if (bound)
         {
             lines.Add($"    int {chunkCount} = execution.Rows.Length;");
-            lines.Add($"    ref var {firstBatch} = ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(execution.Rows);");
+            lines.Add($"    ref var {batch} = ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(execution.Rows);");
         }
         lines.Add(bound
             ? $"    for (int {chunkIndex} = 0; {chunkIndex} < {chunkCount}; {chunkIndex}++)"
@@ -524,7 +523,6 @@ internal static partial class DemandDrivenForEachTemplates
         lines.Add("    {");
         if (bound)
         {
-            lines.Add($"        ref readonly var {batch} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref {firstBatch}, {chunkIndex});");
             lines.Add($"        int {countName} = {batch}.Chunk.Count;");
         }
         if (!shape.IsStamp)
@@ -578,6 +576,10 @@ internal static partial class DemandDrivenForEachTemplates
                 index => $"        {rowNames[index]} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref {rowNames[index]}, 1);"));
         }
         lines.Add("        }");
+        if (bound)
+        {
+            lines.Add($"        {batch} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref {batch}, 1);");
+        }
         lines.Add("    }");
         lines.Add("}");
         return string.Join("\n", lines);
@@ -903,7 +905,7 @@ internal static partial class DemandDrivenForEachTemplates
         if (bound)
         {
             lines.Add("    int chunkCount = execution.Rows.Length;");
-            lines.Add("    ref var firstBatch = ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(execution.Rows);");
+            lines.Add("    ref var batch = ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(execution.Rows);");
         }
         lines.Add(bound
             ? "    for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)"
@@ -913,7 +915,6 @@ internal static partial class DemandDrivenForEachTemplates
         lines.Add("    {");
         if (bound)
         {
-            lines.Add("        ref readonly var batch = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref firstBatch, chunkIndex);");
             lines.Add("        int count = batch.Chunk.Count;");
         }
         else if (shape.IsStamp || shape.HasEntity)
@@ -965,6 +966,10 @@ internal static partial class DemandDrivenForEachTemplates
                 index => $"            component{index} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component{index}, 1);"));
         }
         lines.Add("        }");
+        if (bound)
+        {
+            lines.Add("        batch = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref batch, 1);");
+        }
         lines.Add("    }");
         lines.Add("}");
         return GeneratorTemplates.Indent(string.Join("\n", lines), "    ");
