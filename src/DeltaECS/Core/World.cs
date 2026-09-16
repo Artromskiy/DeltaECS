@@ -17,6 +17,8 @@ public sealed partial class World : IDisposable
     private const int TransitionHashMultiplier = 397;
 
     private readonly ComponentLayoutRegistry _layouts;
+    private readonly Dictionary<RuntimeTypeHandle, ComponentId> _primaryComponentIdsByType =
+        new(RuntimeTypeHandleComparer.Instance);
     private readonly List<Archetype> _archetypes = new();
     private readonly ComponentRowArrayPool _componentRowArrayPool = new();
     private readonly List<Chunk> _freeRecordChunks = new();
@@ -92,6 +94,38 @@ public sealed partial class World : IDisposable
 
     internal List<Archetype> Archetypes => _archetypes;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ComponentId GetPrimaryComponentId<T>()
+    {
+        RuntimeTypeHandle type = typeof(T).TypeHandle;
+        if (_primaryComponentIdsByType.TryGetValue(type, out ComponentId componentId))
+        {
+            return componentId;
+        }
+
+        componentId = _layouts.GetPrimary<T>();
+        _primaryComponentIdsByType.Add(type, componentId);
+        return componentId;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetPrimaryComponentId<T>(out ComponentId componentId)
+    {
+        RuntimeTypeHandle type = typeof(T).TypeHandle;
+        if (_primaryComponentIdsByType.TryGetValue(type, out componentId))
+        {
+            return true;
+        }
+
+        if (!_layouts.TryGetPrimary<T>(out componentId))
+        {
+            return false;
+        }
+
+        _primaryComponentIdsByType.Add(type, componentId);
+        return true;
+    }
+
     /// <summary>
     /// Releases native storage owned by this world and all of its archetypes.
     /// A world is the sole owner of these buffers; callers must dispose the
@@ -118,6 +152,7 @@ public sealed partial class World : IDisposable
 
         _queryCache.Clear();
         _componentSetCache.Clear();
+        _primaryComponentIdsByType.Clear();
 
         foreach (var archetype in _archetypes)
         {
@@ -412,12 +447,12 @@ public sealed partial class World : IDisposable
     public bool Destroy(Entity entity)
     {
         EnsureNoActiveLease("destroy entities");
-        if (!TryResolve(entity, out int recordIndex))
+        if (!TryResolve(entity, out int recordIndex, out Chunk chunk, out _))
         {
             return false;
         }
 
-        DestroyResolved(recordIndex);
+        DestroyResolved(recordIndex, chunk);
         return true;
     }
 
@@ -428,16 +463,14 @@ public sealed partial class World : IDisposable
         int count = 0;
         for (int i = 0; i < entities.Length; i++)
         {
-            if (TryResolve(entities.RefAt(i), out int recordIndex))
+            if (TryResolve(entities.RefAt(i), out int recordIndex, out Chunk chunk, out int slotIndex))
             {
-                ref readonly var record = ref RecordAt(recordIndex);
-                Chunk chunk = GetRecordChunk(record);
                 _destroyScratch.RefAt(count++) = new DestroyEntry(
                     entities.RefAt(i),
                     recordIndex,
                     chunk.ArchetypeId,
                     chunk.GlobalId,
-                    record.SlotIndex);
+                    slotIndex);
             }
         }
 
@@ -561,48 +594,46 @@ public sealed partial class World : IDisposable
     public bool IsAlive(Entity entity)
     {
         EnsureExecutionAccess();
-        return TryResolve(entity, out _);
+        return TryResolve(entity, out _, out _, out _);
     }
 
     /// <summary>Reports whether an alive entity owns the specified component.</summary>
     public bool Has(Entity entity, ComponentId componentId)
     {
         EnsureExecutionAccess();
-        if (!TryResolve(entity, out int recordIndex))
+        if (!TryResolve(entity, out _, out Chunk chunk, out _))
         {
             return false;
         }
 
-        return GetRecordArchetype(RecordAt(recordIndex)).Contains(componentId);
+        return _archetypes[chunk.ArchetypeId].Contains(componentId);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool SetCore<T>(Entity entity, ComponentId componentId, in T value)
     {
-        if (!TryResolve(entity, out int recordIndex))
+        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }
 
-        ref readonly var record = ref RecordAt(recordIndex);
-        if (!GetRecordArchetype(record).Contains(componentId))
+        if (!_archetypes[chunk.ArchetypeId].Contains(componentId))
         {
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }
 
-        return SetComponentUnchecked(recordIndex, componentId, value);
+        return SetComponentUnchecked(chunk, slotIndex, componentId, value);
     }
 
     public bool TryGetComponentStamp(Entity entity, ComponentId componentId, out Stamp stamp)
     {
         EnsureExecutionAccess();
         stamp = default;
-        if (!TryResolve(entity, out int recordIndex))
+        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
             return false;
         }
 
-        ref readonly var record = ref RecordAt(recordIndex);
-        var chunk = GetRecordChunk(record);
         var archetype = _archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
         {
@@ -613,20 +644,19 @@ public sealed partial class World : IDisposable
             archetype.Id,
             chunk,
             componentIndex,
-            record.SlotIndex);
+            slotIndex);
         return true;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryGetCore<T>(Entity entity, ComponentId componentId, out T value)
     {
-        if (!TryResolve(entity, out int recordIndex))
+        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
             value = default!;
             return false;
         }
 
-        ref readonly var record = ref RecordAt(recordIndex);
-        var chunk = GetRecordChunk(record);
         var archetype = _archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(componentId, out int componentIndex)
             || !_layouts.TryGet(componentId, out var layout)
@@ -636,7 +666,7 @@ public sealed partial class World : IDisposable
             return false;
         }
 
-        value = chunk.GetComponentRow<T>(componentIndex).RefAt(record.SlotIndex);
+        value = chunk.GetComponentRow<T>(componentIndex).RefAt(slotIndex);
         return true;
     }
 
@@ -779,13 +809,13 @@ public sealed partial class World : IDisposable
             for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
             {
                 var entity = entities.RefAt(entityIndex);
-                if (!TryResolve(entity, out int recordIndex))
+                if (!TryResolve(entity, out int recordIndex, out Chunk chunk, out _))
                 {
                     continue;
                 }
 
                 ref readonly var record = ref RecordAt(recordIndex);
-                int sourceArchetypeId = GetRecordChunk(record).ArchetypeId;
+                int sourceArchetypeId = chunk.ArchetypeId;
                 var edge = edgeStamp == 0
                     ? GetTransitionEdge(sourceArchetypeId, changeSet, isAdd)
                     : GetBatchTransitionEdge(sourceArchetypeId, changeSet, isAdd, edgeStamp);
@@ -894,9 +924,7 @@ public sealed partial class World : IDisposable
             _generatedWhereSourceArchetypes[index] = matchingPlans.RefAt(index).Archetype;
         }
 
-        BeginQueryPlanBatch();
         BeginGeneratedWherePlanCache();
-        int edgeStamp = isDestroy ? 0 : BeginBatchEdgeCache();
         for (int index = 0; index < _generatedWhereSourceArchetypeCount; index++)
         {
             Archetype sourceArchetype = _generatedWhereSourceArchetypes[index];
@@ -918,25 +946,18 @@ public sealed partial class World : IDisposable
                 continue;
             }
 
-            if (isDestroy)
+            if (!isDestroy)
             {
-                DeferQueryPlanUpdates(sourceArchetype);
-            }
-            else
-            {
-                TransitionEdge edge = GetBatchTransitionEdge(
+                TransitionEdge edge = GetTransitionEdge(
                     sourceArchetype.Id,
                     changeSet,
-                    isAdd,
-                    edgeStamp);
+                    isAdd);
                 if (!edge.IsNoOp)
                 {
                     targetArchetype = _archetypes[edge.TargetArchetypeId];
                     sourceToTargetRows = edge.SourceToTargetRowIndices;
                     addedTargetRows = edge.AddedTargetRowIndices;
                     targetCursor = GetGeneratedWhereTargetCursor(targetArchetype.Id);
-                    DeferQueryPlanUpdates(sourceArchetype);
-                    DeferQueryPlanUpdates(targetArchetype);
                 }
             }
 
@@ -974,6 +995,24 @@ public sealed partial class World : IDisposable
         return true;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void BeginGeneratedWhereMutation(
+        Archetype sourceArchetype,
+        Archetype? targetArchetype)
+    {
+        // Keep query plans live until a predicate actually selects a run.
+        if (!_queryPlanBatchActive)
+        {
+            BeginQueryPlanBatch();
+        }
+
+        DeferQueryPlanUpdates(sourceArchetype);
+        if (targetArchetype is { } target)
+        {
+            DeferQueryPlanUpdates(target);
+        }
+    }
+
     internal GeneratedWhereStructuralContext BeginGeneratedWhereChunk(int chunkId, int sourceCount)
     {
         Chunk sourceChunk = GetChunkById(chunkId);
@@ -990,7 +1029,10 @@ public sealed partial class World : IDisposable
     {
         try
         {
-            EndQueryPlanBatch();
+            if (_queryPlanBatchActive)
+            {
+                EndQueryPlanBatch();
+            }
         }
         finally
         {
@@ -1004,8 +1046,16 @@ public sealed partial class World : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void DeferQueryPlanUpdates(Archetype archetype)
     {
+        int archetypeId = archetype.Id;
+        EnsureGeneratedWhereArchetypeCapacity(archetypeId + 1);
+        if (_deferredQueryPlanArchetypeStamps.RefAt(archetypeId) == _deferredQueryPlanArchetypeStamp)
+        {
+            return;
+        }
+
+        _deferredQueryPlanArchetypeStamps.RefAt(archetypeId) = _deferredQueryPlanArchetypeStamp;
+        _deferredQueryPlanArchetypes.Add(archetype);
         archetype.DeferQueryPlanUpdates();
-        MarkDeferredQueryPlanArchetype(archetype);
     }
 
     private void BeginQueryPlanBatch()
@@ -1039,22 +1089,9 @@ public sealed partial class World : IDisposable
         }
     }
 
-    private void MarkDeferredQueryPlanArchetype(Archetype archetype)
-    {
-        int archetypeId = archetype.Id;
-        EnsureGeneratedWhereArchetypeCapacity(archetypeId + 1);
-        if (_deferredQueryPlanArchetypeStamps.RefAt(archetypeId) == _deferredQueryPlanArchetypeStamp)
-        {
-            return;
-        }
-
-        _deferredQueryPlanArchetypeStamps.RefAt(archetypeId) = _deferredQueryPlanArchetypeStamp;
-        _deferredQueryPlanArchetypes.Add(archetype);
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void MarkGeneratedWhereAffected(Archetype archetype)
-        => MarkDeferredQueryPlanArchetype(archetype);
+        => DeferQueryPlanUpdates(archetype);
 
     private void BeginGeneratedWherePlanCache()
     {
@@ -1460,6 +1497,12 @@ public sealed partial class World : IDisposable
     {
         ref var record = ref RecordAt(recordIndex);
         Chunk chunk = GetRecordChunk(record);
+        DestroyResolved(recordIndex, chunk);
+    }
+
+    private void DestroyResolved(int recordIndex, Chunk chunk)
+    {
+        ref var record = ref RecordAt(recordIndex);
         var archetype = _archetypes[chunk.ArchetypeId];
         if (_queryPlanBatchActive)
         {
@@ -1488,7 +1531,7 @@ public sealed partial class World : IDisposable
     private void MoveEntity(
         int recordIndex,
         TransitionEdge edge,
-        out int targetChunkIndex,
+        out Chunk targetChunk,
         out int targetSlotIndex)
     {
         ref var sourceRecord = ref RecordAt(recordIndex);
@@ -1507,10 +1550,10 @@ public sealed partial class World : IDisposable
         targetArchetype.AddEntity(
             new Entity(recordIndex, sourceRecord.Generation),
             targetChunkId,
-            out targetChunkIndex,
+            out int targetChunkIndex,
             out targetSlotIndex,
             out bool reusedTargetSlot);
-        var targetChunk = targetArchetype.GetChunk(targetChunkIndex);
+        targetChunk = targetArchetype.GetChunk(targetChunkIndex);
         RegisterChunk(targetChunk);
 
         for (int sourceIndex = 0; sourceIndex < edge.SourceToTargetRowIndices.Length; sourceIndex++)
@@ -1599,24 +1642,20 @@ public sealed partial class World : IDisposable
         return edge;
     }
 
-    private bool SetComponentUnchecked<T>(int recordIndex, ComponentId componentId, T value)
+    private bool SetComponentUnchecked<T>(Chunk chunk, int slotIndex, ComponentId componentId, T value)
     {
-        ref readonly var record = ref RecordAt(recordIndex);
-        Chunk chunk = GetRecordChunk(record);
         var archetype = _archetypes[chunk.ArchetypeId];
-        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex)
-            || !_layouts.TryGet(componentId, out var layout)
-            || !IsCompatibleComponentType<T>(layout))
+        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
         {
             return false;
         }
 
-        chunk.GetComponentRow<T>(componentIndex).RefAt(record.SlotIndex) = value;
-        Stamp stamp = chunk.IncrementComponentStamp(componentIndex, record.SlotIndex);
+        chunk.GetComponentRow<T>(componentIndex).RefAt(slotIndex) = value;
+        Stamp stamp = chunk.IncrementComponentStamp(componentIndex, slotIndex);
         CreateEntityComponentStampWriter(
             chunk,
             componentIndex,
-            record.SlotIndex,
+            slotIndex,
             stamp).MarkPoint();
         return true;
     }
@@ -1902,14 +1941,18 @@ public sealed partial class World : IDisposable
     private Chunk GetRecordChunk(in EntityRecord record) => GetChunkById(record.ChunkId);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private Archetype GetRecordArchetype(in EntityRecord record) => _archetypes[GetRecordChunk(record).ArchetypeId];
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private ref EntityRecord RecordAt(int recordIndex) => ref _records.RefAt(recordIndex);
 
-    private bool TryResolve(Entity entity, out int recordIndex)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryResolve(
+        Entity entity,
+        out int recordIndex,
+        out Chunk chunk,
+        out int slotIndex)
     {
         recordIndex = entity.Index;
+        chunk = null!;
+        slotIndex = -1;
         if ((uint)recordIndex >= (uint)_records.Count)
         {
             return false;
@@ -1918,30 +1961,19 @@ public sealed partial class World : IDisposable
         ref readonly var record = ref RecordAt(recordIndex);
         if (record.Generation != entity.Generation
             || record.ChunkId < 0
-            || !TryGetChunkById(record.ChunkId, out Chunk chunk)
+            || !TryGetChunkById(record.ChunkId, out chunk)
             || (uint)record.SlotIndex >= (uint)chunk.Count)
         {
             return false;
         }
 
-        return chunk.RawEntities.RefAt(record.SlotIndex) == entity;
+        slotIndex = record.SlotIndex;
+        return chunk.RawEntities.RefAt(slotIndex) == entity;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryResolveEntityLocation(Entity entity, out Chunk chunk, out int slotIndex)
-    {
-        if (!TryResolve(entity, out int recordIndex))
-        {
-            chunk = null!;
-            slotIndex = -1;
-            return false;
-        }
-
-        ref readonly EntityRecord record = ref RecordAt(recordIndex);
-        chunk = GetRecordChunk(record);
-        slotIndex = record.SlotIndex;
-        return true;
-    }
+        => TryResolve(entity, out _, out chunk, out slotIndex);
 
     private QueryPlan GetOrCreateQuery(QuerySpec spec)
     {
