@@ -927,12 +927,12 @@ internal static partial class DemandDrivenForEachTemplates
                 continue;
             }
             string type = ComponentType(shape, index);
-            string row = $"row{index}";
+            string component = $"component{index}";
             lines.Add(bound
-                ? $"        ref {type} {row} = ref GeneratedForEachRuntime.GetGeneratedArrayReference(batch.Row{index});"
+                ? $"        ref {type} {component} = ref GeneratedForEachRuntime.GetGeneratedArrayReference(batch.Row{index});"
                 : shape.HasEntity
-                ? $"        ref {type} {row} = ref slots.GetGenerated{(shape.ComponentModels[index].IsWrite ? "Write" : "Read")}Reference<{type}>(access{index});"
-                : $"        ref {type} {row} = ref GeneratedForEachRuntime.GetGeneratedRow<{type}>(componentRows, route{index});");
+                ? $"        ref {type} {component} = ref slots.GetGenerated{(shape.ComponentModels[index].IsWrite ? "Write" : "Read")}Reference<{type}>(access{index});"
+                : $"        ref {type} {component} = ref GeneratedForEachRuntime.GetGeneratedRow<{type}>(componentRows, route{index});");
         }
         bool usesReadSlots = shape.IsStamp || !shape.ComponentModels.Any(static component => component.IsWrite);
         if (shape.HasEntity)
@@ -953,12 +953,17 @@ internal static partial class DemandDrivenForEachTemplates
         }
         for (int index = 0; index < shape.ComponentModels.Length; index++)
         {
-            string type = ComponentType(shape, index);
-            lines.Add(shape.IsStamp
-                ? $"            Stamp component{index} = slots.GetGeneratedStamp(access{index}, index);"
-                : $"            {(shape.ComponentModels[index].IsWrite ? "ref " : "ref readonly ")}{type} component{index} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row{index}, index);");
+            if (shape.IsStamp)
+            {
+                lines.Add($"            Stamp component{index} = slots.GetGeneratedStamp(access{index}, index);");
+            }
         }
         lines.Add("            " + AppendClosedInvocation(shape, "action", "functor", "context", "component", "entity") + ";");
+        if (!shape.IsStamp)
+        {
+            lines.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length,
+                index => $"            component{index} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component{index}, 1);"));
+        }
         lines.Add("        }");
         lines.Add("    }");
         lines.Add("}");

@@ -95,7 +95,9 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("ref global::Delta.ECS.RefReadonlyFunctor functor"));
-        Assert.That(generated, Does.Contain("ref readonly global::Delta.ECS.T1 component0"));
+        Assert.That(generated, Does.Contain("ref global::Delta.ECS.T1 component0"));
+        Assert.That(generated, Does.Contain("functor.Invoke(in component0)"));
+        Assert.That(generated, Does.Contain("component0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 1)"));
         AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
     }
 
@@ -380,10 +382,11 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)"));
         Assert.That(generated, Does.Contain("Unsafe.Add(ref firstBatch, chunkIndex)"));
         Assert.That(generated, Does.Contain("_route0 = GeneratedForEachRuntime.GetPreparedWriteRoute<T1>(in query);"));
-        Assert.That(generated, Does.Contain("ref T1 row0 = ref GeneratedForEachRuntime.GetGeneratedArrayReference(batch.Row0)"));
+        Assert.That(generated, Does.Contain("ref T1 component0 = ref GeneratedForEachRuntime.GetGeneratedArrayReference(batch.Row0)"));
         Assert.That(generated, Does.Contain("for (int index = 0; index < count; index++)"));
-        Assert.That(generated, Does.Contain("ref T1 component0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row0, index)"));
         Assert.That(generated, Does.Contain("action(ref component0)"));
+        Assert.That(generated, Does.Contain("component0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 1)"));
+        Assert.That(generated, Does.Not.Contain("Unsafe.Add(ref component0, index)"));
         Assert.That(generated, Does.Contain(
             "SetWriteRoutes(new int[] { _route0 });"));
         Assert.That(generated, Does.Not.Contain("slots.MarkGeneratedWrite"));
