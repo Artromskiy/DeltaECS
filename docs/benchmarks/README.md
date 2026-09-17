@@ -34,22 +34,21 @@ checksum; see the [parallel API notes](../src/DeltaECS/Parallel/README.md).
 ## Array-reference microbenchmark
 
 This focused project executes generated `ForEach<T>` over 200,000 entities.
-The retained runner compares direct indexing, Span and `fixed` in the
-`netstandard2.1` consumer under Mono. It also runs those modes plus the
-`Unsafe.As` array-header-offset candidate in a `net10.0` consumer under
-CoreCLR, where that runtime intrinsic is supported. Every run attempts 70
-measured iterations of 100 ms so the summary retains at least 50 observations
-after outlier filtering; setup validates the checksum before timing:
+The runner builds and measures the shipping implementation for each target:
+`fixed` for a `netstandard2.1` consumer under Mono and the existing
+`MemoryMarshal.GetArrayDataReference` path for a `net10.0` consumer under
+CoreCLR. Historical candidate comparisons remain in the linked report. Every
+run attempts 70 measured iterations of 100 ms so the summary retains at least
+50 observations after outlier filtering; setup validates the checksum before
+timing:
 
 ```bash
-bash benchmarks/DeltaECS.ArrayRefBenchmarks/run-array-reference-modes.sh
+bash benchmarks/DeltaECS.ArrayRefBenchmarks/run-array-reference-benchmark.sh
 ```
 
-The `Unsafe.As` offset variant is an experiment only. It depends on CoreCLR's
-SZArray layout and object-reference intrinsic; it is not a portable
-`netstandard2.1`/Mono implementation. Its offset is based on a managed
-reference to the array's length field; it does not reinterpret the local
-array-reference variable.
+The runner uses no candidate-mode compile symbols. Runtime selection follows
+the target framework, so these results represent the code shipped for each
+consumer target.
 
 ```bash
 env NuGetAudit=false RestoreIgnoreFailedSources=true \

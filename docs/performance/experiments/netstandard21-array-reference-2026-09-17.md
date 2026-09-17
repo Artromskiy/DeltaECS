@@ -115,7 +115,9 @@ Direct indexing and the CoreCLR-only offset mode are effectively tied: their
 means differ by `0.05 µs`, less than either BDN error. `Span` and `fixed` did
 not improve this workload. The Unity editor process remained resident around
 `2%` CPU in the post-run snapshot, so the host was not fully idle. Raw reports
-are under `artifacts/array-ref-row-start-coreclr-rerun-20260917/`.
+are under `artifacts/array-ref-row-start-coreclr-rerun-20260917/`. This was a
+historical candidate comparison; production `net10.0` continues to use its
+existing `MemoryMarshal.GetArrayDataReference` implementation.
 
 The exact `Unsafe.As<object, byte>(ref ...)` snippet is not a valid way to get
 the array payload from a local `T[]` reference. The tested .NET 10 candidate
@@ -124,19 +126,35 @@ then applies the pointer-sized shift from the array length field. CoreCLR's
 [`RawArrayData` layout](https://github.com/dotnet/runtime/blob/main/src/coreclr/System.Private.CoreLib/src/System/Runtime/CompilerServices/RuntimeHelpers.CoreCLR.cs)
 documents this runtime-specific representation. The same helper failed setup
 under Mono with `Missing component layout for 1`; no Mono offset result is
-claimed. The offset mode is compile-time restricted to `net10.0`.
+claimed. During the experiment, the candidate was compiled only for
+`net10.0`; that temporary mode has since been removed.
 
 The `fixed` returned managed ref also survived 1,000 forced compacting
 collections in small Mono and CoreCLR probes. That only checks this lifetime
-case; the benchmark does not justify adopting `fixed` given the lack of a
-repeatable speedup.
+case. The Mono repeat supports using `fixed` for `netstandard2.1`; the CoreCLR
+comparison does not justify changing the existing `net10.0` implementation.
 
-The retained runner and full-size raw reports are under
-`benchmarks/DeltaECS.ArrayRefBenchmarks/run-array-reference-modes.sh` and the
-ignored `artifacts/array-ref-row-start-20260917/` directory.
+The current runner builds only production target paths, without experimental
+compile-time symbols:
+`benchmarks/DeltaECS.ArrayRefBenchmarks/run-array-reference-benchmark.sh`.
+Historical raw reports remain under the ignored
+`artifacts/array-ref-row-start-20260917/` directory.
 
-The benchmark and candidate remain on the isolated
-`perf/array-ref-netstandard21` branch. Generated source confirms that the
-intercepted callback stays fused into the chunk loop and acquires the component
-row reference once per chunk. A native Mono JIT code-size/disassembly capture
-is still outstanding before merging this performance change.
+The production change is merged into `main` as `78c439b`. For
+`netstandard2.1`, array row starts use `fixed` and `Unsafe.Add`; for `net10.0`,
+the original `MemoryMarshal.GetArrayDataReference` path remains. Generated
+source confirms that the intercepted callback stays fused into the chunk loop
+and acquires the component row reference once per chunk. The candidate modes
+and their raw results are retained here as historical evidence, but are no
+longer selectable in the project.
+
+After removing the candidate compile-time switches, the retained runner
+measured the actual shipping paths again with the same workload and job:
+
+| Target/runtime | Mean ± BDN error | StdDev | Retained N |
+| --- | ---: | ---: | ---: |
+| `netstandard2.1` / Mono 6.12 | `113.6 ± 0.29 µs` | `0.68 µs` | 67 |
+| `net10.0` / CoreCLR 10.0.9 | `55.27 ± 0.164 µs` | `0.398 µs` | 70 |
+
+These are separate runtime measurements, not a cross-runtime comparison. Raw
+reports are under `artifacts/array-ref-production-20260917/`.

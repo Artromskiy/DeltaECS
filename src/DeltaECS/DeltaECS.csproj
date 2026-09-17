@@ -25,19 +25,6 @@
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(DeltaECSArrayReferenceMode)' == 'Index'">
-    <DefineConstants>$(DefineConstants);DELTAECS_ARRAY_REFERENCE_INDEX</DefineConstants>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(DeltaECSArrayReferenceMode)' == 'Fixed'">
-    <DefineConstants>$(DefineConstants);DELTAECS_ARRAY_REFERENCE_FIXED</DefineConstants>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(DeltaECSArrayReferenceMode)' == 'UnsafeOffset'">
-    <DefineConstants>$(DefineConstants);DELTAECS_ARRAY_REFERENCE_UNSAFE_OFFSET</DefineConstants>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(DeltaECSArrayReferenceMode)' == 'Span'">
-    <DefineConstants>$(DefineConstants);DELTAECS_ARRAY_REFERENCE_SPAN</DefineConstants>
-  </PropertyGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\DeltaECS.Generators\DeltaECS.Generators.csproj"
                       OutputItemType="Analyzer"

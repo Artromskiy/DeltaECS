@@ -4,31 +4,9 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-#if DELTAECS_ARRAY_REFERENCE_UNSAFE_OFFSET && !NET10_0
-#error The UnsafeOffset benchmark variant depends on the .NET 10 CoreCLR intrinsic.
-#endif
-
 internal static class ArrayAccess
 {
-#if DELTAECS_ARRAY_REFERENCE_UNSAFE_OFFSET
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static ref T GetRefAtZero<T>(this T[] array)
-    {
-        // This experiment relies on CoreCLR's SZArray layout and Unsafe.As object-reference intrinsic.
-        ref int length = ref Unsafe.As<ArrayHeader>(array).Length;
-        ref byte firstElement = ref Unsafe.AddByteOffset(
-            ref Unsafe.As<int, byte>(ref length),
-            (IntPtr)IntPtr.Size);
-        return ref Unsafe.As<byte, T>(ref firstElement);
-    }
-#elif DELTAECS_ARRAY_REFERENCE_SPAN
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static ref T GetRefAtZero<T>(this T[] array) =>
-        ref MemoryMarshal.GetReference(array.AsSpan());
-#elif DELTAECS_ARRAY_REFERENCE_INDEX
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static ref T GetRefAtZero<T>(this T[] array) => ref array[0];
-#elif DELTAECS_ARRAY_REFERENCE_FIXED || NETSTANDARD2_1
+#if NETSTANDARD2_1
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static unsafe ref T GetRefAtZero<T>(this T[] array)
     {
@@ -71,10 +49,4 @@ internal static class ArrayAccess
     internal static ref readonly T RefAt<T>(this ReadOnlySpan<T> span, int index) =>
         ref Unsafe.Add(ref MemoryMarshal.GetReference(span), index);
 
-#if DELTAECS_ARRAY_REFERENCE_UNSAFE_OFFSET
-    private sealed class ArrayHeader
-    {
-        internal int Length;
-    }
-#endif
 }
