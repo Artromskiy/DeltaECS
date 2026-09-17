@@ -11,14 +11,14 @@ namespace Delta.ECS.Tests;
 /// that swap-back is exercised with the fixed runtime chunk size.
 /// </summary>
 [TestFixture]
-public sealed class StructuralAlgorithmTests
+internal sealed class StructuralAlgorithmTests
 {
     [Test]
-    public void DestroyBatch_RandomContiguousDuplicateAndStaleHandles_PreservesSurvivors()
+    public void DestroyBatchRandomContiguousDuplicateAndStaleHandlesPreservesSurvivors()
     {
         var layouts = new ComponentLayoutRegistry();
-        var valueId = layouts.Register(typeof(DestroyValue), new SchemaId(30_001));
-        var world = new World(layouts);
+        var valueId = layouts.Register<DestroyValue>(new SchemaId(30_001));
+        using var world = new World(layouts);
         var entities = new Entity[96];
         world.Create(new[] { valueId }, entities);
         for (var i = 0; i < entities.Length; i++)
@@ -37,7 +37,7 @@ public sealed class StructuralAlgorithmTests
             expectedDestroyed.Add(entities[i]);
         }
 
-        var random = new Random(0xD35_701);
+        var random = new DeterministicRandom(0xD35_701);
         for (var i = 0; i < 23; i++)
         {
             var index = random.Next(42, entities.Length);
@@ -71,11 +71,11 @@ public sealed class StructuralAlgorithmTests
     }
 
     [Test]
-    public void DestroyBatch_RecreateRecyclesAllDestroyedRecordsWithNewGenerations()
+    public void DestroyBatchRecreateRecyclesAllDestroyedRecordsWithNewGenerations()
     {
         var layouts = new ComponentLayoutRegistry();
-        var valueId = layouts.Register(typeof(DestroyValue), new SchemaId(30_002));
-        var world = new World(layouts);
+        var valueId = layouts.Register<DestroyValue>(new SchemaId(30_002));
+        using var world = new World(layouts);
         var old = new Entity[64];
         world.Create(new[] { valueId }, old);
 
@@ -100,11 +100,11 @@ public sealed class StructuralAlgorithmTests
     }
 
     [Test]
-    public void DestroyBatch_10KSmoke_UsesExactCountAndLeavesValidHandles()
+    public void DestroyBatch10KSmokeUsesExactCountAndLeavesValidHandles()
     {
         var layouts = new ComponentLayoutRegistry();
-        var valueId = layouts.Register(typeof(DestroyValue), new SchemaId(30_003));
-        var world = new World(layouts);
+        var valueId = layouts.Register<DestroyValue>(new SchemaId(30_003));
+        using var world = new World(layouts);
         var entities = new Entity[10_000];
         world.Create(new[] { valueId }, entities);
 
@@ -129,14 +129,14 @@ public sealed class StructuralAlgorithmTests
     }
 
     [Test]
-    public void RandomizedBatchTransitions_MatchReferenceModelAndPreserveValues()
+    public void RandomizedBatchTransitionsMatchReferenceModelAndPreserveValues()
     {
         var layouts = new ComponentLayoutRegistry();
-        var positionId = layouts.Register(typeof(TransitionPosition), new SchemaId(30_010));
-        var velocityId = layouts.Register(typeof(TransitionVelocity), new SchemaId(30_011));
-        var healthId = layouts.Register(typeof(TransitionHealth), new SchemaId(30_012));
-        var world = new World(layouts);
-        var random = new Random(0x51A_7E);
+        var positionId = layouts.Register<TransitionPosition>(new SchemaId(30_010));
+        var velocityId = layouts.Register<TransitionVelocity>(new SchemaId(30_011));
+        var healthId = layouts.Register<TransitionHealth>(new SchemaId(30_012));
+        using var world = new World(layouts);
+        var random = new DeterministicRandom(0x51A_7E);
         var model = new Dictionary<Entity, TransitionState>();
         var entities = new List<Entity>();
 
@@ -266,7 +266,7 @@ public sealed class StructuralAlgorithmTests
         }
     }
 
-    private static List<Entity> SelectUnique(List<Entity> entities, Random random, int requested)
+    private static List<Entity> SelectUnique(List<Entity> entities, DeterministicRandom random, int requested)
     {
         var indexes = new HashSet<int>();
         while (indexes.Count < requested)
@@ -319,5 +319,26 @@ public sealed class StructuralAlgorithmTests
     private static class CollectionsMarshalCompat
     {
         public static Entity[] AsSpan(List<Entity> values) => values.ToArray();
+    }
+
+    private sealed class DeterministicRandom(int seed)
+    {
+        private uint _state = unchecked((uint)seed);
+
+        public int Next(int maxValue)
+            => (int)(NextUInt32() % (uint)maxValue);
+
+        public int Next(int minValue, int maxValue)
+            => minValue + Next(maxValue - minValue);
+
+        private uint NextUInt32()
+        {
+            uint value = _state;
+            value ^= value << 13;
+            value ^= value >> 17;
+            value ^= value << 5;
+            _state = value;
+            return value;
+        }
     }
 }

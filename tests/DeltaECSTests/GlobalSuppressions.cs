@@ -1,0 +1,21 @@
+using System.Diagnostics.CodeAnalysis;
+
+// NUnit discovers and instantiates these internal fixtures through reflection.
+[assembly: SuppressMessage("Performance", "CA1812", Justification = "NUnit discovers and instantiates internal test fixtures through reflection.", Scope = "type", Target = "~T:Delta.ECS.Tests.QueryStructuralOperationsTests")]
+[assembly: SuppressMessage("Performance", "CA1812", Justification = "NUnit discovers and instantiates internal test fixtures through reflection.", Scope = "type", Target = "~T:Delta.ECS.Tests.ParallelIterationTests")]
+[assembly: SuppressMessage("Performance", "CA1812", Justification = "NUnit discovers and instantiates internal test fixtures through reflection.", Scope = "type", Target = "~T:Delta.ECS.Tests.StampInvariantTests")]
+[assembly: SuppressMessage("Performance", "CA1812", Justification = "NUnit discovers and instantiates internal test fixtures through reflection.", Scope = "type", Target = "~T:Delta.ECS.Tests.ActiveChunkTests")]
+[assembly: SuppressMessage("Performance", "CA1812", Justification = "NUnit discovers and instantiates internal test fixtures through reflection.", Scope = "type", Target = "~T:Delta.ECS.Tests.ThrowHelperPlacementTests")]
+[assembly: SuppressMessage("Performance", "CA1812", Justification = "NUnit discovers and instantiates internal test fixtures through reflection.", Scope = "type", Target = "~T:Delta.ECS.Tests.GenericSingleItemApiTests")]
+[assembly: SuppressMessage("Performance", "CA1812", Justification = "NUnit discovers and instantiates internal test fixtures through reflection.", Scope = "type", Target = "~T:Delta.ECS.Tests.StampTests")]
+[assembly: SuppressMessage("Performance", "CA1812", Justification = "NUnit discovers and instantiates internal test fixtures through reflection.", Scope = "type", Target = "~T:Delta.ECS.Tests.GeneratedDenseBindingTests")]
+[assembly: SuppressMessage("Performance", "CA1812", Justification = "NUnit discovers and instantiates internal test fixtures through reflection.", Scope = "type", Target = "~T:Delta.ECS.Tests.ComponentLayoutRegistryTests")]
+[assembly: SuppressMessage("Performance", "CA1812", Justification = "NUnit discovers and instantiates internal test fixtures through reflection.", Scope = "type", Target = "~T:Delta.ECS.Tests.ComparativeBenchmarkContractTests")]
+[assembly: SuppressMessage("Performance", "CA1812", Justification = "NUnit discovers and instantiates internal test fixtures through reflection.", Scope = "type", Target = "~T:Delta.ECS.Tests.DeltaECSDeliveryTests")]
+[assembly: SuppressMessage("Performance", "CA1812", Justification = "NUnit discovers and instantiates internal test fixtures through reflection.", Scope = "type", Target = "~T:Delta.ECS.Tests.StructuralAlgorithmTests")]
+[assembly: SuppressMessage("Performance", "CA1812", Justification = "NUnit discovers and instantiates internal test fixtures through reflection.", Scope = "type", Target = "~T:Delta.ECS.Tests.ComponentSetCacheTests")]
+[assembly: SuppressMessage("Performance", "CA1812", Justification = "NUnit discovers and instantiates internal test fixtures through reflection.", Scope = "type", Target = "~T:Delta.ECS.Tests.PublicApiShapeTests")]
+[assembly: SuppressMessage("Performance", "CA1812", Justification = "NUnit discovers and instantiates internal test fixtures through reflection.", Scope = "type", Target = "~T:Delta.ECS.Tests.ComponentRowOperationTests")]
+[assembly: SuppressMessage("Performance", "CA1812", Justification = "NUnit discovers and instantiates internal test fixtures through reflection.", Scope = "type", Target = "~T:Delta.ECS.Tests.IntegrationWorldTests")]
+[assembly: SuppressMessage("Performance", "CA1812", Justification = "NUnit discovers and instantiates internal test fixtures through reflection.", Scope = "type", Target = "~T:Delta.ECS.Tests.DynamicComponentMaskTests")]
+[assembly: SuppressMessage("Performance", "CA1812", Justification = "NUnit discovers and instantiates internal test fixtures through reflection.", Scope = "type", Target = "~T:Delta.ECS.Tests.IntegrationApiContractTests")]

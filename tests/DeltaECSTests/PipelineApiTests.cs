@@ -4,7 +4,7 @@ using NUnit.Framework;
 namespace Delta.ECS.Tests;
 
 [TestFixture]
-public sealed class PipelineApiTests
+internal sealed class PipelineApiTests
 {
     [Test]
     public void ZeroArityEntityCallbacksIterateWithoutComponentRows()

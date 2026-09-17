@@ -5,7 +5,7 @@ using Delta.ECS;
 using NUnit.Framework;
 
 [TestFixture]
-public sealed class GenericSingleItemApiTests
+internal sealed class GenericSingleItemApiTests
 {
     [Test]
     public void PrimaryGenericOverloadsResolveTheRegisteredPrimaryComponent()

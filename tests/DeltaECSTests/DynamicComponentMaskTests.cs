@@ -5,8 +5,10 @@ using Delta.ECS;
 namespace Delta.ECS.Tests;
 
 [TestFixture]
-public sealed class DynamicComponentMaskTests
+internal sealed class DynamicComponentMaskTests
 {
+    private static readonly int[] ExpectedComponentIds = [0, 255, 256, 511, 1024];
+
     [Test]
     public void MaskSupportsComponentIdsBeyondTheOriginalFourWordBoundary()
     {
@@ -32,7 +34,7 @@ public sealed class DynamicComponentMaskTests
             ids[index++] = componentId.Value;
         }
 
-        Assert.That(ids, Is.EqualTo(new[] { 0, 255, 256, 511, 1024 }));
+        Assert.That(ids, Is.EqualTo(ExpectedComponentIds));
     }
 
     [Test]
@@ -59,7 +61,7 @@ public sealed class DynamicComponentMaskTests
         var ids = new ComponentId[257];
         for (int index = 0; index < ids.Length; index++)
         {
-            ids[index] = layouts.Register(typeof(int), new SchemaId((ulong)(80_000 + index)));
+            ids[index] = layouts.Register<int>(new SchemaId((ulong)(80_000 + index)));
         }
 
         using var world = new World(layouts, initialEntityCapacity: 1);

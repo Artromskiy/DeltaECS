@@ -6,8 +6,28 @@ using System.Reflection;
 using NUnit.Framework;
 
 [TestFixture]
-public sealed class PublicApiShapeTests
+internal sealed class PublicApiShapeTests
 {
+    private static readonly string[] RemovedLowLevelQueryTypes =
+    [
+        "Delta.ECS.QueryScope",
+        "Delta.ECS.QueryArchetypes",
+        "Delta.ECS.QueryArchetype",
+        "Delta.ECS.QueryChunks",
+        "Delta.ECS.QueryArchetypeChunks",
+        "Delta.ECS.QueryChunk",
+        "Delta.ECS.QuerySlots",
+        "Delta.ECS.ReadRow",
+        "Delta.ECS.WriteRow",
+        "Delta.ECS.ObjectReadValues",
+        "Delta.ECS.ObjectWriteValues",
+        "Delta.ECS.StampRow",
+        "Delta.ECS.QueryChunkAction"
+    ];
+
+    private static readonly string[] RemovedComponentLayoutProperties =
+    ["Size", "Alignment", "Stride", "RuntimeTypeHandle"];
+
     [Test]
     public void TypeErasedStructuralKernelOverloadsRemainAvailable()
     {
@@ -23,7 +43,7 @@ public sealed class PublicApiShapeTests
     }
 
     [Test]
-    public void Entity_Uses_Default_Handle_And_Does_Not_Expose_Null()
+    public void EntityUsesDefaultHandleAndDoesNotExposeNull()
     {
         Assert.Multiple(() =>
         {
@@ -41,22 +61,7 @@ public sealed class PublicApiShapeTests
         var assembly = typeof(World).Assembly;
         Assert.Multiple(() =>
         {
-            foreach (var typeName in new[]
-            {
-                "Delta.ECS.QueryScope",
-                "Delta.ECS.QueryArchetypes",
-                "Delta.ECS.QueryArchetype",
-                "Delta.ECS.QueryChunks",
-                "Delta.ECS.QueryArchetypeChunks",
-                "Delta.ECS.QueryChunk",
-                "Delta.ECS.QuerySlots",
-                "Delta.ECS.ReadRow",
-                "Delta.ECS.WriteRow",
-                "Delta.ECS.ObjectReadValues",
-                "Delta.ECS.ObjectWriteValues",
-                "Delta.ECS.StampRow",
-                "Delta.ECS.QueryChunkAction"
-            })
+            foreach (string typeName in RemovedLowLevelQueryTypes)
             {
                 Assert.That(assembly.GetType(typeName), Is.Null, $"Removed type {typeName} must stay absent.");
             }
@@ -91,7 +96,7 @@ public sealed class PublicApiShapeTests
             Assert.That(
                 typeof(ComponentLayout).GetConstructor(allInstance, null, new[] { typeof(SchemaId), typeof(int), typeof(int) }, null),
                 Is.Null);
-            foreach (string property in new[] { "Size", "Alignment", "Stride", "RuntimeTypeHandle" })
+            foreach (string property in RemovedComponentLayoutProperties)
             {
                 Assert.That(typeof(ComponentLayout).GetProperty(property, allInstance), Is.Null, property);
             }

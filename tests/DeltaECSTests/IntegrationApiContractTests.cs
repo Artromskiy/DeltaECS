@@ -6,7 +6,7 @@ using Delta.ECS.Integration;
 using NUnit.Framework;
 
 [TestFixture]
-public sealed class IntegrationApiContractTests
+internal sealed class IntegrationApiContractTests
 {
     [Test]
     public void EntityUsesIndexAndGenerationIdentity()
@@ -25,7 +25,7 @@ public sealed class IntegrationApiContractTests
     }
 
     [Test]
-    public void ComponentCapabilities_ComposeReadAndWrite()
+    public void ComponentCapabilitiesComposeReadAndWrite()
     {
         ComponentCapabilities capabilities = ComponentCapabilities.Read | ComponentCapabilities.Write;
 
@@ -37,7 +37,7 @@ public sealed class IntegrationApiContractTests
     }
 
     [Test]
-    public void ReadAndWriteErrors_ExposeDetailedSymmetricFailures()
+    public void ReadAndWriteErrorsExposeDetailedSymmetricFailures()
     {
         string[] commonReadErrors =
         [
@@ -56,7 +56,7 @@ public sealed class IntegrationApiContractTests
     }
 
     [Test]
-    public void Snapshot_MayPreserveMutableReferenceIdentity()
+    public void SnapshotMayPreserveMutableReferenceIdentity()
     {
         var value = new MutableReference();
         var snapshot = new ComponentSnapshot(value, default);
@@ -65,7 +65,7 @@ public sealed class IntegrationApiContractTests
     }
 
     [Test]
-    public void WorldContract_UsesOneUnifiedInterface()
+    public void WorldContractUsesOneUnifiedInterface()
     {
         Type contract = typeof(IEcsWorld);
         string[] methodNames = contract.GetMethods().Select(static method => method.Name).ToArray();

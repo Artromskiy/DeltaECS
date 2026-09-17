@@ -4,7 +4,7 @@ using Delta.ECS;
 namespace Delta.ECS.Tests;
 
 [TestFixture]
-public sealed class ComponentSetCacheTests
+internal sealed class ComponentSetCacheTests
 {
     [Test]
     public void SpanComponentSetsAreReusedAfterValidation()
@@ -88,7 +88,7 @@ public sealed class ComponentSetCacheTests
             world.GetOrCreateComponentSet(new[] { ComponentId.Invalid }));
     }
 
-    private sealed class TypedSetKey
+    private readonly struct TypedSetKey
     {
     }
 }

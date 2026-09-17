@@ -20,7 +20,7 @@ internal struct ParallelContextFunctor : IForEachContext<ParallelState>
 }
 
 [TestFixture]
-public sealed class ParallelIterationTests
+internal sealed class ParallelIterationTests
 {
     private static readonly ForEachAction_WI<Position, Velocity> s_incrementAction = Increment;
     internal static int s_generatedCallbackThreadId;
@@ -37,15 +37,17 @@ public sealed class ParallelIterationTests
         var state = new ParallelState { Delta = 2 };
         Assert.That(world.TryGetComponentStamp(entities[0], positionId, out Stamp stampBefore), Is.True);
 
-        world.ForEachParallel(
-            in query,
-            in state,
-            static (in ParallelState value, ref Position position) => position.X += value.Delta,
-            workerCount: 4);
+#pragma warning disable CS9198 // This test preserves the supported ref readonly lambda spelling for an in context parameter.
         world.ForEachParallel(
             in query,
             in state,
             static (ref readonly ParallelState value, ref Position position) => position.X += value.Delta,
+            workerCount: 4);
+#pragma warning restore CS9198
+        world.ForEachParallel(
+            in query,
+            in state,
+            static (in ParallelState value, ref Position position) => position.X += value.Delta,
             workerCount: 4);
         world.ForEachEntityParallel(
             in query,
@@ -148,11 +150,11 @@ public sealed class ParallelIterationTests
     }
 
     [Test]
-    public void GeneratedForEachParallel_ProcessesEveryEntity()
+    public void GeneratedForEachParallelProcessesEveryEntity()
     {
         var layouts = new ComponentLayoutRegistry();
-        var positionId = layouts.Register(typeof(Position), new SchemaId(70_020));
-        var velocityId = layouts.Register(typeof(Velocity), new SchemaId(70_021));
+        var positionId = layouts.Register<Position>(new SchemaId(70_020));
+        var velocityId = layouts.Register<Velocity>(new SchemaId(70_021));
         using var world = new World(layouts, initialEntityCapacity: 2_048);
         var entities = new Entity[2_048];
         world.Create(new[] { positionId, velocityId }, entities);
@@ -181,7 +183,7 @@ public sealed class ParallelIterationTests
     }
 
     [Test]
-    public void GeneratedForEachParallel_UsesBackgroundWorkerForSmallQuery()
+    public void GeneratedForEachParallelUsesBackgroundWorkerForSmallQuery()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(70_080));
@@ -205,11 +207,11 @@ public sealed class ParallelIterationTests
     }
 
     [Test]
-    public void GeneratedForEachParallel_RebuildsCachedRangesAfterTopologyChange()
+    public void GeneratedForEachParallelRebuildsCachedRangesAfterTopologyChange()
     {
         var layouts = new ComponentLayoutRegistry();
-        var positionId = layouts.Register(typeof(Position), new SchemaId(70_030));
-        var velocityId = layouts.Register(typeof(Velocity), new SchemaId(70_031));
+        var positionId = layouts.Register<Position>(new SchemaId(70_030));
+        var velocityId = layouts.Register<Velocity>(new SchemaId(70_031));
         using var world = new World(layouts, initialEntityCapacity: 256);
         var firstBatch = new Entity[128];
         world.Create(new[] { positionId, velocityId }, firstBatch);
@@ -254,11 +256,11 @@ public sealed class ParallelIterationTests
     }
 
     [Test]
-    public void GeneratedForEachParallel_GrowsWorkerPoolWithoutLosingSignals()
+    public void GeneratedForEachParallelGrowsWorkerPoolWithoutLosingSignals()
     {
         var layouts = new ComponentLayoutRegistry();
-        var positionId = layouts.Register(typeof(Position), new SchemaId(70_050));
-        var velocityId = layouts.Register(typeof(Velocity), new SchemaId(70_051));
+        var positionId = layouts.Register<Position>(new SchemaId(70_050));
+        var velocityId = layouts.Register<Velocity>(new SchemaId(70_051));
         using var world = new World(layouts, initialEntityCapacity: 1_024);
         var entities = new Entity[1_024];
         world.Create(new[] { positionId, velocityId }, entities);
@@ -275,11 +277,11 @@ public sealed class ParallelIterationTests
     }
 
     [Test]
-    public void GeneratedForEachParallel_WarmPathDoesNotAllocateOnCallerThread()
+    public void GeneratedForEachParallelWarmPathDoesNotAllocateOnCallerThread()
     {
         var layouts = new ComponentLayoutRegistry();
-        var positionId = layouts.Register(typeof(Position), new SchemaId(70_040));
-        var velocityId = layouts.Register(typeof(Velocity), new SchemaId(70_041));
+        var positionId = layouts.Register<Position>(new SchemaId(70_040));
+        var velocityId = layouts.Register<Velocity>(new SchemaId(70_041));
         using var world = new World(layouts, initialEntityCapacity: 2_048);
         var entities = new Entity[2_048];
         world.Create(new[] { positionId, velocityId }, entities);

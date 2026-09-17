@@ -6,7 +6,7 @@ using Delta.ECS;
 namespace Delta.ECS.Tests;
 
 [TestFixture]
-public sealed class ComponentLayoutRegistryTests
+internal sealed class ComponentLayoutRegistryTests
 {
     [Test]
     public void MissingTypeIsNotResolvedAndGetThrows()
@@ -14,10 +14,10 @@ public sealed class ComponentLayoutRegistryTests
         var layouts = new ComponentLayoutRegistry();
 
         Assert.That(layouts.TryGetPrimary<MissingComponent>(out ComponentId missing), Is.False);
-        Assert.That(layouts.TryGetPrimary(typeof(MissingComponent), out ComponentId missingByType), Is.False);
+        Assert.That(TryGetPrimaryByType(layouts, typeof(MissingComponent), out ComponentId missingByType), Is.False);
         Assert.That(missing, Is.EqualTo(ComponentId.Invalid));
         Assert.That(missingByType, Is.EqualTo(ComponentId.Invalid));
-        Assert.Throws<KeyNotFoundException>(() => layouts.GetPrimary(typeof(MissingComponent)));
+        Assert.Throws<KeyNotFoundException>(() => GetPrimaryByType(layouts, typeof(MissingComponent)));
     }
 
     [Test]
@@ -28,7 +28,7 @@ public sealed class ComponentLayoutRegistryTests
         var second = layouts.Register<Position>(new SchemaId(70_002));
 
         Assert.That(layouts.GetPrimary<Position>(), Is.EqualTo(first));
-        Assert.That(layouts.GetPrimary(typeof(Position)), Is.EqualTo(first));
+        Assert.That(GetPrimaryByType(layouts, typeof(Position)), Is.EqualTo(first));
         Assert.That(second, Is.Not.EqualTo(first));
     }
 
@@ -82,12 +82,12 @@ public sealed class ComponentLayoutRegistryTests
         int registrationCount = 256 + 64;
         for (var index = 1; index < registrationCount; index++)
         {
-            layouts.Register(typeof(int), new SchemaId((ulong)(70_041 + index)));
+            RegisterByType(layouts, typeof(int), new SchemaId((ulong)(70_041 + index)));
         }
 
         Assert.That(layouts.Count, Is.EqualTo(registrationCount));
         Assert.That(layouts.GetPrimary<Position>(), Is.EqualTo(primary));
-        Assert.That(layouts.Register(typeof(int), new SchemaId(71_000)).Value,
+        Assert.That(RegisterByType(layouts, typeof(int), new SchemaId(71_000)).Value,
             Is.EqualTo(registrationCount));
     }
 
@@ -135,4 +135,19 @@ public sealed class ComponentLayoutRegistryTests
     {
         public int Value { get; init; }
     }
+
+    private static bool TryGetPrimaryByType(
+        ComponentLayoutRegistry layouts,
+        Type runtimeType,
+        out ComponentId componentId)
+        => layouts.TryGetPrimary(runtimeType, out componentId);
+
+    private static ComponentId GetPrimaryByType(ComponentLayoutRegistry layouts, Type runtimeType)
+        => layouts.GetPrimary(runtimeType);
+
+    private static ComponentId RegisterByType(
+        ComponentLayoutRegistry layouts,
+        Type runtimeType,
+        SchemaId schemaId)
+        => layouts.Register(runtimeType, schemaId);
 }

@@ -5,7 +5,7 @@ using Delta.ECS.Integration;
 using NUnit.Framework;
 
 [TestFixture]
-public sealed class StampInvariantTests
+internal sealed class StampInvariantTests
 {
     [Test]
     public void ComponentStampsAreWorldLocalAndDoNotRequireAWorldRevision()

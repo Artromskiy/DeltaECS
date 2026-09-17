@@ -4,7 +4,7 @@ using Delta.ECS;
 using NUnit.Framework;
 
 [TestFixture]
-public sealed class FunctorForEachTests
+internal sealed class FunctorForEachTests
 {
     private static int s_zeroArityWhereVisits;
 

@@ -4,16 +4,16 @@ using NUnit.Framework;
 namespace Delta.ECS.Tests;
 
 [TestFixture]
-public sealed class ComponentRowOperationTests
+internal sealed class ComponentRowOperationTests
 {
     [Test]
-    public void SwapBack_Copies_Value_ManagedStruct_And_Class_Rows()
+    public void SwapBackCopiesValueManagedStructAndClassRows()
     {
         var layouts = new ComponentLayoutRegistry();
-        var valueId = layouts.Register(typeof(int), new SchemaId(10_001));
-        var managedStructId = layouts.Register(typeof(ManagedPayload), new SchemaId(10_002));
-        var classId = layouts.Register(typeof(ReferencePayload), new SchemaId(10_003));
-        var world = new World(layouts);
+        var valueId = layouts.Register<int>(new SchemaId(10_001));
+        var managedStructId = layouts.Register<ManagedPayload>(new SchemaId(10_002));
+        var classId = layouts.Register<ReferencePayload>(new SchemaId(10_003));
+        using var world = new World(layouts);
         var removed = world.Create(stackalloc[] { valueId, managedStructId, classId });
         var survivor = world.Create(stackalloc[] { valueId, managedStructId, classId });
         var reference = new ReferencePayload("survivor");
@@ -34,13 +34,13 @@ public sealed class ComponentRowOperationTests
     }
 
     [Test]
-    public void Reused_CreateSlot_Initializes_All_Rows_To_Default()
+    public void ReusedCreateSlotInitializesAllRowsToDefault()
     {
         var layouts = new ComponentLayoutRegistry();
-        var valueId = layouts.Register(typeof(int), new SchemaId(10_011));
-        var managedStructId = layouts.Register(typeof(ManagedPayload), new SchemaId(10_012));
-        var classId = layouts.Register(typeof(ReferencePayload), new SchemaId(10_013));
-        var world = new World(layouts);
+        var valueId = layouts.Register<int>(new SchemaId(10_011));
+        var managedStructId = layouts.Register<ManagedPayload>(new SchemaId(10_012));
+        var classId = layouts.Register<ReferencePayload>(new SchemaId(10_013));
+        using var world = new World(layouts);
         var old = world.Create(stackalloc[] { valueId, managedStructId, classId });
         world.Set(old, valueId, 99);
         world.Set(old, managedStructId, new ManagedPayload("old"));
@@ -60,13 +60,13 @@ public sealed class ComponentRowOperationTests
     }
 
     [Test]
-    public void Reused_TransitionSlot_Initializes_Only_Added_Rows()
+    public void ReusedTransitionSlotInitializesOnlyAddedRows()
     {
         var layouts = new ComponentLayoutRegistry();
-        var sharedId = layouts.Register(typeof(int), new SchemaId(10_021));
-        var addedValueId = layouts.Register(typeof(int), new SchemaId(10_022));
-        var addedReferenceId = layouts.Register(typeof(ReferencePayload), new SchemaId(10_023));
-        var world = new World(layouts);
+        var sharedId = layouts.Register<int>(new SchemaId(10_021));
+        var addedValueId = layouts.Register<int>(new SchemaId(10_022));
+        var addedReferenceId = layouts.Register<ReferencePayload>(new SchemaId(10_023));
+        using var world = new World(layouts);
 
         var oldTarget = world.Create(stackalloc[] { sharedId, addedValueId, addedReferenceId });
         world.Set(oldTarget, addedValueId, 123);
@@ -89,12 +89,12 @@ public sealed class ComponentRowOperationTests
     }
 
     [Test]
-    public void SwapBack_Does_Not_Clear_Unmanaged_Tail_But_Clears_Reference_Tail()
+    public void SwapBackDoesNotClearUnmanagedTailButClearsReferenceTail()
     {
         var layouts = new ComponentLayoutRegistry();
-        var valueId = layouts.Register(typeof(int), new SchemaId(10_031));
-        var referenceId = layouts.Register(typeof(ReferencePayload), new SchemaId(10_032));
-        var world = new World(layouts);
+        var valueId = layouts.Register<int>(new SchemaId(10_031));
+        var referenceId = layouts.Register<ReferencePayload>(new SchemaId(10_032));
+        using var world = new World(layouts);
         var removed = world.Create(stackalloc[] { valueId, referenceId });
         var survivor = world.Create(stackalloc[] { valueId, referenceId });
         var survivorReference = new ReferencePayload("survivor");
@@ -116,11 +116,11 @@ public sealed class ComponentRowOperationTests
     }
 
     [Test]
-    public void SwapBack_Updates_Moved_Record_And_Stale_Generation_Is_Rejected()
+    public void SwapBackUpdatesMovedRecordAndStaleGenerationIsRejected()
     {
         var layouts = new ComponentLayoutRegistry();
-        var id = layouts.Register(typeof(int), new SchemaId(10_041));
-        var world = new World(layouts);
+        var id = layouts.Register<int>(new SchemaId(10_041));
+        using var world = new World(layouts);
         var first = world.Create(new[] { id });
         var second = world.Create(new[] { id });
         world.Set(second, id, 42);
@@ -134,11 +134,11 @@ public sealed class ComponentRowOperationTests
     }
 
     [Test]
-    public void Invalid_Entity_Never_Returns_A_Component_Reference()
+    public void InvalidEntityNeverReturnsAComponentReference()
     {
         var layouts = new ComponentLayoutRegistry();
-        var id = layouts.Register(typeof(int), new SchemaId(10_051));
-        var world = new World(layouts);
+        var id = layouts.Register<int>(new SchemaId(10_051));
+        using var world = new World(layouts);
         var invalid = default(Entity);
 
         Assert.That(world.IsAlive(invalid), Is.False);

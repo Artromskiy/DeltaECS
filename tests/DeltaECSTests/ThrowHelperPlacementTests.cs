@@ -7,10 +7,13 @@ using System.Text.RegularExpressions;
 using NUnit.Framework;
 
 [TestFixture]
-public sealed class ThrowHelperPlacementTests
+internal sealed partial class ThrowHelperPlacementTests
 {
+    [GeneratedRegex(@"\bthrow\b", RegexOptions.CultureInvariant)]
+    private static partial Regex ExplicitThrowKeywordRegex();
+
     [Test]
-    public void ExplicitThrowKeywords_AreOnlyInThrowHelpers()
+    public void ExplicitThrowKeywordsAreOnlyInThrowHelpers()
     {
         var repositoryRoot = FindRepositoryRoot();
         var sourceRoot = Path.Combine(repositoryRoot, "src");
@@ -31,7 +34,7 @@ public sealed class ThrowHelperPlacementTests
                 Path = path,
                 Text = File.ReadAllText(path)
             })
-            .Where(item => Regex.IsMatch(item.Text, @"\bthrow\b", RegexOptions.CultureInvariant))
+            .Where(item => ExplicitThrowKeywordRegex().IsMatch(item.Text))
             .Select(static item => item.Path)
             .ToArray();
 

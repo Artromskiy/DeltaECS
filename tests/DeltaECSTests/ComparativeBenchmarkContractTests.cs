@@ -6,10 +6,10 @@ using System.Text.RegularExpressions;
 namespace Delta.ECS.Tests;
 
 [TestFixture]
-public sealed class ComparativeBenchmarkContractTests
+internal sealed partial class ComparativeBenchmarkContractTests
 {
     [Test]
-    public void Manifest_has_all_five_ecs_for_each_iteration_workload()
+    public void ManifestHasAllFiveEcsForEachIterationWorkload()
     {
         ComparativeBenchmarkCatalog.Validate();
         var expected = Enum.GetValues<ComparativeEcs>().Length;
@@ -20,27 +20,27 @@ public sealed class ComparativeBenchmarkContractTests
     }
 
     [Test]
-    public void Iteration_catalog_contains_no_legacy_class()
+    public void IterationCatalogContainsNoLegacyClass()
     {
         Assert.That(ComparativeBenchmarkCatalog.Iteration, Is.Not.Empty);
         Assert.That(ComparativeBenchmarkCatalog.Iteration.Any(type => type.Name.Contains("Legacy", StringComparison.OrdinalIgnoreCase)), Is.False);
     }
 
     [Test]
-    public void Amount_100_contract_smoke_executes_supported_methods()
+    public void Amount100ContractSmokeExecutesSupportedMethods()
     {
         Assert.DoesNotThrow(ComparativeBenchmarkExecutionSmoke.RunAmount100);
     }
 
     [Test]
-    public void Benchmark_sources_use_generated_access()
+    public void BenchmarkSourcesUseGeneratedAccess()
     {
         var benchmarkRoot = FindBenchmarkRoot();
-        var ordinalAccess = new Regex(@"GetComponentRow<[^>]+>\(\s*\d+\s*\)", RegexOptions.CultureInvariant);
+        Regex ordinalAccess = OrdinalAccess();
         var benchmarkRoots = new[] { benchmarkRoot, Path.Combine(Path.GetDirectoryName(benchmarkRoot)!, "DeltaECS.VersionBenchmarks") };
         foreach (var source in benchmarkRoots.SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
-                     .Where(path => !path.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar)
-                                 && !path.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar)))
+                     .Where(path => !path.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+                                 && !path.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar, StringComparison.Ordinal)))
         {
             Assert.That(ordinalAccess.IsMatch(File.ReadAllText(source)), Is.False, source);
         }
@@ -62,8 +62,11 @@ public sealed class ComparativeBenchmarkContractTests
         throw new DirectoryNotFoundException("Could not locate benchmarks/Delta.ECS.Benchmarks from the test output directory.");
     }
 
+    [GeneratedRegex(@"GetComponentRow<[^>]+>\(\s*\d+\s*\)", RegexOptions.CultureInvariant)]
+    private static partial Regex OrdinalAccess();
+
     [Test]
-    public void Combined_report_rejects_na_measured_rows()
+    public void CombinedReportRejectsNaMeasuredRows()
     {
         var directory = Path.Combine(Path.GetTempPath(), "deltaecs-report-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -79,7 +82,7 @@ public sealed class ComparativeBenchmarkContractTests
     }
 
     [Test]
-    public void Combined_report_reads_comma_delimited_linux_csv()
+    public void CombinedReportReadsCommaDelimitedLinuxCsv()
     {
         var directory = Path.Combine(Path.GetTempPath(), "deltaecs-linux-report-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -109,7 +112,7 @@ public sealed class ComparativeBenchmarkContractTests
     }
 
     [Test]
-    public void Combined_report_formats_measurements_without_binary_float_tail()
+    public void CombinedReportFormatsMeasurementsWithoutBinaryFloatTail()
     {
         var rows = new[]
         {
@@ -126,7 +129,7 @@ public sealed class ComparativeBenchmarkContractTests
     }
 
     [Test]
-    public void Compact_summary_counts_victories_and_selects_best_rival()
+    public void CompactSummaryCountsVictoriesAndSelectsBestRival()
     {
         var rows = new[]
         {

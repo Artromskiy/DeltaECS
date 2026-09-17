@@ -4,7 +4,7 @@ using System;
 using NUnit.Framework;
 
 [TestFixture]
-public sealed class GeneratedDenseBindingTests
+internal sealed class GeneratedDenseBindingTests
 {
     [Test]
     public void BindingTracksLiveCountsAndChunkAdoption()
@@ -150,7 +150,10 @@ public sealed class GeneratedDenseBindingTests
     }
 
     private static void Fail(World world, in Query query)
-        => world.ForEach(in query, static (ref Health health) => throw new InvalidOperationException());
+        => world.ForEach(in query, static (ref Health health) => ThrowFromCallback(ref health));
+
+    private static void ThrowFromCallback(ref Health _)
+        => throw new InvalidOperationException();
 }
 
 internal struct DenseBindingReadState

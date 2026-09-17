@@ -5,7 +5,7 @@ using Delta.ECS.Integration;
 using NUnit.Framework;
 
 [TestFixture]
-public sealed class IntegrationWorldTests
+internal sealed class IntegrationWorldTests
 {
     [Test]
     public void LifecycleValidatesStateAndUpdateIsANoOpSafePoint()
@@ -29,12 +29,12 @@ public sealed class IntegrationWorldTests
     public void CatalogRefreshesIndependentlyForTypedLayouts()
     {
         var layouts = new ComponentLayoutRegistry();
-        ComponentId positionId = layouts.Register(typeof(Position), new SchemaId(50_001));
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(50_001));
         using var storage = new World(layouts);
         IEcsWorld world = storage;
 
         ComponentCatalog first = world.Catalog;
-        ComponentId velocityId = layouts.Register(typeof(Velocity), new SchemaId(50_002));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(50_002));
         ComponentCatalog second = world.Catalog;
 
         Assert.Multiple(() =>
@@ -63,7 +63,7 @@ public sealed class IntegrationWorldTests
     public void ZeroComponentEntitySupportsAddFirstRemoveLastAndDestroy()
     {
         var layouts = new ComponentLayoutRegistry();
-        ComponentId positionId = layouts.Register(typeof(Position), new SchemaId(50_011));
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(50_011));
         using var storage = new World(layouts);
         IEcsWorld world = storage;
         world.Initialize();
@@ -114,8 +114,8 @@ public sealed class IntegrationWorldTests
     public void StructuralChangesAreAtomicAndReportNoOps()
     {
         var layouts = new ComponentLayoutRegistry();
-        ComponentId positionId = layouts.Register(typeof(Position), new SchemaId(50_021));
-        ComponentId velocityId = layouts.Register(typeof(Velocity), new SchemaId(50_022));
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(50_021));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(50_022));
         var unknownId = new ComponentId(200);
         using var storage = new World(layouts);
         IEcsWorld world = storage;
@@ -139,8 +139,8 @@ public sealed class IntegrationWorldTests
     public void ObjectReadWriteValidatesErrorsTypesAndExactStamps()
     {
         var layouts = new ComponentLayoutRegistry();
-        ComponentId positionId = layouts.Register(typeof(Position), new SchemaId(50_031));
-        ComponentId velocityId = layouts.Register(typeof(Velocity), new SchemaId(50_032));
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(50_031));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(50_032));
         using var storage = new World(layouts);
         IEcsWorld world = storage;
         world.Initialize();
@@ -200,7 +200,7 @@ public sealed class IntegrationWorldTests
     public void MutableReferenceIdentityIsPreservedAndDirectMutationDoesNotAdvanceStamp()
     {
         var layouts = new ComponentLayoutRegistry();
-        ComponentId referenceId = layouts.Register(typeof(MutableReference), new SchemaId(50_041));
+        ComponentId referenceId = layouts.Register<MutableReference>(new SchemaId(50_041));
         using var storage = new World(layouts);
         IEcsWorld world = storage;
         world.Initialize();

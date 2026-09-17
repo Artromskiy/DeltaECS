@@ -4,16 +4,16 @@ using NUnit.Framework;
 namespace Delta.ECS.Tests;
 
 [TestFixture]
-public sealed class ActiveChunkTests
+internal sealed class ActiveChunkTests
 {
     private static readonly ComponentId PositionId = new(0);
 
     [Test]
-    public void EmptyChunks_Are_Excluded_And_Reused_Chunks_Rejoin_The_Active_List()
+    public void EmptyChunksAreExcludedAndReusedChunksRejoinTheActiveList()
     {
         var layouts = new ComponentLayoutRegistry();
-        layouts.Register(typeof(Position), new SchemaId(1));
-        var world = new World(layouts);
+        layouts.Register<Position>(new SchemaId(1));
+        using var world = new World(layouts);
         const int chunkSize = Chunk.Capacity;
         var entities = new Entity[chunkSize * 3];
         world.Create(stackalloc[] { PositionId }, entities);

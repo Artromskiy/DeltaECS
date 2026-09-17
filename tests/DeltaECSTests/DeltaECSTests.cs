@@ -6,7 +6,7 @@ using Delta.ECS;
 namespace Delta.ECS.Tests;
 
 [TestFixture]
-public sealed class DeltaECSDeliveryTests
+internal sealed class DeltaECSDeliveryTests
 {
     private static readonly ComponentId PositionId = new ComponentId(0);
     private static readonly ComponentId VelocityId = new ComponentId(1);
@@ -17,13 +17,13 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
-    public void Entity_Create_Destroy_RecyclesGeneration()
+    public void EntityCreateDestroyRecyclesGeneration()
     {
         Assert.That(default(Entity).IsValid, Is.False);
 
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
-        var world = new World(layouts);
+        using var world = new World(layouts);
 
         var e1 = world.Create(new[] { PositionId, VelocityId });
         Assert.That(e1.Generation, Is.GreaterThan(0));
@@ -39,11 +39,11 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
-    public void DenseBatch_Create_Destroy_Succeeds_And_Query()
+    public void DenseBatchCreateDestroySucceedsAndQuery()
     {
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
-        var world = new World(layouts);
+        using var world = new World(layouts);
 
         var requested = 2_000;
         var created = new Entity[requested];
@@ -69,11 +69,11 @@ public sealed class DeltaECSDeliveryTests
 
 
     [Test]
-    public void ImmediateBatchTransition_CompletesBeforeReturn_AndIsIdempotent()
+    public void ImmediateBatchTransitionCompletesBeforeReturnAndIsIdempotent()
     {
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
-        var world = new World(layouts);
+        using var world = new World(layouts);
         var entities = new Entity[5];
         world.Create(new[] { PositionId }, entities);
 
@@ -92,11 +92,11 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
-    public void Query_Cache_Remains_Valid_After_New_Archetype_Appears()
+    public void QueryCacheRemainsValidAfterNewArchetypeAppears()
     {
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
-        var world = new World(layouts);
+        using var world = new World(layouts);
 
         var query = new QuerySpec(new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>());
 
@@ -115,11 +115,11 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
-    public void QuerySpec_Is_Immutable_After_Creation()
+    public void QuerySpecIsImmutableAfterCreation()
     {
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
-        var world = new World(layouts);
+        using var world = new World(layouts);
 
         var all = new[] { PositionId };
         var query = new QuerySpec(all, Array.Empty<ComponentId>(), Array.Empty<ComponentId>());
@@ -132,7 +132,7 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
-    public void QuerySpec_ComponentMasks_Deduplicate_Filter_And_Enumerate_In_Order()
+    public void QuerySpecComponentMasksDeduplicateFilterAndEnumerateInOrder()
     {
         var query = new QuerySpec(
             new[] { new ComponentId(129), new ComponentId(7), PositionId, new ComponentId(193), new ComponentId(65), new ComponentId(7) },
@@ -169,11 +169,11 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
-    public void ComponentQueryMasks_Match_All_Any_None_And_Combined_Conditions()
+    public void ComponentQueryMasksMatchAllAnyNoneAndCombinedConditions()
     {
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
-        var world = new World(layouts);
+        using var world = new World(layouts);
         world.Create(new[] { PositionId, VelocityId });
         world.Create(new[] { PositionId });
         world.Create(new[] { VelocityId });
@@ -255,7 +255,7 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
-    public void QuerySurface_Uses_The_Renamed_API()
+    public void QuerySurfaceUsesTheRenamedApi()
     {
         var assembly = typeof(World).Assembly;
         Assert.That(assembly.GetType("Delta.ECS.QueryAccess"), Is.Null);
@@ -274,18 +274,18 @@ public sealed class DeltaECSDeliveryTests
 
 
     [Test]
-    public void Escaping_ComponentRef_Api_Is_Removed()
+    public void EscapingComponentRefApiIsRemoved()
     {
         var method = typeof(World).GetMethod("GetComponentRef", new[] { typeof(Entity), typeof(ComponentId) });
         Assert.That(method, Is.Null);
     }
 
     [Test]
-    public void O1_Chunk_Acquisition_Reuses_NonFull_Chunks_Without_Doubling()
+    public void O1ChunkAcquisitionReusesNonFullChunksWithoutDoubling()
     {
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
-        var world = new World(layouts);
+        using var world = new World(layouts);
 
         var initial = new Entity[16];
         world.Create(new[] { PositionId }, initial);
@@ -315,25 +315,25 @@ public sealed class DeltaECSDeliveryTests
 
 
     [Test]
-    public void Registry_Deduplicates_EqualSchema_AndRejects_ConflictingLayout()
+    public void RegistryDeduplicatesEqualSchemaAndRejectsConflictingLayout()
     {
         var layouts = new ComponentLayoutRegistry();
-        var first = layouts.Register(typeof(Position), new SchemaId(10_001));
-        var duplicate = layouts.Register(typeof(Position), new SchemaId(10_001));
+        var first = layouts.Register<Position>(new SchemaId(10_001));
+        var duplicate = layouts.Register<Position>(new SchemaId(10_001));
 
         Assert.AreEqual(first, duplicate);
         Assert.AreEqual(1, layouts.Count);
-        Assert.Throws<InvalidOperationException>(() => layouts.Register(typeof(Velocity), new SchemaId(10_001)));
+        Assert.Throws<InvalidOperationException>(() => layouts.Register<Velocity>(new SchemaId(10_001)));
         Assert.AreEqual(1, layouts.Count);
     }
 
 
     [Test]
-    public void Transition_Add_Remove_Preserves_Data()
+    public void TransitionAddRemovePreservesData()
     {
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
-        var world = new World(layouts);
+        using var world = new World(layouts);
 
         var first = world.Create(new[] { PositionId, VelocityId });
         world.Set(first, PositionId, new Position { X = 10, Y = 11 });
@@ -357,12 +357,12 @@ public sealed class DeltaECSDeliveryTests
     }
 
     [Test]
-    public void RandomizedInvariants_WithTransitions()
+    public void RandomizedInvariantsWithTransitions()
     {
         var layouts = new ComponentLayoutRegistry();
         RegisterComponentLayouts(layouts);
-        var world = new World(layouts);
-        var random = new Random(123456);
+        using var world = new World(layouts);
+        var random = new TestRandom(123456);
 
         var model = new Dictionary<int, EntityState>();
 
@@ -470,9 +470,38 @@ public sealed class DeltaECSDeliveryTests
 
     private static void RegisterComponentLayouts(ComponentLayoutRegistry layouts)
     {
-        layouts.Register(typeof(Position), new SchemaId(1));
-        layouts.Register(typeof(Velocity), new SchemaId(2));
-        layouts.Register(typeof(Health), new SchemaId(3));
+        layouts.Register<Position>(new SchemaId(1));
+        layouts.Register<Velocity>(new SchemaId(2));
+        layouts.Register<Health>(new SchemaId(3));
+    }
+
+    private struct TestRandom
+    {
+        private uint _state;
+
+        internal TestRandom(uint seed) => _state = seed == 0 ? 0xA341316Cu : seed;
+
+        internal int Next(int maxValue)
+            => (int)(((ulong)NextUInt32() * (uint)maxValue) >> 32);
+
+        internal int Next(int minValue, int maxValue)
+            => minValue + Next(maxValue - minValue);
+
+        internal double NextDouble()
+            => NextUInt32() / ((double)uint.MaxValue + 1d);
+
+        internal float NextSingle()
+            => (NextUInt32() >> 8) * (1f / (1u << 24));
+
+        private uint NextUInt32()
+        {
+            uint value = _state;
+            value ^= value << 13;
+            value ^= value >> 17;
+            value ^= value << 5;
+            _state = value;
+            return value;
+        }
     }
 
     private static int CountDenseQuery(World world, in QuerySpec query)

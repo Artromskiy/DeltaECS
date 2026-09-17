@@ -7,19 +7,19 @@ using Delta.ECS;
 namespace Delta.ECS.Tests;
 
 [TestFixture]
-public sealed class QueryStructuralOperationsTests
+internal sealed class QueryStructuralOperationsTests
 {
     private static readonly ComponentId PositionId = new(0);
     private static readonly ComponentId VelocityId = new(1);
     private static readonly ComponentId HealthId = new(2);
     [Test]
-    public void QueryAddRemove_UsesSnapshot_MultipleArchetypes()
+    public void QueryAddRemoveUsesSnapshotMultipleArchetypes()
     {
         var layouts = CreateLayouts();
-        var extraA = layouts.Register(typeof(int), new SchemaId(20));
-        var extraB = layouts.Register(typeof(int), new SchemaId(21));
-        var extraC = layouts.Register(typeof(int), new SchemaId(22));
-        var world = new World(layouts);
+        var extraA = layouts.Register<int>(new SchemaId(20));
+        var extraB = layouts.Register<int>(new SchemaId(21));
+        var extraC = layouts.Register<int>(new SchemaId(22));
+        using var world = new World(layouts);
 
         var first = new Entity[3];
         var second = new Entity[2];
@@ -59,10 +59,10 @@ public sealed class QueryStructuralOperationsTests
     }
 
     [Test]
-    public void QueryDestroy_UpdatesGenerationsFreeRecordsAndAliveCount()
+    public void QueryDestroyUpdatesGenerationsFreeRecordsAndAliveCount()
     {
         var layouts = CreateLayouts();
-        var world = new World(layouts);
+        using var world = new World(layouts);
         var destroyed = new Entity[5];
         var survivor = world.Create(new[] { HealthId });
         world.Create(new[] { PositionId }, destroyed);
@@ -84,10 +84,10 @@ public sealed class QueryStructuralOperationsTests
     }
 
     [Test]
-    public void ScalarTransition_ReusesDestroyedChunk_AndKeepsStaleHandlesInvalid()
+    public void ScalarTransitionReusesDestroyedChunkAndKeepsStaleHandlesInvalid()
     {
         var layouts = CreateLayouts();
-        var world = new World(layouts);
+        using var world = new World(layouts);
         var live = world.Create(new[] { PositionId });
         var destroyed = new Entity[2];
         world.Create(new[] { VelocityId }, destroyed);
@@ -104,11 +104,11 @@ public sealed class QueryStructuralOperationsTests
     }
 
     [Test]
-    public void QueryStructuralOperations_Reject_DefaultForeignAndActiveLeaseHandles()
+    public void QueryStructuralOperationsRejectDefaultForeignAndActiveLeaseHandles()
     {
         var layouts = CreateLayouts();
-        var world = new World(layouts);
-        var foreign = new World(layouts);
+        using var world = new World(layouts);
+        using var foreign = new World(layouts);
         var entity = world.Create(new[] { PositionId });
         var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
         var foreignQuery = foreign.CreateQuery(QuerySpec.WhereAll(PositionId));
@@ -117,15 +117,16 @@ public sealed class QueryStructuralOperationsTests
         Assert.Throws<ArgumentException>(() => world.Add(in invalid, new[] { VelocityId }));
         Assert.Throws<ArgumentException>(() => world.Remove(in foreignQuery, new[] { VelocityId }));
         Assert.Throws<ArgumentException>(() => world.Destroy(in foreignQuery));
+        World callbackWorld = world;
         Assert.Throws<InvalidOperationException>(() => world.ForEachEntity(
             in query,
-            ref world,
+            ref callbackWorld,
             static (ref World owner, Entity current, in Position _) => owner.Destroy(current)));
         Assert.That(world.IsAlive(entity), Is.True);
     }
 
     [Test]
-    public void QueryHandle_BecomesInvalidWhenItsWorldIsDisposed()
+    public void QueryHandleBecomesInvalidWhenItsWorldIsDisposed()
     {
         var layouts = CreateLayouts();
         var world = new World(layouts);
@@ -138,10 +139,10 @@ public sealed class QueryStructuralOperationsTests
     }
 
     [Test]
-    public void EmptyMatchingQuery_ReturnsZero_AndLeavesWorldUnchanged()
+    public void EmptyMatchingQueryReturnsZeroAndLeavesWorldUnchanged()
     {
         var layouts = CreateLayouts();
-        var world = new World(layouts);
+        using var world = new World(layouts);
         var entity = world.Create(new[] { PositionId });
         var query = world.CreateQuery(QuerySpec.WhereAll(VelocityId));
         var aliveBefore = world.AliveEntityCount;
@@ -156,10 +157,10 @@ public sealed class QueryStructuralOperationsTests
     }
 
     [Test]
-    public void QueryStructuralOperations_ExplicitNoOps_PreserveEntitiesAndRecords()
+    public void QueryStructuralOperationsExplicitNoOpsPreserveEntitiesAndRecords()
     {
         var layouts = CreateLayouts();
-        var world = new World(layouts);
+        using var world = new World(layouts);
         var entity = world.Create(new[] { PositionId });
         var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
 
@@ -172,7 +173,7 @@ public sealed class QueryStructuralOperationsTests
     }
 
     [Test]
-    public void QueryRangeCopy_PreservesReferenceRows_AndDestroyReleasesThem()
+    public void QueryRangeCopyPreservesReferenceRowsAndDestroyReleasesThem()
     {
         var weakReferences = CreateAndDestroyReferenceRows();
         ForceCollection();
@@ -183,11 +184,11 @@ public sealed class QueryStructuralOperationsTests
     }
 
     [Test]
-    public void QueryAdd_AdoptsFullChunks_AndFillsExistingTargetTail()
+    public void QueryAddAdoptsFullChunksAndFillsExistingTargetTail()
     {
         var layouts = CreateLayouts();
-        var markerId = layouts.Register(typeof(byte), new SchemaId(40));
-        var world = new World(layouts);
+        var markerId = layouts.Register<byte>(new SchemaId(40));
+        using var world = new World(layouts);
 
         var existingTarget = new Entity[2];
         world.Create(new[] { PositionId, markerId }, existingTarget.Length, existingTarget);
@@ -235,11 +236,11 @@ public sealed class QueryStructuralOperationsTests
     }
 
     [Test]
-    public void QueryRemove_AdoptsFullChunks_AndFillsExistingTargetTail()
+    public void QueryRemoveAdoptsFullChunksAndFillsExistingTargetTail()
     {
         var layouts = CreateLayouts();
-        var markerId = layouts.Register(typeof(byte), new SchemaId(41));
-        var world = new World(layouts);
+        var markerId = layouts.Register<byte>(new SchemaId(41));
+        using var world = new World(layouts);
 
         var existingTarget = new Entity[2];
         world.Create(new[] { PositionId }, existingTarget.Length, existingTarget);
@@ -276,9 +277,9 @@ public sealed class QueryStructuralOperationsTests
     private static List<WeakReference<ReferenceComponent>> CreateAndDestroyReferenceRows()
     {
         var layouts = CreateLayouts();
-        var referenceId = layouts.Register(typeof(ReferenceComponent), new SchemaId(30));
-        var markerId = layouts.Register(typeof(RefMarker), new SchemaId(31));
-        var world = new World(layouts);
+        var referenceId = layouts.Register<ReferenceComponent>(new SchemaId(30));
+        var markerId = layouts.Register<RefMarker>(new SchemaId(31));
+        using var world = new World(layouts);
         var entities = new Entity[4];
         world.Create(new[] { referenceId }, entities);
         var weakReferences = new List<WeakReference<ReferenceComponent>>();
@@ -306,9 +307,9 @@ public sealed class QueryStructuralOperationsTests
     private static ComponentLayoutRegistry CreateLayouts()
     {
         var layouts = new ComponentLayoutRegistry();
-        layouts.Register(typeof(Position), new SchemaId(1));
-        layouts.Register(typeof(Velocity), new SchemaId(2));
-        layouts.Register(typeof(Health), new SchemaId(3));
+        layouts.Register<Position>(new SchemaId(1));
+        layouts.Register<Velocity>(new SchemaId(2));
+        layouts.Register<Health>(new SchemaId(3));
         return layouts;
     }
 
