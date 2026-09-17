@@ -12,6 +12,8 @@ iterate the same data shape?
   candidate) on the same dense, Movement2 and Movement4 workloads.
 - `DeltaECS.MicroBenchmarks` isolates DeltaECS iteration/API shapes for JIT and
   focused throughput work.
+- `DeltaECS.ArrayRefBenchmarks` measures generated `ForEach<T>` from a
+  `netstandard2.1` consumer under Mono for array-row reference experiments.
 - `Ecs.CSharp.Benchmark` is a complete vendored fork of the upstream workload
   suite. It keeps the competitor implementations and adds DeltaECS to every
   create/system scenario group, consuming the published `DeltaECS` and
@@ -28,6 +30,42 @@ The isolated parallel-iteration route is `parallel`. It runs
 Movement4 baseline and is intentionally not part of the five-ECS comparative
 manifest. Its callback contains the same Movement4 operation without a
 checksum; see the [parallel API notes](../src/DeltaECS/Parallel/README.md).
+
+## Array-reference microbenchmark
+
+This focused project executes generated `ForEach<T>` over 200,000 entities.
+The retained runner compares direct indexing, Span and `fixed` in the
+`netstandard2.1` consumer under Mono. It also runs those modes plus the
+`Unsafe.As` array-header-offset candidate in a `net10.0` consumer under
+CoreCLR, where that runtime intrinsic is supported. Every run attempts 70
+measured iterations of 100 ms so the summary retains at least 50 observations
+after outlier filtering; setup validates the checksum before timing:
+
+```bash
+bash benchmarks/DeltaECS.ArrayRefBenchmarks/run-array-reference-modes.sh
+```
+
+The `Unsafe.As` offset variant is an experiment only. It depends on CoreCLR's
+SZArray layout and object-reference intrinsic; it is not a portable
+`netstandard2.1`/Mono implementation. Its offset is based on a managed
+reference to the array's length field; it does not reinterpret the local
+array-reference variable.
+
+```bash
+env NuGetAudit=false RestoreIgnoreFailedSources=true \
+  dotnet build benchmarks/DeltaECS.ArrayRefBenchmarks/DeltaECS.ArrayRefBenchmarks.csproj \
+  -c Release -f netstandard2.1 --disable-build-servers -m:1 \
+  /p:UseSharedCompilation=false
+
+mono benchmarks/DeltaECS.ArrayRefBenchmarks/bin/Release/netstandard2.1/DeltaECS.ArrayRefBenchmarks.dll \
+  --amount 200000 --filter '*ForEachT*' --warmupCount 5 \
+  --iterationCount 70 --iterationTime 100 --launchCount 1 \
+  --artifacts artifacts/array-ref-netstandard21/run
+```
+
+Keep the attribute-selected in-process job; do not pass `--job`, which would
+replace it. Raw BenchmarkDotNet reports remain under the selected artifacts
+directory.
 
 ## Safe workflow
 
