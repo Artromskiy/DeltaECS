@@ -14,7 +14,10 @@ internal static partial class DemandDrivenForEachTemplates
     {
         string owner = "global::Delta.ECS.DemandForEachExtensions_" + GeneratorSupport.StableName(shape.Key);
         string types = BindingTypeArguments(shape, closed);
-        return $"using var execution = GeneratedForEachRuntime.OpenBoundDense<{owner}.DenseBinding{types}, {owner}.DenseRows{types}>(world, in query);";
+        string openMethod = shape.ComponentModels.Any(static component => component.IsWrite)
+            ? "OpenBoundDense"
+            : "OpenBoundDenseRead";
+        return $"using var execution = GeneratedForEachRuntime.{openMethod}<{owner}.DenseBinding{types}, {owner}.DenseRows{types}>(world, in query);";
     }
 
     private static string RenderDenseBinding(IterationModel shape)

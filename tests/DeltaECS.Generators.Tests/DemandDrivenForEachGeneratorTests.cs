@@ -414,8 +414,9 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         string generated = GeneratedText(RunGenerator(source));
 
-        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenBoundDense<"));
+        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenBoundDenseRead<"));
         Assert.That(generated, Does.Contain("for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)"));
+        Assert.That(generated, Does.Not.Contain("GeneratedForEachRuntime.OpenBoundDense<"));
         Assert.That(generated, Does.Not.Contain("OpenWriteDense(world, in query)"));
         Assert.That(generated, Does.Not.Contain("MarkGeneratedWrite(access0)"));
     }
@@ -1417,6 +1418,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         public static class GeneratedForEachRuntime
         {
             public static GeneratedBoundExecution<TRows> OpenBoundDense<TBinding, TRows>(World world, in Query query)
+                where TBinding : GeneratedDenseBinding<TRows>, new() where TRows : struct => default;
+            public static GeneratedBoundExecution<TRows> OpenBoundDenseRead<TBinding, TRows>(World world, in Query query)
                 where TBinding : GeneratedDenseBinding<TRows>, new() where TRows : struct => default;
             public static T[] GetGeneratedArray<T>(Array[] rows, int route) => throw new NotImplementedException();
             public static ref T GetGeneratedArrayReference<T>(T[] row) => throw new NotImplementedException();

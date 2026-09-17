@@ -217,6 +217,21 @@ public static partial class GeneratedForEachRuntime
         return new GeneratedBoundExecution<TRows>(owner, rows);
     }
 
+    /// <summary>Opens a query-owned typed binding without marking component writes.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static GeneratedBoundExecution<TRows> OpenBoundDenseRead<TBinding, TRows>(World world, in Query query)
+        where TBinding : GeneratedDenseBinding<TRows>, new()
+        where TRows : struct
+    {
+        QueryPlan plan = ValidateQuery(world, in query);
+        TBinding binding = plan.GetDenseBinding<TBinding, TRows>(in query);
+        ReadOnlySpan<TRows> rows = binding.GetRows(plan);
+        World owner = plan.Owner;
+        owner.BeginQueryLease();
+        return new GeneratedBoundExecution<TRows>(owner, rows);
+    }
+
     /// <summary>Binds a validated typed array once while building a generated signature.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
