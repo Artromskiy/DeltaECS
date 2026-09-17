@@ -6,7 +6,7 @@ using Arch.Core.Utils;
 using Arch.System;
 using BenchmarkDotNet.Attributes;
 using Ecs.CSharp.Benchmark.Contexts;
-using Ecs.CSharp.Benchmark.Contexts.Arch_Components;
+using Ecs.CSharp.Benchmark.Contexts.ArchComponents;
 using Schedulers;
 
 namespace Ecs.CSharp.Benchmark
@@ -87,14 +87,14 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.Arch)]
         [Benchmark]
-        public void Arch_MonoThread_SourceGenerated()
+        public void ArchMonoThreadSourceGenerated()
         {
             ForEachQuery(_arch.World);
         }
 
         [BenchmarkCategory(Categories.Arch)]
         [Benchmark]
-        public void Arch_MultiThread()
+        public void ArchMultiThread()
         {
             World world = _arch.World;
             world.InlineParallelQuery<ForEach2, Component1, Component2>(in _queryDescription, ref _forEach2);

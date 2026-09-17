@@ -83,10 +83,10 @@ internal sealed class ParallelIterationTests
         int readOnlyContextVisits = 0;
         int valueContextVisits = 0;
         ForEachEntityAction entityAction = _ => Interlocked.Increment(ref entityVisits);
-        ForEachContextAction_In<ParallelState> readOnlyAction = static (in ParallelState _) => { };
-        ForEachContextAction_Value<ParallelState> valueAction = static _ => { };
-        ForEachContextEntityAction_In<ParallelState> readOnlyEntityAction = (in ParallelState _, Entity __) => Interlocked.Increment(ref readOnlyContextVisits);
-        ForEachContextEntityAction_Value<ParallelState> valueEntityAction = (ParallelState _, Entity __) => Interlocked.Increment(ref valueContextVisits);
+        ForEachContextActionIn<ParallelState> readOnlyAction = static (in ParallelState _) => { };
+        ForEachContextActionValue<ParallelState> valueAction = static _ => { };
+        ForEachContextEntityActionIn<ParallelState> readOnlyEntityAction = (in ParallelState _, Entity __) => Interlocked.Increment(ref readOnlyContextVisits);
+        ForEachContextEntityActionValue<ParallelState> valueEntityAction = (ParallelState _, Entity __) => Interlocked.Increment(ref valueContextVisits);
 
         Assert.Multiple(() =>
         {

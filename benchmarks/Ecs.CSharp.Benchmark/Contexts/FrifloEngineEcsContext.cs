@@ -1,10 +1,10 @@
 using System;
-using Ecs.CSharp.Benchmark.Contexts.FrifloEngine_Components;
+using Ecs.CSharp.Benchmark.Contexts.FrifloEngineComponents;
 using Friflo.Engine.ECS;
 
 namespace Ecs.CSharp.Benchmark.Contexts
 {
-    namespace FrifloEngine_Components
+    namespace FrifloEngineComponents
     {
         internal struct Component1 : IComponent
         {

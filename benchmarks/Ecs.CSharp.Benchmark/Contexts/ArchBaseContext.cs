@@ -5,7 +5,7 @@ using Schedulers;
 
 namespace Ecs.CSharp.Benchmark.Contexts
 {
-    namespace Arch_Components
+    namespace ArchComponents
     {
         internal struct Component1
         {

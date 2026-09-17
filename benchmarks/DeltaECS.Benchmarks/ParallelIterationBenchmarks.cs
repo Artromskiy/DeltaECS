@@ -56,14 +56,14 @@ public class ParallelMovement4IterationBenchmarks
     public void Cleanup() => _world?.Dispose();
 
     [Benchmark(Baseline = true)]
-    public void DeltaECS_Movement4() =>
+    public void DeltaECSMovement4() =>
         _world.ForEach(
             in _query,
             static (ref Movement4A a, ref Movement4B b, ref Movement4C c, in Movement4D d) =>
                 ApplyMovement4(ref a, ref b, ref c, in d));
 
     [Benchmark]
-    public void DeltaECS_Movement4Parallel() =>
+    public void DeltaECSMovement4Parallel() =>
         _world.ForEachParallel(
             in _query,
             static (ref Movement4A a, ref Movement4B b, ref Movement4C c, in Movement4D d) =>

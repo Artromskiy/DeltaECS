@@ -2,7 +2,7 @@ using System;
 using System.Runtime.CompilerServices;
 using BenchmarkDotNet.Attributes;
 using Ecs.CSharp.Benchmark.Contexts;
-using Ecs.CSharp.Benchmark.Contexts.Fennecs_Components;
+using Ecs.CSharp.Benchmark.Contexts.FennecsComponents;
 using fennecs;
 
 namespace Ecs.CSharp.Benchmark
@@ -42,21 +42,21 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.Fennecs)]
         [Benchmark]
-        public void Fennecs_ForEach()
+        public void FennecsForEach()
         {
             _fennecs.query.For((ref Component1 c1, ref Component2 c2) => c1.Value += c2.Value);
         }
 
         [BenchmarkCategory(Categories.Fennecs)]
         [Benchmark]
-        public void Fennecs_Job()
+        public void FennecsJob()
         {
             _fennecs.query.Job(delegate (ref Component1 c1, ref Component2 c2) { c1.Value += c2.Value; });
         }
 
         [BenchmarkCategory(Categories.Fennecs)]
         [Benchmark]
-        public void Fennecs_Raw()
+        public void FennecsRaw()
         {
             _fennecs.query.Raw(delegate (Memory<Component1> c1v, Memory<Component2> c2v)
             {

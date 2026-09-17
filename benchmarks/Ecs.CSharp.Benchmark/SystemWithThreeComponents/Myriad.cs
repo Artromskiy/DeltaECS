@@ -1,7 +1,7 @@
 using System;
 using BenchmarkDotNet.Attributes;
 using Ecs.CSharp.Benchmark.Contexts;
-using Ecs.CSharp.Benchmark.Contexts.Myriad_Components;
+using Ecs.CSharp.Benchmark.Contexts.MyriadComponents;
 using Myriad.ECS;
 using Myriad.ECS.Collections;
 using Myriad.ECS.Command;
@@ -50,7 +50,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.Myriad)]
         [Benchmark]
-        public void Myriad_SingleThread()
+        public void MyriadSingleThread()
         {
             World world = _myriad.World;
             world.Execute<MyriadForEach3, Component1, Component2, Component3>();
@@ -58,7 +58,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.Myriad)]
         [Benchmark]
-        public void Myriad_SingleThreadChunk()
+        public void MyriadSingleThreadChunk()
         {
             World world = _myriad.World;
             world.ExecuteChunk<MyriadForEach3, Component1, Component2, Component3>();
@@ -80,7 +80,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.Myriad)]
         [Benchmark]
-        public void Myriad_Delegate()
+        public void MyriadDelegate()
         {
             World world = _myriad.World;
 

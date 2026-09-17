@@ -93,7 +93,7 @@ From the repository root, build first and run each amount separately:
 env NuGetAudit=false RestoreIgnoreFailedSources=true \
   DOTNET_TieredCompilation=0 DOTNET_ReadyToRun=0 \
   dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net10.0/DeltaECS.Benchmarks.dll iteration \
-  --filter '*DeltaECS_Movement4Components(Amount: 100)' \
+  --filter '*DeltaECSMovement4Components(Amount: 100)' \
   --warmupCount 10 --minIterationCount 10 --maxIterationCount 20 \
   --iterationTime 200 --launchCount 1 \
   --exporters csv markdown json \

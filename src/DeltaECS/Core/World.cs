@@ -2247,7 +2247,11 @@ public sealed partial class World : IDisposable
         public int Compare(DestroyEntry x, DestroyEntry y)
         {
             int result = x.Archetype.CompareTo(y.Archetype);
-            if (result != 0) return result;
+            if (result != 0)
+            {
+                return result;
+            }
+
             result = x.ChunkId.CompareTo(y.ChunkId);
             return result != 0 ? result : y.SlotIndex.CompareTo(x.SlotIndex);
         }

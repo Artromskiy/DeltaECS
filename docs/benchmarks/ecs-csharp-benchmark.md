@@ -18,10 +18,10 @@ The fork contains the complete upstream scenario groups:
 
 Each group keeps the upstream ECS implementations and has a `DeltaECS`
 benchmark using the same component cardinality, padding rules and terminal
-operation. The three create groups also expose separate `DeltaECS_Batch` and
-`DeltaECS_Batch_Generic` measurements for the no-output batch-create APIs. The
-`DeltaECS_Batch` uses the direct component-ID no-output path and
-`DeltaECS_Batch_Generic` uses the generated variadic generic path. Neither
+operation. The three create groups also expose separate `DeltaECSBatch` and
+`DeltaECSBatchGeneric` measurements for the no-output batch-create APIs. The
+`DeltaECSBatch` uses the direct component-ID no-output path and
+`DeltaECSBatchGeneric` uses the generated variadic generic path. Neither
 benchmark returns entity handles. They are reported separately because the upstream create workload is
 one entity per operation and must stay an apples-to-apples comparison. System
 contexts use batch create only during setup; setup is outside the measured

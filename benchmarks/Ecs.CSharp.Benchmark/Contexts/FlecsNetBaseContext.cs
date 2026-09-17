@@ -3,7 +3,7 @@ using Flecs.NET.Core;
 
 namespace Ecs.CSharp.Benchmark.Contexts
 {
-    namespace FlecsNet_Components
+    namespace FlecsNetComponents
     {
         internal struct Component1
         {

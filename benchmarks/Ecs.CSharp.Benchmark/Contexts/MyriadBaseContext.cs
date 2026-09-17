@@ -5,7 +5,7 @@ using Myriad.ECS.Worlds;
 
 namespace Ecs.CSharp.Benchmark.Contexts
 {
-    namespace Myriad_Components
+    namespace MyriadComponents
     {
         internal struct Component1
             : IComponent

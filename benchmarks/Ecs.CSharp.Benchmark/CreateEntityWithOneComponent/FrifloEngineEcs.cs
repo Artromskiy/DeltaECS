@@ -1,5 +1,5 @@
 using BenchmarkDotNet.Attributes;
-using Ecs.CSharp.Benchmark.Contexts.FrifloEngine_Components;
+using Ecs.CSharp.Benchmark.Contexts.FrifloEngineComponents;
 using Friflo.Engine.ECS;
 
 namespace Ecs.CSharp.Benchmark

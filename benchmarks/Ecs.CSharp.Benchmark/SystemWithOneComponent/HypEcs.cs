@@ -61,10 +61,10 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.HypEcs)]
         [Benchmark]
-        public void HypEcs_MonoThread() => _hypEcs.MonoThreadSystem.Run(_hypEcs.World);
+        public void HypEcsMonoThread() => _hypEcs.MonoThreadSystem.Run(_hypEcs.World);
 
         [BenchmarkCategory(Categories.HypEcs)]
         [Benchmark]
-        public void HypEcs_MultiThread() => _hypEcs.MultiThreadSystem.Run(_hypEcs.World);
+        public void HypEcsMultiThread() => _hypEcs.MultiThreadSystem.Run(_hypEcs.World);
     }
 }

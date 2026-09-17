@@ -1,7 +1,7 @@
-using Delta.ECS.Benchmarks;
-using Delta.ECS;
-using NUnit.Framework;
 using System.Text.RegularExpressions;
+using Delta.ECS;
+using Delta.ECS.Benchmarks;
+using NUnit.Framework;
 
 namespace Delta.ECS.Tests;
 
@@ -72,7 +72,7 @@ internal sealed partial class ComparativeBenchmarkContractTests
         Directory.CreateDirectory(directory);
         try
         {
-            File.WriteAllText(Path.Combine(directory, "bad.csv"), "Method;Mean;Allocated;Amount\nDeltaECS_Dense;NA;0 B;100\n");
+            File.WriteAllText(Path.Combine(directory, "bad.csv"), "Method;Mean;Allocated;Amount\nDeltaECSDense;NA;0 B;100\n");
             Assert.Throws<InvalidOperationException>(() => ComparativeReportBuilder.WriteManifest(directory));
         }
         finally
@@ -90,11 +90,11 @@ internal sealed partial class ComparativeBenchmarkContractTests
         {
             File.WriteAllText(Path.Combine(directory, "linux.csv"),
                 "Method,Mean,Allocated,Amount\n" +
-                "DeltaECS_Dense,100 ns,0 B,100\n" +
-                "Arch_Dense,200 ns,\"1,024 B\",100\n" +
-                "FrifloEngineECS_Dense,300 ns,88 B,100\n" +
-                "DefaultEcs_Dense,400 ns,0 B,100\n" +
-                "LeoEcsLite_Dense,500 ns,0 B,100\n");
+                "DeltaECSDense,100 ns,0 B,100\n" +
+                "ArchDense,200 ns,\"1,024 B\",100\n" +
+                "FrifloEngineECSDense,300 ns,88 B,100\n" +
+                "DefaultEcsDense,400 ns,0 B,100\n" +
+                "LeoEcsLiteDense,500 ns,0 B,100\n");
 
             ComparativeReportBuilder.WriteManifest(directory);
             var report = File.ReadAllText(Path.Combine(directory, "comparative-report.md"));

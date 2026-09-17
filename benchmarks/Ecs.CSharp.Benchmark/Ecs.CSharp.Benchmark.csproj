@@ -11,7 +11,8 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
     <RunAnalyzersDuringLiveAnalysis>true</RunAnalyzersDuringLiveAnalysis>
-    <NoWarn>$(NoWarn);NETSDK1206;CS1591</NoWarn>
+    <!-- Benchmark adapters use state populated through framework-owned paths that CS0649 cannot observe. -->
+    <NoWarn>$(NoWarn);NETSDK1206;CS1591;CS0649</NoWarn>
 
     <InterceptorsNamespaces>Delta.ECS.Generated</InterceptorsNamespaces>
 

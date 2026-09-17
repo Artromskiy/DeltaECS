@@ -37,11 +37,18 @@ internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
     internal void Resize(int length)
     {
         ThrowHelper.ThrowIfNegative(length, nameof(length));
-        if (length == _length) return;
+        if (length == _length)
+        {
+            return;
+        }
 
         nint replacement = Allocate(length);
         int copied = Math.Min(_length, length);
-        if (copied != 0) Span[..copied].CopyTo(new Span<T>((void*)replacement, length));
+        if (copied != 0)
+        {
+            Span[..copied].CopyTo(new Span<T>((void*)replacement, length));
+        }
+
         ReleaseBuffer();
         _address = replacement;
         _length = length;
@@ -49,12 +56,19 @@ internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
 
     internal void Clear()
     {
-        if (_length != 0) NativeMemoryCompat.Clear((void*)_address, ByteLength(_length));
+        if (_length != 0)
+        {
+            NativeMemoryCompat.Clear((void*)_address, ByteLength(_length));
+        }
     }
 
     internal void Dispose()
     {
-        if (_address != 0) ReleaseBuffer();
+        if (_address != 0)
+        {
+            ReleaseBuffer();
+        }
+
         _length = 0;
     }
 
@@ -62,7 +76,11 @@ internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
 
     private static nint Allocate(int length)
     {
-        if (length == 0) return 0;
+        if (length == 0)
+        {
+            return 0;
+        }
+
         nuint bytes = ByteLength(length);
         nint address = NativeMemoryCompat.Alloc(bytes);
         NativeMemoryCompat.Clear((void*)address, bytes);

@@ -83,7 +83,7 @@ public class ManyComponentIterationBenchmarks
     public void Cleanup() => _world?.Dispose();
 
     [Benchmark(Baseline = true)]
-    public int DeltaECS_ManyComponents()
+    public int DeltaECSManyComponents()
     {
         var checksum = 0;
         _world.ForEach(

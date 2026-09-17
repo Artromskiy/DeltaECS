@@ -1,6 +1,6 @@
 using BenchmarkDotNet.Attributes;
 using Ecs.CSharp.Benchmark.Contexts;
-using Ecs.CSharp.Benchmark.Contexts.Arch_Components;
+using Ecs.CSharp.Benchmark.Contexts.ArchComponents;
 using Flecs.NET.Core;
 
 namespace Ecs.CSharp.Benchmark
@@ -32,7 +32,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.FlecsNet)]
         [Benchmark]
-        public void FlecsNet_Each()
+        public void FlecsNetEach()
         {
             _flecs.query.Each((Iter it, int index) =>
             {
@@ -43,7 +43,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.FlecsNet)]
         [Benchmark]
-        public void FlecsNet_Iter()
+        public void FlecsNetIter()
         {
             _flecs.query.Iter(it =>
             {

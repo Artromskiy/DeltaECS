@@ -1,6 +1,6 @@
 using BenchmarkDotNet.Attributes;
 using Ecs.CSharp.Benchmark.Contexts;
-using Ecs.CSharp.Benchmark.Contexts.TinyEcs_Components;
+using Ecs.CSharp.Benchmark.Contexts.TinyEcsComponents;
 using TinyEcs;
 
 namespace Ecs.CSharp.Benchmark
@@ -48,7 +48,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.TinyEcs)]
         [Benchmark]
-        public void TinyEcs_Each()
+        public void TinyEcsEach()
         {
             var data = Data<Component1, Component2, Component3>.CreateIterator(_tinyEcs.Query.Iter());
             while (data.MoveNext())
@@ -60,7 +60,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.TinyEcs)]
         [Benchmark]
-        public void TinyEcs_EachJob()
+        public void TinyEcsEachJob()
         {
             var data = Data<Component1, Component2, Component3>.CreateIterator(_tinyEcs.Query.Iter());
             while (data.MoveNext())

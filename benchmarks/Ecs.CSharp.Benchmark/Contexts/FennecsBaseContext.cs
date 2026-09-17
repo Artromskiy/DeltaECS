@@ -3,7 +3,7 @@ using fennecs;
 
 namespace Ecs.CSharp.Benchmark.Contexts
 {
-    namespace Fennecs_Components
+    namespace FennecsComponents
     {
         internal struct Component1
         {
@@ -24,21 +24,21 @@ namespace Ecs.CSharp.Benchmark.Contexts
     internal class FennecsBaseContext : IDisposable
     {
         public World World { get; }
-        public EntityTemplate<Fennecs_Components.Component1> Component1Template { get; }
-        public EntityTemplate<Fennecs_Components.Component1, Fennecs_Components.Component2> Component2Template { get; }
-        public EntityTemplate<Fennecs_Components.Component1, Fennecs_Components.Component2, Fennecs_Components.Component3> Component3Template { get; }
+        public EntityTemplate<FennecsComponents.Component1> Component1Template { get; }
+        public EntityTemplate<FennecsComponents.Component1, FennecsComponents.Component2> Component2Template { get; }
+        public EntityTemplate<FennecsComponents.Component1, FennecsComponents.Component2, FennecsComponents.Component3> Component3Template { get; }
 
         public FennecsBaseContext()
         {
             World = new World();
-            Component1Template = World.Template().Needs<Fennecs_Components.Component1>();
+            Component1Template = World.Template().Needs<FennecsComponents.Component1>();
             Component2Template = World.Template()
-                .Needs<Fennecs_Components.Component1>()
-                .Needs<Fennecs_Components.Component2>();
+                .Needs<FennecsComponents.Component1>()
+                .Needs<FennecsComponents.Component2>();
             Component3Template = World.Template()
-                .Needs<Fennecs_Components.Component1>()
-                .Needs<Fennecs_Components.Component2>()
-                .Needs<Fennecs_Components.Component3>();
+                .Needs<FennecsComponents.Component1>()
+                .Needs<FennecsComponents.Component2>()
+                .Needs<FennecsComponents.Component3>();
         }
 
         public void Dispose()

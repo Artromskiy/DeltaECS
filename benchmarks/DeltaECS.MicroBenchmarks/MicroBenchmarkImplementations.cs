@@ -1,6 +1,6 @@
+using System.Runtime.CompilerServices;
 using BenchmarkDotNet.Attributes;
 using Delta.ECS;
-using System.Runtime.CompilerServices;
 
 namespace Delta.ECS.MicroBenchmarks;
 
@@ -236,7 +236,9 @@ internal static class MicroContractSmoke
             fixture,
             in movement2Query);
         if (movement2Sum != movement2Entities.Length * (movement2Entities.Length + 3))
+        {
             throw new InvalidOperationException("Dense Movement2 checksum mismatch.");
+        }
 
         fixture.ResetMoving(movement2Entities);
         var movement4Entities = fixture.CreateMovement4(8);
@@ -250,21 +252,31 @@ internal static class MicroContractSmoke
             fixture,
             in movement4Query);
         if (movement4Sum != movement4Entities.Length * 20)
+        {
             throw new InvalidOperationException("Dense Movement4 checksum mismatch.");
+        }
 
         var apiComparison = new Movement4ApiComparisonMicroBenchmarkImplementation { Amount = 8 };
         apiComparison.Setup();
         var expectedApiComparison = apiComparison.Functor();
         if (apiComparison.Delegate() != expectedApiComparison)
+        {
             throw new InvalidOperationException("Delegate Movement4 checksum mismatch.");
+        }
+
         if (apiComparison.Intercepted() != expectedApiComparison)
         {
             throw new InvalidOperationException("Intercepted Movement4 checksum mismatch.");
         }
         if (apiComparison.DelegateContext() != expectedApiComparison)
+        {
             throw new InvalidOperationException("Delegate-context Movement4 checksum mismatch.");
+        }
+
         if (apiComparison.FunctorContext() != expectedApiComparison)
+        {
             throw new InvalidOperationException("Functor-context Movement4 checksum mismatch.");
+        }
 
         var whereApi = new WhereApiMicroBenchmarkImplementation { Amount = 8 };
         whereApi.Setup();
@@ -313,31 +325,51 @@ internal static class MicroContractSmoke
         {
             structural.PrepareAdd();
             if (structural.AddBatch() != structural.ExpectedCount)
+            {
                 throw new InvalidOperationException("Batch Add count mismatch.");
+            }
+
             structural.PrepareAdd();
             if (structural.AddAtomic() != structural.ExpectedCount)
+            {
                 throw new InvalidOperationException("Atomic Add count mismatch.");
+            }
 
             structural.PrepareRemove();
             if (structural.RemoveBatch() != structural.ExpectedCount)
+            {
                 throw new InvalidOperationException("Batch Remove count mismatch.");
+            }
+
             structural.PrepareRemove();
             if (structural.RemoveAtomic() != structural.ExpectedCount)
+            {
                 throw new InvalidOperationException("Atomic Remove count mismatch.");
+            }
 
             structural.PrepareDestroy();
             if (structural.DestroyBatch() != structural.ExpectedCount)
+            {
                 throw new InvalidOperationException("Batch Destroy count mismatch.");
+            }
+
             structural.PrepareDestroy();
             if (structural.DestroyAtomic() != structural.ExpectedCount)
+            {
                 throw new InvalidOperationException("Atomic Destroy count mismatch.");
+            }
 
             structural.PrepareCreate();
             if (structural.CreateBatch() != structural.ExpectedCount)
+            {
                 throw new InvalidOperationException("Batch Create count mismatch.");
+            }
+
             structural.PrepareCreate();
             if (structural.CreateAtomic() != structural.ExpectedCount)
+            {
                 throw new InvalidOperationException("Atomic Create count mismatch.");
+            }
         }
         finally
         {
@@ -350,31 +382,51 @@ internal static class MicroContractSmoke
         {
             queryStructural.PrepareDeltaAdd();
             if (queryStructural.DeltaQueryAdd() != queryStructural.ExpectedCount)
+            {
                 throw new InvalidOperationException("Delta query Add count mismatch.");
+            }
+
             queryStructural.PrepareArchAdd();
             if (queryStructural.ArchQueryAdd() != queryStructural.ExpectedCount)
+            {
                 throw new InvalidOperationException("Arch query Add count mismatch.");
+            }
 
             queryStructural.PrepareDeltaRemove();
             if (queryStructural.DeltaQueryRemove() != queryStructural.ExpectedCount)
+            {
                 throw new InvalidOperationException("Delta query Remove count mismatch.");
+            }
+
             queryStructural.PrepareArchRemove();
             if (queryStructural.ArchQueryRemove() != queryStructural.ExpectedCount)
+            {
                 throw new InvalidOperationException("Arch query Remove count mismatch.");
+            }
 
             queryStructural.PrepareDeltaDestroy();
             if (queryStructural.DeltaQueryDestroy() != queryStructural.ExpectedCount)
+            {
                 throw new InvalidOperationException("Delta query Destroy count mismatch.");
+            }
+
             queryStructural.PrepareArchDestroy();
             if (queryStructural.ArchQueryDestroy() != queryStructural.ExpectedCount)
+            {
                 throw new InvalidOperationException("Arch query Destroy count mismatch.");
+            }
 
             queryStructural.PrepareDeltaCreateForSmoke();
             if (queryStructural.DeltaCreateBatch() != queryStructural.ExpectedCount)
+            {
                 throw new InvalidOperationException("Delta batch Create count mismatch.");
+            }
+
             queryStructural.PrepareArchCreateForSmoke();
             if (queryStructural.ArchCreateGeneric() != queryStructural.ExpectedCount)
+            {
                 throw new InvalidOperationException("Arch generic Create count mismatch.");
+            }
         }
         finally
         {

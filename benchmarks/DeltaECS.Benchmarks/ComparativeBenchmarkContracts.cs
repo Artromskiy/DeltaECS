@@ -91,6 +91,8 @@ public static class ComparativeReportBuilder
 
     public static string ToMarkdown(IEnumerable<ComparativeReportRow> rows)
     {
+        ArgumentNullException.ThrowIfNull(rows);
+
         var builder = new StringBuilder();
         builder.AppendLine("| Workload | Params | ECS | Mean | RatioToDelta | Allocated | Supported | Note |");
         builder.AppendLine("|---|---|---|---:|---:|---|:---:|---|");
@@ -140,7 +142,11 @@ public static class ComparativeReportBuilder
         foreach (var workload in s_iterationWorkloads)
         {
             var workloadScenarios = scenarios.Where(scenario => scenario.Workload == workload.Workload).ToArray();
-            if (workloadScenarios.Length == 0) continue;
+            if (workloadScenarios.Length == 0)
+            {
+                continue;
+            }
+
             builder.Append('|').Append(workload.DisplayName).Append('|')
                 .Append(CountVictories(workloadScenarios)).Append('/').Append(workloadScenarios.Length).Append('|')
                 .Append(FormatBestRival(FindBestRival(workloadScenarios))).Append('|').AppendLine();
@@ -154,6 +160,8 @@ public static class ComparativeReportBuilder
 
     public static string ToCsv(IEnumerable<ComparativeReportRow> rows)
     {
+        ArgumentNullException.ThrowIfNull(rows);
+
         var builder = new StringBuilder("Workload,Params,ECS,Mean,RatioToDelta,Allocated,Supported,Note\n");
         foreach (var row in rows)
         {
@@ -186,8 +194,15 @@ public static class ComparativeReportBuilder
             foreach (var rival in scenario.Rivals)
             {
                 var ratio = rival.Mean / scenario.Delta.Mean;
-                if (!double.IsFinite(ratio) || ratio <= 0) continue;
-                if (best is null || ratio < best.RatioToDelta) best = new(rival.Ecs, scenario.Params, ratio);
+                if (!double.IsFinite(ratio) || ratio <= 0)
+                {
+                    continue;
+                }
+
+                if (best is null || ratio < best.RatioToDelta)
+                {
+                    best = new(rival.Ecs, scenario.Params, ratio);
+                }
             }
         }
 
@@ -196,7 +211,11 @@ public static class ComparativeReportBuilder
 
     private static string FormatBestRival(BestRival? best)
     {
-        if (best is null) return "—";
+        if (best is null)
+        {
+            return "—";
+        }
+
         var rival = DisplayName(best.Ecs);
         var parameters = Markdown(best.Params);
         return best.RatioToDelta < 1
@@ -216,9 +235,17 @@ public static class ComparativeReportBuilder
         var measured = new List<ComparativeReportRow>();
         foreach (var file in Directory.EnumerateFiles(directory, "*.csv", SearchOption.AllDirectories))
         {
-            if (Path.GetFileName(file).StartsWith("comparative-report", StringComparison.OrdinalIgnoreCase)) continue;
+            if (Path.GetFileName(file).StartsWith("comparative-report", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             var lines = File.ReadAllLines(file);
-            if (lines.Length == 0) continue;
+            if (lines.Length == 0)
+            {
+                continue;
+            }
+
             var separator = DetectSeparator(lines[0]);
             var header = ParseDelimitedLine(lines[0], separator);
             var methodIndex = Array.IndexOf(header, "Method");
@@ -226,15 +253,30 @@ public static class ComparativeReportBuilder
             var allocatedIndex = Array.IndexOf(header, "Allocated");
             var ratioIndex = Array.IndexOf(header, "Ratio");
             var amountIndex = Array.IndexOf(header, "Amount");
-            if (methodIndex < 0 || meanIndex < 0) continue;
+            if (methodIndex < 0 || meanIndex < 0)
+            {
+                continue;
+            }
 
             foreach (var line in lines.Skip(1))
             {
                 var fields = ParseDelimitedLine(line, separator);
-                if (fields.Length <= Math.Max(methodIndex, meanIndex)) continue;
-                if (!TryMapMethod(fields[methodIndex], out var workload, out var ecs)) continue;
+                if (fields.Length <= Math.Max(methodIndex, meanIndex))
+                {
+                    continue;
+                }
+
+                if (!TryMapMethod(fields[methodIndex], out var workload, out var ecs))
+                {
+                    continue;
+                }
+
                 var mean = ParseMeasurement(fields[meanIndex], separator);
-                if (double.IsNaN(mean)) throw new InvalidOperationException($"BenchmarkDotNet produced an invalid Mean for '{fields[methodIndex]}' in '{file}'.");
+                if (double.IsNaN(mean))
+                {
+                    throw new InvalidOperationException($"BenchmarkDotNet produced an invalid Mean for '{fields[methodIndex]}' in '{file}'.");
+                }
+
                 var ratio = ratioIndex >= 0 && ratioIndex < fields.Length ? ParseMeasurement(fields[ratioIndex], separator) : double.NaN;
                 var parameters = amountIndex >= 0 && amountIndex < fields.Length ? $"Amount={fields[amountIndex]}" : "raw";
                 var capability = ComparativeCapabilityManifest.Rows.FirstOrDefault(row => row.Workload == workload && row.Ecs == ecs);
@@ -244,7 +286,11 @@ public static class ComparativeReportBuilder
             }
         }
 
-        if (measured.Count == 0) return BuildManifestRows();
+        if (measured.Count == 0)
+        {
+            return BuildManifestRows();
+        }
+
         var result = new List<ComparativeReportRow>(measured);
         foreach (var group in measured.GroupBy(row => (row.Workload, row.Params)))
         {
@@ -252,7 +298,9 @@ public static class ComparativeReportBuilder
             foreach (var capability in ComparativeCapabilityManifest.Rows.Where(row => row.Workload == group.Key.Workload))
             {
                 if (!group.Any(row => row.Ecs == capability.Ecs) && !capability.Supported)
+                {
                     result.Add(new(capability.Workload, group.Key.Params, capability.Ecs, double.PositiveInfinity, double.PositiveInfinity, "N/A", false, capability.Note));
+                }
             }
 
             if (delta is not null && delta.Mean != 0)
@@ -261,7 +309,9 @@ public static class ComparativeReportBuilder
                 {
                     var row = result[index];
                     if (row.Workload == group.Key.Workload && row.Params == group.Key.Params && double.IsNaN(row.RatioToDelta))
+                    {
                         result[index] = row with { RatioToDelta = row.Mean / delta.Mean };
+                    }
                 }
             }
         }
@@ -279,11 +329,11 @@ public static class ComparativeReportBuilder
             method.Contains("SparseWorldQueryPlan", StringComparison.OrdinalIgnoreCase) ? "Iteration.SparseWorldQueryPlan" :
             method.Contains("QueryPlanConstruction", StringComparison.OrdinalIgnoreCase) ? "Iteration.QueryPlanConstruction" : "";
         var mapped = true;
-        ecs = method.StartsWith("DeltaECS_", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.DeltaECS :
-            method.StartsWith("Arch_", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.Arch :
+        ecs = method.StartsWith("DeltaECS", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.DeltaECS :
+            method.StartsWith("Arch", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.Arch :
             method.StartsWith("Friflo", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.FrifloEngineECS :
-            method.StartsWith("DefaultEcs_", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.DefaultEcs :
-            method.StartsWith("LeoEcsLite_", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.LeoEcsLite : UnknownEcs();
+            method.StartsWith("DefaultEcs", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.DefaultEcs :
+            method.StartsWith("LeoEcsLite", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.LeoEcsLite : UnknownEcs();
         return workload.Length != 0 && mapped;
 
         ComparativeEcs UnknownEcs() { mapped = false; return default; }
@@ -293,11 +343,31 @@ public static class ComparativeReportBuilder
     {
         var number = new string(value.TrimStart().TakeWhile(character => char.IsDigit(character) || character is '.' or ',' or '-' or '+' or 'e' or 'E' || char.IsWhiteSpace(character)).ToArray());
         number = number.Replace(" ", string.Empty).Replace("\u00a0", string.Empty).Replace("\u202f", string.Empty);
-        if (csvSeparator == ';' && number.Contains(',') && !number.Contains('.')) number = number.Replace(',', '.');
-        if (!double.TryParse(number, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsed)) return double.NaN;
-        if (value.Contains("ms", StringComparison.OrdinalIgnoreCase)) return parsed * 1_000_000;
-        if (value.Contains("μs", StringComparison.OrdinalIgnoreCase) || value.Contains("us", StringComparison.OrdinalIgnoreCase)) return parsed * 1_000;
-        if (value.Contains("ns", StringComparison.OrdinalIgnoreCase)) return parsed;
+        if (csvSeparator == ';' && number.Contains(',') && !number.Contains('.'))
+        {
+            number = number.Replace(',', '.');
+        }
+
+        if (!double.TryParse(number, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsed))
+        {
+            return double.NaN;
+        }
+
+        if (value.Contains("ms", StringComparison.OrdinalIgnoreCase))
+        {
+            return parsed * 1_000_000;
+        }
+
+        if (value.Contains("μs", StringComparison.OrdinalIgnoreCase) || value.Contains("us", StringComparison.OrdinalIgnoreCase))
+        {
+            return parsed * 1_000;
+        }
+
+        if (value.Contains("ns", StringComparison.OrdinalIgnoreCase))
+        {
+            return parsed;
+        }
+
         return parsed;
     }
 
@@ -314,13 +384,23 @@ public static class ComparativeReportBuilder
             if (character == '"')
             {
                 if (quoted && index + 1 < line.Length && line[index + 1] == '"') { field.Append('"'); index++; }
-                else quoted = !quoted;
+                else
+                {
+                    quoted = !quoted;
+                }
             }
             else if (character == separator && !quoted) { fields.Add(field.ToString()); field.Clear(); }
-            else field.Append(character);
+            else
+            {
+                field.Append(character);
+            }
         }
 
-        if (quoted) throw new InvalidOperationException("Benchmark CSV contains an unterminated quoted field.");
+        if (quoted)
+        {
+            throw new InvalidOperationException("Benchmark CSV contains an unterminated quoted field.");
+        }
+
         fields.Add(field.ToString());
         return fields.ToArray();
     }
@@ -350,22 +430,30 @@ public static class ComparativeBenchmarkCatalog
         typeof(ComparativeSparseQueryBenchmarks)
     };
 
-    public static Type[] ForRoute(string route) => route.ToLowerInvariant() switch
+    public static Type[] ForRoute(string route)
     {
-        "iteration" => Iteration,
-        _ => throw new ArgumentException($"Unknown comparative route '{route}'. Only 'iteration' is supported.", nameof(route))
-    };
+        ArgumentNullException.ThrowIfNull(route);
+        return route.ToLowerInvariant() switch
+        {
+            "iteration" => Iteration,
+            _ => throw new ArgumentException($"Unknown comparative route '{route}'. Only 'iteration' is supported.", nameof(route))
+        };
+    }
 
     public static void Validate()
     {
         if (Iteration.Any(HasEmbeddedMeasurementJob))
+        {
             throw new InvalidOperationException("Unified iteration benchmarks must take their measurement job from the selected workflow mode.");
+        }
 
         var ecsCount = Enum.GetValues<ComparativeEcs>().Length;
         foreach (var workload in ComparativeCapabilityManifest.Rows.Select(row => row.Workload).Distinct(StringComparer.Ordinal))
         {
             if (ComparativeCapabilityManifest.Rows.Count(row => row.Workload == workload) != ecsCount)
+            {
                 throw new InvalidOperationException($"Capability manifest is incomplete for {workload}.");
+            }
         }
 
         var benchmarkAttribute = typeof(BenchmarkDotNet.Attributes.BenchmarkAttribute);
@@ -373,22 +461,37 @@ public static class ComparativeBenchmarkCatalog
         foreach (var type in Iteration)
         {
             var methods = type.GetMethods().Where(method => method.GetCustomAttributes(benchmarkAttribute, true).Length != 0).ToArray();
-            if (methods.Length == 0) throw new InvalidOperationException($"Comparative class {type.Name} has no benchmark methods.");
+            if (methods.Length == 0)
+            {
+                throw new InvalidOperationException($"Comparative class {type.Name} has no benchmark methods.");
+            }
+
             var baselines = methods.Where(method => ((BenchmarkDotNet.Attributes.BenchmarkAttribute)method.GetCustomAttributes(benchmarkAttribute, true).Single()).Baseline).ToArray();
-            if (baselines.Length == 0 || baselines.Any(method => !method.Name.StartsWith("DeltaECS_", StringComparison.Ordinal)))
+            if (baselines.Length == 0 || baselines.Any(method => !method.Name.StartsWith("DeltaECS", StringComparison.Ordinal)))
+            {
                 throw new InvalidOperationException($"Comparative class {type.Name} must expose a DeltaECS baseline.");
+            }
+
             foreach (var method in methods)
             {
                 if (!ComparativeReportBuilder.TryMapMethod(method.Name, out var workload, out var ecs))
+                {
                     throw new InvalidOperationException($"Comparative method {type.Name}.{method.Name} is not mapped to iteration and ECS.");
-                if (!measuredCapabilities.Add((workload, ecs))) throw new InvalidOperationException($"Duplicate comparative method for {workload} and {ecs}.");
+                }
+
+                if (!measuredCapabilities.Add((workload, ecs)))
+                {
+                    throw new InvalidOperationException($"Duplicate comparative method for {workload} and {ecs}.");
+                }
             }
         }
 
         foreach (var capability in ComparativeCapabilityManifest.Rows.Where(row => row.Supported))
         {
             if (!measuredCapabilities.Contains((capability.Workload, capability.Ecs)))
+            {
                 throw new InvalidOperationException($"Missing benchmark method for supported capability {capability.Workload} and {capability.Ecs}.");
+            }
         }
     }
 

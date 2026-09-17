@@ -250,8 +250,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(run);
 
         AssertNoDiagnostics(run.Diagnostics);
-        Assert.That(generated, Does.Contain("ForEachContextAction_In<TContext, T1>"));
-        Assert.That(generated, Does.Contain("ForEachContextEntityAction_Value<TContext, T1>"));
+        Assert.That(generated, Does.Contain("ForEachContextActionIn<TContext, T1>"));
+        Assert.That(generated, Does.Contain("ForEachContextEntityActionValue<TContext, T1>"));
         Assert.That(generated, Does.Contain("public bool RequiresSingleThread => false;"));
 
         AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
@@ -558,7 +558,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(run);
 
         AssertNoDiagnostics(run.Diagnostics);
-        Assert.That(generated, Does.Not.Contain("ForEachContextAction_RefReadonly"));
+        Assert.That(generated, Does.Not.Contain("ForEachContextActionRefReadonly"));
 
         AssertCompiles(
             new[] { RuntimeStubFor(LanguageVersion.CSharp9), source },
@@ -1307,10 +1307,10 @@ public sealed class DemandDrivenForEachGeneratorTests
         public delegate void ForEachEntityAction(Entity entity);
         public delegate void ForEachContextAction<TContext>(ref TContext context);
         public delegate void ForEachContextEntityAction<TContext>(ref TContext context, Entity entity);
-        public delegate void ForEachContextAction_In<TContext>(in TContext context);
-        public delegate void ForEachContextEntityAction_In<TContext>(in TContext context, Entity entity);
-        public delegate void ForEachContextAction_Value<TContext>(TContext context);
-        public delegate void ForEachContextEntityAction_Value<TContext>(TContext context, Entity entity);
+        public delegate void ForEachContextActionIn<TContext>(in TContext context);
+        public delegate void ForEachContextEntityActionIn<TContext>(in TContext context, Entity entity);
+        public delegate void ForEachContextActionValue<TContext>(TContext context);
+        public delegate void ForEachContextEntityActionValue<TContext>(TContext context, Entity entity);
         public interface IForEach { }
         public interface IForEachEntity { }
         public interface IForEachContext<TContext> { }

@@ -50,12 +50,12 @@ internal sealed class PipelineApiTests
             Assert.That(entityListVisits, Is.EqualTo(selectedCount * 2));
         });
 
-        ForEachContextAction_In<int> readOnlyContextAction = static (in int _) => { };
-        ForEachContextAction_Value<int> valueContextAction = static _ => { };
+        ForEachContextActionIn<int> readOnlyContextAction = static (in int _) => { };
+        ForEachContextActionValue<int> valueContextAction = static _ => { };
         int readOnlyContextVisits = 0;
         int valueContextVisits = 0;
-        ForEachContextEntityAction_In<int> readOnlyEntityContextAction = (in int _, Entity __) => readOnlyContextVisits++;
-        ForEachContextEntityAction_Value<int> valueEntityContextAction = (int _, Entity __) => valueContextVisits++;
+        ForEachContextEntityActionIn<int> readOnlyEntityContextAction = (in int _, Entity __) => readOnlyContextVisits++;
+        ForEachContextEntityActionValue<int> valueEntityContextAction = (int _, Entity __) => valueContextVisits++;
 
         Assert.Multiple(() =>
         {

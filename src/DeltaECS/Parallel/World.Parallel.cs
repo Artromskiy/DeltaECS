@@ -30,9 +30,9 @@ public sealed partial class World
     private readonly struct EntityParallelContextInvoker<TContext> : IGeneratedParallelInvoker
     {
         private readonly TContext _context;
-        private readonly ForEachContextEntityAction_In<TContext> _action;
+        private readonly ForEachContextEntityActionIn<TContext> _action;
 
-        internal EntityParallelContextInvoker(in TContext context, ForEachContextEntityAction_In<TContext> action)
+        internal EntityParallelContextInvoker(in TContext context, ForEachContextEntityActionIn<TContext> action)
         {
             _context = context;
             _action = action;
@@ -54,9 +54,9 @@ public sealed partial class World
     private readonly struct EntityParallelValueContextInvoker<TContext> : IGeneratedParallelInvoker
     {
         private readonly TContext _context;
-        private readonly ForEachContextEntityAction_Value<TContext> _action;
+        private readonly ForEachContextEntityActionValue<TContext> _action;
 
-        internal EntityParallelValueContextInvoker(TContext context, ForEachContextEntityAction_Value<TContext> action)
+        internal EntityParallelValueContextInvoker(TContext context, ForEachContextEntityActionValue<TContext> action)
         {
             _context = context;
             _action = action;
@@ -123,7 +123,7 @@ public sealed partial class World
     public void ForEachParallel<TContext>(
         in Query query,
         in TContext context,
-        ForEachContextAction_In<TContext> action,
+        ForEachContextActionIn<TContext> action,
         int workerCount = 0)
         => ThrowHelper.ThrowGeneratedIterationRequired();
 
@@ -141,7 +141,7 @@ public sealed partial class World
     public void ForEachParallel<TContext>(
         in Query query,
         TContext context,
-        ForEachContextAction_Value<TContext> action,
+        ForEachContextActionValue<TContext> action,
         int workerCount = 0)
         => ThrowHelper.ThrowGeneratedIterationRequired();
 
@@ -154,7 +154,7 @@ public sealed partial class World
     public void ForEachEntityParallel<TContext>(
         in Query query,
         in TContext context,
-        ForEachContextEntityAction_In<TContext> action,
+        ForEachContextEntityActionIn<TContext> action,
         int workerCount = 0)
     {
         ThrowHelper.ThrowIfNull(action, nameof(action));
@@ -176,7 +176,7 @@ public sealed partial class World
     public void ForEachEntityParallel<TContext>(
         in Query query,
         TContext context,
-        ForEachContextEntityAction_Value<TContext> action,
+        ForEachContextEntityActionValue<TContext> action,
         int workerCount = 0)
     {
         ThrowHelper.ThrowIfNull(action, nameof(action));
@@ -215,7 +215,7 @@ public sealed partial class World
     public void ForEachStampParallel<TContext>(
         in Query query,
         in TContext context,
-        ForEachContextAction_In<TContext> action,
+        ForEachContextActionIn<TContext> action,
         int workerCount = 0)
         => ThrowHelper.ThrowGeneratedIterationRequired();
 
@@ -224,7 +224,7 @@ public sealed partial class World
     public void ForEachStampParallel<TContext>(
         in Query query,
         TContext context,
-        ForEachContextAction_Value<TContext> action,
+        ForEachContextActionValue<TContext> action,
         int workerCount = 0)
         => ThrowHelper.ThrowGeneratedIterationRequired();
 
@@ -233,7 +233,7 @@ public sealed partial class World
     public void ForEachEntityStampParallel<TContext>(
         in Query query,
         in TContext context,
-        ForEachContextEntityAction_In<TContext> action,
+        ForEachContextEntityActionIn<TContext> action,
         int workerCount = 0)
         => ThrowHelper.ThrowGeneratedIterationRequired();
 
@@ -242,7 +242,7 @@ public sealed partial class World
     public void ForEachEntityStampParallel<TContext>(
         in Query query,
         TContext context,
-        ForEachContextEntityAction_Value<TContext> action,
+        ForEachContextEntityActionValue<TContext> action,
         int workerCount = 0)
         => ThrowHelper.ThrowGeneratedIterationRequired();
 

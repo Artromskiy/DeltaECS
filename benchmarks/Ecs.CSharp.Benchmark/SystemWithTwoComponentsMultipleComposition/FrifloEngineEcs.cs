@@ -2,7 +2,7 @@ using System;
 using System.Runtime.Intrinsics;
 using BenchmarkDotNet.Attributes;
 using Ecs.CSharp.Benchmark.Contexts;
-using Ecs.CSharp.Benchmark.Contexts.FrifloEngine_Components;
+using Ecs.CSharp.Benchmark.Contexts.FrifloEngineComponents;
 using Friflo.Engine.ECS;
 
 namespace Ecs.CSharp.Benchmark
@@ -64,7 +64,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.FrifloEngineEcs)]
         [Benchmark]
-        public void FrifloEngineEcs_MonoThread()
+        public void FrifloEngineEcsMonoThread()
         {
             foreach ((Chunk<Component1> component1, Chunk<Component2> component2, ChunkEntities _)
                      in _frifloEngineEcs.queryTwo.Chunks)
@@ -80,7 +80,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.FrifloEngineEcs)]
         [Benchmark]
-        public void FrifloEngineEcs_MultiThread()
+        public void FrifloEngineEcsMultiThread()
         {
             _frifloEngineEcs.jobTwoWithComposition.RunParallel();
         }
@@ -92,7 +92,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.FrifloEngineEcs)]
         [Benchmark]
-        public void FrifloEngineEcs_SIMD_MonoThread()
+        public void FrifloEngineEcsSIMDMonoThread()
         {
             foreach ((Chunk<Component1> component1, Chunk<Component2> component2, ChunkEntities _)
                      in _frifloEngineEcs.queryTwo.Chunks)

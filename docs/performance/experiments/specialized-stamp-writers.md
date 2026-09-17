@@ -45,7 +45,7 @@ Baseline and candidate were run separately on the same Apple M4 Pro machine:
 ReadyToRun disabled, one launch, 20 warmups, 20 measured iterations,
 `IterationTime=1000 ms`. BenchmarkDotNet could not acquire high priority
 without sudo; both runs completed normally. The benchmark is the existing
-`ComparativeMovement4ComponentsBenchmarks.DeltaECS_Movement4Components`
+`ComparativeMovement4ComponentsBenchmarks.DeltaECSMovement4Components`
 scenario with 3 writes and 1 read over one dense archetype.
 
 | Entities | Baseline mean | Baseline error | Baseline stddev | Candidate mean | Candidate error | Candidate stddev | Candidate / baseline | Delta |
@@ -97,7 +97,7 @@ Raw reports:
 env NuGetAudit=false RestoreIgnoreFailedSources=true \
   DOTNET_TieredCompilation=0 DOTNET_ReadyToRun=0 \
   dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net10.0/DeltaECS.Benchmarks.dll iteration \
-  --filter '*ComparativeMovement4ComponentsBenchmarks.DeltaECS_Movement4Components*' \
+  --filter '*ComparativeMovement4ComponentsBenchmarks.DeltaECSMovement4Components*' \
   --warmupCount 20 --minIterationCount 20 --maxIterationCount 21 \
   --iterationTime 1000 --launchCount 1 \
   --exporters csv markdown json \

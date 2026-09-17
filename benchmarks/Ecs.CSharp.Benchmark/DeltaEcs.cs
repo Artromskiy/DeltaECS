@@ -2,13 +2,13 @@ using System;
 using System.Runtime.CompilerServices;
 using BenchmarkDotNet.Attributes;
 using Delta.ECS;
-using DeltaEntity = Delta.ECS.Entity;
-using DeltaWorld = Delta.ECS.World;
 using DeltaComponentId = Delta.ECS.ComponentId;
+using DeltaEntity = Delta.ECS.Entity;
 using DeltaLayoutRegistry = Delta.ECS.ComponentLayoutRegistry;
 using DeltaQuery = Delta.ECS.Query;
 using DeltaQuerySpec = Delta.ECS.QuerySpec;
 using DeltaSchemaId = Delta.ECS.SchemaId;
+using DeltaWorld = Delta.ECS.World;
 
 namespace Ecs.CSharp.Benchmark;
 
@@ -309,14 +309,14 @@ public partial class CreateEntityWithOneComponent
 
     [BenchmarkCategory(Categories.DeltaECSBatch)]
     [Benchmark]
-    public void DeltaECS_Batch()
+    public void DeltaECSBatch()
     {
         _deltaEcs.World.Create(_deltaEcs.Components, EntityCount);
     }
 
     [BenchmarkCategory(Categories.DeltaECSBatch)]
     [Benchmark]
-    public void DeltaECS_Batch_Generic()
+    public void DeltaECSBatchGeneric()
     {
         _deltaEcs.World.Create<DeltaComponent1>(EntityCount);
     }
@@ -340,14 +340,14 @@ public partial class CreateEntityWithTwoComponents
 
     [BenchmarkCategory(Categories.DeltaECSBatch)]
     [Benchmark]
-    public void DeltaECS_Batch()
+    public void DeltaECSBatch()
     {
         _deltaEcs.World.Create(_deltaEcs.Components, EntityCount);
     }
 
     [BenchmarkCategory(Categories.DeltaECSBatch)]
     [Benchmark]
-    public void DeltaECS_Batch_Generic()
+    public void DeltaECSBatchGeneric()
     {
         _deltaEcs.World.Create<DeltaComponent1, DeltaComponent2>(EntityCount);
     }
@@ -371,14 +371,14 @@ public partial class CreateEntityWithThreeComponents
 
     [BenchmarkCategory(Categories.DeltaECSBatch)]
     [Benchmark]
-    public void DeltaECS_Batch()
+    public void DeltaECSBatch()
     {
         _deltaEcs.World.Create(_deltaEcs.Components, EntityCount);
     }
 
     [BenchmarkCategory(Categories.DeltaECSBatch)]
     [Benchmark]
-    public void DeltaECS_Batch_Generic()
+    public void DeltaECSBatchGeneric()
     {
         _deltaEcs.World.Create<DeltaComponent1, DeltaComponent2, DeltaComponent3>(EntityCount);
     }
@@ -402,7 +402,7 @@ public partial class SystemWithOneComponent
     [BenchmarkCategory(Categories.DeltaECS)]
     [Benchmark]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void DeltaECS_Parallel()
+    public void DeltaECSParallel()
     {
         _deltaEcs.World.ForEachParallel(
             in _deltaEcs.Query,
@@ -430,7 +430,7 @@ public partial class SystemWithTwoComponents
     [BenchmarkCategory(Categories.DeltaECS)]
     [Benchmark]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void DeltaECS_Parallel()
+    public void DeltaECSParallel()
     {
         _deltaEcs.World.ForEachParallel(
             in _deltaEcs.Query,
@@ -459,7 +459,7 @@ public partial class SystemWithThreeComponents
     [BenchmarkCategory(Categories.DeltaECS)]
     [Benchmark]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void DeltaECS_Parallel()
+    public void DeltaECSParallel()
     {
         _deltaEcs.World.ForEachParallel(
             in _deltaEcs.Query,
@@ -488,7 +488,7 @@ public partial class SystemWithTwoComponentsMultipleComposition
     [BenchmarkCategory(Categories.DeltaECS)]
     [Benchmark]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void DeltaECS_Parallel()
+    public void DeltaECSParallel()
     {
         _deltaEcs.World.ForEachParallel(
             in _deltaEcs.Query,

@@ -56,7 +56,7 @@ public class WidePayloadPartialReadIterationBenchmarks
     public void Cleanup() => _world?.Dispose();
 
     [Benchmark(Baseline = true)]
-    public int DeltaECS_WidePayloadPartialRead()
+    public int DeltaECSWidePayloadPartialRead()
     {
         var checksum = 0;
         _world.ForEach(

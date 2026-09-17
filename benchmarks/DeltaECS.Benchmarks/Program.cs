@@ -65,9 +65,11 @@ internal static class Program
         }
 
         if (args.Length > 0 && !string.Equals(args[0], "iteration", StringComparison.OrdinalIgnoreCase))
+        {
             throw new ArgumentException(
                 $"Unknown benchmark route '{args[0]}'. Only 'iteration', 'many-components' and 'parallel' are supported.",
                 nameof(args));
+        }
 
         var benchmarkArgs = BenchmarkConfiguration.SelectAmounts(
             args.Length > 0 ? args[1..] : Array.Empty<string>(),

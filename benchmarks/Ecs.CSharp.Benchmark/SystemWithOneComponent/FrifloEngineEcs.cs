@@ -2,7 +2,7 @@ using System;
 using System.Runtime.Intrinsics;
 using BenchmarkDotNet.Attributes;
 using Ecs.CSharp.Benchmark.Contexts;
-using Ecs.CSharp.Benchmark.Contexts.FrifloEngine_Components;
+using Ecs.CSharp.Benchmark.Contexts.FrifloEngineComponents;
 using Friflo.Engine.ECS;
 
 namespace Ecs.CSharp.Benchmark
@@ -29,7 +29,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.FrifloEngineEcs)]
         [Benchmark]
-        public void FrifloEngineEcs_MonoThread()
+        public void FrifloEngineEcsMonoThread()
         {
             foreach ((Chunk<Component1> component1, ChunkEntities _) in _frifloEngineEcs.queryOne.Chunks)
             {
@@ -42,14 +42,14 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.FrifloEngineEcs)]
         [Benchmark]
-        public void FrifloEngineEcs_MultiThread()
+        public void FrifloEngineEcsMultiThread()
         {
             _frifloEngineEcs.jobOne.RunParallel();
         }
 
         [BenchmarkCategory(Categories.FrifloEngineEcs)]
         [Benchmark]
-        public void FrifloEngineEcs_SIMD_MonoThread()
+        public void FrifloEngineEcsSIMDMonoThread()
         {
             Vector256<int> add = Vector256.Create<int>(1);              // create int[8] vector - all values = 1
 

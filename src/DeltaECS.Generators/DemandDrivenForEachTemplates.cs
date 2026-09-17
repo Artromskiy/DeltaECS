@@ -1181,7 +1181,7 @@ internal static partial class DemandDrivenForEachTemplates
         return SignatureProjection.TypeWithArguments(shape.HasEntity ? "ForEachEntityAction" + suffix : "ForEachAction" + suffix, generic);
     }
 
-    private static string ContextDelegateSuffix(ContextModeKind mode) => mode == ContextModeKind.In ? "_In" : mode == ContextModeKind.RefReadonly ? "_RefReadonly" : mode == ContextModeKind.Value ? "_Value" : string.Empty;
+    private static string ContextDelegateSuffix(ContextModeKind mode) => mode == ContextModeKind.In ? "In" : mode == ContextModeKind.RefReadonly ? "RefReadonly" : mode == ContextModeKind.Value ? "Value" : string.Empty;
 
     private static string StateGeneric(IterationModel shape, string generic)
         => !shape.Api.Signature.HasGenericSelectors

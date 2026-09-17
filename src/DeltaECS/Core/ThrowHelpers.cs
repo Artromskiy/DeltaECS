@@ -9,7 +9,7 @@ using System.Runtime.CompilerServices;
 internal static class ThrowHelper
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static void ThrowIfNull(object? value, string parameterName)
+    internal static void ThrowIfNull([NotNull] object? value, string parameterName)
     {
         if (value is null)
         {
@@ -44,14 +44,11 @@ internal static class ThrowHelper
         }
     }
 
+    [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowNull(string parameterName)
     {
-#if NETSTANDARD2_1
         throw new ArgumentNullException(parameterName);
-#else
-        ArgumentNullException.ThrowIfNull((object?)null, parameterName);
-#endif
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

@@ -12,7 +12,7 @@ generated loop remains scalar and compact.
 - Baseline: current generated `World.ForEach` closed dense method.
 - Candidate: generated slot loop with four callback bodies per loop iteration
   and a scalar remainder loop.
-- Workload: `ComparativeMovement4ComponentsBenchmarks.DeltaECS_Movement4Components`.
+- Workload: `ComparativeMovement4ComponentsBenchmarks.DeltaECSMovement4Components`.
 - Data: 4 components, write/write/write/read access, 100/1,000/10,000/100,000
   entities, default chunk capacity 512.
 - Runtime: .NET 10.0.9, Arm64 RyuJIT AdvSIMD, Apple M4 Pro, workstation GC.
@@ -49,7 +49,7 @@ the generated delegate callback and therefore overstated the likely gain.
 cd /path/to/DeltaECS/benchmarks/DeltaECS.Benchmarks
 env NuGetAudit=false RestoreIgnoreFailedSources=true \
 dotnet bin/Release/net10.0/DeltaECS.Benchmarks.dll \
-  --filter '*ComparativeMovement4ComponentsBenchmarks.DeltaECS_Movement4Components*' \
+  --filter '*ComparativeMovement4ComponentsBenchmarks.DeltaECSMovement4Components*' \
   --warmupCount 5 --iterationCount 20 --launchCount 1 \
   --artifacts ../../artifacts/unroll-real-baseline
 ```

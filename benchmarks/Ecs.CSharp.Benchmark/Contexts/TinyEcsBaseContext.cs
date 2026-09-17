@@ -3,7 +3,7 @@ using TinyEcs;
 
 namespace Ecs.CSharp.Benchmark.Contexts
 {
-    namespace TinyEcs_Components
+    namespace TinyEcsComponents
     {
         public record struct Component1(int Value);
 

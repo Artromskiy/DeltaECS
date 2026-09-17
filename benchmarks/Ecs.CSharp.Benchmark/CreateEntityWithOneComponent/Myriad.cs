@@ -1,7 +1,7 @@
 using System;
 using BenchmarkDotNet.Attributes;
 using Ecs.CSharp.Benchmark.Contexts;
-using Ecs.CSharp.Benchmark.Contexts.Myriad_Components;
+using Ecs.CSharp.Benchmark.Contexts.MyriadComponents;
 using Myriad.ECS.Command;
 using Myriad.ECS.Worlds;
 

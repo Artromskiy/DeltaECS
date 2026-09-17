@@ -3,7 +3,7 @@ using Arch.Core;
 using Arch.Core.Utils;
 using BenchmarkDotNet.Attributes;
 using Ecs.CSharp.Benchmark.Contexts;
-using Ecs.CSharp.Benchmark.Contexts.Arch_Components;
+using Ecs.CSharp.Benchmark.Contexts.ArchComponents;
 
 namespace Ecs.CSharp.Benchmark
 {

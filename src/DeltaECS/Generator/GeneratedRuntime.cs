@@ -2,6 +2,7 @@ namespace Delta.ECS;
 
 using System;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 /// <summary>Compiler-support contract for a generated query predicate.</summary>
@@ -557,7 +558,7 @@ public static partial class GeneratedForEachRuntime
     /// <summary>Validates a generated callback without requiring a modern BCL.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ThrowIfNull(object? value, string parameterName)
+    public static void ThrowIfNull([NotNull] object? value, string parameterName)
         => ThrowHelper.ThrowIfNull(value, parameterName);
 
     [EditorBrowsable(EditorBrowsableState.Never)]

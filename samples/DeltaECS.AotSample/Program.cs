@@ -1,5 +1,5 @@
-using Delta.ECS;
 using System.Globalization;
+using Delta.ECS;
 
 namespace DeltaECS.AotSample
 {
