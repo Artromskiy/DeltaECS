@@ -666,7 +666,7 @@ public sealed partial class World : IDisposable
             return false;
         }
 
-        value = chunk.GetComponentRow<T>(componentIndex).RefAt(slotIndex);
+        value = chunk.GetComponentRef<T>(componentIndex, slotIndex);
         return true;
     }
 
@@ -1650,7 +1650,7 @@ public sealed partial class World : IDisposable
             return false;
         }
 
-        chunk.GetComponentRow<T>(componentIndex).RefAt(slotIndex) = value;
+        chunk.GetComponentRef<T>(componentIndex, slotIndex) = value;
         Stamp stamp = chunk.IncrementComponentStamp(componentIndex, slotIndex);
         CreateEntityComponentStampWriter(
             chunk,

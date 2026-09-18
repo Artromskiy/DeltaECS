@@ -285,7 +285,7 @@ public ref struct GeneratedComponentValueWriter
     public void SetUnsafe<T>(ComponentId componentId, in T value)
     {
         int componentIndex = _targetArchetype.Mask.Rank(componentId);
-        _targetChunk.GetComponentRow<T>(componentIndex).RefAt(_targetSlotIndex) = value;
+        _targetChunk.GetComponentRef<T>(componentIndex, _targetSlotIndex) = value;
         Stamp stamp = _targetChunk.IncrementComponentStamp(componentIndex, _targetSlotIndex);
         _targetChunk.MarkComponentStamped(componentIndex, _targetSlotIndex, stamp);
     }

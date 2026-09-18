@@ -168,7 +168,7 @@ public sealed partial class World
             return false;
         }
 
-        value = chunk.GetComponentRow<T>(componentIndex).RefAt(slotIndex);
+        value = chunk.GetComponentRef<T>(componentIndex, slotIndex);
         return true;
     }
 
@@ -278,7 +278,7 @@ public sealed partial class World
             componentIndex,
             slotIndex,
             stamp).MarkPoint();
-        return ref chunk.GetComponentRow<T>(componentIndex).RefAt(slotIndex);
+        return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
     }
 
     /// <summary>Returns a writable reference to the primary component row.</summary>
@@ -311,9 +311,7 @@ public sealed partial class World
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }
 
-        return ref chunk
-            .GetComponentRow<T>(componentIndex)
-            .RefAt(slotIndex);
+        return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
     }
 
     /// <summary>Returns a read-only reference to the primary component row.</summary>
@@ -471,10 +469,7 @@ public sealed partial class World
             return;
         }
 
-        chunk
-            .GetComponentRow<T>(componentIndex)
-            .Slice(slotIndex, count)
-            .Fill(value);
+        chunk.GetComponentRow<T>(componentIndex).Slice(slotIndex, count).Fill(value);
     }
 
     private int RemoveComponentBatch(ReadOnlySpan<Entity> entities, ComponentId componentId)
@@ -538,6 +533,6 @@ public sealed partial class World
             ThrowHelper.ThrowStructuralComponentMissing();
         }
 
-        chunk.GetComponentRow<T>(componentIndex).RefAt(slotIndex) = value;
+        chunk.GetComponentRef<T>(componentIndex, slotIndex) = value;
     }
 }

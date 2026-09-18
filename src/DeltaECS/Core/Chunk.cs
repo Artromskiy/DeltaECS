@@ -2,6 +2,7 @@ namespace Delta.ECS;
 
 using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 internal sealed class Chunk
 {
@@ -131,12 +132,19 @@ internal sealed class Chunk
         return slotIndex < lastSlotIndex ? moved : default;
     }
 
+    // Component layout/type compatibility is validated before these accessors run.
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Span<T> GetComponentRow<T>(int componentIndex) =>
-        // Component layout/type compatibility is validated before this
-        // internal hot path is reached. Avoid repeating the array cast check
-        // for every row requested by every chunk.
-        Unsafe.As<T[]>(_componentRows.RefAt(componentIndex)).AsSpan(0, _count);
+    internal Span<T> GetComponentRow<T>(int componentIndex)
+    {
+        ref T first = ref Unsafe.As<T[]>(_componentRows.RefAt(componentIndex)).GetRefAtZero();
+        return MemoryMarshal.CreateSpan(ref first, _count);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ref T GetComponentRef<T>(int componentIndex, int slotIndex) =>
+        ref Unsafe.Add(
+            ref Unsafe.As<T[]>(_componentRows.RefAt(componentIndex)).GetRefAtZero(),
+            slotIndex);
 
     internal Array GetRawComponentRow(int componentIndex) => _componentRows.RefAt(componentIndex);
 
