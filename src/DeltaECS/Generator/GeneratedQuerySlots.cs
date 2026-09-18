@@ -67,6 +67,24 @@ public ref struct GeneratedQuerySlots
             ref Unsafe.As<T[]>(_resolvedRowsByQuery.RefAt(queryComponentIndex)).GetRefAtZero(),
             _offset);
 
+    /// <summary>Gets the validated component array for generated chunk-row binding.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public T[] GetGeneratedArray<T>(int queryComponentIndex)
+        => Unsafe.As<T[]>(_resolvedRowsByQuery.RefAt(queryComponentIndex));
+
+    /// <summary>Gets the validated component array for generated chunk-row binding.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public T[] GetGeneratedArray<T>(ReadAccess access)
+        => GetGeneratedArray<T>(access.QueryComponentIndex);
+
+    /// <summary>Gets the validated component array for generated chunk-row binding.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public T[] GetGeneratedArray<T>(WriteAccess access)
+        => GetGeneratedArray<T>(access.QueryComponentIndex);
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public ref T GetGeneratedReadReference<T>(ReadAccess access)

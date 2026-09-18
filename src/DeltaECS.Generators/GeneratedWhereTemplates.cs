@@ -191,45 +191,39 @@ internal static class GeneratedWhereTemplates
             string accessKind = component.IsWrite ? "Write" : "Read";
             return $$"""var access{{index}} = global::Delta.ECS.GeneratedForEachRuntime.GetPrepared{{accessKind}}Access<{{componentType}}>(in query);""";
         }, "\n");
-        string rows = GeneratorTemplates.JoinIndexed(accessCount, index =>
+        string rowDeclarations = GeneratorTemplates.JoinIndexed(accessCount, index =>
         {
             string componentType = index < shape.Arity ? site.PredicateComponents[index] : site.ActionComponents[index - shape.Arity];
-            ComponentModel component = index < shape.Arity
-                ? shape.ComponentModels[index]
-                : terminal.ComponentModels[index - shape.Arity];
-            string accessKind = component.IsWrite ? "Write" : "Read";
-            return $$"""ref {{componentType}} row{{index}} = ref slots.GetGenerated{{accessKind}}Reference<{{componentType}}>(access{{index}});""";
+            return $$"""ref {{componentType}} row{{index}} = ref global::System.Runtime.CompilerServices.Unsafe.NullRef<{{componentType}}>();""";
+        }, "\n");
+        string rowBindings = GeneratorTemplates.JoinIndexed(accessCount, index =>
+        {
+            string componentType = index < shape.Arity ? site.PredicateComponents[index] : site.ActionComponents[index - shape.Arity];
+            return $$"""row{{index}} = ref global::Delta.ECS.GeneratedForEachRuntime.GetGeneratedArrayReference(slots.GetGeneratedArray<{{componentType}}>(access{{index}}));""";
         }, "\n");
         string predicateArguments = string.Join(", ", new[]
         {
             shape.HasContext ? "ref predicateContext" : string.Empty,
             shape.HasEntity ? "__whereEntity_" + site.Id : string.Empty
-        }.Concat(new[] { predicateSlots.ComponentArguments("__wherePredicateComponent") })
+        }.Concat(Enumerable.Range(0, shape.Arity)
+            .Select(index => predicateSlots.ComponentArgument(index, $"row{index}")))
         .Where(static argument => argument.Length != 0));
         bool needsEntity = shape.HasEntity || terminal.HasEntity;
+        string terminalCall = $$"""
+            {{(terminal.IsFunctor ? "action.Invoke" : "Action_" + site.Id)}}({{string.Join(", ", new[]
+                {
+                    terminal.IsFunctor && terminal.HasContext ? "ref context" : string.Empty,
+                    terminal.HasEntity ? "__whereEntity_" + site.Id : string.Empty
+                }.Concat(Enumerable.Range(0, terminal.Arity)
+                    .Select(index => terminalSlots.ComponentArgument(index, $"row{shape.Arity + index}")))
+                .Where(static argument => argument.Length != 0))}});
+            """;
         string entityBody = GeneratorTemplates.JoinNonEmpty(new[]
         {
             needsEntity
                 ? $$"""Entity __whereEntity_{{site.Id}} = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index);"""
                 : string.Empty,
-            GeneratorTemplates.JoinIndexed(shape.Arity, index =>
-                $$"""ref {{site.PredicateComponents[index]}} __wherePredicateComponent{{index}} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row{{index}}, index);""", "\n"),
-            $$"""
-                if (!Predicate_{{site.Id}}({{predicateArguments}}))
-                {
-                    continue;
-                }
-                """,
-            GeneratorTemplates.JoinIndexed(terminal.Arity, index =>
-                $$"""ref {{site.ActionComponents[index]}} __whereActionComponent{{index}} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row{{shape.Arity + index}}, index);""", "\n"),
-            $$"""
-                {{(terminal.IsFunctor ? "action.Invoke" : "Action_" + site.Id)}}({{string.Join(", ", new[]
-                    {
-                        terminal.IsFunctor && terminal.HasContext ? "ref context" : string.Empty,
-                        terminal.HasEntity ? "__whereEntity_" + site.Id : string.Empty
-                    }.Concat(new[] { terminalSlots.ComponentArguments("__whereActionComponent") })
-                    .Where(static argument => argument.Length != 0))}});
-                """
+            GeneratorTemplates.RenderBlock($"if (Predicate_{site.Id}({predicateArguments}))", terminalCall)
         });
         string iteration = GeneratorTemplates.JoinNonEmpty(new[]
         {
@@ -237,16 +231,24 @@ internal static class GeneratedWhereTemplates
                 ? "ref global::Delta.ECS.Entity firstEntity = ref slots.GetGeneratedEntityReference();"
                 : string.Empty,
             "int count = slots.Count;",
-            GeneratorTemplates.RenderBlock("for (int index = 0; index < count; index++)", entityBody)
+            GeneratorTemplates.RenderBlock(
+                "for (int index = 0; index < count; index++)",
+                GeneratorTemplates.JoinNonEmpty(new[]
+                {
+                    entityBody,
+                    GeneratorTemplates.JoinIndexed(accessCount, index =>
+                        $$"""row{{index}} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row{{index}}, 1);""", "\n")
+                }))
         });
         string executionBody = GeneratorTemplates.JoinNonEmpty(new[]
         {
             "using var execution = global::Delta.ECS.GeneratedForEachRuntime.OpenDense(world, in query);",
             accesses,
+            rowDeclarations,
             $$"""execution.MarkArchetypeWrites({{GeneratorTemplates.WriteSpan(shape.ComponentModels.Concat(terminal.ComponentModels))}});""",
             GeneratorTemplates.RenderBlock(
                 "while (execution.MoveNextTrusted(out var slots))",
-                GeneratorTemplates.JoinNonEmpty(new[] { rows, iteration }))
+                GeneratorTemplates.JoinNonEmpty(new[] { rowBindings, iteration }))
         });
         string executeDeclaration = $$"""
             [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]

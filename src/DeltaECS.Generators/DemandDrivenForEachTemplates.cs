@@ -138,9 +138,14 @@ internal static partial class DemandDrivenForEachTemplates
         string entity = shape.HasEntity
             ? "Entity entity = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index);"
             : string.Empty;
-        string components = GeneratorTemplates.JoinNonEmpty(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index => shape.IsStamp
-            ? $$"""Stamp component{{index}} = slots.GetGeneratedStamp(_access{{index}}, index);"""
-            : $$"""{{(shape.ComponentModels[index].IsWrite ? "ref " : "ref readonly ")}}{{shape.ComponentModels[index].TypeName}} component{{index}} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row{{index}}, index);"""));
+        string components = shape.IsStamp
+            ? GeneratorTemplates.JoinNonEmpty(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
+                $$"""Stamp component{{index}} = slots.GetGeneratedStamp(_access{{index}}, index);"""))
+            : string.Empty;
+        string rowAdvances = shape.IsStamp
+            ? string.Empty
+            : GeneratorTemplates.JoinNonEmpty(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
+                $$"""row{{index}} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row{{index}}, 1);"""));
         return $$"""
             internal struct {{name}}{{stateGeneric}} : IGeneratedParallelInvoker
             {
@@ -158,8 +163,9 @@ internal static partial class DemandDrivenForEachTemplates
                     for (int index = 0; index < count; index++)
                     {
             {{entity}}
-            {{components}}
-                        {{AppendClosedInvocation(shape, "_action", "_functor", "_context", "component", "entity")}};
+                        {{components}}
+                        {{AppendClosedInvocation(shape, "_action", "_functor", "_context", shape.IsStamp ? "component" : "row", "entity")}};
+            {{rowAdvances}}
                     }
                 }
             {{AppendInvokerProperties(shape)}}
@@ -481,6 +487,7 @@ internal static partial class DemandDrivenForEachTemplates
             ? $"global::System.Runtime.CompilerServices.Unsafe.Add(ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in firstEntity), {{0}})"
             : "global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, {0})";
         SignatureProjection slots = closedShape.Api.Signature;
+        bool inlineLambda = CanInlineInterceptedLambda(site);
         string componentParameters = slots.HasExplicitIds ? ", " + slots.ComponentIdParameters("componentId") : string.Empty;
         string contextParameter = closedShape.HasContext
             ? ", " + SignatureProjection.ContextParameter(closedShape.ContextMode, InterceptedContextType(closedShape), parameters[0])
@@ -513,7 +520,14 @@ internal static partial class DemandDrivenForEachTemplates
         if (bound)
         {
             lines.Add($"    int {chunkCount} = execution.Rows.Length;");
-            lines.Add($"    ref var {batch} = ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(execution.Rows);");
+        }
+        if (!shape.IsStamp)
+        {
+            for (int index = 0; index < closedShape.ComponentModels.Length; index++)
+            {
+                string type = closedShape.Components[index];
+                lines.Add($"    ref {type} {rowNames[index]} = ref global::System.Runtime.CompilerServices.Unsafe.NullRef<{type}>();");
+            }
         }
         lines.Add(bound
             ? $"    for (int {chunkIndex} = 0; {chunkIndex} < {chunkCount}; {chunkIndex}++)"
@@ -523,6 +537,7 @@ internal static partial class DemandDrivenForEachTemplates
         lines.Add("    {");
         if (bound)
         {
+            lines.Add($"        var {batch} = execution.Rows[{chunkIndex}];");
             lines.Add($"        int {countName} = {batch}.Chunk.Count;");
         }
         if (!shape.IsStamp)
@@ -531,10 +546,10 @@ internal static partial class DemandDrivenForEachTemplates
             {
                 string type = closedShape.Components[index];
                 lines.Add(bound
-                    ? $"        ref {type} {rowNames[index]} = ref GeneratedForEachRuntime.GetGeneratedArrayReference({batch}.Row{index});"
+                    ? $"        {rowNames[index]} = ref GeneratedForEachRuntime.GetGeneratedArrayReference({batch}.Row{index});"
                     : closedShape.HasEntity
-                    ? $"        ref {type} {rowNames[index]} = ref slots.GetGenerated{(closedShape.ComponentModels[index].IsWrite ? "Write" : "Read")}Reference<{type}>(access{index});"
-                    : $"        ref {type} {rowNames[index]} = ref GeneratedForEachRuntime.GetGeneratedRow<{type}>(componentRows, route{index});");
+                    ? $"        {rowNames[index]} = ref GeneratedForEachRuntime.GetGeneratedArrayReference(slots.GetGeneratedArray<{type}>(access{index}));"
+                    : $"        {rowNames[index]} = ref GeneratedForEachRuntime.GetGeneratedRow<{type}>(componentRows, route{index});");
             }
         }
         if (!bound && (shape.IsStamp || closedShape.HasEntity))
@@ -559,27 +574,31 @@ internal static partial class DemandDrivenForEachTemplates
             {
                 lines.Add($"            Stamp {parameters[parameterIndex + index]} = slots.GetGeneratedStamp(access{index}, {indexName});");
             }
-            else
+            else if (inlineLambda)
             {
-                string reference = closedShape.HasEntity
-                    ? $"ref global::System.Runtime.CompilerServices.Unsafe.Add(ref {rowNames[index]}, {indexName})"
-                    : $"ref {rowNames[index]}";
-                lines.Add($"            {(closedShape.ComponentModels[index].IsWrite ? "ref " : "ref readonly ")}{closedShape.ComponentModels[index].ResolvedTypeName} {parameters[parameterIndex + index]} = {reference};");
+                lines.Add($"            {(closedShape.ComponentModels[index].IsWrite ? "ref " : "ref readonly ")}{closedShape.ComponentModels[index].ResolvedTypeName} {parameters[parameterIndex + index]} = ref {rowNames[index]};");
             }
         }
-        lines.Add(CanInlineInterceptedLambda(site)
-            ? AppendInterceptedLambdaBody(site, "            ")
-            : AppendCallbackInvocation(closedShape, callbackName, parameters, "            "));
-        if (!shape.IsStamp && !closedShape.HasEntity)
+        if (inlineLambda)
+        {
+            lines.Add(AppendInterceptedLambdaBody(site, "            "));
+        }
+        else
+        {
+            string[] callbackParameters = (string[])parameters.Clone();
+            int firstComponentParameter = (closedShape.HasContext ? 1 : 0) + (closedShape.HasEntity ? 1 : 0);
+            for (int index = 0; index < rowNames.Length; index++)
+            {
+                callbackParameters[firstComponentParameter + index] = rowNames[index];
+            }
+            lines.Add(AppendCallbackInvocation(closedShape, callbackName, callbackParameters, "            "));
+        }
+        if (!shape.IsStamp)
         {
             lines.AddRange(GeneratorTemplates.Indexed(closedShape.ComponentModels.Length,
                 index => $"        {rowNames[index]} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref {rowNames[index]}, 1);"));
         }
         lines.Add("        }");
-        if (bound)
-        {
-            lines.Add($"        {batch} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref {batch}, 1);");
-        }
         lines.Add("    }");
         lines.Add("}");
         return string.Join("\n", lines);
@@ -645,12 +664,36 @@ internal static partial class DemandDrivenForEachTemplates
         {
             body.Add($"            global::Delta.ECS.Entity {parameters[parameterIndex++]} = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, {indexName});");
         }
-        body.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index => shape.IsStamp
-            ? $"            Stamp {parameters[parameterIndex + index]} = slots.GetGeneratedStamp(_access{index}, {indexName});"
-            : $"            {(shape.ComponentModels[index].IsWrite ? "ref " : "ref readonly ")}{shape.ComponentModels[index].ResolvedTypeName} {parameters[parameterIndex + index]} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref {rowNames[index]}, {indexName});"));
-        body.Add(CanInlineInterceptedLambda(site)
-            ? AppendInterceptedLambdaBody(site, "            ")
-            : AppendCallbackInvocation(shape, callbackName, parameters, "            "));
+        bool inlineLambda = CanInlineInterceptedLambda(site);
+        if (shape.IsStamp)
+        {
+            body.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
+                $"            Stamp {parameters[parameterIndex + index]} = slots.GetGeneratedStamp(_access{index}, {indexName});"));
+        }
+        else if (inlineLambda)
+        {
+            body.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
+                $"            {(shape.ComponentModels[index].IsWrite ? "ref " : "ref readonly ")}{shape.ComponentModels[index].ResolvedTypeName} {parameters[parameterIndex + index]} = ref {rowNames[index]};"));
+        }
+        if (inlineLambda)
+        {
+            body.Add(AppendInterceptedLambdaBody(site, "            "));
+        }
+        else
+        {
+            string[] callbackParameters = (string[])parameters.Clone();
+            int firstComponentParameter = (shape.HasContext ? 1 : 0) + (shape.HasEntity ? 1 : 0);
+            for (int index = 0; index < rowNames.Length; index++)
+            {
+                callbackParameters[firstComponentParameter + index] = rowNames[index];
+            }
+            body.Add(AppendCallbackInvocation(shape, callbackName, callbackParameters, "            "));
+        }
+        if (!shape.IsStamp)
+        {
+            body.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
+                $"            {rowNames[index]} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref {rowNames[index]}, 1);"));
+        }
         body.Add("        }");
         string members = string.Join("\n", new[]
         {
@@ -909,7 +952,14 @@ internal static partial class DemandDrivenForEachTemplates
         if (bound)
         {
             lines.Add("    int chunkCount = execution.Rows.Length;");
-            lines.Add("    ref var batch = ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(execution.Rows);");
+        }
+        if (!shape.IsStamp)
+        {
+            for (int index = 0; index < shape.ComponentModels.Length; index++)
+            {
+                string type = ComponentType(shape, index);
+                lines.Add($"    ref {type} component{index} = ref global::System.Runtime.CompilerServices.Unsafe.NullRef<{type}>();");
+            }
         }
         lines.Add(bound
             ? "    for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)"
@@ -919,6 +969,7 @@ internal static partial class DemandDrivenForEachTemplates
         lines.Add("    {");
         if (bound)
         {
+            lines.Add("        var batch = execution.Rows[chunkIndex];");
             lines.Add("        int count = batch.Chunk.Count;");
         }
         else if (shape.IsStamp || shape.HasEntity)
@@ -934,10 +985,10 @@ internal static partial class DemandDrivenForEachTemplates
             string type = ComponentType(shape, index);
             string component = $"component{index}";
             lines.Add(bound
-                ? $"        ref {type} {component} = ref GeneratedForEachRuntime.GetGeneratedArrayReference(batch.Row{index});"
+                ? $"        {component} = ref GeneratedForEachRuntime.GetGeneratedArrayReference(batch.Row{index});"
                 : shape.HasEntity
-                ? $"        ref {type} {component} = ref slots.GetGenerated{(shape.ComponentModels[index].IsWrite ? "Write" : "Read")}Reference<{type}>(access{index});"
-                : $"        ref {type} {component} = ref GeneratedForEachRuntime.GetGeneratedRow<{type}>(componentRows, route{index});");
+                ? $"        {component} = ref GeneratedForEachRuntime.GetGeneratedArrayReference(slots.GetGeneratedArray<{type}>(access{index}));"
+                : $"        {component} = ref GeneratedForEachRuntime.GetGeneratedRow<{type}>(componentRows, route{index});");
         }
         bool usesReadSlots = shape.IsStamp || !shape.ComponentModels.Any(static component => component.IsWrite);
         if (shape.HasEntity)
@@ -970,10 +1021,6 @@ internal static partial class DemandDrivenForEachTemplates
                 index => $"            component{index} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component{index}, 1);"));
         }
         lines.Add("        }");
-        if (bound)
-        {
-            lines.Add("        batch = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref batch, 1);");
-        }
         lines.Add("    }");
         if (shape.IsFunctor)
         {

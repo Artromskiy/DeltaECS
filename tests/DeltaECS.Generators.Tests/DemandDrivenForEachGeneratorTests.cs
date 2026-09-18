@@ -264,7 +264,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("ForEachContextActionIn<TContext, T1>"));
         Assert.That(generated, Does.Contain("ForEachContextEntityActionValue<TContext, T1>"));
         Assert.That(generated, Does.Contain("public bool RequiresSingleThread => false;"));
-        Assert.That(generated, Does.Contain("_functor.Invoke(ref component0);"));
+        Assert.That(generated, Does.Contain("_functor.Invoke(ref row0);"));
+        Assert.That(generated, Does.Contain("row0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row0, 1)"));
+        Assert.That(generated, Does.Not.Contain("Unsafe.Add(ref row0, index)"));
         Assert.That(generated, Does.Not.Contain("var action = _functor;"));
         Assert.That(generated, Does.Not.Contain("_functor = action;"));
 
@@ -393,12 +395,14 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("ExecuteClosed_"));
         Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenBoundDense<"));
         Assert.That(generated, Does.Contain("int chunkCount = execution.Rows.Length;"));
-        Assert.That(generated, Does.Contain("ref var batch = ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(execution.Rows)"));
+        Assert.That(generated, Does.Contain("var batch = execution.Rows[chunkIndex]"));
+        Assert.That(generated, Does.Not.Contain("ref var batch = ref"));
         Assert.That(generated, Does.Contain("for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)"));
-        Assert.That(generated, Does.Contain("batch = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref batch, 1)"));
+        Assert.That(generated, Does.Not.Contain("batch = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref batch, 1)"));
         Assert.That(generated, Does.Not.Contain("Unsafe.Add(ref firstBatch, chunkIndex)"));
         Assert.That(generated, Does.Contain("_route0 = GeneratedForEachRuntime.GetPreparedWriteRoute<T1>(in query);"));
-        Assert.That(generated, Does.Contain("ref T1 component0 = ref GeneratedForEachRuntime.GetGeneratedArrayReference(batch.Row0)"));
+        Assert.That(generated, Does.Contain("ref T1 component0 = ref global::System.Runtime.CompilerServices.Unsafe.NullRef<T1>()"));
+        Assert.That(generated, Does.Contain("component0 = ref GeneratedForEachRuntime.GetGeneratedArrayReference(batch.Row0)"));
         Assert.That(generated, Does.Contain("for (int index = 0; index < count; index++)"));
         Assert.That(generated, Does.Contain("action(ref component0)"));
         Assert.That(generated, Does.Contain("component0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 1)"));
@@ -408,6 +412,31 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Not.Contain("slots.MarkGeneratedWrite"));
         Assert.That(generated, Does.Not.Contain("Ref<T1>(index)"));
         Assert.That(generated, Does.Not.Contain("ExecuteGeneratedForEach"));
+    }
+
+    [Test]
+    public void ExplicitIdEntityInterceptionBindsRowsFromChunkArrays()
+    {
+        const string source = """
+            namespace Delta.ECS;
+            struct Position { public int Value; }
+            static class Consumer
+            {
+                public static void Use(World world, Query query, ComponentId positionId)
+                {
+                    world.ForEachEntity<Position>(in query, positionId,
+                        static (Entity entity, ref Position position) => position.Value += entity.Index);
+                }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(source);
+        string generated = GeneratedText(run);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(generated, Does.Contain("GetGeneratedArray<global::Delta.ECS.Position>(access0)"));
+        Assert.That(generated, Does.Contain("Unsafe.Add(ref __deltaEcs_row_"));
+        AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
     }
 
     [Test]
@@ -475,6 +504,11 @@ public sealed class DemandDrivenForEachGeneratorTests
     {
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(InterceptionSource);
         string generated = GeneratedText(run);
+        string intercepted = string.Join(
+            "\n",
+            run.GeneratedTrees
+                .Where(static tree => tree.FilePath.Contains("DemandForEachInterceptor_", StringComparison.Ordinal))
+                .Select(static tree => tree.GetText().ToString()));
 
         AssertNoDiagnostics(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"));
         Assert.That(generated, Does.Not.Contain("InvokeInterceptedCallback_"));
@@ -484,6 +518,16 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("ForEachAction<global::Delta.ECS.T1> _"));
         Assert.That(generated, Does.Not.Contain("InterceptedFunctor_"));
         Assert.That(generated, Does.Not.Contain("ref functor"));
+        Assert.That(intercepted, Does.Contain("var __deltaEcs_batch_"));
+        Assert.That(intercepted, Does.Contain("= execution.Rows[__deltaEcs_chunk_"));
+        Assert.That(intercepted, Does.Not.Contain("ref var __deltaEcs_batch_"));
+        Assert.That(intercepted, Does.Not.Contain("MemoryMarshal.GetReference(execution.Rows)"));
+        Assert.That(intercepted, Does.Contain("ref global::Delta.ECS.T1 __deltaEcs_row_"));
+        Assert.That(intercepted, Does.Contain("Unsafe.NullRef<global::Delta.ECS.T1>()"));
+        Assert.That(intercepted, Does.Contain("__deltaEcs_row_"));
+        Assert.That(intercepted, Does.Contain("= ref GeneratedForEachRuntime.GetGeneratedArrayReference("));
+
+        AssertCompiles(new[] { RuntimeStubSource, InterceptionSource }, run.GeneratedTrees);
     }
 
     [Test]
@@ -1105,6 +1149,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("private struct StructuralInvoker_"));
         Assert.That(generated, Does.Contain("IGeneratedWhereStructuralInvoker"));
         Assert.That(generated, Does.Contain("context.ProcessRun"));
+        Assert.That(generated, Does.Contain("ref global::Delta.ECS.Health row0 = ref global::System.Runtime.CompilerServices.Unsafe.NullRef<global::Delta.ECS.Health>()"));
+        Assert.That(generated, Does.Contain("row0 = ref global::Delta.ECS.GeneratedForEachRuntime.GetGeneratedArrayReference(slots.GetGeneratedArray<global::Delta.ECS.Health>(access0))"));
+        Assert.That(generated, Does.Contain("row0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row0, 1)"));
 
         AssertCompiles(new[] { RuntimeStubSource, WhereInterceptionSource }, run.GeneratedTrees);
     }
@@ -1362,6 +1409,9 @@ public sealed class DemandDrivenForEachGeneratorTests
             public int Count => 0;
             public Entity EntityAt(int index) => default;
             public ref Entity GetGeneratedEntityReference() => throw new NotImplementedException();
+            public T[] GetGeneratedArray<T>(int queryComponentIndex) => Array.Empty<T>();
+            public T[] GetGeneratedArray<T>(ReadAccess access) => Array.Empty<T>();
+            public T[] GetGeneratedArray<T>(WriteAccess access) => Array.Empty<T>();
             public ref T GetGeneratedReadReference<T>(int queryComponentIndex) => throw new NotImplementedException();
             public ref T GetGeneratedReadReference<T>(ReadAccess access) => throw new NotImplementedException();
             public ref T GetGeneratedWriteReference<T>(int queryComponentIndex) => throw new NotImplementedException();
