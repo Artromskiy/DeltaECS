@@ -20,6 +20,10 @@
     <DefineConstants Condition="'$(IncludeSlowBenchmarks)' == 'true'">$(DefineConstants);INCLUDE_SLOW_BENCHMARKS</DefineConstants>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Remove="artifacts/**/*.cs" />
+  </ItemGroup>
+
   <ItemGroup Condition="'$(IncludeSlowBenchmarks)' != 'true'">
     <Compile Remove="Contexts/MonoGameExtendedBaseContext.cs" />
     <Compile Remove="Contexts/MorpehBaseContext.cs" />

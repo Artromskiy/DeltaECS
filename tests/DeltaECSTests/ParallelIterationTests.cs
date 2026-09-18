@@ -11,7 +11,13 @@ internal struct ParallelState
 
 internal struct ParallelIncrementFunctor : IForEach
 {
-    public void Invoke(ref Position position, in Velocity velocity) => position.X += velocity.X;
+    public int Count;
+
+    public void Invoke(ref Position position, in Velocity velocity)
+    {
+        position.X += velocity.X;
+        Count++;
+    }
 }
 
 internal struct ParallelContextFunctor : IForEachContext<ParallelState>
@@ -137,6 +143,10 @@ internal sealed class ParallelIterationTests
         }
 
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+        var singleWorkerAction = new ParallelIncrementFunctor();
+        world.ForEachParallel(in query, ref singleWorkerAction, workerCount: 1);
+        Assert.That(singleWorkerAction.Count, Is.EqualTo(entities.Length));
+
         var action = new ParallelIncrementFunctor();
         world.ForEachParallel(in query, ref action, workerCount: 4);
         var state = new ParallelState { Delta = 2 };
@@ -145,8 +155,10 @@ internal sealed class ParallelIterationTests
 
         for (int index = 0; index < entities.Length; index++)
         {
-            Assert.That(world.Get<Position>(entities[index], positionId).X, Is.EqualTo(4));
+            Assert.That(world.Get<Position>(entities[index], positionId).X, Is.EqualTo(5));
         }
+
+        Assert.That(action.Count, Is.GreaterThan(0));
     }
 
     [Test]

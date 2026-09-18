@@ -188,6 +188,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
 
     private void ExecuteSingleThread(ref TInvoker invoker)
     {
+        TInvoker invocation = invoker;
         try
         {
             for (int chunkIndex = 0; chunkIndex < _chunkCount; chunkIndex++)
@@ -195,8 +196,10 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
                 ParallelChunk work = _chunks.RefAt(chunkIndex);
                 ChunkPlan chunkPlan = work.Chunk;
                 GeneratedQuerySlots slots = new(_world!, in chunkPlan);
-                invoker.Invoke(ref slots);
+                invocation.Invoke(ref slots);
             }
+
+            invoker = invocation;
         }
         catch (Exception exception)
         {
@@ -298,13 +301,16 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
                 return;
             }
 
+            TInvoker invocation = _workerInvokers.RefAt(workerIndex);
             for (int chunkIndex = range.StartChunk; chunkIndex < range.EndChunk; chunkIndex++)
             {
                 ParallelChunk work = _chunks.RefAt(chunkIndex);
                 ChunkPlan chunkPlan = work.Chunk;
                 GeneratedQuerySlots slots = new(_world!, in chunkPlan);
-                _workerInvokers.RefAt(workerIndex).Invoke(ref slots);
+                invocation.Invoke(ref slots);
             }
+
+            _workerInvokers.RefAt(workerIndex) = invocation;
         }
         catch (Exception exception)
         {
@@ -328,6 +334,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
     {
         World world = _entityWorld!;
         QueryPlan plan = _entityPlan!;
+        TInvoker invocation = invoker;
         for (int index = start; index < end; index++)
         {
             Entity entity = _entities[index];
@@ -338,8 +345,10 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             }
 
             var slots = new GeneratedQuerySlots(world, in chunkPlan, 1, slot);
-            invoker.Invoke(ref slots);
+            invocation.Invoke(ref slots);
         }
+
+        invoker = invocation;
     }
 
     private void WorkerLoop(Worker worker)

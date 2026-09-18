@@ -24,6 +24,43 @@ internal sealed class FunctorForEachTests
     }
 
     [Test]
+    public void DenseFunctorStateIsWrittenBackAfterTraversal()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_088));
+        using var world = new World(layouts, initialEntityCapacity: 600);
+        Entity[] entities = new Entity[600];
+        world.Create([positionId], entities);
+
+        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
+        var functor = new CountPositionFunctor();
+        world.ForEach(in query, ref functor);
+        world.ForEach(entities.AsSpan(0, 2), in query, ref functor);
+
+        Assert.That(functor.Count, Is.EqualTo(entities.Length + 2));
+    }
+
+    [Test]
+    public void DenseFunctorStateIsNotWrittenBackWhenTraversalThrows()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId valueId = layouts.Register<FunctorProbeComponent>(new SchemaId(60_090));
+        using var world = new World(layouts, initialEntityCapacity: 600);
+        var entities = new Entity[600];
+        world.Create([valueId], entities);
+        for (int index = 0; index < entities.Length; index++)
+        {
+            world.Set(entities[index], valueId, new FunctorProbeComponent { Index = index });
+        }
+
+        Query query = world.CreateQuery(QuerySpec.WhereAll(valueId));
+        var functor = new ThrowingCountFunctor();
+
+        Assert.That(() => world.ForEach(in query, ref functor), Throws.InvalidOperationException);
+        Assert.That(functor.Count, Is.EqualTo(0));
+    }
+
+    [Test]
     public void ZeroArityEntityFunctorsVisitEveryEntity()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -141,6 +178,52 @@ internal sealed class FunctorForEachTests
     }
 
     [Test]
+    public void WhereWritesFunctorStateBackAfterCompleteTraversal()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId healthId = layouts.Register<Health>(new SchemaId(60_089));
+        using var world = new World(layouts, initialEntityCapacity: 600);
+        Entity[] entities = new Entity[600];
+        world.Create([healthId], entities);
+
+        Query query = world.CreateQuery(QuerySpec.WhereAll(healthId));
+        var predicate = new CountHealthPredicate();
+        var action = new CountHealthAction();
+        world.Where(in query, ref predicate).ForEach(ref action);
+
+        Assert.That(predicate.Count, Is.EqualTo(entities.Length));
+        Assert.That(action.Count, Is.EqualTo(entities.Length));
+    }
+
+    [Test]
+    public void WhereFunctorStateIsNotWrittenBackWhenTraversalThrows()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId healthId = layouts.Register<Health>(new SchemaId(60_091));
+        using var world = new World(layouts, initialEntityCapacity: 600);
+        var entities = new Entity[600];
+        world.Create([healthId], entities);
+        for (int index = 0; index < entities.Length; index++)
+        {
+            world.Set(entities[index], healthId, new Health { Value = index });
+        }
+
+        Query query = world.CreateQuery(QuerySpec.WhereAll(healthId));
+        var predicate = new CountHealthPredicate();
+        var action = new ThrowingHealthAction();
+
+        Assert.That(
+            () => world.Where(in query, ref predicate).ForEach(ref action),
+            Throws.InvalidOperationException);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(predicate.Count, Is.EqualTo(0));
+            Assert.That(action.Count, Is.EqualTo(0));
+        });
+    }
+
+    [Test]
     public void WhereLambdaSupportsInterceptedFunctorTerminal()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -177,6 +260,32 @@ internal sealed class FunctorForEachTests
         public void Invoke(ref int context, Entity _) => context++;
     }
 
+    internal struct CountPositionFunctor : IForEach
+    {
+        public int Count;
+
+        public void Invoke(ref Position _) => Count++;
+    }
+
+    internal struct FunctorProbeComponent
+    {
+        public int Index;
+    }
+
+    internal struct ThrowingCountFunctor : IForEach
+    {
+        public int Count;
+
+        public void Invoke(ref FunctorProbeComponent component)
+        {
+            Count++;
+            if (component.Index == 512)
+            {
+                throw new InvalidOperationException();
+            }
+        }
+    }
+
     internal struct ZeroArityWhereEntityFunctor : IForEachEntity
     {
         public int Count;
@@ -203,6 +312,38 @@ internal sealed class FunctorForEachTests
     internal struct DeadHealthPredicateWithoutEntity : IWherePredicate
     {
         public bool Invoke(in Health health) => health.Value <= 0;
+    }
+
+    internal struct CountHealthPredicate : IWherePredicate
+    {
+        public int Count;
+
+        public bool Invoke(in Health _)
+        {
+            Count++;
+            return true;
+        }
+    }
+
+    internal struct CountHealthAction : IForEach
+    {
+        public int Count;
+
+        public void Invoke(ref Health _) => Count++;
+    }
+
+    internal struct ThrowingHealthAction : IForEach
+    {
+        public int Count;
+
+        public void Invoke(ref Health health)
+        {
+            Count++;
+            if (health.Value == 512)
+            {
+                throw new InvalidOperationException();
+            }
+        }
     }
 
     internal struct WhereActionState

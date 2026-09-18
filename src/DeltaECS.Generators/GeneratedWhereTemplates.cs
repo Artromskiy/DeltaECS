@@ -527,7 +527,7 @@ internal static class GeneratedWhereTemplates
         int accessCount = shape.Arity + (terminal.IsCallback ? terminal.Arity : 0);
         var fields = new List<string>
         {
-            $$"""private readonly {{PredicateType(shape, hash)}} _predicate;"""
+            $$"""private {{(shape.IsFunctor ? string.Empty : "readonly ")}}{{PredicateType(shape, hash)}} _predicate;"""
         };
         if (shape.HasContext)
         {
@@ -536,7 +536,7 @@ internal static class GeneratedWhereTemplates
 
         if (terminal.IsCallback)
         {
-            fields.Add($$"""private readonly {{ActionType(terminal, hash, terminalHash)}} _action;""");
+            fields.Add($$"""private {{(terminal.IsFunctor ? string.Empty : "readonly ")}}{{ActionType(terminal, hash, terminalHash)}} _action;""");
             if (terminal.HasContext)
             {
                 fields.Add($$"""private {{terminal.ContextType}} _context;""");

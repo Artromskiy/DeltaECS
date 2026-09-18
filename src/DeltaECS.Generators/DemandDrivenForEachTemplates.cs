@@ -902,6 +902,10 @@ internal static partial class DemandDrivenForEachTemplates
             lines.AddRange(SplitLines(AppendQueryComponentRoutes(shape, "    ")));
             lines.AddRange(SplitLines(AppendArchetypeWriteSetup(shape, "    ")));
         }
+        if (shape.IsFunctor)
+        {
+            lines.Add("    var action = functor;");
+        }
         if (bound)
         {
             lines.Add("    int chunkCount = execution.Rows.Length;");
@@ -959,7 +963,7 @@ internal static partial class DemandDrivenForEachTemplates
                 lines.Add($"            Stamp component{index} = slots.GetGeneratedStamp(access{index}, index);");
             }
         }
-        lines.Add("            " + AppendClosedInvocation(shape, "action", "functor", "context", "component", "entity") + ";");
+        lines.Add("            " + AppendClosedInvocation(shape, "action", shape.IsFunctor ? "action" : "functor", "context", "component", "entity") + ";");
         if (!shape.IsStamp)
         {
             lines.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length,
@@ -971,6 +975,10 @@ internal static partial class DemandDrivenForEachTemplates
             lines.Add("        batch = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref batch, 1);");
         }
         lines.Add("    }");
+        if (shape.IsFunctor)
+        {
+            lines.Add("    functor = action;");
+        }
         lines.Add("}");
         return GeneratorTemplates.Indent(string.Join("\n", lines), "    ");
     }

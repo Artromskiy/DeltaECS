@@ -701,10 +701,13 @@ public static partial class GeneratedForEachRuntime
         ThrowHelper.ThrowIfNull(world, nameof(world));
         using var execution = OpenDense(world, in query);
         execution.MarkArchetypeWrites(writeComponentIndices);
+        TInvoker invocation = invoker;
         while (execution.MoveNextTrusted(out var slots))
         {
-            invoker.Invoke(ref slots);
+            invocation.Invoke(ref slots);
         }
+
+        invoker = invocation;
     }
 
     /// <summary>Executes a generated callback for the alive entities selected by a caller-owned list.</summary>
@@ -720,6 +723,7 @@ public static partial class GeneratedForEachRuntime
     {
         QueryPlan plan = ValidateQuery(world, in query);
         MarkArchetypeWrites(plan.MatchingPlans(), writeComponentIndices);
+        TInvoker invocation = invoker;
         world.BeginQueryLease();
         try
         {
@@ -733,8 +737,10 @@ public static partial class GeneratedForEachRuntime
                 }
 
                 var slots = new GeneratedQuerySlots(world, in chunkPlan, 1, slot);
-                invoker.Invoke(ref slots);
+                invocation.Invoke(ref slots);
             }
+
+            invoker = invocation;
         }
         finally
         {
@@ -804,6 +810,7 @@ public static partial class GeneratedForEachRuntime
         }
 
         int changed = 0;
+        TInvoker invocation = invoker;
         try
         {
             execution.MarkArchetypeWrites(writeComponentIndices);
@@ -812,9 +819,11 @@ public static partial class GeneratedForEachRuntime
                 GeneratedWhereStructuralContext context = world.BeginGeneratedWhereChunk(
                     slots.ChunkId,
                     slots.Count);
-                invoker.Execute(ref slots, ref context);
+                invocation.Execute(ref slots, ref context);
                 changed += context.Complete();
             }
+
+            invoker = invocation;
         }
         finally
         {

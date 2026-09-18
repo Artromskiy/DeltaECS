@@ -96,8 +96,12 @@ public sealed class DemandDrivenForEachGeneratorTests
         AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("ref global::Delta.ECS.RefReadonlyFunctor functor"));
         Assert.That(generated, Does.Contain("ref global::Delta.ECS.T1 component0"));
-        Assert.That(generated, Does.Contain("functor.Invoke(in component0)"));
+        Assert.That(generated, Does.Contain("var action = functor;"));
+        Assert.That(generated, Does.Contain("action.Invoke(in component0)"));
+        Assert.That(generated, Does.Contain("functor = action;"));
         Assert.That(generated, Does.Contain("component0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 1)"));
+        Assert.That(generated.IndexOf("var action = functor;", StringComparison.Ordinal), Is.LessThan(generated.IndexOf("action.Invoke(in component0)", StringComparison.Ordinal)));
+        Assert.That(generated.IndexOf("action.Invoke(in component0)", StringComparison.Ordinal), Is.LessThan(generated.IndexOf("functor = action;", StringComparison.Ordinal)));
         AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
     }
 
@@ -224,11 +228,18 @@ public sealed class DemandDrivenForEachGeneratorTests
             namespace Delta.ECS;
             struct Position { public int Value; }
             struct State { public int Value; }
+            struct IncrementFunctor : IForEach
+            {
+                public int Count;
+                public void Invoke(ref Position position) { position.Value++; Count++; }
+            }
             static class ParallelConsumer
             {
                 public static void Use(World world, Query query)
                 {
                     var state = new State();
+                    var functor = new IncrementFunctor();
+                    world.ForEachParallel(in query, ref functor, workerCount: 2);
                     ComponentId positionId = default;
                     world.ForEachParallel(in query, in state,
                         static (in State value, ref Position position) => position.Value += value.Value,
@@ -253,6 +264,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("ForEachContextActionIn<TContext, T1>"));
         Assert.That(generated, Does.Contain("ForEachContextEntityActionValue<TContext, T1>"));
         Assert.That(generated, Does.Contain("public bool RequiresSingleThread => false;"));
+        Assert.That(generated, Does.Contain("_functor.Invoke(ref component0);"));
+        Assert.That(generated, Does.Not.Contain("var action = _functor;"));
+        Assert.That(generated, Does.Not.Contain("_functor = action;"));
 
         AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
     }
@@ -1051,6 +1065,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(run.GeneratedTrees.Count, Is.GreaterThan(0));
         Assert.That(generated, Does.Contain("_predicate.Invoke(ref _predicateContext, entity"));
         Assert.That(generated, Does.Contain("_action.Invoke(ref _context, entity"));
+        Assert.That(generated, Does.Not.Contain("var predicate = _predicate;"));
+        Assert.That(generated, Does.Not.Contain("var action = _action;"));
 
         AssertCompiles(new[] { RuntimeStubSource, WhereFunctorSource }, run.GeneratedTrees);
     }
