@@ -1,6 +1,10 @@
 <Solution>
   <Project Path="benchmarks/Ecs.CSharp.Benchmark/Ecs.CSharp.Benchmark.csproj" />
   <Project Path="benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj" />
+  <Folder Name="/benchmarks/" />
+  <Folder Name="/benchmarks/DeltaECS.IterationProbe/">
+    <Project Path="benchmarks/DeltaECS.IterationProbe/IterationProbe/IterationProbe.csproj" />
+  </Folder>
   <Project Path="benchmarks/DeltaECS.ArrayRefBenchmarks/DeltaECS.ArrayRefBenchmarks.csproj" />
   <Project Path="benchmarks/DeltaECS.MicroBenchmarks/DeltaECS.MicroBenchmarks.csproj" />
   <Project Path="playground/DeltaECS.Playground/DeltaECS.Playground.csproj" />

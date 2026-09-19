@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 
 namespace Delta.ECS.Generators;
 
@@ -430,15 +431,19 @@ internal static partial class DemandDrivenForEachTemplates
         string prefix,
         int ordinal)
     {
-        string baseName = "__deltaEcs_" + prefix + "_" + site.Id + "_" + ordinal;
-        if (site.Binding.LambdaIdentifiers.IsEmpty)
+        string baseName = ordinal == 0
+            ? prefix
+            : prefix + ordinal.ToString(CultureInfo.InvariantCulture);
+        if (site.Binding.LambdaIdentifiers.IsEmpty
+            && !site.Binding.LambdaParameterNames.Contains(baseName, StringComparer.Ordinal))
         {
             return baseName;
         }
 
         string candidate = baseName;
         int suffix = 0;
-        while (site.Binding.LambdaIdentifiers.Contains(candidate))
+        while (site.Binding.LambdaIdentifiers.Contains(candidate)
+            || site.Binding.LambdaParameterNames.Contains(candidate, StringComparer.Ordinal))
         {
             candidate = baseName + "_" + ++suffix;
         }
@@ -488,9 +493,14 @@ internal static partial class DemandDrivenForEachTemplates
             : "global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, {0})";
         SignatureProjection slots = closedShape.Api.Signature;
         bool inlineLambda = CanInlineInterceptedLambda(site);
+        string contextParameterName = closedShape.HasContext
+            ? closedShape.ContextMode == ContextModeKind.Ref
+                ? GeneratedLocalName(site, "context", 0)
+                : parameters[0]
+            : "context";
         string componentParameters = slots.HasExplicitIds ? ", " + slots.ComponentIdParameters("componentId") : string.Empty;
         string contextParameter = closedShape.HasContext
-            ? ", " + SignatureProjection.ContextParameter(closedShape.ContextMode, InterceptedContextType(closedShape), parameters[0])
+            ? ", " + SignatureProjection.ContextParameter(closedShape.ContextMode, InterceptedContextType(closedShape), contextParameterName)
             : string.Empty;
         string signature = $"private static void {methodName}(global::Delta.ECS.World world, in global::Delta.ECS.Query query{componentParameters}{contextParameter})";
         var lines = new List<string>
@@ -500,6 +510,10 @@ internal static partial class DemandDrivenForEachTemplates
             "{",
             bound ? string.Empty : GeneratorTemplates.Indent(AccessSetup(closedShape).TrimEnd(), "    "),
         };
+        if (closedShape.HasContext && closedShape.ContextMode == ContextModeKind.Ref)
+        {
+            lines.Add($"    {InterceptedContextType(closedShape)} {parameters[0]} = {contextParameterName};");
+        }
         if (bound)
         {
             lines.Add("    " + OpenDenseBinding(shape, closed: true));
@@ -516,10 +530,12 @@ internal static partial class DemandDrivenForEachTemplates
         }
         string chunkIndex = GeneratedLocalName(site, "chunk", 0);
         string batch = GeneratedLocalName(site, "batch", 0);
+        string batchCursor = GeneratedLocalName(site, "batchCursor", 0);
         string chunkCount = GeneratedLocalName(site, "chunkCount", 0);
         if (bound)
         {
             lines.Add($"    int {chunkCount} = execution.Rows.Length;");
+            lines.Add($"    ref var {batchCursor} = ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(execution.Rows);");
         }
         if (!shape.IsStamp)
         {
@@ -537,7 +553,7 @@ internal static partial class DemandDrivenForEachTemplates
         lines.Add("    {");
         if (bound)
         {
-            lines.Add($"        var {batch} = execution.Rows[{chunkIndex}];");
+            lines.Add($"        var {batch} = {batchCursor};");
             lines.Add($"        int {countName} = {batch}.Chunk.Count;");
         }
         if (!shape.IsStamp)
@@ -599,7 +615,15 @@ internal static partial class DemandDrivenForEachTemplates
                 index => $"        {rowNames[index]} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref {rowNames[index]}, 1);"));
         }
         lines.Add("        }");
+        if (bound)
+        {
+            lines.Add($"        {batchCursor} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref {batchCursor}, 1);");
+        }
         lines.Add("    }");
+        if (closedShape.HasContext && closedShape.ContextMode == ContextModeKind.Ref)
+        {
+            lines.Add($"    {contextParameterName} = {parameters[0]};");
+        }
         lines.Add("}");
         return string.Join("\n", lines);
     }
@@ -899,6 +923,8 @@ internal static partial class DemandDrivenForEachTemplates
             ? ", ref " + shape.FunctorType + " functor"
             : ", " + ActionType(shape) + " action";
         string target = shape.HasEntityTarget ? ", global::System.ReadOnlySpan<Entity> entities, in Query query" : ", in Query query";
+        bool copyRefContext = shape.HasContext && shape.ContextMode == ContextModeKind.Ref;
+        string contextName = copyRefContext ? "contextCopy" : "context";
         string signature = $"private static void {methodName}{genericPrefix}(World world{target}{componentParameters}{contextParameter}{callbackParameter})";
         var lines = new List<string>
         {
@@ -907,6 +933,10 @@ internal static partial class DemandDrivenForEachTemplates
             "{",
             bound ? string.Empty : GeneratorTemplates.Indent(AccessSetup(shape).TrimEnd(), "    "),
         };
+        if (copyRefContext && !shape.HasEntityTarget)
+        {
+            lines.Add($"    {ContextType(shape)} contextCopy = context;");
+        }
         if (shape.HasEntityTarget)
         {
             string invokerType = ParallelInvokerName(shape) + StateGeneric(shape, generic);
@@ -952,6 +982,7 @@ internal static partial class DemandDrivenForEachTemplates
         if (bound)
         {
             lines.Add("    int chunkCount = execution.Rows.Length;");
+            lines.Add("    ref var batchCursor = ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(execution.Rows);");
         }
         if (!shape.IsStamp)
         {
@@ -969,7 +1000,7 @@ internal static partial class DemandDrivenForEachTemplates
         lines.Add("    {");
         if (bound)
         {
-            lines.Add("        var batch = execution.Rows[chunkIndex];");
+            lines.Add("        var batch = batchCursor;");
             lines.Add("        int count = batch.Chunk.Count;");
         }
         else if (shape.IsStamp || shape.HasEntity)
@@ -1014,17 +1045,25 @@ internal static partial class DemandDrivenForEachTemplates
                 lines.Add($"            Stamp component{index} = slots.GetGeneratedStamp(access{index}, index);");
             }
         }
-        lines.Add("            " + AppendClosedInvocation(shape, "action", shape.IsFunctor ? "action" : "functor", "context", "component", "entity") + ";");
+        lines.Add("            " + AppendClosedInvocation(shape, "action", shape.IsFunctor ? "action" : "functor", contextName, "component", "entity") + ";");
         if (!shape.IsStamp)
         {
             lines.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length,
                 index => $"            component{index} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component{index}, 1);"));
         }
         lines.Add("        }");
+        if (bound)
+        {
+            lines.Add("        batchCursor = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref batchCursor, 1);");
+        }
         lines.Add("    }");
         if (shape.IsFunctor)
         {
             lines.Add("    functor = action;");
+        }
+        if (copyRefContext)
+        {
+            lines.Add("    context = contextCopy;");
         }
         lines.Add("}");
         return GeneratorTemplates.Indent(string.Join("\n", lines), "    ");

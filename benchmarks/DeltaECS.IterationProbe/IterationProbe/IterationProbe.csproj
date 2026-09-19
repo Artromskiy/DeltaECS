@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <InterceptorsNamespaces>Delta.ECS.Generated</InterceptorsNamespaces>
+  </PropertyGroup>
+
+  <ItemGroup Label="DeltaECS">
+    <PackageReference Include="BenchmarkDotNet" Version="0.13.12" />
+    <ProjectReference Include="../../../src/DeltaECS/DeltaECS.csproj" />
+    <ProjectReference Include="../../../src/DeltaECS.Generators/DeltaECS.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      GlobalPropertiesToRemove="PublishAot;PublishTrimmed;SelfContained;RuntimeIdentifier"
+                      PrivateAssets="all" />
+    <CompilerVisibleProperty Include="InterceptorsNamespaces" />
+  </ItemGroup>
+
+
+</Project>

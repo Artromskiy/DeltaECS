@@ -95,6 +95,8 @@ public static class ConsumerProof
         world.ForEach<Position>(in allNine, static (ref Position value) => value.Value++);
         world.ForEach<Position>(in allNine, ApplyStaticMethodGroup);
         var methodGroupContext = new ConsumerContext();
+        ref int c2 = ref global::System.Runtime.CompilerServices.Unsafe.NullRef<int>();
+
         world.ForEach<ConsumerContext, Position>(in allNine, ref methodGroupContext, ApplyStaticMethodGroupWithContext);
         if (methodGroupContext.Value != 1)
         {

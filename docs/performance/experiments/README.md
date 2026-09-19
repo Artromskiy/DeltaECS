@@ -364,3 +364,56 @@ Every future experiment records:
 - Mean, Error, StdDev, Allocated and candidate/baseline ratio;
 - JIT code size and relevant complete instruction summary;
 - decision: accepted, rejected or inconclusive, with the reason.
+
+## 2026-09-19: Explicit array guard with separate exception factory
+
+Decision: promising but inconclusive short-run result; retain candidate for review,
+not a general performance claim. Both versions use HEAD
+`c5c880fda566bfe06bd9028c638a336737a32773` plus the same uncommitted batch-cursor
+snapshot renderer. Candidate additionally changes only GetGeneratedArrayReference:
+explicit null guard, a recognizable throw-only helper without NoInlining, and a
+NoInlining exception factory. Exact candidate source is saved in
+`artifacts/null-guard-short/candidate.cs`; baseline source is
+`artifacts/jit-current-iteration/GeneratedDenseBinding.before-factory-guard.cs`.
+
+Workload: Ecs.CSharp.Benchmark SystemWithThreeComponents.DeltaECS, 100000
+entities, three single-int components, intercepted static callback updating first
+from second and third (ref readonly). Full generated traversal measured.
+.NET 10.0.12 ARM64, concurrent workstation GC, tiering and ReadyToRun disabled.
+BDN ShortRun in-process, 5 warmups, 15 measurements targeting 100ms, one launch
+per run, sequential A/B/B/A; no overlapping measurements.
+
+| Run | Mean | Error (99.9%) | StdDev | Allocated |
+|---|---:|---:|---:|---:|
+| A1 baseline | 37.32 us | 0.490 us | 0.458 us | 0 B |
+| B1 candidate | 36.75 us | 0.154 us | 0.144 us | 0 B |
+| B2 candidate | 36.57 us | 0.263 us | 0.246 us | 0 B |
+| A2 baseline | 37.73 us | 1.180 us | 1.104 us | 0 B |
+
+Average of run means: baseline 37.525us, candidate 36.660us; candidate/baseline
+0.977 (2.3% lower elapsed time). A2 variation and overlapping confidence intervals
+limit confidence in this small effect. Raw reports and complete binaries:
+`artifacts/null-guard-short/{A1,B1,B2,A2,baseline,candidate}`.
+
+JIT: 804B baseline vs 832B candidate; three component-array ldrsb checks replaced
+by cbz/add pairs targeting a common throw-helper call block. Entity loop unchanged.
+Assembly: `artifacts/jit-current-iteration/{batch-snapshot,factory-guard}.asm`.
+Release net10/netstandard2.1 builds, full-fork contract smoke and diff check pass.
+
+### Follow-up: 1000000 entities, 20 iterations at 500ms
+
+Same frozen binaries, runtime, workload and sequential A/B/B/A procedure as above;
+5 warmups per run, 20 actual measurements targeting 500ms.
+
+| Run | Mean | Error (99.9%) | StdDev | Allocated |
+|---|---:|---:|---:|---:|
+| A1 | 373.6 μs | 0.93 μs | 1.00 μs | 0 B |
+| A2 | 375.6 μs | 2.01 μs | 2.15 μs | 0 B |
+| B1 | 372.9 μs | 0.59 μs | 0.60 μs | 0 B |
+| B2 | 371.9 μs | 0.89 μs | 0.98 μs | 0 B |
+
+Average of run means: baseline 374.600us, candidate 372.400us; candidate/baseline 0.99413.
+Raw reports: `artifacts/null-guard-million/{A1,B1,B2,A2}`.
+The small difference does not establish a useful performance improvement;
+the earlier 100k result is not a robust general speedup. No code changes made
+as part of this follow-up.
