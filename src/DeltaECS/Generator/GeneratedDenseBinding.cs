@@ -143,11 +143,73 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void MarkWrites()
     {
-        for (int index = 0; index < _writeTargetCount; index++)
+        int count = _writeTargetCount;
+        if (count == 0)
         {
-            ref readonly WriteStampTarget target = ref _writeTargets.RefAt(index);
-            GeneratedForEachRuntime.IncrementArchetypeStamp(target.Stamps, target.ComponentIndex);
+            return;
         }
+
+        // Unroll ladder: 4+4 blocks, then remainder 4+2 / 4+1 / 4 / 2 / 1 (and 2+1 / 4+2+1).
+        ref WriteStampTarget target = ref _writeTargets.GetRefAtZero();
+        int index = 0;
+        while (count - index >= 8)
+        {
+            MarkWrite4(ref target, index);
+            MarkWrite4(ref target, index + 4);
+            index += 8;
+        }
+
+        switch (count - index)
+        {
+            case 0:
+                return;
+            case 1:
+                MarkWrite(ref Unsafe.Add(ref target, index));
+                return;
+            case 2:
+                MarkWrite2(ref target, index);
+                return;
+            case 3:
+                MarkWrite2(ref target, index);
+                MarkWrite(ref Unsafe.Add(ref target, index + 2));
+                return;
+            case 4:
+                MarkWrite4(ref target, index);
+                return;
+            case 5:
+                MarkWrite4(ref target, index);
+                MarkWrite(ref Unsafe.Add(ref target, index + 4));
+                return;
+            case 6:
+                MarkWrite4(ref target, index);
+                MarkWrite2(ref target, index + 4);
+                return;
+            default:
+                MarkWrite4(ref target, index);
+                MarkWrite2(ref target, index + 4);
+                MarkWrite(ref Unsafe.Add(ref target, index + 6));
+                return;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void MarkWrite(ref WriteStampTarget target)
+        => GeneratedForEachRuntime.IncrementArchetypeStamp(target.Stamps, target.ComponentIndex);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void MarkWrite2(ref WriteStampTarget target, int index)
+    {
+        MarkWrite(ref Unsafe.Add(ref target, index));
+        MarkWrite(ref Unsafe.Add(ref target, index + 1));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void MarkWrite4(ref WriteStampTarget target, int index)
+    {
+        MarkWrite(ref Unsafe.Add(ref target, index));
+        MarkWrite(ref Unsafe.Add(ref target, index + 1));
+        MarkWrite(ref Unsafe.Add(ref target, index + 2));
+        MarkWrite(ref Unsafe.Add(ref target, index + 3));
     }
 
     private readonly struct WriteStampTarget
