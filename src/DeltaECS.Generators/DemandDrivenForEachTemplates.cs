@@ -550,7 +550,7 @@ internal static partial class DemandDrivenForEachTemplates
         lines.Add("    {");
         if (bound)
         {
-            lines.Add($"        var {batch} = {batchCursor};");
+            lines.Add($"        ref var {batch} = ref {batchCursor};");
             lines.Add($"        int {countName} = {batch}.Chunk.Count;");
         }
         if (!shape.IsStamp)
@@ -995,7 +995,7 @@ internal static partial class DemandDrivenForEachTemplates
         lines.Add("    {");
         if (bound)
         {
-            lines.Add("        var batch = batchCursor;");
+            lines.Add("        ref var batch = ref batchCursor;");
             lines.Add("        int count = batch.Chunk.Count;");
         }
         else if (shape.IsStamp || shape.HasEntity)

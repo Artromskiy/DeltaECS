@@ -454,6 +454,7 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         Assert.That(generated, Does.Contain("ExecuteClosed_"));
         Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenBoundDense<"));
+        Assert.That(generated, Does.Contain("using var execution = GeneratedForEachRuntime.OpenBoundDense<"));
         Assert.That(generated, Does.Contain("int chunkCount = execution.Rows.Length;"));
         Assert.That(generated, Does.Not.Contain("var batch = execution.Rows[chunkIndex]"));
         Assert.That(generated, Does.Contain("ref var batchCursor = ref"));
@@ -608,10 +609,11 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("ForEachAction<global::Delta.ECS.T1> _"));
         Assert.That(generated, Does.Not.Contain("InterceptedFunctor_"));
         Assert.That(generated, Does.Not.Contain("ref functor"));
-        Assert.That(intercepted, Does.Contain("var batch = batchCursor;"));
+        Assert.That(intercepted, Does.Contain("ref var batch = ref batchCursor;"));
         Assert.That(intercepted, Does.Not.Contain("= execution.Rows[chunk"));
         Assert.That(intercepted, Does.Contain("ref var batchCursor = ref"));
         Assert.That(intercepted, Does.Contain("MemoryMarshal.GetReference(execution.Rows)"));
+        Assert.That(intercepted, Does.Contain("using var execution"));
         Assert.That(intercepted, Does.Contain("ref global::Delta.ECS.T1 row"));
         Assert.That(intercepted, Does.Contain("Unsafe.NullRef<global::Delta.ECS.T1>()"));
         Assert.That(intercepted, Does.Contain("= ref GeneratedForEachRuntime.GetGeneratedArrayReference("));

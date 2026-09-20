@@ -779,8 +779,10 @@ public sealed partial class World : IDisposable
     internal Stamp[] GetArchetypeComponentStamps(int archetypeId)
         => _archetypeComponentWriteStamps.RefAt(archetypeId);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void BeginQueryLease() => _activeChunkLeases++;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void EndQueryLease() => _activeChunkLeases--;
 
     private int ApplyComponents(bool isAdd, ReadOnlySpan<ComponentId> componentIds, ReadOnlySpan<Entity> entities)
