@@ -31,6 +31,7 @@ internal struct DeltaComponent1Functor : IForEach
 {
     internal int Count;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Invoke(ref DeltaComponent1 component)
     {
         DeltaOperations.Update(ref component);
@@ -86,25 +87,16 @@ internal static class DeltaOperations
     internal static int LastFunctorCount;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static void Update(ref DeltaComponent1 component)
-    {
-        ++component.Value;
-    }
+    internal static void Update(ref DeltaComponent1 component) => component.Value++;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static void Update(ref DeltaComponent1 first, ref readonly DeltaComponent2 second)
-    {
-        first.Value += second.Value;
-    }
+    internal static void Update(ref DeltaComponent1 first, ref readonly DeltaComponent2 second) => first.Value += second.Value;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void Update(
         ref DeltaComponent1 first,
         ref readonly DeltaComponent2 second,
-        ref readonly DeltaComponent3 third)
-    {
-        first.Value += second.Value + third.Value;
-    }
+        ref readonly DeltaComponent3 third) => first.Value += second.Value + third.Value;
 }
 
 internal sealed class DeltaCreateOneContext : IDisposable
@@ -343,17 +335,11 @@ public partial class CreateEntityWithOneComponent
 
     [BenchmarkCategory(Categories.DeltaECSBatch)]
     [Benchmark]
-    public void DeltaECSBatch()
-    {
-        _deltaEcs.World.Create(_deltaEcs.Components, EntityCount);
-    }
+    public void DeltaECSBatch() => _deltaEcs.World.Create(_deltaEcs.Components, EntityCount);
 
     [BenchmarkCategory(Categories.DeltaECSBatch)]
     [Benchmark]
-    public void DeltaECSBatchGeneric()
-    {
-        _deltaEcs.World.Create<DeltaComponent1>(EntityCount);
-    }
+    public void DeltaECSBatchGeneric() => _deltaEcs.World.Create<DeltaComponent1>(EntityCount);
 }
 
 public partial class CreateEntityWithTwoComponents
@@ -374,17 +360,11 @@ public partial class CreateEntityWithTwoComponents
 
     [BenchmarkCategory(Categories.DeltaECSBatch)]
     [Benchmark]
-    public void DeltaECSBatch()
-    {
-        _deltaEcs.World.Create(_deltaEcs.Components, EntityCount);
-    }
+    public void DeltaECSBatch() => _deltaEcs.World.Create(_deltaEcs.Components, EntityCount);
 
     [BenchmarkCategory(Categories.DeltaECSBatch)]
     [Benchmark]
-    public void DeltaECSBatchGeneric()
-    {
-        _deltaEcs.World.Create<DeltaComponent1, DeltaComponent2>(EntityCount);
-    }
+    public void DeltaECSBatchGeneric() => _deltaEcs.World.Create<DeltaComponent1, DeltaComponent2>(EntityCount);
 }
 
 public partial class CreateEntityWithThreeComponents
@@ -405,17 +385,11 @@ public partial class CreateEntityWithThreeComponents
 
     [BenchmarkCategory(Categories.DeltaECSBatch)]
     [Benchmark]
-    public void DeltaECSBatch()
-    {
-        _deltaEcs.World.Create(_deltaEcs.Components, EntityCount);
-    }
+    public void DeltaECSBatch() => _deltaEcs.World.Create(_deltaEcs.Components, EntityCount);
 
     [BenchmarkCategory(Categories.DeltaECSBatch)]
     [Benchmark]
-    public void DeltaECSBatchGeneric()
-    {
-        _deltaEcs.World.Create<DeltaComponent1, DeltaComponent2, DeltaComponent3>(EntityCount);
-    }
+    public void DeltaECSBatchGeneric() => _deltaEcs.World.Create<DeltaComponent1, DeltaComponent2, DeltaComponent3>(EntityCount);
 }
 
 public partial class SystemWithOneComponent

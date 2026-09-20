@@ -9,6 +9,16 @@
     <InterceptorsNamespaces>Delta.ECS.Generated</InterceptorsNamespaces>
   </PropertyGroup>
 
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+    <Optimize>true</Optimize>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+
   <ItemGroup Label="DeltaECS">
     <PackageReference Include="BenchmarkDotNet" Version="0.13.12" />
     <ProjectReference Include="../../../src/DeltaECS/DeltaECS.csproj" />

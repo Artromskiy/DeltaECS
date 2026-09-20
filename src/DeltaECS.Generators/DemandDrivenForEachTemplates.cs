@@ -43,7 +43,7 @@ internal static partial class DemandDrivenForEachTemplates
             ? RenderParallelInvoker(shape)
             : null;
         string extension = GeneratorTemplates.ExtensionTemplate(
-            $$"""DemandForEachExtensions_{{GeneratorSupport.StableName(shape.Key)}}""",
+            $"DemandForEachExtensions_{GeneratorSupport.StableName(shape.Key)}",
             shape.IsFunctor,
             RenderExtensionsBody(model));
         string? componentSetKey = !shape.HasQuery && !shape.Api.Signature.HasExplicitIds
@@ -88,17 +88,17 @@ internal static partial class DemandDrivenForEachTemplates
     }
 
     private static string AppendContract(string name, string generic, string parameters)
-        => $$"""public delegate void {{SignatureProjection.TypeWithArguments(name, generic)}}({{parameters}});""";
+        => $"public delegate void {SignatureProjection.TypeWithArguments(name, generic)}({parameters});";
 
     private static string RenderArchetypeStampWriter(IterationModel shape)
     {
         string name = ArchetypeStampWriterName(shape);
         int[] writes = GeneratorTemplates.WriteIndices(shape.ComponentModels).ToArray();
-        string fields = GeneratorTemplates.JoinNonEmpty(writes.Select(index => $$"""private readonly int _access{{index}};"""));
-        string constructorParameters = string.Join(", ", writes.Select(index => $$"""int access{{index}}"""));
-        string assignments = GeneratorTemplates.JoinNonEmpty(writes.Select(index => $$"""_access{{index}} = access{{index}};"""));
+        string fields = GeneratorTemplates.JoinNonEmpty(writes.Select(index => $"private readonly int _access{index};"));
+        string constructorParameters = string.Join(", ", writes.Select(index => $"int access{index}"));
+        string assignments = GeneratorTemplates.JoinNonEmpty(writes.Select(index => $"_access{index} = access{index};"));
         string increments = GeneratorTemplates.JoinNonEmpty(writes.Select(index =>
-            $$"""GeneratedForEachRuntime.IncrementArchetypeStamp(stamps, _access{{index}});"""));
+            $"GeneratedForEachRuntime.IncrementArchetypeStamp(stamps, _access{index});"));
         return $$"""
             [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
             internal struct {{name}} : IGeneratedArchetypeStampWriter
@@ -131,7 +131,7 @@ internal static partial class DemandDrivenForEachTemplates
             : GeneratorTemplates.JoinNonEmpty(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
             {
                 string componentType = shape.ComponentModels[index].TypeName;
-                return $$"""ref {{componentType}} row{{index}} = ref slots.GetGeneratedReadReference<{{componentType}}>(_access{{index}});""";
+                return $"ref {componentType} row{index} = ref slots.GetGeneratedReadReference<{componentType}>(_access{index});";
             }));
         string entityBase = shape.HasEntity
             ? "ref Entity firstEntity = ref slots.GetGeneratedEntityReference();"
@@ -141,12 +141,12 @@ internal static partial class DemandDrivenForEachTemplates
             : string.Empty;
         string components = shape.IsStamp
             ? GeneratorTemplates.JoinNonEmpty(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
-                $$"""Stamp component{{index}} = slots.GetGeneratedStamp(_access{{index}}, index);"""))
+                $"Stamp component{index} = slots.GetGeneratedStamp(_access{index}, index);"))
             : string.Empty;
         string rowAdvances = shape.IsStamp
             ? string.Empty
             : GeneratorTemplates.JoinNonEmpty(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
-                $$"""row{{index}} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row{{index}}, 1);"""));
+                $"row{index} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row{index}, 1);"));
         return $$"""
             internal struct {{name}}{{stateGeneric}} : IGeneratedParallelInvoker
             {
@@ -177,14 +177,14 @@ internal static partial class DemandDrivenForEachTemplates
     private static string AppendInvokerFields(IterationModel shape, string actionType)
     {
         string context = shape.HasContext
-            ? $$"""private {{ContextType(shape)}} _context;"""
+            ? $"private {ContextType(shape)} _context;"
             : string.Empty;
         string callback = shape.IsFunctor
-            ? $$"""private {{shape.FunctorType}} _functor;"""
-            : $$"""private readonly {{actionType}} _action;""";
+            ? $"private {shape.FunctorType} _functor;"
+            : $"private readonly {actionType} _action;";
         return GeneratorTemplates.JoinNonEmpty(new[] { context, callback }
             .Concat(GeneratorTemplates.Indexed(shape.ComponentModels.Length,
-                index => $$"""private readonly int _access{{index}};""")));
+                index => $"private readonly int _access{index};")));
     }
 
     private static string AppendInvokerConstructor(
@@ -194,21 +194,23 @@ internal static partial class DemandDrivenForEachTemplates
     {
         string[] parameters = new[]
             {
-                shape.HasContext ? $$"""{{ContextType(shape)}} context""" : string.Empty,
-                shape.IsFunctor ? $$"""{{shape.FunctorType}} functor""" : $$"""{{actionType}} action""",
+                shape.HasContext ? $"{ContextType(shape)} context" : string.Empty,
+                shape.IsFunctor ? $"{shape.FunctorType} functor" : $"{actionType} action",
                 shape.Api.Signature.AccessParameters(tokens: true)
             }
             .Where(static parameter => parameter.Length != 0)
             .ToArray();
+
         string[] assignments = new[]
             {
                 shape.HasContext ? "_context = context;" : string.Empty,
                 shape.IsFunctor ? "_functor = functor;" : "_action = action;"
             }
             .Concat(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
-                $$"""_access{{index}} = GeneratedForEachRuntime.Get{{(shape.ComponentModels[index].IsWrite ? "Write" : "Read")}}QueryComponentIndex(access{{index}});"""))
+                $"_access{index} = GeneratedForEachRuntime.Get{(shape.ComponentModels[index].IsWrite ? "Write" : "Read")}QueryComponentIndex(access{index});"))
             .Where(static assignment => assignment.Length != 0)
             .ToArray();
+
         return $$"""
                 internal {{ConstructorName(name)}}({{string.Join(", ", parameters)}})
                 {
@@ -218,11 +220,10 @@ internal static partial class DemandDrivenForEachTemplates
     }
 
     private static string AppendInvokerProperties(IterationModel shape)
-        => GeneratorTemplates.JoinNonEmpty(new[]
-        {
-            shape.HasContext ? $$"""internal {{ContextType(shape)}} Context => _context;""" : string.Empty,
-            shape.IsFunctor ? $$"""internal {{shape.FunctorType}} Functor => _functor;""" : string.Empty
-        });
+        => GeneratorTemplates.JoinNonEmpty([
+            shape.HasContext ? $"internal {ContextType(shape)} Context => _context;" : string.Empty,
+            shape.IsFunctor ? $"internal {shape.FunctorType} Functor => _functor;" : string.Empty
+        ]);
 
     private static string RenderClosedParallelMethod(
         IterationModel shape,
@@ -233,12 +234,12 @@ internal static partial class DemandDrivenForEachTemplates
         string generic = slots.HasGenericSelectors ? slots.GenericList() : string.Empty;
         string genericPrefix = StateGeneric(shape, generic);
         string contextParameter = shape.HasContext
-            ? $$""", {{SignatureProjection.ContextParameter(shape.ContextMode, ContextType(shape), "context")}}"""
+            ? $", {SignatureProjection.ContextParameter(shape.ContextMode, ContextType(shape), "context")}"
             : string.Empty;
         string callbackParameter = shape.IsFunctor
-            ? $$""", ref {{shape.FunctorType}} functor"""
-            : $$""", {{ActionType(shape)}} action""";
-        string invokerType = $$"""{{ParallelInvokerName(shape)}}{{StateGeneric(shape, generic)}}""";
+            ? $", ref {shape.FunctorType} functor"
+            : $", {ActionType(shape)} action";
+        string invokerType = $"{ParallelInvokerName(shape)}{StateGeneric(shape, generic)}";
         string target = shape.HasEntityTarget
             ? ", global::System.ReadOnlySpan<Entity> entities, in Query query"
             : ", in Query query";
@@ -251,18 +252,18 @@ internal static partial class DemandDrivenForEachTemplates
         string execute = shape.HasEntityTarget
             ? "GeneratedForEachRuntime.ExecuteEntityListParallel(world, in query, entities, ref invoker, "
             : "GeneratedForEachRuntime.ExecuteParallelDense(world, in query, ref invoker, ";
-        string body = $$"""
-                {{GeneratorTemplates.Indent(AccessSetup(shape), "    ")}}
-                var invoker = new {{invokerType}}({{arguments}});
-                {{execute}}{{AppendParallelWriteIndices(shape)}}, workerCount);
-                {{(shape.HasContext && shape.ContextMode == ContextModeKind.Ref ? "context = invoker.Context;" : string.Empty)}}
-                {{(shape.IsFunctor ? "functor = invoker.Functor;" : string.Empty)}}
+        string body = $"""
+                {GeneratorTemplates.Indent(AccessSetup(shape), "    ")}
+                var invoker = new {invokerType}({arguments});
+                {execute}{AppendParallelWriteIndices(shape)}, workerCount);
+                {(shape is { HasContext: true, ContextMode: ContextModeKind.Ref } ? "context = invoker.Context;" : string.Empty)}
+                {(shape.IsFunctor ? "functor = invoker.Functor;" : string.Empty)}
             """;
-        string signature = $$"""private static void {{methodName}}{{genericPrefix}}(World world{{target}}{{componentParameters}}{{contextParameter}}{{callbackParameter}}, int workerCount)""";
+        string signature = $"private static void {methodName}{genericPrefix}(World world{target}{componentParameters}{contextParameter}{callbackParameter}, int workerCount)";
         return GeneratorTemplates.Indent(GeneratorTemplates.RenderBlock(
-            $$"""
+            $"""
                 [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-                {{signature}}
+                {signature}
                 """.Trim(),
             body), "    ");
     }
@@ -275,7 +276,7 @@ internal static partial class DemandDrivenForEachTemplates
         }
 
         string indices = string.Join(", ", GeneratorTemplates.WriteIndices(shape.ComponentModels)
-            .Select(index => $$"""global::Delta.ECS.GeneratedForEachRuntime.GetWriteQueryComponentIndex(access{{index}})"""));
+            .Select(index => $"global::Delta.ECS.GeneratedForEachRuntime.GetWriteQueryComponentIndex(access{index})"));
         return $$"""stackalloc int[] { {{indices}} }""";
     }
 
@@ -318,8 +319,8 @@ internal static partial class DemandDrivenForEachTemplates
         {
             invocationArguments.Add(componentArguments);
         }
-        string invocation = shape.IsFunctor ? $$"""{{functorName}}.Invoke""" : actionName;
-        return $$"""{{invocation}}({{string.Join(", ", invocationArguments)}})""";
+        string invocation = shape.IsFunctor ? $"{functorName}.Invoke" : actionName;
+        return $"{invocation}({string.Join(", ", invocationArguments)})";
     }
 
     private static string RenderExtensionsBody(IterationRenderModel model)
@@ -367,14 +368,12 @@ internal static partial class DemandDrivenForEachTemplates
                 : Array.Empty<string>())
             .Concat(site.Usings.OrderBy(static value => value, StringComparer.Ordinal)));
         string execution = shape.HasEntityTarget || shape.Parallel
-            ? GeneratorTemplates.JoinNonEmpty(new[]
-            {
+            ? GeneratorTemplates.JoinNonEmpty([
                 RenderInterceptedParallelInvoker(shape, site),
                 RenderInterceptedParallelClosedMethod(shape, site)
-            })
+            ])
             : RenderInterceptedClosedMethod(shape, site);
-        string source = GeneratorTemplates.JoinNonEmpty(new[]
-        {
+        string source = GeneratorTemplates.JoinNonEmpty([
             usings,
             $$"""
             namespace Delta.ECS.Generated
@@ -386,7 +385,7 @@ internal static partial class DemandDrivenForEachTemplates
             CanInlineInterceptedLambda(site) ? string.Empty : RenderInterceptedCallback(site),
             execution,
             RenderInterceptor(shape, site)
-        });
+        ]);
         return GeneratorTemplates.InterceptorTemplate(
             InterceptorSourceHeader,
             source,
@@ -414,17 +413,15 @@ internal static partial class DemandDrivenForEachTemplates
         string body = site.Binding.LambdaBody is not null
             ? AppendInterceptedLambdaBody(site, "    ")
             : AppendCallbackInvocation(shape, site.Binding.MethodGroupTarget!, parameters, "    ");
-        string declaration = $$"""
+        string declaration = $"""
             [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-            private static void {{callbackName}}({{string.Join(", ", declarations)}})
+            private static void {callbackName}({string.Join(", ", declarations)})
             """.Trim();
         return GeneratorTemplates.RenderBlock(declaration, body);
     }
 
-    private static bool CanInlineInterceptedLambda(InterceptionSite site)
-    {
-        return site.Binding.LambdaBody is not null && site.Binding.CanInline;
-    }
+    private static bool CanInlineInterceptedLambda(InterceptionSite site) =>
+        site.Binding.LambdaBody is not null && site.Binding.CanInline;
 
     private static string GeneratedLocalName(
         InterceptionSite site,
@@ -510,7 +507,7 @@ internal static partial class DemandDrivenForEachTemplates
             "{",
             bound ? string.Empty : GeneratorTemplates.Indent(AccessSetup(closedShape).TrimEnd(), "    "),
         };
-        if (closedShape.HasContext && closedShape.ContextMode == ContextModeKind.Ref)
+        if (closedShape is { HasContext: true, ContextMode: ContextModeKind.Ref })
         {
             lines.Add($"    {InterceptedContextType(closedShape)} {parameters[0]} = {contextParameterName};");
         }
@@ -549,7 +546,7 @@ internal static partial class DemandDrivenForEachTemplates
             ? $"    for (int {chunkIndex} = 0; {chunkIndex} < {chunkCount}; {chunkIndex}++)"
             : shape.IsStamp || closedShape.HasEntity
             ? "    while (execution.MoveNextTrusted(out var slots))"
-            : $$"""    while (execution.MoveNextTrusted(out var componentRows, out int {{countName}}))""");
+            : $"    while (execution.MoveNextTrusted(out var componentRows, out int {countName}))");
         lines.Add("    {");
         if (bound)
         {
@@ -620,7 +617,7 @@ internal static partial class DemandDrivenForEachTemplates
             lines.Add($"        {batchCursor} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref {batchCursor}, 1);");
         }
         lines.Add("    }");
-        if (closedShape.HasContext && closedShape.ContextMode == ContextModeKind.Ref)
+        if (closedShape is { HasContext: true, ContextMode: ContextModeKind.Ref })
         {
             lines.Add($"    {contextParameterName} = {parameters[0]};");
         }
@@ -797,23 +794,21 @@ internal static partial class DemandDrivenForEachTemplates
         string execute = shape.HasEntityTarget
             ? $"GeneratedForEachRuntime.ExecuteEntityList{(shape.Parallel ? "Parallel" : string.Empty)}(world, in query, entities, ref invoker, {AppendParallelWriteIndices(accessShape)}{(shape.Parallel ? ", workerCount" : string.Empty)});"
             : $"GeneratedForEachRuntime.ExecuteParallelDense(world, in query, ref invoker, {AppendParallelWriteIndices(accessShape)}, workerCount);";
-        string body = $$"""
-                {{GeneratorTemplates.Indent(AccessSetup(accessShape).TrimEnd(), "    ")}}
-                var invoker = new {{invokerType}}({{constructorArguments}});
-                {{execute}}
-                {{(shape.HasContext && shape.ContextMode == ContextModeKind.Ref ? parameters[0] + " = invoker.Context;" : string.Empty)}}
+        string body = $"""
+                {GeneratorTemplates.Indent(AccessSetup(accessShape).TrimEnd(), "    ")}
+                var invoker = new {invokerType}({constructorArguments});
+                {execute}
+                {(shape is { HasContext: true, ContextMode: ContextModeKind.Ref } ? parameters[0] + " = invoker.Context;" : string.Empty)}
             """;
-        string declaration = $$"""
+        string declaration = $"""
             [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-            {{signature}}
+            {signature}
             """.Trim();
         return GeneratorTemplates.RenderBlock(declaration, body);
     }
 
-    private static string[] InterceptedParameterNames(InterceptionSite site)
-    {
-        return site.Binding.LambdaParameterNames;
-    }
+    private static string[] InterceptedParameterNames(InterceptionSite site) =>
+        site.Binding.LambdaParameterNames;
 
     private static string RenderInterceptor(IterationModel shape, InterceptionSite site)
     {
@@ -851,8 +846,8 @@ internal static partial class DemandDrivenForEachTemplates
                         {{slots.ComponentIdArguments()}}
                     });
                 """
-                : $$"""
-                    global::System.ReadOnlySpan<global::Delta.ECS.ComponentId> components = {{GeneratorTemplates.PrimaryComponentIds("world", shape.Components)}};
+                : $"""
+                    global::System.ReadOnlySpan<global::Delta.ECS.ComponentId> components = {GeneratorTemplates.PrimaryComponentIds("world", shape.Components)};
                     global::Delta.ECS.Query query = world.WhereAll(components);
                 """;
         var invocation = new List<string> { "world" };
@@ -876,32 +871,32 @@ internal static partial class DemandDrivenForEachTemplates
             invocation.Add("workerCount");
         }
         string body = query + "        ExecuteInterceptedClosed_" + site.Id + "(" + string.Join(", ", invocation) + ");";
-        string declaration = $$"""
+        string declaration = $"""
             [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-            {{site.Attribute}}
-            internal static void Intercept_{{site.Id}}({{string.Join(", ", parameters)}})
+            {site.Attribute}
+            internal static void Intercept_{site.Id}({string.Join(", ", parameters)})
             """.Trim();
         return GeneratorTemplates.Indent(GeneratorTemplates.RenderBlock(declaration, body), "    ");
     }
 
     private static string ConcreteActionType(IterationModel shape)
     {
-        SignatureProjection slots = shape.Api.Signature;
         string suffix = IsAllWrite(shape.ComponentModels) ? string.Empty : "_" + shape.Pattern;
         string generic = shape.IsStamp
             ? string.Join(", ", Enumerable.Repeat("global::Delta.ECS.Stamp", shape.Components.Length))
             : string.Join(", ", shape.Components);
-        if (shape.HasContext)
+        if (!shape.HasContext)
         {
-            generic = SignatureProjection.JoinGeneric(InterceptedContextType(shape), generic);
             return SignatureProjection.TypeWithArguments(
-                (shape.HasEntity ? "ForEachContextEntityAction" : "ForEachContextAction") + ContextDelegateSuffix(shape.ContextMode) + suffix,
+                (shape.HasEntity ? "ForEachEntityAction" : "ForEachAction") + suffix,
                 generic);
         }
 
+        generic = SignatureProjection.JoinGeneric(InterceptedContextType(shape), generic);
         return SignatureProjection.TypeWithArguments(
-            (shape.HasEntity ? "ForEachEntityAction" : "ForEachAction") + suffix,
+            (shape.HasEntity ? "ForEachContextEntityAction" : "ForEachContextAction") + ContextDelegateSuffix(shape.ContextMode) + suffix,
             generic);
+
     }
 
     private static string InterceptedContextType(IterationModel shape)
@@ -923,7 +918,7 @@ internal static partial class DemandDrivenForEachTemplates
             ? ", ref " + shape.FunctorType + " functor"
             : ", " + ActionType(shape) + " action";
         string target = shape.HasEntityTarget ? ", global::System.ReadOnlySpan<Entity> entities, in Query query" : ", in Query query";
-        bool copyRefContext = shape.HasContext && shape.ContextMode == ContextModeKind.Ref;
+        bool copyRefContext = shape is { HasContext: true, ContextMode: ContextModeKind.Ref };
         string contextName = copyRefContext ? "contextCopy" : "context";
         string signature = $"private static void {methodName}{genericPrefix}(World world{target}{componentParameters}{contextParameter}{callbackParameter})";
         var lines = new List<string>
@@ -948,7 +943,7 @@ internal static partial class DemandDrivenForEachTemplates
             }.Where(static value => !string.IsNullOrEmpty(value)));
             lines.Add($"    var invoker = new {invokerType}({arguments});");
             lines.Add($"    GeneratedForEachRuntime.ExecuteEntityList(world, in query, entities, ref invoker, {AppendParallelWriteIndices(shape)});");
-            if (shape.HasContext && shape.ContextMode == ContextModeKind.Ref)
+            if (shape is { HasContext: true, ContextMode: ContextModeKind.Ref })
             {
                 lines.Add("    context = invoker.Context;");
             }
@@ -961,6 +956,10 @@ internal static partial class DemandDrivenForEachTemplates
             return GeneratorTemplates.Indent(string.Join("\n", lines), "    ");
         }
 
+        if (shape.IsFunctor)
+        {
+            lines.Add("    var action = functor;");
+        }
         if (bound)
         {
             lines.Add("    " + OpenDenseBinding(shape, closed: false));
@@ -974,10 +973,6 @@ internal static partial class DemandDrivenForEachTemplates
             lines.Add($"    using var execution = GeneratedForEachRuntime.{(shape.ComponentModels.Any(static component => component.IsWrite) ? "OpenWriteDense" : "OpenReadDense")}(world, in query);");
             lines.AddRange(SplitLines(AppendQueryComponentRoutes(shape, "    ")));
             lines.AddRange(SplitLines(AppendArchetypeWriteSetup(shape, "    ")));
-        }
-        if (shape.IsFunctor)
-        {
-            lines.Add("    var action = functor;");
         }
         if (bound)
         {
@@ -1070,7 +1065,7 @@ internal static partial class DemandDrivenForEachTemplates
     }
 
     private static string[] SplitLines(string text)
-        => string.IsNullOrEmpty(text) ? Array.Empty<string>() : text.TrimEnd().Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+        => string.IsNullOrEmpty(text) ? Array.Empty<string>() : text.TrimEnd().Split(["\r\n", "\n"], StringSplitOptions.None);
 
     private static string RenderExtensionMethod(
         IterationModel shape,
@@ -1182,15 +1177,15 @@ internal static partial class DemandDrivenForEachTemplates
     {
         string profile = profileName is null
             ? string.Empty
-            : $$"""
-                [global::DeltaECS.Profiling.ProfiledMethodMetadataAttribute({{StableProfileMethodId(profileName)}}, "{{profileName}}")]
+            : $"""
+                [global::DeltaECS.Profiling.ProfiledMethodMetadataAttribute({StableProfileMethodId(profileName)}, "{profileName}")]
                 """.TrimEnd();
-        return $$"""
-            {{documentation}}
-            {{profile}}
+        return $"""
+            {documentation}
+            {profile}
             [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-            {{signature}}
-            {{GeneratorTemplates.Indent(body, "    ")}}
+            {signature}
+            {GeneratorTemplates.Indent(body, "    ")}
             """.TrimEnd();
     }
 
@@ -1200,9 +1195,9 @@ internal static partial class DemandDrivenForEachTemplates
         if (writeCount > 1)
         {
             string routes = string.Join(", ", GeneratorTemplates.WriteIndices(shape.ComponentModels).Select(index => "route" + index));
-            return $$"""
-                {{indent}}var stampWriter = new {{ArchetypeStampWriterName(shape)}}({{routes}});
-                {{indent}}execution.MarkArchetypeWrites(ref stampWriter);
+            return $"""
+                {indent}var stampWriter = new {ArchetypeStampWriterName(shape)}({routes});
+                {indent}execution.MarkArchetypeWrites(ref stampWriter);
                 """.TrimEnd();
         }
 
@@ -1230,10 +1225,9 @@ internal static partial class DemandDrivenForEachTemplates
         SignatureProjection slots = shape.Api.Signature;
         return string.Join("\n", GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
         {
-            bool routeOnly = !shape.HasEntity
-                && !shape.HasEntityTarget
-                && !slots.HasExplicitIds
-                && !shape.Parallel;
+            bool routeOnly = shape is { HasEntity: false, HasEntityTarget: false }
+                             && !slots.HasExplicitIds
+                             && !shape.Parallel;
             string componentType = ComponentType(shape, index);
             if (shape.IsStamp)
             {
@@ -1275,7 +1269,13 @@ internal static partial class DemandDrivenForEachTemplates
         return SignatureProjection.TypeWithArguments(shape.HasEntity ? "ForEachEntityAction" + suffix : "ForEachAction" + suffix, generic);
     }
 
-    private static string ContextDelegateSuffix(ContextModeKind mode) => mode == ContextModeKind.In ? "In" : mode == ContextModeKind.RefReadonly ? "RefReadonly" : mode == ContextModeKind.Value ? "Value" : string.Empty;
+    private static string ContextDelegateSuffix(ContextModeKind mode) => mode switch
+    {
+        ContextModeKind.In => "In",
+        ContextModeKind.RefReadonly => "RefReadonly",
+        ContextModeKind.Value => "Value",
+        _ => string.Empty
+    };
 
     private static string StateGeneric(IterationModel shape, string generic)
         => !shape.Api.Signature.HasGenericSelectors
