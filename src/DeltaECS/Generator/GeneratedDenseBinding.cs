@@ -194,8 +194,13 @@ public ref struct GeneratedBoundExecution<TRows> where TRows : struct
     public void Dispose()
     {
         World? owner = _owner;
+        if (owner is null)
+        {
+            return;
+        }
+
         _owner = null;
-        owner?.EndQueryLease();
+        owner.EndQueryLease();
     }
 }
 
