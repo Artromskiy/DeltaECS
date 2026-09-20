@@ -268,6 +268,45 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
                     .ToArray();
             }
         }
+
+        var closedTypes = new List<ITypeSymbol?>();
+        if (predicate is not null)
+        {
+            closedTypes.AddRange(GeneratorSupport.ClosedTypesFromLambda(model, predicate));
+        }
+
+        if (action is not null)
+        {
+            closedTypes.AddRange(GeneratorSupport.ClosedTypesFromLambda(model, action));
+        }
+
+        if (predicateMethod is not null)
+        {
+            closedTypes.Add(predicateMethod.ContainingType);
+            closedTypes.AddRange(predicateMethod.Parameters.Select(static parameter => parameter.Type));
+        }
+
+        if (actionMethod is not null)
+        {
+            closedTypes.Add(actionMethod.ContainingType);
+            closedTypes.AddRange(actionMethod.Parameters.Select(static parameter => parameter.Type));
+        }
+
+        foreach (ArgumentSyntax argument in terminalInvocation.ArgumentList.Arguments)
+        {
+            if (model.GetTypeInfo(argument.Expression).Type is ITypeSymbol argumentType)
+            {
+                closedTypes.Add(argumentType);
+            }
+        }
+
+        if ((terminalInvocation.Expression as MemberAccessExpressionSyntax)?.Name is GenericNameSyntax genericTerminal)
+        {
+            closedTypes.AddRange(genericTerminal.TypeArgumentList.Arguments
+                .Select(argument => model.GetTypeInfo(argument).Type));
+        }
+
+        usings = GeneratorSupport.AppendNamespaceUsings(usings, closedTypes);
         string id = GeneratorSupport.StableName(shape.Key + "|" + terminal.Key + "|" + locationData);
         site = new WhereInterceptionSite(
             id,

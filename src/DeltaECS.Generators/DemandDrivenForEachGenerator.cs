@@ -307,6 +307,34 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             }
         }
 
+        var closedTypes = new List<ITypeSymbol?>();
+        if (lambda is not null)
+        {
+            closedTypes.AddRange(GeneratorSupport.ClosedTypesFromLambda(model, lambda));
+        }
+
+        if (methodGroup is not null)
+        {
+            closedTypes.Add(methodGroup.ContainingType);
+            closedTypes.AddRange(methodGroup.Parameters.Select(static parameter => parameter.Type));
+        }
+
+        if ((invocation.Expression as MemberAccessExpressionSyntax)?.Name is GenericNameSyntax genericCallback)
+        {
+            closedTypes.AddRange(genericCallback.TypeArgumentList.Arguments
+                .Select(argument => model.GetTypeInfo(argument).Type));
+        }
+
+        foreach (ArgumentSyntax argument in invocation.ArgumentList.Arguments)
+        {
+            if (model.GetTypeInfo(argument.Expression).Type is ITypeSymbol argumentType)
+            {
+                closedTypes.Add(argumentType);
+            }
+        }
+
+        usings = GeneratorSupport.AppendNamespaceUsings(usings, closedTypes);
+
         string id = GeneratorSupport.StableName(shape.Key + "|" + locationData);
         site = new InterceptionSite(
             id,

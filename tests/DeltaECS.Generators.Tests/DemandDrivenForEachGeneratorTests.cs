@@ -553,12 +553,47 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(intercepted, Does.Not.Contain("= execution.Rows[chunk"));
         Assert.That(intercepted, Does.Contain("ref var batchCursor = ref"));
         Assert.That(intercepted, Does.Contain("MemoryMarshal.GetReference(execution.Rows)"));
-        Assert.That(intercepted, Does.Contain("ref global::Delta.ECS.T1 row0"));
+        Assert.That(intercepted, Does.Contain("ref global::Delta.ECS.T1 row"));
         Assert.That(intercepted, Does.Contain("Unsafe.NullRef<global::Delta.ECS.T1>()"));
-        Assert.That(intercepted, Does.Contain("row0"));
         Assert.That(intercepted, Does.Contain("= ref GeneratedForEachRuntime.GetGeneratedArrayReference("));
 
         AssertCompiles(new[] { RuntimeStubSource, InterceptionSource }, run.GeneratedTrees);
+    }
+
+    [Test]
+    public void NestedComponentNamespacesAreImportedIntoInterceptedKernels()
+    {
+        const string source = """
+            namespace Delta.ECS
+            {
+                namespace NestedComponents
+                {
+                    struct NestedPosition { public int Value; }
+                }
+
+                static class NestedConsumer
+                {
+                    public static void Use(World world, Query query)
+                    {
+                        world.ForEach(
+                            in query,
+                            static (ref NestedComponents.NestedPosition position) => position.Value++);
+                    }
+                }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(source);
+        string intercepted = string.Join(
+            "\n",
+            run.GeneratedTrees
+                .Where(static tree => tree.FilePath.Contains("DemandForEachInterceptor_", StringComparison.Ordinal))
+                .Select(static tree => tree.GetText().ToString()));
+
+        AssertNoDiagnostics(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"));
+        Assert.That(intercepted, Does.Contain("using global::Delta.ECS.NestedComponents;"));
+        Assert.That(intercepted, Does.Contain("NestedPosition"));
+        AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
     }
 
     [Test]

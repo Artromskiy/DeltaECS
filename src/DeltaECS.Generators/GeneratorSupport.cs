@@ -284,6 +284,49 @@ internal static class GeneratorSupport
         return symbol is not ITypeSymbol typeSymbol || IsAccessibleType(typeSymbol);
     }
 
+    /// <summary>
+    /// Adds <c>using global::…;</c> directives for the containing namespaces of closed types.
+    /// Nested component namespaces are not imported by a parent-namespace using alone.
+    /// </summary>
+    internal static string[] AppendNamespaceUsings(IEnumerable<string> usings, IEnumerable<ITypeSymbol?> types)
+    {
+        var result = new List<string>(usings);
+        var seen = new HashSet<string>(result.Select(static value => value.TrimEnd(';').Trim()), StringComparer.Ordinal);
+        foreach (ITypeSymbol? type in types)
+        {
+            if (type is not INamedTypeSymbol { ContainingNamespace: { IsGlobalNamespace: false } ns })
+            {
+                continue;
+            }
+
+            string directive = "using global::" + ns.ToDisplayString() + ";";
+            string key = directive.TrimEnd(';').Trim();
+            if (seen.Add(key))
+            {
+                result.Add(directive);
+            }
+        }
+
+        return result.ToArray();
+    }
+
+    internal static IEnumerable<ITypeSymbol?> ClosedTypesFromLambda(
+        SemanticModel model,
+        LambdaExpressionSyntax lambda)
+    {
+        foreach (ParameterSyntax parameter in CallbackReader.LambdaParameters(lambda))
+        {
+            if (model.GetDeclaredSymbol(parameter) is IParameterSymbol symbol)
+            {
+                yield return symbol.Type;
+            }
+            else if (parameter.Type is not null)
+            {
+                yield return model.GetTypeInfo(parameter.Type).Type;
+            }
+        }
+    }
+
     internal static ApiModel CreateIterationShape(
         bool isStamp,
         bool parallel,
