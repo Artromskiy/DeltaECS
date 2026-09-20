@@ -141,7 +141,7 @@ internal static class ThrowHelper
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowGeneratedFunctorRequired()
         => throw new InvalidOperationException(
-            "Functor iteration requires the DeltaECS.Generators analyzer and a generated ref overload.");
+            "Functor iteration requires the DeltaECS.Generators analyzer and a generated overload (by value, in, ref readonly, or ref).");
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]

@@ -12,7 +12,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.FlecsNet)]
         [Benchmark]
-        public void FlecsNet()
+        public int FlecsNet()
         {
             World world = _flecs.World;
 
@@ -23,6 +23,7 @@ namespace Ecs.CSharp.Benchmark
                     .Set<Component2>(new())
                     .Set<Component3>(new());
             }
+            return EntityCount;
         }
     }
 }

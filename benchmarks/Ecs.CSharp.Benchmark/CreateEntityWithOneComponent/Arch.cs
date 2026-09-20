@@ -16,7 +16,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.Arch)]
         [Benchmark]
-        public void Arch()
+        public int Arch()
         {
             World world = _arch.World;
             world.EnsureCapacity(new Signature(_archetype), EntityCount);
@@ -25,6 +25,7 @@ namespace Ecs.CSharp.Benchmark
             {
                 world.Create(_archetype);
             }
+            return EntityCount;
         }
     }
 }

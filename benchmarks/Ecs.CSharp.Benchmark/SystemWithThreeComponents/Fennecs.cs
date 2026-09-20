@@ -46,21 +46,23 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.Fennecs)]
         [Benchmark]
-        public void FennecsForEach()
+        public int FennecsForEach()
         {
             _fennecs.query.For((ref Component1 c1, ref Component2 c2, ref Component3 c3) => c1.Value += c2.Value + c3.Value);
+            return EntityCount;
         }
 
         [BenchmarkCategory(Categories.Fennecs)]
         [Benchmark]
-        public void FennecsJob()
+        public int FennecsJob()
         {
             _fennecs.query.Job(delegate (ref Component1 c1, ref Component2 c2, ref Component3 c3) { c1.Value += c2.Value + c3.Value; });
+            return EntityCount;
         }
 
         [BenchmarkCategory(Categories.Fennecs)]
         [Benchmark]
-        public void FennecsRaw()
+        public int FennecsRaw()
         {
             _fennecs.query.Raw(delegate (Memory<Component1> c1v, Memory<Component2> c2v, Memory<Component3> c3v)
             {
@@ -74,6 +76,7 @@ namespace Ecs.CSharp.Benchmark
                     c1.Value += c2vs[i].Value + c3vs[i].Value;
                 }
             });
+            return EntityCount;
         }
     }
 }

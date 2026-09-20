@@ -31,7 +31,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.FrifloEngineEcs)]
         [Benchmark]
-        public void FrifloEngineEcsMonoThread()
+        public int FrifloEngineEcsMonoThread()
         {
             foreach ((Chunk<Component1> component1, Chunk<Component2> component2, ChunkEntities _) in _frifloEngineEcs.queryTwo.Chunks)
             {
@@ -42,13 +42,15 @@ namespace Ecs.CSharp.Benchmark
                     Update(ref component1Span[n], ref component2Span[n]);
                 }
             }
+            return EntityCount;
         }
 
         [BenchmarkCategory(Categories.FrifloEngineEcs)]
         [Benchmark]
-        public void FrifloEngineEcsMultiThread()
+        public int FrifloEngineEcsMultiThread()
         {
             _frifloEngineEcs.jobTwo.RunParallel();
+            return EntityCount;
         }
 
         private static void Update(ref Component1 c1, ref Component2 c2)
@@ -58,7 +60,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.FrifloEngineEcs)]
         [Benchmark]
-        public void FrifloEngineEcsSIMDMonoThread()
+        public int FrifloEngineEcsSIMDMonoThread()
         {
             foreach ((Chunk<Component1> component1, Chunk<Component2> component2, ChunkEntities _)
                      in _frifloEngineEcs.queryTwo.Chunks)
@@ -75,6 +77,7 @@ namespace Ecs.CSharp.Benchmark
                     result.CopyTo(component1Slice);
                 }
             }
+            return EntityCount;
         }
     }
 }

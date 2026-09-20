@@ -74,6 +74,10 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.SveltoECS)]
         [Benchmark]
-        public void SveltoECS() => _sveltoECS.Engine.Update();
+        public int SveltoECS()
+        {
+            _sveltoECS.Engine.Update();
+            return EntityCount;
+        }
     }
 }

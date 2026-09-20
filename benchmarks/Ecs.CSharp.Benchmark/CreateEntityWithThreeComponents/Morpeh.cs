@@ -11,7 +11,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.Morpeh)]
         [Benchmark]
-        public void Morpeh_Direct()
+        public int Morpeh_Direct()
         {
             World world = _context.World;
             for (int i = 0; i < EntityCount; ++i)
@@ -23,11 +23,12 @@ namespace Ecs.CSharp.Benchmark
             }
 
             world.Commit();
+            return EntityCount;
         }
 
         [BenchmarkCategory(Categories.Morpeh)]
         [Benchmark]
-        public void Morpeh_Stash()
+        public int Morpeh_Stash()
         {
             World world = _context.World;
             Stash<MorpehBaseContext.Component1> stash1 = world.GetStash<MorpehBaseContext.Component1>();
@@ -42,6 +43,7 @@ namespace Ecs.CSharp.Benchmark
             }
 
             world.Commit();
+            return EntityCount;
         }
     }
 }

@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 
 internal sealed class Chunk
 {
-    internal const int Capacity = 512;
+    internal const int Capacity = 1024;
     private readonly ComponentRowArrayPool _componentRowArrayPool;
     private Array[] _componentRows;
     private ComponentRowOperations[] _rowOperations;

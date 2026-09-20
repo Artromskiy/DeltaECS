@@ -791,11 +791,11 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         int functorArgumentIndex = -1;
         INamedTypeSymbol? functorType = null;
+        ContextModeKind functorPassMode = ContextModeKind.Ref;
         for (int index = invocation.ArgumentList.Arguments.Count - 1; index >= 0; index--)
         {
             ArgumentSyntax candidate = invocation.ArgumentList.Arguments[index];
-            if (!candidate.RefKindKeyword.IsKind(SyntaxKind.RefKeyword)
-                || model.GetTypeInfo(candidate.Expression).Type is not INamedTypeSymbol candidateType
+            if (model.GetTypeInfo(candidate.Expression).Type is not INamedTypeSymbol candidateType
                 || !CallbackReader.TryGetForEachMarker(candidateType, out _, out _, out _))
             {
                 continue;
@@ -803,6 +803,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
             functorArgumentIndex = index;
             functorType = candidateType;
+            functorPassMode = CallbackReader.ContextMode(CallbackReader.ArgumentRefKind(candidate));
             break;
         }
 
@@ -835,6 +836,11 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         {
             diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
             return false;
+        }
+
+        if (parallel && functorPassMode == ContextModeKind.RefReadonly)
+        {
+            functorPassMode = ContextModeKind.In;
         }
 
         var arguments = invocation.ArgumentList.Arguments;
@@ -896,6 +902,13 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         contextMode = NormalizeParallelContext(parallel, invokeContextMode);
         int prefixCount = (hasContext ? 1 : 0) + (hasEntity ? 1 : 0);
         IParameterSymbol[] componentParameters = invoke.Parameters.Skip(prefixCount).ToArray();
+        if (componentParameters.Length == 0 && !(hasEntity && !stamp))
+        {
+            // Component-only / stamp zero-arity falls through to FunctorAnchors.
+            // Entity-aware sequential forms (MinimumArity 0) are still generated.
+            return false;
+        }
+
         if (stamp && componentParameters.Any(static parameter =>
                 !GeneratorSupport.IsStampType(parameter.Type)
                 || parameter.RefKind is not RefKind.In && !GeneratorSupport.IsRefReadonly(parameter.RefKind)))
@@ -952,7 +965,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             isStamp: stamp,
             typeBinding: genericSelectors
                 ? TypeBindingKind.Generic
-                : TypeBindingKind.CallbackInferred);
+                : TypeBindingKind.CallbackInferred,
+            functorPassMode: functorPassMode);
         return true;
     }
 

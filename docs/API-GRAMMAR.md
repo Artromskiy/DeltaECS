@@ -235,5 +235,7 @@ before it performs the structural change.
 Zero-component `ForEach` and all zero-component stamp forms throw
 `InvalidOperationException`. `ForEachEntity`, `ForEachEntityParallel`, and a
 `Where` view's `ForEachEntity` may omit component parameters because the
-callback still receives `Entity`. Functor forms use the generated `ref`
-overload so mutations to the functor are returned to the caller.
+callback still receives `Entity`. Functor forms use the generated callback-slot pass mode so the caller can
+choose `ref` (mutations returned), `in` / `ref readonly`, or by value. Value and
+`in` forms accept temporaries such as `new Functor()` and keep the functor
+eligible for full inlining when it has no observable state.

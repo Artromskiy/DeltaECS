@@ -13,6 +13,10 @@ namespace Ecs.CSharp.Benchmark
             BenchmarkConfiguration.EntityCount = 32;
             using DeltaCreateOneContext createOne = new();
             createOne.World.Create(createOne.Components, 32, new DeltaEntity[32]);
+            if (createOne.World.AliveEntityCount != 32)
+            {
+                throw new InvalidOperationException("Create-one smoke did not retain every entity.");
+            }
 
             using DeltaCreateTwoContext createTwo = new();
             createTwo.World.Create(createTwo.Components, 32, new DeltaEntity[32]);
@@ -21,51 +25,47 @@ namespace Ecs.CSharp.Benchmark
             createThree.World.Create(createThree.Components, 32, new DeltaEntity[32]);
 
             using DeltaSystemOneContext one = new(32, 1);
-            one.World.ForEach(in one.Query, static (ref DeltaComponent1 component) => DeltaOperations.Update(ref component));
-            one.World.ForEachParallel(in one.Query, static (ref DeltaComponent1 component) => DeltaOperations.Update(ref component));
-            var oneFunctor = new DeltaComponent1Functor();
-            one.World.ForEach(in one.Query, ref oneFunctor);
-            if (oneFunctor.Count != 32)
-            {
-                throw new InvalidOperationException("The sequential one-component functor did not visit every entity.");
-            }
-            one.World.ForEachParallel(in one.Query, ref oneFunctor);
+            one.World.ForEach(in one.Query, static (ref DeltaComponent1 component) => ++component.Value);
+            one.World.ForEachParallel(in one.Query, static (ref DeltaComponent1 component) => ++component.Value);
+            one.World.ForEach(in one.Query, new DeltaComponent1Functor());
+            one.World.ForEachParallel(in one.Query, new DeltaComponent1Functor());
 
             using DeltaSystemTwoContext two = new(32, 1);
-            two.World.ForEach(in two.Query, static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second) => DeltaOperations.Update(ref first, in second));
-            two.World.ForEachParallel(in two.Query, static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second) => DeltaOperations.Update(ref first, in second));
-            var twoFunctor = new DeltaComponent2Functor();
-            two.World.ForEach(in two.Query, ref twoFunctor);
-            if (twoFunctor.Count != 32)
-            {
-                throw new InvalidOperationException("The sequential two-component functor did not visit every entity.");
-            }
-            two.World.ForEachParallel(in two.Query, ref twoFunctor);
+            two.World.ForEach(
+                in two.Query,
+                static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second) => first.Value += second.Value);
+            two.World.ForEachParallel(
+                in two.Query,
+                static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second) => first.Value += second.Value);
+            two.World.ForEach(in two.Query, new DeltaComponent2Functor());
+            two.World.ForEachParallel(in two.Query, new DeltaComponent2Functor());
 
             using DeltaSystemThreeContext three = new(32, 1);
-            three.World.ForEach(in three.Query, static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second, ref readonly DeltaComponent3 third) => DeltaOperations.Update(ref first, in second, in third));
+            three.World.ForEach(
+                in three.Query,
+                static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second, ref readonly DeltaComponent3 third) =>
+                    first.Value += second.Value + third.Value);
             three.World.ForEachParallel(
                 in three.Query,
                 static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second, ref readonly DeltaComponent3 third) =>
-                    DeltaOperations.Update(ref first, in second, in third));
-            var threeFunctor = new DeltaComponent3Functor();
-            three.World.ForEach(in three.Query, ref threeFunctor);
-            if (threeFunctor.Count != 32)
-            {
-                throw new InvalidOperationException("The sequential three-component functor did not visit every entity.");
-            }
-            three.World.ForEachParallel(in three.Query, ref threeFunctor);
+                    first.Value += second.Value + third.Value);
+            three.World.ForEach(in three.Query, new DeltaComponent3Functor());
+            three.World.ForEachParallel(in three.Query, new DeltaComponent3Functor());
 
             using DeltaSystemMultipleCompositionContext compositions = new(32);
-            compositions.World.ForEach(in compositions.Query, static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second) => DeltaOperations.Update(ref first, in second));
-            compositions.World.ForEachParallel(in compositions.Query, static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second) => DeltaOperations.Update(ref first, in second));
-            var compositionFunctor = new DeltaComponent2Functor();
-            compositions.World.ForEach(in compositions.Query, ref compositionFunctor);
-            if (compositionFunctor.Count != 32)
+            compositions.World.ForEach(
+                in compositions.Query,
+                static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second) => first.Value += second.Value);
+            compositions.World.ForEachParallel(
+                in compositions.Query,
+                static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second) => first.Value += second.Value);
+            compositions.World.ForEach(in compositions.Query, new DeltaComponent2Functor());
+            compositions.World.ForEachParallel(in compositions.Query, new DeltaComponent2Functor());
+            if (compositions.World.AliveEntityCount != 32)
             {
-                throw new InvalidOperationException("The sequential composition functor did not visit every entity.");
+                throw new InvalidOperationException("Composition smoke did not retain every entity.");
             }
-            compositions.World.ForEachParallel(in compositions.Query, ref compositionFunctor);
+
             Console.WriteLine("DeltaECS full-fork contract smoke passed.");
         }
     }

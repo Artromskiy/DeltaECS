@@ -12,7 +12,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.TinyEcs)]
         [Benchmark]
-        public void TinyEcs()
+        public int TinyEcs()
         {
             for (int i = 0; i < EntityCount; ++i)
             {
@@ -20,6 +20,7 @@ namespace Ecs.CSharp.Benchmark
                     .Set(new Component1())
                     .Set(new Component2());
             }
+            return EntityCount;
         }
     }
 }

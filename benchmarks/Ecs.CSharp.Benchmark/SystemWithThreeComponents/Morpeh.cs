@@ -110,10 +110,18 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.Morpeh)]
         [Benchmark]
-        public void Morpeh_Direct() => _context.MonoThreadDirectSystem.OnUpdate(0f);
+        public int Morpeh_Direct()
+        {
+            _context.MonoThreadDirectSystem.OnUpdate(0f);
+            return EntityCount;
+        }
 
         [BenchmarkCategory(Categories.Morpeh)]
         [Benchmark]
-        public void Morpeh_Stash() => _context.MonoThreadStashSystem.OnUpdate(0f);
+        public int Morpeh_Stash()
+        {
+            _context.MonoThreadStashSystem.OnUpdate(0f);
+            return EntityCount;
+        }
     }
 }

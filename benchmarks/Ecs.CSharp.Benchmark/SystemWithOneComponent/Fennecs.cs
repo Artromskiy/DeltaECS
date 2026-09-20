@@ -32,21 +32,23 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.Fennecs)]
         [Benchmark]
-        public void FennecsForEach()
+        public int FennecsForEach()
         {
             _fennecs.query.For((ref Component1 comp0) => comp0.Value++);
+            return EntityCount;
         }
 
         [BenchmarkCategory(Categories.Fennecs)]
         [Benchmark]
-        public void FennecsJob()
+        public int FennecsJob()
         {
             _fennecs.query.Job(delegate (ref Component1 v) { v.Value++; });
+            return EntityCount;
         }
 
         [BenchmarkCategory(Categories.Fennecs)]
         [Benchmark]
-        public void FennecsRaw()
+        public int FennecsRaw()
         {
             _fennecs.query.Raw(delegate (Memory<Component1> vectors)
             {
@@ -55,6 +57,7 @@ namespace Ecs.CSharp.Benchmark
                     v.Value++;
                 }
             });
+            return EntityCount;
         }
     }
 }

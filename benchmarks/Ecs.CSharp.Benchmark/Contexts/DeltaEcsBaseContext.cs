@@ -52,54 +52,25 @@ namespace Ecs.CSharp.Benchmark.Contexts
 
     internal struct DeltaComponent1Functor : IForEach
     {
-        internal int Count;
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Invoke(ref DeltaComponent1 component)
-        {
-            DeltaOperations.Update(ref component);
-            Count++;
-        }
+        public void Invoke(ref DeltaComponent1 component) => ++component.Value;
     }
 
     internal struct DeltaComponent2Functor : IForEach
     {
-        internal int Count;
-
-        public void Invoke(ref DeltaComponent1 first, ref readonly DeltaComponent2 second)
-        {
-            DeltaOperations.Update(ref first, in second);
-            Count++;
-        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Invoke(ref DeltaComponent1 first, ref readonly DeltaComponent2 second) =>
+            first.Value += second.Value;
     }
 
     internal struct DeltaComponent3Functor : IForEach
     {
-        internal int Count;
-
-        public void Invoke(ref DeltaComponent1 first, ref readonly DeltaComponent2 second, ref readonly DeltaComponent3 third)
-        {
-            DeltaOperations.Update(ref first, in second, in third);
-            Count++;
-        }
-    }
-
-    internal static class DeltaOperations
-    {
-        internal const int ParallelWorkerCount = 4;
-        internal static int LastFunctorCount;
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void Update(ref DeltaComponent1 component) => component.Value++;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void Update(ref DeltaComponent1 first, ref readonly DeltaComponent2 second) => first.Value += second.Value;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void Update(
+        public void Invoke(
             ref DeltaComponent1 first,
             ref readonly DeltaComponent2 second,
-            ref readonly DeltaComponent3 third) => first.Value += second.Value + third.Value;
+            ref readonly DeltaComponent3 third) =>
+            first.Value += second.Value + third.Value;
     }
 
     internal sealed class DeltaCreateOneContext : IDisposable
@@ -318,5 +289,10 @@ namespace Ecs.CSharp.Benchmark.Contexts
         }
 
         void IDisposable.Dispose() => World.Dispose();
+    }
+
+    public static class ParallelContext
+    {
+        public const int ParallelWorkerCount = int.MaxValue;
     }
 }

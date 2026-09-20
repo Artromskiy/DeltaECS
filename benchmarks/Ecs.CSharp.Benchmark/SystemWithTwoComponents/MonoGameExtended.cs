@@ -83,6 +83,10 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.MonoGameExtended)]
         [Benchmark]
-        public void MonoGameExtended() => _monoGameExtended.World.Update(_monoGameExtended.Time);
+        public int MonoGameExtended()
+        {
+            _monoGameExtended.World.Update(_monoGameExtended.Time);
+            return EntityCount;
+        }
     }
 }

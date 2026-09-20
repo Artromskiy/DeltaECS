@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using BenchmarkDotNet.Attributes;
 using Delta.ECS;
 using Ecs.CSharp.Benchmark.Contexts;
@@ -13,45 +12,41 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.DeltaECS)]
         [Benchmark]
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void DeltaECS()
+        public int DeltaECS()
         {
             _deltaEcs.World.ForEach(
                 in _deltaEcs.Query,
                 static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second, ref readonly DeltaComponent3 third) =>
-                    DeltaOperations.Update(ref first, in second, in third));
+                    first.Value += second.Value + third.Value);
+            return EntityCount;
         }
 
         [BenchmarkCategory(Categories.DeltaECS)]
         [Benchmark]
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void DeltaECSParallel()
+        public int DeltaECSParallel()
         {
             _deltaEcs.World.ForEachParallel(
                 in _deltaEcs.Query,
                 static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second, ref readonly DeltaComponent3 third) =>
-                    DeltaOperations.Update(ref first, in second, in third),
-                workerCount: DeltaOperations.ParallelWorkerCount);
+                    first.Value += second.Value + third.Value,
+                workerCount: ParallelContext.ParallelWorkerCount);
+            return EntityCount;
         }
 
         [BenchmarkCategory(Categories.DeltaECS)]
         [Benchmark]
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void DeltaECSFunctor()
+        public int DeltaECSFunctor()
         {
-            var functor = new DeltaComponent3Functor();
-            _deltaEcs.World.ForEach(in _deltaEcs.Query, ref functor);
-            DeltaOperations.LastFunctorCount = functor.Count;
+            _deltaEcs.World.ForEach(in _deltaEcs.Query, new DeltaComponent3Functor());
+            return EntityCount;
         }
 
         [BenchmarkCategory(Categories.DeltaECS)]
         [Benchmark]
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void DeltaECSFunctorParallel()
+        public int DeltaECSFunctorParallel()
         {
-            var functor = new DeltaComponent3Functor();
-            _deltaEcs.World.ForEachParallel(in _deltaEcs.Query, ref functor, workerCount: DeltaOperations.ParallelWorkerCount);
-            DeltaOperations.LastFunctorCount = functor.Count;
+            _deltaEcs.World.ForEachParallel(in _deltaEcs.Query, new DeltaComponent3Functor(), workerCount: ParallelContext.ParallelWorkerCount);
+            return EntityCount;
         }
     }
 }

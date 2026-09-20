@@ -71,6 +71,65 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void ValueFunctorGeneratesByValueOverload()
+    {
+        const string source = """
+            namespace Delta.ECS;
+            struct T1 { public int Value; }
+            struct ValueFunctor : IForEach
+            {
+                public void Invoke(ref T1 value) => value.Value++;
+            }
+            static class Consumer
+            {
+                public static void Use(World world, Query query)
+                {
+                    world.ForEach(in query, new ValueFunctor());
+                    world.ForEachParallel(in query, new ValueFunctor(), workerCount: 2);
+                }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGenerator(source);
+        string generated = GeneratedText(run);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(generated, Does.Contain("global::Delta.ECS.ValueFunctor functor"));
+        Assert.That(generated, Does.Not.Contain("ref global::Delta.ECS.ValueFunctor functor"));
+        Assert.That(generated, Does.Not.Contain("functor = invoker.Functor;"));
+        AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
+    }
+
+    [Test]
+    public void InFunctorGeneratesInOverload()
+    {
+        const string source = """
+            namespace Delta.ECS;
+            struct T1 { public int Value; }
+            struct InFunctor : IForEach
+            {
+                public void Invoke(ref T1 value) => value.Value++;
+            }
+            static class Consumer
+            {
+                public static void Use(World world, Query query)
+                {
+                    var functor = new InFunctor();
+                    world.ForEach(in query, in functor);
+                }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGenerator(source);
+        string generated = GeneratedText(run);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(generated, Does.Contain("in global::Delta.ECS.InFunctor functor"));
+        Assert.That(generated, Does.Not.Contain("functor = invoker.Functor;"));
+        AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
+    }
+
+    [Test]
     public void RefReadonlyFunctorGeneratesConcreteOverload()
     {
         const string source = """
@@ -126,7 +185,7 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         GeneratorDriverRunResult run = RunGenerator(source);
 
-        Assert.That(run.Diagnostics.Any(static diagnostic => diagnostic.Id == "DECSGEN001"), Is.True);
+        Assert.That(run.Diagnostics.Any(static diagnostic => diagnostic.Id == "DECSGEN001"), Is.False);
         Assert.That(GeneratedText(run), Does.Not.Contain("EmptyFunctor"));
     }
 
@@ -466,7 +525,7 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("GetGeneratedArray<global::Delta.ECS.Position>(access0)"));
-        Assert.That(generated, Does.Contain("Unsafe.Add(ref __deltaEcs_row_"));
+        Assert.That(generated, Does.Contain("Unsafe.Add(ref row"));
         AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
     }
 

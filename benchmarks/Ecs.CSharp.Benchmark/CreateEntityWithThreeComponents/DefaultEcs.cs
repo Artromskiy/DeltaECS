@@ -11,7 +11,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.DefaultEcs)]
         [Benchmark]
-        public void DefaultEcs()
+        public int DefaultEcs()
         {
             for (int i = 0; i < EntityCount; ++i)
             {
@@ -20,6 +20,7 @@ namespace Ecs.CSharp.Benchmark
                 entity.Set<DefaultEcsBaseContext.Component2>();
                 entity.Set<DefaultEcsBaseContext.Component3>();
             }
+            return EntityCount;
         }
     }
 }

@@ -61,7 +61,8 @@ internal sealed class IterationModel
         bool hasEntityTarget = false,
         bool hasQuery = true,
         bool isStamp = false,
-        TypeBindingKind typeBinding = TypeBindingKind.CallbackInferred)
+        TypeBindingKind typeBinding = TypeBindingKind.CallbackInferred,
+        ContextModeKind functorPassMode = ContextModeKind.Ref)
     {
         Api = GeneratorSupport.CreateIterationShape(
             isStamp,
@@ -78,7 +79,8 @@ internal sealed class IterationModel
             components,
             functorType,
             contextType,
-            methodName);
+            methodName,
+            functorPassMode);
     }
 
     public RegistrationBindingKind RegistrationBinding => Api.Selector.RegistrationBinding;
@@ -100,6 +102,7 @@ internal sealed class IterationModel
     public string? ContextType => Api.Context.TypeName;
     public bool Parallel => Api.Execution.Schedule == Schedule.Parallel;
     public ContextModeKind ContextMode => Api.Context.Mode;
+    public ContextModeKind FunctorPassMode => Api.Callback?.PassMode ?? ContextModeKind.None;
     public bool HasEntityTarget => Api.Target == TargetKind.EntityList;
     public bool HasQuery => Api.Query != QueryMode.None;
     public bool IsStamp => Api.Execution.Value == ValueDomain.Stamp;

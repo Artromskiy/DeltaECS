@@ -48,7 +48,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.TinyEcs)]
         [Benchmark]
-        public void TinyEcsEach()
+        public int TinyEcsEach()
         {
             var data = Data<Component1, Component2, Component3>.CreateIterator(_tinyEcs.Query.Iter());
             while (data.MoveNext())
@@ -56,11 +56,12 @@ namespace Ecs.CSharp.Benchmark
                 data.Deconstruct(out Ptr<Component1> c1, out Ptr<Component2> c2, out Ptr<Component3> c3);
                 c1.Ref.Value += c2.Ref.Value + c3.Ref.Value;
             }
+            return EntityCount;
         }
 
         [BenchmarkCategory(Categories.TinyEcs)]
         [Benchmark]
-        public void TinyEcsEachJob()
+        public int TinyEcsEachJob()
         {
             var data = Data<Component1, Component2, Component3>.CreateIterator(_tinyEcs.Query.Iter());
             while (data.MoveNext())
@@ -68,6 +69,7 @@ namespace Ecs.CSharp.Benchmark
                 data.Deconstruct(out Ptr<Component1> c1, out Ptr<Component2> c2, out Ptr<Component3> c3);
                 c1.Ref.Value += c2.Ref.Value + c3.Ref.Value;
             }
+            return EntityCount;
         }
     }
 }

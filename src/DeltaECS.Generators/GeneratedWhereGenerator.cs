@@ -846,14 +846,15 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         }
 
         ArgumentSyntax functorArgument = invocation.ArgumentList.Arguments[invocation.ArgumentList.Arguments.Count - 1];
-        if (!functorArgument.RefKindKeyword.IsKind(SyntaxKind.RefKeyword)
-            || model.GetTypeInfo(functorArgument.Expression).Type is not INamedTypeSymbol functorType
+        if (model.GetTypeInfo(functorArgument.Expression).Type is not INamedTypeSymbol functorType
             || !CallbackReader.TryGetForEachMarker(functorType, out bool hasContext, out bool hasEntity, out ITypeSymbol? contextType)
             || namedEntity != hasEntity
             || !GeneratorSupport.IsAccessibleSymbol(functorType))
         {
             return false;
         }
+
+        ContextModeKind functorPassMode = CallbackReader.ContextMode(CallbackReader.ArgumentRefKind(functorArgument));
 
         if (hasContext)
         {
@@ -899,7 +900,8 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             functorType: GeneratorSupport.DisplayType(functorType),
             hasContext,
             contextType: hasContext && contextType is { } resolvedContext ? GeneratorSupport.DisplayType(resolvedContext) : null,
-            components: components.Select(static parameter => GeneratorSupport.DisplayType(parameter.Type)).ToArray());
+            components: components.Select(static parameter => GeneratorSupport.DisplayType(parameter.Type)).ToArray(),
+            functorPassMode: functorPassMode);
         return true;
     }
 

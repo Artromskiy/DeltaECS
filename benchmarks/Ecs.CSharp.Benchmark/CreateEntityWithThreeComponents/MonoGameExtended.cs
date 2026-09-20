@@ -11,7 +11,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.MonoGameExtended)]
         [Benchmark]
-        public void MonoGameExtended()
+        public int MonoGameExtended()
         {
             for (int i = 0; i < EntityCount; ++i)
             {
@@ -20,6 +20,7 @@ namespace Ecs.CSharp.Benchmark
                 entity.Attach(new MonoGameExtendedBaseContext.Component2());
                 entity.Attach(new MonoGameExtendedBaseContext.Component3());
             }
+            return EntityCount;
         }
     }
 }

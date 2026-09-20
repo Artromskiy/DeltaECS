@@ -10,7 +10,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.RelEcs)]
         [Benchmark]
-        public void RelEcs()
+        public int RelEcs()
         {
             for (int i = 0; i < EntityCount; ++i)
             {
@@ -19,6 +19,7 @@ namespace Ecs.CSharp.Benchmark
                     .Add(new RelEcsBaseContext.Component2())
                     .Add(new RelEcsBaseContext.Component3());
             }
+            return EntityCount;
         }
     }
 }

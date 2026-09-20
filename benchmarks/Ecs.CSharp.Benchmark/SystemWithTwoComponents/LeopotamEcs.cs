@@ -58,6 +58,10 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.LeopotamEcs)]
         [Benchmark]
-        public void LeopotamEcs() => _leopotamEcs.MonoThreadSystem.Run();
+        public int LeopotamEcs()
+        {
+            _leopotamEcs.MonoThreadSystem.Run();
+            return EntityCount;
+        }
     }
 }

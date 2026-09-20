@@ -342,7 +342,8 @@ internal static class GeneratorSupport
         string[] components,
         string? functorType,
         string? contextType,
-        string methodName)
+        string methodName,
+        ContextModeKind functorPassMode = ContextModeKind.Ref)
     {
         TargetKind target = hasEntityTarget
             ? TargetKind.EntityList
@@ -364,7 +365,8 @@ internal static class GeneratorSupport
         var callback = new CallbackModel(
             isFunctor ? CallbackSource.Functor : CallbackSource.Lambda,
             hasEntity,
-            functorType);
+            functorType,
+            isFunctor ? functorPassMode : ContextModeKind.None);
         return new ApiModel(
             OperationKind.Iteration,
             target,

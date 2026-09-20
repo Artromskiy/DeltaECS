@@ -168,16 +168,25 @@ internal readonly struct ContextModel
 
 internal readonly struct CallbackModel
 {
-    internal CallbackModel(CallbackSource source, bool hasEntity, string? typeName)
+    internal CallbackModel(
+        CallbackSource source,
+        bool hasEntity,
+        string? typeName,
+        ContextModeKind passMode = ContextModeKind.None)
     {
         Source = source;
         HasEntity = hasEntity;
         TypeName = typeName;
+        PassMode = source == CallbackSource.Functor
+            ? (passMode == ContextModeKind.None ? ContextModeKind.Ref : passMode)
+            : ContextModeKind.None;
     }
 
     internal CallbackSource Source { get; }
     internal bool HasEntity { get; }
     internal string? TypeName { get; }
+    /// <summary>How a functor argument is passed: <c>ref</c>, <c>in</c>, <c>ref readonly</c>, or by value.</summary>
+    internal ContextModeKind PassMode { get; }
 }
 
 internal readonly struct ExecutionModel
@@ -263,6 +272,7 @@ internal sealed class ApiModel
             Callback?.Source,
             Callback?.HasEntity,
             Callback?.TypeName,
+            Callback?.PassMode,
             Execution.Scope,
             Execution.Value,
             Execution.Schedule,

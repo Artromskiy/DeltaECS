@@ -107,13 +107,15 @@ internal sealed class TerminalModel
         string? methodGroupTarget = null,
         bool hasValues = false,
         TypeBindingKind typeBinding = TypeBindingKind.CallbackInferred,
-        RegistrationBindingKind registrationBinding = RegistrationBindingKind.Primary)
+        RegistrationBindingKind registrationBinding = RegistrationBindingKind.Primary,
+        ContextModeKind functorPassMode = ContextModeKind.Ref)
     {
         Kind = kind;
         Pattern = pattern;
         HasEntity = hasEntity;
         IsFunctor = isFunctor;
         FunctorType = functorType;
+        FunctorPassMode = isFunctor ? functorPassMode : ContextModeKind.None;
         HasContext = hasContext;
         ContextType = contextType;
         Components = components ?? Array.Empty<string>();
@@ -134,7 +136,8 @@ internal sealed class TerminalModel
             new CallbackModel(
                 isFunctor ? CallbackSource.Functor : CallbackSource.Lambda,
                 hasEntity,
-                functorType),
+                functorType,
+                FunctorPassMode),
             new ExecutionModel(Scope.QueryWide, ValueDomain.Component, Schedule.Sequential),
             Kind + "|" + componentCount.ToString(CultureInfo.InvariantCulture)
                 + (hasValues ? "|values|" + registrationBinding : string.Empty),
@@ -147,6 +150,7 @@ internal sealed class TerminalModel
     internal bool HasEntity { get; }
     internal bool IsFunctor { get; }
     internal string? FunctorType { get; }
+    internal ContextModeKind FunctorPassMode { get; }
     internal bool HasContext { get; }
     internal string? ContextType { get; }
     internal string[] Components { get; }

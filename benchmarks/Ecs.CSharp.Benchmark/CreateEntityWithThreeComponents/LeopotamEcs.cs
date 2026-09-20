@@ -11,7 +11,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.LeopotamEcs)]
         [Benchmark]
-        public void LeopotamEcs()
+        public int LeopotamEcs()
         {
             for (int i = 0; i < EntityCount; ++i)
             {
@@ -20,6 +20,7 @@ namespace Ecs.CSharp.Benchmark
                     .Replace(new LeopotamEcsBaseContext.Component2())
                     .Replace(new LeopotamEcsBaseContext.Component3());
             }
+            return EntityCount;
         }
     }
 }

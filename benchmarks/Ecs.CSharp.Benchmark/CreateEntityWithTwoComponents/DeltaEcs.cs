@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using BenchmarkDotNet.Attributes;
 using Delta.ECS;
 using Ecs.CSharp.Benchmark.Contexts;
@@ -13,21 +12,30 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.DeltaECS)]
         [Benchmark]
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void DeltaECS()
+        public int DeltaECS()
         {
             for (int i = 0; i < EntityCount; i++)
             {
                 _deltaEcs.World.Create(_deltaEcs.Components);
             }
+
+            return EntityCount;
         }
 
         [BenchmarkCategory(Categories.DeltaECSBatch)]
         [Benchmark]
-        public void DeltaECSBatch() => _deltaEcs.World.Create(_deltaEcs.Components, EntityCount);
+        public int DeltaECSBatch()
+        {
+            _deltaEcs.World.Create(_deltaEcs.Components, EntityCount);
+            return EntityCount;
+        }
 
         [BenchmarkCategory(Categories.DeltaECSBatch)]
         [Benchmark]
-        public void DeltaECSBatchGeneric() => _deltaEcs.World.Create<DeltaComponent1, DeltaComponent2>(EntityCount);
+        public int DeltaECSBatchGeneric()
+        {
+            _deltaEcs.World.Create<DeltaComponent1, DeltaComponent2>(EntityCount);
+            return EntityCount;
+        }
     }
 }

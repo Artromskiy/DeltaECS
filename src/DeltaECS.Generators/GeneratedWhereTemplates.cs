@@ -49,13 +49,13 @@ internal static class GeneratedWhereTemplates
         string executeInvocation = terminal.HasValues
             ? $$"""return Execute_{{site.Id}}(view.World, in query{{(terminalSlots.HasExplicitIds ? ", " + terminalSlots.ComponentIdArguments() : string.Empty)}}{{(terminal.Arity == 0 ? string.Empty : ", " + terminalSlots.ValueNames())}}{{(shape.HasContext ? ", ref view.PredicateContext" : string.Empty)}});"""
             : $$"""
-                {{(terminal.IsCallback ? string.Empty : "return ")}}Execute_{{site.Id}}(view.World, in query{{(terminalSlots.HasExplicitIds ? ", " + terminalSlots.ComponentIdArguments() : string.Empty)}}{{(shape.HasContext ? ", ref view.PredicateContext" : string.Empty)}}{{(terminal.IsFunctor && terminal.HasContext ? ", ref context" : string.Empty)}}{{(terminal.IsFunctor ? ", ref action" : string.Empty)}});
+                {{(terminal.IsCallback ? string.Empty : "return ")}}Execute_{{site.Id}}(view.World, in query{{(terminalSlots.HasExplicitIds ? ", " + terminalSlots.ComponentIdArguments() : string.Empty)}}{{(shape.HasContext ? ", ref view.PredicateContext" : string.Empty)}}{{(terminal.IsFunctor && terminal.HasContext ? ", ref context" : string.Empty)}}{{(terminal.IsFunctor ? ", " + SignatureProjection.ContextArgument(terminal.FunctorPassMode, "action") : string.Empty)}});
                 """.Trim();
         string interceptSignature = terminal.HasValues
             ? RenderInterceptedValueSignature(site)
             : terminal.IsCallback
             ? terminal.IsFunctor
-                ? $$""", {{(terminal.HasContext ? "ref " + terminal.ContextType + " context, " : string.Empty)}}ref {{terminal.FunctorType}} action)"""
+                ? $$""", {{(terminal.HasContext ? "ref " + terminal.ContextType + " context, " : string.Empty)}}{{SignatureProjection.ContextParameter(terminal.FunctorPassMode, terminal.FunctorType!, "action")}})"""
                 : $$""", global::Delta.ECS.GeneratedWhereAction_{{hash}}_{{terminalHash}}{{SignatureProjection.TypeArguments(site.ActionComponents)}} _)"""
             : terminalSlots.HasExplicitIds
                 ? ", " + terminalSlots.ComponentIdParameters() + ")"
@@ -178,7 +178,9 @@ internal static class GeneratedWhereTemplates
             "in global::Delta.ECS.Query query",
             shape.HasContext ? "ref " + InterceptedPredicateContextType(site) + " predicateContext" : string.Empty,
             terminal.IsFunctor && terminal.HasContext ? "ref " + terminal.ContextType + " context" : string.Empty,
-            terminal.IsFunctor ? "ref " + terminal.FunctorType + " action" : string.Empty
+            terminal.IsFunctor
+                ? SignatureProjection.ContextParameter(terminal.FunctorPassMode, terminal.FunctorType!, "action")
+                : string.Empty
         }.Where(static argument => argument.Length != 0).ToArray();
 
         int accessCount = shape.Arity + terminal.Arity;
@@ -912,10 +914,10 @@ internal static class GeneratedWhereTemplates
             TerminalKind.Add => $"public int Add{genericParameters}({terminalParameters})",
             TerminalKind.Remove => $"public int Remove{genericParameters}({terminalParameters})",
             TerminalKind.ForEach => terminal.IsFunctor
-                ? $$"""internal void ForEach({{(terminal.HasContext ? "ref " + terminal.ContextType + " context, " : string.Empty)}}ref {{actionType}} action)"""
+                ? $$"""internal void ForEach({{(terminal.HasContext ? "ref " + terminal.ContextType + " context, " : string.Empty)}}{{SignatureProjection.ContextParameter(terminal.FunctorPassMode, actionType, "action")}})"""
                 : $$"""public void ForEach{{genericParameters}}({{actionType}} action)""",
             TerminalKind.ForEachEntity => terminal.IsFunctor
-                ? $$"""internal void ForEachEntity({{(terminal.HasContext ? "ref " + terminal.ContextType + " context, " : string.Empty)}}ref {{actionType}} action)"""
+                ? $$"""internal void ForEachEntity({{(terminal.HasContext ? "ref " + terminal.ContextType + " context, " : string.Empty)}}{{SignatureProjection.ContextParameter(terminal.FunctorPassMode, actionType, "action")}})"""
                 : $$"""public void ForEachEntity{{genericParameters}}({{actionType}} action)""",
             _ => string.Empty
         };

@@ -42,6 +42,10 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.RelEcs)]
         [Benchmark]
-        public void RelEcs() => _relEcs.MonoThreadSystem.Run(_relEcs.World);
+        public int RelEcs()
+        {
+            _relEcs.MonoThreadSystem.Run(_relEcs.World);
+            return EntityCount;
+        }
     }
 }

@@ -11,7 +11,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.LeopotamEcsLite)]
         [Benchmark]
-        public void LeopotamEcsLite()
+        public int LeopotamEcsLite()
         {
             EcsPool<LeopotamEcsLiteBaseContext.Component1> c1 = _leopotamEcsLite.World.GetPool<LeopotamEcsLiteBaseContext.Component1>();
             EcsPool<LeopotamEcsLiteBaseContext.Component2> c2 = _leopotamEcsLite.World.GetPool<LeopotamEcsLiteBaseContext.Component2>();
@@ -24,6 +24,7 @@ namespace Ecs.CSharp.Benchmark
                 c2.Add(entity);
                 c3.Add(entity);
             }
+            return EntityCount;
         }
     }
 }

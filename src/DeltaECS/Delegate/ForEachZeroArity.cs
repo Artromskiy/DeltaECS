@@ -84,32 +84,6 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// Compiler anchor for generated <c>ForEachEntity</c> functor forms.
-    /// A functor implementing <c>IForEachEntity</c> may receive only
-    /// <c>Entity</c> or <c>Entity</c> followed by component parameters.
-    /// For example: <c>world.ForEachEntity(in query, ref action)</c>, where
-    /// <c>action.Invoke</c> receives <c>Entity</c> first.
-    /// </summary>
-    /// <remarks>The by-value anchor throws; use the generated <c>ref</c> overload.</remarks>
-    /// <exception cref="System.InvalidOperationException">The generated functor overload was not selected.</exception>
-    public void ForEachEntity<T>(in Query query, T action) where T : IForEachEntity
-        => ThrowHelper.ThrowGeneratedFunctorRequired();
-
-    /// <summary>
-    /// Zero-component functor overload.
-    /// Use a component-bearing generated <c>ForEach</c> form with a functor
-    /// implementing <c>IForEach</c>; generated forms use one or more component
-    /// parameters and may include caller context or explicit <c>ComponentId</c>
-    /// selectors.
-    /// For example: <c>world.ForEach(in query, ref action)</c>, where
-    /// <c>action.Invoke</c> receives the requested components.
-    /// </summary>
-    /// <remarks>This zero-component overload always throws; no generated zero-component functor form exists.</remarks>
-    /// <exception cref="System.InvalidOperationException">Zero-component functor iteration is not supported.</exception>
-    public void ForEach<T>(in Query query, T action) where T : IForEach
-        => ThrowHelper.ThrowGeneratedFunctorRequired();
-
-    /// <summary>
     /// Zero-component stamp callback anchor. Use a generated
     /// <c>ForEachStamp</c> form with one or more <c>in Stamp</c> parameters,
     /// for example <c>world.ForEachStamp&lt;Health&gt;(in query,
@@ -127,23 +101,5 @@ public sealed partial class World
     /// <remarks>This zero-component overload always throws.</remarks>
     public void ForEachEntityStamp(in Query query, ForEachEntityAction action)
         => ThrowHelper.ThrowGeneratedIterationRequired();
-
-    /// <summary>
-    /// Zero-component stamp functor anchor. Use a generated
-    /// <c>ForEachStamp</c> form whose functor receives one or more
-    /// <c>in Stamp</c> parameters.
-    /// </summary>
-    /// <remarks>This zero-component overload always throws.</remarks>
-    public void ForEachStamp<T>(in Query query, T action) where T : IForEach
-        => ThrowHelper.ThrowGeneratedFunctorRequired();
-
-    /// <summary>
-    /// Zero-component entity stamp functor anchor. Use a generated
-    /// <c>ForEachEntityStamp</c> form whose functor receives <c>Entity</c>
-    /// followed by one or more <c>in Stamp</c> parameters.
-    /// </summary>
-    /// <remarks>This zero-component overload always throws.</remarks>
-    public void ForEachEntityStamp<T>(in Query query, T action) where T : IForEachEntity
-        => ThrowHelper.ThrowGeneratedFunctorRequired();
 
 }

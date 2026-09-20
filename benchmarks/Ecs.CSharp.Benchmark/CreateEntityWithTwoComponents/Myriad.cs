@@ -14,7 +14,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.Myriad)]
         [Benchmark]
-        public void Myriad()
+        public int Myriad()
         {
             World world = _myriad.World;
 
@@ -26,6 +26,7 @@ namespace Ecs.CSharp.Benchmark
             }
 
             buffer.Playback().Dispose();
+            return EntityCount;
         }
     }
 }

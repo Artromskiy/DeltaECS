@@ -2,7 +2,6 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Delta.ECS;
 
-[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Source generator marker contract.")]
 /// <summary>
 /// Marker contract for a functor that processes matching entities.
 /// <c>Invoke</c> receives <c>Entity</c> first and may omit component parameters
@@ -11,24 +10,27 @@ namespace Delta.ECS;
 /// <code>world.ForEachEntityParallel(in query, ref functor, workerCount: 4);</code>.
 /// Functor calls are explicit and are not intercepted.
 /// </summary>
+[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Source generator marker contract.")]
 public interface IForEachEntity
 {
 }
 
-[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Source generator marker contract.")]
 /// <summary>
 /// Marker contract for a functor that processes matching components.
 /// Generated component-bearing forms support one or more component parameters,
 /// for example
-/// <code>world.ForEach(in query, ref functor);</code> and
-/// <code>world.ForEachParallel(in query, ref functor, workerCount: 4);</code>.
+/// <code>world.ForEach(in query, ref functor);</code>,
+/// <code>world.ForEach(in query, new Functor());</code>, and
+/// <code>world.ForEachParallel(in query, in functor, workerCount: 4);</code>.
 /// Functor calls are explicit and are not intercepted.
+/// Use <c>ref</c> when the functor carries mutable state that must round-trip;
+/// prefer by-value or <c>in</c> for stateless functors.
 /// </summary>
+[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Source generator marker contract.")]
 public interface IForEach
 {
 }
 
-[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Source generator marker contract.")]
 /// <summary>
 /// Marker contract for a functor that receives caller-owned context.
 /// Generated component-bearing forms support one or more component parameters,
@@ -38,11 +40,11 @@ public interface IForEach
 /// Parallel context must be read-only or by value; a parallel <c>ref</c> state
 /// form is not generated.
 /// </summary>
+[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Source generator marker contract.")]
 public interface IForEachContext<TContext>
 {
 }
 
-[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Source generator marker contract.")]
 /// <summary>
 /// Marker contract for a functor that receives context and the current entity.
 /// <c>Invoke</c> may stop after <c>Entity</c> or include generated
@@ -52,6 +54,7 @@ public interface IForEachContext<TContext>
 /// Parallel context must be read-only or by value; a parallel <c>ref</c> state
 /// form is not generated.
 /// </summary>
+[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Source generator marker contract.")]
 public interface IForEachContextEntity<TContext>
 {
 }

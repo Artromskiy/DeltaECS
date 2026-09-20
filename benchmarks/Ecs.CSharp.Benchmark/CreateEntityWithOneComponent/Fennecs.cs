@@ -11,9 +11,10 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.Fennecs)]
         [Benchmark]
-        public void Fennecs()
+        public int Fennecs()
         {
             _fennecs.Component1Template.Spawn(EntityCount, new Component1());
+            return EntityCount;
         }
     }
 }

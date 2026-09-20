@@ -9,7 +9,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.HypEcs)]
         [Benchmark]
-        public void HypEcs()
+        public int HypEcs()
         {
             for (int i = 0; i < EntityCount; ++i)
             {
@@ -18,6 +18,7 @@ namespace Ecs.CSharp.Benchmark
                     .Add(new HypEcsBaseContext.Component2())
                     .Add(new HypEcsBaseContext.Component3());
             }
+            return EntityCount;
         }
     }
 }

@@ -89,12 +89,28 @@ internal static class CallbackReader
             || GeneratorSupport.IsRefReadonly(refKind);
 
     internal static RefKind ArgumentRefKind(ArgumentSyntax argument)
-        => argument.RefKindKeyword.Kind() switch
+    {
+        SyntaxKind kind = argument.RefKindKeyword.Kind();
+        if (kind == SyntaxKind.InKeyword)
         {
-            SyntaxKind.RefKeyword => Microsoft.CodeAnalysis.RefKind.Ref,
-            SyntaxKind.InKeyword => Microsoft.CodeAnalysis.RefKind.In,
-            _ => Microsoft.CodeAnalysis.RefKind.None
-        };
+            return Microsoft.CodeAnalysis.RefKind.In;
+        }
+
+        if (kind == SyntaxKind.RefKeyword)
+        {
+            foreach (SyntaxToken token in argument.ChildTokens())
+            {
+                if (token.IsKind(SyntaxKind.ReadOnlyKeyword))
+                {
+                    return Microsoft.CodeAnalysis.RefKind.RefReadOnly;
+                }
+            }
+
+            return Microsoft.CodeAnalysis.RefKind.Ref;
+        }
+
+        return Microsoft.CodeAnalysis.RefKind.None;
+    }
 
     internal static RefKind ParameterRefKind(ParameterSyntax parameter)
     {

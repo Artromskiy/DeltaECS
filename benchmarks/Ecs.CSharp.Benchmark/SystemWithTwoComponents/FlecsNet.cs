@@ -45,7 +45,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.FlecsNet)]
         [Benchmark]
-        public void FlecsNetEach()
+        public int FlecsNetEach()
         {
             _flecs.query.Each((Iter it, int index) =>
             {
@@ -53,11 +53,12 @@ namespace Ecs.CSharp.Benchmark
                 ref Component2 c2 = ref it.FieldAt<Component2>(1, index);
                 c1.Value += c2.Value;
             });
+            return EntityCount;
         }
 
         [BenchmarkCategory(Categories.FlecsNet)]
         [Benchmark]
-        public void FlecsNetIter()
+        public int FlecsNetIter()
         {
             _flecs.query.Iter(it =>
             {
@@ -68,6 +69,7 @@ namespace Ecs.CSharp.Benchmark
                     c1[i].Value += c2[i].Value;
                 }
             });
+            return EntityCount;
         }
     }
 }

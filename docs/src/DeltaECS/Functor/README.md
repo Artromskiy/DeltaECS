@@ -28,8 +28,10 @@ component types or access patterns in their names. Concrete extension methods
 are generated in the consumer assembly from the functor's `Invoke` signature.
 The marker overloads throw `InvalidOperationException` when no generated
 component-bearing overload is selected; zero-component functor calls are not
-generated. Use the handwritten delegate overloads when a runtime delegate
-callback is required.
+generated. By-value marker anchors are extension methods
+(`FunctorAnchors`) so they do not outrank generated concrete overloads for
+calls such as `world.ForEach(in query, new Functor())`. Use the handwritten
+delegate overloads when a runtime delegate callback is required.
 `in T` means read and `ref T` means write. The generator diagnoses missing,
 ambiguous, or incompatible `Invoke` implementations rather than selecting one
 through reflection at runtime.

@@ -203,7 +203,7 @@ public static partial class GeneratedForEachRuntime
 {
     /// <summary>Opens a query-owned typed binding; routes are resolved once per signature.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static GeneratedBoundExecution<TRows> OpenBoundDense<TBinding, TRows>(World world, in Query query)
         where TBinding : GeneratedDenseBinding<TRows>, new()
         where TRows : struct
@@ -219,7 +219,7 @@ public static partial class GeneratedForEachRuntime
 
     /// <summary>Opens a query-owned typed binding without marking component writes.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static GeneratedBoundExecution<TRows> OpenBoundDenseRead<TBinding, TRows>(World world, in Query query)
         where TBinding : GeneratedDenseBinding<TRows>, new()
         where TRows : struct

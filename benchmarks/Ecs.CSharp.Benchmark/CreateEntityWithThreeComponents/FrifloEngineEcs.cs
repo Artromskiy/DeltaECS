@@ -8,7 +8,7 @@ namespace Ecs.CSharp.Benchmark
     {
         [BenchmarkCategory(Categories.FrifloEngineEcs)]
         [Benchmark]
-        public void FrifloEngineEcs()
+        public int FrifloEngineEcs()
         {
             EntityStore store = new EntityStore(PidType.UsePidAsId);
             store.EnsureCapacity(EntityCount);
@@ -20,6 +20,7 @@ namespace Ecs.CSharp.Benchmark
             {
                 archetype.CreateEntity();
             }
+            return EntityCount;
         }
     }
 }

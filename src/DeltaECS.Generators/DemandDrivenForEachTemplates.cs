@@ -237,7 +237,7 @@ internal static partial class DemandDrivenForEachTemplates
             ? $", {SignatureProjection.ContextParameter(shape.ContextMode, ContextType(shape), "context")}"
             : string.Empty;
         string callbackParameter = shape.IsFunctor
-            ? $", ref {shape.FunctorType} functor"
+            ? ", " + SignatureProjection.ContextParameter(shape.FunctorPassMode, shape.FunctorType!, "functor")
             : $", {ActionType(shape)} action";
         string invokerType = $"{ParallelInvokerName(shape)}{StateGeneric(shape, generic)}";
         string target = shape.HasEntityTarget
@@ -257,7 +257,7 @@ internal static partial class DemandDrivenForEachTemplates
                 var invoker = new {invokerType}({arguments});
                 {execute}{AppendParallelWriteIndices(shape)}, workerCount);
                 {(shape is { HasContext: true, ContextMode: ContextModeKind.Ref } ? "context = invoker.Context;" : string.Empty)}
-                {(shape.IsFunctor ? "functor = invoker.Functor;" : string.Empty)}
+                {(shape is { IsFunctor: true, FunctorPassMode: ContextModeKind.Ref } ? "functor = invoker.Functor;" : string.Empty)}
             """;
         string signature = $"private static void {methodName}{genericPrefix}(World world{target}{componentParameters}{contextParameter}{callbackParameter}, int workerCount)";
         return GeneratorTemplates.Indent(GeneratorTemplates.RenderBlock(
@@ -915,7 +915,7 @@ internal static partial class DemandDrivenForEachTemplates
             ? ", " + SignatureProjection.ContextParameter(shape.ContextMode, ContextType(shape), "context")
             : string.Empty;
         string callbackParameter = shape.IsFunctor
-            ? ", ref " + shape.FunctorType + " functor"
+            ? ", " + SignatureProjection.ContextParameter(shape.FunctorPassMode, shape.FunctorType!, "functor")
             : ", " + ActionType(shape) + " action";
         string target = shape.HasEntityTarget ? ", global::System.ReadOnlySpan<Entity> entities, in Query query" : ", in Query query";
         bool copyRefContext = shape is { HasContext: true, ContextMode: ContextModeKind.Ref };
@@ -948,7 +948,7 @@ internal static partial class DemandDrivenForEachTemplates
                 lines.Add("    context = invoker.Context;");
             }
 
-            if (shape.IsFunctor)
+            if (shape is { IsFunctor: true, FunctorPassMode: ContextModeKind.Ref })
             {
                 lines.Add("    functor = invoker.Functor;");
             }
@@ -1052,7 +1052,7 @@ internal static partial class DemandDrivenForEachTemplates
             lines.Add("        batchCursor = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref batchCursor, 1);");
         }
         lines.Add("    }");
-        if (shape.IsFunctor)
+        if (shape is { IsFunctor: true, FunctorPassMode: ContextModeKind.Ref })
         {
             lines.Add("    functor = action;");
         }
@@ -1084,7 +1084,7 @@ internal static partial class DemandDrivenForEachTemplates
         string profileName = className + "." + methodName;
         string callbackName = shape.IsFunctor ? "functor" : "action";
         string callbackParameter = shape.IsFunctor
-            ? ", ref " + shape.FunctorType + " " + callbackName
+            ? ", " + SignatureProjection.ContextParameter(shape.FunctorPassMode, shape.FunctorType!, callbackName)
             : ", " + callback + " " + callbackName;
         string workerCountParameter = shape.Parallel ? ", int workerCount = 0" : string.Empty;
         string visibility = shape.IsFunctor || shape.ImplicitComponents ? "internal" : "public";
@@ -1123,7 +1123,9 @@ internal static partial class DemandDrivenForEachTemplates
             closedArguments.Add(SignatureProjection.ContextArgument(shape.ContextMode, "context"));
         }
 
-        closedArguments.Add(shape.IsFunctor ? "ref functor" : "action");
+        closedArguments.Add(shape.IsFunctor
+            ? SignatureProjection.ContextArgument(shape.FunctorPassMode, "functor")
+            : "action");
         if (shape.Parallel)
         {
             closedArguments.Add("workerCount");

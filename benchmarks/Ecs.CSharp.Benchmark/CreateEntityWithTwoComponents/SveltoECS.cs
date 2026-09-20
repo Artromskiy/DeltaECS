@@ -14,7 +14,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.SveltoECS)]
         [Benchmark]
-        public void SveltoECS()
+        public int SveltoECS()
         {
             for (int i = 0; i < EntityCount; ++i)
             {
@@ -22,6 +22,7 @@ namespace Ecs.CSharp.Benchmark
             }
 
             _sveltoECS.Scheduler.SubmitEntities();
+            return EntityCount;
         }
     }
 }

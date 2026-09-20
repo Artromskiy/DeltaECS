@@ -42,25 +42,28 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.Arch)]
         [Benchmark]
-        public void ArchMonoThread()
+        public int ArchMonoThread()
         {
             World world = _arch.World;
             world.InlineQuery<ForEach2, Component1, Component2>(in _queryDescription, ref _forEach2);
+            return EntityCount;
         }
 
         [BenchmarkCategory(Categories.Arch)]
         [Benchmark]
-        public void ArchMonoThreadSourceGenerated()
+        public int ArchMonoThreadSourceGenerated()
         {
             ForEachQuery(_arch.World);
+            return EntityCount;
         }
 
         [BenchmarkCategory(Categories.Arch)]
         [Benchmark]
-        public void ArchMultiThread()
+        public int ArchMultiThread()
         {
             World world = _arch.World;
             world.InlineParallelQuery<ForEach2, Component1, Component2>(in _queryDescription, ref _forEach2);
+            return EntityCount;
         }
     }
 }

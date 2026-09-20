@@ -82,18 +82,34 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.DefaultEcs)]
         [Benchmark]
-        public void DefaultEcsComponentSystemMonoThread() => _defaultEcs.MonoThreadComponentSystem.Update(0);
+        public int DefaultEcsComponentSystemMonoThread()
+        {
+            _defaultEcs.MonoThreadComponentSystem.Update(0);
+            return EntityCount;
+        }
 
         [BenchmarkCategory(Categories.DefaultEcs)]
         [Benchmark]
-        public void DefaultEcsComponentSystemMultiThread() => _defaultEcs.MultiThreadComponentSystem.Update(0);
+        public int DefaultEcsComponentSystemMultiThread()
+        {
+            _defaultEcs.MultiThreadComponentSystem.Update(0);
+            return EntityCount;
+        }
 
         [BenchmarkCategory(Categories.DefaultEcs)]
         [Benchmark]
-        public void DefaultEcsEntitySetSystemMonoThread() => _defaultEcs.MonoThreadEntitySetSystem.Update(0);
+        public int DefaultEcsEntitySetSystemMonoThread()
+        {
+            _defaultEcs.MonoThreadEntitySetSystem.Update(0);
+            return EntityCount;
+        }
 
         [BenchmarkCategory(Categories.DefaultEcs)]
         [Benchmark]
-        public void DefaultEcsEntitySetSystemMultiThread() => _defaultEcs.MultiThreadEntitySetSystem.Update(0);
+        public int DefaultEcsEntitySetSystemMultiThread()
+        {
+            _defaultEcs.MultiThreadEntitySetSystem.Update(0);
+            return EntityCount;
+        }
     }
 }

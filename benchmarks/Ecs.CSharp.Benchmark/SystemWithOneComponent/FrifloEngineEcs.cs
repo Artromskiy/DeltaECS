@@ -29,7 +29,7 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.FrifloEngineEcs)]
         [Benchmark]
-        public void FrifloEngineEcsMonoThread()
+        public int FrifloEngineEcsMonoThread()
         {
             foreach ((Chunk<Component1> component1, ChunkEntities _) in _frifloEngineEcs.queryOne.Chunks)
             {
@@ -38,18 +38,20 @@ namespace Ecs.CSharp.Benchmark
                     ++component.Value;
                 }
             }
+            return EntityCount;
         }
 
         [BenchmarkCategory(Categories.FrifloEngineEcs)]
         [Benchmark]
-        public void FrifloEngineEcsMultiThread()
+        public int FrifloEngineEcsMultiThread()
         {
             _frifloEngineEcs.jobOne.RunParallel();
+            return EntityCount;
         }
 
         [BenchmarkCategory(Categories.FrifloEngineEcs)]
         [Benchmark]
-        public void FrifloEngineEcsSIMDMonoThread()
+        public int FrifloEngineEcsSIMDMonoThread()
         {
             Vector256<int> add = Vector256.Create<int>(1);              // create int[8] vector - all values = 1
 
@@ -65,6 +67,7 @@ namespace Ecs.CSharp.Benchmark
                     result.CopyTo(slice);
                 }
             }
+            return EntityCount;
         }
     }
 }

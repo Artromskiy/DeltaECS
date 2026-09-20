@@ -65,24 +65,26 @@ namespace Ecs.CSharp.Benchmark
 
         [BenchmarkCategory(Categories.Myriad)]
         [Benchmark]
-        public void MyriadSingleThread()
+        public int MyriadSingleThread()
         {
             World world = _myriad.World;
             world.Execute<MyriadForEach1, Component1>();
+            return EntityCount;
         }
 
         [BenchmarkCategory(Categories.Myriad)]
         [Benchmark]
-        public void MyriadSingleThreadChunk()
+        public int MyriadSingleThreadChunk()
         {
             World world = _myriad.World;
             world.ExecuteChunk<MyriadForEach1, Component1>();
+            return EntityCount;
         }
 
 #if INCLUDE_SLOW_BENCHMARKS
         [BenchmarkCategory(Categories.Myriad)]
         [Benchmark]
-        public void Myriad_Enumerable()
+        public int Myriad_Enumerable()
         {
             World world = _myriad.World;
 
@@ -90,12 +92,13 @@ namespace Ecs.CSharp.Benchmark
             {
                 c.Ref.Value++;
             }
+            return EntityCount;
         }
 #endif
 
         [BenchmarkCategory(Categories.Myriad)]
         [Benchmark]
-        public void MyriadDelegate()
+        public int MyriadDelegate()
         {
             World world = _myriad.World;
 
@@ -103,15 +106,17 @@ namespace Ecs.CSharp.Benchmark
             {
                 c.Value++;
             });
+            return EntityCount;
         }
 
         [BenchmarkCategory(Categories.Myriad)]
         [Benchmark]
-        public void MyriadSingleThreadChunkSIMD()
+        public int MyriadSingleThreadChunkSIMD()
         {
             World world = _myriad.World;
 
             world.ExecuteVectorChunk<MyriadVectorForEach1, Component1, int>(new MyriadVectorForEach1());
+            return EntityCount;
         }
     }
 }

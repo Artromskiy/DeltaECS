@@ -246,18 +246,6 @@ public sealed partial class World
         int workerCount = 0)
         => ThrowHelper.ThrowGeneratedIterationRequired();
 
-    /// <summary>Zero-component parallel stamp functor anchor.</summary>
-    /// <remarks>This zero-component overload always throws.</remarks>
-    public void ForEachStampParallel<T>(in Query query, T action, int workerCount = 0)
-        where T : IForEach
-        => ThrowHelper.ThrowGeneratedFunctorRequired();
-
-    /// <summary>Zero-component parallel entity stamp functor anchor.</summary>
-    /// <remarks>This zero-component overload always throws.</remarks>
-    public void ForEachEntityStampParallel<T>(in Query query, T action, int workerCount = 0)
-        where T : IForEachEntity
-        => ThrowHelper.ThrowGeneratedFunctorRequired();
-
     internal StaticParallelQueryExecutor<TInvoker> GetParallelQueryExecutor<TInvoker>()
         where TInvoker : struct, IGeneratedParallelInvoker
     {
