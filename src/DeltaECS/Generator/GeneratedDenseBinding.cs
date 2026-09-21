@@ -153,38 +153,42 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
         if ((count & ~3) != 0)
         {
             int loops = count >> 2;
+            ref var b0 = ref target;
             do
             {
-                ref var base0 = ref target;
-                ref var t0 = ref base0;
-                ref var t1 = ref Unsafe.Add(ref base0, 1);
-                ref var t2 = ref Unsafe.Add(ref base0, 2);
-                ref var t3 = ref Unsafe.Add(ref base0, 3);
+                ref var t0 = ref b0;
+                ref var t1 = ref Unsafe.Add(ref b0, 1);
+                ref var t2 = ref Unsafe.Add(ref b0, 2);
+                ref var t3 = ref Unsafe.Add(ref b0, 3);
                 MarkWrite(ref t0);
                 MarkWrite(ref t1);
                 MarkWrite(ref t2);
                 MarkWrite(ref t3);
-                target = ref Unsafe.Add(ref target, 4);
+                b0 = ref Unsafe.Add(ref b0, 4);
                 loops--;
             } while (loops != 0);
+
+            target = ref b0;
         }
 
-        switch (count & 3)
+        int remaining = count & 3;
+        if (remaining != 0)
         {
-            case 0:
-                break;
-            case 1:
+            if (remaining == 1)
+            {
                 MarkWrite(ref target);
-                break;
-            case 2:
+            }
+            else if (remaining == 2)
+            {
                 MarkWrite(ref target);
                 MarkWrite(ref Unsafe.Add(ref target, 1));
-                break;
-            default:
+            }
+            else
+            {
                 MarkWrite(ref target);
                 MarkWrite(ref Unsafe.Add(ref target, 1));
                 MarkWrite(ref Unsafe.Add(ref target, 2));
-                break;
+            }
         }
     }
 

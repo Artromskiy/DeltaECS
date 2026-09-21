@@ -170,9 +170,15 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("while (loops != 0);"));
         Assert.That(generated, Does.Not.Contain("if (loops > 0)"));
         Assert.That(generated, Does.Not.Contain("if (count >= 4)"));
-        Assert.That(generated, Does.Contain("Visit4(ref action, ref component0)"));
-        Assert.That(generated, Does.Contain("component0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 4)"));
+        Assert.That(generated, Does.Contain("Visit4(ref action, ref b0)"));
+        Assert.That(generated, Does.Contain("ref var b0 = ref component0;"));
+        Assert.That(generated, Does.Contain("b0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref b0, 4)"));
+        Assert.That(generated, Does.Contain("component0 = ref b0;"));
+        Assert.That(generated, Does.Not.Contain("component0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 4)"));
         Assert.That(generated, Does.Contain("int remaining = count & 3;"));
+        Assert.That(generated, Does.Contain("if (remaining != 0)"));
+        Assert.That(generated, Does.Contain("else if (remaining == 2)"));
+        Assert.That(generated, Does.Not.Contain("switch (remaining)"));
         Assert.That(generated, Does.Not.Contain("int offset = 0;"));
         Assert.That(generated, Does.Not.Contain("while (remaining >= 4)"));
         Assert.That(generated.IndexOf("var action = functor;", StringComparison.Ordinal), Is.LessThan(generated.IndexOf("functor = action;", StringComparison.Ordinal)));
@@ -350,8 +356,13 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("while (loops != 0);"));
         Assert.That(generated, Does.Not.Contain("if (loops > 0)"));
         Assert.That(generated, Does.Not.Contain("if (count >= 4)"));
-        Assert.That(generated, Does.Contain("row0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row0, 4)"));
+        Assert.That(generated, Does.Contain("ref var b0 = ref row0;"));
+        Assert.That(generated, Does.Contain("b0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref b0, 4)"));
+        Assert.That(generated, Does.Contain("row0 = ref b0;"));
+        Assert.That(generated, Does.Not.Contain("row0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row0, 4)"));
         Assert.That(generated, Does.Contain("int remaining = count & 3;"));
+        Assert.That(generated, Does.Contain("if (remaining != 0)"));
+        Assert.That(generated, Does.Not.Contain("switch (remaining)"));
         Assert.That(generated, Does.Not.Contain("while (remaining >= 4)"));
         Assert.That(generated, Does.Not.Contain("int offset = 0;"));
         Assert.That(generated, Does.Not.Contain("Unsafe.Add(ref row0, index)"));
@@ -508,10 +519,15 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("while (loops != 0);"));
         Assert.That(generated, Does.Not.Contain("if (loops > 0)"));
         Assert.That(generated, Does.Not.Contain("if (count >= 4)"));
-        Assert.That(generated, Does.Contain("Visit4(action, ref component0);"));
-        Assert.That(generated, Does.Contain("component0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 4)"));
+        Assert.That(generated, Does.Contain("Visit4(action, ref b0);"));
+        Assert.That(generated, Does.Contain("ref var b0 = ref component0;"));
+        Assert.That(generated, Does.Contain("b0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref b0, 4)"));
+        Assert.That(generated, Does.Contain("component0 = ref b0;"));
+        Assert.That(generated, Does.Not.Contain("component0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 4)"));
         Assert.That(generated, Does.Contain("int remaining = count & 3;"));
-        Assert.That(generated, Does.Contain("switch (remaining)"));
+        Assert.That(generated, Does.Contain("if (remaining != 0)"));
+        Assert.That(generated, Does.Contain("else if (remaining == 2)"));
+        Assert.That(generated, Does.Not.Contain("switch (remaining)"));
         Assert.That(generated, Does.Not.Contain("int remaining = count;"));
         Assert.That(generated, Does.Not.Contain("while (remaining >= 4)"));
         Assert.That(generated, Does.Contain("action(ref component0)"));
@@ -555,7 +571,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("action(ref contextCopy, ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 1))"));
         Assert.That(generated, Does.Not.Contain("ref var baseRef0"));
         Assert.That(generated, Does.Contain("context = contextCopy;"));
-        Assert.That(generated, Does.Contain("Visit4(ref contextCopy, action, ref component0)"));
+        Assert.That(generated, Does.Contain("Visit4(ref contextCopy, action, ref b0)"));
+        Assert.That(generated, Does.Contain("ref var b0 = ref component0;"));
+        Assert.That(generated, Does.Contain("component0 = ref b0;"));
         Assert.That(
             generated.IndexOf("context = contextCopy;", StringComparison.Ordinal),
             Is.LessThan(generated.IndexOf("private static void Visit", StringComparison.Ordinal)));

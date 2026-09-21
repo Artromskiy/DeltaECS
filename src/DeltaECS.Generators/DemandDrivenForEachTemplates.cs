@@ -424,11 +424,13 @@ internal static partial class DemandDrivenForEachTemplates
 
     /// <summary>
     /// Emits the dense unroll loop into <paramref name="loopLines"/> and private static
-    /// Visit1/2/4 helpers into <paramref name="visitMethods"/> (constant offsets 0..3;
-    /// the loop advances bases by 4). Fast path peels on <c>(count &amp; ~3) != 0</c>
-    /// (equivalent to count &gt;= 4, tst-friendly) so the Visit4 do-while never sees a
-    /// zero trip count. Visit2/Visit4 call the action with direct <c>Unsafe.Add</c>
-    /// offsets — no temporary slot refs.
+    /// Visit1/2/4 helpers into <paramref name="visitMethods"/> (constant offsets 0..3).
+    /// Fast path peels on <c>(count &amp; ~3) != 0</c> (tst-friendly). Cursor refs are
+    /// pinned into locals <c>b0..bn</c> for the Visit4 do-while so the JIT keeps stable
+    /// base registers; locals advance by 4 at the end of each iteration and write back
+    /// into the original cursors for the remainder tail. Remainder uses an if/else
+    /// cascade (not <c>switch</c>) to avoid a jump table. Visit2/Visit4 call the action
+    /// with direct <c>Unsafe.Add</c> offsets — no temporary slot refs inside Visit*.
     /// </summary>
     private static void AppendUnrolledDenseSlotLoop(
         List<string> loopLines,
@@ -451,28 +453,30 @@ internal static partial class DemandDrivenForEachTemplates
                 ? visitLeadingParameters
                 : visitLeadingParameters + ", " + visitRefParameters;
 
-        string ShiftedCursorArguments(int shift)
+        string[] cursorNames = string.IsNullOrEmpty(visitRefArguments)
+            ? []
+            : visitRefArguments.Split([", "], StringSplitOptions.None)
+                .Select(static part => part.StartsWith("ref ", StringComparison.Ordinal) ? part.Substring(4) : part)
+                .ToArray();
+
+        string ShiftedCursorArguments(string[] names, int shift)
         {
-            if (string.IsNullOrEmpty(visitRefArguments) || shift == 0)
+            if (names.Length == 0)
             {
-                return visitRefArguments;
+                return string.Empty;
             }
 
-            string[] parts = visitRefArguments.Split([", "], StringSplitOptions.None);
-            for (int index = 0; index < parts.Length; index++)
+            if (shift == 0)
             {
-                string name = parts[index].StartsWith("ref ", StringComparison.Ordinal)
-                    ? parts[index].Substring(4)
-                    : parts[index];
-                parts[index] = "ref " + UnsafeAdd(name, shift);
+                return string.Join(", ", names.Select(static name => $"ref {name}"));
             }
 
-            return string.Join(", ", parts);
+            return string.Join(", ", names.Select(name => "ref " + UnsafeAdd(name, shift)));
         }
 
-        string Call(string name, int cursorShift = 0)
+        string Call(string name, string[] names, int cursorShift = 0)
         {
-            string cursors = ShiftedCursorArguments(cursorShift);
+            string cursors = ShiftedCursorArguments(names, cursorShift);
             string args = string.IsNullOrEmpty(visitLeadingArguments)
                 ? cursors
                 : string.IsNullOrEmpty(cursors)
@@ -513,28 +517,58 @@ internal static partial class DemandDrivenForEachTemplates
         loopLines.Add($"{loopIndent}if (({countName} & ~3) != 0)");
         loopLines.Add($"{loopIndent}{{");
         loopLines.Add($"{loopIndent}    int loops = {countName} >> 2;");
+        string[] hotNames = cursorNames;
+        if (cursorNames.Length > 0)
+        {
+            hotNames = new string[cursorNames.Length];
+            for (int index = 0; index < cursorNames.Length; index++)
+            {
+                string local = "b" + index.ToString(CultureInfo.InvariantCulture);
+                hotNames[index] = local;
+                loopLines.Add($"{loopIndent}    ref var {local} = ref {cursorNames[index]};");
+            }
+        }
+
         loopLines.Add($"{loopIndent}    do");
         loopLines.Add($"{loopIndent}    {{");
-        loopLines.Add($"{loopIndent}        {Call("Visit4")};");
-        emitAdvance(loopLines, loopIndent + "        ", 4);
+        loopLines.Add($"{loopIndent}        {Call("Visit4", hotNames)};");
+        for (int index = 0; index < hotNames.Length; index++)
+        {
+            loopLines.Add($"{loopIndent}        {hotNames[index]} = ref {UnsafeAdd(hotNames[index], 4)};");
+        }
+
+        if (hotNames.Length == 0)
+        {
+            emitAdvance(loopLines, loopIndent + "        ", 4);
+        }
+
         loopLines.Add($"{loopIndent}        loops--;");
         loopLines.Add($"{loopIndent}    }} while (loops != 0);");
+        if (cursorNames.Length > 0)
+        {
+            for (int index = 0; index < cursorNames.Length; index++)
+            {
+                loopLines.Add($"{loopIndent}    {cursorNames[index]} = ref {hotNames[index]};");
+            }
+        }
+
         loopLines.Add($"{loopIndent}}}");
         loopLines.Add($"{loopIndent}int remaining = {countName} & 3;");
-        loopLines.Add($"{loopIndent}switch (remaining)");
+        loopLines.Add($"{loopIndent}if (remaining != 0)");
         loopLines.Add($"{loopIndent}{{");
-        loopLines.Add($"{loopIndent}    case 0:");
-        loopLines.Add($"{loopIndent}        break;");
-        loopLines.Add($"{loopIndent}    case 1:");
-        loopLines.Add($"{loopIndent}        {Call("Visit1")};");
-        loopLines.Add($"{loopIndent}        break;");
-        loopLines.Add($"{loopIndent}    case 2:");
-        loopLines.Add($"{loopIndent}        {Call("Visit2")};");
-        loopLines.Add($"{loopIndent}        break;");
-        loopLines.Add($"{loopIndent}    default:");
-        loopLines.Add($"{loopIndent}        {Call("Visit2")};");
-        loopLines.Add($"{loopIndent}        {Call("Visit1", cursorShift: 2)};");
-        loopLines.Add($"{loopIndent}        break;");
+        loopLines.Add($"{loopIndent}    if (remaining == 1)");
+        loopLines.Add($"{loopIndent}    {{");
+        loopLines.Add($"{loopIndent}        {Call("Visit1", cursorNames)};");
+        loopLines.Add($"{loopIndent}    }}");
+        loopLines.Add($"{loopIndent}    else if (remaining == 2)");
+        loopLines.Add($"{loopIndent}    {{");
+        loopLines.Add($"{loopIndent}        {Call("Visit2", cursorNames)};");
+        loopLines.Add($"{loopIndent}    }}");
+        loopLines.Add($"{loopIndent}    else");
+        loopLines.Add($"{loopIndent}    {{");
+        loopLines.Add($"{loopIndent}        {Call("Visit2", cursorNames)};");
+        loopLines.Add($"{loopIndent}        {Call("Visit1", cursorNames, cursorShift: 2)};");
+        loopLines.Add($"{loopIndent}    }}");
         loopLines.Add($"{loopIndent}}}");
     }
 
