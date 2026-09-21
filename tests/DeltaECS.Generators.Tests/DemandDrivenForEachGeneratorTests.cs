@@ -156,11 +156,19 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("ref global::Delta.ECS.RefReadonlyFunctor functor"));
         Assert.That(generated, Does.Contain("ref global::Delta.ECS.T1 component0"));
         Assert.That(generated, Does.Contain("var action = functor;"));
-        Assert.That(generated, Does.Contain("action.Invoke(in component0)"));
+        Assert.That(generated, Does.Contain("private static void Visit4"));
+        Assert.That(generated, Does.Contain("MethodImplOptions.AggressiveInlining)"));
+        Assert.That(generated, Does.Contain("action.Invoke(in baseRef0)"));
+        Assert.That(generated, Does.Contain("action.Invoke(in baseRef1)"));
+        Assert.That(generated, Does.Contain("action.Invoke(in baseRef2)"));
+        Assert.That(generated, Does.Contain("action.Invoke(in baseRef3)"));
         Assert.That(generated, Does.Contain("functor = action;"));
-        Assert.That(generated, Does.Contain("component0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 1)"));
-        Assert.That(generated.IndexOf("var action = functor;", StringComparison.Ordinal), Is.LessThan(generated.IndexOf("action.Invoke(in component0)", StringComparison.Ordinal)));
-        Assert.That(generated.IndexOf("action.Invoke(in component0)", StringComparison.Ordinal), Is.LessThan(generated.IndexOf("functor = action;", StringComparison.Ordinal)));
+        Assert.That(generated, Does.Contain("while (remaining >= 4)"));
+        Assert.That(generated, Does.Contain("Visit4(ref action, ref component0)"));
+        Assert.That(generated, Does.Contain("component0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 4)"));
+        Assert.That(generated, Does.Not.Contain("int offset = 0;"));
+        Assert.That(generated.IndexOf("var action = functor;", StringComparison.Ordinal), Is.LessThan(generated.IndexOf("functor = action;", StringComparison.Ordinal)));
+        Assert.That(generated.IndexOf("functor = action;", StringComparison.Ordinal), Is.LessThan(generated.IndexOf("private static void Visit", StringComparison.Ordinal)));
         AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
     }
 
@@ -323,8 +331,14 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("ForEachContextActionIn<TContext, T1>"));
         Assert.That(generated, Does.Contain("ForEachContextEntityActionValue<TContext, T1>"));
         Assert.That(generated, Does.Contain("public bool RequiresSingleThread => false;"));
-        Assert.That(generated, Does.Contain("_functor.Invoke(ref row0);"));
-        Assert.That(generated, Does.Contain("row0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row0, 1)"));
+        Assert.That(generated, Does.Contain("void Visit4(ref"));
+        Assert.That(generated, Does.Contain("functor.Invoke(ref row0)"));
+        Assert.That(generated, Does.Contain("Visit4(ref _functor"));
+        Assert.That(generated, Does.Contain("private static void Visit4"));
+        Assert.That(generated, Does.Contain("MethodImplOptions.AggressiveInlining)"));
+        Assert.That(generated, Does.Contain("while (remaining >= 4)"));
+        Assert.That(generated, Does.Contain("row0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row0, 4)"));
+        Assert.That(generated, Does.Not.Contain("int offset = 0;"));
         Assert.That(generated, Does.Not.Contain("Unsafe.Add(ref row0, index)"));
         Assert.That(generated, Does.Not.Contain("var action = _functor;"));
         Assert.That(generated, Does.Not.Contain("_functor = action;"));
@@ -464,10 +478,27 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("_route0 = GeneratedForEachRuntime.GetPreparedWriteRoute<T1>(in query);"));
         Assert.That(generated, Does.Contain("ref T1 component0 = ref global::System.Runtime.CompilerServices.Unsafe.NullRef<T1>()"));
         Assert.That(generated, Does.Contain("component0 = ref GeneratedForEachRuntime.GetGeneratedArrayReference(batch.Row0)"));
-        Assert.That(generated, Does.Contain("for (int index = 0; index < count; index++)"));
-        Assert.That(generated, Does.Contain("action(ref component0)"));
-        Assert.That(generated, Does.Contain("component0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 1)"));
+        Assert.That(generated, Does.Contain("void Visit1<T1>(ForEachAction<T1> action, ref T1 component0)"));
+        Assert.That(generated, Does.Contain("void Visit2<T1>(ForEachAction<T1> action, ref T1 component0)"));
+        Assert.That(generated, Does.Contain("void Visit4<T1>(ForEachAction<T1> action, ref T1 component0)"));
+        Assert.That(generated, Does.Contain("private static void Visit4<T1>"));
+        Assert.That(generated, Does.Contain("MethodImplOptions.AggressiveInlining)"));
+        Assert.That(generated, Does.Contain("int remaining = count;"));
+        Assert.That(generated, Does.Contain("while (remaining >= 4)"));
+        Assert.That(generated, Does.Contain("Visit4(action, ref component0);"));
+        Assert.That(generated, Does.Contain("component0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 4)"));
+        Assert.That(generated, Does.Contain("switch (remaining)"));
+        Assert.That(generated, Does.Contain("ref var baseRef0 = ref component0;"));
+        Assert.That(generated, Does.Contain("ref var baseRef1 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 1)"));
+        Assert.That(generated, Does.Contain("ref var baseRef2 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 2)"));
+        Assert.That(generated, Does.Contain("ref var baseRef3 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 3)"));
+        Assert.That(generated, Does.Contain("action(ref baseRef0)"));
+        Assert.That(generated, Does.Contain("action(ref baseRef1)"));
+        Assert.That(generated, Does.Contain("action(ref baseRef2)"));
+        Assert.That(generated, Does.Contain("action(ref baseRef3)"));
+        Assert.That(generated, Does.Not.Contain("int offset = 0;"));
         Assert.That(generated, Does.Not.Contain("Unsafe.Add(ref component0, index)"));
+        Assert.That(generated, Does.Not.Contain("for (int index = 0; index < count; index++)"));
         Assert.That(generated, Does.Contain(
             "SetWriteRoutes(new int[] { _route0 });"));
         Assert.That(generated, Does.Not.Contain("slots.MarkGeneratedWrite"));
@@ -497,11 +528,14 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(run);
 
         Assert.That(generated, Does.Contain("TContext contextCopy = context;"));
-        Assert.That(generated, Does.Contain("action(ref contextCopy, ref component0)"));
+        Assert.That(generated, Does.Contain("ref var baseRef0 = ref component0;"));
+        Assert.That(generated, Does.Contain("ref var baseRef1 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 1)"));
+        Assert.That(generated, Does.Contain("action(ref contextCopy, ref baseRef1)"));
         Assert.That(generated, Does.Contain("context = contextCopy;"));
+        Assert.That(generated, Does.Contain("Visit4(ref contextCopy, action, ref component0)"));
         Assert.That(
-            generated.IndexOf("action(ref contextCopy, ref component0)", StringComparison.Ordinal),
-            Is.LessThan(generated.IndexOf("context = contextCopy;", StringComparison.Ordinal)));
+            generated.IndexOf("context = contextCopy;", StringComparison.Ordinal),
+            Is.LessThan(generated.IndexOf("private static void Visit", StringComparison.Ordinal)));
         AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
     }
 

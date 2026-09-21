@@ -136,17 +136,99 @@ internal static partial class DemandDrivenForEachTemplates
         string entityBase = shape.HasEntity
             ? "ref Entity firstEntity = ref slots.GetGeneratedEntityReference();"
             : string.Empty;
-        string entity = shape.HasEntity
-            ? "Entity entity = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index);"
-            : string.Empty;
-        string components = shape.IsStamp
-            ? GeneratorTemplates.JoinNonEmpty(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
-                $"Stamp component{index} = slots.GetGeneratedStamp(_access{index}, index);"))
-            : string.Empty;
-        string rowAdvances = shape.IsStamp
-            ? string.Empty
-            : GeneratorTemplates.JoinNonEmpty(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
-                $"row{index} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row{index}, 1);"));
+        string invocation = AppendClosedInvocation(shape, "_action", "_functor", "_context", shape.IsStamp ? "component" : "row", "entity");
+        string loopBody;
+        string visitHelpers = string.Empty;
+        if (shape.IsStamp)
+        {
+            string entity = shape.HasEntity
+                ? "Entity entity = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index);"
+                : string.Empty;
+            string components = GeneratorTemplates.JoinNonEmpty(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
+                $"Stamp component{index} = slots.GetGeneratedStamp(_access{index}, index);"));
+            loopBody = $$"""
+                    for (int index = 0; index < count; index++)
+                    {
+            {{entity}}
+                        {{components}}
+                        {{invocation}};
+                    }
+            """;
+        }
+        else
+        {
+            var cursors = new List<(string TypeName, string Name)>();
+            if (shape.HasEntity)
+            {
+                cursors.Add(("Entity", "firstEntity"));
+            }
+
+            for (int index = 0; index < shape.ComponentModels.Length; index++)
+            {
+                cursors.Add((shape.ComponentModels[index].TypeName, $"row{index}"));
+            }
+
+            (string visitRefParameters, string visitRefArguments) = BuildVisitRefLists(cursors);
+            var leading = new List<string>();
+            var leadingArgs = new List<string>();
+            if (shape.HasContext)
+            {
+                leading.Add(shape.ContextMode switch
+                {
+                    ContextModeKind.Value => $"{ContextType(shape)} context",
+                    ContextModeKind.Ref => $"ref {ContextType(shape)} context",
+                    _ => $"in {ContextType(shape)} context",
+                });
+                leadingArgs.Add(shape.ContextMode switch
+                {
+                    ContextModeKind.Value => "_context",
+                    ContextModeKind.Ref => "ref _context",
+                    _ => "in _context",
+                });
+            }
+
+            if (shape.IsFunctor)
+            {
+                leading.Add(SignatureProjection.ContextParameter(shape.FunctorPassMode, shape.FunctorType!, "functor"));
+                leadingArgs.Add(SignatureProjection.ContextArgument(shape.FunctorPassMode, "_functor"));
+            }
+            else
+            {
+                leading.Add($"{actionType} action");
+                leadingArgs.Add("_action");
+            }
+
+            var loopLines = new List<string>();
+            var visitMethods = new List<string>();
+            AppendUnrolledDenseSlotLoop(
+                loopLines,
+                visitMethods,
+                "                    ",
+                "        ",
+                "count",
+                visitRefParameters,
+                visitRefArguments,
+                (stepLines, stepIndent, offset, pin) =>
+                {
+                    stepLines.Add(
+                        $"{stepIndent}{AppendClosedInvocationAt(shape, "action", "functor", "context", "row", "firstEntity", offset, pin)};");
+                },
+                (advanceLines, advanceIndent, advance) =>
+                {
+                    if (shape.HasEntity)
+                    {
+                        advanceLines.Add($"{advanceIndent}firstEntity = ref {UnsafeAdd("firstEntity", advance)};");
+                    }
+
+                    advanceLines.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
+                        $"{advanceIndent}row{index} = ref {UnsafeAdd($"row{index}", advance)};"));
+                },
+                visitLeadingParameters: string.Join(", ", leading),
+                visitLeadingArguments: string.Join(", ", leadingArgs));
+            loopBody = string.Join("\n", loopLines);
+            visitHelpers = string.Join("\n", visitMethods);
+        }
+
         return $$"""
             internal struct {{name}}{{stateGeneric}} : IGeneratedParallelInvoker
             {
@@ -161,14 +243,9 @@ internal static partial class DemandDrivenForEachTemplates
             {{rows}}
             {{entityBase}}
                     int count = slots.Count;
-                    for (int index = 0; index < count; index++)
-                    {
-            {{entity}}
-                        {{components}}
-                        {{AppendClosedInvocation(shape, "_action", "_functor", "_context", shape.IsStamp ? "component" : "row", "entity")}};
-            {{rowAdvances}}
-                    }
+            {{loopBody}}
                 }
+            {{visitHelpers}}
             {{AppendInvokerProperties(shape)}}
             }
             """;
@@ -319,6 +396,224 @@ internal static partial class DemandDrivenForEachTemplates
         {
             invocationArguments.Add(componentArguments);
         }
+        string invocation = shape.IsFunctor ? $"{functorName}.Invoke" : actionName;
+        return $"{invocation}({string.Join(", ", invocationArguments)})";
+    }
+
+    private static string UnsafeAdd(string refExpression, string offsetExpression)
+        => $"global::System.Runtime.CompilerServices.Unsafe.Add(ref {refExpression}, {offsetExpression})";
+
+    private static string UnsafeAdd(string refExpression, int offset)
+        => UnsafeAdd(refExpression, offset.ToString(CultureInfo.InvariantCulture));
+
+    private static string AtOffset(string refExpression, int offset)
+        => offset == 0 ? refExpression : UnsafeAdd(refExpression, offset);
+
+    private static (string Parameters, string Arguments) BuildVisitRefLists(
+        IReadOnlyList<(string TypeName, string Name)> cursors)
+    {
+        if (cursors.Count == 0)
+        {
+            return (string.Empty, string.Empty);
+        }
+
+        return (
+            string.Join(", ", cursors.Select(static cursor => $"ref {cursor.TypeName} {cursor.Name}")),
+            string.Join(", ", cursors.Select(static cursor => $"ref {cursor.Name}")));
+    }
+
+    private static string[] ParseVisitCursorNames(string visitRefParameters)
+    {
+        if (string.IsNullOrEmpty(visitRefParameters))
+        {
+            return Array.Empty<string>();
+        }
+
+        return visitRefParameters
+            .Split([", "], StringSplitOptions.None)
+            .Select(static part =>
+            {
+                int lastSpace = part.LastIndexOf(' ');
+                return lastSpace < 0 ? part : part.Substring(lastSpace + 1);
+            })
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Emits the dense unroll loop into <paramref name="loopLines"/> and private static
+    /// Visit1/2/4 helpers into <paramref name="visitMethods"/> (constant offsets 0..3;
+    /// the loop advances bases by 4). Visit2/Visit4 pin cursor bases to locals so JIT keeps
+    /// a stable base register for <c>Unsafe.Add</c> offsets.
+    /// </summary>
+    private static void AppendUnrolledDenseSlotLoop(
+        List<string> loopLines,
+        List<string> visitMethods,
+        string loopIndent,
+        string visitMethodIndent,
+        string countName,
+        string visitRefParameters,
+        string visitRefArguments,
+        Action<List<string>, string, int, Func<string, string>> emitStep,
+        Action<List<string>, string, int> emitAdvance,
+        string visitLeadingParameters = "",
+        string visitLeadingArguments = "",
+        string visitMethodGenerics = "",
+        bool isolateSteps = false)
+    {
+        string visitParameters = string.IsNullOrEmpty(visitLeadingParameters)
+            ? visitRefParameters
+            : string.IsNullOrEmpty(visitRefParameters)
+                ? visitLeadingParameters
+                : visitLeadingParameters + ", " + visitRefParameters;
+        string[] cursorNames = ParseVisitCursorNames(visitRefParameters);
+
+        string ShiftedCursorArguments(int shift)
+        {
+            if (string.IsNullOrEmpty(visitRefArguments) || shift == 0)
+            {
+                return visitRefArguments;
+            }
+
+            string[] parts = visitRefArguments.Split([", "], StringSplitOptions.None);
+            for (int index = 0; index < parts.Length; index++)
+            {
+                string name = parts[index].StartsWith("ref ", StringComparison.Ordinal)
+                    ? parts[index].Substring(4)
+                    : parts[index];
+                parts[index] = "ref " + UnsafeAdd(name, shift);
+            }
+
+            return string.Join(", ", parts);
+        }
+
+        string Call(string name, int cursorShift = 0)
+        {
+            string cursors = ShiftedCursorArguments(cursorShift);
+            string args = string.IsNullOrEmpty(visitLeadingArguments)
+                ? cursors
+                : string.IsNullOrEmpty(cursors)
+                    ? visitLeadingArguments
+                    : visitLeadingArguments + ", " + cursors;
+            return $"{name}({args})";
+        }
+
+        Func<string, string> PinIdentity = static name => name;
+
+        void EmitVisitMethod(int times, string functionName)
+        {
+            visitMethods.Add($"{visitMethodIndent}[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+            visitMethods.Add($"{visitMethodIndent}private static void {functionName}{visitMethodGenerics}({visitParameters})");
+            visitMethods.Add($"{visitMethodIndent}{{");
+            if (times > 1 && cursorNames.Length > 0)
+            {
+                for (int step = 0; step < times; step++)
+                {
+                    if (cursorNames.Length == 1)
+                    {
+                        visitMethods.Add(
+                            $"{visitMethodIndent}    ref var baseRef{step.ToString(CultureInfo.InvariantCulture)} = ref {AtOffset(cursorNames[0], step)};");
+                    }
+                    else
+                    {
+                        for (int cursorIndex = 0; cursorIndex < cursorNames.Length; cursorIndex++)
+                        {
+                            visitMethods.Add(
+                                $"{visitMethodIndent}    ref var baseRef{cursorIndex.ToString(CultureInfo.InvariantCulture)}_{step.ToString(CultureInfo.InvariantCulture)} = ref {AtOffset(cursorNames[cursorIndex], step)};");
+                        }
+                    }
+                }
+            }
+
+            var indexByName = new Dictionary<string, int>(StringComparer.Ordinal);
+            for (int index = 0; index < cursorNames.Length; index++)
+            {
+                indexByName[cursorNames[index]] = index;
+            }
+
+            for (int step = 0; step < times; step++)
+            {
+                int stepIndex = step;
+                Func<string, string> pin = times <= 1 || cursorNames.Length == 0
+                    ? PinIdentity
+                    : cursorNames.Length == 1
+                        ? name => name == cursorNames[0]
+                            ? "baseRef" + stepIndex.ToString(CultureInfo.InvariantCulture)
+                            : name
+                        : name => indexByName.TryGetValue(name, out int cursorIndex)
+                            ? "baseRef" + cursorIndex.ToString(CultureInfo.InvariantCulture) + "_" + stepIndex.ToString(CultureInfo.InvariantCulture)
+                            : name;
+
+                if (isolateSteps)
+                {
+                    visitMethods.Add($"{visitMethodIndent}    {{");
+                    emitStep(visitMethods, visitMethodIndent + "        ", 0, pin);
+                    visitMethods.Add($"{visitMethodIndent}    }}");
+                }
+                else
+                {
+                    emitStep(visitMethods, visitMethodIndent + "    ", 0, pin);
+                }
+            }
+
+            visitMethods.Add($"{visitMethodIndent}}}");
+            visitMethods.Add(string.Empty);
+        }
+
+        EmitVisitMethod(1, "Visit1");
+        EmitVisitMethod(2, "Visit2");
+        EmitVisitMethod(4, "Visit4");
+
+        loopLines.Add($"{loopIndent}int remaining = {countName};");
+        loopLines.Add($"{loopIndent}while (remaining >= 4)");
+        loopLines.Add($"{loopIndent}{{");
+        loopLines.Add($"{loopIndent}    {Call("Visit4")};");
+        emitAdvance(loopLines, loopIndent + "    ", 4);
+        loopLines.Add($"{loopIndent}    remaining -= 4;");
+        loopLines.Add($"{loopIndent}}}");
+        loopLines.Add($"{loopIndent}switch (remaining)");
+        loopLines.Add($"{loopIndent}{{");
+        loopLines.Add($"{loopIndent}    case 0:");
+        loopLines.Add($"{loopIndent}        break;");
+        loopLines.Add($"{loopIndent}    case 1:");
+        loopLines.Add($"{loopIndent}        {Call("Visit1")};");
+        loopLines.Add($"{loopIndent}        break;");
+        loopLines.Add($"{loopIndent}    case 2:");
+        loopLines.Add($"{loopIndent}        {Call("Visit2")};");
+        loopLines.Add($"{loopIndent}        break;");
+        loopLines.Add($"{loopIndent}    default:");
+        loopLines.Add($"{loopIndent}        {Call("Visit2")};");
+        loopLines.Add($"{loopIndent}        {Call("Visit1", cursorShift: 2)};");
+        loopLines.Add($"{loopIndent}        break;");
+        loopLines.Add($"{loopIndent}}}");
+    }
+
+    private static string AppendClosedInvocationAt(
+        IterationModel shape,
+        string actionName,
+        string functorName,
+        string contextName,
+        string componentPrefix,
+        string entityCursor,
+        int offset,
+        Func<string, string> pin)
+    {
+        var invocationArguments = new List<string>();
+        if (shape.HasContext)
+        {
+            invocationArguments.Add(SignatureProjection.ContextArgument(shape.ContextMode, contextName));
+        }
+
+        if (shape.HasEntity)
+        {
+            invocationArguments.Add(AtOffset(pin(entityCursor), offset));
+        }
+
+        for (int index = 0; index < shape.ComponentModels.Length; index++)
+        {
+            invocationArguments.Add(
+                shape.Api.Signature.ComponentArgument(index, AtOffset(pin(componentPrefix + index), offset)));
+        }
+
         string invocation = shape.IsFunctor ? $"{functorName}.Invoke" : actionName;
         return $"{invocation}({string.Join(", ", invocationArguments)})";
     }
@@ -507,6 +802,7 @@ internal static partial class DemandDrivenForEachTemplates
             "{",
             bound ? string.Empty : GeneratorTemplates.Indent(AccessSetup(closedShape).TrimEnd(), "    "),
         };
+        var interceptedVisitMethods = new List<string>();
         if (closedShape is { HasContext: true, ContextMode: ContextModeKind.Ref })
         {
             lines.Add($"    {InterceptedContextType(closedShape)} {parameters[0]} = {contextParameterName};");
@@ -572,46 +868,123 @@ internal static partial class DemandDrivenForEachTemplates
         if (closedShape.HasEntity)
         {
             lines.Add(bound ? $"        ref global::Delta.ECS.Entity firstEntity = ref {batch}.Chunk.GetEntityReference();" : "        " + entityReference);
-        }
-        lines.Add($"        for (int {indexName} = 0; {indexName} < {countName}; {indexName}++)");
-        lines.Add("        {");
-        int parameterIndex = closedShape.HasContext ? 1 : 0;
-        if (closedShape.HasEntity)
-        {
-            lines.Add($"            global::Delta.ECS.Entity {parameters[parameterIndex]} = {string.Format(entityAt, indexName)};");
-            parameterIndex++;
-        }
-        for (int index = 0; index < closedShape.ComponentModels.Length; index++)
-        {
-            if (shape.IsStamp)
+            if (!shape.IsStamp && usesReadSlots && !bound)
             {
-                lines.Add($"            Stamp {parameters[parameterIndex + index]} = slots.GetGeneratedStamp(access{index}, {indexName});");
-            }
-            else if (inlineLambda)
-            {
-                lines.Add($"            {(closedShape.ComponentModels[index].IsWrite ? "ref " : "ref readonly ")}{closedShape.ComponentModels[index].ResolvedTypeName} {parameters[parameterIndex + index]} = ref {rowNames[index]};");
+                lines.Add("        ref global::Delta.ECS.Entity entityCursor = ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in firstEntity);");
             }
         }
-        if (inlineLambda)
+
+        if (shape.IsStamp)
         {
-            lines.Add(AppendInterceptedLambdaBody(site, "            "));
+            lines.Add($"        for (int {indexName} = 0; {indexName} < {countName}; {indexName}++)");
+            lines.Add("        {");
+            int stampParameterIndex = closedShape.HasContext ? 1 : 0;
+            if (closedShape.HasEntity)
+            {
+                lines.Add($"            global::Delta.ECS.Entity {parameters[stampParameterIndex]} = {string.Format(entityAt, indexName)};");
+                stampParameterIndex++;
+            }
+
+            for (int index = 0; index < closedShape.ComponentModels.Length; index++)
+            {
+                lines.Add($"            Stamp {parameters[stampParameterIndex + index]} = slots.GetGeneratedStamp(access{index}, {indexName});");
+            }
+
+            if (inlineLambda)
+            {
+                lines.Add(AppendInterceptedLambdaBody(site, "            "));
+            }
+            else
+            {
+                lines.Add(AppendCallbackInvocation(closedShape, callbackName, parameters, "            "));
+            }
+
+            lines.Add("        }");
         }
         else
         {
-            string[] callbackParameters = (string[])parameters.Clone();
-            int firstComponentParameter = (closedShape.HasContext ? 1 : 0) + (closedShape.HasEntity ? 1 : 0);
-            for (int index = 0; index < rowNames.Length; index++)
+            string entityCursor = closedShape.HasEntity
+                ? (usesReadSlots && !bound ? "entityCursor" : "firstEntity")
+                : string.Empty;
+            int entityParameterIndex = closedShape.HasContext ? 1 : 0;
+            var cursors = new List<(string TypeName, string Name)>();
+            if (closedShape.HasEntity)
             {
-                callbackParameters[firstComponentParameter + index] = rowNames[index];
+                cursors.Add(("global::Delta.ECS.Entity", entityCursor));
             }
-            lines.Add(AppendCallbackInvocation(closedShape, callbackName, callbackParameters, "            "));
+
+            for (int index = 0; index < closedShape.ComponentModels.Length; index++)
+            {
+                cursors.Add((closedShape.ComponentModels[index].ResolvedTypeName, rowNames[index]));
+            }
+
+            (string visitRefParameters, string visitRefArguments) = BuildVisitRefLists(cursors);
+            var visitMethods = new List<string>();
+            var leading = new List<string>();
+            var leadingArgs = new List<string>();
+            if (closedShape.HasContext)
+            {
+                leading.Add(SignatureProjection.ContextParameter(
+                    closedShape.ContextMode,
+                    InterceptedContextType(closedShape),
+                    parameters[0]));
+                leadingArgs.Add(SignatureProjection.ContextArgument(closedShape.ContextMode, parameters[0]));
+            }
+
+            AppendUnrolledDenseSlotLoop(
+                lines,
+                visitMethods,
+                "        ",
+                "    ",
+                countName,
+                visitRefParameters,
+                visitRefArguments,
+                (stepLines, stepIndent, offset, pin) =>
+                {
+                    int parameterIndex = entityParameterIndex;
+                    if (closedShape.HasEntity)
+                    {
+                        stepLines.Add($"{stepIndent}global::Delta.ECS.Entity {parameters[parameterIndex]} = {AtOffset(pin(entityCursor), offset)};");
+                        parameterIndex++;
+                    }
+
+                    if (inlineLambda)
+                    {
+                        for (int index = 0; index < closedShape.ComponentModels.Length; index++)
+                        {
+                            stepLines.Add($"{stepIndent}{(closedShape.ComponentModels[index].IsWrite ? "ref " : "ref readonly ")}{closedShape.ComponentModels[index].ResolvedTypeName} {parameters[parameterIndex + index]} = ref {AtOffset(pin(rowNames[index]), offset)};");
+                        }
+
+                        stepLines.Add(AppendInterceptedLambdaBody(site, stepIndent));
+                    }
+                    else
+                    {
+                        string[] callbackParameters = (string[])parameters.Clone();
+                        int firstComponentParameter = (closedShape.HasContext ? 1 : 0) + (closedShape.HasEntity ? 1 : 0);
+                        for (int index = 0; index < rowNames.Length; index++)
+                        {
+                            callbackParameters[firstComponentParameter + index] = AtOffset(pin(rowNames[index]), offset);
+                        }
+
+                        stepLines.Add(AppendCallbackInvocation(closedShape, callbackName, callbackParameters, stepIndent));
+                    }
+                },
+                (advanceLines, advanceIndent, advance) =>
+                {
+                    if (closedShape.HasEntity)
+                    {
+                        advanceLines.Add($"{advanceIndent}{entityCursor} = ref {UnsafeAdd(entityCursor, advance)};");
+                    }
+
+                    advanceLines.AddRange(GeneratorTemplates.Indexed(closedShape.ComponentModels.Length,
+                        index => $"{advanceIndent}{rowNames[index]} = ref {UnsafeAdd(rowNames[index], advance)};"));
+                },
+                visitLeadingParameters: string.Join(", ", leading),
+                visitLeadingArguments: string.Join(", ", leadingArgs),
+                isolateSteps: true);
+            interceptedVisitMethods = visitMethods;
         }
-        if (!shape.IsStamp)
-        {
-            lines.AddRange(GeneratorTemplates.Indexed(closedShape.ComponentModels.Length,
-                index => $"        {rowNames[index]} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref {rowNames[index]}, 1);"));
-        }
-        lines.Add("        }");
+
         if (bound)
         {
             lines.Add($"        {batchCursor} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref {batchCursor}, 1);");
@@ -622,7 +995,10 @@ internal static partial class DemandDrivenForEachTemplates
             lines.Add($"    {contextParameterName} = {parameters[0]};");
         }
         lines.Add("}");
-        return string.Join("\n", lines);
+        string closedMethod = string.Join("\n", lines);
+        return interceptedVisitMethods.Count == 0
+            ? closedMethod
+            : closedMethod + "\n\n" + string.Join("\n", interceptedVisitMethods);
     }
 
     private static string RenderInterceptedParallelInvoker(IterationModel shape, InterceptionSite site)
@@ -659,7 +1035,9 @@ internal static partial class DemandDrivenForEachTemplates
         constructorAssignments.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
             $"        _access{index} = GeneratedForEachRuntime.Get{(shape.IsStamp || !shape.ComponentModels[index].IsWrite ? "Read" : "Write")}QueryComponentIndex(access{index});"));
         var body = new List<string>();
-        if (shape.HasContext)
+        var interceptedParallelVisitMethods = new List<string>();
+        bool inlineLambda = CanInlineInterceptedLambda(site);
+        if (shape.HasContext && shape.IsStamp)
         {
             body.Add(shape.ContextMode switch
             {
@@ -678,44 +1056,115 @@ internal static partial class DemandDrivenForEachTemplates
         {
             body.Add("        ref global::Delta.ECS.Entity firstEntity = ref slots.GetGeneratedEntityReference();");
         }
-        body.Add($"        for (int {indexName} = 0; {indexName} < {countName}; {indexName}++)");
-        body.Add("        {");
-        int parameterIndex = shape.HasContext ? 1 : 0;
-        if (shape.HasEntity)
-        {
-            body.Add($"            global::Delta.ECS.Entity {parameters[parameterIndex++]} = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, {indexName});");
-        }
-        bool inlineLambda = CanInlineInterceptedLambda(site);
+
         if (shape.IsStamp)
         {
+            body.Add($"        for (int {indexName} = 0; {indexName} < {countName}; {indexName}++)");
+            body.Add("        {");
+            int parameterIndex = shape.HasContext ? 1 : 0;
+            if (shape.HasEntity)
+            {
+                body.Add($"            global::Delta.ECS.Entity {parameters[parameterIndex++]} = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, {indexName});");
+            }
+
             body.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
                 $"            Stamp {parameters[parameterIndex + index]} = slots.GetGeneratedStamp(_access{index}, {indexName});"));
-        }
-        else if (inlineLambda)
-        {
-            body.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
-                $"            {(shape.ComponentModels[index].IsWrite ? "ref " : "ref readonly ")}{shape.ComponentModels[index].ResolvedTypeName} {parameters[parameterIndex + index]} = ref {rowNames[index]};"));
-        }
-        if (inlineLambda)
-        {
-            body.Add(AppendInterceptedLambdaBody(site, "            "));
+            if (inlineLambda)
+            {
+                body.Add(AppendInterceptedLambdaBody(site, "            "));
+            }
+            else
+            {
+                body.Add(AppendCallbackInvocation(shape, callbackName, parameters, "            "));
+            }
+
+            body.Add("        }");
         }
         else
         {
-            string[] callbackParameters = (string[])parameters.Clone();
-            int firstComponentParameter = (shape.HasContext ? 1 : 0) + (shape.HasEntity ? 1 : 0);
-            for (int index = 0; index < rowNames.Length; index++)
+            var cursors = new List<(string TypeName, string Name)>();
+            if (shape.HasEntity)
             {
-                callbackParameters[firstComponentParameter + index] = rowNames[index];
+                cursors.Add(("global::Delta.ECS.Entity", "firstEntity"));
             }
-            body.Add(AppendCallbackInvocation(shape, callbackName, callbackParameters, "            "));
+
+            for (int index = 0; index < shape.ComponentModels.Length; index++)
+            {
+                cursors.Add((shape.ComponentModels[index].ResolvedTypeName, rowNames[index]));
+            }
+
+            (string visitRefParameters, string visitRefArguments) = BuildVisitRefLists(cursors);
+            string leadingParameters = string.Empty;
+            string leadingArguments = string.Empty;
+            if (shape.HasContext)
+            {
+                string contextName = parameters[0];
+                leadingParameters = shape.ContextMode switch
+                {
+                    ContextModeKind.Value => $"{InterceptedContextType(shape)} {contextName}",
+                    ContextModeKind.Ref => $"ref {InterceptedContextType(shape)} {contextName}",
+                    _ => $"in {InterceptedContextType(shape)} {contextName}",
+                };
+                leadingArguments = shape.ContextMode switch
+                {
+                    ContextModeKind.Value => "_context",
+                    ContextModeKind.Ref => "ref _context",
+                    _ => "in _context",
+                };
+            }
+
+            var visitMethods = new List<string>();
+            AppendUnrolledDenseSlotLoop(
+                body,
+                visitMethods,
+                "        ",
+                "    ",
+                countName,
+                visitRefParameters,
+                visitRefArguments,
+                (stepLines, stepIndent, offset, pin) =>
+                {
+                    int parameterIndex = shape.HasContext ? 1 : 0;
+                    if (shape.HasEntity)
+                    {
+                        stepLines.Add($"{stepIndent}global::Delta.ECS.Entity {parameters[parameterIndex]} = {AtOffset(pin("firstEntity"), offset)};");
+                        parameterIndex++;
+                    }
+
+                    if (inlineLambda)
+                    {
+                        stepLines.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
+                            $"{stepIndent}{(shape.ComponentModels[index].IsWrite ? "ref " : "ref readonly ")}{shape.ComponentModels[index].ResolvedTypeName} {parameters[parameterIndex + index]} = ref {AtOffset(pin(rowNames[index]), offset)};"));
+                        stepLines.Add(AppendInterceptedLambdaBody(site, stepIndent));
+                    }
+                    else
+                    {
+                        string[] callbackParameters = (string[])parameters.Clone();
+                        int firstComponentParameter = (shape.HasContext ? 1 : 0) + (shape.HasEntity ? 1 : 0);
+                        for (int index = 0; index < rowNames.Length; index++)
+                        {
+                            callbackParameters[firstComponentParameter + index] = AtOffset(pin(rowNames[index]), offset);
+                        }
+
+                        stepLines.Add(AppendCallbackInvocation(shape, callbackName, callbackParameters, stepIndent));
+                    }
+                },
+                (advanceLines, advanceIndent, advance) =>
+                {
+                    if (shape.HasEntity)
+                    {
+                        advanceLines.Add($"{advanceIndent}firstEntity = ref {UnsafeAdd("firstEntity", advance)};");
+                    }
+
+                    advanceLines.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
+                        $"{advanceIndent}{rowNames[index]} = ref {UnsafeAdd(rowNames[index], advance)};"));
+                },
+                visitLeadingParameters: leadingParameters,
+                visitLeadingArguments: leadingArguments,
+                isolateSteps: true);
+            interceptedParallelVisitMethods = visitMethods;
         }
-        if (!shape.IsStamp)
-        {
-            body.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
-                $"            {rowNames[index]} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref {rowNames[index]}, 1);"));
-        }
-        body.Add("        }");
+
         string members = string.Join("\n", new[]
         {
             string.Join("\n", fields),
@@ -731,6 +1180,7 @@ internal static partial class DemandDrivenForEachTemplates
             "    {",
             string.Join("\n", body),
             "    }",
+            string.Join("\n", interceptedParallelVisitMethods),
             shape.HasContext ? $"    internal {InterceptedContextType(shape)} Context => _context;" : string.Empty,
         }.Where(static value => !string.IsNullOrEmpty(value)));
         return GeneratorTemplates.RenderBlock($"private struct {name} : IGeneratedParallelInvoker", members);
@@ -928,6 +1378,7 @@ internal static partial class DemandDrivenForEachTemplates
             "{",
             bound ? string.Empty : GeneratorTemplates.Indent(AccessSetup(shape).TrimEnd(), "    "),
         };
+        var closedDenseVisitMethods = new List<string>();
         if (copyRefContext && !shape.HasEntityTarget)
         {
             lines.Add($"    {ContextType(shape)} contextCopy = context;");
@@ -1024,29 +1475,98 @@ internal static partial class DemandDrivenForEachTemplates
                 : usesReadSlots
                 ? "        ref readonly Entity firstEntity = ref slots.GetGeneratedEntityReference();"
                 : "        ref Entity firstEntity = ref slots.GetGeneratedEntityReference();");
+            if (!shape.IsStamp && usesReadSlots && !bound)
+            {
+                lines.Add("        ref Entity entityCursor = ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in firstEntity);");
+            }
         }
-        lines.Add("        for (int index = 0; index < count; index++)");
-        lines.Add("        {");
-        if (shape.HasEntity)
+
+        if (shape.IsStamp)
         {
-            lines.Add(usesReadSlots
-                ? "            Entity entity = global::System.Runtime.CompilerServices.Unsafe.Add(ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in firstEntity), index);"
-                : "            Entity entity = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index);");
-        }
-        for (int index = 0; index < shape.ComponentModels.Length; index++)
-        {
-            if (shape.IsStamp)
+            lines.Add("        for (int index = 0; index < count; index++)");
+            lines.Add("        {");
+            if (shape.HasEntity)
+            {
+                lines.Add(usesReadSlots
+                    ? "            Entity entity = global::System.Runtime.CompilerServices.Unsafe.Add(ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in firstEntity), index);"
+                    : "            Entity entity = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index);");
+            }
+
+            for (int index = 0; index < shape.ComponentModels.Length; index++)
             {
                 lines.Add($"            Stamp component{index} = slots.GetGeneratedStamp(access{index}, index);");
             }
+
+            lines.Add("            " + AppendClosedInvocation(shape, "action", shape.IsFunctor ? "action" : "functor", contextName, "component", "entity") + ";");
+            lines.Add("        }");
         }
-        lines.Add("            " + AppendClosedInvocation(shape, "action", shape.IsFunctor ? "action" : "functor", contextName, "component", "entity") + ";");
-        if (!shape.IsStamp)
+        else
         {
-            lines.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length,
-                index => $"            component{index} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component{index}, 1);"));
+            string entityCursor = shape.HasEntity
+                ? (usesReadSlots && !bound ? "entityCursor" : "firstEntity")
+                : string.Empty;
+            var cursors = new List<(string TypeName, string Name)>();
+            if (shape.HasEntity)
+            {
+                cursors.Add(("Entity", entityCursor));
+            }
+
+            for (int index = 0; index < shape.ComponentModels.Length; index++)
+            {
+                cursors.Add((ComponentType(shape, index), $"component{index}"));
+            }
+
+            (string visitRefParameters, string visitRefArguments) = BuildVisitRefLists(cursors);
+            var visitMethods = new List<string>();
+            var leading = new List<string>();
+            var leadingArgs = new List<string>();
+            if (shape.HasContext)
+            {
+                leading.Add(SignatureProjection.ContextParameter(shape.ContextMode, ContextType(shape), contextName));
+                leadingArgs.Add(SignatureProjection.ContextArgument(shape.ContextMode, contextName));
+            }
+
+            if (shape.IsFunctor)
+            {
+                // Hot loop uses a local `action` copy so ref functors can write back after the loop.
+                leading.Add(SignatureProjection.ContextParameter(shape.FunctorPassMode, shape.FunctorType!, "action"));
+                leadingArgs.Add(SignatureProjection.ContextArgument(shape.FunctorPassMode, "action"));
+            }
+            else
+            {
+                leading.Add($"{ActionType(shape)} action");
+                leadingArgs.Add("action");
+            }
+
+            AppendUnrolledDenseSlotLoop(
+                lines,
+                visitMethods,
+                "        ",
+                string.Empty,
+                "count",
+                visitRefParameters,
+                visitRefArguments,
+                (stepLines, stepIndent, offset, pin) =>
+                {
+                    stepLines.Add(
+                        $"{stepIndent}{AppendClosedInvocationAt(shape, "action", "action", contextName, "component", entityCursor, offset, pin)};");
+                },
+                (advanceLines, advanceIndent, advance) =>
+                {
+                    if (shape.HasEntity)
+                    {
+                        advanceLines.Add($"{advanceIndent}{entityCursor} = ref {UnsafeAdd(entityCursor, advance)};");
+                    }
+
+                    advanceLines.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length,
+                        index => $"{advanceIndent}component{index} = ref {UnsafeAdd($"component{index}", advance)};"));
+                },
+                visitLeadingParameters: string.Join(", ", leading),
+                visitLeadingArguments: string.Join(", ", leadingArgs),
+                visitMethodGenerics: genericPrefix);
+            closedDenseVisitMethods = visitMethods;
         }
-        lines.Add("        }");
+
         if (bound)
         {
             lines.Add("        batchCursor = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref batchCursor, 1);");
@@ -1061,7 +1581,15 @@ internal static partial class DemandDrivenForEachTemplates
             lines.Add("    context = contextCopy;");
         }
         lines.Add("}");
-        return GeneratorTemplates.Indent(string.Join("\n", lines), "    ");
+        string closedMethod = GeneratorTemplates.Indent(string.Join("\n", lines), "    ");
+        if (closedDenseVisitMethods.Count == 0)
+        {
+            return closedMethod;
+        }
+
+        string visitHelpers = string.Join("\n", closedDenseVisitMethods.Select(static line =>
+            string.IsNullOrEmpty(line) ? line : "    " + line));
+        return closedMethod + "\n\n" + visitHelpers;
     }
 
     private static string[] SplitLines(string text)
