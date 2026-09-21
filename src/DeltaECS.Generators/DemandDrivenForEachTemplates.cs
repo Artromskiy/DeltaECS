@@ -422,28 +422,11 @@ internal static partial class DemandDrivenForEachTemplates
             string.Join(", ", cursors.Select(static cursor => $"ref {cursor.Name}")));
     }
 
-    private static string[] ParseVisitCursorNames(string visitRefParameters)
-    {
-        if (string.IsNullOrEmpty(visitRefParameters))
-        {
-            return Array.Empty<string>();
-        }
-
-        return visitRefParameters
-            .Split([", "], StringSplitOptions.None)
-            .Select(static part =>
-            {
-                int lastSpace = part.LastIndexOf(' ');
-                return lastSpace < 0 ? part : part.Substring(lastSpace + 1);
-            })
-            .ToArray();
-    }
-
     /// <summary>
     /// Emits the dense unroll loop into <paramref name="loopLines"/> and private static
     /// Visit1/2/4 helpers into <paramref name="visitMethods"/> (constant offsets 0..3;
-    /// the loop advances bases by 4). Visit2/Visit4 pin cursor bases to locals so JIT keeps
-    /// a stable base register for <c>Unsafe.Add</c> offsets.
+    /// the loop advances bases by 4). Visit2/Visit4 call the action with direct
+    /// <c>Unsafe.Add</c> offsets — no temporary slot refs.
     /// </summary>
     private static void AppendUnrolledDenseSlotLoop(
         List<string> loopLines,
@@ -465,7 +448,6 @@ internal static partial class DemandDrivenForEachTemplates
             : string.IsNullOrEmpty(visitRefParameters)
                 ? visitLeadingParameters
                 : visitLeadingParameters + ", " + visitRefParameters;
-        string[] cursorNames = ParseVisitCursorNames(visitRefParameters);
 
         string ShiftedCursorArguments(int shift)
         {
@@ -497,61 +479,24 @@ internal static partial class DemandDrivenForEachTemplates
             return $"{name}({args})";
         }
 
-        Func<string, string> PinIdentity = static name => name;
+        Func<string, string> pinIdentity = static name => name;
 
         void EmitVisitMethod(int times, string functionName)
         {
             visitMethods.Add($"{visitMethodIndent}[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
             visitMethods.Add($"{visitMethodIndent}private static void {functionName}{visitMethodGenerics}({visitParameters})");
             visitMethods.Add($"{visitMethodIndent}{{");
-            if (times > 1 && cursorNames.Length > 0)
-            {
-                for (int step = 0; step < times; step++)
-                {
-                    if (cursorNames.Length == 1)
-                    {
-                        visitMethods.Add(
-                            $"{visitMethodIndent}    ref var baseRef{step.ToString(CultureInfo.InvariantCulture)} = ref {AtOffset(cursorNames[0], step)};");
-                    }
-                    else
-                    {
-                        for (int cursorIndex = 0; cursorIndex < cursorNames.Length; cursorIndex++)
-                        {
-                            visitMethods.Add(
-                                $"{visitMethodIndent}    ref var baseRef{cursorIndex.ToString(CultureInfo.InvariantCulture)}_{step.ToString(CultureInfo.InvariantCulture)} = ref {AtOffset(cursorNames[cursorIndex], step)};");
-                        }
-                    }
-                }
-            }
-
-            var indexByName = new Dictionary<string, int>(StringComparer.Ordinal);
-            for (int index = 0; index < cursorNames.Length; index++)
-            {
-                indexByName[cursorNames[index]] = index;
-            }
-
             for (int step = 0; step < times; step++)
             {
-                int stepIndex = step;
-                Func<string, string> pin = times <= 1 || cursorNames.Length == 0
-                    ? PinIdentity
-                    : cursorNames.Length == 1
-                        ? name => name == cursorNames[0]
-                            ? "baseRef" + stepIndex.ToString(CultureInfo.InvariantCulture)
-                            : name
-                        : name => indexByName.TryGetValue(name, out int cursorIndex)
-                            ? "baseRef" + cursorIndex.ToString(CultureInfo.InvariantCulture) + "_" + stepIndex.ToString(CultureInfo.InvariantCulture)
-                            : name;
-
                 if (isolateSteps)
                 {
                     visitMethods.Add($"{visitMethodIndent}    {{");
-                    emitStep(visitMethods, visitMethodIndent + "        ", 0, pin);
+                    emitStep(visitMethods, visitMethodIndent + "        ", step, pinIdentity);
                     visitMethods.Add($"{visitMethodIndent}    }}");
                 }
                 else
                 {
-                    emitStep(visitMethods, visitMethodIndent + "    ", 0, pin);
+                    emitStep(visitMethods, visitMethodIndent + "    ", step, pinIdentity);
                 }
             }
 

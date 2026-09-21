@@ -158,10 +158,11 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("var action = functor;"));
         Assert.That(generated, Does.Contain("private static void Visit4"));
         Assert.That(generated, Does.Contain("MethodImplOptions.AggressiveInlining)"));
-        Assert.That(generated, Does.Contain("action.Invoke(in baseRef0)"));
-        Assert.That(generated, Does.Contain("action.Invoke(in baseRef1)"));
-        Assert.That(generated, Does.Contain("action.Invoke(in baseRef2)"));
-        Assert.That(generated, Does.Contain("action.Invoke(in baseRef3)"));
+        Assert.That(generated, Does.Contain("action.Invoke(in component0)"));
+        Assert.That(generated, Does.Contain("action.Invoke(in global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 1))"));
+        Assert.That(generated, Does.Contain("action.Invoke(in global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 2))"));
+        Assert.That(generated, Does.Contain("action.Invoke(in global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 3))"));
+        Assert.That(generated, Does.Not.Contain("ref var baseRef0"));
         Assert.That(generated, Does.Contain("functor = action;"));
         Assert.That(generated, Does.Contain("int loops = count >> 2;"));
         Assert.That(generated, Does.Contain("if (loops > 0)"));
@@ -506,14 +507,11 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("switch (remaining)"));
         Assert.That(generated, Does.Not.Contain("int remaining = count;"));
         Assert.That(generated, Does.Not.Contain("while (remaining >= 4)"));
-        Assert.That(generated, Does.Contain("ref var baseRef0 = ref component0;"));
-        Assert.That(generated, Does.Contain("ref var baseRef1 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 1)"));
-        Assert.That(generated, Does.Contain("ref var baseRef2 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 2)"));
-        Assert.That(generated, Does.Contain("ref var baseRef3 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 3)"));
-        Assert.That(generated, Does.Contain("action(ref baseRef0)"));
-        Assert.That(generated, Does.Contain("action(ref baseRef1)"));
-        Assert.That(generated, Does.Contain("action(ref baseRef2)"));
-        Assert.That(generated, Does.Contain("action(ref baseRef3)"));
+        Assert.That(generated, Does.Contain("action(ref component0)"));
+        Assert.That(generated, Does.Contain("action(ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 1))"));
+        Assert.That(generated, Does.Contain("action(ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 2))"));
+        Assert.That(generated, Does.Contain("action(ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 3))"));
+        Assert.That(generated, Does.Not.Contain("ref var baseRef0"));
         Assert.That(generated, Does.Not.Contain("int offset = 0;"));
         Assert.That(generated, Does.Not.Contain("Unsafe.Add(ref component0, index)"));
         Assert.That(generated, Does.Not.Contain("for (int index = 0; index < count; index++)"));
@@ -546,9 +544,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(run);
 
         Assert.That(generated, Does.Contain("TContext contextCopy = context;"));
-        Assert.That(generated, Does.Contain("ref var baseRef0 = ref component0;"));
-        Assert.That(generated, Does.Contain("ref var baseRef1 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 1)"));
-        Assert.That(generated, Does.Contain("action(ref contextCopy, ref baseRef1)"));
+        Assert.That(generated, Does.Contain("action(ref contextCopy, ref component0)"));
+        Assert.That(generated, Does.Contain("action(ref contextCopy, ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component0, 1))"));
+        Assert.That(generated, Does.Not.Contain("ref var baseRef0"));
         Assert.That(generated, Does.Contain("context = contextCopy;"));
         Assert.That(generated, Does.Contain("Visit4(ref contextCopy, action, ref component0)"));
         Assert.That(
