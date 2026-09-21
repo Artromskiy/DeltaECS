@@ -563,13 +563,17 @@ internal static partial class DemandDrivenForEachTemplates
         EmitVisitMethod(2, "Visit2");
         EmitVisitMethod(4, "Visit4");
 
-        loopLines.Add($"{loopIndent}int remaining = {countName};");
-        loopLines.Add($"{loopIndent}while (remaining >= 4)");
+        loopLines.Add($"{loopIndent}int loops = {countName} >> 2;");
+        loopLines.Add($"{loopIndent}if (loops > 0)");
         loopLines.Add($"{loopIndent}{{");
-        loopLines.Add($"{loopIndent}    {Call("Visit4")};");
-        emitAdvance(loopLines, loopIndent + "    ", 4);
-        loopLines.Add($"{loopIndent}    remaining -= 4;");
+        loopLines.Add($"{loopIndent}    do");
+        loopLines.Add($"{loopIndent}    {{");
+        loopLines.Add($"{loopIndent}        {Call("Visit4")};");
+        emitAdvance(loopLines, loopIndent + "        ", 4);
+        loopLines.Add($"{loopIndent}        loops--;");
+        loopLines.Add($"{loopIndent}    }} while (loops != 0);");
         loopLines.Add($"{loopIndent}}}");
+        loopLines.Add($"{loopIndent}int remaining = {countName} & 3;");
         loopLines.Add($"{loopIndent}switch (remaining)");
         loopLines.Add($"{loopIndent}{{");
         loopLines.Add($"{loopIndent}    case 0:");
@@ -821,10 +825,10 @@ internal static partial class DemandDrivenForEachTemplates
             lines.AddRange(SplitLines(AppendQueryComponentRoutes(closedShape, "    ")));
             lines.AddRange(SplitLines(AppendArchetypeWriteSetup(shape, "    ")));
         }
-        string chunkIndex = GeneratedLocalName(site, "chunk", 0);
         string batch = GeneratedLocalName(site, "batch", 0);
         string batchCursor = GeneratedLocalName(site, "batchCursor", 0);
         string chunkCount = GeneratedLocalName(site, "chunkCount", 0);
+        string chunksRemaining = GeneratedLocalName(site, "chunksRemaining", 0);
         if (bound)
         {
             lines.Add($"    int {chunkCount} = execution.Rows.Length;");
@@ -838,16 +842,22 @@ internal static partial class DemandDrivenForEachTemplates
                 lines.Add($"    ref {type} {rowNames[index]} = ref global::System.Runtime.CompilerServices.Unsafe.NullRef<{type}>();");
             }
         }
-        lines.Add(bound
-            ? $"    for (int {chunkIndex} = 0; {chunkIndex} < {chunkCount}; {chunkIndex}++)"
-            : shape.IsStamp || closedShape.HasEntity
-            ? "    while (execution.MoveNextTrusted(out var slots))"
-            : $"    while (execution.MoveNextTrusted(out var componentRows, out int {countName}))");
-        lines.Add("    {");
         if (bound)
         {
-            lines.Add($"        ref var {batch} = ref {batchCursor};");
-            lines.Add($"        int {countName} = {batch}.Chunk.Count;");
+            lines.Add($"    int {chunksRemaining} = {chunkCount};");
+            lines.Add($"    if ({chunksRemaining} > 0)");
+            lines.Add("    {");
+            lines.Add("        do");
+            lines.Add("        {");
+            lines.Add($"            ref var {batch} = ref {batchCursor};");
+            lines.Add($"            int {countName} = {batch}.Chunk.Count;");
+        }
+        else
+        {
+            lines.Add(shape.IsStamp || closedShape.HasEntity
+                ? "    while (execution.MoveNextTrusted(out var slots))"
+                : $"    while (execution.MoveNextTrusted(out var componentRows, out int {countName}))");
+            lines.Add("    {");
         }
         if (!shape.IsStamp)
         {
@@ -987,9 +997,15 @@ internal static partial class DemandDrivenForEachTemplates
 
         if (bound)
         {
-            lines.Add($"        {batchCursor} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref {batchCursor}, 1);");
+            lines.Add($"            {batchCursor} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref {batchCursor}, 1);");
+            lines.Add($"            {chunksRemaining}--;");
+            lines.Add($"        }} while ({chunksRemaining} != 0);");
+            lines.Add("    }");
         }
-        lines.Add("    }");
+        else
+        {
+            lines.Add("    }");
+        }
         if (closedShape is { HasContext: true, ContextMode: ContextModeKind.Ref })
         {
             lines.Add($"    {contextParameterName} = {parameters[0]};");
@@ -1438,18 +1454,24 @@ internal static partial class DemandDrivenForEachTemplates
                 lines.Add($"    ref {type} component{index} = ref global::System.Runtime.CompilerServices.Unsafe.NullRef<{type}>();");
             }
         }
-        lines.Add(bound
-            ? "    for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)"
-            : shape.IsStamp || shape.HasEntity
-            ? "    while (execution.MoveNextTrusted(out var slots))"
-            : "    while (execution.MoveNextTrusted(out var componentRows, out int count))");
-        lines.Add("    {");
         if (bound)
         {
-            lines.Add("        ref var batch = ref batchCursor;");
-            lines.Add("        int count = batch.Chunk.Count;");
+            lines.Add("    int chunksRemaining = chunkCount;");
+            lines.Add("    if (chunksRemaining > 0)");
+            lines.Add("    {");
+            lines.Add("        do");
+            lines.Add("        {");
+            lines.Add("            ref var batch = ref batchCursor;");
+            lines.Add("            int count = batch.Chunk.Count;");
         }
-        else if (shape.IsStamp || shape.HasEntity)
+        else
+        {
+            lines.Add(shape.IsStamp || shape.HasEntity
+                ? "    while (execution.MoveNextTrusted(out var slots))"
+                : "    while (execution.MoveNextTrusted(out var componentRows, out int count))");
+            lines.Add("    {");
+        }
+        if (!bound && (shape.IsStamp || shape.HasEntity))
         {
             lines.Add("        int count = slots.Count;");
         }
@@ -1569,9 +1591,15 @@ internal static partial class DemandDrivenForEachTemplates
 
         if (bound)
         {
-            lines.Add("        batchCursor = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref batchCursor, 1);");
+            lines.Add("            batchCursor = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref batchCursor, 1);");
+            lines.Add("            chunksRemaining--;");
+            lines.Add("        } while (chunksRemaining != 0);");
+            lines.Add("    }");
         }
-        lines.Add("    }");
+        else
+        {
+            lines.Add("    }");
+        }
         if (shape is { IsFunctor: true, FunctorPassMode: ContextModeKind.Ref })
         {
             lines.Add("    functor = action;");
