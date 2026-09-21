@@ -425,8 +425,10 @@ internal static partial class DemandDrivenForEachTemplates
     /// <summary>
     /// Emits the dense unroll loop into <paramref name="loopLines"/> and private static
     /// Visit1/2/4 helpers into <paramref name="visitMethods"/> (constant offsets 0..3;
-    /// the loop advances bases by 4). Visit2/Visit4 call the action with direct
-    /// <c>Unsafe.Add</c> offsets — no temporary slot refs.
+    /// the loop advances bases by 4). Fast path peels on <c>(count &amp; ~3) != 0</c>
+    /// (equivalent to count &gt;= 4, tst-friendly) so the Visit4 do-while never sees a
+    /// zero trip count. Visit2/Visit4 call the action with direct <c>Unsafe.Add</c>
+    /// offsets — no temporary slot refs.
     /// </summary>
     private static void AppendUnrolledDenseSlotLoop(
         List<string> loopLines,
@@ -508,9 +510,9 @@ internal static partial class DemandDrivenForEachTemplates
         EmitVisitMethod(2, "Visit2");
         EmitVisitMethod(4, "Visit4");
 
-        loopLines.Add($"{loopIndent}int loops = {countName} >> 2;");
-        loopLines.Add($"{loopIndent}if (loops > 0)");
+        loopLines.Add($"{loopIndent}if (({countName} & ~3) != 0)");
         loopLines.Add($"{loopIndent}{{");
+        loopLines.Add($"{loopIndent}    int loops = {countName} >> 2;");
         loopLines.Add($"{loopIndent}    do");
         loopLines.Add($"{loopIndent}    {{");
         loopLines.Add($"{loopIndent}        {Call("Visit4")};");

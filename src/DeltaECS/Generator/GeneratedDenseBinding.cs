@@ -150,9 +150,9 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
         }
 
         ref WriteStampTarget target = ref _writeTargets.GetRefAtZero();
-        int loops = count >> 2;
-        if (loops > 0)
+        if ((count & ~3) != 0)
         {
+            int loops = count >> 2;
             do
             {
                 ref var base0 = ref target;
