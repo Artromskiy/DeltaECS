@@ -1611,6 +1611,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public int ChunkId => 0;
             public int Count => 0;
+            public int PhysicalCount => 0;
+            public bool HasTagFilters => false;
+            public bool TryGetTagSlots(out ReadOnlySpan<int> slots) { slots = default; return false; }
             public Entity EntityAt(int index) => default;
             public ref Entity GetGeneratedEntityReference() => throw new NotImplementedException();
             public T[] GetGeneratedArray<T>(int queryComponentIndex) => Array.Empty<T>();
@@ -1636,6 +1639,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         public readonly struct GeneratedBoundChunk
         {
             public int Count => 0;
+            public bool HasTagFilters => false;
+            public bool TryGetTagSlots(out ReadOnlySpan<int> slots) { slots = default; return false; }
             public ref Entity GetEntityReference() => throw new NotImplementedException();
         }
         public abstract class GeneratedDenseBinding<TRows> where TRows : struct
@@ -1647,10 +1652,14 @@ public sealed class DemandDrivenForEachGeneratorTests
         public ref struct GeneratedBoundExecution<TRows> where TRows : struct
         {
             public ReadOnlySpan<TRows> Rows => default;
+            public bool HasTagFilters => false;
+            public bool TryGetTagSlots(out ReadOnlySpan<int> slots) { slots = default; return false; }
             public void Dispose() { }
         }
         public ref struct GeneratedDenseExecution
         {
+            public bool HasTagFilters => false;
+            public bool TryGetTagSlots(out ReadOnlySpan<int> slots) { slots = default; return false; }
             public bool MoveNextTrusted(out GeneratedQuerySlots slots) { slots = default; return false; }
             public bool MoveNextTrusted(out Array[] componentRows, out int count)
             {
@@ -1666,6 +1675,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         }
         public ref struct GeneratedReadDenseExecution
         {
+            public bool HasTagFilters => false;
+            public bool TryGetTagSlots(out ReadOnlySpan<int> slots) { slots = default; return false; }
             public bool MoveNextTrusted(out GeneratedReadQuerySlots slots) { slots = default; return false; }
             public bool MoveNextTrusted(out Array[] componentRows, out int count)
             {

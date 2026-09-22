@@ -116,6 +116,65 @@ public sealed class GeneratedSystemAccessGeneratorTests
         Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
+    [Test]
+    public void GlobalNamespaceSystemReceivesAccessMetadata()
+    {
+        const string source = """
+            namespace Delta.ECS
+            {
+                public readonly struct ComponentId { }
+                public readonly struct Query { }
+                public sealed class ComponentLayoutRegistry { public ComponentId GetPrimary<T>() => default; }
+                public sealed class World
+                {
+                    public ComponentLayoutRegistry Layouts { get; } = new();
+                    public void ForEach<T>(in Query query, ForEachAction<T> action) { }
+                }
+                public delegate void ForEachAction<T>(ref T component);
+            }
+            namespace Delta.ECS.Systems
+            {
+                using Delta.ECS;
+                public interface ISystem
+                {
+                    World World { get; init; }
+                    SystemAccess Access { get; }
+                    void Tick();
+                }
+                public readonly struct SystemAccess
+                {
+                    public SystemAccess(ComponentId[]? writes = null, bool readsTopology = false) { }
+                    public static SystemAccess None => default;
+                }
+            }
+            public struct Position { public int Value; }
+            public partial class GlobalSystem : Delta.ECS.Systems.ISystem
+            {
+                public Delta.ECS.World World { get; init; } = null!;
+                public void Tick()
+                {
+                    Delta.ECS.Query query = default;
+                    World.ForEach(in query, static (ref Position position) => position.Value++);
+                }
+            }
+            """;
+
+        CSharpCompilation compilation = CreateCompilation(source);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            new GeneratedSystemAccessGenerator().AsSourceGenerator());
+        GeneratorDriverRunResult run = driver.RunGenerators(compilation).GetRunResult();
+
+        Assert.That(run.Diagnostics, Is.Empty);
+        string generated = run.GeneratedTrees.Single().GetText().ToString();
+        Assert.That(generated, Does.Not.Contain("namespace <global namespace>"));
+        CSharpCompilation output = compilation.AddSyntaxTrees(
+            CSharpSyntaxTree.ParseText(generated, new CSharpParseOptions(LanguageVersion.Latest)));
+        Diagnostic[] errors = output.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
+    }
+
     private static CSharpCompilation CreateCompilation(string source)
     {
         var references = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)

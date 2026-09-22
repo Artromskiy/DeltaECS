@@ -79,8 +79,11 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
                 && declarations.Any(static declaration => declaration.Modifiers.Any(SyntaxKind.PartialKeyword));
             string key = candidate.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             string helperName = "GeneratedSystemAccess_" + GeneratorSupport.StableName(key);
+            string namespaceName = candidate.ContainingNamespace is { IsGlobalNamespace: false } containingNamespace
+                ? containingNamespace.ToDisplayString()
+                : string.Empty;
             GeneratedSystemAccessModel access = accumulator.Build(
-                candidate.ContainingNamespace?.ToDisplayString() ?? string.Empty,
+                namespaceName,
                 candidate.Name,
                 helperName,
                 injectProperty);

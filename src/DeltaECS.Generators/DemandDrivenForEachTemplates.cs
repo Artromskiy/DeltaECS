@@ -1199,7 +1199,7 @@ internal static partial class DemandDrivenForEachTemplates
                 visitLeadingArguments: leadingArguments,
                 isolateSteps: true);
             string contextSetup = string.Empty;
-            if (shape.HasContext && inlineLambda)
+            if (shape.HasContext)
             {
                 contextSetup = shape.ContextMode switch
                 {

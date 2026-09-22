@@ -10,7 +10,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IsPackable>true</IsPackable>
     <PackageId>DeltaECS.Systems</PackageId>
-    <Version>0.0.1</Version>
+    <Version>0.0.32</Version>
     <Authors>Artromskiy</Authors>
     <Description>Deterministic and parallel scheduler for DeltaECS systems.</Description>
     <PackageTags>ecs;entity-component-system;scheduler;parallel;dotnet</PackageTags>
