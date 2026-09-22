@@ -62,10 +62,10 @@ public sealed partial class World : IEcsWorld
         EnsureNoActiveLease("create entities");
         ValidateStructuralComponents(components);
 
-        var mask = GetOrCreateComponentSet(components).Mask;
-        var archetype = GetOrCreateArchetype(mask);
+        ComponentSet componentSet = GetOrCreateComponentSet(components);
+        var archetype = GetOrCreateArchetype(componentSet.Mask);
         Span<Entity> created = stackalloc Entity[1];
-        _ = CreateBatch(archetype, created);
+        _ = CreateBatch(archetype, created, componentSet.TagIndices);
         return created.GetRefAtZero();
     }
 

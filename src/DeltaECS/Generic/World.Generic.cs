@@ -25,6 +25,7 @@ public sealed partial class World
     public Entity Create<T>(ComponentId componentId, in T value)
     {
         EnsureRegisteredType<T>(componentId);
+        EnsureNoTagValues(stackalloc[] { componentId });
         Entity entity = Create(componentId);
         InitializeComponentValue(entity, componentId, in value);
 
@@ -339,6 +340,7 @@ public sealed partial class World
 
     private int AddComponentBatch<T>(ReadOnlySpan<Entity> entities, ComponentId componentId, in T value)
     {
+        EnsureNoTagValues(stackalloc[] { componentId });
         if (entities.Length == 0)
         {
             return 0;
@@ -407,6 +409,8 @@ public sealed partial class World
             return false;
         }
 
+        EnsureNoTagValues(componentIds);
+
         Archetype sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
         ComponentSet changeSet = GetOrCreateComponentSet(componentIds);
         TransitionEdge edge = GetTransitionEdge(sourceArchetype.Id, changeSet, true);
@@ -437,6 +441,8 @@ public sealed partial class World
         {
             ThrowHelper.ThrowInvalidComponentList();
         }
+
+        EnsureNoTagValues(componentIds);
 
         if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
@@ -473,39 +479,7 @@ public sealed partial class World
     }
 
     private int RemoveComponentBatch(ReadOnlySpan<Entity> entities, ComponentId componentId)
-    {
-        if (entities.Length == 0)
-        {
-            return 0;
-        }
-
-        EnsureNoActiveLease("remove components");
-        ComponentSet changeSet = GetOrCreateComponentSet(stackalloc[] { componentId });
-        int edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
-        int changed = 0;
-        for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
-        {
-            Entity entity = entities.RefAt(entityIndex);
-            if (!TryResolve(entity, out int recordIndex, out Chunk sourceChunk, out _))
-            {
-                continue;
-            }
-
-            var sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
-            var edge = edgeStamp == 0
-                ? GetTransitionEdge(sourceArchetype.Id, changeSet, false)
-                : GetBatchTransitionEdge(sourceArchetype.Id, changeSet, false, edgeStamp);
-            if (edge.IsNoOp)
-            {
-                continue;
-            }
-
-            MoveEntity(recordIndex, edge);
-            changed++;
-        }
-
-        return changed;
-    }
+        => ApplyComponents(false, stackalloc[] { componentId }, entities);
 
     private void EnsureRegisteredType<T>(ComponentId componentId)
     {

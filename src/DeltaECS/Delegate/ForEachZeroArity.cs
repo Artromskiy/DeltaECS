@@ -32,6 +32,16 @@ public sealed partial class World
         while (execution.MoveNextTrusted(out GeneratedReadQuerySlots slots))
         {
             int count = slots.Count;
+            if (slots.TryGetTagSlots(out var tagSlots))
+            {
+                for (int index = 0; index < tagSlots.Length; index++)
+                {
+                    action(slots.EntityAt(index));
+                }
+
+                continue;
+            }
+
             ref readonly Entity firstEntity = ref slots.GetGeneratedEntityReference();
             for (int index = 0; index < count; index++)
             {
@@ -71,6 +81,18 @@ public sealed partial class World
         while (execution.MoveNextTrusted(out GeneratedReadQuerySlots slots))
         {
             int count = slots.Count;
+            if (slots.TryGetTagSlots(out var tagSlots))
+            {
+                for (int index = 0; index < tagSlots.Length; index++)
+                {
+                    action(
+                        ref context,
+                        slots.EntityAt(index));
+                }
+
+                continue;
+            }
+
             ref readonly Entity firstEntity = ref slots.GetGeneratedEntityReference();
             for (int index = 0; index < count; index++)
             {

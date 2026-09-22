@@ -227,6 +227,18 @@ internal static partial class DemandDrivenForEachTemplates
                 visitLeadingArguments: string.Join(", ", leadingArgs));
             loopBody = string.Join("\n", loopLines);
             visitHelpers = string.Join("\n", visitMethods);
+            loopBody = AppendParallelTagSelectionLoop(
+                shape,
+                loopLines,
+                "_context",
+                "_action",
+                "_functor",
+                "row");
+        }
+
+        if (shape.IsStamp)
+        {
+            loopBody = AppendParallelStampTagSelectionLoop(shape, loopBody, "_context", "_action", "_functor");
         }
 
         return $$"""
@@ -922,10 +934,11 @@ internal static partial class DemandDrivenForEachTemplates
                 leadingArgs.Add(SignatureProjection.ContextArgument(closedShape.ContextMode, parameters[0]));
             }
 
+            var denseLoopLines = new List<string>();
             AppendUnrolledDenseSlotLoop(
-                lines,
+                denseLoopLines,
                 visitMethods,
-                "        ",
+                bound ? "            " : "        ",
                 "    ",
                 countName,
                 visitRefParameters,
@@ -973,6 +986,20 @@ internal static partial class DemandDrivenForEachTemplates
                 visitLeadingParameters: string.Join(", ", leading),
                 visitLeadingArguments: string.Join(", ", leadingArgs),
                 isolateSteps: true);
+            AppendInterceptedTagSelectionLoop(
+                lines,
+                closedShape,
+                site,
+                bound
+                    ? $"{batch}.Chunk.HasTagFilters && {batch}.Chunk.TryGetTagSlots(out var tagSlots)"
+                    : "execution.HasTagFilters && execution.TryGetTagSlots(out var tagSlots)",
+                string.Empty,
+                usesReadSlots,
+                callbackName,
+                parameters,
+                inlineLambda,
+                rowNames,
+                denseLoopLines);
             interceptedVisitMethods = visitMethods;
         }
 
@@ -1056,26 +1083,37 @@ internal static partial class DemandDrivenForEachTemplates
 
         if (shape.IsStamp)
         {
-            body.Add($"        for (int {indexName} = 0; {indexName} < {countName}; {indexName}++)");
-            body.Add("        {");
+            var denseLoopLines = new List<string>
+            {
+                $"for (int {indexName} = 0; {indexName} < {countName}; {indexName}++)",
+                "{"
+            };
             int parameterIndex = shape.HasContext ? 1 : 0;
             if (shape.HasEntity)
             {
-                body.Add($"            global::Delta.ECS.Entity {parameters[parameterIndex++]} = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, {indexName});");
+                denseLoopLines.Add($"    global::Delta.ECS.Entity {parameters[parameterIndex++]} = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, {indexName});");
             }
 
-            body.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
-                $"            Stamp {parameters[parameterIndex + index]} = slots.GetGeneratedStamp(_access{index}, {indexName});"));
+            denseLoopLines.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
+                $"    Stamp {parameters[parameterIndex + index]} = slots.GetGeneratedStamp(_access{index}, {indexName});"));
             if (inlineLambda)
             {
-                body.Add(AppendInterceptedLambdaBody(site, "            "));
+                denseLoopLines.Add(AppendInterceptedLambdaBody(site, "    "));
             }
             else
             {
-                body.Add(AppendCallbackInvocation(shape, callbackName, parameters, "            "));
+                denseLoopLines.Add(AppendCallbackInvocation(shape, callbackName, parameters, "    "));
             }
 
-            body.Add("        }");
+            denseLoopLines.Add("}");
+            AppendInterceptedParallelStampTagSelectionLoop(
+                body,
+                shape,
+                site,
+                callbackName,
+                parameters,
+                inlineLambda,
+                denseLoopLines);
         }
         else
         {
@@ -1111,8 +1149,9 @@ internal static partial class DemandDrivenForEachTemplates
             }
 
             var visitMethods = new List<string>();
+            var denseLoopLines = new List<string>();
             AppendUnrolledDenseSlotLoop(
-                body,
+                denseLoopLines,
                 visitMethods,
                 "        ",
                 "    ",
@@ -1159,6 +1198,29 @@ internal static partial class DemandDrivenForEachTemplates
                 visitLeadingParameters: leadingParameters,
                 visitLeadingArguments: leadingArguments,
                 isolateSteps: true);
+            string contextSetup = string.Empty;
+            if (shape.HasContext && inlineLambda)
+            {
+                contextSetup = shape.ContextMode switch
+                {
+                    ContextModeKind.Value => $"{InterceptedContextType(shape)} {parameters[0]} = _context;",
+                    ContextModeKind.Ref => $"ref {InterceptedContextType(shape)} {parameters[0]} = ref _context;",
+                    _ => $"ref readonly {InterceptedContextType(shape)} {parameters[0]} = ref _context;",
+                };
+            }
+
+            AppendInterceptedTagSelectionLoop(
+                body,
+                shape,
+                site,
+                "slots.HasTagFilters && slots.TryGetTagSlots(out var tagSlots)",
+                contextSetup,
+                false,
+                callbackName,
+                parameters,
+                inlineLambda,
+                rowNames,
+                denseLoopLines);
             interceptedParallelVisitMethods = visitMethods;
         }
 
@@ -1471,7 +1533,7 @@ internal static partial class DemandDrivenForEachTemplates
                 : $"        {component} = ref GeneratedForEachRuntime.GetGeneratedRow<{type}>(componentRows, route{index});");
         }
         bool usesReadSlots = shape.IsStamp || !shape.ComponentModels.Any(static component => component.IsWrite);
-        if (shape.HasEntity)
+        if (shape.HasEntity && !shape.IsStamp)
         {
             lines.Add(bound
                 ? "        ref Entity firstEntity = ref batch.Chunk.GetEntityReference();"
@@ -1490,9 +1552,7 @@ internal static partial class DemandDrivenForEachTemplates
             lines.Add("        {");
             if (shape.HasEntity)
             {
-                lines.Add(usesReadSlots
-                    ? "            Entity entity = global::System.Runtime.CompilerServices.Unsafe.Add(ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in firstEntity), index);"
-                    : "            Entity entity = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index);");
+                lines.Add("            Entity entity = slots.EntityAt(index);");
             }
 
             for (int index = 0; index < shape.ComponentModels.Length; index++)
@@ -1541,8 +1601,9 @@ internal static partial class DemandDrivenForEachTemplates
                 leadingArgs.Add("action");
             }
 
+            var denseLoopLines = new List<string>();
             AppendUnrolledDenseSlotLoop(
-                lines,
+                denseLoopLines,
                 visitMethods,
                 "        ",
                 string.Empty,
@@ -1567,6 +1628,19 @@ internal static partial class DemandDrivenForEachTemplates
                 visitLeadingParameters: string.Join(", ", leading),
                 visitLeadingArguments: string.Join(", ", leadingArgs),
                 visitMethodGenerics: genericPrefix);
+
+            if (bound)
+            {
+                AppendBoundTagSelectionLoop(lines, shape, contextName, denseLoopLines);
+            }
+            else if (!shape.IsStamp)
+            {
+                AppendUnboundTagSelectionLoop(lines, shape, contextName, denseLoopLines, usesReadSlots);
+            }
+            else
+            {
+                lines.AddRange(denseLoopLines);
+            }
             closedDenseVisitMethods = visitMethods;
         }
 

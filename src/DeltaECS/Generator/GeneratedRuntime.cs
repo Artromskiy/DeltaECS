@@ -45,6 +45,8 @@ internal readonly struct GeneratedWhereStructuralPlan
         int[] sourceToTargetRows,
         int[] addedTargetRows,
         GeneratedWhereTargetCursor? targetCursor,
+        int[] tagIndices,
+        bool isAdd,
         bool isDestroy)
     {
         SourceArchetype = sourceArchetype;
@@ -52,6 +54,8 @@ internal readonly struct GeneratedWhereStructuralPlan
         SourceToTargetRows = sourceToTargetRows;
         AddedTargetRows = addedTargetRows;
         TargetCursor = targetCursor;
+        TagIndices = tagIndices;
+        IsAdd = isAdd;
         IsDestroy = isDestroy;
     }
 
@@ -60,9 +64,11 @@ internal readonly struct GeneratedWhereStructuralPlan
     internal int[] SourceToTargetRows { get; }
     internal int[] AddedTargetRows { get; }
     internal GeneratedWhereTargetCursor? TargetCursor { get; }
+    internal int[] TagIndices { get; }
+    internal bool IsAdd { get; }
     internal bool IsDestroy { get; }
 
-    internal bool IsNoOp => !IsDestroy && TargetArchetype is null;
+    internal bool IsNoOp => !IsDestroy && TargetArchetype is null && TagIndices.Length == 0;
 }
 
 /// <summary>Compiler-support state for one immediate structural Where chunk.</summary>
@@ -76,6 +82,7 @@ public struct GeneratedWhereStructuralContext
     private int _writeSlot;
     private int _changedCount;
     private bool _queryPlansDeferred;
+    private bool _tagsChanged;
     private bool _completed;
 
     internal GeneratedWhereStructuralContext(
@@ -91,6 +98,7 @@ public struct GeneratedWhereStructuralContext
         _writeSlot = 0;
         _changedCount = 0;
         _queryPlansDeferred = false;
+        _tagsChanged = false;
         _completed = false;
     }
 
@@ -124,6 +132,20 @@ public struct GeneratedWhereStructuralContext
 
         if (selected)
         {
+            if (!_plan.IsDestroy && _plan.TargetArchetype is null)
+            {
+                int changedTags = _world.ApplyGeneratedWhereTags(
+                    _sourceChunk,
+                    sourceSlot,
+                    count,
+                    _plan.TagIndices,
+                    _plan.IsAdd);
+                _changedCount += changedTags;
+                _tagsChanged |= changedTags != 0;
+                _writeSlot = sourceSlot + count;
+                return;
+            }
+
             if (!_queryPlansDeferred)
             {
                 _world.BeginGeneratedWhereMutation(
@@ -132,14 +154,14 @@ public struct GeneratedWhereStructuralContext
                 _queryPlansDeferred = true;
             }
 
-            _changedCount += count;
             if (_plan.IsDestroy)
             {
+                _changedCount += count;
                 _world.FreeGeneratedWhereRun(_sourceChunk, sourceSlot, count);
             }
             else
             {
-                _world.CopyGeneratedWhereRun(
+                bool tagsChanged = _world.CopyGeneratedWhereRun(
                     _sourceChunk,
                     sourceSlot,
                     count,
@@ -147,7 +169,11 @@ public struct GeneratedWhereStructuralContext
                     _plan.SourceToTargetRows,
                     _plan.AddedTargetRows,
                     _plan.TargetCursor!,
+                    _plan.TagIndices,
+                    _plan.IsAdd,
                     ref initializer);
+                _changedCount += count;
+                _tagsChanged |= tagsChanged;
             }
 
             return;
@@ -182,6 +208,16 @@ public struct GeneratedWhereStructuralContext
             return 0;
         }
 
+        if (!_plan.IsDestroy && _plan.TargetArchetype is null)
+        {
+            if (_tagsChanged)
+            {
+                _world.MarkGeneratedWhereTagsChanged();
+            }
+
+            return _changedCount;
+        }
+
         int appendedCount = _sourceChunk.Count - _sourceCount;
         if (appendedCount != 0 && _writeSlot != _sourceCount)
         {
@@ -194,6 +230,10 @@ public struct GeneratedWhereStructuralContext
         if (_plan.IsDestroy)
         {
             _world.CommitGeneratedWhereDestroy(_changedCount);
+        }
+        else if (_tagsChanged)
+        {
+            _world.MarkGeneratedWhereTagsChanged();
         }
 
         _world.MarkGeneratedWhereAffected(_plan.SourceArchetype);
@@ -299,6 +339,7 @@ public ref struct GeneratedDenseExecution
     private readonly ReadOnlySpan<ArchetypePlan> _plans;
     private readonly ReadOnlySpan<ChunkPlan> _chunkPlans;
     private readonly ReadOnlySpan<int> _chunkCounts;
+    private readonly QueryPlan? _queryPlan;
     private readonly bool _ownsLease;
     private int _chunkIndex;
 
@@ -307,15 +348,35 @@ public ref struct GeneratedDenseExecution
         ReadOnlySpan<ArchetypePlan> plans,
         ReadOnlySpan<ChunkPlan> chunkPlans,
         ReadOnlySpan<int> chunkCounts = default,
-        bool ownsLease = true)
+        bool ownsLease = true,
+        QueryPlan? queryPlan = null)
     {
         _owner = owner;
         _plans = plans;
         _chunkPlans = chunkPlans;
         _chunkCounts = chunkCounts;
+        _queryPlan = queryPlan;
         _ownsLease = ownsLease;
         _chunkIndex = -1;
     }
+
+    /// <summary>Returns the selected physical entity slots for the current chunk, when filtered by tags.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetTagSlots(out ReadOnlySpan<int> slots)
+    {
+        if (_queryPlan is not null && (uint)_chunkIndex < (uint)_chunkPlans.Length)
+        {
+            return _queryPlan.TryGetTagSlots(_chunkPlans.RefAt(_chunkIndex).Chunk, out slots);
+        }
+
+        slots = default;
+        return false;
+    }
+
+    /// <summary>Reports whether this execution applies tag filters.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public bool HasTagFilters => _queryPlan?.HasTagFilters ?? false;
 
     /// <summary>
     /// Marks one write component for every non-empty matching archetype once
@@ -411,7 +472,7 @@ public ref struct GeneratedDenseExecution
             _chunkIndex = nextChunk;
             ref readonly ChunkPlan chunkPlan = ref _chunkPlans.RefAt(_chunkIndex);
             int count = _chunkCounts.IsEmpty ? chunkPlan.Chunk.Count : _chunkCounts.RefAt(_chunkIndex);
-            slots = new GeneratedQuerySlots(_owner!, in chunkPlan, count);
+            slots = new GeneratedQuerySlots(_owner!, in chunkPlan, count, _queryPlan);
             return true;
         }
         _chunkIndex = _chunkPlans.Length;
@@ -464,14 +525,34 @@ public ref struct GeneratedReadDenseExecution
 {
     private World? _owner;
     private readonly ReadOnlySpan<ChunkPlan> _chunkPlans;
+    private readonly QueryPlan? _queryPlan;
     private int _chunkIndex;
 
-    internal GeneratedReadDenseExecution(World owner, ReadOnlySpan<ChunkPlan> chunkPlans)
+    internal GeneratedReadDenseExecution(World owner, ReadOnlySpan<ChunkPlan> chunkPlans, QueryPlan? queryPlan = null)
     {
         _owner = owner;
         _chunkPlans = chunkPlans;
+        _queryPlan = queryPlan;
         _chunkIndex = -1;
     }
+
+    /// <summary>Returns the selected physical entity slots for the current chunk, when filtered by tags.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetTagSlots(out ReadOnlySpan<int> slots)
+    {
+        if (_queryPlan is not null && (uint)_chunkIndex < (uint)_chunkPlans.Length)
+        {
+            return _queryPlan.TryGetTagSlots(_chunkPlans.RefAt(_chunkIndex).Chunk, out slots);
+        }
+
+        slots = default;
+        return false;
+    }
+
+    /// <summary>Reports whether this execution applies tag filters.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public bool HasTagFilters => _queryPlan?.HasTagFilters ?? false;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNextTrusted(out GeneratedReadQuerySlots slots)
@@ -480,7 +561,7 @@ public ref struct GeneratedReadDenseExecution
         if ((uint)nextChunk < (uint)_chunkPlans.Length)
         {
             _chunkIndex = nextChunk;
-            slots = new GeneratedReadQuerySlots(_owner!, in _chunkPlans.RefAt(_chunkIndex));
+            slots = new GeneratedReadQuerySlots(_owner!, in _chunkPlans.RefAt(_chunkIndex), _queryPlan);
             return true;
         }
         _chunkIndex = _chunkPlans.Length;
@@ -731,7 +812,8 @@ public static partial class GeneratedForEachRuntime
             {
                 Entity entity = entities.RefAt(index);
                 if (!world.TryResolveEntityLocation(entity, out Chunk chunk, out int slot)
-                    || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk.GlobalId, out ChunkPlan chunkPlan))
+                    || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk.GlobalId, out ChunkPlan chunkPlan)
+                    || !plan.MatchesTagSlot(chunk, slot))
                 {
                     continue;
                 }
@@ -818,7 +900,7 @@ public static partial class GeneratedForEachRuntime
             {
                 GeneratedWhereStructuralContext context = world.BeginGeneratedWhereChunk(
                     slots.ChunkId,
-                    slots.Count);
+                    slots.PhysicalCount);
                 invocation.Execute(ref slots, ref context);
                 changed += context.Complete();
             }
@@ -918,7 +1000,7 @@ public static partial class GeneratedForEachRuntime
         ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
         ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
         world.BeginQueryLease();
-        return new GeneratedDenseExecution(world, plans, chunks);
+        return new GeneratedDenseExecution(world, plans, chunks, queryPlan: plan);
     }
 
     /// <summary>Opens a validated read-only dense execution without write state.</summary>
@@ -929,7 +1011,7 @@ public static partial class GeneratedForEachRuntime
         QueryPlan plan = ValidateQuery(world, in query);
         ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
         world.BeginQueryLease();
-        return new GeneratedReadDenseExecution(world, chunks);
+        return new GeneratedReadDenseExecution(world, chunks, plan);
     }
 
     /// <summary>Opens a validated write dense execution.</summary>
@@ -941,7 +1023,7 @@ public static partial class GeneratedForEachRuntime
         ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
         ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
         world.BeginQueryLease();
-        return new GeneratedDenseExecution(world, plans, chunks);
+        return new GeneratedDenseExecution(world, plans, chunks, queryPlan: plan);
     }
 
     /// <summary>Returns a cached primary read access using the generated component type.</summary>

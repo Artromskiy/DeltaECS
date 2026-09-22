@@ -137,7 +137,7 @@ internal sealed class PublicApiShapeTests
     {
         Assert.Multiple(() =>
         {
-            Assert.That(Chunk.Capacity, Is.EqualTo(512));
+            Assert.That(Chunk.Capacity, Is.EqualTo(1024));
             Assert.That(
                 typeof(World).GetConstructors(BindingFlags.Public | BindingFlags.Instance)
                     .SelectMany(static constructor => constructor.GetParameters())

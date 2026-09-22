@@ -134,8 +134,8 @@ internal sealed class ParallelIterationTests
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(70_091));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(70_092));
-        using var world = new World(layouts, initialEntityCapacity: 2_048);
-        var entities = new Entity[2_048];
+        using var world = new World(layouts, initialEntityCapacity: Chunk.Capacity * 4);
+        var entities = new Entity[Chunk.Capacity * 4];
         world.Create([positionId, velocityId], entities);
         for (int index = 0; index < entities.Length; index++)
         {

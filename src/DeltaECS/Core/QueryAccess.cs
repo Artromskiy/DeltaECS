@@ -3,6 +3,7 @@ namespace Delta.ECS;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 /// <summary>Non-generic query access token for a read row.</summary>
 public readonly struct ReadAccess
@@ -67,6 +68,12 @@ internal sealed class QueryPlan
     }
 
     private readonly QuerySpec _description;
+    private readonly ComponentMask _allDataMask;
+    private readonly ComponentMask _anyDataMask;
+    private readonly ComponentMask _noneDataMask;
+    private readonly int[] _allTagIndices;
+    private readonly int[] _anyTagIndices;
+    private readonly int[] _noneTagIndices;
     private readonly WeakReference<QueryPlan> _weakReference;
     private int[] _matchingArchetypes = Array.Empty<int>();
     private ArchetypePlan[] _matchingPlans = Array.Empty<ArchetypePlan>();
@@ -82,20 +89,25 @@ internal sealed class QueryPlan
     private int _matchingCount;
     private int _matchingVersion;
     private bool _matchingChunkPlansDirty;
+    private TagSlotCacheEntry?[] _tagSlotsByChunk = Array.Empty<TagSlotCacheEntry?>();
+    private readonly object _tagSlotGate = new();
     internal QueryPlan(World world, QuerySpec spec)
     {
         _owner = world;
         _description = spec;
+        (_allDataMask, _allTagIndices) = PartitionQueryMask(world, spec.AllMask);
+        (_anyDataMask, _anyTagIndices) = PartitionQueryMask(world, spec.AnyMask);
+        (_noneDataMask, _noneTagIndices) = PartitionQueryMask(world, spec.NoneMask);
         _weakReference = new WeakReference<QueryPlan>(this);
         _readRoutesByComponent = new int[world.Layouts.Count];
         _readRouteTypesByComponent = new Type?[world.Layouts.Count];
         _preparedReadAccessesByComponent = new ReadAccess[world.Layouts.Count];
         _preparedWriteAccessesByComponent = new WriteAccess[world.Layouts.Count];
         _primaryReadRoutesByType = new Dictionary<RuntimeTypeHandle, int>(
-            _description.AllMask.Count,
+            _allDataMask.Count,
             RuntimeTypeHandleComparer.Instance);
         Array.Fill(_readRoutesByComponent, -1);
-        PrepareReadRoutes(world, spec);
+        PrepareReadRoutes(world);
         for (int archetypeId = 0; archetypeId < world.Archetypes.Count; archetypeId++)
         {
             OnArchetypeCreated(world.Archetypes[archetypeId]);
@@ -105,6 +117,79 @@ internal sealed class QueryPlan
     internal World Owner => _owner;
     internal WeakReference<QueryPlan> WeakReference => _weakReference;
     internal int MatchingVersion => _matchingVersion;
+
+    internal bool HasTagFilters
+        => _allTagIndices.Length != 0 || _anyTagIndices.Length != 0 || _noneTagIndices.Length != 0;
+
+    internal bool TryGetTagSlots(Chunk chunk, out ReadOnlySpan<int> slots)
+    {
+        bool constrainByAnyTags = _anyTagIndices.Length != 0
+            && !_owner.Archetypes[chunk.ArchetypeId].Mask.Intersects(_anyDataMask);
+        if (_allTagIndices.Length == 0 && _noneTagIndices.Length == 0 && !constrainByAnyTags)
+        {
+            slots = default;
+            return false;
+        }
+
+        TagSlotCacheEntry entry = GetTagSlotCacheEntry(chunk.GlobalId);
+        int version = _owner.TagVersion;
+        if (Volatile.Read(ref entry.Version) != version)
+        {
+            lock (_tagSlotGate)
+            {
+                if (entry.Version != version)
+                {
+                    BuildTagSlots(chunk, constrainByAnyTags, entry);
+                    Volatile.Write(ref entry.Version, version);
+                }
+            }
+        }
+
+        if (entry.Dense)
+        {
+            slots = default;
+            return false;
+        }
+
+        slots = entry.Slots.AsSpan(0, entry.Count);
+        return true;
+    }
+
+    internal bool MatchesTagSlot(Chunk chunk, int slotIndex)
+    {
+        for (int index = 0; index < _allTagIndices.Length; index++)
+        {
+            if (!chunk.HasTag(_allTagIndices[index], slotIndex))
+            {
+                return false;
+            }
+        }
+
+        if (_anyTagIndices.Length != 0
+            && !_owner.Archetypes[chunk.ArchetypeId].Mask.Intersects(_anyDataMask))
+        {
+            bool matchesAny = false;
+            for (int index = 0; index < _anyTagIndices.Length; index++)
+            {
+                matchesAny |= chunk.HasTag(_anyTagIndices[index], slotIndex);
+            }
+
+            if (!matchesAny)
+            {
+                return false;
+            }
+        }
+
+        for (int index = 0; index < _noneTagIndices.Length; index++)
+        {
+            if (chunk.HasTag(_noneTagIndices[index], slotIndex))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     internal int ResolveReadRoute(ComponentId component)
     {
@@ -227,9 +312,9 @@ internal sealed class QueryPlan
             return;
         }
 
-        int[] indices = new int[_description.AllMask.Count];
+        int[] indices = new int[_allDataMask.Count];
         int componentIndex = 0;
-        foreach (var componentId in _description.AllMask)
+        foreach (var componentId in _allDataMask)
         {
             indices.RefAt(componentIndex++) = archetype.Mask.Rank(componentId);
         }
@@ -326,6 +411,8 @@ internal sealed class QueryPlan
         _matchingVersion = 0;
         _matchingChunkPlansDirty = false;
         _primaryReadRoutesByType.Clear();
+        _tagSlotsByChunk.AsSpan().Clear();
+        _tagSlotsByChunk = Array.Empty<TagSlotCacheEntry?>();
         _preparedReadAccessesByComponent.AsSpan().Clear();
         _preparedWriteAccessesByComponent.AsSpan().Clear();
         Array.Fill(_readRoutesByComponent, -1);
@@ -340,14 +427,14 @@ internal sealed class QueryPlan
         }
     }
 
-    private void PrepareReadRoutes(World world, QuerySpec spec)
+    private void PrepareReadRoutes(World world)
     {
         int route = 0;
-        foreach (ComponentId component in spec.AllMask)
+        foreach (ComponentId component in _allDataMask)
         {
             if (!world.Layouts.TryGet(component, out ComponentLayout layout))
             {
-                ThrowHelper.ThrowUnregisteredQueryComponent(component, spec);
+                ThrowHelper.ThrowUnregisteredQueryComponent(component, _description);
             }
 
             _readRoutesByComponent.RefAt(component.Value) = route;
@@ -473,9 +560,167 @@ internal sealed class QueryPlan
         Array.Resize(ref _matchingChunkPlanIndices, capacity);
     }
 
-    private bool Matches(Archetype archetype) => archetype.Mask.ContainsAll(_description.AllMask)
-        && (_description.AnyMask.IsEmpty || archetype.Mask.Intersects(_description.AnyMask))
-        && !archetype.Mask.Intersects(_description.NoneMask);
+    private bool Matches(Archetype archetype) => archetype.Mask.ContainsAll(_allDataMask)
+        && !archetype.Mask.Intersects(_noneDataMask)
+        && (_anyDataMask.IsEmpty || _anyTagIndices.Length != 0 || archetype.Mask.Intersects(_anyDataMask));
+
+    private static (ComponentMask DataMask, int[] TagIndices) PartitionQueryMask(World world, ComponentMask source)
+    {
+        if (source.IsEmpty)
+        {
+            return (default, Array.Empty<int>());
+        }
+
+        var dataIds = new ComponentId[source.Count];
+        var tagIndices = new int[source.Count];
+        int dataCount = 0;
+        int tagCount = 0;
+        foreach (ComponentId component in source)
+        {
+            if (!world.Layouts.TryGet(component, out _))
+            {
+                ThrowHelper.ThrowUnregisteredQueryComponent(component, default);
+            }
+
+            if (world.Layouts.TryGetTagIndex(component, out int tagIndex))
+            {
+                tagIndices[tagCount++] = tagIndex;
+            }
+            else
+            {
+                dataIds[dataCount++] = component;
+            }
+        }
+
+        Array.Resize(ref dataIds, dataCount);
+        Array.Resize(ref tagIndices, tagCount);
+        return (ComponentMask.From(dataIds), tagIndices);
+    }
+
+    private TagSlotCacheEntry GetTagSlotCacheEntry(int chunkId)
+    {
+        if ((uint)chunkId >= (uint)_tagSlotsByChunk.Length)
+        {
+            lock (_tagSlotGate)
+            {
+                if ((uint)chunkId >= (uint)_tagSlotsByChunk.Length)
+                {
+                    Array.Resize(ref _tagSlotsByChunk, Math.Max(chunkId + 1, Math.Max(4, _tagSlotsByChunk.Length * 2)));
+                }
+            }
+        }
+
+        TagSlotCacheEntry? entry = Volatile.Read(ref _tagSlotsByChunk[chunkId]);
+        if (entry is not null)
+        {
+            return entry;
+        }
+
+        lock (_tagSlotGate)
+        {
+            entry = _tagSlotsByChunk[chunkId];
+            if (entry is null)
+            {
+                entry = new TagSlotCacheEntry();
+                Volatile.Write(ref _tagSlotsByChunk[chunkId], entry);
+            }
+
+            return entry;
+        }
+    }
+
+    private void BuildTagSlots(Chunk chunk, bool constrainByAnyTags, TagSlotCacheEntry entry)
+    {
+        int count = 0;
+        int wordCount = (chunk.Count + 63) >> 6;
+        ulong candidateSummary;
+        if (_allTagIndices.Length != 0)
+        {
+            candidateSummary = ulong.MaxValue;
+            for (int index = 0; index < _allTagIndices.Length; index++)
+            {
+                candidateSummary &= chunk.GetTagSummary(_allTagIndices[index]);
+            }
+        }
+        else if (constrainByAnyTags)
+        {
+            candidateSummary = 0;
+            for (int index = 0; index < _anyTagIndices.Length; index++)
+            {
+                candidateSummary |= chunk.GetTagSummary(_anyTagIndices[index]);
+            }
+        }
+        else
+        {
+            candidateSummary = (1UL << wordCount) - 1;
+        }
+
+        if (_allTagIndices.Length != 0 && constrainByAnyTags)
+        {
+            ulong anySummary = 0;
+            for (int index = 0; index < _anyTagIndices.Length; index++)
+            {
+                anySummary |= chunk.GetTagSummary(_anyTagIndices[index]);
+            }
+
+            candidateSummary &= anySummary;
+        }
+
+        if (entry.Slots.Length < chunk.Count)
+        {
+            Array.Resize(ref entry.Slots, chunk.Count);
+        }
+
+        for (int wordIndex = 0; wordIndex < wordCount; wordIndex++)
+        {
+            if ((candidateSummary & (1UL << wordIndex)) == 0)
+            {
+                continue;
+            }
+
+            ulong bits = wordIndex == wordCount - 1 && (chunk.Count & 63) != 0
+                ? (1UL << (chunk.Count & 63)) - 1
+                : ulong.MaxValue;
+            for (int index = 0; index < _allTagIndices.Length; index++)
+            {
+                bits &= chunk.GetTagWord(_allTagIndices[index], wordIndex);
+            }
+
+            if (constrainByAnyTags)
+            {
+                ulong anyBits = 0;
+                for (int index = 0; index < _anyTagIndices.Length; index++)
+                {
+                    anyBits |= chunk.GetTagWord(_anyTagIndices[index], wordIndex);
+                }
+
+                bits &= anyBits;
+            }
+
+            for (int index = 0; index < _noneTagIndices.Length; index++)
+            {
+                bits &= ~chunk.GetTagWord(_noneTagIndices[index], wordIndex);
+            }
+
+            while (bits != 0)
+            {
+                int bit = BitOperationsCompat.TrailingZeroCount(bits);
+                entry.Slots[count++] = (wordIndex << 6) + bit;
+                bits &= bits - 1;
+            }
+        }
+
+        entry.Count = count;
+        entry.Dense = count == chunk.Count;
+    }
+
+    private sealed class TagSlotCacheEntry
+    {
+        internal int Version = int.MinValue;
+        internal int[] Slots = Array.Empty<int>();
+        internal int Count;
+        internal bool Dense;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void IncrementMatchingVersion()

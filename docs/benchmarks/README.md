@@ -50,6 +50,22 @@ The runner uses no candidate-mode compile symbols. Runtime selection follows
 the target framework, so these results represent the code shipped for each
 consumer target.
 
+`ChunkIterationBenchmarks` compares ordinary jagged-array iteration, a baseline
+managed-ref delta walk, an unrolled managed-ref delta walk, and an unmanaged
+linked list of chunk descriptors. The ref variants switch chunks using
+`Unsafe.ByteOffset`/`Unsafe.AddByteOffset`; the optimized one reads four bytes
+per loop and uses independent accumulators. Each method scans the same bytes
+and returns a checksum; setup verifies the results before measurement.
+Defaults are 4,096 bytes per chunk and eight chunks, configurable before
+BenchmarkDotNet starts:
+
+```bash
+dotnet benchmarks/DeltaECS.ArrayRefBenchmarks/bin/Release/net10.0/DeltaECS.ArrayRefBenchmarks.dll \
+  --chunk-size 4096 --chunk-count 8 \
+  --filter '*ChunkIterationBenchmarks*' \
+  --artifacts artifacts/chunk-iteration
+```
+
 ```bash
 env NuGetAudit=false RestoreIgnoreFailedSources=true \
   dotnet build benchmarks/DeltaECS.ArrayRefBenchmarks/DeltaECS.ArrayRefBenchmarks.csproj \

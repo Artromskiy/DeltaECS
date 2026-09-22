@@ -15,18 +15,21 @@ public ref struct GeneratedQuerySlots
     private readonly int[] _componentIndices;
     private readonly int _count;
     private readonly int _offset;
+    private readonly ReadOnlySpan<int> _tagSlots;
+    private readonly bool _hasTagSlots;
+    private readonly QueryPlan? _queryPlan;
 
-    internal GeneratedQuerySlots(World world, in ChunkPlan chunkPlan)
-        : this(world, in chunkPlan, chunkPlan.Chunk.Count)
+    internal GeneratedQuerySlots(World world, in ChunkPlan chunkPlan, QueryPlan? queryPlan = null)
+        : this(world, in chunkPlan, chunkPlan.Chunk.Count, 0, queryPlan)
     {
     }
 
-    internal GeneratedQuerySlots(World world, in ChunkPlan chunkPlan, int count)
-        : this(world, in chunkPlan, count, 0)
+    internal GeneratedQuerySlots(World world, in ChunkPlan chunkPlan, int count, QueryPlan? queryPlan = null)
+        : this(world, in chunkPlan, count, 0, queryPlan)
     {
     }
 
-    internal GeneratedQuerySlots(World world, in ChunkPlan chunkPlan, int count, int offset)
+    internal GeneratedQuerySlots(World world, in ChunkPlan chunkPlan, int count, int offset, QueryPlan? queryPlan = null)
     {
         _world = world;
         _chunk = chunkPlan.Chunk;
@@ -35,14 +38,34 @@ public ref struct GeneratedQuerySlots
         _componentIndices = chunkPlan.ComponentIndices;
         _count = count;
         _offset = offset;
+        _queryPlan = queryPlan;
+        _hasTagSlots = queryPlan is not null && offset == 0 && queryPlan.TryGetTagSlots(_chunk, out _tagSlots);
+        if (!_hasTagSlots)
+        {
+            _tagSlots = default;
+        }
     }
 
     /// <summary>Gets the number of entities in the validated chunk.</summary>
     public int Count
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _count;
+        get => _hasTagSlots ? _tagSlots.Length : _count;
     }
+
+    /// <summary>Gets the physical chunk population before any tag filter is applied.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public int PhysicalCount => _count;
+
+    /// <summary>Reports whether the owning query applies tag filters.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public bool HasTagFilters => _queryPlan?.HasTagFilters ?? false;
+
+    /// <summary>Tests whether a physical chunk slot satisfies the query's tag filters.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool IsTagSelected(int slotIndex)
+        => _queryPlan is null || !_queryPlan.HasTagFilters || _queryPlan.MatchesTagSlot(_chunk, slotIndex);
 
     /// <summary>Gets the stable identity of the current chunk.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -51,7 +74,21 @@ public ref struct GeneratedQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public Entity EntityAt(int index)
-        => _entities.RefAt(_offset + index);
+        => _entities.RefAt(_hasTagSlots ? _tagSlots.RefAt(index) : _offset + index);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public bool TryGetTagSlots(out ReadOnlySpan<int> slots)
+    {
+        slots = _tagSlots;
+        return _hasTagSlots;
+    }
+
+    /// <summary>Maps a logical query index to its physical slot within the chunk.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public int GetGeneratedSlotIndex(int index)
+        => _hasTagSlots ? _tagSlots.RefAt(index) : _offset + index;
 
     /// <summary>Gets the first entity reference for the current validated slot range.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -110,7 +147,7 @@ public ref struct GeneratedQuerySlots
             _chunk.ArchetypeId,
             _chunk,
             _componentIndices.RefAt(queryComponentIndex),
-            _offset + index);
+            _hasTagSlots ? _tagSlots.RefAt(index) : _offset + index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -128,15 +165,23 @@ public ref struct GeneratedReadQuerySlots
     private readonly Array[] _resolvedRowsByQuery;
     private readonly int[] _componentIndices;
     private readonly int _count;
+    private readonly ReadOnlySpan<int> _tagSlots;
+    private readonly bool _hasTagSlots;
 
-    internal GeneratedReadQuerySlots(World world, in ChunkPlan chunkPlan)
+    internal GeneratedReadQuerySlots(World world, in ChunkPlan chunkPlan, QueryPlan? queryPlan = null)
     {
         _world = world;
         _chunk = chunkPlan.Chunk;
         _entities = _chunk.RawEntities;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
         _componentIndices = chunkPlan.ComponentIndices;
-        _count = chunkPlan.Chunk.Count;
+        _hasTagSlots = queryPlan is not null && queryPlan.TryGetTagSlots(_chunk, out _tagSlots);
+        if (!_hasTagSlots)
+        {
+            _tagSlots = default;
+        }
+
+        _count = _hasTagSlots ? _tagSlots.Length : chunkPlan.Chunk.Count;
     }
 
     public int Count
@@ -147,7 +192,21 @@ public ref struct GeneratedReadQuerySlots
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity EntityAt(int index)
-        => _entities.RefAt(index);
+        => _entities.RefAt(_hasTagSlots ? _tagSlots.RefAt(index) : index);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public bool TryGetTagSlots(out ReadOnlySpan<int> slots)
+    {
+        slots = _tagSlots;
+        return _hasTagSlots;
+    }
+
+    /// <summary>Maps a logical query index to its physical slot within the chunk.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public int GetGeneratedSlotIndex(int index)
+        => _hasTagSlots ? _tagSlots.RefAt(index) : index;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -169,7 +228,7 @@ public ref struct GeneratedReadQuerySlots
             _chunk.ArchetypeId,
             _chunk,
             _componentIndices.RefAt(queryComponentIndex),
-            index);
+            _hasTagSlots ? _tagSlots.RefAt(index) : index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]

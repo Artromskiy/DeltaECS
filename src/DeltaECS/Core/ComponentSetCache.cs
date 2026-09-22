@@ -44,20 +44,23 @@ internal sealed class ComponentSet
     private const uint FnvPrime = 16_777_619u;
 
     internal static readonly ComponentSet Empty =
-        new(Array.Empty<ComponentId>(), default);
+        new(Array.Empty<ComponentId>(), default, Array.Empty<int>());
 
     private readonly ComponentId[] _componentIds;
 
-    internal ComponentSet(ComponentId[] componentIds, ComponentMask mask)
+    internal ComponentSet(ComponentId[] componentIds, ComponentMask mask, int[] tagIndices)
     {
         _componentIds = componentIds;
         Mask = mask;
+        TagIndices = tagIndices;
         Hash = ComputeHash(componentIds);
     }
 
     internal ReadOnlySpan<ComponentId> ComponentIds => _componentIds;
 
     internal ComponentMask Mask { get; }
+
+    internal int[] TagIndices { get; }
 
     internal int Hash { get; }
 

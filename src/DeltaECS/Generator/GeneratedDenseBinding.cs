@@ -14,8 +14,13 @@ internal interface IGeneratedDenseBinding
 public readonly struct GeneratedBoundChunk
 {
     private readonly Chunk _chunk;
+    private readonly QueryPlan _query;
 
-    internal GeneratedBoundChunk(Chunk chunk) => _chunk = chunk;
+    internal GeneratedBoundChunk(Chunk chunk, QueryPlan query)
+    {
+        _chunk = chunk;
+        _query = query;
+    }
 
     /// <summary>Reads the current population, including changes that do not alter chunk topology.</summary>
     public int Count
@@ -27,6 +32,17 @@ public readonly struct GeneratedBoundChunk
     /// <summary>Returns the live entity row inside a validated execution lease.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref Entity GetEntityReference() => ref _chunk.RawEntities.GetRefAtZero();
+
+    /// <summary>Reports whether the owning query contains tag filters.</summary>
+    public bool HasTagFilters
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _query.HasTagFilters;
+    }
+
+    /// <summary>Returns selected physical slots when this chunk is sparse for the query's tag filters.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetTagSlots(out ReadOnlySpan<int> slots) => _query.TryGetTagSlots(_chunk, out slots);
 }
 
 /// <summary>Query-owned compiler-support cache for a generated, typed row signature.</summary>
@@ -92,7 +108,7 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
         for (int index = 0; index < chunks.Length; index++)
         {
             ref readonly ChunkPlan chunk = ref chunks[index];
-            _rows[index] = BindRows(chunk.ComponentRows, new GeneratedBoundChunk(chunk.Chunk));
+            _rows[index] = BindRows(chunk.ComponentRows, new GeneratedBoundChunk(chunk.Chunk, plan));
         }
         if (_count > chunks.Length)
         {

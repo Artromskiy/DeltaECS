@@ -314,6 +314,29 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowInvalidTagType(Type runtimeType)
+        => throw new ArgumentException(
+            $"Tag component type '{runtimeType}' must be a value type with no instance fields.",
+            nameof(runtimeType));
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowComponentTagModeConflict(Type runtimeType)
+        => throw new InvalidOperationException(
+            $"Component type '{runtimeType}' cannot be registered as both a data component and a tag.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static int ThrowComponentIsNotTag(ComponentId componentId)
+        => throw new ArgumentException($"Component registration '{componentId}' is not a tag.", nameof(componentId));
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowTagHasNoValue(ComponentId componentId)
+        => throw new InvalidOperationException($"Tag component '{componentId}' has no value to read or write.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static ComponentId ThrowComponentTypeNotRegistered(Type runtimeType)
         => throw new KeyNotFoundException($"The component type {runtimeType} is not registered.");
 

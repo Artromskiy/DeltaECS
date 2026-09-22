@@ -210,16 +210,25 @@ internal static class GeneratedWhereTemplates
         }.Concat(Enumerable.Range(0, shape.Arity)
             .Select(index => predicateSlots.ComponentArgument(index, $"row{index}")))
         .Where(static argument => argument.Length != 0));
+        string taggedPredicateArguments = string.Join(", ", new[]
+        {
+            shape.HasContext ? "ref predicateContext" : string.Empty,
+            shape.HasEntity ? "__whereEntity_" + site.Id : string.Empty
+        }.Concat(Enumerable.Range(0, shape.Arity)
+            .Select(index => predicateSlots.ComponentArgument(index, $"taggedRow{index}")))
+        .Where(static argument => argument.Length != 0));
         bool needsEntity = shape.HasEntity || terminal.HasEntity;
-        string terminalCall = $$"""
+        string TerminalCall(IReadOnlyList<string> rowNames) => $$"""
             {{(terminal.IsFunctor ? "action.Invoke" : "Action_" + site.Id)}}({{string.Join(", ", new[]
                 {
                     terminal.IsFunctor && terminal.HasContext ? "ref context" : string.Empty,
                     terminal.HasEntity ? "__whereEntity_" + site.Id : string.Empty
                 }.Concat(Enumerable.Range(0, terminal.Arity)
-                    .Select(index => terminalSlots.ComponentArgument(index, $"row{shape.Arity + index}")))
+                    .Select(index => terminalSlots.ComponentArgument(index, rowNames[shape.Arity + index])))
                 .Where(static argument => argument.Length != 0))}});
             """;
+        string terminalCall = TerminalCall(Enumerable.Range(0, accessCount).Select(static index => "row" + index).ToArray());
+        string taggedTerminalCall = TerminalCall(Enumerable.Range(0, accessCount).Select(static index => "taggedRow" + index).ToArray());
         string entityBody = GeneratorTemplates.JoinNonEmpty(new[]
         {
             needsEntity
@@ -227,11 +236,8 @@ internal static class GeneratedWhereTemplates
                 : string.Empty,
             GeneratorTemplates.RenderBlock($"if (Predicate_{site.Id}({predicateArguments}))", terminalCall)
         });
-        string iteration = GeneratorTemplates.JoinNonEmpty(new[]
+        string denseIteration = GeneratorTemplates.JoinNonEmpty(new[]
         {
-            needsEntity
-                ? "ref global::Delta.ECS.Entity firstEntity = ref slots.GetGeneratedEntityReference();"
-                : string.Empty,
             "int count = slots.Count;",
             GeneratorTemplates.RenderBlock(
                 "for (int index = 0; index < count; index++)",
@@ -240,7 +246,29 @@ internal static class GeneratedWhereTemplates
                     entityBody,
                     GeneratorTemplates.JoinIndexed(accessCount, index =>
                         $$"""row{{index}} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row{{index}}, 1);""", "\n")
-                }))
+                    }))
+        });
+        string taggedIteration = GeneratorTemplates.JoinNonEmpty(new[]
+        {
+            "if (slots.TryGetTagSlots(out var tagSlots))",
+            "{",
+            "    for (int tagIndex = 0; tagIndex < tagSlots.Length; tagIndex++)",
+            "    {",
+            "        int slotIndex = tagSlots[tagIndex];",
+            needsEntity
+                ? $$"""        Entity __whereEntity_{{site.Id}} = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, slotIndex);"""
+                : string.Empty,
+            GeneratorTemplates.JoinIndexed(accessCount, index =>
+                $$"""        ref {{(index < shape.Arity ? site.PredicateComponents[index] : site.ActionComponents[index - shape.Arity])}} taggedRow{{index}} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row{{index}}, slotIndex);""", "\n"),
+            GeneratorTemplates.RenderBlock($"if (Predicate_{site.Id}({taggedPredicateArguments}))", taggedTerminalCall)
+        }.Where(static line => line.Length != 0).Select(static line => line + "\n").Append("    }\n}"));
+        string iteration = GeneratorTemplates.JoinNonEmpty(new[]
+        {
+            needsEntity
+                ? "ref global::Delta.ECS.Entity firstEntity = ref slots.GetGeneratedEntityReference();"
+                : string.Empty,
+            taggedIteration,
+            GeneratorTemplates.RenderBlock("else", denseIteration)
         });
         string executionBody = GeneratorTemplates.JoinNonEmpty(new[]
         {
@@ -296,11 +324,13 @@ internal static class GeneratedWhereTemplates
         string operationBody = GeneratorTemplates.JoinNonEmpty(new[]
         {
             """
-                int count = slots.Count;
+                int count = slots.PhysicalCount;
                 if (count == 0)
                 {
                     return;
                 }
+                bool hasSparseTagSlots = slots.TryGetTagSlots(out var tagSlots);
+                int tagCursor = 0;
                 """,
             RenderSlotLocals(shape.ComponentModels, site.PredicateComponents, "", elements: false),
             "int runStart = 0;",
@@ -316,7 +346,13 @@ internal static class GeneratedWhereTemplates
                     shape.HasEntity
                         ? "Entity entity = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index);"
                         : string.Empty,
-                    $$"""bool selected = Predicate_{{site.Id}}({{InterceptedPredicateArguments(shape, "_predicateContext")}});""",
+                    "bool matchesQuery = !hasSparseTagSlots;",
+                    "if (hasSparseTagSlots && tagCursor < tagSlots.Length && tagSlots[tagCursor] == index)",
+                    "{",
+                    "    tagCursor++;",
+                    "    matchesQuery = true;",
+                    "}",
+                    $$"""bool selected = matchesQuery && Predicate_{{site.Id}}({{InterceptedPredicateArguments(shape, "_predicateContext")}});""",
                     $$"""
                         if (index != 0 && selected != runSelected)
                         {
@@ -647,11 +683,13 @@ internal static class GeneratedWhereTemplates
         else
         {
             executeLines.Add("""
-                        int count = slots.Count;
+                        int count = slots.PhysicalCount;
                         if (count == 0)
                         {
                             return;
                         }
+                        bool hasSparseTagSlots = slots.TryGetTagSlots(out var tagSlots);
+                        int tagCursor = 0;
                         """);
             executeLines.Add("""
                         int runStart = 0;
@@ -708,7 +746,13 @@ internal static class GeneratedWhereTemplates
         else
         {
             loopLines.Add($$"""
-                        bool selected = {{predicateInvocation}};
+                        bool matchesQuery = !hasSparseTagSlots;
+                        if (hasSparseTagSlots && tagCursor < tagSlots.Length && tagSlots[tagCursor] == index)
+                        {
+                            tagCursor++;
+                            matchesQuery = true;
+                        }
+                        bool selected = matchesQuery && {{predicateInvocation}};
                         if (index != 0 && selected != runSelected)
                         {
                             context.ProcessRun(runStart, index - runStart, runSelected{{(terminal.HasValues ? ", ref _initializer" : string.Empty)}});
@@ -730,12 +774,33 @@ internal static class GeneratedWhereTemplates
         {
             executeLines.Add("        ref Entity firstEntity = ref slots.GetGeneratedEntityReference();");
         }
-        executeLines.Add($$"""
-                    for (int index = 0; index < count; index++)
-                    {
-                    {{GeneratorTemplates.Indent(string.Join("\n", loopLines), "    ")}}
-                    }
-                    """);
+        if (terminal.IsCallback)
+        {
+            string tagLoopBody = GeneratorTemplates.JoinNonEmpty(new[]
+            {
+                "int index = tagSlots[tagIndex];",
+                string.Join("\n", loopLines)
+            });
+            executeLines.Add(GeneratorTemplates.RenderBlock(
+                "if (slots.TryGetTagSlots(out var tagSlots))",
+                GeneratorTemplates.RenderBlock(
+                    "for (int tagIndex = 0; tagIndex < tagSlots.Length; tagIndex++)",
+                    tagLoopBody)));
+            executeLines.Add(GeneratorTemplates.RenderBlock(
+                "else",
+                GeneratorTemplates.RenderBlock(
+                    "for (int index = 0; index < count; index++)",
+                    string.Join("\n", loopLines))));
+        }
+        else
+        {
+            executeLines.Add($$"""
+                        for (int index = 0; index < count; index++)
+                        {
+                        {{GeneratorTemplates.Indent(string.Join("\n", loopLines), "    ")}}
+                        }
+                        """);
+        }
         if (!terminal.IsCallback)
         {
             executeLines.Add($$"""        context.ProcessRun(runStart, count - runStart, runSelected{{(terminal.HasValues ? ", ref _initializer" : string.Empty)}});""");

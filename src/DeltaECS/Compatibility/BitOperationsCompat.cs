@@ -3,6 +3,7 @@ namespace Delta.ECS;
 internal static class BitOperationsCompat
 {
     private const int BitsPerWord = sizeof(uint) * 8;
+    private const int BitsPerLong = sizeof(ulong) * 8;
 
     internal static int PopCount(uint value)
     {
@@ -26,6 +27,27 @@ internal static class BitOperationsCompat
         if (value == 0)
         {
             return BitsPerWord;
+        }
+
+        int count = 0;
+        while ((value & 1) == 0)
+        {
+            value >>= 1;
+            count++;
+        }
+
+        return count;
+#else
+        return System.Numerics.BitOperations.TrailingZeroCount(value);
+#endif
+    }
+
+    internal static int TrailingZeroCount(ulong value)
+    {
+#if NETSTANDARD2_1
+        if (value == 0)
+        {
+            return BitsPerLong;
         }
 
         int count = 0;

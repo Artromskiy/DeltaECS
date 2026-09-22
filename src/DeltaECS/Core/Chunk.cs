@@ -12,6 +12,7 @@ internal sealed class Chunk
     private ComponentRowOperations[] _rowOperations;
     private NativeMemory<Entity> _entities;
     private ComponentStampStorage _componentStamps;
+    private ChunkTagMasks? _tagMasks;
     private int _archetypeId;
     private int _archetypeIndex;
     private int _count;
@@ -60,6 +61,51 @@ internal sealed class Chunk
     internal int Count => _count;
 
     internal int ComponentCount => _componentRows.Length;
+
+    internal void EnsureTagCapacity(int tagCount)
+    {
+        if (tagCount != 0)
+        {
+            (_tagMasks ??= new ChunkTagMasks()).EnsureTagCapacity(tagCount);
+        }
+    }
+
+    internal bool HasTag(int tagIndex, int slotIndex) => _tagMasks?.Contains(tagIndex, slotIndex) ?? false;
+
+    internal bool SetTag(int tagIndex, int slotIndex) => (_tagMasks ??= new ChunkTagMasks()).Set(tagIndex, slotIndex);
+
+    internal bool ClearTag(int tagIndex, int slotIndex) => _tagMasks?.Clear(tagIndex, slotIndex) ?? false;
+
+    internal int ApplyTags(ReadOnlySpan<int> tagIndices, int slotIndex, int count, bool isAdd)
+    {
+        if (tagIndices.IsEmpty || count == 0)
+        {
+            return 0;
+        }
+
+        int changedEntities = 0;
+        for (int offset = 0; offset < count; offset++)
+        {
+            bool changed = false;
+            for (int index = 0; index < tagIndices.Length; index++)
+            {
+                changed |= isAdd
+                    ? SetTag(tagIndices.RefAt(index), slotIndex + offset)
+                    : ClearTag(tagIndices.RefAt(index), slotIndex + offset);
+            }
+
+            if (changed)
+            {
+                changedEntities++;
+            }
+        }
+
+        return changedEntities;
+    }
+
+    internal ulong GetTagSummary(int tagIndex) => _tagMasks?.Summary(tagIndex) ?? 0;
+
+    internal ulong GetTagWord(int tagIndex, int wordIndex) => _tagMasks?.Word(tagIndex, wordIndex) ?? 0;
 
     internal bool IsFull => _count >= Capacity;
 
@@ -123,11 +169,13 @@ internal sealed class Chunk
             _entities.RefAt(slotIndex) = moved;
             CopySlot(lastSlotIndex, slotIndex);
             _componentStamps.CopySlot(lastSlotIndex, slotIndex);
+            _tagMasks?.CopySlotTo(_tagMasks, lastSlotIndex, slotIndex);
         }
 
         _entities.RefAt(lastSlotIndex) = default;
         ClearReferenceRows(lastSlotIndex);
         _componentStamps.ClearSlot(lastSlotIndex);
+        _tagMasks?.ClearRange(lastSlotIndex, 1);
         _count = lastSlotIndex;
         return slotIndex < lastSlotIndex ? moved : default;
     }
@@ -269,6 +317,7 @@ internal sealed class Chunk
         }
 
         _componentStamps.ClearRange(start, count);
+        _tagMasks?.ClearRange(start, count);
         _entities.Span.Slice(start, count).Clear();
         _count = start;
     }
@@ -322,6 +371,32 @@ internal sealed class Chunk
             sourceComponentIndex,
             targetComponentIndex);
     }
+
+    internal void CopyTagsTo(Chunk target, int sourceSlotIndex, int targetSlotIndex)
+    {
+        target.ClearTagRange(targetSlotIndex, 1);
+        if (_tagMasks is { } source)
+        {
+            target.EnsureTagCapacity(source.TagCapacity);
+            source.CopySlotTo(target._tagMasks!, sourceSlotIndex, targetSlotIndex);
+        }
+    }
+
+    internal void CopyTagsRangeTo(Chunk target, int sourceSlotIndex, int targetSlotIndex, int count)
+    {
+        target.ClearTagRange(targetSlotIndex, count);
+        if (_tagMasks is { } source)
+        {
+            target.EnsureTagCapacity(source.TagCapacity);
+            source.CopyRangeTo(target._tagMasks!, sourceSlotIndex, targetSlotIndex, count);
+        }
+    }
+
+    internal void CopyTagsWithin(int sourceSlotIndex, int targetSlotIndex, int count)
+        => _tagMasks?.CopyRangeTo(_tagMasks, sourceSlotIndex, targetSlotIndex, count);
+
+    internal void ClearTagRange(int slotIndex, int count)
+        => _tagMasks?.ClearRange(slotIndex, count);
 
     internal void CopySlot(int sourceSlotIndex, int destinationSlotIndex, int componentIndex)
     {
@@ -397,6 +472,7 @@ internal sealed class Chunk
         }
 
         _componentStamps.ClearRange(0, _count);
+        _tagMasks?.ClearAll();
         _count = 0;
     }
 

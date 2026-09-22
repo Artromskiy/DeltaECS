@@ -195,7 +195,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             {
                 ParallelChunk work = _chunks.RefAt(chunkIndex);
                 ChunkPlan chunkPlan = work.Chunk;
-                GeneratedQuerySlots slots = new(_world!, in chunkPlan);
+                GeneratedQuerySlots slots = new(_world!, in chunkPlan, _cachedPlan);
                 invocation.Invoke(ref slots);
             }
 
@@ -306,7 +306,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             {
                 ParallelChunk work = _chunks.RefAt(chunkIndex);
                 ChunkPlan chunkPlan = work.Chunk;
-                GeneratedQuerySlots slots = new(_world!, in chunkPlan);
+                GeneratedQuerySlots slots = new(_world!, in chunkPlan, _cachedPlan);
                 invocation.Invoke(ref slots);
             }
 
@@ -339,7 +339,8 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         {
             Entity entity = _entities[index];
             if (!world.TryResolveEntityLocation(entity, out Chunk chunk, out int slot)
-                || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk.GlobalId, out ChunkPlan chunkPlan))
+                || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk.GlobalId, out ChunkPlan chunkPlan)
+                || !plan.MatchesTagSlot(chunk, slot))
             {
                 continue;
             }

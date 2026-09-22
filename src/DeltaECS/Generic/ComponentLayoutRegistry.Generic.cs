@@ -9,6 +9,10 @@ public sealed partial class ComponentLayoutRegistry
             new ComponentLayout(schemaId, typeof(T)),
             ComponentRowOperations.ForType<T>());
 
+    /// <summary>Registers a value type with no instance fields as a data-less tag.</summary>
+    public ComponentId RegisterTag<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(SchemaId schemaId)
+        => RegisterTag(typeof(T), schemaId);
+
     /// <summary>Tries to resolve the primary component registration for <typeparamref name="T"/>.</summary>
     public bool TryGetPrimary<T>(out ComponentId componentId)
         => TryGetPrimary(typeof(T), out componentId);

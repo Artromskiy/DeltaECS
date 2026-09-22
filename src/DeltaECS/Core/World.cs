@@ -29,6 +29,7 @@ public sealed partial class World : IDisposable
     private readonly Dictionary<TransitionKey, TransitionEdge> _transitionCache = new();
     private readonly ComponentSetCache _componentSetCache = new();
     private readonly Dictionary<QuerySpec, WeakReference<QueryPlan>> _queryCache = new();
+    private readonly List<Entity> _queryEntityScratch = new();
     private int _queryCacheSweepCountdown = QueryCacheSweepInterval;
     private NativeMemory<DestroyEntry> _destroyScratch = new(InitialDestroyScratchCapacity);
     private readonly List<Archetype> _deferredQueryPlanArchetypes = new(InitialDeferredQueryPlanCapacity);
@@ -50,6 +51,7 @@ public sealed partial class World : IDisposable
     private NativeMemory<int> _batchEdgeStamps = new(0);
     private int _batchEdgeStamp;
     private int _nextChunkId;
+    private int _tagVersion;
     private Chunk?[] _chunksById = Array.Empty<Chunk?>();
     private int _activeChunkLeases;
     private Stamp[][] _archetypeComponentWriteStamps = Array.Empty<Stamp[]>();
@@ -91,6 +93,8 @@ public sealed partial class World : IDisposable
     }
 
     internal bool IsDisposed => _disposed;
+
+    internal int TagVersion => _tagVersion;
 
     internal List<Archetype> Archetypes => _archetypes;
 
@@ -216,7 +220,7 @@ public sealed partial class World : IDisposable
         }
 
         var archetype = GetOrCreateArchetype(componentSet.Mask);
-        return CreateBatch(archetype, output);
+        return CreateBatch(archetype, output, componentSet.TagIndices);
     }
 
     /// <summary>Creates a requested number of entities into caller-owned storage.</summary>
@@ -241,7 +245,7 @@ public sealed partial class World : IDisposable
                 ThrowHelper.ThrowInvalidComponentList();
             }
 
-            return CreateBatch(GetOrCreateArchetype(componentSet.Mask), count);
+            return CreateBatch(GetOrCreateArchetype(componentSet.Mask), count, componentSet.TagIndices);
         }
 
         return Create(componentIds, output[..count]);
@@ -251,17 +255,17 @@ public sealed partial class World : IDisposable
     public int Create(ReadOnlySpan<ComponentId> componentIds, int count)
         => Create(componentIds, count, Span<Entity>.Empty);
 
-    private int CreateBatch(Archetype archetype, Span<Entity> output)
-        => CreateBatch(archetype, output.Length, output);
+    private int CreateBatch(Archetype archetype, Span<Entity> output, ReadOnlySpan<int> tagIndices)
+        => CreateBatch(archetype, output.Length, output, tagIndices);
 
-    private int CreateBatch(Archetype archetype, int count)
-        => CreateBatchNoOutput(archetype, count);
+    private int CreateBatch(Archetype archetype, int count, ReadOnlySpan<int> tagIndices)
+        => CreateBatchNoOutput(archetype, count, tagIndices);
 
-    private int CreateBatch(Archetype archetype, int count, Span<Entity> output)
+    private int CreateBatch(Archetype archetype, int count, Span<Entity> output, ReadOnlySpan<int> tagIndices)
     {
         if (output.IsEmpty)
         {
-            return CreateBatchNoOutput(archetype, count);
+            return CreateBatchNoOutput(archetype, count, tagIndices);
         }
 
         if (count == 0)
@@ -290,6 +294,11 @@ public sealed partial class World : IDisposable
                     out int reusedCount);
                 RegisterChunk(chunk);
                 int slotIndex = chunk.Count - reserved;
+                if (!tagIndices.IsEmpty)
+                {
+                    chunk.EnsureTagCapacity(_layouts.TagCount);
+                }
+                chunk.ApplyTags(tagIndices, slotIndex, reserved, isAdd: true);
                 if (reusedCount != 0)
                 {
                     chunk.InitializeSlotRange(slotIndex, reusedCount);
@@ -346,6 +355,11 @@ public sealed partial class World : IDisposable
             }
 
             AliveEntityCount += count;
+            if (_layouts.TagCount != 0)
+            {
+                _tagVersion++;
+            }
+
             return count;
         }
         finally
@@ -354,7 +368,7 @@ public sealed partial class World : IDisposable
         }
     }
 
-    private int CreateBatchNoOutput(Archetype archetype, int count)
+    private int CreateBatchNoOutput(Archetype archetype, int count, ReadOnlySpan<int> tagIndices)
     {
         if (count == 0)
         {
@@ -382,6 +396,11 @@ public sealed partial class World : IDisposable
                     out int reusedCount);
                 RegisterChunk(chunk);
                 int slotIndex = chunk.Count - reserved;
+                if (!tagIndices.IsEmpty)
+                {
+                    chunk.EnsureTagCapacity(_layouts.TagCount);
+                }
+                chunk.ApplyTags(tagIndices, slotIndex, reserved, isAdd: true);
                 if (reusedCount != 0)
                 {
                     chunk.InitializeSlotRange(slotIndex, reusedCount);
@@ -436,6 +455,11 @@ public sealed partial class World : IDisposable
             }
 
             AliveEntityCount += count;
+            if (_layouts.TagCount != 0)
+            {
+                _tagVersion++;
+            }
+
             return count;
         }
         finally
@@ -601,9 +625,14 @@ public sealed partial class World : IDisposable
     public bool Has(Entity entity, ComponentId componentId)
     {
         EnsureExecutionAccess();
-        if (!TryResolve(entity, out _, out Chunk chunk, out _))
+        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
             return false;
+        }
+
+        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
+        {
+            return chunk.HasTag(tagIndex, slotIndex);
         }
 
         return _archetypes[chunk.ArchetypeId].Contains(componentId);
@@ -612,6 +641,7 @@ public sealed partial class World : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool SetCore<T>(Entity entity, ComponentId componentId, in T value)
     {
+        EnsureNoTagValues(stackalloc[] { componentId });
         if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
@@ -729,6 +759,57 @@ public sealed partial class World : IDisposable
         EnsureNoActiveLease("destroy entities");
 
         var cached = query.Cached;
+        if (cached.HasTagFilters)
+        {
+            _queryEntityScratch.Clear();
+            try
+            {
+                ReadOnlySpan<ChunkPlan> chunks = cached.MatchingChunkPlans();
+                for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
+                {
+                    Chunk chunk = chunks.RefAt(chunkIndex).Chunk;
+                    if (cached.TryGetTagSlots(chunk, out ReadOnlySpan<int> slots))
+                    {
+                        for (int index = 0; index < slots.Length; index++)
+                        {
+                            _queryEntityScratch.Add(chunk.RawEntities.RefAt(slots.RefAt(index)));
+                        }
+                    }
+                    else
+                    {
+                        Span<Entity> entities = chunk.RawEntities;
+                        for (int slotIndex = 0; slotIndex < chunk.Count; slotIndex++)
+                        {
+                            _queryEntityScratch.Add(entities.RefAt(slotIndex));
+                        }
+                    }
+                }
+
+                int taggedDestroyed = 0;
+                BeginQueryPlanBatch();
+                try
+                {
+                    for (int index = 0; index < _queryEntityScratch.Count; index++)
+                    {
+                        if (Destroy(_queryEntityScratch[index]))
+                        {
+                            taggedDestroyed++;
+                        }
+                    }
+                }
+                finally
+                {
+                    EndQueryPlanBatch();
+                }
+
+                return taggedDestroyed;
+            }
+            finally
+            {
+                _queryEntityScratch.Clear();
+            }
+        }
+
         ReadOnlySpan<int> archetypes = cached.MatchingArchetypes();
         int destroyed = 0;
         BeginQueryPlanBatch();
@@ -800,6 +881,7 @@ public sealed partial class World : IDisposable
 
         int edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
         int changed = 0;
+        bool tagsChanged = false;
         bool batch = entities.Length > 1;
         if (batch)
         {
@@ -811,23 +893,32 @@ public sealed partial class World : IDisposable
             for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
             {
                 var entity = entities.RefAt(entityIndex);
-                if (!TryResolve(entity, out int recordIndex, out Chunk chunk, out _))
+                if (!TryResolve(entity, out int recordIndex, out Chunk chunk, out int slotIndex))
                 {
                     continue;
                 }
 
-                ref readonly var record = ref RecordAt(recordIndex);
+                bool entityTagsChanged = ApplyTags(chunk, slotIndex, changeSet.TagIndices, isAdd);
                 int sourceArchetypeId = chunk.ArchetypeId;
                 var edge = edgeStamp == 0
                     ? GetTransitionEdge(sourceArchetypeId, changeSet, isAdd)
                     : GetBatchTransitionEdge(sourceArchetypeId, changeSet, isAdd, edgeStamp);
-                if (edge.IsNoOp)
+                if (!edge.IsNoOp)
                 {
-                    continue;
+                    MoveEntity(recordIndex, edge);
+                    entityTagsChanged = true;
                 }
 
-                MoveEntity(recordIndex, edge);
-                changed++;
+                if (entityTagsChanged)
+                {
+                    changed++;
+                    tagsChanged |= changeSet.TagIndices.Length != 0;
+                }
+            }
+
+            if (tagsChanged)
+            {
+                _tagVersion++;
             }
 
             return changed;
@@ -839,6 +930,17 @@ public sealed partial class World : IDisposable
                 EndQueryPlanBatch();
             }
         }
+    }
+
+    private bool ApplyTags(Chunk chunk, int slotIndex, ReadOnlySpan<int> tagIndices, bool isAdd)
+    {
+        if (tagIndices.IsEmpty)
+        {
+            return false;
+        }
+
+        chunk.EnsureTagCapacity(_layouts.TagCount);
+        return chunk.ApplyTags(tagIndices, slotIndex, 1, isAdd) != 0;
     }
 
     private int ApplyQueryComponents(in Query query, bool isAdd, ReadOnlySpan<ComponentId> componentIds)
@@ -857,6 +959,11 @@ public sealed partial class World : IDisposable
         }
 
         var cached = query.Cached;
+        if (cached.HasTagFilters || changeSet.TagIndices.Length != 0)
+        {
+            return ApplyQueryComponentsByEntity(cached, changeSet, isAdd);
+        }
+
         ReadOnlySpan<int> matchingArchetypes = cached.MatchingArchetypes();
         int edgeStamp = BeginBatchEdgeCache();
         int changed = 0;
@@ -886,6 +993,76 @@ public sealed partial class World : IDisposable
         finally
         {
             EndQueryPlanBatch();
+        }
+    }
+
+    private int ApplyQueryComponentsByEntity(QueryPlan plan, ComponentSet changeSet, bool isAdd)
+    {
+        _queryEntityScratch.Clear();
+        ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
+        for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
+        {
+            Chunk chunk = chunks.RefAt(chunkIndex).Chunk;
+            if (plan.TryGetTagSlots(chunk, out ReadOnlySpan<int> selectedSlots))
+            {
+                for (int index = 0; index < selectedSlots.Length; index++)
+                {
+                    _queryEntityScratch.Add(chunk.RawEntities.RefAt(selectedSlots.RefAt(index)));
+                }
+            }
+            else
+            {
+                Span<Entity> entities = chunk.RawEntities;
+                for (int slotIndex = 0; slotIndex < chunk.Count; slotIndex++)
+                {
+                    _queryEntityScratch.Add(entities.RefAt(slotIndex));
+                }
+            }
+        }
+
+        int changed = 0;
+        bool tagsChanged = false;
+        int edgeStamp = BeginBatchEdgeCache();
+        BeginQueryPlanBatch();
+        try
+        {
+            for (int index = 0; index < _queryEntityScratch.Count; index++)
+            {
+                Entity entity = _queryEntityScratch[index];
+                if (!TryResolve(entity, out int recordIndex, out Chunk chunk, out int slotIndex))
+                {
+                    continue;
+                }
+
+                bool entityChanged = ApplyTags(chunk, slotIndex, changeSet.TagIndices, isAdd);
+                if (!changeSet.Mask.IsEmpty)
+                {
+                    TransitionEdge edge = GetBatchTransitionEdge(chunk.ArchetypeId, changeSet, isAdd, edgeStamp);
+                    if (!edge.IsNoOp)
+                    {
+                        MoveEntity(recordIndex, edge);
+                        entityChanged = true;
+                    }
+                }
+
+                if (entityChanged)
+                {
+                    changed++;
+                    tagsChanged |= changeSet.TagIndices.Length != 0;
+                }
+            }
+
+            if (tagsChanged)
+            {
+                _tagVersion++;
+            }
+
+            return changed;
+        }
+        finally
+        {
+            EndQueryPlanBatch();
+            _queryEntityScratch.Clear();
         }
     }
 
@@ -944,6 +1121,8 @@ public sealed partial class World : IDisposable
                         sourceToTargetRows,
                         addedTargetRows,
                         targetCursor,
+                        changeSet.TagIndices,
+                        isAdd,
                         isDestroy);
                 continue;
             }
@@ -970,6 +1149,8 @@ public sealed partial class World : IDisposable
                     sourceToTargetRows,
                     addedTargetRows,
                     targetCursor,
+                    changeSet.TagIndices,
+                    isAdd,
                     isDestroy);
         }
 
@@ -993,7 +1174,8 @@ public sealed partial class World : IDisposable
             plan.MatchingPlans(),
             matchingChunks,
             _generatedWhereSourceCounts.ReadOnlySpan[..matchingChunks.Length],
-            ownsLease: false);
+            ownsLease: false,
+            queryPlan: plan);
         return true;
     }
 
@@ -1014,6 +1196,25 @@ public sealed partial class World : IDisposable
             DeferQueryPlanUpdates(target);
         }
     }
+
+    internal int ApplyGeneratedWhereTags(
+        Chunk chunk,
+        int slotIndex,
+        int count,
+        ReadOnlySpan<int> tagIndices,
+        bool isAdd)
+    {
+        if (tagIndices.IsEmpty)
+        {
+            return 0;
+        }
+
+        chunk.EnsureTagCapacity(_layouts.TagCount);
+        return chunk.ApplyTags(tagIndices, slotIndex, count, isAdd);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void MarkGeneratedWhereTagsChanged() => _tagVersion++;
 
     internal GeneratedWhereStructuralContext BeginGeneratedWhereChunk(int chunkId, int sourceCount)
     {
@@ -1169,7 +1370,7 @@ public sealed partial class World : IDisposable
         return stamp + 1;
     }
 
-    internal void CopyGeneratedWhereRun<TInitializer>(
+    internal bool CopyGeneratedWhereRun<TInitializer>(
         Chunk sourceChunk,
         int sourceSlot,
         int count,
@@ -1177,9 +1378,12 @@ public sealed partial class World : IDisposable
         int[] sourceToTargetRows,
         int[] addedTargetRows,
         GeneratedWhereTargetCursor targetCursor,
+        ReadOnlySpan<int> tagIndices,
+        bool isAdd,
         ref TInitializer initializer)
         where TInitializer : struct, IGeneratedComponentValueInitializer
     {
+        bool tagsChanged = false;
         TransitionEdge edge = new(targetArchetype.Id, sourceToTargetRows, addedTargetRows);
         while (count != 0)
         {
@@ -1211,6 +1415,12 @@ public sealed partial class World : IDisposable
                 targetSlot,
                 copied,
                 edge);
+            if (!tagIndices.IsEmpty)
+            {
+                target.EnsureTagCapacity(_layouts.TagCount);
+                tagsChanged |= target.ApplyTags(tagIndices, targetSlot, copied, isAdd) != 0;
+            }
+
             var writer = new GeneratedComponentValueWriter(
                 target,
                 targetArchetype,
@@ -1223,6 +1433,8 @@ public sealed partial class World : IDisposable
             targetCursor.Remaining -= copied;
             count -= copied;
         }
+
+        return tagsChanged;
     }
 
     internal void FreeGeneratedWhereRun(Chunk sourceChunk, int sourceSlot, int count)
@@ -1248,7 +1460,14 @@ public sealed partial class World : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void CommitGeneratedWhereDestroy(int count) => AliveEntityCount -= count;
+    internal void CommitGeneratedWhereDestroy(int count)
+    {
+        AliveEntityCount -= count;
+        if (count != 0 && _layouts.TagCount != 0)
+        {
+            _tagVersion++;
+        }
+    }
 
     internal void CopyChunkRangeWithin(Chunk chunk, int sourceSlot, int targetSlot, int count)
     {
@@ -1258,6 +1477,7 @@ public sealed partial class World : IDisposable
         }
 
         chunk.RawEntities.Slice(sourceSlot, count).CopyTo(chunk.RawEntities.Slice(targetSlot, count));
+        chunk.CopyTagsWithin(sourceSlot, targetSlot, count);
         for (int componentIndex = 0; componentIndex < chunk.ComponentCount; componentIndex++)
         {
             Array.Copy(
@@ -1273,6 +1493,11 @@ public sealed partial class World : IDisposable
                 count,
                 componentIndex,
                 componentIndex);
+        }
+
+        if (_layouts.TagCount != 0)
+        {
+            _tagVersion++;
         }
     }
 
@@ -1388,6 +1613,7 @@ public sealed partial class World : IDisposable
         TransitionEdge edge)
     {
         source.RawEntities.Slice(sourceSlot, count).CopyTo(target.RawEntities.Slice(targetSlot, count));
+        source.CopyTagsRangeTo(target, sourceSlot, targetSlot, count);
         for (int sourceComponentIndex = 0; sourceComponentIndex < edge.SourceToTargetRowIndices.Length; sourceComponentIndex++)
         {
             int targetComponentIndex = edge.SourceToTargetRowIndices.RefAt(sourceComponentIndex);
@@ -1414,6 +1640,10 @@ public sealed partial class World : IDisposable
         target.InitializeRowsRange(targetSlot, count, edge.AddedTargetRowIndices);
         target.StampRowsRange(targetSlot, count, edge.AddedTargetRowIndices, new Stamp(1));
         UpdateChunkRecordLocations(target, targetSlot, count);
+        if (_layouts.TagCount != 0)
+        {
+            _tagVersion++;
+        }
     }
 
     private int DestroyChunk(Archetype archetype, int chunkIndex)
@@ -1436,7 +1666,23 @@ public sealed partial class World : IDisposable
         chunk.ClearAll();
         archetype.ReleaseChunk(chunkIndex);
         AliveEntityCount -= count;
+        if (_layouts.TagCount != 0)
+        {
+            _tagVersion++;
+        }
         return count;
+    }
+
+    private void EnsureNoTagValues(ReadOnlySpan<ComponentId> componentIds)
+    {
+        for (int index = 0; index < componentIds.Length; index++)
+        {
+            ComponentId componentId = componentIds.RefAt(index);
+            if (_layouts.IsTag(componentId))
+            {
+                ThrowHelper.ThrowTagHasNoValue(componentId);
+            }
+        }
     }
 
     private bool IsCompleteDestroyChunk(int start, int count)
@@ -1523,6 +1769,10 @@ public sealed partial class World : IDisposable
         record.ChunkId = -1;
         PushFree(recordIndex);
         AliveEntityCount--;
+        if (_layouts.TagCount != 0)
+        {
+            _tagVersion++;
+        }
     }
 
     private void MoveEntity(int recordIndex, TransitionEdge edge)
@@ -1557,6 +1807,7 @@ public sealed partial class World : IDisposable
             out bool reusedTargetSlot);
         targetChunk = targetArchetype.GetChunk(targetChunkIndex);
         RegisterChunk(targetChunk);
+        sourceChunk.CopyTagsTo(targetChunk, sourceSlotIndex, targetSlotIndex);
 
         for (int sourceIndex = 0; sourceIndex < edge.SourceToTargetRowIndices.Length; sourceIndex++)
         {
@@ -1584,6 +1835,11 @@ public sealed partial class World : IDisposable
             ref var movedRecord = ref RecordAt(moved.Index);
             movedRecord.ChunkId = sourceChunk.GlobalId;
             movedRecord.SlotIndex = sourceSlotIndex;
+        }
+
+        if (_layouts.TagCount != 0)
+        {
+            _tagVersion++;
         }
     }
 
@@ -1818,7 +2074,26 @@ public sealed partial class World : IDisposable
     private ComponentSet CreateComponentSet(ComponentId[] componentIds)
     {
         ValidateComponentIds(componentIds);
-        return new ComponentSet(componentIds, ComponentMask.From(componentIds));
+        var dataIds = new ComponentId[componentIds.Length];
+        var tagIndices = new int[componentIds.Length];
+        int dataCount = 0;
+        int tagCount = 0;
+        for (int index = 0; index < componentIds.Length; index++)
+        {
+            ComponentId componentId = componentIds.RefAt(index);
+            if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
+            {
+                tagIndices.RefAt(tagCount++) = tagIndex;
+            }
+            else
+            {
+                dataIds.RefAt(dataCount++) = componentId;
+            }
+        }
+
+        Array.Resize(ref dataIds, dataCount);
+        Array.Resize(ref tagIndices, tagCount);
+        return new ComponentSet(componentIds, ComponentMask.From(dataIds), tagIndices);
     }
 
     private void ValidateComponentIds(ReadOnlySpan<ComponentId> componentIds)
