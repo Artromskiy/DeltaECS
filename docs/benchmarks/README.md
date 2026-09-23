@@ -14,6 +14,10 @@ iterate the same data shape?
   focused throughput work.
 - `DeltaECS.ArrayRefBenchmarks` measures generated `ForEach<T>` from a
   `netstandard2.1` consumer under Mono for array-row reference experiments.
+- The `tag-filtering` route compares overlay-tag and ordinary-component query
+  filters for both component and entity iteration. Every entity has the marker
+  tag or marker component, so both queries are dense; iteration setup and
+  tag/component assignment stay outside measured methods.
 - `Ecs.CSharp.Benchmark` is a complete vendored fork of the upstream workload
   suite. It keeps the competitor implementations and adds DeltaECS to every
   create/system scenario group, consuming the published `DeltaECS` and
@@ -24,6 +28,21 @@ iterate the same data shape?
 The supported comparative route is `iteration`. The version suite is also
 iteration-only; it is intentionally separate because it builds the same
 scenario against two source revisions.
+
+Run the tag/component filter comparison at a selected entity amount:
+
+```bash
+dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net10.0/DeltaECS.Benchmarks.dll \
+  tag-filtering --amount 100000 \
+  --filter '*TagFilteringBenchmarks*' \
+  --job Default --warmupCount 5 --iterationCount 20 --iterationTime 100 --launchCount 1 \
+  --exporters json csv markdown \
+  --artifacts artifacts/tag-filtering-100k
+```
+
+The result has two comparison groups: filtering plus iteration over the same
+data component, and entity-only iteration filtered by the component or tag
+without requesting that filter from the callback.
 
 The isolated parallel-iteration route is `parallel`. It runs
 `ParallelMovement4IterationBenchmarks` against the generated sequential
@@ -50,20 +69,31 @@ The runner uses no candidate-mode compile symbols. Runtime selection follows
 the target framework, so these results represent the code shipped for each
 consumer target.
 
-`ChunkIterationBenchmarks` compares ordinary jagged-array iteration, a baseline
-managed-ref delta walk, an unrolled managed-ref delta walk, and an unmanaged
-linked list of chunk descriptors. The ref variants switch chunks using
-`Unsafe.ByteOffset`/`Unsafe.AddByteOffset`; the optimized one reads four bytes
-per loop and uses independent accumulators. Each method scans the same bytes
-and returns a checksum; setup verifies the results before measurement.
-Defaults are 4,096 bytes per chunk and eight chunks, configurable before
-BenchmarkDotNet starts:
+`ChunkIterationBenchmarks` compares ordinary jagged-array iteration, a managed
+ref-cursor walk, an unmanaged linked list storing each chunk length, and a
+linked list of contiguous descriptors storing each chunk's start and end
+pointers. All four variants use scalar loops, visit the same active elements
+and return a checksum; setup verifies the results before measurement. The probe
+uses no SIMD, manual loop unrolling, or multithreading. `--chunk-capacity` sets
+backing-array capacity, while `--amount` sets the total number of active
+elements. A partial last chunk (including a single 128-element chunk with
+capacity 1,024) is included. The runner propagates both values to
+BenchmarkDotNet's measurement process:
 
 ```bash
 dotnet benchmarks/DeltaECS.ArrayRefBenchmarks/bin/Release/net10.0/DeltaECS.ArrayRefBenchmarks.dll \
-  --chunk-size 4096 --chunk-count 8 \
+  --amount 4194304 --chunk-capacity 1024 \
   --filter '*ChunkIterationBenchmarks*' \
-  --artifacts artifacts/chunk-iteration
+  --warmupCount 5 --iterationCount 20 --iterationTime 100 --launchCount 1 \
+  --artifacts artifacts/chunk-iteration-4m
+```
+
+```bash
+dotnet benchmarks/DeltaECS.ArrayRefBenchmarks/bin/Release/net10.0/DeltaECS.ArrayRefBenchmarks.dll \
+  --amount 128 --chunk-capacity 1024 \
+  --filter '*ChunkIterationBenchmarks*' \
+  --warmupCount 5 --iterationCount 20 --iterationTime 100 --launchCount 1 \
+  --artifacts artifacts/chunk-iteration-128
 ```
 
 ```bash

@@ -31,6 +31,28 @@ See [full measurements and JIT evidence](typed-loop-2026-09-16.md).
 | Make the shared benchmark terminal helpers `internal` so the already-enabled Roslyn interceptor can legally copy static lambda bodies into generated code | Candidate source diff in `benchmarks/DeltaECS.Benchmarks/UnifiedIterationBenchmarks.cs`; full matrix `artifacts/perf-round-20260829/interceptor-all`; Movement4 JIT `artifacts/perf-round-20260829/candidate-interceptor-harness-jit/movement4-jit.txt` | Corrects the intended interceptor-enabled benchmark mode; it does not change ECS runtime or public API. The generated Movement4 method is `872 B / 218 instructions` versus the pre-correction delegate method `876 B / 219 instructions`; `blr` remains `6` (including one callback-path indirect call). Delta improves versus the old harness by `22.8/11.1/10.8/10.0%` Dense, `5.9/30.0/31.4/31.6%` Movement2, `22.0/23.1/14.5/12.8%` Movement4 and `18.4/12.8/39.0/12.7%` Wide for `100/1K/10K/100K` entities. It is a measurement correction, not evidence that Delta wins every iteration category. |
 | Restore interception visibility for the sparse-query terminal helper `ApplySparse` | Baseline `artifacts/movement4-full-comparison-20260831-042846/results/Delta.ECS.Benchmarks.ComparativeSparseQueryBenchmarks-report-github.md`; corrected run `artifacts/sparse-intercepted-20260831-053420/results/Delta.ECS.Benchmarks.ComparativeSparseQueryBenchmarks-report-github.md`; JIT proof `artifacts/sparse-callback-intercept-jit.txt` | The former private helper forced a per-entity delegate `blr` and made the sparse benchmark measure fallback dispatch. Making it `internal` removes that callback from the hot loop. Delta changes `17.99/256.64/2791.67/28116.83` to `10.39/125.84/1298.43/13006.91 ns` (`100/1K/10K/100K`), with `0 B` allocation; the corrected path is faster than Friflo at `10K` and `100K`. This is a benchmark lowering correction, not an ECS runtime optimization. |
 
+## Chunk iteration descriptor endpoint — 2026-09-23
+
+The chunk-chain baseline stores `DataPtr + Length + Next`; the candidate
+precomputes `DataPtr + EndPtr + Next` and allocates all descriptors in one
+contiguous block. Both keep a scalar byte-at-a-time loop and visit the same
+active values in 1,024-byte chunks. No SIMD, manual unrolling, or
+multithreading is used. The initial Apple M4 Pro / .NET 10 ARM64 candidate
+body was 72 bytes versus 80 bytes for the baseline (10% smaller); it loads
+`DataPtr` and `EndPtr` together and avoids the per-chunk length-to-end addition.
+
+BenchmarkDotNet used 5 warmups and 30 × 100 ms iterations. At 128 active
+values the baseline/candidate were `38.43 ±0.303 ns` / `38.81 ±0.237 ns`; at
+4,194,304 values over 4,096 chunks they were `1.169 ±0.0139 ms` /
+`1.173 ±0.0143 ms`. The confidence intervals overlap at both sizes. Three
+same-process ABBA repeats averaged ratios of `0.992` for 128 values and `0.994`
+for 4,194,304 values, also a sub-1% signal. A JIT-only reordering then hoisted
+the `Next` load before the row loop, filling alignment padding and reducing
+the candidate to 68 bytes (15% smaller). Its setup checksum passed, but that
+68-byte form has not had a throughput rerun; the figures above belong to the
+72-byte form. Full raw runs are under
+`artifacts/chunk-iteration-user-20260923/final-chain-{128,4m}`.
+
 ## Accepted
 
 | Area | Change | Evidence | Result |

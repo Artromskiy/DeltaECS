@@ -35,6 +35,36 @@ public sealed class SystemSchedulerTests
     }
 
     [Test]
+    public void LinearSchedulePreservesRegistrationOrder()
+    {
+        using var world = new World();
+        var order = new ConcurrentQueue<int>();
+        using var scheduler = new SystemScheduler(world, optimizeSchedule: false);
+        scheduler.Add(new RecordingSystem(world, SystemAccess.None, order, 1));
+        scheduler.Add(new RecordingSystem(world, SystemAccess.None, order, 2));
+
+        scheduler.Tick();
+
+        Assert.That(order.ToArray(), Is.EqualTo(ReaderWriterOrder));
+        Assert.That(scheduler.WorkerCount, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void LinearScheduleDoesNotRunIndependentSystemsConcurrently()
+    {
+        using var world = new World();
+        using var state = new ConcurrencyState();
+        using var scheduler = new SystemScheduler(world, workerCount: 2, optimizeSchedule: false);
+        scheduler.Add(new ConcurrencySystem(world, SystemAccess.None, state));
+        scheduler.Add(new ConcurrencySystem(world, SystemAccess.None, state));
+
+        scheduler.Tick();
+
+        Assert.That(state.MaximumConcurrency, Is.EqualTo(1));
+        Assert.That(scheduler.WorkerCount, Is.EqualTo(1));
+    }
+
+    [Test]
     public void ConflictingSystemsPreserveRegistrationOrder()
     {
         using var world = new World();

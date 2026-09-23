@@ -45,4 +45,15 @@ public struct Velocity { public float X; }
 `Adds`, `Removes`, entity creation/destruction, unknown access and nested use of
 the DeltaECS parallel executor are exclusive to keep immediate world mutation
 safe. The scheduler compiles its graph when systems are added or removed and
-reuses the resulting batches on subsequent ticks.
+reuses the resulting batches on subsequent ticks when dependency-aware
+scheduling is enabled.
+
+To run every system sequentially in registration order, disable schedule
+optimization:
+
+```csharp
+using var scheduler = new SystemScheduler(world, optimizeSchedule: false);
+```
+
+Linear mode does not inspect system access metadata or create scheduler worker
+threads. `WorkerCount` is `1` in this mode.

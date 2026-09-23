@@ -38,6 +38,19 @@ internal static class Program
             return;
         }
 
+        if (args.Length > 0 && string.Equals(args[0], "tag-filtering", StringComparison.OrdinalIgnoreCase))
+        {
+            var tagFilteringArgs = BenchmarkConfiguration.SelectAmounts(
+                args[1..],
+                BenchmarkConfiguration.DefaultAmounts,
+                out int[] tagFilteringAmounts);
+            RunTimed("tag-filtering", () => RunForAmounts(
+                [typeof(TagFilteringBenchmarks)],
+                tagFilteringArgs,
+                tagFilteringAmounts));
+            return;
+        }
+
         if (args.Length > 0 && string.Equals(args[0], "parallel", StringComparison.OrdinalIgnoreCase))
         {
             var parallelArgs = ParallelBenchmarkArguments.Extract(args[1..]);
@@ -67,7 +80,7 @@ internal static class Program
         if (args.Length > 0 && !string.Equals(args[0], "iteration", StringComparison.OrdinalIgnoreCase))
         {
             throw new ArgumentException(
-                $"Unknown benchmark route '{args[0]}'. Only 'iteration', 'many-components' and 'parallel' are supported.",
+                $"Unknown benchmark route '{args[0]}'. Only 'iteration', 'many-components', 'tag-filtering' and 'parallel' are supported.",
                 nameof(args));
         }
 

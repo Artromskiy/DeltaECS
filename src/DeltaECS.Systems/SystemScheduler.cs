@@ -16,27 +16,57 @@ public sealed class SystemScheduler : IDisposable
     private readonly World _world;
     private readonly List<ISystem> _systems = new();
     private readonly int _workerCount;
+    private readonly bool _optimizeSchedule;
     private readonly SchedulerWorkers? _workers;
     private ScheduleBatch[] _batches = Array.Empty<ScheduleBatch>();
     private int _executing;
     private bool _built;
     private bool _disposed;
 
-    /// <summary>Creates a scheduler for one world.</summary>
+    /// <summary>Creates a scheduler for one world with dependency-aware scheduling.</summary>
     /// <param name="world">World shared by all registered systems.</param>
     /// <param name="workerCount">
     /// Maximum scheduler workers. Zero selects the processor count; values
     /// above the processor count are clamped.
     /// </param>
     public SystemScheduler(World world, int workerCount = 0)
+        : this(world, workerCount, optimizeSchedule: true)
+    {
+    }
+
+    /// <summary>Creates a scheduler and selects dependency-aware or linear execution.</summary>
+    /// <param name="world">World shared by all registered systems.</param>
+    /// <param name="optimizeSchedule">
+    /// True to batch independent systems for parallel execution; false to run
+    /// systems sequentially in registration order.
+    /// </param>
+    public SystemScheduler(World world, bool optimizeSchedule)
+        : this(world, workerCount: 0, optimizeSchedule: optimizeSchedule)
+    {
+    }
+
+    /// <summary>Creates a scheduler with a worker limit and execution mode.</summary>
+    /// <param name="world">World shared by all registered systems.</param>
+    /// <param name="workerCount">
+    /// Maximum scheduler workers. Zero selects the processor count; values
+    /// above the processor count are clamped. Linear execution always uses one.
+    /// </param>
+    /// <param name="optimizeSchedule">
+    /// True to batch independent systems for parallel execution; false to run
+    /// systems sequentially in registration order.
+    /// </param>
+    public SystemScheduler(World world, int workerCount, bool optimizeSchedule)
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
         ThrowHelper.ThrowIfNegative(workerCount, nameof(workerCount));
 
         _world = world;
+        _optimizeSchedule = optimizeSchedule;
         int processorCount = Math.Max(1, Environment.ProcessorCount);
-        _workerCount = Math.Min(workerCount == 0 ? processorCount : workerCount, processorCount);
-        if (_workerCount > 1)
+        _workerCount = optimizeSchedule
+            ? Math.Min(workerCount == 0 ? processorCount : workerCount, processorCount)
+            : 1;
+        if (optimizeSchedule && _workerCount > 1)
         {
             _workers = new SchedulerWorkers(_world, _workerCount);
         }
@@ -45,7 +75,7 @@ public sealed class SystemScheduler : IDisposable
     /// <summary>Gets the world shared by the scheduler's systems.</summary>
     public World World => _world;
 
-    /// <summary>Gets the resolved worker count.</summary>
+    /// <summary>Gets the effective worker count; linear execution always returns one.</summary>
     public int WorkerCount => _workerCount;
 
     /// <summary>Gets the number of registered systems.</summary>
@@ -131,6 +161,22 @@ public sealed class SystemScheduler : IDisposable
         {
             _batches = Array.Empty<ScheduleBatch>();
             _workers?.PrepareCapacity(0);
+            _built = true;
+            return;
+        }
+
+        if (!_optimizeSchedule)
+        {
+            ISystem[] systems = _systems.ToArray();
+            for (int index = 0; index < systems.Length; index++)
+            {
+                if (!ReferenceEquals(systems[index].World, _world))
+                {
+                    ThrowHelper.ThrowSystemWorldChanged();
+                }
+            }
+
+            _batches = new[] { new ScheduleBatch(systems) };
             _built = true;
             return;
         }

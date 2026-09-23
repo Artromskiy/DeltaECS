@@ -5,24 +5,31 @@ namespace Delta.ECS.ArrayRefBenchmarks;
 
 internal static class Program
 {
+    private const string AmountEnvironmentVariable = "DELTAECS_ARRAY_REF_AMOUNT";
+    private const string ChunkCapacityEnvironmentVariable = "DELTAECS_ARRAY_REF_CHUNK_CAPACITY";
     private const int DefaultAmount = 200_000;
-    private const int DefaultChunkSize = 4_096;
-    private const int DefaultChunkCount = 8;
+    private const int DefaultChunkCapacity = 1_024;
 
-    internal static int Amount { get; private set; } = DefaultAmount;
-    internal static int ChunkSize { get; private set; } = DefaultChunkSize;
-    internal static int ChunkCount { get; private set; } = DefaultChunkCount;
+    internal static int Amount { get; private set; } = ReadEnvironmentValue(AmountEnvironmentVariable, DefaultAmount);
+    internal static int ChunkCapacity { get; private set; } = ReadEnvironmentValue(
+        ChunkCapacityEnvironmentVariable,
+        DefaultChunkCapacity);
+    internal static int ChunkCount => ((Amount - 1) / ChunkCapacity) + 1;
 
     private static void Main(string[] args)
     {
         string[] benchmarkArgs = ExtractWorkloadArguments(
             args,
             out int? amount,
-            out int? chunkSize,
-            out int? chunkCount);
+            out int? chunkCapacity);
         Amount = amount ?? DefaultAmount;
-        ChunkSize = chunkSize ?? DefaultChunkSize;
-        ChunkCount = chunkCount ?? DefaultChunkCount;
+        ChunkCapacity = chunkCapacity ?? DefaultChunkCapacity;
+        Environment.SetEnvironmentVariable(AmountEnvironmentVariable, Amount.ToString(CultureInfo.InvariantCulture));
+        Environment.SetEnvironmentVariable(
+            ChunkCapacityEnvironmentVariable,
+            ChunkCapacity.ToString(CultureInfo.InvariantCulture));
+        Console.WriteLine(
+            $"Chunk iteration workload: {Amount:N0} elements, capacity {ChunkCapacity:N0}, {ChunkCount:N0} chunks.");
         BenchmarkSwitcher.FromTypes(new[]
         {
             typeof(ForEachArrayReferenceBenchmarks),
@@ -33,13 +40,11 @@ internal static class Program
     private static string[] ExtractWorkloadArguments(
         string[] args,
         out int? amount,
-        out int? chunkSize,
-        out int? chunkCount)
+        out int? chunkCapacity)
     {
         var benchmarkArgs = new List<string>(args.Length);
         amount = null;
-        chunkSize = null;
-        chunkCount = null;
+        chunkCapacity = null;
 
         for (int index = 0; index < args.Length; index++)
         {
@@ -66,11 +71,8 @@ internal static class Program
                     case "--amount":
                         amount = ParsePositiveInt(option, value);
                         break;
-                    case "--chunk-size":
-                        chunkSize = ParsePositiveInt(option, value);
-                        break;
-                    case "--chunk-count":
-                        chunkCount = ParsePositiveInt(option, value);
+                    case "--chunk-capacity":
+                        chunkCapacity = ParsePositiveInt(option, value);
                         break;
                 }
 
@@ -89,9 +91,14 @@ internal static class Program
         option = (separator < 0 ? argument : argument[..separator]).ToLowerInvariant();
         value = separator < 0 ? null : argument[(separator + 1)..];
         return option.Equals("--amount", StringComparison.OrdinalIgnoreCase)
-            || option.Equals("--chunk-size", StringComparison.OrdinalIgnoreCase)
-            || option.Equals("--chunk-count", StringComparison.OrdinalIgnoreCase);
+            || option.Equals("--chunk-capacity", StringComparison.OrdinalIgnoreCase);
     }
+
+    private static int ReadEnvironmentValue(string name, int defaultValue) =>
+        int.TryParse(Environment.GetEnvironmentVariable(name), NumberStyles.None, CultureInfo.InvariantCulture, out int value)
+            && value > 0
+            ? value
+            : defaultValue;
 
     private static int ParsePositiveInt(string option, string value)
     {
