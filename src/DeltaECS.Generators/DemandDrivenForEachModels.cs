@@ -62,8 +62,10 @@ internal sealed class IterationModel
         bool hasQuery = true,
         bool isStamp = false,
         TypeBindingKind typeBinding = TypeBindingKind.CallbackInferred,
-        ContextModeKind functorPassMode = ContextModeKind.Ref)
+        ContextModeKind functorPassMode = ContextModeKind.Ref,
+        string namespaceName = "")
     {
+        Namespace = namespaceName;
         Api = GeneratorSupport.CreateIterationShape(
             isStamp,
             parallel,
@@ -107,8 +109,9 @@ internal sealed class IterationModel
     public bool HasQuery => Api.Query != QueryMode.None;
     public bool IsStamp => Api.Execution.Value == ValueDomain.Stamp;
     public string MethodName => Api.Name ?? "ForEach";
+    public string Namespace { get; }
     internal ApiModel Api { get; }
-    public string Key => Api.SignatureKey;
+    public string Key => Namespace + "|" + Api.SignatureKey;
 }
 
 internal sealed class IterationRenderModel

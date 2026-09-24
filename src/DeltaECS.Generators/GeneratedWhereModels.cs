@@ -13,8 +13,10 @@ internal sealed class PredicateModel
         bool hasEntity,
         bool hasContext,
         string? contextType,
-        string[]? components)
+        string[]? components,
+        string namespaceName = "")
     {
+        Namespace = namespaceName;
         Pattern = pattern;
         IsFunctor = isFunctor;
         FunctorType = functorType;
@@ -38,6 +40,7 @@ internal sealed class PredicateModel
     }
 
     internal string Pattern { get; }
+    internal string Namespace { get; }
     internal int Arity => Pattern.Length;
     internal bool IsFunctor { get; }
     internal string? FunctorType { get; }
@@ -49,7 +52,7 @@ internal sealed class PredicateModel
     internal ApiModel Api { get; }
     internal ShapeRegistry<TerminalModel> Terminals { get; } = new(static terminal => terminal.SignatureKey);
     internal List<WherePredicateBinding> StaticMethodGroupBindings { get; } = new();
-    internal string Key => Api.SignatureKey;
+    internal string Key => Namespace + "|" + Api.SignatureKey;
 
     internal WherePredicateBinding ConcreteBinding
         => new(ContextType, Components);

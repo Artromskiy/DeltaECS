@@ -4,6 +4,17 @@ using System;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 
+internal enum ParallelSchedulingStrategy
+{
+    RequestedWorkers,
+    LimitWorkersToChunkCount,
+    SingleThreadWhenUnderfilled,
+    SplitChunksWhenUnderfilled,
+    SingleThread,
+    MinimumGrainWithSingleChunkSplit,
+    ChunkBoundedGrain
+}
+
 /// <summary>
 /// Persistent executor for a generated invoker with static per-worker ranges.
 /// </summary>
@@ -13,12 +24,14 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
     private const int DefaultWorkerCount = 2;
     private const int WorkerPollSpinCount = 8;
     private const int CacheLineSize = 64;
+    private const int MinimumEntitiesPerWorker = Chunk.Capacity / 2;
     private readonly object _lifecycle = new();
     private WorkerSlot[] _workerSlots = Array.Empty<WorkerSlot>();
     private Worker[] _workers = Array.Empty<Worker>();
     private TInvoker[] _workerInvokers = Array.Empty<TInvoker>();
     private ExceptionDispatchInfo?[] _workerFailures = Array.Empty<ExceptionDispatchInfo?>();
     private ParallelChunk[] _chunks = Array.Empty<ParallelChunk>();
+    private int[] _chunkOffsets = Array.Empty<int>();
     private Entity[] _entities = Array.Empty<Entity>();
     private ParallelRange[] _ranges = Array.Empty<ParallelRange>();
     private World? _entityWorld;
@@ -32,9 +45,24 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
     private int _cachedRangeVersion = -1;
     private int _cachedRangeWorkerCount;
     private int _chunkCount;
+    private int _totalEntityCount;
+    private bool _splitChunkRanges;
+    private readonly ParallelSchedulingStrategy _schedulingStrategy;
+    private int _cachedRangeWorkCount;
+    private bool _cachedRangeSplitChunks;
     private int _runVersion;
     private int _stopping;
     private bool _disposed;
+
+    internal StaticParallelQueryExecutor()
+        : this(ParallelSchedulingStrategy.RequestedWorkers)
+    {
+    }
+
+    internal StaticParallelQueryExecutor(ParallelSchedulingStrategy schedulingStrategy)
+    {
+        _schedulingStrategy = schedulingStrategy;
+    }
 
     internal void Execute(
         QueryPlan plan,
@@ -61,6 +89,81 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             Math.Max(1, Environment.ProcessorCount),
             Math.Max(1, workerCount));
 
+        bool splitChunkRanges = false;
+        if (_schedulingStrategy == ParallelSchedulingStrategy.SingleThread)
+        {
+            ExecuteSingleThread(ref invoker);
+            return;
+        }
+
+        if (_schedulingStrategy == ParallelSchedulingStrategy.MinimumGrainWithSingleChunkSplit)
+        {
+            if (_chunkCount == 1)
+            {
+                workerCount = Math.Min(workerCount, _totalEntityCount / MinimumEntitiesPerWorker);
+                splitChunkRanges = workerCount > 1;
+            }
+            else
+            {
+                workerCount = Math.Min(
+                    Math.Min(workerCount, _chunkCount),
+                    _totalEntityCount / MinimumEntitiesPerWorker);
+            }
+
+            if (workerCount < 2)
+            {
+                ExecuteSingleThread(ref invoker);
+                return;
+            }
+        }
+
+        if (_schedulingStrategy == ParallelSchedulingStrategy.ChunkBoundedGrain)
+        {
+            if (_chunkCount == 1)
+            {
+                int maximumSplitWorkers = _totalEntityCount / MinimumEntitiesPerWorker;
+                if (workerCount > 1 && workerCount <= maximumSplitWorkers)
+                {
+                    splitChunkRanges = true;
+                }
+                else
+                {
+                    ExecuteSingleThread(ref invoker);
+                    return;
+                }
+            }
+            else
+            {
+                if (_chunkCount < workerCount
+                    || (workerCount > 1 && _totalEntityCount / workerCount < MinimumEntitiesPerWorker))
+                {
+                    ExecuteSingleThread(ref invoker);
+                    return;
+                }
+            }
+        }
+
+        if (_schedulingStrategy is not (ParallelSchedulingStrategy.MinimumGrainWithSingleChunkSplit or ParallelSchedulingStrategy.ChunkBoundedGrain)
+            && _chunkCount < workerCount)
+        {
+            switch (_schedulingStrategy)
+            {
+                case ParallelSchedulingStrategy.LimitWorkersToChunkCount:
+                    workerCount = _chunkCount;
+                    break;
+                case ParallelSchedulingStrategy.SingleThreadWhenUnderfilled:
+                    ExecuteSingleThread(ref invoker);
+                    return;
+                case ParallelSchedulingStrategy.SplitChunksWhenUnderfilled when !plan.HasTagFilters:
+                    splitChunkRanges = true;
+                    workerCount = Math.Min(workerCount, _totalEntityCount);
+                    break;
+                case ParallelSchedulingStrategy.SplitChunksWhenUnderfilled:
+                    workerCount = _chunkCount;
+                    break;
+            }
+        }
+
         if (invoker.RequiresSingleThread || workerCount == 1)
         {
             ExecuteSingleThread(ref invoker);
@@ -68,7 +171,8 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         }
 
         EnsureWorkerCapacity(workerCount - 1);
-        PrepareRanges(plan, workerCount);
+        _splitChunkRanges = splitChunkRanges;
+        PrepareRanges(plan, workerCount, splitChunkRanges);
 
         for (int workerIndex = 0; workerIndex < workerCount; workerIndex++)
         {
@@ -101,6 +205,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
                 failure.Throw();
             }
         }
+        _splitChunkRanges = false;
     }
 
     internal void ExecuteEntityList(
@@ -234,6 +339,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         _chunks = Array.Empty<ParallelChunk>();
         _entities = Array.Empty<Entity>();
         _ranges = Array.Empty<ParallelRange>();
+        _chunkOffsets = Array.Empty<int>();
     }
 
     private void BuildChunkList(QueryPlan plan)
@@ -245,24 +351,36 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
 
         ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
         EnsureChunkCapacity(chunks.Length);
+        EnsureChunkOffsetCapacity(chunks.Length + 1);
+        _chunkOffsets.RefAt(0) = 0;
+        int totalEntityCount = 0;
         for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
         {
-            _chunks.RefAt(chunkIndex) = new ParallelChunk(chunks.RefAt(chunkIndex));
+            ref readonly ChunkPlan chunk = ref chunks.RefAt(chunkIndex);
+            _chunks.RefAt(chunkIndex) = new ParallelChunk(chunk);
+            totalEntityCount += chunk.Chunk.Count;
+            _chunkOffsets.RefAt(chunkIndex + 1) = totalEntityCount;
         }
 
         _chunkCount = chunks.Length;
+        _totalEntityCount = totalEntityCount;
         _cachedPlan = plan;
         _cachedPlanVersion = plan.MatchingVersion;
         _cachedRangePlan = null;
         _cachedRangeVersion = -1;
         _cachedRangeWorkerCount = 0;
+        _cachedRangeWorkCount = 0;
+        _cachedRangeSplitChunks = false;
     }
 
-    private void PrepareRanges(QueryPlan plan, int workerCount)
+    private void PrepareRanges(QueryPlan plan, int workerCount, bool splitChunks)
     {
+        int workCount = splitChunks ? _totalEntityCount : _chunkCount;
         if (ReferenceEquals(_cachedRangePlan, plan)
             && _cachedRangeVersion == plan.MatchingVersion
-            && _cachedRangeWorkerCount == workerCount)
+            && _cachedRangeWorkerCount == workerCount
+            && _cachedRangeWorkCount == workCount
+            && _cachedRangeSplitChunks == splitChunks)
         {
             return;
         }
@@ -271,13 +389,15 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         for (int workerIndex = 0; workerIndex < workerCount; workerIndex++)
         {
             _ranges.RefAt(workerIndex) = new ParallelRange(
-                (int)((long)workerIndex * _chunkCount / workerCount),
-                (int)((long)(workerIndex + 1) * _chunkCount / workerCount));
+                (int)((long)workerIndex * workCount / workerCount),
+                (int)((long)(workerIndex + 1) * workCount / workerCount));
         }
 
         _cachedRangePlan = plan;
         _cachedRangeVersion = plan.MatchingVersion;
         _cachedRangeWorkerCount = workerCount;
+        _cachedRangeWorkCount = workCount;
+        _cachedRangeSplitChunks = splitChunks;
     }
 
     private void ExecuteRange(int workerIndex, int run, WorkerSlot? workerSlot)
@@ -302,12 +422,19 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             }
 
             TInvoker invocation = _workerInvokers.RefAt(workerIndex);
-            for (int chunkIndex = range.StartChunk; chunkIndex < range.EndChunk; chunkIndex++)
+            if (_splitChunkRanges)
             {
-                ParallelChunk work = _chunks.RefAt(chunkIndex);
-                ChunkPlan chunkPlan = work.Chunk;
-                GeneratedQuerySlots slots = new(_world!, in chunkPlan, _cachedPlan);
-                invocation.Invoke(ref slots);
+                ExecuteChunkSlotRange(ref invocation, range.StartChunk, range.EndChunk);
+            }
+            else
+            {
+                for (int chunkIndex = range.StartChunk; chunkIndex < range.EndChunk; chunkIndex++)
+                {
+                    ParallelChunk work = _chunks.RefAt(chunkIndex);
+                    ChunkPlan chunkPlan = work.Chunk;
+                    GeneratedQuerySlots slots = new(_world!, in chunkPlan, _cachedPlan);
+                    invocation.Invoke(ref slots);
+                }
             }
 
             _workerInvokers.RefAt(workerIndex) = invocation;
@@ -327,6 +454,37 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             {
                 Volatile.Write(ref workerSlot.CompletedRun, run);
             }
+        }
+    }
+
+    private void ExecuteChunkSlotRange(ref TInvoker invocation, int startEntity, int endEntity)
+    {
+        int chunkIndex = 0;
+        while (chunkIndex < _chunkCount && _chunkOffsets.RefAt(chunkIndex + 1) <= startEntity)
+        {
+            chunkIndex++;
+        }
+
+        while (chunkIndex < _chunkCount && _chunkOffsets.RefAt(chunkIndex) < endEntity)
+        {
+            int chunkStart = _chunkOffsets.RefAt(chunkIndex);
+            int chunkEnd = _chunkOffsets.RefAt(chunkIndex + 1);
+            int rangeStart = Math.Max(startEntity, chunkStart);
+            int rangeEnd = Math.Min(endEntity, chunkEnd);
+            int rangeCount = rangeEnd - rangeStart;
+            if (rangeCount > 0)
+            {
+                ChunkPlan chunkPlan = _chunks.RefAt(chunkIndex).Chunk;
+                GeneratedQuerySlots slots = new(
+                    _world!,
+                    in chunkPlan,
+                    rangeCount,
+                    rangeStart - chunkStart,
+                    _cachedPlan);
+                invocation.Invoke(ref slots);
+            }
+
+            chunkIndex++;
         }
     }
 
@@ -437,6 +595,14 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         }
 
         Array.Resize(ref _chunks, capacity);
+    }
+
+    private void EnsureChunkOffsetCapacity(int required)
+    {
+        if (required > _chunkOffsets.Length)
+        {
+            Array.Resize(ref _chunkOffsets, required);
+        }
     }
 
     private void EnsureEntityCapacity(int required)

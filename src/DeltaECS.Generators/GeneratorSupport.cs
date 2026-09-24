@@ -18,6 +18,19 @@ internal static class GeneratorSupport
     internal const string EcsNamespace = "Delta.ECS";
     internal const string SystemNamespace = "System";
 
+    internal static string ContainingNamespace(SemanticModel model, SyntaxNode node)
+        => model.GetEnclosingSymbol(node.SpanStart)?.ContainingNamespace is { IsGlobalNamespace: false } containingNamespace
+            ? containingNamespace.ToDisplayString()
+            : string.Empty;
+
+    internal static ImmutableArray<string> EcsNamespaceUsings(string namespaceName)
+        => string.Equals(namespaceName, EcsNamespace, StringComparison.Ordinal)
+            ? ImmutableArray<string>.Empty
+            : ImmutableArray.Create("using global::Delta.ECS;");
+
+    internal static string QualifiedName(string namespaceName, string typeName)
+        => namespaceName.Length == 0 ? "global::" + typeName : "global::" + namespaceName + "." + typeName;
+
     internal static bool IsInterceptionEnabled(AnalyzerConfigOptions options)
         => options.TryGetValue("build_property.InterceptorsNamespaces", out string? namespaces)
             && namespaces

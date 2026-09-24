@@ -23,8 +23,8 @@ internal static class GeneratedQueryTemplates
             isInternal: false,
             GeneratorTemplates.Indent(factories, "    "));
         return GeneratorTemplates.FileTemplate(new GeneratedFileModel(
-            "Delta.ECS",
-            ImmutableArray<string>.Empty,
+            model.Namespace,
+            GeneratorSupport.EcsNamespaceUsings(model.Namespace),
             ImmutableArray.Create(
                 GeneratorTemplates.PrimaryComponentSetKeyDeclaration(model.Api.Selector.Arity),
                 extension)));
@@ -38,7 +38,8 @@ internal static class GeneratedQueryTemplates
         string components = GeneratorTemplates.PrimaryComponentIds(
             factory.Name,
             GeneratorTemplates.Indexed(slots.Arity, index => slots.GenericType(index)).ToArray(),
-            factory.Query);
+            factory.Query,
+            model.Namespace);
         string additions = $"QuerySpec additions = QuerySpec.{model.Kind}(components);";
         string declaration = $$"""
             public static Query {{model.Kind}}{{slots.GenericParameters()}}(this {{factory.Type}} {{factory.Name}})

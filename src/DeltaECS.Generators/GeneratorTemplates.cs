@@ -19,9 +19,10 @@ internal static partial class GeneratorTemplates
     internal static string PrimaryComponentIds(
         string owner,
         IReadOnlyList<string> componentTypes,
-        bool query = false)
+        bool query = false,
+        string namespaceName = GeneratorSupport.EcsNamespace)
     {
-        string key = "global::Delta.ECS.GeneratedPrimaryComponentSetKey"
+        string key = GeneratorSupport.QualifiedName(namespaceName, "GeneratedPrimaryComponentSetKey")
             + SignatureProjection.TypeArguments(componentTypes);
         string registrations = string.Join(", ", componentTypes.Select(
             static type => "cacheWorld.Layouts.GetPrimary<" + type + ">()"));

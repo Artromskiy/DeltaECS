@@ -160,6 +160,30 @@ internal sealed class TagComponentTests
     }
 
     [Test]
+    public void TaggedIterationUsesDenseChunksAndFiltersPartialChunks()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId valueId = layouts.Register<TagValue>(new SchemaId(98_033));
+        ComponentId markedId = layouts.RegisterTag<MarkedTag>(new SchemaId(98_034));
+        using var world = new World(layouts);
+        var entities = new Entity[Chunk.Capacity + 4];
+        world.Create(new[] { valueId }, entities);
+        for (int index = 0; index < Chunk.Capacity + 2; index++)
+        {
+            world.Add(entities[index], new[] { markedId });
+        }
+
+        Query query = world.WhereAll<TagValue>().WhereAll<MarkedTag>();
+        int visited = 0;
+        world.ForEach(
+            in query,
+            ref visited,
+            static (ref int count, in TagValue _) => count++);
+
+        Assert.That(visited, Is.EqualTo(Chunk.Capacity + 2));
+    }
+
+    [Test]
     public void WhereCallbacksAndStructuralTerminalsHonorTagFilters()
     {
         var layouts = new ComponentLayoutRegistry();

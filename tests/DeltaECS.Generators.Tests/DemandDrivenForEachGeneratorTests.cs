@@ -633,6 +633,36 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void DenseIterationDispatchesTagFilteringOncePerQuery()
+    {
+        const string source = """
+            namespace Delta.ECS;
+            struct Position { public int Value; }
+            struct Velocity { public int Value; }
+            static class Consumer
+            {
+                public static void Use(World world, Query query, ComponentId positionId, ComponentId velocityId)
+                {
+                    world.ForEach<Position>(in query,
+                        static (in Position position) => _ = position.Value);
+                    world.ForEach<Position, Velocity>(in query, positionId, velocityId,
+                        static (in Position position, in Velocity velocity) => _ = position.Value + velocity.Value);
+                }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGenerator(source);
+        string generated = GeneratedText(run);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(generated, Does.Contain("if (execution.HasTagFilters)"));
+        Assert.That(generated, Does.Contain("batch.Chunk.TryGetTagSlots(out var tagSlots)"));
+        Assert.That(generated, Does.Contain("execution.TryGetTagSlots(out var tagSlots)"));
+        Assert.That(generated, Does.Not.Contain(".HasTagFilters && "));
+        AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
+    }
+
+    [Test]
     public void MultipleWriteRowsUseOneArchetypePlanTraversal()
     {
         const string source = """
@@ -694,6 +724,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(intercepted, Does.Contain("ref global::Delta.ECS.T1 row"));
         Assert.That(intercepted, Does.Contain("Unsafe.NullRef<global::Delta.ECS.T1>()"));
         Assert.That(intercepted, Does.Contain("= ref GeneratedForEachRuntime.GetGeneratedArrayReference("));
+        Assert.That(intercepted, Does.Contain("if (execution.HasTagFilters)"));
+        Assert.That(intercepted, Does.Contain("batch.Chunk.TryGetTagSlots(out var tagSlots)"));
+        Assert.That(intercepted, Does.Not.Contain(".HasTagFilters && "));
 
         AssertCompiles(new[] { RuntimeStubSource, InterceptionSource }, run.GeneratedTrees);
     }
@@ -1087,6 +1120,52 @@ public sealed class DemandDrivenForEachGeneratorTests
         AssertCompiles(
             new[] { RuntimeStubSource, QueryFactoriesWithDuplicateSignaturesSource },
             run.GeneratedTrees);
+    }
+
+    [Test]
+    public void GeneratedExtensionFamiliesStayInEachCallingNamespace()
+    {
+        const string source = """
+            namespace Consumer.First
+            {
+                using Delta.ECS;
+                struct Position { }
+                static class SystemA
+                {
+                    public static void Run(World world, in Query query, Entity entity)
+                    {
+                        Query filtered = world.WhereAll<Position>();
+                        world.ForEach(in query, static (in Position position) => { });
+                        world.Remove<Position>(entity);
+                        world.Where(in filtered, static (in Position position) => true).Destroy();
+                    }
+                }
+            }
+
+            namespace Consumer.Second
+            {
+                using Delta.ECS;
+                struct Position { }
+                static class SystemB
+                {
+                    public static void Run(World world, in Query query, Entity entity)
+                    {
+                        Query filtered = world.WhereAll<Position>();
+                        world.ForEach(in query, static (in Position position) => { });
+                        world.Remove<Position>(entity);
+                        world.Where(in filtered, static (in Position position) => true).Destroy();
+                    }
+                }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGenerator(source);
+        string generated = GeneratedText(run);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(generated, Does.Contain("namespace Consumer.First"));
+        Assert.That(generated, Does.Contain("namespace Consumer.Second"));
+        AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
     }
 
     [Test]

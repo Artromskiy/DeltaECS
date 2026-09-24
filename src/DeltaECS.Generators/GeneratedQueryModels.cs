@@ -3,9 +3,10 @@ namespace Delta.ECS.Generators;
 /// <summary>Validated semantic shape for a generated fluent query factory.</summary>
 internal sealed class QueryModel
 {
-    internal QueryModel(string kind, int arity)
+    internal QueryModel(string kind, int arity, string namespaceName)
     {
         Kind = kind;
+        Namespace = namespaceName;
         Api = new ApiModel(
             OperationKind.QueryFactory,
             TargetKind.Query,
@@ -21,6 +22,7 @@ internal sealed class QueryModel
     }
 
     internal string Kind { get; }
+    internal string Namespace { get; }
     internal ApiModel Api { get; }
-    internal string Key => Api.SignatureKey;
+    internal string Key => Namespace + "|" + Api.SignatureKey;
 }

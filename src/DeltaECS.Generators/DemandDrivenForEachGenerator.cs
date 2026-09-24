@@ -124,7 +124,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         foreach (IGrouping<string, IterationModel> patternGroup in shapes.Values
             .OrderBy(static value => value.Key, StringComparer.Ordinal)
-            .GroupBy(static value => value.Pattern, StringComparer.Ordinal))
+            .GroupBy(static value => value.Namespace + "|" + value.Pattern, StringComparer.Ordinal))
         {
             bool renderContracts = true;
             foreach (IterationModel shape in patternGroup)
@@ -533,7 +533,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             isStamp: stamp,
             typeBinding: genericName is not null
                 ? TypeBindingKind.Generic
-                : TypeBindingKind.CallbackInferred);
+                : TypeBindingKind.CallbackInferred,
+            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation));
         return true;
     }
 
@@ -770,7 +771,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             isStamp: stamp,
             typeBinding: genericName is not null
                 ? TypeBindingKind.Generic
-                : TypeBindingKind.CallbackInferred);
+                : TypeBindingKind.CallbackInferred,
+            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation));
         return true;
     }
 
@@ -966,7 +968,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             typeBinding: genericSelectors
                 ? TypeBindingKind.Generic
                 : TypeBindingKind.CallbackInferred,
-            functorPassMode: functorPassMode);
+            functorPassMode: functorPassMode,
+            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation));
         return true;
     }
 

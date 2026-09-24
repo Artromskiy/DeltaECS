@@ -397,11 +397,12 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         }
 
         bool hasEntity = methodName.Identifier.ValueText == "WhereEntity";
+        string namespaceName = GeneratorSupport.ContainingNamespace(model, invocation);
 
         ArgumentSyntax predicateArgument = invocation.ArgumentList.Arguments[invocation.ArgumentList.Arguments.Count - 1];
         if (predicateArgument.Expression is not LambdaExpressionSyntax lambda)
         {
-            if (TryReadStaticPredicateMethodGroup(model, invocation, predicateArgument.Expression, hasEntity, out shape))
+            if (TryReadStaticPredicateMethodGroup(model, invocation, predicateArgument.Expression, hasEntity, namespaceName, out shape))
             {
                 return true;
             }
@@ -409,7 +410,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             ArgumentSyntax? contextArgument = invocation.ArgumentList.Arguments.Count == 3
                 ? invocation.ArgumentList.Arguments[1]
                 : null;
-            return TryReadFunctorPredicate(model, predicateArgument, contextArgument, hasEntity, out shape);
+            return TryReadFunctorPredicate(model, predicateArgument, contextArgument, hasEntity, namespaceName, out shape);
         }
 
         ArgumentSyntax? lambdaContextArgument = invocation.ArgumentList.Arguments.Count == 3
@@ -463,7 +464,8 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             hasEntity,
             hasContext,
             contextType is null ? null : GeneratorSupport.DisplayType(contextType),
-            components: null);
+            components: null,
+            namespaceName);
         return true;
     }
 
@@ -472,6 +474,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         ArgumentSyntax argument,
         ArgumentSyntax? contextArgument,
         bool hasEntity,
+        string namespaceName,
         out PredicateModel? shape)
     {
         shape = null;
@@ -530,7 +533,8 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             hasEntity,
             hasContext,
             contextType: hasContext && contextType is { } resolvedContext ? GeneratorSupport.DisplayType(resolvedContext) : null,
-            components: components.Select(static parameter => GeneratorSupport.DisplayType(parameter.Type)).ToArray());
+            components: components.Select(static parameter => GeneratorSupport.DisplayType(parameter.Type)).ToArray(),
+            namespaceName);
         return true;
     }
 
@@ -539,6 +543,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         InvocationExpressionSyntax invocation,
         ExpressionSyntax expression,
         bool hasEntity,
+        string namespaceName,
         out PredicateModel? shape)
     {
         shape = null;
@@ -599,7 +604,8 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             hasEntity,
             hasContext,
             contextType is null ? null : GeneratorSupport.DisplayType(contextType),
-            components.Select(static parameter => GeneratorSupport.DisplayType(parameter.Type)).ToArray());
+            components.Select(static parameter => GeneratorSupport.DisplayType(parameter.Type)).ToArray(),
+            namespaceName);
         shape.RegisterStaticMethodGroup();
         return true;
     }

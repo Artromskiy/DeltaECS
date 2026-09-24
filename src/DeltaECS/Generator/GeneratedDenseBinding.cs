@@ -244,11 +244,14 @@ public ref struct GeneratedBoundExecution<TRows> where TRows : struct
     private World? _owner;
     /// <summary>Typed chunk descriptors borrowed until disposal.</summary>
     public ReadOnlySpan<TRows> Rows { get; }
+    /// <summary>Reports whether the query applies tag filters.</summary>
+    public bool HasTagFilters { get; }
 
-    internal GeneratedBoundExecution(World owner, ReadOnlySpan<TRows> rows)
+    internal GeneratedBoundExecution(World owner, ReadOnlySpan<TRows> rows, bool hasTagFilters)
     {
         _owner = owner;
         Rows = rows;
+        HasTagFilters = hasTagFilters;
     }
 
     /// <summary>Releases the structural lease.</summary>
@@ -281,7 +284,7 @@ public static partial class GeneratedForEachRuntime
         World owner = plan.Owner;
         owner.BeginQueryLease();
         binding.MarkWrites();
-        return new GeneratedBoundExecution<TRows>(owner, rows);
+        return new GeneratedBoundExecution<TRows>(owner, rows, plan.HasTagFilters);
     }
 
     /// <summary>Opens a query-owned typed binding without marking component writes.</summary>
@@ -296,7 +299,7 @@ public static partial class GeneratedForEachRuntime
         ReadOnlySpan<TRows> rows = binding.GetRows(plan);
         World owner = plan.Owner;
         owner.BeginQueryLease();
-        return new GeneratedBoundExecution<TRows>(owner, rows);
+        return new GeneratedBoundExecution<TRows>(owner, rows, plan.HasTagFilters);
     }
 
     /// <summary>Binds a validated typed array once while building a generated signature.</summary>

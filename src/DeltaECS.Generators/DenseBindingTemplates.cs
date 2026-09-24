@@ -12,7 +12,9 @@ internal static partial class DemandDrivenForEachTemplates
 
     private static string OpenDenseBinding(IterationModel shape, bool closed)
     {
-        string owner = "global::Delta.ECS.DemandForEachExtensions_" + GeneratorSupport.StableName(shape.Key);
+        string owner = GeneratorSupport.QualifiedName(
+            shape.Namespace,
+            "DemandForEachExtensions_" + GeneratorSupport.StableName(shape.Key));
         string types = BindingTypeArguments(shape, closed);
         string openMethod = shape.ComponentModels.Any(static component => component.IsWrite)
             ? "OpenBoundDense"

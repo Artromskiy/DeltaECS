@@ -35,12 +35,18 @@ internal static class GeneratedWhereTemplates
         string[] viewTypeArguments = shape.HasContext
             ? new[] { InterceptedPredicateContextType(site) }.Concat(site.PredicateComponents).ToArray()
             : site.PredicateComponents;
+        string viewType = InNamespace(shape.Namespace, "GeneratedWhereQuery_" + hash);
+        string[] ecsUsings = site.Usings
+            .Select(static value => value.Trim())
+            .Where(static value => value is "using Delta.ECS;" or "using global::Delta.ECS;")
+            .Take(1)
+            .ToArray();
         string usings = string.Join(
             "\n",
-            (site.Usings.Any(static value => value.Trim() is "using Delta.ECS;" or "using global::Delta.ECS;")
-                ? Array.Empty<string>()
-                : new[] { "using global::Delta.ECS;" })
-            .Concat(site.Usings.OrderBy(static value => value, StringComparer.Ordinal)));
+            (ecsUsings.Length == 0 ? new[] { "using global::Delta.ECS;" } : ecsUsings)
+            .Concat(site.Usings
+                .Where(static value => value.Trim() is not ("using Delta.ECS;" or "using global::Delta.ECS;"))
+                .OrderBy(static value => value, StringComparer.Ordinal)));
         string predicate = RenderInterceptedPredicate(site);
         string action = terminal.IsCallback && !terminal.IsFunctor ? RenderInterceptedAction(site) : string.Empty;
         string loop = terminal.HasValues
@@ -56,13 +62,13 @@ internal static class GeneratedWhereTemplates
             : terminal.IsCallback
             ? terminal.IsFunctor
                 ? $$""", {{(terminal.HasContext ? "ref " + terminal.ContextType + " context, " : string.Empty)}}{{SignatureProjection.ContextParameter(terminal.FunctorPassMode, terminal.FunctorType!, "action")}})"""
-                : $$""", global::Delta.ECS.GeneratedWhereAction_{{hash}}_{{terminalHash}}{{SignatureProjection.TypeArguments(site.ActionComponents)}} _)"""
+                : $$""", {{InNamespace(shape.Namespace, "GeneratedWhereAction_" + hash + "_" + terminalHash)}}{{SignatureProjection.TypeArguments(site.ActionComponents)}} _)"""
             : terminalSlots.HasExplicitIds
                 ? ", " + terminalSlots.ComponentIdParameters() + ")"
                 : ")";
         string member = $$"""
             {{site.Attribute}}
-            internal static {{(terminal.IsCallback ? "void" : "int")}} Intercept_{{site.Id}}(this {{(shape.HasContext ? "ref" : "in")}} global::Delta.ECS.GeneratedWhereQuery_{{hash}}{{SignatureProjection.TypeArguments(viewTypeArguments)}} view{{interceptSignature}}
+            internal static {{(terminal.IsCallback ? "void" : "int")}} Intercept_{{site.Id}}(this {{(shape.HasContext ? "ref" : "in")}} {{viewType}}{{SignatureProjection.TypeArguments(viewTypeArguments)}} view{{interceptSignature}}
             {
                 global::Delta.ECS.Query query = view.Query;
             {{executeInvocation}}
@@ -408,7 +414,7 @@ internal static class GeneratedWhereTemplates
                         static index => $$"""components[{{index}}] = component{{index}};""",
                         "\n")
                 })
-                : $$"""global::System.ReadOnlySpan<global::Delta.ECS.ComponentId> components = {{GeneratorTemplates.PrimaryComponentIds("world", site.ActionComponents)}};""";
+                : $$"""global::System.ReadOnlySpan<global::Delta.ECS.ComponentId> components = {{GeneratorTemplates.PrimaryComponentIds("world", site.ActionComponents, namespaceName: shape.Namespace)}};""";
 
         string operationName = terminal.Kind switch
         {
@@ -497,8 +503,9 @@ internal static class GeneratedWhereTemplates
             .OfType<string>()
             .ToArray();
         return GeneratorTemplates.FileTemplate(new GeneratedFileModel(
-            "Delta.ECS",
-            ImmutableArray.Create("using global::System;"),
+            shape.Namespace,
+            ImmutableArray.Create("using global::System;")
+                .AddRange(GeneratorSupport.EcsNamespaceUsings(shape.Namespace)),
             members.ToImmutableArray()));
     }
 
@@ -1038,7 +1045,8 @@ internal static class GeneratedWhereTemplates
             {
                 string components = GeneratorTemplates.PrimaryComponentIds(
                     "_world",
-                    GeneratorTemplates.Indexed(terminal.Arity, index => terminalSlots.GenericType(index, "U")).ToArray());
+                    GeneratorTemplates.Indexed(terminal.Arity, index => terminalSlots.GenericType(index, "U")).ToArray(),
+                    namespaceName: shape.Namespace);
                 body.Add($"global::System.ReadOnlySpan<ComponentId> components = {components};");
             }
         }
@@ -1175,5 +1183,8 @@ internal static class GeneratedWhereTemplates
 
     private static string InterceptedPredicateContextType(WhereInterceptionSite site)
         => site.PredicateShapeBinding.ContextType ?? "global::System.Object";
+
+    private static string InNamespace(string namespaceName, string typeName)
+        => namespaceName.Length == 0 ? "global::" + typeName : "global::" + namespaceName + "." + typeName;
 
 }

@@ -9,9 +9,11 @@ internal sealed class StructuralModel
         TypeBindingKind typeBinding = TypeBindingKind.Generic,
         RegistrationBindingKind registrationBinding = RegistrationBindingKind.Primary,
         bool hasValues = false,
-        bool hasOutput = false)
+        bool hasOutput = false,
+        string namespaceName = "")
     {
         Operation = operation;
+        Namespace = namespaceName;
         HasValues = hasValues;
         HasOutput = hasOutput;
         var slots = GeneratorSupport.ComponentModels(arity, AccessKind.Value);
@@ -32,8 +34,9 @@ internal sealed class StructuralModel
     }
 
     internal StructuralOperation Operation { get; }
+    internal string Namespace { get; }
     internal bool HasValues { get; }
     internal bool HasOutput { get; }
     internal ApiModel Api { get; }
-    internal string Key => Api.SignatureKey;
+    internal string Key => Namespace + "|" + Api.SignatureKey;
 }

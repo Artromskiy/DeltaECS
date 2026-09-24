@@ -107,7 +107,8 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             cursorResult.Target,
             boundArity,
             registrationBinding: registrationBinding,
-            hasValues: false);
+            hasValues: false,
+            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation));
         return true;
     }
 
@@ -150,7 +151,8 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             isAdd ? StructuralOperation.Add : StructuralOperation.Set,
             TargetKind.Entity,
             arity: arity,
-            hasValues: true);
+            hasValues: true,
+            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation));
         return true;
     }
 
@@ -186,7 +188,8 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             registrationBinding: explicitArity.HasValue
                 ? RegistrationBindingKind.Explicit
                 : RegistrationBindingKind.Primary,
-            hasOutput: cursorResult.HasOutput);
+            hasOutput: cursorResult.HasOutput,
+            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation));
         return true;
     }
 

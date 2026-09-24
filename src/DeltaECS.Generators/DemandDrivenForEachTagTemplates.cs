@@ -89,7 +89,7 @@ internal static partial class DemandDrivenForEachTemplates
             shape,
             contextName,
             denseLoopLines,
-            "batch.Chunk.HasTagFilters && batch.Chunk.TryGetTagSlots(out var tagSlots)",
+            "batch.Chunk.TryGetTagSlots(out var tagSlots)",
             "global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, slotIndex)");
 
     private static void AppendUnboundTagSelectionLoop(
@@ -103,7 +103,7 @@ internal static partial class DemandDrivenForEachTemplates
             shape,
             contextName,
             denseLoopLines,
-            "execution.HasTagFilters && execution.TryGetTagSlots(out var tagSlots)",
+            "execution.TryGetTagSlots(out var tagSlots)",
             usesReadSlots
                 ? "global::System.Runtime.CompilerServices.Unsafe.Add(ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in firstEntity), slotIndex)"
                 : "global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, slotIndex)");

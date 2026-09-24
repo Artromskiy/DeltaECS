@@ -56,7 +56,10 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
             return false;
         }
 
-        shape = new QueryModel(genericName.Identifier.ValueText, arity);
+        shape = new QueryModel(
+            genericName.Identifier.ValueText,
+            arity,
+            GeneratorSupport.ContainingNamespace(model, invocation));
         return true;
     }
 

@@ -52,8 +52,8 @@ internal static class GeneratedStructuralTemplates
             .OfType<string>()
             .ToArray();
         return GeneratorTemplates.FileTemplate(new GeneratedFileModel(
-            "Delta.ECS",
-            ImmutableArray<string>.Empty,
+            shape.Namespace,
+            GeneratorSupport.EcsNamespaceUsings(shape.Namespace),
             members.ToImmutableArray()));
     }
 
@@ -164,7 +164,8 @@ internal static class GeneratedStructuralTemplates
         {
             string components = GeneratorTemplates.PrimaryComponentIds(
                 "target",
-                GeneratorTemplates.Indexed(slots.Arity, index => slots.GenericType(index)).ToArray());
+                GeneratorTemplates.Indexed(slots.Arity, index => slots.GenericType(index)).ToArray(),
+                namespaceName: shape.Namespace);
             return $$"""global::System.ReadOnlySpan<ComponentId> components = {{components}};""";
         }
 
