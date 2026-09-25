@@ -3,7 +3,6 @@ namespace Delta.ECS;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 
 internal static class ThrowHelper
@@ -304,26 +303,8 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static MethodInfo ThrowMissingRuntimeHelper()
-        => throw new MissingMethodException(nameof(RuntimeHelpers.IsReferenceOrContainsReferences));
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowSchemaConflict(SchemaId schemaId)
         => throw new InvalidOperationException($"SchemaId {schemaId} is already registered with a different component layout.");
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowInvalidTagType(Type runtimeType)
-        => throw new ArgumentException(
-            $"Tag component type '{runtimeType}' must be a value type with no instance fields.",
-            nameof(runtimeType));
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowComponentTagModeConflict(Type runtimeType)
-        => throw new InvalidOperationException(
-            $"Component type '{runtimeType}' cannot be registered as both a data component and a tag.");
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]

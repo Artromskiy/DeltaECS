@@ -23,7 +23,7 @@ public class TagFilteringBenchmarks
     {
         var tagLayouts = new ComponentLayoutRegistry();
         ComponentId tagValueId = tagLayouts.Register<TagFilteringValueComponent>(new SchemaId(207_000));
-        _ = tagLayouts.RegisterTag<TagFilteringMarkerTag>(new SchemaId(207_001));
+        _ = tagLayouts.Register<TagFilteringMarkerTag>(new SchemaId(207_001));
         _tagWorld = new World(tagLayouts, initialEntityCapacity: Amount);
 
         var componentLayouts = new ComponentLayoutRegistry();

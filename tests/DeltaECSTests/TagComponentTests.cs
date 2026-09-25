@@ -12,9 +12,9 @@ internal sealed class TagComponentTests
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(98_001));
-        ComponentId markedId = layouts.RegisterTag<MarkedTag>(new SchemaId(98_002));
-        ComponentId otherId = layouts.RegisterTag<OtherTag>(new SchemaId(98_003));
-        ComponentId blockedId = layouts.RegisterTag<BlockedTag>(new SchemaId(98_004));
+        ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_002));
+        ComponentId otherId = layouts.Register<OtherTag>(new SchemaId(98_003));
+        ComponentId blockedId = layouts.Register<BlockedTag>(new SchemaId(98_004));
         ComponentId extraId = layouts.Register<ExtraData>(new SchemaId(98_005));
         using var world = new World(layouts);
 
@@ -98,9 +98,9 @@ internal sealed class TagComponentTests
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(98_011));
-        ComponentId markedId = layouts.RegisterTag<MarkedTag>(new SchemaId(98_012));
-        ComponentId blockedId = layouts.RegisterTag<BlockedTag>(new SchemaId(98_013));
-        _ = layouts.RegisterTag<OtherTag>(new SchemaId(98_014));
+        ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_012));
+        ComponentId blockedId = layouts.Register<BlockedTag>(new SchemaId(98_013));
+        _ = layouts.Register<OtherTag>(new SchemaId(98_014));
         using var world = new World(layouts);
         var entities = new Entity[8];
         world.Create(new[] { positionId }, entities);
@@ -134,7 +134,7 @@ internal sealed class TagComponentTests
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId valueId = layouts.Register<TagValue>(new SchemaId(98_031));
-        ComponentId markedId = layouts.RegisterTag<MarkedTag>(new SchemaId(98_032));
+        ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_032));
         using var world = new World(layouts);
         var entities = new Entity[Chunk.Capacity + 6];
         world.Create(new[] { valueId }, entities);
@@ -164,7 +164,7 @@ internal sealed class TagComponentTests
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId valueId = layouts.Register<TagValue>(new SchemaId(98_033));
-        ComponentId markedId = layouts.RegisterTag<MarkedTag>(new SchemaId(98_034));
+        ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_034));
         using var world = new World(layouts);
         var entities = new Entity[Chunk.Capacity + 4];
         world.Create(new[] { valueId }, entities);
@@ -188,8 +188,8 @@ internal sealed class TagComponentTests
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId valueId = layouts.Register<TagValue>(new SchemaId(98_041));
-        ComponentId markedId = layouts.RegisterTag<MarkedTag>(new SchemaId(98_042));
-        ComponentId blockedId = layouts.RegisterTag<BlockedTag>(new SchemaId(98_043));
+        ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_042));
+        ComponentId blockedId = layouts.Register<BlockedTag>(new SchemaId(98_043));
         ComponentId extraId = layouts.Register<ExtraData>(new SchemaId(98_044));
         using var world = new World(layouts);
         var entities = new Entity[12];
@@ -229,7 +229,7 @@ internal sealed class TagComponentTests
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId valueId = layouts.Register<TagValue>(new SchemaId(98_061));
-        ComponentId markedId = layouts.RegisterTag<MarkedTag>(new SchemaId(98_062));
+        ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_062));
         using var world = new World(layouts);
         var entities = new Entity[8];
         world.Create(new[] { valueId }, entities);
@@ -259,20 +259,37 @@ internal sealed class TagComponentTests
     }
 
     [Test]
-    public void TagRegistrationRejectsTypesWithInstanceData()
+    public void RegistrationInfersTagsFromFieldlessValueTypes()
     {
         var layouts = new ComponentLayoutRegistry();
 
-        Assert.Throws<ArgumentException>(() => layouts.RegisterTag<TagWithData>(new SchemaId(98_021)));
+        ComponentId tagId = layouts.Register<MarkedTag>(new SchemaId(98_021));
+        ComponentId dataId = layouts.Register<TagWithData>(new SchemaId(98_022));
+        ComponentId emptyClassId = layouts.Register<EmptyClass>(new SchemaId(98_023));
+        ComponentId enumId = layouts.Register<TagEnum>(new SchemaId(98_024));
+        ComponentId primitiveId = layouts.Register<int>(new SchemaId(98_025));
+
+        Assert.That(layouts.IsTag(tagId), Is.True);
+        Assert.That(layouts.IsTag(dataId), Is.False);
+        Assert.That(layouts.IsTag(emptyClassId), Is.False);
+        Assert.That(layouts.IsTag(enumId), Is.False);
+        Assert.That(layouts.IsTag(primitiveId), Is.False);
+
+        using var world = new World(layouts);
+        Entity entity = world.Create(primitiveId);
+        world.Set(entity, primitiveId, 42);
+        Assert.That(world.Get<int>(entity, primitiveId), Is.EqualTo(42));
     }
 
     [Test]
-    public void ComponentTypeCannotBeRegisteredAsBothDataAndTag()
+    public void RepeatedFieldlessTypeRegistrationsRemainTags()
     {
         var layouts = new ComponentLayoutRegistry();
-        _ = layouts.Register<MarkedTag>(new SchemaId(98_051));
+        ComponentId first = layouts.Register<MarkedTag>(new SchemaId(98_051));
+        ComponentId second = layouts.Register<MarkedTag>(new SchemaId(98_052));
 
-        Assert.Throws<InvalidOperationException>(() => layouts.RegisterTag<MarkedTag>(new SchemaId(98_052)));
+        Assert.That(layouts.IsTag(first), Is.True);
+        Assert.That(layouts.IsTag(second), Is.True);
     }
 
     private static int Count(World world, in Query query)
@@ -298,6 +315,14 @@ internal sealed class TagComponentTests
     internal readonly struct MarkedTag;
     internal readonly struct OtherTag;
     internal readonly struct BlockedTag;
+
+    private sealed class EmptyClass;
+
+    private enum TagEnum
+    {
+        None
+    }
+
     private readonly struct TagWithData
     {
         public readonly int Value;

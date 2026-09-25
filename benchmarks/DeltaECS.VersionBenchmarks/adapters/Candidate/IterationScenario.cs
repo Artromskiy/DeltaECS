@@ -20,15 +20,15 @@ public sealed class IterationScenario
     {
         _amount = amount;
         var layouts = new ComponentLayoutRegistry();
-        _dense = layouts.Register(typeof(DenseValue), new SchemaId(950_000));
-        _position = layouts.Register(typeof(Position), new SchemaId(950_001));
-        _velocity = layouts.Register(typeof(Velocity), new SchemaId(950_002));
+        _dense = layouts.Register<DenseValue>(new SchemaId(950_000));
+        _position = layouts.Register<Position>(new SchemaId(950_001));
+        _velocity = layouts.Register<Velocity>(new SchemaId(950_002));
         _movement4Ids =
         [
-            layouts.Register(typeof(MovementA), new SchemaId(950_003)),
-            layouts.Register(typeof(MovementB), new SchemaId(950_004)),
-            layouts.Register(typeof(MovementC), new SchemaId(950_005)),
-            layouts.Register(typeof(MovementD), new SchemaId(950_006))
+            layouts.Register<MovementA>( new SchemaId(950_003)),
+            layouts.Register<MovementB>( new SchemaId(950_004)),
+            layouts.Register<MovementC>( new SchemaId(950_005)),
+            layouts.Register<MovementD>( new SchemaId(950_006))
         ];
 
         _world = new World(layouts, initialEntityCapacity: amount * 3);

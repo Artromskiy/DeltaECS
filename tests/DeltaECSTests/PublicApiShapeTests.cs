@@ -43,6 +43,35 @@ internal sealed class PublicApiShapeTests
     }
 
     [Test]
+    public void ComponentRegistryExposesOneGenericRegistrationMethod()
+    {
+        MethodInfo[] registerMethods = typeof(ComponentLayoutRegistry)
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Where(static method => method.Name == "Register")
+            .ToArray();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(registerMethods, Has.Length.EqualTo(1));
+            Assert.That(registerMethods[0].IsGenericMethod, Is.True);
+            Assert.That(
+                registerMethods[0].GetParameters().Select(static parameter => parameter.ParameterType),
+                Is.EqualTo(new[] { typeof(SchemaId) }));
+            Assert.That(
+                typeof(ComponentLayoutRegistry).GetMethod("RegisterTag", BindingFlags.Public | BindingFlags.Instance),
+                Is.Null);
+            Assert.That(
+                typeof(ComponentLayoutRegistry).GetMethod(
+                    "Register",
+                    BindingFlags.Public | BindingFlags.Instance,
+                    binder: null,
+                    new[] { typeof(Type), typeof(SchemaId) },
+                    modifiers: null),
+                Is.Null);
+        });
+    }
+
+    [Test]
     public void EntityUsesDefaultHandleAndDoesNotExposeNull()
     {
         Assert.Multiple(() =>

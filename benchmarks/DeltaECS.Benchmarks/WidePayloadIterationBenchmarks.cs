@@ -27,14 +27,14 @@ public class WidePayloadPartialReadIterationBenchmarks
         var layouts = new ComponentLayoutRegistry();
         _components =
         [
-            layouts.Register(typeof(WidePayload0), new SchemaId(206_000)),
-            layouts.Register(typeof(WidePayload1), new SchemaId(206_001)),
-            layouts.Register(typeof(WidePayload2), new SchemaId(206_002)),
-            layouts.Register(typeof(WidePayload3), new SchemaId(206_003)),
-            layouts.Register(typeof(WidePayload4), new SchemaId(206_004)),
-            layouts.Register(typeof(WidePayload5), new SchemaId(206_005)),
-            layouts.Register(typeof(WidePayload6), new SchemaId(206_006)),
-            layouts.Register(typeof(WidePayload7), new SchemaId(206_007)),
+            layouts.Register<WidePayload0>( new SchemaId(206_000)),
+            layouts.Register<WidePayload1>( new SchemaId(206_001)),
+            layouts.Register<WidePayload2>( new SchemaId(206_002)),
+            layouts.Register<WidePayload3>( new SchemaId(206_003)),
+            layouts.Register<WidePayload4>( new SchemaId(206_004)),
+            layouts.Register<WidePayload5>( new SchemaId(206_005)),
+            layouts.Register<WidePayload6>( new SchemaId(206_006)),
+            layouts.Register<WidePayload7>( new SchemaId(206_007)),
         ];
 
         _world = new DeltaWorld(layouts, initialEntityCapacity: Amount);

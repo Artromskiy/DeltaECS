@@ -30,11 +30,25 @@ public class IterationBenchmarks : IDisposable
     public void Setup()
     {
         var layouts = new ComponentLayoutRegistry();
-        ComponentId[] ids = new ComponentId[16];
-        for (int index = 0; index < ids.Length; index++)
-        {
-            ids[index] = layouts.Register(ComponentTypes[index], new SchemaId((ulong)(81_001 + index)));
-        }
+        ComponentId[] ids =
+        [
+            layouts.Register<C00>(new SchemaId(81_001)),
+            layouts.Register<C01>(new SchemaId(81_002)),
+            layouts.Register<C02>(new SchemaId(81_003)),
+            layouts.Register<C03>(new SchemaId(81_004)),
+            layouts.Register<C04>(new SchemaId(81_005)),
+            layouts.Register<C05>(new SchemaId(81_006)),
+            layouts.Register<C06>(new SchemaId(81_007)),
+            layouts.Register<C07>(new SchemaId(81_008)),
+            layouts.Register<C08>(new SchemaId(81_009)),
+            layouts.Register<C09>(new SchemaId(81_010)),
+            layouts.Register<C10>(new SchemaId(81_011)),
+            layouts.Register<C11>(new SchemaId(81_012)),
+            layouts.Register<C12>(new SchemaId(81_013)),
+            layouts.Register<C13>(new SchemaId(81_014)),
+            layouts.Register<C14>(new SchemaId(81_015)),
+            layouts.Register<C15>(new SchemaId(81_016)),
+        ];
 
         _world = new World(layouts, initialEntityCapacity: EntityCount);
         var entities = new Entity[EntityCount];
@@ -219,14 +233,6 @@ public class IterationBenchmarks : IDisposable
             default: _world.Set(entity, id, new C15 { Value = value }); break;
         }
     }
-
-    private static readonly Type[] ComponentTypes =
-    [
-        typeof(C00), typeof(C01), typeof(C02), typeof(C03),
-        typeof(C04), typeof(C05), typeof(C06), typeof(C07),
-        typeof(C08), typeof(C09), typeof(C10), typeof(C11),
-        typeof(C12), typeof(C13), typeof(C14), typeof(C15),
-    ];
 
     internal struct IterationState
     {

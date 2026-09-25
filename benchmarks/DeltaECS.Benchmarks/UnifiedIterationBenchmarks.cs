@@ -43,7 +43,7 @@ public class ComparativeDenseIterationBenchmarks
     public void Setup()
     {
         var layouts = new ComponentLayoutRegistry();
-        _deltaValue = layouts.Register(typeof(DenseValue), new SchemaId(200_000));
+        _deltaValue = layouts.Register<DenseValue>(new SchemaId(200_000));
         _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount);
         var deltaEntities = new DeltaEntity[Amount];
         _delta.Create(new[] { _deltaValue }, deltaEntities);
@@ -150,8 +150,8 @@ public class ComparativeMovement2ComponentsBenchmarks
     public void Setup()
     {
         var layouts = new ComponentLayoutRegistry();
-        _deltaPosition = layouts.Register(typeof(Movement2Position), new SchemaId(201_000));
-        _deltaVelocity = layouts.Register(typeof(Movement2Velocity), new SchemaId(201_001));
+        _deltaPosition = layouts.Register<Movement2Position>(new SchemaId(201_000));
+        _deltaVelocity = layouts.Register<Movement2Velocity>(new SchemaId(201_001));
         _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount);
         _deltaEntities = new DeltaEntity[Amount];
         _delta.Create(new[] { _deltaPosition, _deltaVelocity }, _deltaEntities);
@@ -314,7 +314,7 @@ public class ComparativeMovement4ComponentsBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        var layouts = new ComponentLayoutRegistry(); _deltaIds = new[] { layouts.Register(typeof(Movement4A), new SchemaId(202_000)), layouts.Register(typeof(Movement4B), new SchemaId(202_001)), layouts.Register(typeof(Movement4C), new SchemaId(202_002)), layouts.Register(typeof(Movement4D), new SchemaId(202_003)) }; _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); _deltaEntities = new DeltaEntity[Amount]; _delta.Create(_deltaIds, _deltaEntities); for (var i = 0; i < Amount; i++) { _delta.Set(_deltaEntities[i], _deltaIds[0], new Movement4A { Value = 1 }); _delta.Set(_deltaEntities[i], _deltaIds[1], new Movement4B { Value = 2 }); _delta.Set(_deltaEntities[i], _deltaIds[2], new Movement4C { Value = 3 }); _delta.Set(_deltaEntities[i], _deltaIds[3], new Movement4D { Value = 4 }); }
+        var layouts = new ComponentLayoutRegistry(); _deltaIds = new[] { layouts.Register<Movement4A>(new SchemaId(202_000)), layouts.Register<Movement4B>(new SchemaId(202_001)), layouts.Register<Movement4C>(new SchemaId(202_002)), layouts.Register<Movement4D>(new SchemaId(202_003)) }; _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); _deltaEntities = new DeltaEntity[Amount]; _delta.Create(_deltaIds, _deltaEntities); for (var i = 0; i < Amount; i++) { _delta.Set(_deltaEntities[i], _deltaIds[0], new Movement4A { Value = 1 }); _delta.Set(_deltaEntities[i], _deltaIds[1], new Movement4B { Value = 2 }); _delta.Set(_deltaEntities[i], _deltaIds[2], new Movement4C { Value = 3 }); _delta.Set(_deltaEntities[i], _deltaIds[3], new Movement4D { Value = 4 }); }
         var d = QuerySpec.WhereAll(_deltaIds); _deltaQuery = _delta.CreateQuery(in d);
         _arch = Arch.Core.World.Create(); _archTypes = new ArchComponentType[] { typeof(Movement4A), typeof(Movement4B), typeof(Movement4C), typeof(Movement4D) }; _arch.Reserve(_archTypes, Amount); _archQuery = new Arch.Core.QueryDescription { All = _archTypes }; _archEntities = new Arch.Core.Entity[Amount]; for (var i = 0; i < Amount; i++) { _archEntities[i] = _arch.Create(_archTypes); _arch.Set(_archEntities[i], new Movement4A { Value = 1 }); _arch.Set(_archEntities[i], new Movement4B { Value = 2 }); _arch.Set(_archEntities[i], new Movement4C { Value = 3 }); _arch.Set(_archEntities[i], new Movement4D { Value = 4 }); }
         _friflo = new EntityStore(); _frifloEntities = new FrifloEntity[Amount]; for (var i = 0; i < Amount; i++)
@@ -439,7 +439,7 @@ public class ComparativeWideArchetypeNarrowQueryBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        var layouts = new ComponentLayoutRegistry(); _deltaIds = new[] { layouts.Register(typeof(Wide0), new SchemaId(203_000)), layouts.Register(typeof(Wide1), new SchemaId(203_001)), layouts.Register(typeof(Wide2), new SchemaId(203_002)), layouts.Register(typeof(Wide3), new SchemaId(203_003)), layouts.Register(typeof(Wide4), new SchemaId(203_004)), layouts.Register(typeof(Wide5), new SchemaId(203_005)), layouts.Register(typeof(Wide6), new SchemaId(203_006)), layouts.Register(typeof(Wide7), new SchemaId(203_007)) }; _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); var de = new DeltaEntity[Amount]; _delta.Create(_deltaIds, de); for (var i = 0; i < Amount; i++) { _delta.Set(de[i], _deltaIds[0], new Wide0 { Value = 1 }); _delta.Set(de[i], _deltaIds[7], new Wide7 { Value = 8 }); }
+        var layouts = new ComponentLayoutRegistry(); _deltaIds = new[] { layouts.Register<Wide0>(new SchemaId(203_000)), layouts.Register<Wide1>(new SchemaId(203_001)), layouts.Register<Wide2>(new SchemaId(203_002)), layouts.Register<Wide3>(new SchemaId(203_003)), layouts.Register<Wide4>(new SchemaId(203_004)), layouts.Register<Wide5>(new SchemaId(203_005)), layouts.Register<Wide6>(new SchemaId(203_006)), layouts.Register<Wide7>(new SchemaId(203_007)) }; _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); var de = new DeltaEntity[Amount]; _delta.Create(_deltaIds, de); for (var i = 0; i < Amount; i++) { _delta.Set(de[i], _deltaIds[0], new Wide0 { Value = 1 }); _delta.Set(de[i], _deltaIds[7], new Wide7 { Value = 8 }); }
         var d = QuerySpec.WhereAll(_deltaIds[0], _deltaIds[7]); _deltaQuery = _delta.CreateQuery(in d);
         _arch = Arch.Core.World.Create(); _archTypes = new ArchComponentType[] { typeof(Wide0), typeof(Wide1), typeof(Wide2), typeof(Wide3), typeof(Wide4), typeof(Wide5), typeof(Wide6), typeof(Wide7) }; _arch.Reserve(_archTypes, Amount); _archQuery = new Arch.Core.QueryDescription { All = new ArchComponentType[] { _archTypes[0], _archTypes[7] } }; for (var i = 0; i < Amount; i++) { var e = _arch.Create(_archTypes); _arch.Set(e, new Wide0 { Value = 1 }); _arch.Set(e, new Wide7 { Value = 8 }); }
         _friflo = new EntityStore(); for (var i = 0; i < Amount; i++)
@@ -491,7 +491,7 @@ public class ComparativeSparseQueryBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        var layouts = new ComponentLayoutRegistry(); _deltaA = layouts.Register(typeof(SparseA), new SchemaId(204_000)); _deltaB = layouts.Register(typeof(SparseB), new SchemaId(204_001)); _deltaC = layouts.Register(typeof(SparseC), new SchemaId(204_002)); var n0 = layouts.Register(typeof(SparseNoise0), new SchemaId(204_003)); var n1 = layouts.Register(typeof(SparseNoise1), new SchemaId(204_004)); var n2 = layouts.Register(typeof(SparseNoise2), new SchemaId(204_005)); var n3 = layouts.Register(typeof(SparseNoise3), new SchemaId(204_006)); _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); _deltaEntities = new DeltaEntity[Amount]; for (var i = 0; i < Amount; i++) { var ids = i % ComparativeBenchmarkParameters.SparseMatchStride == 0 ? new[] { _deltaA, _deltaB, n0, n1, n2, n3 } : new[] { _deltaA, _deltaB, _deltaC, n0, n1, n2, n3 }; var entity = _deltaEntities[i] = _delta.Create(ids); _delta.Set(entity, _deltaA, new SparseA { Value = 1 }); _delta.Set(entity, _deltaB, new SparseB { Value = 2 }); }
+        var layouts = new ComponentLayoutRegistry(); _deltaA = layouts.Register<SparseA>(new SchemaId(204_000)); _deltaB = layouts.Register<SparseB>(new SchemaId(204_001)); _deltaC = layouts.Register<SparseC>(new SchemaId(204_002)); var n0 = layouts.Register<SparseNoise0>(new SchemaId(204_003)); var n1 = layouts.Register<SparseNoise1>(new SchemaId(204_004)); var n2 = layouts.Register<SparseNoise2>(new SchemaId(204_005)); var n3 = layouts.Register<SparseNoise3>(new SchemaId(204_006)); _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); _deltaEntities = new DeltaEntity[Amount]; for (var i = 0; i < Amount; i++) { var ids = i % ComparativeBenchmarkParameters.SparseMatchStride == 0 ? new[] { _deltaA, _deltaB, n0, n1, n2, n3 } : new[] { _deltaA, _deltaB, _deltaC, n0, n1, n2, n3 }; var entity = _deltaEntities[i] = _delta.Create(ids); _delta.Set(entity, _deltaA, new SparseA { Value = 1 }); _delta.Set(entity, _deltaB, new SparseB { Value = 2 }); }
         _deltaQuery = _delta.WhereAll(_deltaA, _deltaB).WhereNone(_deltaC);
         _arch = Arch.Core.World.Create(); _archCType = typeof(SparseC); _archMatchTypes = new ArchComponentType[] { typeof(SparseA), typeof(SparseB), typeof(SparseNoise0), typeof(SparseNoise1), typeof(SparseNoise2), typeof(SparseNoise3) }; _archNonMatchTypes = new ArchComponentType[] { typeof(SparseA), typeof(SparseB), _archCType, typeof(SparseNoise0), typeof(SparseNoise1), typeof(SparseNoise2), typeof(SparseNoise3) }; _arch.Reserve(_archMatchTypes, Amount); _arch.Reserve(_archNonMatchTypes, Amount); _archQuery = new Arch.Core.QueryDescription { All = new ArchComponentType[] { _archMatchTypes[0], _archMatchTypes[1] }, None = new ArchComponentType[] { _archCType } }; for (var i = 0; i < Amount; i++) { var e = i % ComparativeBenchmarkParameters.SparseMatchStride == 0 ? _arch.Create(_archMatchTypes) : _arch.Create(_archNonMatchTypes); _arch.Set(e, new SparseA { Value = 1 }); _arch.Set(e, new SparseB { Value = 2 }); }
         _friflo = new EntityStore(); for (var i = 0; i < Amount; i++)

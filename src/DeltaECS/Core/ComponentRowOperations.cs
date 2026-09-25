@@ -15,16 +15,10 @@ internal readonly partial struct ComponentRowOperations
 
     internal bool ContainsReferences { get; }
 
-    internal static ComponentRowOperations ForRuntimeType(bool containsReferences)
-        => new(containsReferences, null);
-
     internal static ComponentRowOperations ForType<T>()
         => new(
             RuntimeHelpers.IsReferenceOrContainsReferences<T>(),
             static capacity => new T[capacity]);
 
-    internal Array CreateArray(Type runtimeType, int capacity)
-        => _createArray is { } createArray
-            ? createArray(capacity)
-            : Array.CreateInstance(runtimeType, capacity);
+    internal Array CreateArray(int capacity) => _createArray!(capacity);
 }

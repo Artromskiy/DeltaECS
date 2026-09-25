@@ -12,7 +12,8 @@ ComponentId primary = layouts.GetPrimary<Position>();
 
 `Register<T>` records `typeof(T)` and whether `T` contains managed references.
 Multiple component IDs may use the same CLR type; `GetPrimary<T>` resolves the
-first primary registration.
+first primary registration. An empty non-primitive struct is automatically
+treated as a data-less tag by the same registration method.
 
 ## Single-component operations
 

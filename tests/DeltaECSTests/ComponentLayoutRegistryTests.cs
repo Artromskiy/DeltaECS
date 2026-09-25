@@ -82,12 +82,12 @@ internal sealed class ComponentLayoutRegistryTests
         int registrationCount = 256 + 64;
         for (var index = 1; index < registrationCount; index++)
         {
-            RegisterByType(layouts, typeof(int), new SchemaId((ulong)(70_041 + index)));
+            layouts.Register<int>(new SchemaId((ulong)(70_041 + index)));
         }
 
         Assert.That(layouts.Count, Is.EqualTo(registrationCount));
         Assert.That(layouts.GetPrimary<Position>(), Is.EqualTo(primary));
-        Assert.That(RegisterByType(layouts, typeof(int), new SchemaId(71_000)).Value,
+        Assert.That(layouts.Register<int>(new SchemaId(71_000)).Value,
             Is.EqualTo(registrationCount));
     }
 
@@ -145,9 +145,4 @@ internal sealed class ComponentLayoutRegistryTests
     private static ComponentId GetPrimaryByType(ComponentLayoutRegistry layouts, Type runtimeType)
         => layouts.GetPrimary(runtimeType);
 
-    private static ComponentId RegisterByType(
-        ComponentLayoutRegistry layouts,
-        Type runtimeType,
-        SchemaId schemaId)
-        => layouts.Register(runtimeType, schemaId);
 }

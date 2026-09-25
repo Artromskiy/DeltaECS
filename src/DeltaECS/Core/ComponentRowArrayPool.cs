@@ -15,7 +15,7 @@ internal sealed class ComponentRowArrayPool
             return arrays.Pop();
         }
 
-        return rowOperations.CreateArray(runtimeType, capacity);
+        return rowOperations.CreateArray(capacity);
     }
 
     internal void Return(Array array)

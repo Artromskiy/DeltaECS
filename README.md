@@ -109,11 +109,11 @@ invalid.
 
 ### Data-less tags
 
-Register a value type with no instance fields as a tag. It participates in
-archetype composition without storing a value for each entity:
+An empty non-primitive struct is automatically registered as a tag. It
+participates in archetype composition without storing a value for each entity:
 
 ```csharp
-ComponentId deadId = layouts.RegisterTag<Dead>(new SchemaId(20));
+ComponentId deadId = layouts.Register<Dead>(new SchemaId(20));
 
 world.Add<Dead>(entity);
 bool isDead = world.Has<Dead>(entity);

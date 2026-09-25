@@ -2,20 +2,11 @@ namespace Delta.ECS;
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
-using System.Runtime.CompilerServices;
 
 public sealed partial class ComponentLayoutRegistry
 {
-    private static readonly MethodInfo _containsReferencesMethod = typeof(RuntimeHelpers).GetMethod(
-        nameof(RuntimeHelpers.IsReferenceOrContainsReferences),
-        BindingFlags.Public | BindingFlags.Static)
-        ?? ThrowHelper.ThrowMissingRuntimeHelper();
-
     private readonly Dictionary<SchemaId, int> _idsBySchema = new();
     private readonly Dictionary<Type, ComponentId> _primaryIdsByType = new();
-    private readonly Dictionary<Type, bool> _containsReferencesByType = new();
     private readonly List<ComponentLayout> _layouts = new();
     private readonly List<ComponentRowOperations> _rowOperations = new();
     private readonly List<bool> _isTag = new();
@@ -26,50 +17,8 @@ public sealed partial class ComponentLayoutRegistry
 
     internal int TagCount => _tagCount;
 
-    public ComponentId Register(
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType,
-        SchemaId schemaId)
-        => Register(
-            runtimeType,
-            schemaId,
-            ContainsReferences(runtimeType));
-
-    internal ComponentId Register(
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType,
-        SchemaId schemaId,
-        bool containsReferences)
-        => Register(
-            new ComponentLayout(schemaId, runtimeType),
-            ComponentRowOperations.ForRuntimeType(containsReferences));
-
-    private bool ContainsReferences(
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType)
-    {
-        if (_containsReferencesByType.TryGetValue(runtimeType, out bool containsReferences))
-        {
-            return containsReferences;
-        }
-
-        containsReferences = _containsReferencesMethod.MakeGenericMethod(runtimeType).Invoke(null, null) is true;
-        _containsReferencesByType.Add(runtimeType, containsReferences);
-        return containsReferences;
-    }
-
     private ComponentId Register(ComponentLayout layout, ComponentRowOperations rowOperations)
         => Register(layout, rowOperations, isTag: false);
-
-    internal ComponentId RegisterTag(
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType,
-        SchemaId schemaId)
-    {
-        ThrowHelper.ThrowIfNull(runtimeType, nameof(runtimeType));
-        if (!runtimeType.IsValueType || runtimeType.IsEnum || runtimeType.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).Length != 0)
-        {
-            ThrowHelper.ThrowInvalidTagType(runtimeType);
-        }
-
-        return Register(new ComponentLayout(schemaId, runtimeType), default, isTag: true);
-    }
 
     private ComponentId Register(ComponentLayout layout, ComponentRowOperations rowOperations, bool isTag)
     {
@@ -82,12 +31,6 @@ public sealed partial class ComponentLayoutRegistry
             }
 
             return new ComponentId(existingId);
-        }
-
-        if (_primaryIdsByType.TryGetValue(layout.RuntimeType, out ComponentId primaryId)
-            && _isTag[primaryId.Value] != isTag)
-        {
-            ThrowHelper.ThrowComponentTagModeConflict(layout.RuntimeType);
         }
 
         var id = new ComponentId(_layouts.Count);

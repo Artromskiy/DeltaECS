@@ -12,17 +12,14 @@ through entity storage, query descriptions, access tokens or iterators.
 - `ComponentId` is a world-local component identity.
 - `SchemaId` is stable tooling/schema identity.
 - `ComponentLayoutRegistry` registers layouts and resolves primary component
-  registrations by CLR `Type`.
+  registrations by CLR `Type`. Register components through `Register<T>`;
+  empty non-primitive structs are inferred as data-less tags.
 
 ```csharp
-var positionId = layouts.Register(
-    typeof(Position),
-    positionSchema);
+var positionId = layouts.Register<Position>(positionSchema);
 
 var primaryPosition = layouts.GetPrimary(typeof(Position));
 ```
-
-The generic registration convenience belongs to `Generic`, not this folder.
 
 ## Structural operations
 
