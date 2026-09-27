@@ -638,23 +638,6 @@ public sealed partial class World : IDisposable
         return _archetypes[chunk.ArchetypeId].Contains(componentId);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool SetCore<T>(Entity entity, ComponentId componentId, in T value)
-    {
-        EnsureNoTagValues(stackalloc[] { componentId });
-        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
-        {
-            ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
-        }
-
-        if (!_archetypes[chunk.ArchetypeId].Contains(componentId))
-        {
-            ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
-        }
-
-        return SetComponentUnchecked(chunk, slotIndex, componentId, value);
-    }
-
     public bool TryGetComponentStamp(Entity entity, ComponentId componentId, out Stamp stamp)
     {
         EnsureExecutionAccess();
@@ -1898,24 +1881,6 @@ public sealed partial class World : IDisposable
         edge = new TransitionEdge(target.Id, mapping, addedTargetRows);
         _transitionCache.Add(key, edge);
         return edge;
-    }
-
-    private bool SetComponentUnchecked<T>(Chunk chunk, int slotIndex, ComponentId componentId, T value)
-    {
-        var archetype = _archetypes[chunk.ArchetypeId];
-        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
-        {
-            return false;
-        }
-
-        chunk.GetComponentRef<T>(componentIndex, slotIndex) = value;
-        Stamp stamp = chunk.IncrementComponentStamp(componentIndex, slotIndex);
-        CreateEntityComponentStampWriter(
-            chunk,
-            componentIndex,
-            slotIndex,
-            stamp).MarkPoint();
-        return true;
     }
 
     private Archetype GetOrCreateArchetype(ComponentMask mask)

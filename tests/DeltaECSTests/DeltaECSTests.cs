@@ -336,8 +336,8 @@ internal sealed class DeltaECSDeliveryTests
         using var world = new World(layouts);
 
         var first = world.Create(new[] { PositionId, VelocityId });
-        world.Set(first, PositionId, new Position { X = 10, Y = 11 });
-        world.Set(first, VelocityId, new Velocity { X = 20, Y = 21 });
+        world.GetRef<Position>(first, PositionId) = new Position { X = 10, Y = 11 };
+        world.GetRef<Velocity>(first, VelocityId) = new Velocity { X = 20, Y = 21 };
 
         world.Add(first, new[] { HealthId });
 
@@ -397,15 +397,15 @@ internal sealed class DeltaECSDeliveryTests
                         Health = useHealth ? new Health { Value = random.Next(0, 100) } : null,
                     };
 
-                    world.Set(entity, PositionId, state.Position);
+                    world.GetRef<Position>(entity, PositionId) = state.Position;
                     if (state.Velocity.HasValue)
                     {
-                        world.Set(entity, VelocityId, state.Velocity.Value);
+                        world.GetRef<Velocity>(entity, VelocityId) = state.Velocity.Value;
                     }
 
                     if (state.Health.HasValue)
                     {
-                        world.Set(entity, HealthId, state.Health.Value);
+                        world.GetRef<Health>(entity, HealthId) = state.Health.Value;
                     }
 
                     model[entity.Index] = state;
@@ -451,7 +451,7 @@ internal sealed class DeltaECSDeliveryTests
                 if (world.IsAlive(entity))
                 {
                     var newPosition = new Position { X = random.NextSingle(), Y = random.NextSingle() };
-                    world.Set(entity, PositionId, newPosition);
+                    world.GetRef<Position>(entity, PositionId) = newPosition;
 
                     var updated = model[entity.Index];
                     updated.Position = newPosition;

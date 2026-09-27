@@ -277,7 +277,7 @@ internal sealed class TagComponentTests
 
         using var world = new World(layouts);
         Entity entity = world.Create(primitiveId);
-        world.Set(entity, primitiveId, 42);
+        world.GetRef<int>(entity, primitiveId) = 42;
         Assert.That(world.Get<int>(entity, primitiveId), Is.EqualTo(42));
     }
 

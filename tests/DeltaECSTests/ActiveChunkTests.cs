@@ -35,8 +35,8 @@ internal sealed class ActiveChunkTests
 
         var replacement = new Entity[chunkSize];
         Assert.That(world.Create(stackalloc[] { PositionId }, replacement), Is.EqualTo(chunkSize));
-        Assert.That(world.Set(replacement[0], PositionId, new Position { X = 11 }), Is.True);
-        Assert.That(world.Set(replacement[1], PositionId, new Position { X = 13 }), Is.True);
+        world.GetRef<Position>(replacement[0], PositionId) = new Position { X = 11 };
+        world.GetRef<Position>(replacement[1], PositionId) = new Position { X = 13 };
         Assert.That(archetype.ActiveChunkCount, Is.EqualTo(3));
         AssertActiveChunks(archetype);
 

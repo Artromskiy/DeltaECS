@@ -45,7 +45,7 @@ The trusted runtime keeps the write state proportional to the operation:
 
 | Operation | Trusted stamp state carried into the hot path |
 | --- | --- |
-| `Set` or integration point write | `EntityComponentStampWriter` for the current entity/component |
+| `GetRef` or integration point write | `EntityComponentStampWriter` for the current entity/component |
 | Generated dense `ForEach` write | `ArchetypeComponentStampWriter` for the matching archetype/component |
 | Generated read-only traversal or zero-arity anchor | no write stamp or writer state |
 

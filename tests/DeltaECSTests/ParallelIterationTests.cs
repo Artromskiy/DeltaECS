@@ -139,7 +139,7 @@ internal sealed class ParallelIterationTests
         world.Create([positionId, velocityId], entities);
         for (int index = 0; index < entities.Length; index++)
         {
-            world.Set(entities[index], velocityId, new Velocity { X = 1 });
+            world.GetRef<Velocity>(entities[index], velocityId) = new Velocity { X = 1 };
         }
 
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
@@ -172,8 +172,8 @@ internal sealed class ParallelIterationTests
         world.Create(new[] { positionId, velocityId }, entities);
         for (int index = 0; index < entities.Length; index++)
         {
-            world.Set(entities[index], positionId, new Position { X = 1, Y = 2 });
-            world.Set(entities[index], velocityId, new Velocity { X = 3, Y = 4 });
+            world.GetRef<Position>(entities[index], positionId) = new Position { X = 1, Y = 2 };
+            world.GetRef<Velocity>(entities[index], velocityId) = new Velocity { X = 3, Y = 4 };
         }
 
         var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));

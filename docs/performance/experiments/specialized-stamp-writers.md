@@ -21,7 +21,7 @@ change the public API or the meaning of `Stamp` equality.
 
 | Runtime path | Route | Reason |
 | --- | --- | --- |
-| `World.Set` and integration `TryWrite` | `EntityComponentStampWriter.MarkPoint` | Updates the exact entity/component term without introducing a chunk write intent |
+| Legacy point-write route and integration `TryWrite` | `EntityComponentStampWriter.MarkPoint` | Updates the exact entity/component term without introducing a chunk write intent |
 | Former `QuerySlots.GetRow(WriteAccess)` / object write row | `ChunkComponentStampWriter.Mark` | Historical borrowed-row route; retained here only as evidence |
 | Generated dense write | `GeneratedDenseExecution.MarkArchetypeWrite` | Marks the archetype/component term once before the slot loop |
 | Archetype internal endpoints | `ArchetypeComponentStampWriter` | Keep broad mutation routes available without putting their storage on `Chunk` or `Archetype` |

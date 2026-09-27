@@ -18,8 +18,8 @@ namespace DeltaECS.AotSample
 
             for (int index = 0; index < entities.Length; index++)
             {
-                world.Set(entities[index], positionId, new Position(index, index));
-                world.Set(entities[index], velocityId, new Velocity(1, 0.5f));
+                world.GetRef<Position>(entities[index], positionId) = new Position(index, index);
+                world.GetRef<Velocity>(entities[index], velocityId) = new Velocity(1, 0.5f);
             }
 
             QuerySpec specification = QuerySpec.WhereAll(positionId, velocityId);
@@ -44,7 +44,7 @@ namespace DeltaECS.AotSample
                 });
 
             Entity marker = world.Create(markerId);
-            world.Set(marker, markerId, new Marker(42));
+            world.GetRef<Marker>(marker, markerId) = new Marker(42);
             bool markerRead = world.TryGet<Marker>(marker, markerId, out Marker markerValue);
             bool markerDestroyed = world.Destroy(marker);
 

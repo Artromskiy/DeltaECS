@@ -121,9 +121,7 @@ int queryRemoved = world.Remove<Position, Velocity>(in query);
 ```
 
 Structural operations add or remove the primary component registrations and return the
-number of entities changed. Multi-value `Set` forms are also generated for one entity
-and validate the entity's archetype once before writing the existing rows. The
-generated ID forms default-initialize added rows;
+number of entities changed. The generated ID forms default-initialize added rows;
 use the existing typed `World.Add<T>(..., ComponentId, in T)` overload for a
 secondary registration. Generic structural forms follow the component lists used
 by the consumer.
@@ -148,14 +146,6 @@ world.Add(entity, new Health { Value = 100 });
 ```
 
 Arity-two and higher forms are generated only when used by the consumer.
-
-The same generated value shape is available for setting existing components:
-
-```csharp
-world.Set(entity,
-    new Position { Value = 10 },
-    new Health { Value = 100 });
-```
 
 When component registrations are already runtime values, the generator also
 provides the positional counted form:

@@ -36,7 +36,7 @@ public class WhereIterationMicroBenchmarkImplementation
 
         for (int index = 0; index < _entities.Length; index++)
         {
-            _world.Set(_entities[index], _valueId, new WhereIterationValue { Value = index });
+            _world.GetRef<WhereIterationValue>(_entities[index], _valueId) = new WhereIterationValue { Value = index };
         }
 
         QuerySpec description = QuerySpec.WhereAll(_valueId, _accumulatorId);

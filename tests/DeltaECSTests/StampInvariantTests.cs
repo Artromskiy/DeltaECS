@@ -34,7 +34,7 @@ internal sealed class StampInvariantTests
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(41_012));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId);
-        Assert.That(world.Set(entity, positionId, new Position { X = 7 }), Is.True);
+        world.GetRef<Position>(entity, positionId) = new Position { X = 7 };
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionBefore), Is.True);
 
         Assert.That(world.Add(entity, velocityId, new Velocity()), Is.True);
@@ -59,7 +59,7 @@ internal sealed class StampInvariantTests
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionBefore), Is.True);
         Assert.That(world.TryGetComponentStamp(entity, velocityId, out Stamp velocityBefore), Is.True);
 
-        Assert.That(world.Set(entity, positionId, new Position { X = 1 }), Is.True);
+        world.GetRef<Position>(entity, positionId) = new Position { X = 1 };
 
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionAfter), Is.True);
         Assert.That(world.TryGetComponentStamp(entity, velocityId, out Stamp velocityAfter), Is.True);

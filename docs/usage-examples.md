@@ -9,7 +9,7 @@ at the end of `Program.cs`, after all top-level statements.
 
 | Operation | Provided by |
 |---|---|
-| Register layouts, create entities, `Get` / `Set` / `TryGet` | Runtime |
+| Register layouts, create entities, `Get` / `GetRef` / `TryGet` | Runtime |
 | Single-component `Add<T>(entity, value)` / `Remove<T>(entity)` | Runtime |
 | `QuerySpec`, `CreateQuery` | Runtime |
 | Typed `WhereAll<T...>` / `WhereAny<T...>` / `WhereNone<T...>` | Generator |
@@ -17,7 +17,7 @@ at the end of `Program.cs`, after all top-level statements.
 | Component-bearing `ForEach` / `ForEachEntity` | Generator |
 | Positional `ComponentId` selectors for `ForEach` / `ForEachEntity` | Generator |
 | Struct functor overloads inferred from `Invoke` | Generator |
-| Generic batch `Add<T...>` / `Remove<T...>` and multi-value `Set<T...>` | Generator |
+| Generic batch `Add<T...>` / `Remove<T...>` | Generator |
 | Positional `ComponentId` `Create(I..., N, O?)` forms | Generator |
 | Query-wide `Where(...).Destroy/Add/Remove/ForEach` | Generator |
 
@@ -149,7 +149,8 @@ This is the runtime query equivalent of `world.WhereAll<Position, Velocity>()`:
 
 ```csharp
 var explicitQuery = world.WhereAll(positionId, velocityId);
-world.Set(entity, positionId, new Position { X = 30 });
+ref Position position = ref world.GetRef<Position>(entity, positionId);
+position.X = 30;
 Console.WriteLine(world.Get<Position>(entity, positionId).X); // 30
 ```
 
@@ -158,9 +159,9 @@ type represents several distinct components, retain their individual IDs and
 select the intended registration explicitly. Query selection and callback
 access must refer to the same registrations.
 
-`Set<T>` replaces an existing row and throws immediately when the entity is
-stale or does not contain `T`. Use `TryGet` when the component may be absent;
-`Add<T>` is the operation that creates a missing row.
+`GetRef<T>` returns a writable reference to an existing row and throws when the
+entity is stale or does not contain `T`. Use `TryGet` when the component may be
+absent; `Add<T>` is the operation that creates a missing row.
 
 ## Change an explicit batch
 

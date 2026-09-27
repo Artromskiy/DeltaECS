@@ -37,7 +37,7 @@ public sealed class IterationScenario
         _world.Create([_dense], denseEntities);
         for (var i = 0; i < amount; i++)
         {
-            _world.Set(denseEntities[i], _dense, new DenseValue { Value = i + 1 });
+            _world.GetRef<DenseValue>(denseEntities[i], _dense) = new DenseValue { Value = i + 1 };
         }
 
         _movement2Entities = new Entity[amount];
@@ -59,12 +59,12 @@ public sealed class IterationScenario
     {
         for (var i = 0; i < _amount; i++)
         {
-            _world.Set(_movement2Entities[i], _position, new Position { X = 1, Y = 2 });
-            _world.Set(_movement2Entities[i], _velocity, new Velocity { X = 3, Y = 4 });
-            _world.Set(_movement4Entities[i], _movement4Ids[0], new MovementA { Value = 1 });
-            _world.Set(_movement4Entities[i], _movement4Ids[1], new MovementB { Value = 2 });
-            _world.Set(_movement4Entities[i], _movement4Ids[2], new MovementC { Value = 3 });
-            _world.Set(_movement4Entities[i], _movement4Ids[3], new MovementD { Value = 4 });
+            _world.GetRef<Position>(_movement2Entities[i], _position) = new Position { X = 1, Y = 2 };
+            _world.GetRef<Velocity>(_movement2Entities[i], _velocity) = new Velocity { X = 3, Y = 4 };
+            _world.GetRef<MovementA>(_movement4Entities[i], _movement4Ids[0]) = new MovementA { Value = 1 };
+            _world.GetRef<MovementB>(_movement4Entities[i], _movement4Ids[1]) = new MovementB { Value = 2 };
+            _world.GetRef<MovementC>(_movement4Entities[i], _movement4Ids[2]) = new MovementC { Value = 3 };
+            _world.GetRef<MovementD>(_movement4Entities[i], _movement4Ids[3]) = new MovementD { Value = 4 };
         }
     }
 

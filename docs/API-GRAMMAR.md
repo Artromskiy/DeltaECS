@@ -156,13 +156,11 @@ Typed and non-generic structural operations have matching target shapes:
 world.Add<T...>(e | E | Q, I...)
 world.Remove<T...>(e | E | Q, I...)
 world.Add<T...>(e | E, I..., V...)
-world.Set<T...>(e, V...)
 world.Destroy(e | E | Q)
 
 world.Add(e | E | Q, I...)
 world.Remove(e | E | Q, I...)
 world.Add(e, V...)
-world.Set(e, V...)
 
 world.Create<T...>(N, O?)
 world.Create<T...>(I..., N, O?)

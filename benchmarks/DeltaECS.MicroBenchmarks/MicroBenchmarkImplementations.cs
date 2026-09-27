@@ -63,8 +63,8 @@ internal sealed class MicroWorld
     {
         for (var i = 0; i < entities.Length; i++)
         {
-            World.Set(entities[i], Position, new Position { X = i, Y = i + 1 });
-            World.Set(entities[i], Velocity, new Velocity { X = 1, Y = 2 });
+            World.GetRef<Position>(entities[i], Position) = new Position { X = i, Y = i + 1 };
+            World.GetRef<Velocity>(entities[i], Velocity) = new Velocity { X = 1, Y = 2 };
         }
     }
 
@@ -80,10 +80,10 @@ internal sealed class MicroWorld
     {
         for (var i = 0; i < entities.Length; i++)
         {
-            World.Set(entities[i], Movement4A, new Movement4A { Value = 1 });
-            World.Set(entities[i], Movement4B, new Movement4B { Value = 2 });
-            World.Set(entities[i], Movement4C, new Movement4C { Value = 3 });
-            World.Set(entities[i], Movement4D, new Movement4D { Value = 4 });
+            World.GetRef<Movement4A>(entities[i], Movement4A) = new Movement4A { Value = 1 };
+            World.GetRef<Movement4B>(entities[i], Movement4B) = new Movement4B { Value = 2 };
+            World.GetRef<Movement4C>(entities[i], Movement4C) = new Movement4C { Value = 3 };
+            World.GetRef<Movement4D>(entities[i], Movement4D) = new Movement4D { Value = 4 };
         }
     }
 }

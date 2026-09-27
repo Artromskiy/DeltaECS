@@ -215,22 +215,22 @@ public class IterationBenchmarks : IDisposable
     {
         switch (component)
         {
-            case 0: _world.Set(entity, id, new C00 { Value = value }); break;
-            case 1: _world.Set(entity, id, new C01 { Value = value }); break;
-            case 2: _world.Set(entity, id, new C02 { Value = value }); break;
-            case 3: _world.Set(entity, id, new C03 { Value = value }); break;
-            case 4: _world.Set(entity, id, new C04 { Value = value }); break;
-            case 5: _world.Set(entity, id, new C05 { Value = value }); break;
-            case 6: _world.Set(entity, id, new C06 { Value = value }); break;
-            case 7: _world.Set(entity, id, new C07 { Value = value }); break;
-            case 8: _world.Set(entity, id, new C08 { Value = value }); break;
-            case 9: _world.Set(entity, id, new C09 { Value = value }); break;
-            case 10: _world.Set(entity, id, new C10 { Value = value }); break;
-            case 11: _world.Set(entity, id, new C11 { Value = value }); break;
-            case 12: _world.Set(entity, id, new C12 { Value = value }); break;
-            case 13: _world.Set(entity, id, new C13 { Value = value }); break;
-            case 14: _world.Set(entity, id, new C14 { Value = value }); break;
-            default: _world.Set(entity, id, new C15 { Value = value }); break;
+            case 0: _world.GetRef<C00>(entity, id) = new C00 { Value = value }; break;
+            case 1: _world.GetRef<C01>(entity, id) = new C01 { Value = value }; break;
+            case 2: _world.GetRef<C02>(entity, id) = new C02 { Value = value }; break;
+            case 3: _world.GetRef<C03>(entity, id) = new C03 { Value = value }; break;
+            case 4: _world.GetRef<C04>(entity, id) = new C04 { Value = value }; break;
+            case 5: _world.GetRef<C05>(entity, id) = new C05 { Value = value }; break;
+            case 6: _world.GetRef<C06>(entity, id) = new C06 { Value = value }; break;
+            case 7: _world.GetRef<C07>(entity, id) = new C07 { Value = value }; break;
+            case 8: _world.GetRef<C08>(entity, id) = new C08 { Value = value }; break;
+            case 9: _world.GetRef<C09>(entity, id) = new C09 { Value = value }; break;
+            case 10: _world.GetRef<C10>(entity, id) = new C10 { Value = value }; break;
+            case 11: _world.GetRef<C11>(entity, id) = new C11 { Value = value }; break;
+            case 12: _world.GetRef<C12>(entity, id) = new C12 { Value = value }; break;
+            case 13: _world.GetRef<C13>(entity, id) = new C13 { Value = value }; break;
+            case 14: _world.GetRef<C14>(entity, id) = new C14 { Value = value }; break;
+            default: _world.GetRef<C15>(entity, id) = new C15 { Value = value }; break;
         }
     }
 

@@ -50,8 +50,8 @@ The consumer source generator is documented in
 | `QuerySpec` | Opaque `All`/`Any`/`None` selection description created by the fluent query factories | `src/DeltaECS/Core/QuerySpec.cs` |
 | `Query` | World-owned cached query and generated API input | `src/DeltaECS/Core/EntityTypes.cs` |
 | `ReadAccess`, `WriteAccess` | Compiler-support access tokens used by generated callbacks | `src/DeltaECS/Core/QueryAccess.cs` |
-| `World.Create<T>`, `Add<T>`, `Remove<T>`, `TryGet<T>`, `Has<T>`, `Get<T>`, `Set<T>` and typed stamps | Single-component typed conveniences over core operations | `src/DeltaECS/Generic/World.Generic.cs` |
-| Generated `World.Create<T1,...>`, `Add<T1,...>`, `Remove<T1,...>`, multi-value `Set<T1,...>` | On-demand primary-component structural operations and archetype-validated value writes | `src/DeltaECS.Generators/GeneratedStructuralGenerator.cs` |
+| `World.Create<T>`, `Add<T>`, `Remove<T>`, `TryGet<T>`, `Has<T>`, `Get<T>`, `GetRef<T>` and typed stamps | Single-component typed conveniences over core operations | `src/DeltaECS/Generic/World.Generic.cs` |
+| Generated `World.Create<T1,...>`, `Add<T1,...>`, `Remove<T1,...>` | On-demand primary-component structural operations | `src/DeltaECS.Generators/GeneratedStructuralGenerator.cs` |
 | `World/Query.WhereAll`, `WhereAny`, `WhereNone` | Runtime `ComponentId` factories; generated typed variants compose through the existing query cache | `src/DeltaECS/Core/World.cs`, `src/DeltaECS/Core/EntityTypes.cs`, `src/DeltaECS.Generators/GeneratedQueryGenerator.cs`, `src/DeltaECS/Core/QuerySpec.cs` |
 | `World.ForEach`, `ForEachEntity` | Delegate callback entry points; entity-aware iteration may omit component rows, while component-only zero-arity calls remain throwing anchors | `src/DeltaECS/Delegate/ForEachZeroArity.cs` |
 | `IForEach*` | Stable functor marker contracts | `src/DeltaECS/Functor/ForEachFunctorContracts.cs` |

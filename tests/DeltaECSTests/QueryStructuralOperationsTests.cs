@@ -196,7 +196,7 @@ internal sealed class QueryStructuralOperationsTests
         world.Create(new[] { PositionId }, source.Length, source);
         for (int index = 0; index < source.Length; index++)
         {
-            Assert.That(world.Set(source[index], PositionId, new Position { X = index + 10, Y = -index }), Is.True);
+            world.GetRef<Position>(source[index], PositionId) = new Position { X = index + 10, Y = -index };
         }
         Assert.That(world.TryGetComponentStamp(source[0], PositionId, out var sourceStamp), Is.True);
 
@@ -248,7 +248,7 @@ internal sealed class QueryStructuralOperationsTests
         world.Create(new[] { PositionId, markerId }, source.Length, source);
         for (int index = 0; index < source.Length; index++)
         {
-            Assert.That(world.Set(source[index], PositionId, new Position { X = index + 20, Y = index }), Is.True);
+            world.GetRef<Position>(source[index], PositionId) = new Position { X = index + 20, Y = index };
         }
 
         var sourceQuery = world.CreateQuery(QuerySpec.WhereAll(PositionId, markerId));
@@ -289,7 +289,7 @@ internal sealed class QueryStructuralOperationsTests
             var value = new ReferenceComponent { Value = i + 10 };
             values[i] = value;
             weakReferences.Add(new WeakReference<ReferenceComponent>(value));
-            Assert.That(world.Set(entities[i], referenceId, value), Is.True);
+            world.GetRef<ReferenceComponent>(entities[i], referenceId) = value;
         }
 
         var query = world.CreateQuery(QuerySpec.WhereAll(referenceId));

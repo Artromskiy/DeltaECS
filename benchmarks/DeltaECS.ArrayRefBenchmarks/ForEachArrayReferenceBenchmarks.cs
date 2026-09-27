@@ -33,7 +33,7 @@ public class ForEachArrayReferenceBenchmarks : IDisposable
 
         for (int index = 0; index < _entities.Length; index++)
         {
-            _world.Set(_entities[index], valueId, new ArrayReferenceValue { Value = index });
+            _world.GetRef<ArrayReferenceValue>(_entities[index], valueId) = new ArrayReferenceValue { Value = index };
         }
 
         QuerySpec description = QuerySpec.WhereAll(valueId);

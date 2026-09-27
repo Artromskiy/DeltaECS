@@ -69,10 +69,10 @@ public class ManyComponentIterationBenchmarks
         for (int index = 0; index < Amount; index++)
         {
             DeltaEntity entity = _entities[index];
-            _world.Set(entity, _components[0], new Movement4A { Value = 1 });
-            _world.Set(entity, _components[1], new Movement4B { Value = 2 });
-            _world.Set(entity, _components[2], new Movement4C { Value = 3 });
-            _world.Set(entity, _components[3], new Movement4D { Value = 4 });
+            _world.GetRef<Movement4A>(entity, _components[0]) = new Movement4A { Value = 1 };
+            _world.GetRef<Movement4B>(entity, _components[1]) = new Movement4B { Value = 2 };
+            _world.GetRef<Movement4C>(entity, _components[2]) = new Movement4C { Value = 3 };
+            _world.GetRef<Movement4D>(entity, _components[3]) = new Movement4D { Value = 4 };
         }
 
         var spec = QuerySpec.WhereAll(_components);

@@ -29,10 +29,10 @@ internal static class Movement4DelegateProfile
         world.Create(components, entities);
         for (int index = 0; index < entities.Length; index++)
         {
-            world.Set(entities[index], aId, new Movement4A { Value = 1 });
-            world.Set(entities[index], bId, new Movement4B { Value = 2 });
-            world.Set(entities[index], cId, new Movement4C { Value = 3 });
-            world.Set(entities[index], dId, new Movement4D { Value = 4 });
+            world.GetRef<Movement4A>(entities[index], aId) = new Movement4A { Value = 1 };
+            world.GetRef<Movement4B>(entities[index], bId) = new Movement4B { Value = 2 };
+            world.GetRef<Movement4C>(entities[index], cId) = new Movement4C { Value = 3 };
+            world.GetRef<Movement4D>(entities[index], dId) = new Movement4D { Value = 4 };
         }
 
         QuerySpec spec = QuerySpec.WhereAll(components);

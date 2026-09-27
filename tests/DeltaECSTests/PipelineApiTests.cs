@@ -83,8 +83,8 @@ internal sealed class PipelineApiTests
         ComponentId velocityId = layouts.Register<PipelineVelocity>(new SchemaId(70_006));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId, velocityId);
-        Assert.That(world.Set(entity, positionId, new PipelinePosition { Value = 1 }), Is.True);
-        Assert.That(world.Set(entity, velocityId, new PipelineVelocity { Value = 2 }), Is.True);
+        world.GetRef<PipelinePosition>(entity, positionId) = new PipelinePosition { Value = 1 };
+        world.GetRef<PipelineVelocity>(entity, velocityId) = new PipelineVelocity { Value = 2 };
 
         var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
         world.ForEach(in query, static (ref PipelinePosition position, in PipelineVelocity velocity) =>
@@ -176,7 +176,7 @@ internal sealed class PipelineApiTests
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_022));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId);
-        world.Set(entity, positionId, new PipelinePosition { Value = 2 });
+        world.GetRef<PipelinePosition>(entity, positionId) = new PipelinePosition { Value = 2 };
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
         var context = new WhereContext { Minimum = 3 };
 
@@ -197,7 +197,7 @@ internal sealed class PipelineApiTests
         layouts.Register<PipelineMarker>(new SchemaId(70_025));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId);
-        world.Set(entity, positionId, new PipelinePosition { Value = 2 });
+        world.GetRef<PipelinePosition>(entity, positionId) = new PipelinePosition { Value = 2 };
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
         var context = new WhereContext { Minimum = 3 };
 
@@ -218,8 +218,8 @@ internal sealed class PipelineApiTests
         ComponentId velocityId = layouts.Register<PipelineVelocity>(new SchemaId(70_009));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId, velocityId);
-        Assert.That(world.Set(entity, positionId, new PipelinePosition { Value = 1 }), Is.True);
-        Assert.That(world.Set(entity, velocityId, new PipelineVelocity { Value = 2 }), Is.True);
+        world.GetRef<PipelinePosition>(entity, positionId) = new PipelinePosition { Value = 1 };
+        world.GetRef<PipelineVelocity>(entity, velocityId) = new PipelineVelocity { Value = 2 };
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
 
         int calls = 0;
@@ -244,7 +244,7 @@ internal sealed class PipelineApiTests
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_010));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId);
-        Assert.That(world.Set(entity, positionId, new PipelinePosition { Value = 3 }), Is.True);
+        world.GetRef<PipelinePosition>(entity, positionId) = new PipelinePosition { Value = 3 };
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
         int calls = 0;
         world.ForEach(in query, static (ref PipelinePosition _) => { });
@@ -267,7 +267,7 @@ internal sealed class PipelineApiTests
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_011));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId);
-        Assert.That(world.Set(entity, positionId, new PipelinePosition { Value = 3 }), Is.True);
+        world.GetRef<PipelinePosition>(entity, positionId) = new PipelinePosition { Value = 3 };
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
         s_methodGroupCalls = 0;
 

@@ -50,7 +50,7 @@ internal sealed class FunctorForEachTests
         world.Create([valueId], entities);
         for (int index = 0; index < entities.Length; index++)
         {
-            world.Set(entities[index], valueId, new FunctorProbeComponent { Index = index });
+            world.GetRef<FunctorProbeComponent>(entities[index], valueId) = new FunctorProbeComponent { Index = index };
         }
 
         Query query = world.CreateQuery(QuerySpec.WhereAll(valueId));
@@ -205,7 +205,7 @@ internal sealed class FunctorForEachTests
         world.Create([healthId], entities);
         for (int index = 0; index < entities.Length; index++)
         {
-            world.Set(entities[index], healthId, new Health { Value = index });
+            world.GetRef<Health>(entities[index], healthId) = new Health { Value = index };
         }
 
         Query query = world.CreateQuery(QuerySpec.WhereAll(healthId));

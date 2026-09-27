@@ -24,7 +24,7 @@ world.ForEach(in moving,
   order.
 - Caller-owned callback context, tuple context and reusable struct functors.
 - Entity-aware, parallel, stamp-only and predicate-filtered iteration.
-- Immediate `Add`, `Remove`, `Set`, `Create` and `Destroy` operations.
+- Immediate `Add`, `Remove`, `Create` and `Destroy` operations.
 - Data-less tag components for composition filters and entity membership tests.
 - Optional Roslyn interception for eligible static callbacks.
 
@@ -241,7 +241,6 @@ world.Remove<T...>(e | E | Q, I...)
 world.Destroy(e | E | Q)
 
 world.Add<T...>(e, V...)
-world.Set<T...>(e, V...)
 world.Create<T...>(N, O?)
 world.Create<T...>(I..., N, O?)
 world.Create(I..., N, O?)
@@ -509,16 +508,17 @@ int createdById = world.Create(
 Output storage is optional. Supply it when the caller needs to retain the
 created handles; otherwise use the count-only form.
 
-### Add, Set and Has
+### Add, GetRef and Has
 
-`Add` creates a missing component; the generated multi-value form can add and
-initialize several components in one call. `Set` replaces the value of a
-component already present on the entity and fails fast when the entity is
-stale or the component is absent. Use `TryGet` when presence is optional.
+`Add` creates missing components; the generated multi-value form can add and
+initialize several components in one call. Use `GetRef` to mutate a component
+that is already present. It throws when the entity is stale or the component is
+absent; use `TryGet` when presence is optional.
 
 ```csharp
 world.Add(entity, new Position { X = 5 }, new Velocity { X = 2 });
-world.Set(entity, new Position { X = 10 });
+ref Position position = ref world.GetRef<Position>(entity);
+position.X = 10;
 
 if (world.Has<Velocity>(entity))
 {

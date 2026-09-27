@@ -44,8 +44,8 @@ public class WidePayloadPartialReadIterationBenchmarks
         for (int index = 0; index < Amount; index++)
         {
             DeltaEntity entity = _entities[index];
-            _world.Set(entity, _components[0], new WidePayload0 { Value = 1 });
-            _world.Set(entity, _components[7], new WidePayload7 { Value = 8 });
+            _world.GetRef<WidePayload0>(entity, _components[0]) = new WidePayload0 { Value = 1 };
+            _world.GetRef<WidePayload7>(entity, _components[7]) = new WidePayload7 { Value = 8 };
         }
 
         var spec = QuerySpec.WhereAll(_components);

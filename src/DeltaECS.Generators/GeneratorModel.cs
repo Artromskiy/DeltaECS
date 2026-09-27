@@ -101,7 +101,6 @@ internal enum StructuralOperation
 {
     Add,
     Remove,
-    Set,
     Create
 }
 

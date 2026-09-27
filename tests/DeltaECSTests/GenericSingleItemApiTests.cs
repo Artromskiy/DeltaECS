@@ -23,7 +23,7 @@ internal sealed class GenericSingleItemApiTests
         Assert.That(world.TryGet(entity, out Position actual), Is.True);
         Assert.That(actual, Is.EqualTo(initial));
         Assert.That(world.Get<Position>(entity), Is.EqualTo(initial));
-        Assert.That(world.Set(entity, in replacement), Is.True);
+        world.GetRef<Position>(entity) = replacement;
         Assert.That(world.Get<Position>(entity), Is.EqualTo(replacement));
 
         var entities = new Entity[2];
@@ -118,7 +118,7 @@ internal sealed class GenericSingleItemApiTests
     }
 
     [Test]
-    public void TypedCreateGetSetAndTryGetUseTheExistingComponentRows()
+    public void TypedCreateGetRefAndTryGetUseTheExistingComponentRows()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_001));
@@ -130,7 +130,7 @@ internal sealed class GenericSingleItemApiTests
         Assert.That(world.TryGet(entity, positionId, out Position initial), Is.True);
         Assert.That(initial, Is.EqualTo(new Position { X = 1, Y = 2 }));
         Assert.That(world.Get<Position>(entity, positionId), Is.EqualTo(initial));
-        Assert.That(world.Set(entity, positionId, new Position { X = 3, Y = 4 }), Is.True);
+        world.GetRef<Position>(entity, positionId) = new Position { X = 3, Y = 4 };
         Assert.That(world.Get<Position>(entity, positionId), Is.EqualTo(new Position { X = 3, Y = 4 }));
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp setStamp), Is.True);
         Assert.Multiple(() =>
@@ -178,7 +178,7 @@ internal sealed class GenericSingleItemApiTests
     }
 
     [Test]
-    public void SetFailsFastWhenTheEntityDoesNotContainTheComponent()
+    public void GetRefFailsFastWhenTheEntityDoesNotContainTheComponent()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_081));
@@ -188,11 +188,11 @@ internal sealed class GenericSingleItemApiTests
         Entity missing = world.Create(velocityId, new Velocity());
 
         Assert.Throws<InvalidOperationException>(
-            () => world.Set(missing, positionId, new Position()));
+            () => _ = world.GetRef<Position>(missing, positionId));
         Assert.Throws<InvalidOperationException>(
-            () => world.Set(entity, velocityId, new Velocity()));
+            () => _ = world.GetRef<Velocity>(entity, velocityId));
         Assert.Throws<ArgumentException>(
-            () => world.Set<Velocity>(entity, positionId, new Velocity()));
+            () => _ = world.GetRef<Velocity>(entity, positionId));
         Assert.That(world.Get<Position>(entity), Is.EqualTo(new Position()));
     }
 
@@ -253,29 +253,6 @@ internal sealed class GenericSingleItemApiTests
         Assert.That(world.Add(entity, new Position { X = 9 }, new Velocity { X = 9 }), Is.False);
         Assert.That(world.TryGet(entity, positionId, out Position unchangedPosition), Is.True);
         Assert.That(unchangedPosition, Is.EqualTo(position));
-    }
-
-    [Test]
-    public void TypedMultiValueSetValidatesTheArchetypeBeforeWriting()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_022));
-        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_023));
-        using var world = new World(layouts);
-        Entity complete = world.Create(stackalloc[] { positionId, velocityId });
-        Entity positionOnly = world.Create(positionId, new Position { X = 1, Y = 2 });
-
-        Assert.That(world.Set(complete, new Position { X = 3, Y = 4 }, new Velocity { X = 5, Y = 6 }), Is.True);
-        Assert.That(world.Set<Position, Velocity>(complete, new Position { X = 7, Y = 8 }, new Velocity { X = 9, Y = 10 }), Is.True);
-        Assert.Multiple(() =>
-        {
-            Assert.That(world.Get<Position>(complete), Is.EqualTo(new Position { X = 7, Y = 8 }));
-            Assert.That(world.Get<Velocity>(complete), Is.EqualTo(new Velocity { X = 9, Y = 10 }));
-        });
-
-        Assert.Throws<InvalidOperationException>(() =>
-            world.Set(positionOnly, new Position { X = 11, Y = 12 }, new Velocity { X = 13, Y = 14 }));
-        Assert.That(world.Get<Position>(positionOnly), Is.EqualTo(new Position { X = 1, Y = 2 }));
     }
 
     [Test]
@@ -393,7 +370,7 @@ internal sealed class GenericSingleItemApiTests
         var velocity = new Velocity { X = 3, Y = 4 };
         foreach (Entity entity in entities)
         {
-            world.Set(entity, in position);
+            world.GetRef<Position>(entity) = position;
         }
 
         Assert.That(world.Add<Position, Velocity>(entities, position, velocity), Is.EqualTo(entities.Length));
@@ -414,7 +391,7 @@ internal sealed class GenericSingleItemApiTests
         Entity[] entities = new Entity[2];
         world.Create(stackalloc[] { positionId }, entities.Length, entities);
         var initialPosition = new Position { X = 7, Y = 9 };
-        world.Set(entities[0], in initialPosition);
+        world.GetRef<Position>(entities[0]) = initialPosition;
 
         Assert.Throws<ArgumentException>(() => world.Add<float, float>(entities, healthId, positionId, 100, 50));
         Assert.Throws<ArgumentException>(() => world.Create<float, float>(healthId, positionId, 100, 50));
@@ -514,7 +491,7 @@ internal sealed class GenericSingleItemApiTests
         {
             Assert.That(world.TryGet(entity, positionId, out Position _), Is.False);
             Assert.Throws<InvalidOperationException>(
-                () => world.Set(entity, positionId, new Position()));
+                () => _ = world.GetRef<Position>(entity, positionId));
             Assert.That(world.Add(entity, positionId, new Position()), Is.False);
             Assert.That(world.Remove<Position>(entity, positionId), Is.False);
         });

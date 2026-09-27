@@ -137,7 +137,7 @@ internal readonly struct ApiDescriptor
             return true;
         }
 
-        if (name is "Add" or "Remove" or "Set" or "Create" or "Destroy")
+        if (name is "Add" or "Remove" or "Create" or "Destroy")
         {
             descriptor = new ApiDescriptor(
                 GeneratedApiKind.Structural,
@@ -149,7 +149,7 @@ internal readonly struct ApiDescriptor
                 allowsIds: true,
                 allowsContext: false,
                 requiresCallback: false,
-                name is "Add" or "Set"
+                name == "Add"
                     ? InvocationTailRule.Values
                     : name == "Create" ? InvocationTailRule.CountOutput : InvocationTailRule.None,
                 minimumArity: 1);

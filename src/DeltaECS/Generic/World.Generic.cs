@@ -319,18 +319,6 @@ public sealed partial class World
     public ref readonly T GetReadRef<T>(Entity entity)
         => ref GetReadRefUnchecked<T>(entity, GetPrimaryComponentId<T>());
 
-    /// <summary>Writes one component value and throws when the entity lacks the component.</summary>
-    public bool Set<T>(Entity entity, ComponentId componentId, in T value)
-    {
-        EnsureExecutionAccess();
-        EnsureRegisteredType<T>(componentId);
-        return SetCore(entity, componentId, in value);
-    }
-
-    /// <summary>Writes the primary component for <typeparamref name="T"/> and throws when it is missing.</summary>
-    public bool Set<T>(Entity entity, in T value)
-        => SetCore(entity, GetPrimaryComponentId<T>(), in value);
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool IsRegisteredType<T>(ComponentId componentId)
     {
@@ -547,39 +535,6 @@ public sealed partial class World
 
         var writer = new GeneratedComponentValueWriter(chunk, archetype, slotIndex, addedRows, count);
         initializer.Initialize(ref writer);
-    }
-
-    internal bool SetGeneratedComponentValues<TInitializer>(
-        Entity entity,
-        ReadOnlySpan<ComponentId> componentIds,
-        ref TInitializer initializer)
-        where TInitializer : struct, IGeneratedComponentValueInitializer
-    {
-        EnsureNoActiveLease("set components");
-        if (componentIds.Length == 0)
-        {
-            ThrowHelper.ThrowInvalidComponentList();
-        }
-
-        EnsureNoTagValues(componentIds);
-
-        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
-        {
-            ThrowHelper.ThrowMissingComponent(entity, componentIds[0]);
-        }
-
-        Archetype archetype = _archetypes[chunk.ArchetypeId];
-        for (int index = 0; index < componentIds.Length; index++)
-        {
-            if (!archetype.Contains(componentIds[index]))
-            {
-                ThrowHelper.ThrowMissingComponent(entity, componentIds[index]);
-            }
-        }
-
-        var writer = new GeneratedComponentValueWriter(chunk, archetype, slotIndex);
-        initializer.Initialize(ref writer);
-        return true;
     }
 
     private static void FillComponentRange<T>(

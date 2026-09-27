@@ -320,13 +320,6 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
                 }
 
                 break;
-            case "Set":
-                foreach (ITypeSymbol type in types)
-                {
-                    accumulator.Write(type);
-                }
-
-                break;
             case "Create":
                 accumulator.WriteTopology();
                 accumulator.CreateEntities();

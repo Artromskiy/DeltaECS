@@ -33,7 +33,7 @@ bool hasStamp = world.TryGetComponentStamp<Position>(primaryEntity, out Stamp st
 if (world.TryGet(primaryEntity, out Position primaryPosition))
 {
     primaryPosition.X++;
-    world.Set(primaryEntity, in primaryPosition);
+    world.GetRef<Position>(primaryEntity) = primaryPosition;
 }
 
 world.Remove<Velocity>(primaryEntity);
@@ -49,7 +49,7 @@ int added = world.Add(entities, velocityId, new Velocity());
 if (world.TryGet(entity, positionId, out Position position))
 {
     position.X++;
-    world.Set(entity, positionId, in position);
+    world.GetRef<Position>(entity, positionId) = position;
 }
 
 world.Remove<Velocity>(entity, velocityId);
@@ -59,12 +59,13 @@ int removed = world.Remove<Velocity>(entities, velocityId);
 The overloads without a `ComponentId` resolve the registered primary component
 for `T` once at the API boundary, so the type and component ID cannot be
 supplied inconsistently. The explicit-ID overloads remain available for
-secondary registrations and validate `ComponentId` against `T`. `Set<T>`
-expects the row to exist and throws when the entity is stale or lacks it; use
-`TryGet` when the component is optional. Batch `Add<T>` initializes the newly
-added row with the same value for every eligible entity; batch `Remove<T>`
-returns the number of structural transitions. Batch structural operations skip
-stale handles and entities that already have or do not have the component.
+secondary registrations and validate `ComponentId` against `T`. `GetRef<T>`
+returns a writable reference and throws when the entity is stale or lacks the
+component; use `TryGet` when the component is optional. Batch `Add<T>`
+initializes the newly added row with the same value for every eligible entity;
+batch `Remove<T>` returns the number of structural transitions. Batch
+structural operations skip stale handles and entities that already have or do
+not have the component.
 
 ## Generated primary-component batches
 
@@ -76,7 +77,6 @@ int added = world.Add<Position, Velocity>(entities);
 int removed = world.Remove<Position, Velocity>(entities);
 bool addedToEntity = world.Add<Position, Velocity>(entity);
 bool removedFromEntity = world.Remove<Position, Velocity>(entity);
-bool setOnEntity = world.Set(entity, new Position { X = 10 }, new Velocity { X = 20 });
 
 Entity created = world.Create<Position, Velocity>();
 int createdCount = world.Create<Position, Velocity>(10);

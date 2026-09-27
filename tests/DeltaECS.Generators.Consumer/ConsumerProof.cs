@@ -77,11 +77,11 @@ public static class ConsumerProof
             secondaryPositionId, velocityId, accelerationId, lifetimeId, massId
         });
 
-        world.Set(primary, positionId, new Position { Value = 1 });
-        world.Set(primary, velocityId, new Velocity { Value = 2 });
-        world.Set(primary, accelerationId, new Acceleration { Value = 3 });
-        world.Set(primary, lifetimeId, new Lifetime { Value = 4 });
-        world.Set(secondary, secondaryPositionId, new Position { Value = 5 });
+        world.GetRef<Position>(primary, positionId) = new Position { Value = 1 };
+        world.GetRef<Velocity>(primary, velocityId) = new Velocity { Value = 2 };
+        world.GetRef<Acceleration>(primary, accelerationId) = new Acceleration { Value = 3 };
+        world.GetRef<Lifetime>(primary, lifetimeId) = new Lifetime { Value = 4 };
+        world.GetRef<Position>(secondary, secondaryPositionId) = new Position { Value = 5 };
 
         Query allNine = world.CreateQuery(QuerySpec.WhereAll(stackalloc[]
         {
@@ -260,9 +260,11 @@ public static class ConsumerProof
         int outputCount = createWorld.Create<Position, Velocity>(2, createdOutput);
         Span<Entity> explicitGenericOutput = stackalloc Entity[1];
         total += createWorld.Create<Position, Velocity>(positionId, velocityId, 1, explicitGenericOutput);
-        if (!createWorld.Set(created, new Position { Value = 1 }, new Velocity { Value = 2 })
-            || !createWorld.Set<Position, Velocity>(created, new Position { Value = 3 }, new Velocity { Value = 4 })
-            || createWorld.Get<Position>(created).Value != 3
+        createWorld.GetRef<Position>(created) = new Position { Value = 1 };
+        createWorld.GetRef<Velocity>(created) = new Velocity { Value = 2 };
+        createWorld.GetRef<Position>(created) = new Position { Value = 3 };
+        createWorld.GetRef<Velocity>(created) = new Velocity { Value = 4 };
+        if (createWorld.Get<Position>(created).Value != 3
             || createWorld.Get<Velocity>(created).Value != 4)
         {
             return 0;
@@ -494,12 +496,12 @@ public static class ConsumerProof
     {
         Entity[] entities = new Entity[3];
         world.Create(stackalloc[] { healthId, teamId, aliveId }, entities.Length, entities);
-        world.Set(entities[0], healthId, new Health { Value = -1 });
-        world.Set(entities[1], healthId, new Health { Value = 5 });
-        world.Set(entities[2], healthId, new Health { Value = -1 });
-        world.Set(entities[0], teamId, new Team { Id = 1, DefaultHealth = 100 });
-        world.Set(entities[1], teamId, new Team { Id = 1, DefaultHealth = 200 });
-        world.Set(entities[2], teamId, new Team { Id = 2, DefaultHealth = 300 });
+        world.GetRef<Health>(entities[0], healthId) = new Health { Value = -1 };
+        world.GetRef<Health>(entities[1], healthId) = new Health { Value = 5 };
+        world.GetRef<Health>(entities[2], healthId) = new Health { Value = -1 };
+        world.GetRef<Team>(entities[0], teamId) = new Team { Id = 1, DefaultHealth = 100 };
+        world.GetRef<Team>(entities[1], teamId) = new Team { Id = 1, DefaultHealth = 200 };
+        world.GetRef<Team>(entities[2], teamId) = new Team { Id = 2, DefaultHealth = 300 };
         return entities;
     }
 

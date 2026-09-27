@@ -6,7 +6,7 @@ namespace Delta.ECS.Generators;
 
 /// <summary>
 /// Generates generic structural-operation façades only for the
-/// Add/Remove/Set/Create shapes used by a consumer assembly.
+/// Add/Remove/Create shapes used by a consumer assembly.
 /// </summary>
 [Generator]
 public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
@@ -45,7 +45,7 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         }
 
         string name = member.Name.Identifier.ValueText;
-        if (name is not ("Add" or "Remove" or "Set" or "Create")
+        if (name is not ("Add" or "Remove" or "Create")
             || !ApiDescriptor.TryGet(name, out ApiDescriptor descriptor)
             || descriptor.Family != GeneratedApiKind.Structural
             || !GeneratorSupport.IsNamedType(model.GetTypeInfo(member.Expression).Type, "World"))
@@ -64,8 +64,7 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
                 out shape);
         }
 
-        if (name is "Add" or "Set"
-            && TryReadValueShape(model, invocation, descriptor, name == "Add", out shape))
+        if (name == "Add" && TryReadValueShape(model, invocation, descriptor, out shape))
         {
             return true;
         }
@@ -76,8 +75,7 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         }
 
         int arity = genericName.TypeArgumentList.Arguments.Count;
-        return name != "Set"
-            && TryReadMutationShape(model, invocation, name, descriptor, arity, out shape);
+        return TryReadMutationShape(model, invocation, name, descriptor, arity, out shape);
     }
 
     private static bool TryReadMutationShape(
@@ -117,7 +115,6 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         SemanticModel model,
         InvocationExpressionSyntax invocation,
         ApiDescriptor descriptor,
-        bool isAdd,
         out StructuralModel? shape)
     {
         shape = null;
@@ -132,7 +129,6 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
                 out bool hasValues,
                 out _)
             || cursorResult.Target is not (TargetKind.Entity or TargetKind.EntityList)
-            || (!isAdd && cursorResult.Target != TargetKind.Entity)
             || !hasValues
             || arity < 2
             || (cursorResult.ComponentIdCount != 0 && cursorResult.ComponentIdCount != arity))
@@ -150,7 +146,7 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         }
 
         shape = new StructuralModel(
-            isAdd ? StructuralOperation.Add : StructuralOperation.Set,
+            StructuralOperation.Add,
             cursorResult.Target,
             arity: arity,
             registrationBinding: cursorResult.ComponentIdCount == 0
@@ -259,8 +255,7 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         => name switch
         {
             "Add" => StructuralOperation.Add,
-            "Remove" => StructuralOperation.Remove,
-            _ => StructuralOperation.Set
+            _ => StructuralOperation.Remove
         };
 
 }

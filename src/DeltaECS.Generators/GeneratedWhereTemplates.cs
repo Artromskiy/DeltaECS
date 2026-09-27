@@ -514,7 +514,7 @@ internal static class GeneratedWhereTemplates
             "Delta.ECS",
             ImmutableArray<string>.Empty,
             ImmutableArray.Create(GeneratorTemplates.ValueInitializer(
-                WhereValueInitializerName(terminal.Arity), terminal.Api.Signature, "T", "Set", "internal"))));
+                WhereValueInitializerName(terminal.Arity), terminal.Api.Signature, "T", "InitializeAdded", "internal"))));
 
     private static string RenderPredicateDelegate(PredicateModel shape, string hash)
     {

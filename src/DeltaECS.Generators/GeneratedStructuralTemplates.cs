@@ -31,12 +31,12 @@ internal static class GeneratedStructuralTemplates
             method,
             shape.HasValues
                 ? GeneratorTemplates.ValueInitializer(
-                    $"Generated{(shape.Operation == StructuralOperation.Create ? "Create" : shape.Operation == StructuralOperation.Add ? "Add" : "Set")}Values",
+                    $"Generated{(shape.Operation == StructuralOperation.Create ? "Create" : "Add")}Values",
                     slots,
                     "T",
                     shape.Operation == StructuralOperation.Create
-                        ? "SetCreated"
-                        : shape.Operation == StructuralOperation.Add ? "Set" : "SetUnsafe")
+                        ? "InitializeCreated"
+                        : "InitializeAdded")
                 : string.Empty
         }, "\n\n");
 
@@ -117,8 +117,7 @@ internal static class GeneratedStructuralTemplates
         string operation = shape.Operation switch
         {
             StructuralOperation.Create => "Create",
-            StructuralOperation.Add => "Add",
-            _ => "Set"
+            _ => "Add"
         };
         string initializerName = $$"""Generated{{operation}}Values{{slots.GenericParameters()}}""";
         string initializerArguments = GeneratorTemplates.JoinIndexed(
@@ -135,8 +134,7 @@ internal static class GeneratedStructuralTemplates
         {
             StructuralOperation.Create => $$"""return GeneratedForEachRuntime.ExecuteGeneratedCreate(target, components, ref initializer);""",
             StructuralOperation.Add when shape.Api.Target == TargetKind.EntityList => $$"""return GeneratedForEachRuntime.ExecuteGeneratedAdd(target, entities, components, ref initializer);""",
-            StructuralOperation.Add => $$"""return GeneratedForEachRuntime.ExecuteGeneratedAdd(target, entity, components, ref initializer);""",
-            _ => $$"""return GeneratedForEachRuntime.ExecuteGeneratedSet(target, entity, components, ref initializer);"""
+            _ => $$"""return GeneratedForEachRuntime.ExecuteGeneratedAdd(target, entity, components, ref initializer);"""
         };
         return GeneratorTemplates.JoinNonEmpty(new[]
         {
@@ -199,10 +197,9 @@ internal static class GeneratedStructuralTemplates
         => shape.Operation switch
         {
             StructuralOperation.Create => "Create",
-            StructuralOperation.Set => "Set",
             StructuralOperation.Add => "Add",
             StructuralOperation.Remove => "Remove",
-            _ => "Set"
+            _ => "Create"
         };
 
     private static string ReturnType(StructuralModel shape)

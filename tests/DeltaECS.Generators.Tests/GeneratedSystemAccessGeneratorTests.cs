@@ -30,7 +30,6 @@ public sealed class GeneratedSystemAccessGeneratorTests
                     public bool Has<T>(Entity entity) => true;
                     public bool Add<T>(Entity entity, in T value) => true;
                     public bool Remove<T>(Entity entity) => true;
-                    public bool Set<T>(Entity entity, in T value) => true;
                     public int Create<T>(int count) => count;
                     public void Destroy(Entity entity) { }
                 }
@@ -82,7 +81,6 @@ public sealed class GeneratedSystemAccessGeneratorTests
                         Position value = default;
                         _ = World.Add(default, in value);
                         _ = World.Remove<Velocity>(default);
-                        _ = World.Set(default, in value);
                         _ = World.Create<Position>(1);
                         World.Destroy(default);
                     }

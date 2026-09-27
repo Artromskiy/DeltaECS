@@ -23,7 +23,7 @@ internal sealed class StructuralAlgorithmTests
         world.Create(new[] { valueId }, entities);
         for (var i = 0; i < entities.Length; i++)
         {
-            world.Set(entities[i], valueId, new DestroyValue { Value = 100_000 + i });
+            world.GetRef<DestroyValue>(entities[i], valueId) = new DestroyValue { Value = 100_000 + i };
         }
 
         var stale = entities[3];
@@ -152,9 +152,9 @@ internal sealed class StructuralAlgorithmTests
                 HasVelocity = true,
                 HasHealth = true
             };
-            world.Set(entity, positionId, state.Position);
-            world.Set(entity, velocityId, state.Velocity);
-            world.Set(entity, healthId, state.Health);
+            world.GetRef<TransitionPosition>(entity, positionId) = state.Position;
+            world.GetRef<TransitionVelocity>(entity, velocityId) = state.Velocity;
+            world.GetRef<TransitionHealth>(entity, healthId) = state.Health;
             model.Add(entity, state);
             entities.Add(entity);
         }
@@ -180,7 +180,7 @@ internal sealed class StructuralAlgorithmTests
                     HasVelocity = false,
                     HasHealth = false
                 };
-                world.Set(entity, positionId, state.Position);
+                world.GetRef<TransitionPosition>(entity, positionId) = state.Position;
                 entities.Add(entity);
                 model.Add(entity, state);
             }

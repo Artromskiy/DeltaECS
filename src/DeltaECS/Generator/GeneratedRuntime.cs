@@ -302,7 +302,7 @@ public ref struct GeneratedComponentValueWriter
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Set<T>(ComponentId componentId, in T value)
+    public void InitializeAdded<T>(ComponentId componentId, in T value)
     {
         int componentIndex = _targetArchetype.Mask.Rank(componentId);
         for (int index = 0; index < _addedTargetRows.Length; index++)
@@ -322,21 +322,12 @@ public ref struct GeneratedComponentValueWriter
 
     /// <summary>Initializes a row created together with its archetype.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void SetCreated<T>(ComponentId componentId, in T value)
+    public void InitializeCreated<T>(ComponentId componentId, in T value)
     {
         int componentIndex = _targetArchetype.Mask.Rank(componentId);
         _targetChunk.GetComponentRef<T>(componentIndex, _targetSlotIndex) = value;
     }
 
-    /// <summary>Writes a component after the generated runtime validated its archetype.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void SetUnsafe<T>(ComponentId componentId, in T value)
-    {
-        int componentIndex = _targetArchetype.Mask.Rank(componentId);
-        _targetChunk.GetComponentRef<T>(componentIndex, _targetSlotIndex) = value;
-        Stamp stamp = _targetChunk.IncrementComponentStamp(componentIndex, _targetSlotIndex);
-        _targetChunk.MarkComponentStamped(componentIndex, _targetSlotIndex, stamp);
-    }
 }
 
 /// <summary>Trusted compiler-support execution state for generated write queries.</summary>
@@ -664,20 +655,6 @@ public static partial class GeneratedForEachRuntime
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
         return world.CreateGeneratedComponentValues(componentIds, ref initializer);
-    }
-
-    /// <summary>Executes a generated multi-component Set after one archetype validation.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool ExecuteGeneratedSet<TInitializer>(
-        World world,
-        Entity entity,
-        ReadOnlySpan<ComponentId> componentIds,
-        ref TInitializer initializer)
-        where TInitializer : struct, IGeneratedComponentValueInitializer
-    {
-        ThrowHelper.ThrowIfNull(world, nameof(world));
-        return world.SetGeneratedComponentValues(entity, componentIds, ref initializer);
     }
 
     /// <summary>Validates a generated callback without requiring a modern BCL.</summary>

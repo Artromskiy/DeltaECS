@@ -35,10 +35,10 @@ public class ParallelMovement4IterationBenchmarks
         _world.Create(_componentIds, _entities);
         for (int index = 0; index < Amount; index++)
         {
-            _world.Set(_entities[index], _componentIds[0], new Movement4A { Value = 1 });
-            _world.Set(_entities[index], _componentIds[1], new Movement4B { Value = 2 });
-            _world.Set(_entities[index], _componentIds[2], new Movement4C { Value = 3 });
-            _world.Set(_entities[index], _componentIds[3], new Movement4D { Value = 4 });
+            _world.GetRef<Movement4A>(_entities[index], _componentIds[0]) = new Movement4A { Value = 1 };
+            _world.GetRef<Movement4B>(_entities[index], _componentIds[1]) = new Movement4B { Value = 2 };
+            _world.GetRef<Movement4C>(_entities[index], _componentIds[2]) = new Movement4C { Value = 3 };
+            _world.GetRef<Movement4D>(_entities[index], _componentIds[3]) = new Movement4D { Value = 4 };
         }
 
         _query = _world.CreateQuery(QuerySpec.WhereAll(_componentIds));

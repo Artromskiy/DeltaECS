@@ -40,10 +40,10 @@ public class TagFilteringBenchmarks
         for (int index = 0; index < Amount; index++)
         {
             int value = index + 1;
-            _tagWorld.Set(tagEntities[index], tagValueId, new TagFilteringValueComponent { Value = value });
-            _componentWorld.Set(componentEntities[index], componentValueId, new TagFilteringValueComponent { Value = value });
+            _tagWorld.GetRef<TagFilteringValueComponent>(tagEntities[index], tagValueId) = new TagFilteringValueComponent { Value = value };
+            _componentWorld.GetRef<TagFilteringValueComponent>(componentEntities[index], componentValueId) = new TagFilteringValueComponent { Value = value };
             _tagWorld.Add<TagFilteringMarkerTag>(tagEntities[index]);
-            _componentWorld.Set(componentEntities[index], componentMarkerId, new TagFilteringMarkerComponent { Value = value });
+            _componentWorld.GetRef<TagFilteringMarkerComponent>(componentEntities[index], componentMarkerId) = new TagFilteringMarkerComponent { Value = value };
         }
 
         _tagQuery = _tagWorld.WhereAll<TagFilteringValueComponent>().WhereAll<TagFilteringMarkerTag>();

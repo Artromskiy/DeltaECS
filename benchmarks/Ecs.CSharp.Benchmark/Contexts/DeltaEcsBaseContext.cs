@@ -151,7 +151,8 @@ namespace Ecs.CSharp.Benchmark.Contexts
             for (int i = 0; i < entities.Length; i++)
             {
                 DeltaEntity entity = entities[i];
-                World.Set(entity, component, new DeltaComponent1 { Value = 1 });
+                World.GetRef<DeltaComponentId>(entity) = component;
+                World.GetRef<DeltaComponent1>(entity) = new DeltaComponent1 { Value = 1 };
             }
 
             Query = World.CreateQuery(DeltaQuerySpec.WhereAll(component));
@@ -189,8 +190,8 @@ namespace Ecs.CSharp.Benchmark.Contexts
             for (int i = 0; i < entities.Length; i++)
             {
                 DeltaEntity entity = entities[i];
-                World.Set(entity, First, new DeltaComponent1 { Value = 1 });
-                World.Set(entity, Second, new DeltaComponent2 { Value = 2 });
+                World.GetRef<DeltaComponent1>(entity, First) = new DeltaComponent1 { Value = 1 };
+                World.GetRef<DeltaComponent2>(entity, Second) = new DeltaComponent2 { Value = 2 };
             }
 
             Query = World.CreateQuery(DeltaQuerySpec.WhereAll(First, Second));
@@ -231,9 +232,9 @@ namespace Ecs.CSharp.Benchmark.Contexts
             for (int i = 0; i < entities.Length; i++)
             {
                 DeltaEntity entity = entities[i];
-                World.Set(entity, First, new DeltaComponent1 { Value = 1 });
-                World.Set(entity, Second, new DeltaComponent2 { Value = 2 });
-                World.Set(entity, Third, new DeltaComponent3 { Value = 3 });
+                World.GetRef<DeltaComponent1>(entity, First) = new DeltaComponent1 { Value = 1 };
+                World.GetRef<DeltaComponent2>(entity, Second) = new DeltaComponent2 { Value = 2 };
+                World.GetRef<DeltaComponent3>(entity, Third) = new DeltaComponent3 { Value = 3 };
             }
 
             Query = World.CreateQuery(DeltaQuerySpec.WhereAll(First, Second, Third));
@@ -283,8 +284,8 @@ namespace Ecs.CSharp.Benchmark.Contexts
             for (int index = 0; index < entities.Length; index++)
             {
                 DeltaEntity entity = entities[index];
-                World.Set(entity, First, new DeltaComponent1 { Value = 1 });
-                World.Set(entity, Second, new DeltaComponent2 { Value = 2 });
+                World.GetRef<DeltaComponent1>(entity, First) = new DeltaComponent1 { Value = 1 };
+                World.GetRef<DeltaComponent2>(entity, Second) = new DeltaComponent2 { Value = 2 };
             }
         }
 

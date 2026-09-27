@@ -43,7 +43,7 @@ public class WhereApiMicroBenchmarkImplementation
 
         for (int index = 0; index < _entities.Length; index++)
         {
-            _world.Set(_entities[index], _valueId, new WhereApiValue { Value = (index & 1) == 0 ? -1 : 1 });
+            _world.GetRef<WhereApiValue>(_entities[index], _valueId) = new WhereApiValue { Value = (index & 1) == 0 ? -1 : 1 };
         }
 
         QuerySpec description = QuerySpec.WhereAll(_valueId, accumulatorId);

@@ -10,8 +10,8 @@ world.Create(stackalloc[] { positionId, velocityId }, entities);
 
 for (var i = 0; i < entities.Length; i++)
 {
-    world.Set(entities[i], positionId, new Position { X = i });
-    world.Set(entities[i], velocityId, new Velocity { X = 1, Y = 0.5f });
+    world.GetRef<Position>(entities[i], positionId) = new Position { X = i };
+    world.GetRef<Velocity>(entities[i], velocityId) = new Velocity { X = 1, Y = 0.5f };
 }
 
 var spec = QuerySpec.WhereAll(positionId, velocityId);

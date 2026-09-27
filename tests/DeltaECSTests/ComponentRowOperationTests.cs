@@ -17,9 +17,9 @@ internal sealed class ComponentRowOperationTests
         var removed = world.Create(stackalloc[] { valueId, managedStructId, classId });
         var survivor = world.Create(stackalloc[] { valueId, managedStructId, classId });
         var reference = new ReferencePayload("survivor");
-        world.Set(survivor, valueId, 42);
-        world.Set(survivor, managedStructId, new ManagedPayload("managed"));
-        world.Set(survivor, classId, reference);
+        world.GetRef<int>(survivor, valueId) = 42;
+        world.GetRef<ManagedPayload>(survivor, managedStructId) = new ManagedPayload("managed");
+        world.GetRef<ReferencePayload>(survivor, classId) = reference;
 
         Assert.That(world.Destroy(removed), Is.True);
         Assert.That(world.TryGet(survivor, valueId, out int value), Is.True);
@@ -42,9 +42,9 @@ internal sealed class ComponentRowOperationTests
         var classId = layouts.Register<ReferencePayload>(new SchemaId(10_013));
         using var world = new World(layouts);
         var old = world.Create(stackalloc[] { valueId, managedStructId, classId });
-        world.Set(old, valueId, 99);
-        world.Set(old, managedStructId, new ManagedPayload("old"));
-        world.Set(old, classId, new ReferencePayload("old"));
+        world.GetRef<int>(old, valueId) = 99;
+        world.GetRef<ManagedPayload>(old, managedStructId) = new ManagedPayload("old");
+        world.GetRef<ReferencePayload>(old, classId) = new ReferencePayload("old");
         world.Destroy(old);
 
         var current = world.Create(stackalloc[] { valueId, managedStructId, classId });
@@ -69,12 +69,12 @@ internal sealed class ComponentRowOperationTests
         using var world = new World(layouts);
 
         var oldTarget = world.Create(stackalloc[] { sharedId, addedValueId, addedReferenceId });
-        world.Set(oldTarget, addedValueId, 123);
-        world.Set(oldTarget, addedReferenceId, new ReferencePayload("old"));
+        world.GetRef<int>(oldTarget, addedValueId) = 123;
+        world.GetRef<ReferencePayload>(oldTarget, addedReferenceId) = new ReferencePayload("old");
         world.Destroy(oldTarget);
 
         var source = world.Create(stackalloc[] { sharedId });
-        world.Set(source, sharedId, 77);
+        world.GetRef<int>(source, sharedId) = 77;
         world.Add(source, new[] { addedValueId, addedReferenceId });
 
         world.TryGet(source, sharedId, out int shared);
@@ -98,9 +98,9 @@ internal sealed class ComponentRowOperationTests
         var removed = world.Create(stackalloc[] { valueId, referenceId });
         var survivor = world.Create(stackalloc[] { valueId, referenceId });
         var survivorReference = new ReferencePayload("survivor");
-        world.Set(removed, valueId, 11);
-        world.Set(survivor, valueId, 22);
-        world.Set(survivor, referenceId, survivorReference);
+        world.GetRef<int>(removed, valueId) = 11;
+        world.GetRef<int>(survivor, valueId) = 22;
+        world.GetRef<ReferencePayload>(survivor, referenceId) = survivorReference;
 
         Assert.That(world.Destroy(removed), Is.True);
         var archetype = world.Archetypes[0];
@@ -123,7 +123,7 @@ internal sealed class ComponentRowOperationTests
         using var world = new World(layouts);
         var first = world.Create(new[] { id });
         var second = world.Create(new[] { id });
-        world.Set(second, id, 42);
+        world.GetRef<int>(second, id) = 42;
 
         Assert.That(world.Destroy(first), Is.True);
         Assert.That(world.TryGet(second, id, out int value), Is.True);
