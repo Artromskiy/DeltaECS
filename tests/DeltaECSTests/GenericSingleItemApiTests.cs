@@ -320,6 +320,115 @@ internal sealed class GenericSingleItemApiTests
     }
 
     [Test]
+    public void GeneratedCreateInitializesMultipleExplicitRegistrations()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId healthId = layouts.Register<float>(new SchemaId(60_024));
+        ComponentId staminaId = layouts.Register<float>(new SchemaId(60_025));
+        using var world = new World(layouts);
+
+        Entity entity = world.Create<float, float>(healthId, staminaId, 100, 75);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(world.Get<float>(entity, healthId), Is.EqualTo(100f));
+            Assert.That(world.Get<float>(entity, staminaId), Is.EqualTo(75f));
+            Assert.That(world.TryGetComponentStamp(entity, healthId, out Stamp healthStamp), Is.True);
+            Assert.That(world.TryGetComponentStamp(entity, staminaId, out Stamp staminaStamp), Is.True);
+            Assert.That(healthStamp, Is.EqualTo(new Stamp(1)));
+            Assert.That(staminaStamp, Is.EqualTo(new Stamp(1)));
+        });
+    }
+
+    [Test]
+    public void GeneratedBatchAddInitializesMultipleExplicitRegistrationsInOneTransition()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_026));
+        ComponentId healthId = layouts.Register<float>(new SchemaId(60_027));
+        ComponentId staminaId = layouts.Register<float>(new SchemaId(60_028));
+        using var world = new World(layouts);
+        Entity[] entities = new Entity[4];
+        world.Create(stackalloc[] { positionId }, entities.Length, entities);
+        Entity stale = entities[1];
+        Assert.That(world.Destroy(stale), Is.True);
+
+        int changed = world.Add<float, float>(entities, staminaId, healthId, 75, 100);
+
+        Assert.That(changed, Is.EqualTo(3));
+        foreach (Entity entity in entities)
+        {
+            if (entity == stale)
+            {
+                Assert.That(world.IsAlive(entity), Is.False);
+                continue;
+            }
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(world.Get<float>(entity, staminaId), Is.EqualTo(75f));
+                Assert.That(world.Get<float>(entity, healthId), Is.EqualTo(100f));
+                Assert.That(world.TryGetComponentStamp(entity, staminaId, out Stamp staminaStamp), Is.True);
+                Assert.That(world.TryGetComponentStamp(entity, healthId, out Stamp healthStamp), Is.True);
+                Assert.That(staminaStamp, Is.EqualTo(new Stamp(1)));
+                Assert.That(healthStamp, Is.EqualTo(new Stamp(1)));
+            });
+        }
+
+        Assert.That(world.Add<float, float>(entities, staminaId, healthId, 1, 2), Is.Zero);
+        Assert.That(world.Get<float>(entities[0], staminaId), Is.EqualTo(75f));
+        Assert.That(world.Get<float>(entities[0], healthId), Is.EqualTo(100f));
+    }
+
+    [Test]
+    public void GeneratedBatchAddUsesPrimaryRegistrationsAndPreservesExistingValues()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        layouts.Register<Position>(new SchemaId(60_031));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_032));
+        using var world = new World(layouts);
+        Entity[] entities = new Entity[3];
+        world.Create<Position>(entities.Length, entities);
+        var position = new Position { X = 7, Y = 9 };
+        var velocity = new Velocity { X = 3, Y = 4 };
+        foreach (Entity entity in entities)
+        {
+            world.Set(entity, in position);
+        }
+
+        Assert.That(world.Add<Position, Velocity>(entities, position, velocity), Is.EqualTo(entities.Length));
+        Assert.Multiple(() =>
+        {
+            Assert.That(world.Get<Position>(entities[0]), Is.EqualTo(position));
+            Assert.That(world.Get<Velocity>(entities[0], velocityId), Is.EqualTo(velocity));
+        });
+    }
+
+    [Test]
+    public void GeneratedValueOperationsValidateEveryExplicitRegistrationBeforeMutation()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId healthId = layouts.Register<float>(new SchemaId(60_029));
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_030));
+        using var world = new World(layouts);
+        Entity[] entities = new Entity[2];
+        world.Create(stackalloc[] { positionId }, entities.Length, entities);
+        var initialPosition = new Position { X = 7, Y = 9 };
+        world.Set(entities[0], in initialPosition);
+
+        Assert.Throws<ArgumentException>(() => world.Add<float, float>(entities, healthId, positionId, 100, 50));
+        Assert.Throws<ArgumentException>(() => world.Create<float, float>(healthId, positionId, 100, 50));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(world.AliveEntityCount, Is.EqualTo(entities.Length));
+            Assert.That(world.Has<float>(entities[0], healthId), Is.False);
+            Assert.That(world.Get<Position>(entities[0], positionId), Is.EqualTo(initialPosition));
+            Assert.That(world.Has<float>(entities[1], healthId), Is.False);
+        });
+    }
+
+    [Test]
     public void BatchCreateSupportsOwnedAndCallerOwnedEntityStorage()
     {
         var layouts = new ComponentLayoutRegistry();

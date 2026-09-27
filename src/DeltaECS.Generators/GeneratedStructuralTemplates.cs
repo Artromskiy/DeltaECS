@@ -31,10 +31,12 @@ internal static class GeneratedStructuralTemplates
             method,
             shape.HasValues
                 ? GeneratorTemplates.ValueInitializer(
-                    $"Generated{(shape.Operation == StructuralOperation.Add ? "Add" : "Set")}Values",
+                    $"Generated{(shape.Operation == StructuralOperation.Create ? "Create" : shape.Operation == StructuralOperation.Add ? "Add" : "Set")}Values",
                     slots,
                     "T",
-                    shape.Operation == StructuralOperation.Add ? "Set" : "SetUnsafe")
+                    shape.Operation == StructuralOperation.Create
+                        ? "SetCreated"
+                        : shape.Operation == StructuralOperation.Add ? "Set" : "SetUnsafe")
                 : string.Empty
         }, "\n\n");
 
@@ -69,15 +71,16 @@ internal static class GeneratedStructuralTemplates
                 "global::System.ReadOnlySpan<Entity> entities",
                 slots.HasExplicitIds
                     ? slots.ComponentIdParameters()
-                    : string.Empty
+                    : string.Empty,
+                shape.HasValues ? slots.ValueParameters() : string.Empty
             },
                 TargetKind.Entity => new[]
                 {
                 "Entity entity",
-                shape.HasValues ? slots.ValueParameters() : string.Empty,
                 slots.HasExplicitIds
                     ? slots.ComponentIdParameters()
-                    : string.Empty
+                    : string.Empty,
+                shape.HasValues ? slots.ValueParameters() : string.Empty
             },
                 TargetKind.Query => new[]
                 {
@@ -97,7 +100,7 @@ internal static class GeneratedStructuralTemplates
             slots.HasExplicitIds
                 ? slots.ComponentIdParameters()
                 : string.Empty,
-            "int count",
+            shape.HasValues ? slots.ValueParameters() : "int count",
             shape.HasOutput ? "global::System.Span<Entity> output" : string.Empty
         }, ", ");
     }
@@ -111,27 +114,40 @@ internal static class GeneratedStructuralTemplates
 
     private static string RenderValueBody(StructuralModel shape, SignatureProjection slots)
     {
-        string operation = shape.Operation == StructuralOperation.Add ? "Add" : "Set";
+        string operation = shape.Operation switch
+        {
+            StructuralOperation.Create => "Create",
+            StructuralOperation.Add => "Add",
+            _ => "Set"
+        };
         string initializerName = $$"""Generated{{operation}}Values{{slots.GenericParameters()}}""";
         string initializerArguments = GeneratorTemplates.JoinIndexed(
             slots.Arity,
             index => $$"""components[{{index}}], in value{{index}}""",
             ",\n");
+        string validateTypes = slots.HasExplicitIds
+            ? GeneratorTemplates.JoinIndexed(
+                slots.Arity,
+                index => $$"""GeneratedForEachRuntime.ValidateComponentType<{{slots.GenericType(index)}}>(target, component{{index}});""",
+                "\n")
+            : string.Empty;
+        string execute = shape.Operation switch
+        {
+            StructuralOperation.Create => $$"""return GeneratedForEachRuntime.ExecuteGeneratedCreate(target, components, ref initializer);""",
+            StructuralOperation.Add when shape.Api.Target == TargetKind.EntityList => $$"""return GeneratedForEachRuntime.ExecuteGeneratedAdd(target, entities, components, ref initializer);""",
+            StructuralOperation.Add => $$"""return GeneratedForEachRuntime.ExecuteGeneratedAdd(target, entity, components, ref initializer);""",
+            _ => $$"""return GeneratedForEachRuntime.ExecuteGeneratedSet(target, entity, components, ref initializer);"""
+        };
         return GeneratorTemplates.JoinNonEmpty(new[]
         {
+            validateTypes,
             RenderComponents(shape, slots),
             $$"""
                 var initializer = new {{initializerName}}(
                 {{initializerArguments}}
                 );
                 """,
-            $$"""
-                return GeneratedForEachRuntime.ExecuteGenerated{{operation}}(
-                    target,
-                    entity,
-                    components,
-                    ref initializer);
-                """
+            execute
         });
     }
 
@@ -190,7 +206,9 @@ internal static class GeneratedStructuralTemplates
         };
 
     private static string ReturnType(StructuralModel shape)
-        => shape.Api.Target == TargetKind.Entity ? "bool" : "int";
+        => shape.Operation == StructuralOperation.Create && shape.HasValues
+            ? "Entity"
+            : shape.Api.Target == TargetKind.Entity ? "bool" : "int";
 
 
 }

@@ -320,6 +320,14 @@ public ref struct GeneratedComponentValueWriter
         }
     }
 
+    /// <summary>Initializes a row created together with its archetype.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void SetCreated<T>(ComponentId componentId, in T value)
+    {
+        int componentIndex = _targetArchetype.Mask.Rank(componentId);
+        _targetChunk.GetComponentRef<T>(componentIndex, _targetSlotIndex) = value;
+    }
+
     /// <summary>Writes a component after the generated runtime validated its archetype.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void SetUnsafe<T>(ComponentId componentId, in T value)
@@ -620,6 +628,42 @@ public static partial class GeneratedForEachRuntime
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
         return world.AddGeneratedComponentValues(entity, componentIds, ref initializer);
+    }
+
+    /// <summary>Executes one generated multi-component value add for an entity batch.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int ExecuteGeneratedAdd<TInitializer>(
+        World world,
+        ReadOnlySpan<Entity> entities,
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
+    {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        return world.AddGeneratedComponentValues(entities, componentIds, ref initializer);
+    }
+
+    /// <summary>Validates that a registration uses the generated component type.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ValidateComponentType<T>(World world, ComponentId componentId)
+    {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        world.ValidateGeneratedComponentType<T>(componentId);
+    }
+
+    /// <summary>Creates one entity and initializes its generated component values.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Entity ExecuteGeneratedCreate<TInitializer>(
+        World world,
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
+    {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        return world.CreateGeneratedComponentValues(componentIds, ref initializer);
     }
 
     /// <summary>Executes a generated multi-component Set after one archetype validation.</summary>

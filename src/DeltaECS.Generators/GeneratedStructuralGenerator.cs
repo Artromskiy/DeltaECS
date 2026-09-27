@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Delta.ECS.Generators;
@@ -130,10 +131,11 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
                 out int arity,
                 out bool hasValues,
                 out _)
-            || cursorResult.Target != TargetKind.Entity
+            || cursorResult.Target is not (TargetKind.Entity or TargetKind.EntityList)
+            || (!isAdd && cursorResult.Target != TargetKind.Entity)
             || !hasValues
             || arity < 2
-            || cursorResult.ComponentIdCount != 0)
+            || (cursorResult.ComponentIdCount != 0 && cursorResult.ComponentIdCount != arity))
         {
             return false;
         }
@@ -149,8 +151,11 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
 
         shape = new StructuralModel(
             isAdd ? StructuralOperation.Add : StructuralOperation.Set,
-            TargetKind.Entity,
+            cursorResult.Target,
             arity: arity,
+            registrationBinding: cursorResult.ComponentIdCount == 0
+                ? RegistrationBindingKind.Primary
+                : RegistrationBindingKind.Explicit,
             hasValues: true,
             namespaceName: GeneratorSupport.ContainingNamespace(model, invocation));
         return true;
@@ -165,8 +170,18 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         shape = null;
         bool isGeneric = genericArity > 0;
         SeparatedSyntaxList<ArgumentSyntax> arguments = invocation.ArgumentList.Arguments;
-        if (!ApiDescriptor.TryGet("Create", out ApiDescriptor descriptor)
-            || !new InvocationCursor(model, arguments, descriptor).TryRead(-1, out InvocationCursorResult cursorResult))
+        if (!ApiDescriptor.TryGet("Create", out ApiDescriptor descriptor))
+        {
+            return false;
+        }
+
+        if (isGeneric
+            && TryReadCreateValueShape(model, invocation, descriptor, genericArity, out shape))
+        {
+            return true;
+        }
+
+        if (!new InvocationCursor(model, arguments, descriptor).TryRead(-1, out InvocationCursorResult cursorResult))
         {
             return false;
         }
@@ -189,6 +204,48 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
                 ? RegistrationBindingKind.Explicit
                 : RegistrationBindingKind.Primary,
             hasOutput: cursorResult.HasOutput,
+            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation));
+        return true;
+    }
+
+    private static bool TryReadCreateValueShape(
+        SemanticModel model,
+        InvocationExpressionSyntax invocation,
+        ApiDescriptor descriptor,
+        int genericArity,
+        out StructuralModel? shape)
+    {
+        shape = null;
+        if (!new InvocationCursor(model, invocation.ArgumentList.Arguments, descriptor.WithTail(InvocationTailRule.Values))
+                .TryRead(-1, out InvocationCursorResult cursorResult)
+            || cursorResult.ComponentIdCount != genericArity
+            || cursorResult.TailCount != genericArity
+            || genericArity < 2)
+        {
+            return false;
+        }
+
+        GenericNameSyntax genericName = (GenericNameSyntax)((MemberAccessExpressionSyntax)invocation.Expression).Name;
+        for (int index = 0; index < cursorResult.TailCount; index++)
+        {
+            ITypeSymbol? valueType = model.GetTypeInfo(
+                invocation.ArgumentList.Arguments[cursorResult.TailStart + index].Expression).Type;
+            ITypeSymbol? componentType = model.GetTypeInfo(genericName.TypeArgumentList.Arguments[index]).Type;
+            if (valueType is null
+                || componentType is null
+                || GeneratorSupport.IsComponentId(valueType)
+                || !((CSharpCompilation)model.Compilation).ClassifyConversion(valueType, componentType).IsImplicit)
+            {
+                return false;
+            }
+        }
+
+        shape = new StructuralModel(
+            StructuralOperation.Create,
+            TargetKind.World,
+            genericArity,
+            registrationBinding: RegistrationBindingKind.Explicit,
+            hasValues: true,
             namespaceName: GeneratorSupport.ContainingNamespace(model, invocation));
         return true;
     }

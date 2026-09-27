@@ -430,6 +430,125 @@ public sealed partial class World
         return true;
     }
 
+    internal int AddGeneratedComponentValues<TInitializer>(
+        ReadOnlySpan<Entity> entities,
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
+    {
+        EnsureNoActiveLease("add components");
+        if (componentIds.Length == 0)
+        {
+            ThrowHelper.ThrowInvalidComponentList();
+        }
+
+        EnsureNoTagValues(componentIds);
+        if (entities.IsEmpty)
+        {
+            return 0;
+        }
+
+        ComponentSet changeSet = GetOrCreateComponentSet(componentIds);
+        int edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
+        int changed = 0;
+        Chunk? pendingChunk = null;
+        Archetype? pendingArchetype = null;
+        int[]? pendingAddedRows = null;
+        int pendingSlot = 0;
+        int pendingCount = 0;
+
+        for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
+        {
+            Entity entity = entities.RefAt(entityIndex);
+            if (!TryResolve(entity, out int recordIndex, out Chunk sourceChunk, out _))
+            {
+                continue;
+            }
+
+            Archetype sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
+            TransitionEdge edge = edgeStamp == 0
+                ? GetTransitionEdge(sourceArchetype.Id, changeSet, true)
+                : GetBatchTransitionEdge(sourceArchetype.Id, changeSet, true, edgeStamp);
+            if (edge.IsNoOp)
+            {
+                continue;
+            }
+
+            MoveEntity(recordIndex, edge, out Chunk targetChunk, out int targetSlot);
+            Archetype targetArchetype = _archetypes[targetChunk.ArchetypeId];
+            if (ReferenceEquals(pendingChunk, targetChunk)
+                && ReferenceEquals(pendingArchetype, targetArchetype)
+                && ReferenceEquals(pendingAddedRows, edge.AddedTargetRowIndices)
+                && targetSlot == pendingSlot + pendingCount)
+            {
+                pendingCount++;
+            }
+            else
+            {
+                InitializeGeneratedComponentRange(
+                    pendingChunk,
+                    pendingArchetype,
+                    pendingAddedRows,
+                    pendingSlot,
+                    pendingCount,
+                    ref initializer);
+                pendingChunk = targetChunk;
+                pendingArchetype = targetArchetype;
+                pendingAddedRows = edge.AddedTargetRowIndices;
+                pendingSlot = targetSlot;
+                pendingCount = 1;
+            }
+
+            changed++;
+        }
+
+        InitializeGeneratedComponentRange(
+            pendingChunk,
+            pendingArchetype,
+            pendingAddedRows,
+            pendingSlot,
+            pendingCount,
+            ref initializer);
+        return changed;
+    }
+
+    internal Entity CreateGeneratedComponentValues<TInitializer>(
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
+    {
+        EnsureNoActiveLease("create entities");
+        EnsureNoTagValues(componentIds);
+        Entity entity = Create(componentIds);
+        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
+        {
+            ThrowHelper.ThrowStructuralCreateFailed();
+        }
+
+        Archetype archetype = _archetypes[chunk.ArchetypeId];
+        var writer = new GeneratedComponentValueWriter(chunk, archetype, slotIndex);
+        initializer.Initialize(ref writer);
+        return entity;
+    }
+
+    private static void InitializeGeneratedComponentRange<TInitializer>(
+        Chunk? chunk,
+        Archetype? archetype,
+        int[]? addedRows,
+        int slotIndex,
+        int count,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
+    {
+        if (chunk is null || archetype is null || addedRows is null || count == 0)
+        {
+            return;
+        }
+
+        var writer = new GeneratedComponentValueWriter(chunk, archetype, slotIndex, addedRows, count);
+        initializer.Initialize(ref writer);
+    }
+
     internal bool SetGeneratedComponentValues<TInitializer>(
         Entity entity,
         ReadOnlySpan<ComponentId> componentIds,
@@ -493,6 +612,9 @@ public sealed partial class World
             ThrowHelper.ThrowGenericComponentTypeMismatch<T>(componentId, layout.RuntimeType!);
         }
     }
+
+    internal void ValidateGeneratedComponentType<T>(ComponentId componentId)
+        => EnsureRegisteredType<T>(componentId);
 
     private void InitializeComponentValue<T>(Entity entity, ComponentId componentId, in T value)
     {

@@ -155,7 +155,7 @@ Typed and non-generic structural operations have matching target shapes:
 ```text
 world.Add<T...>(e | E | Q, I...)
 world.Remove<T...>(e | E | Q, I...)
-world.Add<T...>(e, V...)
+world.Add<T...>(e | E, I..., V...)
 world.Set<T...>(e, V...)
 world.Destroy(e | E | Q)
 
@@ -166,13 +166,17 @@ world.Set(e, V...)
 
 world.Create<T...>(N, O?)
 world.Create<T...>(I..., N, O?)
+world.Create<T...>(I..., V...) -> Entity
 world.Create(I..., N, O?)
 ```
 
 The `I...` forms are positional `ComponentId` arguments. `Add` and `Remove`
 accept them after the target; `Create` places them before `N` and `O`.
-For value forms, generic type arguments may be inferred from `V...`; all
-component values are applied by one generated structural operation.
+For value forms, generic type arguments may be inferred from `V...`. The
+positions of `I...` and `V...` correspond to the component types in `T...`.
+Multi-value `Add` applies the values while performing one combined structural
+transition per eligible entity; `Create` initializes one entity with the
+selected registrations.
 
 `O` is optional caller-owned output storage. Omitting it creates entities
 without retaining handles. Structural terminals are immediate operations and

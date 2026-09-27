@@ -59,6 +59,20 @@ internal readonly struct ApiDescriptor
             Tail,
             MinimumArity);
 
+    internal ApiDescriptor WithTail(InvocationTailRule tail)
+        => new(
+            Family,
+            HasEntity,
+            Value,
+            Schedule,
+            Target,
+            Query,
+            AllowsIds,
+            AllowsContext,
+            RequiresCallback,
+            tail,
+            MinimumArity);
+
     internal static bool TryGet(string name, out ApiDescriptor descriptor)
     {
         bool entity = name is "ForEachEntity" or "ForEachEntityParallel"
