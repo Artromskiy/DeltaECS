@@ -26,18 +26,23 @@ var primaryPosition = layouts.GetPrimary(typeof(Position));
 Atomic and batch operations use the same names through overloads:
 
 ```csharp
-Entity entity = world.Create(positionId, velocityId);
-var destination = new Entity[1_000];
-int created = world.Create(stackalloc[] { positionId, velocityId }, 1_000, destination);
-Entity[] createdBatch = world.Create(stackalloc[] { positionId, velocityId }, 1_000);
-int createdIntoBuffer = world.Create(stackalloc[] { positionId }, 1_000, destination);
+ReadOnlySpan<ComponentId> movementComponents = stackalloc ComponentId[] { positionId, velocityId };
+Entity entity = world.Create(movementComponents);
+
+Span<Entity> destination = stackalloc Entity[1_000];
+int created = world.Create(movementComponents, destination.Length, destination);
+int createdWithoutHandles = world.Create(movementComponents, 1_000);
+
+ReadOnlySpan<ComponentId> positionOnly = stackalloc ComponentId[] { positionId };
+Span<Entity> positionDestination = stackalloc Entity[1_000];
+int createdIntoBuffer = world.Create(positionOnly, positionDestination.Length, positionDestination);
 
 bool destroyed = world.Destroy(entity);
 int destroyedCount = world.Destroy(entities);
 
 bool addedToEntity = world.Add(entity, componentIds);
-bool addedFromSpan = world.Add(entity, stackalloc[] { positionId });
-bool addedFromIds = world.Add(entity, positionId, velocityId);
+bool addedFromSpan = world.Add(entity, stackalloc ComponentId[] { positionId });
+bool addedFromIds = world.Add(entity, positionId, velocityId); // C# 13+
 int added = world.Add(entities, componentIds);
 int queryAdded = world.Add(in query, componentIds);
 ```

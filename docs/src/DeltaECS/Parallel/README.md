@@ -34,9 +34,10 @@ world.ForEachEntityParallel(
     workerCount: 4);
 ```
 
-The no-component parallel overloads describe the generated component-bearing
-forms and throw `InvalidOperationException` when called; use one or more
-component parameters in the callback.
+The zero-component, non-entity parallel overloads throw
+`InvalidOperationException` when the callback receives neither an `Entity` nor
+component parameters. `ForEachEntityParallel` may omit component parameters
+because its callback still receives the current `Entity`.
 
 Read-only state is passed at the call site with `in`; the callback can spell
 its first parameter as `in` or `ref readonly`. The latter uses the same

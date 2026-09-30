@@ -26,9 +26,10 @@ world.ForEachEntity(in query, ref counter);
 The interfaces are markers only: they do not declare `Invoke` and never encode
 component types or access patterns in their names. Concrete extension methods
 are generated in the consumer assembly from the functor's `Invoke` signature.
-The marker overloads throw `InvalidOperationException` when no generated
-component-bearing overload is selected; zero-component functor calls are not
-generated. By-value marker anchors are extension methods
+The marker anchors throw `InvalidOperationException` only when the callback
+receives neither an `Entity` nor component parameters. Entity-aware functors
+such as `IForEachEntity.Invoke(Entity)` are generated without component rows, as
+shown above. By-value marker anchors are extension methods
 (`FunctorAnchors`) so they do not outrank generated concrete overloads for
 calls such as `world.ForEach(in query, new Functor())`. Use the handwritten
 delegate overloads when a runtime delegate callback is required.

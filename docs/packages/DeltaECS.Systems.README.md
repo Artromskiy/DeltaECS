@@ -16,11 +16,26 @@ exclusive phase.
 using Delta.ECS;
 using Delta.ECS.Systems;
 
+using var world = new World();
+world.Layouts.Register<Velocity>(new SchemaId(1));
+world.Layouts.Register<Position>(new SchemaId(2));
+
+Query movementQuery = world.WhereAll<Position, Velocity>();
+Entity mover = world.Create<Position>();
+world.Add(mover, new Velocity());
+
+using var scheduler = new SystemScheduler(world);
+var movement = new MovementSystem(movementQuery) { World = world };
+scheduler.Add(movement);
+scheduler.Tick();
+
 public partial class MovementSystem : ISystem
 {
     private readonly Query _query;
 
     public World World { get; init; } = null!;
+
+    public MovementSystem(Query query) => _query = query;
 
     public void Tick()
     {
@@ -28,14 +43,6 @@ public partial class MovementSystem : ISystem
             static (ref Position p, in Velocity v) => p.X += v.X);
     }
 }
-
-using var world = new World();
-using var scheduler = new SystemScheduler(world);
-world.Layouts.Register<Velocity>(new SchemaId(1));
-world.Layouts.Register<Position>(new SchemaId(2));
-var movement = new MovementSystem { World = world };
-scheduler.Add(movement);
-scheduler.Tick();
 
 public struct Position { public float X; }
 public struct Velocity { public float X; }

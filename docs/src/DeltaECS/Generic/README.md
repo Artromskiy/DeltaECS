@@ -20,9 +20,10 @@ treated as a data-less tag by the same registration method.
 ```csharp
 Entity defaultPosition = world.Create<Position>();
 Entity primaryEntity = world.Create(positionId, new Position());
-var primaryDestination = new Entity[10];
-int primaryCreated = world.Create<Position>(10, primaryDestination);
-Entity[] explicitBatch = world.Create<Position>(positionId, 10);
+Span<Entity> primaryDestination = stackalloc Entity[10];
+int primaryCreated = world.Create<Position>(primaryDestination.Length, primaryDestination);
+Span<Entity> explicitBatch = stackalloc Entity[10];
+int explicitBatchCreated = world.Create<Position>(positionId, explicitBatch.Length, explicitBatch);
 bool primaryAdded = world.Add(primaryEntity, new Velocity());
 int primaryBatchAdded = world.Add<Velocity>(primaryDestination, new Velocity());
 
@@ -40,9 +41,10 @@ world.Remove<Velocity>(primaryEntity);
 int primaryRemoved = world.Remove<Velocity>(primaryDestination);
 
 Entity entity = world.Create(positionId, new Position());
-Entity[] entities = world.Create(stackalloc[] { positionId }, 10);
-var destination = new Entity[10];
-int typedCreated = world.Create<Position>(positionId, 10, destination);
+Span<Entity> entities = stackalloc Entity[10];
+int createdEntities = world.Create(stackalloc ComponentId[] { positionId }, entities.Length, entities);
+Span<Entity> destination = stackalloc Entity[10];
+int typedCreated = world.Create<Position>(positionId, destination.Length, destination);
 world.Add(entity, velocityId, new Velocity());
 int added = world.Add(entities, velocityId, new Velocity());
 

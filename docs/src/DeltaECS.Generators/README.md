@@ -6,14 +6,15 @@ it is build-time input and must not be deployed as a runtime dependency. The
 package README is at
 [docs/packages/DeltaECS.Generators.README.md](../../packages/DeltaECS.Generators.README.md).
 
-The analyzer emits only the callback and generic structural-operation shapes
-requested by a consumer compilation. It does not generate storage, queries,
-archetypes or structural kernels.
+The analyzer emits callback, typed query-factory, and generic structural
+operation shapes requested by a consumer compilation. It does not generate
+query storage or plans, archetypes, or structural kernels.
 
-- Zero-component delegate and parallel overloads throw
-  `InvalidOperationException` when called. Component-bearing delegate and
-  functor overloads are generated from the consumer's demand. Zero-component
-  functor calls are not generated.
+- Non-entity callback forms with no component parameters use zero-arity anchors
+  and throw `InvalidOperationException` when called. Entity-aware forms may
+  omit component parameters in `ForEachEntity` and `ForEachEntityParallel`
+  because their callback still receives `Entity`; those forms are generated on
+  demand for delegate, functor and parallel callback APIs.
 - Component parameters use four access literals in generated callback names:
   `R` for `ref readonly T`, `W` for `ref T`, `I` for `in T`, and `V` for a
   by-value `T` copy. `W` is the only writing mode; the other three use a read

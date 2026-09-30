@@ -26,10 +26,24 @@ Query combatants = world
 ```
 
 Typed `WhereAll`, `WhereNone`, and `WhereAny` are generated for both `World`
-and `Query`. The runtime also provides the same three names for positional
-`ComponentId` values. The first call creates a query; each following call
-composes another `QuerySpec` and returns a new query handle while reusing the
-world's existing query-plan cache.
+and `Query`. The `ComponentId` query factories are runtime overloads that accept
+a `ReadOnlySpan<ComponentId>`; pass a span (or array) as one argument on older
+C# versions. C# 13 and later can also use expanded positional arguments.
+Generated iteration callbacks accept explicit `ComponentId` selectors
+positionally, one ID per component row. The first query call creates a query;
+each following call composes another filter and returns a new query handle while
+reusing the world's existing query-plan cache.
+
+```csharp
+ReadOnlySpan<ComponentId> required = stackalloc ComponentId[] { positionId, velocityId };
+Query bySpan = world.WhereAll(required);
+Query byExpandedParams = world.WhereAll(positionId, velocityId); // C# 13+
+Query byTypes = world.WhereAll<Position, Velocity>();
+
+world.ForEach<Position, Velocity>(in byTypes, positionId, velocityId,
+    static (ref Position position, in Velocity velocity) =>
+        position.X += velocity.X);
+```
 
 The generator targets `netstandard2.0` and is shipped from
 `analyzers/dotnet/cs`. Its target is independent from the target framework of

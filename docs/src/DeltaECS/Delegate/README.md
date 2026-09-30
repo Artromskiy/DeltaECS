@@ -5,9 +5,12 @@ component storage.
 
 ## `ForEach` delegates
 
-The zero-component overloads document the generated forms and throw
-`InvalidOperationException` when called. Add one or more component parameters
-so the analyzer emits the matching overload into the consumer assembly:
+The zero-component, non-entity overloads document the generated forms and throw
+`InvalidOperationException` when called. This applies when the callback receives
+neither an `Entity` nor component parameters. Entity-aware forms may omit
+component parameters because the callback still receives the current `Entity`.
+For component iteration, add one or more component parameters so the analyzer
+emits the matching overload into the consumer assembly:
 
 ```csharp
 world.ForEach<Position, Velocity>(
@@ -23,9 +26,9 @@ also support an `Entity` argument, caller context, explicit component IDs, and
 component-bearing callback shapes. See the generator README for the available
 forms.
 
-The same rule applies to the zero-component context and entity forms. Their
-signatures remain available for source compatibility, but each throws until a
-component-bearing generated overload is selected.
+The same rule applies to non-entity zero-component context forms. Entity-aware
+forms, including context forms, are generated with `Entity` as the callback's
+entity parameter and do not need a component parameter.
 
 With the project-local Roslyn interceptor opt-in enabled, supported static
 lambdas and static method groups keep this delegate-shaped source API but are
