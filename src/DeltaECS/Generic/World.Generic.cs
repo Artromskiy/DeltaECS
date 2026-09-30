@@ -133,7 +133,7 @@ public sealed partial class World
         return RemoveComponentBatch(entities, componentId);
     }
 
-    /// <summary>Reads the primary component for <typeparamref name="T"/> when present.</summary>
+    /// <summary>Reads the primary component or reports tag presence, returning default for a tag.</summary>
     public bool TryGet<T>(Entity entity, out T value)
     {
         EnsureExecutionAccess();
@@ -146,7 +146,7 @@ public sealed partial class World
         return TryGetRegisteredCore(entity, componentId, out value);
     }
 
-    /// <summary>Reads one component when the entity owns a matching component row.</summary>
+    /// <summary>Reads one component or reports tag presence, returning default for a tag.</summary>
     public bool TryGet<T>(Entity entity, ComponentId componentId, out T value)
     {
         EnsureExecutionAccess();
@@ -160,6 +160,12 @@ public sealed partial class World
         {
             value = default!;
             return false;
+        }
+
+        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
+        {
+            value = default!;
+            return chunk.HasTag(tagIndex, slotIndex);
         }
 
         Archetype archetype = _archetypes[chunk.ArchetypeId];

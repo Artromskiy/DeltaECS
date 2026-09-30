@@ -282,6 +282,27 @@ internal sealed class TagComponentTests
     }
 
     [Test]
+    public void TryGetReportsTagPresenceAndReturnsDefaultValue()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_026));
+        _ = layouts.Register<OtherTag>(new SchemaId(98_027));
+        using var world = new World(layouts);
+        Entity marked = world.Create<MarkedTag>();
+        Entity unmarked = world.Create<OtherTag>();
+
+        Assert.That(world.TryGet(marked, out MarkedTag primaryValue), Is.True);
+        Assert.That(primaryValue, Is.EqualTo(default(MarkedTag)));
+        Assert.That(world.TryGet(marked, markedId, out MarkedTag registeredValue), Is.True);
+        Assert.That(registeredValue, Is.EqualTo(default(MarkedTag)));
+
+        Assert.That(world.TryGet(unmarked, out MarkedTag absentPrimaryValue), Is.False);
+        Assert.That(absentPrimaryValue, Is.EqualTo(default(MarkedTag)));
+        Assert.That(world.TryGet(unmarked, markedId, out MarkedTag absentRegisteredValue), Is.False);
+        Assert.That(absentRegisteredValue, Is.EqualTo(default(MarkedTag)));
+    }
+
+    [Test]
     public void RepeatedFieldlessTypeRegistrationsRemainTags()
     {
         var layouts = new ComponentLayoutRegistry();

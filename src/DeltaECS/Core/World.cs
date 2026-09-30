@@ -670,10 +670,20 @@ public sealed partial class World : IDisposable
             return false;
         }
 
+        if (!_layouts.TryGet(componentId, out var layout) || !IsCompatibleComponentType<T>(layout))
+        {
+            value = default!;
+            return false;
+        }
+
+        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
+        {
+            value = default!;
+            return chunk.HasTag(tagIndex, slotIndex);
+        }
+
         var archetype = _archetypes[chunk.ArchetypeId];
-        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex)
-            || !_layouts.TryGet(componentId, out var layout)
-            || !IsCompatibleComponentType<T>(layout))
+        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
         {
             value = default!;
             return false;
