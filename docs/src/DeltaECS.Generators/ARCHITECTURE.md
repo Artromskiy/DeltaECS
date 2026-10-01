@@ -81,3 +81,25 @@ stay in DeltaECS; the generator only selects and renders a closed typed path.
 When a replacement generator is introduced for an existing public path, mark
 the old path obsolete before migrating its callers and delete the obsolete
 implementation and tests in the same migration.
+
+## Runtime-selected generic functor adapters
+
+`GenericFunctorGenerator` discovers accessible generic `IForEach` and
+`IForEachEntity` struct contracts, including their context variants, with one
+supported `Invoke`. Its semantic model contains type names, generic
+constraints, context type and mode, component modes and registration selectors.
+`GenericFunctorTemplates` emits assembly metadata and a closed typed adapter,
+reusing `DemandDrivenForEachTemplates.RenderGenericFunctorKernel` for the
+ordinary iteration kernel. No additional iteration implementation is maintained.
+
+The arity-specific `World.ForEach*` extensions cover query-wide iteration,
+entity-list iteration with an optional query, entity-aware callbacks,
+caller-owned context, and parallel execution. The IDs close the functor's
+generic parameters and are independent of the number of rows in `Invoke`. The
+adapter resolves row registrations once; subsequent calls execute the existing
+typed dense, entity-list, or parallel kernel without reflection inside the
+entity loop. Context is strongly typed and passed by reference through the
+generated adapter; the `Invoke` signature determines whether it is mutable,
+read-only, or by value. Mutable `ref` context is rejected for parallel forms. A
+default functor belongs to one complete invocation and its fields are local
+functor state.

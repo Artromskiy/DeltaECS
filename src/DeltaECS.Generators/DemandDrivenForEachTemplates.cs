@@ -6,6 +6,26 @@ namespace Delta.ECS.Generators;
 /// <summary>Raw-string templates for validated demand-driven iteration shapes.</summary>
 internal static partial class DemandDrivenForEachTemplates
 {
+    internal static string RenderGenericFunctorKernel(IterationModel shape, string methodName)
+    {
+        string componentParameters = shape.Api.Signature.ComponentIdParameters("componentId");
+        if (componentParameters.Length > 0)
+        {
+            componentParameters = ", " + componentParameters;
+        }
+
+        return GeneratorTemplates.JoinNonEmpty(new[]
+        {
+            shape.ComponentModels.Count(static component => component.IsWrite) > 1
+                ? RenderArchetypeStampWriter(shape)
+                : string.Empty,
+            shape.Parallel || shape.HasEntityTarget ? RenderParallelInvoker(shape) : string.Empty,
+            shape.Parallel
+                ? RenderClosedParallelMethod(shape, methodName, componentParameters)
+                : RenderClosedDenseMethod(shape, methodName, componentParameters),
+        });
+    }
+
     private const uint FnvOffsetBasis = 2_166_136_261u;
     private const uint FnvPrime = 16_777_619u;
 

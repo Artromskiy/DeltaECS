@@ -157,6 +157,7 @@ public sealed partial class World : IDisposable
         _queryCache.Clear();
         _componentSetCache.Clear();
         _primaryComponentIdsByType.Clear();
+        _genericFunctors.Clear();
 
         foreach (var archetype in _archetypes)
         {

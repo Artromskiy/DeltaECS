@@ -1,7 +1,6 @@
 namespace Delta.ECS;
 
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 
 public sealed partial class ComponentLayoutRegistry
 {
@@ -9,10 +8,7 @@ public sealed partial class ComponentLayoutRegistry
     public ComponentId Register<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(SchemaId schemaId)
     {
         var layout = new ComponentLayout(schemaId, typeof(T));
-        bool isTag = typeof(T).IsValueType
-            && !typeof(T).IsPrimitive
-            && !typeof(T).IsEnum
-            && typeof(T).GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).Length == 0;
+        bool isTag = IsTagType(typeof(T));
         return isTag
             ? Register(layout, default, isTag: true)
             : Register(layout, ComponentRowOperations.ForType<T>());

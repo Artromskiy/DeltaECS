@@ -72,10 +72,10 @@ internal sealed class PublicApiShapeTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(registerMethods, Has.Length.EqualTo(1));
-            Assert.That(registerMethods[0].IsGenericMethod, Is.True);
+            Assert.That(registerMethods, Has.Length.EqualTo(3));
+            var typedRegistration = registerMethods.Single(static method => method.IsGenericMethod);
             Assert.That(
-                registerMethods[0].GetParameters().Select(static parameter => parameter.ParameterType),
+                typedRegistration.GetParameters().Select(static parameter => parameter.ParameterType),
                 Is.EqualTo(new[] { typeof(SchemaId) }));
             Assert.That(
                 typeof(ComponentLayoutRegistry).GetMethod("RegisterTag", BindingFlags.Public | BindingFlags.Instance),

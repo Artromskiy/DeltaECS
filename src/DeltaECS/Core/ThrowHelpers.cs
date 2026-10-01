@@ -111,6 +111,68 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowNotGenericTypeDefinition(Type runtimeType)
+        => throw new ArgumentException(
+            $"Type {runtimeType} must be an open generic type definition.",
+            nameof(runtimeType));
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowGenericTypeArgumentCountMismatch(Type genericTypeDefinition, int expected, int actual)
+        => throw new ArgumentException(
+            $"Generic type definition {genericTypeDefinition} requires {expected} component registrations, but {actual} were supplied.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowInvalidComponentRuntimeType(Type runtimeType)
+        => throw new ArgumentException(
+            $"Component type {runtimeType} must be a closed, non-byref-like type that can be stored in an array.",
+            nameof(runtimeType));
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowGenericRegistrationConflict(Type componentType)
+        => throw new InvalidOperationException($"Generic component '{componentType}' is already registered for these source component IDs with a different SchemaId.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static IGeneratedGenericFunctor ThrowMissingGenericFunctor(Type functorType)
+        => throw new InvalidOperationException(
+            $"No generated executor was found for {functorType}. Use an accessible generic struct implementing IForEach, IForEachEntity, or a context variant with one supported Invoke method, and reference DeltaECS.Generators in its assembly.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowGenericFunctorContextMismatch(Type functorType, Type contextType)
+        => throw new ArgumentException(
+            $"Generic functor {functorType} does not accept context type {contextType}; use the context declared by its IForEachContext contract.",
+            nameof(contextType));
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowGenericFunctorRequiresContext(Type functorType)
+        => throw new InvalidOperationException($"Generic functor {functorType} requires a caller-owned context.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowGenericFunctorParallelRefContext(Type functorType)
+        => throw new ArgumentException(
+            $"Generic functor {functorType} uses mutable ref context and cannot run in parallel.",
+            nameof(functorType));
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowGenericFunctorModeMismatch(Type functorType, GeneratedGenericFunctorMode mode)
+        => throw new ArgumentException(
+            $"Generic functor {functorType} does not support execution mode {mode}.",
+            nameof(mode));
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowInvalidGenericFunctorMode(GeneratedGenericFunctorMode mode)
+        => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown generated generic-functor execution mode.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowUnregisteredQueryComponent(ComponentId component, QuerySpec spec)
         => throw new ArgumentException(
             $"Query component {component} is not registered in the query's world.",

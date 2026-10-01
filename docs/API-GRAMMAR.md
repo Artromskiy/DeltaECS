@@ -19,6 +19,7 @@ N     — entity count
 O     — Span<Entity> output
 W     — worker count
 V...  — values corresponding positionally to T...
+G...  — ComponentId arguments that close a generic functor type
 ```
 
 The canonical argument order is:
@@ -34,12 +35,14 @@ values(V...)?,
 options(N | O | W)?
 ```
 
-`T...` identifies the CLR row types. `I...` independently selects the
-registration used for each row; omitting `I...` uses the primary registration.
-Whenever both are present, their counts equal the component arity. Query
-factories are the exception: their typed and `ComponentId` forms are separate.
-`Q` is required for world-wide query iteration and optional after an explicit
-entity target `E`.
+`T...` identifies the CLR row types. In ordinary typed iteration, `I...`
+selects the registration used for each row; omitting it uses the primary
+registration. When both `T...` and `I...` are present, their counts equal the
+row arity. In runtime-selected generic functor calls, `G...` closes the open
+functor type and is independent of the component rows accepted by `Invoke`.
+Query factories are the exception: their typed and `ComponentId` forms are
+separate. `Q` is required for world-wide query iteration and optional after an
+explicit entity target `E`.
 
 ## Generated iteration forms
 
@@ -241,3 +244,123 @@ callback still receives `Entity`. Functor forms use the generated callback-slot 
 choose `ref` (mutations returned), `in` / `ref readonly`, or by value. Value and
 `in` forms accept temporaries such as `new Functor()` and keep the functor
 eligible for full inlining when it has no observable state.
+
+## Runtime-selected generic functors
+
+An open generic component can be registered using the CLR types of existing
+registrations. Supply its `SchemaId` explicitly. Positional overloads currently
+support one or two generic arguments:
+
+```csharp
+ComponentId historyId = layouts.Register(typeof(History<>), new SchemaId(100), positionId);
+ComponentId pairId = layouts.Register(typeof(ComponentPair<,>), new SchemaId(101), positionId, velocityId);
+```
+
+The generated runtime-selected functor API supports the same iteration targets
+and execution modes as the ordinary functor API. The `ComponentId` values here
+close the open generic functor type; they are not required to match the number
+of callback rows. In this section, `G...` denotes those positional
+`ComponentId` arguments. `typeof(Functor<>)` supplies the open generic
+definition.
+
+The complete forms are:
+
+```text
+world.ForEach(Q, C?, G..., typeof(F<>))
+world.ForEachEntity(Q, C?, G..., typeof(F<>))
+world.ForEach(E, Q?, C?, G..., typeof(F<>))
+world.ForEachEntity(E, Q?, C?, G..., typeof(F<>))
+
+world.ForEachParallel(Q, C?, G..., typeof(F<>), W)
+world.ForEachEntityParallel(Q, C?, G..., typeof(F<>), W)
+world.ForEachParallel(E, Q?, C?, G..., typeof(F<>), W)
+world.ForEachEntityParallel(E, Q?, C?, G..., typeof(F<>), W)
+```
+
+For context forms, the functor implements `IForEachContext<C>` or
+`IForEachContextEntity<C>`. Pass `ref C` after `Q` and before `G...`; its type
+must match the marker contract. `Invoke` takes context first, then `Entity` for
+the entity-aware form, followed by its component rows. The context can itself
+be used to carry state such as counters or services:
+
+```csharp
+public struct HistoryContext { public int Saved; }
+public struct History<T> { public T Value; }
+
+public struct SaveHistory<T> : IForEachContext<HistoryContext>
+{
+    public void Invoke(ref HistoryContext context, ref History<T> history, in T value)
+    {
+        history.Value = value;
+        context.Saved++;
+    }
+}
+
+ComponentId valueId = layouts.Register<float>(new SchemaId(20));
+ComponentId historyId = layouts.Register(typeof(History<>), new SchemaId(21), valueId);
+Query query = world.WhereAll(valueId, historyId);
+var context = new HistoryContext();
+world.ForEach(in query, ref context, valueId, typeof(SaveHistory<>));
+```
+
+The context is strongly typed through the generated adapter. No boxing or
+reflection occurs per entity. Its `Invoke` parameter mode controls access:
+`ref` changes the caller's context, while `in`/`ref readonly` and by-value
+forms provide read-only or local-copy behavior. Parallel forms reject mutable
+`ref` context.
+
+Query-wide forms require `Q`:
+
+```csharp
+world.ForEach(in query, componentId0, typeof(SaveHistory<>));
+world.ForEachEntity(in query, componentId0, typeof(VisitEntity<>));
+
+world.ForEachParallel(in query, componentId0, typeof(SaveHistory<>), workerCount: 4);
+world.ForEachEntityParallel(in query, componentId0, typeof(VisitEntity<>), workerCount: 4);
+```
+
+Entity-list forms accept an array or `ReadOnlySpan<Entity>`. `Q` may further
+filter that list; omitting it derives a query from the component rows used by
+`Invoke`:
+
+```csharp
+world.ForEach(entities, in query, componentId0, typeof(SaveHistory<>));
+world.ForEach(entities, componentId0, typeof(SaveHistory<>));
+world.ForEachEntity(entities, in query, componentId0, typeof(VisitEntity<>));
+world.ForEachEntity(entities, componentId0, typeof(VisitEntity<>));
+
+world.ForEachParallel(entities, in query, componentId0, typeof(SaveHistory<>), workerCount: 4);
+world.ForEachParallel(entities, componentId0, typeof(SaveHistory<>), workerCount: 4);
+world.ForEachEntityParallel(entities, in query, componentId0, typeof(VisitEntity<>), workerCount: 4);
+world.ForEachEntityParallel(entities, componentId0, typeof(VisitEntity<>), workerCount: 4);
+```
+
+`IForEach` receives only the component rows declared by `Invoke`. Implement
+`IForEachEntity` to also receive the current `Entity` as its first argument.
+Context marker variants prepend their typed context to the same signature. The
+callback may use `ref`, `in`, `ref readonly`, or by-value component parameters,
+as in the regular generated functor API. Parallel callbacks run concurrently
+and must coordinate shared mutable state.
+
+Generic functor argument lists are generated for every generic arity found in
+the consumer assembly. The count and order of `ComponentId` arguments must
+match the open functor's generic parameters. For example, two generic
+parameters can bind three callback rows, including a derived registration:
+
+```csharp
+world.ForEach(in query, firstId, secondId, typeof(CopyPair<,>));
+world.ForEach(in query, id0, id1, id2, typeof(Action<,,>));
+```
+
+Order and repeated IDs are preserved. Generic arity is independent of callback
+row count: for example, `SaveHistory<T>.Invoke(ref History<T>, in T)` accesses
+two rows with one generic argument. Register `History<T>` with an explicit
+schema ID and the source component ID before iterating. Secondary registrations
+of the same CLR type retain distinct derived registrations.
+
+Each invocation creates a default functor and keeps that instance for the whole
+traversal. Its fields are pass-local functor state; use a context contract when
+caller-owned state needs to be read or updated. The generator must be present
+in the assembly defining the accessible generic functor struct. Dynamic
+generic closure uses runtime type construction, so these forms do not guarantee
+arbitrary runtime instantiation on AOT platforms.

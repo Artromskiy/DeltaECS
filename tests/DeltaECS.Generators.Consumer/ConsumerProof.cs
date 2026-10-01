@@ -19,6 +19,50 @@ public struct NeedsRespawn { public int Value; }
 public struct Alive { }
 
 public struct ConsumerContext { public int Value; }
+public struct RuntimeGenericContext { public int Count; public int LastEntityIndex; public int[]? Calls; }
+
+public struct RuntimeContextCount<T> : IForEachContext<RuntimeGenericContext>
+{
+    public void Invoke(ref RuntimeGenericContext context, in T value) => context.Count++;
+}
+
+public struct RuntimeEntityContextCount<T> : IForEachContextEntity<RuntimeGenericContext>
+{
+    public void Invoke(ref RuntimeGenericContext context, Entity entity, in T value)
+    {
+        context.Count++;
+        context.LastEntityIndex = entity.Index;
+    }
+}
+
+public struct RuntimeEntityOnly<T> : IForEachEntity
+{
+    public void Invoke(Entity entity) => System.Threading.Interlocked.Increment(ref RuntimeEntityCounter.Count);
+}
+
+public struct RuntimePairContextCount<TFirst, TSecond> : IForEachContext<RuntimeGenericContext>
+{
+    public void Invoke(ref RuntimeGenericContext context, in TFirst first, in TSecond second)
+        => context.Count++;
+}
+
+public struct RuntimeParallelContextCount<T> : IForEachContext<RuntimeGenericContext>
+{
+    public void Invoke(in RuntimeGenericContext context, in T value)
+        => System.Threading.Interlocked.Increment(ref context.Calls![0]);
+}
+
+public struct RuntimeParallelEntityContextCount<T> : IForEachContextEntity<RuntimeGenericContext>
+{
+    public void Invoke(in RuntimeGenericContext context, Entity entity, in T value)
+        => System.Threading.Interlocked.Increment(ref context.Calls![0]);
+}
+
+public struct RuntimeValueContextCount<T> : IForEachContext<RuntimeGenericContext>
+{
+    public void Invoke(RuntimeGenericContext context, in T value)
+        => System.Threading.Interlocked.Increment(ref context.Calls![0]);
+}
 
 public struct ContextEntityFunctor : IForEachContextEntity<ConsumerContext>
 {
@@ -42,6 +86,262 @@ public struct ContextEntityFunctor : IForEachContextEntity<ConsumerContext>
 /// </summary>
 public static class ConsumerProof
 {
+    public static int RunRuntimeGenericFunctorEntityForms()
+    {
+        using var world = new World();
+        ComponentId value = world.Layouts.Register<int>(new SchemaId(91101));
+        Entity[] entities = new Entity[2];
+        world.Create<int>(value, 2, entities);
+        Query query = world.WhereAll(value);
+        RuntimeEntityCounter.Count = 0;
+
+        world.ForEachEntity(in query, value, typeof(RuntimeEntityCount<>));
+        if (RuntimeEntityCounter.Count != 2)
+        {
+            return 0;
+        }
+
+        RuntimeEntityCounter.Count = 0;
+        world.ForEachEntity(entities, in query, value, typeof(RuntimeEntityCount<>));
+        if (RuntimeEntityCounter.Count != 2)
+        {
+            return 0;
+        }
+
+        RuntimeEntityCounter.Count = 0;
+        world.ForEachEntity(entities, value, typeof(RuntimeEntityCount<>));
+        if (RuntimeEntityCounter.Count != 2)
+        {
+            return 0;
+        }
+
+        RuntimeEntityCounter.Count = 0;
+        world.ForEachEntityParallel(in query, value, typeof(RuntimeEntityCount<>), workerCount: 2);
+        if (RuntimeEntityCounter.Count != 2)
+        {
+            return 0;
+        }
+
+        RuntimeEntityCounter.Count = 0;
+        world.ForEachEntityParallel(entities, in query, value, typeof(RuntimeEntityCount<>), workerCount: 2);
+        if (RuntimeEntityCounter.Count != 2)
+        {
+            return 0;
+        }
+
+        RuntimeEntityCounter.Count = 0;
+        world.ForEachEntityParallel(entities, value, typeof(RuntimeEntityCount<>), workerCount: 2);
+        return RuntimeEntityCounter.Count == 2 ? 1 : 0;
+    }
+
+    public static int RunRuntimeGenericFunctorComponentForms()
+    {
+        using var world = new World();
+        ComponentId value = world.Layouts.Register<int>(new SchemaId(91102));
+        Entity[] entities = new Entity[2];
+        world.Create<int>(value, 2, entities);
+        Query query = world.WhereAll(value);
+        RuntimeEntityCounter.Count = 0;
+        world.ForEachEntity(in query, value, typeof(RuntimeEntityOnly<>));
+        if (RuntimeEntityCounter.Count != 2)
+        {
+            return 0;
+        }
+
+        RuntimeComponentCounter.Count = 0;
+        world.ForEach(in query, value, typeof(RuntimeComponentCount<>));
+        if (RuntimeComponentCounter.Count != 2)
+        {
+            return 0;
+        }
+
+        RuntimeComponentCounter.Count = 0;
+        world.ForEach(entities, in query, value, typeof(RuntimeComponentCount<>));
+        if (RuntimeComponentCounter.Count != 2)
+        {
+            return 0;
+        }
+
+        RuntimeComponentCounter.Count = 0;
+        world.ForEach(entities, value, typeof(RuntimeComponentCount<>));
+        if (RuntimeComponentCounter.Count != 2)
+        {
+            return 0;
+        }
+
+        RuntimeComponentCounter.Count = 0;
+        world.ForEachParallel(in query, value, typeof(RuntimeComponentCount<>), workerCount: 2);
+        if (RuntimeComponentCounter.Count != 2)
+        {
+            return 0;
+        }
+
+        RuntimeComponentCounter.Count = 0;
+        world.ForEachParallel(entities, in query, value, typeof(RuntimeComponentCount<>), workerCount: 2);
+        if (RuntimeComponentCounter.Count != 2)
+        {
+            return 0;
+        }
+
+        RuntimeComponentCounter.Count = 0;
+        world.ForEachParallel(entities, value, typeof(RuntimeComponentCount<>), workerCount: 2);
+        return RuntimeComponentCounter.Count == 2 ? 1 : 0;
+    }
+
+    public static int RunRuntimeGenericFunctorContextForms()
+    {
+        using var world = new World();
+        ComponentId value = world.Layouts.Register<int>(new SchemaId(91103));
+        Entity[] entities = new Entity[2];
+        world.Create<int>(value, 2, entities);
+        Query query = world.WhereAll(value);
+
+        var context = new RuntimeGenericContext();
+        try
+        {
+            world.ForEach(in query, value, typeof(RuntimeContextCount<>));
+            return 0;
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        int wrongContext = 0;
+        try
+        {
+            world.ForEach(in query, ref wrongContext, value, typeof(RuntimeContextCount<>));
+            return 0;
+        }
+        catch (ArgumentException)
+        {
+        }
+
+        try
+        {
+            world.ForEachParallel(in query, ref context, value, typeof(RuntimeContextCount<>), workerCount: 2);
+            return 0;
+        }
+        catch (ArgumentException)
+        {
+        }
+
+        world.ForEach(in query, ref context, value, typeof(RuntimeContextCount<>));
+        if (context.Count != 2)
+        {
+            return 0;
+        }
+
+        context.Count = 0;
+        world.ForEach(entities, in query, ref context, value, typeof(RuntimeContextCount<>));
+        if (context.Count != 2)
+        {
+            return 0;
+        }
+
+        context.Count = 0;
+        world.ForEach(entities, ref context, value, typeof(RuntimeContextCount<>));
+        if (context.Count != 2)
+        {
+            return 0;
+        }
+
+        context.Count = 0;
+        world.ForEachEntity(in query, ref context, value, typeof(RuntimeEntityContextCount<>));
+        if (context.Count != 2)
+        {
+            return 0;
+        }
+
+        context.Count = 0;
+        world.ForEachEntity(entities, in query, ref context, value, typeof(RuntimeEntityContextCount<>));
+        if (context.Count != 2)
+        {
+            return 0;
+        }
+
+        context.Count = 0;
+        world.ForEachEntity(entities, ref context, value, typeof(RuntimeEntityContextCount<>));
+        if (context.Count != 2)
+        {
+            return 0;
+        }
+
+        context.Calls = new int[1];
+        world.ForEachParallel(in query, ref context, value, typeof(RuntimeParallelContextCount<>), workerCount: 2);
+        if (context.Calls![0] != 2)
+        {
+            return 0;
+        }
+
+        context.Calls![0] = 0;
+        world.ForEachParallel(entities, in query, ref context, value, typeof(RuntimeParallelContextCount<>), workerCount: 2);
+        if (context.Calls![0] != 2)
+        {
+            return 0;
+        }
+
+        context.Calls![0] = 0;
+        world.ForEachParallel(entities, ref context, value, typeof(RuntimeParallelContextCount<>), workerCount: 2);
+        if (context.Calls![0] != 2)
+        {
+            return 0;
+        }
+
+        context.Calls![0] = 0;
+        world.ForEachEntityParallel(in query, ref context, value, typeof(RuntimeParallelEntityContextCount<>), workerCount: 2);
+        if (context.Calls![0] != 2)
+        {
+            return 0;
+        }
+
+        context.Calls![0] = 0;
+        world.ForEachEntityParallel(entities, in query, ref context, value, typeof(RuntimeParallelEntityContextCount<>), workerCount: 2);
+        if (context.Calls![0] != 2)
+        {
+            return 0;
+        }
+
+        context.Calls![0] = 0;
+        world.ForEachEntityParallel(entities, ref context, value, typeof(RuntimeParallelEntityContextCount<>), workerCount: 2);
+        if (context.Calls![0] != 2)
+        {
+            return 0;
+        }
+
+        context.Calls![0] = 0;
+        world.ForEach(in query, ref context, value, typeof(RuntimeValueContextCount<>));
+        if (context.Calls![0] != 2)
+        {
+            return 0;
+        }
+
+        ComponentId secondValue = world.Layouts.Register<int>(new SchemaId(91104));
+        world.Create(value, secondValue);
+        Query pairQuery = world.WhereAll(value, secondValue);
+        var pairContext = new RuntimeGenericContext();
+        world.ForEach(in pairQuery, ref pairContext, value, secondValue, typeof(RuntimePairContextCount<,>));
+        return pairContext.Count == 1 ? 1 : 0;
+    }
+
+    public static int RunRuntimeGenericFunctor()
+    {
+        using var world = new World();
+        ComponentId first = world.Layouts.Register<float>(new SchemaId(91001));
+        ComponentId second = world.Layouts.Register<float>(new SchemaId(91002));
+        ComponentId historyFirst = world.Layouts.Register(typeof(RuntimeHistory<>), new SchemaId(91003), first);
+        ComponentId historySecond = world.Layouts.Register(typeof(RuntimeHistory<>), new SchemaId(91004), second);
+        Entity entity = world.Create(first, second, historyFirst, historySecond);
+        world.GetRef<float>(entity, first) = 11f;
+        world.GetRef<float>(entity, second) = 23f;
+        Query query = world.WhereAll(first, second, historyFirst, historySecond);
+        Type functorType = typeof(RuntimeSave<,,>);
+        world.ForEach(in query, first, second, first, functorType);
+        world.ForEach(in query, second, first, second, functorType);
+        world.ForEach(in query, first, second, first, functorType);
+        return (int)(world.Get<RuntimeHistory<float>>(entity, historyFirst).Value
+            + world.Get<RuntimeHistory<float>>(entity, historySecond).Value);
+    }
+
     public static void ApplyStaticMethodGroup(ref Position value) => value.Value++;
 
     public static void ApplyStaticMethodGroupWithContext(ref ConsumerContext context, ref Position value)
@@ -516,4 +816,34 @@ public static class ConsumerProof
             (ref Position _) => count++);
         return count;
     }
+}
+
+public struct RuntimeHistory<T> { public T Value; }
+
+public struct RuntimeSave<T0, T1, T2> : IForEach
+{
+    public void Invoke(ref RuntimeHistory<T2> history, in T0 first, in T1 second, in T2 third)
+        => history.Value = third;
+}
+
+public struct RuntimeEntityCount<T> : IForEachEntity
+{
+    public void Invoke(Entity entity, in T component)
+        => System.Threading.Interlocked.Increment(ref RuntimeEntityCounter.Count);
+}
+
+internal static class RuntimeEntityCounter
+{
+    internal static int Count;
+}
+
+public struct RuntimeComponentCount<T> : IForEach
+{
+    public void Invoke(in T component)
+        => System.Threading.Interlocked.Increment(ref RuntimeComponentCounter.Count);
+}
+
+internal static class RuntimeComponentCounter
+{
+    internal static int Count;
 }
