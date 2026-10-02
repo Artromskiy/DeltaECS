@@ -151,8 +151,7 @@ namespace Ecs.CSharp.Benchmark.Contexts
             for (int i = 0; i < entities.Length; i++)
             {
                 DeltaEntity entity = entities[i];
-                World.GetRef<DeltaComponentId>(entity) = component;
-                World.GetRef<DeltaComponent1>(entity) = new DeltaComponent1 { Value = 1 };
+                World.GetRef<DeltaComponent1>(entity, component) = new DeltaComponent1 { Value = 1 };
             }
 
             Query = World.CreateQuery(DeltaQuerySpec.WhereAll(component));
