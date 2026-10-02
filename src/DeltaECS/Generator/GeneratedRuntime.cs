@@ -273,6 +273,7 @@ public interface IGeneratedComponentValueInitializer
 [EditorBrowsable(EditorBrowsableState.Never)]
 public ref struct GeneratedComponentValueWriter
 {
+    private readonly ComponentLayoutRegistry _layouts;
     private readonly Chunk _targetChunk;
     private readonly Archetype _targetArchetype;
     private readonly int _targetSlotIndex;
@@ -280,12 +281,14 @@ public ref struct GeneratedComponentValueWriter
     private readonly int _targetCount;
 
     internal GeneratedComponentValueWriter(
+        ComponentLayoutRegistry layouts,
         Chunk targetChunk,
         Archetype targetArchetype,
         int targetSlotIndex,
         ReadOnlySpan<int> addedTargetRows,
         int targetCount = 1)
     {
+        _layouts = layouts;
         _targetChunk = targetChunk;
         _targetArchetype = targetArchetype;
         _targetSlotIndex = targetSlotIndex;
@@ -294,16 +297,22 @@ public ref struct GeneratedComponentValueWriter
     }
 
     internal GeneratedComponentValueWriter(
+        ComponentLayoutRegistry layouts,
         Chunk targetChunk,
         Archetype targetArchetype,
         int targetSlotIndex)
-        : this(targetChunk, targetArchetype, targetSlotIndex, default)
+        : this(layouts, targetChunk, targetArchetype, targetSlotIndex, default)
     {
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void InitializeAdded<T>(ComponentId componentId, in T value)
     {
+        if (_layouts.IsTag(componentId))
+        {
+            return;
+        }
+
         int componentIndex = _targetArchetype.Mask.Rank(componentId);
         for (int index = 0; index < _addedTargetRows.Length; index++)
         {
@@ -324,6 +333,11 @@ public ref struct GeneratedComponentValueWriter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void InitializeCreated<T>(ComponentId componentId, in T value)
     {
+        if (_layouts.IsTag(componentId))
+        {
+            return;
+        }
+
         int componentIndex = _targetArchetype.Mask.Rank(componentId);
         _targetChunk.GetComponentRef<T>(componentIndex, _targetSlotIndex) = value;
     }
@@ -700,6 +714,11 @@ public static partial class GeneratedForEachRuntime
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void IncrementArchetypeStamp(Stamp[] stamps, int componentIndex)
     {
+        if (componentIndex < 0)
+        {
+            return;
+        }
+
         ref Stamp stamp = ref stamps.RefAt(componentIndex);
         stamp = stamp.Next();
     }
@@ -708,7 +727,14 @@ public static partial class GeneratedForEachRuntime
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ref T GetGeneratedRow<T>(Array[] componentRows, int queryComponentIndex)
-        => ref Unsafe.As<T[]>(componentRows.RefAt(queryComponentIndex)).GetRefAtZero();
+    {
+        if (QueryPlan.IsTagRoute(queryComponentIndex))
+        {
+            return ref GeneratedTagRows.GetReference<T>(0);
+        }
+
+        return ref Unsafe.As<T[]>(componentRows.RefAt(queryComponentIndex)).GetRefAtZero();
+    }
 
     /// <summary>Validates the world/query pair used by a generated mutation view.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -1138,7 +1164,7 @@ public static partial class GeneratedForEachRuntime
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int GetWriteQueryComponentIndex(WriteAccess access)
-        => access.QueryComponentIndex;
+        => QueryPlan.IsTagRoute(access.QueryComponentIndex) ? -1 : access.QueryComponentIndex;
 
     /// <summary>Returns a trusted query-local route used by generated parallel invokers.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]

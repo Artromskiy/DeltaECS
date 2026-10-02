@@ -151,7 +151,8 @@ public sealed partial class ComponentLayoutRegistry
         => runtimeType.IsValueType
             && !runtimeType.IsPrimitive
             && !runtimeType.IsEnum
-            && runtimeType.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).Length == 0;
+            && runtimeType.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).Length == 0
+            && (runtimeType.StructLayoutAttribute?.Size ?? 0) <= 1;
 
     private ComponentId Register(ComponentLayout layout, ComponentRowOperations rowOperations, IGeneratedComponentTypeToken typeToken, bool isTag = false)
     {

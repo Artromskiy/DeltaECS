@@ -191,15 +191,30 @@ public sealed partial class World : IDisposable
     public Query WhereAll(ReadOnlySpan<ComponentId> components)
         => CreateQuery(QuerySpec.WhereAll(components));
 
+    /// <summary>Creates a query requiring the supplied component registration.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Query WhereAll(ComponentId component)
+        => CreateQuery(QuerySpec.WhereAll(component));
+
     /// <summary>Creates a query matching at least one supplied component registration.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Query WhereAny(ReadOnlySpan<ComponentId> components)
         => CreateQuery(QuerySpec.WhereAny(components));
 
+    /// <summary>Creates a query matching the supplied component registration.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Query WhereAny(ComponentId component)
+        => CreateQuery(QuerySpec.WhereAny(component));
+
     /// <summary>Creates a query excluding the supplied component registrations.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Query WhereNone(ReadOnlySpan<ComponentId> components)
         => CreateQuery(QuerySpec.WhereNone(components));
+
+    /// <summary>Creates a query excluding the supplied component registration.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Query WhereNone(ComponentId component)
+        => CreateQuery(QuerySpec.WhereNone(component));
 
     public Entity Create(ReadOnlySpan<ComponentId> componentIds)
     {
@@ -654,6 +669,11 @@ public sealed partial class World : IDisposable
         if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
             return false;
+        }
+
+        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
+        {
+            return chunk.HasTag(tagIndex, slotIndex);
         }
 
         var archetype = _archetypes[chunk.ArchetypeId];
@@ -1436,6 +1456,7 @@ public sealed partial class World : IDisposable
             }
 
             var writer = new GeneratedComponentValueWriter(
+                _layouts,
                 target,
                 targetArchetype,
                 targetSlot,
@@ -1685,18 +1706,6 @@ public sealed partial class World : IDisposable
             _tagVersion++;
         }
         return count;
-    }
-
-    private void EnsureNoTagValues(ReadOnlySpan<ComponentId> componentIds)
-    {
-        for (int index = 0; index < componentIds.Length; index++)
-        {
-            ComponentId componentId = componentIds.RefAt(index);
-            if (_layouts.IsTag(componentId))
-            {
-                ThrowHelper.ThrowTagHasNoValue(componentId);
-            }
-        }
     }
 
     private bool IsCompleteDestroyChunk(int start, int count)

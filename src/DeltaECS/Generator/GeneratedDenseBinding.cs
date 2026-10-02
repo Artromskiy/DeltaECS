@@ -9,6 +9,20 @@ internal interface IGeneratedDenseBinding
     void Clear();
 }
 
+internal static class GeneratedTagRows
+{
+    // Registered tag structs have no instance fields and at most a one-byte layout.
+    private static readonly byte[] Row = new byte[Chunk.Capacity];
+
+    internal static T[] GetRows<T>()
+    {
+        byte[] row = Row;
+        return Unsafe.As<byte[], T[]>(ref row);
+    }
+
+    internal static ref T GetReference<T>(int index) => ref Unsafe.As<byte, T>(ref Row[index]);
+}
+
 /// <summary>Compiler-support reference to a bound chunk with a live entity count.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public readonly struct GeneratedBoundChunk
@@ -75,6 +89,11 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
         for (int index = 0; index < routes.Length; index++)
         {
             int route = routes[index];
+            if (QueryPlan.IsTagRoute(route))
+            {
+                continue;
+            }
+
             if (unique.AsSpan(0, count).IndexOf(route) < 0)
             {
                 unique[count++] = route;
@@ -305,7 +324,8 @@ public static partial class GeneratedForEachRuntime
     /// <summary>Binds a validated typed array once while building a generated signature.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static T[] GetGeneratedArray<T>(Array[] rows, int route) => Unsafe.As<T[]>(rows.RefAt(route));
+    public static T[] GetGeneratedArray<T>(Array[] rows, int route)
+        => QueryPlan.IsTagRoute(route) ? GeneratedTagRows.GetRows<T>() : Unsafe.As<T[]>(rows.RefAt(route));
 
     /// <summary>Returns the first element of an already-bound array.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]

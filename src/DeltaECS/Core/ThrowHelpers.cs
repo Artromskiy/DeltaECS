@@ -406,11 +406,6 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowTagHasNoValue(ComponentId componentId)
-        => throw new InvalidOperationException($"Tag component '{componentId}' has no value to read or write.");
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static ComponentId ThrowComponentTypeNotRegistered(Type runtimeType)
         => throw new KeyNotFoundException($"The component type {runtimeType} is not registered.");
 

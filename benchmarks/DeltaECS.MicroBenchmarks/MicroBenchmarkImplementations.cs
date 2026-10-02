@@ -146,7 +146,7 @@ public class DenseIterationMicroBenchmarkImplementation
         var movement2 = QuerySpec.WhereAll(stackalloc ComponentId[] { _fixture.Position, _fixture.Velocity });
         _movement2Query = _fixture.World.CreateQuery(in movement2);
 
-        var movement4 = QuerySpec.WhereAll(
+        var movement4 = QuerySpec.Empty.WhereAll(
             _fixture.Movement4A,
             _fixture.Movement4B,
             _fixture.Movement4C,
@@ -204,7 +204,7 @@ public class GeneratedFunctorMovement4MicroBenchmarkImplementation
     {
         _fixture = new MicroWorld(initialEntityCapacity: Amount);
         _entities = _fixture.CreateMovement4(Amount);
-        var description = QuerySpec.WhereAll(
+        var description = QuerySpec.Empty.WhereAll(
             _fixture.Movement4A,
             _fixture.Movement4B,
             _fixture.Movement4C,
@@ -242,7 +242,7 @@ internal static class MicroContractSmoke
 
         fixture.ResetMoving(movement2Entities);
         var movement4Entities = fixture.CreateMovement4(8);
-        var movement4Description = QuerySpec.WhereAll(
+        var movement4Description = QuerySpec.Empty.WhereAll(
             fixture.Movement4A,
             fixture.Movement4B,
             fixture.Movement4C,

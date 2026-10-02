@@ -73,9 +73,10 @@ public bool TryGetComponentStamp(
 ```
 
 It returns `false` for a stale entity or when the entity does not contain the
-component. It performs no CLR type lookup and does not return the component
-value. Generated `ForEach` callbacks receive the appropriate read/write intent
-and stamp behavior automatically.
+component. For a present tag it returns `true` with `default(Stamp)`, because a
+tag has membership but no per-entity value stamp. It performs no CLR type
+lookup and does not return the component value. Generated `ForEach` callbacks
+receive the appropriate read/write intent and stamp behavior automatically.
 
 There is deliberately no aggregate `EntityStamp`: the exact contract is one
 stamp per entity/component pair.

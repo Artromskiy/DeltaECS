@@ -2,6 +2,7 @@ namespace Delta.ECS.Tests;
 
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using NUnit.Framework;
 
 [TestFixture]
@@ -268,12 +269,14 @@ internal sealed class TagComponentTests
         ComponentId emptyClassId = layouts.Register<EmptyClass>(new SchemaId(98_023));
         ComponentId enumId = layouts.Register<TagEnum>(new SchemaId(98_024));
         ComponentId primitiveId = layouts.Register<int>(new SchemaId(98_025));
+        ComponentId explicitlySizedId = layouts.Register<ExplicitlySizedStruct>(new SchemaId(98_038));
 
         Assert.That(layouts.IsTag(tagId), Is.True);
         Assert.That(layouts.IsTag(dataId), Is.False);
         Assert.That(layouts.IsTag(emptyClassId), Is.False);
         Assert.That(layouts.IsTag(enumId), Is.False);
         Assert.That(layouts.IsTag(primitiveId), Is.False);
+        Assert.That(layouts.IsTag(explicitlySizedId), Is.False);
 
         using var world = new World(layouts);
         Entity entity = world.Create(primitiveId);
@@ -300,6 +303,96 @@ internal sealed class TagComponentTests
         Assert.That(absentPrimaryValue, Is.EqualTo(default(MarkedTag)));
         Assert.That(world.TryGet(unmarked, markedId, out MarkedTag absentRegisteredValue), Is.False);
         Assert.That(absentRegisteredValue, Is.EqualTo(default(MarkedTag)));
+    }
+
+    [Test]
+    public void TagStampsReportMembershipWithDefaultStamp()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_028));
+        _ = layouts.Register<OtherTag>(new SchemaId(98_029));
+        using var world = new World(layouts);
+        Entity marked = world.Create<MarkedTag>();
+        Entity unmarked = world.Create<OtherTag>();
+
+        Assert.That(world.TryGetComponentStamp(marked, markedId, out Stamp registeredStamp), Is.True);
+        Assert.That(registeredStamp, Is.EqualTo(default(Stamp)));
+        Assert.That(world.TryGetComponentStamp<MarkedTag>(marked, out Stamp primaryStamp), Is.True);
+        Assert.That(primaryStamp, Is.EqualTo(default(Stamp)));
+
+        Assert.That(world.TryGetComponentStamp(unmarked, markedId, out Stamp absentStamp), Is.False);
+        Assert.That(absentStamp, Is.EqualTo(default(Stamp)));
+        Assert.That(world.TryGetComponentStamp<MarkedTag>(unmarked, out Stamp absentPrimaryStamp), Is.False);
+        Assert.That(absentPrimaryStamp, Is.EqualTo(default(Stamp)));
+    }
+
+    [Test]
+    public void TagValueApisReturnDefaultAndTreatAddsAsMembershipChanges()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_030));
+        _ = layouts.Register<OtherTag>(new SchemaId(98_035));
+        _ = layouts.Register<TagValue>(new SchemaId(98_039));
+        using var world = new World(layouts);
+        Entity marked = world.Create<MarkedTag>();
+        Entity unmarked = world.Create<OtherTag>();
+
+        Assert.That(world.Get<MarkedTag>(marked), Is.EqualTo(default(MarkedTag)));
+        ref MarkedTag tagReference = ref world.GetRef<MarkedTag>(marked, markedId);
+        tagReference = default;
+        ref readonly MarkedTag readOnlyTagReference = ref world.GetReadRef<MarkedTag>(marked, markedId);
+        Assert.That(readOnlyTagReference, Is.EqualTo(default(MarkedTag)));
+        Assert.That(world.Get<MarkedTag>(marked), Is.EqualTo(default(MarkedTag)));
+        Assert.That(world.TryGetComponentStamp(marked, markedId, out Stamp stamp), Is.True);
+        Assert.That(stamp, Is.EqualTo(default(Stamp)));
+        Assert.Throws<InvalidOperationException>(() => world.Get<MarkedTag>(unmarked));
+        Assert.Throws<InvalidOperationException>(() => world.GetRef<MarkedTag>(unmarked, markedId));
+
+        MarkedTag value = default;
+        Assert.That(world.Add(unmarked, in value), Is.True);
+        Assert.That(world.Add(unmarked, in value), Is.False);
+        Assert.That(world.Has<MarkedTag>(unmarked), Is.True);
+        Assert.That(world.Get<MarkedTag>(unmarked), Is.EqualTo(default(MarkedTag)));
+
+        Entity mixed = world.Create<OtherTag>();
+        Assert.That(world.Add(mixed, new MarkedTag(), new TagValue { Value = 57 }), Is.True);
+        Assert.That(world.Has<MarkedTag>(mixed), Is.True);
+        Assert.That(world.Get<TagValue>(mixed).Value, Is.EqualTo(57));
+
+    }
+
+    [Test]
+    public void GeneratedIterationCanReadAndWriteTagValuesAsDefault()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        _ = layouts.Register<MarkedTag>(new SchemaId(98_036));
+        _ = layouts.Register<OtherTag>(new SchemaId(98_037));
+        using var world = new World(layouts);
+        var entities = new Entity[5];
+        world.Create(stackalloc[] { layouts.GetPrimary<MarkedTag>(), layouts.GetPrimary<OtherTag>() }, entities.Length, entities);
+        Query tags = world.WhereAll<MarkedTag, OtherTag>();
+
+        int visits = 0;
+        world.ForEach(
+            in tags,
+            ref visits,
+            static (ref int count, ref MarkedTag tag, ref OtherTag otherTag) =>
+            {
+                if (tag.Equals(default(MarkedTag)) && otherTag.Equals(default(OtherTag)))
+                {
+                    count++;
+                }
+
+                tag = default;
+                otherTag = default;
+            });
+
+        Assert.That(visits, Is.EqualTo(entities.Length));
+        foreach (Entity entity in entities)
+        {
+            Assert.That(world.Get<MarkedTag>(entity), Is.EqualTo(default(MarkedTag)));
+            Assert.That(world.Get<OtherTag>(entity), Is.EqualTo(default(OtherTag)));
+        }
     }
 
     [Test]
@@ -343,6 +436,9 @@ internal sealed class TagComponentTests
     {
         None
     }
+
+    [StructLayout(LayoutKind.Sequential, Size = 8)]
+    internal struct ExplicitlySizedStruct { }
 
     private readonly struct TagWithData
     {

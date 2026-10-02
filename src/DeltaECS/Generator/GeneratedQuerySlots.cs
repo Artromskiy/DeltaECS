@@ -100,15 +100,24 @@ public ref struct GeneratedQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public ref T GetGeneratedReadReference<T>(int queryComponentIndex)
-        => ref Unsafe.Add(
+    {
+        if (QueryPlan.IsTagRoute(queryComponentIndex))
+        {
+            return ref GeneratedTagRows.GetReference<T>(_offset);
+        }
+
+        return ref Unsafe.Add(
             ref Unsafe.As<T[]>(_resolvedRowsByQuery.RefAt(queryComponentIndex)).GetRefAtZero(),
             _offset);
+    }
 
     /// <summary>Gets the validated component array for generated chunk-row binding.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public T[] GetGeneratedArray<T>(int queryComponentIndex)
-        => Unsafe.As<T[]>(_resolvedRowsByQuery.RefAt(queryComponentIndex));
+        => QueryPlan.IsTagRoute(queryComponentIndex)
+            ? GeneratedTagRows.GetRows<T>()
+            : Unsafe.As<T[]>(_resolvedRowsByQuery.RefAt(queryComponentIndex));
 
     /// <summary>Gets the validated component array for generated chunk-row binding.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -131,9 +140,16 @@ public ref struct GeneratedQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public ref T GetGeneratedWriteReference<T>(int queryComponentIndex)
-        => ref Unsafe.Add(
+    {
+        if (QueryPlan.IsTagRoute(queryComponentIndex))
+        {
+            return ref GeneratedTagRows.GetReference<T>(_offset);
+        }
+
+        return ref Unsafe.Add(
             ref Unsafe.As<T[]>(_resolvedRowsByQuery.RefAt(queryComponentIndex)).GetRefAtZero(),
             _offset);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -143,11 +159,13 @@ public ref struct GeneratedQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public Stamp GetGeneratedStamp(int queryComponentIndex, int index)
-        => _world.GetComponentStamp(
-            _chunk.ArchetypeId,
-            _chunk,
-            _componentIndices.RefAt(queryComponentIndex),
-            _hasTagSlots ? _tagSlots.RefAt(index) : _offset + index);
+        => QueryPlan.IsTagRoute(queryComponentIndex)
+            ? default
+            : _world.GetComponentStamp(
+                _chunk.ArchetypeId,
+                _chunk,
+                _componentIndices.RefAt(queryComponentIndex),
+                _hasTagSlots ? _tagSlots.RefAt(index) : _offset + index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -215,13 +233,22 @@ public ref struct GeneratedReadQuerySlots
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetGeneratedReadReference<T>(int queryComponentIndex)
-        => ref Unsafe.As<T[]>(_resolvedRowsByQuery.RefAt(queryComponentIndex)).GetRefAtZero();
+    {
+        if (QueryPlan.IsTagRoute(queryComponentIndex))
+        {
+            return ref GeneratedTagRows.GetReference<T>(0);
+        }
+
+        return ref Unsafe.As<T[]>(_resolvedRowsByQuery.RefAt(queryComponentIndex)).GetRefAtZero();
+    }
 
     /// <summary>Gets the validated component array for generated chunk-row binding.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public T[] GetGeneratedArray<T>(int queryComponentIndex)
-        => Unsafe.As<T[]>(_resolvedRowsByQuery.RefAt(queryComponentIndex));
+        => QueryPlan.IsTagRoute(queryComponentIndex)
+            ? GeneratedTagRows.GetRows<T>()
+            : Unsafe.As<T[]>(_resolvedRowsByQuery.RefAt(queryComponentIndex));
 
     /// <summary>Gets the validated component array for generated chunk-row binding.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -236,11 +263,13 @@ public ref struct GeneratedReadQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public Stamp GetGeneratedStamp(int queryComponentIndex, int index)
-        => _world.GetComponentStamp(
-            _chunk.ArchetypeId,
-            _chunk,
-            _componentIndices.RefAt(queryComponentIndex),
-            _hasTagSlots ? _tagSlots.RefAt(index) : index);
+        => QueryPlan.IsTagRoute(queryComponentIndex)
+            ? default
+            : _world.GetComponentStamp(
+                _chunk.ArchetypeId,
+                _chunk,
+                _componentIndices.RefAt(queryComponentIndex),
+                _hasTagSlots ? _tagSlots.RefAt(index) : index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]

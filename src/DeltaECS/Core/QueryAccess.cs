@@ -33,6 +33,7 @@ public readonly struct WriteAccess
 
 internal sealed class QueryPlan
 {
+    private const int TagRouteOffset = -2;
     private readonly World _owner;
     private IGeneratedDenseBinding? _lastDenseBinding;
     private Dictionary<RuntimeTypeHandle, IGeneratedDenseBinding>? _denseBindings;
@@ -197,7 +198,7 @@ internal sealed class QueryPlan
             && (uint)component.Value < (uint)_readRoutesByComponent.Length)
         {
             int route = _readRoutesByComponent.RefAt(component.Value);
-            if (route >= 0)
+            if (route >= 0 || IsTagRoute(route))
             {
                 return route;
             }
@@ -205,6 +206,12 @@ internal sealed class QueryPlan
 
         return ThrowHelper.ThrowInvalidReadRoute(component);
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static bool IsTagRoute(int route) => route <= TagRouteOffset;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int GetTagRoute(ComponentId component) => TagRouteOffset - component.Value;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ReadAccess GetPreparedPrimaryReadAccess<T>()
@@ -449,6 +456,31 @@ internal sealed class QueryPlan
             }
 
             route++;
+        }
+
+        foreach (ComponentId component in _description.AllMask)
+        {
+            if (!world.Layouts.TryGetTagIndex(component, out _))
+            {
+                continue;
+            }
+
+            if (!world.Layouts.TryGet(component, out ComponentLayout layout))
+            {
+                ThrowHelper.ThrowUnregisteredQueryComponent(component, _description);
+            }
+
+            int tagRoute = GetTagRoute(component);
+            _readRoutesByComponent.RefAt(component.Value) = tagRoute;
+            _preparedReadAccessesByComponent.RefAt(component.Value) = new ReadAccess(this, tagRoute);
+            _preparedWriteAccessesByComponent.RefAt(component.Value) = new WriteAccess(this, tagRoute);
+            Type runtimeType = layout.RuntimeType;
+            _readRouteTypesByComponent.RefAt(component.Value) = runtimeType;
+            if (world.Layouts.TryGetPrimary(runtimeType, out ComponentId primary)
+                && primary == component)
+            {
+                _primaryReadRoutesByType.Add(runtimeType.TypeHandle, tagRoute);
+            }
         }
     }
 

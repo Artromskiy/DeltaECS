@@ -15,6 +15,13 @@ Multiple component IDs may use the same CLR type; `GetPrimary<T>` resolves the
 first primary registration. An empty non-primitive struct is automatically
 treated as a data-less tag by the same registration method.
 
+Tags participate in membership queries and structural operations, but do not
+store a value. `Get<T>` returns `default(T)` for a present tag, while `TryGet<T>`
+returns `true` with `default(T)` when present and `false` when absent. Adding a
+tag through a value-taking overload adds only membership and ignores the value.
+`GetRef<T>` returns a shared default placeholder for tags; writes through that
+reference are not retained.
+
 ## Single-component operations
 
 ```csharp
@@ -63,7 +70,8 @@ for `T` once at the API boundary, so the type and component ID cannot be
 supplied inconsistently. The explicit-ID overloads remain available for
 secondary registrations and validate `ComponentId` against `T`. `GetRef<T>`
 returns a writable reference and throws when the entity is stale or lacks the
-component; use `TryGet` when the component is optional. Batch `Add<T>`
+component. For tags, `GetRef<T>` returns a shared placeholder and does not store
+writes. Use `TryGet` when the component is optional. Batch `Add<T>`
 initializes the newly added row with the same value for every eligible entity;
 batch `Remove<T>` returns the number of structural transitions. Batch
 structural operations skip stale handles and entities that already have or do

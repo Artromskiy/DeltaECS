@@ -46,14 +46,21 @@ public sealed partial class World
     /// </code>
     /// </example>
     public bool Add<T>(Entity entity, in T value)
-        => AddComponentBatch(
-            stackalloc[] { entity },
-            GetPrimaryComponentId<T>(),
-            in value) == 1;
+    {
+        ComponentId componentId = GetPrimaryComponentId<T>();
+        return _layouts.IsTag(componentId)
+            ? Add(entity, componentId)
+            : AddComponentBatch(stackalloc[] { entity }, componentId, in value) == 1;
+    }
 
     /// <summary>Adds and initializes the primary component for <typeparamref name="T"/> on every eligible entity.</summary>
     public int Add<T>(ReadOnlySpan<Entity> entities, in T value)
-        => AddComponentBatch(entities, GetPrimaryComponentId<T>(), in value);
+    {
+        ComponentId componentId = GetPrimaryComponentId<T>();
+        return _layouts.IsTag(componentId)
+            ? Add(entities, stackalloc[] { componentId })
+            : AddComponentBatch(entities, componentId, in value);
+    }
 
     /// <summary>Removes the primary component for <typeparamref name="T"/> from one entity.</summary>
     public bool Remove<T>(Entity entity)
@@ -214,7 +221,8 @@ public sealed partial class World
     /// </summary>
     /// <remarks>
     /// The reference is invalid after a structural operation moves the entity
-    /// or changes its component rows.
+    /// or changes its component rows. For a tag, this is a shared default
+    /// placeholder; writes through it are not stored.
     /// </remarks>
     public ref T GetRef<T>(Entity entity, ComponentId componentId)
     {
@@ -229,6 +237,16 @@ public sealed partial class World
         if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+        }
+
+        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
+        {
+            if (!chunk.HasTag(tagIndex, slotIndex))
+            {
+                ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+            }
+
+            return ref GeneratedTagRows.GetReference<T>(0);
         }
 
         var archetype = _archetypes[chunk.ArchetypeId];
@@ -253,7 +271,8 @@ public sealed partial class World
     /// <summary>Returns a read-only reference to one component row.</summary>
     /// <remarks>
     /// The reference is invalid after a structural operation moves the entity
-    /// or changes its component rows.
+    /// or changes its component rows. For a tag, this refers to the shared
+    /// default placeholder because tags have no per-entity value.
     /// </remarks>
     public ref readonly T GetReadRef<T>(Entity entity, ComponentId componentId)
     {
@@ -268,6 +287,16 @@ public sealed partial class World
         if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+        }
+
+        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
+        {
+            if (!chunk.HasTag(tagIndex, slotIndex))
+            {
+                ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+            }
+
+            return ref GeneratedTagRows.GetReference<T>(0);
         }
 
         var archetype = _archetypes[chunk.ArchetypeId];
@@ -292,7 +321,6 @@ public sealed partial class World
 
     private int AddComponentBatch<T>(ReadOnlySpan<Entity> entities, ComponentId componentId, in T value)
     {
-        EnsureNoTagValues(stackalloc[] { componentId });
         if (entities.Length == 0)
         {
             return 0;
@@ -356,30 +384,42 @@ public sealed partial class World
         where TInitializer : struct, IGeneratedComponentValueInitializer
     {
         EnsureNoActiveLease("add components");
-        if (componentIds.Length == 0 || !TryResolve(entity, out int recordIndex, out Chunk sourceChunk, out _))
+        if (componentIds.Length == 0 || !TryResolve(entity, out int recordIndex, out Chunk sourceChunk, out int sourceSlotIndex))
         {
             return false;
         }
-
-        EnsureNoTagValues(componentIds);
 
         Archetype sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
         ComponentSet changeSet = GetOrCreateComponentSet(componentIds);
         TransitionEdge edge = GetTransitionEdge(sourceArchetype.Id, changeSet, true);
-        if (edge.IsNoOp)
+        bool archetypeChanged = !edge.IsNoOp;
+        if (!archetypeChanged && changeSet.TagIndices.Length == 0)
         {
             return false;
         }
 
-        MoveEntity(recordIndex, edge, out Chunk targetChunk, out int targetSlotIndex);
+        Chunk targetChunk = sourceChunk;
+        int targetSlotIndex = sourceSlotIndex;
+        if (archetypeChanged)
+        {
+            MoveEntity(recordIndex, edge, out targetChunk, out targetSlotIndex);
+        }
+
+        bool tagsChanged = ApplyTags(targetChunk, targetSlotIndex, changeSet.TagIndices, isAdd: true);
+        if (tagsChanged)
+        {
+            _tagVersion++;
+        }
+
         Archetype targetArchetype = _archetypes[targetChunk.ArchetypeId];
         var writer = new GeneratedComponentValueWriter(
+            _layouts,
             targetChunk,
             targetArchetype,
             targetSlotIndex,
             edge.AddedTargetRowIndices);
         initializer.Initialize(ref writer);
-        return true;
+        return archetypeChanged || tagsChanged;
     }
 
     internal int AddGeneratedComponentValues<TInitializer>(
@@ -394,7 +434,6 @@ public sealed partial class World
             ThrowHelper.ThrowInvalidComponentList();
         }
 
-        EnsureNoTagValues(componentIds);
         if (entities.IsEmpty)
         {
             return 0;
@@ -408,11 +447,12 @@ public sealed partial class World
         int[]? pendingAddedRows = null;
         int pendingSlot = 0;
         int pendingCount = 0;
+        bool tagsChanged = false;
 
         for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
         {
             Entity entity = entities.RefAt(entityIndex);
-            if (!TryResolve(entity, out int recordIndex, out Chunk sourceChunk, out _))
+            if (!TryResolve(entity, out int recordIndex, out Chunk sourceChunk, out int sourceSlotIndex))
             {
                 continue;
             }
@@ -421,12 +461,27 @@ public sealed partial class World
             TransitionEdge edge = edgeStamp == 0
                 ? GetTransitionEdge(sourceArchetype.Id, changeSet, true)
                 : GetBatchTransitionEdge(sourceArchetype.Id, changeSet, true, edgeStamp);
-            if (edge.IsNoOp)
+            bool archetypeChanged = !edge.IsNoOp;
+            if (!archetypeChanged && changeSet.TagIndices.Length == 0)
             {
                 continue;
             }
 
-            MoveEntity(recordIndex, edge, out Chunk targetChunk, out int targetSlot);
+            Chunk targetChunk = sourceChunk;
+            int targetSlot = sourceSlotIndex;
+            if (archetypeChanged)
+            {
+                MoveEntity(recordIndex, edge, out targetChunk, out targetSlot);
+            }
+
+            bool entityTagsChanged = ApplyTags(targetChunk, targetSlot, changeSet.TagIndices, isAdd: true);
+            tagsChanged |= entityTagsChanged;
+            if (!archetypeChanged)
+            {
+                changed += entityTagsChanged ? 1 : 0;
+                continue;
+            }
+
             Archetype targetArchetype = _archetypes[targetChunk.ArchetypeId];
             if (ReferenceEquals(pendingChunk, targetChunk)
                 && ReferenceEquals(pendingArchetype, targetArchetype)
@@ -443,6 +498,7 @@ public sealed partial class World
                     pendingAddedRows,
                     pendingSlot,
                     pendingCount,
+                    _layouts,
                     ref initializer);
                 pendingChunk = targetChunk;
                 pendingArchetype = targetArchetype;
@@ -454,12 +510,18 @@ public sealed partial class World
             changed++;
         }
 
+        if (tagsChanged)
+        {
+            _tagVersion++;
+        }
+
         InitializeGeneratedComponentRange(
             pendingChunk,
             pendingArchetype,
             pendingAddedRows,
             pendingSlot,
             pendingCount,
+            _layouts,
             ref initializer);
         return changed;
     }
@@ -470,7 +532,6 @@ public sealed partial class World
         where TInitializer : struct, IGeneratedComponentValueInitializer
     {
         EnsureNoActiveLease("create entities");
-        EnsureNoTagValues(componentIds);
         Entity entity = Create(componentIds);
         if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
@@ -478,7 +539,7 @@ public sealed partial class World
         }
 
         Archetype archetype = _archetypes[chunk.ArchetypeId];
-        var writer = new GeneratedComponentValueWriter(chunk, archetype, slotIndex);
+        var writer = new GeneratedComponentValueWriter(_layouts, chunk, archetype, slotIndex);
         initializer.Initialize(ref writer);
         return entity;
     }
@@ -489,6 +550,7 @@ public sealed partial class World
         int[]? addedRows,
         int slotIndex,
         int count,
+        ComponentLayoutRegistry layouts,
         ref TInitializer initializer)
         where TInitializer : struct, IGeneratedComponentValueInitializer
     {
@@ -497,7 +559,7 @@ public sealed partial class World
             return;
         }
 
-        var writer = new GeneratedComponentValueWriter(chunk, archetype, slotIndex, addedRows, count);
+        var writer = new GeneratedComponentValueWriter(layouts, chunk, archetype, slotIndex, addedRows, count);
         initializer.Initialize(ref writer);
     }
 

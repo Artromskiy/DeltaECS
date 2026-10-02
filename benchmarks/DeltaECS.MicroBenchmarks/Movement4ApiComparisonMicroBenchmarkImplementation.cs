@@ -57,7 +57,7 @@ public class Movement4ApiComparisonMicroBenchmarkImplementation
     {
         _fixture = new MicroWorld(initialEntityCapacity: Amount);
         _ = _fixture.CreateMovement4(Amount);
-        var description = QuerySpec.WhereAll(
+        var description = QuerySpec.Empty.WhereAll(
             _fixture.Movement4A,
             _fixture.Movement4B,
             _fixture.Movement4C,
