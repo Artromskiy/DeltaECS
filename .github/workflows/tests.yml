@@ -1,0 +1,86 @@
+name: DeltaECS tests
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "benchmarks/**"
+      - ".github/workflows/**"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "benchmarks/**"
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: 1
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+
+jobs:
+  test:
+    name: Build, test and benchmark smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    concurrency:
+      group: ecs-tests-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: |
+          dotnet restore DeltaECS.slnx
+          dotnet restore benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj
+
+      - name: Build and test
+        run: |
+          dotnet build DeltaECS.slnx -c Release --no-restore
+          dotnet test tests/DeltaECSTests/DeltaECSTests.csproj -c Release --no-build --no-restore
+          dotnet build benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj -c Release --no-restore
+
+      - name: Record runner information
+        run: |
+          mkdir -p artifacts/ci-smoke
+          uname -a > artifacts/ci-smoke/runner.txt
+          lscpu >> artifacts/ci-smoke/runner.txt
+          dotnet --info >> artifacts/ci-smoke/runner.txt
+
+      - name: Run comparative contract and discovery smoke
+        run: |
+          dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net10.0/DeltaECS.Benchmarks.dll contract-smoke
+          dotnet benchmarks/DeltaECS.Benchmarks/bin/Release/net10.0/DeltaECS.Benchmarks.dll \
+            iteration \
+            --list flat \
+            --filter '*'
+
+      - name: Upload smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ecs-benchmark-smoke-${{ github.run_number }}
+          path: artifacts/ci-smoke
+          if-no-files-found: warn
+          retention-days: 7
