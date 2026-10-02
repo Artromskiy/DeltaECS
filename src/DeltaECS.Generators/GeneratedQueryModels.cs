@@ -8,10 +8,12 @@ internal sealed class QueryModel
         int arity,
         string namespaceName,
         TypeBindingKind typeBinding,
-        RegistrationBindingKind registrationBinding)
+        RegistrationBindingKind registrationBinding,
+        bool querySpecReceiver)
     {
         Kind = kind;
         Namespace = namespaceName;
+        IsQuerySpecReceiver = querySpecReceiver;
         Api = new ApiModel(
             OperationKind.QueryFactory,
             TargetKind.Query,
@@ -28,6 +30,7 @@ internal sealed class QueryModel
 
     internal string Kind { get; }
     internal string Namespace { get; }
+    internal bool IsQuerySpecReceiver { get; }
     internal ApiModel Api { get; }
-    internal string Key => Namespace + "|" + Api.SignatureKey;
+    internal string Key => Namespace + "|" + IsQuerySpecReceiver + "|" + Api.SignatureKey;
 }

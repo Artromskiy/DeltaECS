@@ -194,6 +194,36 @@ internal sealed class DeltaECSDeliveryTests
     }
 
     [Test]
+    public void QuerySpecSupportsGeneratedPositionalComponentIdFactories()
+    {
+        QuerySpec empty = QuerySpec.Empty;
+        QuerySpec positionalAll = empty.WhereAll(PositionId, VelocityId);
+        QuerySpec positionalAny = empty.WhereAny(PositionId, VelocityId);
+        QuerySpec positionalNone = empty.WhereNone(PositionId, VelocityId);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                positionalAll,
+                Is.EqualTo(QuerySpec.WhereAll(stackalloc ComponentId[] { PositionId, VelocityId })));
+            Assert.That(
+                positionalAny,
+                Is.EqualTo(QuerySpec.WhereAny(stackalloc ComponentId[] { PositionId, VelocityId })));
+            Assert.That(
+                positionalNone,
+                Is.EqualTo(QuerySpec.WhereNone(stackalloc ComponentId[] { PositionId, VelocityId })));
+            Assert.That(
+                empty.WhereAll(
+                    PositionId, PositionId, PositionId, PositionId,
+                    PositionId, PositionId, PositionId, PositionId,
+                    PositionId, PositionId, PositionId, PositionId,
+                    PositionId, PositionId, PositionId, PositionId,
+                    PositionId, PositionId, PositionId, PositionId),
+                Is.EqualTo(QuerySpec.WhereAll(PositionId)));
+        });
+    }
+
+    [Test]
     public void GeneratedQueryCompositionExtendsMasksAndReusesTheQueryCache()
     {
         var layouts = new ComponentLayoutRegistry();

@@ -80,4 +80,22 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
     public static QuerySpec WhereNone(ComponentId component0)
         => WhereNone(stackalloc ComponentId[1] { component0 });
 
+    /// <summary>Gets an empty query specification that can be extended with generated filters.</summary>
+    public static QuerySpec Empty => new(
+        default(ComponentMask),
+        default(ComponentMask),
+        default(ComponentMask));
+
+    /// <summary>Adds an all-components filter to this specification.</summary>
+    public QuerySpec WithAll(ReadOnlySpan<ComponentId> components)
+        => Compose(WhereAll(components));
+
+    /// <summary>Adds an any-components filter to this specification.</summary>
+    public QuerySpec WithAny(ReadOnlySpan<ComponentId> components)
+        => Compose(WhereAny(components));
+
+    /// <summary>Adds a none-components filter to this specification.</summary>
+    public QuerySpec WithNone(ReadOnlySpan<ComponentId> components)
+        => Compose(WhereNone(components));
+
 }

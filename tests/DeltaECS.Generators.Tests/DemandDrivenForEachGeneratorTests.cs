@@ -1109,6 +1109,24 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void QuerySpecGeneratorEmitsOnlyUsedPositionalAritiesWithoutALimit()
+    {
+        GeneratorDriverRunResult run = RunGenerator(QuerySpecPositionalFactoriesSource);
+        string generated = GeneratedText(run);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(generated, Does.Contain("public static QuerySpec WhereAny(this QuerySpec spec, ComponentId componentId)"));
+        Assert.That(generated, Does.Contain("public static QuerySpec WhereAll(this QuerySpec spec, ComponentId component0, ComponentId component1)"));
+        Assert.That(generated, Does.Contain("public static QuerySpec WhereAll(this QuerySpec spec, " + string.Join(", ", Enumerable.Range(0, 20).Select(static index => $"ComponentId component{index}")) + ")"));
+        Assert.That(generated, Does.Contain("public static QuerySpec WhereNone(this QuerySpec spec, ComponentId component0, ComponentId component1)"));
+        Assert.That(generated, Does.Contain("return spec.WithAll(components);"));
+        Assert.That(generated, Does.Contain("return spec.WithNone(components);"));
+        Assert.That(generated, Does.Not.Contain("WhereAny(this QuerySpec spec, ComponentId component0,"));
+
+        AssertCompiles(new[] { RuntimeStubSource, QuerySpecPositionalFactoriesSource }, run.GeneratedTrees);
+    }
+
+    [Test]
     public void QueryGeneratorSharesFactoriesWithTheSameSignatureAcrossSystems()
     {
         GeneratorDriverRunResult run = RunGenerator(QueryFactoriesWithDuplicateSignaturesSource);
@@ -1646,6 +1664,13 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static QuerySpec WhereAll(ReadOnlySpan<ComponentId> components) => default;
             public static QuerySpec WhereAny(ReadOnlySpan<ComponentId> components) => default;
             public static QuerySpec WhereNone(ReadOnlySpan<ComponentId> components) => default;
+            public static QuerySpec WhereAll(ComponentId component) => default;
+            public static QuerySpec WhereAny(ComponentId component) => default;
+            public static QuerySpec WhereNone(ComponentId component) => default;
+            public QuerySpec WithAll(ReadOnlySpan<ComponentId> components) => default;
+            public QuerySpec WithAny(ReadOnlySpan<ComponentId> components) => default;
+            public QuerySpec WithNone(ReadOnlySpan<ComponentId> components) => default;
+            public static QuerySpec Empty => default;
         }
         public readonly struct Query { }
         public readonly struct ReadAccess { }
@@ -1973,6 +1998,22 @@ public sealed class DemandDrivenForEachGeneratorTests
                 var query = world.WhereAll<Position, Health>();
                 return query.WhereNone<Dead, Escaped, Human>().WhereAny<Armed>();
             }
+        }
+        """;
+
+    private const string QuerySpecPositionalFactoriesSource = """
+        namespace Consumer;
+        using Delta.ECS;
+        static class QuerySpecConsumer
+        {
+            public static QuerySpec Build(ComponentId id)
+                => QuerySpec.Empty
+                    .WhereAny(id)
+                    .WhereAll(id, id)
+                    .WhereAll(
+                        id, id, id, id, id, id, id, id, id, id,
+                        id, id, id, id, id, id, id, id, id, id)
+                    .WhereNone(id, id);
         }
         """;
 

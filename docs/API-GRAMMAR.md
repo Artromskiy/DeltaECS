@@ -236,10 +236,19 @@ span length to match their generic arity and validate each registration's CLR
 type.
 
 The low-level `QuerySpec.WhereAll`, `WhereAny`, and `WhereNone` factories take
-an explicit `ReadOnlySpan<ComponentId>` for dynamic lists. They also provide a
-single-ID convenience form; multi-ID selectors use the span form. The generated
-`World` and `Query` query factories provide positional overloads for the call
-site arities used by the consumer.
+an explicit `ReadOnlySpan<ComponentId>` for dynamic lists of any length. For
+positional fluent filters, start with `QuerySpec.Empty`; the generator emits
+extension overloads for the `WhereAll`, `WhereAny`, and `WhereNone` arities
+used by calls in the consumer project. There is no fixed positional arity
+limit, and unused overloads are not generated. The generated `World` and
+`Query` query factories likewise provide positional overloads for the call-site
+arities used by the consumer.
+
+```csharp
+QuerySpec spec = QuerySpec.Empty
+    .WhereAll(positionId, velocityId)
+    .WhereNone(deadId, escapedId);
+```
 
 ## Where pipeline
 

@@ -44,10 +44,13 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
             || !ApiDescriptor.TryGet(name, out ApiDescriptor descriptor)
             || descriptor.Family != GeneratedApiKind.QueryFactory
             || (!IsWorldReceiver(model, member.Expression)
-                && !IsQueryReceiver(model, member.Expression)))
+                && !IsQueryReceiver(model, member.Expression)
+                && !IsQuerySpecReceiver(model, member.Expression)))
         {
             return false;
         }
+
+        bool querySpecReceiver = IsQuerySpecReceiver(model, member.Expression);
 
         var cursor = new InvocationCursor(model, invocation.ArgumentList.Arguments, descriptor);
         if (!cursor.TryRead(-1, out InvocationCursorResult selection))
@@ -60,6 +63,10 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
         int arity;
         if (genericArity != 0)
         {
+            if (querySpecReceiver)
+            {
+                return false;
+            }
             if (selection.ComponentIdCount != 0 && selection.ComponentIdCount != genericArity)
             {
                 return false;
@@ -99,7 +106,8 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
             arity,
             GeneratorSupport.ContainingNamespace(model, invocation),
             typeBinding,
-            registrationBinding);
+            registrationBinding,
+            querySpecReceiver);
         return true;
     }
 
@@ -154,6 +162,33 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
         {
             return IsWorldReceiver(model, initializer)
                 || IsQueryReceiver(model, initializer);
+        }
+
+        return false;
+    }
+
+    private static bool IsQuerySpecReceiver(SemanticModel model, ExpressionSyntax expression)
+    {
+        if (model.GetSymbolInfo(expression).Symbol is not INamedTypeSymbol
+            && GeneratorSupport.IsNamedType(model.GetTypeInfo(expression).Type, "QuerySpec"))
+        {
+            return true;
+        }
+
+        if (expression is InvocationExpressionSyntax invocation
+            && invocation.Expression is MemberAccessExpressionSyntax member
+            && TryFactoryName(member.Name, out string name, out _)
+            && IsFactoryName(name))
+        {
+            return IsQuerySpecReceiver(model, member.Expression);
+        }
+
+        if (expression is IdentifierNameSyntax identifier
+            && model.GetSymbolInfo(identifier).Symbol is ILocalSymbol local
+            && local.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is VariableDeclaratorSyntax declarator
+            && declarator.Initializer?.Value is ExpressionSyntax initializer)
+        {
+            return IsQuerySpecReceiver(model, initializer);
         }
 
         return false;

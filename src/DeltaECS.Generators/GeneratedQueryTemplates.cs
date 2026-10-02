@@ -5,34 +5,41 @@ namespace Delta.ECS.Generators;
 /// <summary>Raw-string templates for generated fluent query factories.</summary>
 internal static class GeneratedQueryTemplates
 {
-    private static readonly (string Type, string Name, bool Query, string Result)[] _factories =
+    private static readonly (string Type, string Name, bool Query, bool QuerySpec, string Result)[] _factories =
     {
-        ("World", "world", false, "world.CreateQuery(additions)"),
+        ("World", "world", false, false, "world.CreateQuery(additions)"),
         ("Query", "query", true,
-            "GeneratedForEachRuntime.ComposeGeneratedQuery(in query, additions)")
+            false,
+            "GeneratedForEachRuntime.ComposeGeneratedQuery(in query, additions)"),
+        ("QuerySpec", "spec", false, true, string.Empty),
     };
 
     internal static string Render(QueryModel model)
     {
         string hash = GeneratorSupport.StableName(model.Key);
+        IEnumerable<(string Type, string Name, bool Query, bool QuerySpec, string Result)> factoriesToRender =
+            _factories.Where(factory => factory.QuerySpec == model.IsQuerySpecReceiver);
         string factories = GeneratorTemplates.JoinNonEmpty(
-            _factories.Select(factory => RenderFactory(model, factory)),
+            factoriesToRender.Select(factory => RenderFactory(model, factory)),
             "\n\n");
         string extension = GeneratorTemplates.ExtensionTemplate(
             $"GeneratedQueryExtensions_{hash}",
             isInternal: false,
             GeneratorTemplates.Indent(factories, "    "));
+        ImmutableArray<string> members = model.IsQuerySpecReceiver
+            ? ImmutableArray.Create(extension)
+            : ImmutableArray.Create(
+                GeneratorTemplates.PrimaryComponentSetKeyDeclaration(model.Api.Selector.Arity),
+                extension);
         return GeneratorTemplates.FileTemplate(new GeneratedFileModel(
             model.Namespace,
             GeneratorSupport.EcsNamespaceUsings(model.Namespace),
-            ImmutableArray.Create(
-                GeneratorTemplates.PrimaryComponentSetKeyDeclaration(model.Api.Selector.Arity),
-                extension)));
+            members));
     }
 
     private static string RenderFactory(
         QueryModel model,
-        (string Type, string Name, bool Query, string Result) factory)
+        (string Type, string Name, bool Query, bool QuerySpec, string Result) factory)
     {
         SignatureProjection slots = model.Api.Signature;
         string additions = $"QuerySpec additions = QuerySpec.{model.Kind}(components);";
@@ -79,16 +86,36 @@ internal static class GeneratedQueryTemplates
                     : $"GeneratedForEachRuntime.ValidateComponentType<{slots.GenericType(index)}>({factory.Name}, {slots.ComponentIdArgument(index)});"));
         }
 
-        body.Add(additions);
-        body.Add($"return {factory.Result};");
+        if (factory.QuerySpec)
+        {
+            body.Add($"return {QuerySpecResult(model.Kind)};");
+        }
+        else
+        {
+            body.Add(additions);
+            body.Add($"return {factory.Result};");
+        }
+
+        string returnType = factory.QuerySpec ? "QuerySpec" : "Query";
         string declaration = $$"""
-            public static Query {{model.Kind}}{{generic}}({{parameters}})
+            public static {{returnType}} {{model.Kind}}{{generic}}({{parameters}})
             """.Trim();
         return GeneratorTemplates.Method(
             model.Api,
             declaration,
             string.Join("\n", body),
             "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+    }
+
+    private static string QuerySpecResult(string kind)
+    {
+        string filter = kind switch
+        {
+            "WhereAll" => "All",
+            "WhereAny" => "Any",
+            _ => "None",
+        };
+        return $"spec.With{filter}(components)";
     }
 
 }
