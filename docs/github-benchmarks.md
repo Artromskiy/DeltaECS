@@ -1,27 +1,23 @@
-# GitHub iteration benchmarks
+# Ecs.CSharp.Benchmark on GitHub
 
-The `ECS benchmarks` workflow has two iteration lanes:
+Run the benchmark manually from **Actions → Ecs.CSharp.Benchmark → Run
+workflow**. The workflow builds the Release benchmark project, executes each
+entity count in a separate BenchmarkDotNet run, and adds the standard GitHub
+Markdown result tables to the workflow summary.
 
-- pull requests and pushes to `main` build the solution, run correctness tests,
-  validate the iteration contract and run BenchmarkDotNet discovery only;
-- a manual dispatch or the Monday schedule runs the unified iteration matrix in
-  Release and uploads JSON, CSV, Markdown, logs and runner metadata.
+Default parameters:
 
-The manual `iteration` route compares DeltaECS, Arch, Friflo.Engine.ECS,
-DefaultEcs and LeoEcsLite using the same workloads and entity amounts. The
-separate `version-comparison` route compares two DeltaECS revisions using the
-same dense, Movement2 and Movement4 iteration scenarios.
+- entity counts: 32, 1,024, 131,072 and 1,048,576 (`2^5`, `2^10`, `2^17` and
+  `2^20`);
+- minimum measurement iterations: 20;
+- target duration per measurement iteration: 200 ms.
 
-Adaptive mode uses `Job.Default` with a 100 ms iteration target and lets
-BenchmarkDotNet choose invocation, warm-up and measurement counts. Fixed and
-short modes are available only for explicitly requested exploratory runs.
+The run form allows changing the comma-separated entity counts, minimum
+iteration count and iteration duration. Slow adapters such as Morpeh,
+MonoGame.Extended, RelEcs and Svelto.ECS are excluded by building with
+`IncludeSlowBenchmarks=false`, matching the benchmark project's default setup.
 
-The workflow no longer dispatches structural, capacity, hardware-profile or
-one-off benchmark categories. This keeps every published comparative result in
-the iteration scope and avoids mixing incompatible setup and correctness
-contracts.
-
-GitHub-hosted runners are shared and their CPU model may change between jobs.
-Use a single run to compare all ECS implementations because they then see the
-same machine. The workflow records BenchmarkDotNet timing, ratios, allocations,
-GC data and runner/runtime information; it does not request hardware counters.
+BenchmarkDotNet CSV and JSON exports, the result Markdown files and
+runner/runtime details are retained in the workflow artifact for 30 days.
+GitHub-hosted runners are shared; compare runs only when their runner and
+runtime information are sufficiently similar.

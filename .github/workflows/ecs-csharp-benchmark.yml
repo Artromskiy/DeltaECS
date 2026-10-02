@@ -1,0 +1,177 @@
+name: Ecs.CSharp.Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      entity_counts:
+        description: Entity counts, comma-separated
+        required: true
+        default: "32,1024,131072,1048576"
+        type: string
+      min_iteration_count:
+        description: Minimum BenchmarkDotNet measurement iterations
+        required: true
+        default: 20
+        type: number
+      iteration_time_ms:
+        description: Target duration of each BenchmarkDotNet iteration in milliseconds
+        required: true
+        default: 200
+        type: number
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: 1
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+
+jobs:
+  benchmark:
+    name: Run benchmark matrix
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    concurrency:
+      group: ecs-csharp-benchmark-${{ github.ref }}
+      cancel-in-progress: false
+    env:
+      ENTITY_COUNTS: ${{ inputs.entity_counts }}
+      MIN_ITERATION_COUNT: ${{ inputs.min_iteration_count }}
+      ITERATION_TIME_MS: ${{ inputs.iteration_time_ms }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-ecs-csharp-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            nuget-ecs-csharp-${{ runner.os }}-
+
+      - name: Restore and build benchmark
+        run: |
+          dotnet restore benchmarks/Ecs.CSharp.Benchmark/Ecs.CSharp.Benchmark.csproj
+          dotnet build benchmarks/Ecs.CSharp.Benchmark/Ecs.CSharp.Benchmark.csproj \
+            -c Release --no-restore -p:IncludeSlowBenchmarks=false
+
+      - name: Record runner and benchmark configuration
+        shell: bash
+        run: |
+          mkdir -p artifacts/ecs-csharp
+          {
+            echo "entity_counts=$ENTITY_COUNTS"
+            echo "min_iteration_count=$MIN_ITERATION_COUNT"
+            echo "iteration_time_ms=$ITERATION_TIME_MS"
+            echo "slow_ecs=excluded (Morpeh, MonoGame.Extended, RelEcs, Svelto.ECS)"
+            uname -a
+            lscpu
+            dotnet --info
+          } > artifacts/ecs-csharp/runner.txt
+
+      - name: Run Ecs.CSharp.Benchmark matrix
+        shell: bash
+        run: |
+          if ! [[ "$MIN_ITERATION_COUNT" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Minimum iteration count must be a positive integer."
+            exit 1
+          fi
+          if ! [[ "$ITERATION_TIME_MS" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Iteration time must be a positive integer in milliseconds."
+            exit 1
+          fi
+
+          IFS=',' read -r -a entity_counts <<< "$ENTITY_COUNTS"
+          if [ "${#entity_counts[@]}" -eq 0 ]; then
+            echo "::error::At least one entity count is required."
+            exit 1
+          fi
+
+          declare -A seen_counts=()
+          for entity_count in "${entity_counts[@]}"; do
+            entity_count="${entity_count//[[:space:]]/}"
+            if ! [[ "$entity_count" =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error::Invalid entity count '$entity_count'. Use positive comma-separated integers."
+              exit 1
+            fi
+            if [[ -n "${seen_counts[$entity_count]:-}" ]]; then
+              echo "::error::Entity count '$entity_count' appears more than once."
+              exit 1
+            fi
+            seen_counts[$entity_count]=1
+
+            echo "Running Ecs.CSharp.Benchmark with $entity_count entities"
+            dotnet benchmarks/Ecs.CSharp.Benchmark/bin/Release/net10.0/Ecs.CSharp.Benchmark.dll \
+              --amount "$entity_count" \
+              --filter '*' \
+              --job Default \
+              --minIterationCount "$MIN_ITERATION_COUNT" \
+              --iterationTime "$ITERATION_TIME_MS" \
+              --exporters github csv json \
+              --artifacts "artifacts/ecs-csharp/$entity_count"
+
+            if ! find "artifacts/ecs-csharp/$entity_count" -type f -name '*-report-github.md' -print -quit | grep -q .; then
+              echo "::error::BenchmarkDotNet produced no GitHub Markdown table for $entity_count entities."
+              exit 1
+            fi
+          done
+
+      - name: Add result tables to workflow summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Ecs.CSharp.Benchmark"
+            echo
+            printf 'Entities: `%s` · minimum iterations: `%s` · iteration target: `%s ms` · runner: `%s %s`\n' \
+              "$ENTITY_COUNTS" "$MIN_ITERATION_COUNT" "$ITERATION_TIME_MS" \
+              "${{ runner.os }}" "${{ runner.arch }}"
+            echo
+            echo 'Slow ECS adapters are excluded from this run.'
+            echo
+
+            IFS=',' read -r -a entity_counts <<< "$ENTITY_COUNTS"
+            report_count=0
+            for entity_count in "${entity_counts[@]}"; do
+              entity_count="${entity_count//[[:space:]]/}"
+              if ! [[ "$entity_count" =~ ^[1-9][0-9]*$ ]]; then
+                continue
+              fi
+
+              mapfile -t reports < <(find "artifacts/ecs-csharp/$entity_count" -type f -name '*-report-github.md' 2>/dev/null | sort)
+              if [ "${#reports[@]}" -eq 0 ]; then
+                continue
+              fi
+
+              echo "### $entity_count entities"
+              echo
+              for report in "${reports[@]}"; do
+                report_count=$((report_count + 1))
+                cat "$report"
+                echo
+              done
+            done
+
+            if [ "$report_count" -eq 0 ]; then
+              echo 'No BenchmarkDotNet result tables were produced. See the job logs for the failure.'
+            fi
+            echo
+            echo 'CSV, JSON and runner/runtime metadata are available in the uploaded artifact.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ecs-csharp-benchmark-${{ runner.arch }}-${{ github.run_number }}
+          path: artifacts/ecs-csharp
+          if-no-files-found: warn
+          retention-days: 30
