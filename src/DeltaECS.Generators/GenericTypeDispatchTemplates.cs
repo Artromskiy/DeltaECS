@@ -12,8 +12,8 @@ internal static class GenericTypeDispatchTemplates
             public static global::Delta.ECS.ComponentId Register(
                 this global::Delta.ECS.ComponentLayoutRegistry layouts,
                 global::System.Type genericTypeDefinition,
-                global::Delta.ECS.SchemaId schemaId,
-                {{parameters}})
+                {{parameters}},
+                global::Delta.ECS.SchemaId schemaId)
             {
                 return global::Delta.ECS.GeneratedGenericBindingRegistry.RegisterComponentDefinition(
                     layouts,
@@ -110,7 +110,7 @@ internal static class GenericTypeDispatchTemplates
                 declaration += " " + priorConstraints;
             }
             var lines = new List<string> { "internal readonly State Binding;", "internal global::Delta.ECS.ComponentId Result;" };
-            lines.Add($"internal Stage{index}(State binding) => Binding = binding;");
+            lines.Add($"internal Stage{index}(State binding) {{ Binding = binding; Result = default; }}");
 
             string visitBody;
             if (index + 1 == binding.Arity)

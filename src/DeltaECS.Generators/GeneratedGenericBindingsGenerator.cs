@@ -81,7 +81,7 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
             var componentRegistrationArities = new HashSet<int>();
             foreach (INamedTypeSymbol definition in componentDefinitions.Values)
             {
-                if (definition.Arity > 2)
+                if (definition.Arity > 1)
                 {
                     componentRegistrationArities.Add(definition.Arity);
                 }

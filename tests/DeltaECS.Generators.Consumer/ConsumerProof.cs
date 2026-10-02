@@ -328,8 +328,8 @@ public static partial class ConsumerProof
         using var world = new World();
         ComponentId first = world.Layouts.Register<float>(new SchemaId(91001));
         ComponentId second = world.Layouts.Register<float>(new SchemaId(91002));
-        ComponentId historyFirst = world.Layouts.Register(typeof(RuntimeHistory<>), new SchemaId(91003), first);
-        ComponentId historySecond = world.Layouts.Register(typeof(RuntimeHistory<>), new SchemaId(91004), second);
+        ComponentId historyFirst = world.Layouts.Register(typeof(RuntimeHistory<>), first, new SchemaId(91003));
+        ComponentId historySecond = world.Layouts.Register(typeof(RuntimeHistory<>), second, new SchemaId(91004));
         Entity entity = world.Create(first, second, historyFirst, historySecond);
         world.GetRef<float>(entity, first) = 11f;
         world.GetRef<float>(entity, second) = 23f;
@@ -355,7 +355,7 @@ public static partial class ConsumerProof
     }
 
     private static ComponentId RegisterUnaryHistory(ComponentLayoutRegistry layouts, ComponentId componentId)
-        => layouts.Register(typeof(UnaryHistory<>), new SchemaId(91202), componentId);
+        => layouts.Register(typeof(UnaryHistory<>), componentId, new SchemaId(91202));
 
     private static void ApplyUnaryHistory(World world, in Query query, ComponentId componentId)
         => world.ForEach(in query, componentId, typeof(UnaryHistoryWriter<>));
@@ -916,10 +916,10 @@ public static partial class ConsumerProof
         ComponentId positionId = world.Layouts.Register<Position>(new SchemaId(91201));
         ComponentId intId = world.Layouts.Register<int>(new SchemaId(91202));
         ComponentId classId = world.Layouts.Register<ConstructibleComponent>(new SchemaId(91203));
-        ComponentId structBoxId = world.Layouts.Register(typeof(StructBox<>), new SchemaId(91204), positionId);
-        ComponentId unmanagedBoxId = world.Layouts.Register(typeof(UnmanagedBox<>), new SchemaId(91205), intId);
-        ComponentId classBoxId = world.Layouts.Register(typeof(ClassBox<>), new SchemaId(91206), classId);
-        ComponentId newBoxId = world.Layouts.Register(typeof(NewBox<>), new SchemaId(91207), classId);
+        ComponentId structBoxId = world.Layouts.Register(typeof(StructBox<>), positionId, new SchemaId(91204));
+        ComponentId unmanagedBoxId = world.Layouts.Register(typeof(UnmanagedBox<>), intId, new SchemaId(91205));
+        ComponentId classBoxId = world.Layouts.Register(typeof(ClassBox<>), classId, new SchemaId(91206));
+        ComponentId newBoxId = world.Layouts.Register(typeof(NewBox<>), classId, new SchemaId(91207));
 
         Query structQuery = CreateConstraintQuery(world, structBoxId);
         ConstraintFunctorCounter.Count = 0;

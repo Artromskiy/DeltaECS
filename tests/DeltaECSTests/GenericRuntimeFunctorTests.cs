@@ -13,17 +13,17 @@ public class GenericRuntimeFunctorTests
         var layouts = new ComponentLayoutRegistry();
         ComponentId health = layouts.Register<float>(new SchemaId(120_001));
         ComponentId mana = layouts.Register<float>(new SchemaId(120_002));
-        ComponentId healthHistory = layouts.Register(typeof(History<>), new SchemaId(120_101), health);
-        ComponentId manaHistory = layouts.Register(typeof(History<>), new SchemaId(120_102), mana);
-        ComponentId pair = layouts.Register(typeof(Pair<,>), new SchemaId(120_103), health, mana);
+        ComponentId healthHistory = layouts.Register(typeof(History<>), health, new SchemaId(120_101));
+        ComponentId manaHistory = layouts.Register(typeof(History<>), mana, new SchemaId(120_102));
+        ComponentId pair = layouts.Register(typeof(Pair<,>), health, mana, new SchemaId(120_103));
 
         Assert.That(layouts.GetComponentType(healthHistory), Is.EqualTo(typeof(History<float>)));
         Assert.That(layouts.GetComponentType(pair), Is.EqualTo(typeof(Pair<float, float>)));
         Assert.That(healthHistory, Is.Not.EqualTo(manaHistory));
-        Assert.That(layouts.Register(typeof(History<>), new SchemaId(120_101), health), Is.EqualTo(healthHistory));
-        Assert.That(layouts.Register(typeof(Pair<,>), new SchemaId(120_103), health, mana), Is.EqualTo(pair));
+        Assert.That(layouts.Register(typeof(History<>), health, new SchemaId(120_101)), Is.EqualTo(healthHistory));
+        Assert.That(layouts.Register(typeof(Pair<,>), health, mana, new SchemaId(120_103)), Is.EqualTo(pair));
         int countBeforeConflict = layouts.Count;
-        Assert.Throws<InvalidOperationException>(() => layouts.Register(typeof(History<>), new SchemaId(120_104), health));
+        Assert.Throws<InvalidOperationException>(() => layouts.Register(typeof(History<>), health, new SchemaId(120_104)));
         Assert.That(layouts.Count, Is.EqualTo(countBeforeConflict));
 
         Assert.That(typeof(ComponentLayoutRegistry).GetMethods()
@@ -39,7 +39,7 @@ public class GenericRuntimeFunctorTests
         var layouts = new ComponentLayoutRegistry();
         layouts.Register<float>(new SchemaId(120_011));
         ComponentId value = layouts.Register<float>(new SchemaId(120_012));
-        ComponentId history = layouts.Register(typeof(History<>), new SchemaId(120_111), value);
+        ComponentId history = layouts.Register(typeof(History<>), value, new SchemaId(120_111));
         ComponentId selected = layouts.Register<Selected>(new SchemaId(120_013));
         using var world = new World(layouts);
         var entities = new Entity[1_025];
@@ -76,7 +76,7 @@ public class GenericRuntimeFunctorTests
         var layouts = new ComponentLayoutRegistry();
         ComponentId first = layouts.Register<int>(new SchemaId(120_021));
         ComponentId second = layouts.Register<float>(new SchemaId(120_022));
-        ComponentId pair = layouts.Register(typeof(Pair<,>), new SchemaId(120_121), first, second);
+        ComponentId pair = layouts.Register(typeof(Pair<,>), first, second, new SchemaId(120_121));
         using var world = new World(layouts);
         Entity entity = world.Create(first, second, pair);
         world.GetRef<int>(entity, first) = 42;
@@ -100,9 +100,9 @@ public class GenericRuntimeFunctorTests
         var layouts = new ComponentLayoutRegistry();
         ComponentId value = layouts.Register<int>(new SchemaId(120_031));
         ComponentId text = layouts.Register<string>(new SchemaId(120_032));
-        Assert.Throws<ArgumentException>(() => layouts.Register(typeof(int), new SchemaId(120_131), value));
-        Assert.Throws<ArgumentException>(() => layouts.Register(typeof(Pair<,>), new SchemaId(120_132), value));
-        Assert.Throws<ArgumentOutOfRangeException>(() => layouts.Register(typeof(History<>), new SchemaId(120_133), ComponentId.Invalid));
+        Assert.Throws<ArgumentException>(() => layouts.Register(typeof(int), value, new SchemaId(120_131)));
+        Assert.Throws<ArgumentException>(() => layouts.Register(typeof(Pair<,>), value, new SchemaId(120_132)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => layouts.Register(typeof(History<>), ComponentId.Invalid, new SchemaId(120_133)));
         using var world = new World(layouts);
         Entity entity = world.Create(value);
         Query query = world.WhereAll(value);

@@ -72,7 +72,7 @@ internal sealed class PublicApiShapeTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(registerMethods, Has.Length.EqualTo(3));
+            Assert.That(registerMethods, Has.Length.EqualTo(2));
             var typedRegistration = registerMethods.Single(static method => method.IsGenericMethod);
             Assert.That(
                 typedRegistration.GetParameters().Select(static parameter => parameter.ParameterType),

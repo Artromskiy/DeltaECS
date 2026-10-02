@@ -248,13 +248,13 @@ eligible for full inlining when it has no observable state.
 ## Runtime-selected generic functors
 
 An open generic component can be registered using the CLR types of existing
-registrations. Supply its `SchemaId` explicitly. Positional overloads support
-one or two generic arguments directly; when a consumer uses a higher-arity
-generic component, the generator emits the matching `Register` overload:
+registrations. Supply its `SchemaId` explicitly. The runtime provides the
+unary form; for two or more generic arguments, the generator emits the matching
+`Register` overload:
 
 ```csharp
-ComponentId historyId = layouts.Register(typeof(History<>), new SchemaId(100), positionId);
-ComponentId pairId = layouts.Register(typeof(ComponentPair<,>), new SchemaId(101), positionId, velocityId);
+ComponentId historyId = layouts.Register(typeof(History<>), positionId, new SchemaId(100));
+ComponentId pairId = layouts.Register(typeof(ComponentPair<,>), positionId, velocityId, new SchemaId(101));
 ```
 
 The generated runtime-selected functor API supports the same targets and
@@ -278,9 +278,11 @@ world.ForEachParallel(E, Q?, C?, G..., typeof(F<>), W)
 world.ForEachEntityParallel(E, Q?, C?, G..., typeof(F<>), W)
 ```
 
-These forms cover component-row `ForEach` calls only. The separate
-`ForEachStamp`, `ForEachEntityStamp`, and parallel stamp APIs do not currently
-accept an open generic functor type token.
+Open generic functors are supported by the ordinary parallel forms shown
+above, including query-wide and entity-list calls, with or without context.
+Only stamp iteration is excluded: `ForEachStamp`, `ForEachEntityStamp`, and
+their parallel forms do not currently accept an open generic functor type
+token.
 
 The generator emits a visitor stage for each generic parameter. Every component
 registration retains its CLR type through a compiler-support token. Stages
@@ -319,7 +321,7 @@ public struct SaveHistory<T> : IForEachContext<HistoryContext>
 }
 
 ComponentId valueId = layouts.Register<float>(new SchemaId(20));
-ComponentId historyId = layouts.Register(typeof(History<>), new SchemaId(21), valueId);
+ComponentId historyId = layouts.Register(typeof(History<>), valueId, new SchemaId(21));
 Query query = world.WhereAll(valueId, historyId);
 var context = new HistoryContext();
 world.ForEach(in query, ref context, valueId, typeof(SaveHistory<>));

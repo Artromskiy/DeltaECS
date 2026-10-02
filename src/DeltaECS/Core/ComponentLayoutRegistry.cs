@@ -33,25 +33,10 @@ public sealed partial class ComponentLayoutRegistry
     /// </summary>
     public ComponentId Register(
         Type genericTypeDefinition,
-        SchemaId schemaId,
-        ComponentId componentArgument)
+        ComponentId componentArgument,
+        SchemaId schemaId)
     {
         Span<ComponentId> arguments = stackalloc ComponentId[1] { componentArgument };
-        return RegisterGeneric(genericTypeDefinition, schemaId, arguments);
-    }
-
-    /// <summary>
-    /// Closes a generic component definition with the CLR types selected by
-    /// <paramref name="componentArgument0"/> and <paramref name="componentArgument1"/>
-    /// and registers the resulting type.
-    /// </summary>
-    public ComponentId Register(
-        Type genericTypeDefinition,
-        SchemaId schemaId,
-        ComponentId componentArgument0,
-        ComponentId componentArgument1)
-    {
-        Span<ComponentId> arguments = stackalloc ComponentId[2] { componentArgument0, componentArgument1 };
         return RegisterGeneric(genericTypeDefinition, schemaId, arguments);
     }
 
