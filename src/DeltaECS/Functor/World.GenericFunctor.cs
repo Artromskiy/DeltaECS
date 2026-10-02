@@ -81,23 +81,24 @@ public sealed partial class World
             ThrowHelper.ThrowNotGenericTypeDefinition(functorType);
         }
 
-        Type[] genericArgumentTypes = functorType.GetGenericArguments();
-        if (genericArgumentTypes.Length != arguments.Length)
+        IGeneratedGenericFunctor executor;
+        if (GeneratedGenericBindingRegistry.TryGetFunctorDispatcher(
+            functorType,
+            out int dispatcherArity,
+            out GeneratedGenericFunctorDispatcher dispatcher))
         {
-            ThrowHelper.ThrowGenericTypeArgumentCountMismatch(functorType, genericArgumentTypes.Length, arguments.Length);
-        }
+            if (dispatcherArity != arguments.Length)
+            {
+                ThrowHelper.ThrowGenericTypeArgumentCountMismatch(functorType, dispatcherArity, arguments.Length);
+            }
 
-        for (int index = 0; index < arguments.Length; index++)
-        {
-            genericArgumentTypes[index] = _layouts.GetComponentType(arguments[index]);
+            IGeneratedComponentTypeToken[] typeTokens = _layouts.GetComponentTypeTokens(arguments);
+            executor = dispatcher(typeTokens);
         }
-
-        if (!GeneratedGenericBindingRegistry.TryGetFunctorFactory(functorType, genericArgumentTypes, out GeneratedGenericFunctorFactory factory))
+        else
         {
             return ThrowHelper.ThrowMissingGenericFunctor(functorType);
         }
-
-        IGeneratedGenericFunctor executor = factory();
         if (entries is null)
         {
             entries = new List<GenericFunctorEntry>();

@@ -129,9 +129,9 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowMissingGeneratedGenericComponent(Type genericTypeDefinition)
+    internal static ComponentId ThrowMissingGeneratedGenericComponent(Type genericTypeDefinition)
         => throw new ArgumentException(
-            $"No generated registration factory was found for {genericTypeDefinition}. Register this closed generic component in a project that references DeltaECS.Generators.",
+            $"No generated type-token dispatcher was found for {genericTypeDefinition}. Ensure the assembly using this open generic component references DeltaECS.Generators.",
             nameof(genericTypeDefinition));
 
     [DoesNotReturn]
@@ -139,6 +139,24 @@ internal static class ThrowHelper
     internal static void ThrowGeneratedGenericComponentTypeMismatch(Type genericTypeDefinition, Type expectedType)
         => throw new InvalidOperationException(
             $"Generated registration for {genericTypeDefinition} returned a different component type than {expectedType}.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowGeneratedComponentTypeTokenMismatch(Type registeredType, Type tokenType)
+        => throw new ArgumentException(
+            $"The generated component type token represents {tokenType}, not the registered CLR type {registeredType}.",
+            "token");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowGeneratedComponentConstraintMismatch(IGeneratedComponentTypeToken token, string constraint)
+        => throw new ArgumentException(
+            $"Registered component type '{token.ComponentType}' does not satisfy the generic constraint '{constraint}'.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowGeneratedDispatcherConflict(Type genericDefinition)
+        => throw new InvalidOperationException($"Conflicting generated dispatchers were registered for {genericDefinition}.");
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]

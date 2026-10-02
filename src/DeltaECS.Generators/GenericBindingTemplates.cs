@@ -5,26 +5,40 @@ namespace Delta.ECS.Generators;
 internal static class GenericBindingTemplates
 {
     internal static string Render(
-        IReadOnlyCollection<GenericComponentFactoryBinding> componentBindings,
-        IReadOnlyCollection<GenericFunctorFactoryBinding> functorBindings,
+        IReadOnlyCollection<GenericComponentDispatcherBinding> componentDispatchers,
+        IReadOnlyCollection<GenericFunctorDispatcherBinding> functorDispatchers,
+        IReadOnlyCollection<GeneratedTypeTokenBinding> generatedTypeTokens,
+        IReadOnlyCollection<int> componentRegistrationArities,
         bool includeModuleInitializerAttribute)
     {
         var registrations = new List<string>();
-        foreach (GenericComponentFactoryBinding binding in componentBindings
-            .OrderBy(static binding => binding.GenericDefinition, StringComparer.Ordinal)
-            .ThenBy(static binding => string.Join("\u001f", binding.GenericArguments), StringComparer.Ordinal))
+        foreach (GenericComponentDispatcherBinding binding in componentDispatchers
+            .OrderBy(static binding => binding.OpenTypeName, StringComparer.Ordinal))
         {
-            string arguments = string.Join(", ", binding.GenericArguments.Select(static argument => $"typeof({argument})"));
-            registrations.Add($"global::Delta.ECS.GeneratedGenericBindingRegistry.RegisterComponentFactory(typeof({binding.GenericDefinition}), new global::System.Type[] {{ {arguments} }}, typeof({binding.ComponentType}), static (layouts, schemaId) => layouts.Register<{binding.ComponentType}>(schemaId));");
+            registrations.Add($"global::Delta.ECS.GeneratedGenericBindingRegistry.RegisterComponentDispatcher(typeof({binding.OpenTypeName}), {binding.Arity}, static (layouts, schemaId, componentArguments, typeArguments) => global::Delta.ECS.Generated.{binding.DispatcherName}.Register(layouts, schemaId, componentArguments, typeArguments));");
         }
 
-        foreach (GenericFunctorFactoryBinding binding in functorBindings
-            .OrderBy(static binding => binding.GenericDefinition, StringComparer.Ordinal)
-            .ThenBy(static binding => string.Join("\u001f", binding.GenericArguments), StringComparer.Ordinal))
+        foreach (GenericFunctorDispatcherBinding binding in functorDispatchers
+            .OrderBy(static binding => binding.OpenTypeName, StringComparer.Ordinal))
         {
-            string arguments = string.Join(", ", binding.GenericArguments.Select(static argument => $"typeof({argument})"));
-            registrations.Add($"global::Delta.ECS.GeneratedGenericBindingRegistry.RegisterFunctorFactory(typeof({binding.GenericDefinition}), new global::System.Type[] {{ {arguments} }}, static () => new {binding.ExecutorType}());");
+            registrations.Add($"global::Delta.ECS.GeneratedGenericBindingRegistry.RegisterFunctorDispatcher(typeof({binding.OpenTypeName}), {binding.Arity}, static typeArguments => global::Delta.ECS.Generated.{binding.DispatcherName}.Create(typeArguments));");
         }
+
+        foreach (GeneratedTypeTokenBinding binding in generatedTypeTokens
+            .OrderBy(static binding => binding.ComponentTypeName, StringComparer.Ordinal))
+        {
+            registrations.Add($"global::Delta.ECS.GeneratedComponentTypeTokenRegistry.Register(typeof({binding.ComponentTypeName}), new global::Delta.ECS.Generated.{binding.TokenName}());");
+        }
+
+        string dispatchers = string.Join("\n\n", generatedTypeTokens
+            .OrderBy(static binding => binding.ComponentTypeName, StringComparer.Ordinal)
+            .Select(GenericTypeDispatchTemplates.RenderRegisteredComponentTypeToken)
+            .Concat(componentDispatchers
+            .OrderBy(static binding => binding.OpenTypeName, StringComparer.Ordinal)
+            .Select(GenericTypeDispatchTemplates.RenderComponentDispatcher)
+            .Concat(functorDispatchers
+                .OrderBy(static binding => binding.OpenTypeName, StringComparer.Ordinal)
+                .Select(GenericTypeDispatchTemplates.RenderFunctorDispatcher))));
 
         string attribute = includeModuleInitializerAttribute
             ? """
@@ -36,10 +50,25 @@ internal static class GenericBindingTemplates
 
               """
             : string.Empty;
+        string registrationExtensions = componentRegistrationArities.Count == 0
+            ? string.Empty
+            : $$"""
+                namespace Delta.ECS
+                {
+                    [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
+                    public static class GeneratedGenericComponentRegistrationExtensions
+                    {
+                {{GeneratorTemplates.Indent(string.Join("\n\n", componentRegistrationArities.OrderBy(static arity => arity).Select(GenericTypeDispatchTemplates.RenderComponentRegistrationExtension)), "        ")}}
+                    }
+                }
+
+                """;
         string source = $$"""
             // <auto-generated />
-            {{attribute}}namespace Delta.ECS.Generated
+            {{registrationExtensions}}{{attribute}}namespace Delta.ECS.Generated
             {
+            {{GeneratorTemplates.Indent(dispatchers, "    ")}}
+
                 internal static class GenericBindingModuleInitializer
                 {
                     [global::System.Runtime.CompilerServices.ModuleInitializer]

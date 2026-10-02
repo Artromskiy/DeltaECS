@@ -9,9 +9,10 @@ public sealed partial class ComponentLayoutRegistry
     {
         var layout = new ComponentLayout(schemaId, typeof(T));
         bool isTag = IsTagType(typeof(T));
+        IGeneratedComponentTypeToken typeToken = GeneratedComponentTypeTokenRegistry.Get<T>();
         return isTag
-            ? Register(layout, default, isTag: true)
-            : Register(layout, ComponentRowOperations.ForType<T>());
+            ? Register(layout, default, typeToken, isTag: true)
+            : Register(layout, ComponentRowOperations.ForType<T>(), typeToken);
     }
 
     /// <summary>Tries to resolve the primary component registration for <typeparamref name="T"/>.</summary>

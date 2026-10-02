@@ -2,7 +2,6 @@ namespace Delta.ECS;
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 public sealed partial class ComponentLayoutRegistry
@@ -11,6 +10,7 @@ public sealed partial class ComponentLayoutRegistry
     private readonly Dictionary<Type, ComponentId> _primaryIdsByType = new();
     private readonly List<ComponentLayout> _layouts = new();
     private readonly List<ComponentRowOperations> _rowOperations = new();
+    private readonly List<IGeneratedComponentTypeToken> _componentTypeTokens = new();
     private readonly List<bool> _isTag = new();
     private readonly List<int> _tagIndices = new();
     private readonly Dictionary<Type, List<GenericRegistration>> _genericRegistrations = new();
@@ -32,7 +32,7 @@ public sealed partial class ComponentLayoutRegistry
     /// Uses the explicitly supplied schema identity for the closed type.
     /// </summary>
     public ComponentId Register(
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type genericTypeDefinition,
+        Type genericTypeDefinition,
         SchemaId schemaId,
         ComponentId componentArgument)
     {
@@ -46,7 +46,7 @@ public sealed partial class ComponentLayoutRegistry
     /// and registers the resulting type.
     /// </summary>
     public ComponentId Register(
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type genericTypeDefinition,
+        Type genericTypeDefinition,
         SchemaId schemaId,
         ComponentId componentArgument0,
         ComponentId componentArgument1)
@@ -60,7 +60,7 @@ public sealed partial class ComponentLayoutRegistry
     /// <paramref name="componentArguments"/> and registers the resulting type.
     /// </summary>
     private ComponentId RegisterGeneric(
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type genericTypeDefinition,
+        Type genericTypeDefinition,
         SchemaId schemaId,
         ReadOnlySpan<ComponentId> componentArguments)
     {
@@ -70,36 +70,28 @@ public sealed partial class ComponentLayoutRegistry
             ThrowHelper.ThrowNotGenericTypeDefinition(genericTypeDefinition);
         }
 
-        Type[] genericArgumentTypes = genericTypeDefinition.GetGenericArguments();
-        if (genericArgumentTypes.Length != componentArguments.Length)
-        {
-            ThrowHelper.ThrowGenericTypeArgumentCountMismatch(genericTypeDefinition, genericArgumentTypes.Length, componentArguments.Length);
-        }
-
-        for (int index = 0; index < componentArguments.Length; index++)
-        {
-            genericArgumentTypes[index] = GetComponentType(componentArguments[index]);
-        }
-
-        if (!GeneratedGenericBindingRegistry.TryGetComponentFactory(
+        if (GeneratedGenericBindingRegistry.TryGetComponentDispatcher(
             genericTypeDefinition,
-            genericArgumentTypes,
-            out Type componentType,
-            out GeneratedGenericComponentRegistrationFactory factory))
+            out int dispatcherArity,
+            out GeneratedGenericComponentDispatcher dispatcher))
         {
-            ThrowHelper.ThrowMissingGeneratedGenericComponent(genericTypeDefinition);
+            if (dispatcherArity != componentArguments.Length)
+            {
+                ThrowHelper.ThrowGenericTypeArgumentCountMismatch(genericTypeDefinition, dispatcherArity, componentArguments.Length);
+            }
+
+            IGeneratedComponentTypeToken[] typeTokens = GetComponentTypeTokens(componentArguments);
+            return dispatcher(this, schemaId, componentArguments, typeTokens);
         }
 
-        EnsureGenericMappingAvailable(componentType, schemaId, componentArguments);
-        ComponentId componentId = factory(this, schemaId);
-        if (Get(componentId).RuntimeType != componentType)
-        {
-            ThrowHelper.ThrowGeneratedGenericComponentTypeMismatch(genericTypeDefinition, componentType);
-        }
-
-        RegisterGenericMapping(componentType, componentId, componentArguments);
-        return componentId;
+        return ThrowHelper.ThrowMissingGeneratedGenericComponent(genericTypeDefinition);
     }
+
+    internal ComponentId RegisterGeneratedGenericDefinition(
+        Type genericTypeDefinition,
+        SchemaId schemaId,
+        ReadOnlySpan<ComponentId> componentArguments)
+        => RegisterGeneric(genericTypeDefinition, schemaId, componentArguments);
 
     /// <summary>Gets the CLR type of a registered component.</summary>
     public Type GetComponentType(ComponentId componentId) => Get(componentId).RuntimeType;
@@ -165,10 +157,7 @@ public sealed partial class ComponentLayoutRegistry
             && !runtimeType.IsEnum
             && runtimeType.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).Length == 0;
 
-    private ComponentId Register(ComponentLayout layout, ComponentRowOperations rowOperations)
-        => Register(layout, rowOperations, isTag: false);
-
-    private ComponentId Register(ComponentLayout layout, ComponentRowOperations rowOperations, bool isTag)
+    private ComponentId Register(ComponentLayout layout, ComponentRowOperations rowOperations, IGeneratedComponentTypeToken typeToken, bool isTag = false)
     {
         if (_idsBySchema.TryGetValue(layout.SchemaId, out int existingId))
         {
@@ -184,12 +173,44 @@ public sealed partial class ComponentLayoutRegistry
         var id = new ComponentId(_layouts.Count);
         _layouts.Add(layout);
         _rowOperations.Add(rowOperations);
+        _componentTypeTokens.Add(typeToken);
         _isTag.Add(isTag);
         _tagIndices.Add(isTag ? _tagCount++ : -1);
         _idsBySchema.Add(layout.SchemaId, id.Value);
         _primaryIdsByType.TryAdd(layout.RuntimeType, id);
 
         return id;
+    }
+
+    internal IGeneratedComponentTypeToken[] GetComponentTypeTokens(ReadOnlySpan<ComponentId> componentIds)
+    {
+        var tokens = new IGeneratedComponentTypeToken[componentIds.Length];
+        for (int index = 0; index < componentIds.Length; index++)
+        {
+            ComponentId componentId = componentIds[index];
+            _ = Get(componentId);
+            tokens[index] = _componentTypeTokens[componentId.Value];
+        }
+
+        return tokens;
+    }
+
+    internal ComponentId RegisterGeneratedGenericComponent<T>(SchemaId schemaId, ReadOnlySpan<ComponentId> componentArguments, IGeneratedComponentTypeToken typeToken)
+    {
+        ThrowHelper.ThrowIfNull(typeToken, nameof(typeToken));
+        if (typeToken.ComponentType != typeof(T))
+        {
+            ThrowHelper.ThrowGeneratedGenericComponentTypeMismatch(typeof(T), typeToken.ComponentType);
+        }
+
+        EnsureGenericMappingAvailable(typeof(T), schemaId, componentArguments);
+        var layout = new ComponentLayout(schemaId, typeof(T));
+        bool isTag = IsTagType(typeof(T));
+        ComponentId componentId = isTag
+            ? Register(layout, default, typeToken, isTag: true)
+            : Register(layout, ComponentRowOperations.ForType<T>(), typeToken);
+        RegisterGenericMapping(typeof(T), componentId, componentArguments);
+        return componentId;
     }
 
     internal bool IsTag(ComponentId id)

@@ -93,17 +93,23 @@ constraints, context type and mode, component modes and registration selectors.
 iteration kernel. No additional iteration implementation is maintained.
 
 `GeneratedGenericBindingsGenerator` finds generic component registrations and
-open generic functor calls in the consumer compilation. It emits one module
-initializer that registers direct typed factories in
-`GeneratedGenericBindingRegistry`. A component factory calls
-`ComponentLayoutRegistry.Register<ClosedComponent>`; a functor factory
-constructs its closed generated executor directly. The runtime matches the
-generic definition and the positional CLR component types, then invokes that
-factory. It does not close types with reflection or create executors through
-`Activator`. Unary bindings can cover registered component types selected
-through a runtime `ComponentId`; multi-parameter bindings are emitted for the
-concrete ordered tuples visible to the generator, avoiding a cartesian product
-of every component type.
+open generic functor calls in the consumer compilation. It emits one visitor
+stage per generic parameter and registers a dispatcher in
+`GeneratedGenericBindingRegistry`. Each `Register<T>` stores a generated token
+for `T` with its supported type capabilities; runtime-selected component IDs
+provide those tokens to the generated stages, which instantiate the closed
+typed registration or functor executor with ordinary generic calls. The chain
+handles any ordered tuple, including IDs passed through helpers, without
+source-value tracing, reflection-based closure, or a generated factory per
+tuple. Functor dispatch happens on a cache miss before iteration. Generic
+components use the same chain when they are registered.
+
+The dispatch chain carries `struct`, `unmanaged`, `class`, `class?`, and
+`new()` constraints, including `class, new()` combinations. Open generic
+definitions using `notnull`, base-class, interface, or cross-parameter
+constraints produce a generator diagnostic at their registration or functor
+call. There is no concrete-tuple factory fallback; unsupported constraints
+must be removed or expressed using one of the supported constraints.
 
 The arity-specific `World.ForEach*` extensions cover query-wide iteration,
 entity-list iteration with an optional query, entity-aware callbacks,

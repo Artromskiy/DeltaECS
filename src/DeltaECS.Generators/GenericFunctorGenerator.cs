@@ -80,6 +80,7 @@ public sealed class GenericFunctorGenerator : IIncrementalGenerator
             GeneratorSupport.DisplayType(parameter.Type),
             GeneratorSupport.PatternLetter(parameter.RefKind),
             Selector(parameter.Type, parameters))).ToImmutableArray();
+        bool supportsTypeTokenDispatch = GenericTypeConstraintSupport.TryGetSupported(functor, out ImmutableArray<GenericTypeParameterConstraint> dispatchTypeParameters);
         return new GenericFunctorModel(
             GeneratorSupport.DisplayType(functor),
             GeneratorSupport.DisplayType(functor.ConstructUnboundGenericType()),
@@ -89,6 +90,8 @@ public sealed class GenericFunctorGenerator : IIncrementalGenerator
             contextMode,
             string.Join(", ", parameters.Select(static parameter => parameter.Name)),
             string.Join("\n", parameters.Select(Constraint).Where(static clause => clause.Length != 0)),
+            supportsTypeTokenDispatch,
+            dispatchTypeParameters,
             rows);
     }
 
@@ -157,6 +160,8 @@ internal sealed class GenericFunctorModel
         ContextModeKind contextMode,
         string typeParameters,
         string constraints,
+        bool supportsTypeTokenDispatch,
+        ImmutableArray<GenericTypeParameterConstraint> dispatchTypeParameters,
         ImmutableArray<GenericFunctorRow> rows)
     {
         TypeName = typeName;
@@ -167,6 +172,8 @@ internal sealed class GenericFunctorModel
         ContextMode = contextMode;
         TypeParameters = typeParameters;
         Constraints = constraints;
+        SupportsTypeTokenDispatch = supportsTypeTokenDispatch;
+        DispatchTypeParameters = dispatchTypeParameters;
         Rows = rows;
     }
 
@@ -179,6 +186,8 @@ internal sealed class GenericFunctorModel
     internal int Arity => TypeParameters.Split(',').Length;
     internal string TypeParameters { get; }
     internal string Constraints { get; }
+    internal bool SupportsTypeTokenDispatch { get; }
+    internal ImmutableArray<GenericTypeParameterConstraint> DispatchTypeParameters { get; }
     internal ImmutableArray<GenericFunctorRow> Rows { get; }
 }
 

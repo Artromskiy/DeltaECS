@@ -1,11 +1,10 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Delta.ECS.Generators;
 
-/// <summary>Emits direct closed-type factories for runtime-selected generic API calls.</summary>
+/// <summary>Emits visitor dispatchers for runtime-selected generic API calls.</summary>
 [Generator]
 public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
 {
@@ -13,6 +12,14 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
     {
         "ForEach", "ForEachEntity", "ForEachParallel", "ForEachEntityParallel",
     };
+
+    private static readonly DiagnosticDescriptor UnsupportedGenericConstraints = new(
+        "DECSGEN008",
+        "Unsupported generic constraints",
+        "Open generic type '{0}' uses constraints unsupported by runtime-selected generic dispatch. Supported constraints are value type, unmanaged, reference type, nullable reference type, and public parameterless constructor.",
+        "Generic bindings",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -33,120 +40,111 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
 
             var componentTypes = new Dictionary<string, ITypeSymbol>(StringComparer.Ordinal);
             var componentDefinitions = new Dictionary<string, INamedTypeSymbol>(StringComparer.Ordinal);
-            var componentTuples = new Dictionary<string, Dictionary<string, ImmutableArray<ITypeSymbol>>>(StringComparer.Ordinal);
-            var unresolvedComponentDefinitions = new HashSet<string>(StringComparer.Ordinal);
             var functorDefinitions = new Dictionary<string, INamedTypeSymbol>(StringComparer.Ordinal);
-            var functorTuples = new Dictionary<string, Dictionary<string, ImmutableArray<ITypeSymbol>>>(StringComparer.Ordinal);
-            var unresolvedFunctors = new HashSet<string>(StringComparer.Ordinal);
 
             foreach (GenericBindingDiscovery discovery in discovered)
             {
-                if (discovery.RegisteredComponentType is ITypeSymbol registeredType && IsClosedType(registeredType)
+                if (discovery.RegisteredComponentType is ITypeSymbol registeredType
                     && GeneratorSupport.IsAccessibleSymbol(registeredType))
                 {
                     AddIfMissing(componentTypes, GeneratorSupport.DisplayType(registeredType), registeredType);
                 }
 
-                if (discovery.GenericComponentDefinition is INamedTypeSymbol componentDefinition
-                    && GeneratorSupport.IsAccessibleSymbol(componentDefinition))
+                if (discovery.GenericComponentDefinition is INamedTypeSymbol componentDefinition)
                 {
-                    string definitionKey = GeneratorSupport.DisplayType(componentDefinition.ConstructUnboundGenericType());
-                    AddIfMissing(componentDefinitions, definitionKey, componentDefinition);
-                    if (!discovery.GenericArguments.IsDefaultOrEmpty)
+                    if (!GenericTypeConstraintSupport.TryGetSupported(componentDefinition, out _))
                     {
-                        ImmutableArray<ITypeSymbol> tuple = discovery.GenericArguments;
-                        AddTypes(componentTypes, tuple);
-                        AddTuple(componentTuples, definitionKey, tuple);
+                        ReportUnsupportedConstraints(output, componentDefinition, discovery.Location);
                     }
-                    else
+                    else if (GeneratorSupport.IsAccessibleSymbol(componentDefinition))
                     {
-                        unresolvedComponentDefinitions.Add(definitionKey);
+                        string key = GeneratorSupport.DisplayType(componentDefinition.ConstructUnboundGenericType());
+                        AddIfMissing(componentDefinitions, key, componentDefinition);
                     }
                 }
 
                 if (discovery.GenericFunctorDefinition is INamedTypeSymbol functorDefinition)
                 {
-                    string definitionKey = GeneratorSupport.DisplayType(functorDefinition.ConstructUnboundGenericType());
-                    AddIfMissing(functorDefinitions, definitionKey, functorDefinition);
-                    if (!discovery.GenericArguments.IsDefaultOrEmpty)
+                    if (!GenericTypeConstraintSupport.TryGetSupported(functorDefinition, out _))
                     {
-                        ImmutableArray<ITypeSymbol> tuple = discovery.GenericArguments;
-                        AddTypes(componentTypes, tuple);
-                        AddTuple(functorTuples, definitionKey, tuple);
+                        ReportUnsupportedConstraints(output, functorDefinition, discovery.Location);
                     }
                     else
                     {
-                        unresolvedFunctors.Add(definitionKey);
+                        string key = GeneratorSupport.DisplayType(functorDefinition.ConstructUnboundGenericType());
+                        AddIfMissing(functorDefinitions, key, functorDefinition);
                     }
                 }
             }
 
-            var componentBindings = new List<GenericComponentFactoryBinding>();
-            foreach (KeyValuePair<string, INamedTypeSymbol> definitionEntry in componentDefinitions)
+            var componentDispatchers = new List<GenericComponentDispatcherBinding>();
+            var componentRegistrationArities = new HashSet<int>();
+            foreach (INamedTypeSymbol definition in componentDefinitions.Values)
             {
-                string definitionKey = definitionEntry.Key;
-                INamedTypeSymbol definition = definitionEntry.Value;
-                IEnumerable<ImmutableArray<ITypeSymbol>> tuples = definition.Arity == 1 && unresolvedComponentDefinitions.Contains(definitionKey)
-                    ? componentTypes.Values.Select(static type => ImmutableArray.Create(type))
-                        .Concat(GetTuples(componentTuples, definitionKey))
-                    : GetTuples(componentTuples, definitionKey);
-                foreach (ImmutableArray<ITypeSymbol> tuple in DistinctTuples(tuples))
+                if (definition.Arity > 2)
                 {
-                    if (!TryCloseType(input.Right, definition, tuple, out INamedTypeSymbol? closedType)
-                        || !GeneratorSupport.IsAccessibleSymbol(closedType!))
-                    {
-                        continue;
-                    }
-
-                    componentBindings.Add(new GenericComponentFactoryBinding(
-                        GeneratorSupport.DisplayType(definition.ConstructUnboundGenericType()),
-                        tuple.Select(GeneratorSupport.DisplayType).ToImmutableArray(),
-                        GeneratorSupport.DisplayType(closedType!)));
+                    componentRegistrationArities.Add(definition.Arity);
                 }
+
+                _ = GenericTypeConstraintSupport.TryGetSupported(definition, out ImmutableArray<GenericTypeParameterConstraint> constraints);
+                string openTypeName = GeneratorSupport.DisplayType(definition.ConstructUnboundGenericType());
+                componentDispatchers.Add(new GenericComponentDispatcherBinding(
+                    openTypeName,
+                    "GenericComponentDispatcher_" + GeneratorSupport.StableName(openTypeName),
+                    constraints,
+                    definition.IsValueType,
+                    definition.IsUnmanagedType,
+                    definition.IsReferenceType,
+                    GenericTypeConstraintSupport.HasPublicParameterlessConstructor(definition)));
             }
 
-            var functorBindings = new List<GenericFunctorFactoryBinding>();
-            foreach (KeyValuePair<string, INamedTypeSymbol> definitionEntry in functorDefinitions)
+            var functorDispatchers = new List<GenericFunctorDispatcherBinding>();
+            foreach (INamedTypeSymbol definition in functorDefinitions.Values)
             {
-                string definitionKey = definitionEntry.Key;
-                INamedTypeSymbol definition = definitionEntry.Value;
                 GenericFunctorModel? model = GenericFunctorGenerator.CreateModel(definition);
                 if (model is null)
                 {
                     continue;
                 }
 
-                IEnumerable<ImmutableArray<ITypeSymbol>> tuples = model.Arity == 1 && unresolvedFunctors.Contains(definitionKey)
-                    ? componentTypes.Values.Select(static type => ImmutableArray.Create(type))
-                        .Concat(GetTuples(functorTuples, definitionKey))
-                    : GetTuples(functorTuples, definitionKey);
-                foreach (ImmutableArray<ITypeSymbol> tuple in DistinctTuples(tuples))
-                {
-                    if (!TryCloseType(input.Right, definition, tuple, out _))
-                    {
-                        continue;
-                    }
-
-                    string executorName = "global::Delta.ECS.Generated.GenericFunctorExecutor_" + GeneratorSupport.StableName(model.TypeName);
-                    functorBindings.Add(new GenericFunctorFactoryBinding(
-                        GeneratorSupport.DisplayType(definition.ConstructUnboundGenericType()),
-                        tuple.Select(GeneratorSupport.DisplayType).ToImmutableArray(),
-                        executorName + "<" + string.Join(", ", tuple.Select(GeneratorSupport.DisplayType)) + ">"));
-                }
+                _ = GenericTypeConstraintSupport.TryGetSupported(definition, out ImmutableArray<GenericTypeParameterConstraint> constraints);
+                string openTypeName = GeneratorSupport.DisplayType(definition.ConstructUnboundGenericType());
+                functorDispatchers.Add(new GenericFunctorDispatcherBinding(
+                    openTypeName,
+                    "GenericFunctorDispatcher_" + GeneratorSupport.StableName(openTypeName),
+                    "global::Delta.ECS.Generated.GenericFunctorExecutor_" + GeneratorSupport.StableName(model.TypeName),
+                    constraints));
             }
 
-            if (componentBindings.Count == 0 && functorBindings.Count == 0)
+            if (componentDispatchers.Count == 0 && functorDispatchers.Count == 0 && componentRegistrationArities.Count == 0)
             {
                 return;
             }
 
             bool needsModuleInitializerAttribute = input.Right.GetTypeByMetadataName("System.Runtime.CompilerServices.ModuleInitializerAttribute") is null;
+            var generatedTypeTokens = componentTypes.Values
+                .Select(type => new GeneratedTypeTokenBinding(
+                    GeneratorSupport.DisplayType(type),
+                    "RegisteredComponentTypeToken_" + GeneratorSupport.StableName(GeneratorSupport.DisplayType(type)),
+                    type.IsValueType,
+                    type.IsUnmanagedType,
+                    type.IsReferenceType,
+                    type is INamedTypeSymbol namedType && GenericTypeConstraintSupport.HasPublicParameterlessConstructor(namedType)))
+                .ToArray();
             output.AddSource("GeneratedGenericBindings.g.cs", GenericBindingTemplates.Render(
-                componentBindings,
-                functorBindings,
+                componentDispatchers,
+                functorDispatchers,
+                generatedTypeTokens,
+                componentRegistrationArities,
                 needsModuleInitializerAttribute));
         });
     }
+
+    private static void ReportUnsupportedConstraints(SourceProductionContext output, INamedTypeSymbol definition, Location location)
+        => output.ReportDiagnostic(Diagnostic.Create(
+            UnsupportedGenericConstraints,
+            location,
+            GeneratorSupport.DisplayType(definition.ConstructUnboundGenericType())));
 
     private static GenericBindingDiscovery? ReadDiscovery(GeneratorSyntaxContext syntax)
     {
@@ -154,50 +152,38 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
         IMethodSymbol? method = syntax.SemanticModel.GetSymbolInfo(invocation).Symbol as IMethodSymbol;
         if (method is null)
         {
-            return ReadFunctorDiscovery(invocation, syntax.SemanticModel);
+            return ReadGenericComponentRegistrationDiscovery(invocation, syntax.SemanticModel)
+                ?? ReadFunctorDiscovery(invocation, syntax.SemanticModel);
         }
 
-        if (IsLayoutRegistry(method.ContainingType))
+        if (IsLayoutRegistry(method.ContainingType) || IsGeneratedComponentRegistrationExtensions(method.ContainingType))
         {
             if (method.IsGenericMethod && method.Name == "Register" && method.TypeArguments.Length == 1)
             {
-                return new GenericBindingDiscovery(method.TypeArguments[0], null, default, null);
+                return new GenericBindingDiscovery(method.TypeArguments[0], null, null, invocation.GetLocation());
             }
 
-            if (method.Name == "Register" && !method.IsGenericMethod && invocation.ArgumentList.Arguments.Count >= 3
+            if (method.Name == "Register" && !method.IsGenericMethod
+                && invocation.ArgumentList.Arguments.Count >= 3
                 && TryGetOpenGenericType(invocation.ArgumentList.Arguments[0].Expression, syntax.SemanticModel, out INamedTypeSymbol? definition))
             {
-                int arity = definition.Arity;
-                if (invocation.ArgumentList.Arguments.Count - 2 != arity)
-                {
-                    return new GenericBindingDiscovery(null, definition, default, null);
-                }
-
-                var arguments = ImmutableArray.CreateBuilder<ITypeSymbol>(arity);
-                for (int index = 0; index < arity; index++)
-                {
-                    ITypeSymbol? type = ResolveComponentType(
-                        invocation.ArgumentList.Arguments[index + 2].Expression,
-                        syntax.SemanticModel,
-                        new HashSet<ISymbol>(SymbolEqualityComparer.Default));
-                    if (type is null || !IsClosedType(type))
-                    {
-                        arguments.Clear();
-                        break;
-                    }
-
-                    arguments.Add(type);
-                }
-
-                ImmutableArray<ITypeSymbol> tuple = arguments.ToImmutable();
-                ITypeSymbol? closedType = TryCloseType(syntax.SemanticModel.Compilation, definition, tuple, out INamedTypeSymbol? closed)
-                    ? closed
-                    : null;
-                return new GenericBindingDiscovery(closedType, definition, tuple, null);
+                return new GenericBindingDiscovery(null, definition, null, invocation.GetLocation());
             }
         }
 
         return ReadFunctorDiscovery(invocation, syntax.SemanticModel);
+    }
+
+    private static GenericBindingDiscovery? ReadGenericComponentRegistrationDiscovery(InvocationExpressionSyntax invocation, SemanticModel semanticModel)
+    {
+        if (GetMethodName(invocation.Expression) != "Register"
+            || invocation.ArgumentList.Arguments.Count < 3
+            || !TryGetOpenGenericType(invocation.ArgumentList.Arguments[0].Expression, semanticModel, out INamedTypeSymbol? definition))
+        {
+            return null;
+        }
+
+        return new GenericBindingDiscovery(null, definition, null, invocation.GetLocation());
     }
 
     private static GenericBindingDiscovery? ReadFunctorDiscovery(InvocationExpressionSyntax invocation, SemanticModel semanticModel)
@@ -210,122 +196,24 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
         SeparatedSyntaxList<ArgumentSyntax> arguments = invocation.ArgumentList.Arguments;
         for (int typeIndex = 0; typeIndex < arguments.Count; typeIndex++)
         {
-            if (!TryGetOpenGenericType(arguments[typeIndex].Expression, semanticModel, out INamedTypeSymbol? definition))
+            if (!TryGetOpenGenericType(arguments[typeIndex].Expression, semanticModel, out INamedTypeSymbol? definition)
+                || typeIndex < definition.Arity)
             {
                 continue;
             }
 
-            GenericFunctorModel? model = GenericFunctorGenerator.CreateModel(definition);
-            if (model is null || typeIndex < model.Arity)
+            if (!GenericTypeConstraintSupport.TryGetSupported(definition, out _))
             {
-                continue;
+                return new GenericBindingDiscovery(null, null, definition, invocation.GetLocation());
             }
 
-            var tuple = ImmutableArray.CreateBuilder<ITypeSymbol>(model.Arity);
-            for (int index = typeIndex - model.Arity; index < typeIndex; index++)
+            if (GenericFunctorGenerator.CreateModel(definition) is not null)
             {
-                ITypeSymbol? type = ResolveComponentType(
-                    arguments[index].Expression,
-                    semanticModel,
-                    new HashSet<ISymbol>(SymbolEqualityComparer.Default));
-                if (type is null || !IsClosedType(type))
-                {
-                    tuple.Clear();
-                    break;
-                }
-
-                tuple.Add(type);
-            }
-
-            return new GenericBindingDiscovery(null, null, default, definition, tuple.ToImmutable());
-        }
-
-        return null;
-    }
-
-    private static ITypeSymbol? ResolveComponentType(ExpressionSyntax expression, SemanticModel semanticModel, HashSet<ISymbol> resolving)
-    {
-        if (expression is ParenthesizedExpressionSyntax parenthesized)
-        {
-            return ResolveComponentType(parenthesized.Expression, semanticModel, resolving);
-        }
-
-        if (expression is CastExpressionSyntax cast)
-        {
-            return ResolveComponentType(cast.Expression, semanticModel, resolving);
-        }
-
-        if (expression is InvocationExpressionSyntax invocation)
-        {
-            return ResolveRegisteredType(invocation, semanticModel, resolving);
-        }
-
-        ISymbol? symbol = semanticModel.GetSymbolInfo(expression).Symbol;
-        if (symbol is ILocalSymbol or IFieldSymbol)
-        {
-            if (!resolving.Add(symbol))
-            {
-                return null;
-            }
-
-            foreach (SyntaxReference reference in symbol.DeclaringSyntaxReferences)
-            {
-                SyntaxNode declaration = reference.GetSyntax();
-                ExpressionSyntax? initializer = declaration switch
-                {
-                    VariableDeclaratorSyntax variable => variable.Initializer?.Value,
-                    PropertyDeclarationSyntax property => property.Initializer?.Value,
-                    _ => null,
-                };
-                if (initializer is not null)
-                {
-                    return ResolveComponentType(initializer, semanticModel.Compilation.GetSemanticModel(initializer.SyntaxTree), resolving);
-                }
+                return new GenericBindingDiscovery(null, null, definition, invocation.GetLocation());
             }
         }
 
         return null;
-    }
-
-    private static ITypeSymbol? ResolveRegisteredType(InvocationExpressionSyntax invocation, SemanticModel semanticModel, HashSet<ISymbol> resolving)
-    {
-        if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method || !IsLayoutRegistry(method.ContainingType))
-        {
-            return null;
-        }
-
-        if (method.Name == "Register" && method.IsGenericMethod && method.TypeArguments.Length == 1)
-        {
-            return method.TypeArguments[0];
-        }
-
-        if (method.Name == "GetPrimary" && method.IsGenericMethod && method.TypeArguments.Length == 1)
-        {
-            return method.TypeArguments[0];
-        }
-
-        if (method.Name != "Register" || method.IsGenericMethod || invocation.ArgumentList.Arguments.Count < 3
-            || !TryGetOpenGenericType(invocation.ArgumentList.Arguments[0].Expression, semanticModel, out INamedTypeSymbol? definition)
-            || invocation.ArgumentList.Arguments.Count - 2 != definition.Arity)
-        {
-            return null;
-        }
-
-        var arguments = ImmutableArray.CreateBuilder<ITypeSymbol>(definition.Arity);
-        for (int index = 0; index < definition.Arity; index++)
-        {
-            ITypeSymbol? type = ResolveComponentType(invocation.ArgumentList.Arguments[index + 2].Expression, semanticModel, resolving);
-            if (type is null || !IsClosedType(type))
-            {
-                return null;
-            }
-
-            arguments.Add(type);
-        }
-
-        return TryCloseType(semanticModel.Compilation, definition, arguments.ToImmutable(), out INamedTypeSymbol? closedType)
-            ? closedType
-            : null;
     }
 
     private static bool TryGetOpenGenericType(ExpressionSyntax expression, SemanticModel semanticModel, out INamedTypeSymbol definition)
@@ -365,103 +253,11 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
         return false;
     }
 
-    private static bool TryCloseType(Compilation compilation, INamedTypeSymbol definition, ImmutableArray<ITypeSymbol> arguments, out INamedTypeSymbol? closedType)
-    {
-        if (definition.Arity != arguments.Length || arguments.Any(static type => !IsClosedType(type))
-            || !SatisfiesConstraints(compilation, definition, arguments))
-        {
-            closedType = null;
-            return false;
-        }
-
-        try
-        {
-            closedType = definition.Construct(arguments.ToArray());
-            return !ContainsTypeParameter(closedType) && closedType.TypeKind != TypeKind.Error;
-        }
-        catch (ArgumentException)
-        {
-            closedType = null;
-            return false;
-        }
-    }
-
-    private static bool SatisfiesConstraints(Compilation compilation, INamedTypeSymbol definition, ImmutableArray<ITypeSymbol> arguments)
-    {
-        for (int index = 0; index < definition.TypeParameters.Length; index++)
-        {
-            ITypeParameterSymbol parameter = definition.TypeParameters[index];
-            ITypeSymbol argument = arguments[index];
-            bool nullableValueType = argument is INamedTypeSymbol named
-                && named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T;
-
-            if (parameter.HasUnmanagedTypeConstraint && !argument.IsUnmanagedType
-                || parameter.HasValueTypeConstraint && (!argument.IsValueType || nullableValueType)
-                || parameter.HasReferenceTypeConstraint && (!argument.IsReferenceType
-                    || parameter.ReferenceTypeConstraintNullableAnnotation != NullableAnnotation.Annotated
-                        && argument.NullableAnnotation == NullableAnnotation.Annotated)
-                || parameter.HasNotNullConstraint && argument.NullableAnnotation == NullableAnnotation.Annotated)
-            {
-                return false;
-            }
-
-            if (parameter.HasConstructorConstraint && !argument.IsValueType
-                && !(argument is INamedTypeSymbol argumentType && !argumentType.IsAbstract
-                    && argumentType.InstanceConstructors.Any(static constructor => constructor.Parameters.Length == 0
-                        && constructor.DeclaredAccessibility == Accessibility.Public)))
-            {
-                return false;
-            }
-
-            foreach (ITypeSymbol constraint in parameter.ConstraintTypes)
-            {
-                if (constraint is ITypeParameterSymbol otherParameter)
-                {
-                    int constraintIndex = Array.FindIndex(definition.TypeParameters.ToArray(), candidate => SymbolEqualityComparer.Default.Equals(candidate, otherParameter));
-                    if (constraintIndex >= 0 && !ClassifiesAsImplicit(compilation, argument, arguments[constraintIndex]))
-                    {
-                        return false;
-                    }
-
-                    continue;
-                }
-
-                if (ContainsTypeParameter(constraint))
-                {
-                    continue;
-                }
-
-                if (!ClassifiesAsImplicit(compilation, argument, constraint))
-                {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-
-    private static bool ClassifiesAsImplicit(Compilation compilation, ITypeSymbol source, ITypeSymbol destination)
-        => compilation is not CSharpCompilation csharpCompilation
-            || csharpCompilation.ClassifyConversion(source, destination).IsImplicit;
-
-    private static bool ContainsTypeParameter(ITypeSymbol type)
-        => type is ITypeParameterSymbol || type is INamedTypeSymbol named && named.TypeArguments.Any(ContainsTypeParameter);
-
-    private static bool IsClosedType(ITypeSymbol type)
-        => !ContainsTypeParameter(type) && type.TypeKind != TypeKind.Error && type.TypeKind != TypeKind.Pointer
-            && type is not ITypeParameterSymbol && !(type is INamedTypeSymbol named && named.IsUnboundGenericType);
-
-    private static void AddIfMissing<TValue>(Dictionary<string, TValue> dictionary, string key, TValue value)
-    {
-        if (!dictionary.ContainsKey(key))
-        {
-            dictionary.Add(key, value);
-        }
-    }
-
     private static bool IsLayoutRegistry(INamedTypeSymbol? type)
         => type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Delta.ECS.ComponentLayoutRegistry";
+
+    private static bool IsGeneratedComponentRegistrationExtensions(INamedTypeSymbol? type)
+        => type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Delta.ECS.GeneratedGenericComponentRegistrationExtensions";
 
     private static string GetMethodName(ExpressionSyntax expression)
         => expression switch
@@ -472,88 +268,23 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
             _ => string.Empty,
         };
 
-    private static void AddTypes(Dictionary<string, ITypeSymbol> types, ImmutableArray<ITypeSymbol> tuple)
+    private static void AddIfMissing<TValue>(Dictionary<string, TValue> dictionary, string key, TValue value)
     {
-        foreach (ITypeSymbol type in tuple)
+        if (!dictionary.ContainsKey(key))
         {
-            if (IsClosedType(type) && GeneratorSupport.IsAccessibleSymbol(type))
-            {
-                AddIfMissing(types, GeneratorSupport.DisplayType(type), type);
-            }
-        }
-    }
-
-    private static void AddTuple(Dictionary<string, Dictionary<string, ImmutableArray<ITypeSymbol>>> tuples, string key, ImmutableArray<ITypeSymbol> tuple)
-    {
-        if (!tuples.TryGetValue(key, out Dictionary<string, ImmutableArray<ITypeSymbol>>? values))
-        {
-            values = new Dictionary<string, ImmutableArray<ITypeSymbol>>(StringComparer.Ordinal);
-            tuples.Add(key, values);
-        }
-
-        string tupleKey = string.Join("\u001f", tuple.Select(GeneratorSupport.DisplayType));
-        if (!values.ContainsKey(tupleKey))
-        {
-            values.Add(tupleKey, tuple);
-        }
-    }
-
-    private static IEnumerable<ImmutableArray<ITypeSymbol>> GetTuples(
-        Dictionary<string, Dictionary<string, ImmutableArray<ITypeSymbol>>> tuples,
-        string key)
-        => tuples.TryGetValue(key, out Dictionary<string, ImmutableArray<ITypeSymbol>>? values)
-            ? values.Values
-            : Enumerable.Empty<ImmutableArray<ITypeSymbol>>();
-
-    private static IEnumerable<ImmutableArray<ITypeSymbol>> DistinctTuples(IEnumerable<ImmutableArray<ITypeSymbol>> tuples)
-    {
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (ImmutableArray<ITypeSymbol> tuple in tuples)
-        {
-            if (tuple.IsDefaultOrEmpty || tuple.Any(static type => !IsClosedType(type)))
-            {
-                continue;
-            }
-
-            if (seen.Add(string.Join("\u001f", tuple.Select(GeneratorSupport.DisplayType))))
-            {
-                yield return tuple;
-            }
+            dictionary.Add(key, value);
         }
     }
 
     private sealed class GenericBindingDiscovery(
         ITypeSymbol? registeredComponentType,
         INamedTypeSymbol? genericComponentDefinition,
-        ImmutableArray<ITypeSymbol> genericComponentArguments,
-        INamedTypeSymbol? genericFunctorDefinition = null,
-        ImmutableArray<ITypeSymbol> genericFunctorArguments = default)
+        INamedTypeSymbol? genericFunctorDefinition,
+        Location location)
     {
         internal ITypeSymbol? RegisteredComponentType { get; } = registeredComponentType;
         internal INamedTypeSymbol? GenericComponentDefinition { get; } = genericComponentDefinition;
-        internal ImmutableArray<ITypeSymbol> GenericArguments { get; } = genericComponentDefinition is not null
-            ? genericComponentArguments
-            : genericFunctorArguments;
         internal INamedTypeSymbol? GenericFunctorDefinition { get; } = genericFunctorDefinition;
+        internal Location Location { get; } = location;
     }
-}
-
-internal sealed class GenericComponentFactoryBinding(
-    string genericDefinition,
-    ImmutableArray<string> genericArguments,
-    string componentType)
-{
-    internal string GenericDefinition { get; } = genericDefinition;
-    internal ImmutableArray<string> GenericArguments { get; } = genericArguments;
-    internal string ComponentType { get; } = componentType;
-}
-
-internal sealed class GenericFunctorFactoryBinding(
-    string genericDefinition,
-    ImmutableArray<string> genericArguments,
-    string executorType)
-{
-    internal string GenericDefinition { get; } = genericDefinition;
-    internal ImmutableArray<string> GenericArguments { get; } = genericArguments;
-    internal string ExecutorType { get; } = executorType;
 }

@@ -248,20 +248,21 @@ eligible for full inlining when it has no observable state.
 ## Runtime-selected generic functors
 
 An open generic component can be registered using the CLR types of existing
-registrations. Supply its `SchemaId` explicitly. Positional overloads currently
-support one or two generic arguments:
+registrations. Supply its `SchemaId` explicitly. Positional overloads support
+one or two generic arguments directly; when a consumer uses a higher-arity
+generic component, the generator emits the matching `Register` overload:
 
 ```csharp
 ComponentId historyId = layouts.Register(typeof(History<>), new SchemaId(100), positionId);
 ComponentId pairId = layouts.Register(typeof(ComponentPair<,>), new SchemaId(101), positionId, velocityId);
 ```
 
-The generated runtime-selected functor API supports the same iteration targets
-and execution modes as the ordinary functor API. The `ComponentId` values here
-close the open generic functor type; they are not required to match the number
-of callback rows. In this section, `G...` denotes those positional
-`ComponentId` arguments. `typeof(Functor<>)` supplies the open generic
-definition.
+The generated runtime-selected functor API supports the same targets and
+execution modes for component-row iteration as the ordinary functor API. The
+`ComponentId` values here close the open generic functor type; they are not
+required to match the number of callback rows. In this section, `G...` denotes
+those positional `ComponentId` arguments. `typeof(Functor<>)` supplies the open
+generic definition.
 
 The complete forms are:
 
@@ -276,6 +277,27 @@ world.ForEachEntityParallel(Q, C?, G..., typeof(F<>), W)
 world.ForEachParallel(E, Q?, C?, G..., typeof(F<>), W)
 world.ForEachEntityParallel(E, Q?, C?, G..., typeof(F<>), W)
 ```
+
+These forms cover component-row `ForEach` calls only. The separate
+`ForEachStamp`, `ForEachEntityStamp`, and parallel stamp APIs do not currently
+accept an open generic functor type token.
+
+The generator emits a visitor stage for each generic parameter. Every component
+registration retains its CLR type through a compiler-support token. Stages
+support `struct`, `unmanaged`, `class`, `class?`, and `new()` constraints,
+including `class, new()` combinations. At registration or on the first
+functor call for an ordered `ComponentId` tuple, the runtime follows the
+generated stages to close the type and checks each selected registration
+against those constraints. The same path works when IDs arrive through helper
+parameters or locals; generated code does not enumerate type combinations or
+trace component IDs back to their source expressions. The selected executor
+is cached before traversal, so type dispatch does not run per entity.
+
+Open generic definitions with unsupported constraints produce a compiler
+diagnostic at the registration or `ForEach` call. This includes `notnull`,
+base-class and interface constraints, and constraints that relate two generic
+parameters. Runtime-selected generic dispatch supports only the constraints
+listed above.
 
 For context forms, the functor implements `IForEachContext<C>` or
 `IForEachContextEntity<C>`. Pass `ref C` after `Q` and before `G...`; its type
@@ -361,6 +383,6 @@ of the same CLR type retain distinct derived registrations.
 Each invocation creates a default functor and keeps that instance for the whole
 traversal. Its fields are pass-local functor state; use a context contract when
 caller-owned state needs to be read or updated. The generator must be present
-in the assembly defining the accessible generic functor struct. Dynamic
-generic closure uses runtime type construction, so these forms do not guarantee
-arbitrary runtime instantiation on AOT platforms.
+in the assembly defining the accessible generic functor struct. The
+type-token dispatcher uses ordinary generic calls; AOT targets still need to
+preserve the generated closed generic instantiations used by the application.

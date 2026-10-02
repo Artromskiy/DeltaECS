@@ -84,7 +84,7 @@ public struct ContextEntityFunctor : IForEachContextEntity<ConsumerContext>
 /// Consumer-side fixture. The demand-driven generator is attached to this
 /// project as an analyzer; no runtime stubs or pre-generated matrix are used.
 /// </summary>
-public static class ConsumerProof
+public static partial class ConsumerProof
 {
     public static int RunRuntimeGenericFunctorEntityForms()
     {
@@ -341,6 +341,24 @@ public static class ConsumerProof
         return (int)(world.Get<RuntimeHistory<float>>(entity, historyFirst).Value
             + world.Get<RuntimeHistory<float>>(entity, historySecond).Value);
     }
+
+    public static int RunUnaryGenericBindings()
+    {
+        using var world = new World();
+        ComponentId valueId = world.Layouts.Register<int>(new SchemaId(91201));
+        ComponentId historyId = RegisterUnaryHistory(world.Layouts, valueId);
+        Entity entity = world.Create(valueId, historyId);
+        Query query = world.WhereAll(valueId, historyId);
+
+        ApplyUnaryHistory(world, in query, valueId);
+        return world.Get<UnaryHistory<int>>(entity, historyId).Value == 1 ? 1 : 0;
+    }
+
+    private static ComponentId RegisterUnaryHistory(ComponentLayoutRegistry layouts, ComponentId componentId)
+        => layouts.Register(typeof(UnaryHistory<>), new SchemaId(91202), componentId);
+
+    private static void ApplyUnaryHistory(World world, in Query query, ComponentId componentId)
+        => world.ForEach(in query, componentId, typeof(UnaryHistoryWriter<>));
 
     public static void ApplyStaticMethodGroup(ref Position value) => value.Value++;
 
@@ -820,6 +838,13 @@ public static class ConsumerProof
 
 public struct RuntimeHistory<T> { public T Value; }
 
+public struct UnaryHistory<T> { public int Value; }
+
+public struct UnaryHistoryWriter<T> : IForEach
+{
+    public void Invoke(ref UnaryHistory<T> history, ref T component) => history.Value++;
+}
+
 public struct RuntimeSave<T0, T1, T2> : IForEach
 {
     public void Invoke(ref RuntimeHistory<T2> history, in T0 first, in T1 second, in T2 third)
@@ -841,6 +866,126 @@ public struct RuntimeComponentCount<T> : IForEach
 {
     public void Invoke(in T component)
         => System.Threading.Interlocked.Increment(ref RuntimeComponentCounter.Count);
+}
+
+public struct StructConstraintFunctor<T> : IForEach where T : struct
+{
+    public void Invoke(in T component) => ConstraintFunctorCounter.Count++;
+}
+
+public struct UnmanagedConstraintFunctor<T> : IForEach where T : unmanaged
+{
+    public void Invoke(in T component) => ConstraintFunctorCounter.Count++;
+}
+
+public struct ClassConstraintFunctor<T> : IForEach where T : class
+{
+    public void Invoke(in T component) => ConstraintFunctorCounter.Count++;
+}
+
+public struct NewConstraintFunctor<T> : IForEach where T : new()
+{
+    public void Invoke(in T component) => ConstraintFunctorCounter.Count++;
+}
+
+public struct ClassNewConstraintFunctor<T> : IForEach where T : class, new()
+{
+    public void Invoke(in T component) => ConstraintFunctorCounter.Count++;
+}
+
+public struct StructBox<T> where T : struct { public T Value; }
+public struct UnmanagedBox<T> where T : unmanaged { public T Value; }
+public class ClassBox<T> where T : class { public T? Value; }
+public struct NewBox<T> where T : new() { public T Value; }
+
+public sealed class ConstructibleComponent
+{
+    public ConstructibleComponent() { }
+}
+
+internal static class ConstraintFunctorCounter
+{
+    internal static int Count;
+}
+
+public static partial class ConsumerProof
+{
+    public static int RunStandardGenericConstraints()
+    {
+        using var world = new World();
+        ComponentId positionId = world.Layouts.Register<Position>(new SchemaId(91201));
+        ComponentId intId = world.Layouts.Register<int>(new SchemaId(91202));
+        ComponentId classId = world.Layouts.Register<ConstructibleComponent>(new SchemaId(91203));
+        ComponentId structBoxId = world.Layouts.Register(typeof(StructBox<>), new SchemaId(91204), positionId);
+        ComponentId unmanagedBoxId = world.Layouts.Register(typeof(UnmanagedBox<>), new SchemaId(91205), intId);
+        ComponentId classBoxId = world.Layouts.Register(typeof(ClassBox<>), new SchemaId(91206), classId);
+        ComponentId newBoxId = world.Layouts.Register(typeof(NewBox<>), new SchemaId(91207), classId);
+
+        Query structQuery = CreateConstraintQuery(world, structBoxId);
+        ConstraintFunctorCounter.Count = 0;
+        world.ForEach(in structQuery, structBoxId, typeof(StructConstraintFunctor<>));
+        if (ConstraintFunctorCounter.Count != 1)
+        {
+            return 0;
+        }
+
+        Query unmanagedQuery = CreateConstraintQuery(world, unmanagedBoxId);
+        ConstraintFunctorCounter.Count = 0;
+        world.ForEach(in unmanagedQuery, unmanagedBoxId, typeof(UnmanagedConstraintFunctor<>));
+        if (ConstraintFunctorCounter.Count != 1)
+        {
+            return 0;
+        }
+
+        Query classBoxQuery = CreateConstraintQuery(world, classBoxId);
+        ConstraintFunctorCounter.Count = 0;
+        world.ForEach(in classBoxQuery, classBoxId, typeof(ClassConstraintFunctor<>));
+        if (ConstraintFunctorCounter.Count != 1)
+        {
+            return 0;
+        }
+
+        Query newQuery = CreateConstraintQuery(world, classId);
+        ConstraintFunctorCounter.Count = 0;
+        world.ForEach(in newQuery, classId, typeof(NewConstraintFunctor<>));
+        if (ConstraintFunctorCounter.Count != 1)
+        {
+            return 0;
+        }
+
+        ConstraintFunctorCounter.Count = 0;
+        world.ForEach(in newQuery, classId, typeof(ClassNewConstraintFunctor<>));
+        if (ConstraintFunctorCounter.Count != 1)
+        {
+            return 0;
+        }
+
+        Query newBoxQuery = CreateConstraintQuery(world, newBoxId);
+        ConstraintFunctorCounter.Count = 0;
+        world.ForEach(in newBoxQuery, newBoxId, typeof(StructConstraintFunctor<>));
+        if (ConstraintFunctorCounter.Count != 1)
+        {
+            return 0;
+        }
+
+        Query classQuery = world.WhereAll(classId);
+        try
+        {
+            world.ForEach(in classQuery, classId, typeof(StructConstraintFunctor<>));
+            return 0;
+        }
+        catch (ArgumentException)
+        {
+            return 1;
+        }
+    }
+
+    private static Query CreateConstraintQuery(World world, ComponentId componentId)
+    {
+        Entity[] entities = new Entity[1];
+        world.Create(stackalloc ComponentId[] { componentId }, entities.Length, entities);
+        return world.WhereAll(componentId);
+    }
 }
 
 internal static class RuntimeComponentCounter
