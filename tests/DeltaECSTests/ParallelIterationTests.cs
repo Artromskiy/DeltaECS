@@ -142,7 +142,7 @@ internal sealed class ParallelIterationTests
             world.GetRef<Velocity>(entities[index], velocityId) = new Velocity { X = 1 };
         }
 
-        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+        Query query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
         var singleWorkerAction = new ParallelIncrementFunctor();
         world.ForEachParallel(in query, ref singleWorkerAction, workerCount: 1);
         Assert.That(singleWorkerAction.Count, Is.EqualTo(entities.Length));
@@ -176,7 +176,7 @@ internal sealed class ParallelIterationTests
             world.GetRef<Velocity>(entities[index], velocityId) = new Velocity { X = 3, Y = 4 };
         }
 
-        var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
         world.ForEachParallel(
             in query,
             static (ref Position position, in Velocity velocity) =>
@@ -202,7 +202,7 @@ internal sealed class ParallelIterationTests
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(70_081));
         using var world = new World(layouts, initialEntityCapacity: 8);
         world.Create([positionId, velocityId], 2, Span<Entity>.Empty);
-        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+        Query query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
         s_generatedCallbackThreadId = 0;
         int callerThreadId = Environment.CurrentManagedThreadId;
 
@@ -227,7 +227,7 @@ internal sealed class ParallelIterationTests
         using var world = new World(layouts, initialEntityCapacity: 256);
         var firstBatch = new Entity[128];
         world.Create(new[] { positionId, velocityId }, firstBatch);
-        var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
 
         RunGeneratedParallel(world, in query);
 
@@ -255,7 +255,7 @@ internal sealed class ParallelIterationTests
         ComponentId positionId = layouts.Register<Position>(new SchemaId(70_070));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(70_071));
         using var world = new World(layouts, initialEntityCapacity: 2_048);
-        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+        Query query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
         var entities = new Entity[2_048];
         world.Create([positionId, velocityId], entities);
 
@@ -276,7 +276,7 @@ internal sealed class ParallelIterationTests
         using var world = new World(layouts, initialEntityCapacity: 1_024);
         var entities = new Entity[1_024];
         world.Create(new[] { positionId, velocityId }, entities);
-        var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
 
         RunGeneratedParallel(world, in query, workerCount: 2);
         RunGeneratedParallel(world, in query, workerCount: 4);
@@ -297,7 +297,7 @@ internal sealed class ParallelIterationTests
         using var world = new World(layouts, initialEntityCapacity: 2_048);
         var entities = new Entity[2_048];
         world.Create(new[] { positionId, velocityId }, entities);
-        var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
 
         for (int warmup = 0; warmup < 8; warmup++)
         {

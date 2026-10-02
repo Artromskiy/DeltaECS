@@ -204,7 +204,7 @@ internal sealed class QueryStructuralOperationsTests
             new[] { PositionId },
             Array.Empty<ComponentId>(),
             new[] { markerId }));
-        var targetQuery = world.CreateQuery(QuerySpec.WhereAll(PositionId, markerId));
+        var targetQuery = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { PositionId, markerId }));
         int existingTargetChunkId = CollectChunkIds(targetQuery, world).Single();
         var sourceChunkIds = CollectChunkIds(sourceQuery, world);
         Assert.That(sourceChunkIds.Count, Is.EqualTo(3));
@@ -251,7 +251,7 @@ internal sealed class QueryStructuralOperationsTests
             world.GetRef<Position>(source[index], PositionId) = new Position { X = index + 20, Y = index };
         }
 
-        var sourceQuery = world.CreateQuery(QuerySpec.WhereAll(PositionId, markerId));
+        var sourceQuery = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { PositionId, markerId }));
         var targetQuery = world.CreateQuery(new QuerySpec(
             new[] { PositionId },
             Array.Empty<ComponentId>(),

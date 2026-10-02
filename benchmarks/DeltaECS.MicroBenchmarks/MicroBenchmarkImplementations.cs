@@ -143,7 +143,7 @@ public class DenseIterationMicroBenchmarkImplementation
         _movement2Entities = _fixture.CreateMoving(Amount);
         _movement4Entities = _fixture.CreateMovement4(Amount);
 
-        var movement2 = QuerySpec.WhereAll(_fixture.Position, _fixture.Velocity);
+        var movement2 = QuerySpec.WhereAll(stackalloc ComponentId[] { _fixture.Position, _fixture.Velocity });
         _movement2Query = _fixture.World.CreateQuery(in movement2);
 
         var movement4 = QuerySpec.WhereAll(
@@ -230,7 +230,7 @@ internal static class MicroContractSmoke
     {
         var fixture = new MicroWorld();
         var movement2Entities = fixture.CreateMoving(8);
-        var movement2Description = QuerySpec.WhereAll(fixture.Position, fixture.Velocity);
+        var movement2Description = QuerySpec.WhereAll(stackalloc ComponentId[] { fixture.Position, fixture.Velocity });
         var movement2Query = fixture.World.CreateQuery(in movement2Description);
         var movement2Sum = MicroBenchmarkKernels.IterateMovement2Dense(
             fixture,

@@ -451,7 +451,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return false;
         }
 
-        bool explicitIds = componentCount != 0 && prefix.ComponentIdCount == componentCount;
+        bool explicitIds = componentCount != 0
+            && (prefix.HasComponentIdSpan || prefix.ComponentIdCount == componentCount);
         var typeArguments = genericName?.TypeArgumentList.Arguments
             .Select(argument => model.GetTypeInfo(argument).Type is { } type
                 ? GeneratorSupport.DisplayType(type)
@@ -517,7 +518,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         shape = new IterationModel(
-            explicitIds ? RegistrationBindingKind.Explicit : RegistrationBindingKind.Primary,
+            prefix.HasComponentIdSpan
+                ? RegistrationBindingKind.Dynamic
+                : explicitIds ? RegistrationBindingKind.Explicit : RegistrationBindingKind.Primary,
             hasEntity || LambdaHasEntity(model, arguments, componentCount, hasContext),
             hasContext,
             isFunctor: false,
@@ -740,7 +743,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 .ToArray();
         }
 
-        if (stamp && genericName is null && componentIdCount == 0)
+        if (stamp && genericName is null && !prefix.HasComponentIds)
         {
             diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
             return false;
@@ -753,9 +756,11 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         shape = new IterationModel(
-            componentIdCount == componentParameters.Length && componentIdCount != 0
-                ? RegistrationBindingKind.Explicit
-                : RegistrationBindingKind.Primary,
+            prefix.HasComponentIdSpan
+                ? RegistrationBindingKind.Dynamic
+                : componentIdCount == componentParameters.Length && componentIdCount != 0
+                    ? RegistrationBindingKind.Explicit
+                    : RegistrationBindingKind.Primary,
             hasEntity,
             hasContext,
             isFunctor: false,
@@ -921,7 +926,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         GenericNameSyntax? genericName = member.Name as GenericNameSyntax;
         bool genericSelectors = genericName is not null;
-        if (stamp && !genericSelectors && componentIdCount == 0)
+        if (stamp && !genericSelectors && !prefix.HasComponentIds)
         {
             diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
             return false;
@@ -949,9 +954,11 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return false;
         }
         shape = new IterationModel(
-            componentIdCount != 0
-                ? RegistrationBindingKind.Explicit
-                : RegistrationBindingKind.Primary,
+            prefix.HasComponentIdSpan
+                ? RegistrationBindingKind.Dynamic
+                : componentIdCount != 0
+                    ? RegistrationBindingKind.Explicit
+                    : RegistrationBindingKind.Primary,
             hasEntity,
             hasContext,
             isFunctor: true,

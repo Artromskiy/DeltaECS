@@ -55,7 +55,7 @@ public class QueryBatchStructuralOperationsMicroBenchmarkImplementation
         _deltaCreatedEntities = new Entity[Amount];
         var deltaBaseSpec = QuerySpec.WhereAll(_deltaFixture.Position);
         _deltaBaseQuery = _deltaWorld.CreateQuery(in deltaBaseSpec);
-        var deltaMarkedSpec = QuerySpec.WhereAll(_deltaFixture.Position, _deltaFixture.Auxiliary);
+        var deltaMarkedSpec = QuerySpec.WhereAll(stackalloc ComponentId[] { _deltaFixture.Position, _deltaFixture.Auxiliary });
         _deltaMarkedQuery = _deltaWorld.CreateQuery(in deltaMarkedSpec);
 
         _ = _deltaWorld.Add(in _deltaBaseQuery, _deltaMarkerComponents);

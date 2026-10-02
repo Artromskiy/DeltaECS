@@ -29,8 +29,11 @@ public class GenericRuntimeFunctorTests
         Assert.That(typeof(ComponentLayoutRegistry).GetMethods()
             .Where(static method => method.Name == "Register" && !method.IsGenericMethod)
             .SelectMany(static method => method.GetParameters())
-            .Any(static parameter => parameter.ParameterType.IsArray
-                || parameter.ParameterType == typeof(ReadOnlySpan<ComponentId>)), Is.False);
+            .Any(static parameter => parameter.ParameterType.IsArray), Is.False);
+        Assert.That(typeof(ComponentLayoutRegistry).GetMethods()
+            .Where(static method => method.Name == "Register" && !method.IsGenericMethod)
+            .SelectMany(static method => method.GetParameters())
+            .Any(static parameter => parameter.ParameterType == typeof(ReadOnlySpan<ComponentId>)), Is.True);
     }
 
     [Test]

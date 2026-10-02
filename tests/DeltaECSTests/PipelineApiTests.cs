@@ -82,11 +82,11 @@ internal sealed class PipelineApiTests
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_005));
         ComponentId velocityId = layouts.Register<PipelineVelocity>(new SchemaId(70_006));
         using var world = new World(layouts);
-        Entity entity = world.Create(positionId, velocityId);
+        Entity entity = world.Create(stackalloc ComponentId[] { positionId, velocityId });
         world.GetRef<PipelinePosition>(entity, positionId) = new PipelinePosition { Value = 1 };
         world.GetRef<PipelineVelocity>(entity, velocityId) = new PipelineVelocity { Value = 2 };
 
-        var query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
         world.ForEach(in query, static (ref PipelinePosition position, in PipelineVelocity velocity) =>
             position.Value += velocity.Value);
 
@@ -106,7 +106,7 @@ internal sealed class PipelineApiTests
         var entities = new Entity[3];
         world.Create(stackalloc[] { positionId, velocityId }, entities.Length, entities);
         Entity withoutVelocity = world.Create(positionId);
-        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+        Query query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
 
         world.ForEachEntity(
             entities.AsSpan(1),
@@ -217,10 +217,10 @@ internal sealed class PipelineApiTests
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_008));
         ComponentId velocityId = layouts.Register<PipelineVelocity>(new SchemaId(70_009));
         using var world = new World(layouts);
-        Entity entity = world.Create(positionId, velocityId);
+        Entity entity = world.Create(stackalloc ComponentId[] { positionId, velocityId });
         world.GetRef<PipelinePosition>(entity, positionId) = new PipelinePosition { Value = 1 };
         world.GetRef<PipelineVelocity>(entity, velocityId) = new PipelineVelocity { Value = 2 };
-        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId, velocityId));
+        Query query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
 
         int calls = 0;
         world.ForEach(in query, static (ref PipelinePosition position, in PipelineVelocity velocity) =>

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Immutable;
 using System.Globalization;
 
@@ -13,7 +14,8 @@ internal sealed class SignatureProjection
 
     internal int Arity => _api.Selector.Arity;
     internal bool HasGenericSelectors => _api.Selector.TypeBinding == TypeBindingKind.Generic;
-    internal bool HasExplicitIds => _api.Selector.RegistrationBinding == RegistrationBindingKind.Explicit;
+    internal bool HasExplicitIds => _api.Selector.RegistrationBinding != RegistrationBindingKind.Primary;
+    internal bool HasDynamicIds => _api.Selector.RegistrationBinding == RegistrationBindingKind.Dynamic;
 
     private ImmutableArray<ComponentModel> Components => _api.Selector.Components;
 
@@ -27,16 +29,26 @@ internal sealed class SignatureProjection
         => TypeArguments(GenericList(prefix));
 
     internal string ComponentIdParameter(int index, string prefix = "component")
-        => $"ComponentId {prefix}{index}";
+        => $"ComponentId {ComponentIdName(index, prefix)}";
 
     internal string ComponentIdParameters(string prefix = "component")
-        => Join(index => ComponentIdParameter(index, prefix));
+        => HasDynamicIds
+            ? "global::System.ReadOnlySpan<global::Delta.ECS.ComponentId> componentIds"
+            : Join(index => ComponentIdParameter(index, prefix));
 
     internal string ComponentIdArgument(int index, string prefix = "component")
-        => prefix + index;
+        => HasDynamicIds ? $"componentIds[{index}]" : ComponentIdName(index, prefix);
 
     internal string ComponentIdArguments(string prefix = "component")
         => Join(index => ComponentIdArgument(index, prefix));
+
+    private string ComponentIdName(int index, string prefix)
+        => Arity == 1
+            ? (prefix.EndsWith("Id", StringComparison.Ordinal) ? prefix : prefix + "Id")
+            : prefix + index;
+
+    internal string ComponentIdListArgument(string prefix = "component")
+        => HasDynamicIds ? "componentIds" : ComponentIdArguments(prefix);
 
     internal string ComponentParameter(int index, string type, string name)
         => Components[index].ParameterModifier + type + " " + name;

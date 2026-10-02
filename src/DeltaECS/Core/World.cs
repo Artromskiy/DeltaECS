@@ -188,24 +188,32 @@ public sealed partial class World : IDisposable
 
     /// <summary>Creates a query requiring the supplied component registrations.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Query WhereAll(params ReadOnlySpan<ComponentId> components)
+    public Query WhereAll(ReadOnlySpan<ComponentId> components)
         => CreateQuery(QuerySpec.WhereAll(components));
 
     /// <summary>Creates a query matching at least one supplied component registration.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Query WhereAny(params ReadOnlySpan<ComponentId> components)
+    public Query WhereAny(ReadOnlySpan<ComponentId> components)
         => CreateQuery(QuerySpec.WhereAny(components));
 
     /// <summary>Creates a query excluding the supplied component registrations.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Query WhereNone(params ReadOnlySpan<ComponentId> components)
+    public Query WhereNone(ReadOnlySpan<ComponentId> components)
         => CreateQuery(QuerySpec.WhereNone(components));
 
-    public Entity Create(params ReadOnlySpan<ComponentId> componentIds)
+    public Entity Create(ReadOnlySpan<ComponentId> componentIds)
     {
         Span<Entity> entities = stackalloc Entity[1];
         return Create(componentIds, entities) == 0 ? default : entities.GetRefAtZero();
     }
+
+    /// <summary>Creates one entity with the supplied component registration.</summary>
+    public Entity Create(ComponentId componentId)
+        => Create(stackalloc ComponentId[1] { componentId });
+
+    /// <summary>Creates entities with the supplied component registration and caller-owned output storage.</summary>
+    public int Create(ComponentId componentId, int count, Span<Entity> output)
+        => Create(stackalloc ComponentId[1] { componentId }, count, output);
 
     public int Create(ReadOnlySpan<ComponentId> componentIds, Span<Entity> output)
     {
@@ -695,56 +703,68 @@ public sealed partial class World : IDisposable
     }
 
     /// <summary>Adds the component set to one entity and reports whether it changed.</summary>
-    public bool Add(Entity entity, params ReadOnlySpan<ComponentId> componentIds)
+    public bool Add(Entity entity, ReadOnlySpan<ComponentId> componentIds)
     {
         Span<Entity> entities = stackalloc Entity[1];
         entities.GetRefAtZero() = entity;
         return ApplyComponents(true, componentIds, entities) == 1;
     }
 
-    /// <summary>Adds the component set to one entity and reports whether it changed.</summary>
+    /// <summary>Adds the registrations supplied by an array to one entity.</summary>
     public bool Add(Entity entity, ComponentId[] componentIds)
         => Add(entity, (ReadOnlySpan<ComponentId>)componentIds);
 
-    /// <summary>Adds the component set to every entity in a caller-owned batch.</summary>
-    public int Add(ReadOnlySpan<Entity> entities, params ReadOnlySpan<ComponentId> componentIds)
-        => ApplyComponents(true, componentIds, entities);
+    /// <summary>Adds one component registration to one entity.</summary>
+    public bool Add(Entity entity, ComponentId componentId)
+        => Add(entity, stackalloc ComponentId[1] { componentId });
 
     /// <summary>Adds the component set to every entity in a caller-owned batch.</summary>
+    public int Add(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> componentIds)
+        => ApplyComponents(true, componentIds, entities);
+
+    /// <summary>Adds the registrations supplied by an array to each entity in a caller-owned batch.</summary>
     public int Add(ReadOnlySpan<Entity> entities, ComponentId[] componentIds)
         => Add(entities, (ReadOnlySpan<ComponentId>)componentIds);
 
+    /// <summary>Adds one component registration to each entity in a caller-owned batch.</summary>
+    public int Add(ReadOnlySpan<Entity> entities, ComponentId componentId)
+        => Add(entities, stackalloc ComponentId[1] { componentId });
+
     /// <summary>Removes the component set from one entity and reports whether it changed.</summary>
-    public bool Remove(Entity entity, params ReadOnlySpan<ComponentId> componentIds)
+    public bool Remove(Entity entity, ReadOnlySpan<ComponentId> componentIds)
     {
         Span<Entity> entities = stackalloc Entity[1];
         entities.GetRefAtZero() = entity;
         return ApplyComponents(false, componentIds, entities) == 1;
     }
 
-    /// <summary>Removes the component set from one entity and reports whether it changed.</summary>
-    public bool Remove(Entity entity, ComponentId[] componentIds)
-        => Remove(entity, (ReadOnlySpan<ComponentId>)componentIds);
+    /// <summary>Removes one component registration from one entity.</summary>
+    public bool Remove(Entity entity, ComponentId componentId)
+        => Remove(entity, stackalloc ComponentId[] { componentId });
 
     /// <summary>Removes the component set from every entity in a caller-owned batch.</summary>
-    public int Remove(ReadOnlySpan<Entity> entities, params ReadOnlySpan<ComponentId> componentIds)
+    public int Remove(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> componentIds)
         => ApplyComponents(false, componentIds, entities);
 
-    /// <summary>Removes the component set from every entity in a caller-owned batch.</summary>
-    public int Remove(ReadOnlySpan<Entity> entities, ComponentId[] componentIds)
-        => Remove(entities, (ReadOnlySpan<ComponentId>)componentIds);
-
-    public int Add(in Query query, ComponentId[] componentIds) => ApplyQueryComponents(query, true, componentIds);
+    /// <summary>Removes one component registration from each entity in a caller-owned batch.</summary>
+    public int Remove(ReadOnlySpan<Entity> entities, ComponentId componentId)
+        => Remove(entities, stackalloc ComponentId[] { componentId });
 
     /// <summary>Adds a component set to every entity matched by a query.</summary>
-    public int Add(in Query query, params ReadOnlySpan<ComponentId> componentIds)
+    public int Add(in Query query, ReadOnlySpan<ComponentId> componentIds)
         => ApplyQueryComponents(query, true, componentIds);
 
-    public int Remove(in Query query, ComponentId[] componentIds) => ApplyQueryComponents(query, false, componentIds);
+    /// <summary>Adds one component registration to every entity matched by a query.</summary>
+    public int Add(in Query query, ComponentId componentId)
+        => Add(in query, stackalloc ComponentId[] { componentId });
 
     /// <summary>Removes a component set from every entity matched by a query.</summary>
-    public int Remove(in Query query, params ReadOnlySpan<ComponentId> componentIds)
+    public int Remove(in Query query, ReadOnlySpan<ComponentId> componentIds)
         => ApplyQueryComponents(query, false, componentIds);
+
+    /// <summary>Removes one component registration from every entity matched by a query.</summary>
+    public int Remove(in Query query, ComponentId componentId)
+        => Remove(in query, stackalloc ComponentId[] { componentId });
 
     public int Destroy(in Query query)
     {

@@ -62,13 +62,22 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
             _anyMask.Or(additions._anyMask),
             _noneMask.Or(additions._noneMask));
 
-    public static QuerySpec WhereAll(params ReadOnlySpan<ComponentId> components)
+    public static QuerySpec WhereAll(ReadOnlySpan<ComponentId> components)
         => new(components, ReadOnlySpan<ComponentId>.Empty, ReadOnlySpan<ComponentId>.Empty);
 
-    public static QuerySpec WhereAny(params ReadOnlySpan<ComponentId> components)
+    public static QuerySpec WhereAny(ReadOnlySpan<ComponentId> components)
         => new(ReadOnlySpan<ComponentId>.Empty, components, ReadOnlySpan<ComponentId>.Empty);
 
-    public static QuerySpec WhereNone(params ReadOnlySpan<ComponentId> components)
+    public static QuerySpec WhereNone(ReadOnlySpan<ComponentId> components)
         => new(ReadOnlySpan<ComponentId>.Empty, ReadOnlySpan<ComponentId>.Empty, components);
+
+    public static QuerySpec WhereAll(ComponentId component0)
+        => WhereAll(stackalloc ComponentId[1] { component0 });
+
+    public static QuerySpec WhereAny(ComponentId component0)
+        => WhereAny(stackalloc ComponentId[1] { component0 });
+
+    public static QuerySpec WhereNone(ComponentId component0)
+        => WhereNone(stackalloc ComponentId[1] { component0 });
 
 }

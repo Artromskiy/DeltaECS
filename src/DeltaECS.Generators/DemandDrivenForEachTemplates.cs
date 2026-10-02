@@ -364,6 +364,7 @@ internal static partial class DemandDrivenForEachTemplates
             ? "GeneratedForEachRuntime.ExecuteEntityListParallel(world, in query, entities, ref invoker, "
             : "GeneratedForEachRuntime.ExecuteParallelDense(world, in query, ref invoker, ";
         string body = $"""
+                {(slots.HasDynamicIds ? $"GeneratedForEachRuntime.ValidateComponentIdCount(componentIds, {slots.Arity});" : string.Empty)}
                 {GeneratorTemplates.Indent(AccessSetup(shape), "    ")}
                 var invoker = new {invokerType}({arguments});
                 {execute}{AppendParallelWriteIndices(shape)}, workerCount);
@@ -824,6 +825,9 @@ internal static partial class DemandDrivenForEachTemplates
             "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]",
             signature,
             "{",
+            slots.HasDynamicIds
+                ? $"    GeneratedForEachRuntime.ValidateComponentIdCount(componentIds, {slots.Arity});"
+                : string.Empty,
             bound ? string.Empty : GeneratorTemplates.Indent(AccessSetup(closedShape).TrimEnd(), "    "),
         };
         var interceptedVisitMethods = new List<string>();
@@ -1362,6 +1366,7 @@ internal static partial class DemandDrivenForEachTemplates
             ? $"GeneratedForEachRuntime.ExecuteEntityList{(shape.Parallel ? "Parallel" : string.Empty)}(world, in query, entities, ref invoker, {AppendParallelWriteIndices(accessShape)}{(shape.Parallel ? ", workerCount" : string.Empty)});"
             : $"GeneratedForEachRuntime.ExecuteParallelDense(world, in query, ref invoker, {AppendParallelWriteIndices(accessShape)}, workerCount);";
         string body = $"""
+                {(slots.HasDynamicIds ? $"GeneratedForEachRuntime.ValidateComponentIdCount(componentIds, {slots.Arity});" : string.Empty)}
                 {GeneratorTemplates.Indent(AccessSetup(accessShape).TrimEnd(), "    ")}
                 var invoker = new {invokerType}({constructorArguments});
                 {execute}
@@ -1409,12 +1414,14 @@ internal static partial class DemandDrivenForEachTemplates
         string query = shape.HasQuery
             ? string.Empty
             : slots.HasExplicitIds
-                ? $$"""
+                ? slots.HasDynamicIds
+                    ? "global::Delta.ECS.Query query = world.WhereAll(componentIds);"
+                    : $$"""
                     global::Delta.ECS.Query query = world.WhereAll(stackalloc global::Delta.ECS.ComponentId[]
                     {
                         {{slots.ComponentIdArguments()}}
                     });
-                """
+                    """
                 : $"""
                     global::System.ReadOnlySpan<global::Delta.ECS.ComponentId> components = {GeneratorTemplates.PrimaryComponentIds("world", shape.Components, namespaceName: shape.Namespace)};
                     global::Delta.ECS.Query query = world.WhereAll(components);
@@ -1427,7 +1434,7 @@ internal static partial class DemandDrivenForEachTemplates
         invocation.Add("in query");
         if (slots.HasExplicitIds)
         {
-            invocation.Add(slots.ComponentIdArguments());
+            invocation.Add(slots.HasDynamicIds ? "componentIds" : slots.ComponentIdArguments());
         }
 
         if (shape.HasContext)
@@ -1495,6 +1502,9 @@ internal static partial class DemandDrivenForEachTemplates
             "[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]",
             signature,
             "{",
+            slots.HasDynamicIds
+                ? $"    GeneratedForEachRuntime.ValidateComponentIdCount(componentIds, {slots.Arity});"
+                : string.Empty,
             bound ? string.Empty : GeneratorTemplates.Indent(AccessSetup(shape).TrimEnd(), "    "),
         };
         var closedDenseVisitMethods = new List<string>();
@@ -1814,7 +1824,7 @@ internal static partial class DemandDrivenForEachTemplates
             : new[] { "world", "in query" });
         if (slots.HasExplicitIds)
         {
-            closedArguments.Add(slots.ComponentIdArguments());
+            closedArguments.Add(slots.HasDynamicIds ? "componentIds" : slots.ComponentIdArguments());
         }
 
         if (shape.HasContext)
@@ -1837,7 +1847,9 @@ internal static partial class DemandDrivenForEachTemplates
         {
             if (slots.HasExplicitIds)
             {
-                lines.Add($"    Query query = world.WhereAll(stackalloc ComponentId[] {{ {slots.ComponentIdArguments()} }});");
+                lines.Add(slots.HasDynamicIds
+                    ? "    Query query = world.WhereAll(componentIds);"
+                    : $"    Query query = world.WhereAll(stackalloc ComponentId[] {{ {slots.ComponentIdArguments()} }});");
             }
             else
             {
@@ -1934,7 +1946,9 @@ internal static partial class DemandDrivenForEachTemplates
             if (shape.IsStamp)
             {
                 return slots.HasExplicitIds
-                    ? $"var access{index} = GeneratedForEachRuntime.GetPreparedStampAccess(in query, {slots.ComponentIdArgument(index, "componentId")});"
+                    ? slots.HasGenericSelectors
+                        ? $"var access{index} = GeneratedForEachRuntime.GetPreparedStampAccess<{componentType}>(in query, {slots.ComponentIdArgument(index, "componentId")});"
+                        : $"var access{index} = GeneratedForEachRuntime.GetPreparedStampAccess(in query, {slots.ComponentIdArgument(index, "componentId")});"
                     : $"var access{index} = GeneratedForEachRuntime.GetPreparedStampAccess<{componentType}> (in query);";
             }
             string variable = (routeOnly ? "int route" : "var access") + index;

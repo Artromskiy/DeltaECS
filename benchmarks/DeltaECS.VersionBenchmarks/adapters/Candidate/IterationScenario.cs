@@ -42,7 +42,7 @@ public sealed class IterationScenario
 
         _movement2Entities = new Entity[amount];
         _world.Create([_position, _velocity], _movement2Entities);
-        var movement2Description = QuerySpec.WhereAll(_position, _velocity);
+        var movement2Description = QuerySpec.WhereAll(stackalloc ComponentId[] { _position, _velocity });
         _movement2Query = _world.CreateQuery(in movement2Description);
 
         _movement4Entities = new Entity[amount];

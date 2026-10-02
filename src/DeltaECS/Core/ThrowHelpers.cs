@@ -111,6 +111,13 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowComponentIdCountMismatch(string parameterName, int expected, int actual)
+        => throw new ArgumentException(
+            $"Expected {expected} component IDs, but received {actual}.",
+            parameterName);
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowNotGenericTypeDefinition(Type runtimeType)
         => throw new ArgumentException(
             $"Type {runtimeType} must be an open generic type definition.",

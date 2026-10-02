@@ -14,36 +14,20 @@ public sealed partial class World
 
     /// <summary>Creates entities with the primary component for <typeparamref name="T"/> without retaining handles.</summary>
     public int Create<T>(int count)
-    {
-        ThrowHelper.ThrowIfNegative(count, nameof(count));
-        return Create(stackalloc[] { GetPrimaryComponentId<T>() }, count);
-    }
-
-    /// <summary>
-    /// Creates an entity containing one component and initializes its value.
-    /// </summary>
-    public Entity Create<T>(ComponentId componentId, in T value)
-    {
-        EnsureRegisteredType<T>(componentId);
-        EnsureNoTagValues(stackalloc[] { componentId });
-        Entity entity = Create(componentId);
-        InitializeComponentValue(entity, componentId, in value);
-
-        return entity;
-    }
+        => Create<T>(GetPrimaryComponentId<T>(), count, Span<Entity>.Empty);
 
     /// <summary>Creates typed component entities into caller-owned storage.</summary>
     public int Create<T>(ComponentId componentId, int count, Span<Entity> output)
     {
         EnsureRegisteredType<T>(componentId);
-        return Create(stackalloc[] { componentId }, count, output);
+        return Create(componentId, count, output);
     }
 
     /// <summary>Creates typed entities with the specified component registration and returns their handles.</summary>
     public int Create<T>(ComponentId componentId, int count)
     {
         EnsureRegisteredType<T>(componentId);
-        return Create(stackalloc[] { componentId }, count);
+        return Create<T>(componentId, count, Span<Entity>.Empty);
     }
 
     /// <summary>
@@ -70,32 +54,6 @@ public sealed partial class World
     /// <summary>Adds and initializes the primary component for <typeparamref name="T"/> on every eligible entity.</summary>
     public int Add<T>(ReadOnlySpan<Entity> entities, in T value)
         => AddComponentBatch(entities, GetPrimaryComponentId<T>(), in value);
-
-    /// <summary>Adds one typed component to an alive entity and initializes its value.</summary>
-    public bool Add<T>(Entity entity, ComponentId componentId, in T value)
-    {
-        EnsureExecutionAccess();
-        if (!IsRegisteredType<T>(componentId)
-            || !IsAlive(entity)
-            || TryGetCore<T>(entity, componentId, out _))
-        {
-            return false;
-        }
-
-        return AddComponentBatch(stackalloc[] { entity }, componentId, in value) == 1;
-    }
-
-    /// <summary>Adds and initializes one typed component on every eligible entity in a batch.</summary>
-    public int Add<T>(ReadOnlySpan<Entity> entities, ComponentId componentId, in T value)
-    {
-        EnsureExecutionAccess();
-        if (!IsRegisteredType<T>(componentId) || entities.Length == 0)
-        {
-            return 0;
-        }
-
-        return AddComponentBatch(entities, componentId, in value);
-    }
 
     /// <summary>Removes the primary component for <typeparamref name="T"/> from one entity.</summary>
     public bool Remove<T>(Entity entity)
@@ -576,6 +534,9 @@ public sealed partial class World
 
     internal void ValidateGeneratedComponentType<T>(ComponentId componentId)
         => EnsureRegisteredType<T>(componentId);
+
+    internal bool IsGeneratedComponentType<T>(ComponentId componentId)
+        => IsRegisteredType<T>(componentId);
 
     private void InitializeComponentValue<T>(Entity entity, ComponentId componentId, in T value)
     {

@@ -644,6 +644,39 @@ public static partial class GeneratedForEachRuntime
         world.ValidateGeneratedComponentType<T>(componentId);
     }
 
+    /// <summary>Checks whether a registration uses the generated component type.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool IsComponentType<T>(World world, ComponentId componentId)
+    {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        return world.IsGeneratedComponentType<T>(componentId);
+    }
+
+    /// <summary>Validates that a query registration uses the generated component type.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ValidateComponentType<T>(in Query query, ComponentId componentId)
+    {
+        if (!query.IsValid)
+        {
+            ThrowHelper.ThrowInvalidEntityQueryHandle();
+        }
+
+        query.Owner.ValidateGeneratedComponentType<T>(componentId);
+    }
+
+    /// <summary>Validates a dynamic registration list against a generated component arity.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ValidateComponentIdCount(ReadOnlySpan<ComponentId> componentIds, int expected)
+    {
+        if (componentIds.Length != expected)
+        {
+            ThrowHelper.ThrowComponentIdCountMismatch(nameof(componentIds), expected, componentIds.Length);
+        }
+    }
+
     /// <summary>Creates one entity and initializes its generated component values.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

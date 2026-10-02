@@ -194,7 +194,7 @@ namespace Ecs.CSharp.Benchmark.Contexts
                 World.GetRef<DeltaComponent2>(entity, Second) = new DeltaComponent2 { Value = 2 };
             }
 
-            Query = World.CreateQuery(DeltaQuerySpec.WhereAll(First, Second));
+            Query = World.CreateQuery(DeltaQuerySpec.WhereAll(stackalloc ComponentId[] { First, Second }));
         }
 
         void IDisposable.Dispose() => World.Dispose();
@@ -237,7 +237,7 @@ namespace Ecs.CSharp.Benchmark.Contexts
                 World.GetRef<DeltaComponent3>(entity, Third) = new DeltaComponent3 { Value = 3 };
             }
 
-            Query = World.CreateQuery(DeltaQuerySpec.WhereAll(First, Second, Third));
+            Query = World.CreateQuery(DeltaQuerySpec.WhereAll(stackalloc ComponentId[] { First, Second, Third }));
         }
 
         void IDisposable.Dispose() => World.Dispose();
@@ -274,7 +274,7 @@ namespace Ecs.CSharp.Benchmark.Contexts
             CreateComposition(composition2, (entityCount + 1) / 4);
             CreateComposition(composition3, entityCount / 4);
 
-            Query = World.CreateQuery(DeltaQuerySpec.WhereAll(First, Second));
+            Query = World.CreateQuery(DeltaQuerySpec.WhereAll(stackalloc ComponentId[] { First, Second }));
         }
 
         private void CreateComposition(DeltaComponentId[] composition, int count)

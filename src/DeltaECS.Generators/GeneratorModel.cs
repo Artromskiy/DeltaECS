@@ -70,7 +70,8 @@ internal enum TypeBindingKind
 internal enum RegistrationBindingKind
 {
     Primary,
-    Explicit
+    Explicit,
+    Dynamic
 }
 
 internal enum AccessKind

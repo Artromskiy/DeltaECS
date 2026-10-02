@@ -3,7 +3,12 @@ namespace Delta.ECS.Generators;
 /// <summary>Validated semantic shape for a generated fluent query factory.</summary>
 internal sealed class QueryModel
 {
-    internal QueryModel(string kind, int arity, string namespaceName)
+    internal QueryModel(
+        string kind,
+        int arity,
+        string namespaceName,
+        TypeBindingKind typeBinding,
+        RegistrationBindingKind registrationBinding)
     {
         Kind = kind;
         Namespace = namespaceName;
@@ -12,8 +17,8 @@ internal sealed class QueryModel
             TargetKind.Query,
             QueryMode.None,
             new SelectorModel(
-                TypeBindingKind.Generic,
-                RegistrationBindingKind.Primary,
+                typeBinding,
+                registrationBinding,
                 GeneratorSupport.ComponentModels(arity, AccessKind.RowRead)),
             new ContextModel(ContextModeKind.None, null),
             null,

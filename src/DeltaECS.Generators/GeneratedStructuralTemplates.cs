@@ -72,7 +72,7 @@ internal static class GeneratedStructuralTemplates
                 slots.HasExplicitIds
                     ? slots.ComponentIdParameters()
                     : string.Empty,
-                shape.HasValues ? slots.ValueParameters() : string.Empty
+                shape.HasValues ? ValueParameters(slots) : string.Empty
             },
                 TargetKind.Entity => new[]
                 {
@@ -80,7 +80,7 @@ internal static class GeneratedStructuralTemplates
                 slots.HasExplicitIds
                     ? slots.ComponentIdParameters()
                     : string.Empty,
-                shape.HasValues ? slots.ValueParameters() : string.Empty
+                shape.HasValues ? ValueParameters(slots) : string.Empty
             },
                 TargetKind.Query => new[]
                 {
@@ -95,22 +95,52 @@ internal static class GeneratedStructuralTemplates
 
     private static string CreateParameters(StructuralModel shape, SignatureProjection slots)
     {
+        if (shape.CreatesOne)
+        {
+            return slots.ComponentIdParameters();
+        }
+
         return GeneratorTemplates.JoinNonEmpty(new[]
         {
             slots.HasExplicitIds
                 ? slots.ComponentIdParameters()
                 : string.Empty,
-            shape.HasValues ? slots.ValueParameters() : "int count",
+            shape.HasValues ? ValueParameters(slots) : "int count",
             shape.HasOutput ? "global::System.Span<Entity> output" : string.Empty
         }, ", ");
     }
 
+    private static string ValueParameters(SignatureProjection slots)
+        => slots.Arity == 1
+            ? $"in {slots.GenericType(0)} value"
+            : slots.ValueParameters();
+
     private static string RenderBody(StructuralModel shape, SignatureProjection slots)
-        => shape.HasValues
+    {
+        string validateTypes = slots.HasExplicitIds && slots.HasGenericSelectors
+            ? shape.Operation == StructuralOperation.Create || shape.ThrowOnTypeMismatch
+                ? GeneratorTemplates.JoinIndexed(
+                    slots.Arity,
+                    index => $$"""GeneratedForEachRuntime.ValidateComponentType<{{slots.GenericType(index)}}>(target, {{slots.ComponentIdArgument(index)}});""",
+                    "\n")
+                : GeneratorTemplates.JoinIndexed(
+                    slots.Arity,
+                    index => $$"""if (!GeneratedForEachRuntime.IsComponentType<{{slots.GenericType(index)}}>(target, {{slots.ComponentIdArgument(index)}})) return {{(shape.Api.Target == TargetKind.Entity ? "false" : "0")}};""",
+                    "\n")
+            : string.Empty;
+        return GeneratorTemplates.JoinNonEmpty(new[]
+        {
+            slots.HasDynamicIds && slots.HasGenericSelectors
+                ? $"GeneratedForEachRuntime.ValidateComponentIdCount(componentIds, {slots.Arity});"
+                : string.Empty,
+            validateTypes,
+            shape.HasValues
             ? RenderValueBody(shape, slots)
             : shape.Operation == StructuralOperation.Create
                 ? RenderCreateBody(shape, slots)
-                : RenderMutationBody(shape, slots);
+                : RenderMutationBody(shape, slots)
+        });
+    }
 
     private static string RenderValueBody(StructuralModel shape, SignatureProjection slots)
     {
@@ -122,14 +152,8 @@ internal static class GeneratedStructuralTemplates
         string initializerName = $$"""Generated{{operation}}Values{{slots.GenericParameters()}}""";
         string initializerArguments = GeneratorTemplates.JoinIndexed(
             slots.Arity,
-            index => $$"""components[{{index}}], in value{{index}}""",
+            index => "components[" + index + "], in " + (slots.Arity == 1 ? "value" : "value" + index),
             ",\n");
-        string validateTypes = slots.HasExplicitIds
-            ? GeneratorTemplates.JoinIndexed(
-                slots.Arity,
-                index => $$"""GeneratedForEachRuntime.ValidateComponentType<{{slots.GenericType(index)}}>(target, component{{index}});""",
-                "\n")
-            : string.Empty;
         string execute = shape.Operation switch
         {
             StructuralOperation.Create => $$"""return GeneratedForEachRuntime.ExecuteGeneratedCreate(target, components, ref initializer);""",
@@ -138,7 +162,6 @@ internal static class GeneratedStructuralTemplates
         };
         return GeneratorTemplates.JoinNonEmpty(new[]
         {
-            validateTypes,
             RenderComponents(shape, slots),
             $$"""
                 var initializer = new {{initializerName}}(
@@ -153,7 +176,9 @@ internal static class GeneratedStructuralTemplates
         => GeneratorTemplates.JoinNonEmpty(new[]
         {
             RenderComponents(shape, slots),
-            $"return target.Create(components, count{(shape.HasOutput ? ", output" : string.Empty)});"
+            shape.CreatesOne
+                ? "return target.Create(components);"
+                : $"return target.Create(components, count{(shape.HasOutput ? ", output" : string.Empty)});"
         });
 
     private static string RenderMutationBody(StructuralModel shape, SignatureProjection slots)
@@ -174,6 +199,13 @@ internal static class GeneratedStructuralTemplates
 
     private static string RenderComponents(StructuralModel shape, SignatureProjection slots)
     {
+        if (slots.HasDynamicIds)
+        {
+            return $$"""
+                global::System.ReadOnlySpan<ComponentId> components = componentIds;
+                """;
+        }
+
         if (!slots.HasExplicitIds)
         {
             string components = GeneratorTemplates.PrimaryComponentIds(
@@ -183,15 +215,18 @@ internal static class GeneratedStructuralTemplates
             return $$"""global::System.ReadOnlySpan<ComponentId> components = {{components}};""";
         }
 
-        string assignments = RenderComponentAssignments("components", slots, "component");
+        string assignments = RenderComponentAssignments("components", slots);
         return $$"""
             global::System.Span<ComponentId> components = stackalloc ComponentId[{{slots.Arity}}];
             {{assignments}}
             """;
     }
 
-    private static string RenderComponentAssignments(string destination, SignatureProjection slots, string parameterPrefix)
-        => GeneratorTemplates.JoinIndexed(slots.Arity, index => $$"""{{destination}}[{{index}}] = {{parameterPrefix}}{{index}};""", "\n");
+    private static string RenderComponentAssignments(string destination, SignatureProjection slots)
+        => GeneratorTemplates.JoinIndexed(
+            slots.Arity,
+            index => $$"""{{destination}}[{{index}}] = {{slots.ComponentIdArgument(index)}};""",
+            "\n");
 
     private static string MethodName(StructuralModel shape)
         => shape.Operation switch
@@ -203,7 +238,7 @@ internal static class GeneratedStructuralTemplates
         };
 
     private static string ReturnType(StructuralModel shape)
-        => shape.Operation == StructuralOperation.Create && shape.HasValues
+        => shape.Operation == StructuralOperation.Create && (shape.HasValues || shape.CreatesOne)
             ? "Entity"
             : shape.Api.Target == TargetKind.Entity ? "bool" : "int";
 

@@ -22,7 +22,7 @@ namespace DeltaECS.AotSample
                 world.GetRef<Velocity>(entities[index], velocityId) = new Velocity(1, 0.5f);
             }
 
-            QuerySpec specification = QuerySpec.WhereAll(positionId, velocityId);
+            QuerySpec specification = QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId });
             Query query = world.CreateQuery(in specification);
 
             world.ForEach(

@@ -49,8 +49,8 @@ internal sealed class StampTests
         ComponentId positionId = layouts.Register<Position>(new SchemaId(40_005));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(40_006));
         using var world = new World(layouts);
-        Entity first = world.Create(positionId, velocityId);
-        Entity second = world.Create(positionId, velocityId);
+        Entity first = world.Create(stackalloc ComponentId[] { positionId, velocityId });
+        Entity second = world.Create(stackalloc ComponentId[] { positionId, velocityId });
         Assert.That(world.TryGetComponentStamp(first, positionId, out Stamp firstBefore), Is.True);
         Assert.That(world.TryGetComponentStamp(first, velocityId, out Stamp velocityBefore), Is.True);
         Assert.That(world.TryGetComponentStamp(second, positionId, out Stamp secondBefore), Is.True);

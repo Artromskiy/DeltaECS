@@ -22,6 +22,11 @@ public sealed class GenericFunctorGenerator : IIncrementalGenerator
             {
                 output.AddSource($"GenericFunctorArity_{arity}.g.cs", GenericFunctorTemplates.RenderOverloads(arity));
             }
+
+            if (!discovered.IsEmpty)
+            {
+                output.AddSource("GenericFunctorDynamicArguments.g.cs", GenericFunctorTemplates.RenderDynamicOverloads());
+            }
         });
         context.RegisterSourceOutput(models, static (output, discovered) => GeneratorPipeline.EmitShapes(
             discovered, output, "GenericFunctor_", static model => model.TypeName,

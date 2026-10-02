@@ -39,28 +39,87 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
     {
         shape = null;
         if (invocation.Expression is not MemberAccessExpressionSyntax member
-            || member.Name is not GenericNameSyntax genericName
-            || !IsFactoryName(genericName.Identifier.ValueText)
-            || !ApiDescriptor.TryGet(genericName.Identifier.ValueText, out ApiDescriptor descriptor)
+            || !TryFactoryName(member.Name, out string name, out int genericArity)
+            || !IsFactoryName(name)
+            || !ApiDescriptor.TryGet(name, out ApiDescriptor descriptor)
             || descriptor.Family != GeneratedApiKind.QueryFactory
-            || invocation.ArgumentList.Arguments.Count != 0
             || (!IsWorldReceiver(model, member.Expression)
                 && !IsQueryReceiver(model, member.Expression)))
         {
             return false;
         }
 
-        int arity = genericName.TypeArgumentList.Arguments.Count;
+        var cursor = new InvocationCursor(model, invocation.ArgumentList.Arguments, descriptor);
+        if (!cursor.TryRead(-1, out InvocationCursorResult selection))
+        {
+            return false;
+        }
+
+        TypeBindingKind typeBinding;
+        RegistrationBindingKind registrationBinding;
+        int arity;
+        if (genericArity != 0)
+        {
+            if (selection.ComponentIdCount != 0 && selection.ComponentIdCount != genericArity)
+            {
+                return false;
+            }
+            if (!selection.HasComponentIds && invocation.ArgumentList.Arguments.Count != 0)
+            {
+                return false;
+            }
+
+            arity = genericArity;
+            typeBinding = TypeBindingKind.Generic;
+            registrationBinding = selection.HasComponentIdSpan
+                ? RegistrationBindingKind.Dynamic
+                : selection.ComponentIdCount != 0
+                    ? RegistrationBindingKind.Explicit
+                    : RegistrationBindingKind.Primary;
+        }
+        else
+        {
+            if (selection.ComponentIdCount == 0 || selection.HasComponentIdSpan)
+            {
+                return false;
+            }
+
+            arity = selection.ComponentIdCount;
+            typeBinding = TypeBindingKind.None;
+            registrationBinding = RegistrationBindingKind.Explicit;
+        }
+
         if (arity < descriptor.MinimumArity)
         {
             return false;
         }
 
         shape = new QueryModel(
-            genericName.Identifier.ValueText,
+            name,
             arity,
-            GeneratorSupport.ContainingNamespace(model, invocation));
+            GeneratorSupport.ContainingNamespace(model, invocation),
+            typeBinding,
+            registrationBinding);
         return true;
+    }
+
+    private static bool TryFactoryName(NameSyntax nameSyntax, out string name, out int arity)
+    {
+        switch (nameSyntax)
+        {
+            case GenericNameSyntax genericName:
+                name = genericName.Identifier.ValueText;
+                arity = genericName.TypeArgumentList.Arguments.Count;
+                return true;
+            case IdentifierNameSyntax identifierName:
+                name = identifierName.Identifier.ValueText;
+                arity = 0;
+                return true;
+            default:
+                name = string.Empty;
+                arity = 0;
+                return false;
+        }
     }
 
     private static bool IsFactoryName(string name)
@@ -80,10 +139,9 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
         // compilation's semantic model, so recognize a fluent factory chain
         // syntactically as well as a resolved Query receiver.
         if (expression is InvocationExpressionSyntax invocation
-            && invocation.ArgumentList.Arguments.Count == 0
             && invocation.Expression is MemberAccessExpressionSyntax member
-            && member.Name is GenericNameSyntax genericName
-            && IsFactoryName(genericName.Identifier.ValueText))
+            && TryFactoryName(member.Name, out string name, out _)
+            && IsFactoryName(name))
         {
             return IsWorldReceiver(model, member.Expression)
                 || IsQueryReceiver(model, member.Expression);

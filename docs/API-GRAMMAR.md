@@ -9,6 +9,7 @@ order applies to generic, non-generic, delegate, functor, and parallel forms.
 ```text
 T...  — one or more CLR component types
 I...  — positional list of ComponentId values
+D     — explicit ReadOnlySpan<ComponentId> selector (not a params argument)
 e     — one Entity
 E     — ReadOnlySpan<Entity> or an entity array
 Q     — Query
@@ -28,7 +29,7 @@ The canonical argument order is:
 target(e | E)?,
 query(Q)?,
 component-types(T... | inferred)?,
-registrations(I...)?,
+registrations(I... | D)?,
 context(C)?,
 callback(A | F)?,
 values(V...)?,
@@ -37,29 +38,40 @@ options(N | O | W)?
 
 `T...` identifies the CLR row types. In ordinary typed iteration, `I...`
 selects the registration used for each row; omitting it uses the primary
-registration. When both `T...` and `I...` are present, their counts equal the
-row arity. In runtime-selected generic functor calls, `G...` closes the open
+registration. `D` is the equivalent explicit dynamic selector. When both
+`T...` and `I...` or `D` are present, the number of IDs must equal the row
+arity, and each ID must identify a registration of the corresponding CLR
+type. The runtime validates dynamic span length before executing the operation.
+In runtime-selected generic functor calls, `G...` or `D` closes the open
 functor type and is independent of the component rows accepted by `Invoke`.
-Query factories are the exception: their typed and `ComponentId` forms are
-separate. `Q` is required for world-wide query iteration and optional after an
-explicit entity target `E`.
+Query factories also allow typed and `ComponentId` selectors. `Q` is required
+for world-wide query iteration and optional after an explicit entity target
+`E`.
+
+Use positional IDs when the registrations are known at the call site. Pass an
+explicit `ReadOnlySpan<ComponentId>` when the list is assembled dynamically;
+the span is an ordinary parameter, not a `params` argument. The old
+`params ReadOnlySpan<ComponentId>` modifier has been removed. Since `params`
+does not change the CLR method signature, an obsolete `params` overload cannot
+coexist with the explicit-span overload under the same name and parameter
+types.
 
 ## Generated iteration forms
 
 Delegate and intercepted-lambda forms are generated with these shapes:
 
 ```text
-world.ForEach<T...>(Q, I..., C, A)
-world.ForEachEntity<T...>(Q, I..., C, A)
+world.ForEach<T...>(Q, I... | D, C, A)
+world.ForEachEntity<T...>(Q, I... | D, C, A)
 
-world.ForEach<T...>(E, Q?, I..., C, A)
-world.ForEachEntity<T...>(E, Q?, I..., C, A)
+world.ForEach<T...>(E, Q?, I... | D, C, A)
+world.ForEachEntity<T...>(E, Q?, I... | D, C, A)
 
-world.ForEachParallel<T...>(Q, I..., C, A, W)
-world.ForEachEntityParallel<T...>(Q, I..., C, A, W)
+world.ForEachParallel<T...>(Q, I... | D, C, A, W)
+world.ForEachEntityParallel<T...>(Q, I... | D, C, A, W)
 
-world.ForEachParallel<T...>(E, Q?, I..., C, A, W)
-world.ForEachEntityParallel<T...>(E, Q?, I..., C, A, W)
+world.ForEachParallel<T...>(E, Q?, I... | D, C, A, W)
+world.ForEachEntityParallel<T...>(E, Q?, I... | D, C, A, W)
 ```
 
 Entity-aware iteration may omit the component selector entirely. The callback
@@ -76,15 +88,15 @@ Functor forms use the same target, query, selector, and context order, with
 `F` in the callback position:
 
 ```text
-world.ForEach<T...>(Q, I..., C, F)
-world.ForEachEntity<T...>(Q, I..., C, F)
-world.ForEach<T...>(E, Q?, I..., C, F)
-world.ForEachEntity<T...>(E, Q?, I..., C, F)
+world.ForEach<T...>(Q, I... | D, C, F)
+world.ForEachEntity<T...>(Q, I... | D, C, F)
+world.ForEach<T...>(E, Q?, I... | D, C, F)
+world.ForEachEntity<T...>(E, Q?, I... | D, C, F)
 
-world.ForEachParallel<T...>(Q, I..., C, F, W)
-world.ForEachEntityParallel<T...>(Q, I..., C, F, W)
-world.ForEachParallel<T...>(E, Q?, I..., C, F, W)
-world.ForEachEntityParallel<T...>(E, Q?, I..., C, F, W)
+world.ForEachParallel<T...>(Q, I... | D, C, F, W)
+world.ForEachEntityParallel<T...>(Q, I... | D, C, F, W)
+world.ForEachParallel<T...>(E, Q?, I... | D, C, F, W)
+world.ForEachEntityParallel<T...>(E, Q?, I... | D, C, F, W)
 ```
 
 `ForEach` callbacks receive component rows. `ForEachEntity` callbacks also
@@ -102,29 +114,29 @@ worker ordering. It is read-only: callbacks receive `in Stamp` (or
 Query-wide forms:
 
 ```text
-world.ForEachStamp<T...>(Q, C?, A | F)
-world.ForEachEntityStamp<T...>(Q, C?, A | F)
-world.ForEachStamp(Q, I..., C?, A | F)
-world.ForEachEntityStamp(Q, I..., C?, A | F)
+world.ForEachStamp<T...>(Q, I... | D, C?, A | F)
+world.ForEachEntityStamp<T...>(Q, I... | D, C?, A | F)
+world.ForEachStamp(Q, I... | D, C?, A | F)
+world.ForEachEntityStamp(Q, I... | D, C?, A | F)
 
-world.ForEachStampParallel<T...>(Q, C?, A | F, W)
-world.ForEachEntityStampParallel<T...>(Q, C?, A | F, W)
-world.ForEachStampParallel(Q, I..., C?, A | F, W)
-world.ForEachEntityStampParallel(Q, I..., C?, A | F, W)
+world.ForEachStampParallel<T...>(Q, I... | D, C?, A | F, W)
+world.ForEachEntityStampParallel<T...>(Q, I... | D, C?, A | F, W)
+world.ForEachStampParallel(Q, I... | D, C?, A | F, W)
+world.ForEachEntityStampParallel(Q, I... | D, C?, A | F, W)
 ```
 
 Entity-list forms accept `E` first and an optional `Q` after it:
 
 ```text
-world.ForEachStamp<T...>(E, Q?, C?, A | F)
-world.ForEachEntityStamp<T...>(E, Q?, C?, A | F)
-world.ForEachStamp(E, Q?, I..., C?, A | F)
-world.ForEachEntityStamp(E, Q?, I..., C?, A | F)
+world.ForEachStamp<T...>(E, Q?, I... | D, C?, A | F)
+world.ForEachEntityStamp<T...>(E, Q?, I... | D, C?, A | F)
+world.ForEachStamp(E, Q?, I... | D, C?, A | F)
+world.ForEachEntityStamp(E, Q?, I... | D, C?, A | F)
 
-world.ForEachStampParallel<T...>(E, Q?, C?, A | F, W)
-world.ForEachEntityStampParallel<T...>(E, Q?, C?, A | F, W)
-world.ForEachStampParallel(E, Q?, I..., C?, A | F, W)
-world.ForEachEntityStampParallel(E, Q?, I..., C?, A | F, W)
+world.ForEachStampParallel<T...>(E, Q?, I... | D, C?, A | F, W)
+world.ForEachEntityStampParallel<T...>(E, Q?, I... | D, C?, A | F, W)
+world.ForEachStampParallel(E, Q?, I... | D, C?, A | F, W)
+world.ForEachEntityStampParallel(E, Q?, I... | D, C?, A | F, W)
 ```
 
 `ForEachStamp` callbacks receive only the requested stamps. The
@@ -156,22 +168,23 @@ typed component or provide the corresponding `ComponentId` selector.
 Typed and non-generic structural operations have matching target shapes:
 
 ```text
-world.Add<T...>(e | E | Q, I...)
-world.Remove<T...>(e | E | Q, I...)
+world.Add<T...>(e | E | Q, I... | D)
+world.Remove<T...>(e | E | Q, I... | D)
 world.Add<T...>(e | E, I..., V...)
 world.Destroy(e | E | Q)
 
-world.Add(e | E | Q, I...)
-world.Remove(e | E | Q, I...)
+world.Add(e | E | Q, I... | D)
+world.Remove(e | E | Q, I... | D)
 world.Add(e, V...)
 
 world.Create<T...>(N, O?)
-world.Create<T...>(I..., N, O?)
-world.Create<T...>(I..., V...) -> Entity
-world.Create(I..., N, O?)
+world.Create<T...>(I... | D, N, O?)
+world.Create<T...>(I... | D, V...) -> Entity
+world.Create(I... | D, N, O?)
 ```
 
-The `I...` forms are positional `ComponentId` arguments. `Add` and `Remove`
+The `I...` forms are positional `ComponentId` arguments; `D` is one explicit
+`ReadOnlySpan<ComponentId>` at the same selector position. `Add` and `Remove`
 accept them after the target; `Create` places them before `N` and `O`.
 For value forms, generic type arguments may be inferred from `V...`. The
 positions of `I...` and `V...` correspond to the component types in `T...`.
@@ -193,9 +206,9 @@ world.WhereAll<T...>() -> Query
 world.WhereAny<T...>() -> Query
 world.WhereNone<T...>() -> Query
 
-world.WhereAll(I...) -> Query
-world.WhereAny(I...) -> Query
-world.WhereNone(I...) -> Query
+world.WhereAll(I... | D) -> Query
+world.WhereAny(I... | D) -> Query
+world.WhereNone(I... | D) -> Query
 
 query
     .WhereAll<T...>()
@@ -203,13 +216,30 @@ query
     .WhereAny<T...>() -> Query
 
 query
-    .WhereAll(I...)
-    .WhereNone(I...)
-    .WhereAny(I...) -> Query
+    .WhereAll(I... | D)
+    .WhereNone(I... | D)
+    .WhereAny(I... | D) -> Query
+
+world.WhereAll<T...>(D) -> Query
+world.WhereAny<T...>(D) -> Query
+world.WhereNone<T...>(D) -> Query
+
+query
+    .WhereAll<T...>(D)
+    .WhereNone<T...>(D)
+    .WhereAny<T...>(D) -> Query
 ```
 
 `WhereAll` appends components to `All`, `WhereNone` appends to `None`, and
-`WhereAny` appends to the shared `Any` filter.
+`WhereAny` appends to the shared `Any` filter. Typed span forms require the
+span length to match their generic arity and validate each registration's CLR
+type.
+
+The low-level `QuerySpec.WhereAll`, `WhereAny`, and `WhereNone` factories take
+an explicit `ReadOnlySpan<ComponentId>` for dynamic lists. They also provide a
+single-ID convenience form; multi-ID selectors use the span form. The generated
+`World` and `Query` query factories provide positional overloads for the call
+site arities used by the consumer.
 
 ## Where pipeline
 
@@ -223,11 +253,11 @@ world.WhereEntity(Q, C?, Predicate) -> WhereView
 
 view.Destroy()
 view.Add<T...>()
-view.Add<T...>(I...)
+view.Add<T...>(I... | D)
 view.Add<T...>(V...)
 view.Add<T...>(I..., V...)
 view.Remove<T...>()
-view.Remove<T...>(I...)
+view.Remove<T...>(I... | D)
 view.ForEach(...)
 view.ForEachEntity(...)              // Entity-only or Entity plus components
 ```
@@ -255,27 +285,33 @@ unary form; for two or more generic arguments, the generator emits the matching
 ```csharp
 ComponentId historyId = layouts.Register(typeof(History<>), positionId, new SchemaId(100));
 ComponentId pairId = layouts.Register(typeof(ComponentPair<,>), positionId, velocityId, new SchemaId(101));
+
+ReadOnlySpan<ComponentId> pairArguments = stackalloc ComponentId[] { positionId, velocityId };
+ComponentId dynamicPairId = layouts.Register(typeof(ComponentPair<,>), pairArguments, new SchemaId(102));
 ```
+
+For the span form, the number of IDs must match the generic definition's arity.
 
 The generated runtime-selected functor API supports the same targets and
 execution modes for component-row iteration as the ordinary functor API. The
 `ComponentId` values here close the open generic functor type; they are not
 required to match the number of callback rows. In this section, `G...` denotes
-those positional `ComponentId` arguments. `typeof(Functor<>)` supplies the open
-generic definition.
+positional IDs and `D` denotes an explicit dynamic span containing the generic
+arguments. Its length must match the open functor's generic arity.
+`typeof(Functor<>)` supplies the open generic definition.
 
 The complete forms are:
 
 ```text
-world.ForEach(Q, C?, G..., typeof(F<>))
-world.ForEachEntity(Q, C?, G..., typeof(F<>))
-world.ForEach(E, Q?, C?, G..., typeof(F<>))
-world.ForEachEntity(E, Q?, C?, G..., typeof(F<>))
+world.ForEach(Q, C?, G... | D, typeof(F<>))
+world.ForEachEntity(Q, C?, G... | D, typeof(F<>))
+world.ForEach(E, Q?, C?, G... | D, typeof(F<>))
+world.ForEachEntity(E, Q?, C?, G... | D, typeof(F<>))
 
-world.ForEachParallel(Q, C?, G..., typeof(F<>), W)
-world.ForEachEntityParallel(Q, C?, G..., typeof(F<>), W)
-world.ForEachParallel(E, Q?, C?, G..., typeof(F<>), W)
-world.ForEachEntityParallel(E, Q?, C?, G..., typeof(F<>), W)
+world.ForEachParallel(Q, C?, G... | D, typeof(F<>), W)
+world.ForEachEntityParallel(Q, C?, G... | D, typeof(F<>), W)
+world.ForEachParallel(E, Q?, C?, G... | D, typeof(F<>), W)
+world.ForEachEntityParallel(E, Q?, C?, G... | D, typeof(F<>), W)
 ```
 
 Open generic functors are supported by the ordinary parallel forms shown
@@ -367,13 +403,16 @@ as in the regular generated functor API. Parallel callbacks run concurrently
 and must coordinate shared mutable state.
 
 Generic functor argument lists are generated for every generic arity found in
-the consumer assembly. The count and order of `ComponentId` arguments must
-match the open functor's generic parameters. For example, two generic
+the consumer assembly. The count and order of positional IDs or IDs in `D`
+must match the open functor's generic parameters. For example, two generic
 parameters can bind three callback rows, including a derived registration:
 
 ```csharp
 world.ForEach(in query, firstId, secondId, typeof(CopyPair<,>));
 world.ForEach(in query, id0, id1, id2, typeof(Action<,,>));
+
+ReadOnlySpan<ComponentId> genericArguments = stackalloc ComponentId[] { firstId, secondId };
+world.ForEach(in query, genericArguments, typeof(CopyPair<,>));
 ```
 
 Order and repeated IDs are preserved. Generic arity is independent of callback

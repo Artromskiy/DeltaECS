@@ -10,6 +10,7 @@ public class GeneratedGenericBindingsGeneratorTests
     public void GenericComponentRegistrationCompilesWithCSharp9()
     {
         const string source = """
+            using System;
             using Delta.ECS;
 
             public struct Position { public float X; }
@@ -28,12 +29,18 @@ public class GeneratedGenericBindingsGeneratorTests
                     ComponentId acceleration = layouts.Register<Acceleration>(new SchemaId(4));
                     _ = layouts.Register(typeof(History<>), position, new SchemaId(2));
                     _ = layouts.Register(typeof(Pair<,>), position, velocity, new SchemaId(6));
+                    ReadOnlySpan<ComponentId> pairArguments = stackalloc ComponentId[] { position, velocity };
+                    _ = layouts.Register(typeof(Pair<,>), pairArguments, new SchemaId(7));
                     return layouts.Register(typeof(Triple<,,>), position, velocity, acceleration, new SchemaId(5));
                 }
             }
             """;
         var options = new CSharpParseOptions(LanguageVersion.CSharp9);
         var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
+            .Where(path => !string.Equals(
+                path,
+                typeof(Delta.ECS.Generators.Consumer.ConsumerProof).Assembly.Location,
+                StringComparison.Ordinal))
             .Append(typeof(World).Assembly.Location).Distinct()
             .Select(static path => MetadataReference.CreateFromFile(path));
         var compilation = CSharpCompilation.Create("GenericComponentConsumer",

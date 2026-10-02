@@ -35,24 +35,59 @@ internal static class GeneratedQueryTemplates
         (string Type, string Name, bool Query, string Result) factory)
     {
         SignatureProjection slots = model.Api.Signature;
-        string components = GeneratorTemplates.PrimaryComponentIds(
-            factory.Name,
-            GeneratorTemplates.Indexed(slots.Arity, index => slots.GenericType(index)).ToArray(),
-            factory.Query,
-            model.Namespace);
         string additions = $"QuerySpec additions = QuerySpec.{model.Kind}(components);";
+        string selector = slots.HasExplicitIds ? slots.ComponentIdParameters() : string.Empty;
+        string parameters = GeneratorTemplates.JoinNonEmpty(new[]
+        {
+            $"this {factory.Type} {factory.Name}",
+            selector
+        }, ", ");
+        string generic = slots.HasGenericSelectors ? slots.GenericParameters() : string.Empty;
+        var body = new List<string>();
+        if (slots.HasDynamicIds)
+        {
+            body.Add($"GeneratedForEachRuntime.ValidateComponentIdCount(componentIds, {slots.Arity});");
+        }
+
+        if (slots.HasDynamicIds)
+        {
+            body.Add("global::System.ReadOnlySpan<ComponentId> components = componentIds;");
+        }
+        else if (slots.HasExplicitIds)
+        {
+            body.Add($"global::System.Span<ComponentId> components = stackalloc ComponentId[{slots.Arity}];");
+            body.AddRange(GeneratorTemplates.Indexed(
+                slots.Arity,
+                index => $"components[{index}] = {slots.ComponentIdArgument(index)};"));
+        }
+        else
+        {
+            string components = GeneratorTemplates.PrimaryComponentIds(
+                factory.Name,
+                GeneratorTemplates.Indexed(slots.Arity, index => slots.GenericType(index)).ToArray(),
+                factory.Query,
+                model.Namespace);
+            body.Add($"global::System.ReadOnlySpan<ComponentId> components = {components};");
+        }
+
+        if (slots.HasExplicitIds && slots.HasGenericSelectors)
+        {
+            body.AddRange(GeneratorTemplates.Indexed(
+                slots.Arity,
+                index => factory.Query
+                    ? $"GeneratedForEachRuntime.ValidateComponentType<{slots.GenericType(index)}>(in {factory.Name}, {slots.ComponentIdArgument(index)});"
+                    : $"GeneratedForEachRuntime.ValidateComponentType<{slots.GenericType(index)}>({factory.Name}, {slots.ComponentIdArgument(index)});"));
+        }
+
+        body.Add(additions);
+        body.Add($"return {factory.Result};");
         string declaration = $$"""
-            public static Query {{model.Kind}}{{slots.GenericParameters()}}(this {{factory.Type}} {{factory.Name}})
+            public static Query {{model.Kind}}{{generic}}({{parameters}})
             """.Trim();
-        string body = $$"""
-            global::System.ReadOnlySpan<ComponentId> components = {{components}};
-            {{additions}}
-            return {{factory.Result}};
-            """;
         return GeneratorTemplates.Method(
             model.Api,
             declaration,
-            body,
+            string.Join("\n", body),
             "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
     }
 

@@ -14,7 +14,7 @@ for (var i = 0; i < entities.Length; i++)
     world.GetRef<Velocity>(entities[i], velocityId) = new Velocity { X = 1, Y = 0.5f };
 }
 
-var spec = QuerySpec.WhereAll(positionId, velocityId);
+var spec = QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId });
 var query = world.CreateQuery(in spec);
 
 // Explicit Query is required before generated callbacks execute.

@@ -25,7 +25,7 @@ internal sealed class GeneratedDenseBindingTests
 
         var entities = new Entity[Chunk.Capacity * 2 + 3];
         world.Create(new[] { health }, entities.Length, entities);
-        Entity target = world.Create(health, velocity);
+        Entity target = world.Create(stackalloc ComponentId[] { health, velocity });
         int count = entities.Length + 2;
         Assert.That(Visit(world, in query), Is.EqualTo(count));
         world.Add(in query, new[] { velocity });
@@ -71,7 +71,7 @@ internal sealed class GeneratedDenseBindingTests
         ComponentId velocity = layouts.Register<Velocity>(new SchemaId(96006));
         using var world = new World(layouts);
         Entity first = world.Create(health);
-        Entity second = world.Create(health, velocity);
+        Entity second = world.Create(stackalloc ComponentId[] { health, velocity });
         Query query = world.WhereAll<Health>();
         world.TryGetComponentStamp(first, health, out Stamp beforeFirst);
         world.TryGetComponentStamp(second, health, out Stamp beforeSecond);
@@ -95,7 +95,7 @@ internal sealed class GeneratedDenseBindingTests
         Query query = world.WhereAll<Health>();
         Assert.That(Visit(world, in query), Is.EqualTo(1));
 
-        Entity healthAndVelocity = world.Create(health, velocity);
+        Entity healthAndVelocity = world.Create(stackalloc ComponentId[] { health, velocity });
         world.TryGetComponentStamp(healthAndVelocity, health, out Stamp beforeNewArchetype);
         Assert.That(Visit(world, in query), Is.EqualTo(2));
         world.TryGetComponentStamp(healthAndVelocity, health, out Stamp afterNewArchetype);

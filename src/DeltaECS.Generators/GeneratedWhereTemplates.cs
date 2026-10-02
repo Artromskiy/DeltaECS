@@ -53,9 +53,9 @@ internal static class GeneratedWhereTemplates
             ? RenderInterceptedStructuralLoop(site, values: true)
             : terminal.IsCallback ? RenderInterceptedWhereLoop(site) : RenderInterceptedStructuralLoop(site);
         string executeInvocation = terminal.HasValues
-            ? $$"""return Execute_{{site.Id}}(view.World, in query{{(terminalSlots.HasExplicitIds ? ", " + terminalSlots.ComponentIdArguments() : string.Empty)}}{{(terminal.Arity == 0 ? string.Empty : ", " + terminalSlots.ValueNames())}}{{(shape.HasContext ? ", ref view.PredicateContext" : string.Empty)}});"""
+            ? $$"""return Execute_{{site.Id}}(view.World, in query{{(terminalSlots.HasExplicitIds ? ", " + terminalSlots.ComponentIdListArgument() : string.Empty)}}{{(terminal.Arity == 0 ? string.Empty : ", " + terminalSlots.ValueNames())}}{{(shape.HasContext ? ", ref view.PredicateContext" : string.Empty)}});"""
             : $$"""
-                {{(terminal.IsCallback ? string.Empty : "return ")}}Execute_{{site.Id}}(view.World, in query{{(terminalSlots.HasExplicitIds ? ", " + terminalSlots.ComponentIdArguments() : string.Empty)}}{{(shape.HasContext ? ", ref view.PredicateContext" : string.Empty)}}{{(terminal.IsFunctor && terminal.HasContext ? ", ref context" : string.Empty)}}{{(terminal.IsFunctor ? ", " + SignatureProjection.ContextArgument(terminal.FunctorPassMode, "action") : string.Empty)}});
+                {{(terminal.IsCallback ? string.Empty : "return ")}}Execute_{{site.Id}}(view.World, in query{{(terminalSlots.HasExplicitIds ? ", " + terminalSlots.ComponentIdListArgument() : string.Empty)}}{{(shape.HasContext ? ", ref view.PredicateContext" : string.Empty)}}{{(terminal.IsFunctor && terminal.HasContext ? ", ref context" : string.Empty)}}{{(terminal.IsFunctor ? ", " + SignatureProjection.ContextArgument(terminal.FunctorPassMode, "action") : string.Empty)}});
                 """.Trim();
         string interceptSignature = terminal.HasValues
             ? RenderInterceptedValueSignature(site)
@@ -322,7 +322,7 @@ internal static class GeneratedWhereTemplates
         string assignments = GeneratorTemplates.JoinNonEmpty(new[]
         {
             shape.HasContext ? "_predicateContext = predicateContext;" : string.Empty,
-            values ? $"_initializer = new {initializerType}({GeneratorTemplates.JoinIndexed(terminal.Arity, index => $"component{index}, in value{index}", ", ")});" : string.Empty,
+            values ? $"_initializer = new {initializerType}({GeneratorTemplates.JoinIndexed(terminal.Arity, index => terminalSlots.ComponentIdArgument(index) + ", in value" + index, ", ")});" : string.Empty,
             GeneratorTemplates.JoinNonEmpty(GeneratorTemplates.Indexed(shape.Arity,
                 index => $$"""_access{{index}} = access{{index}};"""))
         });
@@ -397,7 +397,9 @@ internal static class GeneratedWhereTemplates
         string invokerArguments = string.Join(", ", new[] { shape.HasContext ? "predicateContext" : string.Empty }
             .Concat(values ? new[]
             {
-                GeneratorTemplates.JoinIndexed(terminal.Arity, static index => "components[" + index + "]"),
+                terminalSlots.HasDynamicIds
+                    ? "components"
+                    : GeneratorTemplates.JoinIndexed(terminal.Arity, static index => "components[" + index + "]"),
                 terminalSlots.ValueNames()
             } : Array.Empty<string>())
             .Concat(GeneratorTemplates.Indexed(shape.Arity, index =>
@@ -405,16 +407,26 @@ internal static class GeneratedWhereTemplates
             .Where(static argument => argument.Length != 0));
         string componentSetup = terminal.Kind is not (TerminalKind.Add or TerminalKind.Remove)
             ? string.Empty
-            : terminalSlots.HasExplicitIds
+            : terminalSlots.HasDynamicIds
                 ? GeneratorTemplates.JoinNonEmpty(new[]
                 {
-                    $"global::System.Span<global::Delta.ECS.ComponentId> components = stackalloc global::Delta.ECS.ComponentId[{terminal.Arity}];",
-                    GeneratorTemplates.JoinIndexed(
-                        terminal.Arity,
-                        static index => $$"""components[{{index}}] = component{{index}};""",
-                        "\n")
+                    $"global::Delta.ECS.GeneratedForEachRuntime.ValidateComponentIdCount(componentIds, {terminal.Arity});",
+                    terminalSlots.HasGenericSelectors
+                        ? GeneratorTemplates.JoinIndexed(terminal.Arity, index =>
+                            $"global::Delta.ECS.GeneratedForEachRuntime.ValidateComponentType<{site.ActionComponents[index]}>(world, componentIds[{index}]);", "\n")
+                        : string.Empty,
+                    "global::System.ReadOnlySpan<global::Delta.ECS.ComponentId> components = componentIds;"
                 })
-                : $$"""global::System.ReadOnlySpan<global::Delta.ECS.ComponentId> components = {{GeneratorTemplates.PrimaryComponentIds("world", site.ActionComponents, namespaceName: shape.Namespace)}};""";
+                : terminalSlots.HasExplicitIds
+                    ? GeneratorTemplates.JoinNonEmpty(new[]
+                    {
+                        $"global::System.Span<global::Delta.ECS.ComponentId> components = stackalloc global::Delta.ECS.ComponentId[{terminal.Arity}];",
+                        GeneratorTemplates.JoinIndexed(
+                            terminal.Arity,
+                            index => $$"""components[{{index}}] = {{terminalSlots.ComponentIdArgument(index)}};""",
+                            "\n")
+                    })
+                    : $$"""global::System.ReadOnlySpan<global::Delta.ECS.ComponentId> components = {{GeneratorTemplates.PrimaryComponentIds("world", site.ActionComponents, namespaceName: shape.Namespace)}};""";
 
         string operationName = terminal.Kind switch
         {
@@ -621,7 +633,7 @@ internal static class GeneratedWhereTemplates
             constructorParameters.Add(terminalSlots.ValueParameters("U"));
             string initializerArguments = GeneratorTemplates.JoinIndexed(
                 terminal.Arity,
-                index => "component" + index + ", in value" + index);
+                index => terminalSlots.ComponentIdArgument(index) + ", in value" + index);
             assignments.Add($$"""_initializer = new {{WhereValueInitializerType(terminal)}}({{initializerArguments}});""");
         }
 
@@ -1001,6 +1013,16 @@ internal static class GeneratedWhereTemplates
         }
 
         body.Add("GeneratedForEachRuntime.ValidateGeneratedWhere(_world, in _query);");
+        if (terminalSlots.HasDynamicIds)
+        {
+            body.Add($"GeneratedForEachRuntime.ValidateComponentIdCount(componentIds, {terminal.Arity});");
+            if (terminalSlots.HasGenericSelectors)
+            {
+                body.AddRange(GeneratorTemplates.Indexed(terminal.Arity, index =>
+                    $"GeneratedForEachRuntime.ValidateComponentType<U{index + 1}>(_world, componentIds[{index}]);"));
+            }
+        }
+
         body.AddRange(GeneratorTemplates.Indexed(accessCount, index =>
         {
             string componentType = index < shape.Arity
@@ -1034,12 +1056,16 @@ internal static class GeneratedWhereTemplates
 
         if (terminal.Kind is TerminalKind.Add or TerminalKind.Remove)
         {
-            if (terminalSlots.HasExplicitIds)
+            if (terminalSlots.HasDynamicIds)
+            {
+                body.Add("global::System.ReadOnlySpan<ComponentId> components = componentIds;");
+            }
+            else if (terminalSlots.HasExplicitIds)
             {
                 body.Add($"Span<ComponentId> components = stackalloc ComponentId[{terminal.Arity}];");
                 body.AddRange(GeneratorTemplates.Indexed(
                     terminal.Arity,
-                    static index => $$"""components[{{index}}] = component{{index}};"""));
+                    index => $$"""components[{{index}}] = {{terminalSlots.ComponentIdArgument(index)}};"""));
             }
             else
             {
@@ -1053,7 +1079,9 @@ internal static class GeneratedWhereTemplates
 
         if (terminal.HasValues)
         {
-            invokerArguments.AddRange(GeneratorTemplates.Indexed(terminal.Arity, index => "components[" + index + "]"));
+            invokerArguments.Add(terminalSlots.HasDynamicIds
+                ? "components"
+                : GeneratorTemplates.JoinIndexed(terminal.Arity, static index => "components[" + index + "]"));
             invokerArguments.Add(terminalSlots.ValueArguments());
         }
 

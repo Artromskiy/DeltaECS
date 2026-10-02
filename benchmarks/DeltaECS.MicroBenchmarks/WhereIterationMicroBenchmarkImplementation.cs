@@ -39,7 +39,7 @@ public class WhereIterationMicroBenchmarkImplementation
             _world.GetRef<WhereIterationValue>(_entities[index], _valueId) = new WhereIterationValue { Value = index };
         }
 
-        QuerySpec description = QuerySpec.WhereAll(_valueId, _accumulatorId);
+        QuerySpec description = QuerySpec.WhereAll(stackalloc ComponentId[] { _valueId, _accumulatorId });
         _query = _world.CreateQuery(in description);
     }
 

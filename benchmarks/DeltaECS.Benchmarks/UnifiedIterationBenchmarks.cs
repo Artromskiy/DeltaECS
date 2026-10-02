@@ -160,7 +160,7 @@ public class ComparativeMovement2ComponentsBenchmarks
             _delta.GetRef<Movement2Position>(_deltaEntities[i], _deltaPosition) = new Movement2Position { X = 1, Y = 2 };
             _delta.GetRef<Movement2Velocity>(_deltaEntities[i], _deltaVelocity) = new Movement2Velocity { X = 3, Y = 4 };
         }
-        var deltaDescription = QuerySpec.WhereAll(_deltaPosition, _deltaVelocity);
+        var deltaDescription = QuerySpec.WhereAll(stackalloc ComponentId[] { _deltaPosition, _deltaVelocity });
         _deltaQuery = _delta.CreateQuery(in deltaDescription);
 
         _arch = Arch.Core.World.Create();
@@ -440,7 +440,7 @@ public class ComparativeWideArchetypeNarrowQueryBenchmarks
     public void Setup()
     {
         var layouts = new ComponentLayoutRegistry(); _deltaIds = new[] { layouts.Register<Wide0>(new SchemaId(203_000)), layouts.Register<Wide1>(new SchemaId(203_001)), layouts.Register<Wide2>(new SchemaId(203_002)), layouts.Register<Wide3>(new SchemaId(203_003)), layouts.Register<Wide4>(new SchemaId(203_004)), layouts.Register<Wide5>(new SchemaId(203_005)), layouts.Register<Wide6>(new SchemaId(203_006)), layouts.Register<Wide7>(new SchemaId(203_007)) }; _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); var de = new DeltaEntity[Amount]; _delta.Create(_deltaIds, de); for (var i = 0; i < Amount; i++) { _delta.GetRef<Wide0>(de[i], _deltaIds[0]) = new Wide0 { Value = 1 }; _delta.GetRef<Wide7>(de[i], _deltaIds[7]) = new Wide7 { Value = 8 }; }
-        var d = QuerySpec.WhereAll(_deltaIds[0], _deltaIds[7]); _deltaQuery = _delta.CreateQuery(in d);
+        var d = QuerySpec.WhereAll(stackalloc ComponentId[] { _deltaIds[0], _deltaIds[7] }); _deltaQuery = _delta.CreateQuery(in d);
         _arch = Arch.Core.World.Create(); _archTypes = new ArchComponentType[] { typeof(Wide0), typeof(Wide1), typeof(Wide2), typeof(Wide3), typeof(Wide4), typeof(Wide5), typeof(Wide6), typeof(Wide7) }; _arch.Reserve(_archTypes, Amount); _archQuery = new Arch.Core.QueryDescription { All = new ArchComponentType[] { _archTypes[0], _archTypes[7] } }; for (var i = 0; i < Amount; i++) { var e = _arch.Create(_archTypes); _arch.Set(e, new Wide0 { Value = 1 }); _arch.Set(e, new Wide7 { Value = 8 }); }
         _friflo = new EntityStore(); for (var i = 0; i < Amount; i++)
         {

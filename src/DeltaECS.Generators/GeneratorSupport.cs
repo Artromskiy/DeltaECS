@@ -194,6 +194,20 @@ internal static class GeneratorSupport
             && IsEntityType(named.TypeArguments[0])
             && named.ContainingNamespace.ToDisplayString() == SystemNamespace;
 
+    internal static bool IsComponentIdBatch(ITypeSymbol? type)
+    {
+        if (type is IArrayTypeSymbol array)
+        {
+            return IsComponentId(array.ElementType);
+        }
+
+        return type is INamedTypeSymbol named
+            && named.TypeArguments.Length == 1
+            && IsComponentId(named.TypeArguments[0])
+            && named.Name is "Span" or "ReadOnlySpan"
+            && named.ContainingNamespace.ToDisplayString() == SystemNamespace;
+    }
+
     internal static string DisplayType(ITypeSymbol type)
     {
         if (type is INamedTypeSymbol { IsTupleType: true } tuple)

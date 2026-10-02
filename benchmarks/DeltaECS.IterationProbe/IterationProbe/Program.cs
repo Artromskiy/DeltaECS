@@ -64,9 +64,9 @@ public class IterationBenchmarks : IDisposable
         }
 
         QuerySpec query1 = QuerySpec.WhereAll(ids[0]);
-        QuerySpec query2 = QuerySpec.WhereAll(ids[0], ids[1]);
-        QuerySpec query3 = QuerySpec.WhereAll(ids[0], ids[1], ids[2]);
-        QuerySpec query4 = QuerySpec.WhereAll(ids[0], ids[1], ids[2], ids[3]);
+        QuerySpec query2 = QuerySpec.WhereAll(stackalloc ComponentId[] { ids[0], ids[1] });
+        QuerySpec query3 = QuerySpec.WhereAll(stackalloc ComponentId[] { ids[0], ids[1], ids[2] });
+        QuerySpec query4 = QuerySpec.WhereAll(stackalloc ComponentId[] { ids[0], ids[1], ids[2], ids[3] });
         QuerySpec query8 = QuerySpec.WhereAll(
             ids[0], ids[1], ids[2], ids[3], ids[4], ids[5], ids[6], ids[7]);
         QuerySpec query16 = QuerySpec.WhereAll(

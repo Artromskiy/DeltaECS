@@ -214,9 +214,11 @@ internal static class InvocationGrammar
             return false;
         }
 
-        registrationBinding = result.ComponentIdCount == 0
-            ? RegistrationBindingKind.Primary
-            : RegistrationBindingKind.Explicit;
+        registrationBinding = result.HasComponentIdSpan
+            ? RegistrationBindingKind.Dynamic
+            : result.ComponentIdCount == 0
+                ? RegistrationBindingKind.Primary
+                : RegistrationBindingKind.Explicit;
         return true;
     }
 
@@ -247,6 +249,7 @@ internal sealed class InvocationCursor
         bool hasTarget = false;
         bool hasQuery = false;
         int componentIdCount = 0;
+        int componentIdSpanIndex = -1;
         int contextIndex = -1;
         ContextModeKind contextMode = ContextModeKind.None;
 
@@ -287,6 +290,17 @@ internal sealed class InvocationCursor
             {
                 componentIdCount++;
                 index++;
+            }
+
+            if (index < _arguments.Count
+                && GeneratorSupport.IsComponentIdBatch(_model.GetTypeInfo(_arguments[index].Expression).Type))
+            {
+                if (componentIdCount != 0)
+                {
+                    return false;
+                }
+
+                componentIdSpanIndex = index++;
             }
         }
 
@@ -358,6 +372,7 @@ internal sealed class InvocationCursor
             hasTarget,
             hasQuery,
             componentIdCount,
+            componentIdSpanIndex,
             contextIndex,
             contextMode,
             tailStart,
@@ -413,6 +428,7 @@ internal readonly struct InvocationCursorResult
         bool hasTarget,
         bool hasQuery,
         int componentIdCount,
+        int componentIdSpanIndex,
         int contextIndex,
         ContextModeKind contextMode,
         int tailStart,
@@ -423,6 +439,7 @@ internal readonly struct InvocationCursorResult
         HasTarget = hasTarget;
         HasQuery = hasQuery;
         ComponentIdCount = componentIdCount;
+        ComponentIdSpanIndex = componentIdSpanIndex;
         ContextIndex = contextIndex;
         ContextMode = contextMode;
         TailStart = tailStart;
@@ -434,6 +451,9 @@ internal readonly struct InvocationCursorResult
     internal bool HasTarget { get; }
     internal bool HasQuery { get; }
     internal int ComponentIdCount { get; }
+    internal int ComponentIdSpanIndex { get; }
+    internal bool HasComponentIdSpan => ComponentIdSpanIndex >= 0;
+    internal bool HasComponentIds => ComponentIdCount != 0 || HasComponentIdSpan;
     internal int ContextIndex { get; }
     internal bool HasContext => ContextIndex >= 0;
     internal ContextModeKind ContextMode { get; }

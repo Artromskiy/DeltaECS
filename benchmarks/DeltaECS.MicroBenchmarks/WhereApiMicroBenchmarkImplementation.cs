@@ -46,9 +46,9 @@ public class WhereApiMicroBenchmarkImplementation
             _world.GetRef<WhereApiValue>(_entities[index], _valueId) = new WhereApiValue { Value = (index & 1) == 0 ? -1 : 1 };
         }
 
-        QuerySpec description = QuerySpec.WhereAll(_valueId, accumulatorId);
+        QuerySpec description = QuerySpec.WhereAll(stackalloc ComponentId[] { _valueId, accumulatorId });
         _query = _world.CreateQuery(in description);
-        QuerySpec deadDescription = QuerySpec.WhereAll(_valueId, accumulatorId, deadId);
+        QuerySpec deadDescription = QuerySpec.WhereAll(stackalloc ComponentId[] { _valueId, accumulatorId, deadId });
         _deadQuery = _world.CreateQuery(in deadDescription);
     }
 

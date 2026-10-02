@@ -50,7 +50,7 @@ internal sealed class DeltaECSDeliveryTests
         world.Create(new[] { PositionId, VelocityId }, created);
         Assert.AreEqual(requested, world.AliveEntityCount);
 
-        var query = world.CreateQuery(QuerySpec.WhereAll(PositionId, VelocityId));
+        var query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { PositionId, VelocityId }));
         long sum = 0;
         world.ForEach<long, Position, Velocity>(
             in query,
@@ -179,7 +179,7 @@ internal sealed class DeltaECSDeliveryTests
         world.Create(new[] { VelocityId });
         world.Create(new[] { HealthId });
 
-        var all = QuerySpec.WhereAll(PositionId, VelocityId);
+        var all = QuerySpec.WhereAll(stackalloc ComponentId[] { PositionId, VelocityId });
         var any = new QuerySpec(
             Array.Empty<ComponentId>(), new[] { HealthId, VelocityId }, Array.Empty<ComponentId>());
         var none = new QuerySpec(

@@ -155,6 +155,58 @@ public static partial class ConsumerProof
             return 0;
         }
 
+        ReadOnlySpan<ComponentId> genericArguments = stackalloc ComponentId[] { value };
+        RuntimeComponentCounter.Count = 0;
+        world.ForEach<int>(in query, genericArguments, static (in int component) =>
+            System.Threading.Interlocked.Increment(ref RuntimeComponentCounter.Count));
+        if (RuntimeComponentCounter.Count != 2)
+        {
+            return 0;
+        }
+
+        RuntimeComponentCounter.Count = 0;
+        try
+        {
+            world.ForEach<int>(in query, stackalloc ComponentId[] { value, value }, static (in int component) =>
+                System.Threading.Interlocked.Increment(ref RuntimeComponentCounter.Count));
+            return 0;
+        }
+        catch (ArgumentException)
+        {
+            if (RuntimeComponentCounter.Count != 0)
+            {
+                return 0;
+            }
+        }
+
+        ComponentId wrongTypeId = world.Layouts.Register<float>(new SchemaId(91107));
+        try
+        {
+            world.ForEach<int>(in query, stackalloc ComponentId[] { wrongTypeId }, static (in int component) =>
+                System.Threading.Interlocked.Increment(ref RuntimeComponentCounter.Count));
+            return 0;
+        }
+        catch (ArgumentException)
+        {
+        }
+
+        RuntimeComponentCounter.Count = 0;
+        world.ForEach(in query, genericArguments, typeof(RuntimeComponentCount<>));
+        if (RuntimeComponentCounter.Count != 2)
+        {
+            return 0;
+        }
+
+        ReadOnlySpan<ComponentId> wrongArity = stackalloc ComponentId[] { value, value };
+        try
+        {
+            world.ForEach(in query, wrongArity, typeof(RuntimeComponentCount<>));
+            return 0;
+        }
+        catch (ArgumentException)
+        {
+        }
+
         RuntimeComponentCounter.Count = 0;
         world.ForEach(entities, in query, value, typeof(RuntimeComponentCount<>));
         if (RuntimeComponentCounter.Count != 2)
@@ -406,8 +458,10 @@ public static partial class ConsumerProof
             positionId, velocityId, accelerationId, lifetimeId, massId,
             sixId, sevenId, eightId, extraId
         }));
-        Query secondaryFive = world.CreateQuery(QuerySpec.WhereAll(
-            secondaryPositionId, velocityId, accelerationId, lifetimeId, massId));
+        Query secondaryFive = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[]
+        {
+            secondaryPositionId, velocityId, accelerationId, lifetimeId, massId
+        }));
 
         // Arity 1, no ID: resolves the primary registration by CLR type.
         world.ForEach<Position>(in allNine, static (ref Position value) => value.Value++);
@@ -634,7 +688,53 @@ public static partial class ConsumerProof
         total += world.Add<Velocity, Acceleration>(in query);
         total += world.Remove<Velocity, Acceleration>(in query);
 
+        if (!ValidateGenericComponentSpanRegistration()
+            || !ValidateStructuralSelectorSpanCount(createWorld, untypedCreated, velocityId))
+        {
+            return 0;
+        }
+
         return total;
+    }
+
+    private static bool ValidateGenericComponentSpanRegistration()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(91301));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(91302));
+        ReadOnlySpan<ComponentId> arguments = stackalloc ComponentId[] { positionId, velocityId };
+        ComponentId spanId = layouts.Register(typeof(RuntimeComponentPair<,>), arguments, new SchemaId(91303));
+        ComponentId positionalId = layouts.Register(typeof(RuntimeComponentPair<,>), positionId, velocityId, new SchemaId(91303));
+        if (spanId != positionalId
+            || layouts.GetComponentType(spanId) != typeof(RuntimeComponentPair<Position, Velocity>))
+        {
+            return false;
+        }
+
+        ReadOnlySpan<ComponentId> wrongArity = stackalloc ComponentId[] { positionId };
+        try
+        {
+            layouts.Register(typeof(RuntimeComponentPair<,>), wrongArity, new SchemaId(91305));
+            return false;
+        }
+        catch (ArgumentException)
+        {
+            return true;
+        }
+    }
+
+    private static bool ValidateStructuralSelectorSpanCount(World world, Entity entity, ComponentId velocityId)
+    {
+        ReadOnlySpan<ComponentId> wrongArity = stackalloc ComponentId[] { velocityId };
+        try
+        {
+            world.Add<Velocity, Acceleration>(entity, wrongArity);
+            return false;
+        }
+        catch (ArgumentException)
+        {
+            return true;
+        }
     }
 
     public static int RunGenericQueries()
@@ -665,11 +765,34 @@ public static partial class ConsumerProof
             .WhereNone(lifetimeId)
             .WhereAny(velocityId, accelerationId);
 
+        ReadOnlySpan<ComponentId> typedIds = stackalloc ComponentId[] { positionId, velocityId };
+        Query typedSpan = world.WhereAll<Position, Velocity>(typedIds);
+        ReadOnlySpan<ComponentId> wrongArity = stackalloc ComponentId[] { positionId };
+        try
+        {
+            _ = world.WhereAll<Position, Velocity>(wrongArity);
+            return 0;
+        }
+        catch (ArgumentException)
+        {
+        }
+
+        ReadOnlySpan<ComponentId> wrongTypes = stackalloc ComponentId[] { velocityId, positionId };
+        try
+        {
+            _ = world.WhereAll<Position, Velocity>(wrongTypes);
+            return 0;
+        }
+        catch (ArgumentException)
+        {
+        }
+
         return Count(world, all) == 1
             && Count(world, any) == 2
             && Count(world, none) == 2
             && Count(world, composed) == 2
             && Count(world, explicitQuery) == 2
+            && Count(world, typedSpan) == 1
             ? 1
             : 0;
     }
@@ -837,6 +960,8 @@ public static partial class ConsumerProof
 }
 
 public struct RuntimeHistory<T> { public T Value; }
+
+public struct RuntimeComponentPair<TFirst, TSecond> { public TFirst First; public TSecond Second; }
 
 public struct UnaryHistory<T> { public int Value; }
 

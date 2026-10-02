@@ -68,17 +68,17 @@ public readonly struct Query
 
     /// <summary>Extends this query's required component registrations.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Query WhereAll(params ReadOnlySpan<ComponentId> components)
+    public Query WhereAll(ReadOnlySpan<ComponentId> components)
         => Compose(QuerySpec.WhereAll(components));
 
     /// <summary>Extends this query's optional component registrations.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Query WhereAny(params ReadOnlySpan<ComponentId> components)
+    public Query WhereAny(ReadOnlySpan<ComponentId> components)
         => Compose(QuerySpec.WhereAny(components));
 
     /// <summary>Extends this query's excluded component registrations.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Query WhereNone(params ReadOnlySpan<ComponentId> components)
+    public Query WhereNone(ReadOnlySpan<ComponentId> components)
         => Compose(QuerySpec.WhereNone(components));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
