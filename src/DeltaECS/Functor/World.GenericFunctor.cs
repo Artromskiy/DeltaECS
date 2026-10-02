@@ -2,7 +2,6 @@ namespace Delta.ECS;
 
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using System.ComponentModel;
 
 public sealed partial class World
@@ -77,8 +76,28 @@ public sealed partial class World
             }
         }
 
-        Type closedFunctor = _layouts.CloseGenericType(functorType, arguments);
-        var executor = CreateGenericFunctorExecutor(functorType, closedFunctor);
+        if (!functorType.IsGenericTypeDefinition)
+        {
+            ThrowHelper.ThrowNotGenericTypeDefinition(functorType);
+        }
+
+        Type[] genericArgumentTypes = functorType.GetGenericArguments();
+        if (genericArgumentTypes.Length != arguments.Length)
+        {
+            ThrowHelper.ThrowGenericTypeArgumentCountMismatch(functorType, genericArgumentTypes.Length, arguments.Length);
+        }
+
+        for (int index = 0; index < arguments.Length; index++)
+        {
+            genericArgumentTypes[index] = _layouts.GetComponentType(arguments[index]);
+        }
+
+        if (!GeneratedGenericBindingRegistry.TryGetFunctorFactory(functorType, genericArgumentTypes, out GeneratedGenericFunctorFactory factory))
+        {
+            return ThrowHelper.ThrowMissingGenericFunctor(functorType);
+        }
+
+        IGeneratedGenericFunctor executor = factory();
         if (entries is null)
         {
             entries = new List<GenericFunctorEntry>();
@@ -87,19 +106,5 @@ public sealed partial class World
 
         entries.Add(new GenericFunctorEntry(arguments.ToArray(), executor));
         return executor;
-    }
-
-    private static IGeneratedGenericFunctor CreateGenericFunctorExecutor(Type functorType, Type closedFunctor)
-    {
-        foreach (GeneratedGenericFunctorAttribute factory in functorType.Assembly.GetCustomAttributes<GeneratedGenericFunctorAttribute>())
-        {
-            if (factory.FunctorType == functorType)
-            {
-                Type executorType = factory.ExecutorType.MakeGenericType(closedFunctor.GetGenericArguments());
-                return (IGeneratedGenericFunctor)Activator.CreateInstance(executorType)!; // Generated executors have a public parameterless constructor.
-            }
-        }
-
-        return ThrowHelper.ThrowMissingGenericFunctor(functorType);
     }
 }

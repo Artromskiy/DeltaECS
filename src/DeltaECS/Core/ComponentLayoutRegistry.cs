@@ -64,18 +64,6 @@ public sealed partial class ComponentLayoutRegistry
         SchemaId schemaId,
         ReadOnlySpan<ComponentId> componentArguments)
     {
-        Type componentType = CloseGenericType(genericTypeDefinition, componentArguments);
-        EnsureGenericMappingAvailable(componentType, schemaId, componentArguments);
-        ComponentId componentId = RegisterRuntimeType(componentType, schemaId);
-        RegisterGenericMapping(componentType, componentId, componentArguments);
-        return componentId;
-    }
-
-    /// <summary>Gets the CLR type of a registered component.</summary>
-    public Type GetComponentType(ComponentId componentId) => Get(componentId).RuntimeType;
-
-    internal Type CloseGenericType(Type genericTypeDefinition, ReadOnlySpan<ComponentId> componentArguments)
-    {
         ThrowHelper.ThrowIfNull(genericTypeDefinition, nameof(genericTypeDefinition));
         if (!genericTypeDefinition.IsGenericTypeDefinition)
         {
@@ -93,14 +81,28 @@ public sealed partial class ComponentLayoutRegistry
             genericArgumentTypes[index] = GetComponentType(componentArguments[index]);
         }
 
-        Type componentType = genericTypeDefinition.MakeGenericType(genericArgumentTypes);
-        if (componentType.IsByRefLike || componentType.ContainsGenericParameters)
+        if (!GeneratedGenericBindingRegistry.TryGetComponentFactory(
+            genericTypeDefinition,
+            genericArgumentTypes,
+            out Type componentType,
+            out GeneratedGenericComponentRegistrationFactory factory))
         {
-            ThrowHelper.ThrowInvalidComponentRuntimeType(componentType);
+            ThrowHelper.ThrowMissingGeneratedGenericComponent(genericTypeDefinition);
         }
 
-        return componentType;
+        EnsureGenericMappingAvailable(componentType, schemaId, componentArguments);
+        ComponentId componentId = factory(this, schemaId);
+        if (Get(componentId).RuntimeType != componentType)
+        {
+            ThrowHelper.ThrowGeneratedGenericComponentTypeMismatch(genericTypeDefinition, componentType);
+        }
+
+        RegisterGenericMapping(componentType, componentId, componentArguments);
+        return componentId;
     }
+
+    /// <summary>Gets the CLR type of a registered component.</summary>
+    public Type GetComponentType(ComponentId componentId) => Get(componentId).RuntimeType;
 
     internal ComponentId GetGenericComponent(Type componentType, ReadOnlySpan<ComponentId> componentArguments)
     {
@@ -155,14 +157,6 @@ public sealed partial class ComponentLayoutRegistry
         }
 
         registrations.Add(new GenericRegistration(componentArguments.ToArray(), componentId));
-    }
-
-    private ComponentId RegisterRuntimeType(Type componentType, SchemaId schemaId)
-    {
-        var layout = new ComponentLayout(schemaId, componentType);
-        return IsTagType(componentType)
-            ? Register(layout, default, isTag: true)
-            : Register(layout, ComponentRowOperations.ForType(componentType));
     }
 
     internal static bool IsTagType(Type runtimeType)

@@ -124,21 +124,27 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowInvalidComponentRuntimeType(Type runtimeType)
-        => throw new ArgumentException(
-            $"Component type {runtimeType} must be a closed, non-byref-like type that can be stored in an array.",
-            nameof(runtimeType));
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowGenericRegistrationConflict(Type componentType)
         => throw new InvalidOperationException($"Generic component '{componentType}' is already registered for these source component IDs with a different SchemaId.");
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static IGeneratedGenericFunctor ThrowMissingGenericFunctor(Type functorType)
+    internal static void ThrowMissingGeneratedGenericComponent(Type genericTypeDefinition)
+        => throw new ArgumentException(
+            $"No generated registration factory was found for {genericTypeDefinition}. Register this closed generic component in a project that references DeltaECS.Generators.",
+            nameof(genericTypeDefinition));
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowGeneratedGenericComponentTypeMismatch(Type genericTypeDefinition, Type expectedType)
         => throw new InvalidOperationException(
-            $"No generated executor was found for {functorType}. Use an accessible generic struct implementing IForEach, IForEachEntity, or a context variant with one supported Invoke method, and reference DeltaECS.Generators in its assembly.");
+            $"Generated registration for {genericTypeDefinition} returned a different component type than {expectedType}.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static IGeneratedGenericFunctor ThrowMissingGenericFunctor(Type functorType)
+        => throw new ArgumentException(
+            $"No generated executor binding was found for {functorType} and the selected component registrations. Use an accessible generic struct implementing IForEach, IForEachEntity, or a context variant with one supported Invoke method, and reference DeltaECS.Generators in the assembly containing the closed type usage.");
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]

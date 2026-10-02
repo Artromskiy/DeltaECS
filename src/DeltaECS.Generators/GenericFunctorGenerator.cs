@@ -30,8 +30,14 @@ public sealed class GenericFunctorGenerator : IIncrementalGenerator
 
     private static GenericFunctorModel? ReadModel(GeneratorSyntaxContext syntax)
     {
-        if (syntax.SemanticModel.GetDeclaredSymbol(syntax.Node) is not INamedTypeSymbol functor
-            || !GeneratorSupport.IsAccessibleSymbol(functor)
+        return syntax.SemanticModel.GetDeclaredSymbol(syntax.Node) is INamedTypeSymbol functor
+            ? CreateModel(functor)
+            : null;
+    }
+
+    internal static GenericFunctorModel? CreateModel(INamedTypeSymbol functor)
+    {
+        if (!GeneratorSupport.IsAccessibleSymbol(functor)
             || !CallbackReader.TryGetForEachMarker(functor, out bool hasContext, out bool hasEntity, out ITypeSymbol? contextType))
         {
             return null;

@@ -88,9 +88,22 @@ implementation and tests in the same migration.
 `IForEachEntity` struct contracts, including their context variants, with one
 supported `Invoke`. Its semantic model contains type names, generic
 constraints, context type and mode, component modes and registration selectors.
-`GenericFunctorTemplates` emits assembly metadata and a closed typed adapter,
-reusing `DemandDrivenForEachTemplates.RenderGenericFunctorKernel` for the
-ordinary iteration kernel. No additional iteration implementation is maintained.
+`GenericFunctorTemplates` emits a closed typed adapter, reusing
+`DemandDrivenForEachTemplates.RenderGenericFunctorKernel` for the ordinary
+iteration kernel. No additional iteration implementation is maintained.
+
+`GeneratedGenericBindingsGenerator` finds generic component registrations and
+open generic functor calls in the consumer compilation. It emits one module
+initializer that registers direct typed factories in
+`GeneratedGenericBindingRegistry`. A component factory calls
+`ComponentLayoutRegistry.Register<ClosedComponent>`; a functor factory
+constructs its closed generated executor directly. The runtime matches the
+generic definition and the positional CLR component types, then invokes that
+factory. It does not close types with reflection or create executors through
+`Activator`. Unary bindings can cover registered component types selected
+through a runtime `ComponentId`; multi-parameter bindings are emitted for the
+concrete ordered tuples visible to the generator, avoiding a cartesian product
+of every component type.
 
 The arity-specific `World.ForEach*` extensions cover query-wide iteration,
 entity-list iteration with an optional query, entity-aware callbacks,
@@ -102,4 +115,6 @@ entity loop. Context is strongly typed and passed by reference through the
 generated adapter; the `Invoke` signature determines whether it is mutable,
 read-only, or by value. Mutable `ref` context is rejected for parallel forms. A
 default functor belongs to one complete invocation and its fields are local
-functor state.
+functor state. If a runtime-selected multi-parameter tuple was not visible to
+the generator, the registry fails before iteration with a missing generated
+binding error.

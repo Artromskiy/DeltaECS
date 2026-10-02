@@ -2,27 +2,6 @@ namespace Delta.ECS;
 
 using System;
 using System.ComponentModel;
-using System.Diagnostics.CodeAnalysis;
-
-/// <summary>Identifies the generated typed executor for an open generic functor.</summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
-[AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
-public sealed class GeneratedGenericFunctorAttribute : Attribute
-{
-    /// <summary>Associates an open functor type with its generated executor.</summary>
-    public GeneratedGenericFunctorAttribute(Type functorType, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type executorType)
-    {
-        FunctorType = functorType;
-        ExecutorType = executorType;
-    }
-
-    /// <summary>Gets the open generic functor type.</summary>
-    public Type FunctorType { get; }
-
-    /// <summary>Gets the open generic executor type.</summary>
-    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
-    public Type ExecutorType { get; }
-}
 
 /// <summary>Generated execution shape for a runtime-selected generic functor.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]

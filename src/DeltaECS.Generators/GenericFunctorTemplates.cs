@@ -58,7 +58,6 @@ internal static class GenericFunctorTemplates
     {
         string name = "GenericFunctorExecutor_" + GeneratorSupport.StableName(model.TypeName);
         string generic = "<" + model.TypeParameters + ">";
-        string unbound = "<" + new string(',', model.Arity - 1) + ">";
         string selectors = GeneratorTemplates.JoinIndexed(model.Rows.Length, index => model.Rows[index].Selector);
         string arguments = GeneratorTemplates.JoinIndexed(model.Rows.Length, index => $"components[{index}]");
         var kernels = new List<string>();
@@ -111,10 +110,10 @@ internal static class GenericFunctorTemplates
             ? "global::Delta.ECS.GeneratedForEachRuntime.ThrowGenericFunctorRequiresContext(typeof(" + model.TypeName + "));"
             : RenderExecuteBody(model, arguments, callbackEntity, null);
         string source = $$"""
-            [assembly: global::Delta.ECS.GeneratedGenericFunctor(typeof({{model.OpenTypeName}}), typeof(global::Delta.ECS.Generated.{{name}}{{unbound}}))]
             namespace Delta.ECS.Generated
             {
-                internal sealed class {{name}}{{generic}} : {{contextGenericInterface}}
+                [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
+                public sealed class {{name}}{{generic}} : {{contextGenericInterface}}
                 {{model.Constraints}}
                 {
                     private global::Delta.ECS.ComponentId[]? _components;
