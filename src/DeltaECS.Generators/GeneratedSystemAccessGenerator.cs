@@ -140,7 +140,6 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
             }
 
             accumulator.ReadTopology();
-            ReadGenericTypes(model, member.Name, accumulator.Read);
             if (invocation.ArgumentList.Arguments.Count != 0)
             {
                 accumulator.Unknown();
@@ -237,19 +236,67 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
             return;
         }
 
-        if (cursor.ComponentIdCount != 0)
+        if (cursor.ComponentIdCount != 0 || cursor.HasComponentIdSpan)
         {
             accumulator.Unknown();
         }
 
-        ReadCallback(
-            model,
-            invocation.ArgumentList.Arguments[callbackIndex].Expression,
-            genericTypes,
-            descriptor.HasEntity,
-            cursor.HasContext,
-            descriptor.Value == ValueDomain.Stamp,
-            accumulator);
+        string queryExpression = string.Empty;
+        bool queryScoped = cursor.ComponentIdCount == 0
+            && !cursor.HasComponentIdSpan
+            && cursor.HasQuery
+            && TryGetReadOnlyQueryField(model, invocation, cursor.QueryArgumentIndex, out queryExpression);
+        if (queryScoped)
+        {
+            var queryAccess = new GeneratedSystemAccessAccumulator();
+            ReadCallback(
+                model,
+                invocation.ArgumentList.Arguments[callbackIndex].Expression,
+                genericTypes,
+                descriptor.HasEntity,
+                cursor.HasContext,
+                descriptor.Value == ValueDomain.Stamp,
+                queryAccess);
+            accumulator.AddQueryAccess(queryExpression, queryAccess);
+        }
+        else
+        {
+            ReadCallback(
+                model,
+                invocation.ArgumentList.Arguments[callbackIndex].Expression,
+                genericTypes,
+                descriptor.HasEntity,
+                cursor.HasContext,
+                descriptor.Value == ValueDomain.Stamp,
+                accumulator);
+        }
+    }
+
+    private static bool TryGetReadOnlyQueryField(
+        SemanticModel model,
+        InvocationExpressionSyntax invocation,
+        int queryArgumentIndex,
+        out string queryExpression)
+    {
+        queryExpression = string.Empty;
+        if (queryArgumentIndex < 0
+            || queryArgumentIndex >= invocation.ArgumentList.Arguments.Count)
+        {
+            return false;
+        }
+
+        ExpressionSyntax expression = invocation.ArgumentList.Arguments[queryArgumentIndex].Expression;
+        if (model.GetSymbolInfo(expression).Symbol is not IFieldSymbol { IsReadOnly: true } field
+            || !GeneratorSupport.IsEcsType(field.Type, "Query")
+            || !SymbolEqualityComparer.Default.Equals(
+                field.ContainingType,
+                model.GetEnclosingSymbol(invocation.SpanStart)?.ContainingType))
+        {
+            return false;
+        }
+
+        queryExpression = expression.ToString();
+        return true;
     }
 
     private static void ReadWherePredicate(
@@ -644,21 +691,6 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
     private static bool IsWorldReceiver(SemanticModel model, ExpressionSyntax expression)
         => GeneratorSupport.IsNamedType(model.GetTypeInfo(expression).Type, "World");
 
-    private static void ReadGenericTypes(
-        SemanticModel model,
-        NameSyntax name,
-        Action<ITypeSymbol?> add)
-    {
-        if (name is not GenericNameSyntax genericName)
-        {
-            return;
-        }
-
-        foreach (TypeSyntax argument in genericName.TypeArgumentList.Arguments)
-        {
-            add(model.GetTypeInfo(argument).Type);
-        }
-    }
 }
 
 internal static class GeneratedSystemAccessSymbolExtensions

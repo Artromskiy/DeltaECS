@@ -11,11 +11,13 @@ using Delta.ECS;
 public readonly struct SystemAccess
 {
     private static readonly ComponentId[] Empty = Array.Empty<ComponentId>();
+    private static readonly SystemQueryAccess[] EmptyQueryAccesses = Array.Empty<SystemQueryAccess>();
     private readonly ComponentId[]? _reads;
     private readonly ComponentId[]? _writes;
     private readonly ComponentId[]? _stampReads;
     private readonly ComponentId[]? _adds;
     private readonly ComponentId[]? _removes;
+    private readonly SystemQueryAccess[]? _queryAccesses;
 
     /// <summary>Creates access metadata from world-local component ids.</summary>
     /// <param name="reads">Components read by the system.</param>
@@ -29,24 +31,27 @@ public readonly struct SystemAccess
     /// <param name="destroysEntities">Whether the system destroys entities.</param>
     /// <param name="unknownWorldAccess">Whether an access could not be analyzed.</param>
     /// <param name="usesParallelExecutor">Whether the system owns a parallel executor.</param>
+    /// <param name="queryAccesses">Component accesses restricted to matching queries.</param>
     public SystemAccess(
-        ComponentId[]? reads = null,
-        ComponentId[]? writes = null,
-        ComponentId[]? stampReads = null,
-        ComponentId[]? adds = null,
-        ComponentId[]? removes = null,
+        ReadOnlySpan<ComponentId> reads = default,
+        ReadOnlySpan<ComponentId> writes = default,
+        ReadOnlySpan<ComponentId> stampReads = default,
+        ReadOnlySpan<ComponentId> adds = default,
+        ReadOnlySpan<ComponentId> removes = default,
         bool readsTopology = false,
         bool writesTopology = false,
         bool createsEntities = false,
         bool destroysEntities = false,
         bool unknownWorldAccess = false,
-        bool usesParallelExecutor = false)
+        bool usesParallelExecutor = false,
+        ReadOnlySpan<SystemQueryAccess> queryAccesses = default)
     {
         _reads = Copy(reads, nameof(reads));
         _writes = Copy(writes, nameof(writes));
         _stampReads = Copy(stampReads, nameof(stampReads));
         _adds = Copy(adds, nameof(adds));
         _removes = Copy(removes, nameof(removes));
+        _queryAccesses = CopyQueryAccesses(queryAccesses);
         ReadsTopology = readsTopology;
         WritesTopology = writesTopology;
         CreatesEntities = createsEntities;
@@ -69,6 +74,9 @@ public readonly struct SystemAccess
 
     /// <summary>Gets components removed by structural operations.</summary>
     public ReadOnlySpan<ComponentId> Removes => _removes ?? Empty;
+
+    /// <summary>Gets component accesses whose entities are restricted by a query.</summary>
+    public ReadOnlySpan<SystemQueryAccess> QueryAccesses => _queryAccesses ?? EmptyQueryAccesses;
 
     /// <summary>Gets whether the system observes entity topology.</summary>
     public bool ReadsTopology { get; }
@@ -105,20 +113,40 @@ public readonly struct SystemAccess
     /// <summary>Gets metadata with no component or world access.</summary>
     public static SystemAccess None => default;
 
-    private static ComponentId[]? Copy(ComponentId[]? values, string parameterName)
+    internal static ComponentId[]? Copy(ReadOnlySpan<ComponentId> values, string parameterName)
     {
-        if (values is null || values.Length == 0)
+        if (values.IsEmpty)
         {
             return null;
         }
 
         var copy = new ComponentId[values.Length];
-        values.AsSpan().CopyTo(copy);
+        values.CopyTo(copy);
         for (int index = 0; index < copy.Length; index++)
         {
             if (!copy[index].IsValid)
             {
                 ThrowHelper.ThrowInvalidComponentIds(parameterName);
+            }
+        }
+
+        return copy;
+    }
+
+    private static SystemQueryAccess[]? CopyQueryAccesses(ReadOnlySpan<SystemQueryAccess> values)
+    {
+        if (values.IsEmpty)
+        {
+            return null;
+        }
+
+        var copy = new SystemQueryAccess[values.Length];
+        values.CopyTo(copy);
+        for (int index = 0; index < copy.Length; index++)
+        {
+            if (!copy[index].Query.IsValid)
+            {
+                ThrowHelper.ThrowInvalidSystemQueryAccess("queryAccesses");
             }
         }
 

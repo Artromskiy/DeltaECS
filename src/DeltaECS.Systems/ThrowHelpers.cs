@@ -46,6 +46,14 @@ internal static class ThrowHelper
         => throw new ArgumentException("Component ids must be valid.", parameterName);
 
     [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowInvalidSystemQueryAccess(string parameterName)
+        => throw new ArgumentException("A query-scoped system access requires a valid query.", parameterName);
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowSystemQueryWorldMismatch()
+        => throw new ArgumentException("A query-scoped system access must use the scheduler world.", "system");
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowWorldMismatch()
         => throw new ArgumentException("A system must reference the scheduler world.", "system");
 

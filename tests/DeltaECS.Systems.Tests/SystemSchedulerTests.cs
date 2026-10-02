@@ -173,6 +173,138 @@ public sealed class SystemSchedulerTests
     }
 
     [Test]
+    public void AccessMetadataAcceptsExplicitComponentIdSpan()
+    {
+        ReadOnlySpan<ComponentId> ids = stackalloc ComponentId[] { Position, Velocity };
+
+        var access = new SystemAccess(reads: ids);
+
+        Assert.That(access.Reads.ToArray(), Is.EqualTo(new[] { Position, Velocity }));
+    }
+
+    [Test]
+    public void QueryScopedAccessMustBelongToSchedulerWorld()
+    {
+        using var world = new World();
+        using var otherWorld = new World();
+        otherWorld.Layouts.Register<SystemPosition>(new SchemaId(81011));
+        Query foreignQuery = otherWorld.WhereAll<SystemPosition>();
+        var access = new SystemAccess(
+            queryAccesses: new[]
+            {
+                new SystemQueryAccess(in foreignQuery, writes: PositionComponents)
+            });
+        var system = new RecordingSystem(world, access, new ConcurrentQueue<int>(), 0);
+        using var scheduler = new SystemScheduler(world, workerCount: 1);
+        scheduler.Add(system);
+
+        Assert.That(() => scheduler.Build(), Throws.ArgumentException);
+    }
+
+    [Test]
+    public void OpenGenericFunctorRunsInsideScheduledSystem()
+    {
+        using var world = new World();
+        ComponentId valueId = world.Layouts.Register<int>(new SchemaId(81001));
+        ComponentId historyId = world.Layouts.Register(typeof(SystemHistory<>), valueId, new SchemaId(81002));
+        Entity entity = world.Create(valueId, historyId);
+        world.GetRef<int>(entity, valueId) = 42;
+        Query query = world.WhereAll(valueId, historyId);
+        var system = new SystemHistoryCaptureSystem(world, in query, valueId, historyId);
+        using var scheduler = new SystemScheduler(world, optimizeSchedule: false);
+        scheduler.Add(system);
+
+        scheduler.Tick();
+
+        Assert.That(world.Get<SystemHistory<int>>(entity, historyId).Value, Is.EqualTo(42));
+        Assert.That(system.InvocationCount, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void OpenGenericFunctorWithoutExplicitAccessIsConservative()
+    {
+        using var world = new World();
+        ComponentId valueId = world.Layouts.Register<int>(new SchemaId(81003));
+        ComponentId historyId = world.Layouts.Register(typeof(SystemHistory<>), valueId, new SchemaId(81004));
+        Query query = world.WhereAll(valueId, historyId);
+        var system = new InferredSystemHistoryCaptureSystem(world, in query, valueId);
+
+        Assert.That(system.Access.UnknownWorldAccess, Is.True);
+        Assert.That(system.Access.RequiresExclusiveWorld, Is.True);
+    }
+
+    [Test]
+    public void DisjointQueryArchetypesRunInParallelAndNewOverlapRebuildsSchedule()
+    {
+        Assume.That(Environment.ProcessorCount, Is.GreaterThanOrEqualTo(2));
+        using var world = new World();
+        ComponentId positionId = world.Layouts.Register<SystemPosition>(new SchemaId(81005));
+        ComponentId playerId = world.Layouts.Register<PlayerUnit>(new SchemaId(81006));
+        ComponentId enemyId = world.Layouts.Register<EnemyUnit>(new SchemaId(81007));
+        Entity player = world.Create(positionId, playerId);
+        Entity enemy = world.Create(positionId, enemyId);
+        world.GetRef<SystemPosition>(player, positionId).Value = 1;
+        world.GetRef<SystemPosition>(enemy, positionId).Value = 2;
+
+        var probe = new QueryExecutionProbe();
+        using var barrier = new Barrier(2);
+        probe.Barrier = barrier;
+        var playerSystem = new PlayerPositionSystem(world, world.WhereAll<SystemPosition, PlayerUnit>(), probe);
+        var enemySystem = new EnemyPositionSystem(world, world.WhereAll<SystemPosition, EnemyUnit>(), probe);
+        Assert.That(playerSystem.Access.QueryAccesses.Length, Is.EqualTo(1));
+        Assert.That(enemySystem.Access.QueryAccesses.Length, Is.EqualTo(1));
+        Assert.That(playerSystem.Access.QueryAccesses[0].Writes.ToArray(), Is.EqualTo(new[] { positionId }));
+        Assert.That(playerSystem.Access.Writes.Length, Is.EqualTo(0));
+        Assert.That(playerSystem.Access.Reads.Length, Is.EqualTo(0));
+
+        using var scheduler = new SystemScheduler(world, workerCount: 2);
+        scheduler.Add(playerSystem);
+        scheduler.Add(enemySystem);
+
+        scheduler.Tick();
+
+        Assert.That(probe.InvocationCount, Is.EqualTo(2));
+        probe.Barrier = null;
+        probe.ResetMaximumConcurrency();
+        _ = world.Create(positionId, playerId, enemyId);
+
+        scheduler.Tick();
+
+        Assert.That(probe.MaximumConcurrency, Is.EqualTo(1));
+        Assert.That(scheduler.IsBuilt, Is.True);
+    }
+
+    [Test]
+    public void NewMatchingArchetypeCreatedDuringTickSerializesRemainingSystems()
+    {
+        using var world = new World();
+        ComponentId positionId = world.Layouts.Register<SystemPosition>(new SchemaId(81008));
+        ComponentId playerId = world.Layouts.Register<PlayerUnit>(new SchemaId(81009));
+        ComponentId enemyId = world.Layouts.Register<EnemyUnit>(new SchemaId(81010));
+        Entity player = world.Create(positionId, playerId);
+        _ = world.Create(positionId, enemyId);
+        var probe = new QueryExecutionProbe();
+        var playerSystem = new PlayerPositionSystem(world, world.WhereAll<SystemPosition, PlayerUnit>(), probe);
+        var enemySystem = new EnemyPositionSystem(world, world.WhereAll<SystemPosition, EnemyUnit>(), probe);
+        var mutate = new AddEnemyToEntitySystem(world, player, enemyId);
+        using var scheduler = new SystemScheduler(world, workerCount: 2);
+        scheduler.Add(mutate);
+        scheduler.Add(playerSystem);
+        scheduler.Add(enemySystem);
+
+        scheduler.Tick();
+
+        Assert.That(probe.MaximumConcurrency, Is.EqualTo(1));
+        Assert.That(scheduler.IsBuilt, Is.False);
+
+        probe.ResetMaximumConcurrency();
+        scheduler.Tick();
+
+        Assert.That(probe.MaximumConcurrency, Is.EqualTo(1));
+        Assert.That(scheduler.IsBuilt, Is.True);
+    }
+
+    [Test]
     public void WorkerExceptionsArePropagatedAfterBatchCompletion()
     {
         using var world = new World();
@@ -498,4 +630,187 @@ public sealed class SystemSchedulerTests
 
         public void Dispose() => _bothStarted.Dispose();
     }
+}
+
+public struct SystemHistory<T>
+{
+    public T Value;
+}
+
+public struct SystemPosition
+{
+    public int Value;
+}
+
+public struct PlayerUnit
+{
+    public int Value;
+}
+
+public struct EnemyUnit
+{
+    public int Value;
+}
+
+public sealed class QueryExecutionProbe
+{
+    private int _activeInvocations;
+    private int _maximumConcurrency;
+    private int _invocationCount;
+
+    public Barrier? Barrier;
+
+    public int InvocationCount => Volatile.Read(ref _invocationCount);
+
+    public int MaximumConcurrency => Volatile.Read(ref _maximumConcurrency);
+
+    public void Execute(ref SystemPosition position)
+    {
+        Barrier? barrier = Barrier;
+        if (barrier is not null && !barrier.SignalAndWait(TimeSpan.FromSeconds(2)))
+        {
+            throw new TimeoutException("Disjoint query systems did not enter their callbacks concurrently.");
+        }
+
+        int active = Interlocked.Increment(ref _activeInvocations);
+        UpdateMaximumConcurrency(active);
+        Interlocked.Increment(ref _invocationCount);
+        Thread.Sleep(20);
+        Interlocked.Decrement(ref _activeInvocations);
+        position.Value++;
+    }
+
+    public void ResetMaximumConcurrency()
+        => Volatile.Write(ref _maximumConcurrency, 0);
+
+    private void UpdateMaximumConcurrency(int value)
+    {
+        int current;
+        do
+        {
+            current = Volatile.Read(ref _maximumConcurrency);
+            if (current >= value)
+            {
+                return;
+            }
+        }
+        while (Interlocked.CompareExchange(ref _maximumConcurrency, value, current) != current);
+    }
+}
+
+public sealed partial class PlayerPositionSystem : ISystem
+{
+    private readonly Query _query;
+    private QueryExecutionProbe _probe;
+
+    public PlayerPositionSystem(World world, in Query query, QueryExecutionProbe probe)
+    {
+        World = world;
+        _query = query;
+        _probe = probe;
+    }
+
+    public World World { get; init; }
+
+    public void Tick()
+        => World.ForEach(in _query, ref _probe, static (ref QueryExecutionProbe probe, ref SystemPosition position) =>
+            probe.Execute(ref position));
+}
+
+public sealed partial class EnemyPositionSystem : ISystem
+{
+    private readonly Query _query;
+    private QueryExecutionProbe _probe;
+
+    public EnemyPositionSystem(World world, in Query query, QueryExecutionProbe probe)
+    {
+        World = world;
+        _query = query;
+        _probe = probe;
+    }
+
+    public World World { get; init; }
+
+    public void Tick()
+        => World.ForEach(in _query, ref _probe, static (ref QueryExecutionProbe probe, ref SystemPosition position) =>
+            probe.Execute(ref position));
+}
+
+public sealed class AddEnemyToEntitySystem : ISystem
+{
+    private readonly Entity _entity;
+    private readonly ComponentId _enemyId;
+
+    public AddEnemyToEntitySystem(World world, Entity entity, ComponentId enemyId)
+    {
+        World = world;
+        _entity = entity;
+        _enemyId = enemyId;
+        Access = new SystemAccess(adds: stackalloc ComponentId[] { enemyId });
+    }
+
+    public World World { get; init; }
+
+    public SystemAccess Access { get; }
+
+    public void Tick() => World.Add<EnemyUnit>(_entity, _enemyId);
+}
+
+public struct SystemHistoryContext
+{
+    public int InvocationCount;
+}
+
+public struct CaptureSystemHistory<T> : IForEachContext<SystemHistoryContext>
+{
+    public void Invoke(ref SystemHistoryContext context, ref SystemHistory<T> history, in T value)
+    {
+        history.Value = value;
+        context.InvocationCount++;
+    }
+}
+
+public sealed class SystemHistoryCaptureSystem : ISystem
+{
+    private readonly Query _query;
+    private readonly ComponentId _valueId;
+    private SystemHistoryContext _context;
+
+    public SystemHistoryCaptureSystem(World world, in Query query, ComponentId valueId, ComponentId historyId)
+    {
+        World = world;
+        _query = query;
+        _valueId = valueId;
+        Access = new SystemAccess(
+            reads: new[] { valueId },
+            writes: new[] { historyId },
+            readsTopology: true);
+    }
+
+    public World World { get; init; }
+
+    public SystemAccess Access { get; }
+
+    public int InvocationCount => _context.InvocationCount;
+
+    public void Tick()
+        => World.ForEach(in _query, ref _context, _valueId, typeof(CaptureSystemHistory<>));
+}
+
+public sealed partial class InferredSystemHistoryCaptureSystem : ISystem
+{
+    private readonly Query _query;
+    private readonly ComponentId _valueId;
+
+    public InferredSystemHistoryCaptureSystem(World world, in Query query, ComponentId valueId)
+    {
+        World = world;
+        _query = query;
+        _valueId = valueId;
+    }
+
+    public World World { get; init; }
+
+    public void Tick()
+        => World.ForEach(in _query, _valueId, typeof(CaptureSystemHistory<>));
 }

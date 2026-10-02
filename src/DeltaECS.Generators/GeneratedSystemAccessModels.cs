@@ -11,6 +11,7 @@ internal sealed class GeneratedSystemAccessModel
         string typeName,
         string helperName,
         bool injectProperty,
+        ImmutableArray<GeneratedSystemQueryAccessModel> queryAccesses,
         ImmutableArray<string> reads,
         ImmutableArray<string> writes,
         ImmutableArray<string> stampReads,
@@ -27,6 +28,7 @@ internal sealed class GeneratedSystemAccessModel
         TypeName = typeName;
         HelperName = helperName;
         InjectProperty = injectProperty;
+        QueryAccesses = queryAccesses;
         Reads = reads;
         Writes = writes;
         StampReads = stampReads;
@@ -44,6 +46,7 @@ internal sealed class GeneratedSystemAccessModel
     internal string TypeName { get; }
     internal string HelperName { get; }
     internal bool InjectProperty { get; }
+    internal ImmutableArray<GeneratedSystemQueryAccessModel> QueryAccesses { get; }
     internal ImmutableArray<string> Reads { get; }
     internal ImmutableArray<string> Writes { get; }
     internal ImmutableArray<string> StampReads { get; }
@@ -57,6 +60,27 @@ internal sealed class GeneratedSystemAccessModel
     internal bool UsesParallelExecutor { get; }
 }
 
+/// <summary>Generated component access tied to a query field on a system.</summary>
+internal sealed class GeneratedSystemQueryAccessModel
+{
+    internal GeneratedSystemQueryAccessModel(
+        string queryExpression,
+        ImmutableArray<string> reads,
+        ImmutableArray<string> writes,
+        ImmutableArray<string> stampReads)
+    {
+        QueryExpression = queryExpression;
+        Reads = reads;
+        Writes = writes;
+        StampReads = stampReads;
+    }
+
+    internal string QueryExpression { get; }
+    internal ImmutableArray<string> Reads { get; }
+    internal ImmutableArray<string> Writes { get; }
+    internal ImmutableArray<string> StampReads { get; }
+}
+
 internal sealed class GeneratedSystemAccessAccumulator
 {
     private readonly SortedSet<string> _reads = new(StringComparer.Ordinal);
@@ -64,6 +88,7 @@ internal sealed class GeneratedSystemAccessAccumulator
     private readonly SortedSet<string> _stampReads = new(StringComparer.Ordinal);
     private readonly SortedSet<string> _adds = new(StringComparer.Ordinal);
     private readonly SortedSet<string> _removes = new(StringComparer.Ordinal);
+    private readonly List<GeneratedSystemQueryAccessModel> _queryAccesses = new();
 
     internal bool ReadsTopology { get; private set; }
     internal bool WritesTopology { get; private set; }
@@ -105,6 +130,26 @@ internal sealed class GeneratedSystemAccessAccumulator
     internal void Parallel()
         => UsesParallelExecutor = true;
 
+    internal void AddQueryAccess(string queryExpression, GeneratedSystemAccessAccumulator access)
+    {
+        if (access.UnknownWorldAccess)
+        {
+            UnknownWorldAccess = true;
+            return;
+        }
+
+        if (access._reads.Count == 0 && access._writes.Count == 0 && access._stampReads.Count == 0)
+        {
+            return;
+        }
+
+        _queryAccesses.Add(new GeneratedSystemQueryAccessModel(
+            queryExpression,
+            access._reads.ToImmutableArray(),
+            access._writes.ToImmutableArray(),
+            access._stampReads.ToImmutableArray()));
+    }
+
     internal GeneratedSystemAccessModel Build(
         string @namespace,
         string typeName,
@@ -115,6 +160,7 @@ internal sealed class GeneratedSystemAccessAccumulator
             typeName,
             helperName,
             injectProperty,
+            _queryAccesses.ToImmutableArray(),
             _reads.ToImmutableArray(),
             _writes.ToImmutableArray(),
             _stampReads.ToImmutableArray(),

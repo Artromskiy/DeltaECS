@@ -248,6 +248,7 @@ internal sealed class InvocationCursor
         TargetKind target = TargetKind.World;
         bool hasTarget = false;
         bool hasQuery = false;
+        int queryArgumentIndex = -1;
         int componentIdCount = 0;
         int componentIdSpanIndex = -1;
         int contextIndex = -1;
@@ -281,6 +282,7 @@ internal sealed class InvocationCursor
             }
 
             hasQuery = true;
+            queryArgumentIndex = index;
             index++;
         }
 
@@ -371,6 +373,7 @@ internal sealed class InvocationCursor
             target,
             hasTarget,
             hasQuery,
+            queryArgumentIndex,
             componentIdCount,
             componentIdSpanIndex,
             contextIndex,
@@ -427,6 +430,7 @@ internal readonly struct InvocationCursorResult
         TargetKind target,
         bool hasTarget,
         bool hasQuery,
+        int queryArgumentIndex,
         int componentIdCount,
         int componentIdSpanIndex,
         int contextIndex,
@@ -438,6 +442,7 @@ internal readonly struct InvocationCursorResult
         Target = target;
         HasTarget = hasTarget;
         HasQuery = hasQuery;
+        QueryArgumentIndex = queryArgumentIndex;
         ComponentIdCount = componentIdCount;
         ComponentIdSpanIndex = componentIdSpanIndex;
         ContextIndex = contextIndex;
@@ -450,6 +455,7 @@ internal readonly struct InvocationCursorResult
     internal TargetKind Target { get; }
     internal bool HasTarget { get; }
     internal bool HasQuery { get; }
+    internal int QueryArgumentIndex { get; }
     internal int ComponentIdCount { get; }
     internal int ComponentIdSpanIndex { get; }
     internal bool HasComponentIdSpan => ComponentIdSpanIndex >= 0;

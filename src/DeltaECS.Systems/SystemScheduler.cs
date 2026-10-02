@@ -19,6 +19,7 @@ public sealed class SystemScheduler : IDisposable
     private readonly bool _optimizeSchedule;
     private readonly SchedulerWorkers? _workers;
     private ScheduleBatch[] _batches = Array.Empty<ScheduleBatch>();
+    private QueryPlanVersion[] _queryPlanVersions = Array.Empty<QueryPlanVersion>();
     private int _executing;
     private bool _built;
     private bool _disposed;
@@ -143,6 +144,7 @@ public sealed class SystemScheduler : IDisposable
         EnsureNotExecuting();
         _systems.Clear();
         _batches = Array.Empty<ScheduleBatch>();
+        _queryPlanVersions = Array.Empty<QueryPlanVersion>();
         _built = false;
     }
 
@@ -160,6 +162,7 @@ public sealed class SystemScheduler : IDisposable
         if (systemCount == 0)
         {
             _batches = Array.Empty<ScheduleBatch>();
+            _queryPlanVersions = Array.Empty<QueryPlanVersion>();
             _workers?.PrepareCapacity(0);
             _built = true;
             return;
@@ -177,6 +180,7 @@ public sealed class SystemScheduler : IDisposable
             }
 
             _batches = new[] { new ScheduleBatch(systems) };
+            _queryPlanVersions = Array.Empty<QueryPlanVersion>();
             _built = true;
             return;
         }
@@ -190,7 +194,9 @@ public sealed class SystemScheduler : IDisposable
                 ThrowHelper.ThrowSystemWorldChanged();
             }
 
-            nodes[index] = new SystemNode(system, system.Access);
+            SystemAccess access = system.Access;
+            ValidateQueryAccessWorlds(in access);
+            nodes[index] = new SystemNode(system, access);
         }
 
         var levels = new int[systemCount];
@@ -226,6 +232,7 @@ public sealed class SystemScheduler : IDisposable
         }
 
         _workers?.PrepareCapacity(systemCount);
+        CaptureQueryPlanVersions(nodes);
         _built = true;
     }
 
@@ -242,7 +249,7 @@ public sealed class SystemScheduler : IDisposable
         try
         {
             executionGate = _world.EnterSchedulerExecution();
-            if (!_built)
+            if (!_built || QueryPlanArchetypesChanged())
             {
                 BuildCore();
             }
@@ -269,6 +276,13 @@ public sealed class SystemScheduler : IDisposable
                 else
                 {
                     _workers.Run(systems);
+                }
+
+                if (QueryPlanArchetypesChanged())
+                {
+                    _built = false;
+                    ExecuteRemainingSystemsSerially(batchIndex + 1);
+                    break;
                 }
             }
         }
@@ -322,11 +336,189 @@ public sealed class SystemScheduler : IDisposable
             return true;
         }
 
-        return Intersects(left.Writes, right.Reads)
-            || Intersects(left.Writes, right.Writes)
-            || Intersects(right.Writes, left.Reads)
-            || Intersects(left.StampReads, right.Writes)
-            || Intersects(right.StampReads, left.Writes);
+        if (ComponentAccessConflicts(
+            left.Reads,
+            left.Writes,
+            left.StampReads,
+            right.Reads,
+            right.Writes,
+            right.StampReads))
+        {
+            return true;
+        }
+
+        ReadOnlySpan<SystemQueryAccess> leftQueries = left.QueryAccesses;
+        ReadOnlySpan<SystemQueryAccess> rightQueries = right.QueryAccesses;
+        for (int leftIndex = 0; leftIndex < leftQueries.Length; leftIndex++)
+        {
+            SystemQueryAccess leftQuery = leftQueries[leftIndex];
+            if (ComponentAccessConflicts(
+                leftQuery.Reads,
+                leftQuery.Writes,
+                leftQuery.StampReads,
+                right.Reads,
+                right.Writes,
+                right.StampReads))
+            {
+                return true;
+            }
+
+            for (int rightIndex = 0; rightIndex < rightQueries.Length; rightIndex++)
+            {
+                SystemQueryAccess rightQuery = rightQueries[rightIndex];
+                if (ComponentAccessConflicts(
+                    leftQuery.Reads,
+                    leftQuery.Writes,
+                    leftQuery.StampReads,
+                    rightQuery.Reads,
+                    rightQuery.Writes,
+                    rightQuery.StampReads)
+                    && MatchingArchetypesIntersect(leftQuery.QueryPlan, rightQuery.QueryPlan))
+                {
+                    return true;
+                }
+            }
+        }
+
+        for (int rightIndex = 0; rightIndex < rightQueries.Length; rightIndex++)
+        {
+            SystemQueryAccess rightQuery = rightQueries[rightIndex];
+            if (ComponentAccessConflicts(
+                left.Reads,
+                left.Writes,
+                left.StampReads,
+                rightQuery.Reads,
+                rightQuery.Writes,
+                rightQuery.StampReads))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ComponentAccessConflicts(
+        ReadOnlySpan<ComponentId> leftReads,
+        ReadOnlySpan<ComponentId> leftWrites,
+        ReadOnlySpan<ComponentId> leftStampReads,
+        ReadOnlySpan<ComponentId> rightReads,
+        ReadOnlySpan<ComponentId> rightWrites,
+        ReadOnlySpan<ComponentId> rightStampReads)
+        => Intersects(leftWrites, rightReads)
+            || Intersects(leftWrites, rightWrites)
+            || Intersects(rightWrites, leftReads)
+            || Intersects(leftStampReads, rightWrites)
+            || Intersects(rightStampReads, leftWrites);
+
+    private static bool MatchingArchetypesIntersect(QueryPlan left, QueryPlan right)
+    {
+        // QueryPlan appends matches as monotonically increasing archetype ids are created.
+        ReadOnlySpan<int> leftArchetypes = left.MatchingArchetypes();
+        ReadOnlySpan<int> rightArchetypes = right.MatchingArchetypes();
+        int leftIndex = 0;
+        int rightIndex = 0;
+        while (leftIndex < leftArchetypes.Length && rightIndex < rightArchetypes.Length)
+        {
+            int leftArchetype = leftArchetypes[leftIndex];
+            int rightArchetype = rightArchetypes[rightIndex];
+            if (leftArchetype == rightArchetype)
+            {
+                return true;
+            }
+
+            if (leftArchetype < rightArchetype)
+            {
+                leftIndex++;
+            }
+            else
+            {
+                rightIndex++;
+            }
+        }
+
+        return false;
+    }
+
+    private void ValidateQueryAccessWorlds(in SystemAccess access)
+    {
+        ReadOnlySpan<SystemQueryAccess> queryAccesses = access.QueryAccesses;
+        for (int index = 0; index < queryAccesses.Length; index++)
+        {
+            if (!ReferenceEquals(queryAccesses[index].Query.Owner, _world))
+            {
+                ThrowHelper.ThrowSystemQueryWorldMismatch();
+            }
+        }
+    }
+
+    private void CaptureQueryPlanVersions(SystemNode[] nodes)
+    {
+        var versions = new List<QueryPlanVersion>();
+        for (int systemIndex = 0; systemIndex < nodes.Length; systemIndex++)
+        {
+            ReadOnlySpan<SystemQueryAccess> accesses = nodes[systemIndex].Access.QueryAccesses;
+            for (int accessIndex = 0; accessIndex < accesses.Length; accessIndex++)
+            {
+                QueryPlan plan = accesses[accessIndex].QueryPlan;
+                bool alreadyCaptured = false;
+                for (int versionIndex = 0; versionIndex < versions.Count; versionIndex++)
+                {
+                    if (ReferenceEquals(versions[versionIndex].Plan, plan))
+                    {
+                        alreadyCaptured = true;
+                        break;
+                    }
+                }
+
+                if (!alreadyCaptured)
+                {
+                    versions.Add(new QueryPlanVersion(plan, plan.MatchingArchetypeVersion));
+                }
+            }
+        }
+
+        _queryPlanVersions = versions.ToArray();
+    }
+
+    private bool QueryPlanArchetypesChanged()
+    {
+        for (int index = 0; index < _queryPlanVersions.Length; index++)
+        {
+            QueryPlanVersion version = _queryPlanVersions[index];
+            if (version.Plan.MatchingArchetypeVersion != version.MatchingArchetypeVersion)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void ExecuteRemainingSystemsSerially(int firstPendingBatch)
+    {
+        var pending = new List<ISystem>();
+        for (int batchIndex = firstPendingBatch; batchIndex < _batches.Length; batchIndex++)
+        {
+            ISystem[] systems = _batches[batchIndex].Systems;
+            for (int systemIndex = 0; systemIndex < systems.Length; systemIndex++)
+            {
+                pending.Add(systems[systemIndex]);
+            }
+        }
+
+        for (int systemIndex = 0; systemIndex < _systems.Count; systemIndex++)
+        {
+            ISystem registered = _systems[systemIndex];
+            for (int pendingIndex = 0; pendingIndex < pending.Count; pendingIndex++)
+            {
+                if (ReferenceEquals(registered, pending[pendingIndex]))
+                {
+                    registered.Tick();
+                    break;
+                }
+            }
+        }
     }
 
     private static bool Intersects(ReadOnlySpan<ComponentId> left, ReadOnlySpan<ComponentId> right)
@@ -362,6 +554,18 @@ public sealed class SystemScheduler : IDisposable
         internal ScheduleBatch(ISystem[] systems) => Systems = systems;
 
         internal ISystem[] Systems { get; }
+    }
+
+    private readonly struct QueryPlanVersion
+    {
+        internal QueryPlanVersion(QueryPlan plan, int matchingArchetypeVersion)
+        {
+            Plan = plan;
+            MatchingArchetypeVersion = matchingArchetypeVersion;
+        }
+
+        internal QueryPlan Plan { get; }
+        internal int MatchingArchetypeVersion { get; }
     }
 
     private sealed class SchedulerWorkers : IDisposable

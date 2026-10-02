@@ -89,6 +89,7 @@ internal sealed class QueryPlan
     private readonly WriteAccess[] _preparedWriteAccessesByComponent;
     private int _matchingCount;
     private int _matchingVersion;
+    private int _matchingArchetypeVersion;
     private bool _matchingChunkPlansDirty;
     private TagSlotCacheEntry?[] _tagSlotsByChunk = Array.Empty<TagSlotCacheEntry?>();
     private readonly object _tagSlotGate = new();
@@ -118,6 +119,7 @@ internal sealed class QueryPlan
     internal World Owner => _owner;
     internal WeakReference<QueryPlan> WeakReference => _weakReference;
     internal int MatchingVersion => _matchingVersion;
+    internal int MatchingArchetypeVersion => _matchingArchetypeVersion;
 
     internal bool HasTagFilters
         => _allTagIndices.Length != 0 || _anyTagIndices.Length != 0 || _noneTagIndices.Length != 0;
@@ -337,6 +339,7 @@ internal sealed class QueryPlan
         _planIndicesByArchetype.RefAt(archetype.Id) = _matchingCount++;
         AppendMatchingChunkPlans(planIndex, plan);
         _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
+        IncrementMatchingArchetypeVersion();
         archetype.Attach(this, planIndex);
     }
 
@@ -416,6 +419,7 @@ internal sealed class QueryPlan
         _matchingCount = 0;
         _matchingChunkCount = 0;
         _matchingVersion = 0;
+        _matchingArchetypeVersion = 0;
         _matchingChunkPlansDirty = false;
         _primaryReadRoutesByType.Clear();
         _tagSlotsByChunk.AsSpan().Clear();
@@ -757,6 +761,10 @@ internal sealed class QueryPlan
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void IncrementMatchingVersion()
         => _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void IncrementMatchingArchetypeVersion()
+        => _matchingArchetypeVersion = _matchingArchetypeVersion == int.MaxValue ? 1 : _matchingArchetypeVersion + 1;
 
 }
 

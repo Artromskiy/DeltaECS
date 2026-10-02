@@ -38,6 +38,18 @@ public sealed class GeneratedSystemAccessGeneratorTests
             namespace Delta.ECS.Systems
             {
                 using Delta.ECS;
+                public readonly struct SystemQueryAccess
+                {
+                    public SystemQueryAccess(
+                        in Query query,
+                        System.ReadOnlySpan<ComponentId> reads = default,
+                        System.ReadOnlySpan<ComponentId> writes = default,
+                        System.ReadOnlySpan<ComponentId> stampReads = default) { }
+                }
+            }
+            namespace Delta.ECS.Systems
+            {
+                using Delta.ECS;
                 public interface ISystem
                 {
                     World World { get; init; }
@@ -47,17 +59,18 @@ public sealed class GeneratedSystemAccessGeneratorTests
                 public readonly struct SystemAccess
                 {
                     public SystemAccess(
-                        ComponentId[]? reads = null,
-                        ComponentId[]? writes = null,
-                        ComponentId[]? stampReads = null,
-                        ComponentId[]? adds = null,
-                        ComponentId[]? removes = null,
+                        System.ReadOnlySpan<ComponentId> reads = default,
+                        System.ReadOnlySpan<ComponentId> writes = default,
+                        System.ReadOnlySpan<ComponentId> stampReads = default,
+                        System.ReadOnlySpan<ComponentId> adds = default,
+                        System.ReadOnlySpan<ComponentId> removes = default,
                         bool readsTopology = false,
                         bool writesTopology = false,
                         bool createsEntities = false,
                         bool destroysEntities = false,
                         bool unknownWorldAccess = false,
-                        bool usesParallelExecutor = false) { }
+                        bool usesParallelExecutor = false,
+                        System.ReadOnlySpan<SystemQueryAccess> queryAccesses = default) { }
                     public static SystemAccess None => default;
                 }
             }
@@ -99,9 +112,8 @@ public sealed class GeneratedSystemAccessGeneratorTests
         Assert.That(text, Does.Contain("readsTopology: true"));
         Assert.That(text, Does.Contain("GetPrimary<global::Game.Velocity>()"));
         Assert.That(text, Does.Contain("GetPrimary<global::Game.Position>()"));
-        Assert.That(text, Does.Contain("writes: new global::Delta.ECS.ComponentId[]"));
-        Assert.That(text, Does.Contain("adds: new global::Delta.ECS.ComponentId[]"));
-        Assert.That(text, Does.Contain("removes: new global::Delta.ECS.ComponentId[]"));
+        Assert.That(text, Does.Contain("new global::Delta.ECS.Systems.SystemQueryAccess"));
+        Assert.That(text, Does.Contain("writes: stackalloc global::Delta.ECS.ComponentId[]"));
         Assert.That(text, Does.Contain("createsEntities: true"));
         Assert.That(text, Does.Contain("destroysEntities: true"));
         Assert.That(text, Does.Contain("public global::Delta.ECS.Systems.SystemAccess Access"));
@@ -133,6 +145,7 @@ public sealed class GeneratedSystemAccessGeneratorTests
             namespace Delta.ECS.Systems
             {
                 using Delta.ECS;
+                public readonly struct SystemQueryAccess { }
                 public interface ISystem
                 {
                     World World { get; init; }
@@ -141,7 +154,10 @@ public sealed class GeneratedSystemAccessGeneratorTests
                 }
                 public readonly struct SystemAccess
                 {
-                    public SystemAccess(ComponentId[]? writes = null, bool readsTopology = false) { }
+                    public SystemAccess(
+                        System.ReadOnlySpan<ComponentId> writes = default,
+                        bool readsTopology = false,
+                        System.ReadOnlySpan<SystemQueryAccess> queryAccesses = default) { }
                     public static SystemAccess None => default;
                 }
             }

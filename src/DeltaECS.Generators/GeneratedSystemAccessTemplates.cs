@@ -37,6 +37,7 @@ internal static class GeneratedSystemAccessTemplates
                 RenderIds("stampReads", model.StampReads),
                 RenderIds("adds", model.Adds),
                 RenderIds("removes", model.Removes),
+                model.QueryAccesses.IsDefaultOrEmpty ? string.Empty : "queryAccesses: queryAccesses",
                 model.ReadsTopology ? "readsTopology: true" : string.Empty,
                 model.WritesTopology ? "writesTopology: true" : string.Empty,
                 model.CreatesEntities ? "createsEntities: true" : string.Empty,
@@ -54,30 +55,63 @@ internal static class GeneratedSystemAccessTemplates
         return $$"""
             internal static class {{model.HelperName}}
             {
-                internal static global::Delta.ECS.Systems.SystemAccess Create(global::Delta.ECS.World world)
+                internal static global::Delta.ECS.Systems.SystemAccess Create(
+                    global::Delta.ECS.World world,
+                    global::System.ReadOnlySpan<global::Delta.ECS.Systems.SystemQueryAccess> queryAccesses = default)
                     => {{result}};
             }
             """;
     }
 
     private static string RenderProperty(GeneratedSystemAccessModel model)
-        => $$"""
+    {
+        string queryAccesses = model.QueryAccesses.IsDefaultOrEmpty
+            ? string.Empty
+            : ",\n"
+                + GeneratorTemplates.Indent(
+                    "new global::Delta.ECS.Systems.SystemQueryAccess[]\n{\n"
+                        + GeneratorTemplates.Indent(
+                            string.Join(",\n", model.QueryAccesses.Select(RenderQueryAccess)),
+                            "    ")
+                        + "\n}",
+                    "    ");
+        return $$"""
             partial class {{model.TypeName}}
             {
                 /// <summary>Gets generated access metadata for this system.</summary>
                 public global::Delta.ECS.Systems.SystemAccess Access
-                    => {{model.HelperName}}.Create(((global::Delta.ECS.Systems.ISystem)this).World);
+                    => {{model.HelperName}}.Create(((global::Delta.ECS.Systems.ISystem)this).World{{queryAccesses}});
             }
             """;
+    }
 
-    private static string RenderIds(string name, ImmutableArray<string> types)
+    private static string RenderQueryAccess(GeneratedSystemQueryAccessModel access)
+    {
+        string componentArguments = GeneratorTemplates.JoinNonEmpty(
+            new[]
+            {
+                RenderIds("reads", access.Reads, "((global::Delta.ECS.Systems.ISystem)this).World"),
+                RenderIds("writes", access.Writes, "((global::Delta.ECS.Systems.ISystem)this).World"),
+                RenderIds("stampReads", access.StampReads, "((global::Delta.ECS.Systems.ISystem)this).World")
+            },
+            ",\n");
+        string arguments = componentArguments.Length == 0
+            ? string.Empty
+            : ",\n" + GeneratorTemplates.Indent(componentArguments, "    ");
+        return $$"""
+            new global::Delta.ECS.Systems.SystemQueryAccess(
+                in {{access.QueryExpression}}{{arguments}})
+            """;
+    }
+
+    private static string RenderIds(string name, ImmutableArray<string> types, string worldExpression = "world")
         => types.IsDefaultOrEmpty
             ? string.Empty
             : $$"""
-            {{name}}: new global::Delta.ECS.ComponentId[]
+            {{name}}: stackalloc global::Delta.ECS.ComponentId[]
             {
             {{GeneratorTemplates.Indent(
-                string.Join(",\n", types.Select(type => "world.Layouts.GetPrimary<" + type + ">()")),
+                string.Join(",\n", types.Select(type => worldExpression + ".Layouts.GetPrimary<" + type + ">()")),
                 "    ")}}
             }
             """;
