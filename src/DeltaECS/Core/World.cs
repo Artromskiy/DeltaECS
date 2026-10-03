@@ -158,6 +158,7 @@ public sealed partial class World : IDisposable
         _componentSetCache.Clear();
         _primaryComponentIdsByType.Clear();
         _genericFunctors.Clear();
+        _lastGenericFunctorEntry = null;
 
         foreach (var archetype in _archetypes)
         {
