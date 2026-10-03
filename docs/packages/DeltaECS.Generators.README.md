@@ -1,8 +1,8 @@
 # DeltaECS.Generators
 
 `DeltaECS.Generators` is a build-time Roslyn analyzer/source generator for
-consumer callback shapes. It is packaged as an analyzer and has no runtime
-dependency on the generator assembly.
+consumer callback shapes and component registration. It is packaged as an
+analyzer and has no runtime dependency on the generator assembly.
 
 ```xml
 <PackageReference Include="DeltaECS" Version="*" />
@@ -48,6 +48,18 @@ world.ForEach<Position, Velocity>(in byTypes, positionId, velocityId,
 The generator targets `netstandard2.0` and is shipped from
 `analyzers/dotnet/cs`. Its target is independent from the target framework of
 the consumer project.
+
+For Unity component authoring, `DeltaECS.Generators` also derives schema IDs
+for types marked with `Delta.ECS.DeltaEcsComponentAttribute` and
+generates strongly typed registration factories. `DeltaECS.Unity` uses these
+factories to register components without enumerating every type in loaded
+assemblies. A name-derived ID is stable for a given metadata name; set a
+non-zero `SchemaId` explicitly when the identity must survive component
+renames. The analyzer reports the current value so it can be copied into the
+attribute as an explicit `SchemaId`, and reports explicit zero IDs. The
+generator reports duplicate IDs within the consumer compilation; the Unity
+registry also checks for collisions when it combines catalogs from loaded
+assemblies.
 
 Where functors implement `IWherePredicate`. Use `Where` for component-only
 predicates and `WhereEntity` when the predicate also needs the current entity.

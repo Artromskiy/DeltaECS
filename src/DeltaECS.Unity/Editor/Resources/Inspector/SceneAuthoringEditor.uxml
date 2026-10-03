@@ -1,0 +1,8 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:Style src="DeltaEcsSceneAuthoringEditor.uss" />
+    <ui:VisualElement name="inspectorRoot" class="ecs-inspector-root">
+        <ui:VisualElement name="inspectorHeader" class="ecs-inspector-header" />
+        <ui:ListView name="componentList" class="ecs-component-list" virtualization-method="DynamicHeight" reorderable="true" reorder-mode="Animated" selection-type="None" />
+        <ui:VisualElement name="inspectorFooter" class="ecs-inspector-footer" />
+    </ui:VisualElement>
+</ui:UXML>

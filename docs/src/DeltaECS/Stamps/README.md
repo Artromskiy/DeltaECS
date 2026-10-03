@@ -5,7 +5,7 @@
 the value as an equality token: it is not wall-clock time and arithmetic
 ordering is not a supported semantic.
 
-- `ComponentCatalog.Stamp` changes when the tooling catalog changes.
+- `RuntimeComponentCatalog.Stamp` changes when the tooling catalog changes.
 - A component stamp is the combined revision for one entity/component pair.
 - `World.TryGetComponentStamp` returns the exact stamp for one live entity and
   component without reading or boxing the component value.

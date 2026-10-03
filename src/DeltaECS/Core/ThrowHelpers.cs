@@ -401,6 +401,22 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowGeneratedComponentSchemaIdZero(Type componentType)
+        => throw new InvalidOperationException($"Generated schema ID 0 is invalid for component '{componentType.FullName}'.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowGeneratedComponentRegistrationConflict(Type componentType)
+        => throw new InvalidOperationException($"Component '{componentType.FullName}' has more than one generated registration.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowGeneratedComponentSchemaIdConflict(SchemaId schemaId, Type existingType, Type componentType)
+        => throw new InvalidOperationException(
+            $"Generated schema ID collision {schemaId}: '{existingType.FullName}' and '{componentType.FullName}'. Assign unique SchemaId values.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static int ThrowComponentIsNotTag(ComponentId componentId)
         => throw new ArgumentException($"Component registration '{componentId}' is not a tag.", nameof(componentId));
 

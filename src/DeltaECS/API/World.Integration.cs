@@ -5,12 +5,12 @@ using Delta.ECS.Integration;
 
 public sealed partial class World : IEcsWorld
 {
-    private ComponentCatalog _integrationCatalog;
+    private RuntimeComponentCatalog _integrationCatalog;
     private int _integrationCatalogLayoutCount = -1;
     private StampCounter _catalogStamps;
     private IntegrationLifecycleState _integrationLifecycle;
 
-    ComponentCatalog IEcsWorld.Catalog
+    RuntimeComponentCatalog IEcsWorld.Catalog
     {
         get
         {
@@ -260,7 +260,7 @@ public sealed partial class World : IEcsWorld
                 AllowsNull(runtimeType));
         }
 
-        _integrationCatalog = new ComponentCatalog(descriptors, _catalogStamps.Next());
+        _integrationCatalog = new RuntimeComponentCatalog(descriptors, _catalogStamps.Next());
         _integrationCatalogLayoutCount = layoutCount;
     }
 

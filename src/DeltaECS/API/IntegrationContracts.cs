@@ -27,7 +27,7 @@ public readonly record struct ComponentSnapshot(
     object? Value,
     Stamp Stamp);
 
-public readonly record struct ComponentCatalog(
+public readonly record struct RuntimeComponentCatalog(
     ReadOnlyMemory<ComponentDescriptor> Components,
     Stamp Stamp);
 
@@ -63,7 +63,7 @@ public readonly record struct EcsWriteError(
 /// </summary>
 public interface IEcsWorld
 {
-    ComponentCatalog Catalog { get; }
+    RuntimeComponentCatalog Catalog { get; }
 
     void Initialize();
 

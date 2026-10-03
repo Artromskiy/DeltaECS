@@ -30,13 +30,16 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
             .Select(static (discovery, _) => discovery!)
             .Collect();
 
-        context.RegisterSourceOutput(discoveries.Combine(context.CompilationProvider), static (output, input) =>
+        var markedComponents = context.SyntaxProvider.ForAttributeWithMetadataName(
+                "Delta.ECS.DeltaEcsComponentAttribute",
+                static (node, _) => node is StructDeclarationSyntax or RecordDeclarationSyntax,
+                static (syntax, _) => (INamedTypeSymbol)syntax.TargetSymbol)
+            .Collect();
+
+        context.RegisterSourceOutput(discoveries.Combine(markedComponents).Combine(context.CompilationProvider), static (output, input) =>
         {
-            ImmutableArray<GenericBindingDiscovery> discovered = input.Left;
-            if (discovered.IsDefaultOrEmpty)
-            {
-                return;
-            }
+            ImmutableArray<GenericBindingDiscovery> discovered = input.Left.Left;
+            ImmutableArray<INamedTypeSymbol> attributedTypes = input.Left.Right;
 
             var componentTypes = new Dictionary<string, ITypeSymbol>(StringComparer.Ordinal);
             var componentDefinitions = new Dictionary<string, INamedTypeSymbol>(StringComparer.Ordinal);
@@ -77,6 +80,14 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
                         string key = GeneratorSupport.DisplayType(functorDefinition.ConstructUnboundGenericType());
                         AddIfMissing(functorDefinitions, key, functorDefinition);
                     }
+                }
+            }
+
+            foreach (INamedTypeSymbol componentType in attributedTypes)
+            {
+                if (!componentType.IsGenericType && GeneratorSupport.IsAccessibleSymbol(componentType))
+                {
+                    AddIfMissing(componentTypes, GeneratorSupport.DisplayType(componentType), componentType);
                 }
             }
 
@@ -122,6 +133,7 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
             if (componentDispatchers.Count == 0
                 && functorDispatchers.Count == 0
                 && componentRegistrationArities.Count == 0
+                && componentTypes.Count == 0
                 && !hasStructGenericTypeList)
             {
                 return;

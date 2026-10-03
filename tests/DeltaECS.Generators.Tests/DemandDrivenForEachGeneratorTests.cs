@@ -1576,7 +1576,7 @@ public sealed class DemandDrivenForEachGeneratorTests
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
             .Select(static path => MetadataReference.CreateFromFile(path));
         return CSharpCompilation.Create(
-            "DeltaEcsGeneratorHarness",
+            "GeneratorHarness",
             sources.Select(source => CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(languageVersion))),
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
@@ -1602,7 +1602,7 @@ public sealed class DemandDrivenForEachGeneratorTests
             .Select(source => CSharpSyntaxTree.ParseText(source, parseOptions))
             .Concat(generatedTrees.Select(tree => CSharpSyntaxTree.ParseText(tree.GetText().ToString(), parseOptions, tree.FilePath)));
         return CSharpCompilation.Create(
-            "DeltaEcsGeneratorHarness",
+            "GeneratorHarness",
             syntaxTrees,
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));

@@ -1,0 +1,28 @@
+.deltaecs-bound-entity-foldout > .unity-foldout__toggle {
+    min-height: 22px;
+    -unity-font-style: bold;
+}
+
+.deltaecs-bound-entity-foldout > .unity-foldout__content {
+    padding-left: 0;
+}
+
+.deltaecs-unity-component-foldout {
+    margin-top: 1px;
+    margin-bottom: 1px;
+    border-top-width: 1px;
+    border-top-color: var(--unity-colors-inspector_titlebar-border_accent);
+}
+
+.deltaecs-unity-component-foldout > .unity-foldout__toggle {
+    min-height: 22px;
+    background-color: var(--unity-colors-inspector_titlebar-background);
+}
+
+.deltaecs-unity-component-foldout > .unity-foldout__toggle > .unity-foldout__text {
+    -unity-font-style: bold;
+}
+
+.deltaecs-unity-component-foldout > .unity-foldout__content {
+    padding-left: 0;
+}

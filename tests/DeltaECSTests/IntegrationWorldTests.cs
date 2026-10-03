@@ -33,9 +33,9 @@ internal sealed class IntegrationWorldTests
         using var storage = new World(layouts);
         IEcsWorld world = storage;
 
-        ComponentCatalog first = world.Catalog;
+        RuntimeComponentCatalog first = world.Catalog;
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(50_002));
-        ComponentCatalog second = world.Catalog;
+        RuntimeComponentCatalog second = world.Catalog;
 
         Assert.Multiple(() =>
         {

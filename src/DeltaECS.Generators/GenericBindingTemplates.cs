@@ -69,12 +69,15 @@ internal static class GenericBindingTemplates
             {
             {{GeneratorTemplates.Indent(dispatchers, "    ")}}
 
-                internal static class GenericBindingModuleInitializer
+                internal static partial class GenericBindingModuleInitializer
                 {
+                    static partial void RegisterComponentCatalog();
+
                     [global::System.Runtime.CompilerServices.ModuleInitializer]
                     internal static void Initialize()
                     {
             {{GeneratorTemplates.Indent(string.Join("\n", registrations), "            ")}}
+                        RegisterComponentCatalog();
                     }
                 }
             }
