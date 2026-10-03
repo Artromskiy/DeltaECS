@@ -1,0 +1,37 @@
+{
+  "name": "com.artromskiy.deltaecs.unity",
+  "version": "0.0.38",
+  "displayName": "DeltaECS Unity",
+  "description": "Unity scene authoring and editor integration for DeltaECS.",
+  "unity": "6000.7",
+  "keywords": [
+    "ecs",
+    "entity-component-system",
+    "unity"
+  ],
+  "author": {
+    "name": "Artromskiy"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Artromskiy/DeltaECS.git",
+    "directory": "src/DeltaECS.Unity"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
+  "files": [
+    "Runtime/",
+    "Runtime.meta",
+    "Editor/",
+    "Editor.meta",
+    "README.md",
+    "README.md.meta",
+    "CHANGELOG.md",
+    "CHANGELOG.md.meta",
+    "LICENSE.md",
+    "LICENSE.md.meta",
+    "package.json.meta"
+  ]
+}

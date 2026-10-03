@@ -194,10 +194,12 @@ namespace Delta.ECS.Unity.Editor
             _header.Add(BuildEntityHeader(authoring));
             _componentEntries.AddRange(ProjectAuthoringComponents(authoring));
             RenderComponentRows();
+            _footer.Add(BuildAddComponentMenu(authoring));
             var deleteButton = new Button(() => HierarchyMenu.DeleteEntity(Authoring, authoring.StableId))
             {
                 text = "Delete Entity"
             };
+            deleteButton.AddToClassList("ecs-action-button");
             deleteButton.AddToClassList("ecs-delete-entity");
             _footer.Add(deleteButton);
         }
@@ -302,6 +304,7 @@ namespace Delta.ECS.Unity.Editor
                 text = "Unbind",
                 tooltip = "Remove the GameObject binding from this entity"
             };
+            unbind.AddToClassList("ecs-action-button");
             unbind.SetEnabled(currentView != null);
             field.RegisterValueChangedCallback(evt =>
             {
@@ -366,6 +369,7 @@ namespace Delta.ECS.Unity.Editor
         private VisualElement BuildAddComponentMenu(EntityAuthoring authoring)
         {
             var button = new Button { text = "Add Component" };
+            button.AddToClassList("ecs-action-button");
             button.AddToClassList("ecs-add-component");
             HashSet<ulong> existingSchemas = authoring.Components
                 .Select(GetSchemaId)
@@ -483,18 +487,8 @@ namespace Delta.ECS.Unity.Editor
         private void DrawEditableValue(VisualElement body, EntityAuthoring authoring, ComponentData data,
             ComponentDescriptor descriptor, object value)
         {
-            FieldInfo[] fields = GetComponentFields(descriptor.ValueType);
-            if (fields.Length == 0)
-            {
-                body.Add(CreateClassLabel("Component has no public fields.", "ecs-empty-component"));
-                return;
-            }
-
-            for (int i = 0; i < fields.Length; i++)
-            {
-                FieldInfo field = fields[i];
-                object current = field.GetValue(value);
-                VisualElement control = CreateFieldControl(field, current, next =>
+            DrawComponentFields(body, descriptor, value, (field, current) =>
+                CreateFieldControl(field, current, next =>
                 {
                     if (Equals(current, next)) return;
                     Undo.RecordObject(Authoring, $"Edit {descriptor.Name}");
@@ -509,18 +503,44 @@ namespace Delta.ECS.Unity.Editor
                         Debug.LogError($"Could not write {descriptor.Name}: {writeError.Code}.", Authoring);
                         RefreshContent();
                     }
-                });
-                body.Add(control);
-            }
+                }));
         }
 
-        private VisualElement CreateFieldControl(FieldInfo field, object value, Action<object> onChanged)
+        private static FieldInfo[] DrawComponentFields(VisualElement body, ComponentDescriptor descriptor,
+            object value, Func<FieldInfo, object, VisualElement> createControl)
+        {
+            FieldInfo[] fields = GetComponentFields(descriptor.ValueType);
+            if (fields.Length == 0)
+            {
+                body.Add(CreateClassLabel("Component has no public fields.", "ecs-empty-component"));
+                return fields;
+            }
+
+            for (int i = 0; i < fields.Length; i++)
+            {
+                FieldInfo field = fields[i];
+                body.Add(createControl(field, field.GetValue(value)));
+            }
+
+            return fields;
+        }
+
+        private VisualElement CreateFieldControl(FieldInfo field, object value, Action<object> onChanged,
+            Func<string, Entity, Action<object>, VisualElement> createEntityReferenceField = null)
         {
             string label = ObjectNames.NicifyVariableName(field.Name);
             Type type = field.FieldType;
             if (type == typeof(float))
             {
                 var fieldControl = new FloatField(label) { value = (float)value, isDelayed = true };
+                AddInspectorFieldClasses(fieldControl);
+                fieldControl.RegisterValueChangedCallback(evt => onChanged(evt.newValue));
+                return fieldControl;
+            }
+
+            if (type == typeof(string))
+            {
+                var fieldControl = new TextField(label) { value = (string)value ?? string.Empty, isDelayed = true };
                 AddInspectorFieldClasses(fieldControl);
                 fieldControl.RegisterValueChangedCallback(evt => onChanged(evt.newValue));
                 return fieldControl;
@@ -555,7 +575,9 @@ namespace Delta.ECS.Unity.Editor
 
             if (type == typeof(Entity))
             {
-                return CreateEntityReferenceField(label, (Entity)value, onChanged);
+                return createEntityReferenceField != null
+                    ? createEntityReferenceField(label, (Entity)value, onChanged)
+                    : CreateEntityReferenceField(label, (Entity)value, onChanged);
             }
 
             if (type.IsEnum)
@@ -646,7 +668,7 @@ namespace Delta.ECS.Unity.Editor
                     return;
                 }
 
-                DrawReadOnlyValue(body, descriptor, snapshot.Value, world);
+                DrawRuntimeValue(body, world, entity, descriptor, snapshot);
             });
         }
 
@@ -654,7 +676,6 @@ namespace Delta.ECS.Unity.Editor
         {
             _componentItems.Clear();
             _componentItems.AddRange(_componentEntries);
-            if (_authoringEntity != null) _componentItems.Add(default);
             _componentList.itemsSource = _componentItems;
             _componentList.Rebuild();
         }
@@ -662,25 +683,30 @@ namespace Delta.ECS.Unity.Editor
         private void BindComponentItem(VisualElement row, int index)
         {
             row.Clear();
-            bool isAddButton = _authoringEntity != null && index == _componentEntries.Count;
-            row.parent.parent.EnableInClassList("ecs-add-component-row", isAddButton);
-            row.parent.parent.EnableInClassList("ecs-component-last-bound-row",
+            SetReorderableItemClass(row, "ecs-component-last-bound-row",
                 _embedded && _target.IsRuntime && index == _componentEntries.Count - 1);
-            row.EnableInClassList("ecs-component-row", !isAddButton);
-            if (isAddButton)
-            {
-                row.userData = null;
-                row.Add(BuildAddComponentMenu(_authoringEntity));
-                return;
-            }
-
             ComponentEntry entry = _componentItems[index];
+            row.EnableInClassList("ecs-component-row", true);
             row.userData = entry;
             row.Add(_target.IsRuntime
                 ? BuildRuntimeComponentCard(_target.RuntimeWorld, _target.RuntimeEntity, entry.Descriptor.Value)
                 : entry.Descriptor.HasValue
                     ? BuildAuthoringComponentCard(_authoringEntity, entry.Data, entry.Descriptor.Value)
                     : BuildUnknownComponentCard(_authoringEntity, entry.Data));
+        }
+
+        private void SetReorderableItemClass(VisualElement row, string className, bool enabled)
+        {
+            for (VisualElement ancestor = row.parent; ancestor != null && ancestor != _componentList; ancestor = ancestor.parent)
+            {
+                if (ancestor.Q<VisualElement>(className: "unity-list-view__reorderable-handle") == null)
+                {
+                    continue;
+                }
+
+                ancestor.EnableInClassList(className, enabled);
+                return;
+            }
         }
 
         private void UnbindComponentItem(VisualElement row, int index)
@@ -794,31 +820,119 @@ namespace Delta.ECS.Unity.Editor
             return card;
         }
 
-        private void DrawReadOnlyValue(VisualElement body, ComponentDescriptor descriptor, object value, SceneWorld world)
+        private void DrawRuntimeValue(VisualElement body, SceneWorld world, Entity entity,
+            ComponentDescriptor descriptor, ComponentSnapshot snapshot)
         {
-            FieldInfo[] fields = GetComponentFields(descriptor.ValueType);
-            if (fields.Length == 0)
+            var controls = new List<VisualElement>();
+            FieldInfo[] fields = DrawComponentFields(body, descriptor, snapshot.Value, (field, fieldValue) =>
             {
-                body.Add(CreateClassLabel("Component has no public fields.", "ecs-empty-component"));
+                VisualElement control = CreateRuntimeFieldControl(world, entity, descriptor, field, fieldValue);
+                controls.Add(control);
+                return control;
+            });
+
+            if (fields.Length > 0)
+            {
+                _runtimeBindings.Add(new RuntimeValueBinding(descriptor, fields, controls.ToArray()));
+            }
+        }
+
+        private VisualElement CreateRuntimeFieldControl(SceneWorld world, Entity entity,
+            ComponentDescriptor descriptor, FieldInfo field, object value)
+        {
+            bool canWrite = (descriptor.Capabilities & ComponentCapabilities.Write) != 0
+                && descriptor.ValueType.IsValueType
+                && !field.IsInitOnly
+                && !field.IsLiteral;
+
+            VisualElement control = CreateFieldControl(field, value, canWrite
+                ? next => WriteRuntimeField(world, entity, descriptor, field, next)
+                : _ => { },
+                (label, current, onChanged) => CreateRuntimeEntityReferenceField(world, label, current, onChanged));
+            control.SetEnabled(canWrite);
+
+            return control;
+        }
+
+        private VisualElement CreateRuntimeEntityReferenceField(SceneWorld world, string label, Entity current,
+            Action<object> onChanged)
+        {
+            Entity[] authored = world.AuthoredEntities;
+            var values = new List<Entity>(authored.Length + 2) { default };
+            var options = new List<string>(authored.Length + 2) { "None" };
+            var names = new List<string>(authored.Length);
+            for (int i = 0; i < authored.Length; i++)
+            {
+                Entity candidate = authored[i];
+                if (!world.Integration.IsAlive(candidate)) continue;
+                names.Add(GetRuntimeEntityName(world, candidate));
+            }
+
+            HashSet<string> duplicateNames = names
+                .GroupBy(name => name, StringComparer.Ordinal)
+                .Where(group => group.Count() > 1)
+                .Select(group => group.Key)
+                .ToHashSet(StringComparer.Ordinal);
+
+            int currentIndex = current.IsValid ? -1 : 0;
+            int nameIndex = 0;
+            for (int i = 0; i < authored.Length; i++)
+            {
+                Entity candidate = authored[i];
+                if (!world.Integration.IsAlive(candidate)) continue;
+                string name = names[nameIndex++];
+                string stableId = world.TryGetStableId(candidate, out string id) ? id : string.Empty;
+                values.Add(candidate);
+                options.Add(duplicateNames.Contains(name) && !string.IsNullOrEmpty(stableId)
+                    ? $"{name} ({stableId.Substring(0, Math.Min(8, stableId.Length))})"
+                    : name);
+                if (candidate == current) currentIndex = values.Count - 1;
+            }
+
+            if (current.IsValid && currentIndex < 0)
+            {
+                values.Add(current);
+                options.Add($"Current ({FormatValue(typeof(Entity), current, world)})");
+                currentIndex = values.Count - 1;
+            }
+
+            var fieldControl = new DropdownField(label, options, currentIndex);
+            AddInspectorFieldClasses(fieldControl);
+            fieldControl.userData = new RuntimeEntityReferenceChoices(options.ToArray(), values.ToArray());
+            fieldControl.RegisterValueChangedCallback(evt =>
+            {
+                int index = options.IndexOf(evt.newValue);
+                Entity next = index >= 0 && index < values.Count ? values[index] : default;
+                onChanged(next);
+            });
+            return fieldControl;
+        }
+
+        private string GetRuntimeEntityName(SceneWorld world, Entity entity)
+        {
+            return world.TryGetStableId(entity, out string stableId)
+                && world.TryGetAuthoring(stableId, out EntityAuthoring authoring)
+                    ? authoring.Name
+                    : entity.ToString();
+        }
+
+        private void WriteRuntimeField(SceneWorld world, Entity entity, ComponentDescriptor descriptor,
+            FieldInfo field, object next)
+        {
+            if (!world.Integration.TryRead(entity, descriptor.Id, out ComponentSnapshot snapshot, out EcsReadError readError))
+            {
+                Debug.LogWarning($"Could not read {descriptor.Name} before editing: {readError.Code}.");
+                RefreshRuntimeView();
                 return;
             }
 
-            var labels = new TextField[fields.Length];
-            for (int i = 0; i < fields.Length; i++)
+            field.SetValue(snapshot.Value, next);
+            if (!world.Integration.TryWrite(entity, descriptor.Id, snapshot.Value, snapshot.Stamp,
+                    out _, out EcsWriteError writeError))
             {
-                FieldInfo field = fields[i];
-                object fieldValue = field.GetValue(value);
-                string display = FormatValue(field.FieldType, fieldValue, world);
-                labels[i] = new TextField(ObjectNames.NicifyVariableName(field.Name))
-                {
-                    value = display,
-                    isReadOnly = true
-                };
-                AddInspectorFieldClasses(labels[i]);
-                body.Add(labels[i]);
+                Debug.LogWarning($"Could not edit {descriptor.Name}: {writeError.Code}.");
+                RefreshRuntimeView();
             }
-
-            _runtimeBindings.Add(new RuntimeValueBinding(descriptor, fields, labels));
         }
 
         private string FormatValue(Type type, object value, SceneWorld world)
@@ -914,11 +1028,54 @@ namespace Delta.ECS.Unity.Editor
                 for (int fieldIndex = 0; fieldIndex < binding.Fields.Length; fieldIndex++)
                 {
                     FieldInfo field = binding.Fields[fieldIndex];
-                    string text = FormatValue(field.FieldType, field.GetValue(snapshot.Value), world);
-                    if (!string.Equals(binding.Labels[fieldIndex].value, text, StringComparison.Ordinal))
+                    VisualElement control = binding.Controls[fieldIndex];
+                    VisualElement focused = control.panel?.focusController?.focusedElement as VisualElement;
+                    if (focused != null && control.Contains(focused))
                     {
-                        binding.Labels[fieldIndex].SetValueWithoutNotify(text);
+                        continue;
                     }
+
+                    SetRuntimeFieldValue(control, field.FieldType, field.GetValue(snapshot.Value), world);
+                }
+            }
+        }
+
+        private void SetRuntimeFieldValue(VisualElement control, Type type, object value, SceneWorld world)
+        {
+            if (control is FloatField floatField)
+            {
+                floatField.SetValueWithoutNotify((float)value);
+            }
+            else if (control is TextField textField)
+            {
+                textField.SetValueWithoutNotify(type == typeof(string)
+                    ? (string)value ?? string.Empty
+                    : FormatValue(type, value, world));
+            }
+            else if (control is IntegerField integerField)
+            {
+                integerField.SetValueWithoutNotify(Convert.ToInt32(value));
+            }
+            else if (control is Toggle toggle)
+            {
+                toggle.SetValueWithoutNotify((bool)value);
+            }
+            else if (control is Vector3Field vectorField && value is float3 vector)
+            {
+                vectorField.SetValueWithoutNotify(new Vector3(vector.x, vector.y, vector.z));
+            }
+            else if (control is EnumField enumField && value is Enum enumValue)
+            {
+                enumField.SetValueWithoutNotify(enumValue);
+            }
+            else if (control is DropdownField entityField
+                && type == typeof(Entity)
+                && entityField.userData is RuntimeEntityReferenceChoices choices)
+            {
+                int index = Array.IndexOf(choices.Entities, (Entity)value);
+                if (index >= 0)
+                {
+                    entityField.SetValueWithoutNotify(choices.Labels[index]);
                 }
             }
         }
@@ -1090,13 +1247,25 @@ namespace Delta.ECS.Unity.Editor
         {
             public readonly ComponentDescriptor Descriptor;
             public readonly FieldInfo[] Fields;
-            public readonly TextField[] Labels;
+            public readonly VisualElement[] Controls;
 
-            public RuntimeValueBinding(ComponentDescriptor descriptor, FieldInfo[] fields, TextField[] labels)
+            public RuntimeValueBinding(ComponentDescriptor descriptor, FieldInfo[] fields, VisualElement[] controls)
             {
                 Descriptor = descriptor;
                 Fields = fields;
+                Controls = controls;
+            }
+        }
+
+        private sealed class RuntimeEntityReferenceChoices
+        {
+            public readonly string[] Labels;
+            public readonly Entity[] Entities;
+
+            public RuntimeEntityReferenceChoices(string[] labels, Entity[] entities)
+            {
                 Labels = labels;
+                Entities = entities;
             }
         }
     }

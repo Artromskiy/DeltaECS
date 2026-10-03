@@ -1,5 +1,5 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements">
-    <ui:Style src="DeltaEcsSceneAuthoringEditor.uss" />
+    <ui:Style src="SceneAuthoringEditor.uss" />
     <ui:VisualElement name="inspectorRoot" class="ecs-inspector-root">
         <ui:VisualElement name="inspectorHeader" class="ecs-inspector-header" />
         <ui:ListView name="componentList" class="ecs-component-list" virtualization-method="DynamicHeight" reorderable="true" reorder-mode="Animated" selection-type="None" />

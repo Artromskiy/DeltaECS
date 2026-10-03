@@ -1,28 +1,36 @@
-# DeltaECS.Unity
+# DeltaECS Unity
 
-This folder contains the Unity runtime authoring bridge and editor tools for
-DeltaECS. It is not packaged for UPM. Copy this folder under the Unity
-project's `Assets` directory (or link it there) to make Unity import its
-runtime and editor assemblies.
+Unity scene authoring and editor integration for DeltaECS. This package
+requires Unity 6.7 (`6000.7`) or newer.
 
-## Add the integration and generator
+## Install
 
-Add the `DeltaECS` runtime assembly to the Unity project using your existing
-dependency workflow, then copy this `DeltaECS.Unity` folder under `Assets`.
+Add the npm-compatible registry and package to the Unity project's
+`Packages/manifest.json`:
 
-Unity does not load Roslyn analyzers and source generators directly from
-NuGet. Download the `DeltaECS.Generators` `.nupkg`, extract
-`analyzers/dotnet/cs/DeltaECS.Generators.dll`, and put the DLL in the `Assets`
-folder for the assembly that declares your components. In Unity's Plugin
-Inspector, disable **Any Platform**, disable **Editor** and **Standalone** in
-the included platforms, and add the case-sensitive `RoslynAnalyzer` asset
-label. See Unity's [Roslyn analyzer installation guide](https://docs.unity3d.com/6000.0/Documentation/Manual/install-existing-analyzer.html)
-for editor steps and analyzer scope rules.
+```json
+{
+  "scopedRegistries": [
+    {
+      "name": "Artromskiy",
+      "url": "https://registry.npmjs.org",
+      "scopes": ["com.artromskiy"]
+    }
+  ],
+  "dependencies": {
+    "com.artromskiy.deltaecs.unity": "0.0.38"
+  }
+}
+```
+
+Keep the project's existing `dependencies` and `scopedRegistries` entries when
+adding these values. The core `DeltaECS` runtime and `DeltaECS.Generators` are
+separate NuGet packages and are not included in this UPM package.
 
 ## Register components
 
-The generator derives schema IDs and emits the component registration catalog
-for marked types. Mark component structs with `DeltaEcsComponentAttribute`:
+Install `DeltaECS.Generators` in the assembly that declares components, then
+mark component structs with `DeltaEcsComponentAttribute`:
 
 ```csharp
 using Delta.ECS;
@@ -34,7 +42,16 @@ public struct Health
 }
 ```
 
-The generator derives a stable schema ID from the component's metadata name. To pin an ID so a type rename does not change its serialized identity, provide a non-zero value:
+Generated module initializers register typed component factories. Create a
+world with the generated layout catalog:
+
+```csharp
+using var world = new World(GeneratedComponentCatalog.CreateLayoutRegistry());
+```
+
+The generator reports the stable schema ID for each component. Set
+`SchemaId` explicitly when a component's serialized identity must remain
+unchanged after a type rename:
 
 ```csharp
 [DeltaEcsComponent(SchemaId = 0x1234UL)]
@@ -45,15 +62,5 @@ public struct Position
 }
 ```
 
-Use `GeneratedComponentCatalog` to create the layout registry for each world.
-Generated module initializers add typed registration factories to the catalog;
-world setup does not scan assemblies or use reflection:
-
-```csharp
-using var world = new World(GeneratedComponentCatalog.CreateLayoutRegistry());
-```
-
-The schema-ID analyzer reports the generated ID so it can be pinned in source.
-The generator reports zero IDs and collisions within one compilation; the
-generated catalog checks collisions across loaded component assemblies when
-the layout registry is created.
+See the [DeltaECS documentation](https://github.com/Artromskiy/DeltaECS/wiki)
+for the runtime and generator APIs.
