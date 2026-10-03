@@ -305,5 +305,6 @@ To inspect generated C# in a consumer project, optionally enable:
 Generated files belong under the intermediate output directory; do not copy
 them into application source. See the [generator reference](src/DeltaECS.Generators/README.md)
 for supported callback shapes and diagnostics, and the
-[console / NativeAOT sample](../samples/DeltaECS.AotSample/Program.cs) for a
-complete application combining callbacks and a functor.
+[generated API consumer proof](../tests/DeltaECS.Generators.Consumer/ConsumerProof.cs),
+which the focused NativeAOT smoke app exercises with the same generated callback
+pattern in CI.

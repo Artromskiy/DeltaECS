@@ -612,4 +612,5 @@ single headline number as representative.
 - [API cookbook](docs/usage-examples.md) — focused examples and code-generation
   scenarios.
 - [Documentation index](docs/README.md) — package and topic guides.
-- [Runnable .NET / NativeAOT sample](samples/DeltaECS.AotSample/Program.cs).
+- [Generated API consumer proof](tests/DeltaECS.Generators.Consumer/ConsumerProof.cs).
+- [NativeAOT generated-callback smoke](tests/DeltaECS.Generators.Aot/Program.cs).

@@ -8,25 +8,8 @@ if (options.Help)
 }
 
 using var report = new StringWriter();
-Dictionary<int, string>? movementMethodNames = null;
-int[] rootMethodIds = [];
-if (options.Probe == ProfileProbe.Movement4)
-{
-    movementMethodNames = LoadMovementMethodNames();
-    rootMethodIds = ResolveRootMethodIds(options.Root, movementMethodNames);
-    PrepareMovement4(options, rootMethodIds);
-}
-
 WriteRunConfiguration(options, report);
-long checksum = options.Probe switch
-{
-    ProfileProbe.Movement4 => RunMovement4(
-        options,
-        report,
-        movementMethodNames ?? throw new InvalidOperationException("Movement4 metadata was not prepared."),
-        rootMethodIds),
-    _ => RunSmoke(options, report)
-};
+long checksum = RunSmoke(options, report);
 
 if ((options.Report.Sections & ProfileReportSections.Summary) != 0)
 {
@@ -54,18 +37,9 @@ static void WriteRunConfiguration(ProfileCommandLine options, TextWriter report)
         report.WriteLine("|:--|--:|");
     }
 
-    Write("Probe", options.Probe.ToString());
+    Write("Probe", "Smoke");
     Write("Depth", options.Depth);
-    Write("Launches", options.Launches);
-    Write("Warmups", options.Warmups);
-    Write("Root", options.Root ?? "All instrumented methods");
-    if (options.Probe == ProfileProbe.Movement4)
-    {
-        Write("Fixed entities", Movement4DelegateProfile.EntityCount);
-    }
     Write("Sample capacity", options.SampleCapacity);
-    Write("Correction", options.Correction.ToString());
-    Write("Correction minimum R²", options.CorrectionMinimumRSquared.ToString("F4", System.Globalization.CultureInfo.InvariantCulture));
     Write("Report sections", options.Report.Sections.ToString());
     Write("Report format", options.Report.Format.ToString());
     Write("Report sort", options.Report.Sort.ToString());
@@ -73,145 +47,6 @@ static void WriteRunConfiguration(ProfileCommandLine options, TextWriter report)
 
     void Write(string name, object value)
         => report.WriteLine(markdown ? $"| {name} | {value} |" : $"{name}: {value}");
-}
-
-static long RunMovement4(
-    ProfileCommandLine options,
-    TextWriter report,
-    IReadOnlyDictionary<int, string> methodNames,
-    ReadOnlySpan<int> rootMethodIds)
-{
-    ProfilerOverheadCalibration? calibration = options.Correction == ProfileCorrectionMode.Off
-        ? null
-        : ProfilerOverheadCalibrator.Calibrate(
-            options.Depth,
-            options.CalibrationWarmups,
-            options.CalibrationRuns,
-            options.CalibrationIterations,
-            options.CorrectionMinimumRSquared);
-
-    CallProfiler profiler = ProfilerRuntime.Start(options.Depth, options.SampleCapacity, rootMethodIds);
-    long checksum = 0;
-    try
-    {
-        for (int launch = 0; launch < options.Launches; launch++)
-        {
-            checksum = unchecked(checksum + Movement4DelegateProfile.Run());
-        }
-    }
-    finally
-    {
-        _ = ProfilerRuntime.Detach();
-    }
-
-    if (options.Correction == ProfileCorrectionMode.Required)
-    {
-        if (calibration is null || calibration.Value.RSquared < options.CorrectionMinimumRSquared)
-        {
-            string minimum = options.CorrectionMinimumRSquared.ToString(
-                "F4",
-                System.Globalization.CultureInfo.InvariantCulture);
-            string measured = calibration?.RSquared.ToString(
-                "F4",
-                System.Globalization.CultureInfo.InvariantCulture) ?? "unavailable";
-            throw new InvalidOperationException(
-                $"Correction requires R² >= {minimum}; measured {measured}.");
-        }
-
-        if (profiler.DroppedSamples != 0)
-        {
-            throw new InvalidOperationException(
-                $"Correction requires zero dropped samples; measured {profiler.DroppedSamples}.");
-        }
-    }
-    else if (profiler.DroppedSamples != 0)
-    {
-        calibration = null;
-    }
-
-    profiler.WriteReport(report, methodNames, calibration, options.Report);
-    return checksum;
-}
-
-static void PrepareMovement4(ProfileCommandLine options, ReadOnlySpan<int> rootMethodIds)
-{
-    for (int warmup = 0; warmup < options.Warmups; warmup++)
-    {
-        _ = Movement4DelegateProfile.Run();
-    }
-
-    CallProfiler pilot = ProfilerRuntime.Start(options.Depth, options.SampleCapacity, rootMethodIds);
-    try
-    {
-        _ = Movement4DelegateProfile.Run();
-    }
-    finally
-    {
-        _ = ProfilerRuntime.Detach();
-    }
-
-    if (pilot.DroppedSamples != 0 || pilot.SampleCount == 0)
-    {
-        throw new InvalidOperationException(
-            "The sample buffer must fit at least one complete Movement4 launch.");
-    }
-
-    int sampleBudget = checked((int)(options.SampleCapacity * 0.9));
-    int launches = Math.Max(1, sampleBudget / pilot.SampleCount);
-    options.SetCalibratedLaunches(launches);
-}
-
-static Dictionary<int, string> LoadMovementMethodNames()
-{
-    Dictionary<int, string> methodNames = ProfilerRuntime.LoadMethodNames(
-        typeof(Delta.ECS.World).Assembly);
-    MergeMethodNames(
-        methodNames,
-        ProfilerRuntime.LoadMethodNames(typeof(Movement4DelegateProfile).Assembly));
-    methodNames[0] = "DeltaECS.Profiling.Movement4DelegateProfile::Run";
-    return methodNames;
-}
-
-static int[] ResolveRootMethodIds(
-    string? selector,
-    IReadOnlyDictionary<int, string> methodNames)
-{
-    if (selector is null)
-    {
-        return [];
-    }
-
-    bool worldForEach = string.Equals(selector, "World.ForEach", StringComparison.OrdinalIgnoreCase);
-    int[] matches = methodNames
-        .Where(pair => worldForEach
-            ? pair.Value.StartsWith("DemandForEachExtensions_", StringComparison.Ordinal)
-                && pair.Value.EndsWith(".ForEach", StringComparison.Ordinal)
-            : pair.Value.Contains(selector, StringComparison.OrdinalIgnoreCase))
-        .Select(static pair => pair.Key)
-        .Distinct()
-        .ToArray();
-    if (matches.Length == 0)
-    {
-        throw new ArgumentException(
-            $"{ProfileArgumentNames.Root} '{selector}' did not match an instrumented method.");
-    }
-
-    return matches;
-}
-
-static void MergeMethodNames(Dictionary<int, string> target, IReadOnlyDictionary<int, string> source)
-{
-    foreach ((int methodId, string methodName) in source)
-    {
-        if (target.TryGetValue(methodId, out string? existingName)
-            && !string.Equals(existingName, methodName, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException(
-                $"Profile method ID collision between '{existingName}' and '{methodName}'.");
-        }
-
-        target[methodId] = methodName;
-    }
 }
 
 static long RunSmoke(ProfileCommandLine options, TextWriter report)

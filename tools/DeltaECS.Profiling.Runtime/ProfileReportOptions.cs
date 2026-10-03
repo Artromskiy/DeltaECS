@@ -38,7 +38,7 @@ public readonly record struct ProfileReportOptions(
     public static ProfileReportOptions Default { get; } = new(
         ProfileReportSections.All,
         ProfileReportFormat.Text,
-        ProfileReportSort.Adjusted);
+        ProfileReportSort.Raw);
 }
 
 /// <summary>Immutable aggregate for one instrumented method.</summary>

@@ -32,15 +32,17 @@ The repository must follow the shared first-party layout documented in the
 Furnace project standard. Before restore/build or a structural handoff, run:
 
 ```bash
-./eng/check-layout.sh
+./tools/check-layout.sh
 ```
 
 The gate checks the mandatory top-level directories, rejects unexpected
 tracked top-level folders, requires src/DeltaECS/ as the primary source
 project, and requires source siblings to use the src/DeltaECS.<Area>/ form.
-samples/ contains runnable examples; probes/ contains bounded
-headless/compiler/contract checks. Empty mandatory domains stay tracked with
-.gitkeep.
+probes/ contains bounded headless/compiler/contract checks. The generated API
+consumer proof under tests/ covers the complete generated API. The focused
+`tests/DeltaECS.Generators.Aot` smoke app reuses the same generated-callback
+pattern for the NativeAOT build-and-run check.
+Empty mandatory domains stay tracked with .gitkeep.
 
 Correctness first:
 
@@ -106,14 +108,13 @@ JIT and profiler output remains under ignored `artifacts/`; the durable result
 belongs in the ledger. A rejected mechanism may be retried only when the entry
 states what materially changed in the implementation or measurement.
 
-For hierarchical self/inner timing, use the isolated Metalama profiling build:
+For a profiler collector smoke check (not an ECS benchmark), run:
 
 ```bash
-tools/profile-hotpath.sh --movement4 --depth 16 \
-  --correction optional --sort adjusted \
-  --destination file --output artifacts/profiling/movement4.txt
+tools/profile-hotpath.sh --smoke --depth 16 --warmups 2
 ```
 
-The profiler does not modify production `DeltaECS.dll`. Its architecture,
-metric definitions, CLI and smoke commands are documented in
+The profiler's smoke workload verifies collection and report generation. Use
+the benchmark projects for ECS iteration measurements; profiler output is not
+a substitute for those benchmarks. Details are in
 [docs/tools/DeltaECS.Profiling/README.md](docs/tools/DeltaECS.Profiling/README.md).

@@ -2,6 +2,10 @@
 [Bb]in/
 [Oo]bj/
 [Aa]rtifacts/
+!/artifacts/
+!/artifacts/.gitkeep
+/artifacts/*
+!/artifacts/.gitkeep
 [Dd]ebug/
 [Rr]elease/
 publish/
@@ -16,11 +20,8 @@ coverage.*
 # IDE and user state
 .vs/
 .idea/
-# Keep only the shared root settings; ignore nested/local VS Code state.
+# Ignore VS Code workspace settings in this repository.
 **/.vscode/
-!/.vscode/
-!/.vscode/settings.json
-!/.vscode/extensions.json
 *.suo
 *.user
 *.userosscache

@@ -7,8 +7,6 @@
   </Folder>
   <Project Path="benchmarks/DeltaECS.ArrayRefBenchmarks/DeltaECS.ArrayRefBenchmarks.csproj" />
   <Project Path="benchmarks/DeltaECS.MicroBenchmarks/DeltaECS.MicroBenchmarks.csproj" />
-  <Project Path="playground/DeltaECS.Playground/DeltaECS.Playground.csproj" />
-  <Project Path="samples/DeltaECS.AotSample/DeltaECS.AotSample.csproj" />
   <Project Path="src/DeltaECS/DeltaECS.csproj" />
   <Project Path="src/DeltaECS.Generators/DeltaECS.Generators.csproj" />
   <Project Path="src/DeltaECS.Systems/DeltaECS.Systems.csproj" />

@@ -2,19 +2,6 @@ using System.Globalization;
 
 namespace DeltaECS.Profiling;
 
-internal enum ProfileProbe : byte
-{
-    Smoke,
-    Movement4
-}
-
-internal enum ProfileCorrectionMode : byte
-{
-    Off,
-    Optional,
-    Required
-}
-
 internal enum ProfileOutputDestination : byte
 {
     Automatic,
@@ -25,27 +12,13 @@ internal enum ProfileOutputDestination : byte
 
 internal sealed class ProfileCommandLine
 {
-    internal ProfileProbe Probe { get; private set; } = ProfileProbe.Smoke;
-
     internal int Depth { get; private set; } = 16;
 
     internal int Launches { get; private set; } = 1;
 
     internal int Warmups { get; private set; }
 
-    internal string? Root { get; private set; }
-
     internal int SampleCapacity { get; private set; } = 1_048_576;
-
-    internal ProfileCorrectionMode Correction { get; private set; }
-
-    internal double CorrectionMinimumRSquared { get; private set; } = 0.8;
-
-    internal int CalibrationWarmups { get; private set; } = 2;
-
-    internal int CalibrationRuns { get; private set; } = 7;
-
-    internal int CalibrationIterations { get; private set; } = 65_536;
 
     internal ProfileReportOptions Report { get; private set; } = ProfileReportOptions.Default;
 
@@ -59,19 +32,13 @@ internal sealed class ProfileCommandLine
     {
         ArgumentNullException.ThrowIfNull(arguments);
         var result = new ProfileCommandLine();
-        bool probeSpecified = false;
-        bool correctionSpecified = false;
         int index = 0;
         for (; index < arguments.Length; index++)
         {
             string argument = arguments[index];
             switch (argument)
             {
-                case ProfileArgumentNames.Movement4:
-                    SetProbe(ProfileProbe.Movement4);
-                    break;
                 case ProfileArgumentNames.Smoke:
-                    SetProbe(ProfileProbe.Smoke);
                     break;
                 case ProfileArgumentNames.Depth:
                     result.Depth = ParsePositive(NextValue(ProfileArgumentNames.Depth));
@@ -79,30 +46,8 @@ internal sealed class ProfileCommandLine
                 case ProfileArgumentNames.Warmups:
                     result.Warmups = ParseNonNegative(NextValue(ProfileArgumentNames.Warmups));
                     break;
-                case ProfileArgumentNames.Root:
-                    result.Root = NextValue(ProfileArgumentNames.Root);
-                    break;
                 case ProfileArgumentNames.SampleCapacity:
                     result.SampleCapacity = ParsePositive(NextValue(ProfileArgumentNames.SampleCapacity));
-                    break;
-                case ProfileArgumentNames.Correction:
-                    result.Correction = ParseCorrection(NextValue(ProfileArgumentNames.Correction));
-                    correctionSpecified = true;
-                    break;
-                case ProfileArgumentNames.CorrectionMinimumRSquared:
-                    result.CorrectionMinimumRSquared = ParseProbability(
-                        NextValue(ProfileArgumentNames.CorrectionMinimumRSquared));
-                    break;
-                case ProfileArgumentNames.CalibrationWarmups:
-                    result.CalibrationWarmups = ParseNonNegative(
-                        NextValue(ProfileArgumentNames.CalibrationWarmups));
-                    break;
-                case ProfileArgumentNames.CalibrationRuns:
-                    result.CalibrationRuns = ParsePositive(NextValue(ProfileArgumentNames.CalibrationRuns));
-                    break;
-                case ProfileArgumentNames.CalibrationIterations:
-                    result.CalibrationIterations = ParsePositive(
-                        NextValue(ProfileArgumentNames.CalibrationIterations));
                     break;
                 case ProfileArgumentNames.Sections:
                     result.Report = result.Report with
@@ -136,29 +81,12 @@ internal sealed class ProfileCommandLine
             }
         }
 
-        if (!correctionSpecified && result.Probe == ProfileProbe.Movement4)
-        {
-            result.Correction = ProfileCorrectionMode.Optional;
-        }
-
         if (!result.Help)
         {
             result.Validate();
         }
 
         return result;
-
-        void SetProbe(ProfileProbe probe)
-        {
-            if (probeSpecified && result.Probe != probe)
-            {
-                throw new ArgumentException(
-                    $"{ProfileArgumentNames.Movement4} and {ProfileArgumentNames.Smoke} cannot be combined.");
-            }
-
-            result.Probe = probe;
-            probeSpecified = true;
-        }
 
         string NextValue(string name)
         {
@@ -174,53 +102,22 @@ internal sealed class ProfileCommandLine
     internal static void PrintUsage(TextWriter writer)
     {
         ArgumentNullException.ThrowIfNull(writer);
-        writer.WriteLine("Usage: profile-hotpath.sh [probe] [measurement] [correction] [report]");
-        writer.WriteLine();
-        writer.WriteLine($"Probe: {ProfileArgumentNames.Movement4} | {ProfileArgumentNames.Smoke}");
+        writer.WriteLine("Usage: profile-hotpath.sh [--smoke] [options]");
         writer.WriteLine(
             $"Measurement: {ProfileArgumentNames.Depth} N {ProfileArgumentNames.Warmups} N "
-            + $"{ProfileArgumentNames.SampleCapacity} N {ProfileArgumentNames.Root} METHOD");
-        writer.WriteLine(
-            $"Correction: {ProfileArgumentNames.Correction} off|optional|required "
-            + $"{ProfileArgumentNames.CorrectionMinimumRSquared} 0..1");
-        writer.WriteLine(
-            $"Calibration: {ProfileArgumentNames.CalibrationWarmups} N "
-            + $"{ProfileArgumentNames.CalibrationRuns} N {ProfileArgumentNames.CalibrationIterations} N");
+            + $"{ProfileArgumentNames.SampleCapacity} N");
         writer.WriteLine(
             $"Report: {ProfileArgumentNames.Sections} summary,table,tree "
-            + $"{ProfileArgumentNames.Format} markdown|text {ProfileArgumentNames.Sort} raw|adjusted|self|calls");
+            + $"{ProfileArgumentNames.Format} markdown|text {ProfileArgumentNames.Sort} raw|self|calls");
         writer.WriteLine(
             $"Output: {ProfileArgumentNames.Destination} console|file|both {ProfileArgumentNames.Output} FILE");
     }
 
-    internal void SetCalibratedLaunches(int launches)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(launches);
-        Launches = launches;
-    }
-
     private void Validate()
     {
-        if (Probe == ProfileProbe.Smoke && Correction != ProfileCorrectionMode.Off)
-        {
-            throw new ArgumentException(
-                $"{ProfileArgumentNames.Correction} is available only with {ProfileArgumentNames.Movement4}.");
-        }
-
-        if (Probe == ProfileProbe.Smoke && Root is not null)
-        {
-            throw new ArgumentException(
-                $"{ProfileArgumentNames.Root} is available only with {ProfileArgumentNames.Movement4}.");
-        }
-
         if (Report.Sections == ProfileReportSections.None)
         {
             throw new ArgumentException($"{ProfileArgumentNames.Sections} must include at least one section.");
-        }
-
-        if (Root is not null && string.IsNullOrWhiteSpace(Root))
-        {
-            throw new ArgumentException($"{ProfileArgumentNames.Root} must contain a method selector.");
         }
 
         ProfileOutputDestination effectiveDestination = Destination == ProfileOutputDestination.Automatic
@@ -245,21 +142,6 @@ internal sealed class ProfileCommandLine
         => int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int result) && result >= 0
             ? result
             : throw new ArgumentException($"'{value}' must be a non-negative integer.");
-
-    private static double ParseProbability(string value)
-        => double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double result)
-            && result is >= 0 and <= 1
-                ? result
-                : throw new ArgumentException($"'{value}' must be between 0 and 1.");
-
-    private static ProfileCorrectionMode ParseCorrection(string value)
-        => value.ToUpperInvariant() switch
-        {
-            "OFF" => ProfileCorrectionMode.Off,
-            "OPTIONAL" => ProfileCorrectionMode.Optional,
-            "REQUIRED" => ProfileCorrectionMode.Required,
-            _ => throw new ArgumentException($"Unknown correction mode '{value}'.")
-        };
 
     private static ProfileReportSections ParseSections(string value)
     {
@@ -291,7 +173,6 @@ internal sealed class ProfileCommandLine
         => value.ToUpperInvariant() switch
         {
             "RAW" => ProfileReportSort.Raw,
-            "ADJUSTED" => ProfileReportSort.Adjusted,
             "SELF" => ProfileReportSort.Self,
             "CALLS" => ProfileReportSort.Calls,
             _ => throw new ArgumentException($"Unknown report sort '{value}'.")

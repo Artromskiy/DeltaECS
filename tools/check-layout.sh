@@ -7,13 +7,9 @@ required_directories=(
     src
     tests
     benchmarks
-    samples
     probes
-    playground
     tools
-    adr
     docs
-    eng
     artifacts
     assets
 )
@@ -29,14 +25,14 @@ done
 
 while IFS= read -r tracked_directory; do
     case "$tracked_directory" in
-        .github|.vscode|src|tests|benchmarks|samples|probes|playground|tools|adr|docs|eng|artifacts|assets)
+        .github|src|tests|benchmarks|probes|tools|docs|artifacts|assets)
             ;;
         *)
             printf 'layout: unexpected tracked top-level directory: %s\n' "$tracked_directory" >&2
             failed=1
             ;;
     esac
-done < <(git -C "$repo_root" ls-tree -d --name-only HEAD | sort)
+done < <(git -C "$repo_root" ls-files | awk -F/ 'NF > 1 { print $1 }' | sort -u)
 
 primary_source="$repo_root/src/$project_name"
 if [[ ! -d "$primary_source" ]]; then
@@ -57,9 +53,9 @@ if [[ -d "$source_root" ]]; then
                 ;;
         esac
     done < <(
-        git -C "$repo_root" ls-tree -d --name-only HEAD src/ |
-            sed 's#^src/##' |
-            sort
+        git -C "$repo_root" ls-files 'src/*' |
+            awk -F/ 'NF > 2 { print $2 }' |
+            sort -u
     )
 fi
 

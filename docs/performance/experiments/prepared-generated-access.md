@@ -25,22 +25,9 @@ checks. This is not a new public trusted escape hatch.
 
 ## Profile evidence
 
-Command, run from the candidate worktree:
-
-```bash
-tools/profile-hotpath.sh \
-  --movement4 \
-  --root World.ForEach \
-  --depth 32 \
-  --warmups 10 \
-  --correction optional \
-  --sample-capacity 4000000 \
-  --sections all \
-  --format text \
-  --sort adjusted \
-  --destination file \
-  --output artifacts/profiling/prepared-generated-access-movement4-foreach-hot-cache-depth32.txt
-```
+The profile below is retained as historical evidence. The dedicated
+`Movement4` profiling workload has since been removed; the current
+`tools/profile-hotpath.sh` only validates profiler collection and report output.
 
 | Field | Value |
 | --- | ---: |

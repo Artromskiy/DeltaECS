@@ -142,8 +142,7 @@ public sealed class CallProfiler
                     writer.WriteLine(
                         (markdown ? "> **Calibration warning:** " : "Calibration warning: ")
                         + $"R² < {calibrated.MinimumRSquared.ToString("F4", CultureInfo.InvariantCulture)}; "
-                        + $"increase {ProfileArgumentNames.CalibrationIterations} "
-                        + $"or {ProfileArgumentNames.CalibrationRuns}.");
+                        + "increase the calibration sample count or simplify the measured call path.");
                 }
             }
 

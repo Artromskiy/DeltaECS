@@ -1,13 +1,10 @@
 using System.Runtime.CompilerServices;
-using System.Reflection;
 
 namespace DeltaECS.Profiling;
 
-/// <summary>Process-local entry point used by Metalama-instrumented methods.</summary>
+/// <summary>Process-local entry point used by instrumented methods.</summary>
 public static class ProfilerRuntime
 {
-    private const int InitialMetadataCapacity = 2_048;
-
     [ThreadStatic]
     private static CallProfiler? s_current;
 
@@ -56,50 +53,4 @@ public static class ProfilerRuntime
         s_current?.ExitMethod(methodId);
     }
 
-    /// <summary>Builds the method-name map from compile-time Metalama metadata.</summary>
-    public static Dictionary<int, string> LoadMethodNames(Assembly assembly)
-    {
-        ArgumentNullException.ThrowIfNull(assembly);
-        var result = new Dictionary<int, string>(InitialMetadataCapacity);
-        foreach (Type type in assembly.GetTypes())
-        {
-            foreach (MethodInfo method in type.GetMethods(
-                         BindingFlags.Public
-                         | BindingFlags.NonPublic
-                         | BindingFlags.Instance
-                         | BindingFlags.Static
-                         | BindingFlags.DeclaredOnly))
-            {
-                foreach (ProfiledMethodMetadataAttribute metadata in
-                         method.GetCustomAttributes<ProfiledMethodMetadataAttribute>())
-                {
-                    if (result.TryGetValue(metadata.MethodId, out string? existingName)
-                        && !string.Equals(existingName, metadata.Name, StringComparison.Ordinal))
-                    {
-                        throw new InvalidOperationException(
-                            $"Profile method ID collision between '{existingName}' and '{metadata.Name}'.");
-                    }
-
-                    result[metadata.MethodId] = metadata.Name;
-                }
-            }
-        }
-
-        return result;
-    }
-}
-
-/// <summary>Compile-time method identity emitted by the profiling-only Metalama build.</summary>
-[AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = false)]
-public sealed class ProfiledMethodMetadataAttribute : Attribute
-{
-    public ProfiledMethodMetadataAttribute(int methodId, string name)
-    {
-        MethodId = methodId;
-        Name = name;
-    }
-
-    public int MethodId { get; }
-
-    public string Name { get; }
 }
