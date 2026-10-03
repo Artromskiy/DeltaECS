@@ -293,6 +293,6 @@ namespace Ecs.CSharp.Benchmark.Contexts
 
     public static class ParallelContext
     {
-        public static int ParallelWorkerCount = Environment.ProcessorCount - 1;
+        public static int ParallelWorkerCount = Environment.ProcessorCount;
     }
 }

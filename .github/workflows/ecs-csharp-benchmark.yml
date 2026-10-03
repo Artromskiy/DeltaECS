@@ -135,10 +135,30 @@ jobs:
               "$ENTITY_COUNTS" "$MIN_ITERATION_COUNT" "$ITERATION_TIME_MS" \
               "${{ runner.os }}" "${{ runner.arch }}"
             echo
+            echo '### Benchmark suites'
+            echo
+            echo '| Suite | Workload |'
+            echo '|---|---|'
+            echo '| `CreateEntityWithOneComponent` | Entity creation with one component |'
+            echo '| `CreateEntityWithTwoComponents` | Entity creation with two components |'
+            echo '| `CreateEntityWithThreeComponents` | Entity creation with three components |'
+            echo '| `SystemWithOneComponent` | Iteration over one component |'
+            echo '| `SystemWithTwoComponents` | Iteration over two components |'
+            echo '| `SystemWithThreeComponents` | Iteration over three components |'
+            echo '| `SystemWithTwoComponentsMultipleComposition` | Iteration over two components across multiple compositions |'
+            echo
             echo 'Slow ECS adapters are excluded from this run.'
             echo
 
             IFS=',' read -r -a entity_counts <<< "$ENTITY_COUNTS"
+            requested_count=0
+            for entity_count in "${entity_counts[@]}"; do
+              entity_count="${entity_count//[[:space:]]/}"
+              if [[ "$entity_count" =~ ^[1-9][0-9]*$ ]]; then
+                requested_count=$((requested_count + 1))
+              fi
+            done
+            expected_report_count=$((requested_count * 7))
             report_count=0
             for entity_count in "${entity_counts[@]}"; do
               entity_count="${entity_count//[[:space:]]/}"
@@ -155,11 +175,27 @@ jobs:
               echo
               for report in "${reports[@]}"; do
                 report_count=$((report_count + 1))
+                suite="$(basename "$report" -report-github.md)"
+                suite="${suite#Ecs.CSharp.Benchmark.}"
+                case "$suite" in
+                  CreateEntityWithOneComponent) description='Entity creation · one component' ;;
+                  CreateEntityWithTwoComponents) description='Entity creation · two components' ;;
+                  CreateEntityWithThreeComponents) description='Entity creation · three components' ;;
+                  SystemWithOneComponent) description='Iteration · one component' ;;
+                  SystemWithTwoComponents) description='Iteration · two components' ;;
+                  SystemWithThreeComponents) description='Iteration · three components' ;;
+                  SystemWithTwoComponentsMultipleComposition) description='Iteration · two components across multiple compositions' ;;
+                  *) description='Benchmark suite' ;;
+                esac
+                echo "#### $suite — $description"
+                echo
                 cat "$report"
                 echo
               done
             done
 
+            echo "Result tables: $report_count / $expected_report_count expected suites."
+            echo
             if [ "$report_count" -eq 0 ]; then
               echo 'No BenchmarkDotNet result tables were produced. See the job logs for the failure.'
             fi
