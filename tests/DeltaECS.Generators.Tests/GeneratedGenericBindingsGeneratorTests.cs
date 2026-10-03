@@ -7,6 +7,14 @@ namespace Delta.ECS.Generators.Tests;
 public class GeneratedGenericBindingsGeneratorTests
 {
     [Test]
+    public void StructGenericActionListsRegisterTokensForTheirClosedTypeArguments()
+    {
+        Assert.That(
+            Delta.ECS.Generators.Consumer.ConsumerProof.RunStructGenericListTokenRegistration(),
+            Is.EqualTo(1));
+    }
+
+    [Test]
     public void GenericComponentRegistrationCompilesWithCSharp9()
     {
         const string source = """

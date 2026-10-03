@@ -17,6 +17,39 @@ public struct Team { public int Id; public int DefaultHealth; }
 public struct Dead { }
 public struct NeedsRespawn { public int Value; }
 public struct Alive { }
+internal struct ClosedGenericListComponent { public int Value; }
+internal struct GenericListHistory<T> { public T Value; }
+
+internal interface IClosedGenericStructAction
+{
+    void Invoke<T>() where T : struct;
+}
+
+internal static class ClosedGenericStructComponentList
+{
+    public static void ForEachData<TAction>(ref TAction action)
+        where TAction : struct, IClosedGenericStructAction
+        => action.Invoke<ClosedGenericListComponent>();
+}
+
+internal struct RegisterClosedGenericListComponent : IClosedGenericStructAction
+{
+    private readonly ComponentLayoutRegistry _layouts;
+
+    public RegisterClosedGenericListComponent(ComponentLayoutRegistry layouts)
+    {
+        _layouts = layouts;
+    }
+
+    public void Invoke<T>() where T : struct
+        => _layouts.Register<T>(new SchemaId(91901));
+}
+
+internal struct CopyGenericListHistory<T> : IForEach
+{
+    public void Invoke(ref GenericListHistory<T> history, in T component)
+        => history.Value = component;
+}
 
 public struct ConsumerContext { public int Value; }
 public struct RuntimeGenericContext { public int Count; public int LastEntityIndex; public int[]? Calls; }
@@ -1035,6 +1068,26 @@ internal static class ConstraintFunctorCounter
 
 public static partial class ConsumerProof
 {
+    public static int RunStructGenericListTokenRegistration()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        var register = new RegisterClosedGenericListComponent(layouts);
+        ClosedGenericStructComponentList.ForEachData(ref register);
+
+        ComponentId component = layouts.GetPrimary<ClosedGenericListComponent>();
+        ComponentId history = layouts.Register(typeof(GenericListHistory<>), component, new SchemaId(91902));
+        using var world = new World(layouts);
+        Entity entity = world.Create(component, history);
+        world.GetRef<ClosedGenericListComponent>(entity, component).Value = 42;
+        Query query = world.WhereAll(component, history);
+
+        world.ForEach(in query, component, typeof(CopyGenericListHistory<>));
+
+        return world.Get<GenericListHistory<ClosedGenericListComponent>>(entity, history).Value.Value == 42
+            ? 1
+            : 0;
+    }
+
     public static int RunStandardGenericConstraints()
     {
         using var world = new World();

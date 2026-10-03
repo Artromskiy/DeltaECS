@@ -41,10 +41,13 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
             var componentTypes = new Dictionary<string, ITypeSymbol>(StringComparer.Ordinal);
             var componentDefinitions = new Dictionary<string, INamedTypeSymbol>(StringComparer.Ordinal);
             var functorDefinitions = new Dictionary<string, INamedTypeSymbol>(StringComparer.Ordinal);
+            bool hasStructGenericTypeList = false;
 
             foreach (GenericBindingDiscovery discovery in discovered)
             {
+                hasStructGenericTypeList |= discovery.IsStructGenericTypeList;
                 if (discovery.RegisteredComponentType is ITypeSymbol registeredType
+                    && IsClosedType(registeredType)
                     && GeneratorSupport.IsAccessibleSymbol(registeredType))
                 {
                     AddIfMissing(componentTypes, GeneratorSupport.DisplayType(registeredType), registeredType);
@@ -116,7 +119,10 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
                     constraints));
             }
 
-            if (componentDispatchers.Count == 0 && functorDispatchers.Count == 0 && componentRegistrationArities.Count == 0)
+            if (componentDispatchers.Count == 0
+                && functorDispatchers.Count == 0
+                && componentRegistrationArities.Count == 0
+                && !hasStructGenericTypeList)
             {
                 return;
             }
@@ -171,8 +177,47 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
             }
         }
 
-        return ReadFunctorDiscovery(invocation, syntax.SemanticModel);
+        return ReadStructGenericTypeListDiscovery(method, invocation.GetLocation())
+            ?? ReadFunctorDiscovery(invocation, syntax.SemanticModel);
     }
+
+    private static GenericBindingDiscovery? ReadStructGenericTypeListDiscovery(IMethodSymbol method, Location location)
+    {
+        IMethodSymbol definition = method.OriginalDefinition;
+        if (definition.Name != "Invoke"
+            || definition.ContainingType.TypeKind != TypeKind.Interface
+            || !definition.ReturnsVoid
+            || definition.Parameters.Length != 0
+            || definition.TypeParameters.Length != 1
+            || !(definition.TypeParameters[0].HasValueTypeConstraint
+                || definition.TypeParameters[0].HasUnmanagedTypeConstraint)
+            || method.TypeArguments.Length != 1)
+        {
+            return null;
+        }
+
+        ITypeSymbol componentType = method.TypeArguments[0];
+        if (!componentType.IsValueType
+            || !IsClosedType(componentType)
+            || !GeneratorSupport.IsAccessibleSymbol(componentType))
+        {
+            return null;
+        }
+
+        // A closed invocation is the compile-time type list for struct-generic actions.
+        return new GenericBindingDiscovery(componentType, null, null, location, isStructGenericTypeList: true);
+    }
+
+    private static bool IsClosedType(ITypeSymbol type)
+        => type switch
+        {
+            ITypeParameterSymbol => false,
+            IArrayTypeSymbol array => IsClosedType(array.ElementType),
+            IPointerTypeSymbol pointer => IsClosedType(pointer.PointedAtType),
+            INamedTypeSymbol namedType => !namedType.IsUnboundGenericType
+                && namedType.TypeArguments.All(IsClosedType),
+            _ => true,
+        };
 
     private static GenericBindingDiscovery? ReadGenericComponentRegistrationDiscovery(InvocationExpressionSyntax invocation, SemanticModel semanticModel)
     {
@@ -280,11 +325,13 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
         ITypeSymbol? registeredComponentType,
         INamedTypeSymbol? genericComponentDefinition,
         INamedTypeSymbol? genericFunctorDefinition,
-        Location location)
+        Location location,
+        bool isStructGenericTypeList = false)
     {
         internal ITypeSymbol? RegisteredComponentType { get; } = registeredComponentType;
         internal INamedTypeSymbol? GenericComponentDefinition { get; } = genericComponentDefinition;
         internal INamedTypeSymbol? GenericFunctorDefinition { get; } = genericFunctorDefinition;
         internal Location Location { get; } = location;
+        internal bool IsStructGenericTypeList { get; } = isStructGenericTypeList;
     }
 }
