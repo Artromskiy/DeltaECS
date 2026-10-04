@@ -1,3 +1,5 @@
+#pragma warning disable CS1591 // Public members are compiler-support API hidden with EditorBrowsable(Never).
+
 namespace Delta.ECS;
 
 using System;

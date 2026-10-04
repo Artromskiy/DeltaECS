@@ -4,39 +4,56 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
+/// <summary>Identifies one component registration within a layout registry.</summary>
 public readonly struct ComponentId : IEquatable<ComponentId>, IComparable<ComponentId>
 {
+    /// <summary>Gets the registry-local numeric value of this identifier.</summary>
     public int Value { get; }
 
+    /// <summary>Creates a component identifier from its registry-local numeric value.</summary>
+    /// <param name="value">The numeric identifier; negative values are invalid.</param>
     public ComponentId(int value)
     {
         Value = value;
     }
 
+    /// <summary>Gets whether this identifier represents a registered component.</summary>
     public bool IsValid => Value >= 0;
 
+    /// <summary>Gets the invalid component identifier.</summary>
     public static ComponentId Invalid => new(-1);
 
+    /// <summary>Compares this identifier with another identifier.</summary>
     public int CompareTo(ComponentId other) => Value.CompareTo(other.Value);
 
+    /// <summary>Determines whether this identifier equals another identifier.</summary>
     public bool Equals(ComponentId other) => Value == other.Value;
 
+    /// <summary>Determines whether this identifier equals the specified object.</summary>
     public override bool Equals(object? obj) => obj is ComponentId other && Equals(other);
 
+    /// <summary>Returns a hash code for this identifier.</summary>
     public override int GetHashCode() => Value.GetHashCode();
 
+    /// <summary>Determines whether two component identifiers are equal.</summary>
     public static bool operator ==(ComponentId left, ComponentId right) => left.Equals(right);
 
+    /// <summary>Determines whether two component identifiers are different.</summary>
     public static bool operator !=(ComponentId left, ComponentId right) => !left.Equals(right);
 
+    /// <summary>Determines whether the first identifier sorts before the second.</summary>
     public static bool operator <(ComponentId left, ComponentId right) => left.CompareTo(right) < 0;
 
+    /// <summary>Determines whether the first identifier sorts before or equals the second.</summary>
     public static bool operator <=(ComponentId left, ComponentId right) => left.CompareTo(right) <= 0;
 
+    /// <summary>Determines whether the first identifier sorts after the second.</summary>
     public static bool operator >(ComponentId left, ComponentId right) => left.CompareTo(right) > 0;
 
+    /// <summary>Determines whether the first identifier sorts after or equals the second.</summary>
     public static bool operator >=(ComponentId left, ComponentId right) => left.CompareTo(right) >= 0;
 
+    /// <summary>Returns the numeric identifier as text.</summary>
     public override string ToString() => Value.ToString();
 }
 
@@ -376,25 +393,35 @@ internal sealed class NativeComponentMaskStorage
     }
 }
 
+/// <summary>Stable application-defined identity for a component registration.</summary>
 public readonly struct SchemaId : IEquatable<SchemaId>
 {
+    /// <summary>Gets the stable numeric schema value.</summary>
     public ulong Value { get; }
 
+    /// <summary>Creates a schema identifier from an application-defined value.</summary>
+    /// <param name="value">A nonzero identity that remains stable across runs.</param>
     public SchemaId(ulong value)
     {
         Value = value;
     }
 
+    /// <summary>Determines whether this schema identifier equals another identifier.</summary>
     public bool Equals(SchemaId other) => Value == other.Value;
 
+    /// <summary>Determines whether this schema identifier equals the specified object.</summary>
     public override bool Equals(object? obj) => obj is SchemaId other && Equals(other);
 
+    /// <summary>Returns a hash code for this schema identifier.</summary>
     public override int GetHashCode() => Value.GetHashCode();
 
+    /// <summary>Returns the numeric schema value as text.</summary>
     public override string ToString() => Value.ToString();
 
+    /// <summary>Determines whether two schema identifiers are equal.</summary>
     public static bool operator ==(SchemaId left, SchemaId right) => left.Equals(right);
 
+    /// <summary>Determines whether two schema identifiers are different.</summary>
     public static bool operator !=(SchemaId left, SchemaId right) => !left.Equals(right);
 }
 

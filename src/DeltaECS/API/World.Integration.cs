@@ -3,6 +3,7 @@ namespace Delta.ECS;
 using System;
 using Delta.ECS.Integration;
 
+/// <summary>Implements the object-based tooling integration contract for a world.</summary>
 public sealed partial class World : IEcsWorld
 {
     private RuntimeComponentCatalog _integrationCatalog;

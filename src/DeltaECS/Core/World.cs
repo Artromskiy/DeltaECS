@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
+/// <summary>Owns entities, component storage, archetypes, and cached queries.</summary>
 public sealed partial class World : IDisposable
 {
     private const int DefaultInitialCapacity = 1024;
@@ -61,6 +62,9 @@ public sealed partial class World : IDisposable
     [ThreadStatic]
     private static World? _schedulerExecutionWorld;
 
+    /// <summary>Creates a world using the supplied component layouts.</summary>
+    /// <param name="layouts">The registered component layouts, or null to create an empty registry.</param>
+    /// <param name="initialEntityCapacity">The initial capacity for entity records.</param>
     public World(
         ComponentLayoutRegistry? layouts = null,
         int initialEntityCapacity = DefaultInitialCapacity)
@@ -73,6 +77,7 @@ public sealed partial class World : IDisposable
 
     private int _aliveEntityCount;
 
+    /// <summary>Gets the number of entities currently alive in this world.</summary>
     public int AliveEntityCount
     {
         get
@@ -83,6 +88,7 @@ public sealed partial class World : IDisposable
         private set => _aliveEntityCount = value;
     }
 
+    /// <summary>Gets the registry containing this world's component layouts.</summary>
     public ComponentLayoutRegistry Layouts
     {
         get
@@ -181,6 +187,7 @@ public sealed partial class World : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    /// <summary>Creates a cached query from a component filter specification.</summary>
     public Query CreateQuery(in QuerySpec spec)
     {
         EnsureExecutionAccess();
@@ -217,6 +224,7 @@ public sealed partial class World : IDisposable
     public Query WhereNone(ComponentId component)
         => CreateQuery(QuerySpec.WhereNone(component));
 
+    /// <summary>Creates one entity with the supplied component registrations.</summary>
     public Entity Create(ReadOnlySpan<ComponentId> componentIds)
     {
         Span<Entity> entities = stackalloc Entity[1];
@@ -231,6 +239,7 @@ public sealed partial class World : IDisposable
     public int Create(ComponentId componentId, int count, Span<Entity> output)
         => Create(stackalloc ComponentId[1] { componentId }, count, output);
 
+    /// <summary>Creates one entity for each output slot and stores its handle.</summary>
     public int Create(ReadOnlySpan<ComponentId> componentIds, Span<Entity> output)
     {
         EnsureNoActiveLease("create entities");
@@ -493,6 +502,7 @@ public sealed partial class World : IDisposable
         }
     }
 
+    /// <summary>Destroys one entity and reports whether the handle was alive.</summary>
     public bool Destroy(Entity entity)
     {
         EnsureNoActiveLease("destroy entities");
@@ -505,6 +515,7 @@ public sealed partial class World : IDisposable
         return true;
     }
 
+    /// <summary>Destroys the alive entities in a caller-provided span.</summary>
     public int Destroy(ReadOnlySpan<Entity> entities)
     {
         EnsureNoActiveLease("destroy entities");
@@ -640,6 +651,7 @@ public sealed partial class World : IDisposable
         return destroyed;
     }
 
+    /// <summary>Determines whether an entity handle is alive in this world.</summary>
     public bool IsAlive(Entity entity)
     {
         EnsureExecutionAccess();
@@ -663,6 +675,7 @@ public sealed partial class World : IDisposable
         return _archetypes[chunk.ArchetypeId].Contains(componentId);
     }
 
+    /// <summary>Gets the current value revision for a data component on an entity.</summary>
     public bool TryGetComponentStamp(Entity entity, ComponentId componentId, out Stamp stamp)
     {
         EnsureExecutionAccess();
@@ -787,6 +800,7 @@ public sealed partial class World : IDisposable
     public int Remove(in Query query, ComponentId componentId)
         => Remove(in query, stackalloc ComponentId[] { componentId });
 
+    /// <summary>Destroys every entity selected by a query and returns the number destroyed.</summary>
     public int Destroy(in Query query)
     {
         EnsureExecutionAccess();

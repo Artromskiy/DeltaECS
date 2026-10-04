@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 
+/// <summary>Registers component CLR types and their stable schema identities.</summary>
 public sealed partial class ComponentLayoutRegistry
 {
     private readonly Dictionary<SchemaId, int> _idsBySchema = new();
