@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using Delta.ECS;
 using Delta.ECS.Integration;
 using UnityEngine;
@@ -65,6 +66,20 @@ namespace Delta.ECS.Unity
             }
 
             sceneWorld = null;
+            entity = default;
+            return false;
+        }
+
+        /// <summary>Resolves the live ECS world and entity currently associated with a Unity view.</summary>
+        public static bool TryGetBoundEntity(GameObject view, [NotNullWhen(true)] out World world, out Entity entity)
+        {
+            if (view != null && TryFindLiveWorld(view, out SceneWorld sceneWorld, out entity))
+            {
+                world = sceneWorld.World;
+                return true;
+            }
+
+            world = null;
             entity = default;
             return false;
         }
