@@ -66,7 +66,7 @@ namespace Ecs.CSharp.Benchmark
         [Context]
         private readonly DefaultEcsContext _defaultEcs;
 
-        [BenchmarkCategory(Categories.DefaultEcs)]
+        [BenchmarkCategory(Categories.DefaultEcs, Categories.SingleThread)]
         [Benchmark]
         public int DefaultEcsMonoThread()
         {
@@ -74,7 +74,7 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
-        [BenchmarkCategory(Categories.DefaultEcs)]
+        [BenchmarkCategory(Categories.DefaultEcs, Categories.MultiThread)]
         [Benchmark]
         public int DefaultEcsMultiThread()
         {

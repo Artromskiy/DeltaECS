@@ -2,7 +2,7 @@ using BenchmarkDotNet.Attributes;
 
 namespace Ecs.CSharp.Benchmark
 {
-    [BenchmarkCategory(Categories.CreateEntity)]
+    [BenchmarkCategory(Categories.CreateEntity, Categories.SingleThread)]
     [MemoryDiagnoser]
 #if CHECK_CACHE_MISSES
     [HardwareCounters(BenchmarkDotNet.Diagnosers.HardwareCounter.CacheMisses)]

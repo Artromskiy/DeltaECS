@@ -72,6 +72,8 @@ jobs:
             echo "min_iteration_count=$MIN_ITERATION_COUNT"
             echo "iteration_time_ms=$ITERATION_TIME_MS"
             echo "slow_ecs=excluded (Morpeh, MonoGame.Extended, RelEcs, Svelto.ECS)"
+            echo "simd=excluded"
+            echo "thread_modes=Single-thread,Multi-thread"
             uname -a
             lscpu
             dotnet --info
@@ -108,20 +110,35 @@ jobs:
             fi
             seen_counts[$entity_count]=1
 
-            echo "Running Ecs.CSharp.Benchmark with $entity_count entities"
-            dotnet benchmarks/Ecs.CSharp.Benchmark/bin/Release/net10.0/Ecs.CSharp.Benchmark.dll \
-              --amount "$entity_count" \
-              --filter '*' \
-              --job Default \
-              --minIterationCount "$MIN_ITERATION_COUNT" \
-              --iterationTime "$ITERATION_TIME_MS" \
-              --exporters github csv json \
-              --artifacts "artifacts/ecs-csharp/$entity_count"
+            for thread_mode in SingleThread MultiThread; do
+              category="$thread_mode"
+              if [ "$thread_mode" = SingleThread ]; then
+                category='Single-thread'
+              else
+                category='Multi-thread'
+              fi
+              mode_directory="artifacts/ecs-csharp/$entity_count/$thread_mode"
+              echo "Running $thread_mode Ecs.CSharp.Benchmark with $entity_count entities"
+              dotnet benchmarks/Ecs.CSharp.Benchmark/bin/Release/net10.0/Ecs.CSharp.Benchmark.dll \
+                --amount "$entity_count" \
+                --filter '*' \
+                --allCategories "$category" \
+                --job Default \
+                --minIterationCount "$MIN_ITERATION_COUNT" \
+                --iterationTime "$ITERATION_TIME_MS" \
+                --exporters github csv json \
+                --artifacts "$mode_directory"
 
-            if ! find "artifacts/ecs-csharp/$entity_count" -type f -name '*-report-github.md' -print -quit | grep -q .; then
-              echo "::error::BenchmarkDotNet produced no GitHub Markdown table for $entity_count entities."
-              exit 1
-            fi
+              expected_suites=4
+              if [ "$thread_mode" = SingleThread ]; then
+                expected_suites=7
+              fi
+              report_count=$(find "$mode_directory" -type f -name '*-report-github.md' | wc -l | tr -d ' ')
+              if [ "$report_count" -ne "$expected_suites" ]; then
+                echo "::error::$thread_mode produced $report_count result tables for $entity_count entities; expected $expected_suites."
+                exit 1
+              fi
+            done
           done
 
       - name: Add result tables to workflow summary
@@ -147,7 +164,7 @@ jobs:
             echo '| `SystemWithThreeComponents` | Iteration over three components |'
             echo '| `SystemWithTwoComponentsMultipleComposition` | Iteration over two components across multiple compositions |'
             echo
-            echo 'Slow ECS adapters are excluded from this run.'
+            echo 'Slow ECS adapters and SIMD benchmarks are excluded from these runs.'
             echo
 
             IFS=',' read -r -a entity_counts <<< "$ENTITY_COUNTS"
@@ -158,7 +175,7 @@ jobs:
                 requested_count=$((requested_count + 1))
               fi
             done
-            expected_report_count=$((requested_count * 7))
+            expected_report_count=$((requested_count * 11))
             report_count=0
             for entity_count in "${entity_counts[@]}"; do
               entity_count="${entity_count//[[:space:]]/}"
@@ -166,30 +183,39 @@ jobs:
                 continue
               fi
 
-              mapfile -t reports < <(find "artifacts/ecs-csharp/$entity_count" -type f -name '*-report-github.md' 2>/dev/null | sort)
-              if [ "${#reports[@]}" -eq 0 ]; then
-                continue
-              fi
-
               echo "### $entity_count entities"
               echo
-              for report in "${reports[@]}"; do
-                report_count=$((report_count + 1))
-                suite="$(basename "$report" -report-github.md)"
-                suite="${suite#Ecs.CSharp.Benchmark.}"
-                case "$suite" in
-                  CreateEntityWithOneComponent) description='Entity creation · one component' ;;
-                  CreateEntityWithTwoComponents) description='Entity creation · two components' ;;
-                  CreateEntityWithThreeComponents) description='Entity creation · three components' ;;
-                  SystemWithOneComponent) description='Iteration · one component' ;;
-                  SystemWithTwoComponents) description='Iteration · two components' ;;
-                  SystemWithThreeComponents) description='Iteration · three components' ;;
-                  SystemWithTwoComponentsMultipleComposition) description='Iteration · two components across multiple compositions' ;;
-                  *) description='Benchmark suite' ;;
-                esac
-                echo "#### $suite — $description"
+              for thread_mode in SingleThread MultiThread; do
+                if [ "$thread_mode" = SingleThread ]; then
+                  mode_label='Single-thread'
+                  expected_suites=7
+                else
+                  mode_label='Multi-thread'
+                  expected_suites=4
+                fi
+                echo "#### $mode_label"
                 echo
-                cat "$report"
+                mapfile -t reports < <(find "artifacts/ecs-csharp/$entity_count/$thread_mode" -type f -name '*-report-github.md' 2>/dev/null | sort)
+                for report in "${reports[@]}"; do
+                  report_count=$((report_count + 1))
+                  suite="$(basename "$report" -report-github.md)"
+                  suite="${suite#Ecs.CSharp.Benchmark.}"
+                  case "$suite" in
+                    CreateEntityWithOneComponent) description='Entity creation · one component' ;;
+                    CreateEntityWithTwoComponents) description='Entity creation · two components' ;;
+                    CreateEntityWithThreeComponents) description='Entity creation · three components' ;;
+                    SystemWithOneComponent) description='Iteration · one component' ;;
+                    SystemWithTwoComponents) description='Iteration · two components' ;;
+                    SystemWithThreeComponents) description='Iteration · three components' ;;
+                    SystemWithTwoComponentsMultipleComposition) description='Iteration · two components across multiple compositions' ;;
+                    *) description='Benchmark suite' ;;
+                  esac
+                  echo "##### $suite — $description"
+                  echo
+                  cat "$report"
+                  echo
+                done
+                echo "Tables: ${#reports[@]} / $expected_suites expected suites."
                 echo
               done
             done

@@ -111,7 +111,7 @@ namespace Ecs.CSharp.Benchmark
         [Context]
         private readonly MorpehContext _context;
 
-        [BenchmarkCategory(Categories.Morpeh)]
+        [BenchmarkCategory(Categories.Morpeh, Categories.SingleThread)]
         [Benchmark]
         public int Morpeh_Direct()
         {
@@ -119,7 +119,7 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
-        [BenchmarkCategory(Categories.Morpeh)]
+        [BenchmarkCategory(Categories.Morpeh, Categories.SingleThread)]
         [Benchmark]
         public int Morpeh_Stash()
         {

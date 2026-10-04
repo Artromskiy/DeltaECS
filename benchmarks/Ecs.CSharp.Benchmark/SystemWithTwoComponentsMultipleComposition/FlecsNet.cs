@@ -49,7 +49,7 @@ namespace Ecs.CSharp.Benchmark
             }
         }
 
-        [BenchmarkCategory(Categories.FlecsNet)]
+        [BenchmarkCategory(Categories.FlecsNet, Categories.SingleThread)]
         [Benchmark]
         public int FlecsNetEach()
         {
@@ -62,7 +62,7 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
-        [BenchmarkCategory(Categories.FlecsNet)]
+        [BenchmarkCategory(Categories.FlecsNet, Categories.SingleThread)]
         [Benchmark]
         public int FlecsNetIter()
         {

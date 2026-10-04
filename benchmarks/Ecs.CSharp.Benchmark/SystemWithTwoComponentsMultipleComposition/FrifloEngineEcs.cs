@@ -62,7 +62,7 @@ namespace Ecs.CSharp.Benchmark
         [Context]
         private readonly FrifloEngineEcsContext _frifloEngineEcs;
 
-        [BenchmarkCategory(Categories.FrifloEngineEcs)]
+        [BenchmarkCategory(Categories.FrifloEngineEcs, Categories.SingleThread)]
         [Benchmark]
         public int FrifloEngineEcsMonoThread()
         {
@@ -79,7 +79,7 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
-        [BenchmarkCategory(Categories.FrifloEngineEcs)]
+        [BenchmarkCategory(Categories.FrifloEngineEcs, Categories.MultiThread)]
         [Benchmark]
         public int FrifloEngineEcsMultiThread()
         {
@@ -92,7 +92,7 @@ namespace Ecs.CSharp.Benchmark
             c1.Value += c2.Value;
         }
 
-        [BenchmarkCategory(Categories.FrifloEngineEcs)]
+        [BenchmarkCategory(Categories.FrifloEngineEcs, Categories.SIMD)]
         [Benchmark]
         public int FrifloEngineEcsSIMDMonoThread()
         {

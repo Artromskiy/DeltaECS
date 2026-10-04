@@ -10,7 +10,7 @@ namespace Ecs.CSharp.Benchmark
         [Context]
         private readonly DeltaSystemMultipleCompositionContext _deltaEcs;
 
-        [BenchmarkCategory(Categories.DeltaECS)]
+        [BenchmarkCategory(Categories.DeltaECS, Categories.SingleThread)]
         [Benchmark]
         public int DeltaECS()
         {
@@ -21,7 +21,7 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
-        [BenchmarkCategory(Categories.DeltaECS)]
+        [BenchmarkCategory(Categories.DeltaECS, Categories.MultiThread)]
         [Benchmark]
         public int DeltaECSParallel()
         {
@@ -33,7 +33,7 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
-        [BenchmarkCategory(Categories.DeltaECS)]
+        [BenchmarkCategory(Categories.DeltaECS, Categories.SingleThread)]
         [Benchmark]
         public int DeltaECSFunctor()
         {
@@ -41,7 +41,7 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
-        [BenchmarkCategory(Categories.DeltaECS)]
+        [BenchmarkCategory(Categories.DeltaECS, Categories.MultiThread)]
         [Benchmark]
         public int DeltaECSFunctorParallel()
         {

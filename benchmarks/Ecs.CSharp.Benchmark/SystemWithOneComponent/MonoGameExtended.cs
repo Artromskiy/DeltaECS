@@ -68,7 +68,7 @@ namespace Ecs.CSharp.Benchmark
         [Context]
         private readonly MonoGameExtendedContext _monoGameExtended;
 
-        [BenchmarkCategory(Categories.MonoGameExtended)]
+        [BenchmarkCategory(Categories.MonoGameExtended, Categories.SingleThread)]
         [Benchmark]
         public int MonoGameExtended()
         {

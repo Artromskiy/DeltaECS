@@ -51,7 +51,7 @@ namespace Ecs.CSharp.Benchmark
             }
         }
 
-        [BenchmarkCategory(Categories.TinyEcs)]
+        [BenchmarkCategory(Categories.TinyEcs, Categories.SingleThread)]
         [Benchmark]
         public int TinyEcsEach()
         {
@@ -64,7 +64,7 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
-        [BenchmarkCategory(Categories.TinyEcs)]
+        [BenchmarkCategory(Categories.TinyEcs, Categories.SingleThread)]
         [Benchmark]
         public int TinyEcsEachJob()
         {

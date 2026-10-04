@@ -21,5 +21,8 @@ namespace Ecs.CSharp.Benchmark
 
         public const string CreateEntity = "CreateEntity";
         public const string System = "System";
+        public const string SingleThread = "Single-thread";
+        public const string MultiThread = "Multi-thread";
+        public const string SIMD = "SIMD";
     }
 }

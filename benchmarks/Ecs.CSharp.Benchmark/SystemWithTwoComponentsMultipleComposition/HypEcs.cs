@@ -89,7 +89,7 @@ namespace Ecs.CSharp.Benchmark
 
         [Context] private readonly HypEcsContext _hypEcs;
 
-        [BenchmarkCategory(Categories.HypEcs)]
+        [BenchmarkCategory(Categories.HypEcs, Categories.SingleThread)]
         [Benchmark]
         public int HypEcsMonoThread()
         {
@@ -97,7 +97,7 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
-        [BenchmarkCategory(Categories.HypEcs)]
+        [BenchmarkCategory(Categories.HypEcs, Categories.MultiThread)]
         [Benchmark]
         public int HypEcsMultiThread()
         {

@@ -40,7 +40,7 @@ namespace Ecs.CSharp.Benchmark
         private readonly ArchContext _arch;
         private ForEach2 _forEach2;
 
-        [BenchmarkCategory(Categories.Arch)]
+        [BenchmarkCategory(Categories.Arch, Categories.SingleThread)]
         [Benchmark]
         public int ArchMonoThread()
         {
@@ -49,7 +49,7 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
-        [BenchmarkCategory(Categories.Arch)]
+        [BenchmarkCategory(Categories.Arch, Categories.SingleThread)]
         [Benchmark]
         public int ArchMonoThreadSourceGenerated()
         {
@@ -57,7 +57,7 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
-        [BenchmarkCategory(Categories.Arch)]
+        [BenchmarkCategory(Categories.Arch, Categories.MultiThread)]
         [Benchmark]
         public int ArchMultiThread()
         {

@@ -61,7 +61,7 @@ namespace Ecs.CSharp.Benchmark
         [Context]
         private readonly MyriadContext _myriad;
 
-        [BenchmarkCategory(Categories.Myriad)]
+        [BenchmarkCategory(Categories.Myriad, Categories.SingleThread)]
         [Benchmark]
         public int MyriadSingleThread()
         {
@@ -70,7 +70,7 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
-        [BenchmarkCategory(Categories.Myriad)]
+        [BenchmarkCategory(Categories.Myriad, Categories.SingleThread)]
         [Benchmark]
         public int MyriadSingleThreadChunk()
         {
@@ -80,7 +80,7 @@ namespace Ecs.CSharp.Benchmark
         }
 
 #if INCLUDE_SLOW_BENCHMARKS
-        [BenchmarkCategory(Categories.Myriad)]
+        [BenchmarkCategory(Categories.Myriad, Categories.SingleThread)]
         [Benchmark]
         public int Myriad_Enumerable()
         {
@@ -94,7 +94,7 @@ namespace Ecs.CSharp.Benchmark
         }
 #endif
 
-        [BenchmarkCategory(Categories.Myriad)]
+        [BenchmarkCategory(Categories.Myriad, Categories.SingleThread)]
         [Benchmark]
         public int MyriadDelegate()
         {
@@ -107,7 +107,7 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
-        [BenchmarkCategory(Categories.Myriad)]
+        [BenchmarkCategory(Categories.Myriad, Categories.SIMD)]
         [Benchmark]
         public int MyriadSingleThreadChunkSIMD()
         {

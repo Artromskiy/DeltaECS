@@ -30,7 +30,7 @@ namespace Ecs.CSharp.Benchmark
             }
         }
 
-        [BenchmarkCategory(Categories.Fennecs)]
+        [BenchmarkCategory(Categories.Fennecs, Categories.SingleThread)]
         [Benchmark]
         public int FennecsForEach()
         {
@@ -38,7 +38,7 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
-        [BenchmarkCategory(Categories.Fennecs)]
+        [BenchmarkCategory(Categories.Fennecs, Categories.MultiThread)]
         [Benchmark]
         public int FennecsJob()
         {
@@ -46,7 +46,7 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
-        [BenchmarkCategory(Categories.Fennecs)]
+        [BenchmarkCategory(Categories.Fennecs, Categories.SingleThread)]
         [Benchmark]
         public int FennecsRaw()
         {
