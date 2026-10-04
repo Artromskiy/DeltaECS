@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.40
+
+- Published with the matching DeltaECS NuGet packages.
+
 ## 0.0.39
 
 - Published with the matching DeltaECS NuGet packages.
