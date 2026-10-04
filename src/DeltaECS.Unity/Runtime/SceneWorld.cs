@@ -212,6 +212,11 @@ namespace Delta.ECS.Unity
                         continue;
                     }
 
+                    if (descriptor.IsTag)
+                    {
+                        continue;
+                    }
+
                     object value = data.CreateValue(descriptor.ValueType, ResolveEntity);
                     if (_integration.TryRead(entity, descriptor.Id, out ComponentSnapshot snapshot, out _)
                         && !_integration.TryWrite(entity, descriptor.Id, value, snapshot.Stamp, out _, out EcsWriteError error))
@@ -341,7 +346,7 @@ namespace Delta.ECS.Unity
         {
             if (TryGetEntity(authoring, out Entity entity))
             {
-                return _integration.TryRead(entity, descriptor.Id, out snapshot, out error);
+                return TryRead(entity, descriptor, out snapshot, out error);
             }
 
             snapshot = default;
@@ -349,13 +354,50 @@ namespace Delta.ECS.Unity
             return false;
         }
 
+        internal bool TryRead(Entity entity, ComponentDescriptor descriptor,
+            out ComponentSnapshot snapshot, out EcsReadError error)
+            => _integration.TryRead(entity, descriptor.Id, out snapshot, out error);
+
+        internal bool TryGetComponents(Entity entity, Span<ComponentId> destination, out int totalCount)
+        {
+            totalCount = 0;
+            if (!_integration.IsAlive(entity))
+            {
+                return false;
+            }
+
+            ReadOnlyMemory<ComponentDescriptor> components = _integration.Catalog.Components;
+            for (int index = 0; index < components.Length; index++)
+            {
+                ComponentId component = components.Span[index].Id;
+                if (!_world.Has(entity, component))
+                {
+                    continue;
+                }
+
+                if (totalCount < destination.Length)
+                {
+                    destination[totalCount] = component;
+                }
+
+                totalCount++;
+            }
+
+            return true;
+        }
+
         internal bool TryWrite(EntityAuthoring authoring, ComponentData data,
             ComponentDescriptor descriptor, object value, out EcsWriteError error)
         {
-            if (!TryGetEntity(authoring, out Entity entity)
-                || !_integration.TryRead(entity, descriptor.Id, out ComponentSnapshot snapshot, out _))
+            if (!TryGetEntity(authoring, out Entity entity) || !_integration.IsAlive(entity))
             {
-                error = default;
+                error = new EcsWriteError(EcsWriteErrorCode.EntityNotAlive);
+                return false;
+            }
+
+            if (!_integration.TryRead(entity, descriptor.Id, out ComponentSnapshot snapshot, out _))
+            {
+                error = new EcsWriteError(EcsWriteErrorCode.ComponentMissing);
                 return false;
             }
 
@@ -364,7 +406,15 @@ namespace Delta.ECS.Unity
                 return false;
             }
 
-            data.StoreValue(value, GetStableIdOrEmpty);
+            if (descriptor.IsTag)
+            {
+                data.StoreDefaultTag();
+            }
+            else
+            {
+                data.StoreValue(value, GetStableIdOrEmpty);
+            }
+
             return true;
         }
 
@@ -393,6 +443,13 @@ namespace Delta.ECS.Unity
                     ? "The component is already present in the preview world."
                     : "DeltaECS rejected the structural add without reporting a write error.";
                 return false;
+            }
+
+            if (descriptor.IsTag)
+            {
+                data.StoreDefaultTag();
+                error = default;
+                return true;
             }
 
             object value = data.CreateValue(descriptor.ValueType, ResolveEntity);

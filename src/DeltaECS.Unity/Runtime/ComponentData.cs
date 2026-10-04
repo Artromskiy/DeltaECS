@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Delta.ECS;
 using Delta.ECS.Integration;
 using UnityEngine;
@@ -47,19 +46,16 @@ namespace Delta.ECS.Unity
                 value = Activator.CreateInstance(componentType);
             }
 
-            FieldInfo[] fields = componentType.GetFields(BindingFlags.Instance | BindingFlags.Public);
             List<EntityReference> references = EntityReferenceList;
             for (int i = 0; i < references.Count; i++)
             {
                 EntityReference reference = references[i];
-                for (int fieldIndex = 0; fieldIndex < fields.Length; fieldIndex++)
+                object resolvedValue = resolveEntity(reference.TargetEntityId);
+                object current = value;
+                if (PropertyBagValueAccess.TrySetValue(ref current, componentType,
+                        PropertyBagValueAccess.ParsePath(reference.FieldName), resolvedValue))
                 {
-                    FieldInfo field = fields[fieldIndex];
-                    if (field.Name == reference.FieldName && field.FieldType == typeof(Entity))
-                    {
-                        field.SetValue(value, resolveEntity(reference.TargetEntityId));
-                        break;
-                    }
+                    value = current;
                 }
             }
 
@@ -75,23 +71,13 @@ namespace Delta.ECS.Unity
 
             _json = JsonUtility.ToJson(value);
             EntityReferenceList.Clear();
+            PropertyBagValueAccess.CollectEntityReferences(value, value.GetType(), stableIdResolver, EntityReferenceList);
+        }
 
-            FieldInfo[] fields = value.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public);
-            for (int i = 0; i < fields.Length; i++)
-            {
-                FieldInfo field = fields[i];
-                if (field.FieldType != typeof(Entity))
-                {
-                    continue;
-                }
-
-                Entity target = (Entity)field.GetValue(value);
-                string targetId = stableIdResolver(target) ?? string.Empty;
-                if (!string.IsNullOrEmpty(targetId))
-                {
-                    EntityReferenceList.Add(new EntityReference(field.Name, targetId));
-                }
-            }
+        public void StoreDefaultTag()
+        {
+            _json = "{}";
+            EntityReferenceList.Clear();
         }
 
         public string GetEntityReference(string fieldName)
@@ -113,6 +99,11 @@ namespace Delta.ECS.Unity
 
         public static ComponentData CreateDefault(ComponentDescriptor descriptor)
         {
+            if (descriptor.IsTag)
+            {
+                return new ComponentData(descriptor.Schema.Value, "{}");
+            }
+
             object value = Activator.CreateInstance(descriptor.ValueType);
             return new ComponentData(descriptor.Schema.Value, JsonUtility.ToJson(value));
         }

@@ -16,12 +16,18 @@ public readonly record struct ComponentDescriptor(
     string Name,
     Type ValueType,
     ComponentCapabilities Capabilities,
-    bool AllowsNull);
+    bool AllowsNull)
+{
+    /// <summary>Whether this registration represents membership without component data.</summary>
+    public bool IsTag { get; init; }
+}
 
 /// <summary>
 /// Represents the value and exact component revision observed by a tooling read.
 /// Reference values may retain storage identity; mutating such an object directly
-/// bypasses revision tracking and is the caller's responsibility.
+/// bypasses revision tracking and is the caller's responsibility. For a data-less
+/// tag, the value is its boxed default and the stamp is default because tags have
+/// membership but no per-entity value revision.
 /// </summary>
 public readonly record struct ComponentSnapshot(
     object? Value,

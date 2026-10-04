@@ -197,6 +197,60 @@ internal sealed class IntegrationWorldTests
     }
 
     [Test]
+    public void IntegrationContractExposesTagMembershipWithoutDataRows()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(50_051));
+        ComponentId tagId = layouts.Register<IntegrationTag>(new SchemaId(50_052));
+        using var storage = new World(layouts);
+        IEcsWorld world = storage;
+        world.Initialize();
+
+        RuntimeComponentCatalog catalog = world.Catalog;
+        Assert.Multiple(() =>
+        {
+            Assert.That(catalog.Components.Span[0].IsTag, Is.False);
+            Assert.That(catalog.Components.Span[1].IsTag, Is.True);
+            Assert.That(catalog.Components.Span[1].Capabilities, Is.EqualTo(ComponentCapabilities.Read | ComponentCapabilities.Write));
+        });
+
+        Entity tagged = world.Create(stackalloc[] { positionId, tagId });
+        Entity untagged = world.Create(stackalloc[] { positionId });
+        Span<ComponentId> components = stackalloc ComponentId[1];
+        Assert.That(world.TryGetComponents(tagged, components, out int count), Is.True);
+        Assert.That(count, Is.EqualTo(1));
+        Assert.That(components[0], Is.EqualTo(positionId));
+        Assert.That(storage.Has(tagged, tagId), Is.True);
+
+        Assert.That(world.TryRead(tagged, tagId, out ComponentSnapshot tagSnapshot, out EcsReadError tagReadError), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(tagSnapshot.Value, Is.EqualTo(default(IntegrationTag)));
+            Assert.That(tagSnapshot.Value?.GetType(), Is.EqualTo(typeof(IntegrationTag)));
+            Assert.That(tagSnapshot.Stamp, Is.EqualTo(default(Stamp)));
+            Assert.That(tagReadError.Code, Is.EqualTo(EcsReadErrorCode.None));
+        });
+
+        Assert.That(world.TryWrite(tagged, tagId, default(IntegrationTag), default, out Stamp written, out EcsWriteError tagWriteError), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(written, Is.EqualTo(default(Stamp)));
+            Assert.That(tagWriteError.Code, Is.EqualTo(EcsWriteErrorCode.None));
+        });
+        Assert.That(world.TryWrite(tagged, tagId, default(IntegrationTag), new Stamp(1), out _, out EcsWriteError staleTag), Is.False);
+        Assert.That(staleTag.Code, Is.EqualTo(EcsWriteErrorCode.StaleStamp));
+        Assert.That(world.TryWrite(tagged, tagId, new object(), default, out _, out EcsWriteError wrongTagValue), Is.False);
+        Assert.That(wrongTagValue.Code, Is.EqualTo(EcsWriteErrorCode.InvalidValue));
+
+        Assert.That(world.TryRead(untagged, tagId, out _, out EcsReadError missingTag), Is.False);
+        Assert.That(missingTag.Code, Is.EqualTo(EcsReadErrorCode.ComponentMissing));
+        Assert.That(world.TryWrite(untagged, tagId, default(IntegrationTag), default, out _, out EcsWriteError missingTagWrite), Is.False);
+        Assert.That(missingTagWrite.Code, Is.EqualTo(EcsWriteErrorCode.ComponentMissing));
+
+        world.Shutdown();
+    }
+
+    [Test]
     public void MutableReferenceIdentityIsPreservedAndDirectMutationDoesNotAdvanceStamp()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -231,6 +285,8 @@ internal sealed class IntegrationWorldTests
     private readonly record struct Position(int Value);
 
     private readonly record struct Velocity(int Value);
+
+    private readonly struct IntegrationTag;
 
     private sealed class MutableReference
     {

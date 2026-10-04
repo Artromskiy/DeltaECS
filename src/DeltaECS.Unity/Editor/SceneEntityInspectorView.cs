@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using Delta;
 using Delta.ECS;
 using Delta.ECS.Integration;
@@ -338,6 +337,12 @@ namespace Delta.ECS.Unity.Editor
         {
             return BuildComponentCard(descriptor, body =>
             {
+                if (descriptor.IsTag)
+                {
+                    body.Add(CreateClassLabel("Tag · membership only", "ecs-empty-component"));
+                    return;
+                }
+
                 if (!_previewWorld.TryRead(authoring, descriptor, out ComponentSnapshot snapshot, out EcsReadError readError))
                 {
                     body.Add(new HelpBox($"Could not read component: {readError.Code}.", HelpBoxMessageType.Error));
@@ -346,7 +351,7 @@ namespace Delta.ECS.Unity.Editor
 
                 DrawEditableValue(body, authoring, data, descriptor, snapshot.Value);
             },
-            () => ResetComponent(authoring, data, descriptor),
+            descriptor.IsTag ? null : () => ResetComponent(authoring, data, descriptor),
             () => RemoveComponent(authoring, data, descriptor));
         }
 
@@ -487,15 +492,26 @@ namespace Delta.ECS.Unity.Editor
         private void DrawEditableValue(VisualElement body, EntityAuthoring authoring, ComponentData data,
             ComponentDescriptor descriptor, object value)
         {
-            DrawComponentFields(body, descriptor, value, (field, current) =>
-                CreateFieldControl(field, current, next =>
+            bool canWrite = (descriptor.Capabilities & ComponentCapabilities.Write) != 0
+                && descriptor.ValueType.IsValueType;
+            int previousChildCount = body.childCount;
+            ComponentPropertyBinding[] bindings = ComponentPropertyBagFields.Build(body, descriptor, value,
+                canWrite,
+                (path, next) =>
                 {
-                    if (Equals(current, next)) return;
-                    Undo.RecordObject(Authoring, $"Edit {descriptor.Name}");
-                    field.SetValue(value, next);
-                    if (_previewWorld.TryWrite(authoring, data, descriptor, value, out EcsWriteError writeError))
+                    object updated = value;
+                    if (!PropertyBagValueAccess.TrySetValue(ref updated, descriptor.ValueType, path, next))
                     {
-                        current = next;
+                        Debug.LogWarning($"Could not edit a property on {descriptor.Name}: the property path is unavailable.", Authoring);
+                        RefreshContent();
+                        return;
+                    }
+
+                    if (Equals(updated, value)) return;
+                    Undo.RecordObject(Authoring, $"Edit {descriptor.Name}");
+                    if (_previewWorld.TryWrite(authoring, data, descriptor, updated, out EcsWriteError writeError))
+                    {
+                        value = updated;
                         MarkSceneDirty();
                     }
                     else
@@ -503,94 +519,13 @@ namespace Delta.ECS.Unity.Editor
                         Debug.LogError($"Could not write {descriptor.Name}: {writeError.Code}.", Authoring);
                         RefreshContent();
                     }
-                }));
-        }
+                },
+                (label, current, onChanged) => CreateEntityReferenceField(label, current, onChanged));
 
-        private static FieldInfo[] DrawComponentFields(VisualElement body, ComponentDescriptor descriptor,
-            object value, Func<FieldInfo, object, VisualElement> createControl)
-        {
-            FieldInfo[] fields = GetComponentFields(descriptor.ValueType);
-            if (fields.Length == 0)
+            if (bindings.Length == 0 && body.childCount == previousChildCount)
             {
-                body.Add(CreateClassLabel("Component has no public fields.", "ecs-empty-component"));
-                return fields;
+                body.Add(CreateClassLabel("Component has no exposed properties.", "ecs-empty-component"));
             }
-
-            for (int i = 0; i < fields.Length; i++)
-            {
-                FieldInfo field = fields[i];
-                body.Add(createControl(field, field.GetValue(value)));
-            }
-
-            return fields;
-        }
-
-        private VisualElement CreateFieldControl(FieldInfo field, object value, Action<object> onChanged,
-            Func<string, Entity, Action<object>, VisualElement> createEntityReferenceField = null)
-        {
-            string label = ObjectNames.NicifyVariableName(field.Name);
-            Type type = field.FieldType;
-            if (type == typeof(float))
-            {
-                var fieldControl = new FloatField(label) { value = (float)value, isDelayed = true };
-                AddInspectorFieldClasses(fieldControl);
-                fieldControl.RegisterValueChangedCallback(evt => onChanged(evt.newValue));
-                return fieldControl;
-            }
-
-            if (type == typeof(string))
-            {
-                var fieldControl = new TextField(label) { value = (string)value ?? string.Empty, isDelayed = true };
-                AddInspectorFieldClasses(fieldControl);
-                fieldControl.RegisterValueChangedCallback(evt => onChanged(evt.newValue));
-                return fieldControl;
-            }
-
-            if (type == typeof(byte) || type == typeof(int))
-            {
-                var fieldControl = new IntegerField(label) { value = Convert.ToInt32(value), isDelayed = true };
-                AddInspectorFieldClasses(fieldControl);
-                fieldControl.RegisterValueChangedCallback(evt => onChanged(type == typeof(byte)
-                    ? (object)(byte)Mathf.Clamp(evt.newValue, byte.MinValue, byte.MaxValue)
-                    : evt.newValue));
-                return fieldControl;
-            }
-
-            if (type == typeof(bool))
-            {
-                var fieldControl = new Toggle(label) { value = (bool)value };
-                AddInspectorFieldClasses(fieldControl);
-                fieldControl.RegisterValueChangedCallback(evt => onChanged(evt.newValue));
-                return fieldControl;
-            }
-
-            if (type == typeof(float3))
-            {
-                float3 vector = (float3)value;
-                var fieldControl = new Vector3Field(label) { value = new Vector3(vector.x, vector.y, vector.z) };
-                AddInspectorFieldClasses(fieldControl);
-                fieldControl.RegisterValueChangedCallback(evt => onChanged(new float3(evt.newValue.x, evt.newValue.y, evt.newValue.z)));
-                return fieldControl;
-            }
-
-            if (type == typeof(Entity))
-            {
-                return createEntityReferenceField != null
-                    ? createEntityReferenceField(label, (Entity)value, onChanged)
-                    : CreateEntityReferenceField(label, (Entity)value, onChanged);
-            }
-
-            if (type.IsEnum)
-            {
-                var fieldControl = new EnumField(label, (Enum)value);
-                AddInspectorFieldClasses(fieldControl);
-                fieldControl.RegisterValueChangedCallback(evt => onChanged(evt.newValue));
-                return fieldControl;
-            }
-
-            var unsupported = new Label($"{label}  ·  Unsupported: {type.Name}");
-            unsupported.AddToClassList("ecs-unsupported-field");
-            return unsupported;
         }
 
         private VisualElement CreateEntityReferenceField(string label, Entity current, Action<object> onChanged)
@@ -662,7 +597,13 @@ namespace Delta.ECS.Unity.Editor
         {
             return BuildComponentCard(descriptor, body =>
             {
-                if (!world.Integration.TryRead(entity, descriptor.Id, out ComponentSnapshot snapshot, out EcsReadError error))
+                if (descriptor.IsTag)
+                {
+                    body.Add(CreateClassLabel("Tag · membership only", "ecs-empty-component"));
+                    return;
+                }
+
+                if (!world.TryRead(entity, descriptor, out ComponentSnapshot snapshot, out EcsReadError error))
                 {
                     body.Add(new HelpBox($"Could not read component: {error.Code}.", HelpBoxMessageType.Error));
                     return;
@@ -778,7 +719,7 @@ namespace Delta.ECS.Unity.Editor
         {
             ReadOnlyMemory<ComponentDescriptor> catalog = world.Integration.Catalog.Components;
             _runtimeComponentBuffer = new ComponentId[catalog.Length];
-            if (!world.Integration.TryGetComponents(entity, _runtimeComponentBuffer, out int count))
+            if (!world.TryGetComponents(entity, _runtimeComponentBuffer, out int count))
             {
                 _runtimeComponentIds = null;
                 return null;
@@ -823,35 +764,22 @@ namespace Delta.ECS.Unity.Editor
         private void DrawRuntimeValue(VisualElement body, SceneWorld world, Entity entity,
             ComponentDescriptor descriptor, ComponentSnapshot snapshot)
         {
-            var controls = new List<VisualElement>();
-            FieldInfo[] fields = DrawComponentFields(body, descriptor, snapshot.Value, (field, fieldValue) =>
-            {
-                VisualElement control = CreateRuntimeFieldControl(world, entity, descriptor, field, fieldValue);
-                controls.Add(control);
-                return control;
-            });
-
-            if (fields.Length > 0)
-            {
-                _runtimeBindings.Add(new RuntimeValueBinding(descriptor, fields, controls.ToArray()));
-            }
-        }
-
-        private VisualElement CreateRuntimeFieldControl(SceneWorld world, Entity entity,
-            ComponentDescriptor descriptor, FieldInfo field, object value)
-        {
             bool canWrite = (descriptor.Capabilities & ComponentCapabilities.Write) != 0
-                && descriptor.ValueType.IsValueType
-                && !field.IsInitOnly
-                && !field.IsLiteral;
-
-            VisualElement control = CreateFieldControl(field, value, canWrite
-                ? next => WriteRuntimeField(world, entity, descriptor, field, next)
-                : _ => { },
+                && descriptor.ValueType.IsValueType;
+            int previousChildCount = body.childCount;
+            ComponentPropertyBinding[] properties = ComponentPropertyBagFields.Build(body, descriptor,
+                snapshot.Value, canWrite,
+                (path, next) => WriteRuntimeField(world, entity, descriptor, path, next),
                 (label, current, onChanged) => CreateRuntimeEntityReferenceField(world, label, current, onChanged));
-            control.SetEnabled(canWrite);
 
-            return control;
+            if (properties.Length > 0)
+            {
+                _runtimeBindings.Add(new RuntimeValueBinding(descriptor, properties));
+            }
+            else if (body.childCount == previousChildCount)
+            {
+                body.Add(CreateClassLabel("Component has no exposed properties.", "ecs-empty-component"));
+            }
         }
 
         private VisualElement CreateRuntimeEntityReferenceField(SceneWorld world, string label, Entity current,
@@ -917,7 +845,7 @@ namespace Delta.ECS.Unity.Editor
         }
 
         private void WriteRuntimeField(SceneWorld world, Entity entity, ComponentDescriptor descriptor,
-            FieldInfo field, object next)
+            string[] path, object next)
         {
             if (!world.Integration.TryRead(entity, descriptor.Id, out ComponentSnapshot snapshot, out EcsReadError readError))
             {
@@ -926,8 +854,15 @@ namespace Delta.ECS.Unity.Editor
                 return;
             }
 
-            field.SetValue(snapshot.Value, next);
-            if (!world.Integration.TryWrite(entity, descriptor.Id, snapshot.Value, snapshot.Stamp,
+            object updated = snapshot.Value;
+            if (!PropertyBagValueAccess.TrySetValue(ref updated, descriptor.ValueType, path, next))
+            {
+                Debug.LogWarning($"Could not edit {descriptor.Name}: the property path is unavailable.");
+                RefreshRuntimeView();
+                return;
+            }
+
+            if (!world.Integration.TryWrite(entity, descriptor.Id, updated, snapshot.Stamp,
                     out _, out EcsWriteError writeError))
             {
                 Debug.LogWarning($"Could not edit {descriptor.Name}: {writeError.Code}.");
@@ -955,9 +890,6 @@ namespace Delta.ECS.Unity.Editor
 
             return value?.ToString() ?? "None";
         }
-
-        private static FieldInfo[] GetComponentFields(Type type) =>
-            type.GetFields(BindingFlags.Instance | BindingFlags.Public);
 
         private static Label CreateClassLabel(string text, string className)
         {
@@ -1001,7 +933,7 @@ namespace Delta.ECS.Unity.Editor
                 return;
             }
 
-            if (!world.Integration.TryGetComponents(entity, _runtimeComponentBuffer, out int count)
+            if (!world.TryGetComponents(entity, _runtimeComponentBuffer, out int count)
                 || count != _runtimeComponentIds.Length)
             {
                 RefreshContent();
@@ -1025,17 +957,21 @@ namespace Delta.ECS.Unity.Editor
                     continue;
                 }
 
-                for (int fieldIndex = 0; fieldIndex < binding.Fields.Length; fieldIndex++)
+                for (int fieldIndex = 0; fieldIndex < binding.Properties.Length; fieldIndex++)
                 {
-                    FieldInfo field = binding.Fields[fieldIndex];
-                    VisualElement control = binding.Controls[fieldIndex];
+                    ComponentPropertyBinding property = binding.Properties[fieldIndex];
+                    VisualElement control = property.Control;
                     VisualElement focused = control.panel?.focusController?.focusedElement as VisualElement;
                     if (focused != null && control.Contains(focused))
                     {
                         continue;
                     }
 
-                    SetRuntimeFieldValue(control, field.FieldType, field.GetValue(snapshot.Value), world);
+                    if (PropertyBagValueAccess.TryGetValue(snapshot.Value, binding.Descriptor.ValueType,
+                            property.Path, out object value))
+                    {
+                        SetRuntimeFieldValue(control, property.ValueType, value, world);
+                    }
                 }
             }
         }
@@ -1044,29 +980,57 @@ namespace Delta.ECS.Unity.Editor
         {
             if (control is FloatField floatField)
             {
-                floatField.SetValueWithoutNotify((float)value);
+                floatField.SetValueWithoutNotify(value == null ? 0f : (float)value);
+            }
+            else if (control is DoubleField doubleField)
+            {
+                doubleField.SetValueWithoutNotify(value == null ? 0d : (double)value);
             }
             else if (control is TextField textField)
             {
-                textField.SetValueWithoutNotify(type == typeof(string)
-                    ? (string)value ?? string.Empty
+                textField.SetValueWithoutNotify(type == typeof(string) ? (string)value ?? string.Empty
+                    : type == typeof(char) ? value == null ? string.Empty : value.ToString()
                     : FormatValue(type, value, world));
             }
             else if (control is IntegerField integerField)
             {
-                integerField.SetValueWithoutNotify(Convert.ToInt32(value));
+                integerField.SetValueWithoutNotify(value == null ? 0 : Convert.ToInt32(value));
+            }
+            else if (control is LongField longField)
+            {
+                longField.SetValueWithoutNotify(value == null ? 0L : Convert.ToInt64(value));
             }
             else if (control is Toggle toggle)
             {
-                toggle.SetValueWithoutNotify((bool)value);
+                toggle.SetValueWithoutNotify(value != null && (bool)value);
             }
-            else if (control is Vector3Field vectorField && value is float3 vector)
+            else if (control is Vector2Field vector2Field && value is Vector2 vector2)
             {
-                vectorField.SetValueWithoutNotify(new Vector3(vector.x, vector.y, vector.z));
+                vector2Field.SetValueWithoutNotify(vector2);
+            }
+            else if (control is Vector3Field vectorField && value is Vector3 vector3)
+            {
+                vectorField.SetValueWithoutNotify(vector3);
+            }
+            else if (control is Vector3Field float3Field && value is float3 vector)
+            {
+                float3Field.SetValueWithoutNotify(new Vector3(vector.x, vector.y, vector.z));
+            }
+            else if (control is Vector4Field vector4Field && value is Vector4 vector4)
+            {
+                vector4Field.SetValueWithoutNotify(vector4);
+            }
+            else if (control is ColorField colorField && value is Color color)
+            {
+                colorField.SetValueWithoutNotify(color);
             }
             else if (control is EnumField enumField && value is Enum enumValue)
             {
                 enumField.SetValueWithoutNotify(enumValue);
+            }
+            else if (control is ObjectField objectField)
+            {
+                objectField.SetValueWithoutNotify(value as UnityEngine.Object);
             }
             else if (control is DropdownField entityField
                 && type == typeof(Entity)
@@ -1246,14 +1210,12 @@ namespace Delta.ECS.Unity.Editor
         private readonly struct RuntimeValueBinding
         {
             public readonly ComponentDescriptor Descriptor;
-            public readonly FieldInfo[] Fields;
-            public readonly VisualElement[] Controls;
+            public readonly ComponentPropertyBinding[] Properties;
 
-            public RuntimeValueBinding(ComponentDescriptor descriptor, FieldInfo[] fields, VisualElement[] controls)
+            public RuntimeValueBinding(ComponentDescriptor descriptor, ComponentPropertyBinding[] properties)
             {
                 Descriptor = descriptor;
-                Fields = fields;
-                Controls = controls;
+                Properties = properties;
             }
         }
 

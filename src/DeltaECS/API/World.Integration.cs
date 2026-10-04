@@ -122,6 +122,20 @@ public sealed partial class World : IEcsWorld
             return false;
         }
 
+        if (_layouts.TryGetTagIndex(component, out int tagIndex))
+        {
+            if (!chunk.HasTag(tagIndex, slotIndex))
+            {
+                error = new EcsReadError(EcsReadErrorCode.ComponentMissing);
+                return false;
+            }
+
+            object defaultValue = Array.CreateInstance(layout.RuntimeType, 1).GetValue(0)!;
+            snapshot = new ComponentSnapshot(defaultValue, default);
+            error = new EcsReadError(EcsReadErrorCode.None);
+            return true;
+        }
+
         var archetype = _archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(component, out int componentIndex))
         {
@@ -168,6 +182,30 @@ public sealed partial class World : IEcsWorld
         {
             error = new EcsWriteError(EcsWriteErrorCode.ComponentUnknown);
             return false;
+        }
+
+        if (_layouts.TryGetTagIndex(component, out int tagIndex))
+        {
+            if (!chunk.HasTag(tagIndex, slotIndex))
+            {
+                error = new EcsWriteError(EcsWriteErrorCode.ComponentMissing);
+                return false;
+            }
+
+            if (expectedStamp != default)
+            {
+                error = new EcsWriteError(EcsWriteErrorCode.StaleStamp);
+                return false;
+            }
+
+            if (value is null || value.GetType() != layout.RuntimeType)
+            {
+                error = new EcsWriteError(EcsWriteErrorCode.InvalidValue);
+                return false;
+            }
+
+            error = new EcsWriteError(EcsWriteErrorCode.None);
+            return true;
         }
 
         var archetype = _archetypes[chunk.ArchetypeId];
@@ -248,7 +286,8 @@ public sealed partial class World : IEcsWorld
             var id = new ComponentId(index);
             var layout = _layouts.Get(id);
             Type runtimeType = layout.RuntimeType;
-            ComponentCapabilities capabilities = SupportsObjectAccess(layout)
+            bool isTag = _layouts.IsTag(id);
+            ComponentCapabilities capabilities = isTag || SupportsObjectAccess(layout)
                 ? ComponentCapabilities.Read | ComponentCapabilities.Write
                 : ComponentCapabilities.None;
             descriptors.RefAt(index) = new ComponentDescriptor(
@@ -257,7 +296,10 @@ public sealed partial class World : IEcsWorld
                 runtimeType.FullName ?? runtimeType.Name,
                 runtimeType,
                 capabilities,
-                AllowsNull(runtimeType));
+                AllowsNull(runtimeType))
+            {
+                IsTag = isTag
+            };
         }
 
         _integrationCatalog = new RuntimeComponentCatalog(descriptors, _catalogStamps.Next());

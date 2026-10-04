@@ -20,7 +20,9 @@ namespace Delta.ECS.Unity.Editor
                 return null;
             }
 
-            if (objects == null || objects.Length != 1 || objects[0] is not GameObject gameObject)
+            if (objects == null || objects.Length != 1
+                || objects[0] is not GameObject gameObject
+                || gameObject == null)
             {
                 return null;
             }
@@ -43,6 +45,11 @@ namespace Delta.ECS.Unity.Editor
 
         internal static UnityEditor.Editor CreateDefaultGameObjectEditor(GameObject gameObject)
         {
+            if (gameObject == null)
+            {
+                return null;
+            }
+
             _creatingDefaultGameObjectEditor = true;
             try
             {
@@ -68,7 +75,7 @@ namespace Delta.ECS.Unity.Editor
 
         private void OnEnable()
         {
-            if (target is GameObject gameObject)
+            if (target is GameObject gameObject && gameObject != null)
             {
                 _gameObjectEditor = BoundEntityRootEditorSelector.CreateDefaultGameObjectEditor(gameObject);
             }
@@ -143,10 +150,7 @@ namespace Delta.ECS.Unity.Editor
             {
                 root.Add(new IMGUIContainer(() =>
                 {
-                    if (_gameObjectEditor != null)
-                    {
-                        _gameObjectEditor.DrawHeader();
-                    }
+                    DrawGameObjectHeader(_gameObjectEditor);
                 }));
             }
 
@@ -180,6 +184,19 @@ namespace Delta.ECS.Unity.Editor
             root.Add(_componentInspectorRoot);
             RebuildComponentInspectors();
             return root;
+        }
+
+        private void DrawGameObjectHeader(UnityEditor.Editor gameObjectEditor)
+        {
+            if (gameObjectEditor == null
+                || target is not GameObject gameObject
+                || gameObject == null
+                || gameObjectEditor.target == null)
+            {
+                return;
+            }
+
+            gameObjectEditor.DrawHeader();
         }
 
         private void RefreshComponentInspectors()
