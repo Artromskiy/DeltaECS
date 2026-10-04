@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.39
+
+- Published with the matching DeltaECS NuGet packages.
+
 ## 0.0.38
 
 - Align the Unity integration release with the DeltaECS 0.0.38 NuGet packages.
