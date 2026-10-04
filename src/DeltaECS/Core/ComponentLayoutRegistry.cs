@@ -16,6 +16,35 @@ public sealed partial class ComponentLayoutRegistry
     private readonly Dictionary<Type, List<GenericRegistration>> _genericRegistrations = new();
     private int _tagCount;
 
+    /// <summary>Registers one component from the generated component catalog.</summary>
+    public ComponentId Register(IGeneratedComponentRegistration registration)
+    {
+        ThrowHelper.ThrowIfNull(registration, nameof(registration));
+        if (registration.SchemaId.Value == 0)
+        {
+            ThrowHelper.ThrowGeneratedComponentSchemaIdZero(registration.ComponentType);
+        }
+
+        IGeneratedComponentTypeToken typeToken = GeneratedComponentTypeTokenRegistry.Get(registration.ComponentType);
+        var visitor = new GeneratedComponentRegistrationVisitor(this, registration.SchemaId, registration.IsTag, typeToken);
+        typeToken.Dispatch(ReadOnlySpan<IGeneratedComponentTypeToken>.Empty, ref visitor);
+        return visitor.ComponentId;
+    }
+
+    private struct GeneratedComponentRegistrationVisitor(
+        ComponentLayoutRegistry layouts,
+        SchemaId schemaId,
+        bool isTag,
+        IGeneratedComponentTypeToken typeToken) : IGeneratedComponentTypeVisitor
+    {
+        private ComponentId _componentId;
+
+        internal readonly ComponentId ComponentId => _componentId;
+
+        void IGeneratedComponentTypeVisitor.Visit<T>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining)
+            => _componentId = layouts.RegisterGeneratedComponent<T>(schemaId, typeToken, isTag);
+    }
+
     private sealed class GenericRegistration(ComponentId[] arguments, ComponentId componentId)
     {
         internal readonly ComponentId[] Arguments = arguments;

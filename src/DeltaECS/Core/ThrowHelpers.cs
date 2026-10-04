@@ -156,6 +156,12 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static IGeneratedComponentTypeToken ThrowGeneratedComponentTypeTokenMissing(Type componentType)
+        => throw new InvalidOperationException(
+            $"No generated component type token exists for '{componentType.FullName}'. Ensure DeltaECS.Generators is referenced.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowGeneratedComponentConstraintMismatch(IGeneratedComponentTypeToken token, string constraint)
         => throw new ArgumentException(
             $"Registered component type '{token.ComponentType}' does not satisfy the generic constraint '{constraint}'.");
@@ -408,6 +414,11 @@ internal static class ThrowHelper
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowGeneratedComponentRegistrationConflict(Type componentType)
         => throw new InvalidOperationException($"Component '{componentType.FullName}' has more than one generated registration.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static IGeneratedComponentRegistration ThrowGeneratedComponentRegistrationMissing(Type componentType)
+        => throw new InvalidOperationException($"Component '{componentType.FullName}' has no generated registration.");
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]

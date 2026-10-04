@@ -80,7 +80,7 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
                 continue;
             }
 
-            var registration = new ComponentRegistration(type, schemaId);
+            var registration = new ComponentRegistration(type, schemaId, IsTagType(type));
             if (schemas.TryGetValue(schemaId, out ComponentRegistration previous))
             {
                 context.ReportDiagnostic(Diagnostic.Create(
@@ -140,6 +140,33 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
         return false;
     }
 
+    private static bool IsTagType(INamedTypeSymbol type)
+    {
+        if (type.TypeKind != TypeKind.Struct
+            || type.GetMembers().OfType<IFieldSymbol>().Any(static field => !field.IsStatic && !field.IsConst))
+        {
+            return false;
+        }
+
+        foreach (AttributeData attribute in type.GetAttributes())
+        {
+            if (attribute.AttributeClass?.ToDisplayString() != "System.Runtime.InteropServices.StructLayoutAttribute")
+            {
+                continue;
+            }
+
+            foreach (KeyValuePair<string, TypedConstant> argument in attribute.NamedArguments)
+            {
+                if (argument.Key == "Size" && argument.Value.Value is int size && size > 1)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
     private static string Render(List<ComponentRegistration> registrations)
     {
         var factories = new List<string>();
@@ -159,8 +186,8 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
 
                     public global::Delta.ECS.SchemaId SchemaId => new(0x{{schemaId}}UL);
 
-                    public global::Delta.ECS.ComponentId Register(global::Delta.ECS.ComponentLayoutRegistry layouts)
-                        => layouts.Register<{{typeName}}>(SchemaId);
+                    public bool IsTag => {{registration.IsTag.ToString().ToLowerInvariant()}};
+
                 }
                 """);
         }
@@ -200,15 +227,18 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
 
     private sealed class ComponentRegistration
     {
-        internal ComponentRegistration(INamedTypeSymbol type, ulong schemaId)
+        internal ComponentRegistration(INamedTypeSymbol type, ulong schemaId, bool isTag)
         {
             Type = type;
             SchemaId = schemaId;
+            IsTag = isTag;
         }
 
         internal INamedTypeSymbol Type { get; }
 
         internal ulong SchemaId { get; }
+
+        internal bool IsTag { get; }
 
     }
 }

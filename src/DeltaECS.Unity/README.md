@@ -42,11 +42,24 @@ public struct Health
 }
 ```
 
-Generated module initializers register typed component factories. Create a
-world with the generated layout catalog:
+Generated module initializers expose one registration per marked component.
+Register the full catalog into a layout registry, then create the world:
 
 ```csharp
-using var world = new World(GeneratedComponentCatalog.CreateLayoutRegistry());
+var layouts = new ComponentLayoutRegistry();
+foreach (IGeneratedComponentRegistration registration in GeneratedComponentCatalog.GetRegistrations())
+{
+    layouts.Register(registration);
+}
+
+using var world = new World(layouts);
+```
+
+To register only one generated component, pass its registration directly:
+
+```csharp
+var layouts = new ComponentLayoutRegistry();
+layouts.Register(GeneratedComponentCatalog.GetRegistration<Health>());
 ```
 
 The generator reports the stable schema ID for each component. Set

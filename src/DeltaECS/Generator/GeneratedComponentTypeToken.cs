@@ -176,6 +176,17 @@ public static class GeneratedComponentTypeTokenRegistry
                 : GeneratedComponentTypeToken<T>.Instance;
         }
     }
+
+    internal static IGeneratedComponentTypeToken Get(Type componentType)
+    {
+        ThrowHelper.ThrowIfNull(componentType, nameof(componentType));
+        lock (Gate)
+        {
+            return Tokens.TryGetValue(componentType, out IGeneratedComponentTypeToken? token)
+                ? token
+                : ThrowHelper.ThrowGeneratedComponentTypeTokenMissing(componentType);
+        }
+    }
 }
 
 /// <summary>Performs constrained dispatch and fails before generic execution when a type does not qualify.</summary>

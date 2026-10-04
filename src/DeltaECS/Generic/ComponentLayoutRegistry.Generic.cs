@@ -15,6 +15,22 @@ public sealed partial class ComponentLayoutRegistry
             : Register(layout, ComponentRowOperations.ForType<T>(), typeToken);
     }
 
+    internal ComponentId RegisterGeneratedComponent<T>(
+        SchemaId schemaId,
+        IGeneratedComponentTypeToken typeToken,
+        bool isTag)
+    {
+        if (typeToken.ComponentType != typeof(T))
+        {
+            ThrowHelper.ThrowGeneratedComponentTypeTokenMismatch(typeof(T), typeToken.ComponentType);
+        }
+
+        var layout = new ComponentLayout(schemaId, typeof(T));
+        return isTag
+            ? Register(layout, default, typeToken, isTag: true)
+            : Register(layout, ComponentRowOperations.ForType<T>(), typeToken);
+    }
+
     /// <summary>Tries to resolve the primary component registration for <typeparamref name="T"/>.</summary>
     public bool TryGetPrimary<T>(out ComponentId componentId)
         => TryGetPrimary(typeof(T), out componentId);

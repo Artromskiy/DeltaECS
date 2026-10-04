@@ -119,7 +119,7 @@ namespace Delta.ECS.Unity
 
         internal static SceneWorld CreatePreview(SceneData sceneData)
         {
-            var world = new World(GeneratedComponentCatalog.CreateLayoutRegistry(), DefaultEntityCapacity);
+            var world = new World(CreateComponentLayouts(), DefaultEntityCapacity);
             try
             {
                 return new SceneWorld(world, sceneData, null,
@@ -139,7 +139,7 @@ namespace Delta.ECS.Unity
                 UnityThrowHelpers.ThrowArgumentNull(nameof(authoring));
             }
 
-            var world = new World(GeneratedComponentCatalog.CreateLayoutRegistry(), DefaultEntityCapacity);
+            var world = new World(CreateComponentLayouts(), DefaultEntityCapacity);
             try
             {
                 return new SceneWorld(world, authoring.SceneData, authoring,
@@ -159,7 +159,7 @@ namespace Delta.ECS.Unity
                 UnityThrowHelpers.ThrowArgumentNull(nameof(authoring));
             }
 
-            var world = new World(GeneratedComponentCatalog.CreateLayoutRegistry(), RuntimeEntityCapacity);
+            var world = new World(CreateComponentLayouts(), RuntimeEntityCapacity);
             try
             {
                 return new SceneWorld(world, authoring.SceneData, authoring,
@@ -170,6 +170,17 @@ namespace Delta.ECS.Unity
                 world.Dispose();
                 return UnityThrowHelpers.Rethrow<SceneWorld>(exception);
             }
+        }
+
+        private static ComponentLayoutRegistry CreateComponentLayouts()
+        {
+            var layouts = new ComponentLayoutRegistry();
+            foreach (IGeneratedComponentRegistration registration in GeneratedComponentCatalog.GetRegistrations())
+            {
+                layouts.Register(registration);
+            }
+
+            return layouts;
         }
 
         internal void RebuildAuthoringEntities()

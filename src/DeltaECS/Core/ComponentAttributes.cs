@@ -20,8 +20,8 @@ namespace Delta.ECS
         /// <summary>Gets the stable schema ID assigned to the component.</summary>
         SchemaId SchemaId { get; }
 
-        /// <summary>Registers the component with a layout registry.</summary>
-        ComponentId Register(ComponentLayoutRegistry layouts);
+        /// <summary>Gets whether the component is a data-less tag.</summary>
+        bool IsTag { get; }
     }
 
     /// <summary>Receives component registration factories emitted by DeltaECS.Generators.</summary>
@@ -43,31 +43,45 @@ namespace Delta.ECS
         }
 
         /// <summary>Copies generated registrations for one-time Unity world initialization.</summary>
-        public static IGeneratedComponentRegistration[] GetRegistrations()
+        internal static IGeneratedComponentRegistration[] GetRegistrations()
         {
             lock (Gate)
             {
                 return Registrations.ToArray();
             }
         }
+
+        internal static IGeneratedComponentRegistration GetRegistration(Type componentType)
+        {
+            lock (Gate)
+            {
+                IGeneratedComponentRegistration? result = null;
+                foreach (IGeneratedComponentRegistration registration in Registrations)
+                {
+                    if (registration.ComponentType != componentType)
+                    {
+                        continue;
+                    }
+
+                    if (result is not null)
+                    {
+                        ThrowHelper.ThrowGeneratedComponentRegistrationConflict(componentType);
+                    }
+
+                    result = registration;
+                }
+
+                return result ?? ThrowHelper.ThrowGeneratedComponentRegistrationMissing(componentType);
+            }
+        }
     }
 
-    /// <summary>Creates layout registries from component registrations emitted by DeltaECS.Generators.</summary>
+    /// <summary>Provides component registrations emitted by DeltaECS.Generators.</summary>
     public static class GeneratedComponentCatalog
     {
-        /// <summary>Creates a registry containing every component in the generated catalog.</summary>
-        public static ComponentLayoutRegistry CreateLayoutRegistry()
+        /// <summary>Gets a snapshot of the generated component registrations in deterministic type-name order.</summary>
+        public static IGeneratedComponentRegistration[] GetRegistrations()
         {
-            var layouts = new ComponentLayoutRegistry();
-            RegisterLayouts(layouts);
-            return layouts;
-        }
-
-        /// <summary>Adds every generated component layout to an existing registry.</summary>
-        public static void RegisterLayouts(ComponentLayoutRegistry layouts)
-        {
-            ThrowHelper.ThrowIfNull(layouts, nameof(layouts));
-
             IGeneratedComponentRegistration[] registrations = GeneratedComponentRegistrationRegistry.GetRegistrations();
             Array.Sort(registrations, static (left, right) => StringComparer.Ordinal.Compare(
                 left.ComponentType.FullName,
@@ -97,11 +111,12 @@ namespace Delta.ECS
                 typesBySchema.Add(registration.SchemaId, componentType);
             }
 
-            for (int index = 0; index < registrations.Length; index++)
-            {
-                IGeneratedComponentRegistration registration = registrations[index];
-                registration.Register(layouts);
-            }
+            return registrations;
         }
+
+        /// <summary>Gets the generated registration for a component type.</summary>
+        public static IGeneratedComponentRegistration GetRegistration<T>()
+            => GeneratedComponentRegistrationRegistry.GetRegistration(typeof(T));
+
     }
 }

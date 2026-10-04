@@ -12,7 +12,7 @@ namespace Delta.ECS.Generators.Tests;
 
 public sealed class ComponentRegistryGeneratorTests
 {
-    private static readonly string[] ExpectedRegisteredComponentNames = { "Example.Position", "Example.Health" };
+    private static readonly string[] ExpectedRegisteredComponentNames = { "Example.Position", "Example.Health", "Example.Marker" };
 
     [Test]
     public void GeneratesStableCatalogFactoriesAndComponentTypeTokens()
@@ -27,9 +27,15 @@ public sealed class ComponentRegistryGeneratorTests
                 [DeltaEcsComponent(SchemaId = 42UL)]
                 public struct Health { public float Value; }
 
+                [DeltaEcsComponent]
+                public struct Marker { }
+
                 public static class Entry
                 {
                     public static void Touch() { }
+
+                    public static IGeneratedComponentRegistration GetPositionRegistration()
+                        => GeneratedComponentCatalog.GetRegistration<Position>();
                 }
             }
             """;
@@ -51,15 +57,19 @@ public sealed class ComponentRegistryGeneratorTests
         string catalog = string.Join("\n", generatedSources);
         Assert.That(catalog, Does.Contain("GeneratedComponentRegistrationRegistry.Register(new"));
         Assert.That(catalog, Does.Contain("static partial void RegisterComponentCatalog()"));
-        Assert.That(catalog, Does.Contain("layouts.Register<global::Example.Position>(SchemaId)"));
-        Assert.That(catalog, Does.Contain("layouts.Register<global::Example.Health>(SchemaId)"));
+        Assert.That(catalog, Does.Contain("ComponentType => typeof(global::Example.Position)"));
+        Assert.That(catalog, Does.Contain("ComponentType => typeof(global::Example.Health)"));
+        Assert.That(catalog, Does.Not.Contain("ComponentId Register(global::Delta.ECS.ComponentLayoutRegistry layouts)"));
         Assert.That(catalog, Does.Contain("SchemaId => new(0x000000000000002AUL)"));
+        Assert.That(catalog, Does.Contain("public bool IsTag => true;"));
+        Assert.That(catalog, Does.Contain("public bool IsTag => false;"));
 
         ulong expectedPositionId = ComputeFNV1A("Example.Position");
         Assert.That(catalog, Does.Contain($"SchemaId => new(0x{expectedPositionId:X16}UL)"));
         Assert.That(catalog, Does.Contain("RegisteredComponentTypeToken_"));
         Assert.That(catalog, Does.Contain("visitor.Visit<global::Example.Position>"));
         Assert.That(catalog, Does.Contain("visitor.Visit<global::Example.Health>"));
+        Assert.That(catalog, Does.Contain("visitor.Visit<global::Example.Marker>"));
 
         using var assemblyImage = new MemoryStream();
         EmitResult emit = output.Emit(assemblyImage);
@@ -70,16 +80,37 @@ public sealed class ComponentRegistryGeneratorTests
             .GetMethod("Touch", BindingFlags.Public | BindingFlags.Static)!
             .Invoke(null, null);
 
-        IGeneratedComponentRegistration[] registered = GeneratedComponentRegistrationRegistry.GetRegistrations();
-        Assert.That(registered, Has.Length.EqualTo(2));
+        IGeneratedComponentRegistration[] registered = GeneratedComponentCatalog.GetRegistrations();
+        Assert.That(registered, Has.Length.EqualTo(3));
         Assert.That(registered.Select(static item => item.ComponentType.FullName),
             Is.EquivalentTo(ExpectedRegisteredComponentNames));
+        Assert.That(registered.Single(static item => item.ComponentType.FullName == "Example.Position").IsTag, Is.False);
+        Assert.That(registered.Single(static item => item.ComponentType.FullName == "Example.Marker").IsTag, Is.True);
 
-        ComponentLayoutRegistry layouts = GeneratedComponentCatalog.CreateLayoutRegistry();
+        var layouts = new ComponentLayoutRegistry();
+        foreach (IGeneratedComponentRegistration registration in GeneratedComponentCatalog.GetRegistrations())
+        {
+            layouts.Register(registration);
+        }
+
         Assert.That(layouts.TryGetPrimary(generatedAssembly.GetType("Example.Position")!, out ComponentId positionId), Is.True);
         Assert.That(layouts.GetComponentType(positionId).FullName, Is.EqualTo("Example.Position"));
         Assert.That(layouts.TryGetPrimary(generatedAssembly.GetType("Example.Health")!, out ComponentId healthId), Is.True);
         Assert.That(layouts.GetComponentType(healthId).FullName, Is.EqualTo("Example.Health"));
+
+        Assert.That(layouts.TryGetPrimary(generatedAssembly.GetType("Example.Marker")!, out ComponentId markerId), Is.True);
+        using var generatedWorld = new World(layouts);
+        Entity marker = generatedWorld.Create(markerId);
+        Assert.That(generatedWorld.Has(marker, markerId), Is.True);
+
+        var selectedRegistrationLayouts = new ComponentLayoutRegistry();
+        var entryType = generatedAssembly.GetType("Example.Entry")!;
+        var positionRegistration = (IGeneratedComponentRegistration)entryType
+            .GetMethod("GetPositionRegistration", BindingFlags.Public | BindingFlags.Static)!
+            .Invoke(null, null)!;
+        ComponentId selectedPositionId = selectedRegistrationLayouts.Register(positionRegistration);
+        Assert.That(selectedRegistrationLayouts.GetComponentType(selectedPositionId).FullName, Is.EqualTo("Example.Position"));
+        Assert.Throws<InvalidOperationException>(() => GeneratedComponentCatalog.GetRegistration<Guid>());
     }
 
     [Test]
