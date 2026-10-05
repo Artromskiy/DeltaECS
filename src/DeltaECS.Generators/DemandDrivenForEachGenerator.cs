@@ -102,7 +102,16 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 shapes.Add(key, shape);
             }
 
-            if (interceptorsEnabled && languageSupportsInterceptors && !shape.IsFunctor)
+            if (shape.OrderedQueryReceiver)
+            {
+                IterationModel entityListShape = OrderedEntityListShape(shape);
+                if (!shapes.ContainsKey(entityListShape.Key))
+                {
+                    shapes.Add(entityListShape.Key, entityListShape);
+                }
+            }
+
+            if (interceptorsEnabled && languageSupportsInterceptors && !shape.IsFunctor && !shape.OrderedQueryReceiver)
             {
                 if (TryCreateInterceptionSite(model, invocation, shape, invocation.SyntaxTree, out InterceptionSite? site, out string? reason)
                     && site is { } interceptionSite)
@@ -133,7 +142,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                     $"DemandForEach_{GeneratorSupport.StableName(shape.Key)}.g.cs",
                     DemandDrivenForEachTemplates.Render(new IterationRenderModel(
                         shape,
-                        renderContracts,
+                        renderContracts && !shape.OrderedQueryReceiver,
                         profiling,
                         ContextModes
                             .Where(mode => mode != ContextModeKind.RefReadonly || languageSupportsRefReadonlyParameters)
@@ -147,13 +156,33 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                             DemandDrivenForEachTemplates.RenderInterceptorSource(interceptorSite));
                     }
                 }
-                if (!shape.IsFunctor)
+                if (!shape.IsFunctor && !shape.OrderedQueryReceiver)
                 {
                     renderContracts = false;
                 }
             }
         }
     }
+
+    private static IterationModel OrderedEntityListShape(IterationModel shape)
+        => new(
+            shape.RegistrationBinding,
+            shape.HasEntity,
+            shape.HasContext,
+            shape.IsFunctor,
+            shape.Pattern,
+            shape.Components,
+            shape.FunctorType,
+            shape.ContextType,
+            parallel: false,
+            contextMode: shape.ContextMode,
+            methodName: shape.MethodName,
+            hasEntityTarget: true,
+            hasQuery: true,
+            isStamp: shape.IsStamp,
+            typeBinding: shape.Api.Selector.TypeBinding,
+            functorPassMode: shape.FunctorPassMode,
+            namespaceName: shape.Namespace);
 
     private static bool SupportsRefReadonlyParameters(Compilation compilation)
         => compilation.SyntaxTrees.FirstOrDefault()?.Options is CSharpParseOptions options
@@ -372,6 +401,12 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         GenericNameSyntax? genericName = member.Name as GenericNameSyntax;
         bool stamp = descriptor.Value == ValueDomain.Stamp;
         bool parallel = descriptor.Schedule == Schedule.Parallel;
+        bool orderedQueryReceiver = GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "OrderedQuery");
+        if (orderedQueryReceiver && (parallel || stamp))
+        {
+            return false;
+        }
+
         bool hasLambda = invocation.ArgumentList.Arguments.Any(static argument => argument.Expression is LambdaExpressionSyntax);
         if (!hasLambda)
         {
@@ -384,7 +419,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         ITypeSymbol? receiverType = model.GetTypeInfo(member.Expression).Type;
-        if (!GeneratorSupport.IsEcsType(receiverType, "World"))
+        if (!GeneratorSupport.IsEcsType(receiverType, "World") && !orderedQueryReceiver)
         {
             return false;
         }
@@ -393,8 +428,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         var arguments = invocation.ArgumentList.Arguments;
         bool namedEntity = descriptor.HasEntity;
         int callbackArgumentIndex = FindCallbackArgumentIndex(arguments);
-        bool queryRequired = arguments.Count == 0
-            || !GeneratorSupport.IsEntityBatch(model.GetTypeInfo(arguments[0].Expression).Type);
+        bool queryRequired = !orderedQueryReceiver
+            && (arguments.Count == 0
+                || !GeneratorSupport.IsEntityBatch(model.GetTypeInfo(arguments[0].Expression).Type));
         var cursor = new InvocationCursor(model, arguments, descriptor);
         if (!cursor.TryRead(callbackArgumentIndex, out InvocationCursorResult prefix, queryRequired))
         {
@@ -531,13 +567,14 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             parallel: parallel,
             contextMode: contextMode,
             methodName: member.Name.Identifier.ValueText,
-            hasEntityTarget: prefix.HasTarget,
-            hasQuery: prefix.HasQuery,
+            hasEntityTarget: orderedQueryReceiver || prefix.HasTarget,
+            hasQuery: orderedQueryReceiver || prefix.HasQuery,
             isStamp: stamp,
             typeBinding: genericName is not null
                 ? TypeBindingKind.Generic
                 : TypeBindingKind.CallbackInferred,
-            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation));
+            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation),
+            orderedQueryReceiver: orderedQueryReceiver);
         return true;
     }
 
@@ -557,6 +594,12 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         if (!ApiDescriptor.TryGet(member.Name.Identifier.ValueText, out ApiDescriptor descriptor)
             || descriptor.Family != GeneratedApiKind.Iteration)
+        {
+            return false;
+        }
+
+        bool orderedQueryReceiver = GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "OrderedQuery");
+        if (orderedQueryReceiver && (descriptor.Schedule == Schedule.Parallel || descriptor.Value == ValueDomain.Stamp))
         {
             return false;
         }
@@ -601,7 +644,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return false;
         }
 
-        if (!GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "World")
+        if ((!GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "World") && !orderedQueryReceiver)
             || methodTarget.MethodKind != MethodKind.Ordinary
             || methodTarget.Arity != 0
             || !methodTarget.ReturnsVoid
@@ -616,8 +659,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         bool parallel = descriptor.Schedule == Schedule.Parallel;
         namedEntity = descriptor.HasEntity;
         var arguments = invocation.ArgumentList.Arguments;
-        bool queryRequired = arguments.Count == 0
-            || !GeneratorSupport.IsEntityBatch(model.GetTypeInfo(arguments[0].Expression).Type);
+        bool queryRequired = !orderedQueryReceiver
+            && (arguments.Count == 0
+                || !GeneratorSupport.IsEntityBatch(model.GetTypeInfo(arguments[0].Expression).Type));
         var cursor = new InvocationCursor(model, arguments, descriptor);
         if (!cursor.TryRead(callbackArgumentIndex, out InvocationCursorResult prefix, queryRequired))
         {
@@ -771,13 +815,14 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             parallel: parallel,
             contextMode: contextMode,
             methodName: member.Name.Identifier.ValueText,
-            hasEntityTarget: hasEntityTarget,
-            hasQuery: hasQuery,
+            hasEntityTarget: orderedQueryReceiver || hasEntityTarget,
+            hasQuery: orderedQueryReceiver || hasQuery,
             isStamp: stamp,
             typeBinding: genericName is not null
                 ? TypeBindingKind.Generic
                 : TypeBindingKind.CallbackInferred,
-            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation));
+            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation),
+            orderedQueryReceiver: orderedQueryReceiver);
         return true;
     }
 
@@ -790,7 +835,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
     {
         shape = null;
         diagnostic = null;
-        if (!GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "World")
+        bool orderedQueryReceiver = GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "OrderedQuery");
+        if ((!GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "World") && !orderedQueryReceiver)
             || invocation.ArgumentList.Arguments.Count == 0)
         {
             return false;
@@ -851,8 +897,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         var arguments = invocation.ArgumentList.Arguments;
-        bool queryRequired = arguments.Count == 0
-            || !GeneratorSupport.IsEntityBatch(model.GetTypeInfo(arguments[0].Expression).Type);
+        bool queryRequired = !orderedQueryReceiver
+            && (arguments.Count == 0
+                || !GeneratorSupport.IsEntityBatch(model.GetTypeInfo(arguments[0].Expression).Type));
         var cursor = new InvocationCursor(model, arguments, descriptor);
         if (!cursor.TryRead(functorArgumentIndex, out InvocationCursorResult prefix, queryRequired))
         {
@@ -969,14 +1016,15 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             parallel: parallel,
             contextMode: contextMode,
             methodName: member.Name.Identifier.ValueText,
-            hasEntityTarget: hasEntityTarget,
-            hasQuery: hasQuery,
+            hasEntityTarget: orderedQueryReceiver || hasEntityTarget,
+            hasQuery: orderedQueryReceiver || hasQuery,
             isStamp: stamp,
             typeBinding: genericSelectors
                 ? TypeBindingKind.Generic
                 : TypeBindingKind.CallbackInferred,
             functorPassMode: functorPassMode,
-            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation));
+            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation),
+            orderedQueryReceiver: orderedQueryReceiver);
         return true;
     }
 

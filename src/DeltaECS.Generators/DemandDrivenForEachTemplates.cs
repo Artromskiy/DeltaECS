@@ -53,20 +53,20 @@ internal static partial class DemandDrivenForEachTemplates
     internal static string Render(IterationRenderModel model)
     {
         IterationModel shape = model.Shape;
-        string? contracts = model.RenderContracts && !shape.IsFunctor && shape.ComponentModels.Length > 0
+        string? contracts = model.RenderContracts && !shape.OrderedQueryReceiver && !shape.IsFunctor && shape.ComponentModels.Length > 0
             ? RenderContracts(model)
             : null;
-        string? stampWriter = shape.ComponentModels.Count(static component => component.IsWrite) > 1 && !UsesDenseBinding(shape)
+        string? stampWriter = !shape.OrderedQueryReceiver && shape.ComponentModels.Count(static component => component.IsWrite) > 1 && !UsesDenseBinding(shape)
             ? RenderArchetypeStampWriter(shape)
             : null;
-        string? invoker = shape.Parallel || shape.HasEntityTarget
+        string? invoker = !shape.OrderedQueryReceiver && (shape.Parallel || shape.HasEntityTarget)
             ? RenderParallelInvoker(shape)
             : null;
         string extension = GeneratorTemplates.ExtensionTemplate(
             $"DemandForEachExtensions_{GeneratorSupport.StableName(shape.Key)}",
             shape.IsFunctor,
             RenderExtensionsBody(model));
-        string? componentSetKey = !shape.HasQuery && !shape.Api.Signature.HasExplicitIds
+        string? componentSetKey = !shape.OrderedQueryReceiver && !shape.HasQuery && !shape.Api.Signature.HasExplicitIds
             ? GeneratorTemplates.PrimaryComponentSetKeyDeclaration(shape.Api.Selector.Arity)
             : null;
         string[] members = new[] { componentSetKey, contracts, stampWriter, invoker, extension }
@@ -641,6 +641,11 @@ internal static partial class DemandDrivenForEachTemplates
     private static string RenderExtensionsBody(IterationRenderModel model)
     {
         IterationModel shape = model.Shape;
+        if (shape.OrderedQueryReceiver)
+        {
+            return RenderOrderedExtensionsBody(shape);
+        }
+
         SignatureProjection slots = shape.Api.Signature;
         string className = "DemandForEachExtensions_" + GeneratorSupport.StableName(shape.Key);
         string generic = slots.HasGenericSelectors ? slots.GenericList() : string.Empty;
@@ -671,6 +676,74 @@ internal static partial class DemandDrivenForEachTemplates
             model.Profiling,
             closedMethodName);
         return RenderDenseBinding(shape) + "\n" + closed + "\n" + extension;
+    }
+
+    private static string RenderOrderedExtensionsBody(IterationModel shape)
+    {
+        SignatureProjection slots = shape.Api.Signature;
+        string generic = slots.HasGenericSelectors ? slots.GenericList() : string.Empty;
+        string stateGeneric = StateGeneric(shape, generic);
+        string ids = slots.HasExplicitIds ? slots.ComponentIdParameters() : string.Empty;
+        string context = shape.HasContext
+            ? SignatureProjection.ContextParameter(shape.ContextMode, ContextType(shape), "context")
+            : string.Empty;
+        string callback = shape.IsFunctor
+            ? SignatureProjection.ContextParameter(shape.FunctorPassMode, shape.FunctorType!, "functor")
+            : ActionType(shape) + " action";
+        var parameters = new List<string> { "this OrderedQuery orderedQuery" };
+        if (ids.Length != 0)
+        {
+            parameters.Add(ids);
+        }
+
+        if (context.Length != 0)
+        {
+            parameters.Add(context);
+        }
+
+        parameters.Add(callback);
+        string visibility = shape.IsFunctor || shape.ImplicitComponents ? "internal" : "public";
+        string signature = $"{visibility} static void {shape.MethodName}{stateGeneric}({string.Join(", ", parameters)})";
+        var arguments = new List<string>
+        {
+            "__entities",
+            "in orderedQuery.SourceQuery"
+        };
+        if (slots.HasExplicitIds)
+        {
+            arguments.Add(slots.HasDynamicIds ? "componentIds" : slots.ComponentIdArguments());
+        }
+
+        if (shape.HasContext)
+        {
+            arguments.Add(SignatureProjection.ContextArgument(shape.ContextMode, "context"));
+        }
+
+        arguments.Add(shape.IsFunctor
+            ? SignatureProjection.ContextArgument(shape.FunctorPassMode, "functor")
+            : "action");
+        string typeArguments = stateGeneric;
+        string body = $$"""
+            {
+                global::System.ReadOnlySpan<global::Delta.ECS.Entity> __entities = orderedQuery.BeginForEach();
+                global::Delta.ECS.Query __query = orderedQuery.SourceQuery;
+                try
+                {
+                    orderedQuery.World.{{shape.MethodName}}{{typeArguments}}({{arguments[0]}}, in __query{{(arguments.Count > 2 ? ", " + string.Join(", ", arguments.Skip(2)) : string.Empty)}});
+                }
+                finally
+                {
+                    orderedQuery.EndForEach();
+                }
+            }
+            """;
+        return GeneratorTemplates.Indent(
+            RenderMethod(
+                GeneratorTemplates.Documentation(shape.Api),
+                signature,
+                body,
+                null),
+            "    ");
     }
 
     internal static string RenderInterceptorSource(InterceptionSite site)

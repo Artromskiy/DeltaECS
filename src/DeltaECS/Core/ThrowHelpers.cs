@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 
 internal static class ThrowHelper
 {
@@ -384,6 +385,27 @@ internal static class ThrowHelper
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowInvalidEntityQueryHandle()
         => throw new InvalidOperationException("Query handle is invalid or belongs to another world.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static T ThrowOrderedQueryNotInitialized<T>()
+        => throw new InvalidOperationException("The ordered query has not been initialized by Query.OrderBy.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowOrderedQueryKeyMustBeRequired(ComponentId componentId)
+        => throw new ArgumentException(
+            $"Ordering key component {componentId} must be required by the query's WhereAll filter.",
+            nameof(componentId));
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowOrderedQueryAlreadyActive()
+        => throw new InvalidOperationException("An ordered query cannot be nested while another ordered query is active on the same world.");
+
+    [DoesNotReturn]
+    internal static void Rethrow(Exception exception)
+        => ExceptionDispatchInfo.Capture(exception).Throw();
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]

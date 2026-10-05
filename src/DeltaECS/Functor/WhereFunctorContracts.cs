@@ -13,3 +13,35 @@ namespace Delta.ECS;
 public interface IWherePredicate
 {
 }
+
+/// <summary>
+/// Marker contract for a read-only component comparer. Implement one
+/// <c>int Invoke(in T1 left1, ..., in T1 right1, ...)</c> method. A context may
+/// be the first parameter. The source generator emits typed <c>OrderBy</c> and
+/// <c>ThenBy</c> forms for the comparer signature.
+/// </summary>
+[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Source generator marker contract.")]
+public interface IComponentComparer
+{
+}
+
+/// <summary>
+/// Marker contract for an entity-aware component comparer. Implement one
+/// <c>int Invoke(Entity leftEntity, in T1 left1, ..., Entity rightEntity, in T1 right1, ...)</c>
+/// method. A context may be its first parameter.
+/// </summary>
+[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Source generator marker contract.")]
+public interface IComponentComparerEntity : IComponentComparer
+{
+}
+
+/// <summary>Generated bridge used by ordered-query comparer extensions.</summary>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+public interface IGeneratedComponentComparer
+{
+    /// <summary>Validates the registrations selected for this ordering key.</summary>
+    void Validate(World world, in Query query);
+
+    /// <summary>Compares two entities using this ordering key.</summary>
+    int Compare(World world, Entity left, Entity right);
+}

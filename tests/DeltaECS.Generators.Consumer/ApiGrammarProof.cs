@@ -171,6 +171,15 @@ public struct GenericParallelEntityContextFunctor<T> : IForEachContextEntity<Con
     public void Invoke(in Context context, Entity entity, in T value) => _ = context.Value + entity.Index + value.GetHashCode();
 }
 
+public struct Cmp1Cmp2Comparer : IComponentComparer
+{
+    public int Invoke(in Cmp1 left1, in Cmp2 left2, in Cmp1 right1, in Cmp2 right2)
+    {
+        int first = left1.Value.CompareTo(right1.Value);
+        return first != 0 ? first : left2.Value.CompareTo(right2.Value);
+    }
+}
+
 /// <summary>
 /// Compile-time call-site matrix for every API family and grammar branch in API-GRAMMAR.md.
 /// The consumer project must compile these calls before the generator test suite can run.
@@ -242,6 +251,7 @@ public static class ApiGrammarProof
         WherePipeline(world, in query, deadId, aliveId, ref context);
         OpenGenericFunctors(world, in query, entities, entityArray, cmp1Id, cmp2Id,
             componentIds, ref context);
+        OrderedIteration(world, in query, cmp1Id, cmp2Id, componentIds, ref context);
 
         // Structural mutations consume and destroy the fixture entities, so run last.
         Structural(world, in query, entities, entity, cmp1Id, cmp2Id, componentIds);
@@ -298,7 +308,7 @@ public static class ApiGrammarProof
         world.ForEach<Cmp1, Cmp2>(entities, cmp1Id, cmp2Id,
             static (ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += cmp2.Value);
         world.ForEach(entities, in query, ref context,
-            static (ref Context state, in Cmp1 cmp1) => state.Value += cmp1.Value);
+            (ForEachContextAction<Context, Cmp1>)AddContextFromCmp1);
         world.ForEach<Context, Cmp1>(entities, in query, cmp1Id, ref context,
             static (ref Context state, ref Cmp1 cmp1) => cmp1.Value += state.Value);
         world.ForEach<Context, Cmp1>(entities, singleComponentId, ref context,
@@ -456,6 +466,66 @@ public static class ApiGrammarProof
         world.ForEachEntityParallel(entities, in query, componentIds, ref functorEntityRW, workerCount: 2);
         world.ForEachEntityParallel(entityArray, componentIds, ref functorEntityRW, workerCount: 2);
     }
+
+    public static void OrderedIteration(
+        World world,
+        in Query query,
+        ComponentId cmp1Id,
+        ComponentId cmp2Id,
+        ReadOnlySpan<ComponentId> componentIds,
+        ref Context context)
+    {
+        var comparer = default(Cmp1Cmp2Comparer);
+        OrderedQuery ordered = query
+            .OrderBy(cmp1Id, cmp2Id, ref comparer)
+            .ThenBy(ref comparer)
+            .ThenBy(componentIds, ref comparer);
+
+        _ = query.OrderBy(static (in Cmp1 left, in Cmp1 right) => left.Value.CompareTo(right.Value));
+        _ = query.OrderBy(cmp1Id, in context,
+            static (in Context state, in Cmp1 left, in Cmp1 right) =>
+                (left.Value + state.Value).CompareTo(right.Value + state.Value));
+        _ = query.OrderBy(componentIds,
+            static (in Cmp1 left, in Cmp1 right) => left.Value.CompareTo(right.Value));
+        _ = query.OrderBy(static (Entity leftEntity, in Cmp1 left, Entity rightEntity, in Cmp1 right) =>
+            (left.Value + leftEntity.Index).CompareTo(right.Value + rightEntity.Index));
+        _ = query.OrderBy(in context,
+                static (in Context state, Entity leftEntity, in Cmp1 left, Entity rightEntity, in Cmp1 right) =>
+                    (left.Value + state.Value + leftEntity.Index).CompareTo(right.Value + state.Value + rightEntity.Index))
+            .ThenBy(static (Entity leftEntity, in Cmp2 left, Entity rightEntity, in Cmp2 right) =>
+                (left.Value + leftEntity.Index).CompareTo(right.Value + rightEntity.Index));
+
+        _ = ordered.First();
+        _ = ordered.First(static entity => entity.IsValid);
+        _ = ordered.FirstEntity();
+        _ = ordered.FirstEntity(static entity => entity.IsValid);
+
+        ordered.ForEach(static (ref Cmp1 cmp1) => cmp1.Value++);
+        ordered.ForEach<Cmp1>(cmp1Id, static (ref Cmp1 cmp1) => cmp1.Value++);
+        ordered.ForEach<Cmp1, Cmp2>(componentIds,
+            static (ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += cmp2.Value);
+        ordered.ForEach<Cmp1, Cmp2>(cmp1Id, cmp2Id,
+            static (ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += cmp2.Value);
+        ordered.ForEachEntity(static (Entity entity) => _ = entity.Index);
+        ordered.ForEachEntity<Cmp1, Cmp2>(cmp1Id, cmp2Id,
+            static (Entity entity, ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += entity.Index + cmp2.Value);
+        ordered.ForEach(ref context,
+            static (ref Context state, ref Cmp1 cmp1) => cmp1.Value += state.Value++);
+        ordered.ForEachEntity(ref context,
+            static (ref Context state, Entity entity, ref Cmp1 cmp1) => cmp1.Value += state.Value + entity.Index);
+
+        var functor = new FunctorRW();
+        ordered.ForEach(componentIds, ref functor);
+        var entityFunctor = new FunctorEntityRW();
+        ordered.ForEachEntity(cmp1Id, cmp2Id, ref entityFunctor);
+        var contextFunctor = new FunctorContext();
+        ordered.ForEach(ref context, ref contextFunctor);
+        var entityContextFunctor = new FunctorEntityContext();
+        ordered.ForEachEntity(ref context, ref entityContextFunctor);
+    }
+
+    private static void AddContextFromCmp1(ref Context context, in Cmp1 cmp1)
+        => context.Value += cmp1.Value;
 
     public static void Stamps(
         World world,

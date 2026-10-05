@@ -282,7 +282,7 @@ public sealed partial class World
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ref readonly T GetReadRefUnchecked<T>(Entity entity, ComponentId componentId)
+    internal ref readonly T GetReadRefUnchecked<T>(Entity entity, ComponentId componentId)
     {
         if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {

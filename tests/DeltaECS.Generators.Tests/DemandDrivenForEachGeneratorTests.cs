@@ -11,6 +11,197 @@ namespace Delta.ECS.Generators.Tests;
 public sealed class DemandDrivenForEachGeneratorTests
 {
     [Test]
+    public void ComponentComparerGeneratesTypedOrderedQueryAdapters()
+    {
+        const string source = """
+            namespace Delta.ECS;
+            using System;
+            struct Cmp1 { public int Value; }
+            struct Cmp2 { public int Value; }
+            struct Cmp3 { public int Value; }
+            struct PairComparer : IComponentComparer
+            {
+                public int Invoke(in Cmp1 left1, in Cmp2 left2, in Cmp1 right1, in Cmp2 right2)
+                    => left1.Value != right1.Value
+                        ? left1.Value.CompareTo(right1.Value)
+                        : left2.Value.CompareTo(right2.Value);
+            }
+            struct Cmp3Comparer : IComponentComparer
+            {
+                public int Invoke(in Cmp3 left, in Cmp3 right)
+                    => left.Value.CompareTo(right.Value);
+            }
+            struct Context { public int Value; }
+            struct ContextComparer : IComponentComparer
+            {
+                public int Invoke(ref Context context, in Cmp1 left, in Cmp1 right)
+                {
+                    context.Value++;
+                    return left.Value.CompareTo(right.Value);
+                }
+            }
+            struct EntityComparer : IComponentComparerEntity
+            {
+                public int Invoke(Entity leftEntity, in Cmp1 left, Entity rightEntity, in Cmp1 right)
+                    => left.Value != right.Value
+                        ? left.Value.CompareTo(right.Value)
+                        : leftEntity.Index.CompareTo(rightEntity.Index);
+            }
+            struct ContextEntityComparer : IComponentComparerEntity
+            {
+                public int Invoke(in Context context, Entity leftEntity, in Cmp1 left, Entity rightEntity, in Cmp1 right)
+                    => left.Value != right.Value
+                        ? left.Value.CompareTo(right.Value)
+                        : (leftEntity.Index + context.Value).CompareTo(rightEntity.Index + context.Value);
+            }
+            static class Consumer
+            {
+                public static void Use(Query query, ComponentId id1, ComponentId id2, ReadOnlySpan<ComponentId> ids, ref Context context)
+                {
+                    var pair = default(PairComparer);
+                    var cmp3 = default(Cmp3Comparer);
+                    var withContext = default(ContextComparer);
+                    var withEntity = default(EntityComparer);
+                    var withContextAndEntity = default(ContextEntityComparer);
+                    _ = query.OrderBy(ref pair).ThenBy(ref cmp3);
+                    _ = query.OrderBy(id1, id2, ref pair);
+                    _ = query.OrderBy(ids, ref pair);
+                    _ = query.OrderBy(ref pair).ThenBy(ids, ref pair);
+                    _ = query.OrderBy(ref context, ref withContext);
+                    _ = query.OrderBy(id1, ref context, ref withContext);
+                    _ = query.OrderBy(ref withEntity);
+                    _ = query.OrderBy(in context, ref withContextAndEntity);
+                }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGenerator(source);
+        string generated = GeneratedText(run);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(generated, Does.Contain("IGeneratedComponentComparer"));
+        Assert.That(generated, Does.Contain("GetGeneratedOrderedQueryKey<global::Delta.ECS.Cmp1>"));
+        Assert.That(generated, Does.Contain("OrderBy(this global::Delta.ECS.Query query, global::Delta.ECS.ComponentId componentId0, global::Delta.ECS.ComponentId componentId1"));
+        Assert.That(generated, Does.Contain("ReadOnlySpan<global::Delta.ECS.ComponentId> componentIds"));
+        Assert.That(generated, Does.Contain("ref global::Delta.ECS.Context context, ref global::Delta.ECS.ContextComparer comparer"));
+        Assert.That(generated, Does.Contain("global::Delta.ECS.Entity leftEntity = left;"));
+        AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
+    }
+
+    [Test]
+    public void ComponentComparerDelegatesSupportContextEntitySelectorsAndStaticInterception()
+    {
+        const string source = """
+            namespace Delta.ECS;
+            using System;
+            public struct Cmp1 { public int Value; }
+            public struct Cmp2 { public int Value; }
+            public struct Context { public int Bias; }
+            static class Consumer
+            {
+                public static void Use(Query query, ComponentId id1, ComponentId id2, ReadOnlySpan<ComponentId> ids, ref Context context)
+                {
+                    _ = query.OrderBy(static (in Cmp1 left, in Cmp1 right) => left.Value.CompareTo(right.Value));
+                    _ = query.OrderBy(id1, id2, in context,
+                        static (in Context state,
+                            Entity leftEntity, in Cmp1 left1, in Cmp2 left2,
+                            Entity rightEntity, in Cmp1 right1, in Cmp2 right2) =>
+                        {
+                            int firstOrder = left1.Value.CompareTo(right1.Value);
+                            return firstOrder != 0
+                                ? firstOrder
+                                : (left2.Value + state.Bias + leftEntity.Index)
+                                    .CompareTo(right2.Value + state.Bias + rightEntity.Index);
+                        });
+                    _ = query.OrderBy(ids,
+                        static (ref readonly Cmp2 left, in Cmp2 right) => left.Value.CompareTo(right.Value));
+                    _ = query.OrderBy(in context,
+                        static (in Context state, in Cmp2 left, in Cmp2 right) => (left.Value + state.Bias).CompareTo(right.Value + state.Bias))
+                        .ThenBy(static (Entity leftEntity, in Cmp1 left, Entity rightEntity, in Cmp1 right) =>
+                            (left.Value + leftEntity.Index).CompareTo(right.Value + rightEntity.Index));
+                    _ = query.OrderBy(ids,
+                            static (in Cmp1 left, in Cmp1 right) => left.Value.CompareTo(right.Value))
+                        .ThenBy(id2, in context,
+                            static (in Context state, Entity leftEntity, in Cmp2 left, Entity rightEntity, in Cmp2 right) =>
+                                (left.Value + state.Bias + leftEntity.Index).CompareTo(right.Value + state.Bias + rightEntity.Index));
+                    _ = query.OrderBy(id1,
+                            static (Entity leftEntity, in Cmp1 left, Entity rightEntity, in Cmp1 right) =>
+                                (left.Value + leftEntity.Index).CompareTo(right.Value + rightEntity.Index))
+                        .ThenBy(ids,
+                            static (in Cmp1 left1, in Cmp2 left2, in Cmp1 right1, in Cmp2 right2) =>
+                            {
+                                int firstOrder = left1.Value.CompareTo(right1.Value);
+                                return firstOrder != 0 ? firstOrder : left2.Value.CompareTo(right2.Value);
+                            });
+                    _ = query.OrderBy(ref context,
+                        static (ref Context state, in Cmp2 left, in Cmp2 right) =>
+                        {
+                            state.Bias++;
+                            return (left.Value + state.Bias).CompareTo(right.Value + state.Bias);
+                        });
+                }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(source);
+        string generated = GeneratedText(run);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(generated, Does.Contain("GeneratedComponentComparerDelegateExtensions_"));
+        Assert.That(generated, Does.Contain("ComponentComparerInterceptor_"));
+        Assert.That(generated, Does.Contain("InterceptsLocation"));
+        Assert.That(generated, Does.Contain("DirectAdapter"));
+        AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
+    }
+
+    [Test]
+    public void ComponentComparerDelegateWorksWithoutInterceptors()
+    {
+        const string source = """
+            namespace Delta.ECS;
+            public struct Cmp1 { public int Value; }
+            static class Consumer
+            {
+                public static OrderedQuery Use(Query query)
+                    => query.OrderBy((Cmp1 left, Cmp1 right) => left.Value.CompareTo(right.Value));
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(source, LanguageVersion.CSharp11);
+        string generated = GeneratedText(run);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(generated, Does.Contain("DelegateAdapter<T1>"));
+        Assert.That(generated, Does.Not.Contain("ComponentComparerInterceptor_"));
+        AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees, LanguageVersion.CSharp11);
+    }
+
+    [Test]
+    public void EntityDelegateDoesNotTreatEntityParametersAsComponentKeysWhenSelectorArityDiffers()
+    {
+        const string source = """
+            namespace Delta.ECS;
+            public struct Cmp1 { public int Value; }
+            static class Consumer
+            {
+                public static void Use(Query query, ComponentId first, ComponentId second)
+                    => _ = query.OrderBy(first, second,
+                        static (Entity leftEntity, in Cmp1 left, Entity rightEntity, in Cmp1 right) =>
+                            left.Value.CompareTo(right.Value));
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(source);
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(GeneratedText(run), Does.Not.Contain("GeneratedComponentComparerDelegateExtensions_"));
+
+        CSharpCompilation compilation = CreateCompilationWithGeneratedTrees(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
+        Assert.That(
+            compilation.GetDiagnostics().Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error),
+            Is.True);
+    }
+
+    [Test]
     public void DemandDrivenOutputIsDeterministic()
     {
         string first = GeneratedText(RunGenerator());
@@ -1512,7 +1703,9 @@ public sealed class DemandDrivenForEachGeneratorTests
                 new DemandDrivenForEachGenerator().AsSourceGenerator(),
                 new GeneratedStructuralGenerator().AsSourceGenerator(),
                 new GeneratedQueryGenerator().AsSourceGenerator(),
-                new GeneratedWhereGenerator().AsSourceGenerator()
+                new GeneratedWhereGenerator().AsSourceGenerator(),
+                new ComponentComparerGenerator().AsSourceGenerator(),
+                new ComponentComparerDelegateGenerator().AsSourceGenerator()
             });
         driver = driver.RunGenerators(compilation);
         return driver.GetRunResult();
@@ -1542,7 +1735,9 @@ public sealed class DemandDrivenForEachGeneratorTests
                 new DemandDrivenForEachGenerator().AsSourceGenerator(),
                 new GeneratedStructuralGenerator().AsSourceGenerator(),
                 new GeneratedQueryGenerator().AsSourceGenerator(),
-                new GeneratedWhereGenerator().AsSourceGenerator()
+                new GeneratedWhereGenerator().AsSourceGenerator(),
+                new ComponentComparerGenerator().AsSourceGenerator(),
+                new ComponentComparerDelegateGenerator().AsSourceGenerator()
             },
             Array.Empty<AdditionalText>(),
             new CSharpParseOptions(languageVersion),
@@ -1665,6 +1860,19 @@ public sealed class DemandDrivenForEachGeneratorTests
         public readonly struct Entity { public int Index { get; } }
         public readonly struct ComponentId { }
         public readonly struct Stamp { }
+        public interface IComponentComparer { }
+        public interface IComponentComparerEntity { }
+        public interface IGeneratedComponentComparer
+        {
+            void Validate(World world, in Query query);
+            int Compare(World world, Entity left, Entity right);
+        }
+        public readonly struct OrderedQuery
+        {
+            public Query SourceQuery => default;
+            public static OrderedQuery CreateGenerated(Query query, IGeneratedComponentComparer comparer) => default;
+            public OrderedQuery AppendGenerated(IGeneratedComponentComparer comparer) => default;
+        }
         public readonly struct QuerySpec
         {
             public static QuerySpec WhereAll(ReadOnlySpan<ComponentId> components) => default;
@@ -1862,6 +2070,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         public sealed partial class World
         {
             public ComponentLayoutRegistry Layouts { get; } = new();
+            public void ValidateGeneratedOrderedQueryKey<T>(in Query query, ComponentId componentId) { }
+            public ref readonly T GetGeneratedOrderedQueryKey<T>(Entity entity, ComponentId componentId) => throw new NotImplementedException();
             public Query WhereAll(ReadOnlySpan<ComponentId> components) => default;
             public Entity Create(ReadOnlySpan<ComponentId> components) => default;
             public int Create(ReadOnlySpan<ComponentId> components, int count) => count;

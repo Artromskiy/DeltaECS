@@ -438,3 +438,189 @@ caller-owned state needs to be read or updated. The generator must be present
 in the assembly defining the accessible generic functor struct. The
 type-token dispatcher uses ordinary generic calls; AOT targets still need to
 preserve the generated closed generic instantiations used by the application.
+
+## Entity-Component-Linq: ordered query results
+
+`OrderBy` creates an `OrderedQuery` view over an existing `Query`. Use it when
+the order in which matching entities are processed matters, for example when
+choosing a deterministic rollback order. `ThenBy` adds tie-breaking keys. Every
+component used by a key must be included in the query's `WhereAll` filter.
+
+Implement `IComponentComparer` for a reusable comparer functor. Its `int
+Invoke` method receives the component values for the left entity followed by
+the corresponding values for the right entity. Pass the functor by `ref`:
+
+```csharp
+Query candidates = world.WhereAll<Priority, SyncId, Health>();
+
+public struct PriorityAndSyncIdComparer : IComponentComparer
+{
+    public int Invoke(
+        in Priority leftPriority,
+        in SyncId leftSyncId,
+        in Priority rightPriority,
+        in SyncId rightSyncId)
+    {
+        int priorityOrder = leftPriority.Value.CompareTo(rightPriority.Value);
+        return priorityOrder != 0
+            ? priorityOrder
+            : leftSyncId.Value.CompareTo(rightSyncId.Value);
+    }
+}
+
+public struct HealthComparer : IComponentComparer
+{
+    public int Invoke(in Health left, in Health right)
+        => left.Value.CompareTo(right.Value);
+}
+
+var pairComparer = default(PriorityAndSyncIdComparer);
+var healthComparer = default(HealthComparer);
+
+OrderedQuery ordered = candidates
+    .OrderBy(ref pairComparer)
+    .ThenBy(ref healthComparer);
+
+ordered.ForEachEntity(static (Entity entity, in Priority priority, in SyncId syncId) =>
+{
+    ProcessInOrder(entity, priority, syncId);
+});
+
+Entity first = ordered.First();
+```
+
+Use `IComponentComparerEntity` when the comparison also needs the entity
+handles. Its `Invoke` signature places the left `Entity` before the left
+component values, then the right `Entity` before the right values. A context may
+be the first parameter in either comparer contract:
+
+```csharp
+public struct SyncIdAndEntityComparer : IComponentComparerEntity
+{
+    public int Invoke(
+        Entity leftEntity,
+        in SyncId leftSyncId,
+        Entity rightEntity,
+        in SyncId rightSyncId)
+    {
+        int order = leftSyncId.Value.CompareTo(rightSyncId.Value);
+        return order != 0 ? order : leftEntity.Index.CompareTo(rightEntity.Index);
+    }
+}
+
+var entityComparer = default(SyncIdAndEntityComparer);
+OrderedQuery byStableEntity = candidates.OrderBy(ref entityComparer);
+```
+
+For one-off comparisons, pass a typed delegate lambda instead of declaring a
+functor. The callback receives values in the same left-then-right order. Static
+lambdas are intercepted by the generator and emitted as direct comparer code;
+capturing lambdas use the generated delegate adapter.
+
+```csharp
+struct OrderingContext
+{
+    public int Offset;
+}
+
+var orderingContext = new OrderingContext { Offset = 3 };
+
+OrderedQuery byPriority = candidates.OrderBy(
+    static (in Priority left, in Priority right) => left.Value.CompareTo(right.Value));
+
+OrderedQuery byEntity = candidates.OrderBy(
+    static (Entity leftEntity, in SyncId left, Entity rightEntity, in SyncId right) =>
+        left.Value != right.Value
+            ? left.Value.CompareTo(right.Value)
+            : leftEntity.Index.CompareTo(rightEntity.Index));
+
+OrderedQuery withContext = candidates.OrderBy(
+    in orderingContext,
+    static (in OrderingContext context, in Priority left, in Priority right) =>
+        (left.Value + context.Offset).CompareTo(right.Value + context.Offset));
+
+OrderedQuery withContextAndEntity = candidates
+    .OrderBy(static (in Priority left, in Priority right) => left.Value.CompareTo(right.Value))
+    .ThenBy(
+        in orderingContext,
+        static (in OrderingContext context, Entity leftEntity, in SyncId left, Entity rightEntity, in SyncId right) =>
+        {
+            int syncOrder = left.Value.CompareTo(right.Value);
+            return syncOrder != 0
+                ? syncOrder
+                : (leftEntity.Index + context.Offset).CompareTo(rightEntity.Index + context.Offset);
+        });
+```
+
+The delegate grammar also accepts a positional `ComponentId` for each key
+component or one `ReadOnlySpan<ComponentId>`, with an optional context after
+those selectors. Entity-aware delegates place `Entity` before each side's
+component values, matching `IComponentComparerEntity`.
+
+The context is copied into the `OrderedQuery` when the comparer key is added.
+Treat it as comparer-owned state for subsequent comparisons; mutations to that
+copy do not update the original variable.
+
+The primary-registration form uses the primary registration for every
+component in the functor's `Invoke` signature. When a CLR type has multiple
+registrations, pass one positional `ComponentId` per compared component. A
+`ReadOnlySpan<ComponentId>` can supply the same list dynamically:
+
+```csharp
+ComponentId priorityId = world.Layouts.Register<Priority>(new SchemaId(30));
+ComponentId syncIdComponentId = world.Layouts.Register<SyncId>(new SchemaId(31));
+ComponentId healthId = world.Layouts.Register<Health>(new SchemaId(32));
+Query candidatesById = world.WhereAll(priorityId, syncIdComponentId, healthId);
+var orderingContext = new OrderingContext { Offset = 3 };
+
+OrderedQuery orderedByIds = candidatesById
+    .OrderBy(priorityId, syncIdComponentId,
+        static (in Priority leftPriority, in SyncId leftSync, in Priority rightPriority, in SyncId rightSync) =>
+        {
+            int priorityOrder = leftPriority.Value.CompareTo(rightPriority.Value);
+            return priorityOrder != 0 ? priorityOrder : leftSync.Value.CompareTo(rightSync.Value);
+        })
+    .ThenBy(healthId, in orderingContext,
+        static (in OrderingContext context, in Health left, in Health right) =>
+            (left.Value + context.Offset).CompareTo(right.Value + context.Offset));
+
+var pairComparerById = default(PriorityAndSyncIdComparer);
+var healthComparerById = default(HealthComparer);
+OrderedQuery orderedHealth = candidatesById
+    .OrderBy(priorityId, syncIdComponentId, ref pairComparerById)
+    .ThenBy(healthId, ref healthComparerById);
+
+orderedHealth.ForEach<Health, SyncId>(healthId, syncIdComponentId,
+    static (ref Health health, in SyncId syncId) => Apply(health, syncId));
+```
+
+The generated `OrderBy` and `ThenBy` forms also accept an explicit
+`ReadOnlySpan<ComponentId>` selector. The generated comparer adapter validates
+the selector length, each registration's CLR type, and membership in
+`WhereAll` before sorting.
+
+`ThenBy` adds another lexicographic comparer key and may be chained without a
+fixed arity limit. One comparer may combine multiple components in a single
+key; a later `ThenBy` compares only entities tied by all earlier keys. Ordering
+keys may include tags; since tags have no stored value, their comparer receives
+the tag's default value. Equal keys preserve the source query's iteration
+order.
+
+Compose `Query` component filters such as `WhereAll`, `WhereAny`, and
+`WhereNone` before calling `OrderBy`. Predicate views created by the generated
+`Where` and `WhereEntity` APIs are not currently ordering sources.
+
+`OrderedQuery.ForEach` and `ForEachEntity` use the generated sequential
+iteration grammar: callbacks or functors, optional context, component rows,
+entity-aware callbacks, primary registrations, explicit positional IDs, and
+dynamic `ReadOnlySpan<ComponentId>` forms. There are no parallel terminals for
+an ordered view. The terminal collects the matching entity handles, performs a
+stable full sort using `World`-owned reusable buffers, then passes the sorted
+handles through the normal generated iteration path. Reuse the `OrderedQuery`
+value to sort again after key values change. The source `Query` and its ordinary
+iteration order are unchanged.
+
+`First` returns the first entity in lexicographic order, or `default(Entity)`
+when there is no match. Its `Func<Entity, bool>` overload returns the first
+ordered entity accepted by the predicate. These terminals find the minimum in
+one pass and do not sort the whole result.

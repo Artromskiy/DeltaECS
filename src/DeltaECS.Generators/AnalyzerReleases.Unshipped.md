@@ -13,3 +13,5 @@ DECSGEN005 | ForEach | Info | Explains why an opt-in Roslyn interception site us
 DECSGEN006 | Where | Error | Rejects writable component parameters in query predicates
 DECSGEN007 | Where | Error | Requires `WhereEntity` for entity parameters in query predicates
 DECSGEN008 | Generic bindings | Error | Rejects open generic definitions with constraints unsupported by runtime type-token dispatch
+DECSGEN009 | Component comparer | Error | Rejects comparer functors that do not expose one accessible supported Invoke signature
+DECSGEN010 | Component comparer | Error | Rejects unsupported comparer selector and invocation forms
