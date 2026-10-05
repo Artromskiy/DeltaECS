@@ -559,7 +559,8 @@ public sealed class ComponentComparerDelegateGenerator : IIncrementalGenerator
                             {{delegateName}} callback)
                             : base(componentIds{{contextArgument}})
                         {
-                            _callback = callback ?? throw new global::System.ArgumentNullException(nameof(callback));
+                            global::Delta.ECS.GeneratedForEachRuntime.ThrowIfNull(callback, nameof(callback));
+                            _callback = callback;
                         }
 
                         protected override int Invoke({{invokeParameters}})

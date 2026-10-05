@@ -549,6 +549,7 @@ internal static partial class DemandDrivenForEachTemplates
         EmitVisitMethod(2, "Visit2");
         EmitVisitMethod(4, "Visit4");
 
+        loopLines.Add($"{loopIndent}#pragma warning disable CS8619 // Unsafe.Add returns a maybe-null ref for unconstrained T; this loop only advances the reference.");
         loopLines.Add($"{loopIndent}if (({countName} & ~3) != 0)");
         loopLines.Add($"{loopIndent}{{");
         loopLines.Add($"{loopIndent}    int loops = {countName} >> 2;");
@@ -588,6 +589,7 @@ internal static partial class DemandDrivenForEachTemplates
         }
 
         loopLines.Add($"{loopIndent}}}");
+        loopLines.Add($"{loopIndent}#pragma warning restore CS8619");
         loopLines.Add($"{loopIndent}int remaining = {countName} & 3;");
         loopLines.Add($"{loopIndent}if (remaining != 0)");
         loopLines.Add($"{loopIndent}{{");

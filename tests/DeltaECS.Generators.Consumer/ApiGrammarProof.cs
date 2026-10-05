@@ -485,7 +485,7 @@ public static class ApiGrammarProof
         _ = query.OrderBy(cmp1Id, in context,
             static (in Context state, in Cmp1 left, in Cmp1 right) =>
                 (left.Value + state.Value).CompareTo(right.Value + state.Value));
-        _ = query.OrderBy(componentIds,
+        _ = query.OrderBy(componentIds[..1],
             static (in Cmp1 left, in Cmp1 right) => left.Value.CompareTo(right.Value));
         _ = query.OrderBy(static (Entity leftEntity, in Cmp1 left, Entity rightEntity, in Cmp1 right) =>
             (left.Value + leftEntity.Index).CompareTo(right.Value + rightEntity.Index));
