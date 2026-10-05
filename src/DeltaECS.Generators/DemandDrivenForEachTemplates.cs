@@ -1290,7 +1290,7 @@ internal static partial class DemandDrivenForEachTemplates
         {
             string.Join("\n", fields),
             $$"""
-                internal {{name}}({{string.Join(", ", constructorParameters)}})
+                public {{name}}({{string.Join(", ", constructorParameters)}})
                 {
                 {{GeneratorTemplates.Indent(string.Join("\n", constructorAssignments), "    ")}}
                 }

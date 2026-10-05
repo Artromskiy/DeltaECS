@@ -84,19 +84,21 @@ world.ForEachEntityParallel(Q, C?, A | F, W)
 world.ForEachEntityParallel(E, Q?, C?, A | F, W)
 ```
 
-Functor forms use the same target, query, selector, and context order, with
-`F` in the callback position:
+Functor forms use the same target, query, registration selector, and context
+order, with `F` in the callback position. Their CLR row types are inferred from
+the functor's `Invoke` signature, so ordinary component functor calls do not
+take explicit `<T...>` arguments:
 
 ```text
-world.ForEach<T...>(Q, I... | D, C, F)
-world.ForEachEntity<T...>(Q, I... | D, C, F)
-world.ForEach<T...>(E, Q?, I... | D, C, F)
-world.ForEachEntity<T...>(E, Q?, I... | D, C, F)
+world.ForEach(Q, I... | D, C, F)
+world.ForEachEntity(Q, I... | D, C, F)
+world.ForEach(E, Q?, I... | D, C, F)
+world.ForEachEntity(E, Q?, I... | D, C, F)
 
-world.ForEachParallel<T...>(Q, I... | D, C, F, W)
-world.ForEachEntityParallel<T...>(Q, I... | D, C, F, W)
-world.ForEachParallel<T...>(E, Q?, I... | D, C, F, W)
-world.ForEachEntityParallel<T...>(E, Q?, I... | D, C, F, W)
+world.ForEachParallel(Q, I... | D, C, F, W)
+world.ForEachEntityParallel(Q, I... | D, C, F, W)
+world.ForEachParallel(E, Q?, I... | D, C, F, W)
+world.ForEachEntityParallel(E, Q?, I... | D, C, F, W)
 ```
 
 `ForEach` callbacks receive component rows. `ForEachEntity` callbacks also

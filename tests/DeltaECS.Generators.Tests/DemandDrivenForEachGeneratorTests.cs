@@ -1000,6 +1000,12 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void RealConsumerProjectExecutesApiGrammarWithoutThrowing()
+    {
+        Assert.DoesNotThrow(ApiGrammarProof.Run);
+    }
+
+    [Test]
     public void StructuralGeneratorEmitsOnlyUsedGenericShapes()
     {
         GeneratorDriverRunResult run = RunGenerator(StructuralSource);
