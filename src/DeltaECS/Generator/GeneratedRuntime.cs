@@ -862,15 +862,39 @@ public static partial class GeneratedForEachRuntime
         where TInvoker : struct, IGeneratedWhereInvoker
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
-        using var execution = OpenDense(world, in query);
-        execution.MarkArchetypeWrites(writeComponentIndices);
-        TInvoker invocation = invoker;
-        while (execution.MoveNextTrusted(out var slots))
-        {
-            invocation.Invoke(ref slots);
-        }
+        QueryPlan plan = ValidateQuery(world, in query);
+        ExecuteGeneratedWhereForEach(world, plan, ref invoker, writeComponentIndices);
+    }
 
-        invoker = invocation;
+    private static void ExecuteGeneratedWhereForEach<TInvoker>(
+        World world,
+        QueryPlan plan,
+        ref TInvoker invoker,
+        scoped ReadOnlySpan<int> writeComponentIndices)
+        where TInvoker : struct, IGeneratedWhereInvoker
+    {
+        world.BeginQueryLease();
+        var execution = new GeneratedDenseExecution(
+            world,
+            plan.MatchingPlans(),
+            plan.MatchingChunkPlans(),
+            ownsLease: true,
+            queryPlan: plan);
+        try
+        {
+            execution.MarkArchetypeWrites(writeComponentIndices);
+            TInvoker invocation = invoker;
+            while (execution.MoveNextTrusted(out var slots))
+            {
+                invocation.Invoke(ref slots);
+            }
+
+            invoker = invocation;
+        }
+        finally
+        {
+            execution.Dispose();
+        }
     }
 
     /// <summary>Executes a generated callback for the alive entities selected by a caller-owned list.</summary>
@@ -885,6 +909,17 @@ public static partial class GeneratedForEachRuntime
         where TInvoker : struct, IGeneratedParallelInvoker
     {
         QueryPlan plan = ValidateQuery(world, in query);
+        ExecuteEntityList(world, plan, entities, ref invoker, writeComponentIndices);
+    }
+
+    private static void ExecuteEntityList<TInvoker>(
+        World world,
+        QueryPlan plan,
+        ReadOnlySpan<Entity> entities,
+        ref TInvoker invoker,
+        scoped ReadOnlySpan<int> writeComponentIndices)
+        where TInvoker : struct, IGeneratedParallelInvoker
+    {
         MarkArchetypeWrites(plan.MatchingPlans(), writeComponentIndices);
         TInvoker invocation = invoker;
         world.BeginQueryLease();
@@ -926,6 +961,13 @@ public static partial class GeneratedForEachRuntime
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
         QueryPlan plan = ValidateQuery(world, in query);
+        ThrowHelper.ThrowIfNegative(requestedWorkerCount, nameof(requestedWorkerCount));
+        if (plan.MatchingChunkPlans().Length <= 1)
+        {
+            ExecuteEntityList(world, plan, entities, ref invoker, writeComponentIndices);
+            return;
+        }
+
         ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
         MarkArchetypeWrites(plans, writeComponentIndices);
         world.BeginQueryLease();
@@ -1012,7 +1054,15 @@ public static partial class GeneratedForEachRuntime
         int requestedWorkerCount = 0)
         where TInvoker : struct, IGeneratedParallelInvoker
     {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
         QueryPlan plan = ValidateQuery(world, in query);
+        ThrowHelper.ThrowIfNegative(requestedWorkerCount, nameof(requestedWorkerCount));
+        if (plan.MatchingChunkPlans().Length <= 1)
+        {
+            ExecuteGeneratedWhereForEach(world, plan, ref invoker, writeComponentIndices);
+            return;
+        }
+
         ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
         MarkArchetypeWrites(plans, writeComponentIndices);
         world.BeginQueryLease();

@@ -227,19 +227,19 @@ internal sealed class IntegrationWorldTests
         {
             Assert.That(tagSnapshot.Value, Is.EqualTo(default(IntegrationTag)));
             Assert.That(tagSnapshot.Value?.GetType(), Is.EqualTo(typeof(IntegrationTag)));
-            Assert.That(tagSnapshot.Stamp, Is.EqualTo(default(Stamp)));
+            Assert.That(tagSnapshot.Stamp, Is.EqualTo(new Stamp(1)));
             Assert.That(tagReadError.Code, Is.EqualTo(EcsReadErrorCode.None));
         });
 
-        Assert.That(world.TryWrite(tagged, tagId, default(IntegrationTag), default, out Stamp written, out EcsWriteError tagWriteError), Is.True);
+        Assert.That(world.TryWrite(tagged, tagId, default(IntegrationTag), new Stamp(1), out Stamp written, out EcsWriteError tagWriteError), Is.True);
         Assert.Multiple(() =>
         {
-            Assert.That(written, Is.EqualTo(default(Stamp)));
+            Assert.That(written, Is.EqualTo(new Stamp(1)));
             Assert.That(tagWriteError.Code, Is.EqualTo(EcsWriteErrorCode.None));
         });
-        Assert.That(world.TryWrite(tagged, tagId, default(IntegrationTag), new Stamp(1), out _, out EcsWriteError staleTag), Is.False);
+        Assert.That(world.TryWrite(tagged, tagId, default(IntegrationTag), default, out _, out EcsWriteError staleTag), Is.False);
         Assert.That(staleTag.Code, Is.EqualTo(EcsWriteErrorCode.StaleStamp));
-        Assert.That(world.TryWrite(tagged, tagId, new object(), default, out _, out EcsWriteError wrongTagValue), Is.False);
+        Assert.That(world.TryWrite(tagged, tagId, new object(), new Stamp(1), out _, out EcsWriteError wrongTagValue), Is.False);
         Assert.That(wrongTagValue.Code, Is.EqualTo(EcsWriteErrorCode.InvalidValue));
 
         Assert.That(world.TryRead(untagged, tagId, out _, out EcsReadError missingTag), Is.False);

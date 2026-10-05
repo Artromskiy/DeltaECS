@@ -195,13 +195,14 @@ internal sealed class ParallelIterationTests
     }
 
     [Test]
-    public void GeneratedForEachParallelUsesBackgroundWorkerForSmallQuery()
+    public void GeneratedForEachParallelUsesSingleThreadPathForSingleChunk()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(70_080));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(70_081));
         using var world = new World(layouts, initialEntityCapacity: 8);
-        world.Create([positionId, velocityId], 2, Span<Entity>.Empty);
+        var entities = new Entity[2];
+        world.Create([positionId, velocityId], entities);
         Query query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
         s_generatedCallbackThreadId = 0;
         int callerThreadId = Environment.CurrentManagedThreadId;
@@ -215,7 +216,17 @@ internal sealed class ParallelIterationTests
             },
             workerCount: 2);
 
-        Assert.That(Volatile.Read(ref s_generatedCallbackThreadId), Is.Not.EqualTo(callerThreadId));
+        Assert.That(Volatile.Read(ref s_generatedCallbackThreadId), Is.EqualTo(callerThreadId));
+
+        int[] entityListThreadId = [0];
+        world.ForEachEntityParallel(
+            entities,
+            in query,
+            entityListThreadId,
+            static (int[] threadId, Entity _) => Volatile.Write(ref threadId[0], Environment.CurrentManagedThreadId),
+            workerCount: 2);
+
+        Assert.That(Volatile.Read(ref entityListThreadId[0]), Is.EqualTo(callerThreadId));
     }
 
     [Test]
@@ -273,8 +284,9 @@ internal sealed class ParallelIterationTests
         var layouts = new ComponentLayoutRegistry();
         var positionId = layouts.Register<Position>(new SchemaId(70_050));
         var velocityId = layouts.Register<Velocity>(new SchemaId(70_051));
-        using var world = new World(layouts, initialEntityCapacity: 1_024);
-        var entities = new Entity[1_024];
+        int entityCount = Chunk.Capacity * 4;
+        using var world = new World(layouts, initialEntityCapacity: entityCount);
+        var entities = new Entity[entityCount];
         world.Create(new[] { positionId, velocityId }, entities);
         var query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
 

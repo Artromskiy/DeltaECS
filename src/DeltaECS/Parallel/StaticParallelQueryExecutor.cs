@@ -164,6 +164,8 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             }
         }
 
+        workerCount = Math.Min(workerCount, _chunkCount);
+
         if (invoker.RequiresSingleThread || workerCount == 1)
         {
             ExecuteSingleThread(ref invoker);
@@ -240,6 +242,9 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             workerCount = Math.Min(
                 Math.Max(1, Environment.ProcessorCount),
                 Math.Max(1, workerCount));
+            workerCount = Math.Min(
+                workerCount,
+                Math.Min(plan.MatchingChunkPlans().Length, _entityCount));
 
             if (invoker.RequiresSingleThread || workerCount == 1)
             {

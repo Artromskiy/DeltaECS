@@ -162,7 +162,7 @@ public ref struct GeneratedQuerySlots
     [EditorBrowsable(EditorBrowsableState.Never)]
     public Stamp GetGeneratedStamp(int queryComponentIndex, int index)
         => QueryPlan.IsTagRoute(queryComponentIndex)
-            ? default
+            ? new Stamp(1)
             : _world.GetComponentStamp(
                 _chunk.ArchetypeId,
                 _chunk,
@@ -266,7 +266,7 @@ public ref struct GeneratedReadQuerySlots
     [EditorBrowsable(EditorBrowsableState.Never)]
     public Stamp GetGeneratedStamp(int queryComponentIndex, int index)
         => QueryPlan.IsTagRoute(queryComponentIndex)
-            ? default
+            ? new Stamp(1)
             : _world.GetComponentStamp(
                 _chunk.ArchetypeId,
                 _chunk,

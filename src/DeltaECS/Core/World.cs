@@ -675,7 +675,7 @@ public sealed partial class World : IDisposable
         return _archetypes[chunk.ArchetypeId].Contains(componentId);
     }
 
-    /// <summary>Gets the current value revision for a data component on an entity.</summary>
+    /// <summary>Gets the component stamp, or the tag-presence stamp when the entity owns a tag.</summary>
     public bool TryGetComponentStamp(Entity entity, ComponentId componentId, out Stamp stamp)
     {
         EnsureExecutionAccess();
@@ -687,7 +687,13 @@ public sealed partial class World : IDisposable
 
         if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
         {
-            return chunk.HasTag(tagIndex, slotIndex);
+            if (!chunk.HasTag(tagIndex, slotIndex))
+            {
+                return false;
+            }
+
+            stamp = new Stamp(1);
+            return true;
         }
 
         var archetype = _archetypes[chunk.ArchetypeId];

@@ -132,7 +132,7 @@ public sealed partial class World : IEcsWorld
             }
 
             object defaultValue = Array.CreateInstance(layout.RuntimeType, 1).GetValue(0)!;
-            snapshot = new ComponentSnapshot(defaultValue, default);
+            snapshot = new ComponentSnapshot(defaultValue, new Stamp(1));
             error = new EcsReadError(EcsReadErrorCode.None);
             return true;
         }
@@ -193,7 +193,7 @@ public sealed partial class World : IEcsWorld
                 return false;
             }
 
-            if (expectedStamp != default)
+            if (expectedStamp != new Stamp(1))
             {
                 error = new EcsWriteError(EcsWriteErrorCode.StaleStamp);
                 return false;
@@ -205,6 +205,7 @@ public sealed partial class World : IEcsWorld
                 return false;
             }
 
+            writtenStamp = new Stamp(1);
             error = new EcsWriteError(EcsWriteErrorCode.None);
             return true;
         }

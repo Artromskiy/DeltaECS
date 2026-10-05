@@ -306,7 +306,7 @@ internal sealed class TagComponentTests
     }
 
     [Test]
-    public void TagStampsReportMembershipWithDefaultStamp()
+    public void TagStampsReportMembershipWithOneAndAbsenceWithDefault()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_028));
@@ -316,9 +316,17 @@ internal sealed class TagComponentTests
         Entity unmarked = world.Create<OtherTag>();
 
         Assert.That(world.TryGetComponentStamp(marked, markedId, out Stamp registeredStamp), Is.True);
-        Assert.That(registeredStamp, Is.EqualTo(default(Stamp)));
+        Assert.That(registeredStamp, Is.EqualTo(new Stamp(1)));
         Assert.That(world.TryGetComponentStamp<MarkedTag>(marked, out Stamp primaryStamp), Is.True);
-        Assert.That(primaryStamp, Is.EqualTo(default(Stamp)));
+        Assert.That(primaryStamp, Is.EqualTo(new Stamp(1)));
+
+        Query query = world.CreateQuery(QuerySpec.WhereAll(markedId));
+        Stamp iteratedStamp = default;
+        world.ForEachStamp<Stamp, MarkedTag>(
+            in query,
+            ref iteratedStamp,
+            static (ref Stamp result, in Stamp current) => result = current);
+        Assert.That(iteratedStamp, Is.EqualTo(new Stamp(1)));
 
         Assert.That(world.TryGetComponentStamp(unmarked, markedId, out Stamp absentStamp), Is.False);
         Assert.That(absentStamp, Is.EqualTo(default(Stamp)));
@@ -344,7 +352,7 @@ internal sealed class TagComponentTests
         Assert.That(readOnlyTagReference, Is.EqualTo(default(MarkedTag)));
         Assert.That(world.Get<MarkedTag>(marked), Is.EqualTo(default(MarkedTag)));
         Assert.That(world.TryGetComponentStamp(marked, markedId, out Stamp stamp), Is.True);
-        Assert.That(stamp, Is.EqualTo(default(Stamp)));
+        Assert.That(stamp, Is.EqualTo(new Stamp(1)));
         Assert.Throws<InvalidOperationException>(() => world.Get<MarkedTag>(unmarked));
         Assert.Throws<InvalidOperationException>(() => world.GetRef<MarkedTag>(unmarked, markedId));
 
