@@ -74,6 +74,49 @@ internal sealed class ComponentLayoutRegistryTests
     }
 
     [Test]
+    public void VisitorDispatchesRegisteredTypeAndRegistrationId()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        layouts.Register<Position>(new SchemaId(70_071));
+        ComponentId secondPosition = layouts.Register<Position>(new SchemaId(70_072));
+        var visitor = default(ComponentTypeVisitor);
+
+        layouts.Visitors.Visit(secondPosition, ref visitor);
+
+        Assert.That(visitor.VisitCount, Is.EqualTo(1));
+        Assert.That(visitor.ComponentId, Is.EqualTo(secondPosition));
+        Assert.That(visitor.ComponentType, Is.EqualTo(typeof(Position)));
+    }
+
+    [Test]
+    public void VisitorDispatchAcceptsReferenceVisitors()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId componentId = layouts.Register<Position>(new SchemaId(70_073));
+        var visitor = new ReferenceComponentTypeVisitor();
+
+        layouts.Visitors.Visit(componentId, ref visitor);
+
+        Assert.That(visitor.VisitCount, Is.EqualTo(1));
+        Assert.That(visitor.ComponentId, Is.EqualTo(componentId));
+        Assert.That(visitor.ComponentType, Is.EqualTo(typeof(Position)));
+    }
+
+    [Test]
+    public void VisitorDispatchRejectsAnUnregisteredComponentId()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        var visitor = default(ComponentTypeVisitor);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            layouts.Visitors.Visit(ComponentId.Invalid, ref visitor);
+        });
+
+        Assert.That(visitor.VisitCount, Is.Zero);
+    }
+
+    [Test]
     public void RegistrationContinuesBeyondTheOriginalFourWordBoundary()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -134,6 +177,34 @@ internal sealed class ComponentLayoutRegistryTests
     private sealed class ReferenceComponent
     {
         public int Value { get; init; }
+    }
+
+    private struct ComponentTypeVisitor : IComponentTypeVisitor
+    {
+        public ComponentId ComponentId;
+        public Type? ComponentType;
+        public int VisitCount;
+
+        public void Visit<T>(ComponentId componentId)
+        {
+            ComponentId = componentId;
+            ComponentType = typeof(T);
+            VisitCount++;
+        }
+    }
+
+    private sealed class ReferenceComponentTypeVisitor : IComponentTypeVisitor
+    {
+        public ComponentId ComponentId;
+        public Type? ComponentType;
+        public int VisitCount;
+
+        public void Visit<T>(ComponentId componentId)
+        {
+            ComponentId = componentId;
+            ComponentType = typeof(T);
+            VisitCount++;
+        }
     }
 
     private static bool TryGetPrimaryByType(

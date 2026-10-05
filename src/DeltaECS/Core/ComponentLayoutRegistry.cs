@@ -17,6 +17,15 @@ public sealed partial class ComponentLayoutRegistry
     private readonly Dictionary<Type, List<GenericRegistration>> _genericRegistrations = new();
     private int _tagCount;
 
+    /// <summary>Creates a component layout registry with its component type visitor.</summary>
+    public ComponentLayoutRegistry()
+    {
+        Visitors = new ComponentVisitorRegistry(this);
+    }
+
+    /// <summary>Gets the visitor registry for this layout registry.</summary>
+    public ComponentVisitorRegistry Visitors { get; }
+
     /// <summary>Registers one component from the generated component catalog.</summary>
     public ComponentId Register(IGeneratedComponentRegistration registration)
     {
@@ -292,6 +301,12 @@ public sealed partial class ComponentLayoutRegistry
         }
 
         return _layouts[id.Value];
+    }
+
+    internal IGeneratedComponentTypeToken GetComponentTypeToken(ComponentId id)
+    {
+        _ = Get(id);
+        return _componentTypeTokens[id.Value];
     }
 
     internal bool TryGet(ComponentId id, out ComponentLayout layout)
