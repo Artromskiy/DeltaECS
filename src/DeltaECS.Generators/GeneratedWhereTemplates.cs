@@ -12,19 +12,6 @@ internal static class GeneratedWhereTemplates
         #pragma warning disable CS0436
 
         """;
-    private const string InterceptorFooter = """
-        }
-
-        namespace System.Runtime.CompilerServices
-        {
-
-        file sealed class InterceptsLocationAttribute : global::System.Attribute
-        {
-            internal InterceptsLocationAttribute(int version, string data) { }
-        }
-        }
-        """;
-
     internal static string RenderInterceptor(WhereInterceptionSite site)
     {
         PredicateModel shape = site.Shape;
@@ -36,17 +23,7 @@ internal static class GeneratedWhereTemplates
             ? new[] { InterceptedPredicateContextType(site) }.Concat(site.PredicateComponents).ToArray()
             : site.PredicateComponents;
         string viewType = InNamespace(shape.Namespace, "GeneratedWhereQuery_" + hash);
-        string[] ecsUsings = site.Usings
-            .Select(static value => value.Trim())
-            .Where(static value => value is "using Delta.ECS;" or "using global::Delta.ECS;")
-            .Take(1)
-            .ToArray();
-        string usings = string.Join(
-            "\n",
-            (ecsUsings.Length == 0 ? new[] { "using global::Delta.ECS;" } : ecsUsings)
-            .Concat(site.Usings
-                .Where(static value => value.Trim() is not ("using Delta.ECS;" or "using global::Delta.ECS;"))
-                .OrderBy(static value => value, StringComparer.Ordinal)));
+        string usings = GeneratorTemplates.InterceptorUsings(site.Usings);
         string predicate = RenderInterceptedPredicate(site);
         string action = terminal.IsCallback && !terminal.IsFunctor ? RenderInterceptedAction(site) : string.Empty;
         string loop = terminal.HasValues
@@ -84,7 +61,7 @@ internal static class GeneratedWhereTemplates
             {
             {{GeneratorTemplates.Indent(members, "    ")}}
             }
-            {{InterceptorFooter}}
+            {{GeneratorTemplates.InterceptorSourceFooter}}
             """;
         return GeneratedSourceFormatter.Format(source);
     }
@@ -93,56 +70,43 @@ internal static class GeneratedWhereTemplates
         => ", " + RenderValueParameters(site.Terminal.Api.Signature, site.Terminal.Components) + ")";
 
     private static string RenderInterceptedPredicate(WhereInterceptionSite site)
-    {
-        PredicateModel shape = site.Shape;
-        SignatureProjection slots = shape.Api.Signature;
-        CallSiteBinding binding = site.PredicateBinding;
-        string[] parameters = binding.LambdaParameterNames;
-        int parameterIndex = 0;
-        string[] declarations = new[]
-            {
-                shape.HasContext ? $"ref {InterceptedPredicateContextType(site)} {parameters[parameterIndex++]}" : string.Empty,
-                shape.HasEntity ? $"Entity {parameters[parameterIndex++]}" : string.Empty
-            }
-            .Concat(Enumerable.Range(0, slots.Arity).Select(index =>
-                slots.ComponentParameter(index, site.PredicateComponents[index], parameters[parameterIndex++])))
-            .Where(static declaration => declaration.Length != 0)
-            .ToArray();
-        string body = binding.LambdaBodyIsBlock
-            ? GeneratorTemplates.Indent(binding.LambdaBody!, "        ")
-            : binding.LambdaBody is { } expression
-                ? $$"""        return {{expression}};"""
-                : $$"""        return {{MethodGroupInvocation(binding.MethodGroupTarget!, shape.HasContext, shape.HasEntity, slots, parameters)}};""";
-        return $$"""
-            [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-            private static bool Predicate_{{site.Id}}({{string.Join(", ", declarations)}})
-            {
-            {{body}}
-            }
-
-            """;
-    }
+        => RenderInterceptedCallback(site, predicate: true);
 
     private static string RenderInterceptedAction(WhereInterceptionSite site)
+        => RenderInterceptedCallback(site, predicate: false);
+
+    private static string RenderInterceptedCallback(WhereInterceptionSite site, bool predicate)
     {
+        PredicateModel shape = site.Shape;
         TerminalModel terminal = site.Terminal;
-        SignatureProjection slots = terminal.Api.Signature;
-        CallSiteBinding binding = site.ActionBinding;
+        SignatureProjection slots = predicate ? shape.Api.Signature : terminal.Api.Signature;
+        CallSiteBinding binding = predicate ? site.PredicateBinding : site.ActionBinding;
+        string[] componentTypes = predicate ? site.PredicateComponents : site.ActionComponents;
         string[] parameters = binding.LambdaParameterNames;
         int parameterIndex = 0;
-        string[] declarations = new[] { terminal.HasEntity ? $"Entity {parameters[parameterIndex++]}" : string.Empty }
+        bool hasEntity = predicate ? shape.HasEntity : terminal.HasEntity;
+        string[] prefixes = predicate
+            ? new[]
+            {
+                shape.HasContext ? $"ref {InterceptedPredicateContextType(site)} {parameters[parameterIndex++]}" : string.Empty,
+                hasEntity ? $"Entity {parameters[parameterIndex++]}" : string.Empty
+            }
+            : new[] { hasEntity ? $"Entity {parameters[parameterIndex++]}" : string.Empty };
+        string[] declarations = prefixes
             .Concat(Enumerable.Range(0, slots.Arity).Select(index =>
-                slots.ComponentParameter(index, site.ActionComponents[index], parameters[parameterIndex++])))
+                slots.ComponentParameter(index, componentTypes[index], parameters[parameterIndex++])))
             .Where(static declaration => declaration.Length != 0)
             .ToArray();
         string body = binding.LambdaBodyIsBlock
             ? GeneratorTemplates.Indent(binding.LambdaBody!, "        ")
             : binding.LambdaBody is { } expression
-                ? $$"""        {{expression}};"""
-                : $$"""        {{MethodGroupInvocation(binding.MethodGroupTarget!, terminal.HasContext, terminal.HasEntity, slots, parameters)}};""";
+                ? predicate ? $$"""        return {{expression}};""" : $$"""        {{expression}};"""
+                : $$"""        {{(predicate ? "return " : string.Empty)}}{{MethodGroupInvocation(binding.MethodGroupTarget!, predicate ? shape.HasContext : terminal.HasContext, hasEntity, slots, parameters)}};""";
+        string returnType = predicate ? "bool" : "void";
+        string methodName = predicate ? "Predicate" : "Action";
         return $$"""
             [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-            private static void Action_{{site.Id}}({{string.Join(", ", declarations)}})
+            private static {{returnType}} {{methodName}}_{{site.Id}}({{string.Join(", ", declarations)}})
             {
             {{body}}
             }
@@ -1056,25 +1020,11 @@ internal static class GeneratedWhereTemplates
 
         if (terminal.Kind is TerminalKind.Add or TerminalKind.Remove)
         {
-            if (terminalSlots.HasDynamicIds)
-            {
-                body.Add("global::System.ReadOnlySpan<ComponentId> components = componentIds;");
-            }
-            else if (terminalSlots.HasExplicitIds)
-            {
-                body.Add($"Span<ComponentId> components = stackalloc ComponentId[{terminal.Arity}];");
-                body.AddRange(GeneratorTemplates.Indexed(
-                    terminal.Arity,
-                    index => $$"""components[{{index}}] = {{terminalSlots.ComponentIdArgument(index)}};"""));
-            }
-            else
-            {
-                string components = GeneratorTemplates.PrimaryComponentIds(
-                    "_world",
-                    GeneratorTemplates.Indexed(terminal.Arity, index => terminalSlots.GenericType(index, "U")).ToArray(),
-                    namespaceName: shape.Namespace);
-                body.Add($"global::System.ReadOnlySpan<ComponentId> components = {components};");
-            }
+            body.Add(GeneratorTemplates.ComponentIdSpan(
+                terminalSlots,
+                "_world",
+                shape.Namespace,
+                genericPrefix: "U"));
         }
 
         if (terminal.HasValues)

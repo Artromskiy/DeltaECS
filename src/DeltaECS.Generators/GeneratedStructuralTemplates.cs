@@ -61,36 +61,30 @@ internal static class GeneratedStructuralTemplates
 
     private static IEnumerable<string> ParameterFragments(StructuralModel shape, SignatureProjection slots)
     {
+        if (shape.Operation == StructuralOperation.Create)
+        {
+            return new[] { CreateParameters(shape, slots) };
+        }
+
         TargetKind target = shape.Api.Target;
-        return shape.Operation == StructuralOperation.Create
-            ? new[] { CreateParameters(shape, slots) }
-            : target switch
-            {
-                TargetKind.EntityList => new[]
-                {
-                "global::System.ReadOnlySpan<Entity> entities",
-                slots.HasExplicitIds
-                    ? slots.ComponentIdParameters()
-                    : string.Empty,
-                shape.HasValues ? ValueParameters(slots) : string.Empty
-            },
-                TargetKind.Entity => new[]
-                {
-                "Entity entity",
-                slots.HasExplicitIds
-                    ? slots.ComponentIdParameters()
-                    : string.Empty,
-                shape.HasValues ? ValueParameters(slots) : string.Empty
-            },
-                TargetKind.Query => new[]
-                {
-                "in Query query",
-                slots.HasExplicitIds
-                    ? slots.ComponentIdParameters()
-                    : string.Empty
-            },
-                _ => Array.Empty<string>()
-            };
+        string firstParameter = target switch
+        {
+            TargetKind.EntityList => "global::System.ReadOnlySpan<Entity> entities",
+            TargetKind.Entity => "Entity entity",
+            TargetKind.Query => "in Query query",
+            _ => string.Empty
+        };
+        if (firstParameter.Length == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        return new[]
+        {
+            firstParameter,
+            slots.HasExplicitIds ? slots.ComponentIdParameters() : string.Empty,
+            shape.HasValues && target != TargetKind.Query ? ValueParameters(slots) : string.Empty
+        };
     }
 
     private static string CreateParameters(StructuralModel shape, SignatureProjection slots)
@@ -198,35 +192,7 @@ internal static class GeneratedStructuralTemplates
     }
 
     private static string RenderComponents(StructuralModel shape, SignatureProjection slots)
-    {
-        if (slots.HasDynamicIds)
-        {
-            return $$"""
-                global::System.ReadOnlySpan<ComponentId> components = componentIds;
-                """;
-        }
-
-        if (!slots.HasExplicitIds)
-        {
-            string components = GeneratorTemplates.PrimaryComponentIds(
-                "target",
-                GeneratorTemplates.Indexed(slots.Arity, index => slots.GenericType(index)).ToArray(),
-                namespaceName: shape.Namespace);
-            return $$"""global::System.ReadOnlySpan<ComponentId> components = {{components}};""";
-        }
-
-        string assignments = RenderComponentAssignments("components", slots);
-        return $$"""
-            global::System.Span<ComponentId> components = stackalloc ComponentId[{{slots.Arity}}];
-            {{assignments}}
-            """;
-    }
-
-    private static string RenderComponentAssignments(string destination, SignatureProjection slots)
-        => GeneratorTemplates.JoinIndexed(
-            slots.Arity,
-            index => $$"""{{destination}}[{{index}}] = {{slots.ComponentIdArgument(index)}};""",
-            "\n");
+        => GeneratorTemplates.ComponentIdSpan(slots, "target", shape.Namespace);
 
     private static string MethodName(StructuralModel shape)
         => shape.Operation switch

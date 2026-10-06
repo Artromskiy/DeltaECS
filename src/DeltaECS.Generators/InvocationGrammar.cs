@@ -5,160 +5,113 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace Delta.ECS.Generators;
 
 /// <summary>Declarative signature facts shared by the generator readers.</summary>
-internal readonly struct ApiDescriptor
+internal readonly record struct ApiDescriptor(
+    GeneratedApiKind Family,
+    bool HasEntity,
+    ValueDomain Value,
+    Schedule Schedule,
+    InvocationTargetRule Target,
+    QueryMode Query,
+    bool AllowsIds,
+    bool AllowsContext,
+    bool RequiresCallback,
+    InvocationTailRule Tail,
+    int MinimumArity)
 {
-    internal ApiDescriptor(
-        GeneratedApiKind family,
-        bool hasEntity,
-        ValueDomain value,
-        Schedule schedule,
-        InvocationTargetRule target,
-        QueryMode query,
-        bool allowsIds,
-        bool allowsContext,
-        bool requiresCallback,
-        InvocationTailRule tail,
-        int minimumArity)
-    {
-        Family = family;
-        HasEntity = hasEntity;
-        Value = value;
-        Schedule = schedule;
-        Target = target;
-        Query = query;
-        AllowsIds = allowsIds;
-        AllowsContext = allowsContext;
-        RequiresCallback = requiresCallback;
-        Tail = tail;
-        MinimumArity = minimumArity;
-    }
-
-    internal GeneratedApiKind Family { get; }
-    internal bool HasEntity { get; }
-    internal ValueDomain Value { get; }
-    internal Schedule Schedule { get; }
-    internal InvocationTargetRule Target { get; }
-    internal QueryMode Query { get; }
-    internal bool AllowsIds { get; }
-    internal bool AllowsContext { get; }
-    internal bool RequiresCallback { get; }
-    internal InvocationTailRule Tail { get; }
-    internal int MinimumArity { get; }
-
     internal ApiDescriptor WithTarget(InvocationTargetRule target)
-        => new(
-            Family,
-            HasEntity,
-            Value,
-            Schedule,
-            target,
-            Query,
-            AllowsIds,
-            AllowsContext,
-            RequiresCallback,
-            Tail,
-            MinimumArity);
+        => this with { Target = target };
 
     internal ApiDescriptor WithTail(InvocationTailRule tail)
-        => new(
-            Family,
-            HasEntity,
-            Value,
-            Schedule,
-            Target,
-            Query,
-            AllowsIds,
-            AllowsContext,
-            RequiresCallback,
-            tail,
-            MinimumArity);
+        => this with { Tail = tail };
 
     internal static bool TryGet(string name, out ApiDescriptor descriptor)
     {
-        bool entity = name is "ForEachEntity" or "ForEachEntityParallel"
-            or "ForEachEntityStamp" or "ForEachEntityStampParallel"
-            or "WhereEntity";
-        bool parallel = name is "ForEachParallel" or "ForEachEntityParallel"
-            or "ForEachStampParallel" or "ForEachEntityStampParallel";
-        bool stamp = name is "ForEachStamp" or "ForEachEntityStamp"
-            or "ForEachStampParallel" or "ForEachEntityStampParallel";
-
-        if (name is "ForEach" or "ForEachEntity"
-            or "ForEachParallel" or "ForEachEntityParallel"
-            or "ForEachStamp" or "ForEachEntityStamp"
-            or "ForEachStampParallel" or "ForEachEntityStampParallel")
+        descriptor = name switch
         {
-            descriptor = new ApiDescriptor(
-                GeneratedApiKind.Iteration,
-                entity,
-                stamp ? ValueDomain.Stamp : ValueDomain.Component,
-                parallel ? Schedule.Parallel : Schedule.Sequential,
-                InvocationTargetRule.EntityListOptional,
-                QueryMode.Optional,
-                allowsIds: true,
-                allowsContext: true,
-                requiresCallback: true,
-                parallel ? InvocationTailRule.WorkerCount : InvocationTailRule.None,
-                minimumArity: entity && !stamp ? 0 : 1);
-            return true;
-        }
-
-        if (name is "WhereAll" or "WhereAny" or "WhereNone")
-        {
-            descriptor = new ApiDescriptor(
-                GeneratedApiKind.QueryFactory,
-                hasEntity: false,
-                ValueDomain.Component,
-                Schedule.Sequential,
-                InvocationTargetRule.None,
-                QueryMode.None,
-                allowsIds: true,
-                allowsContext: false,
-                requiresCallback: false,
-                InvocationTailRule.None,
-                minimumArity: 1);
-            return true;
-        }
-
-        if (name is "Where" or "WhereEntity")
-        {
-            descriptor = new ApiDescriptor(
-                GeneratedApiKind.Where,
-                entity,
-                ValueDomain.Component,
-                Schedule.Sequential,
-                InvocationTargetRule.None,
-                QueryMode.Required,
-                allowsIds: false,
-                allowsContext: true,
-                requiresCallback: true,
-                InvocationTailRule.None,
-                minimumArity: 1);
-            return true;
-        }
-
-        if (name is "Add" or "Remove" or "Create" or "Destroy")
-        {
-            descriptor = new ApiDescriptor(
-                GeneratedApiKind.Structural,
-                hasEntity: false,
-                ValueDomain.Component,
-                Schedule.Sequential,
-                name == "Create" ? InvocationTargetRule.None : InvocationTargetRule.StructuralTarget,
-                QueryMode.None,
-                allowsIds: true,
-                allowsContext: false,
-                requiresCallback: false,
-                name == "Add"
-                    ? InvocationTailRule.Values
-                    : name == "Create" ? InvocationTailRule.CountOutput : InvocationTailRule.None,
-                minimumArity: 1);
-            return true;
-        }
-
-        descriptor = default;
-        return false;
+            "ForEach" or "ForEachEntity"
+                or "ForEachParallel" or "ForEachEntityParallel"
+                or "ForEachStamp" or "ForEachEntityStamp"
+                or "ForEachStampParallel" or "ForEachEntityStampParallel" => Iteration(name),
+            "WhereAll" or "WhereAny" or "WhereNone" => QueryFactory(),
+            "Where" or "WhereEntity" => Where(name),
+            "OrderBy" or "ThenBy" => Ordering(),
+            "Add" or "Remove" or "Create" or "Destroy" => Structural(name),
+            _ => default
+        };
+        return descriptor.Family != GeneratedApiKind.Unknown;
     }
+
+    private static ApiDescriptor Iteration(string name)
+    {
+        bool hasEntity = name is "ForEachEntity" or "ForEachEntityParallel"
+            or "ForEachEntityStamp" or "ForEachEntityStampParallel";
+        bool isStamp = name.Contains("Stamp", StringComparison.Ordinal);
+        bool isParallel = name.EndsWith("Parallel", StringComparison.Ordinal);
+        return CreateDescriptor(
+            GeneratedApiKind.Iteration,
+            hasEntity: hasEntity,
+            value: isStamp ? ValueDomain.Stamp : ValueDomain.Component,
+            schedule: isParallel ? Schedule.Parallel : Schedule.Sequential,
+            target: InvocationTargetRule.EntityListOptional,
+            query: QueryMode.Optional,
+            allowsIds: true,
+            allowsContext: true,
+            requiresCallback: true,
+            tail: isParallel ? InvocationTailRule.WorkerCount : InvocationTailRule.None,
+            minimumArity: hasEntity && !isStamp ? 0 : 1);
+    }
+
+    private static ApiDescriptor QueryFactory()
+        => CreateDescriptor(GeneratedApiKind.QueryFactory, allowsIds: true);
+
+    private static ApiDescriptor Where(string name)
+        => CreateDescriptor(
+            GeneratedApiKind.Where,
+            hasEntity: name == "WhereEntity",
+            query: QueryMode.Required,
+            allowsContext: true,
+            requiresCallback: true);
+
+    private static ApiDescriptor Ordering()
+        => CreateDescriptor(
+            GeneratedApiKind.Ordering,
+            allowsIds: true,
+            allowsContext: true,
+            requiresCallback: true);
+
+    private static ApiDescriptor Structural(string name)
+        => CreateDescriptor(
+            GeneratedApiKind.Structural,
+            target: name == "Create" ? InvocationTargetRule.None : InvocationTargetRule.StructuralTarget,
+            allowsIds: true,
+            tail: name == "Add"
+                ? InvocationTailRule.Values
+                : name == "Create" ? InvocationTailRule.CountOutput : InvocationTailRule.None);
+
+    private static ApiDescriptor CreateDescriptor(
+        GeneratedApiKind family,
+        bool hasEntity = false,
+        ValueDomain value = ValueDomain.Component,
+        Schedule schedule = Schedule.Sequential,
+        InvocationTargetRule target = InvocationTargetRule.None,
+        QueryMode query = QueryMode.None,
+        bool allowsIds = false,
+        bool allowsContext = false,
+        bool requiresCallback = false,
+        InvocationTailRule tail = InvocationTailRule.None,
+        int minimumArity = 1)
+        => new(
+            family,
+            hasEntity,
+            value,
+            schedule,
+            target,
+            query,
+            allowsIds,
+            allowsContext,
+            requiresCallback,
+            tail,
+            minimumArity);
 }
 
 internal enum InvocationTargetRule
@@ -178,6 +131,39 @@ internal enum InvocationTailRule
 
 internal static class InvocationGrammar
 {
+    internal static bool IsWhereInvocation(
+        ExpressionSyntax expression,
+        out InvocationExpressionSyntax? whereInvocation)
+    {
+        whereInvocation = expression as InvocationExpressionSyntax;
+        return whereInvocation?.Expression is MemberAccessExpressionSyntax member
+            && member.Name.Identifier.ValueText is "Where" or "WhereEntity";
+    }
+
+    internal static bool TryGetWhereReceiver(
+        InvocationExpressionSyntax invocation,
+        out InvocationExpressionSyntax? whereInvocation)
+    {
+        if (invocation.Expression is MemberAccessExpressionSyntax
+            {
+                Expression: InvocationExpressionSyntax candidate
+            }
+            && candidate.Expression is MemberAccessExpressionSyntax
+            {
+                Name: IdentifierNameSyntax
+                {
+                    Identifier.ValueText: "Where" or "WhereEntity"
+                }
+            })
+        {
+            whereInvocation = candidate;
+            return true;
+        }
+
+        whereInvocation = null;
+        return false;
+    }
+
     internal static bool TryReadStructuralMutation(
         SemanticModel model,
         SeparatedSyntaxList<ArgumentSyntax> arguments,
@@ -205,43 +191,37 @@ internal static class InvocationGrammar
             return false;
         }
 
-        var evidence = new ArityEvidence();
-        evidence.Add(genericArity);
-        evidence.Add(result.ComponentIdCount == 0 ? null : result.ComponentIdCount);
-        evidence.Add(hasValues ? result.TailCount : null);
-        if (!evidence.TryBind(descriptor.MinimumArity, out arity))
+        if (!ArityEvidence.TryBind(
+                descriptor.MinimumArity,
+                out arity,
+                genericArity,
+                result.ComponentIdCount == 0 ? null : result.ComponentIdCount,
+                hasValues ? result.TailCount : null))
         {
             return false;
         }
 
-        registrationBinding = result.HasComponentIdSpan
-            ? RegistrationBindingKind.Dynamic
-            : result.ComponentIdCount == 0
-                ? RegistrationBindingKind.Primary
-                : RegistrationBindingKind.Explicit;
+        registrationBinding = result.RegistrationBinding;
         return true;
     }
 
 }
 
 /// <summary>Semantic argument cursor in the canonical target/query/ids/context/callback order.</summary>
-internal sealed class InvocationCursor
+internal sealed class InvocationCursor(
+    SemanticModel model,
+    SeparatedSyntaxList<ArgumentSyntax> arguments,
+    ApiDescriptor descriptor)
 {
-    private readonly SemanticModel _model;
-    private readonly SeparatedSyntaxList<ArgumentSyntax> _arguments;
-    private readonly ApiDescriptor _descriptor;
+    private readonly SemanticModel _model = model;
+    private readonly SeparatedSyntaxList<ArgumentSyntax> _arguments = arguments;
+    private readonly ApiDescriptor _descriptor = descriptor;
 
-    internal InvocationCursor(
-        SemanticModel model,
-        SeparatedSyntaxList<ArgumentSyntax> arguments,
-        ApiDescriptor descriptor)
-    {
-        _model = model;
-        _arguments = arguments;
-        _descriptor = descriptor;
-    }
-
-    internal bool TryRead(int callbackIndex, out InvocationCursorResult result, bool requireQuery = false)
+    internal bool TryRead(
+        int callbackIndex,
+        out InvocationCursorResult result,
+        bool requireQuery = false,
+        bool contextArgumentPresent = false)
     {
         result = default;
         int index = 0;
@@ -253,6 +233,11 @@ internal sealed class InvocationCursor
         int componentIdSpanIndex = -1;
         int contextIndex = -1;
         ContextModeKind contextMode = ContextModeKind.None;
+
+        if (contextArgumentPresent && (!_descriptor.AllowsContext || callbackIndex < 1))
+        {
+            return false;
+        }
 
         if (_descriptor.Target == InvocationTargetRule.StructuralTarget)
         {
@@ -286,15 +271,18 @@ internal sealed class InvocationCursor
             index++;
         }
 
+        int componentArgumentLimit = contextArgumentPresent
+            ? callbackIndex - 1
+            : callbackIndex >= 0 ? callbackIndex : _arguments.Count;
         if (_descriptor.AllowsIds)
         {
-            while (index < _arguments.Count && IsComponentId(index))
+            while (index < componentArgumentLimit && IsComponentId(index))
             {
                 componentIdCount++;
                 index++;
             }
 
-            if (index < _arguments.Count
+            if (index < componentArgumentLimit
                 && GeneratorSupport.IsComponentIdBatch(_model.GetTypeInfo(_arguments[index].Expression).Type))
             {
                 if (componentIdCount != 0)
@@ -306,9 +294,9 @@ internal sealed class InvocationCursor
             }
         }
 
-        if (_descriptor.AllowsContext && callbackIndex > index)
+        if (_descriptor.AllowsContext && (contextArgumentPresent || callbackIndex > index))
         {
-            if (callbackIndex != index + 1 || IsComponentId(index))
+            if (callbackIndex != index + 1 || (!contextArgumentPresent && IsComponentId(index)))
             {
                 return false;
             }
@@ -424,86 +412,47 @@ internal sealed class InvocationCursor
     }
 }
 
-internal readonly struct InvocationCursorResult
+internal readonly record struct InvocationCursorResult(
+    TargetKind Target,
+    bool HasTarget,
+    bool HasQuery,
+    int QueryArgumentIndex,
+    int ComponentIdCount,
+    int ComponentIdSpanIndex,
+    int ContextIndex,
+    ContextModeKind ContextMode,
+    int TailStart,
+    int TailCount,
+    bool HasOutput)
 {
-    internal InvocationCursorResult(
-        TargetKind target,
-        bool hasTarget,
-        bool hasQuery,
-        int queryArgumentIndex,
-        int componentIdCount,
-        int componentIdSpanIndex,
-        int contextIndex,
-        ContextModeKind contextMode,
-        int tailStart,
-        int tailCount,
-        bool hasOutput)
-    {
-        Target = target;
-        HasTarget = hasTarget;
-        HasQuery = hasQuery;
-        QueryArgumentIndex = queryArgumentIndex;
-        ComponentIdCount = componentIdCount;
-        ComponentIdSpanIndex = componentIdSpanIndex;
-        ContextIndex = contextIndex;
-        ContextMode = contextMode;
-        TailStart = tailStart;
-        TailCount = tailCount;
-        HasOutput = hasOutput;
-    }
-
-    internal TargetKind Target { get; }
-    internal bool HasTarget { get; }
-    internal bool HasQuery { get; }
-    internal int QueryArgumentIndex { get; }
-    internal int ComponentIdCount { get; }
-    internal int ComponentIdSpanIndex { get; }
     internal bool HasComponentIdSpan => ComponentIdSpanIndex >= 0;
     internal bool HasComponentIds => ComponentIdCount != 0 || HasComponentIdSpan;
-    internal int ContextIndex { get; }
+    internal RegistrationBindingKind RegistrationBinding
+        => HasComponentIdSpan
+            ? RegistrationBindingKind.Dynamic
+            : ComponentIdCount == 0 ? RegistrationBindingKind.Primary : RegistrationBindingKind.Explicit;
     internal bool HasContext => ContextIndex >= 0;
-    internal ContextModeKind ContextMode { get; }
-    internal int TailStart { get; }
-    internal int TailCount { get; }
-    internal bool HasOutput { get; }
 }
 
 /// <summary>Reconciles every component-associated arity discovered by a reader.</summary>
-internal struct ArityEvidence
+internal static class ArityEvidence
 {
-    private int _canonical;
-    private bool _hasValue;
-    private bool _valid;
-
-    internal bool Add(int? count)
+    internal static bool TryBind(
+        int minimum,
+        out int arity,
+        int? first = null,
+        int? second = null,
+        int? third = null)
     {
-        if (!count.HasValue)
-        {
-            return _valid;
-        }
-
-        int value = count.Value;
-        if (value < 0)
-        {
-            _valid = false;
-            return false;
-        }
-
-        if (!_hasValue)
-        {
-            _canonical = value;
-            _hasValue = true;
-            _valid = true;
-            return true;
-        }
-
-        _valid &= _canonical == value;
-        return _valid;
+        int? canonical = first ?? second ?? third;
+        arity = canonical.GetValueOrDefault();
+        return canonical.HasValue
+            && arity >= minimum
+            && Matches(first, arity)
+            && Matches(second, arity)
+            && Matches(third, arity);
     }
 
-    internal bool TryBind(int minimum, out int arity)
-    {
-        arity = _canonical;
-        return _valid && _hasValue && arity >= minimum;
-    }
+    private static bool Matches(int? evidence, int arity)
+        => !evidence.HasValue || evidence.Value >= 0 && evidence.Value == arity;
 }

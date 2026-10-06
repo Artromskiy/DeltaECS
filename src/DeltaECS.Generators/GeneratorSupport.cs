@@ -10,6 +10,13 @@ namespace Delta.ECS.Generators;
 
 internal static class GeneratorSupport
 {
+    internal static ITypeSymbol[] GenericArgumentTypes(SemanticModel model, GenericNameSyntax? genericName)
+        => genericName?.TypeArgumentList.Arguments
+            .Select(argument => model.GetTypeInfo(argument).Type)
+            .OfType<ITypeSymbol>()
+            .ToArray()
+            ?? Array.Empty<ITypeSymbol>();
+
     private const int FirstInterceptorLanguageVersion = 1100;
     private const string InterceptorNamespace = "Delta.ECS.Generated";
     // RefKind.RefReadOnlyParameter is not available in the oldest Roslyn API
@@ -49,20 +56,11 @@ internal static class GeneratorSupport
     {
         data = string.Empty;
         attributeSyntax = string.Empty;
-        MethodInfo? getLocation = typeof(Microsoft.CodeAnalysis.CSharp.CSharpExtensions)
-            .GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .FirstOrDefault(static method =>
-            {
-                if (method.Name != "GetInterceptableLocation")
-                {
-                    return false;
-                }
-
-                ParameterInfo[] parameters = method.GetParameters();
-                return parameters.Length == 3
-                    && parameters[0].ParameterType == typeof(SemanticModel)
-                    && parameters[1].ParameterType == typeof(InvocationExpressionSyntax);
-            });
+        MethodInfo? getLocation = FindExtensionMethod(
+            "GetInterceptableLocation",
+            static parameters => parameters.Length == 3
+                && parameters[0].ParameterType == typeof(SemanticModel)
+                && parameters[1].ParameterType == typeof(InvocationExpressionSyntax));
         if (getLocation is null)
         {
             return false;
@@ -80,10 +78,9 @@ internal static class GeneratorSupport
             return false;
         }
 
-        MethodInfo? getAttribute = typeof(Microsoft.CodeAnalysis.CSharp.CSharpExtensions)
-            .GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .FirstOrDefault(static method => method.Name == "GetInterceptsLocationAttributeSyntax"
-                && method.GetParameters().Length == 1);
+        MethodInfo? getAttribute = FindExtensionMethod(
+            "GetInterceptsLocationAttributeSyntax",
+            static parameters => parameters.Length == 1);
         if (getAttribute is null)
         {
             return false;
@@ -93,12 +90,19 @@ internal static class GeneratorSupport
         return attributeSyntax.Length > 0;
     }
 
+    private static MethodInfo? FindExtensionMethod(string name, Func<ParameterInfo[], bool> matches)
+        => typeof(Microsoft.CodeAnalysis.CSharp.CSharpExtensions)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .FirstOrDefault(method => method.Name == name && matches(method.GetParameters()));
+
     internal static IncrementalValuesProvider<InvocationCandidate> InvocationProvider(
-        IncrementalGeneratorInitializationContext context)
+        IncrementalGeneratorInitializationContext context,
+        Func<SyntaxNode, bool>? candidateFilter = null)
         => context.SyntaxProvider.CreateSyntaxProvider(
-            static (node, _) => node is InvocationExpressionSyntax invocation
+            (node, _) => node is InvocationExpressionSyntax invocation
                 && invocation.Expression is MemberAccessExpressionSyntax member
-                && IsGeneratedApiName(member.Name.Identifier.ValueText),
+                && IsGeneratedApiName(member.Name.Identifier.ValueText)
+                && (candidateFilter is null || candidateFilter(node)),
             static (syntaxContext, _) => new InvocationCandidate((InvocationExpressionSyntax)syntaxContext.Node));
 
     internal static bool IsGeneratedApiName(string name)
@@ -117,7 +121,8 @@ internal static class GeneratorSupport
         string pattern,
         string[] components,
         bool isFunctor,
-        string genericPrefix)
+        string genericPrefix,
+        AccessKind? accessOverride = null)
         => Enumerable.Range(0, pattern.Length)
             .Select(index =>
             {
@@ -125,38 +130,62 @@ internal static class GeneratorSupport
                 string typeName = isFunctor ? components[index] : genericType;
                 return new ComponentModel(
                     typeName,
-                    AccessKindFrom(pattern[index]),
-                    resolvedTypeName: typeName);
+                    accessOverride ?? AccessKindFrom(pattern[index]),
+                    ResolvedTypeName: typeName);
             })
             .ToImmutableArray();
 
     internal static ImmutableArray<InvocationCandidate> ExcludeGenerated(
         ImmutableArray<InvocationCandidate> invocations)
-    {
-        if (invocations.IsDefaultOrEmpty)
-        {
-            return ImmutableArray<InvocationCandidate>.Empty;
-        }
-
-        var builder = ImmutableArray.CreateBuilder<InvocationCandidate>(invocations.Length);
-        foreach (InvocationCandidate candidate in invocations)
-        {
-            string path = candidate.Invocation.SyntaxTree.FilePath;
-            if (IsGeneratedSourcePath(path))
-            {
-                continue;
-            }
-
-            builder.Add(candidate);
-        }
-
-        return builder.ToImmutable();
-    }
+        => invocations.IsDefaultOrEmpty
+            ? ImmutableArray<InvocationCandidate>.Empty
+            : invocations
+                .Where(static candidate => !IsGeneratedSourcePath(candidate.Invocation.SyntaxTree.FilePath))
+                .ToImmutableArray();
 
     internal static bool IsNamedType(ITypeSymbol? type, string name)
         => type is INamedTypeSymbol named
             && named.Name == name
             && named.ContainingNamespace.ToDisplayString() == EcsNamespace;
+
+    internal static bool IsWorldReceiver(SemanticModel model, ExpressionSyntax expression)
+        => IsReceiver(model, expression, "World");
+
+    internal static bool IsQueryReceiver(SemanticModel model, ExpressionSyntax expression)
+        => IsReceiver(model, expression, "Query", allowWorld: true);
+
+    internal static bool IsQuerySpecReceiver(SemanticModel model, ExpressionSyntax expression)
+        => IsReceiver(model, expression, "QuerySpec");
+
+    private static bool IsReceiver(
+        SemanticModel model,
+        ExpressionSyntax expression,
+        string typeName,
+        bool allowWorld = false)
+    {
+        if (IsNamedType(model.GetTypeInfo(expression).Type, typeName))
+        {
+            return true;
+        }
+
+        if (expression is InvocationExpressionSyntax invocation
+            && invocation.Expression is MemberAccessExpressionSyntax member
+            && member.Name.Identifier.ValueText is "WhereAll" or "WhereAny" or "WhereNone")
+        {
+            return allowWorld && IsWorldReceiver(model, member.Expression)
+                || IsReceiver(model, member.Expression, typeName, allowWorld);
+        }
+
+        if (expression is IdentifierNameSyntax identifier
+            && model.GetSymbolInfo(identifier).Symbol is ILocalSymbol local
+            && local.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is VariableDeclaratorSyntax declarator
+            && declarator.Initializer?.Value is ExpressionSyntax initializer)
+        {
+            return IsReceiver(model, initializer, typeName, allowWorld);
+        }
+
+        return false;
+    }
 
     internal static bool IsEcsType(ITypeSymbol? type, string name)
         => IsNamedType(type, name);
@@ -167,6 +196,21 @@ internal static class GeneratorSupport
     internal static bool IsComponentId(ITypeSymbol? type)
         => IsNamedType(type, "ComponentId");
 
+    internal static bool HasGenericTypeInChain(INamedTypeSymbol type, bool includeSelf)
+    {
+        for (INamedTypeSymbol? current = includeSelf ? type : type.ContainingType;
+             current is not null;
+             current = current.ContainingType)
+        {
+            if (current.Arity != 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     internal static bool IsInt32(ITypeSymbol? type)
         => type?.SpecialType == SpecialType.System_Int32;
 
@@ -174,37 +218,25 @@ internal static class GeneratorSupport
         => IsNamedType(type, "Stamp");
 
     internal static bool IsEntityBatch(ITypeSymbol? type)
-    {
-        if (type is IArrayTypeSymbol array)
-        {
-            return IsEntityType(array.ElementType);
-        }
-
-        return type is INamedTypeSymbol named
-            && named.TypeArguments.Length == 1
-            && IsEntityType(named.TypeArguments[0])
-            && named.Name is "Span" or "ReadOnlySpan"
-            && named.ContainingNamespace.ToDisplayString() == SystemNamespace;
-    }
+        => IsBatch(type, "Entity", allowArray: true, allowReadOnlySpan: true);
 
     internal static bool IsEntityOutput(ITypeSymbol? type)
-        => type is INamedTypeSymbol named
-            && named.Name == "Span"
-            && named.TypeArguments.Length == 1
-            && IsEntityType(named.TypeArguments[0])
-            && named.ContainingNamespace.ToDisplayString() == SystemNamespace;
+        => IsBatch(type, "Entity", allowArray: false, allowReadOnlySpan: false);
 
     internal static bool IsComponentIdBatch(ITypeSymbol? type)
+        => IsBatch(type, "ComponentId", allowArray: true, allowReadOnlySpan: true);
+
+    private static bool IsBatch(ITypeSymbol? type, string elementName, bool allowArray, bool allowReadOnlySpan)
     {
-        if (type is IArrayTypeSymbol array)
+        if (allowArray && type is IArrayTypeSymbol array)
         {
-            return IsComponentId(array.ElementType);
+            return IsEcsType(array.ElementType, elementName);
         }
 
         return type is INamedTypeSymbol named
             && named.TypeArguments.Length == 1
-            && IsComponentId(named.TypeArguments[0])
-            && named.Name is "Span" or "ReadOnlySpan"
+            && IsEcsType(named.TypeArguments[0], elementName)
+            && (named.Name == "Span" || allowReadOnlySpan && named.Name == "ReadOnlySpan")
             && named.ContainingNamespace.ToDisplayString() == SystemNamespace;
     }
 
@@ -224,18 +256,7 @@ internal static class GeneratorSupport
         int arity,
         AccessKind access,
         string prefix = "T")
-    {
-        var slots = ImmutableArray.CreateBuilder<ComponentModel>(arity);
-        for (int index = 0; index < arity; index++)
-        {
-            slots.Add(new ComponentModel(
-                prefix + (index + 1).ToString(CultureInfo.InvariantCulture),
-                access,
-                resolvedTypeName: prefix + (index + 1).ToString(CultureInfo.InvariantCulture)));
-        }
-
-        return slots.ToImmutable();
-    }
+        => ComponentModels(new string('V', arity), Array.Empty<string>(), false, prefix, access);
 
     internal static AccessKind AccessKindFrom(char pattern)
         => pattern switch
@@ -269,25 +290,20 @@ internal static class GeneratorSupport
     }
 
     internal static bool IsAccessibleType(ITypeSymbol type)
-    {
-        switch (type)
+        => type switch
         {
-            case IArrayTypeSymbol array:
-                return IsAccessibleType(array.ElementType);
-            case IPointerTypeSymbol pointer:
-                return IsAccessibleType(pointer.PointedAtType);
-            case INamedTypeSymbol named:
-                if (named.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal)
-                    || (named.ContainingType is not null && !IsAccessibleType(named.ContainingType)))
-                {
-                    return false;
-                }
+            IArrayTypeSymbol array => IsAccessibleType(array.ElementType),
+            IPointerTypeSymbol pointer => IsAccessibleType(pointer.PointedAtType),
+            INamedTypeSymbol named => named.DeclaredAccessibility is (Accessibility.Public or Accessibility.Internal)
+                && (named.ContainingType is null || IsAccessibleType(named.ContainingType))
+                && named.TypeArguments.All(IsAccessibleType),
+            _ => true
+        };
 
-                return named.TypeArguments.All(IsAccessibleType);
-            default:
-                return true;
-        }
-    }
+    internal static bool ContainsTypeParameter(ITypeSymbol type)
+        => type is ITypeParameterSymbol
+            || type is INamedTypeSymbol named && named.TypeArguments.Any(ContainsTypeParameter)
+            || type is IArrayTypeSymbol array && ContainsTypeParameter(array.ElementType);
 
     internal static bool IsAccessibleSymbol(ISymbol symbol)
     {
@@ -319,22 +335,70 @@ internal static class GeneratorSupport
     {
         var result = new List<string>(usings);
         var seen = new HashSet<string>(result.Select(static value => value.TrimEnd(';').Trim()), StringComparer.Ordinal);
-        foreach (ITypeSymbol? type in types)
+        return result.Concat(types
+                .OfType<INamedTypeSymbol>()
+                .Where(static type => !type.ContainingNamespace.IsGlobalNamespace)
+                .Select(static type => "using global::" + type.ContainingNamespace.ToDisplayString() + ";")
+                .Where(directive => seen.Add(directive.TrimEnd(';').Trim())))
+            .ToArray();
+    }
+
+    internal static bool TryGetInterceptionUsings(
+        SemanticModel model,
+        InvocationExpressionSyntax invocation,
+        IEnumerable<LambdaExpressionSyntax?> callbacks,
+        IEnumerable<IMethodSymbol?> methods,
+        bool includeSourceUsings,
+        bool includeEnclosingUsings,
+        bool rejectInaccessibleContainingType,
+        out string[] usings)
+    {
+        var result = includeSourceUsings
+            ? invocation.SyntaxTree.GetRoot().DescendantNodes()
+                .OfType<UsingDirectiveSyntax>()
+                .Select(static directive => directive.ToString())
+                .ToList()
+            : new List<string>();
+        var closedTypes = new List<ITypeSymbol?>();
+        ISymbol? enclosing = model.GetEnclosingSymbol(invocation.SpanStart);
+        if (includeEnclosingUsings && enclosing is not null)
         {
-            if (type is not INamedTypeSymbol { ContainingNamespace: { IsGlobalNamespace: false } ns })
+            string namespaceName = enclosing.ContainingNamespace?.ToDisplayString() ?? string.Empty;
+            if (namespaceName.Length != 0)
             {
-                continue;
+                result.Add("using global::" + namespaceName + ";");
             }
 
-            string directive = "using global::" + ns.ToDisplayString() + ";";
-            string key = directive.TrimEnd(';').Trim();
-            if (seen.Add(key))
+            if (enclosing.ContainingType is { Arity: 0 } containingType)
             {
-                result.Add(directive);
+                if (!IsAccessibleSymbol(containingType) && rejectInaccessibleContainingType)
+                {
+                    usings = Array.Empty<string>();
+                    return false;
+                }
+
+                if (IsAccessibleSymbol(containingType))
+                {
+                    result.Add("using static " + containingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ";");
+                }
             }
         }
 
-        return result.ToArray();
+        closedTypes.AddRange(callbacks.OfType<LambdaExpressionSyntax>()
+            .SelectMany(callback => ClosedTypesFromLambda(model, callback)));
+        closedTypes.AddRange(methods.OfType<IMethodSymbol>()
+            .SelectMany(static method => new[] { method.ContainingType }
+                .Concat(method.Parameters.Select(static parameter => parameter.Type))));
+        closedTypes.AddRange(invocation.ArgumentList.Arguments
+            .Select(argument => model.GetTypeInfo(argument.Expression).Type));
+        if ((invocation.Expression as MemberAccessExpressionSyntax)?.Name is GenericNameSyntax genericName)
+        {
+            closedTypes.AddRange(genericName.TypeArgumentList.Arguments
+                .Select(argument => model.GetTypeInfo(argument).Type));
+        }
+
+        usings = AppendNamespaceUsings(result.Distinct(StringComparer.Ordinal), closedTypes);
+        return true;
     }
 
     internal static IEnumerable<ITypeSymbol?> ClosedTypesFromLambda(
@@ -405,7 +469,7 @@ internal static class GeneratorSupport
                 target == TargetKind.EntityList ? Scope.EntityList : Scope.QueryWide,
                 isStamp ? ValueDomain.Stamp : ValueDomain.Component,
                 parallel ? Schedule.Parallel : Schedule.Sequential),
-            name: methodName);
+            Name: methodName);
     }
 
     internal static string StableName(string value)

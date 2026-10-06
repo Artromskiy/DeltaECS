@@ -20,50 +20,29 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         ContextModeKind.Value
     };
 
-    private static readonly DiagnosticDescriptor Unsupported = new(
+    private static readonly DiagnosticDescriptor Unsupported = GeneratorDiagnostics.Error(
         "DECSGEN001",
         "Unsupported ForEach shape",
         "ForEach shape '{0}' is not supported by the demand-driven generator",
-        "ForEach",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
-
-    private static readonly DiagnosticDescriptor AmbiguousFunctor = new(
+        "ForEach");
+    private static readonly DiagnosticDescriptor AmbiguousFunctor = GeneratorDiagnostics.Error(
         "DECSGEN003",
         "Ambiguous ForEach functor",
         "Functor '{0}' has multiple supported Invoke overloads ({1}); keep exactly one Invoke implementation",
-        "ForEach",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
-
-    private static readonly DiagnosticDescriptor InaccessibleFunctor = new(
+        "ForEach");
+    private static readonly DiagnosticDescriptor InaccessibleFunctor = GeneratorDiagnostics.Error(
         "DECSGEN004",
         "ForEach functor is not accessible to generated code",
         "Functor '{0}' and its containing types must be at least internal",
-        "ForEach",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
-
-    private static readonly DiagnosticDescriptor InterceptionNotApplied = new(
+        "ForEach");
+    private static readonly DiagnosticDescriptor InterceptionNotApplied = GeneratorDiagnostics.Info(
         "DECSGEN005",
         "ForEach interception was not applied",
         "ForEach interception was not applied: {0}; the delegate fallback remains active",
-        "ForEach",
-        DiagnosticSeverity.Info,
-        isEnabledByDefault: true);
+        "ForEach");
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
-    {
-        context.RegisterSourceOutput(
-            GeneratorPipeline.Input(context)
-                .Combine(context.AnalyzerConfigOptionsProvider.Select(
-                    static (provider, _) => GeneratorSupport.IsInterceptionEnabled(provider.GlobalOptions))),
-            static (productionContext, input) => Execute(
-                input.Left.Compilation,
-                input.Left.Invocations,
-                productionContext,
-                input.Right));
-    }
+        => GeneratorPipeline.RegisterInterceptorInput(context, Execute);
 
     private static void Execute(
         Compilation compilation,
@@ -113,7 +92,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
             if (interceptorsEnabled && languageSupportsInterceptors && !shape.IsFunctor && !shape.OrderedQueryReceiver)
             {
-                if (TryCreateInterceptionSite(model, invocation, shape, invocation.SyntaxTree, out InterceptionSite? site, out string? reason)
+                if (TryCreateInterceptionSite(model, invocation, shape, out InterceptionSite? site, out string? reason)
                     && site is { } interceptionSite)
                 {
                     if (!interceptionSites.TryGetValue(key, out List<InterceptionSite>? sites))
@@ -192,14 +171,16 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         SemanticModel model,
         InvocationExpressionSyntax invocation,
         IterationModel shape,
-        SyntaxTree tree,
         out InterceptionSite? site,
         out string? reason)
     {
         site = null;
         reason = null;
 
-        LambdaExpressionSyntax? lambda = Lambda(invocation.ArgumentList.Arguments);
+        LambdaExpressionSyntax? lambda = invocation.ArgumentList.Arguments
+            .Select(static argument => argument.Expression)
+            .OfType<LambdaExpressionSyntax>()
+            .FirstOrDefault();
         IMethodSymbol? methodGroup = null;
         int callbackArgumentIndex = -1;
         if (lambda is null)
@@ -300,69 +281,20 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return false;
         }
 
-        ISymbol? enclosing = model.GetEnclosingSymbol(invocation.SpanStart);
-        var usings = lambda is null
-            ? Array.Empty<string>()
-            : tree.GetRoot()
-                .DescendantNodes()
-                .OfType<UsingDirectiveSyntax>()
-                .Select(static directive => directive.ToString())
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
-
-        if (lambda is not null && enclosing is not null)
+        bool hasLambda = lambda is not null;
+        if (!GeneratorSupport.TryGetInterceptionUsings(
+                model,
+                invocation,
+                new[] { lambda },
+                new[] { methodGroup },
+                includeSourceUsings: hasLambda,
+                includeEnclosingUsings: hasLambda,
+                rejectInaccessibleContainingType: hasLambda,
+                out string[] usings))
         {
-            string namespaceName = enclosing.ContainingNamespace?.ToDisplayString() ?? string.Empty;
-            if (!string.IsNullOrEmpty(namespaceName))
-            {
-                usings = usings
-                    .Append("using global::" + namespaceName + ";")
-                    .Distinct(StringComparer.Ordinal)
-                    .ToArray();
-            }
-
-            if (enclosing.ContainingType is { Arity: 0 } containingType)
-            {
-                if (!GeneratorSupport.IsAccessibleSymbol(containingType))
-                {
-                    reason = "the containing type is not accessible to generated callback code";
-                    return false;
-                }
-
-                usings = usings
-                    .Append("using static " + containingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ";")
-                    .Distinct(StringComparer.Ordinal)
-                    .ToArray();
-            }
+            reason = "the containing type is not accessible to generated callback code";
+            return false;
         }
-
-        var closedTypes = new List<ITypeSymbol?>();
-        if (lambda is not null)
-        {
-            closedTypes.AddRange(GeneratorSupport.ClosedTypesFromLambda(model, lambda));
-        }
-
-        if (methodGroup is not null)
-        {
-            closedTypes.Add(methodGroup.ContainingType);
-            closedTypes.AddRange(methodGroup.Parameters.Select(static parameter => parameter.Type));
-        }
-
-        if ((invocation.Expression as MemberAccessExpressionSyntax)?.Name is GenericNameSyntax genericCallback)
-        {
-            closedTypes.AddRange(genericCallback.TypeArgumentList.Arguments
-                .Select(argument => model.GetTypeInfo(argument).Type));
-        }
-
-        foreach (ArgumentSyntax argument in invocation.ArgumentList.Arguments)
-        {
-            if (model.GetTypeInfo(argument.Expression).Type is ITypeSymbol argumentType)
-            {
-                closedTypes.Add(argumentType);
-            }
-        }
-
-        usings = GeneratorSupport.AppendNamespaceUsings(usings, closedTypes);
 
         string id = GeneratorSupport.StableName(shape.Key + "|" + locationData);
         site = new InterceptionSite(
@@ -402,6 +334,12 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         bool stamp = descriptor.Value == ValueDomain.Stamp;
         bool parallel = descriptor.Schedule == Schedule.Parallel;
         bool orderedQueryReceiver = GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "OrderedQuery");
+        if (!GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "World")
+            && !orderedQueryReceiver)
+        {
+            return false;
+        }
+
         if (orderedQueryReceiver && (parallel || stamp))
         {
             return false;
@@ -410,29 +348,19 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         bool hasLambda = invocation.ArgumentList.Arguments.Any(static argument => argument.Expression is LambdaExpressionSyntax);
         if (!hasLambda)
         {
-            if (TryReadMethodGroupShape(model, invocation, member, out shape, out diagnostic))
+            if (TryReadMethodGroupShape(model, invocation, member, descriptor, orderedQueryReceiver, out shape, out diagnostic))
             {
                 return true;
             }
 
-            return TryReadFunctorShape(model, invocation, member, out shape, out diagnostic);
-        }
-
-        ITypeSymbol? receiverType = model.GetTypeInfo(member.Expression).Type;
-        if (!GeneratorSupport.IsEcsType(receiverType, "World") && !orderedQueryReceiver)
-        {
-            return false;
+            return TryReadFunctorShape(model, invocation, member, descriptor, orderedQueryReceiver, out shape, out diagnostic);
         }
 
         int genericCount = genericName?.TypeArgumentList.Arguments.Count ?? 0;
         var arguments = invocation.ArgumentList.Arguments;
         bool namedEntity = descriptor.HasEntity;
         int callbackArgumentIndex = FindCallbackArgumentIndex(arguments);
-        bool queryRequired = !orderedQueryReceiver
-            && (arguments.Count == 0
-                || !GeneratorSupport.IsEntityBatch(model.GetTypeInfo(arguments[0].Expression).Type));
-        var cursor = new InvocationCursor(model, arguments, descriptor);
-        if (!cursor.TryRead(callbackArgumentIndex, out InvocationCursorResult prefix, queryRequired))
+        if (!TryReadPrefix(model, invocation, descriptor, orderedQueryReceiver, callbackArgumentIndex, out InvocationCursorResult prefix))
         {
             return false;
         }
@@ -444,7 +372,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
         int prefixCount = hasContext ? 1 : 0;
         bool implicitComponents = genericName is null;
-        LambdaExpressionSyntax? lambda = Lambda(arguments);
+        LambdaExpressionSyntax lambda = (LambdaExpressionSyntax)arguments[callbackArgumentIndex].Expression;
         ParameterSyntax[] lambdaParameters = CallbackReader.LambdaParameters(lambda);
         int lambdaParameterCount = lambdaParameters.Length;
         if (implicitComponents
@@ -467,15 +395,16 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         int? genericComponentCount = genericName is null
             ? null
             : genericCount - prefixCount;
-        var arityEvidence = new ArityEvidence();
-        arityEvidence.Add(genericComponentCount);
-        arityEvidence.Add(prefix.ComponentIdCount == 0 ? null : prefix.ComponentIdCount);
-        arityEvidence.Add(callbackComponentCount);
-        if (!arityEvidence.TryBind(descriptor.MinimumArity, out int componentCount))
+        if (!ArityEvidence.TryBind(
+                descriptor.MinimumArity,
+                out int componentCount,
+                genericComponentCount,
+                prefix.ComponentIdCount == 0 ? null : prefix.ComponentIdCount,
+                callbackComponentCount))
         {
             return false;
         }
-        string? accessPattern = InferPattern(arguments, componentCount, hasContext, hasEntity);
+        string? accessPattern = InferPattern(lambda, componentCount, hasContext, hasEntity);
         if (stamp && accessPattern is not null)
         {
             accessPattern = NormalizeStampPattern(accessPattern);
@@ -483,8 +412,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         if (accessPattern is null || accessPattern.Length != componentCount || accessPattern.Any(static c => c is not ('R' or 'W' or 'I' or 'V')))
         {
-            diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
-            return false;
+            return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
 
         bool explicitIds = componentCount != 0
@@ -499,16 +427,14 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         var components = typeArguments.Skip(componentStart).ToArray();
         if (components.Length != componentCount)
         {
-            diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
-            return false;
+            return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
 
         if (stamp)
         {
             if (genericName is null && !explicitIds)
             {
-                diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
-                return false;
+                return Reject(Unsupported, invocation, invocation, out diagnostic);
             }
 
             ParameterSyntax[] stampParameters = lambdaParameters
@@ -517,8 +443,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             if (stampParameters.Length != componentCount
                 || stampParameters.Any(static parameter => !IsStampSyntax(parameter)))
             {
-                diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
-                return false;
+                return Reject(Unsupported, invocation, invocation, out diagnostic);
             }
         }
 
@@ -539,25 +464,21 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             ParameterSyntax[] parameters = CallbackReader.LambdaParameters(lambda);
             if (parameters.Length == 0)
             {
-                diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
-                return false;
+                return Reject(Unsupported, invocation, invocation, out diagnostic);
             }
 
             ContextModeKind callbackMode = CallbackReader.ContextMode(CallbackReader.ParameterRefKind(parameters[0]));
             if (!CallbackReader.AreCompatibleContextModes(contextMode, callbackMode))
             {
-                diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
-                return false;
+                return Reject(Unsupported, invocation, invocation, out diagnostic);
             }
 
             contextMode = NormalizeParallelContext(parallel, contextMode);
         }
 
         shape = new IterationModel(
-            prefix.HasComponentIdSpan
-                ? RegistrationBindingKind.Dynamic
-                : explicitIds ? RegistrationBindingKind.Explicit : RegistrationBindingKind.Primary,
-            hasEntity || LambdaHasEntity(model, arguments, componentCount, hasContext),
+            prefix.RegistrationBinding,
+            hasEntity,
             hasContext,
             isFunctor: false,
             accessPattern,
@@ -570,9 +491,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             hasEntityTarget: orderedQueryReceiver || prefix.HasTarget,
             hasQuery: orderedQueryReceiver || prefix.HasQuery,
             isStamp: stamp,
-            typeBinding: genericName is not null
-                ? TypeBindingKind.Generic
-                : TypeBindingKind.CallbackInferred,
+            typeBinding: genericName is not null ? TypeBindingKind.Generic : TypeBindingKind.CallbackInferred,
             namespaceName: GeneratorSupport.ContainingNamespace(model, invocation),
             orderedQueryReceiver: orderedQueryReceiver);
         return true;
@@ -582,6 +501,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         SemanticModel model,
         InvocationExpressionSyntax invocation,
         MemberAccessExpressionSyntax member,
+        ApiDescriptor descriptor,
+        bool orderedQueryReceiver,
         out IterationModel? shape,
         out Diagnostic? diagnostic)
     {
@@ -592,19 +513,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return false;
         }
 
-        if (!ApiDescriptor.TryGet(member.Name.Identifier.ValueText, out ApiDescriptor descriptor)
-            || descriptor.Family != GeneratedApiKind.Iteration)
-        {
-            return false;
-        }
-
-        bool orderedQueryReceiver = GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "OrderedQuery");
-        if (orderedQueryReceiver && (descriptor.Schedule == Schedule.Parallel || descriptor.Value == ValueDomain.Stamp))
-        {
-            return false;
-        }
-
         int callbackArgumentIndex = -1;
+        IMethodSymbol? methodTarget = null;
         GenericNameSyntax? genericName = member.Name as GenericNameSyntax;
         bool namedEntity = descriptor.HasEntity;
         bool stampName = descriptor.Value == ValueDomain.Stamp;
@@ -618,34 +528,31 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             : genericName.TypeArgumentList.Arguments.Count + (namedEntity ? 1 : 0);
         for (int index = invocation.ArgumentList.Arguments.Count - 1; index >= 0; index--)
         {
-            if ((expectedMethodParameterCount < 0
-                    ? CallbackReader.TryGetMethodGroupTarget(model, invocation.ArgumentList.Arguments[index].Expression, out _)
-                    : CallbackReader.TryGetMethodGroupTarget(model, invocation.ArgumentList.Arguments[index].Expression, expectedMethodParameterCount, expectedTypes, namedEntity, out _)))
+            ExpressionSyntax expression = invocation.ArgumentList.Arguments[index].Expression;
+            IMethodSymbol? candidate;
+            bool resolved = expectedMethodParameterCount < 0
+                ? CallbackReader.TryGetMethodGroupTarget(model, expression, out candidate)
+                : CallbackReader.TryGetMethodGroupTarget(model, expression, expectedMethodParameterCount, expectedTypes, namedEntity, out candidate);
+            if (resolved)
             {
                 callbackArgumentIndex = index;
+                methodTarget = candidate;
                 break;
             }
         }
 
-        if (callbackArgumentIndex < 0)
+        if (callbackArgumentIndex < 0 || methodTarget is null)
         {
             return false;
         }
 
         ArgumentSyntax callback = invocation.ArgumentList.Arguments[callbackArgumentIndex];
-        IMethodSymbol? method;
-        bool resolved = expectedMethodParameterCount < 0
-            ? CallbackReader.TryGetMethodGroupTarget(model, callback.Expression, out method)
-            : CallbackReader.TryGetMethodGroupTarget(model, callback.Expression, expectedMethodParameterCount, expectedTypes, namedEntity, out method);
-        if (!callback.RefKindKeyword.IsKind(SyntaxKind.None)
-            || !resolved
-            || method is not { } methodTarget)
+        if (!callback.RefKindKeyword.IsKind(SyntaxKind.None))
         {
             return false;
         }
 
-        if ((!GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "World") && !orderedQueryReceiver)
-            || methodTarget.MethodKind != MethodKind.Ordinary
+        if (methodTarget.MethodKind != MethodKind.Ordinary
             || methodTarget.Arity != 0
             || !methodTarget.ReturnsVoid
             || methodTarget.ContainingType is null
@@ -658,17 +565,10 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         bool stamp = descriptor.Value == ValueDomain.Stamp;
         bool parallel = descriptor.Schedule == Schedule.Parallel;
         namedEntity = descriptor.HasEntity;
-        var arguments = invocation.ArgumentList.Arguments;
-        bool queryRequired = !orderedQueryReceiver
-            && (arguments.Count == 0
-                || !GeneratorSupport.IsEntityBatch(model.GetTypeInfo(arguments[0].Expression).Type));
-        var cursor = new InvocationCursor(model, arguments, descriptor);
-        if (!cursor.TryRead(callbackArgumentIndex, out InvocationCursorResult prefix, queryRequired))
+        if (!TryReadPrefix(model, invocation, descriptor, orderedQueryReceiver, callbackArgumentIndex, out InvocationCursorResult prefix))
         {
             return false;
         }
-        bool hasEntityTarget = prefix.HasTarget;
-        bool hasQuery = prefix.HasQuery;
         int componentIdCount = prefix.ComponentIdCount;
         bool hasContext = prefix.HasContext;
         ContextModeKind contextMode = prefix.ContextMode;
@@ -714,8 +614,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 !GeneratorSupport.IsStampType(parameter.Type)
                 || parameter.RefKind is not RefKind.In && !GeneratorSupport.IsRefReadonly(parameter.RefKind)))
         {
-            diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
-            return false;
+            return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
 
         int genericCount = genericName?.TypeArgumentList.Arguments.Count ?? 0;
@@ -725,14 +624,14 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return false;
         }
 
-        var arityEvidence = new ArityEvidence();
-        arityEvidence.Add(genericName is null ? null : genericCount - (hasContext ? 1 : 0));
-        arityEvidence.Add(componentIdCount == 0 ? null : componentIdCount);
-        arityEvidence.Add(componentParameters.Length);
-        if (!arityEvidence.TryBind(descriptor.MinimumArity, out _))
+        if (!ArityEvidence.TryBind(
+                descriptor.MinimumArity,
+                out _,
+                genericName is null ? null : genericCount - (hasContext ? 1 : 0),
+                componentIdCount == 0 ? null : componentIdCount,
+                componentParameters.Length))
         {
-            diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
-            return false;
+            return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
 
         string[] components;
@@ -789,8 +688,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         if (stamp && genericName is null && !prefix.HasComponentIds)
         {
-            diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
-            return false;
+            return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
 
         string pattern = new(componentParameters.Select(static parameter => GeneratorSupport.PatternLetter(parameter.RefKind)).ToArray());
@@ -815,12 +713,10 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             parallel: parallel,
             contextMode: contextMode,
             methodName: member.Name.Identifier.ValueText,
-            hasEntityTarget: orderedQueryReceiver || hasEntityTarget,
-            hasQuery: orderedQueryReceiver || hasQuery,
+            hasEntityTarget: orderedQueryReceiver || prefix.HasTarget,
+            hasQuery: orderedQueryReceiver || prefix.HasQuery,
             isStamp: stamp,
-            typeBinding: genericName is not null
-                ? TypeBindingKind.Generic
-                : TypeBindingKind.CallbackInferred,
+            typeBinding: genericName is not null ? TypeBindingKind.Generic : TypeBindingKind.CallbackInferred,
             namespaceName: GeneratorSupport.ContainingNamespace(model, invocation),
             orderedQueryReceiver: orderedQueryReceiver);
         return true;
@@ -830,26 +726,29 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         SemanticModel model,
         InvocationExpressionSyntax invocation,
         MemberAccessExpressionSyntax member,
+        ApiDescriptor descriptor,
+        bool orderedQueryReceiver,
         out IterationModel? shape,
         out Diagnostic? diagnostic)
     {
         shape = null;
         diagnostic = null;
-        bool orderedQueryReceiver = GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "OrderedQuery");
-        if ((!GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "World") && !orderedQueryReceiver)
-            || invocation.ArgumentList.Arguments.Count == 0)
+        if (invocation.ArgumentList.Arguments.Count == 0)
         {
             return false;
         }
 
         int functorArgumentIndex = -1;
         INamedTypeSymbol? functorType = null;
+        bool hasContext = false;
+        bool hasEntity = false;
+        ITypeSymbol? contextType = null;
         ContextModeKind functorPassMode = ContextModeKind.Ref;
         for (int index = invocation.ArgumentList.Arguments.Count - 1; index >= 0; index--)
         {
             ArgumentSyntax candidate = invocation.ArgumentList.Arguments[index];
             if (model.GetTypeInfo(candidate.Expression).Type is not INamedTypeSymbol candidateType
-                || !CallbackReader.TryGetForEachMarker(candidateType, out _, out _, out _))
+                || !CallbackReader.TryGetForEachMarker(candidateType, out hasContext, out hasEntity, out contextType))
             {
                 continue;
             }
@@ -865,21 +764,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return false;
         }
 
-        if (!CallbackReader.TryGetForEachMarker(functorType, out bool hasContext, out bool hasEntity, out ITypeSymbol? contextType))
-        {
-            return false;
-        }
-
         if (!GeneratorSupport.IsAccessibleSymbol(functorType))
         {
-            diagnostic = Diagnostic.Create(InaccessibleFunctor, invocation.GetLocation(), functorType.Name);
-            return false;
-        }
-
-        if (!ApiDescriptor.TryGet(member.Name.Identifier.ValueText, out ApiDescriptor descriptor)
-            || descriptor.Family != GeneratedApiKind.Iteration)
-        {
-            return false;
+            return Reject(InaccessibleFunctor, invocation, functorType.Name, out diagnostic);
         }
 
         bool stamp = descriptor.Value == ValueDomain.Stamp;
@@ -887,8 +774,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         bool namedEntity = descriptor.HasEntity;
         if (namedEntity != hasEntity)
         {
-            diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
-            return false;
+            return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
 
         if (parallel && functorPassMode == ContextModeKind.RefReadonly)
@@ -896,17 +782,10 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             functorPassMode = ContextModeKind.In;
         }
 
-        var arguments = invocation.ArgumentList.Arguments;
-        bool queryRequired = !orderedQueryReceiver
-            && (arguments.Count == 0
-                || !GeneratorSupport.IsEntityBatch(model.GetTypeInfo(arguments[0].Expression).Type));
-        var cursor = new InvocationCursor(model, arguments, descriptor);
-        if (!cursor.TryRead(functorArgumentIndex, out InvocationCursorResult prefix, queryRequired))
+        if (!TryReadPrefix(model, invocation, descriptor, orderedQueryReceiver, functorArgumentIndex, out InvocationCursorResult prefix))
         {
             return false;
         }
-        bool hasEntityTarget = prefix.HasTarget;
-        bool hasQuery = prefix.HasQuery;
         int componentIdCount = prefix.ComponentIdCount;
         int contextArgumentIndex = prefix.ContextIndex;
         ContextModeKind contextMode = prefix.ContextMode;
@@ -915,8 +794,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             if (invocation.ArgumentList.Arguments.Count <= contextArgumentIndex
                 || invocation.ArgumentList.Arguments[contextArgumentIndex].Expression is null)
             {
-                diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
-                return false;
+                return Reject(Unsupported, invocation, invocation, out diagnostic);
             }
 
             contextMode = CallbackReader.ContextMode(CallbackReader.ArgumentRefKind(invocation.ArgumentList.Arguments[contextArgumentIndex]));
@@ -950,8 +828,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             : ContextModeKind.None;
         if (hasContext && !CallbackReader.AreCompatibleContextModes(contextMode, invokeContextMode))
         {
-            diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
-            return false;
+            return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
         contextMode = NormalizeParallelContext(parallel, invokeContextMode);
         int prefixCount = (hasContext ? 1 : 0) + (hasEntity ? 1 : 0);
@@ -967,16 +844,14 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 !GeneratorSupport.IsStampType(parameter.Type)
                 || parameter.RefKind is not RefKind.In && !GeneratorSupport.IsRefReadonly(parameter.RefKind)))
         {
-            diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
-            return false;
+            return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
 
         GenericNameSyntax? genericName = member.Name as GenericNameSyntax;
         bool genericSelectors = genericName is not null;
         if (stamp && !genericSelectors && !prefix.HasComponentIds)
         {
-            diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
-            return false;
+            return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
 
         string pattern = new(componentParameters.Select(static parameter => GeneratorSupport.PatternLetter(parameter.RefKind)).ToArray());
@@ -987,25 +862,20 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             : componentParameters.Select(static parameter => GeneratorSupport.DisplayType(parameter.Type)).ToArray();
         if (genericSelectors && components.Length != componentParameters.Length)
         {
-            diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
-            return false;
+            return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
 
-        var arityEvidence = new ArityEvidence();
-        arityEvidence.Add(genericSelectors ? components.Length : null);
-        arityEvidence.Add(componentIdCount == 0 ? null : componentIdCount);
-        arityEvidence.Add(componentParameters.Length);
-        if (!arityEvidence.TryBind(descriptor.MinimumArity, out _))
+        if (!ArityEvidence.TryBind(
+                descriptor.MinimumArity,
+                out _,
+                genericSelectors ? components.Length : null,
+                componentIdCount == 0 ? null : componentIdCount,
+                componentParameters.Length))
         {
-            diagnostic = Diagnostic.Create(Unsupported, invocation.GetLocation(), invocation);
-            return false;
+            return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
         shape = new IterationModel(
-            prefix.HasComponentIdSpan
-                ? RegistrationBindingKind.Dynamic
-                : componentIdCount != 0
-                    ? RegistrationBindingKind.Explicit
-                    : RegistrationBindingKind.Primary,
+            prefix.RegistrationBinding,
             hasEntity,
             hasContext,
             isFunctor: true,
@@ -1016,16 +886,40 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             parallel: parallel,
             contextMode: contextMode,
             methodName: member.Name.Identifier.ValueText,
-            hasEntityTarget: orderedQueryReceiver || hasEntityTarget,
-            hasQuery: orderedQueryReceiver || hasQuery,
+            hasEntityTarget: orderedQueryReceiver || prefix.HasTarget,
+            hasQuery: orderedQueryReceiver || prefix.HasQuery,
             isStamp: stamp,
-            typeBinding: genericSelectors
-                ? TypeBindingKind.Generic
-                : TypeBindingKind.CallbackInferred,
+            typeBinding: genericSelectors ? TypeBindingKind.Generic : TypeBindingKind.CallbackInferred,
             functorPassMode: functorPassMode,
             namespaceName: GeneratorSupport.ContainingNamespace(model, invocation),
             orderedQueryReceiver: orderedQueryReceiver);
         return true;
+    }
+
+    private static bool TryReadPrefix(
+        SemanticModel model,
+        InvocationExpressionSyntax invocation,
+        ApiDescriptor descriptor,
+        bool orderedQueryReceiver,
+        int callbackArgumentIndex,
+        out InvocationCursorResult prefix)
+    {
+        SeparatedSyntaxList<ArgumentSyntax> arguments = invocation.ArgumentList.Arguments;
+        bool queryRequired = !orderedQueryReceiver
+            && (arguments.Count == 0
+                || !GeneratorSupport.IsEntityBatch(model.GetTypeInfo(arguments[0].Expression).Type));
+        return new InvocationCursor(model, arguments, descriptor)
+            .TryRead(callbackArgumentIndex, out prefix, queryRequired);
+    }
+
+    private static bool Reject(
+        DiagnosticDescriptor descriptor,
+        SyntaxNode syntax,
+        object messageArgument,
+        out Diagnostic? diagnostic)
+    {
+        diagnostic = Diagnostic.Create(descriptor, syntax.GetLocation(), messageArgument);
+        return false;
     }
 
     private static string FunctorSignature(IMethodSymbol method)
@@ -1065,12 +959,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
     private static int FindCallbackArgumentIndex(SeparatedSyntaxList<ArgumentSyntax> arguments)
         => arguments.IndexOf(arguments.First(static argument => argument.Expression is LambdaExpressionSyntax));
 
-    private static LambdaExpressionSyntax? Lambda(SeparatedSyntaxList<ArgumentSyntax> arguments)
-        => arguments
-            .Select(static argument => argument.Expression)
-            .OfType<LambdaExpressionSyntax>()
-            .FirstOrDefault();
-
     private static string[] LambdaComponentTypes(
         SemanticModel model,
         LambdaExpressionSyntax? lambda,
@@ -1079,38 +967,21 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
     {
         ParameterSyntax[] parameters = CallbackReader.LambdaParameters(lambda);
         int start = prefixCount + (hasEntity ? 1 : 0);
-        var result = new string[Math.Max(0, parameters.Length - start)];
-        for (int index = 0; index < result.Length; index++)
-        {
-            ITypeSymbol? type = parameters[index + start].Type is { } syntax
-                ? model.GetTypeInfo(syntax).Type
-                : null;
-            if (type is null)
-            {
-                return Array.Empty<string>();
-            }
-
-            result[index] = GeneratorSupport.DisplayType(type);
-        }
-
-        return result;
+        ITypeSymbol?[] types = parameters
+            .Skip(start)
+            .Select(parameter => parameter.Type is { } syntax ? model.GetTypeInfo(syntax).Type : null)
+            .ToArray();
+        return types.All(static type => type is not null)
+            ? types.Select(static type => GeneratorSupport.DisplayType(type!)).ToArray()
+            : Array.Empty<string>();
     }
 
     private static string? InferPattern(
-        SeparatedSyntaxList<ArgumentSyntax> arguments,
+        LambdaExpressionSyntax lambda,
         int componentCount,
         bool hasContext,
         bool hasEntity)
     {
-        LambdaExpressionSyntax? lambda = arguments
-            .Select(static argument => argument.Expression)
-            .OfType<LambdaExpressionSyntax>()
-            .FirstOrDefault();
-        if (lambda is null)
-        {
-            return new string('W', componentCount);
-        }
-
         var parameters = CallbackReader.LambdaParameters(lambda);
         int start = (hasContext ? 1 : 0) + (hasEntity ? 1 : 0);
 
@@ -1123,38 +994,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         return new string(result);
-    }
-
-    private static bool LambdaHasEntity(
-        SemanticModel model,
-        SeparatedSyntaxList<ArgumentSyntax> arguments,
-        int componentCount,
-        bool hasContext)
-    {
-        LambdaExpressionSyntax? lambda = arguments
-            .Select(static argument => argument.Expression)
-            .OfType<LambdaExpressionSyntax>()
-            .FirstOrDefault();
-        if (lambda is not ParenthesizedLambdaExpressionSyntax parenthesized)
-        {
-            return false;
-        }
-
-        int expected = componentCount + (hasContext ? 1 : 0);
-        if (parenthesized.ParameterList.Parameters.Count != expected + 1)
-        {
-            return false;
-        }
-
-        int entityIndex = hasContext ? 1 : 0;
-        TypeSyntax? entityType = parenthesized.ParameterList.Parameters[entityIndex].Type;
-        if (entityType is null)
-        {
-            return false;
-        }
-
-        ITypeSymbol? type = model.GetTypeInfo(entityType).Type;
-        return type is not null && GeneratorSupport.IsEntityType(type);
     }
 
 }

@@ -114,8 +114,8 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
             GenericNameSyntax generic => generic.Identifier.ValueText,
             _ => member.Name.Identifier.ValueText
         };
-        bool worldReceiver = GeneratorSupport.IsNamedType(model.GetTypeInfo(member.Expression).Type, "World");
-        bool queryReceiver = IsQueryReceiver(model, member.Expression);
+        bool worldReceiver = GeneratorSupport.IsWorldReceiver(model, member.Expression);
+        bool queryReceiver = GeneratorSupport.IsQueryReceiver(model, member.Expression);
         if (ReadAccessor(name, model, invocation, member.Name, worldReceiver, accumulator))
         {
             return;
@@ -131,29 +131,27 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
             return;
         }
 
-        bool whereTerminal = IsWhereInvocation(member.Expression, out InvocationExpressionSyntax? whereInvocation);
-        if (descriptor.Family == GeneratedApiKind.QueryFactory)
+        bool whereTerminal = InvocationGrammar.IsWhereInvocation(member.Expression, out InvocationExpressionSyntax? whereInvocation);
+        if (descriptor.Family is GeneratedApiKind.QueryFactory or GeneratedApiKind.Where)
         {
-            if (!worldReceiver && !queryReceiver)
+            if (descriptor.Family == GeneratedApiKind.QueryFactory
+                ? !worldReceiver && !queryReceiver
+                : !worldReceiver)
             {
                 return;
             }
 
             accumulator.ReadTopology();
-            if (invocation.ArgumentList.Arguments.Count != 0)
+            if (descriptor.Family == GeneratedApiKind.QueryFactory)
             {
-                accumulator.Unknown();
+                if (invocation.ArgumentList.Arguments.Count != 0)
+                {
+                    accumulator.Unknown();
+                }
             }
-
-            return;
-        }
-
-        if (descriptor.Family == GeneratedApiKind.Where)
-        {
-            if (worldReceiver)
+            else
             {
-                accumulator.ReadTopology();
-                ReadWherePredicate(model, invocation, descriptor.HasEntity, accumulator);
+                ReadWhereCallback(model, invocation, descriptor.HasEntity, isTerminal: false, accumulator);
             }
 
             return;
@@ -163,15 +161,15 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
         {
             if (whereTerminal)
             {
-                ReadWherePredicate(model, whereInvocation!, whereInvocation!.Expression is MemberAccessExpressionSyntax whereMember
-                    && whereMember.Name.Identifier.ValueText == "WhereEntity", accumulator);
+                ReadWhereCallback(model, whereInvocation!, whereInvocation!.Expression is MemberAccessExpressionSyntax whereMember
+                    && whereMember.Name.Identifier.ValueText == "WhereEntity", isTerminal: false, accumulator);
                 accumulator.ReadTopology();
                 if (descriptor.Schedule == Schedule.Parallel)
                 {
                     accumulator.Parallel();
                 }
 
-                ReadWhereTerminalIteration(model, invocation, descriptor.HasEntity, accumulator);
+                ReadWhereCallback(model, invocation, descriptor.HasEntity, isTerminal: true, accumulator);
                 return;
             }
             else if (!worldReceiver)
@@ -196,8 +194,8 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
 
         if (whereTerminal)
         {
-            ReadWherePredicate(model, whereInvocation!, whereInvocation!.Expression is MemberAccessExpressionSyntax whereMember
-                && whereMember.Name.Identifier.ValueText == "WhereEntity", accumulator);
+            ReadWhereCallback(model, whereInvocation!, whereInvocation!.Expression is MemberAccessExpressionSyntax whereMember
+                && whereMember.Name.Identifier.ValueText == "WhereEntity", isTerminal: false, accumulator);
         }
         else if (!worldReceiver)
         {
@@ -214,13 +212,7 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
         GeneratedSystemAccessAccumulator accumulator)
     {
         GenericNameSyntax? genericName = (invocation.Expression as MemberAccessExpressionSyntax)?.Name as GenericNameSyntax;
-        ITypeSymbol[] genericTypes = genericName is null
-            ? Array.Empty<ITypeSymbol>()
-            : genericName.TypeArgumentList.Arguments
-                .Select(argument => model.GetTypeInfo(argument).Type)
-                .Where(static type => type is not null)
-                .Cast<ITypeSymbol>()
-                .ToArray();
+        ITypeSymbol[] genericTypes = GeneratorSupport.GenericArgumentTypes(model, genericName);
 
         int callbackIndex = FindCallbackIndex(model, invocation);
         if (callbackIndex < 0)
@@ -236,14 +228,13 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
             return;
         }
 
-        if (cursor.ComponentIdCount != 0 || cursor.HasComponentIdSpan)
+        if (cursor.HasComponentIds)
         {
             accumulator.Unknown();
         }
 
         string queryExpression = string.Empty;
-        bool queryScoped = cursor.ComponentIdCount == 0
-            && !cursor.HasComponentIdSpan
+        bool queryScoped = !cursor.HasComponentIds
             && cursor.HasQuery
             && TryGetReadOnlyQueryField(model, invocation, cursor.QueryArgumentIndex, out queryExpression);
         if (queryScoped)
@@ -299,10 +290,11 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
         return true;
     }
 
-    private static void ReadWherePredicate(
+    private static void ReadWhereCallback(
         SemanticModel model,
         InvocationExpressionSyntax invocation,
         bool hasEntity,
+        bool isTerminal,
         GeneratedSystemAccessAccumulator accumulator)
     {
         int callbackIndex = FindCallbackIndex(model, invocation);
@@ -312,13 +304,17 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
             return;
         }
 
-        bool hasContext = callbackIndex > 1;
+        ITypeSymbol[] genericTypes = isTerminal
+            ? GeneratorSupport.GenericArgumentTypes(
+                model,
+                (invocation.Expression as MemberAccessExpressionSyntax)?.Name as GenericNameSyntax)
+            : Array.Empty<ITypeSymbol>();
         ReadCallback(
             model,
             invocation.ArgumentList.Arguments[callbackIndex].Expression,
-            Array.Empty<ITypeSymbol>(),
+            genericTypes,
             hasEntity,
-            hasContext,
+            isTerminal ? callbackIndex != 0 : callbackIndex > 1,
             stamp: false,
             accumulator);
     }
@@ -331,55 +327,28 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
         GeneratedSystemAccessAccumulator accumulator)
     {
         GenericNameSyntax? genericName = memberName as GenericNameSyntax;
-        if (genericName is null && name != "Destroy")
+        ITypeSymbol[] types = ReadGenericTypes(
+            model,
+            invocation,
+            genericName,
+            accumulator,
+            required: name != "Destroy");
+        accumulator.WriteTopology();
+        if (name == "Destroy")
         {
-            accumulator.Unknown();
+            accumulator.DestroyEntities();
+            return;
         }
-        else if (invocation.ArgumentList.Arguments.Any(argument =>
-            GeneratorSupport.IsComponentId(model.GetTypeInfo(argument.Expression).Type)))
+
+        if (name == "Create")
         {
-            accumulator.Unknown();
+            accumulator.CreateEntities();
         }
 
-        ITypeSymbol[] types = genericName is null
-            ? Array.Empty<ITypeSymbol>()
-            : genericName.TypeArgumentList.Arguments
-                .Select(argument => model.GetTypeInfo(argument).Type)
-                .Where(static type => type is not null)
-                .Cast<ITypeSymbol>()
-                .ToArray();
-        switch (name)
+        accumulator.Apply(types, name == "Remove" ? accumulator.Remove : accumulator.Add);
+        if (name == "Add")
         {
-            case "Add":
-                accumulator.WriteTopology();
-                foreach (ITypeSymbol type in types)
-                {
-                    accumulator.Add(type);
-                    accumulator.Write(type);
-                }
-
-                break;
-            case "Remove":
-                accumulator.WriteTopology();
-                foreach (ITypeSymbol type in types)
-                {
-                    accumulator.Remove(type);
-                }
-
-                break;
-            case "Create":
-                accumulator.WriteTopology();
-                accumulator.CreateEntities();
-                foreach (ITypeSymbol type in types)
-                {
-                    accumulator.Add(type);
-                }
-
-                break;
-            case "Destroy":
-                accumulator.WriteTopology();
-                accumulator.DestroyEntities();
-                break;
+            accumulator.Apply(types, accumulator.Write);
         }
     }
 
@@ -403,88 +372,39 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
         }
 
         GenericNameSyntax? genericName = memberName as GenericNameSyntax;
-        ITypeSymbol[] types = genericName is null
-            ? Array.Empty<ITypeSymbol>()
-            : genericName.TypeArgumentList.Arguments
-                .Select(argument => model.GetTypeInfo(argument).Type)
-                .Where(static type => type is not null)
-                .Cast<ITypeSymbol>()
-                .ToArray();
-        if (genericName is null)
+        ITypeSymbol[] types = ReadGenericTypes(model, invocation, genericName, accumulator, required: true);
+
+        if (name == "Has")
         {
-            accumulator.Unknown();
-        }
-        else if (invocation.ArgumentList.Arguments.Any(argument =>
-            GeneratorSupport.IsComponentId(model.GetTypeInfo(argument.Expression).Type)))
-        {
-            accumulator.Unknown();
+            accumulator.ReadTopology();
         }
 
-        switch (name)
+        Action<ITypeSymbol> access = name switch
         {
-            case "GetRef":
-                foreach (ITypeSymbol type in types)
-                {
-                    accumulator.Write(type);
-                }
-
-                break;
-            case "TryGetComponentStamp":
-                foreach (ITypeSymbol type in types)
-                {
-                    accumulator.StampRead(type);
-                }
-
-                break;
-            case "Has":
-                accumulator.ReadTopology();
-                foreach (ITypeSymbol type in types)
-                {
-                    accumulator.Read(type);
-                }
-
-                break;
-            default:
-                foreach (ITypeSymbol type in types)
-                {
-                    accumulator.Read(type);
-                }
-
-                break;
-        }
+            "GetRef" => accumulator.Write,
+            "TryGetComponentStamp" => accumulator.StampRead,
+            _ => accumulator.Read
+        };
+        accumulator.Apply(types, access);
 
         return true;
     }
 
-    private static void ReadWhereTerminalIteration(
+    private static ITypeSymbol[] ReadGenericTypes(
         SemanticModel model,
         InvocationExpressionSyntax invocation,
-        bool hasEntity,
-        GeneratedSystemAccessAccumulator accumulator)
+        GenericNameSyntax? genericName,
+        GeneratedSystemAccessAccumulator accumulator,
+        bool required)
     {
-        int callbackIndex = FindCallbackIndex(model, invocation);
-        if (callbackIndex < 0)
+        if ((required && genericName is null)
+            || invocation.ArgumentList.Arguments.Any(argument =>
+                GeneratorSupport.IsComponentId(model.GetTypeInfo(argument.Expression).Type)))
         {
             accumulator.Unknown();
-            return;
         }
 
-        GenericNameSyntax? genericName = (invocation.Expression as MemberAccessExpressionSyntax)?.Name as GenericNameSyntax;
-        ITypeSymbol[] genericTypes = genericName is null
-            ? Array.Empty<ITypeSymbol>()
-            : genericName.TypeArgumentList.Arguments
-                .Select(argument => model.GetTypeInfo(argument).Type)
-                .Where(static type => type is not null)
-                .Cast<ITypeSymbol>()
-                .ToArray();
-        ReadCallback(
-            model,
-            invocation.ArgumentList.Arguments[callbackIndex].Expression,
-            genericTypes,
-            hasEntity,
-            callbackIndex != 0,
-            stamp: false,
-            accumulator);
+        return GeneratorSupport.GenericArgumentTypes(model, genericName);
     }
 
     private static void ReadCallback(
@@ -498,21 +418,16 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
     {
         if (expression is LambdaExpressionSyntax lambda)
         {
-            ParameterSyntax[] parameters = CallbackReader.LambdaParameters(lambda);
+            IParameterSymbol?[] parameters = CallbackReader.LambdaParameters(lambda)
+                .Select(parameter => model.GetDeclaredSymbol(parameter) as IParameterSymbol)
+                .ToArray();
             int index = hasContext ? 1 : 0;
             if (hasEntity && index < parameters.Length)
             {
                 index++;
             }
 
-            for (int componentIndex = 0; index < parameters.Length; componentIndex++, index++)
-            {
-                ITypeSymbol? type = genericTypes.Count > componentIndex
-                    ? genericTypes[componentIndex]
-                    : model.GetDeclaredSymbol(parameters[index])?.GetSymbolType();
-                AddCallbackType(type, CallbackReader.ParameterRefKind(parameters[index]), stamp, accumulator);
-            }
-
+            ReadComponentParameters(parameters, index, genericTypes, stamp, accumulator);
             return;
         }
 
@@ -568,12 +483,7 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
                     index++;
                 }
 
-                for (; index < method.Parameters.Length; index++)
-                {
-                    IParameterSymbol parameter = method.Parameters[index];
-                    AddCallbackType(parameter.Type, parameter.RefKind, stamp, accumulator);
-                }
-
+                ReadComponentParameters(method.Parameters, index, genericTypes, stamp, accumulator);
                 return;
             }
         }
@@ -602,11 +512,23 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
             index++;
         }
 
-        for (int componentIndex = 0; index < method.Parameters.Length; componentIndex++, index++)
+        ReadComponentParameters(method.Parameters, index, genericTypes, stamp, accumulator);
+    }
+
+    private static void ReadComponentParameters(
+        IReadOnlyList<IParameterSymbol?> parameters,
+        int start,
+        IReadOnlyList<ITypeSymbol> genericTypes,
+        bool stamp,
+        GeneratedSystemAccessAccumulator accumulator)
+    {
+        for (int index = start, componentIndex = 0; index < parameters.Count; index++, componentIndex++)
         {
-            IParameterSymbol parameter = method.Parameters[index];
-            ITypeSymbol type = genericTypes.Count > componentIndex ? genericTypes[componentIndex] : parameter.Type;
-            AddCallbackType(type, parameter.RefKind, stamp, accumulator);
+            IParameterSymbol? parameter = parameters[index];
+            ITypeSymbol? type = genericTypes.Count > componentIndex
+                ? genericTypes[componentIndex]
+                : parameter?.Type;
+            AddCallbackType(type, parameter?.RefKind ?? RefKind.None, stamp, accumulator);
         }
     }
 
@@ -650,55 +572,4 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
         return -1;
     }
 
-    private static bool IsWhereInvocation(
-        ExpressionSyntax expression,
-        out InvocationExpressionSyntax? whereInvocation)
-    {
-        whereInvocation = expression as InvocationExpressionSyntax;
-        return whereInvocation?.Expression is MemberAccessExpressionSyntax member
-            && member.Name.Identifier.ValueText is "Where" or "WhereEntity";
-    }
-
-    private static bool IsQueryReceiver(SemanticModel model, ExpressionSyntax expression)
-    {
-        if (GeneratorSupport.IsNamedType(model.GetTypeInfo(expression).Type, "Query"))
-        {
-            return true;
-        }
-
-        if (expression is InvocationExpressionSyntax invocation
-            && invocation.ArgumentList.Arguments.Count == 0
-            && invocation.Expression is MemberAccessExpressionSyntax member
-            && member.Name is GenericNameSyntax genericName
-            && genericName.Identifier.ValueText is "WhereAll" or "WhereAny" or "WhereNone")
-        {
-            return IsWorldReceiver(model, member.Expression)
-                || IsQueryReceiver(model, member.Expression);
-        }
-
-        if (expression is IdentifierNameSyntax identifier
-            && model.GetSymbolInfo(identifier).Symbol is ILocalSymbol local
-            && local.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is VariableDeclaratorSyntax declarator
-            && declarator.Initializer?.Value is ExpressionSyntax initializer)
-        {
-            return IsWorldReceiver(model, initializer)
-                || IsQueryReceiver(model, initializer);
-        }
-
-        return false;
-    }
-
-    private static bool IsWorldReceiver(SemanticModel model, ExpressionSyntax expression)
-        => GeneratorSupport.IsNamedType(model.GetTypeInfo(expression).Type, "World");
-
-}
-
-internal static class GeneratedSystemAccessSymbolExtensions
-{
-    internal static ITypeSymbol? GetSymbolType(this ISymbol? symbol)
-        => symbol switch
-        {
-            IParameterSymbol parameter => parameter.Type,
-            _ => null
-        };
 }

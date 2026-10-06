@@ -34,11 +34,9 @@ public sealed class GenericFunctorGenerator : IIncrementalGenerator
     }
 
     private static GenericFunctorModel? ReadModel(GeneratorSyntaxContext syntax)
-    {
-        return syntax.SemanticModel.GetDeclaredSymbol(syntax.Node) is INamedTypeSymbol functor
+        => syntax.SemanticModel.GetDeclaredSymbol(syntax.Node) is INamedTypeSymbol functor
             ? CreateModel(functor)
             : null;
-    }
 
     internal static GenericFunctorModel? CreateModel(INamedTypeSymbol functor)
     {
@@ -105,107 +103,52 @@ public sealed class GenericFunctorGenerator : IIncrementalGenerator
             .Concat(type.TypeParameters);
 
     private static string Selector(ITypeSymbol type, ITypeParameterSymbol[] parameters)
+        => type switch
+        {
+            ITypeParameterSymbol parameter => $"genericArguments[{Array.FindIndex(parameters, candidate => SymbolEqualityComparer.Default.Equals(candidate, parameter))}]",
+            INamedTypeSymbol { IsGenericType: true } named when GeneratorSupport.ContainsTypeParameter(named)
+                => GenericComponentSelector(named, parameters),
+            _ => $"world.Layouts.GetPrimary<{GeneratorSupport.DisplayType(type)}>()"
+        };
+
+    private static string GenericComponentSelector(INamedTypeSymbol type, ITypeParameterSymbol[] parameters)
     {
-        if (type is ITypeParameterSymbol parameter)
-        {
-            int index = Array.FindIndex(parameters, candidate => SymbolEqualityComparer.Default.Equals(candidate, parameter));
-            return $"genericArguments[{index}]";
-        }
-
-        if (type is INamedTypeSymbol named && named.IsGenericType && ContainsParameter(named))
-        {
-            string arguments = string.Join(", ", named.TypeArguments.Select(argument => Selector(argument, parameters)));
-            return $$"""global::Delta.ECS.GeneratedForEachRuntime.GetGenericFunctorComponent<{{GeneratorSupport.DisplayType(named)}}>(world, stackalloc global::Delta.ECS.ComponentId[] { {{arguments}} })""";
-        }
-
-        return $"world.Layouts.GetPrimary<{GeneratorSupport.DisplayType(type)}>()";
+        string arguments = string.Join(", ", type.TypeArguments.Select(argument => Selector(argument, parameters)));
+        return $$"""global::Delta.ECS.GeneratedForEachRuntime.GetGenericFunctorComponent<{{GeneratorSupport.DisplayType(type)}}>(world, stackalloc global::Delta.ECS.ComponentId[] { {{arguments}} })""";
     }
-
-    private static bool ContainsParameter(ITypeSymbol type)
-        => type is ITypeParameterSymbol || type is INamedTypeSymbol named && named.TypeArguments.Any(ContainsParameter);
 
     private static string Constraint(ITypeParameterSymbol parameter)
     {
-        var constraints = new List<string>();
-        if (parameter.HasUnmanagedTypeConstraint)
-        {
-            constraints.Add("unmanaged");
-        }
-        else if (parameter.HasValueTypeConstraint)
-        {
-            constraints.Add("struct");
-        }
-        else if (parameter.HasReferenceTypeConstraint)
-        {
-            constraints.Add(parameter.ReferenceTypeConstraintNullableAnnotation == NullableAnnotation.Annotated ? "class?" : "class");
-        }
-        else if (parameter.HasNotNullConstraint)
-        {
-            constraints.Add("notnull");
-        }
-
-        constraints.AddRange(parameter.ConstraintTypes.Select(GeneratorSupport.DisplayType));
-        if (parameter.HasConstructorConstraint)
-        {
-            constraints.Add("new()");
-        }
-
-        return constraints.Count == 0 ? string.Empty : $"where {parameter.Name} : {string.Join(", ", constraints)}";
+        string primaryConstraint = parameter.HasUnmanagedTypeConstraint
+            ? "unmanaged"
+            : parameter.HasValueTypeConstraint
+                ? "struct"
+                : parameter.HasReferenceTypeConstraint
+                    ? parameter.ReferenceTypeConstraintNullableAnnotation == NullableAnnotation.Annotated ? "class?" : "class"
+                    : parameter.HasNotNullConstraint ? "notnull" : string.Empty;
+        string[] constraints = new[] { primaryConstraint }
+            .Where(static constraint => constraint.Length != 0)
+            .Concat(parameter.ConstraintTypes.Select(GeneratorSupport.DisplayType))
+            .Concat(parameter.HasConstructorConstraint ? new[] { "new()" } : Array.Empty<string>())
+            .ToArray();
+        return constraints.Length == 0 ? string.Empty : $"where {parameter.Name} : {string.Join(", ", constraints)}";
     }
 }
 
-internal sealed class GenericFunctorModel
+internal sealed record GenericFunctorModel(
+    string TypeName,
+    string OpenTypeName,
+    bool HasEntity,
+    bool HasContext,
+    string? ContextType,
+    ContextModeKind ContextMode,
+    string TypeParameters,
+    string Constraints,
+    bool SupportsTypeTokenDispatch,
+    ImmutableArray<GenericTypeParameterConstraint> DispatchTypeParameters,
+    ImmutableArray<GenericFunctorRow> Rows)
 {
-    internal GenericFunctorModel(
-        string typeName,
-        string openTypeName,
-        bool hasEntity,
-        bool hasContext,
-        string? contextType,
-        ContextModeKind contextMode,
-        string typeParameters,
-        string constraints,
-        bool supportsTypeTokenDispatch,
-        ImmutableArray<GenericTypeParameterConstraint> dispatchTypeParameters,
-        ImmutableArray<GenericFunctorRow> rows)
-    {
-        TypeName = typeName;
-        OpenTypeName = openTypeName;
-        HasEntity = hasEntity;
-        HasContext = hasContext;
-        ContextType = contextType;
-        ContextMode = contextMode;
-        TypeParameters = typeParameters;
-        Constraints = constraints;
-        SupportsTypeTokenDispatch = supportsTypeTokenDispatch;
-        DispatchTypeParameters = dispatchTypeParameters;
-        Rows = rows;
-    }
-
-    internal string TypeName { get; }
-    internal string OpenTypeName { get; }
-    internal bool HasEntity { get; }
-    internal bool HasContext { get; }
-    internal string? ContextType { get; }
-    internal ContextModeKind ContextMode { get; }
     internal int Arity => TypeParameters.Split(',').Length;
-    internal string TypeParameters { get; }
-    internal string Constraints { get; }
-    internal bool SupportsTypeTokenDispatch { get; }
-    internal ImmutableArray<GenericTypeParameterConstraint> DispatchTypeParameters { get; }
-    internal ImmutableArray<GenericFunctorRow> Rows { get; }
 }
 
-internal sealed class GenericFunctorRow
-{
-    internal GenericFunctorRow(string typeName, char pattern, string selector)
-    {
-        TypeName = typeName;
-        Pattern = pattern;
-        Selector = selector;
-    }
-
-    internal string TypeName { get; }
-    internal char Pattern { get; }
-    internal string Selector { get; }
-}
+internal readonly record struct GenericFunctorRow(string TypeName, char Pattern, string Selector);

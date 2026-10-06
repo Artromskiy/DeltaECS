@@ -97,80 +97,67 @@ internal static class GenericTypeDispatchTemplates
     }
 
     private static string RenderComponentStages(GenericComponentDispatcherBinding binding, string[] typeParameters)
-    {
-        var stages = new List<string>();
-        for (int index = 0; index < binding.TypeParameters.Length; index++)
-        {
-            string priorTypeParameters = string.Join(", ", typeParameters.Take(index));
-            string stageTypeArguments = priorTypeParameters.Length == 0 ? string.Empty : $"<{priorTypeParameters}>";
-            string declaration = $"private struct Stage{index}{stageTypeArguments} : {VisitorInterface(binding.TypeParameters[index].Kind)}";
-            string priorConstraints = ConstraintClauses(binding.TypeParameters.Take(index), typeParameters.Take(index));
-            if (priorConstraints.Length != 0)
+        => RenderStages(
+            binding.TypeParameters,
+            typeParameters,
+            new[] { "internal readonly State Binding;", "internal global::Delta.ECS.ComponentId Result;" },
+            index => $"internal Stage{index}(State binding) {{ Binding = binding; Result = default; }}",
+            index =>
             {
-                declaration += " " + priorConstraints;
-            }
-            var lines = new List<string> { "internal readonly State Binding;", "internal global::Delta.ECS.ComponentId Result;" };
-            lines.Add($"internal Stage{index}(State binding) {{ Binding = binding; Result = default; }}");
-
-            string visitBody;
-            if (index + 1 == binding.Arity)
-            {
-                string closedType = GenericType(binding.OpenTypeName, typeParameters.Take(index).Append(typeParameters[index]));
-                string componentToken = $"new ClosedComponentTypeToken<{string.Join(", ", typeParameters.Take(index).Append(typeParameters[index]))}>()";
-                visitBody = $"Result = global::Delta.ECS.GeneratedGenericBindingRegistry.RegisterComponent<{closedType}>(Binding.Layouts, Binding.SchemaId, Binding.ComponentArguments, {componentToken});";
-            }
-            else
-            {
-                string closedParameters = string.Join(", ", typeParameters.Take(index).Append(typeParameters[index]));
-                string nextType = $"Stage{index + 1}<{closedParameters}>";
-                visitBody = $$"""
-                    var next = new {{nextType}}(Binding);
-                    {{DispatchCall(binding.TypeParameters[index + 1].Kind, "remaining[0]", "remaining.Slice(1)", "next")}}
-                    Result = next.Result;
-                    """;
-            }
-
-            string visitConstraint = binding.TypeParameters[index].RenderClause(typeParameters[index]);
-            lines.Add($"public void Visit<{typeParameters[index]}>(global::System.ReadOnlySpan<global::Delta.ECS.IGeneratedComponentTypeToken> remaining){(visitConstraint.Length == 0 ? string.Empty : " " + visitConstraint)}\n{{\n    {GeneratorTemplates.Indent(visitBody, "    ")}\n}}");
-            stages.Add($"{declaration}\n{{\n{GeneratorTemplates.Indent(string.Join("\n", lines), "    ")}\n}}");
-        }
-
-        return string.Join("\n\n", stages);
-    }
+                string closedType = GenericType(binding.OpenTypeName, typeParameters.Take(index + 1));
+                string componentToken = $"new ClosedComponentTypeToken<{string.Join(", ", typeParameters.Take(index + 1))}>()";
+                return $"global::Delta.ECS.GeneratedGenericBindingRegistry.RegisterComponent<{closedType}>(Binding.Layouts, Binding.SchemaId, Binding.ComponentArguments, {componentToken})";
+            });
 
     private static string RenderFunctorStages(GenericFunctorDispatcherBinding binding, string[] typeParameters)
+        => RenderStages(
+            binding.TypeParameters,
+            typeParameters,
+            new[] { "internal global::Delta.ECS.IGeneratedGenericFunctor? Result;" },
+            null,
+            index => $"new {binding.ExecutorType}<{string.Join(", ", typeParameters.Take(index + 1))}>()");
+
+    private static string RenderStages(
+        ImmutableArray<GenericTypeParameterConstraint> constraints,
+        string[] typeParameters,
+        IEnumerable<string> members,
+        Func<int, string>? constructor,
+        Func<int, string> result)
     {
         var stages = new List<string>();
-        for (int index = 0; index < binding.Arity; index++)
+        for (int index = 0; index < constraints.Length; index++)
         {
             string priorTypeParameters = string.Join(", ", typeParameters.Take(index));
             string stageTypeArguments = priorTypeParameters.Length == 0 ? string.Empty : $"<{priorTypeParameters}>";
-            string declaration = $"private struct Stage{index}{stageTypeArguments} : {VisitorInterface(binding.TypeParameters[index].Kind)}";
-            string priorConstraints = ConstraintClauses(binding.TypeParameters.Take(index), typeParameters.Take(index));
+            string declaration = $"private struct Stage{index}{stageTypeArguments} : {VisitorInterface(constraints[index].Kind)}";
+            string priorConstraints = ConstraintClauses(constraints.Take(index), typeParameters.Take(index));
             if (priorConstraints.Length != 0)
             {
                 declaration += " " + priorConstraints;
             }
-            var lines = new List<string> { "internal global::Delta.ECS.IGeneratedGenericFunctor? Result;" };
+            var lines = new List<string>(members);
+            if (constructor is not null)
+            {
+                lines.Add(constructor(index));
+            }
 
             string visitBody;
-            if (index + 1 == binding.Arity)
+            if (index + 1 == constraints.Length)
             {
-                string closedParameters = string.Join(", ", typeParameters.Take(index).Append(typeParameters[index]));
-                visitBody = $"Result = new {binding.ExecutorType}<{closedParameters}>();";
+                visitBody = $"Result = {result(index)};";
             }
             else
             {
-                string closedParameters = string.Join(", ", typeParameters.Take(index).Append(typeParameters[index]));
+                string closedParameters = string.Join(", ", typeParameters.Take(index + 1));
                 string nextType = $"Stage{index + 1}<{closedParameters}>";
                 visitBody = $$"""
-                    var next = new {{nextType}}();
-                    {{DispatchCall(binding.TypeParameters[index + 1].Kind, "remaining[0]", "remaining.Slice(1)", "next")}}
+                    var next = new {{nextType}}{{(constructor is null ? "()" : "(Binding)")}};
+                    {{DispatchCall(constraints[index + 1].Kind, "remaining[0]", "remaining.Slice(1)", "next")}}
                     Result = next.Result;
                     """;
             }
 
-            string visitConstraint = binding.TypeParameters[index].RenderClause(typeParameters[index]);
+            string visitConstraint = constraints[index].RenderClause(typeParameters[index]);
             lines.Add($"public void Visit<{typeParameters[index]}>(global::System.ReadOnlySpan<global::Delta.ECS.IGeneratedComponentTypeToken> remaining){(visitConstraint.Length == 0 ? string.Empty : " " + visitConstraint)}\n{{\n    {GeneratorTemplates.Indent(visitBody, "    ")}\n}}");
             stages.Add($"{declaration}\n{{\n{GeneratorTemplates.Indent(string.Join("\n", lines), "    ")}\n}}");
         }
@@ -199,69 +186,54 @@ internal static class GenericTypeDispatchTemplates
     }
 
     private static string RenderTokenMethods(string componentType, bool isValueType, bool isUnmanaged, bool isClass, bool hasNew)
-    {
-        var methods = new List<string>
-        {
-            $"public void Dispatch<TVisitor>(global::System.ReadOnlySpan<global::Delta.ECS.IGeneratedComponentTypeToken> remaining, ref TVisitor visitor) where TVisitor : struct, global::Delta.ECS.IGeneratedComponentTypeVisitor => visitor.Visit<{componentType}>(remaining);",
-        };
-        if (isValueType)
-        {
-            methods.Add($"public void DispatchStruct<TVisitor>(global::System.ReadOnlySpan<global::Delta.ECS.IGeneratedComponentTypeToken> remaining, ref TVisitor visitor) where TVisitor : struct, global::Delta.ECS.IGeneratedStructComponentTypeVisitor => visitor.Visit<{componentType}>(remaining);");
-        }
-
-        if (isUnmanaged)
-        {
-            methods.Add($"public void DispatchUnmanaged<TVisitor>(global::System.ReadOnlySpan<global::Delta.ECS.IGeneratedComponentTypeToken> remaining, ref TVisitor visitor) where TVisitor : struct, global::Delta.ECS.IGeneratedUnmanagedComponentTypeVisitor => visitor.Visit<{componentType}>(remaining);");
-        }
-
-        if (isClass)
-        {
-            methods.Add($"public void DispatchClass<TVisitor>(global::System.ReadOnlySpan<global::Delta.ECS.IGeneratedComponentTypeToken> remaining, ref TVisitor visitor) where TVisitor : struct, global::Delta.ECS.IGeneratedClassComponentTypeVisitor => visitor.Visit<{componentType}>(remaining);");
-            methods.Add($"public void DispatchNullableClass<TVisitor>(global::System.ReadOnlySpan<global::Delta.ECS.IGeneratedComponentTypeToken> remaining, ref TVisitor visitor) where TVisitor : struct, global::Delta.ECS.IGeneratedNullableClassComponentTypeVisitor => visitor.Visit<{componentType}>(remaining);");
-        }
-
-        if (hasNew)
-        {
-            methods.Add($"public void DispatchConstructible<TVisitor>(global::System.ReadOnlySpan<global::Delta.ECS.IGeneratedComponentTypeToken> remaining, ref TVisitor visitor) where TVisitor : struct, global::Delta.ECS.IGeneratedConstructibleComponentTypeVisitor => visitor.Visit<{componentType}>(remaining);");
-            if (isClass)
+        => string.Join("\n", TokenKinds(isValueType, isUnmanaged, isClass, hasNew)
+            .Select(kind =>
             {
-                methods.Add($"public void DispatchClassConstructible<TVisitor>(global::System.ReadOnlySpan<global::Delta.ECS.IGeneratedComponentTypeToken> remaining, ref TVisitor visitor) where TVisitor : struct, global::Delta.ECS.IGeneratedClassConstructibleComponentTypeVisitor => visitor.Visit<{componentType}>(remaining);");
-                methods.Add($"public void DispatchNullableClassConstructible<TVisitor>(global::System.ReadOnlySpan<global::Delta.ECS.IGeneratedComponentTypeToken> remaining, ref TVisitor visitor) where TVisitor : struct, global::Delta.ECS.IGeneratedNullableClassConstructibleComponentTypeVisitor => visitor.Visit<{componentType}>(remaining);");
-            }
-        }
-
-        return string.Join("\n", methods);
-    }
+                string method = kind == GenericTypeConstraintKind.None ? "Dispatch" : DispatchMethod(kind);
+                string visitor = VisitorInterface(kind);
+                return $"public void {method}<TVisitor>(global::System.ReadOnlySpan<global::Delta.ECS.IGeneratedComponentTypeToken> remaining, ref TVisitor visitor) where TVisitor : struct, {visitor} => visitor.Visit<{componentType}>(remaining);";
+            }));
 
     private static string TokenInterfaces(bool isValueType, bool isUnmanaged, bool isClass, bool hasNew)
     {
-        var interfaces = new List<string>();
+        string interfaces = string.Join(", ", TokenKinds(isValueType, isUnmanaged, isClass, hasNew)
+            .Skip(1)
+            .Select(static kind => VisitorInterface(kind).Replace("Visitor", "Token")));
+        return interfaces.Length == 0 ? string.Empty : ", " + interfaces;
+    }
+
+    private static IEnumerable<GenericTypeConstraintKind> TokenKinds(
+        bool isValueType,
+        bool isUnmanaged,
+        bool isClass,
+        bool hasNew)
+    {
+        yield return GenericTypeConstraintKind.None;
         if (isValueType)
         {
-            interfaces.Add("global::Delta.ECS.IGeneratedStructComponentTypeToken");
+            yield return GenericTypeConstraintKind.Struct;
         }
 
         if (isUnmanaged)
         {
-            interfaces.Add("global::Delta.ECS.IGeneratedUnmanagedComponentTypeToken");
+            yield return GenericTypeConstraintKind.Unmanaged;
         }
+
         if (isClass)
         {
-            interfaces.Add("global::Delta.ECS.IGeneratedClassComponentTypeToken");
-            interfaces.Add("global::Delta.ECS.IGeneratedNullableClassComponentTypeToken");
+            yield return GenericTypeConstraintKind.Class;
+            yield return GenericTypeConstraintKind.NullableClass;
         }
 
         if (hasNew)
         {
-            interfaces.Add("global::Delta.ECS.IGeneratedConstructibleComponentTypeToken");
+            yield return GenericTypeConstraintKind.New;
             if (isClass)
             {
-                interfaces.Add("global::Delta.ECS.IGeneratedClassConstructibleComponentTypeToken");
-                interfaces.Add("global::Delta.ECS.IGeneratedNullableClassConstructibleComponentTypeToken");
+                yield return GenericTypeConstraintKind.ClassNew;
+                yield return GenericTypeConstraintKind.NullableClassNew;
             }
         }
-
-        return interfaces.Count == 0 ? string.Empty : ", " + string.Join(", ", interfaces);
     }
 
     private static string VisitorInterface(GenericTypeConstraintKind kind)
@@ -279,7 +251,14 @@ internal static class GenericTypeDispatchTemplates
 
     private static string DispatchCall(GenericTypeConstraintKind kind, string token, string remaining, string visitor)
     {
-        string method = kind switch
+        string method = DispatchMethod(kind);
+        return method.Length == 0
+            ? $"{token}.Dispatch({remaining}, ref {visitor});"
+            : $"global::Delta.ECS.GeneratedComponentTypeDispatch.{method}({token}, {remaining}, ref {visitor});";
+    }
+
+    private static string DispatchMethod(GenericTypeConstraintKind kind)
+        => kind switch
         {
             GenericTypeConstraintKind.Struct => "DispatchStruct",
             GenericTypeConstraintKind.Unmanaged => "DispatchUnmanaged",
@@ -290,10 +269,6 @@ internal static class GenericTypeDispatchTemplates
             GenericTypeConstraintKind.NullableClassNew => "DispatchNullableClassConstructible",
             _ => string.Empty,
         };
-        return method.Length == 0
-            ? $"{token}.Dispatch({remaining}, ref {visitor});"
-            : $"global::Delta.ECS.GeneratedComponentTypeDispatch.{method}({token}, {remaining}, ref {visitor});";
-    }
 
     private static string ConstraintClauses(
         IEnumerable<GenericTypeParameterConstraint> constraints,
@@ -301,34 +276,23 @@ internal static class GenericTypeDispatchTemplates
         => string.Join(" ", constraints.Zip(generatedTypeParameters, static (constraint, typeParameter) => constraint.RenderClause(typeParameter)).Where(static clause => clause.Length != 0));
 }
 
-internal sealed class GenericComponentDispatcherBinding(
-    string openTypeName,
-    string dispatcherName,
-    ImmutableArray<GenericTypeParameterConstraint> typeParameters,
-    bool isValueType,
-    bool isUnmanaged,
-    bool isClass,
-    bool hasPublicParameterlessConstructor)
+internal sealed record GenericComponentDispatcherBinding(
+    string OpenTypeName,
+    string DispatcherName,
+    ImmutableArray<GenericTypeParameterConstraint> TypeParameters,
+    bool IsValueType,
+    bool IsUnmanaged,
+    bool IsClass,
+    bool HasPublicParameterlessConstructor)
 {
-    internal string OpenTypeName { get; } = openTypeName;
-    internal string DispatcherName { get; } = dispatcherName;
-    internal ImmutableArray<GenericTypeParameterConstraint> TypeParameters { get; } = typeParameters;
     internal int Arity => TypeParameters.Length;
-    internal bool IsValueType { get; } = isValueType;
-    internal bool IsUnmanaged { get; } = isUnmanaged;
-    internal bool IsClass { get; } = isClass;
-    internal bool HasPublicParameterlessConstructor { get; } = hasPublicParameterlessConstructor;
 }
 
-internal sealed class GenericFunctorDispatcherBinding(
-    string openTypeName,
-    string dispatcherName,
-    string executorType,
-    ImmutableArray<GenericTypeParameterConstraint> typeParameters)
+internal sealed record GenericFunctorDispatcherBinding(
+    string OpenTypeName,
+    string DispatcherName,
+    string ExecutorType,
+    ImmutableArray<GenericTypeParameterConstraint> TypeParameters)
 {
-    internal string OpenTypeName { get; } = openTypeName;
-    internal string DispatcherName { get; } = dispatcherName;
-    internal string ExecutorType { get; } = executorType;
-    internal ImmutableArray<GenericTypeParameterConstraint> TypeParameters { get; } = typeParameters;
     internal int Arity => TypeParameters.Length;
 }

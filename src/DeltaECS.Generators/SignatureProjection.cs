@@ -5,19 +5,14 @@ using System.Globalization;
 namespace Delta.ECS.Generators;
 
 /// <summary>Projects an API model into the ordered C# slots used by source templates.</summary>
-internal sealed class SignatureProjection
+internal sealed class SignatureProjection(SelectorModel selector)
 {
-    private readonly ApiModel _api;
+    internal int Arity => selector.Arity;
+    internal bool HasGenericSelectors => selector.TypeBinding == TypeBindingKind.Generic;
+    internal bool HasExplicitIds => selector.RegistrationBinding != RegistrationBindingKind.Primary;
+    internal bool HasDynamicIds => selector.RegistrationBinding == RegistrationBindingKind.Dynamic;
 
-    internal SignatureProjection(ApiModel api)
-        => _api = api;
-
-    internal int Arity => _api.Selector.Arity;
-    internal bool HasGenericSelectors => _api.Selector.TypeBinding == TypeBindingKind.Generic;
-    internal bool HasExplicitIds => _api.Selector.RegistrationBinding != RegistrationBindingKind.Primary;
-    internal bool HasDynamicIds => _api.Selector.RegistrationBinding == RegistrationBindingKind.Dynamic;
-
-    private ImmutableArray<ComponentModel> Components => _api.Selector.Components;
+    private ImmutableArray<ComponentModel> Components => selector.Components;
 
     internal string GenericType(int index, string prefix = "T")
         => prefix + (index + 1).ToString(CultureInfo.InvariantCulture);
@@ -123,6 +118,14 @@ internal sealed class SignatureProjection
             _ => type + " " + name
         };
 
+    internal static string ContextLocal(ContextModeKind mode, string type, string name, string source)
+        => mode switch
+        {
+            ContextModeKind.Ref => $"ref {type} {name} = ref {source};",
+            ContextModeKind.Value => $"{type} {name} = {source};",
+            _ => $"ref readonly {type} {name} = ref {source};"
+        };
+
     internal static string ContextArgument(ContextModeKind mode, string name)
         => mode switch
         {
@@ -130,6 +133,18 @@ internal sealed class SignatureProjection
             ContextModeKind.In or ContextModeKind.RefReadonly => "in " + name,
             _ => name
         };
+
+    internal static string ComponentParameter(ContextModeKind mode, string type, string name)
+        => (mode switch
+        {
+            ContextModeKind.RefReadonly => "ref readonly ",
+            ContextModeKind.Value => string.Empty,
+            ContextModeKind.Ref => "ref ",
+            _ => "in "
+        }) + type + " " + name;
+
+    internal static string ComponentArgument(ContextModeKind mode, string expression)
+        => mode is ContextModeKind.In or ContextModeKind.RefReadonly ? "in " + expression : expression;
 
     private string Join(Func<int, string> render)
         => string.Join(", ", Enumerable.Range(0, Arity).Select(render));

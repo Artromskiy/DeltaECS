@@ -14,25 +14,19 @@ namespace Delta.ECS.Generators
         public const string PinSchemaIdDiagnosticId = "DECS0001";
         public const string InvalidSchemaIdDiagnosticId = "DECS0002";
 
-        private const string SchemaIdPropertyName = "SchemaId";
-
-        private static readonly DiagnosticDescriptor PinSchemaIdRule = new DiagnosticDescriptor(
+        private static readonly DiagnosticDescriptor PinSchemaIdRule = GeneratorDiagnostics.Info(
             PinSchemaIdDiagnosticId,
             "Pin the ECS component schema ID",
             "Pin the current name-derived schema ID 0x{0} as an explicit SchemaId",
             "DeltaECS.Schema",
-            DiagnosticSeverity.Info,
-            isEnabledByDefault: true,
-            description: "An explicit schema ID keeps this component's persisted identity stable if its name changes.");
+            "An explicit schema ID keeps this component's persisted identity stable if its name changes.");
 
-        private static readonly DiagnosticDescriptor InvalidSchemaIdRule = new DiagnosticDescriptor(
+        private static readonly DiagnosticDescriptor InvalidSchemaIdRule = GeneratorDiagnostics.Error(
             InvalidSchemaIdDiagnosticId,
             "ECS component schema ID cannot be zero",
             "SchemaId 0 is invalid; use a non-zero explicit ID or the name-derived ID 0x{0}",
             "DeltaECS.Schema",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true,
-            description: "Zero is reserved and cannot identify an ECS component schema.");
+            "Zero is reserved and cannot identify an ECS component schema.");
 
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
             ImmutableArray.Create(PinSchemaIdRule, InvalidSchemaIdRule);
@@ -49,98 +43,59 @@ namespace Delta.ECS.Generators
             if (context.Node is not TypeDeclarationSyntax declaration ||
                 context.SemanticModel.GetDeclaredSymbol(declaration, context.CancellationToken) is not INamedTypeSymbol type ||
                 type.TypeKind != TypeKind.Struct ||
-                HasOpenGenericContainingType(type))
+                GeneratorSupport.HasGenericTypeInChain(type, includeSelf: true))
             {
                 return;
             }
 
-            foreach (AttributeData attributeData in type.GetAttributes())
+            AttributeData? attributeData = ComponentSchemaIdHash.ComponentAttribute(type);
+            if (attributeData is null)
             {
-                if (!IsComponentAttribute(attributeData.AttributeClass))
-                {
-                    continue;
-                }
-
-                AttributeSyntax? attributeSyntax = attributeData.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken) as AttributeSyntax;
-                if (attributeSyntax == null || attributeSyntax.Parent?.Parent != declaration)
-                {
-                    continue;
-                }
-
-                bool hasExplicitSchemaId = false;
-                bool hasInvalidZeroSchemaId = false;
-                foreach (var namedArgument in attributeData.NamedArguments)
-                {
-                    if (!string.Equals(namedArgument.Key, SchemaIdPropertyName, StringComparison.Ordinal))
-                    {
-                        continue;
-                    }
-
-                    hasExplicitSchemaId = true;
-                    hasInvalidZeroSchemaId = namedArgument.Value.Value is ulong value && value == 0UL;
-                    break;
-                }
-
-                if (hasExplicitSchemaId)
-                {
-                    if (hasInvalidZeroSchemaId)
-                    {
-                        ulong suggestedSchemaId = ComponentSchemaIdHash.Compute(ComponentSchemaIdHash.GetMetadataFullName(type));
-                        ReportInvalidSchemaId(context, attributeSyntax, suggestedSchemaId);
-                    }
-
-                    continue;
-                }
-
-                ulong schemaId = ComponentSchemaIdHash.Compute(ComponentSchemaIdHash.GetMetadataFullName(type));
-                if (schemaId == 0UL)
-                {
-                    ReportInvalidSchemaId(context, attributeSyntax, schemaId);
-                    continue;
-                }
-
-                ImmutableDictionary<string, string?> properties = ImmutableDictionary<string, string?>.Empty
-                    .Add("SchemaId", schemaId.ToString("X16", CultureInfo.InvariantCulture));
-                context.ReportDiagnostic(Diagnostic.Create(
-                    PinSchemaIdRule,
-                    attributeSyntax.Name.GetLocation(),
-                    properties,
-                    schemaId.ToString("X16", CultureInfo.InvariantCulture)));
+                return;
             }
+
+            AttributeSyntax? attributeSyntax = attributeData.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken) as AttributeSyntax;
+            if (attributeSyntax == null || attributeSyntax.Parent?.Parent != declaration)
+            {
+                return;
+            }
+
+            (bool hasExplicitSchemaId, ulong explicitSchemaId) = ComponentSchemaIdHash.ExplicitSchemaId(attributeData);
+            if (hasExplicitSchemaId)
+            {
+                if (explicitSchemaId == 0UL)
+                {
+                    ulong suggestedSchemaId = ComponentSchemaIdHash.Compute(ComponentSchemaIdHash.GetMetadataFullName(type));
+                    ReportSchemaId(context, InvalidSchemaIdRule, attributeSyntax, suggestedSchemaId);
+                }
+
+                return;
+            }
+
+            ulong schemaId = ComponentSchemaIdHash.Compute(ComponentSchemaIdHash.GetMetadataFullName(type));
+            if (schemaId == 0UL)
+            {
+                ReportSchemaId(context, InvalidSchemaIdRule, attributeSyntax, schemaId);
+                return;
+            }
+
+            ReportSchemaId(context, PinSchemaIdRule, attributeSyntax.Name, schemaId);
         }
 
-        private static void ReportInvalidSchemaId(SyntaxNodeAnalysisContext context, AttributeSyntax attributeSyntax, ulong schemaId)
+        private static void ReportSchemaId(
+            SyntaxNodeAnalysisContext context,
+            DiagnosticDescriptor rule,
+            SyntaxNode location,
+            ulong schemaId)
         {
+            string formattedSchemaId = schemaId.ToString("X16", CultureInfo.InvariantCulture);
             ImmutableDictionary<string, string?> properties = ImmutableDictionary<string, string?>.Empty
-                .Add("SchemaId", schemaId.ToString("X16", CultureInfo.InvariantCulture));
+                .Add("SchemaId", formattedSchemaId);
             context.ReportDiagnostic(Diagnostic.Create(
-                InvalidSchemaIdRule,
-                attributeSyntax.GetLocation(),
+                rule,
+                location.GetLocation(),
                 properties,
-                schemaId.ToString("X16", CultureInfo.InvariantCulture)));
-        }
-
-        private static bool IsComponentAttribute(INamedTypeSymbol? attributeType)
-        {
-            if (attributeType == null || !string.Equals(attributeType.MetadataName, "DeltaEcsComponentAttribute", StringComparison.Ordinal))
-            {
-                return false;
-            }
-
-            return string.Equals(attributeType.ContainingNamespace?.ToDisplayString(), "Delta.ECS", StringComparison.Ordinal);
-        }
-
-        private static bool HasOpenGenericContainingType(INamedTypeSymbol type)
-        {
-            for (INamedTypeSymbol? current = type; current is not null; current = current.ContainingType)
-            {
-                if (current.Arity != 0)
-                {
-                    return true;
-                }
-            }
-
-            return false;
+                formattedSchemaId));
         }
 
     }

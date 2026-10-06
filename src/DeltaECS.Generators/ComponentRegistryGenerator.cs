@@ -8,29 +8,21 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 [Generator]
 public sealed class ComponentRegistryGenerator : IIncrementalGenerator
 {
-    private static readonly DiagnosticDescriptor UnsupportedComponent = new(
+    private static readonly DiagnosticDescriptor UnsupportedComponent = GeneratorDiagnostics.Error(
         "DECS0003",
         "Component type cannot be registered automatically",
         "Marked component '{0}' must be a non-generic struct accessible to generated code",
-        "Component registration",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
-
-    private static readonly DiagnosticDescriptor SchemaCollision = new(
+        "Component registration");
+    private static readonly DiagnosticDescriptor SchemaCollision = GeneratorDiagnostics.Error(
         "DECS0004",
         "Component schema ID collision",
         "Components '{0}' and '{1}' have the same schema ID 0x{2:X16}; assign an explicit unique SchemaId",
-        "Component registration",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
-
-    private static readonly DiagnosticDescriptor InvalidSchemaId = new(
+        "Component registration");
+    private static readonly DiagnosticDescriptor InvalidSchemaId = GeneratorDiagnostics.Error(
         "DECS0005",
         "Component schema ID cannot be zero",
         "Component '{0}' resolved to schema ID 0; assign a non-zero explicit SchemaId",
-        "Component registration",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        "Component registration");
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -56,22 +48,24 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
             if (type.TypeKind != TypeKind.Struct
                 || type.IsRefLikeType
                 || type.IsGenericType
-                || HasGenericContainingType(type)
+                || GeneratorSupport.HasGenericTypeInChain(type, includeSelf: false)
                 || !GeneratorSupport.IsAccessibleSymbol(type))
             {
                 context.ReportDiagnostic(Diagnostic.Create(UnsupportedComponent, marked.Location, type.ToDisplayString()));
                 continue;
             }
 
-            AttributeData? attribute = type.GetAttributes().FirstOrDefault(static item =>
-                item.AttributeClass?.ToDisplayString() == "Delta.ECS.DeltaEcsComponentAttribute");
-            if (TryGetExplicitSchemaId(attribute, out ulong explicitSchemaId) && explicitSchemaId == 0)
+            AttributeData? attribute = ComponentSchemaIdHash.ComponentAttribute(type);
+            (bool hasExplicitSchemaId, ulong explicitSchemaId) = attribute is null
+                ? default
+                : ComponentSchemaIdHash.ExplicitSchemaId(attribute);
+            if (hasExplicitSchemaId && explicitSchemaId == 0)
             {
                 context.ReportDiagnostic(Diagnostic.Create(InvalidSchemaId, marked.Location, type.ToDisplayString()));
                 continue;
             }
 
-            ulong schemaId = TryGetExplicitSchemaId(attribute, out explicitSchemaId)
+            ulong schemaId = hasExplicitSchemaId
                 ? explicitSchemaId
                 : ComponentSchemaIdHash.Compute(ComponentSchemaIdHash.GetMetadataFullName(type));
             if (schemaId == 0)
@@ -107,65 +101,16 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
         context.AddSource("GeneratedComponentCatalog.g.cs", Render(registrations));
     }
 
-    private static bool TryGetExplicitSchemaId(AttributeData? attribute, out ulong schemaId)
-    {
-        schemaId = default;
-        if (attribute is null)
-        {
-            return false;
-        }
-
-        foreach (KeyValuePair<string, TypedConstant> argument in attribute.NamedArguments)
-        {
-            if (argument.Key == "SchemaId" && argument.Value.Value is ulong value)
-            {
-                schemaId = value;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool HasGenericContainingType(INamedTypeSymbol type)
-    {
-        for (INamedTypeSymbol? current = type.ContainingType; current is not null; current = current.ContainingType)
-        {
-            if (current.Arity != 0)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private static bool IsTagType(INamedTypeSymbol type)
-    {
-        if (type.TypeKind != TypeKind.Struct
-            || type.GetMembers().OfType<IFieldSymbol>().Any(static field => !field.IsStatic && !field.IsConst))
-        {
-            return false;
-        }
-
-        foreach (AttributeData attribute in type.GetAttributes())
-        {
-            if (attribute.AttributeClass?.ToDisplayString() != "System.Runtime.InteropServices.StructLayoutAttribute")
-            {
-                continue;
-            }
-
-            foreach (KeyValuePair<string, TypedConstant> argument in attribute.NamedArguments)
-            {
-                if (argument.Key == "Size" && argument.Value.Value is int size && size > 1)
-                {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
+        => type.TypeKind == TypeKind.Struct
+            && !type.GetMembers().OfType<IFieldSymbol>().Any(static field => !field.IsStatic && !field.IsConst)
+            && !type.GetAttributes()
+                .Where(static attribute => attribute.AttributeClass?.ToDisplayString()
+                    == "System.Runtime.InteropServices.StructLayoutAttribute")
+                .SelectMany(static attribute => attribute.NamedArguments)
+                .Any(static argument => argument.Key == "Size"
+                    && argument.Value.Value is int size
+                    && size > 1);
 
     private static string Render(List<ComponentRegistration> registrations)
     {
@@ -212,33 +157,7 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
             """;
     }
 
-    private sealed class MarkedComponent
-    {
-        internal MarkedComponent(INamedTypeSymbol type, Location location)
-        {
-            Type = type;
-            Location = location;
-        }
+    private sealed record MarkedComponent(INamedTypeSymbol Type, Location Location);
 
-        internal INamedTypeSymbol Type { get; }
-
-        internal Location Location { get; }
-    }
-
-    private sealed class ComponentRegistration
-    {
-        internal ComponentRegistration(INamedTypeSymbol type, ulong schemaId, bool isTag)
-        {
-            Type = type;
-            SchemaId = schemaId;
-            IsTag = isTag;
-        }
-
-        internal INamedTypeSymbol Type { get; }
-
-        internal ulong SchemaId { get; }
-
-        internal bool IsTag { get; }
-
-    }
+    private sealed record ComponentRegistration(INamedTypeSymbol Type, ulong SchemaId, bool IsTag);
 }

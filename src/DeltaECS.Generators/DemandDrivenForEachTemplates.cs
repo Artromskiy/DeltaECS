@@ -35,21 +35,6 @@ internal static partial class DemandDrivenForEachTemplates
         #pragma warning disable CS0436 // Demand-generated callback contracts can also arrive through a referenced consumer assembly.
 
         """;
-    private const string InterceptorSourceFooter = """
-        }
-
-        }
-
-        namespace System.Runtime.CompilerServices
-        {
-
-        file sealed class InterceptsLocationAttribute : global::System.Attribute
-        {
-            internal InterceptsLocationAttribute(int version, string data) { }
-        }
-        }
-        """;
-
     internal static string Render(IterationRenderModel model)
     {
         IterationModel shape = model.Shape;
@@ -195,18 +180,8 @@ internal static partial class DemandDrivenForEachTemplates
             var leadingArgs = new List<string>();
             if (shape.HasContext)
             {
-                leading.Add(shape.ContextMode switch
-                {
-                    ContextModeKind.Value => $"{ContextType(shape)} context",
-                    ContextModeKind.Ref => $"ref {ContextType(shape)} context",
-                    _ => $"in {ContextType(shape)} context",
-                });
-                leadingArgs.Add(shape.ContextMode switch
-                {
-                    ContextModeKind.Value => "_context",
-                    ContextModeKind.Ref => "ref _context",
-                    _ => "in _context",
-                });
+                leading.Add(SignatureProjection.ContextParameter(shape.ContextMode, ContextType(shape), "context"));
+                leadingArgs.Add(SignatureProjection.ContextArgument(shape.ContextMode, "_context"));
             }
 
             if (shape.IsFunctor)
@@ -232,8 +207,15 @@ internal static partial class DemandDrivenForEachTemplates
                 visitRefArguments,
                 (stepLines, stepIndent, offset, pin) =>
                 {
-                    stepLines.Add(
-                        $"{stepIndent}{AppendClosedInvocationAt(shape, "action", "functor", "context", "row", "firstEntity", offset, pin)};");
+                    string invocation = AppendClosedInvocation(
+                        shape,
+                        "action",
+                        "functor",
+                        "context",
+                        "row",
+                        shape.HasEntity ? AtOffset(pin("firstEntity"), offset) : string.Empty,
+                        index => AtOffset(pin("row" + index), offset));
+                    stepLines.Add($"{stepIndent}{invocation};");
                 },
                 (advanceLines, advanceIndent, advance) =>
                 {
@@ -413,7 +395,8 @@ internal static partial class DemandDrivenForEachTemplates
         string functorName,
         string contextName,
         string componentPrefix,
-        string entityExpression)
+        string entityExpression,
+        Func<int, string>? componentExpression = null)
     {
         var invocationArguments = new List<string>();
         if (shape.HasContext)
@@ -426,11 +409,23 @@ internal static partial class DemandDrivenForEachTemplates
             invocationArguments.Add(entityExpression);
         }
 
-        string componentArguments = shape.Api.Signature.ComponentArguments(componentPrefix);
-        if (componentArguments.Length != 0)
+        SignatureProjection slots = shape.Api.Signature;
+        if (componentExpression is null)
         {
-            invocationArguments.Add(componentArguments);
+            string componentArguments = slots.ComponentArguments(componentPrefix);
+            if (componentArguments.Length != 0)
+            {
+                invocationArguments.Add(componentArguments);
+            }
         }
+        else
+        {
+            for (int index = 0; index < slots.Arity; index++)
+            {
+                invocationArguments.Add(slots.ComponentArgument(index, componentExpression(index)));
+            }
+        }
+
         string invocation = shape.IsFunctor ? $"{functorName}.Invoke" : actionName;
         return $"{invocation}({string.Join(", ", invocationArguments)})";
     }
@@ -609,37 +604,6 @@ internal static partial class DemandDrivenForEachTemplates
         loopLines.Add($"{loopIndent}}}");
     }
 
-    private static string AppendClosedInvocationAt(
-        IterationModel shape,
-        string actionName,
-        string functorName,
-        string contextName,
-        string componentPrefix,
-        string entityCursor,
-        int offset,
-        Func<string, string> pin)
-    {
-        var invocationArguments = new List<string>();
-        if (shape.HasContext)
-        {
-            invocationArguments.Add(SignatureProjection.ContextArgument(shape.ContextMode, contextName));
-        }
-
-        if (shape.HasEntity)
-        {
-            invocationArguments.Add(AtOffset(pin(entityCursor), offset));
-        }
-
-        for (int index = 0; index < shape.ComponentModels.Length; index++)
-        {
-            invocationArguments.Add(
-                shape.Api.Signature.ComponentArgument(index, AtOffset(pin(componentPrefix + index), offset)));
-        }
-
-        string invocation = shape.IsFunctor ? $"{functorName}.Invoke" : actionName;
-        return $"{invocation}({string.Join(", ", invocationArguments)})";
-    }
-
     private static string RenderExtensionsBody(IterationRenderModel model)
     {
         IterationModel shape = model.Shape;
@@ -751,17 +715,7 @@ internal static partial class DemandDrivenForEachTemplates
     internal static string RenderInterceptorSource(InterceptionSite site)
     {
         IterationModel shape = site.IterationModel;
-        string[] ecsUsings = site.Usings
-            .Select(static value => value.Trim())
-            .Where(static value => value is "using Delta.ECS;" or "using global::Delta.ECS;")
-            .Take(1)
-            .ToArray();
-        string usings = string.Join(
-            "\n",
-            (ecsUsings.Length == 0 ? new[] { "using global::Delta.ECS;" } : ecsUsings)
-            .Concat(site.Usings
-                .Where(static value => value.Trim() is not ("using Delta.ECS;" or "using global::Delta.ECS;"))
-                .OrderBy(static value => value, StringComparer.Ordinal)));
+        string usings = GeneratorTemplates.InterceptorUsings(site.Usings);
         string execution = shape.HasEntityTarget || shape.Parallel
             ? GeneratorTemplates.JoinNonEmpty([
                 RenderInterceptedParallelInvoker(shape, site),
@@ -783,8 +737,8 @@ internal static partial class DemandDrivenForEachTemplates
         ]);
         return GeneratorTemplates.InterceptorTemplate(
             InterceptorSourceHeader,
-            source,
-            InterceptorSourceFooter);
+            source + "}\n",
+            GeneratorTemplates.InterceptorSourceFooter);
     }
 
     private static string RenderInterceptedCallback(InterceptionSite site)
@@ -880,9 +834,9 @@ internal static partial class DemandDrivenForEachTemplates
         string entityReference = usesReadSlots
             ? "ref readonly global::Delta.ECS.Entity firstEntity = ref slots.GetGeneratedEntityReference();"
             : "ref global::Delta.ECS.Entity firstEntity = ref slots.GetGeneratedEntityReference();";
-        string entityAt = usesReadSlots
-            ? $"global::System.Runtime.CompilerServices.Unsafe.Add(ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in firstEntity), {{0}})"
-            : "global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, {0})";
+        string EntityAt(string index) => usesReadSlots
+            ? $"global::System.Runtime.CompilerServices.Unsafe.Add(ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in firstEntity), {index})"
+            : $"global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, {index})";
         SignatureProjection slots = closedShape.Api.Signature;
         bool inlineLambda = CanInlineInterceptedLambda(site);
         string contextParameterName = closedShape.HasContext
@@ -1080,7 +1034,7 @@ internal static partial class DemandDrivenForEachTemplates
                 int stampParameterIndex = closedShape.HasContext ? 1 : 0;
                 if (closedShape.HasEntity)
                 {
-                    lines.Add($"                global::Delta.ECS.Entity {parameters[stampParameterIndex]} = {string.Format(entityAt, indexName)};");
+                    lines.Add($"                global::Delta.ECS.Entity {parameters[stampParameterIndex]} = {EntityAt(indexName)};");
                     stampParameterIndex++;
                 }
 
@@ -1200,12 +1154,11 @@ internal static partial class DemandDrivenForEachTemplates
         bool inlineLambda = CanInlineInterceptedLambda(site);
         if (shape.HasContext && shape.IsStamp)
         {
-            body.Add(shape.ContextMode switch
-            {
-                ContextModeKind.Value => $"        {InterceptedContextType(shape)} {parameters[0]} = _context;",
-                ContextModeKind.Ref => $"        ref {InterceptedContextType(shape)} {parameters[0]} = ref _context;",
-                _ => $"        ref readonly {InterceptedContextType(shape)} {parameters[0]} = ref _context;",
-            });
+            body.Add("        " + SignatureProjection.ContextLocal(
+                shape.ContextMode,
+                InterceptedContextType(shape),
+                parameters[0],
+                "_context"));
         }
         if (!shape.IsStamp)
         {
@@ -1271,18 +1224,11 @@ internal static partial class DemandDrivenForEachTemplates
             if (shape.HasContext)
             {
                 string contextName = parameters[0];
-                leadingParameters = shape.ContextMode switch
-                {
-                    ContextModeKind.Value => $"{InterceptedContextType(shape)} {contextName}",
-                    ContextModeKind.Ref => $"ref {InterceptedContextType(shape)} {contextName}",
-                    _ => $"in {InterceptedContextType(shape)} {contextName}",
-                };
-                leadingArguments = shape.ContextMode switch
-                {
-                    ContextModeKind.Value => "_context",
-                    ContextModeKind.Ref => "ref _context",
-                    _ => "in _context",
-                };
+                leadingParameters = SignatureProjection.ContextParameter(
+                    shape.ContextMode,
+                    InterceptedContextType(shape),
+                    contextName);
+                leadingArguments = SignatureProjection.ContextArgument(shape.ContextMode, "_context");
             }
 
             var visitMethods = new List<string>();
@@ -1338,12 +1284,11 @@ internal static partial class DemandDrivenForEachTemplates
             string contextSetup = string.Empty;
             if (shape.HasContext)
             {
-                contextSetup = shape.ContextMode switch
-                {
-                    ContextModeKind.Value => $"{InterceptedContextType(shape)} {parameters[0]} = _context;",
-                    ContextModeKind.Ref => $"ref {InterceptedContextType(shape)} {parameters[0]} = ref _context;",
-                    _ => $"ref readonly {InterceptedContextType(shape)} {parameters[0]} = ref _context;",
-                };
+                contextSetup = SignatureProjection.ContextLocal(
+                    shape.ContextMode,
+                    InterceptedContextType(shape),
+                    parameters[0],
+                    "_context");
             }
 
             AppendInterceptedTagSelectionLoop(
@@ -1693,8 +1638,15 @@ internal static partial class DemandDrivenForEachTemplates
                 visitRefArguments,
                 (stepLines, stepIndent, offset, pin) =>
                 {
-                    stepLines.Add(
-                        $"{stepIndent}{AppendClosedInvocationAt(shape, "action", "action", contextName, "component", entityCursor, offset, pin)};");
+                    string invocation = AppendClosedInvocation(
+                        shape,
+                        "action",
+                        "action",
+                        contextName,
+                        "component",
+                        shape.HasEntity ? AtOffset(pin(entityCursor), offset) : string.Empty,
+                        index => AtOffset(pin("component" + index), offset));
+                    stepLines.Add($"{stepIndent}{invocation};");
                 },
                 (advanceLines, advanceIndent, advance) =>
                 {

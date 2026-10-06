@@ -14,7 +14,8 @@ public sealed class DemandDrivenForEachGeneratorTests
     public void ComponentComparerGeneratesTypedOrderedQueryAdapters()
     {
         const string source = """
-            namespace Delta.ECS;
+            namespace Delta.ECS
+            {
             using System;
             struct Cmp1 { public int Value; }
             struct Cmp2 { public int Value; }
@@ -73,9 +74,10 @@ public sealed class DemandDrivenForEachGeneratorTests
                     _ = query.OrderBy(in context, ref withContextAndEntity);
                 }
             }
+            }
             """;
 
-        GeneratorDriverRunResult run = RunGenerator(source);
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(source, LanguageVersion.CSharp9);
         string generated = GeneratedText(run);
 
         AssertNoDiagnostics(run.Diagnostics);
@@ -85,7 +87,10 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("ReadOnlySpan<global::Delta.ECS.ComponentId> componentIds"));
         Assert.That(generated, Does.Contain("ref global::Delta.ECS.Context context, ref global::Delta.ECS.ContextComparer comparer"));
         Assert.That(generated, Does.Contain("global::Delta.ECS.Entity leftEntity = left;"));
-        AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
+        AssertCompiles(
+            new[] { RuntimeStubFor(LanguageVersion.CSharp9), source },
+            run.GeneratedTrees,
+            LanguageVersion.CSharp9);
     }
 
     [Test]
@@ -158,22 +163,27 @@ public sealed class DemandDrivenForEachGeneratorTests
     public void ComponentComparerDelegateWorksWithoutInterceptors()
     {
         const string source = """
-            namespace Delta.ECS;
+            namespace Delta.ECS
+            {
             public struct Cmp1 { public int Value; }
             static class Consumer
             {
                 public static OrderedQuery Use(Query query)
                     => query.OrderBy((Cmp1 left, Cmp1 right) => left.Value.CompareTo(right.Value));
             }
+            }
             """;
 
-        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(source, LanguageVersion.CSharp11);
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(source, LanguageVersion.CSharp9);
         string generated = GeneratedText(run);
 
         AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("DelegateAdapter<T1>"));
         Assert.That(generated, Does.Not.Contain("ComponentComparerInterceptor_"));
-        AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees, LanguageVersion.CSharp11);
+        AssertCompiles(
+            new[] { RuntimeStubFor(LanguageVersion.CSharp9), source },
+            run.GeneratedTrees,
+            LanguageVersion.CSharp9);
     }
 
     [Test]

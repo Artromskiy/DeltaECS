@@ -56,26 +56,11 @@ internal static class GeneratedQueryTemplates
             body.Add($"GeneratedForEachRuntime.ValidateComponentIdCount(componentIds, {slots.Arity});");
         }
 
-        if (slots.HasDynamicIds)
-        {
-            body.Add("global::System.ReadOnlySpan<ComponentId> components = componentIds;");
-        }
-        else if (slots.HasExplicitIds)
-        {
-            body.Add($"global::System.Span<ComponentId> components = stackalloc ComponentId[{slots.Arity}];");
-            body.AddRange(GeneratorTemplates.Indexed(
-                slots.Arity,
-                index => $"components[{index}] = {slots.ComponentIdArgument(index)};"));
-        }
-        else
-        {
-            string components = GeneratorTemplates.PrimaryComponentIds(
-                factory.Name,
-                GeneratorTemplates.Indexed(slots.Arity, index => slots.GenericType(index)).ToArray(),
-                factory.Query,
-                model.Namespace);
-            body.Add($"global::System.ReadOnlySpan<ComponentId> components = {components};");
-        }
+        body.Add(GeneratorTemplates.ComponentIdSpan(
+            slots,
+            factory.Name,
+            model.Namespace,
+            query: factory.Query));
 
         if (slots.HasExplicitIds && slots.HasGenericSelectors)
         {

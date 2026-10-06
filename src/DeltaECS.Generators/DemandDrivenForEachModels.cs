@@ -4,89 +4,49 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Delta.ECS.Generators;
 
-internal sealed class InterceptionSite
+internal sealed record InterceptionSite(
+    string Id,
+    IterationModel Shape,
+    LambdaExpressionSyntax? Lambda,
+    IMethodSymbol? MethodGroup,
+    string Attribute,
+    string[] Usings)
 {
-    internal InterceptionSite(
-        string id,
-        IterationModel shape,
-        LambdaExpressionSyntax? lambda,
-        IMethodSymbol? methodGroup,
-        string attribute,
-        string[] usings)
-    {
-        Id = id;
-        IterationModel = shape;
-        Binding = lambda is null
-            ? new CallSiteBinding(
-                DefaultParameterNames(shape),
-                body: null,
-                bodyIsBlock: false,
-                canInline: false,
-                methodGroup is null ? null : CallbackReader.MethodGroupTarget(methodGroup))
-            : new CallSiteBinding(
-                lambda,
-                methodGroup,
-                shape.Pattern.Any(static value => value == 'V'));
-        Attribute = attribute;
-        Usings = usings;
-    }
-
     private static string[] DefaultParameterNames(IterationModel shape)
         => (shape.HasContext ? new[] { "context" } : Array.Empty<string>())
             .Concat(shape.HasEntity ? new[] { "entity" } : Array.Empty<string>())
             .Concat(Enumerable.Range(0, shape.Pattern.Length).Select(static index => "component" + index))
             .ToArray();
 
-    internal string Id { get; }
-    internal IterationModel IterationModel { get; }
-    internal string Attribute { get; }
-    internal string[] Usings { get; }
-    internal CallSiteBinding Binding { get; }
+    internal CallSiteBinding Binding { get; } = new(
+        Lambda,
+        MethodGroup,
+        Shape.Pattern.Any(static value => value == 'V'),
+        DefaultParameterNames(Shape));
+
+    internal IterationModel IterationModel => Shape;
 }
 
-internal sealed class IterationModel
+internal sealed class IterationModel(
+    RegistrationBindingKind registrationBinding,
+    bool hasEntity,
+    bool hasContext,
+    bool isFunctor,
+    string pattern,
+    string[] components,
+    string? functorType,
+    string? contextType,
+    bool parallel = false,
+    ContextModeKind contextMode = ContextModeKind.None,
+    string methodName = "ForEach",
+    bool hasEntityTarget = false,
+    bool hasQuery = true,
+    bool isStamp = false,
+    TypeBindingKind typeBinding = TypeBindingKind.CallbackInferred,
+    ContextModeKind functorPassMode = ContextModeKind.Ref,
+    string namespaceName = "",
+    bool orderedQueryReceiver = false)
 {
-    public IterationModel(
-        RegistrationBindingKind registrationBinding,
-        bool hasEntity,
-        bool hasContext,
-        bool isFunctor,
-        string pattern,
-        string[] components,
-        string? functorType,
-        string? contextType,
-        bool parallel = false,
-        ContextModeKind contextMode = ContextModeKind.None,
-        string methodName = "ForEach",
-        bool hasEntityTarget = false,
-        bool hasQuery = true,
-        bool isStamp = false,
-        TypeBindingKind typeBinding = TypeBindingKind.CallbackInferred,
-        ContextModeKind functorPassMode = ContextModeKind.Ref,
-        string namespaceName = "",
-        bool orderedQueryReceiver = false)
-    {
-        Namespace = namespaceName;
-        OrderedQueryReceiver = orderedQueryReceiver;
-        Api = GeneratorSupport.CreateIterationShape(
-            isStamp,
-            parallel,
-            hasEntity,
-            hasEntityTarget,
-            hasQuery,
-            registrationBinding,
-            typeBinding,
-            isFunctor,
-            hasContext,
-            contextMode,
-            pattern,
-            components,
-            functorType,
-            contextType,
-            methodName,
-            functorPassMode);
-    }
-
     public RegistrationBindingKind RegistrationBinding => Api.Selector.RegistrationBinding;
     public bool HasEntity => Api.Callback?.HasEntity == true;
     public bool HasContext => Api.Context.Mode != ContextModeKind.None;
@@ -111,28 +71,30 @@ internal sealed class IterationModel
     public bool HasQuery => Api.Query != QueryMode.None;
     public bool IsStamp => Api.Execution.Value == ValueDomain.Stamp;
     public string MethodName => Api.Name ?? "ForEach";
-    public string Namespace { get; }
-    public bool OrderedQueryReceiver { get; }
-    internal ApiModel Api { get; }
+    public string Namespace { get; } = namespaceName;
+    public bool OrderedQueryReceiver { get; } = orderedQueryReceiver;
+    internal ApiModel Api { get; } = GeneratorSupport.CreateIterationShape(
+        isStamp,
+        parallel,
+        hasEntity,
+        hasEntityTarget,
+        hasQuery,
+        registrationBinding,
+        typeBinding,
+        isFunctor,
+        hasContext,
+        contextMode,
+        pattern,
+        components,
+        functorType,
+        contextType,
+        methodName,
+        functorPassMode);
     public string Key => Namespace + "|" + Api.SignatureKey + (OrderedQueryReceiver ? "|OrderedQuery" : string.Empty);
 }
 
-internal sealed class IterationRenderModel
-{
-    internal IterationRenderModel(
-        IterationModel shape,
-        bool renderContracts,
-        bool profiling,
-        ImmutableArray<ContextModeKind> supportedContextModes)
-    {
-        Shape = shape;
-        RenderContracts = renderContracts;
-        Profiling = profiling;
-        SupportedContextModes = supportedContextModes;
-    }
-
-    internal IterationModel Shape { get; }
-    internal bool RenderContracts { get; }
-    internal bool Profiling { get; }
-    internal ImmutableArray<ContextModeKind> SupportedContextModes { get; }
-}
+internal sealed record IterationRenderModel(
+    IterationModel Shape,
+    bool RenderContracts,
+    bool Profiling,
+    ImmutableArray<ContextModeKind> SupportedContextModes);

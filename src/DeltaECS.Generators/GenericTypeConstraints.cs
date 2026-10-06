@@ -15,11 +15,8 @@ internal enum GenericTypeConstraintKind
     NullableClassNew,
 }
 
-internal sealed class GenericTypeParameterConstraint(int index, GenericTypeConstraintKind kind)
+internal readonly record struct GenericTypeParameterConstraint(int Index, GenericTypeConstraintKind Kind)
 {
-    internal int Index { get; } = index;
-    internal GenericTypeConstraintKind Kind { get; } = kind;
-
     internal string RenderClause(string generatedTypeParameter)
     {
         string constraint = Kind switch
@@ -91,18 +88,10 @@ internal static class GenericTypeConstraintSupport
                 constructor.DeclaredAccessibility == Accessibility.Public && constructor.Parameters.Length == 0));
 }
 
-internal sealed class GeneratedTypeTokenBinding(
-    string componentTypeName,
-    string tokenName,
-    bool isValueType,
-    bool isUnmanaged,
-    bool isClass,
-    bool hasPublicParameterlessConstructor)
-{
-    internal string ComponentTypeName { get; } = componentTypeName;
-    internal string TokenName { get; } = tokenName;
-    internal bool IsValueType { get; } = isValueType;
-    internal bool IsUnmanaged { get; } = isUnmanaged;
-    internal bool IsClass { get; } = isClass;
-    internal bool HasPublicParameterlessConstructor { get; } = hasPublicParameterlessConstructor;
-}
+internal readonly record struct GeneratedTypeTokenBinding(
+    string ComponentTypeName,
+    string TokenName,
+    bool IsValueType,
+    bool IsUnmanaged,
+    bool IsClass,
+    bool HasPublicParameterlessConstructor);

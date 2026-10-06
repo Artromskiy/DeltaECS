@@ -12,26 +12,17 @@ namespace Delta.ECS.Generators;
 public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
-    {
-        context.RegisterSourceOutput(
-            GeneratorPipeline.ShapeProvider<StructuralModel>(
-                    context,
-                    static syntaxContext => TryReadShape(
-                        syntaxContext.SemanticModel,
-                        (Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax)syntaxContext.Node,
-                        out StructuralModel? shape)
-                        ? shape
-                        : null)
-                .Where(static shape => shape is not null)
-                .Select(static (shape, _) => shape!)
-                .Collect(),
-            static (productionContext, shapes) => GeneratorPipeline.EmitShapes<StructuralModel>(
-                shapes,
-                productionContext,
-                "GeneratedStructural_",
-                static shape => shape.Key,
-                static shape => GeneratedStructuralTemplates.Render(shape)));
-    }
+        => GeneratorPipeline.RegisterShapeOutput<StructuralModel>(
+            context,
+            static syntaxContext => TryReadShape(
+                syntaxContext.SemanticModel,
+                (InvocationExpressionSyntax)syntaxContext.Node,
+                out StructuralModel? shape)
+                ? shape
+                : null,
+            "GeneratedStructural_",
+            static shape => shape.Key,
+            static shape => GeneratedStructuralTemplates.Render(shape));
 
     private static bool TryReadShape(
         SemanticModel model,
@@ -107,10 +98,10 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             Operation(name),
             cursorResult.Target,
             boundArity,
-            typeBinding: genericArity.HasValue ? TypeBindingKind.Generic : TypeBindingKind.None,
-            registrationBinding: registrationBinding,
-            hasValues: false,
-            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation));
+            TypeBinding: genericArity.HasValue ? TypeBindingKind.Generic : TypeBindingKind.None,
+            RegistrationBinding: registrationBinding,
+            HasValues: false,
+            Namespace: GeneratorSupport.ContainingNamespace(model, invocation));
         return true;
     }
 
@@ -139,27 +130,19 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             return false;
         }
 
-        for (int index = cursorResult.TailStart; index < cursorResult.TailStart + cursorResult.TailCount; index++)
+        if (!HasSupportedValues(model, invocation, cursorResult))
         {
-            ITypeSymbol? valueType = model.GetTypeInfo(invocation.ArgumentList.Arguments[index].Expression).Type;
-            if (valueType is null || GeneratorSupport.IsComponentId(valueType))
-            {
-                return false;
-            }
+            return false;
         }
 
         shape = new StructuralModel(
             StructuralOperation.Add,
             cursorResult.Target,
-            arity: arity,
-            registrationBinding: cursorResult.HasComponentIdSpan
-                ? RegistrationBindingKind.Dynamic
-                : cursorResult.ComponentIdCount == 0
-                    ? RegistrationBindingKind.Primary
-                    : RegistrationBindingKind.Explicit,
-            hasValues: true,
-            throwOnTypeMismatch: arity > 1,
-            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation));
+            Arity: arity,
+            RegistrationBinding: cursorResult.RegistrationBinding,
+            HasValues: true,
+            ThrowOnTypeMismatch: arity > 1,
+            Namespace: GeneratorSupport.ContainingNamespace(model, invocation));
         return true;
     }
 
@@ -194,10 +177,11 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         }
 
         int? explicitArity = cursorResult.ComponentIdCount == 0 ? null : cursorResult.ComponentIdCount;
-        var arityEvidence = new ArityEvidence();
-        arityEvidence.Add(isGeneric ? genericArity : null);
-        arityEvidence.Add(explicitArity);
-        if (!arityEvidence.TryBind(descriptor.MinimumArity, out int arity))
+        if (!ArityEvidence.TryBind(
+                descriptor.MinimumArity,
+                out int arity,
+                isGeneric ? genericArity : null,
+                explicitArity))
         {
             return !isGeneric && TryReadCreateValueShape(model, invocation, descriptor, 0, out shape);
         }
@@ -206,14 +190,10 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             StructuralOperation.Create,
             TargetKind.World,
             arity,
-            typeBinding: isGeneric ? TypeBindingKind.Generic : TypeBindingKind.None,
-            registrationBinding: cursorResult.HasComponentIdSpan
-                ? RegistrationBindingKind.Dynamic
-                : explicitArity.HasValue
-                    ? RegistrationBindingKind.Explicit
-                    : RegistrationBindingKind.Primary,
-            hasOutput: cursorResult.HasOutput,
-            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation));
+            TypeBinding: isGeneric ? TypeBindingKind.Generic : TypeBindingKind.None,
+            RegistrationBinding: cursorResult.RegistrationBinding,
+            HasOutput: cursorResult.HasOutput,
+            Namespace: GeneratorSupport.ContainingNamespace(model, invocation));
         return true;
     }
 
@@ -244,12 +224,10 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             StructuralOperation.Create,
             TargetKind.World,
             arity,
-            typeBinding: genericArity == 0 ? TypeBindingKind.None : TypeBindingKind.Generic,
-            registrationBinding: selection.HasComponentIdSpan
-                ? RegistrationBindingKind.Dynamic
-                : RegistrationBindingKind.Explicit,
-            createsOne: true,
-            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation));
+            TypeBinding: genericArity == 0 ? TypeBindingKind.None : TypeBindingKind.Generic,
+            RegistrationBinding: selection.RegistrationBinding,
+            CreatesOne: true,
+            Namespace: GeneratorSupport.ContainingNamespace(model, invocation));
         return true;
     }
 
@@ -273,51 +251,48 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
 
         int arity = genericArity == 0 ? cursorResult.TailCount : genericArity;
         GenericNameSyntax? genericName = (invocation.Expression as MemberAccessExpressionSyntax)?.Name as GenericNameSyntax;
-        for (int index = 0; index < cursorResult.TailCount; index++)
+        if (!HasSupportedValues(model, invocation, cursorResult, genericName))
         {
-            ITypeSymbol? valueType = model.GetTypeInfo(
-                invocation.ArgumentList.Arguments[cursorResult.TailStart + index].Expression).Type;
-            if (valueType is null
-                || GeneratorSupport.IsComponentId(valueType))
-            {
-                return false;
-            }
-
-            if (genericName is not null)
-            {
-                ITypeSymbol? componentType = model.GetTypeInfo(genericName.TypeArgumentList.Arguments[index]).Type;
-                if (componentType is null
-                    || !((CSharpCompilation)model.Compilation).ClassifyConversion(valueType, componentType).IsImplicit)
-                {
-                    return false;
-                }
-            }
+            return false;
         }
 
         shape = new StructuralModel(
             StructuralOperation.Create,
             TargetKind.World,
             arity,
-            registrationBinding: cursorResult.HasComponentIdSpan
-                ? RegistrationBindingKind.Dynamic
-                : RegistrationBindingKind.Explicit,
-            hasValues: true,
-            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation));
+            RegistrationBinding: cursorResult.RegistrationBinding,
+            HasValues: true,
+            Namespace: GeneratorSupport.ContainingNamespace(model, invocation));
         return true;
     }
 
-    private static bool HasNamedValueArgument(SeparatedSyntaxList<ArgumentSyntax> arguments)
-    {
-        foreach (ArgumentSyntax argument in arguments)
+    private static bool HasSupportedValues(
+        SemanticModel model,
+        InvocationExpressionSyntax invocation,
+        InvocationCursorResult selection,
+        GenericNameSyntax? genericName = null)
+        => Enumerable.Range(selection.TailStart, selection.TailCount).All(index =>
         {
-            if (argument.NameColon?.Name.Identifier.ValueText is "value" or "value0")
+            ITypeSymbol? valueType = model.GetTypeInfo(
+                invocation.ArgumentList.Arguments[index].Expression).Type;
+            if (valueType is null || GeneratorSupport.IsComponentId(valueType))
+            {
+                return false;
+            }
+
+            if (genericName is null)
             {
                 return true;
             }
-        }
 
-        return false;
-    }
+            int componentIndex = index - selection.TailStart;
+            ITypeSymbol? componentType = model.GetTypeInfo(genericName.TypeArgumentList.Arguments[componentIndex]).Type;
+            return componentType is not null
+                && ((CSharpCompilation)model.Compilation).ClassifyConversion(valueType, componentType).IsImplicit;
+        });
+
+    private static bool HasNamedValueArgument(SeparatedSyntaxList<ArgumentSyntax> arguments)
+        => arguments.Any(static argument => argument.NameColon?.Name.Identifier.ValueText is "value" or "value0");
 
     private static int? GenericArity(InvocationExpressionSyntax invocation)
         => (invocation.Expression as MemberAccessExpressionSyntax)?.Name is GenericNameSyntax genericName

@@ -4,82 +4,30 @@ using Microsoft.CodeAnalysis;
 namespace Delta.ECS.Generators;
 
 /// <summary>Semantic access facts collected from one <c>ISystem</c>.</summary>
-internal sealed class GeneratedSystemAccessModel
-{
-    internal GeneratedSystemAccessModel(
-        string @namespace,
-        string typeName,
-        string helperName,
-        bool injectProperty,
-        ImmutableArray<GeneratedSystemQueryAccessModel> queryAccesses,
-        ImmutableArray<string> reads,
-        ImmutableArray<string> writes,
-        ImmutableArray<string> stampReads,
-        ImmutableArray<string> adds,
-        ImmutableArray<string> removes,
-        bool readsTopology,
-        bool writesTopology,
-        bool createsEntities,
-        bool destroysEntities,
-        bool unknownWorldAccess,
-        bool usesParallelExecutor)
-    {
-        Namespace = @namespace;
-        TypeName = typeName;
-        HelperName = helperName;
-        InjectProperty = injectProperty;
-        QueryAccesses = queryAccesses;
-        Reads = reads;
-        Writes = writes;
-        StampReads = stampReads;
-        Adds = adds;
-        Removes = removes;
-        ReadsTopology = readsTopology;
-        WritesTopology = writesTopology;
-        CreatesEntities = createsEntities;
-        DestroysEntities = destroysEntities;
-        UnknownWorldAccess = unknownWorldAccess;
-        UsesParallelExecutor = usesParallelExecutor;
-    }
-
-    internal string Namespace { get; }
-    internal string TypeName { get; }
-    internal string HelperName { get; }
-    internal bool InjectProperty { get; }
-    internal ImmutableArray<GeneratedSystemQueryAccessModel> QueryAccesses { get; }
-    internal ImmutableArray<string> Reads { get; }
-    internal ImmutableArray<string> Writes { get; }
-    internal ImmutableArray<string> StampReads { get; }
-    internal ImmutableArray<string> Adds { get; }
-    internal ImmutableArray<string> Removes { get; }
-    internal bool ReadsTopology { get; }
-    internal bool WritesTopology { get; }
-    internal bool CreatesEntities { get; }
-    internal bool DestroysEntities { get; }
-    internal bool UnknownWorldAccess { get; }
-    internal bool UsesParallelExecutor { get; }
-}
+internal sealed record GeneratedSystemAccessModel(
+    string Namespace,
+    string TypeName,
+    string HelperName,
+    bool InjectProperty,
+    ImmutableArray<GeneratedSystemQueryAccessModel> QueryAccesses,
+    ImmutableArray<string> Reads,
+    ImmutableArray<string> Writes,
+    ImmutableArray<string> StampReads,
+    ImmutableArray<string> Adds,
+    ImmutableArray<string> Removes,
+    bool ReadsTopology,
+    bool WritesTopology,
+    bool CreatesEntities,
+    bool DestroysEntities,
+    bool UnknownWorldAccess,
+    bool UsesParallelExecutor);
 
 /// <summary>Generated component access tied to a query field on a system.</summary>
-internal sealed class GeneratedSystemQueryAccessModel
-{
-    internal GeneratedSystemQueryAccessModel(
-        string queryExpression,
-        ImmutableArray<string> reads,
-        ImmutableArray<string> writes,
-        ImmutableArray<string> stampReads)
-    {
-        QueryExpression = queryExpression;
-        Reads = reads;
-        Writes = writes;
-        StampReads = stampReads;
-    }
-
-    internal string QueryExpression { get; }
-    internal ImmutableArray<string> Reads { get; }
-    internal ImmutableArray<string> Writes { get; }
-    internal ImmutableArray<string> StampReads { get; }
-}
+internal sealed record GeneratedSystemQueryAccessModel(
+    string QueryExpression,
+    ImmutableArray<string> Reads,
+    ImmutableArray<string> Writes,
+    ImmutableArray<string> StampReads);
 
 internal sealed class GeneratedSystemAccessAccumulator
 {
@@ -111,6 +59,14 @@ internal sealed class GeneratedSystemAccessAccumulator
 
     internal void Remove(ITypeSymbol? type)
         => Add(_removes, type);
+
+    internal void Apply(IEnumerable<ITypeSymbol> types, Action<ITypeSymbol> access)
+    {
+        foreach (ITypeSymbol type in types)
+        {
+            access(type);
+        }
+    }
 
     internal void ReadTopology()
         => ReadsTopology = true;

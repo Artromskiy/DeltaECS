@@ -13,13 +13,11 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
         "ForEach", "ForEachEntity", "ForEachParallel", "ForEachEntityParallel",
     };
 
-    private static readonly DiagnosticDescriptor UnsupportedGenericConstraints = new(
+    private static readonly DiagnosticDescriptor UnsupportedGenericConstraints = GeneratorDiagnostics.Error(
         "DECSGEN008",
         "Unsupported generic constraints",
         "Open generic type '{0}' uses constraints unsupported by runtime-selected generic dispatch. Supported constraints are value type, unmanaged, reference type, nullable reference type, and public parameterless constructor.",
-        "Generic bindings",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        "Generic bindings");
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -181,12 +179,7 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
                 return new GenericBindingDiscovery(method.TypeArguments[0], null, null, invocation.GetLocation());
             }
 
-            if (method.Name == "Register" && !method.IsGenericMethod
-                && invocation.ArgumentList.Arguments.Count >= 3
-                && TryGetOpenGenericType(invocation.ArgumentList.Arguments[0].Expression, syntax.SemanticModel, out INamedTypeSymbol? definition))
-            {
-                return new GenericBindingDiscovery(null, definition, null, invocation.GetLocation());
-            }
+            return ReadGenericComponentRegistrationDiscovery(invocation, syntax.SemanticModel);
         }
 
         return ReadStructGenericTypeListDiscovery(method, invocation.GetLocation())
@@ -217,7 +210,7 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
         }
 
         // A closed invocation is the compile-time type list for struct-generic actions.
-        return new GenericBindingDiscovery(componentType, null, null, location, isStructGenericTypeList: true);
+        return new GenericBindingDiscovery(componentType, null, null, location, IsStructGenericTypeList: true);
     }
 
     private static bool IsClosedType(ITypeSymbol type)
@@ -333,17 +326,10 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
         }
     }
 
-    private sealed class GenericBindingDiscovery(
-        ITypeSymbol? registeredComponentType,
-        INamedTypeSymbol? genericComponentDefinition,
-        INamedTypeSymbol? genericFunctorDefinition,
-        Location location,
-        bool isStructGenericTypeList = false)
-    {
-        internal ITypeSymbol? RegisteredComponentType { get; } = registeredComponentType;
-        internal INamedTypeSymbol? GenericComponentDefinition { get; } = genericComponentDefinition;
-        internal INamedTypeSymbol? GenericFunctorDefinition { get; } = genericFunctorDefinition;
-        internal Location Location { get; } = location;
-        internal bool IsStructGenericTypeList { get; } = isStructGenericTypeList;
-    }
+    private sealed record GenericBindingDiscovery(
+        ITypeSymbol? RegisteredComponentType,
+        INamedTypeSymbol? GenericComponentDefinition,
+        INamedTypeSymbol? GenericFunctorDefinition,
+        Location Location,
+        bool IsStructGenericTypeList = false);
 }

@@ -11,26 +11,17 @@ namespace Delta.ECS.Generators;
 public sealed class GeneratedQueryGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
-    {
-        context.RegisterSourceOutput(
-            GeneratorPipeline.ShapeProvider<QueryModel>(
-                    context,
-                    static syntaxContext => TryReadShape(
-                        syntaxContext.SemanticModel,
-                        (InvocationExpressionSyntax)syntaxContext.Node,
-                        out QueryModel? shape)
-                        ? shape
-                        : null)
-                .Where(static shape => shape is not null)
-                .Select(static (shape, _) => shape!)
-                .Collect(),
-            static (productionContext, shapes) => GeneratorPipeline.EmitShapes<QueryModel>(
-                shapes,
-                productionContext,
-                "GeneratedQuery_",
-                static shape => shape.Key,
-                static shape => GeneratedQueryTemplates.Render(shape)));
-    }
+        => GeneratorPipeline.RegisterShapeOutput<QueryModel>(
+            context,
+            static syntaxContext => TryReadShape(
+                syntaxContext.SemanticModel,
+                (InvocationExpressionSyntax)syntaxContext.Node,
+                out QueryModel? shape)
+                ? shape
+                : null,
+            "GeneratedQuery_",
+            static shape => shape.Key,
+            static shape => GeneratedQueryTemplates.Render(shape));
 
     private static bool TryReadShape(
         SemanticModel model,
@@ -40,17 +31,16 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
         shape = null;
         if (invocation.Expression is not MemberAccessExpressionSyntax member
             || !TryFactoryName(member.Name, out string name, out int genericArity)
-            || !IsFactoryName(name)
             || !ApiDescriptor.TryGet(name, out ApiDescriptor descriptor)
             || descriptor.Family != GeneratedApiKind.QueryFactory
-            || (!IsWorldReceiver(model, member.Expression)
-                && !IsQueryReceiver(model, member.Expression)
-                && !IsQuerySpecReceiver(model, member.Expression)))
+            || (!GeneratorSupport.IsWorldReceiver(model, member.Expression)
+                && !GeneratorSupport.IsQueryReceiver(model, member.Expression)
+                && !GeneratorSupport.IsQuerySpecReceiver(model, member.Expression)))
         {
             return false;
         }
 
-        bool querySpecReceiver = IsQuerySpecReceiver(model, member.Expression);
+        bool querySpecReceiver = GeneratorSupport.IsQuerySpecReceiver(model, member.Expression);
 
         var cursor = new InvocationCursor(model, invocation.ArgumentList.Arguments, descriptor);
         if (!cursor.TryRead(-1, out InvocationCursorResult selection))
@@ -78,11 +68,7 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
 
             arity = genericArity;
             typeBinding = TypeBindingKind.Generic;
-            registrationBinding = selection.HasComponentIdSpan
-                ? RegistrationBindingKind.Dynamic
-                : selection.ComponentIdCount != 0
-                    ? RegistrationBindingKind.Explicit
-                    : RegistrationBindingKind.Primary;
+            registrationBinding = selection.RegistrationBinding;
         }
         else
         {
@@ -113,85 +99,15 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
 
     private static bool TryFactoryName(NameSyntax nameSyntax, out string name, out int arity)
     {
-        switch (nameSyntax)
+        (name, arity) = nameSyntax switch
         {
-            case GenericNameSyntax genericName:
-                name = genericName.Identifier.ValueText;
-                arity = genericName.TypeArgumentList.Arguments.Count;
-                return true;
-            case IdentifierNameSyntax identifierName:
-                name = identifierName.Identifier.ValueText;
-                arity = 0;
-                return true;
-            default:
-                name = string.Empty;
-                arity = 0;
-                return false;
-        }
-    }
-
-    private static bool IsFactoryName(string name)
-        => name is "WhereAll" or "WhereAny" or "WhereNone";
-
-    private static bool IsWorldReceiver(SemanticModel model, ExpressionSyntax expression)
-        => GeneratorSupport.IsNamedType(model.GetTypeInfo(expression).Type, "World");
-
-    private static bool IsQueryReceiver(SemanticModel model, ExpressionSyntax expression)
-    {
-        if (GeneratorSupport.IsNamedType(model.GetTypeInfo(expression).Type, "Query"))
-        {
-            return true;
-        }
-
-        // Earlier generated extension calls are not part of the input
-        // compilation's semantic model, so recognize a fluent factory chain
-        // syntactically as well as a resolved Query receiver.
-        if (expression is InvocationExpressionSyntax invocation
-            && invocation.Expression is MemberAccessExpressionSyntax member
-            && TryFactoryName(member.Name, out string name, out _)
-            && IsFactoryName(name))
-        {
-            return IsWorldReceiver(model, member.Expression)
-                || IsQueryReceiver(model, member.Expression);
-        }
-
-        if (expression is IdentifierNameSyntax identifier
-            && model.GetSymbolInfo(identifier).Symbol is ILocalSymbol local
-            && local.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is VariableDeclaratorSyntax declarator
-            && declarator.Initializer?.Value is ExpressionSyntax initializer)
-        {
-            return IsWorldReceiver(model, initializer)
-                || IsQueryReceiver(model, initializer);
-        }
-
-        return false;
-    }
-
-    private static bool IsQuerySpecReceiver(SemanticModel model, ExpressionSyntax expression)
-    {
-        if (model.GetSymbolInfo(expression).Symbol is not INamedTypeSymbol
-            && GeneratorSupport.IsNamedType(model.GetTypeInfo(expression).Type, "QuerySpec"))
-        {
-            return true;
-        }
-
-        if (expression is InvocationExpressionSyntax invocation
-            && invocation.Expression is MemberAccessExpressionSyntax member
-            && TryFactoryName(member.Name, out string name, out _)
-            && IsFactoryName(name))
-        {
-            return IsQuerySpecReceiver(model, member.Expression);
-        }
-
-        if (expression is IdentifierNameSyntax identifier
-            && model.GetSymbolInfo(identifier).Symbol is ILocalSymbol local
-            && local.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is VariableDeclaratorSyntax declarator
-            && declarator.Initializer?.Value is ExpressionSyntax initializer)
-        {
-            return IsQuerySpecReceiver(model, initializer);
-        }
-
-        return false;
+            GenericNameSyntax genericName => (
+                genericName.Identifier.ValueText,
+                genericName.TypeArgumentList.Arguments.Count),
+            IdentifierNameSyntax identifierName => (identifierName.Identifier.ValueText, 0),
+            _ => (string.Empty, 0)
+        };
+        return nameSyntax is GenericNameSyntax or IdentifierNameSyntax;
     }
 
 }

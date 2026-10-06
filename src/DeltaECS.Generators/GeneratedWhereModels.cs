@@ -4,52 +4,40 @@ using System.Globalization;
 namespace Delta.ECS.Generators;
 
 /// <summary>Semantic shape shared by all generated Where calls with the same predicate signature.</summary>
-internal sealed class PredicateModel
+internal sealed class PredicateModel(
+    string pattern,
+    bool isFunctor,
+    string? functorType,
+    bool hasEntity,
+    bool hasContext,
+    string? contextType,
+    string[]? components,
+    string namespaceName = "")
 {
-    internal PredicateModel(
-        string pattern,
-        bool isFunctor,
-        string? functorType,
-        bool hasEntity,
-        bool hasContext,
-        string? contextType,
-        string[]? components,
-        string namespaceName = "")
-    {
-        Namespace = namespaceName;
-        Pattern = pattern;
-        IsFunctor = isFunctor;
-        FunctorType = functorType;
-        HasEntity = hasEntity;
-        HasContext = hasContext;
-        ContextType = contextType;
-        Components = components ?? Array.Empty<string>();
-        ComponentModels = GeneratorSupport.ComponentModels(Pattern, Components, isFunctor, "T");
-
-        Api = new ApiModel(
-            OperationKind.Where,
-            TargetKind.World,
-            QueryMode.Required,
-            new SelectorModel(TypeBindingKind.CallbackInferred, RegistrationBindingKind.Primary, ComponentModels),
-            new ContextModel(hasContext ? ContextModeKind.Value : ContextModeKind.None, contextType),
-            new CallbackModel(
-                isFunctor ? CallbackSource.Functor : CallbackSource.Lambda,
-                hasEntity,
-                functorType),
-            new ExecutionModel(Scope.QueryWide, ValueDomain.Component, Schedule.Sequential));
-    }
-
-    internal string Pattern { get; }
-    internal string Namespace { get; }
+    internal string Pattern { get; } = pattern;
+    internal string Namespace { get; } = namespaceName;
     internal int Arity => Pattern.Length;
-    internal bool IsFunctor { get; }
-    internal string? FunctorType { get; }
-    internal bool HasEntity { get; }
-    internal bool HasContext { get; }
-    internal string? ContextType { get; }
-    internal string[] Components { get; }
-    internal ImmutableArray<ComponentModel> ComponentModels { get; }
-    internal ApiModel Api { get; }
+    internal bool IsFunctor { get; } = isFunctor;
+    internal string? FunctorType { get; } = functorType;
+    internal bool HasEntity { get; } = hasEntity;
+    internal bool HasContext { get; } = hasContext;
+    internal string? ContextType { get; } = contextType;
+    internal string[] Components { get; } = components ?? Array.Empty<string>();
+    internal ImmutableArray<ComponentModel> ComponentModels => Api.Selector.Components;
+    internal ApiModel Api { get; } = new(
+        OperationKind.Where,
+        TargetKind.World,
+        QueryMode.Required,
+        new SelectorModel(
+            TypeBindingKind.CallbackInferred,
+            RegistrationBindingKind.Primary,
+            GeneratorSupport.ComponentModels(pattern, components ?? Array.Empty<string>(), isFunctor, "T")),
+        new ContextModel(hasContext ? ContextModeKind.Value : ContextModeKind.None, contextType),
+        new CallbackModel(
+            isFunctor ? CallbackSource.Functor : CallbackSource.Lambda,
+            hasEntity,
+            functorType),
+        new ExecutionModel(Scope.QueryWide, ValueDomain.Component, Schedule.Sequential));
     internal ShapeRegistry<TerminalModel> Terminals { get; } = new(static terminal => terminal.SignatureKey);
     internal List<WherePredicateBinding> StaticMethodGroupBindings { get; } = new();
     internal string Key => Namespace + "|" + Api.SignatureKey;
@@ -78,16 +66,10 @@ internal sealed class PredicateModel
 }
 
 /// <summary>Concrete callback types retained for one discovered Where call site.</summary>
-internal sealed class WherePredicateBinding
+internal sealed class WherePredicateBinding(string? contextType, string[] components)
 {
-    internal WherePredicateBinding(string? contextType, string[] components)
-    {
-        ContextType = contextType;
-        Components = components;
-    }
-
-    internal string? ContextType { get; }
-    internal string[] Components { get; }
+    internal string? ContextType { get; } = contextType;
+    internal string[] Components { get; } = components;
     internal string SortKey => (ContextType ?? string.Empty) + "|" + string.Join("|", Components);
 
     internal bool Equals(WherePredicateBinding other)
@@ -96,71 +78,56 @@ internal sealed class WherePredicateBinding
 }
 
 /// <summary>Semantic description of a Where terminal operation.</summary>
-internal sealed class TerminalModel
+internal sealed class TerminalModel(
+    TerminalKind kind,
+    string pattern,
+    bool hasEntity,
+    bool isFunctor = false,
+    string? functorType = null,
+    bool hasContext = false,
+    string? contextType = null,
+    string[]? components = null,
+    string? methodGroupTarget = null,
+    bool hasValues = false,
+    TypeBindingKind typeBinding = TypeBindingKind.CallbackInferred,
+    RegistrationBindingKind registrationBinding = RegistrationBindingKind.Primary,
+    ContextModeKind functorPassMode = ContextModeKind.Ref)
 {
-    internal TerminalModel(
-        TerminalKind kind,
-        string pattern,
-        bool hasEntity,
-        bool isFunctor = false,
-        string? functorType = null,
-        bool hasContext = false,
-        string? contextType = null,
-        string[]? components = null,
-        string? methodGroupTarget = null,
-        bool hasValues = false,
-        TypeBindingKind typeBinding = TypeBindingKind.CallbackInferred,
-        RegistrationBindingKind registrationBinding = RegistrationBindingKind.Primary,
-        ContextModeKind functorPassMode = ContextModeKind.Ref)
-    {
-        Kind = kind;
-        Pattern = pattern;
-        HasEntity = hasEntity;
-        IsFunctor = isFunctor;
-        FunctorType = functorType;
-        FunctorPassMode = isFunctor ? functorPassMode : ContextModeKind.None;
-        HasContext = hasContext;
-        ContextType = contextType;
-        Components = components ?? Array.Empty<string>();
-        MethodGroupTarget = methodGroupTarget;
-        HasValues = hasValues;
-        int componentCount = pattern.Length == 0 ? Components.Length : pattern.Length;
-        string componentPattern = pattern.Length == 0
-            ? new string('V', componentCount)
-            : pattern;
-        ComponentModels = GeneratorSupport.ComponentModels(componentPattern, Components, isFunctor, "U");
-
-        Api = new ApiModel(
-            OperationKind.Where,
-            TargetKind.World,
-            QueryMode.Required,
-            new SelectorModel(typeBinding, registrationBinding, ComponentModels),
-            new ContextModel(hasContext ? ContextModeKind.Value : ContextModeKind.None, contextType),
-            new CallbackModel(
-                isFunctor ? CallbackSource.Functor : CallbackSource.Lambda,
-                hasEntity,
-                functorType,
-                FunctorPassMode),
-            new ExecutionModel(Scope.QueryWide, ValueDomain.Component, Schedule.Sequential),
-            Kind + "|" + componentCount.ToString(CultureInfo.InvariantCulture)
-                + (hasValues ? "|values|" + registrationBinding : string.Empty),
-            Pattern);
-    }
-
-    internal TerminalKind Kind { get; }
-    internal string Pattern { get; }
+    internal TerminalKind Kind { get; } = kind;
+    internal string Pattern { get; } = pattern;
     internal int Arity => Api.Selector.Arity;
-    internal bool HasEntity { get; }
-    internal bool IsFunctor { get; }
-    internal string? FunctorType { get; }
-    internal ContextModeKind FunctorPassMode { get; }
-    internal bool HasContext { get; }
-    internal string? ContextType { get; }
-    internal string[] Components { get; }
-    internal bool HasValues { get; }
-    internal ImmutableArray<ComponentModel> ComponentModels { get; }
-    internal string? MethodGroupTarget { get; }
-    internal ApiModel Api { get; }
+    internal bool HasEntity { get; } = hasEntity;
+    internal bool IsFunctor { get; } = isFunctor;
+    internal string? FunctorType { get; } = functorType;
+    internal ContextModeKind FunctorPassMode { get; } = isFunctor ? functorPassMode : ContextModeKind.None;
+    internal bool HasContext { get; } = hasContext;
+    internal string? ContextType { get; } = contextType;
+    internal string[] Components { get; } = components ?? Array.Empty<string>();
+    internal bool HasValues { get; } = hasValues;
+    internal ImmutableArray<ComponentModel> ComponentModels => Api.Selector.Components;
+    internal string? MethodGroupTarget { get; } = methodGroupTarget;
+    internal ApiModel Api { get; } = new(
+        OperationKind.Where,
+        TargetKind.World,
+        QueryMode.Required,
+        new SelectorModel(
+            typeBinding,
+            registrationBinding,
+            GeneratorSupport.ComponentModels(
+                pattern.Length == 0 ? new string('V', components?.Length ?? 0) : pattern,
+                components ?? Array.Empty<string>(),
+                isFunctor,
+                "U")),
+        new ContextModel(hasContext ? ContextModeKind.Value : ContextModeKind.None, contextType),
+        new CallbackModel(
+            isFunctor ? CallbackSource.Functor : CallbackSource.Lambda,
+            hasEntity,
+            functorType,
+            isFunctor ? functorPassMode : ContextModeKind.None),
+        new ExecutionModel(Scope.QueryWide, ValueDomain.Component, Schedule.Sequential),
+        kind + "|" + (pattern.Length == 0 ? components?.Length ?? 0 : pattern.Length).ToString(CultureInfo.InvariantCulture)
+            + (hasValues ? "|values|" + registrationBinding : string.Empty),
+        pattern);
     internal List<string[]> StaticMethodGroupComponents { get; } = new();
     internal bool IsCallback => Kind is TerminalKind.ForEach or TerminalKind.ForEachEntity;
     internal string SignatureKey => Api.SignatureKey;
@@ -187,58 +154,36 @@ internal sealed class TerminalModel
 }
 
 /// <summary>Materialized source data consumed by interception templates.</summary>
-internal sealed class WhereInterceptionSite
+internal sealed record WhereInterceptionSite(
+    string Id,
+    PredicateModel Shape,
+    TerminalModel Terminal,
+    WherePredicateBinding PredicateShapeBinding,
+    string? PredicateMethodGroupTarget,
+    string? ActionMethodGroupTarget,
+    string[] PredicateParameterNames,
+    string[] ActionParameterNames,
+    string? PredicateBody,
+    string? ActionBody,
+    bool PredicateBodyIsBlock,
+    bool ActionBodyIsBlock,
+    string[] PredicateComponents,
+    string[] ActionComponents,
+    string Attribute,
+    string[] Usings)
 {
-    internal WhereInterceptionSite(
-        string id,
-        PredicateModel shape,
-        TerminalModel terminal,
-        WherePredicateBinding predicateShapeBinding,
-        string? predicateMethodGroupTarget,
-        string? actionMethodGroupTarget,
-        string[] predicateParameterNames,
-        string[] actionParameterNames,
-        string? predicateBody,
-        string? actionBody,
-        bool predicateBodyIsBlock,
-        bool actionBodyIsBlock,
-        string[] predicateComponents,
-        string[] actionComponents,
-        string attribute,
-        string[] usings)
-    {
-        Id = id;
-        Shape = shape;
-        Terminal = terminal;
-        PredicateShapeBinding = predicateShapeBinding;
-        PredicateComponents = predicateComponents;
-        ActionComponents = actionComponents;
-        Attribute = attribute;
-        Usings = usings;
-        PredicateBinding = new CallSiteBinding(
-            predicateParameterNames,
-            predicateBody,
-            predicateBodyIsBlock,
-            canInline: predicateBody is not null && !predicateBodyIsBlock,
-            predicateMethodGroupTarget);
-        ActionBinding = new CallSiteBinding(
-            actionParameterNames,
-            actionBody,
-            actionBodyIsBlock,
-            canInline: actionBody is not null && !actionBodyIsBlock,
-            actionMethodGroupTarget);
-    }
-
-    internal string Id { get; }
-    internal PredicateModel Shape { get; }
-    internal TerminalModel Terminal { get; }
-    internal WherePredicateBinding PredicateShapeBinding { get; }
-    internal string[] PredicateComponents { get; }
-    internal string[] ActionComponents { get; }
-    internal string Attribute { get; }
-    internal string[] Usings { get; }
-    internal CallSiteBinding PredicateBinding { get; }
-    internal CallSiteBinding ActionBinding { get; }
+    internal CallSiteBinding PredicateBinding { get; } = new(
+        PredicateParameterNames,
+        PredicateBody,
+        PredicateBodyIsBlock,
+        canInline: PredicateBody is not null && !PredicateBodyIsBlock,
+        PredicateMethodGroupTarget);
+    internal CallSiteBinding ActionBinding { get; } = new(
+        ActionParameterNames,
+        ActionBody,
+        ActionBodyIsBlock,
+        canInline: ActionBody is not null && !ActionBodyIsBlock,
+        ActionMethodGroupTarget);
 }
 
 internal enum TerminalKind

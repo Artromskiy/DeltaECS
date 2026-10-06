@@ -1,12 +1,29 @@
 namespace Delta.ECS.Generators;
 
-using System.Text;
 using Microsoft.CodeAnalysis;
+using System.Text;
 
 internal static class ComponentSchemaIdHash
 {
     private const ulong FnvOffsetBasis = 14695981039346656037UL;
     private const ulong FnvPrime = 1099511628211UL;
+
+    internal static AttributeData? ComponentAttribute(INamedTypeSymbol type)
+        => type.GetAttributes().FirstOrDefault(static attribute =>
+            GeneratorSupport.IsNamedType(attribute.AttributeClass, "DeltaEcsComponentAttribute"));
+
+    internal static (bool IsPresent, ulong Value) ExplicitSchemaId(AttributeData attribute)
+    {
+        foreach (KeyValuePair<string, TypedConstant> argument in attribute.NamedArguments)
+        {
+            if (argument.Key == "SchemaId")
+            {
+                return (true, argument.Value.Value is ulong value ? value : 0UL);
+            }
+        }
+
+        return default;
+    }
 
     internal static ulong Compute(string metadataName)
     {
@@ -22,46 +39,30 @@ internal static class ComponentSchemaIdHash
 
     internal static string GetMetadataFullName(INamedTypeSymbol type)
     {
-        var namespaceParts = new Stack<string>();
-        for (INamespaceSymbol? current = type.ContainingNamespace; current is not null && !current.IsGlobalNamespace; current = current.ContainingNamespace)
+        string namespaceName = string.Join(".", NamespaceParts(type.ContainingNamespace));
+        string typeName = string.Join("+", TypeParts(type));
+        return namespaceName.Length == 0 ? typeName : namespaceName + "." + typeName;
+    }
+
+    private static IEnumerable<string> NamespaceParts(INamespaceSymbol type)
+    {
+        var parts = new Stack<string>();
+        for (INamespaceSymbol? current = type; current is not null && !current.IsGlobalNamespace; current = current.ContainingNamespace)
         {
-            namespaceParts.Push(current.Name);
+            parts.Push(current.Name);
         }
 
-        var typeParts = new Stack<string>();
+        return parts;
+    }
+
+    private static IEnumerable<string> TypeParts(INamedTypeSymbol type)
+    {
+        var parts = new Stack<string>();
         for (INamedTypeSymbol? current = type; current is not null; current = current.ContainingType)
         {
-            typeParts.Push(current.MetadataName);
+            parts.Push(current.MetadataName);
         }
 
-        var result = new StringBuilder();
-        while (namespaceParts.Count > 0)
-        {
-            if (result.Length > 0)
-            {
-                result.Append('.');
-            }
-
-            result.Append(namespaceParts.Pop());
-        }
-
-        if (result.Length > 0)
-        {
-            result.Append('.');
-        }
-
-        bool firstTypePart = true;
-        while (typeParts.Count > 0)
-        {
-            if (!firstTypePart)
-            {
-                result.Append('+');
-            }
-
-            result.Append(typeParts.Pop());
-            firstTypePart = false;
-        }
-
-        return result.ToString();
+        return parts;
     }
 }

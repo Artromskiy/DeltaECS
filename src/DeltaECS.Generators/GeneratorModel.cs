@@ -2,13 +2,8 @@ using System.Collections.Immutable;
 
 namespace Delta.ECS.Generators;
 
-internal readonly struct InvocationCandidate
-{
-    internal InvocationCandidate(Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax invocation)
-        => Invocation = invocation;
-
-    internal Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax Invocation { get; }
-}
+internal readonly record struct InvocationCandidate(
+    Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax Invocation);
 
 internal enum OperationKind
 {
@@ -42,7 +37,8 @@ internal enum GeneratedApiKind
     Structural,
     QueryFactory,
     Iteration,
-    Where
+    Where,
+    Ordering
 }
 
 internal enum TargetKind
@@ -105,21 +101,12 @@ internal enum StructuralOperation
     Create
 }
 
-internal readonly struct ComponentModel
+internal readonly record struct ComponentModel(
+    string TypeName,
+    AccessKind Access,
+    string? ResolvedTypeName = null)
 {
-    internal ComponentModel(
-        string typeName,
-        AccessKind access,
-        string? resolvedTypeName = null)
-    {
-        TypeName = typeName;
-        ResolvedTypeName = resolvedTypeName ?? typeName;
-        Access = access;
-    }
-
-    internal string TypeName { get; }
-    internal string ResolvedTypeName { get; }
-    internal AccessKind Access { get; }
+    internal string ResolvedTypeName { get; } = ResolvedTypeName ?? TypeName;
     internal bool IsWrite => Access == AccessKind.RowWrite;
     internal string ParameterModifier => Access switch
     {
@@ -136,76 +123,64 @@ internal readonly struct ComponentModel
     };
 }
 
-internal readonly struct SelectorModel
+internal readonly record struct SelectorModel(
+    TypeBindingKind TypeBinding,
+    RegistrationBindingKind RegistrationBinding,
+    ImmutableArray<ComponentModel> Components)
 {
-    internal SelectorModel(
-        TypeBindingKind typeBinding,
-        RegistrationBindingKind registrationBinding,
-        ImmutableArray<ComponentModel> components)
-    {
-        TypeBinding = typeBinding;
-        RegistrationBinding = registrationBinding;
-        Components = components;
-    }
-
-    internal TypeBindingKind TypeBinding { get; }
-    internal RegistrationBindingKind RegistrationBinding { get; }
-    internal ImmutableArray<ComponentModel> Components { get; }
     internal int Arity => Components.Length;
 }
 
-internal readonly struct ContextModel
+internal readonly record struct ContextModel(ContextModeKind Mode, string? TypeName);
+
+internal readonly record struct CallbackModel(
+    CallbackSource Source,
+    bool HasEntity,
+    string? TypeName,
+    ContextModeKind PassMode = ContextModeKind.None)
 {
-    internal ContextModel(ContextModeKind mode, string? typeName)
-    {
-        Mode = mode;
-        TypeName = typeName;
-    }
-
-    internal ContextModeKind Mode { get; }
-    internal string? TypeName { get; }
-}
-
-internal readonly struct CallbackModel
-{
-    internal CallbackModel(
-        CallbackSource source,
-        bool hasEntity,
-        string? typeName,
-        ContextModeKind passMode = ContextModeKind.None)
-    {
-        Source = source;
-        HasEntity = hasEntity;
-        TypeName = typeName;
-        PassMode = source == CallbackSource.Functor
-            ? (passMode == ContextModeKind.None ? ContextModeKind.Ref : passMode)
-            : ContextModeKind.None;
-    }
-
-    internal CallbackSource Source { get; }
-    internal bool HasEntity { get; }
-    internal string? TypeName { get; }
     /// <summary>How a functor argument is passed: <c>ref</c>, <c>in</c>, <c>ref readonly</c>, or by value.</summary>
-    internal ContextModeKind PassMode { get; }
+    internal ContextModeKind PassMode { get; } = Source == CallbackSource.Functor
+        ? (PassMode == ContextModeKind.None ? ContextModeKind.Ref : PassMode)
+        : ContextModeKind.None;
 }
 
-internal readonly struct ExecutionModel
-{
-    internal ExecutionModel(Scope scope, ValueDomain value, Schedule schedule)
-    {
-        Scope = scope;
-        Value = value;
-        Schedule = schedule;
-    }
+internal readonly record struct ExecutionModel(Scope Scope, ValueDomain Value, Schedule Schedule);
 
-    internal Scope Scope { get; }
-    internal ValueDomain Value { get; }
-    internal Schedule Schedule { get; }
-}
-
-internal sealed class ApiModel
+internal sealed record ApiModel(
+    OperationKind Operation,
+    TargetKind Target,
+    QueryMode Query,
+    SelectorModel Selector,
+    ContextModel Context,
+    CallbackModel? Callback,
+    ExecutionModel Execution,
+    string? Name = null,
+    string? SummaryText = null)
 {
-    internal ApiModel(
+    internal string Summary => SummaryText ?? BuildSummary(Operation, Name);
+    internal SignatureProjection Signature { get; } = new(Selector);
+    internal string SignatureKey { get; } = BuildSignatureKey(
+        Operation,
+        Target,
+        Query,
+        Selector,
+        Context,
+        Callback,
+        Execution,
+        Name);
+
+    private static string BuildSummary(OperationKind operation, string? name)
+        => operation switch
+        {
+            OperationKind.QueryFactory => $"Builds a query using {name} component constraints.",
+            OperationKind.Structural => $"Executes the generated {name ?? "structural"} operation.",
+            OperationKind.Iteration => $"Iterates matching entities and components using {name ?? "ForEach"}.",
+            OperationKind.Where => "Creates a read-only filtered query view.",
+            _ => "Executes a generated ECS operation."
+        };
+
+    private static string BuildSignatureKey(
         OperationKind operation,
         TargetKind target,
         QueryMode query,
@@ -213,72 +188,30 @@ internal sealed class ApiModel
         ContextModel context,
         CallbackModel? callback,
         ExecutionModel execution,
-        string? name = null,
-        string? summary = null)
+        string? name)
     {
-        Operation = operation;
-        Target = target;
-        Query = query;
-        Selector = selector;
-        Context = context;
-        Callback = callback;
-        Execution = execution;
-        Name = name;
-        Summary = summary ?? BuildSummary();
-        _signature = new SignatureProjection(this);
-        _signatureKey = BuildSignatureKey();
-    }
-
-    internal OperationKind Operation { get; }
-    internal TargetKind Target { get; }
-    internal QueryMode Query { get; }
-    internal SelectorModel Selector { get; }
-    internal ContextModel Context { get; }
-    internal CallbackModel? Callback { get; }
-    internal ExecutionModel Execution { get; }
-    internal string? Name { get; }
-    internal string Summary { get; }
-    internal SignatureProjection Signature => _signature;
-
-    private readonly SignatureProjection _signature;
-    private readonly string _signatureKey;
-
-    internal string SignatureKey => _signatureKey;
-
-    private string BuildSummary()
-        => Operation switch
-        {
-            OperationKind.QueryFactory => $"Builds a query using {Name} component constraints.",
-            OperationKind.Structural => $"Executes the generated {Name ?? "structural"} operation.",
-            OperationKind.Iteration => $"Iterates matching entities and components using {Name ?? "ForEach"}.",
-            OperationKind.Where => "Creates a read-only filtered query view.",
-            _ => "Executes a generated ECS operation."
-        };
-
-    private string BuildSignatureKey()
-    {
-        bool genericContext = Callback?.Source != CallbackSource.Functor
-            && (Operation == OperationKind.Where || Selector.TypeBinding == TypeBindingKind.Generic);
+        bool genericContext = callback?.Source != CallbackSource.Functor
+            && (operation == OperationKind.Where || selector.TypeBinding == TypeBindingKind.Generic);
         return string.Join(
             "|",
-            Operation,
-            Name,
-            Target,
-            Query,
-            Selector.TypeBinding,
-            Selector.RegistrationBinding,
-            Context.Mode,
-            genericContext ? string.Empty : Context.TypeName,
-            Callback?.Source,
-            Callback?.HasEntity,
-            Callback?.TypeName,
-            Callback?.PassMode,
-            Execution.Scope,
-            Execution.Value,
-            Execution.Schedule,
-            string.Join(";", Selector.Components.Select((component, index) =>
+            operation,
+            name,
+            target,
+            query,
+            selector.TypeBinding,
+            selector.RegistrationBinding,
+            context.Mode,
+            genericContext ? string.Empty : context.TypeName,
+            callback?.Source,
+            callback?.HasEntity,
+            callback?.TypeName,
+            callback?.PassMode,
+            execution.Scope,
+            execution.Value,
+            execution.Schedule,
+            string.Join(";", selector.Components.Select((component, index) =>
                 index + ":" + component.TypeName + ":"
-                    + (Selector.TypeBinding == TypeBindingKind.Generic ? string.Empty : component.ResolvedTypeName)
+                    + (selector.TypeBinding == TypeBindingKind.Generic ? string.Empty : component.ResolvedTypeName)
                     + ":" + component.Access)));
     }
 }

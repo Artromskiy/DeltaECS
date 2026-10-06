@@ -10,33 +10,19 @@ namespace Delta.ECS.Generators;
 [Generator]
 public sealed class GeneratedWhereGenerator : IIncrementalGenerator
 {
-    private static readonly DiagnosticDescriptor WritablePredicate = new(
+    private static readonly DiagnosticDescriptor WritablePredicate = GeneratorDiagnostics.Error(
         "DECSGEN006",
         "Where predicate is read-only",
         "Where predicates cannot write components; use 'in' or 'ref readonly' parameters and mutate in a terminal callback",
-        "Where",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
-    private static readonly DiagnosticDescriptor EntityPredicateRequiresWhereEntity = new(
+        "Where");
+    private static readonly DiagnosticDescriptor EntityPredicateRequiresWhereEntity = GeneratorDiagnostics.Error(
         "DECSGEN007",
         "Where predicate does not receive Entity",
         "Where predicates cannot receive Entity; use 'WhereEntity' for an entity parameter",
-        "Where",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        "Where");
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
-    {
-        context.RegisterSourceOutput(
-            GeneratorPipeline.Input(context)
-                .Combine(context.AnalyzerConfigOptionsProvider.Select(
-                    static (provider, _) => GeneratorSupport.IsInterceptionEnabled(provider.GlobalOptions))),
-            static (productionContext, input) => Execute(
-                input.Left.Compilation,
-                input.Left.Invocations,
-                productionContext,
-                input.Right));
-    }
+        => GeneratorPipeline.RegisterInterceptorInput(context, Execute);
 
     private static void Execute(
         Compilation compilation,
@@ -79,8 +65,8 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         {
             InvocationExpressionSyntax invocation = invocationCandidate.Invocation;
             SemanticModel model = compilation.GetSemanticModel(invocation.SyntaxTree);
-            if (!TryGetWhereReceiver(invocation, out InvocationExpressionSyntax? whereInvocation)
-                || !whereCalls.TryGetValue(whereInvocation, out (PredicateModel Shape, WherePredicateBinding Binding) whereCall)
+            if (!InvocationGrammar.TryGetWhereReceiver(invocation, out InvocationExpressionSyntax? whereInvocation)
+                || !whereCalls.TryGetValue(whereInvocation!, out (PredicateModel Shape, WherePredicateBinding Binding) whereCall)
                 || !TryReadTerminal(model, invocation, out TerminalModel? terminal)
                 || terminal is null)
             {
@@ -97,7 +83,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
                 && languageSupportsInterceptors
                 && !shape.IsFunctor
                 && (terminal.IsCallback || terminal.Kind is TerminalKind.Destroy or TerminalKind.Add or TerminalKind.Remove)
-                && TryCreateInterceptionSite(model, whereInvocation, invocation, shape, whereCall.Binding, terminal, invocation.SyntaxTree, out WhereInterceptionSite? site)
+                && TryCreateInterceptionSite(model, whereInvocation!, invocation, shape, whereCall.Binding, terminal, out WhereInterceptionSite? site)
                 && site is { } interceptionSite)
             {
                 if (!interceptionSites.TryGetValue(shape.Key, out List<WhereInterceptionSite>? sites))
@@ -145,7 +131,6 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         PredicateModel shape,
         WherePredicateBinding predicateShapeBinding,
         TerminalModel terminal,
-        SyntaxTree tree,
         out WhereInterceptionSite? site)
     {
         site = null;
@@ -241,72 +226,16 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
                 .Select(parameter => GeneratorSupport.DisplayType(model.GetTypeInfo(parameter.Type!).Type!))
                 .ToArray();
 
-        var usings = tree.GetRoot()
-            .DescendantNodes()
-            .OfType<UsingDirectiveSyntax>()
-            .Select(static directive => directive.ToString())
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        ISymbol? enclosing = model.GetEnclosingSymbol(terminalInvocation.SpanStart);
-        if (enclosing is not null)
-        {
-            string namespaceName = enclosing.ContainingNamespace?.ToDisplayString() ?? string.Empty;
-            if (namespaceName.Length > 0)
-            {
-                usings = usings
-                    .Append("using global::" + namespaceName + ";")
-                    .Distinct(StringComparer.Ordinal)
-                    .ToArray();
-            }
+        GeneratorSupport.TryGetInterceptionUsings(
+            model,
+            terminalInvocation,
+            new[] { predicate, action },
+            new[] { predicateMethod, actionMethod },
+            includeSourceUsings: true,
+            includeEnclosingUsings: true,
+            rejectInaccessibleContainingType: false,
+            out string[] usings);
 
-            if (enclosing.ContainingType is { Arity: 0 } containingType
-                && GeneratorSupport.IsAccessibleSymbol(containingType))
-            {
-                usings = usings
-                    .Append("using static " + containingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ";")
-                    .Distinct(StringComparer.Ordinal)
-                    .ToArray();
-            }
-        }
-
-        var closedTypes = new List<ITypeSymbol?>();
-        if (predicate is not null)
-        {
-            closedTypes.AddRange(GeneratorSupport.ClosedTypesFromLambda(model, predicate));
-        }
-
-        if (action is not null)
-        {
-            closedTypes.AddRange(GeneratorSupport.ClosedTypesFromLambda(model, action));
-        }
-
-        if (predicateMethod is not null)
-        {
-            closedTypes.Add(predicateMethod.ContainingType);
-            closedTypes.AddRange(predicateMethod.Parameters.Select(static parameter => parameter.Type));
-        }
-
-        if (actionMethod is not null)
-        {
-            closedTypes.Add(actionMethod.ContainingType);
-            closedTypes.AddRange(actionMethod.Parameters.Select(static parameter => parameter.Type));
-        }
-
-        foreach (ArgumentSyntax argument in terminalInvocation.ArgumentList.Arguments)
-        {
-            if (model.GetTypeInfo(argument.Expression).Type is ITypeSymbol argumentType)
-            {
-                closedTypes.Add(argumentType);
-            }
-        }
-
-        if ((terminalInvocation.Expression as MemberAccessExpressionSyntax)?.Name is GenericNameSyntax genericTerminal)
-        {
-            closedTypes.AddRange(genericTerminal.TypeArgumentList.Arguments
-                .Select(argument => model.GetTypeInfo(argument).Type));
-        }
-
-        usings = GeneratorSupport.AppendNamespaceUsings(usings, closedTypes);
         string id = GeneratorSupport.StableName(shape.Key + "|" + terminal.Key + "|" + locationData);
         site = new WhereInterceptionSite(
             id,
@@ -321,18 +250,8 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             action is null
                 ? GeneratedWhereModelNames.Action(terminal)
                 : actionParameters.Select(static parameter => parameter.Identifier.ValueText).ToArray(),
-            predicate switch
-            {
-                { Body: BlockSyntax block } => block.Statements.ToFullString(),
-                { Body: ExpressionSyntax expression } => expression.ToString(),
-                _ => null
-            },
-            action switch
-            {
-                { Body: BlockSyntax block } => block.Statements.ToFullString(),
-                { Body: ExpressionSyntax expression } => expression.ToString(),
-                _ => null
-            },
+            LambdaBody(predicate),
+            LambdaBody(action),
             predicate?.Body is BlockSyntax,
             action?.Body is BlockSyntax,
             predicateComponents,
@@ -341,6 +260,14 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             usings);
         return true;
     }
+
+    private static string? LambdaBody(LambdaExpressionSyntax? lambda)
+        => lambda?.Body switch
+        {
+            BlockSyntax block => block.Statements.ToFullString(),
+            ExpressionSyntax expression => expression.ToString(),
+            _ => null
+        };
 
     private static bool TryResolveWherePredicateMethod(
         SemanticModel model,
@@ -720,19 +647,6 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             .Any(method => method.Parameters
                 .Skip(componentStart)
                 .Any(parameter => parameter.RefKind == RefKind.None && GeneratorSupport.IsEntityType(parameter.Type)));
-    }
-
-    private static bool TryGetWhereReceiver(
-        InvocationExpressionSyntax invocation,
-        out InvocationExpressionSyntax whereInvocation)
-    {
-        whereInvocation = null!;
-        return invocation.Expression is MemberAccessExpressionSyntax member
-            && member.Expression is InvocationExpressionSyntax candidate
-            && candidate.Expression is MemberAccessExpressionSyntax whereMember
-            && whereMember.Name is IdentifierNameSyntax whereName
-            && whereName.Identifier.ValueText is "Where" or "WhereEntity"
-            && (whereInvocation = candidate) is not null;
     }
 
     private static bool TryReadTerminal(

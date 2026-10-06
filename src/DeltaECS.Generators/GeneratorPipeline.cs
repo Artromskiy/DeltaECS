@@ -32,22 +32,42 @@ internal sealed class ShapeRegistry<TShape>
 
 internal static class GeneratorPipeline
 {
-    internal static IncrementalValuesProvider<TShape?> ShapeProvider<TShape>(
+    internal static void RegisterShapeOutput<TShape>(
         IncrementalGeneratorInitializationContext context,
-        Func<GeneratorSyntaxContext, TShape?> readShape)
+        Func<GeneratorSyntaxContext, TShape?> readShape,
+        string sourcePrefix,
+        Func<TShape, string> key,
+        Func<TShape, string> render)
         where TShape : class
-        => context.SyntaxProvider.CreateSyntaxProvider(
+    {
+        IncrementalValuesProvider<TShape> shapes = context.SyntaxProvider.CreateSyntaxProvider(
             static (node, _) => node is InvocationExpressionSyntax invocation
                 && invocation.Expression is MemberAccessExpressionSyntax member
                 && GeneratorSupport.IsGeneratedApiName(member.Name.Identifier.ValueText)
                 && !GeneratorSupport.IsGeneratedSourcePath(node.SyntaxTree.FilePath),
-            (syntaxContext, _) => readShape(syntaxContext));
+            (syntaxContext, _) => readShape(syntaxContext))
+            .Where(static shape => shape is not null)
+            .Select(static (shape, _) => shape!);
+        context.RegisterSourceOutput(shapes.Collect(), (productionContext, discovered) =>
+            EmitShapes(discovered, productionContext, sourcePrefix, key, render));
+    }
 
-    internal static IncrementalValueProvider<
-        (Compilation Compilation, ImmutableArray<InvocationCandidate> Invocations)> Input(
-        IncrementalGeneratorInitializationContext context)
-        => context.CompilationProvider.Combine(
-            GeneratorSupport.InvocationProvider(context).Collect());
+    internal static void RegisterInterceptorInput(
+        IncrementalGeneratorInitializationContext context,
+        Action<Compilation, ImmutableArray<InvocationCandidate>, SourceProductionContext, bool> execute,
+        Func<SyntaxNode, bool>? candidateFilter = null)
+    {
+        context.RegisterSourceOutput(
+            context.CompilationProvider.Combine(
+                GeneratorSupport.InvocationProvider(context, candidateFilter).Collect())
+                .Combine(context.AnalyzerConfigOptionsProvider.Select(
+                    static (provider, _) => GeneratorSupport.IsInterceptionEnabled(provider.GlobalOptions))),
+            (productionContext, input) => execute(
+                input.Left.Left,
+                input.Left.Right,
+                productionContext,
+                input.Right));
+    }
 
     internal static void EmitShapes<TShape>(
         ImmutableArray<TShape> discoveredShapes,
