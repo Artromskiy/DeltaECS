@@ -23,7 +23,7 @@ public sealed class ComponentComparerDelegateGenerator : IIncrementalGenerator
     {
         var models = new ShapeRegistry<ComponentComparerDelegateModel>(static model => model.Key);
         var sites = new List<ComponentComparerDelegateSite>();
-        var whereSources = new Dictionary<string, Dictionary<string, PredicateModel>>(StringComparer.Ordinal);
+        var whereSources = new PredicateSourceRegistry();
         bool canIntercept = interceptionEnabled && GeneratorSupport.SupportsInterceptors(compilation);
 
         foreach (InvocationCandidate candidate in invocations)
@@ -39,16 +39,7 @@ public sealed class ComponentComparerDelegateGenerator : IIncrementalGenerator
             site = site with { Model = models.GetOrAdd(site.Model) };
             if (site.WhereSource is { } whereSource)
             {
-                if (!whereSources.TryGetValue(site.Model.Key, out Dictionary<string, PredicateModel>? sources))
-                {
-                    sources = new Dictionary<string, PredicateModel>(StringComparer.Ordinal);
-                    whereSources.Add(site.Model.Key, sources);
-                }
-
-                if (!sources.ContainsKey(whereSource.Key))
-                {
-                    sources.Add(whereSource.Key, whereSource);
-                }
+                whereSources.Add(site.Model.Key, whereSource);
             }
 
             if (canIntercept
@@ -70,11 +61,7 @@ public sealed class ComponentComparerDelegateGenerator : IIncrementalGenerator
         {
             context.AddSource(
                 "GeneratedComponentComparerDelegate_" + model.Hash + ".g.cs",
-                ComponentComparerDelegateTemplates.Render(
-                    model,
-                    whereSources.TryGetValue(model.Key, out Dictionary<string, PredicateModel>? sources)
-                        ? sources.Values.ToArray()
-                        : Array.Empty<PredicateModel>()));
+                ComponentComparerDelegateTemplates.Render(model, whereSources.Get(model.Key)));
         }
 
         foreach (ComponentComparerDelegateSite site in sites.OrderBy(static value => value.Id, StringComparer.Ordinal))

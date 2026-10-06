@@ -698,6 +698,9 @@ internal static partial class DemandDrivenForEachTemplates
             ? SignatureProjection.ContextArgument(shape.FunctorPassMode, "functor")
             : "action");
         string typeArguments = stateGeneric;
+        string endForEach = shape.OrderedWhereSource is null
+            ? "orderedQuery.EndForEach();"
+            : "orderedQuery.Ordering.EndForEach();";
         string body = $$"""
             {
                 global::System.ReadOnlySpan<global::Delta.ECS.Entity> __entities = default;
@@ -709,7 +712,7 @@ internal static partial class DemandDrivenForEachTemplates
                 }
                 finally
                 {
-                    orderedQuery.EndForEach();
+                    {{endForEach}}
                 }
             }
             """;

@@ -33,9 +33,13 @@ internal static class OrderedQueryInvocationGrammar
 
         bool isQueryOrder = name == "OrderBy"
             && GeneratorSupport.IsEcsType(model.GetTypeInfo(memberAccess.Expression).Type, "Query");
-        bool isOrderedQueryOrder = name == "ThenBy" && IsOrderedQueryExpression(memberAccess.Expression, model);
-        bool isWhereOrder = TryReadWhereSource(memberAccess.Expression, model, out whereSource);
-        if (!isQueryOrder && !isOrderedQueryOrder && !isWhereOrder)
+        bool isWhereOrder = name == "OrderBy"
+            && TryReadWhereSource(memberAccess.Expression, model, out whereSource);
+        bool isOrderedWhereThen = name == "ThenBy"
+            && TryReadOrderedWhereSource(memberAccess.Expression, model, out whereSource);
+        bool isOrderedQueryOrder = name == "ThenBy"
+            && (isOrderedWhereThen || IsOrderedQueryExpression(memberAccess.Expression, model));
+        if (!isQueryOrder && !isWhereOrder && !isOrderedQueryOrder)
         {
             return false;
         }
@@ -48,11 +52,8 @@ internal static class OrderedQueryInvocationGrammar
     private static bool IsOrderedQueryExpression(ExpressionSyntax expression, SemanticModel model)
         => GeneratorSupport.IsEcsType(model.GetTypeInfo(expression).Type, "OrderedQuery")
             || expression is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax member }
-                && (member.Name.Identifier.ValueText == "OrderBy"
-                    ? GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "Query")
-                        || TryReadWhereSource(member.Expression, model, out _)
-                    : member.Name.Identifier.ValueText == "ThenBy"
-                        && IsOrderedQueryExpression(member.Expression, model));
+                && member.Name.Identifier.ValueText == "OrderBy"
+                && GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "Query");
 
     internal static bool TryReadWhereSource(ExpressionSyntax expression, SemanticModel model, out PredicateModel? shape)
     {
@@ -63,14 +64,12 @@ internal static class OrderedQueryInvocationGrammar
             return false;
         }
 
-        string methodName = member.Name.Identifier.ValueText;
-        if (methodName is "Where" or "WhereEntity")
+        if (member.Name.Identifier.ValueText is not ("Where" or "WhereEntity"))
         {
-            return GeneratedWhereGenerator.TryReadPredicate(model, invocation, out shape);
+            return false;
         }
 
-        return methodName is "OrderBy" or "ThenBy"
-            && TryReadWhereSource(member.Expression, model, out shape);
+        return GeneratedWhereGenerator.TryReadPredicate(model, invocation, out shape);
     }
 
     internal static bool TryReadOrderedWhereSource(
@@ -79,9 +78,18 @@ internal static class OrderedQueryInvocationGrammar
         out PredicateModel? shape)
     {
         shape = null;
-        return expression is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax member }
-            && member.Name.Identifier.ValueText is "OrderBy" or "ThenBy"
-            && TryReadWhereSource(expression, model, out shape);
+        if (expression is not InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax member })
+        {
+            return false;
+        }
+
+        if (member.Name.Identifier.ValueText == "OrderBy")
+        {
+            return TryReadWhereSource(member.Expression, model, out shape);
+        }
+
+        return member.Name.Identifier.ValueText == "ThenBy"
+            && TryReadOrderedWhereSource(member.Expression, model, out shape);
     }
 
     internal static bool TryReadArguments(

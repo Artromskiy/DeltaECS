@@ -36,7 +36,7 @@ public sealed class ComponentComparerGenerator : IIncrementalGenerator
         SourceProductionContext context)
     {
         var models = new ShapeRegistry<ComponentComparerModel>(static model => model.Key);
-        var whereSources = new Dictionary<string, Dictionary<string, PredicateModel>>(StringComparer.Ordinal);
+        var whereSources = new PredicateSourceRegistry();
         foreach (InvocationCandidate candidate in invocations)
         {
             InvocationExpressionSyntax invocation = candidate.Invocation;
@@ -66,16 +66,7 @@ public sealed class ComponentComparerGenerator : IIncrementalGenerator
             ComponentComparerModel registeredModel = models.GetOrAdd(model);
             if (whereSource is not null)
             {
-                if (!whereSources.TryGetValue(registeredModel.Key, out Dictionary<string, PredicateModel>? sources))
-                {
-                    sources = new Dictionary<string, PredicateModel>(StringComparer.Ordinal);
-                    whereSources.Add(registeredModel.Key, sources);
-                }
-
-                if (!sources.ContainsKey(whereSource.Key))
-                {
-                    sources.Add(whereSource.Key, whereSource);
-                }
+                whereSources.Add(registeredModel.Key, whereSource);
             }
         }
 
@@ -83,11 +74,7 @@ public sealed class ComponentComparerGenerator : IIncrementalGenerator
         {
             context.AddSource(
                 "GeneratedComponentComparer_" + GeneratorSupport.StableName(model.Key) + ".g.cs",
-                ComponentComparerTemplates.Render(
-                    model,
-                    whereSources.TryGetValue(model.Key, out Dictionary<string, PredicateModel>? sources)
-                        ? sources.Values.ToArray()
-                        : Array.Empty<PredicateModel>()));
+                ComponentComparerTemplates.Render(model, whereSources.Get(model.Key)));
         }
     }
 

@@ -59,7 +59,7 @@ public sealed partial class World
         {
             for (int index = 0; index < slots.Count; index++)
             {
-                AppendOrderedEntity(slots.EntityAt(index));
+                AppendOrderedQueryEntity(slots.EntityAt(index));
             }
         }
 
@@ -67,8 +67,6 @@ public sealed partial class World
     }
 
     internal void ClearOrderedQueryEntities() => _orderedEntityCount = 0;
-
-    internal void AppendOrderedQueryEntity(Entity entity) => AppendOrderedEntity(entity);
 
     internal ReadOnlySpan<Entity> SortOrderedQueryEntities(OrderedQueryState state)
     {
@@ -122,7 +120,7 @@ public sealed partial class World
         return _orderedEntityBuffer.AsSpan(0, count);
     }
 
-    private void AppendOrderedEntity(Entity entity)
+    internal void AppendOrderedQueryEntity(Entity entity)
     {
         if (_orderedEntityCount == _orderedEntityBuffer.Length)
         {

@@ -68,6 +68,27 @@ internal sealed class PredicateModel(
     }
 }
 
+internal sealed class PredicateSourceRegistry
+{
+    private readonly Dictionary<string, ShapeRegistry<PredicateModel>> _sources = new(StringComparer.Ordinal);
+
+    internal void Add(string ownerKey, PredicateModel source)
+    {
+        if (!_sources.TryGetValue(ownerKey, out ShapeRegistry<PredicateModel>? sources))
+        {
+            sources = new(static predicate => predicate.Key);
+            _sources.Add(ownerKey, sources);
+        }
+
+        sources.GetOrAdd(source);
+    }
+
+    internal PredicateModel[] Get(string ownerKey)
+        => _sources.TryGetValue(ownerKey, out ShapeRegistry<PredicateModel>? sources)
+            ? sources.Ordered().ToArray()
+            : Array.Empty<PredicateModel>();
+}
+
 /// <summary>Concrete callback types retained for one discovered Where call site.</summary>
 internal sealed class WherePredicateBinding(string? contextType, string[] components)
 {

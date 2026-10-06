@@ -86,10 +86,6 @@ public readonly struct OrderedQuery
         return state.World.SortOrderedQueryEntities(state);
     }
 
-    /// <summary>Ends a generated ordered-query operation for a composed predicate view.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public void EndGeneratedOperation() => GetState().World.EndOrderedQueryOperation();
-
     /// <summary>Compares two entities using this ordered query's generated keys.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public int CompareGeneratedEntities(Entity left, Entity right) => GetState().Compare(left, right);

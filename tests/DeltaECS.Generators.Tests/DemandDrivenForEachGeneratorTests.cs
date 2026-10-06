@@ -232,6 +232,38 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void ThenByCannotStartOnAnUnorderedWhereView()
+    {
+        const string source = """
+            namespace Delta.ECS
+            {
+            public struct Cmp1 { public int Value; }
+            public struct Cmp1Comparer : IComponentComparer
+            {
+                public int Invoke(in Cmp1 left, in Cmp1 right)
+                    => left.Value.CompareTo(right.Value);
+            }
+            static class Consumer
+            {
+                public static void Use(World world, in Query query)
+                {
+                    var comparer = default(Cmp1Comparer);
+                    world.Where(in query, static (in Cmp1 value) => value.Value > 0)
+                        .ThenBy(ref comparer);
+                }
+            }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(source, LanguageVersion.CSharp9);
+        string generated = GeneratedText(run);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(generated, Does.Contain("GeneratedWhereQuery_"));
+        Assert.That(generated, Does.Not.Contain("GeneratedWhereOrderedQuery_"));
+    }
+
+    [Test]
     public void ComponentComparerDelegateWorksWithoutInterceptors()
     {
         const string source = """
@@ -1968,7 +2000,7 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static OrderedQuery CreateGenerated(Query query, IGeneratedComponentComparer comparer) => default;
             public OrderedQuery AppendGenerated(IGeneratedComponentComparer comparer) => default;
             public void BeginGeneratedOperation() { }
-            public void EndGeneratedOperation() { }
+            public void EndForEach() { }
             public void AppendGeneratedEntity(Entity entity) { }
             public ReadOnlySpan<Entity> SortGeneratedEntities() => default;
             public int CompareGeneratedEntities(Entity left, Entity right) => 0;

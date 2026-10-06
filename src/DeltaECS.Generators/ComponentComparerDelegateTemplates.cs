@@ -122,19 +122,15 @@ internal static class ComponentComparerDelegateTemplates
         string whereTypeArguments = whereSource is null
             ? string.Empty
             : SignatureProjection.TypeArguments(string.Join(", ", whereSource.ClosedTypeArguments));
-        string queryType = whereSource is null
-            ? isThenBy ? "global::Delta.ECS.OrderedQuery" : "global::Delta.ECS.Query"
-            : (isThenBy
-                ? GeneratedWhereTemplates.OrderedViewTypeName(whereSource)
-                : GeneratedWhereTemplates.ViewTypeName(whereSource)) + whereTypeArguments;
-        string sourceQuery = whereSource is null
-            ? isThenBy ? "sourceQuery" : "query"
-            : "sourceQuery";
-        string sourceQueryDeclaration = whereSource is null
-            ? isThenBy ? "global::Delta.ECS.Query sourceQuery = query.SourceQuery;" : string.Empty
-            : isThenBy
-                ? "global::Delta.ECS.Query sourceQuery = query.SourceQuery;"
-                : "global::Delta.ECS.Query sourceQuery = query.Query;";
+        string queryType = ComponentComparerTemplateSupport.OrderedReceiverType(
+            whereSource,
+            isThenBy,
+            whereTypeArguments);
+        string sourceQuery = whereSource is null && !isThenBy ? "query" : "sourceQuery";
+        string sourceQueryDeclaration = ComponentComparerTemplateSupport.SourceQueryDeclaration(
+            whereSource,
+            isThenBy,
+            site.RegistrationBinding);
         string idsExpression = site.RegistrationBinding switch
         {
             RegistrationBindingKind.Primary => $"global::Delta.ECS.GeneratedForEachRuntime.GetGeneratedPrimaryComponentIds<{delegateType}>(in {sourceQuery}, static world => new global::Delta.ECS.ComponentId[] {{ {PrimaryIds(site.ComponentTypes, "world")} }})",
@@ -151,16 +147,12 @@ internal static class ComponentComparerDelegateTemplates
             .Concat(string.IsNullOrEmpty(site.NamespaceName) ? Array.Empty<string>() : new[] { "using global::" + site.NamespaceName + ";" })
             .Distinct(StringComparer.Ordinal));
         string directAdapter = "new DirectAdapter(resolvedComponentIds" + contextArgument + ")";
-        string returnExpression = whereSource is null
-            ? isThenBy
-                ? $"query.AppendGenerated({directAdapter})"
-                : $"global::Delta.ECS.OrderedQuery.CreateGenerated(query, {directAdapter})"
-            : isThenBy
-                ? $"new {GeneratedWhereTemplates.OrderedViewTypeName(whereSource)}{whereTypeArguments}(query.Source, query.Ordering.AppendGenerated({directAdapter}))"
-                : $"new {GeneratedWhereTemplates.OrderedViewTypeName(whereSource)}{whereTypeArguments}(query, global::Delta.ECS.OrderedQuery.CreateGenerated(sourceQuery, {directAdapter}))";
-        string returnType = whereSource is null
-            ? "global::Delta.ECS.OrderedQuery"
-            : GeneratedWhereTemplates.OrderedViewTypeName(whereSource) + whereTypeArguments;
+        string returnExpression = ComponentComparerTemplateSupport.GeneratedOrderingFactory(
+            whereSource,
+            isThenBy,
+            directAdapter,
+            whereTypeArguments);
+        string returnType = ComponentComparerTemplateSupport.OrderedReturnType(whereSource, whereTypeArguments);
         string invocationParameterList = string.Join(", ", new[]
         {
             "this " + queryType + " query",
@@ -219,37 +211,15 @@ internal static class ComponentComparerDelegateTemplates
             ? ", " + SignatureProjection.ContextArgument(model.ContextMode, "context")
             : string.Empty;
         string adapter = "DelegateAdapter<" + genericNames + ">";
-        string primaryOrder = PrimaryIds(delegateName, model.ComponentTypes, "query");
-        string primaryThen = PrimaryIds(delegateName, model.ComponentTypes, "sourceQuery");
 
-        string methods = ComponentComparerTemplateSupport.RenderOrderedMethods(
+        return ComponentComparerTemplateSupport.RenderOrderedMethods(
             model.ComponentTypes.Length,
             genericClause,
             contextParameter,
             delegateName + " callback",
-            primaryOrder,
-            primaryThen,
-            ids => $"new {adapter}({ids}{contextArgument}, callback)");
-        if (whereSources is not { Count: > 0 })
-        {
-            return methods;
-        }
-
-        return GeneratorTemplates.JoinNonEmpty(new[]
-        {
-            methods,
-            string.Join("\n\n", whereSources
-                .OrderBy(static source => source.Key, StringComparer.Ordinal)
-                .Select(source => ComponentComparerTemplateSupport.RenderWhereOrderedMethods(
-                    source,
-                    model.ComponentTypes.Length,
-                    genericClause,
-                    contextParameter,
-                    delegateName + " callback",
-                    primaryOrder,
-                    primaryThen,
-                    ids => $"new {adapter}({ids}{contextArgument}, callback)")))
-        });
+            query => PrimaryIds(delegateName, model.ComponentTypes, query),
+            ids => $"new {adapter}({ids}{contextArgument}, callback)",
+            whereSources);
     }
 
     private static string PrimaryIds(string delegateName, string[] componentTypes, string query)

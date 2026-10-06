@@ -981,8 +981,6 @@ internal static class GeneratedWhereTemplates
                 return _ordering.SortGeneratedEntities();
             }
 
-            internal void EndForEach() => _ordering.EndGeneratedOperation();
-
             internal {{typeName}} AppendGenerated(global::Delta.ECS.IGeneratedComponentComparer comparer)
                 => new(_source, _ordering.AppendGenerated(comparer));
 
@@ -1012,7 +1010,7 @@ internal static class GeneratedWhereTemplates
                 }
                 finally
                 {
-                    _ordering.EndGeneratedOperation();
+                    _ordering.EndForEach();
                 }
             }
 
@@ -1077,9 +1075,6 @@ internal static class GeneratedWhereTemplates
 
     internal static string ViewMethodTypeArguments(PredicateModel shape)
         => SignatureProjection.TypeArguments(ViewMethodTypeParameters(shape));
-
-    internal static string ViewTypeArguments(PredicateModel shape)
-        => PredicateGenericTypes(shape);
 
     private static string RenderViewTerminal(PredicateModel shape, TerminalModel terminal, string hash)
     {
