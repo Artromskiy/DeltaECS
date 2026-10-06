@@ -472,6 +472,7 @@ internal static class GeneratedWhereTemplates
             .Concat(new[] { predicate.Length == 0 ? null : predicate })
             .Concat(terminalMembers)
             .Append(GeneratorTemplates.RenderBlock(ViewDeclaration(shape, hash), RenderViewBody(shape, hash)))
+            .Append(shape.HasOrderedQuerySource ? RenderOrderedView(shape, hash) : null)
             .Append(GeneratorTemplates.ExtensionTemplate(
                 "GeneratedWhereExtensions_" + hash,
                 shape.IsFunctor,
@@ -797,7 +798,7 @@ internal static class GeneratedWhereTemplates
             """;
         var members = fields.Concat(new[] { constructor }).Concat(properties).Concat(new[] { execute });
         return $$"""
-            internal struct {{invokerName}}{{genericParameters}} : {{contract}}
+            internal struct {{invokerName}}{{genericParameters}} : {{contract}}{{(terminal.IsGeneratedEntityConsumer ? " where TWhereAction : struct, global::Delta.ECS.IGeneratedWhereEntityConsumer" : string.Empty)}}
             {
             {{GeneratorTemplates.Indent(string.Join("\n\n", members.Where(static value => value.Length != 0)), "    ")}}
             }
@@ -810,7 +811,9 @@ internal static class GeneratedWhereTemplates
 
     private static string WhereValueInitializerName(int arity) => "GeneratedWhereAddValues" + arity.ToString(CultureInfo.InvariantCulture);
 
-    private static string InvokerGenericList(TerminalModel terminal) => terminal.HasValues || terminal.IsCallback && !terminal.IsFunctor
+    private static string InvokerGenericList(TerminalModel terminal) => terminal.IsGeneratedEntityConsumer
+        ? "TWhereAction"
+        : terminal.HasValues || terminal.IsCallback && !terminal.IsFunctor
             ? terminal.Api.Signature.GenericList("U")
             : string.Empty;
 
@@ -947,6 +950,137 @@ internal static class GeneratedWhereTemplates
         return GeneratorTemplates.Indent(GeneratorTemplates.JoinNonEmpty(members, "\n\n"), "    ");
     }
 
+    private static string RenderOrderedView(PredicateModel shape, string hash)
+    {
+        string viewName = "GeneratedWhereQuery_" + hash;
+        string orderedName = "GeneratedWhereOrderedQuery_" + hash;
+        string generic = PredicateGenericTypes(shape);
+        string visibility = shape.IsFunctor ? "internal" : "public";
+        string viewType = viewName + generic;
+        string typeName = orderedName + generic;
+        string body = $$"""
+            private {{viewType}} _source;
+            private global::Delta.ECS.OrderedQuery _ordering;
+
+            internal {{orderedName}}({{viewType}} source, global::Delta.ECS.OrderedQuery ordering)
+            {
+                _source = source;
+                _ordering = ordering;
+            }
+
+            internal global::Delta.ECS.World World => _source.World;
+            internal global::Delta.ECS.Query SourceQuery => _source.Query;
+            internal {{viewType}} Source => _source;
+            internal global::Delta.ECS.OrderedQuery Ordering => _ordering;
+
+            internal global::System.ReadOnlySpan<global::Delta.ECS.Entity> BeginForEach()
+            {
+                _ordering.BeginGeneratedOperation();
+                var collector = new EntityCollector(_ordering);
+                _source.ForEachEntity(ref collector);
+                return _ordering.SortGeneratedEntities();
+            }
+
+            internal void EndForEach() => _ordering.EndGeneratedOperation();
+
+            internal {{typeName}} AppendGenerated(global::Delta.ECS.IGeneratedComponentComparer comparer)
+                => new(_source, _ordering.AppendGenerated(comparer));
+
+            public global::Delta.ECS.Entity First()
+                => FindFirst(predicate: null);
+
+            public global::Delta.ECS.Entity First(global::System.Func<global::Delta.ECS.Entity, bool> predicate)
+            {
+                global::Delta.ECS.GeneratedForEachRuntime.ThrowIfNull(predicate, nameof(predicate));
+                return FindFirst(predicate);
+            }
+
+            public global::Delta.ECS.Entity FirstEntity()
+                => First();
+
+            public global::Delta.ECS.Entity FirstEntity(global::System.Func<global::Delta.ECS.Entity, bool> predicate)
+                => First(predicate);
+
+            private global::Delta.ECS.Entity FindFirst(global::System.Func<global::Delta.ECS.Entity, bool>? predicate)
+            {
+                var collector = new FirstCollector(_ordering, predicate);
+                _ordering.BeginGeneratedOperation();
+                try
+                {
+                    _source.ForEachEntity(ref collector);
+                    return collector.Result;
+                }
+                finally
+                {
+                    _ordering.EndGeneratedOperation();
+                }
+            }
+
+            private struct FirstCollector : global::Delta.ECS.IGeneratedWhereEntityConsumer
+            {
+                private readonly global::Delta.ECS.OrderedQuery _ordering;
+                private readonly global::System.Func<global::Delta.ECS.Entity, bool>? _predicate;
+                private global::Delta.ECS.Entity _result;
+                private bool _hasResult;
+
+                internal FirstCollector(
+                    global::Delta.ECS.OrderedQuery ordering,
+                    global::System.Func<global::Delta.ECS.Entity, bool>? predicate)
+                {
+                    _ordering = ordering;
+                    _predicate = predicate;
+                    _result = default;
+                    _hasResult = false;
+                }
+
+                internal global::Delta.ECS.Entity Result => _result;
+
+                public void Invoke(global::Delta.ECS.Entity entity)
+                {
+                    if (_predicate is not null && !_predicate(entity))
+                    {
+                        return;
+                    }
+
+                    if (!_hasResult || _ordering.CompareGeneratedEntities(entity, _result) < 0)
+                    {
+                        _result = entity;
+                        _hasResult = true;
+                    }
+                }
+            }
+
+            private struct EntityCollector : global::Delta.ECS.IGeneratedWhereEntityConsumer
+            {
+                private readonly global::Delta.ECS.OrderedQuery _ordering;
+
+                internal EntityCollector(global::Delta.ECS.OrderedQuery ordering)
+                    => _ordering = ordering;
+
+                public void Invoke(global::Delta.ECS.Entity entity)
+                    => _ordering.AppendGeneratedEntity(entity);
+            }
+            """;
+        return GeneratorTemplates.RenderBlock($"{visibility} ref struct {typeName}", body);
+    }
+
+    internal static string ViewTypeName(PredicateModel shape)
+        => InNamespace(shape.Namespace, "GeneratedWhereQuery_" + GeneratorSupport.StableName(shape.Key));
+
+    internal static string OrderedViewTypeName(PredicateModel shape)
+        => InNamespace(shape.Namespace, "GeneratedWhereOrderedQuery_" + GeneratorSupport.StableName(shape.Key));
+
+    internal static string ViewMethodTypeParameters(PredicateModel shape)
+        => GeneratorTemplates.JoinIndexed(
+            shape.IsFunctor ? 0 : shape.Arity + (shape.HasContext ? 1 : 0),
+            static index => "TWhere" + index.ToString(CultureInfo.InvariantCulture));
+
+    internal static string ViewMethodTypeArguments(PredicateModel shape)
+        => SignatureProjection.TypeArguments(ViewMethodTypeParameters(shape));
+
+    internal static string ViewTypeArguments(PredicateModel shape)
+        => PredicateGenericTypes(shape);
+
     private static string RenderViewTerminal(PredicateModel shape, TerminalModel terminal, string hash)
     {
         SignatureProjection terminalSlots = terminal.Api.Signature;
@@ -956,6 +1090,10 @@ internal static class GeneratedWhereTemplates
         string genericParameters = SignatureProjection.TypeArguments(generic);
         string terminalParameters = RenderTerminalParameters(terminal, terminalSlots);
         string actionType = terminal.IsCallback ? ActionType(terminal, hash, terminalHash) : string.Empty;
+        string genericAction = terminal.IsGeneratedEntityConsumer ? "<TWhereAction>" : string.Empty;
+        string genericActionConstraint = terminal.IsGeneratedEntityConsumer
+            ? " where TWhereAction : struct, global::Delta.ECS.IGeneratedWhereEntityConsumer"
+            : string.Empty;
         string signature = terminal.Kind switch
         {
             TerminalKind.Destroy => "public int Destroy()",
@@ -965,7 +1103,7 @@ internal static class GeneratedWhereTemplates
                 ? $$"""internal void ForEach({{(terminal.HasContext ? "ref " + terminal.ContextType + " context, " : string.Empty)}}{{SignatureProjection.ContextParameter(terminal.FunctorPassMode, actionType, "action")}})"""
                 : $$"""public void ForEach{{genericParameters}}({{actionType}} action)""",
             TerminalKind.ForEachEntity => terminal.IsFunctor
-                ? $$"""internal void ForEachEntity({{(terminal.HasContext ? "ref " + terminal.ContextType + " context, " : string.Empty)}}{{SignatureProjection.ContextParameter(terminal.FunctorPassMode, actionType, "action")}})"""
+                ? $$"""internal void ForEachEntity{{genericAction}}({{(terminal.HasContext ? "ref " + terminal.ContextType + " context, " : string.Empty)}}{{SignatureProjection.ContextParameter(terminal.FunctorPassMode, actionType, "action")}}){{genericActionConstraint}}"""
                 : $$"""public void ForEachEntity{{genericParameters}}({{actionType}} action)""",
             _ => string.Empty
         };

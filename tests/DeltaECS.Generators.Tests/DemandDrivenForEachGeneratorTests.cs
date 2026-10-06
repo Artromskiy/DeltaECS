@@ -91,13 +91,15 @@ public sealed class DemandDrivenForEachGeneratorTests
             new[] { RuntimeStubFor(LanguageVersion.CSharp9), source },
             run.GeneratedTrees,
             LanguageVersion.CSharp9);
+
     }
 
     [Test]
     public void ComponentComparerDelegatesSupportContextEntitySelectorsAndStaticInterception()
     {
         const string source = """
-            namespace Delta.ECS;
+            namespace Delta.ECS
+            {
             using System;
             public struct Cmp1 { public int Value; }
             public struct Cmp2 { public int Value; }
@@ -146,6 +148,7 @@ public sealed class DemandDrivenForEachGeneratorTests
                         });
                 }
             }
+            }
             """;
 
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(source);
@@ -157,6 +160,75 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("InterceptsLocation"));
         Assert.That(generated, Does.Contain("DirectAdapter"));
         AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
+    }
+
+    [Test]
+    public void WhereAndWhereEntityViewsComposeWithOrderByThenByAndFirst()
+    {
+        const string source = """
+            namespace Delta.ECS
+            {
+            using System;
+            public struct Cmp1 { public int Value; }
+            public struct Cmp2 { public int Value; }
+            public struct Context { public int Bias; }
+            public struct Cmp1Comparer : IComponentComparer
+            {
+                public int Invoke(in Cmp1 left, in Cmp1 right)
+                    => left.Value.CompareTo(right.Value);
+            }
+            public struct PositivePredicate : IWherePredicate
+            {
+                public bool Invoke(in Cmp1 value) => value.Value > 0;
+            }
+            static class Consumer
+            {
+                public static Entity Use(
+                    World world,
+                    in Query query,
+                    ComponentId id,
+                    ReadOnlySpan<ComponentId> ids,
+                    ref Context context)
+                {
+                    var comparer = default(Cmp1Comparer);
+                    Entity first = world.Where(in query, static (in Cmp1 value) => value.Value > 0)
+                        .OrderBy(id, ref comparer)
+                        .ThenBy(ids, ref comparer)
+                        .First();
+                    Entity firstEntity = world.WhereEntity(in query,
+                            static (Entity entity, in Cmp1 value) => value.Value > entity.Index)
+                        .OrderBy(static (in Cmp1 left, in Cmp1 right) => left.Value.CompareTo(right.Value))
+                        .FirstEntity();
+                    Entity firstFunctor = world.Where(in query, ref UnsafePredicate)
+                        .OrderBy(static (in Cmp1 left, in Cmp1 right) => left.Value.CompareTo(right.Value))
+                        .First();
+                    _ = world.Where(in query, ref context,
+                            static (ref Context state, in Cmp1 value) => value.Value > state.Bias)
+                        .OrderBy(ref comparer)
+                        .ThenBy(static (in Cmp2 left, in Cmp2 right) => left.Value.CompareTo(right.Value))
+                        .First();
+                    return first;
+                }
+
+                private static PositivePredicate UnsafePredicate;
+            }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(source, LanguageVersion.CSharp9);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(GeneratedText(run), Does.Contain("GeneratedWhereOrderedQuery_"));
+        Assert.That(GeneratedText(run), Does.Contain("IGeneratedWhereEntityConsumer"));
+        AssertCompiles(
+            new[] { RuntimeStubFor(LanguageVersion.CSharp9), source },
+            run.GeneratedTrees,
+            LanguageVersion.CSharp9);
+
+        GeneratorDriverRunResult interceptedRun = RunGeneratorWithInterceptors(source);
+        AssertNoDiagnostics(interceptedRun.Diagnostics);
+        Assert.That(GeneratedText(interceptedRun), Does.Contain("ComponentComparerInterceptor_"));
+        AssertCompiles(new[] { RuntimeStubSource, source }, interceptedRun.GeneratedTrees);
     }
 
     [Test]
@@ -1195,6 +1267,18 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void RealConsumerProjectOrdersPredicateFilteredEntitiesBeforeFirst()
+    {
+        Assert.That(ConsumerProof.RunOrderedWhereFirst(), Is.EqualTo(1));
+    }
+
+    [Test]
+    public void RealConsumerProjectForEachesPredicateFilteredEntitiesInOrder()
+    {
+        Assert.That(ConsumerProof.RunOrderedWhereForEach(), Is.EqualTo(1));
+    }
+
+    [Test]
     public void RealConsumerProjectExecutesGeneratedQueryComposition()
     {
         Assert.That(ConsumerProof.RunGenericQueries(), Is.EqualTo(1));
@@ -1872,6 +1956,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         public readonly struct Stamp { }
         public interface IComponentComparer { }
         public interface IComponentComparerEntity { }
+        public interface IGeneratedWhereEntityConsumer { void Invoke(Entity entity); }
         public interface IGeneratedComponentComparer
         {
             void Validate(World world, in Query query);
@@ -1882,6 +1967,11 @@ public sealed class DemandDrivenForEachGeneratorTests
             public Query SourceQuery => default;
             public static OrderedQuery CreateGenerated(Query query, IGeneratedComponentComparer comparer) => default;
             public OrderedQuery AppendGenerated(IGeneratedComponentComparer comparer) => default;
+            public void BeginGeneratedOperation() { }
+            public void EndGeneratedOperation() { }
+            public void AppendGeneratedEntity(Entity entity) { }
+            public ReadOnlySpan<Entity> SortGeneratedEntities() => default;
+            public int CompareGeneratedEntities(Entity left, Entity right) => 0;
         }
         public readonly struct QuerySpec
         {

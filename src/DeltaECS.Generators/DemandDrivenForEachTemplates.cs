@@ -649,6 +649,15 @@ internal static partial class DemandDrivenForEachTemplates
         SignatureProjection slots = shape.Api.Signature;
         string generic = slots.HasGenericSelectors ? slots.GenericList() : string.Empty;
         string stateGeneric = StateGeneric(shape, generic);
+        string whereGeneric = shape.OrderedWhereSource is { } whereSource
+            ? GeneratedWhereTemplates.ViewMethodTypeParameters(whereSource)
+            : string.Empty;
+        string methodGeneric = SignatureProjection.TypeArguments(
+            SignatureProjection.JoinGeneric(stateGeneric.Trim('<', '>'), whereGeneric));
+        string receiverType = shape.OrderedWhereSource is { } orderedWhereSource
+            ? GeneratedWhereTemplates.OrderedViewTypeName(orderedWhereSource)
+                + GeneratedWhereTemplates.ViewMethodTypeArguments(orderedWhereSource)
+            : "OrderedQuery";
         string ids = slots.HasExplicitIds ? slots.ComponentIdParameters() : string.Empty;
         string context = shape.HasContext
             ? SignatureProjection.ContextParameter(shape.ContextMode, ContextType(shape), "context")
@@ -656,7 +665,7 @@ internal static partial class DemandDrivenForEachTemplates
         string callback = shape.IsFunctor
             ? SignatureProjection.ContextParameter(shape.FunctorPassMode, shape.FunctorType!, "functor")
             : ActionType(shape) + " action";
-        var parameters = new List<string> { "this OrderedQuery orderedQuery" };
+        var parameters = new List<string> { "this " + receiverType + " orderedQuery" };
         if (ids.Length != 0)
         {
             parameters.Add(ids);
@@ -669,7 +678,7 @@ internal static partial class DemandDrivenForEachTemplates
 
         parameters.Add(callback);
         string visibility = shape.IsFunctor || shape.ImplicitComponents ? "internal" : "public";
-        string signature = $"{visibility} static void {shape.MethodName}{stateGeneric}({string.Join(", ", parameters)})";
+        string signature = $"{visibility} static void {shape.MethodName}{methodGeneric}({string.Join(", ", parameters)})";
         var arguments = new List<string>
         {
             "__entities",
@@ -691,10 +700,11 @@ internal static partial class DemandDrivenForEachTemplates
         string typeArguments = stateGeneric;
         string body = $$"""
             {
-                global::System.ReadOnlySpan<global::Delta.ECS.Entity> __entities = orderedQuery.BeginForEach();
+                global::System.ReadOnlySpan<global::Delta.ECS.Entity> __entities = default;
                 global::Delta.ECS.Query __query = orderedQuery.SourceQuery;
                 try
                 {
+                    __entities = orderedQuery.BeginForEach();
                     orderedQuery.World.{{shape.MethodName}}{{typeArguments}}({{arguments[0]}}, in __query{{(arguments.Count > 2 ? ", " + string.Join(", ", arguments.Skip(2)) : string.Empty)}});
                 }
                 finally

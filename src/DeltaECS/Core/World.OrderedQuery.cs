@@ -66,6 +66,10 @@ public sealed partial class World
         return _orderedEntityBuffer.AsSpan(0, _orderedEntityCount);
     }
 
+    internal void ClearOrderedQueryEntities() => _orderedEntityCount = 0;
+
+    internal void AppendOrderedQueryEntity(Entity entity) => AppendOrderedEntity(entity);
+
     internal ReadOnlySpan<Entity> SortOrderedQueryEntities(OrderedQueryState state)
     {
         int count = _orderedEntityCount;

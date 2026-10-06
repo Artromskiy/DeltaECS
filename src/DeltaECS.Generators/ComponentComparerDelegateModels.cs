@@ -44,4 +44,5 @@ internal sealed record ComponentComparerDelegateSite(
     string NamespaceName,
     string[] Usings,
     string? InterceptionLocation = null,
-    string? InterceptionAttribute = null);
+    string? InterceptionAttribute = null,
+    PredicateModel? WhereSource = null);

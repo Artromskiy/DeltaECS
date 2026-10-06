@@ -23,6 +23,7 @@ public sealed class ComponentComparerDelegateGenerator : IIncrementalGenerator
     {
         var models = new ShapeRegistry<ComponentComparerDelegateModel>(static model => model.Key);
         var sites = new List<ComponentComparerDelegateSite>();
+        var whereSources = new Dictionary<string, Dictionary<string, PredicateModel>>(StringComparer.Ordinal);
         bool canIntercept = interceptionEnabled && GeneratorSupport.SupportsInterceptors(compilation);
 
         foreach (InvocationCandidate candidate in invocations)
@@ -36,8 +37,23 @@ public sealed class ComponentComparerDelegateGenerator : IIncrementalGenerator
             }
 
             site = site with { Model = models.GetOrAdd(site.Model) };
+            if (site.WhereSource is { } whereSource)
+            {
+                if (!whereSources.TryGetValue(site.Model.Key, out Dictionary<string, PredicateModel>? sources))
+                {
+                    sources = new Dictionary<string, PredicateModel>(StringComparer.Ordinal);
+                    whereSources.Add(site.Model.Key, sources);
+                }
+
+                if (!sources.ContainsKey(whereSource.Key))
+                {
+                    sources.Add(whereSource.Key, whereSource);
+                }
+            }
+
             if (canIntercept
                 && !site.Model.ContextIsGeneric
+                && site.WhereSource?.HasOpenGenericArguments != true
                 && site.IsStatic
                 && GeneratorSupport.TryGetInterceptionLocation(semanticModel, invocation, out string location, out string attribute))
             {
@@ -54,7 +70,11 @@ public sealed class ComponentComparerDelegateGenerator : IIncrementalGenerator
         {
             context.AddSource(
                 "GeneratedComponentComparerDelegate_" + model.Hash + ".g.cs",
-                ComponentComparerDelegateTemplates.Render(model));
+                ComponentComparerDelegateTemplates.Render(
+                    model,
+                    whereSources.TryGetValue(model.Key, out Dictionary<string, PredicateModel>? sources)
+                        ? sources.Values.ToArray()
+                        : Array.Empty<PredicateModel>()));
         }
 
         foreach (ComponentComparerDelegateSite site in sites.OrderBy(static value => value.Id, StringComparer.Ordinal))
@@ -75,7 +95,8 @@ public sealed class ComponentComparerDelegateGenerator : IIncrementalGenerator
                 semanticModel,
                 invocation,
                 out MemberAccessExpressionSyntax member,
-                out ApiDescriptor descriptor))
+                out ApiDescriptor descriptor,
+                out PredicateModel? whereSource))
         {
             return false;
         }
@@ -247,7 +268,8 @@ public sealed class ComponentComparerDelegateGenerator : IIncrementalGenerator
             lambda.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.StaticKeyword)),
             semanticModel.GetEnclosingSymbol(invocation.SpanStart)?.ContainingNamespace?.ToDisplayString() ?? string.Empty,
             invocation.SyntaxTree.GetRoot().DescendantNodes().OfType<UsingDirectiveSyntax>()
-                .Select(static directive => directive.ToString()).Distinct(StringComparer.Ordinal).ToArray());
+                .Select(static directive => directive.ToString()).Distinct(StringComparer.Ordinal).ToArray(),
+            WhereSource: whereSource);
         return true;
     }
 

@@ -65,6 +65,25 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         {
             InvocationExpressionSyntax invocation = invocationCandidate.Invocation;
             SemanticModel model = compilation.GetSemanticModel(invocation.SyntaxTree);
+            if (OrderedQueryInvocationGrammar.TryReadMethod(
+                    model,
+                    invocation,
+                    out _,
+                    out _,
+                    out PredicateModel? orderedWhereSource)
+                && orderedWhereSource is not null)
+            {
+                PredicateModel orderedShape = shapes.GetOrAdd(orderedWhereSource);
+                orderedShape.HasOrderedQuerySource = true;
+                orderedShape.Terminals.GetOrAdd(new TerminalModel(
+                    TerminalKind.ForEachEntity,
+                    string.Empty,
+                    hasEntity: true,
+                    isFunctor: true,
+                    functorType: "TWhereAction",
+                    isGeneratedEntityConsumer: true));
+            }
+
             if (!InvocationGrammar.TryGetWhereReceiver(invocation, out InvocationExpressionSyntax? whereInvocation)
                 || !whereCalls.TryGetValue(whereInvocation!, out (PredicateModel Shape, WherePredicateBinding Binding) whereCall)
                 || !TryReadTerminal(model, invocation, out TerminalModel? terminal)
@@ -300,7 +319,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
     }
 
 
-    private static bool TryReadPredicate(
+    internal static bool TryReadPredicate(
         SemanticModel model,
         InvocationExpressionSyntax invocation,
         out PredicateModel? shape)
@@ -393,6 +412,10 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             contextType is null ? null : GeneratorSupport.DisplayType(contextType),
             components: null,
             namespaceName);
+        ITypeSymbol[] componentTypes = parameters.Skip(parameterStart)
+            .Select(parameter => model.GetTypeInfo(parameter.Type!).Type!)
+            .ToArray();
+        SetClosedTypeArguments(shape, hasContext ? contextType : null, componentTypes);
         return true;
     }
 
@@ -533,8 +556,22 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             contextType is null ? null : GeneratorSupport.DisplayType(contextType),
             components.Select(static parameter => GeneratorSupport.DisplayType(parameter.Type)).ToArray(),
             namespaceName);
+        SetClosedTypeArguments(shape, hasContext ? contextType : null,
+            components.Select(static parameter => parameter.Type).ToArray());
         shape.RegisterStaticMethodGroup();
         return true;
+    }
+
+    private static void SetClosedTypeArguments(
+        PredicateModel shape,
+        ITypeSymbol? contextType,
+        ITypeSymbol[] componentTypes)
+    {
+        ITypeSymbol[] types = (contextType is null ? Array.Empty<ITypeSymbol>() : new[] { contextType })
+            .Concat(componentTypes)
+            .ToArray();
+        shape.ClosedTypeArguments = types.Select(GeneratorSupport.DisplayType).ToArray();
+        shape.HasOpenGenericArguments = types.Any(GeneratorSupport.ContainsTypeParameter);
     }
 
     private static bool TryReadStaticTerminalMethodGroup(

@@ -495,6 +495,63 @@ public static class ApiGrammarProof
             .ThenBy(static (Entity leftEntity, in Cmp2 left, Entity rightEntity, in Cmp2 right) =>
                 (left.Value + leftEntity.Index).CompareTo(right.Value + rightEntity.Index));
 
+        _ = world.Where(in query,
+                static (in Cmp3 cmp3, in Cmp4 cmp4) => cmp3.Value < cmp4.Value)
+            .OrderBy(ref comparer)
+            .ThenBy(cmp1Id, cmp2Id, ref comparer)
+            .First();
+        _ = world.WhereEntity(in query,
+                static (Entity entity, in Cmp3 cmp3, in Cmp4 cmp4) => cmp3.Value < entity.Index + cmp4.Value)
+            .OrderBy(cmp1Id, cmp2Id, ref comparer)
+            .ThenBy(componentIds, ref comparer)
+            .FirstEntity();
+
+        var predicate = new WherePredicate();
+        _ = world.Where(in query, ref predicate)
+            .OrderBy(ref comparer)
+            .First();
+        var entityPredicate = new WhereEntityPredicate();
+        _ = world.WhereEntity(in query, ref entityPredicate)
+            .OrderBy(ref comparer)
+            .First();
+
+        _ = world.Where(in query, ref context,
+                static (ref Context state, in Cmp3 cmp3, in Cmp4 cmp4) =>
+                {
+                    state.Value++;
+                    return cmp3.Value < cmp4.Value;
+                })
+            .OrderBy(in context,
+                static (in Context state, in Cmp1 left1, in Cmp2 left2, in Cmp1 right1, in Cmp2 right2) =>
+                {
+                    int first = (left1.Value + state.Value).CompareTo(right1.Value + state.Value);
+                    return first != 0 ? first : left2.Value.CompareTo(right2.Value);
+                })
+            .ThenBy(ref comparer)
+            .First();
+        world.Where(in query, ref context,
+                static (ref Context state, in Cmp3 cmp3, in Cmp4 cmp4) =>
+                {
+                    state.Value++;
+                    return cmp3.Value < cmp4.Value;
+                })
+            .OrderBy(in context,
+                static (in Context state, in Cmp1 left1, in Cmp2 left2, in Cmp1 right1, in Cmp2 right2) =>
+                {
+                    int first = (left1.Value + state.Value).CompareTo(right1.Value + state.Value);
+                    return first != 0 ? first : left2.Value.CompareTo(right2.Value);
+                })
+            .ThenBy(ref comparer)
+            .ForEach(static (ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += cmp2.Value);
+        world.WhereEntity(in query,
+                static (Entity current, in Cmp3 cmp3, in Cmp4 cmp4) => cmp3.Value < current.Index + cmp4.Value)
+            .OrderBy(ref comparer)
+            .ForEachEntity(static (Entity current, ref Cmp1 cmp1) => cmp1.Value += current.Index);
+        var orderedFunctor = new FunctorRW();
+        world.Where(in query, ref predicate)
+            .OrderBy(ref comparer)
+            .ForEach(componentIds, ref orderedFunctor);
+
         _ = ordered.First();
         _ = ordered.First(static entity => entity.IsValid);
         _ = ordered.FirstEntity();

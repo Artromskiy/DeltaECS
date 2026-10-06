@@ -333,7 +333,12 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         GenericNameSyntax? genericName = member.Name as GenericNameSyntax;
         bool stamp = descriptor.Value == ValueDomain.Stamp;
         bool parallel = descriptor.Schedule == Schedule.Parallel;
-        bool orderedQueryReceiver = GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "OrderedQuery");
+        bool isOrderedWhereReceiver = OrderedQueryInvocationGrammar.TryReadOrderedWhereSource(
+            member.Expression,
+            model,
+            out PredicateModel? orderedWhereSource);
+        bool orderedQueryReceiver = isOrderedWhereReceiver
+            || GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "OrderedQuery");
         if (!GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "World")
             && !orderedQueryReceiver)
         {
@@ -348,12 +353,12 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         bool hasLambda = invocation.ArgumentList.Arguments.Any(static argument => argument.Expression is LambdaExpressionSyntax);
         if (!hasLambda)
         {
-            if (TryReadMethodGroupShape(model, invocation, member, descriptor, orderedQueryReceiver, out shape, out diagnostic))
+            if (TryReadMethodGroupShape(model, invocation, member, descriptor, orderedQueryReceiver, orderedWhereSource, out shape, out diagnostic))
             {
                 return true;
             }
 
-            return TryReadFunctorShape(model, invocation, member, descriptor, orderedQueryReceiver, out shape, out diagnostic);
+            return TryReadFunctorShape(model, invocation, member, descriptor, orderedQueryReceiver, orderedWhereSource, out shape, out diagnostic);
         }
 
         int genericCount = genericName?.TypeArgumentList.Arguments.Count ?? 0;
@@ -493,7 +498,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             isStamp: stamp,
             typeBinding: genericName is not null ? TypeBindingKind.Generic : TypeBindingKind.CallbackInferred,
             namespaceName: GeneratorSupport.ContainingNamespace(model, invocation),
-            orderedQueryReceiver: orderedQueryReceiver);
+            orderedQueryReceiver: orderedQueryReceiver,
+            orderedWhereSource: orderedWhereSource);
         return true;
     }
 
@@ -503,6 +509,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         MemberAccessExpressionSyntax member,
         ApiDescriptor descriptor,
         bool orderedQueryReceiver,
+        PredicateModel? orderedWhereSource,
         out IterationModel? shape,
         out Diagnostic? diagnostic)
     {
@@ -718,7 +725,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             isStamp: stamp,
             typeBinding: genericName is not null ? TypeBindingKind.Generic : TypeBindingKind.CallbackInferred,
             namespaceName: GeneratorSupport.ContainingNamespace(model, invocation),
-            orderedQueryReceiver: orderedQueryReceiver);
+            orderedQueryReceiver: orderedQueryReceiver,
+            orderedWhereSource: orderedWhereSource);
         return true;
     }
 
@@ -728,6 +736,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         MemberAccessExpressionSyntax member,
         ApiDescriptor descriptor,
         bool orderedQueryReceiver,
+        PredicateModel? orderedWhereSource,
         out IterationModel? shape,
         out Diagnostic? diagnostic)
     {
@@ -892,7 +901,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             typeBinding: genericSelectors ? TypeBindingKind.Generic : TypeBindingKind.CallbackInferred,
             functorPassMode: functorPassMode,
             namespaceName: GeneratorSupport.ContainingNamespace(model, invocation),
-            orderedQueryReceiver: orderedQueryReceiver);
+            orderedQueryReceiver: orderedQueryReceiver,
+            orderedWhereSource: orderedWhereSource);
         return true;
     }
 

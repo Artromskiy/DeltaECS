@@ -45,7 +45,8 @@ internal sealed class IterationModel(
     TypeBindingKind typeBinding = TypeBindingKind.CallbackInferred,
     ContextModeKind functorPassMode = ContextModeKind.Ref,
     string namespaceName = "",
-    bool orderedQueryReceiver = false)
+    bool orderedQueryReceiver = false,
+    PredicateModel? orderedWhereSource = null)
 {
     public RegistrationBindingKind RegistrationBinding => Api.Selector.RegistrationBinding;
     public bool HasEntity => Api.Callback?.HasEntity == true;
@@ -73,6 +74,7 @@ internal sealed class IterationModel(
     public string MethodName => Api.Name ?? "ForEach";
     public string Namespace { get; } = namespaceName;
     public bool OrderedQueryReceiver { get; } = orderedQueryReceiver;
+    public PredicateModel? OrderedWhereSource { get; } = orderedWhereSource;
     internal ApiModel Api { get; } = GeneratorSupport.CreateIterationShape(
         isStamp,
         parallel,
@@ -90,7 +92,9 @@ internal sealed class IterationModel(
         contextType,
         methodName,
         functorPassMode);
-    public string Key => Namespace + "|" + Api.SignatureKey + (OrderedQueryReceiver ? "|OrderedQuery" : string.Empty);
+    public string Key => Namespace + "|" + Api.SignatureKey
+        + (OrderedQueryReceiver ? "|OrderedQuery" : string.Empty)
+        + (OrderedWhereSource is null ? string.Empty : "|" + OrderedWhereSource.Key);
 }
 
 internal sealed record IterationRenderModel(

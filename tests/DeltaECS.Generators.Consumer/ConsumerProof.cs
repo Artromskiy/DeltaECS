@@ -20,6 +20,26 @@ public struct Alive { }
 internal struct ClosedGenericListComponent { public int Value; }
 internal struct GenericListHistory<T> { public T Value; }
 
+internal struct PositionOrderComparer : IComponentComparer
+{
+    public int Invoke(in Position left, in Position right)
+        => left.Value.CompareTo(right.Value);
+}
+
+internal struct VelocityOrderComparer : IComponentComparer
+{
+    public int Invoke(in Velocity left, in Velocity right)
+        => left.Value.CompareTo(right.Value);
+}
+
+internal struct OrderedWhereContext { public int Evaluated; }
+
+internal sealed class OrderedEntitySink
+{
+    public int[] Indices = new int[3];
+    public int Count;
+}
+
 internal interface IClosedGenericStructAction
 {
     void Invoke<T>() where T : struct;
@@ -119,6 +139,93 @@ public struct ContextEntityFunctor : IForEachContextEntity<ConsumerContext>
 /// </summary>
 public static partial class ConsumerProof
 {
+    public static int RunOrderedWhereFirst()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(91801));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(91802));
+        using var world = new World(layouts);
+        var entities = new Entity[4];
+        world.Create(stackalloc ComponentId[] { positionId, velocityId }, entities.Length, entities);
+        world.GetRef<Position>(entities[0], positionId).Value = 2;
+        world.GetRef<Velocity>(entities[0], velocityId).Value = 0;
+        world.GetRef<Position>(entities[1], positionId).Value = 1;
+        world.GetRef<Velocity>(entities[1], velocityId).Value = 5;
+        world.GetRef<Position>(entities[2], positionId).Value = 1;
+        world.GetRef<Velocity>(entities[2], velocityId).Value = 2;
+        world.GetRef<Position>(entities[3], positionId).Value = 3;
+        world.GetRef<Velocity>(entities[3], velocityId).Value = 0;
+
+        Query query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
+        var positionOrder = default(PositionOrderComparer);
+        var velocityOrder = default(VelocityOrderComparer);
+        Entity first = world.Where(in query, static (in Position position) => position.Value > 0)
+            .OrderBy(positionId, ref positionOrder)
+            .ThenBy(velocityId, ref velocityOrder)
+            .First();
+        Entity selected = world.Where(in query, static (in Position position) => position.Value > 0)
+            .OrderBy(positionId, ref positionOrder)
+            .First(static entity => entity.Index == 3);
+        Entity firstEntity = world.WhereEntity(in query,
+                static (Entity entity, in Position position) => entity.Index == 1 || entity.Index == 2)
+            .OrderBy(positionId, ref positionOrder)
+            .ThenBy(velocityId, ref velocityOrder)
+            .FirstEntity();
+        Entity noMatch = world.Where(in query, static (in Position position) => position.Value < 0)
+            .OrderBy(positionId, ref positionOrder)
+            .First();
+
+        return first == entities[2]
+            && selected == entities[3]
+            && firstEntity == entities[2]
+            && noMatch == default ? 1 : 0;
+    }
+
+    public static int RunOrderedWhereForEach()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(91811));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(91812));
+        using var world = new World(layouts);
+        var entities = new Entity[4];
+        world.Create(stackalloc ComponentId[] { positionId, velocityId }, entities.Length, entities);
+        world.GetRef<Position>(entities[0], positionId).Value = 2;
+        world.GetRef<Velocity>(entities[0], velocityId).Value = 0;
+        world.GetRef<Position>(entities[1], positionId).Value = 1;
+        world.GetRef<Velocity>(entities[1], velocityId).Value = 5;
+        world.GetRef<Position>(entities[2], positionId).Value = 1;
+        world.GetRef<Velocity>(entities[2], velocityId).Value = 2;
+        world.GetRef<Position>(entities[3], positionId).Value = 0;
+        world.GetRef<Velocity>(entities[3], velocityId).Value = 0;
+
+        Query query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
+        var filterContext = new OrderedWhereContext();
+        var sink = new OrderedEntitySink();
+        var positionOrder = default(PositionOrderComparer);
+        var velocityOrder = default(VelocityOrderComparer);
+        world.Where(in query, ref filterContext,
+                static (ref OrderedWhereContext context, in Position position) =>
+                {
+                    context.Evaluated++;
+                    return position.Value > 0;
+                })
+            .OrderBy(positionId, ref positionOrder)
+            .ThenBy(velocityId, ref velocityOrder)
+            .ForEachEntity(ref sink,
+                static (ref OrderedEntitySink output, Entity entity, in Position position) =>
+                {
+                    output.Indices[output.Count++] = entity.Index;
+                });
+
+        return filterContext.Evaluated == 4
+            && sink.Count == 3
+            && sink.Indices[0] == entities[2].Index
+            && sink.Indices[1] == entities[1].Index
+            && sink.Indices[2] == entities[0].Index
+                ? 1
+                : 0;
+    }
+
     public static int RunRuntimeGenericFunctorEntityForms()
     {
         using var world = new World();

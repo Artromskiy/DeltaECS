@@ -608,7 +608,41 @@ order.
 
 Compose `Query` component filters such as `WhereAll`, `WhereAny`, and
 `WhereNone` before calling `OrderBy`. Predicate views created by the generated
-`Where` and `WhereEntity` APIs are not currently ordering sources.
+`Where` and `WhereEntity` views can be ordered before selecting a result. The
+predicate remains live in the stack-only view: `First` evaluates it while
+scanning the source query and compares only matching entities. Use this when a
+selection has both a gameplay condition and a deterministic priority order:
+
+```csharp
+var pairComparer = default(PriorityAndSyncIdComparer);
+var healthComparer = default(HealthComparer);
+Entity target = world.WhereEntity(in candidates,
+        static (Entity entity, in Health health) => health.Value > 0)
+    .OrderBy(ref pairComparer)
+    .ThenBy(ref healthComparer)
+    .First();
+```
+
+The filtered ordering supports `OrderBy`, `ThenBy`, `First`, `FirstEntity`,
+`ForEach`, and `ForEachEntity`. It preserves the predicate view's context and
+functor state. `First` scans matching entities and selects the minimum by the
+ordering keys. `ForEach` collects only entities that pass the predicate, sorts
+that list, then invokes the generated iteration path in that order. Neither
+operation changes the source `Query`.
+
+```text
+world.Where(Q, C?, A | F) -> WhereView
+world.WhereEntity(Q, C?, A | F) -> WhereView
+WhereView.OrderBy(I... | D, C?, A | F) -> OrderedWhereView
+OrderedWhereView.ThenBy(I... | D, C?, A | F) -> OrderedWhereView
+OrderedWhereView.First(P?) -> Entity
+OrderedWhereView.ForEach(...)
+OrderedWhereView.ForEachEntity(...)
+```
+
+The ordering selectors and comparer can be omitted when the generated primary
+registration and callback inference are sufficient. `P` is an optional
+`Func<Entity, bool>` applied after the source `Where` predicate.
 
 `OrderedQuery.ForEach` and `ForEachEntity` use the generated sequential
 iteration grammar: callbacks or functors, optional context, component rows,

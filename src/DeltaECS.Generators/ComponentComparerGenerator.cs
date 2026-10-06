@@ -36,11 +36,12 @@ public sealed class ComponentComparerGenerator : IIncrementalGenerator
         SourceProductionContext context)
     {
         var models = new ShapeRegistry<ComponentComparerModel>(static model => model.Key);
+        var whereSources = new Dictionary<string, Dictionary<string, PredicateModel>>(StringComparer.Ordinal);
         foreach (InvocationCandidate candidate in invocations)
         {
             InvocationExpressionSyntax invocation = candidate.Invocation;
             SemanticModel semanticModel = compilation.GetSemanticModel(invocation.SyntaxTree);
-            if (!TryReadInvocation(semanticModel, invocation, out ComponentComparerModel? model, out bool isComparerCall)
+            if (!TryReadInvocation(semanticModel, invocation, out ComponentComparerModel? model, out bool isComparerCall, out PredicateModel? whereSource)
                 || !isComparerCall)
             {
                 continue;
@@ -62,14 +63,31 @@ public sealed class ComponentComparerGenerator : IIncrementalGenerator
                 continue;
             }
 
-            models.GetOrAdd(model);
+            ComponentComparerModel registeredModel = models.GetOrAdd(model);
+            if (whereSource is not null)
+            {
+                if (!whereSources.TryGetValue(registeredModel.Key, out Dictionary<string, PredicateModel>? sources))
+                {
+                    sources = new Dictionary<string, PredicateModel>(StringComparer.Ordinal);
+                    whereSources.Add(registeredModel.Key, sources);
+                }
+
+                if (!sources.ContainsKey(whereSource.Key))
+                {
+                    sources.Add(whereSource.Key, whereSource);
+                }
+            }
         }
 
         foreach (ComponentComparerModel model in models.Ordered())
         {
             context.AddSource(
                 "GeneratedComponentComparer_" + GeneratorSupport.StableName(model.Key) + ".g.cs",
-                ComponentComparerTemplates.Render(model));
+                ComponentComparerTemplates.Render(
+                    model,
+                    whereSources.TryGetValue(model.Key, out Dictionary<string, PredicateModel>? sources)
+                        ? sources.Values.ToArray()
+                        : Array.Empty<PredicateModel>()));
         }
     }
 
@@ -77,15 +95,18 @@ public sealed class ComponentComparerGenerator : IIncrementalGenerator
         SemanticModel semanticModel,
         InvocationExpressionSyntax invocation,
         out ComponentComparerModel? model,
-        out bool isComparerCall)
+        out bool isComparerCall,
+        out PredicateModel? whereSource)
     {
         model = null;
         isComparerCall = false;
+        whereSource = null;
         if (!OrderedQueryInvocationGrammar.TryReadMethod(
                 semanticModel,
                 invocation,
                 out _,
-                out ApiDescriptor descriptor))
+                out ApiDescriptor descriptor,
+                out whereSource))
         {
             return false;
         }

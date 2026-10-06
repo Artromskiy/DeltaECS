@@ -65,6 +65,35 @@ public readonly struct OrderedQuery
     public OrderedQuery AppendGenerated(IGeneratedComponentComparer comparer)
         => new(GetState().Append(comparer));
 
+    /// <summary>Starts a generated ordered-query operation for a composed predicate view.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public void BeginGeneratedOperation()
+    {
+        OrderedQueryState state = GetState();
+        state.World.BeginOrderedQueryOperation();
+        state.World.ClearOrderedQueryEntities();
+    }
+
+    /// <summary>Adds a predicate-matched entity to generated ordered-query storage.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public void AppendGeneratedEntity(Entity entity) => GetState().World.AppendOrderedQueryEntity(entity);
+
+    /// <summary>Sorts entities collected by a generated predicate view.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public ReadOnlySpan<Entity> SortGeneratedEntities()
+    {
+        OrderedQueryState state = GetState();
+        return state.World.SortOrderedQueryEntities(state);
+    }
+
+    /// <summary>Ends a generated ordered-query operation for a composed predicate view.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public void EndGeneratedOperation() => GetState().World.EndOrderedQueryOperation();
+
+    /// <summary>Compares two entities using this ordered query's generated keys.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public int CompareGeneratedEntities(Entity left, Entity right) => GetState().Compare(left, right);
+
     private OrderedQueryState GetState()
         => _state ?? ThrowHelper.ThrowOrderedQueryNotInitialized<OrderedQueryState>();
 }

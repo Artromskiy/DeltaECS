@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Delta.ECS;
@@ -12,6 +13,14 @@ namespace Delta.ECS;
 [SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Source generator marker contract.")]
 public interface IWherePredicate
 {
+}
+
+/// <summary>Generated callback contract used to compose predicate views with ordered-query terminals.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public interface IGeneratedWhereEntityConsumer
+{
+    /// <summary>Consumes an entity that passed a generated <c>Where</c> predicate.</summary>
+    void Invoke(Entity entity);
 }
 
 /// <summary>

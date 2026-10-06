@@ -40,6 +40,9 @@ internal sealed class PredicateModel(
         new ExecutionModel(Scope.QueryWide, ValueDomain.Component, Schedule.Sequential));
     internal ShapeRegistry<TerminalModel> Terminals { get; } = new(static terminal => terminal.SignatureKey);
     internal List<WherePredicateBinding> StaticMethodGroupBindings { get; } = new();
+    internal bool HasOrderedQuerySource { get; set; }
+    internal string[] ClosedTypeArguments { get; set; } = Array.Empty<string>();
+    internal bool HasOpenGenericArguments { get; set; }
     internal string Key => Namespace + "|" + Api.SignatureKey;
 
     internal WherePredicateBinding ConcreteBinding
@@ -91,7 +94,8 @@ internal sealed class TerminalModel(
     bool hasValues = false,
     TypeBindingKind typeBinding = TypeBindingKind.CallbackInferred,
     RegistrationBindingKind registrationBinding = RegistrationBindingKind.Primary,
-    ContextModeKind functorPassMode = ContextModeKind.Ref)
+    ContextModeKind functorPassMode = ContextModeKind.Ref,
+    bool isGeneratedEntityConsumer = false)
 {
     internal TerminalKind Kind { get; } = kind;
     internal string Pattern { get; } = pattern;
@@ -100,6 +104,7 @@ internal sealed class TerminalModel(
     internal bool IsFunctor { get; } = isFunctor;
     internal string? FunctorType { get; } = functorType;
     internal ContextModeKind FunctorPassMode { get; } = isFunctor ? functorPassMode : ContextModeKind.None;
+    internal bool IsGeneratedEntityConsumer { get; } = isGeneratedEntityConsumer;
     internal bool HasContext { get; } = hasContext;
     internal string? ContextType { get; } = contextType;
     internal string[] Components { get; } = components ?? Array.Empty<string>();
