@@ -10,16 +10,6 @@ internal static class ThrowHelper
 {
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowComponentVisitorMismatch(string message)
-        => throw new InvalidCastException(message);
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowComponentVisitorConstraintMismatch()
-        => throw new InvalidCastException("The visitor constraint does not match this component registration.");
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowComponentVisitorConstraintMustBeInterface(Type constraintType)
         => throw new ArgumentException($"{constraintType} is not an interface.");
 

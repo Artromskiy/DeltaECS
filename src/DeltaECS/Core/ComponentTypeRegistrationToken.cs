@@ -2,12 +2,12 @@ namespace Delta.ECS;
 
 internal interface IComponentTypeRegistrationRoute
 {
-    void Visit(ComponentId componentId, IComponentTypeVisitor visitor);
+    bool TryVisit(ComponentId componentId, IComponentTypeVisitor visitor);
 }
 
 internal interface IComponentRegistrationToken
 {
-    void Visit(ComponentId componentId, IComponentTypeVisitor visitor);
+    bool TryVisit(ComponentId componentId, IComponentTypeVisitor visitor);
 }
 
 internal sealed class ComponentRegistrationTypeToken : IComponentRegistrationToken
@@ -16,167 +16,166 @@ internal sealed class ComponentRegistrationTypeToken : IComponentRegistrationTok
 
     internal ComponentRegistrationTypeToken(IComponentTypeRegistrationRoute route) => _route = route;
 
-    public void Visit(ComponentId componentId, IComponentTypeVisitor visitor)
-        => _route.Visit(componentId, visitor);
+    public bool TryVisit(ComponentId componentId, IComponentTypeVisitor visitor)
+        => _route.TryVisit(componentId, visitor);
 }
 
 internal abstract class ComponentTypeRegistrationRoute<TComponent> : IComponentTypeRegistrationRoute
 {
-    public abstract void Visit(ComponentId componentId, IComponentTypeVisitor visitor);
+    public abstract bool TryVisit(ComponentId componentId, IComponentTypeVisitor visitor);
 }
 
 internal sealed class UnconstrainedComponentTypeRegistrationRoute<TComponent> : ComponentTypeRegistrationRoute<TComponent>
 {
-    public override void Visit(ComponentId componentId, IComponentTypeVisitor visitor)
+    public override bool TryVisit(ComponentId componentId, IComponentTypeVisitor visitor)
     {
         if (visitor is not IUnconstrainedComponentTypeVisitor typedVisitor)
         {
-            ThrowHelper.ThrowComponentVisitorMismatch("The visitor does not support unconstrained component registrations.");
-            return;
+            return false;
         }
 
         typedVisitor.Visit<TComponent>(componentId);
+        return true;
     }
 }
 
 internal sealed class StructComponentTypeRegistrationRoute<TComponent> : ComponentTypeRegistrationRoute<TComponent>
     where TComponent : struct
 {
-    public override void Visit(ComponentId componentId, IComponentTypeVisitor visitor)
+    public override bool TryVisit(ComponentId componentId, IComponentTypeVisitor visitor)
     {
         if (visitor is INewComponentTypeVisitor newVisitor)
         {
             newVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
         if (visitor is not IStructComponentTypeVisitor typedVisitor)
         {
-            ThrowHelper.ThrowComponentVisitorMismatch("The visitor does not support struct or new() component registrations.");
-            return;
+            return false;
         }
 
         typedVisitor.Visit<TComponent>(componentId);
+        return true;
     }
 }
 
 internal sealed class ClassComponentTypeRegistrationRoute<TComponent> : ComponentTypeRegistrationRoute<TComponent>
     where TComponent : class
 {
-    public override void Visit(ComponentId componentId, IComponentTypeVisitor visitor)
+    public override bool TryVisit(ComponentId componentId, IComponentTypeVisitor visitor)
     {
         if (visitor is not IClassComponentTypeVisitor typedVisitor)
         {
-            ThrowHelper.ThrowComponentVisitorMismatch("The visitor does not support class component registrations.");
-            return;
+            return false;
         }
 
         typedVisitor.Visit<TComponent>(componentId);
+        return true;
     }
 }
 
 internal sealed class UnmanagedComponentTypeRegistrationRoute<TComponent> : ComponentTypeRegistrationRoute<TComponent>
     where TComponent : unmanaged
 {
-    public override void Visit(ComponentId componentId, IComponentTypeVisitor visitor)
+    public override bool TryVisit(ComponentId componentId, IComponentTypeVisitor visitor)
     {
         if (visitor is INewComponentTypeVisitor newVisitor)
         {
             newVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
         if (visitor is IUnmanagedComponentTypeVisitor unmanagedVisitor)
         {
             unmanagedVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
         if (visitor is IStructComponentTypeVisitor structVisitor)
         {
             structVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
-        ThrowHelper.ThrowComponentVisitorMismatch("The visitor does not support unmanaged, struct, or new() component registrations.");
+        return false;
     }
 }
 
 internal sealed class NewComponentTypeRegistrationRoute<TComponent> : ComponentTypeRegistrationRoute<TComponent>
     where TComponent : new()
 {
-    public override void Visit(ComponentId componentId, IComponentTypeVisitor visitor)
+    public override bool TryVisit(ComponentId componentId, IComponentTypeVisitor visitor)
     {
         if (visitor is not INewComponentTypeVisitor typedVisitor)
         {
-            ThrowHelper.ThrowComponentVisitorMismatch("The visitor does not support new() component registrations.");
-            return;
+            return false;
         }
 
         typedVisitor.Visit<TComponent>(componentId);
+        return true;
     }
 }
 
 internal sealed class ClassNewComponentTypeRegistrationRoute<TComponent> : ComponentTypeRegistrationRoute<TComponent>
     where TComponent : class, new()
 {
-    public override void Visit(ComponentId componentId, IComponentTypeVisitor visitor)
+    public override bool TryVisit(ComponentId componentId, IComponentTypeVisitor visitor)
     {
         if (visitor is IClassNewComponentTypeVisitor classNewVisitor)
         {
             classNewVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
         if (visitor is IClassComponentTypeVisitor classVisitor)
         {
             classVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
         if (visitor is INewComponentTypeVisitor newVisitor)
         {
             newVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
-        ThrowHelper.ThrowComponentVisitorMismatch("The visitor does not support this class-and-new component registration.");
+        return false;
     }
 }
 
 internal interface IComponentInterfaceVisitorRoute
 {
-    void Visit(ComponentId componentId, IComponentTypeVisitor visitor);
+    bool TryVisit(ComponentId componentId, IComponentTypeVisitor visitor);
 }
 
 internal abstract class ComponentInterfaceVisitorRoute<TComponent, TInterface> : IComponentInterfaceVisitorRoute
     where TComponent : TInterface
 {
-    public abstract void Visit(ComponentId componentId, IComponentTypeVisitor visitor);
+    public abstract bool TryVisit(ComponentId componentId, IComponentTypeVisitor visitor);
 
-    protected static void EnsureConstraint(IComponentTypeVisitorConstraint visitor)
-    {
-        if (!visitor.ConstraintType.Equals(typeof(TInterface).TypeHandle))
-        {
-            ThrowHelper.ThrowComponentVisitorConstraintMismatch();
-        }
-    }
+    protected static bool HasMatchingConstraint(IComponentTypeVisitorConstraint visitor)
+        => visitor.ConstraintType.Equals(typeof(TInterface).TypeHandle);
 }
 
 internal sealed class UnconstrainedComponentInterfaceVisitorRoute<TComponent, TInterface> :
     ComponentInterfaceVisitorRoute<TComponent, TInterface>
     where TComponent : TInterface
 {
-    public override void Visit(ComponentId componentId, IComponentTypeVisitor visitor)
+    public override bool TryVisit(ComponentId componentId, IComponentTypeVisitor visitor)
     {
         if (visitor is not IComponentTypeVisitor<TInterface> typedVisitor)
         {
-            ThrowHelper.ThrowComponentVisitorMismatch("The visitor does not support this bound interface route.");
-            return;
+            return false;
         }
 
-        EnsureConstraint(typedVisitor);
+        if (!HasMatchingConstraint(typedVisitor))
+        {
+            return false;
+        }
+
         typedVisitor.Visit<TComponent>(componentId);
+        return true;
     }
 }
 
@@ -184,30 +183,42 @@ internal sealed class StructComponentInterfaceVisitorRoute<TComponent, TInterfac
     ComponentInterfaceVisitorRoute<TComponent, TInterface>
     where TComponent : struct, TInterface
 {
-    public override void Visit(ComponentId componentId, IComponentTypeVisitor visitor)
+    public override bool TryVisit(ComponentId componentId, IComponentTypeVisitor visitor)
     {
         if (visitor is INewComponentTypeVisitor<TInterface> newVisitor)
         {
-            EnsureConstraint(newVisitor);
+            if (!HasMatchingConstraint(newVisitor))
+            {
+                return false;
+            }
+
             newVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
         if (visitor is IStructComponentTypeVisitor<TInterface> structVisitor)
         {
-            EnsureConstraint(structVisitor);
+            if (!HasMatchingConstraint(structVisitor))
+            {
+                return false;
+            }
+
             structVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
         if (visitor is IComponentTypeVisitor<TInterface> typedVisitor)
         {
-            EnsureConstraint(typedVisitor);
+            if (!HasMatchingConstraint(typedVisitor))
+            {
+                return false;
+            }
+
             typedVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
-        ThrowHelper.ThrowComponentVisitorMismatch("The visitor does not support this struct interface route.");
+        return false;
     }
 }
 
@@ -215,23 +226,31 @@ internal sealed class ClassComponentInterfaceVisitorRoute<TComponent, TInterface
     ComponentInterfaceVisitorRoute<TComponent, TInterface>
     where TComponent : class, TInterface
 {
-    public override void Visit(ComponentId componentId, IComponentTypeVisitor visitor)
+    public override bool TryVisit(ComponentId componentId, IComponentTypeVisitor visitor)
     {
         if (visitor is IClassComponentTypeVisitor<TInterface> classVisitor)
         {
-            EnsureConstraint(classVisitor);
+            if (!HasMatchingConstraint(classVisitor))
+            {
+                return false;
+            }
+
             classVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
         if (visitor is IComponentTypeVisitor<TInterface> typedVisitor)
         {
-            EnsureConstraint(typedVisitor);
+            if (!HasMatchingConstraint(typedVisitor))
+            {
+                return false;
+            }
+
             typedVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
-        ThrowHelper.ThrowComponentVisitorMismatch("The visitor does not support this class interface route.");
+        return false;
     }
 }
 
@@ -239,37 +258,53 @@ internal sealed class UnmanagedComponentInterfaceVisitorRoute<TComponent, TInter
     ComponentInterfaceVisitorRoute<TComponent, TInterface>
     where TComponent : unmanaged, TInterface
 {
-    public override void Visit(ComponentId componentId, IComponentTypeVisitor visitor)
+    public override bool TryVisit(ComponentId componentId, IComponentTypeVisitor visitor)
     {
         if (visitor is INewComponentTypeVisitor<TInterface> newVisitor)
         {
-            EnsureConstraint(newVisitor);
+            if (!HasMatchingConstraint(newVisitor))
+            {
+                return false;
+            }
+
             newVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
         if (visitor is IUnmanagedComponentTypeVisitor<TInterface> unmanagedVisitor)
         {
-            EnsureConstraint(unmanagedVisitor);
+            if (!HasMatchingConstraint(unmanagedVisitor))
+            {
+                return false;
+            }
+
             unmanagedVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
         if (visitor is IStructComponentTypeVisitor<TInterface> structVisitor)
         {
-            EnsureConstraint(structVisitor);
+            if (!HasMatchingConstraint(structVisitor))
+            {
+                return false;
+            }
+
             structVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
         if (visitor is IComponentTypeVisitor<TInterface> typedVisitor)
         {
-            EnsureConstraint(typedVisitor);
+            if (!HasMatchingConstraint(typedVisitor))
+            {
+                return false;
+            }
+
             typedVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
-        ThrowHelper.ThrowComponentVisitorMismatch("The visitor does not support this unmanaged interface route.");
+        return false;
     }
 }
 
@@ -277,16 +312,20 @@ internal sealed class NewComponentInterfaceVisitorRoute<TComponent, TInterface> 
     ComponentInterfaceVisitorRoute<TComponent, TInterface>
     where TComponent : TInterface, new()
 {
-    public override void Visit(ComponentId componentId, IComponentTypeVisitor visitor)
+    public override bool TryVisit(ComponentId componentId, IComponentTypeVisitor visitor)
     {
         if (visitor is not INewComponentTypeVisitor<TInterface> newVisitor)
         {
-            ThrowHelper.ThrowComponentVisitorMismatch("The visitor does not support this constructible interface route.");
-            return;
+            return false;
         }
 
-        EnsureConstraint(newVisitor);
+        if (!HasMatchingConstraint(newVisitor))
+        {
+            return false;
+        }
+
         newVisitor.Visit<TComponent>(componentId);
+        return true;
     }
 }
 
@@ -294,36 +333,52 @@ internal sealed class ClassNewComponentInterfaceVisitorRoute<TComponent, TInterf
     ComponentInterfaceVisitorRoute<TComponent, TInterface>
     where TComponent : class, TInterface, new()
 {
-    public override void Visit(ComponentId componentId, IComponentTypeVisitor visitor)
+    public override bool TryVisit(ComponentId componentId, IComponentTypeVisitor visitor)
     {
         if (visitor is IClassNewComponentTypeVisitor<TInterface> classNewVisitor)
         {
-            EnsureConstraint(classNewVisitor);
+            if (!HasMatchingConstraint(classNewVisitor))
+            {
+                return false;
+            }
+
             classNewVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
         if (visitor is IClassComponentTypeVisitor<TInterface> classVisitor)
         {
-            EnsureConstraint(classVisitor);
+            if (!HasMatchingConstraint(classVisitor))
+            {
+                return false;
+            }
+
             classVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
         if (visitor is INewComponentTypeVisitor<TInterface> newVisitor)
         {
-            EnsureConstraint(newVisitor);
+            if (!HasMatchingConstraint(newVisitor))
+            {
+                return false;
+            }
+
             newVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
         if (visitor is IComponentTypeVisitor<TInterface> typedVisitor)
         {
-            EnsureConstraint(typedVisitor);
+            if (!HasMatchingConstraint(typedVisitor))
+            {
+                return false;
+            }
+
             typedVisitor.Visit<TComponent>(componentId);
-            return;
+            return true;
         }
 
-        ThrowHelper.ThrowComponentVisitorMismatch("The visitor does not support this constructible class interface route.");
+        return false;
     }
 }

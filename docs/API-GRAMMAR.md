@@ -79,6 +79,11 @@ var visitor = new MovementVisitor();
 layouts.Visit(positionId, visitor);
 layouts.Visit(localPositionId, visitor);
 
+if (layouts.TryVisit(positionId, visitor))
+{
+    // The registered component matched the visitor route.
+}
+
 public interface IMovable { }
 
 public struct Position : IMovable { }
@@ -92,6 +97,23 @@ public sealed class MovementVisitor : IComponentTypeVisitor<IMovable>
 ```
 
 Binding is explicit for each component type. For example, a `Velocity` component that also implements `IMovable` needs its own `layouts.BindInterface<Velocity, IMovable>()` call. A visitor route does not automatically apply to every type that implements the interface.
+
+Use `TryVisit` when the route may not match or the component IDs come from a dynamic list. It returns `false` for an invalid ID, a `null` visitor, or an unsupported visitor route. `Visit` has the same dispatch behavior but silently does nothing for those cases:
+
+```csharp
+ReadOnlySpan<ComponentId> componentIds = stackalloc ComponentId[] { positionId, localPositionId };
+var visitor = new MovementVisitor();
+
+foreach (ComponentId componentId in componentIds)
+{
+    if (layouts.TryVisit(componentId, visitor))
+    {
+        // This entry was visited as IMovable.
+    }
+}
+```
+
+The runtime APIs described here are available without adding the generator to the consuming project. The generated API proof and runtime-only API proof are kept in separate consumer projects so both dependency shapes are compiled and executed independently. The runtime-only proof covers registration and visitors, query construction, structural operations, typed single-component access, entity-only iteration, and the integration contract. Component-bearing iteration and other generated forms remain in the generated consumer proof.
 
 When compiling with a language version that does not apply `OverloadResolutionPriority`, supply the marker explicitly to avoid relying on automatic selection among the constrained `Register<T>` overloads.
 

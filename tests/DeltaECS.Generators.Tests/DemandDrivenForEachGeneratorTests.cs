@@ -1,5 +1,6 @@
 using System.Globalization;
 using Delta.ECS.Generators.Consumer;
+using Delta.ECS.Runtime.Consumer;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -1317,9 +1318,15 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
-    public void RealConsumerProjectExecutesApiGrammarWithoutThrowing()
+    public void GeneratedConsumerProjectExecutesGeneratedApiGrammarWithoutThrowing()
     {
-        Assert.DoesNotThrow(ApiGrammarProof.Run);
+        Assert.DoesNotThrow(GeneratedApiGrammarProof.Run);
+    }
+
+    [Test]
+    public void RuntimeOnlyConsumerProjectExecutesApiGrammarWithoutGenerator()
+    {
+        Assert.DoesNotThrow(RuntimeApiGrammarProof.Run);
     }
 
     [Test]

@@ -181,10 +181,10 @@ public struct Cmp1Cmp2Comparer : IComponentComparer
 }
 
 /// <summary>
-/// Compile-time call-site matrix for every API family and grammar branch in API-GRAMMAR.md.
+/// Compile-time call-site matrix for generated API grammar branches in API-GRAMMAR.md.
 /// The consumer project must compile these calls before the generator test suite can run.
 /// </summary>
-public static class ApiGrammarProof
+public static class GeneratedApiGrammarProof
 {
     public const int Compiled = 1;
 
@@ -202,7 +202,7 @@ public static class ApiGrammarProof
         return layouts;
     }
 
-    /// <summary>Executes every grammar section against a small, valid world.</summary>
+    /// <summary>Executes the generated grammar sections against a small, valid world.</summary>
     public static void Run()
     {
         var layouts = RegisterComponents();

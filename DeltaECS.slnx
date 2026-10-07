@@ -14,4 +14,5 @@
   <Project Path="tests/DeltaECS.Systems.Tests/DeltaECS.Systems.Tests.csproj" />
   <Project Path="tests/DeltaECS.Generators.Tests/DeltaECS.Generators.Tests.csproj" />
   <Project Path="tests/DeltaECS.Generators.Consumer/DeltaECS.Generators.Consumer.csproj" />
+  <Project Path="tests/DeltaECS.Runtime.Consumer/DeltaECS.Runtime.Consumer.csproj" />
 </Solution>

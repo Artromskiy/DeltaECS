@@ -21,7 +21,7 @@ internal sealed class ComponentTypeVisitorTests
         AssertVisited<int>(unmanagedVisitor, componentId);
         AssertVisited<int>(structVisitor, componentId);
         AssertVisited<int>(newVisitor, componentId);
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(componentId, new UnsupportedVisitor()));
+        AssertNotVisited(layouts, componentId, new UnsupportedVisitor());
     }
 
     [Test]
@@ -37,7 +37,7 @@ internal sealed class ComponentTypeVisitorTests
 
         AssertVisited<ManagedStructComponent>(structVisitor, componentId);
         AssertVisited<ManagedStructComponent>(newVisitor, componentId);
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(componentId, new UnmanagedVisitor()));
+        AssertNotVisited(layouts, componentId, new UnmanagedVisitor());
     }
 
     [Test]
@@ -69,7 +69,7 @@ internal sealed class ComponentTypeVisitorTests
         layouts.Visit(componentId, newVisitor);
 
         AssertVisited<ClassNewComponent>(newVisitor, componentId);
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(componentId, new ClassVisitor()));
+        AssertNotVisited(layouts, componentId, new ClassVisitor());
     }
 
     [Test]
@@ -82,7 +82,7 @@ internal sealed class ComponentTypeVisitorTests
         layouts.Visit(componentId, structVisitor);
 
         AssertVisited<int>(structVisitor, componentId);
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(componentId, new UnmanagedVisitor()));
+        AssertNotVisited(layouts, componentId, new UnmanagedVisitor());
     }
 
     [Test]
@@ -128,7 +128,7 @@ internal sealed class ComponentTypeVisitorTests
         layouts.BindInterface<GameComponent, IGameComponent>();
         ComponentId otherId = layouts.Register<OtherGameComponent>(new SchemaId(80_014));
 
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(otherId, new GameComponentVisitor()));
+        AssertNotVisited(layouts, otherId, new GameComponentVisitor());
     }
 
     [Test]
@@ -172,12 +172,12 @@ internal sealed class ComponentTypeVisitorTests
         layouts.BindInterface<GameComponent, IGameComponent>();
         ComponentId componentId = layouts.Register<GameComponent>(new SchemaId(80_007));
 
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(componentId, new StructNamedVisitor()));
+        AssertNotVisited(layouts, componentId, new StructNamedVisitor());
 
         layouts.BindInterface<GameComponent, INamedComponent>();
         ComponentId namedId = layouts.Register<GameComponent>(new SchemaId(80_008));
         var wrongConstraint = new WrongConstraintVisitor();
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(namedId, wrongConstraint));
+        AssertNotVisited(layouts, namedId, wrongConstraint);
     }
 
     [Test]
@@ -199,7 +199,7 @@ internal sealed class ComponentTypeVisitorTests
         layouts.Visit(componentId, visitor);
 
         AssertVisited<int>(visitor, componentId);
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(componentId, new StructVisitor()));
+        AssertNotVisited(layouts, componentId, new StructVisitor());
     }
 
     [Test]
@@ -212,8 +212,8 @@ internal sealed class ComponentTypeVisitorTests
         layouts.Visit(componentId, visitor);
 
         AssertVisited<ClassOnlyComponent>(visitor, componentId);
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(componentId, new NewVisitor()));
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(componentId, new UnconstrainedVisitor()));
+        AssertNotVisited(layouts, componentId, new NewVisitor());
+        AssertNotVisited(layouts, componentId, new UnconstrainedVisitor());
     }
 
     [Test]
@@ -222,8 +222,8 @@ internal sealed class ComponentTypeVisitorTests
         var layouts = new ComponentLayoutRegistry();
         ComponentId componentId = layouts.Register<ClassNewComponent>(new SchemaId(80_020));
 
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(componentId, new UnconstrainedVisitor()));
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(componentId, new UnmanagedVisitor()));
+        AssertNotVisited(layouts, componentId, new UnconstrainedVisitor());
+        AssertNotVisited(layouts, componentId, new UnmanagedVisitor());
     }
 
     [Test]
@@ -248,9 +248,9 @@ internal sealed class ComponentTypeVisitorTests
         AssertVisited<ClassNewComponent>(classVisitor, classId);
         AssertVisited<ClassNewComponent>(newVisitor, newId);
         AssertVisited<ClassNewComponent>(classNewVisitor, classNewId);
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(classId, new NewVisitor()));
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(newId, new ClassVisitor()));
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(classNewId, new UnconstrainedVisitor()));
+        AssertNotVisited(layouts, classId, new NewVisitor());
+        AssertNotVisited(layouts, newId, new ClassVisitor());
+        AssertNotVisited(layouts, classNewId, new UnconstrainedVisitor());
     }
 
     [Test]
@@ -353,7 +353,7 @@ internal sealed class ComponentTypeVisitorTests
         AssertVisited<GeneratedUnmanagedVisitorComponent>(unmanagedVisitor, unmanagedId);
         AssertVisited<GeneratedUnmanagedVisitorComponent>(unmanagedStructVisitor, unmanagedId);
         AssertVisited<GeneratedManagedVisitorComponent>(managedStructVisitor, structId);
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(structId, new UnmanagedVisitor()));
+        AssertNotVisited(layouts, structId, new UnmanagedVisitor());
     }
 
     [Test]
@@ -370,7 +370,7 @@ internal sealed class ComponentTypeVisitorTests
         layouts.Visit(closedGenericId, visitor);
 
         AssertVisited<GenericRuntimeFunctorTests.History<ManagedStructComponent>>(visitor, closedGenericId);
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(closedGenericId, new UnmanagedVisitor()));
+        AssertNotVisited(layouts, closedGenericId, new UnmanagedVisitor());
     }
 
     [Test]
@@ -384,7 +384,7 @@ internal sealed class ComponentTypeVisitorTests
         layouts.Visit(componentId, visitor);
 
         AssertVisited<ManagedGameComponent>(visitor, componentId);
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(componentId, new StructGameVisitor()));
+        AssertNotVisited(layouts, componentId, new StructGameVisitor());
     }
 
     [Test]
@@ -404,7 +404,7 @@ internal sealed class ComponentTypeVisitorTests
         AssertVisited<ManagedGameComponent>(newVisitor, componentId);
         AssertVisited<ManagedGameComponent>(structVisitor, componentId);
         AssertVisited<ManagedGameComponent>(visitor, componentId);
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(componentId, new ClassGameVisitor()));
+        AssertNotVisited(layouts, componentId, new ClassGameVisitor());
     }
 
     [Test]
@@ -421,7 +421,7 @@ internal sealed class ComponentTypeVisitorTests
 
         AssertVisited<ClassOnlyGameComponent>(classVisitor, componentId);
         AssertVisited<ClassOnlyGameComponent>(visitor, componentId);
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(componentId, new NewGameVisitor()));
+        AssertNotVisited(layouts, componentId, new NewGameVisitor());
     }
 
     [Test]
@@ -444,7 +444,7 @@ internal sealed class ComponentTypeVisitorTests
         AssertVisited<UnmanagedGameComponent>(unmanagedVisitor, componentId);
         AssertVisited<UnmanagedGameComponent>(structVisitor, componentId);
         AssertVisited<UnmanagedGameComponent>(visitor, componentId);
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(componentId, new UnsupportedVisitor()));
+        AssertNotVisited(layouts, componentId, new UnsupportedVisitor());
     }
 
     [Test]
@@ -459,7 +459,7 @@ internal sealed class ComponentTypeVisitorTests
         layouts.Visit(componentId, visitor);
 
         AssertVisited<ClassGameComponent>(visitor, componentId);
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(componentId, new GameComponentVisitor()));
+        AssertNotVisited(layouts, componentId, new GameComponentVisitor());
     }
 
     [Test]
@@ -482,7 +482,7 @@ internal sealed class ComponentTypeVisitorTests
         AssertVisited<ClassGameComponent>(classVisitor, componentId);
         AssertVisited<ClassGameComponent>(newVisitor, componentId);
         AssertVisited<ClassGameComponent>(visitor, componentId);
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(componentId, new UnsupportedVisitor()));
+        AssertNotVisited(layouts, componentId, new UnsupportedVisitor());
     }
 
     [Test]
@@ -493,7 +493,7 @@ internal sealed class ComponentTypeVisitorTests
         layouts.BindInterface<GameComponent, INamedComponent>();
         ComponentId componentId = layouts.Register<GameComponent>(new SchemaId(80_030));
 
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(componentId, new MismatchedConstraintVisitor()));
+        AssertNotVisited(layouts, componentId, new MismatchedConstraintVisitor());
     }
 
     [Test]
@@ -503,20 +503,35 @@ internal sealed class ComponentTypeVisitorTests
         layouts.BindInterface<GameComponent, IGameComponent>();
         ComponentId componentId = layouts.Register<GameComponent>(new SchemaId(80_045));
 
-        Assert.Throws<InvalidCastException>(() => layouts.Visit(componentId, new ChangingConstraintVisitor()));
+        AssertNotVisited(layouts, componentId, new ChangingConstraintVisitor());
     }
 
     [Test]
-    public void VisitRejectsInvalidIds()
+    public void TryVisitReturnsFalseForInvalidIdsAndNullVisitors()
     {
         var layouts = new ComponentLayoutRegistry();
+        ComponentId componentId = layouts.Register<int>(new SchemaId(80_049));
+        var visitor = new StructVisitor();
 
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            layouts.Visit(ComponentId.Invalid, new StructVisitor()));
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            layouts.Visit(new ComponentId(0), new StructVisitor()));
-        Assert.Throws<ArgumentNullException>(() =>
-            layouts.Visit(ComponentId.Invalid, null!));
+        Assert.That(layouts.TryVisit(ComponentId.Invalid, visitor), Is.False);
+        Assert.That(layouts.TryVisit(new ComponentId(1), visitor), Is.False);
+        Assert.That(layouts.TryVisit(ComponentId.Invalid, null), Is.False);
+        Assert.That(layouts.TryVisit(componentId, null), Is.False);
+        Assert.DoesNotThrow(() => layouts.Visit(ComponentId.Invalid, visitor));
+        Assert.DoesNotThrow(() => layouts.Visit(new ComponentId(1), visitor));
+        Assert.DoesNotThrow(() => layouts.Visit(ComponentId.Invalid, null));
+        Assert.DoesNotThrow(() => layouts.Visit(componentId, null));
+    }
+
+    [Test]
+    public void TryVisitReturnsTrueAndInvokesCompatibleVisitor()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId componentId = layouts.Register<int>(new SchemaId(80_048));
+        var visitor = new UnmanagedVisitor();
+
+        Assert.That(layouts.TryVisit(componentId, visitor), Is.True);
+        AssertVisited<int>(visitor, componentId);
     }
 
     private static ComponentId RegisterAsStruct<T>(ComponentLayoutRegistry layouts, SchemaId schemaId)
@@ -548,6 +563,12 @@ internal sealed class ComponentTypeVisitorTests
 
     private static void AssertRoute(VisitorRoute expected, MultiRouteVisitor visitor)
         => Assert.That(visitor.SelectedRoute, Is.EqualTo(expected));
+
+    private static void AssertNotVisited(ComponentLayoutRegistry layouts, ComponentId componentId, IComponentTypeVisitor visitor)
+    {
+        Assert.That(layouts.TryVisit(componentId, visitor), Is.False);
+        Assert.DoesNotThrow(() => layouts.Visit(componentId, visitor));
+    }
 
     private static void AssertVisited<T>(VisitState visitor, ComponentId componentId)
     {

@@ -19,23 +19,32 @@ public sealed partial class ComponentLayoutRegistry
     private readonly Dictionary<Type, List<GenericRegistration>> _genericRegistrations = new();
     private int _tagCount;
 
-    /// <summary>Visits a registered component type using the visitor's registered constraint route.</summary>
-    public void Visit(ComponentId componentId, IComponentTypeVisitor visitor)
+    /// <summary>Visits a compatible registered component type and does nothing for an invalid ID or unsupported visitor.</summary>
+    public void Visit(ComponentId componentId, IComponentTypeVisitor? visitor)
     {
-        ThrowHelper.ThrowIfNull(visitor, nameof(visitor));
-        IComponentRegistrationToken registrationToken = GetComponentVisitorToken(componentId);
+        _ = TryVisit(componentId, visitor);
+    }
+
+    /// <summary>Visits a compatible component type; returns false for an invalid ID, null visitor, or unsupported route.</summary>
+    public bool TryVisit(ComponentId componentId, IComponentTypeVisitor? visitor)
+    {
+        if (visitor is null || !TryGet(componentId, out _))
+        {
+            return false;
+        }
+
+        IComponentRegistrationToken registrationToken = _componentVisitorTokens[componentId.Value];
         if (visitor is IComponentTypeVisitorConstraint constrainedVisitor)
         {
-            RuntimeTypeHandle componentType = GetComponentTypeToken(componentId).ComponentType.TypeHandle;
+            RuntimeTypeHandle componentType = _componentTypeTokens[componentId.Value].ComponentType.TypeHandle;
             var key = (componentType, constrainedVisitor.ConstraintType);
             if (_interfaceVisitorRoutes.TryGetValue(key, out IComponentInterfaceVisitorRoute? route))
             {
-                route.Visit(componentId, visitor);
-                return;
+                return route.TryVisit(componentId, visitor);
             }
         }
 
-        registrationToken.Visit(componentId, visitor);
+        return registrationToken.TryVisit(componentId, visitor);
     }
 
     /// <summary>Registers one component from the generated component catalog.</summary>
@@ -397,12 +406,6 @@ public sealed partial class ComponentLayoutRegistry
     {
         _ = Get(id);
         return _componentTypeTokens[id.Value];
-    }
-
-    internal IComponentRegistrationToken GetComponentVisitorToken(ComponentId id)
-    {
-        _ = Get(id);
-        return _componentVisitorTokens[id.Value];
     }
 
     internal bool TryGet(ComponentId id, out ComponentLayout layout)
