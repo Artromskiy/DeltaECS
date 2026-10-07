@@ -12,19 +12,31 @@ public sealed partial class ComponentLayoutRegistry
     private readonly List<ComponentLayout> _layouts = new();
     private readonly List<ComponentRowOperations> _rowOperations = new();
     private readonly List<IGeneratedComponentTypeToken> _componentTypeTokens = new();
+    private readonly List<IComponentRegistrationToken> _componentVisitorTokens = new();
+    private readonly Dictionary<(RuntimeTypeHandle ComponentType, RuntimeTypeHandle InterfaceType), IComponentInterfaceVisitorRoute> _interfaceVisitorRoutes = new();
     private readonly List<bool> _isTag = new();
     private readonly List<int> _tagIndices = new();
     private readonly Dictionary<Type, List<GenericRegistration>> _genericRegistrations = new();
     private int _tagCount;
 
-    /// <summary>Creates a component layout registry with its component type visitor.</summary>
-    public ComponentLayoutRegistry()
+    /// <summary>Visits a registered component type using the visitor's registered constraint route.</summary>
+    public void Visit(ComponentId componentId, IComponentTypeVisitor visitor)
     {
-        Visitors = new ComponentVisitorRegistry(this);
-    }
+        ThrowHelper.ThrowIfNull(visitor, nameof(visitor));
+        IComponentRegistrationToken registrationToken = GetComponentVisitorToken(componentId);
+        if (visitor is IComponentTypeVisitorConstraint constrainedVisitor)
+        {
+            RuntimeTypeHandle componentType = GetComponentTypeToken(componentId).ComponentType.TypeHandle;
+            var key = (componentType, constrainedVisitor.ConstraintType);
+            if (_interfaceVisitorRoutes.TryGetValue(key, out IComponentInterfaceVisitorRoute? route))
+            {
+                route.Visit(componentId, visitor);
+                return;
+            }
+        }
 
-    /// <summary>Gets the visitor registry for this layout registry.</summary>
-    public ComponentVisitorRegistry Visitors { get; }
+        registrationToken.Visit(componentId, visitor);
+    }
 
     /// <summary>Registers one component from the generated component catalog.</summary>
     public ComponentId Register(IGeneratedComponentRegistration registration)
@@ -36,23 +48,94 @@ public sealed partial class ComponentLayoutRegistry
         }
 
         IGeneratedComponentTypeToken typeToken = GeneratedComponentTypeTokenRegistry.Get(registration.ComponentType);
-        var visitor = new GeneratedComponentRegistrationVisitor(this, registration.SchemaId, registration.IsTag, typeToken);
+        ComponentRegistrationTypeToken registrationToken = CreateComponentRegistrationTypeToken(typeToken);
+        var visitor = new GeneratedComponentRegistrationVisitor(
+            this,
+            registration.SchemaId,
+            registration.IsTag,
+            typeToken,
+            registrationToken);
         typeToken.Dispatch(ReadOnlySpan<IGeneratedComponentTypeToken>.Empty, ref visitor);
         return visitor.ComponentId;
+    }
+
+    private static ComponentRegistrationTypeToken CreateComponentRegistrationTypeToken(IGeneratedComponentTypeToken typeToken)
+    {
+        var visitor = new GeneratedComponentTypeRegistrationTokenFactory();
+
+        if (typeToken is IGeneratedClassConstructibleComponentTypeToken classNewToken)
+        {
+            classNewToken.DispatchClassConstructible(ReadOnlySpan<IGeneratedComponentTypeToken>.Empty, ref visitor);
+        }
+        else if (typeToken is IGeneratedUnmanagedComponentTypeToken unmanagedToken)
+        {
+            unmanagedToken.DispatchUnmanaged(ReadOnlySpan<IGeneratedComponentTypeToken>.Empty, ref visitor);
+        }
+        else if (typeToken is IGeneratedStructComponentTypeToken structToken)
+        {
+            structToken.DispatchStruct(ReadOnlySpan<IGeneratedComponentTypeToken>.Empty, ref visitor);
+        }
+        else if (typeToken is IGeneratedConstructibleComponentTypeToken newToken)
+        {
+            newToken.DispatchConstructible(ReadOnlySpan<IGeneratedComponentTypeToken>.Empty, ref visitor);
+        }
+        else if (typeToken is IGeneratedClassComponentTypeToken classToken)
+        {
+            classToken.DispatchClass(ReadOnlySpan<IGeneratedComponentTypeToken>.Empty, ref visitor);
+        }
+        else
+        {
+            typeToken.Dispatch(ReadOnlySpan<IGeneratedComponentTypeToken>.Empty, ref visitor);
+        }
+
+        return visitor.RegistrationToken;
+    }
+
+    private struct GeneratedComponentTypeRegistrationTokenFactory :
+        IGeneratedComponentTypeVisitor,
+        IGeneratedClassConstructibleComponentTypeVisitor,
+        IGeneratedUnmanagedComponentTypeVisitor,
+        IGeneratedStructComponentTypeVisitor,
+        IGeneratedConstructibleComponentTypeVisitor,
+        IGeneratedClassComponentTypeVisitor
+    {
+        private ComponentRegistrationTypeToken? _registrationToken;
+
+        internal readonly ComponentRegistrationTypeToken RegistrationToken => _registrationToken
+            ?? ThrowHelper.ThrowGeneratedComponentVisitorTokenMissing();
+
+        void IGeneratedComponentTypeVisitor.Visit<T>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining)
+            => _registrationToken = new ComponentRegistrationTypeToken(new UnconstrainedComponentTypeRegistrationRoute<T>());
+
+        void IGeneratedClassConstructibleComponentTypeVisitor.Visit<T>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining)
+            => _registrationToken = new ComponentRegistrationTypeToken(new ClassNewComponentTypeRegistrationRoute<T>());
+
+        void IGeneratedUnmanagedComponentTypeVisitor.Visit<T>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining)
+            => _registrationToken = new ComponentRegistrationTypeToken(new UnmanagedComponentTypeRegistrationRoute<T>());
+
+        void IGeneratedStructComponentTypeVisitor.Visit<T>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining)
+            => _registrationToken = new ComponentRegistrationTypeToken(new StructComponentTypeRegistrationRoute<T>());
+
+        void IGeneratedConstructibleComponentTypeVisitor.Visit<T>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining)
+            => _registrationToken = new ComponentRegistrationTypeToken(new NewComponentTypeRegistrationRoute<T>());
+
+        void IGeneratedClassComponentTypeVisitor.Visit<T>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining)
+            => _registrationToken = new ComponentRegistrationTypeToken(new ClassComponentTypeRegistrationRoute<T>());
     }
 
     private struct GeneratedComponentRegistrationVisitor(
         ComponentLayoutRegistry layouts,
         SchemaId schemaId,
         bool isTag,
-        IGeneratedComponentTypeToken typeToken) : IGeneratedComponentTypeVisitor
+        IGeneratedComponentTypeToken typeToken,
+        ComponentRegistrationTypeToken registrationToken) : IGeneratedComponentTypeVisitor
     {
         private ComponentId _componentId;
 
         internal readonly ComponentId ComponentId => _componentId;
 
         void IGeneratedComponentTypeVisitor.Visit<T>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining)
-            => _componentId = layouts.RegisterGeneratedComponent<T>(schemaId, typeToken, isTag);
+            => _componentId = layouts.RegisterGeneratedComponent<T>(schemaId, typeToken, isTag, registrationToken);
     }
 
     private sealed class GenericRegistration(ComponentId[] arguments, ComponentId componentId)
@@ -193,7 +276,12 @@ public sealed partial class ComponentLayoutRegistry
             && runtimeType.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).Length == 0
             && (runtimeType.StructLayoutAttribute?.Size ?? 0) <= 1;
 
-    private ComponentId Register(ComponentLayout layout, ComponentRowOperations rowOperations, IGeneratedComponentTypeToken typeToken, bool isTag = false)
+    private ComponentId Register(
+        ComponentLayout layout,
+        ComponentRowOperations rowOperations,
+        IGeneratedComponentTypeToken typeToken,
+        IComponentRegistrationToken componentRegistrationToken,
+        bool isTag = false)
     {
         if (_idsBySchema.TryGetValue(layout.SchemaId, out int existingId))
         {
@@ -210,6 +298,7 @@ public sealed partial class ComponentLayoutRegistry
         _layouts.Add(layout);
         _rowOperations.Add(rowOperations);
         _componentTypeTokens.Add(typeToken);
+        _componentVisitorTokens.Add(componentRegistrationToken);
         _isTag.Add(isTag);
         _tagIndices.Add(isTag ? _tagCount++ : -1);
         _idsBySchema.Add(layout.SchemaId, id.Value);
@@ -242,9 +331,10 @@ public sealed partial class ComponentLayoutRegistry
         EnsureGenericMappingAvailable(typeof(T), schemaId, componentArguments);
         var layout = new ComponentLayout(schemaId, typeof(T));
         bool isTag = IsTagType(typeof(T));
+        ComponentRegistrationTypeToken registrationToken = CreateComponentRegistrationTypeToken(typeToken);
         ComponentId componentId = isTag
-            ? Register(layout, default, typeToken, isTag: true)
-            : Register(layout, ComponentRowOperations.ForType<T>(), typeToken);
+            ? Register(layout, default, typeToken, registrationToken, isTag: true)
+            : Register(layout, ComponentRowOperations.ForType<T>(), typeToken, registrationToken);
         RegisterGenericMapping(typeof(T), componentId, componentArguments);
         return componentId;
     }
@@ -307,6 +397,12 @@ public sealed partial class ComponentLayoutRegistry
     {
         _ = Get(id);
         return _componentTypeTokens[id.Value];
+    }
+
+    internal IComponentRegistrationToken GetComponentVisitorToken(ComponentId id)
+    {
+        _ = Get(id);
+        return _componentVisitorTokens[id.Value];
     }
 
     internal bool TryGet(ComponentId id, out ComponentLayout layout)

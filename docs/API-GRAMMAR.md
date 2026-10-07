@@ -56,6 +56,45 @@ does not change the CLR method signature, an obsolete `params` overload cannot
 coexist with the explicit-span overload under the same name and parameter
 types.
 
+## Component registration and type visitors
+
+`Register<T>(schemaId)` returns the component ID directly. The compiler selects the strongest standard constraint known for `T` (`class, new()`, `unmanaged`, `struct`, `new()`, or `class`) when overload-priority support is available. A generic caller with no constraints uses the unconstrained form; pass a marker token only when deliberately selecting a less-specific route:
+
+```csharp
+ComponentId positionId = layouts.Register<Position>(new SchemaId(1));
+
+NewConstraint newConstraint = default;
+ComponentId constructibleId = layouts.Register<Constructible>(new SchemaId(3), in newConstraint);
+```
+
+`BindInterface<TComponent, TInterface>()` declares a visitor route for one concrete component CLR type and one interface. It applies to every schema registration of that CLR type, including registrations made before or after the binding. The compiler checks that `TComponent` implements `TInterface`; binding another component type requires another call. This uses closed generic code directly and does not require generated interface routes:
+
+```csharp
+layouts.BindInterface<Position, IMovable>();
+
+ComponentId positionId = layouts.Register<Position>(new SchemaId(4));
+ComponentId localPositionId = layouts.Register<Position>(new SchemaId(5));
+
+var visitor = new MovementVisitor();
+layouts.Visit(positionId, visitor);
+layouts.Visit(localPositionId, visitor);
+
+public interface IMovable { }
+
+public struct Position : IMovable { }
+
+public sealed class MovementVisitor : IComponentTypeVisitor<IMovable>
+{
+    public RuntimeTypeHandle ConstraintType => typeof(IMovable).TypeHandle;
+
+    public void Visit<T>(ComponentId componentId) where T : IMovable { }
+}
+```
+
+Binding is explicit for each component type. For example, a `Velocity` component that also implements `IMovable` needs its own `layouts.BindInterface<Velocity, IMovable>()` call. A visitor route does not automatically apply to every type that implements the interface.
+
+When compiling with a language version that does not apply `OverloadResolutionPriority`, supply the marker explicitly to avoid relying on automatic selection among the constrained `Register<T>` overloads.
+
 ## Generated iteration forms
 
 Delegate and intercepted-lambda forms are generated with these shapes:

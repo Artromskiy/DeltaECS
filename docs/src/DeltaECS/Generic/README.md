@@ -10,7 +10,9 @@ ComponentId positionId = layouts.Register<Position>(positionSchema);
 ComponentId primary = layouts.GetPrimary<Position>();
 ```
 
-`Register<T>` records `typeof(T)` and whether `T` contains managed references.
+`Register<T>(schemaId)` returns a `ComponentId` directly. Its overload records
+the strongest type constraint known at the registration call site and whether
+`T` contains managed references.
 Multiple component IDs may use the same CLR type; `GetPrimary<T>` resolves the
 first primary registration. An empty non-primitive struct is automatically
 treated as a data-less tag by the same registration method.

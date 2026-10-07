@@ -139,13 +139,19 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
 
             bool needsModuleInitializerAttribute = input.Right.GetTypeByMetadataName("System.Runtime.CompilerServices.ModuleInitializerAttribute") is null;
             var generatedTypeTokens = componentTypes.Values
-                .Select(type => new GeneratedTypeTokenBinding(
-                    GeneratorSupport.DisplayType(type),
-                    "RegisteredComponentTypeToken_" + GeneratorSupport.StableName(GeneratorSupport.DisplayType(type)),
-                    type.IsValueType,
-                    type.IsUnmanagedType,
-                    type.IsReferenceType,
-                    type is INamedTypeSymbol namedType && GenericTypeConstraintSupport.HasPublicParameterlessConstructor(namedType)))
+                .Select(type =>
+                {
+                    string componentTypeName = GeneratorSupport.DisplayType(type);
+                    INamedTypeSymbol? componentNamedType = type as INamedTypeSymbol;
+
+                    return new GeneratedTypeTokenBinding(
+                        componentTypeName,
+                        "RegisteredComponentTypeToken_" + GeneratorSupport.StableName(componentTypeName),
+                        type.IsValueType,
+                        type.IsUnmanagedType,
+                        type.IsReferenceType,
+                        componentNamedType is not null && GenericTypeConstraintSupport.HasPublicParameterlessConstructor(componentNamedType));
+                })
                 .ToArray();
             output.AddSource("GeneratedGenericBindings.g.cs", GenericBindingTemplates.Render(
                 componentDispatchers,

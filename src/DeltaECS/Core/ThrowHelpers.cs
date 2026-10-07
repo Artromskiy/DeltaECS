@@ -8,6 +8,26 @@ using System.Runtime.ExceptionServices;
 
 internal static class ThrowHelper
 {
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowComponentVisitorMismatch(string message)
+        => throw new InvalidCastException(message);
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowComponentVisitorConstraintMismatch()
+        => throw new InvalidCastException("The visitor constraint does not match this component registration.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowComponentVisitorConstraintMustBeInterface(Type constraintType)
+        => throw new ArgumentException($"{constraintType} is not an interface.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static ComponentRegistrationTypeToken ThrowGeneratedComponentVisitorTokenMissing()
+        => throw new InvalidOperationException("Generated component type dispatch did not create a visitor registration token.");
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void ThrowIfNull([NotNull] object? value, string parameterName)
     {

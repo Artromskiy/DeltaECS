@@ -12,8 +12,9 @@ through entity storage, query descriptions, access tokens or iterators.
 - `ComponentId` is a world-local component identity.
 - `SchemaId` is stable tooling/schema identity.
 - `ComponentLayoutRegistry` registers layouts and resolves primary component
-  registrations by CLR `Type`. Register components through `Register<T>`;
-  empty non-primitive structs are inferred as data-less tags.
+  registrations by CLR `Type`. `Register<T>(schemaId)` returns the component ID
+  directly and records the strongest type constraint available at the call site.
+  Empty non-primitive structs are inferred as data-less tags.
 
 ```csharp
 var positionId = layouts.Register<Position>(positionSchema);
