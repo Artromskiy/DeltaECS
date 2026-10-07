@@ -19,8 +19,25 @@ internal static class Program
             throw new InvalidOperationException("The generated single-component registration proof failed.");
         }
 
+        var visitorLayouts = new ComponentLayoutRegistry();
+        visitorLayouts.BindInterface<Position, IPositionComponent>();
+        ComponentId visitorPositionId = visitorLayouts.Register<Position>(new SchemaId(3));
+        var visitor = new AotPositionVisitor();
+        visitorLayouts.Visit(visitorPositionId, visitor);
+        if (visitor.ComponentId != visitorPositionId || visitor.VisitCount != 1)
+        {
+            throw new InvalidOperationException("The generated constraint-aware visitor proof failed.");
+        }
+
         ComponentId positionId = layouts.GetPrimary<Position>();
         ComponentId velocityId = layouts.GetPrimary<Velocity>();
+        var generatedVisitor = new AotUnmanagedVisitor();
+        layouts.Visit(positionId, generatedVisitor);
+        if (generatedVisitor.ComponentId != positionId || generatedVisitor.VisitCount != 1)
+        {
+            throw new InvalidOperationException("The generated component type visitor proof failed.");
+        }
+
         using var world = new World(layouts);
 
         Entity entity = world.Create(stackalloc ComponentId[] { positionId, velocityId });
@@ -55,8 +72,10 @@ internal static class Program
     }
 }
 
+public interface IPositionComponent { }
+
 [DeltaEcsComponent(SchemaId = 1UL)]
-public struct Position
+public struct Position : IPositionComponent
 {
     public int Value;
 }
@@ -65,4 +84,32 @@ public struct Position
 public struct Velocity
 {
     public int Value;
+}
+
+public sealed class AotPositionVisitor : IComponentTypeVisitor<IPositionComponent>
+{
+    public RuntimeTypeHandle ConstraintType => typeof(IPositionComponent).TypeHandle;
+
+    public ComponentId ComponentId { get; private set; }
+
+    public int VisitCount { get; private set; }
+
+    public void Visit<T>(ComponentId componentId) where T : IPositionComponent
+    {
+        ComponentId = componentId;
+        VisitCount++;
+    }
+}
+
+public sealed class AotUnmanagedVisitor : IUnmanagedComponentTypeVisitor
+{
+    public ComponentId ComponentId { get; private set; }
+
+    public int VisitCount { get; private set; }
+
+    public void Visit<T>(ComponentId componentId) where T : unmanaged
+    {
+        ComponentId = componentId;
+        VisitCount++;
+    }
 }

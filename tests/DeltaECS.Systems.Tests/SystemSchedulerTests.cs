@@ -187,7 +187,7 @@ public sealed class SystemSchedulerTests
     {
         using var world = new World();
         using var otherWorld = new World();
-        otherWorld.Layouts.Register<SystemPosition>(new SchemaId(81011));
+        _ = otherWorld.Layouts.Register<SystemPosition>(new SchemaId(81011));
         Query foreignQuery = otherWorld.WhereAll<SystemPosition>();
         var access = new SystemAccess(
             queryAccesses: new[]
@@ -331,7 +331,7 @@ public sealed class SystemSchedulerTests
     public void ExternalWorldAccessFailsFastDuringTick()
     {
         using var world = new World();
-        world.Layouts.Register<GeneratedSetComponent>(new SchemaId(1));
+        _ = world.Layouts.Register<GeneratedSetComponent>(new SchemaId(1));
         _ = GeneratedForEachRuntime.GetGeneratedPrimaryComponentIds<GeneratedSetKey>(
             world,
             static _ => new[] { Position });

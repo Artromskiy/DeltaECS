@@ -51,7 +51,9 @@ internal sealed class ComponentLayoutRegistryTests
         var position = layouts.Register<Position>(new SchemaId(70_021));
 
         Assert.Throws<InvalidOperationException>(() =>
-            layouts.Register<Velocity>(new SchemaId(70_021)));
+        {
+            _ = layouts.Register<Velocity>(new SchemaId(70_021));
+        });
 
         Assert.That(layouts.GetPrimary<Position>(), Is.EqualTo(position));
         Assert.That(layouts.TryGetPrimary<Velocity>(out _), Is.False);
@@ -71,49 +73,6 @@ internal sealed class ComponentLayoutRegistryTests
         Assert.That(resolvedValue, Is.EqualTo(valueId));
         Assert.That(resolvedReference, Is.EqualTo(referenceId));
         Assert.That(referenceValue, Is.Not.Null);
-    }
-
-    [Test]
-    public void VisitorDispatchesRegisteredTypeAndRegistrationId()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        layouts.Register<Position>(new SchemaId(70_071));
-        ComponentId secondPosition = layouts.Register<Position>(new SchemaId(70_072));
-        var visitor = default(ComponentTypeVisitor);
-
-        layouts.Visitors.Visit(secondPosition, ref visitor);
-
-        Assert.That(visitor.VisitCount, Is.EqualTo(1));
-        Assert.That(visitor.ComponentId, Is.EqualTo(secondPosition));
-        Assert.That(visitor.ComponentType, Is.EqualTo(typeof(Position)));
-    }
-
-    [Test]
-    public void VisitorDispatchAcceptsReferenceVisitors()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        ComponentId componentId = layouts.Register<Position>(new SchemaId(70_073));
-        var visitor = new ReferenceComponentTypeVisitor();
-
-        layouts.Visitors.Visit(componentId, ref visitor);
-
-        Assert.That(visitor.VisitCount, Is.EqualTo(1));
-        Assert.That(visitor.ComponentId, Is.EqualTo(componentId));
-        Assert.That(visitor.ComponentType, Is.EqualTo(typeof(Position)));
-    }
-
-    [Test]
-    public void VisitorDispatchRejectsAnUnregisteredComponentId()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        var visitor = default(ComponentTypeVisitor);
-
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-        {
-            layouts.Visitors.Visit(ComponentId.Invalid, ref visitor);
-        });
-
-        Assert.That(visitor.VisitCount, Is.Zero);
     }
 
     [Test]
@@ -177,34 +136,6 @@ internal sealed class ComponentLayoutRegistryTests
     private sealed class ReferenceComponent
     {
         public int Value { get; init; }
-    }
-
-    private struct ComponentTypeVisitor : IComponentTypeVisitor
-    {
-        public ComponentId ComponentId;
-        public Type? ComponentType;
-        public int VisitCount;
-
-        public void Visit<T>(ComponentId componentId)
-        {
-            ComponentId = componentId;
-            ComponentType = typeof(T);
-            VisitCount++;
-        }
-    }
-
-    private sealed class ReferenceComponentTypeVisitor : IComponentTypeVisitor
-    {
-        public ComponentId ComponentId;
-        public Type? ComponentType;
-        public int VisitCount;
-
-        public void Visit<T>(ComponentId componentId)
-        {
-            ComponentId = componentId;
-            ComponentType = typeof(T);
-            VisitCount++;
-        }
     }
 
     private static bool TryGetPrimaryByType(

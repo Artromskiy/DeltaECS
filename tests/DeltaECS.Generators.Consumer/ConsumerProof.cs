@@ -62,7 +62,7 @@ internal struct RegisterClosedGenericListComponent : IClosedGenericStructAction
     }
 
     public void Invoke<T>() where T : struct
-        => _layouts.Register<T>(new SchemaId(91901));
+        => _ = _layouts.Register<T>(new SchemaId(91901));
 }
 
 internal struct CopyGenericListHistory<T> : IForEach
