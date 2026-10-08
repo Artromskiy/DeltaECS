@@ -171,12 +171,8 @@ public class WidePayloadPartialReadIterationBenchmarks
             in _entityRefChecksum,
             static (in WidePayloadChecksum checksum, EntityRef entity) =>
             {
-                if (!entity.TryGet(checksum.FirstId, out WidePayload0 payload0)
-                    || !entity.TryGet(checksum.LastId, out WidePayload7 payload7))
-                {
-                    return;
-                }
-
+                ref WidePayload0 payload0 = ref entity.GetRef<WidePayload0>(checksum.FirstId);
+                ref WidePayload7 payload7 = ref entity.GetRef<WidePayload7>(checksum.LastId);
                 Interlocked.Add(ref checksum.Value, payload0.Value + payload7.Value);
             },
             WorkerCount);
@@ -272,12 +268,8 @@ internal struct WidePayloadEntityRefFunctor : IForEachEntity
 
     public void Invoke(EntityRef entity)
     {
-        if (!entity.TryGet(_checksum.FirstId, out WidePayload0 payload0)
-            || !entity.TryGet(_checksum.LastId, out WidePayload7 payload7))
-        {
-            return;
-        }
-
+        ref WidePayload0 payload0 = ref entity.GetRef<WidePayload0>(_checksum.FirstId);
+        ref WidePayload7 payload7 = ref entity.GetRef<WidePayload7>(_checksum.LastId);
         Interlocked.Add(ref _checksum.Value, payload0.Value + payload7.Value);
     }
 }
