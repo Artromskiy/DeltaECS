@@ -6,22 +6,44 @@ namespace Delta.ECS.Tests;
 internal sealed class ComponentTypeVisitorTests
 {
     [Test]
-    public void UnmanagedRegistrationAcceptsUnmanagedStructAndNewVisitors()
+    public void UnmanagedRegistrationAcceptsUnconstrainedAndNarrowVisitors()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId componentId = layouts.Register<int>(new SchemaId(80_001));
 
+        var unconstrainedVisitor = new UnconstrainedVisitor();
         var unmanagedVisitor = new UnmanagedVisitor();
         var structVisitor = new StructVisitor();
         var newVisitor = new NewVisitor();
-        layouts.Visit(componentId, unmanagedVisitor);
-        layouts.Visit(componentId, structVisitor);
-        layouts.Visit(componentId, newVisitor);
+        Assert.That(layouts.TryVisit(componentId, unconstrainedVisitor), Is.True);
+        Assert.That(layouts.TryVisit(componentId, unmanagedVisitor), Is.True);
+        Assert.That(layouts.TryVisit(componentId, structVisitor), Is.True);
+        Assert.That(layouts.TryVisit(componentId, newVisitor), Is.True);
 
+        AssertVisited<int>(unconstrainedVisitor, componentId);
         AssertVisited<int>(unmanagedVisitor, componentId);
         AssertVisited<int>(structVisitor, componentId);
         AssertVisited<int>(newVisitor, componentId);
         AssertNotVisited(layouts, componentId, new UnsupportedVisitor());
+    }
+
+    [Test]
+    public void AutomaticRegistrationRoutesAcceptAnUnconstrainedVisitor()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId unconstrainedId = RegisterWithoutConstraint<ManagedStructComponent>(layouts, new SchemaId(80_050));
+        ComponentId structId = layouts.Register<ManagedStructComponent>(new SchemaId(80_051));
+        ComponentId classId = layouts.Register<ClassOnlyComponent>(new SchemaId(80_052));
+        ComponentId unmanagedId = layouts.Register<int>(new SchemaId(80_053));
+        ComponentId newId = RegisterAsNew<ClassNewComponent>(layouts, new SchemaId(80_054));
+        ComponentId classNewId = layouts.Register<ClassNewComponent>(new SchemaId(80_055));
+
+        AssertUnconstrainedVisit<ManagedStructComponent>(layouts, unconstrainedId);
+        AssertUnconstrainedVisit<ManagedStructComponent>(layouts, structId);
+        AssertUnconstrainedVisit<ClassOnlyComponent>(layouts, classId);
+        AssertUnconstrainedVisit<int>(layouts, unmanagedId);
+        AssertUnconstrainedVisit<ClassNewComponent>(layouts, newId);
+        AssertUnconstrainedVisit<ClassNewComponent>(layouts, classNewId);
     }
 
     [Test]
@@ -203,7 +225,7 @@ internal sealed class ComponentTypeVisitorTests
     }
 
     [Test]
-    public void ClassRegistrationAcceptsOnlyClassVisitor()
+    public void ClassRegistrationAcceptsClassAndUnconstrainedVisitors()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId componentId = layouts.Register<ClassOnlyComponent>(new SchemaId(80_019));
@@ -213,16 +235,16 @@ internal sealed class ComponentTypeVisitorTests
 
         AssertVisited<ClassOnlyComponent>(visitor, componentId);
         AssertNotVisited(layouts, componentId, new NewVisitor());
-        AssertNotVisited(layouts, componentId, new UnconstrainedVisitor());
+        AssertUnconstrainedVisit<ClassOnlyComponent>(layouts, componentId);
     }
 
     [Test]
-    public void ClassNewRegistrationRejectsUnsupportedVisitors()
+    public void ClassNewRegistrationAcceptsUnconstrainedAndRejectsUnmanagedVisitors()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId componentId = layouts.Register<ClassNewComponent>(new SchemaId(80_020));
 
-        AssertNotVisited(layouts, componentId, new UnconstrainedVisitor());
+        AssertUnconstrainedVisit<ClassNewComponent>(layouts, componentId);
         AssertNotVisited(layouts, componentId, new UnmanagedVisitor());
     }
 
@@ -250,7 +272,7 @@ internal sealed class ComponentTypeVisitorTests
         AssertVisited<ClassNewComponent>(classNewVisitor, classNewId);
         AssertNotVisited(layouts, classId, new NewVisitor());
         AssertNotVisited(layouts, newId, new ClassVisitor());
-        AssertNotVisited(layouts, classNewId, new UnconstrainedVisitor());
+        AssertUnconstrainedVisit<ClassNewComponent>(layouts, classNewId);
     }
 
     [Test]
@@ -575,6 +597,13 @@ internal sealed class ComponentTypeVisitorTests
         Assert.That(visitor.ComponentId, Is.EqualTo(componentId));
         Assert.That(visitor.ComponentType, Is.EqualTo(typeof(T)));
         Assert.That(visitor.VisitCount, Is.EqualTo(1));
+    }
+
+    private static void AssertUnconstrainedVisit<T>(ComponentLayoutRegistry layouts, ComponentId componentId)
+    {
+        var visitor = new UnconstrainedVisitor();
+        Assert.That(layouts.TryVisit(componentId, visitor), Is.True);
+        AssertVisited<T>(visitor, componentId);
     }
 
     private interface IGameComponent { }

@@ -25,21 +25,24 @@ internal abstract class ComponentTypeRegistrationRoute<TComponent> : IComponentT
     public bool TryVisit(ComponentId componentId, IVisitor visitor)
         => TryVisitTyped(componentId, visitor);
 
+    internal bool TryVisitUnconstrained(ComponentId componentId, IVisitor visitor)
+    {
+        if (visitor is not IUnconstrainedVisitor unconstrainedVisitor)
+        {
+            return false;
+        }
+
+        unconstrainedVisitor.Visit<TComponent>(componentId);
+        return true;
+    }
+
     protected abstract bool TryVisitTyped(ComponentId componentId, IVisitor visitor);
 }
 
 internal sealed class UnconstrainedComponentTypeRegistrationRoute<TComponent> : ComponentTypeRegistrationRoute<TComponent>
 {
     protected override bool TryVisitTyped(ComponentId componentId, IVisitor visitor)
-    {
-        if (visitor is not IUnconstrainedVisitor typedVisitor)
-        {
-            return false;
-        }
-
-        typedVisitor.Visit<TComponent>(componentId);
-        return true;
-    }
+        => TryVisitUnconstrained(componentId, visitor);
 }
 
 internal sealed class StructComponentTypeRegistrationRoute<TComponent> : ComponentTypeRegistrationRoute<TComponent>
@@ -53,13 +56,13 @@ internal sealed class StructComponentTypeRegistrationRoute<TComponent> : Compone
             return true;
         }
 
-        if (visitor is not IStructVisitor typedVisitor)
+        if (visitor is IStructVisitor typedVisitor)
         {
-            return false;
+            typedVisitor.Visit<TComponent>(componentId);
+            return true;
         }
 
-        typedVisitor.Visit<TComponent>(componentId);
-        return true;
+        return TryVisitUnconstrained(componentId, visitor);
     }
 }
 
@@ -68,13 +71,13 @@ internal sealed class ClassComponentTypeRegistrationRoute<TComponent> : Componen
 {
     protected override bool TryVisitTyped(ComponentId componentId, IVisitor visitor)
     {
-        if (visitor is not IClassVisitor typedVisitor)
+        if (visitor is IClassVisitor typedVisitor)
         {
-            return false;
+            typedVisitor.Visit<TComponent>(componentId);
+            return true;
         }
 
-        typedVisitor.Visit<TComponent>(componentId);
-        return true;
+        return TryVisitUnconstrained(componentId, visitor);
     }
 }
 
@@ -101,7 +104,7 @@ internal sealed class UnmanagedComponentTypeRegistrationRoute<TComponent> : Comp
             return true;
         }
 
-        return false;
+        return TryVisitUnconstrained(componentId, visitor);
     }
 }
 
@@ -110,13 +113,13 @@ internal sealed class NewComponentTypeRegistrationRoute<TComponent> : ComponentT
 {
     protected override bool TryVisitTyped(ComponentId componentId, IVisitor visitor)
     {
-        if (visitor is not INewVisitor typedVisitor)
+        if (visitor is INewVisitor typedVisitor)
         {
-            return false;
+            typedVisitor.Visit<TComponent>(componentId);
+            return true;
         }
 
-        typedVisitor.Visit<TComponent>(componentId);
-        return true;
+        return TryVisitUnconstrained(componentId, visitor);
     }
 }
 
@@ -143,7 +146,7 @@ internal sealed class ClassNewComponentTypeRegistrationRoute<TComponent> : Compo
             return true;
         }
 
-        return false;
+        return TryVisitUnconstrained(componentId, visitor);
     }
 }
 
