@@ -40,15 +40,15 @@ internal static class GeneratedIterationGrammarProof
                 cmp2.Value += state.Value + cmp1.Value);
 
         // Query-wide entity-aware callbacks.
-        world.ForEachEntity(in query, static (Entity entity, in Cmp1 cmp1) => _ = entity.Index + cmp1.Value);
+        world.ForEachEntity(in query, static (EntityRef entity, in Cmp1 cmp1) => _ = entity.Index + cmp1.Value);
         world.ForEachEntity<Cmp1>(in query, cmp1Id,
-            static (Entity entity, ref Cmp1 cmp1) => cmp1.Value += entity.Index);
+            static (EntityRef entity, ref Cmp1 cmp1) => cmp1.Value += entity.Index);
         world.ForEachEntity<Cmp1, Cmp2>(in query, componentIds,
-            static (Entity entity, in Cmp1 cmp1, ref Cmp2 cmp2) => cmp2.Value += entity.Index + cmp1.Value);
+            static (EntityRef entity, in Cmp1 cmp1, ref Cmp2 cmp2) => cmp2.Value += entity.Index + cmp1.Value);
         world.ForEachEntity<Context, Cmp1>(in query, ref context,
-            static (ref Context state, Entity entity, in Cmp1 cmp1) => state.Value += entity.Index + cmp1.Value);
+            static (ref Context state, EntityRef entity, in Cmp1 cmp1) => state.Value += entity.Index + cmp1.Value);
         world.ForEachEntity<Context, Cmp1>(in query, cmp1Id, ref context,
-            static (ref Context state, Entity entity, in Cmp1 cmp1) => state.Value += entity.Index + cmp1.Value);
+            static (ref Context state, EntityRef entity, in Cmp1 cmp1) => state.Value += entity.Index + cmp1.Value);
 
         // Entity-list delegates: span/array, optional query, selectors, and context.
         world.ForEach(entities, static (ref Cmp1 cmp1) => cmp1.Value++);
@@ -68,19 +68,19 @@ internal static class GeneratedIterationGrammarProof
         world.ForEach<Cmp1>(entityArray, in query, cmp1Id,
             static (ref Cmp1 cmp1) => cmp1.Value++);
         world.ForEachEntity<Cmp1>(entities, in query, cmp1Id,
-            static (Entity entity, ref Cmp1 cmp1) => cmp1.Value += entity.Index);
+            static (EntityRef entity, ref Cmp1 cmp1) => cmp1.Value += entity.Index);
         world.ForEachEntity<Cmp1, Cmp2>(entities, componentIds,
-            static (Entity entity, in Cmp1 cmp1, ref Cmp2 cmp2) => cmp2.Value += entity.Index + cmp1.Value);
+            static (EntityRef entity, in Cmp1 cmp1, ref Cmp2 cmp2) => cmp2.Value += entity.Index + cmp1.Value);
         world.ForEachEntity(entities, in query,
-            static (Entity entity) => _ = entity.Index);
+            static (EntityRef entity) => _ = entity.Index);
         world.ForEachEntity(entities,
-            static (Entity entity) => _ = entity.Index);
+            static (EntityRef entity) => _ = entity.Index);
         world.ForEachEntity(entities, ref context,
-            static (ref Context state, Entity entity) => state.Value += entity.Index);
+            static (ref Context state, EntityRef entity) => state.Value += entity.Index);
         world.ForEachEntity(entityArray, in query,
-            static (Entity entity, ref Cmp1 cmp1) => cmp1.Value += entity.Index);
+            static (EntityRef entity, ref Cmp1 cmp1) => cmp1.Value += entity.Index);
         world.ForEachEntity<Context, Cmp1>(entityArray, in query, cmp1Id, ref context,
-            static (ref Context state, Entity entity, ref Cmp1 cmp1) => cmp1.Value += state.Value + entity.Index);
+            static (ref Context state, EntityRef entity, ref Cmp1 cmp1) => cmp1.Value += state.Value + entity.Index);
 
         // Typed functors: row modes R/W/I/V/RW, selectors, entity access, and context.
         var functorW = new FunctorW();
@@ -135,15 +135,15 @@ internal static class GeneratedIterationGrammarProof
         world.ForEach(in query, readContext,
             static (Context state, ref Cmp1 cmp1) => cmp1.Value += state.Value);
         world.ForEachEntity(in query, readContext,
-            static (Context state, Entity entity, ref Cmp1 cmp1) => cmp1.Value += state.Value + entity.Index);
+            static (Context state, EntityRef entity, ref Cmp1 cmp1) => cmp1.Value += state.Value + entity.Index);
         world.ForEachEntityParallel(in query,
-            static (Entity entity) => _ = entity.Index,
+            static (EntityRef entity) => _ = entity.Index,
             workerCount: 2);
         world.ForEachEntityParallel<Cmp1>(in query, cmp1Id,
-            static (Entity entity, ref Cmp1 cmp1) => cmp1.Value += entity.Index,
+            static (EntityRef entity, ref Cmp1 cmp1) => cmp1.Value += entity.Index,
             workerCount: 2);
         world.ForEachEntityParallel<Context, Cmp1>(in query, in readContext,
-            static (in Context state, Entity entity, ref Cmp1 cmp1) => cmp1.Value += state.Value + entity.Index,
+            static (in Context state, EntityRef entity, ref Cmp1 cmp1) => cmp1.Value += state.Value + entity.Index,
             workerCount: 2);
 
         // Parallel entity-list delegates and entity-aware variants.
@@ -167,20 +167,20 @@ internal static class GeneratedIterationGrammarProof
             static (ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += cmp2.Value,
             workerCount: 2);
         world.ForEachEntityParallel(entities,
-            static (Entity entity) => _ = entity.Index,
+            static (EntityRef entity) => _ = entity.Index,
             workerCount: 2);
         world.ForEachEntityParallel(entities, in query,
-            static (Entity entity) => _ = entity.Index,
+            static (EntityRef entity) => _ = entity.Index,
             workerCount: 2);
-        world.ForEachEntityParallel(entityArray, static (Entity entity) => _ = entity.Index, workerCount: 2);
+        world.ForEachEntityParallel(entityArray, static (EntityRef entity) => _ = entity.Index, workerCount: 2);
         world.ForEachEntityParallel<Cmp1, Cmp2>(entities, cmp1Id, cmp2Id,
-            static (Entity entity, ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += entity.Index + cmp2.Value,
+            static (EntityRef entity, ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += entity.Index + cmp2.Value,
             workerCount: 2);
         world.ForEachEntityParallel<Context, Cmp1>(entities, in query, in readContext,
-            static (in Context state, Entity entity, ref Cmp1 cmp1) => cmp1.Value += state.Value + entity.Index,
+            static (in Context state, EntityRef entity, ref Cmp1 cmp1) => cmp1.Value += state.Value + entity.Index,
             workerCount: 2);
         world.ForEachEntityParallel<Context, Cmp1>(entityArray, cmp1Id, in readContext,
-            static (in Context state, Entity entity, ref Cmp1 cmp1) => cmp1.Value += state.Value + entity.Index,
+            static (in Context state, EntityRef entity, ref Cmp1 cmp1) => cmp1.Value += state.Value + entity.Index,
             workerCount: 2);
 
         // Parallel functors use the same selector/context order and retain caller state by ref.

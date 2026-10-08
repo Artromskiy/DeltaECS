@@ -58,7 +58,7 @@ internal sealed class ParallelIterationTests
         world.ForEachEntityParallel(
             in query,
             state,
-            static (ParallelState value, Entity entity, ref Position position) =>
+            static (ParallelState value, EntityRef entity, ref Position position) =>
             {
                 _ = entity;
                 position.X += value.Delta;
@@ -91,8 +91,8 @@ internal sealed class ParallelIterationTests
         ForEachEntityAction entityAction = _ => Interlocked.Increment(ref entityVisits);
         ForEachContextActionIn<ParallelState> readOnlyAction = static (in ParallelState _) => { };
         ForEachContextActionValue<ParallelState> valueAction = static _ => { };
-        ForEachContextEntityActionIn<ParallelState> readOnlyEntityAction = (in ParallelState _, Entity __) => Interlocked.Increment(ref readOnlyContextVisits);
-        ForEachContextEntityActionValue<ParallelState> valueEntityAction = (ParallelState _, Entity __) => Interlocked.Increment(ref valueContextVisits);
+        ForEachContextEntityActionIn<ParallelState> readOnlyEntityAction = (in ParallelState _, EntityRef __) => Interlocked.Increment(ref readOnlyContextVisits);
+        ForEachContextEntityActionValue<ParallelState> valueEntityAction = (ParallelState _, EntityRef __) => Interlocked.Increment(ref valueContextVisits);
 
         Assert.Multiple(() =>
         {
@@ -111,12 +111,12 @@ internal sealed class ParallelIterationTests
             selected,
             in query,
             entityListVisits,
-            static (int[] visits, Entity _) => Interlocked.Increment(ref visits[0]),
+            static (int[] visits, EntityRef _) => Interlocked.Increment(ref visits[0]),
             workerCount: 4);
         world.ForEachEntityParallel(
             selected,
             entityListVisits,
-            static (int[] visits, Entity _) => Interlocked.Increment(ref visits[0]),
+            static (int[] visits, EntityRef _) => Interlocked.Increment(ref visits[0]),
             workerCount: 4);
 
         Assert.Multiple(() =>
@@ -223,7 +223,7 @@ internal sealed class ParallelIterationTests
             entities,
             in query,
             entityListThreadId,
-            static (int[] threadId, Entity _) => Volatile.Write(ref threadId[0], Environment.CurrentManagedThreadId),
+            static (int[] threadId, EntityRef _) => Volatile.Write(ref threadId[0], Environment.CurrentManagedThreadId),
             workerCount: 2);
 
         Assert.That(Volatile.Read(ref entityListThreadId[0]), Is.EqualTo(callerThreadId));

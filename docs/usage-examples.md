@@ -35,7 +35,7 @@ var any = world.WhereAny<Position, Velocity>();
 var none = world.WhereNone<Velocity>();
 
 world.ForEachEntity(in any,
-    static (Entity current) => Console.WriteLine(current.Index));
+    static (EntityRef current) => Console.WriteLine(current.Index));
 ```
 
 `All` requires every listed component, `Any` requires at least one, and `None`
@@ -117,7 +117,7 @@ public struct Step
 ```
 
 Context comes before components and is passed by `ref`. For a callback that
-also receives identity, use `ForEachEntity` and put `Entity` after context.
+also receives identity, use `ForEachEntity` and put `EntityRef` after context.
 Functor equivalents implement `IForEachContext<TContext>` or
 `IForEachContextEntity<TContext>`; component parameters still come from
 `Invoke`. The [README](../README.md#generate-a-stateful-system) demonstrates a
@@ -137,9 +137,9 @@ world.WhereEntity(in query, ref predicateState, ref predicate)
 ```
 
 `Invoke` receives `ref TContext` when a context is supplied, then `Entity` for
-`WhereEntity`, then predicate components. `Where` omits `Entity`. Terminal
-`ForEach` uses the usual component-only form; `ForEachEntity` includes the
-entity after its context. Static-lambda terminals can be lowered by the
+the `WhereEntity` predicate, then predicate components. `Where` omits `Entity`.
+Terminal `ForEach` uses the usual component-only form; `ForEachEntity` includes
+an `EntityRef` after its context. Static-lambda terminals can be lowered by the
 optional interceptor path to the same chunk execution as ordinary generated
 `ForEach`.
 
@@ -258,8 +258,8 @@ world.WhereEntity(
         in query,
         static (Entity current, in Health health, in Team team) =>
             health.Value <= 0 && team.Id == 1)
-    .ForEachEntity(static (Entity current, in Health health, in Team team) =>
-        LogDeath(current, team));
+    .ForEachEntity(static (EntityRef current, in Health health, in Team team) =>
+        LogDeath(current.Handle, team));
 
 world.Where(
         in query,

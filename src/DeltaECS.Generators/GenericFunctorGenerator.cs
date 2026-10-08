@@ -57,7 +57,7 @@ public sealed class GenericFunctorGenerator : IIncrementalGenerator
             .Where(static method => !method.IsStatic && !method.IsGenericMethod && method.ReturnsVoid
                 && method.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal
                 && method.Parameters.All(static parameter => CallbackReader.IsSupportedRefKind(parameter.RefKind)))
-            .Where(method => CallbackReader.HasValidPrefix(method, hasContext, hasEntity, contextType, requireRefContext: false))
+            .Where(method => CallbackReader.HasValidPrefix(method, hasContext, hasEntity, contextType, requireRefContext: false, entityRef: true))
             .ToArray();
         if (methods.Length != 1)
         {

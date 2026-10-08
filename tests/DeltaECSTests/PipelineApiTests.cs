@@ -20,7 +20,7 @@ internal sealed class PipelineApiTests
         int entityVisits = 0;
         ForEachEntityAction entityAction = _ => entityVisits++;
         ForEachContextAction<int> contextAction = static (ref int _) => { };
-        ForEachContextEntityAction<int> contextEntityAction = static (ref int value, Entity _) => value++;
+        ForEachContextEntityAction<int> contextEntityAction = static (ref int value, EntityRef _) => value++;
 
         Assert.Multiple(() =>
         {
@@ -37,11 +37,11 @@ internal sealed class PipelineApiTests
             selected,
             in query,
             ref entityListVisits,
-            static (ref int visits, Entity _) => visits++);
+            static (ref int visits, EntityRef _) => visits++);
         world.ForEachEntity(
             selected,
             ref entityListVisits,
-            static (ref int visits, Entity _) => visits++);
+            static (ref int visits, EntityRef _) => visits++);
 
         Assert.Multiple(() =>
         {
@@ -54,8 +54,8 @@ internal sealed class PipelineApiTests
         ForEachContextActionValue<int> valueContextAction = static _ => { };
         int readOnlyContextVisits = 0;
         int valueContextVisits = 0;
-        ForEachContextEntityActionIn<int> readOnlyEntityContextAction = (in int _, Entity __) => readOnlyContextVisits++;
-        ForEachContextEntityActionValue<int> valueEntityContextAction = (int _, Entity __) => valueContextVisits++;
+        ForEachContextEntityActionIn<int> readOnlyEntityContextAction = (in int _, EntityRef __) => readOnlyContextVisits++;
+        ForEachContextEntityActionValue<int> valueEntityContextAction = (int _, EntityRef __) => valueContextVisits++;
 
         Assert.Multiple(() =>
         {
@@ -111,7 +111,7 @@ internal sealed class PipelineApiTests
         world.ForEachEntity(
             entities.AsSpan(1),
             in query,
-            static (Entity entity, ref PipelinePosition position, in PipelineVelocity velocity) =>
+            static (EntityRef entity, ref PipelinePosition position, in PipelineVelocity velocity) =>
             {
                 position.Value = entity.Index + velocity.Value;
             });
@@ -160,7 +160,7 @@ internal sealed class PipelineApiTests
         world.ForEachEntityParallel(
             entities,
             in query,
-            static (Entity entity, ref PipelinePosition position) => position.Value = entity.Index + 1,
+            static (EntityRef entity, ref PipelinePosition position) => position.Value = entity.Index + 1,
             workerCount: 2);
 
         for (int index = 0; index < entities.Length; index++)

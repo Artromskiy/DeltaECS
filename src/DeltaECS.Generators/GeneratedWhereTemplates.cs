@@ -91,7 +91,7 @@ internal static class GeneratedWhereTemplates
                 shape.HasContext ? $"ref {InterceptedPredicateContextType(site)} {parameters[parameterIndex++]}" : string.Empty,
                 hasEntity ? $"Entity {parameters[parameterIndex++]}" : string.Empty
             }
-            : new[] { hasEntity ? $"Entity {parameters[parameterIndex++]}" : string.Empty };
+            : new[] { hasEntity ? $"EntityRef {parameters[parameterIndex++]}" : string.Empty };
         string[] declarations = prefixes
             .Concat(Enumerable.Range(0, slots.Arity).Select(index =>
                 slots.ComponentParameter(index, componentTypes[index], parameters[parameterIndex++])))
@@ -187,12 +187,12 @@ internal static class GeneratedWhereTemplates
         }.Concat(Enumerable.Range(0, shape.Arity)
             .Select(index => predicateSlots.ComponentArgument(index, $"taggedRow{index}")))
         .Where(static argument => argument.Length != 0));
-        bool needsEntity = shape.HasEntity || terminal.HasEntity;
+        bool needsEntity = shape.HasEntity || terminal.IsGeneratedEntityConsumer;
         string TerminalCall(IReadOnlyList<string> rowNames) => $$"""
             {{(terminal.IsFunctor ? "action.Invoke" : "Action_" + site.Id)}}({{string.Join(", ", new[]
                 {
                     terminal.IsFunctor && terminal.HasContext ? "ref context" : string.Empty,
-                    terminal.HasEntity ? "__whereEntity_" + site.Id : string.Empty
+                    terminal.HasEntity ? "__whereEntityRef_" + site.Id : string.Empty
                 }.Concat(Enumerable.Range(0, terminal.Arity)
                     .Select(index => terminalSlots.ComponentArgument(index, rowNames[shape.Arity + index])))
                 .Where(static argument => argument.Length != 0))}});
@@ -203,6 +203,9 @@ internal static class GeneratedWhereTemplates
         {
             needsEntity
                 ? $$"""Entity __whereEntity_{{site.Id}} = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index);"""
+                : string.Empty,
+            terminal.HasEntity
+                ? $$"""EntityRef __whereEntityRef_{{site.Id}} = slots.GetEntityRef(index);"""
                 : string.Empty,
             GeneratorTemplates.RenderBlock($"if (Predicate_{site.Id}({predicateArguments}))", terminalCall)
         });
@@ -227,6 +230,9 @@ internal static class GeneratedWhereTemplates
             "        int slotIndex = tagSlots[tagIndex];",
             needsEntity
                 ? $$"""        Entity __whereEntity_{{site.Id}} = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, slotIndex);"""
+                : string.Empty,
+            terminal.HasEntity
+                ? $$"""        EntityRef __whereEntityRef_{{site.Id}} = slots.GetEntityRefAtSlot(slotIndex);"""
                 : string.Empty,
             GeneratorTemplates.JoinIndexed(accessCount, index =>
                 $$"""        ref {{(index < shape.Arity ? site.PredicateComponents[index] : site.ActionComponents[index - shape.Arity])}} taggedRow{{index}} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row{{index}}, slotIndex);""", "\n"),
@@ -526,7 +532,7 @@ internal static class GeneratedWhereTemplates
         string hash = GeneratorSupport.StableName(terminal.SignatureKey);
         string[] parameters = new[]
             {
-                terminal.HasEntity ? "Entity entity" : string.Empty
+                terminal.HasEntity ? "EntityRef entity" : string.Empty
             }
             .Append(slots.ComponentParameters(genericPrefix: "U"))
             .Where(static parameter => parameter.Length != 0)
@@ -688,10 +694,14 @@ internal static class GeneratedWhereTemplates
             loopLines.Add(componentRows);
         }
 
-        bool needsEntity = shape.HasEntity || terminal.HasEntity;
+        bool needsEntity = shape.HasEntity || terminal.IsGeneratedEntityConsumer;
         if (needsEntity)
         {
             loopLines.Add("            Entity entity = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index);");
+        }
+        if (terminal.HasEntity && !terminal.IsGeneratedEntityConsumer)
+        {
+            loopLines.Add("            EntityRef entityRef = slots.GetEntityRefAtSlot(index);");
         }
         string predicateInvocation = RenderPredicateInvocation(shape);
         if (terminal.IsCallback)
@@ -716,7 +726,7 @@ internal static class GeneratedWhereTemplates
 
             if (terminal.HasEntity)
             {
-                actionArguments.Add("entity");
+                actionArguments.Add(terminal.IsGeneratedEntityConsumer ? "entity" : "entityRef");
             }
 
             string componentArguments = terminalSlots.ComponentArguments("component", shape.Arity);

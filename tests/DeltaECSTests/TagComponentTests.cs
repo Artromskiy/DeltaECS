@@ -64,7 +64,7 @@ internal sealed class TagComponentTests
 
         Query markedOnly = world.WhereAll<MarkedTag>();
         int markedOnlyCount = 0;
-        ForEachContextEntityAction<int> countTaggedEntity = static (ref int count, Entity _) => count++;
+        ForEachContextEntityAction<int> countTaggedEntity = static (ref int count, EntityRef _) => count++;
         world.ForEachEntity(in markedOnly, ref markedOnlyCount, countTaggedEntity);
         Assert.That(markedOnlyCount, Is.EqualTo(CountMatches(entities.Length, static index => index % 3 == 0)));
 
@@ -250,7 +250,7 @@ internal sealed class TagComponentTests
         world.ForEachEntityStamp<Dictionary<int, Stamp>, TagValue>(
             in query,
             ref expected,
-            static (ref Dictionary<int, Stamp> stamps, Entity entity, in Stamp stamp) =>
+            static (ref Dictionary<int, Stamp> stamps, EntityRef entity, in Stamp stamp) =>
             {
                 Assert.That(stamps.Remove(entity.Index, out Stamp expectedStamp), Is.True);
                 Assert.That(stamp, Is.EqualTo(expectedStamp));

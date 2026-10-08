@@ -21,7 +21,7 @@ internal static partial class DemandDrivenForEachTemplates
 
         if (shape.HasEntity)
         {
-            lines.Add("        Entity taggedEntity = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, slotIndex);");
+            lines.Add("        EntityRef taggedEntity = slots.GetEntityRefAtSlot(slotIndex);");
         }
 
         for (int index = 0; index < shape.ComponentModels.Length; index++)
@@ -57,7 +57,7 @@ internal static partial class DemandDrivenForEachTemplates
             return denseLoopBody;
         }
 
-        string entityArgument = "Entity entity = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, slotIndex);";
+        string entityArgument = "EntityRef entity = slots.GetEntityRefAtSlot(slotIndex);";
         string stampLocals = GeneratorTemplates.JoinNonEmpty(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
             $"Stamp component{index} = slots.GetGeneratedStamp(_access{index}, tagIndex);"));
         string invocation = AppendClosedInvocation(shape, actionName, functorName, contextName, "component", "entity");
@@ -90,7 +90,7 @@ internal static partial class DemandDrivenForEachTemplates
             contextName,
             denseLoopLines,
             "batch.Chunk.TryGetTagSlots(out var tagSlots)",
-            "global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, slotIndex)");
+            "slots.GetEntityRefAtSlot(slotIndex)");
 
     private static void AppendUnboundTagSelectionLoop(
         List<string> lines,
@@ -104,9 +104,7 @@ internal static partial class DemandDrivenForEachTemplates
             contextName,
             denseLoopLines,
             "execution.TryGetTagSlots(out var tagSlots)",
-            usesReadSlots
-                ? "global::System.Runtime.CompilerServices.Unsafe.Add(ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in firstEntity), slotIndex)"
-                : "global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, slotIndex)");
+            "slots.GetEntityRefAtSlot(slotIndex)");
 
     private static void AppendTagSelectionLoop(
         List<string> lines,
@@ -123,7 +121,7 @@ internal static partial class DemandDrivenForEachTemplates
         lines.Add("                int slotIndex = tagSlots[tagIndex];");
         if (shape.HasEntity)
         {
-            lines.Add($"                Entity taggedEntity = {entityAtSlot};");
+            lines.Add($"                EntityRef taggedEntity = {entityAtSlot};");
         }
 
         for (int index = 0; index < shape.ComponentModels.Length; index++)
@@ -172,10 +170,7 @@ internal static partial class DemandDrivenForEachTemplates
         int parameterIndex = shape.HasContext ? 1 : 0;
         if (shape.HasEntity)
         {
-            string entityAtSlot = usesReadSlots
-                ? "global::System.Runtime.CompilerServices.Unsafe.Add(ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in firstEntity), slotIndex)"
-                : "global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, slotIndex)";
-            lines.Add($"                global::Delta.ECS.Entity {parameters[parameterIndex]} = {entityAtSlot};");
+            lines.Add($"                global::Delta.ECS.EntityRef {parameters[parameterIndex]} = slots.GetEntityRefAtSlot(slotIndex);");
             parameterIndex++;
         }
 
@@ -226,7 +221,7 @@ internal static partial class DemandDrivenForEachTemplates
         int parameterIndex = shape.HasContext ? 1 : 0;
         if (shape.HasEntity)
         {
-            lines.Add($"                global::Delta.ECS.Entity {parameters[parameterIndex++]} = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, slotIndex);");
+            lines.Add($"                global::Delta.ECS.EntityRef {parameters[parameterIndex++]} = slots.GetEntityRefAtSlot(slotIndex);");
         }
 
         for (int index = 0; index < shape.ComponentModels.Length; index++)

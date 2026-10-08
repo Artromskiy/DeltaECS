@@ -81,7 +81,7 @@ public struct RuntimeContextCount<T> : IForEachContext<RuntimeGenericContext>
 
 public struct RuntimeEntityContextCount<T> : IForEachContextEntity<RuntimeGenericContext>
 {
-    public void Invoke(ref RuntimeGenericContext context, Entity entity, in T value)
+    public void Invoke(ref RuntimeGenericContext context, EntityRef entity, in T value)
     {
         context.Count++;
         context.LastEntityIndex = entity.Index;
@@ -90,7 +90,7 @@ public struct RuntimeEntityContextCount<T> : IForEachContextEntity<RuntimeGeneri
 
 public struct RuntimeEntityOnly<T> : IForEachEntity
 {
-    public void Invoke(Entity entity) => System.Threading.Interlocked.Increment(ref RuntimeEntityCounter.Count);
+    public void Invoke(EntityRef entity) => System.Threading.Interlocked.Increment(ref RuntimeEntityCounter.Count);
 }
 
 public struct RuntimePairContextCount<TFirst, TSecond> : IForEachContext<RuntimeGenericContext>
@@ -107,7 +107,7 @@ public struct RuntimeParallelContextCount<T> : IForEachContext<RuntimeGenericCon
 
 public struct RuntimeParallelEntityContextCount<T> : IForEachContextEntity<RuntimeGenericContext>
 {
-    public void Invoke(in RuntimeGenericContext context, Entity entity, in T value)
+    public void Invoke(in RuntimeGenericContext context, EntityRef entity, in T value)
         => System.Threading.Interlocked.Increment(ref context.Calls![0]);
 }
 
@@ -121,7 +121,7 @@ public struct ContextEntityFunctor : IForEachContextEntity<ConsumerContext>
 {
     public void Invoke(
         ref ConsumerContext context,
-        Entity entity,
+        EntityRef entity,
         in Position position,
         ref Velocity velocity,
         in Acceleration acceleration,
@@ -212,7 +212,7 @@ public static partial class ConsumerProof
             .OrderBy(positionId, ref positionOrder)
             .ThenBy(velocityId, ref velocityOrder)
             .ForEachEntity(ref sink,
-                static (ref OrderedEntitySink output, Entity entity, in Position position) =>
+                static (ref OrderedEntitySink output, EntityRef entity, in Position position) =>
                 {
                     output.Indices[output.Count++] = entity.Index;
                 });
@@ -560,7 +560,7 @@ public static partial class ConsumerProof
         value.Value++;
     }
 
-    public static void ApplyEntityMethodGroup(Entity entity, ref Position value)
+    public static void ApplyEntityMethodGroup(EntityRef entity, ref Position value)
         => value.Value += entity.Index;
 
     public static int Run()
@@ -703,7 +703,7 @@ public static partial class ConsumerProof
         world.ForEachEntity<Position>(
             entities,
             in query,
-            static (Entity entity, ref Position position) => position.Value += entity.Index);
+            static (EntityRef entity, ref Position position) => position.Value += entity.Index);
         world.ForEach<Position>(
             entities,
             in query,
@@ -712,14 +712,14 @@ public static partial class ConsumerProof
         world.ForEachEntityParallel<Position>(
             entities,
             in query,
-            static (Entity entity, ref Position position) => position.Value += entity.Index,
+            static (EntityRef entity, ref Position position) => position.Value += entity.Index,
             2);
         world.ForEach<Position>(
             entities,
             static (ref Position position) => position.Value++);
         world.ForEachEntityParallel<Position>(
             entities,
-            static (Entity entity, ref Position position) => position.Value += entity.Index,
+            static (EntityRef entity, ref Position position) => position.Value += entity.Index,
             2);
         world.ForEach<Position>(
             entities,
@@ -744,7 +744,7 @@ public static partial class ConsumerProof
         world.ForEach<Position, Velocity>(in query, positionId, velocityId,
             static (ref Position position, in Velocity velocity) => position.Value += velocity.Value);
         world.ForEachEntityParallel<Position, Velocity>(entities, in query, positionId, velocityId,
-            static (Entity current, ref Position position, in Velocity velocity) => position.Value += current.Index + velocity.Value,
+            static (EntityRef current, ref Position position, in Velocity velocity) => position.Value += current.Index + velocity.Value,
             workerCount: 2);
 
         world.Add<Position, Velocity>(entity, positionId, velocityId);
@@ -1025,7 +1025,7 @@ public static partial class ConsumerProof
         world.WhereEntity(
                 in query,
                 static (Entity entity, in Health health) => health.Value <= 0)
-            .ForEachEntity(static (Entity entity, ref Health health, in Team team) =>
+            .ForEachEntity(static (EntityRef entity, ref Health health, in Team team) =>
             {
                 health.Value = team.DefaultHealth + entity.Index;
             });
@@ -1118,7 +1118,7 @@ public struct RuntimeSave<T0, T1, T2> : IForEach
 
 public struct RuntimeEntityCount<T> : IForEachEntity
 {
-    public void Invoke(Entity entity, in T component)
+    public void Invoke(EntityRef entity, in T component)
         => System.Threading.Interlocked.Increment(ref RuntimeEntityCounter.Count);
 }
 

@@ -121,7 +121,7 @@ internal sealed class QueryStructuralOperationsTests
         Assert.Throws<InvalidOperationException>(() => world.ForEachEntity(
             in query,
             ref callbackWorld,
-            static (ref World owner, Entity current, in Position _) => owner.Destroy(current)));
+            static (ref World owner, EntityRef current, in Position _) => owner.Destroy(current.Handle)));
         Assert.That(world.IsAlive(entity), Is.True);
     }
 

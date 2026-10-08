@@ -16,7 +16,7 @@ The stable marker contracts are:
 struct Counter : IForEachEntity
 {
     public int Value;
-    public void Invoke(Entity entity) => Value += entity.Index;
+    public void Invoke(EntityRef entity) => Value += entity.Index;
 }
 
 var counter = new Counter();
@@ -27,8 +27,8 @@ The interfaces are markers only: they do not declare `Invoke` and never encode
 component types or access patterns in their names. Concrete extension methods
 are generated in the consumer assembly from the functor's `Invoke` signature.
 The marker anchors throw `InvalidOperationException` only when the callback
-receives neither an `Entity` nor component parameters. Entity-aware functors
-such as `IForEachEntity.Invoke(Entity)` are generated without component rows, as
+receives neither an `EntityRef` nor component parameters. Entity-aware functors
+such as `IForEachEntity.Invoke(EntityRef)` are generated without component rows, as
 shown above. By-value marker anchors are extension methods
 (`FunctorAnchors`) so they do not outrank generated concrete overloads for
 calls such as `world.ForEach(in query, new Functor())`. Use the handwritten

@@ -439,7 +439,7 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
             hasEntity = markerEntity;
             IMethodSymbol[] methods = functor.GetMembers("Invoke")
                 .OfType<IMethodSymbol>()
-                .Where(method => CallbackReader.HasValidPrefix(method, hasContext, hasEntity, contextType, requireRefContext: false))
+                .Where(method => CallbackReader.HasValidPrefix(method, hasContext, hasEntity, contextType, requireRefContext: false, entityRef: true))
                 .ToArray();
             if (methods.Length == 1)
             {

@@ -18,10 +18,10 @@ public sealed partial class World
     /// <summary>
     /// Iterates every entity selected by <paramref name="query"/> without
     /// requesting component rows, for example
-    /// <c>world.ForEachEntity(in query, static entity =&gt; Log(entity))</c>.
+    /// <c>world.ForEachEntity(in query, static entity =&gt; Log(entity.Handle))</c>.
     /// Use a component-bearing generated <c>ForEachEntity</c> form such as
-    /// <c>world.ForEachEntity(in query, static (Entity entity, in Position position) =&gt; ...)</c>.
-    /// Generated forms put <c>Entity</c> first and may target the query or an
+    /// <c>world.ForEachEntity(in query, static (EntityRef entity, in Position position) =&gt; ...)</c>.
+    /// Generated forms put <c>EntityRef</c> first and may target the query or an
     /// explicit entity span, include component rows, explicit
     /// <c>ComponentId</c> selectors, or caller context.
     /// </summary>
@@ -36,18 +36,15 @@ public sealed partial class World
             {
                 for (int index = 0; index < tagSlots.Length; index++)
                 {
-                    action(slots.EntityAt(index));
+                    action(slots.GetEntityRef(index));
                 }
 
                 continue;
             }
 
-            ref readonly Entity firstEntity = ref slots.GetGeneratedEntityReference();
             for (int index = 0; index < count; index++)
             {
-                action(global::System.Runtime.CompilerServices.Unsafe.Add(
-                    ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in firstEntity),
-                    index));
+                action(slots.GetEntityRef(index));
             }
         }
     }
@@ -68,10 +65,10 @@ public sealed partial class World
     /// <summary>
     /// Iterates every entity selected by <paramref name="query"/> with mutable
     /// caller context and without requesting component rows, for example
-    /// <c>world.ForEachEntity(in query, ref state, static (ref State value, Entity entity) =&gt; ...)</c>.
+    /// <c>world.ForEachEntity(in query, ref state, static (ref State value, EntityRef entity) =&gt; ...)</c>.
     /// A generated component-bearing form can also be used, for example
-    /// <c>world.ForEachEntity(in query, ref state, static (ref State value, Entity entity, ref Position position) =&gt; ...)</c>.
-    /// Generated forms place <c>Entity</c> after caller context and before any
+    /// <c>world.ForEachEntity(in query, ref state, static (ref State value, EntityRef entity, ref Position position) =&gt; ...)</c>.
+    /// Generated forms place <c>EntityRef</c> after caller context and before any
     /// component parameters.
     /// </summary>
     public void ForEachEntity<TContext>(in Query query, ref TContext context, ForEachContextEntityAction<TContext> action)
@@ -87,20 +84,17 @@ public sealed partial class World
                 {
                     action(
                         ref context,
-                        slots.EntityAt(index));
+                        slots.GetEntityRef(index));
                 }
 
                 continue;
             }
 
-            ref readonly Entity firstEntity = ref slots.GetGeneratedEntityReference();
             for (int index = 0; index < count; index++)
             {
                 action(
                     ref context,
-                    global::System.Runtime.CompilerServices.Unsafe.Add(
-                        ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in firstEntity),
-                        index));
+                    slots.GetEntityRef(index));
             }
         }
     }
@@ -117,7 +111,7 @@ public sealed partial class World
 
     /// <summary>
     /// Zero-component entity stamp callback anchor. Generated
-    /// <c>ForEachEntityStamp</c> callbacks receive <c>Entity</c> followed by
+    /// <c>ForEachEntityStamp</c> callbacks receive <c>EntityRef</c> followed by
     /// one or more <c>in Stamp</c> parameters.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>

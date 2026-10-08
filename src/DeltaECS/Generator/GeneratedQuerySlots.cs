@@ -78,6 +78,18 @@ public ref struct GeneratedQuerySlots
     public Entity EntityAt(int index)
         => _entities.RefAt(_hasTagSlots ? _tagSlots.RefAt(index) : _offset + index);
 
+    /// <summary>Creates a borrowed view for one logical entity in this query chunk.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public EntityRef GetEntityRef(int index)
+        => _world.CreateEntityRef(_chunk, GetGeneratedSlotIndex(index));
+
+    /// <summary>Creates a borrowed view for one physical entity slot in this query chunk.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public EntityRef GetEntityRefAtSlot(int slotIndex)
+        => _world.CreateEntityRef(_chunk, slotIndex);
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public bool TryGetTagSlots(out ReadOnlySpan<int> slots)
@@ -91,6 +103,12 @@ public ref struct GeneratedQuerySlots
     [EditorBrowsable(EditorBrowsableState.Never)]
     public int GetGeneratedSlotIndex(int index)
         => _hasTagSlots ? _tagSlots.RefAt(index) : _offset + index;
+
+    /// <summary>Maps a logical query index to its row offset from a generated row reference.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public int GetGeneratedRowOffset(int index)
+        => _hasTagSlots ? _tagSlots.RefAt(index) : index;
 
     /// <summary>Gets the first entity reference for the current validated slot range.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -214,6 +232,18 @@ public ref struct GeneratedReadQuerySlots
     public Entity EntityAt(int index)
         => _entities.RefAt(_hasTagSlots ? _tagSlots.RefAt(index) : index);
 
+    /// <summary>Creates a borrowed view for one logical entity in this query chunk.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public EntityRef GetEntityRef(int index)
+        => _world.CreateEntityRef(_chunk, GetGeneratedSlotIndex(index));
+
+    /// <summary>Creates a borrowed view for one physical entity slot in this query chunk.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public EntityRef GetEntityRefAtSlot(int slotIndex)
+        => _world.CreateEntityRef(_chunk, slotIndex);
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public bool TryGetTagSlots(out ReadOnlySpan<int> slots)
@@ -226,6 +256,12 @@ public ref struct GeneratedReadQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public int GetGeneratedSlotIndex(int index)
+        => _hasTagSlots ? _tagSlots.RefAt(index) : index;
+
+    /// <summary>Maps a logical query index to its row offset from a generated row reference.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public int GetGeneratedRowOffset(int index)
         => _hasTagSlots ? _tagSlots.RefAt(index) : index;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -19,10 +19,9 @@ public sealed partial class World
         public void Invoke(ref GeneratedQuerySlots slots)
         {
             int count = slots.Count;
-            ref Entity firstEntity = ref slots.GetGeneratedEntityReference();
             for (int index = 0; index < count; index++)
             {
-                _action(global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index));
+                _action(slots.GetEntityRef(index));
             }
         }
     }
@@ -43,10 +42,9 @@ public sealed partial class World
         public void Invoke(ref GeneratedQuerySlots slots)
         {
             int count = slots.Count;
-            ref Entity firstEntity = ref slots.GetGeneratedEntityReference();
             for (int index = 0; index < count; index++)
             {
-                _action(in _context, global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index));
+                _action(in _context, slots.GetEntityRef(index));
             }
         }
     }
@@ -67,10 +65,9 @@ public sealed partial class World
         public void Invoke(ref GeneratedQuerySlots slots)
         {
             int count = slots.Count;
-            ref Entity firstEntity = ref slots.GetGeneratedEntityReference();
             for (int index = 0; index < count; index++)
             {
-                _action(_context, global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index));
+                _action(_context, slots.GetEntityRef(index));
             }
         }
     }
@@ -94,7 +91,7 @@ public sealed partial class World
     /// without requesting component rows. Generated forms may also include
     /// component rows, explicit <c>ComponentId</c> selectors, context, or an
     /// explicit entity-span target. For example:
-    /// <c>world.ForEachEntityParallel(in query, static entity =&gt; Log(entity), workerCount: 4)</c>.
+    /// <c>world.ForEachEntityParallel(in query, static entity =&gt; Log(entity.Handle), workerCount: 4)</c>.
     /// </summary>
     public void ForEachEntityParallel(in Query query, ForEachEntityAction action, int workerCount = 0)
     {
@@ -149,7 +146,7 @@ public sealed partial class World
     /// Iterates every entity selected by <paramref name="query"/> in parallel
     /// with read-only caller context and without requesting component rows.
     /// For example: <c>world.ForEachEntityParallel(in query, in state,
-    /// static (in State value, Entity entity) =&gt; Log(value, entity), workerCount: 4)</c>.
+    /// static (in State value, EntityRef entity) =&gt; Log(value, entity.Handle), workerCount: 4)</c>.
     /// </summary>
     public void ForEachEntityParallel<TContext>(
         in Query query,
@@ -171,7 +168,7 @@ public sealed partial class World
     /// Iterates every entity selected by <paramref name="query"/> in parallel
     /// with value context and without requesting component rows. For example:
     /// <c>world.ForEachEntityParallel(in query, state,
-    /// static (State value, Entity entity) =&gt; Log(value, entity), workerCount: 4)</c>.
+    /// static (State value, EntityRef entity) =&gt; Log(value, entity.Handle), workerCount: 4)</c>.
     /// </summary>
     public void ForEachEntityParallel<TContext>(
         in Query query,
@@ -200,7 +197,7 @@ public sealed partial class World
 
     /// <summary>
     /// Zero-component parallel entity stamp callback anchor. Generated
-    /// <c>ForEachEntityStampParallel</c> callbacks receive <c>Entity</c>
+    /// <c>ForEachEntityStampParallel</c> callbacks receive <c>EntityRef</c>
     /// followed by one or more <c>in Stamp</c> parameters.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>

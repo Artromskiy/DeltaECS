@@ -54,7 +54,7 @@ internal static class GeneratedWherePipelineGrammarProof
         world.Where(in query, static (in Cmp3 cmp3) => cmp3.Value < 0)
             .ForEach(static (ref Cmp3 cmp3) => cmp3.Value = 0);
         world.WhereEntity(in query, static (Entity entity, in Cmp3 cmp3) => cmp3.Value < entity.Index)
-            .ForEachEntity(static (Entity entity, ref Cmp3 cmp3) => cmp3.Value += entity.Index);
+            .ForEachEntity(static (EntityRef entity, ref Cmp3 cmp3) => cmp3.Value += entity.Index);
 
         var terminalState = new Context();
         var action = new WhereFunctorContext();
@@ -68,7 +68,7 @@ internal static class GeneratedWherePipelineGrammarProof
         world.WhereEntity(in query, static (Entity entity, in Cmp3 cmp3) => cmp3.Value < entity.Index)
             .ForEachEntity(ref terminalState, ref entityAction);
         world.WhereEntity(in query, static (Entity entity, in Cmp3 cmp3) => cmp3.Value < entity.Index)
-            .ForEachEntity(static (Entity entity) => _ = entity.Index);
+            .ForEachEntity(static (EntityRef entity) => _ = entity.Index);
         world.WhereEntity(in query, static (Entity entity, in Cmp3 cmp3) => cmp3.Value < entity.Index)
             .ForEachEntity(ref entityActionWithoutContext);
     }

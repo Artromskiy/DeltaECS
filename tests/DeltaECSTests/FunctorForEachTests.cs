@@ -252,12 +252,12 @@ internal sealed class FunctorForEachTests
     {
         public int Count;
 
-        public void Invoke(Entity _) => Count++;
+        public void Invoke(EntityRef _) => Count++;
     }
 
     internal struct ZeroArityEntityContextFunctor : IForEachContextEntity<int>
     {
-        public void Invoke(ref int context, Entity _) => context++;
+        public void Invoke(ref int context, EntityRef _) => context++;
     }
 
     internal struct CountPositionFunctor : IForEach
@@ -290,10 +290,10 @@ internal sealed class FunctorForEachTests
     {
         public int Count;
 
-        public void Invoke(Entity _) => Count++;
+        public void Invoke(EntityRef _) => Count++;
     }
 
-    private static void CountZeroArityWhereEntity(Entity _) => s_zeroArityWhereVisits++;
+    private static void CountZeroArityWhereEntity(EntityRef _) => s_zeroArityWhereVisits++;
 
     internal struct WherePredicateState
     {
@@ -353,7 +353,7 @@ internal sealed class FunctorForEachTests
 
     internal struct ResetHealthAction : IForEachContextEntity<WhereActionState>
     {
-        public void Invoke(ref WhereActionState state, Entity entity, ref Health health)
+        public void Invoke(ref WhereActionState state, EntityRef entity, ref Health health)
         {
             state.Matched++;
             health.Value = 0;

@@ -193,6 +193,9 @@ internal static class GeneratorSupport
     internal static bool IsEntityType(ITypeSymbol? type)
         => IsNamedType(type, "Entity");
 
+    internal static bool IsEntityRefType(ITypeSymbol? type)
+        => IsNamedType(type, "EntityRef");
+
     internal static bool IsComponentId(ITypeSymbol? type)
         => IsNamedType(type, "ComponentId");
 

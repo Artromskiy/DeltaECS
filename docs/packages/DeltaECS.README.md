@@ -25,6 +25,6 @@ Zero-component callbacks
 Non-entity callbacks that receive no component parameters use zero-arity anchors
 and throw `InvalidOperationException` when called. Entity-aware callbacks may
 omit component parameters in `ForEachEntity` and `ForEachEntityParallel`
-because they still receive the current `Entity`; the generator emits those
+because they still receive the current `EntityRef`; the generator emits those
 entity-only forms as well. The same rule applies to delegate, functor, and
 parallel APIs.

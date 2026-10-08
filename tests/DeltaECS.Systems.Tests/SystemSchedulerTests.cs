@@ -525,7 +525,7 @@ public sealed class SystemSchedulerTests
 
         public void Tick() => World.ForEachEntityParallel(in _query, OnEntity, workerCount: 2);
 
-        private void OnEntity(Entity entity) => _ = World.IsAlive(entity);
+        private void OnEntity(EntityRef entity) => _ = World.IsAlive(entity.Handle);
     }
 
     private readonly struct GeneratedSetKey

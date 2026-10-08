@@ -22,22 +22,22 @@ references or row views after returning. Captured mutable
 state remains the caller's responsibility; use a per-worker result or another
 explicit synchronization strategy when the callback shares state.
 
-`ForEachEntityParallel` has the same generated forms and puts the current
-`Entity` before component parameters:
+`ForEachEntityParallel` has the same generated forms and puts the borrowed
+current `EntityRef` before component parameters:
 
 ```csharp
 world.ForEachEntityParallel(
     in query,
     in settings,
-    static (in Settings settings, Entity entity, ref Position position) =>
+    static (in Settings settings, EntityRef entity, ref Position position) =>
         position.X += settings.Step + entity.Index,
     workerCount: 4);
 ```
 
 The zero-component, non-entity parallel overloads throw
-`InvalidOperationException` when the callback receives neither an `Entity` nor
-component parameters. `ForEachEntityParallel` may omit component parameters
-because its callback still receives the current `Entity`.
+`InvalidOperationException` when the callback receives neither an `EntityRef`
+nor component parameters. `ForEachEntityParallel` may omit component parameters
+because its callback still receives the current `EntityRef`.
 
 Read-only state is passed at the call site with `in`; the callback can spell
 its first parameter as `in` or `ref readonly`. The latter uses the same

@@ -64,6 +64,11 @@ internal static class CallbackReader
             && ((parameter.Type is not null && GeneratorSupport.IsEntityType(model.GetTypeInfo(parameter.Type).Type))
                 || (allowImplicit && parameter.Type is null));
 
+    internal static bool IsEntityRefParameter(SemanticModel model, ParameterSyntax parameter, bool allowImplicit = false)
+        => parameter.Modifiers.Count == 0
+            && ((parameter.Type is not null && GeneratorSupport.IsEntityRefType(model.GetTypeInfo(parameter.Type).Type))
+                || (allowImplicit && parameter.Type is null));
+
     internal static bool IsSupportedRefKind(RefKind refKind)
         => refKind is RefKind.None or RefKind.In or RefKind.Ref
             || GeneratorSupport.IsRefReadonly(refKind);
@@ -175,6 +180,16 @@ internal static class CallbackReader
         ImmutableArray<ITypeSymbol?> expectedTypes,
         bool hasEntity,
         out IMethodSymbol? method)
+        => TryGetMethodGroupTarget(model, expression, expectedParameterCount, expectedTypes, hasEntity, entityRef: false, out method);
+
+    internal static bool TryGetMethodGroupTarget(
+        SemanticModel model,
+        ExpressionSyntax expression,
+        int expectedParameterCount,
+        ImmutableArray<ITypeSymbol?> expectedTypes,
+        bool hasEntity,
+        bool entityRef,
+        out IMethodSymbol? method)
     {
         ExpressionSyntax normalized = UnwrapMethodGroupExpression(expression);
 
@@ -182,7 +197,7 @@ internal static class CallbackReader
             .OfType<IMethodSymbol>()
             .Where(candidate => candidate.Parameters.Length == expectedParameterCount)
             .Where(candidate => expectedTypes.IsDefaultOrEmpty
-                || MatchesGenericCallbackTypes(candidate, expectedTypes, hasEntity))
+                || MatchesGenericCallbackTypes(candidate, expectedTypes, hasEntity, entityRef))
             .ToArray();
         method = matches.Length == 1 ? matches[0] : null;
         return method is not null;
@@ -206,7 +221,8 @@ internal static class CallbackReader
     private static bool MatchesGenericCallbackTypes(
         IMethodSymbol method,
         ImmutableArray<ITypeSymbol?> expectedTypes,
-        bool hasEntity)
+        bool hasEntity,
+        bool entityRef)
     {
         if (expectedTypes.Any(static type => type is null))
         {
@@ -220,7 +236,9 @@ internal static class CallbackReader
             return expectedTypes.Length >= contextOffset
                 && parameters.Length == expectedTypes.Length + entityOffset
                 && (!hasEntity || parameters[contextOffset].RefKind == RefKind.None
-                    && GeneratorSupport.IsEntityType(parameters[contextOffset].Type))
+                    && (entityRef
+                        ? GeneratorSupport.IsEntityRefType(parameters[contextOffset].Type)
+                        : GeneratorSupport.IsEntityType(parameters[contextOffset].Type)))
                 && (contextOffset == 0 || parameters[0].RefKind is RefKind.Ref or RefKind.In
                     && SymbolEqualityComparer.Default.Equals(parameters[0].Type, expectedTypes[0]))
                 && parameters.Skip(componentStart)
@@ -295,7 +313,8 @@ internal static class CallbackReader
         bool hasContext,
         bool hasEntity,
         ITypeSymbol? contextType,
-        bool requireRefContext)
+        bool requireRefContext,
+        bool entityRef = false)
     {
         int index = 0;
         if (hasContext)
@@ -316,7 +335,9 @@ internal static class CallbackReader
         {
             if (method.Parameters.Length <= index
                 || method.Parameters[index].RefKind != Microsoft.CodeAnalysis.RefKind.None
-                || !GeneratorSupport.IsEntityType(method.Parameters[index].Type))
+                || !(entityRef
+                    ? GeneratorSupport.IsEntityRefType(method.Parameters[index].Type)
+                    : GeneratorSupport.IsEntityType(method.Parameters[index].Type)))
             {
                 return false;
             }

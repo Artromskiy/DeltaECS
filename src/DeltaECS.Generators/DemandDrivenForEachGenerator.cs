@@ -201,7 +201,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 IMethodSymbol? candidate;
                 bool resolved = expectedParameterCount < 0
                     ? CallbackReader.TryGetMethodGroupTarget(model, invocation.ArgumentList.Arguments[index].Expression, out candidate)
-                    : CallbackReader.TryGetMethodGroupTarget(model, invocation.ArgumentList.Arguments[index].Expression, expectedParameterCount, expectedTypes, namedEntity, out candidate);
+                    : CallbackReader.TryGetMethodGroupTarget(model, invocation.ArgumentList.Arguments[index].Expression, expectedParameterCount, expectedTypes, namedEntity, entityRef: true, out candidate);
                 if (resolved)
                 {
                     resolvedMethod = candidate;
@@ -389,7 +389,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         bool callbackHasEntity = lambdaParameterCount > prefixCount
-            && CallbackReader.IsEntityParameter(model, lambdaParameters[prefixCount], allowImplicit: namedEntity);
+            && CallbackReader.IsEntityRefParameter(model, lambdaParameters[prefixCount], allowImplicit: namedEntity);
         if (callbackHasEntity != namedEntity)
         {
             return false;
@@ -539,7 +539,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             IMethodSymbol? candidate;
             bool resolved = expectedMethodParameterCount < 0
                 ? CallbackReader.TryGetMethodGroupTarget(model, expression, out candidate)
-                : CallbackReader.TryGetMethodGroupTarget(model, expression, expectedMethodParameterCount, expectedTypes, namedEntity, out candidate);
+                : CallbackReader.TryGetMethodGroupTarget(model, expression, expectedMethodParameterCount, expectedTypes, namedEntity, entityRef: true, out candidate);
             if (resolved)
             {
                 callbackArgumentIndex = index;
@@ -602,7 +602,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         {
             if (methodTarget.Parameters.Length <= parameterIndex
                 || methodTarget.Parameters[parameterIndex].RefKind != RefKind.None
-                || !GeneratorSupport.IsEntityType(methodTarget.Parameters[parameterIndex].Type))
+                || !GeneratorSupport.IsEntityRefType(methodTarget.Parameters[parameterIndex].Type))
             {
                 return false;
             }
@@ -612,7 +612,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         IParameterSymbol[] componentParameters = methodTarget.Parameters.Skip(parameterIndex).ToArray();
-        if (!namedEntity && componentParameters.Any(static parameter => GeneratorSupport.IsEntityType(parameter.Type)))
+        if (!namedEntity && componentParameters.Any(static parameter =>
+                GeneratorSupport.IsEntityType(parameter.Type) || GeneratorSupport.IsEntityRefType(parameter.Type)))
         {
             return false;
         }
@@ -816,7 +817,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         IMethodSymbol[] invokes = functorType.GetMembers("Invoke")
             .OfType<IMethodSymbol>()
             .Where(static method => !method.IsStatic && method.ReturnsVoid)
-            .Where(method => CallbackReader.HasValidPrefix(method, hasContext, hasEntity, contextType, requireRefContext: false))
+            .Where(method => CallbackReader.HasValidPrefix(method, hasContext, hasEntity, contextType, requireRefContext: false, entityRef: true))
             .Where(method => method.Parameters.Skip((hasContext ? 1 : 0) + (hasEntity ? 1 : 0)).All(
                 static parameter => CallbackReader.IsSupportedRefKind(parameter.RefKind)))
             .ToArray();

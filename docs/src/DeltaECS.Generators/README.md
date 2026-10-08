@@ -13,7 +13,7 @@ query storage or plans, archetypes, or structural kernels.
 - Non-entity callback forms with no component parameters use zero-arity anchors
   and throw `InvalidOperationException` when called. Entity-aware forms may
   omit component parameters in `ForEachEntity` and `ForEachEntityParallel`
-  because their callback still receives `Entity`; those forms are generated on
+  because their callback still receives `EntityRef`; those forms are generated on
   demand for delegate, functor and parallel callback APIs.
 - Component parameters use four access literals in generated callback names:
   `R` for `ref readonly T`, `W` for `ref T`, `I` for `in T`, and `V` for a
@@ -74,7 +74,7 @@ query storage or plans, archetypes, or structural kernels.
 
   struct Reset : IForEachContextEntity<ActionState>
   {
-      public void Invoke(ref ActionState state, Entity entity, ref Health health)
+      public void Invoke(ref ActionState state, EntityRef entity, ref Health health)
       {
           state.Matched++;
           health.Value = 0;

@@ -186,11 +186,42 @@ world.ForEachParallel(E, Q?, I... | D, C, F, W)
 world.ForEachEntityParallel(E, Q?, I... | D, C, F, W)
 ```
 
-`ForEach` callbacks receive component rows. `ForEachEntity` callbacks also
-receive the current `Entity` as their first row argument. Parallel callbacks
-always use parallel execution; `W` is the caller's worker-count choice,
-clamped to the supported range. A parallel context is passed read-only or by
-value; mutable `ref` context is rejected.
+`ForEach` callbacks receive component rows. `ForEachEntity` callbacks receive
+a borrowed `EntityRef` for the current chunk slot as their first argument. It
+exposes the stable handle through `Handle`, plus dynamic `Has`, `TryGet<T>`,
+and `GetRef<T>` access without resolving the handle through the world's entity
+table. This is useful when the component registrations are selected at runtime:
+
+```csharp
+world.ForEachEntity(in query, static (EntityRef entity) =>
+{
+    if (entity.TryGet(positionId, out Position position))
+    {
+        Use(position);
+    }
+
+    if (entity.Has(healthId))
+    {
+        ref Health health = ref entity.GetRef<Health>(healthId);
+        health.Value--;
+    }
+});
+```
+
+`Has` and `TryGet<T>` check membership because the requested component may not
+be present. `TryGet<T>` also returns `false` for an unregistered ID or an ID
+registered with another CLR type. `GetRef<T>` throws if the component is
+missing or its registration has another CLR type, and writes to a data
+component update its stamp. A tag has no per-entity value: its `TryGet` result
+is `default(T)`, and writes through `GetRef` are ignored.
+
+Use `EntityRef` only while its callback is running and before any structural
+change; store `entity.Handle` when the entity must be retained. The view already
+contains the current world, chunk, archetype, and slot, so each access skips
+entity-handle resolution. It does not pre-bind component rows from the query.
+Parallel callbacks always use parallel execution; `W` is the caller's
+worker-count choice, clamped to the supported range. A parallel context is
+passed read-only or by value; mutable `ref` context is rejected.
 
 ## Stamp iteration forms
 
@@ -227,12 +258,12 @@ world.ForEachEntityStampParallel(E, Q?, I... | D, C?, A | F, W)
 ```
 
 `ForEachStamp` callbacks receive only the requested stamps. The
-`ForEachEntityStamp` variants put `Entity` first:
+`ForEachEntityStamp` variants put the borrowed `EntityRef` first:
 
 ```csharp
 world.ForEachEntityStamp<Health>(
     in query,
-    static (Entity entity, in Stamp stamp) => Process(entity, stamp));
+    static (EntityRef entity, in Stamp stamp) => Process(entity.Handle, stamp));
 
 world.ForEachStampParallel<Health>(
     in query,
@@ -243,7 +274,7 @@ world.ForEachEntityStamp(
     entities,
     in query,
     healthId,
-    static (Entity entity, in Stamp stamp) => Process(entity, stamp));
+    static (EntityRef entity, in Stamp stamp) => Process(entity.Handle, stamp));
 ```
 
 The zero-component stamp overloads are documentation anchors and throw
@@ -355,7 +386,7 @@ view.Add<T...>(I..., V...)
 view.Remove<T...>()
 view.Remove<T...>(I... | D)
 view.ForEach(...)
-view.ForEachEntity(...)              // Entity-only or Entity plus components
+view.ForEachEntity(...)              // EntityRef-only or EntityRef plus components
 ```
 
 The ordinary `Where` predicate is component-only. `WhereEntity` adds the
@@ -492,7 +523,8 @@ world.ForEachEntityParallel(entities, componentId0, typeof(VisitEntity<>), worke
 ```
 
 `IForEach` receives only the component rows declared by `Invoke`. Implement
-`IForEachEntity` to also receive the current `Entity` as its first argument.
+`IForEachEntity` to also receive the current borrowed `EntityRef` as its first
+argument.
 Context marker variants prepend their typed context to the same signature. The
 callback may use `ref`, `in`, `ref readonly`, or by-value component parameters,
 as in the regular generated functor API. Parallel callbacks run concurrently
@@ -566,9 +598,9 @@ OrderedQuery ordered = candidates
     .OrderBy(ref pairComparer)
     .ThenBy(ref healthComparer);
 
-ordered.ForEachEntity(static (Entity entity, in Priority priority, in SyncId syncId) =>
+ordered.ForEachEntity(static (EntityRef entity, in Priority priority, in SyncId syncId) =>
 {
-    ProcessInOrder(entity, priority, syncId);
+    ProcessInOrder(entity.Handle, priority, syncId);
 });
 
 Entity first = ordered.First();

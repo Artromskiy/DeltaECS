@@ -7,8 +7,8 @@ component storage.
 
 The zero-component, non-entity overloads document the generated forms and throw
 `InvalidOperationException` when called. This applies when the callback receives
-neither an `Entity` nor component parameters. Entity-aware forms may omit
-component parameters because the callback still receives the current `Entity`.
+neither an `EntityRef` nor component parameters. Entity-aware forms may omit
+component parameters because the callback still receives the current `EntityRef`.
 For component iteration, add one or more component parameters so the analyzer
 emits the matching overload into the consumer assembly:
 
@@ -22,12 +22,12 @@ world.ForEach<Position, Velocity>(
 ```
 
 `in T` declares read access and `ref T` declares write access. Generated forms
-also support an `Entity` argument, caller context, explicit component IDs, and
+also support an `EntityRef` argument, caller context, explicit component IDs, and
 component-bearing callback shapes. See the generator README for the available
 forms.
 
 The same rule applies to non-entity zero-component context forms. Entity-aware
-forms, including context forms, are generated with `Entity` as the callback's
+forms, including context forms, are generated with `EntityRef` as the callback's
 entity parameter and do not need a component parameter.
 
 With the project-local Roslyn interceptor opt-in enabled, supported static

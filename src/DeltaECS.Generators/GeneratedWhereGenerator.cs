@@ -599,7 +599,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         {
             if (method.Parameters.Length == 0
                 || method.Parameters[0].RefKind != RefKind.None
-                || !GeneratorSupport.IsEntityType(method.Parameters[0].Type))
+                || !GeneratorSupport.IsEntityRefType(method.Parameters[0].Type))
             {
                 return false;
             }
@@ -767,7 +767,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         int componentStart = 0;
         if (hasEntity)
         {
-            if (parameters.Length == 0 || !CallbackReader.IsEntityParameter(model, parameters[0], allowImplicit: true))
+            if (parameters.Length == 0 || !CallbackReader.IsEntityRefParameter(model, parameters[0], allowImplicit: true))
             {
                 return false;
             }
@@ -778,7 +778,8 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         ParameterSyntax[] components = parameters.Skip(componentStart).ToArray();
         if ((!hasEntity && components.Length == 0)
             || components.Any(parameter => !CallbackReader.HasTypedAccessibleParameter(model, parameter))
-            || (!hasEntity && components.Any(parameter => CallbackReader.IsEntityParameter(model, parameter))))
+            || (!hasEntity && components.Any(parameter =>
+                CallbackReader.IsEntityParameter(model, parameter) || CallbackReader.IsEntityRefParameter(model, parameter))))
         {
             return false;
         }
@@ -832,7 +833,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         IMethodSymbol[] invokes = functorType.GetMembers("Invoke")
             .OfType<IMethodSymbol>()
             .Where(static method => !method.IsStatic && method.ReturnsVoid)
-            .Where(method => CallbackReader.HasValidPrefix(method, hasContext, hasEntity, contextType, requireRefContext: true))
+            .Where(method => CallbackReader.HasValidPrefix(method, hasContext, hasEntity, contextType, requireRefContext: true, entityRef: true))
             .Where(method => method.Parameters.Skip(prefixCount).All(
                 static parameter => CallbackReader.IsSupportedRefKind(parameter.RefKind)))
             .ToArray();

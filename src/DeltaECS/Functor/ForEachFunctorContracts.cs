@@ -4,7 +4,7 @@ namespace Delta.ECS;
 
 /// <summary>
 /// Marker contract for a functor that processes matching entities.
-/// <c>Invoke</c> receives <c>Entity</c> first and may omit component parameters
+/// <c>Invoke</c> receives the current borrowed <c>EntityRef</c> first and may omit component parameters
 /// or include generated component-bearing parameters, for example
 /// <code>world.ForEachEntity(in query, ref functor);</code> and
 /// <code>world.ForEachEntityParallel(in query, ref functor, workerCount: 4);</code>.
@@ -47,7 +47,7 @@ public interface IForEachContext<TContext>
 
 /// <summary>
 /// Marker contract for a functor that receives context and the current entity.
-/// <c>Invoke</c> may stop after <c>Entity</c> or include generated
+/// <c>Invoke</c> may stop after <c>EntityRef</c> or include generated
 /// component-bearing parameters, for example
 /// <code>world.ForEachEntity(in query, ref state, ref functor);</code> and
 /// <code>world.ForEachEntityParallel(in query, in state, ref functor, workerCount: 4);</code>.

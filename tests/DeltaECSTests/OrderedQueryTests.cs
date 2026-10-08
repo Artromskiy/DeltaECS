@@ -54,7 +54,7 @@ internal sealed class OrderedQueryTests
 
         var sourceOrder = new List<int>();
         world.ForEachEntity(in query, ref sourceOrder,
-            static (ref List<int> indices, Entity entity) => indices.Add(entity.Index));
+            static (ref List<int> indices, EntityRef entity) => indices.Add(entity.Index));
         Assert.That(sourceOrder, Is.EqualTo(SourceEntityOrder));
 
         void Set(int index, int key, int tie)
@@ -194,7 +194,7 @@ internal sealed class OrderedQueryTests
     {
         var result = new List<int>();
         query.ForEachEntity(ref result,
-            static (ref List<int> indices, Entity entity) => indices.Add(entity.Index));
+            static (ref List<int> indices, EntityRef entity) => indices.Add(entity.Index));
         return result.ToArray();
     }
 

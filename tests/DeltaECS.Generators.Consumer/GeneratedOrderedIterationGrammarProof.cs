@@ -84,7 +84,7 @@ internal static class GeneratedOrderedIterationGrammarProof
         world.WhereEntity(in query,
                 static (Entity current, in Cmp3 cmp3, in Cmp4 cmp4) => cmp3.Value < current.Index + cmp4.Value)
             .OrderBy(ref comparer)
-            .ForEachEntity(static (Entity current, ref Cmp1 cmp1) => cmp1.Value += current.Index);
+            .ForEachEntity(static (EntityRef current, ref Cmp1 cmp1) => cmp1.Value += current.Index);
         var orderedFunctor = new FunctorRW();
         world.Where(in query, ref predicate)
             .OrderBy(ref comparer)
@@ -101,13 +101,13 @@ internal static class GeneratedOrderedIterationGrammarProof
             static (ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += cmp2.Value);
         ordered.ForEach<Cmp1, Cmp2>(cmp1Id, cmp2Id,
             static (ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += cmp2.Value);
-        ordered.ForEachEntity(static (Entity entity) => _ = entity.Index);
+        ordered.ForEachEntity(static (EntityRef entity) => _ = entity.Index);
         ordered.ForEachEntity<Cmp1, Cmp2>(cmp1Id, cmp2Id,
-            static (Entity entity, ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += entity.Index + cmp2.Value);
+            static (EntityRef entity, ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += entity.Index + cmp2.Value);
         ordered.ForEach(ref context,
             static (ref Context state, ref Cmp1 cmp1) => cmp1.Value += state.Value++);
         ordered.ForEachEntity(ref context,
-            static (ref Context state, Entity entity, ref Cmp1 cmp1) => cmp1.Value += state.Value + entity.Index);
+            static (ref Context state, EntityRef entity, ref Cmp1 cmp1) => cmp1.Value += state.Value + entity.Index);
 
         var functor = new FunctorRW();
         ordered.ForEach(componentIds, ref functor);

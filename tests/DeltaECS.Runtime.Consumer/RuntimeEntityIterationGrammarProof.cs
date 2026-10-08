@@ -21,7 +21,7 @@ public static partial class RuntimeApiGrammarProof
         world.ForEachEntity(
             in query,
             ref mutableContext,
-            static (ref CountContext context, Entity _) => context.Count++);
+            static (ref CountContext context, EntityRef _) => context.Count++);
         Require(mutableContext.Count == entities.Length);
 
         int parallelCount = 0;
@@ -35,7 +35,7 @@ public static partial class RuntimeApiGrammarProof
         world.ForEachEntityParallel(
             in query,
             in readonlyContext,
-            static (in IterationContext context, Entity _) =>
+            static (in IterationContext context, EntityRef _) =>
                 Interlocked.Increment(ref context.Counter.Count),
             workerCount: 2);
         Require(readonlyContext.Counter.Count == entities.Length);
@@ -44,7 +44,7 @@ public static partial class RuntimeApiGrammarProof
         world.ForEachEntityParallel(
             in query,
             valueContext,
-            static (IterationContext context, Entity _) =>
+            static (IterationContext context, EntityRef _) =>
                 Interlocked.Increment(ref context.Counter.Count),
             workerCount: 2);
         Require(valueContext.Counter.Count == entities.Length);

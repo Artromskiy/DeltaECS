@@ -50,24 +50,24 @@ public struct FunctorContext : IForEachContext<Context>
 
 public struct FunctorEntityW : IForEachEntity
 {
-    public void Invoke(Entity entity, ref Cmp1 cmp1) => cmp1.Value += entity.Index;
+    public void Invoke(EntityRef entity, ref Cmp1 cmp1) => cmp1.Value += entity.Index;
 }
 
 public struct FunctorEntityRW : IForEachEntity
 {
-    public void Invoke(Entity entity, ref Cmp1 cmp1, in Cmp2 cmp2)
+    public void Invoke(EntityRef entity, ref Cmp1 cmp1, in Cmp2 cmp2)
         => cmp1.Value += entity.Index + cmp2.Value;
 }
 
 public struct FunctorEntityContext : IForEachContextEntity<Context>
 {
-    public void Invoke(ref Context context, Entity entity, ref Cmp1 cmp1)
+    public void Invoke(ref Context context, EntityRef entity, ref Cmp1 cmp1)
         => cmp1.Value += context.Value + entity.Index;
 }
 
 public struct FunctorEntity : IForEachEntity
 {
-    public void Invoke(Entity entity) => _ = entity;
+    public void Invoke(EntityRef entity) => _ = entity;
 }
 
 public struct WhereFunctorContext : IForEachContext<Context>
@@ -77,7 +77,7 @@ public struct WhereFunctorContext : IForEachContext<Context>
 
 public struct WhereEntityFunctorContext : IForEachContextEntity<Context>
 {
-    public void Invoke(ref Context context, Entity entity, ref Cmp3 cmp3)
+    public void Invoke(ref Context context, EntityRef entity, ref Cmp3 cmp3)
         => cmp3.Value += context.Value + entity.Index;
 }
 
@@ -116,12 +116,12 @@ public struct StampFunctor : IForEach
 
 public struct EntityStampFunctor : IForEachEntity
 {
-    public void Invoke(Entity entity, in Stamp stamp) => _ = entity.Index + stamp.GetHashCode();
+    public void Invoke(EntityRef entity, in Stamp stamp) => _ = entity.Index + stamp.GetHashCode();
 }
 
 public struct EntityStampPairFunctor : IForEachEntity
 {
-    public void Invoke(Entity entity, in Stamp first, in Stamp second)
+    public void Invoke(EntityRef entity, in Stamp first, in Stamp second)
         => _ = entity.Index + first.GetHashCode() + second.GetHashCode();
 }
 
@@ -137,7 +137,7 @@ public struct StampParallelContextFunctor : IForEachContext<Context>
 
 public struct EntityStampContextFunctor : IForEachContextEntity<Context>
 {
-    public void Invoke(ref Context context, Entity entity, in Stamp stamp)
+    public void Invoke(ref Context context, EntityRef entity, in Stamp stamp)
         => context.Value += entity.Index + stamp.GetHashCode();
 }
 
@@ -148,7 +148,7 @@ public struct GenericFunctor<TFirst, TSecond> : IForEach
 
 public struct GenericEntityFunctor<TFirst, TSecond> : IForEachEntity
 {
-    public void Invoke(Entity entity, in TFirst first, in TSecond second) { }
+    public void Invoke(EntityRef entity, in TFirst first, in TSecond second) { }
 }
 
 public struct GenericContextFunctor<TFirst, TSecond> : IForEachContext<Context>
@@ -158,7 +158,7 @@ public struct GenericContextFunctor<TFirst, TSecond> : IForEachContext<Context>
 
 public struct GenericEntityContextFunctor<T> : IForEachContextEntity<Context>
 {
-    public void Invoke(ref Context context, Entity entity, in T value) => context.Value += entity.Index;
+    public void Invoke(ref Context context, EntityRef entity, in T value) => context.Value += entity.Index;
 }
 
 public struct GenericParallelContextFunctor<T> : IForEachContext<Context>
@@ -168,7 +168,7 @@ public struct GenericParallelContextFunctor<T> : IForEachContext<Context>
 
 public struct GenericParallelEntityContextFunctor<T> : IForEachContextEntity<Context>
 {
-    public void Invoke(in Context context, Entity entity, in T value) => _ = context.Value + entity.Index + value.GetHashCode();
+    public void Invoke(in Context context, EntityRef entity, in T value) => _ = context.Value + entity.Index + value.GetHashCode();
 }
 
 public struct Cmp1Cmp2Comparer : IComponentComparer

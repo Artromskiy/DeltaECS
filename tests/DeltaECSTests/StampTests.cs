@@ -112,7 +112,7 @@ internal sealed class StampTests
         world.WhereEntity(
                 in query,
                 static (Entity current, in Position position) => position.X > 0)
-            .ForEachEntity(static (Entity current, in Position position) => _ = (current, position));
+            .ForEachEntity(static (EntityRef current, in Position position) => _ = current.Index + position.X);
 
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp after), Is.True);
         Assert.That(after, Is.EqualTo(before));
@@ -149,7 +149,7 @@ internal sealed class StampTests
             entities,
             in query,
             positionId,
-            static (Entity entity, in Stamp stamp) =>
+            static (EntityRef entity, in Stamp stamp) =>
             {
                 _ = entity;
                 if (stamp.Value <= 0)
