@@ -37,9 +37,9 @@ public sealed partial class World
         internal readonly IGeneratedGenericFunctor Executor = executor;
     }
 
-    /// <summary>Executes a generated runtime-selected generic functor over a query or entity list.</summary>
+    /// <summary>Creates a reusable operation for a runtime-selected generic functor.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public void ExecuteGenericFunctor(
+    public EcsOperation CreateGenericFunctorOperation(
         in Query query,
         ReadOnlySpan<Entity> entities,
         bool hasQuery,
@@ -48,30 +48,75 @@ public sealed partial class World
         int workerCount,
         ReadOnlySpan<ComponentId> arguments)
     {
-        IGeneratedGenericFunctor executor = ResolveGenericFunctor(in query, hasQuery, functorType, arguments);
-        executor.Execute(this, in query, entities, hasQuery, mode, workerCount, arguments);
+        Query operationQuery = query;
+        Entity[] operationEntities = entities.ToArray();
+        ComponentId[] operationArguments = arguments.ToArray();
+        IGeneratedGenericFunctor? executor = null;
+        bool operationHasQuery = hasQuery;
+
+        return new EcsOperation(() =>
+        {
+            ValidateGenericFunctorOperation(in operationQuery, operationHasQuery, functorType);
+            executor ??= ResolveGenericFunctor(in operationQuery, operationHasQuery, functorType, operationArguments);
+            if (!operationHasQuery)
+            {
+                operationQuery = executor.CreateQuery(this, operationArguments);
+                operationHasQuery = true;
+            }
+
+            executor.Execute(this, in operationQuery, operationEntities, operationHasQuery, mode, workerCount, operationArguments);
+        });
     }
 
-    /// <summary>Executes a generated runtime-selected generic functor with a caller-owned typed context.</summary>
+    /// <summary>Creates a reusable operation for a runtime-selected generic functor with mutable caller-owned context.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public void ExecuteGenericFunctor<TContext>(
+    public EcsOperation<TContext> CreateGenericFunctorOperation<TContext>(
         in Query query,
         ReadOnlySpan<Entity> entities,
         bool hasQuery,
         GeneratedGenericFunctorMode mode,
         Type functorType,
         int workerCount,
-        ref TContext context,
+        TContext context,
         ReadOnlySpan<ComponentId> arguments)
     {
-        IGeneratedGenericFunctor executor = ResolveGenericFunctor(in query, hasQuery, functorType, arguments);
-        IGeneratedGenericFunctor<TContext>? contextExecutor = executor as IGeneratedGenericFunctor<TContext>;
-        if (contextExecutor is null)
-        {
-            ThrowHelper.ThrowGenericFunctorContextMismatch(functorType, typeof(TContext));
-        }
+        Query operationQuery = query;
+        Entity[] operationEntities = entities.ToArray();
+        ComponentId[] operationArguments = arguments.ToArray();
+        IGeneratedGenericFunctor<TContext>? executor = null;
+        bool operationHasQuery = hasQuery;
 
-        contextExecutor.Execute(this, in query, entities, hasQuery, mode, workerCount, ref context, arguments);
+        return new EcsOperation<TContext>(context, (ref TContext operationContext) =>
+        {
+            ValidateGenericFunctorOperation(in operationQuery, operationHasQuery, functorType);
+            if (executor is null)
+            {
+                IGeneratedGenericFunctor genericExecutor = ResolveGenericFunctor(in operationQuery, operationHasQuery, functorType, operationArguments);
+                if (!operationHasQuery)
+                {
+                    operationQuery = genericExecutor.CreateQuery(this, operationArguments);
+                    operationHasQuery = true;
+                }
+
+                if (genericExecutor is not IGeneratedGenericFunctor<TContext> typedExecutor)
+                {
+                    ThrowHelper.ThrowGenericFunctorContextMismatch(functorType, typeof(TContext));
+                    return;
+                }
+
+                executor = typedExecutor;
+            }
+
+            executor!.Execute(
+                this,
+                in operationQuery,
+                operationEntities,
+                operationHasQuery,
+                mode,
+                workerCount,
+                ref operationContext,
+                operationArguments);
+        });
     }
 
     private IGeneratedGenericFunctor ResolveGenericFunctor(
@@ -139,5 +184,15 @@ public sealed partial class World
         entries.Add(newEntry);
         _lastGenericFunctorEntry = newEntry;
         return executor;
+    }
+
+    private void ValidateGenericFunctorOperation(in Query query, bool hasQuery, Type functorType)
+    {
+        EnsureExecutionAccess();
+        ThrowHelper.ThrowIfNull(functorType, nameof(functorType));
+        if (hasQuery && (!query.IsValid || query.Owner != this))
+        {
+            ThrowHelper.ThrowInvalidEntityQueryHandle();
+        }
     }
 }

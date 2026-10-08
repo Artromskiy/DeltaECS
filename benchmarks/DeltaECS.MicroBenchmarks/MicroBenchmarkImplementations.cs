@@ -102,7 +102,7 @@ internal static class MicroBenchmarkKernels
                 p.X += v.X;
                 p.Y += v.Y;
                 sum += p.X + p.Y;
-            });
+            }).Invoke(ref checksum);
         return checksum;
     }
 
@@ -120,7 +120,7 @@ internal static class MicroBenchmarkKernels
                 b.Value += d.Value;
                 c.Value = (a.Value + b.Value) / 2;
                 sum += a.Value + b.Value + c.Value + d.Value;
-            });
+            }).Invoke(ref checksum);
         return checksum;
     }
 
@@ -219,7 +219,7 @@ public class GeneratedFunctorMovement4MicroBenchmarkImplementation
     public int Movement4GeneratedFunctor()
     {
         var functor = new GeneratedMovement4Functor();
-        _fixture.World.ForEach(in _query, ref functor);
+        _fixture.World.ForEach(in _query, ref functor).Invoke(ref functor);
         return functor.Checksum;
     }
 }

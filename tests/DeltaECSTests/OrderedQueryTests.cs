@@ -41,12 +41,12 @@ internal sealed class OrderedQueryTests
             .ThenBy(tagId, ref tagComparer);
 
         Assert.That(Collect(ordered), Is.EqualTo(InitialStableOrder));
-        Assert.That(ordered.First(), Is.EqualTo(entities[4]));
+        Assert.That(ordered.First().Invoke(), Is.EqualTo(entities[4]));
         Entity expectedFiltered = Array.Find(entities, static entity => entity.Index == 2);
-        Assert.That(ordered.First(entity => entity.Index == 2 || entity.Index == 3), Is.EqualTo(expectedFiltered));
+        Assert.That(ordered.First(entity => entity.Index == 2 || entity.Index == 3).Invoke(), Is.EqualTo(expectedFiltered));
 
         var orderedValues = new OrderedValueCollector { Values = new int[entities.Length] };
-        ordered.ForEach(ref orderedValues);
+        ordered.ForEach(ref orderedValues).Invoke(ref orderedValues);
         Assert.That(orderedValues.Values, Is.EqualTo(OrderedKeyValues));
 
         world.GetRef<OrderKey>(entities[0], keyId).Value = 0;
@@ -54,7 +54,7 @@ internal sealed class OrderedQueryTests
 
         var sourceOrder = new List<int>();
         world.ForEachEntity(in query, ref sourceOrder,
-            static (ref List<int> indices, EntityRef entity) => indices.Add(entity.Index));
+            static (ref List<int> indices, EntityRef entity) => indices.Add(entity.Index)).Invoke(ref sourceOrder);
         Assert.That(sourceOrder, Is.EqualTo(SourceEntityOrder));
 
         void Set(int index, int key, int tie)
@@ -157,9 +157,9 @@ internal sealed class OrderedQueryTests
             .WhereAll(tagId)
             .OrderBy(ref keyComparer);
 
-        Assert.That(ordered.First(), Is.EqualTo(default(Entity)));
-        Assert.That(ordered.First(static _ => true), Is.EqualTo(default(Entity)));
-        Assert.That(ordered.FirstEntity(), Is.EqualTo(default(Entity)));
+        Assert.That(ordered.First().Invoke(), Is.EqualTo(default(Entity)));
+        Assert.That(ordered.First(static _ => true).Invoke(), Is.EqualTo(default(Entity)));
+        Assert.That(ordered.FirstEntity().Invoke(), Is.EqualTo(default(Entity)));
     }
 
     [Test]
@@ -194,7 +194,7 @@ internal sealed class OrderedQueryTests
     {
         var result = new List<int>();
         query.ForEachEntity(ref result,
-            static (ref List<int> indices, EntityRef entity) => indices.Add(entity.Index));
+            static (ref List<int> indices, EntityRef entity) => indices.Add(entity.Index)).Invoke(ref result);
         return result.ToArray();
     }
 

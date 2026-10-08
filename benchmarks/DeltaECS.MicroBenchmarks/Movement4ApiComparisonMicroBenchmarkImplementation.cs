@@ -69,7 +69,7 @@ public class Movement4ApiComparisonMicroBenchmarkImplementation
     public int Functor()
     {
         var functor = new Movement4NoContextFunctor();
-        _fixture.World.ForEach(in _query, ref functor);
+        _fixture.World.ForEach(in _query, ref functor).Invoke(ref functor);
         return functor.Checksum;
     }
 
@@ -78,7 +78,7 @@ public class Movement4ApiComparisonMicroBenchmarkImplementation
     {
         s_delegateChecksum = 0;
         ForEachAction_WWWR<Movement4A, Movement4B, Movement4C, Movement4D> action = ApplyDelegate;
-        _fixture.World.ForEach(in _query, action);
+        _fixture.World.ForEach(in _query, action).Invoke();
         return s_delegateChecksum;
     }
 
@@ -86,7 +86,7 @@ public class Movement4ApiComparisonMicroBenchmarkImplementation
     public int Intercepted()
     {
         s_delegateChecksum = 0;
-        _fixture.World.ForEach(in _query, ApplyDelegate);
+        _fixture.World.ForEach(in _query, ApplyDelegate).Invoke();
         return s_delegateChecksum;
     }
 
@@ -116,7 +116,7 @@ public class Movement4ApiComparisonMicroBenchmarkImplementation
                 b.Value = d.Value + 2;
                 c.Value = (a.Value + b.Value) / 2;
                 state.Checksum += a.Value + b.Value + c.Value + d.Value;
-            });
+            }).Invoke(ref context);
         return context.Checksum;
     }
 
@@ -125,7 +125,7 @@ public class Movement4ApiComparisonMicroBenchmarkImplementation
     {
         var context = new Movement4ApiContext();
         var functor = new Movement4ContextFunctor();
-        _fixture.World.ForEach(in _query, ref context, ref functor);
+        _fixture.World.ForEach(in _query, ref context, ref functor).Invoke(ref context, ref functor);
         return context.Checksum;
     }
 }

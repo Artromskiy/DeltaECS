@@ -112,7 +112,7 @@ internal sealed class StampTests
         world.WhereEntity(
                 in query,
                 static (Entity current, in Position position) => position.X > 0)
-            .ForEachEntity(static (EntityRef current, in Position position) => _ = current.Index + position.X);
+            .ForEachEntity(static (EntityRef current, in Position position) => _ = current.Index + position.X).Invoke();
 
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp after), Is.True);
         Assert.That(after, Is.EqualTo(before));
@@ -144,7 +144,7 @@ internal sealed class StampTests
                 }
 
                 count++;
-            });
+            }).Invoke(ref visited);
         world.ForEachEntityStamp(
             entities,
             in query,
@@ -156,11 +156,11 @@ internal sealed class StampTests
                 {
                     throw new InvalidOperationException();
                 }
-            });
+            }).Invoke();
         world.ForEachStampParallel<Position>(
             in query,
             static (in Stamp stamp) => _ = stamp.Value,
-            workerCount: 2);
+            workerCount: 2).Invoke();
 
         Assert.That(visited, Is.EqualTo(2));
         Assert.That(world.TryGetComponentStamp(first, positionId, out Stamp firstAfter), Is.True);

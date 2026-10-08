@@ -46,7 +46,7 @@ internal sealed class EntityRefTests
             HealthStamps = new Stamp[entities.Length]
         };
 
-        world.ForEachEntity(in query, ref state, InspectEntity);
+        world.ForEachEntity(in query, ref state, InspectEntity).Invoke(ref state);
 
         Assert.That(state.Visited, Is.EqualTo(5));
         Assert.That(state.HealthWrites, Is.EqualTo(1));

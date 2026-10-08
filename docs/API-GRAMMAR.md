@@ -48,6 +48,23 @@ Query factories also allow typed and `ComponentId` selectors. `Q` is required
 for world-wide query iteration and optional after an explicit entity target
 `E`.
 
+Iteration entry points return reusable deferred operation objects. Calling a
+`ForEach`, `ForEachParallel`, or generated terminal such as `Where(...).Add(...)`
+only builds the operation; `Invoke()` executes it. `Where` and `OrderBy` return
+composable views, while their terminal operations are deferred. An operation
+retains its `Query` and live `QueryPlan`, not a snapshot of matching chunks.
+Each invocation validates execution state and visits the query's current
+matching chunks, including archetypes created after the operation was built.
+
+Functor operations keep a typed copy of the functor without converting it to an
+interface. `Invoke()` uses and updates that operation-owned copy, while
+`Invoke(ref functor)` uses caller-owned state. Context-bearing operations have
+matching `Invoke` overloads. A generated `Where` view owns copies of its
+predicate and predicate context and retains their updated state between
+terminal invocations. Entity spans and dynamic component-ID spans are copied
+when an operation is built because the returned object cannot retain a span
+over caller-owned stack memory.
+
 Use positional IDs when the registrations are known at the call site. Pass an
 explicit `ReadOnlySpan<ComponentId>` when the list is assembled dynamically;
 the span is an ordinary parameter, not a `params` argument. The old
@@ -205,7 +222,7 @@ world.ForEachEntity(in query, static (EntityRef entity) =>
         ref Health health = ref entity.GetRef<Health>(healthId);
         health.Value--;
     }
-});
+}).Invoke();
 ```
 
 `Has` and `TryGet<T>` check membership because the requested component may not
@@ -263,18 +280,18 @@ world.ForEachEntityStampParallel(E, Q?, I... | D, C?, A | F, W)
 ```csharp
 world.ForEachEntityStamp<Health>(
     in query,
-    static (EntityRef entity, in Stamp stamp) => Process(entity.Handle, stamp));
+    static (EntityRef entity, in Stamp stamp) => Process(entity.Handle, stamp)).Invoke();
 
 world.ForEachStampParallel<Health>(
     in query,
     static (in Stamp stamp) => Process(stamp),
-    workerCount: 4);
+    workerCount: 4).Invoke();
 
 world.ForEachEntityStamp(
     entities,
     in query,
     healthId,
-    static (EntityRef entity, in Stamp stamp) => Process(entity.Handle, stamp));
+    static (EntityRef entity, in Stamp stamp) => Process(entity.Handle, stamp)).Invoke();
 ```
 
 The zero-component stamp overloads are documentation anchors and throw
@@ -311,8 +328,8 @@ transition per eligible entity; `Create` initializes one entity with the
 selected registrations.
 
 `O` is optional caller-owned output storage. Omitting it creates entities
-without retaining handles. Structural terminals are immediate operations and
-cannot run from an active traversal callback.
+without retaining handles. Structural terminals execute synchronously when
+their operation is invoked and cannot run from an active traversal callback.
 
 ## Query factories
 
@@ -371,22 +388,23 @@ QuerySpec spec = QuerySpec.Empty
 ## Where pipeline
 
 `Where` evaluates a predicate over every entity selected by `Q`; the
-entity-aware spelling is `WhereEntity`. The resulting view is stack-only and
-the terminal completes the whole operation immediately:
+entity-aware spelling is `WhereEntity`. The resulting reusable view retains
+the predicate and source query. Its terminal methods build deferred operations
+that run only when invoked:
 
 ```text
 world.Where(Q, C?, Predicate) -> WhereView
 world.WhereEntity(Q, C?, Predicate) -> WhereView
 
-view.Destroy()
-view.Add<T...>()
-view.Add<T...>(I... | D)
-view.Add<T...>(V...)
-view.Add<T...>(I..., V...)
-view.Remove<T...>()
-view.Remove<T...>(I... | D)
-view.ForEach(...)
-view.ForEachEntity(...)              // EntityRef-only or EntityRef plus components
+view.Destroy().Invoke()
+view.Add<T...>().Invoke()
+view.Add<T...>(I... | D).Invoke()
+view.Add<T...>(V...).Invoke()
+view.Add<T...>(I..., V...).Invoke()
+view.Remove<T...>().Invoke()
+view.Remove<T...>(I... | D).Invoke()
+view.ForEach(...).Invoke()
+view.ForEachEntity(...).Invoke()     // EntityRef-only or EntityRef plus components
 ```
 
 The ordinary `Where` predicate is component-only. `WhereEntity` adds the
@@ -487,7 +505,9 @@ ComponentId valueId = layouts.Register<float>(new SchemaId(20));
 ComponentId historyId = layouts.Register(typeof(History<>), valueId, new SchemaId(21));
 Query query = world.WhereAll(valueId, historyId);
 var context = new HistoryContext();
-world.ForEach(in query, ref context, valueId, typeof(SaveHistory<>));
+var saveHistory = world.ForEach(in query, ref context, valueId, typeof(SaveHistory<>));
+saveHistory.Invoke(ref context);
+saveHistory.Invoke(ref context);
 ```
 
 The context is strongly typed through the generated adapter. No boxing or
@@ -499,11 +519,11 @@ forms provide read-only or local-copy behavior. Parallel forms reject mutable
 Query-wide forms require `Q`:
 
 ```csharp
-world.ForEach(in query, componentId0, typeof(SaveHistory<>));
-world.ForEachEntity(in query, componentId0, typeof(VisitEntity<>));
+world.ForEach(in query, componentId0, typeof(SaveHistory<>)).Invoke();
+world.ForEachEntity(in query, componentId0, typeof(VisitEntity<>)).Invoke();
 
-world.ForEachParallel(in query, componentId0, typeof(SaveHistory<>), workerCount: 4);
-world.ForEachEntityParallel(in query, componentId0, typeof(VisitEntity<>), workerCount: 4);
+world.ForEachParallel(in query, componentId0, typeof(SaveHistory<>), workerCount: 4).Invoke();
+world.ForEachEntityParallel(in query, componentId0, typeof(VisitEntity<>), workerCount: 4).Invoke();
 ```
 
 Entity-list forms accept an array or `ReadOnlySpan<Entity>`. `Q` may further
@@ -511,15 +531,15 @@ filter that list; omitting it derives a query from the component rows used by
 `Invoke`:
 
 ```csharp
-world.ForEach(entities, in query, componentId0, typeof(SaveHistory<>));
-world.ForEach(entities, componentId0, typeof(SaveHistory<>));
-world.ForEachEntity(entities, in query, componentId0, typeof(VisitEntity<>));
-world.ForEachEntity(entities, componentId0, typeof(VisitEntity<>));
+world.ForEach(entities, in query, componentId0, typeof(SaveHistory<>)).Invoke();
+world.ForEach(entities, componentId0, typeof(SaveHistory<>)).Invoke();
+world.ForEachEntity(entities, in query, componentId0, typeof(VisitEntity<>)).Invoke();
+world.ForEachEntity(entities, componentId0, typeof(VisitEntity<>)).Invoke();
 
-world.ForEachParallel(entities, in query, componentId0, typeof(SaveHistory<>), workerCount: 4);
-world.ForEachParallel(entities, componentId0, typeof(SaveHistory<>), workerCount: 4);
-world.ForEachEntityParallel(entities, in query, componentId0, typeof(VisitEntity<>), workerCount: 4);
-world.ForEachEntityParallel(entities, componentId0, typeof(VisitEntity<>), workerCount: 4);
+world.ForEachParallel(entities, in query, componentId0, typeof(SaveHistory<>), workerCount: 4).Invoke();
+world.ForEachParallel(entities, componentId0, typeof(SaveHistory<>), workerCount: 4).Invoke();
+world.ForEachEntityParallel(entities, in query, componentId0, typeof(VisitEntity<>), workerCount: 4).Invoke();
+world.ForEachEntityParallel(entities, componentId0, typeof(VisitEntity<>), workerCount: 4).Invoke();
 ```
 
 `IForEach` receives only the component rows declared by `Invoke`. Implement
@@ -536,11 +556,11 @@ must match the open functor's generic parameters. For example, two generic
 parameters can bind three callback rows, including a derived registration:
 
 ```csharp
-world.ForEach(in query, firstId, secondId, typeof(CopyPair<,>));
-world.ForEach(in query, id0, id1, id2, typeof(Action<,,>));
+world.ForEach(in query, firstId, secondId, typeof(CopyPair<,>)).Invoke();
+world.ForEach(in query, id0, id1, id2, typeof(Action<,,>)).Invoke();
 
 ReadOnlySpan<ComponentId> genericArguments = stackalloc ComponentId[] { firstId, secondId };
-world.ForEach(in query, genericArguments, typeof(CopyPair<,>));
+world.ForEach(in query, genericArguments, typeof(CopyPair<,>)).Invoke();
 ```
 
 Order and repeated IDs are preserved. Generic arity is independent of callback
@@ -549,9 +569,10 @@ two rows with one generic argument. Register `History<T>` with an explicit
 schema ID and the source component ID before iterating. Secondary registrations
 of the same CLR type retain distinct derived registrations.
 
-Each invocation creates a default functor and keeps that instance for the whole
+Each `Invoke` creates a default functor and keeps that instance for the whole
 traversal. Its fields are pass-local functor state; use a context contract when
-caller-owned state needs to be read or updated. The generator must be present
+caller-owned state needs to be read or updated. The operation caches the closed
+executor after its first invocation. The generator must be present
 in the assembly defining the accessible generic functor struct. The
 type-token dispatcher uses ordinary generic calls; AOT targets still need to
 preserve the generated closed generic instantiations used by the application.
@@ -601,9 +622,9 @@ OrderedQuery ordered = candidates
 ordered.ForEachEntity(static (EntityRef entity, in Priority priority, in SyncId syncId) =>
 {
     ProcessInOrder(entity.Handle, priority, syncId);
-});
+}).Invoke();
 
-Entity first = ordered.First();
+Entity first = ordered.First().Invoke();
 ```
 
 Use `IComponentComparerEntity` when the comparison also needs the entity
@@ -708,7 +729,7 @@ OrderedQuery orderedHealth = candidatesById
     .ThenBy(healthId, ref healthComparerById);
 
 orderedHealth.ForEach<Health, SyncId>(healthId, syncIdComponentId,
-    static (ref Health health, in SyncId syncId) => Apply(health, syncId));
+    static (ref Health health, in SyncId syncId) => Apply(health, syncId)).Invoke();
 ```
 
 The generated `OrderBy` and `ThenBy` forms also accept an explicit
@@ -726,7 +747,7 @@ order.
 Compose `Query` component filters such as `WhereAll`, `WhereAny`, and
 `WhereNone` before calling `OrderBy`. Predicate views created by the generated
 `Where` and `WhereEntity` views can be ordered before selecting a result. The
-predicate remains live in the stack-only view: `First` evaluates it while
+view retains its predicate and source query: `First` evaluates it while
 scanning the source query and compares only matching entities. Use this when a
 selection has both a gameplay condition and a deterministic priority order:
 
@@ -737,7 +758,7 @@ Entity target = world.WhereEntity(in candidates,
         static (Entity entity, in Health health) => health.Value > 0)
     .OrderBy(ref pairComparer)
     .ThenBy(ref healthComparer)
-    .First();
+    .First().Invoke();
 ```
 
 The filtered ordering supports `OrderBy`, `ThenBy`, `First`, `FirstEntity`,
@@ -752,9 +773,9 @@ world.Where(Q, C?, A | F) -> WhereView
 world.WhereEntity(Q, C?, A | F) -> WhereView
 WhereView.OrderBy(I... | D, C?, A | F) -> OrderedWhereView
 OrderedWhereView.ThenBy(I... | D, C?, A | F) -> OrderedWhereView
-OrderedWhereView.First(P?) -> Entity
-OrderedWhereView.ForEach(...)
-OrderedWhereView.ForEachEntity(...)
+OrderedWhereView.First(P?) -> EcsResultOperation<Entity>; Invoke() -> Entity
+OrderedWhereView.ForEach(...) -> EcsOperation; Invoke() executes
+OrderedWhereView.ForEachEntity(...) -> EcsOperation; Invoke() executes
 ```
 
 The ordering selectors and comparer can be omitted when the generated primary

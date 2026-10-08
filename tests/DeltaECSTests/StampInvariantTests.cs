@@ -82,7 +82,7 @@ internal sealed class StampInvariantTests
 
         world.ForEach<Position>(
             in query,
-            static (ref Position position) => position.X++);
+            static (ref Position position) => position.X++).Invoke();
 
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp after), Is.True);
         Assert.That(after, Is.EqualTo(new Stamp(before.Value + 1)));

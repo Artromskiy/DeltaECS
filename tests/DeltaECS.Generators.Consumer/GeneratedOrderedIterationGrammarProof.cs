@@ -37,21 +37,21 @@ internal static class GeneratedOrderedIterationGrammarProof
                 static (in Cmp3 cmp3, in Cmp4 cmp4) => cmp3.Value < cmp4.Value)
             .OrderBy(ref comparer)
             .ThenBy(cmp1Id, cmp2Id, ref comparer)
-            .First();
+            .First().Invoke();
         _ = world.WhereEntity(in query,
                 static (Entity entity, in Cmp3 cmp3, in Cmp4 cmp4) => cmp3.Value < entity.Index + cmp4.Value)
             .OrderBy(cmp1Id, cmp2Id, ref comparer)
             .ThenBy(componentIds, ref comparer)
-            .FirstEntity();
+            .FirstEntity().Invoke();
 
         var predicate = new WherePredicate();
         _ = world.Where(in query, ref predicate)
             .OrderBy(ref comparer)
-            .First();
+            .First().Invoke();
         var entityPredicate = new WhereEntityPredicate();
         _ = world.WhereEntity(in query, ref entityPredicate)
             .OrderBy(ref comparer)
-            .First();
+            .First().Invoke();
 
         _ = world.Where(in query, ref context,
                 static (ref Context state, in Cmp3 cmp3, in Cmp4 cmp4) =>
@@ -66,7 +66,7 @@ internal static class GeneratedOrderedIterationGrammarProof
                     return first != 0 ? first : left2.Value.CompareTo(right2.Value);
                 })
             .ThenBy(ref comparer)
-            .First();
+            .First().Invoke();
         world.Where(in query, ref context,
                 static (ref Context state, in Cmp3 cmp3, in Cmp4 cmp4) =>
                 {
@@ -80,42 +80,42 @@ internal static class GeneratedOrderedIterationGrammarProof
                     return first != 0 ? first : left2.Value.CompareTo(right2.Value);
                 })
             .ThenBy(ref comparer)
-            .ForEach(static (ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += cmp2.Value);
+            .ForEach(static (ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += cmp2.Value).Invoke();
         world.WhereEntity(in query,
                 static (Entity current, in Cmp3 cmp3, in Cmp4 cmp4) => cmp3.Value < current.Index + cmp4.Value)
             .OrderBy(ref comparer)
-            .ForEachEntity(static (EntityRef current, ref Cmp1 cmp1) => cmp1.Value += current.Index);
+            .ForEachEntity(static (EntityRef current, ref Cmp1 cmp1) => cmp1.Value += current.Index).Invoke();
         var orderedFunctor = new FunctorRW();
         world.Where(in query, ref predicate)
             .OrderBy(ref comparer)
-            .ForEach(componentIds, ref orderedFunctor);
+            .ForEach(componentIds, ref orderedFunctor).Invoke(ref orderedFunctor);
 
-        _ = ordered.First();
-        _ = ordered.First(static entity => entity.IsValid);
-        _ = ordered.FirstEntity();
-        _ = ordered.FirstEntity(static entity => entity.IsValid);
+        _ = ordered.First().Invoke();
+        _ = ordered.First(static entity => entity.IsValid).Invoke();
+        _ = ordered.FirstEntity().Invoke();
+        _ = ordered.FirstEntity(static entity => entity.IsValid).Invoke();
 
-        ordered.ForEach(static (ref Cmp1 cmp1) => cmp1.Value++);
-        ordered.ForEach<Cmp1>(cmp1Id, static (ref Cmp1 cmp1) => cmp1.Value++);
+        ordered.ForEach(static (ref Cmp1 cmp1) => cmp1.Value++).Invoke();
+        ordered.ForEach<Cmp1>(cmp1Id, static (ref Cmp1 cmp1) => cmp1.Value++).Invoke();
         ordered.ForEach<Cmp1, Cmp2>(componentIds,
-            static (ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += cmp2.Value);
+            static (ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += cmp2.Value).Invoke();
         ordered.ForEach<Cmp1, Cmp2>(cmp1Id, cmp2Id,
-            static (ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += cmp2.Value);
-        ordered.ForEachEntity(static (EntityRef entity) => _ = entity.Index);
+            static (ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += cmp2.Value).Invoke();
+        ordered.ForEachEntity(static (EntityRef entity) => _ = entity.Index).Invoke();
         ordered.ForEachEntity<Cmp1, Cmp2>(cmp1Id, cmp2Id,
-            static (EntityRef entity, ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += entity.Index + cmp2.Value);
+            static (EntityRef entity, ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += entity.Index + cmp2.Value).Invoke();
         ordered.ForEach(ref context,
-            static (ref Context state, ref Cmp1 cmp1) => cmp1.Value += state.Value++);
+            static (ref Context state, ref Cmp1 cmp1) => cmp1.Value += state.Value++).Invoke(ref context);
         ordered.ForEachEntity(ref context,
-            static (ref Context state, EntityRef entity, ref Cmp1 cmp1) => cmp1.Value += state.Value + entity.Index);
+            static (ref Context state, EntityRef entity, ref Cmp1 cmp1) => cmp1.Value += state.Value + entity.Index).Invoke(ref context);
 
         var functor = new FunctorRW();
-        ordered.ForEach(componentIds, ref functor);
+        ordered.ForEach(componentIds, ref functor).Invoke(ref functor);
         var entityFunctor = new FunctorEntityRW();
-        ordered.ForEachEntity(cmp1Id, cmp2Id, ref entityFunctor);
+        ordered.ForEachEntity(cmp1Id, cmp2Id, ref entityFunctor).Invoke(ref entityFunctor);
         var contextFunctor = new FunctorContext();
-        ordered.ForEach(ref context, ref contextFunctor);
+        ordered.ForEach(ref context, ref contextFunctor).Invoke(ref context, ref contextFunctor);
         var entityContextFunctor = new FunctorEntityContext();
-        ordered.ForEachEntity(ref context, ref entityContextFunctor);
+        ordered.ForEachEntity(ref context, ref entityContextFunctor).Invoke(ref context, ref entityContextFunctor);
     }
 }

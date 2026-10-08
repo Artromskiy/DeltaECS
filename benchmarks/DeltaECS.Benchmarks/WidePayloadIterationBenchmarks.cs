@@ -80,7 +80,7 @@ public class WidePayloadPartialReadIterationBenchmarks
                 _ = payload5;
                 _ = payload6;
                 checksum += payload0.Value + payload7.Value;
-            });
+            }).Invoke(ref checksum);
 
         return checksum == Amount * 9
             ? checksum

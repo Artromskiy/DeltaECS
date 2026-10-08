@@ -52,7 +52,7 @@ public class WhereIterationMicroBenchmarkImplementation
         _world.ForEach(
             in _query,
             static (ref readonly WhereIterationValue _, ref WhereIterationAccumulator accumulator) =>
-                accumulator.Value++);
+                accumulator.Value++).Invoke();
         return Amount;
     }
 
@@ -62,7 +62,7 @@ public class WhereIterationMicroBenchmarkImplementation
         _world.Where(
                 in _query,
                 static (ref readonly WhereIterationValue _) => true)
-            .ForEach(static (ref WhereIterationAccumulator accumulator) => accumulator.Value++);
+            .ForEach(static (ref WhereIterationAccumulator accumulator) => accumulator.Value++).Invoke();
         return Amount;
     }
 
@@ -72,7 +72,7 @@ public class WhereIterationMicroBenchmarkImplementation
         _world.WhereEntity(
                 in _query,
                 static (Entity entity, ref readonly WhereIterationValue value) => true)
-            .ForEach(static (ref WhereIterationAccumulator accumulator) => accumulator.Value++);
+            .ForEach(static (ref WhereIterationAccumulator accumulator) => accumulator.Value++).Invoke();
         return Amount;
     }
 

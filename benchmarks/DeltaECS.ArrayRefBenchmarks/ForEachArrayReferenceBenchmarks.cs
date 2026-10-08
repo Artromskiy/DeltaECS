@@ -75,7 +75,7 @@ public class ForEachArrayReferenceBenchmarks : IDisposable
         _world.ForEach(
             in _query,
             ref checksum,
-            static (ref long sum, in ArrayReferenceValue value) => sum += value.Value);
+            static (ref long sum, in ArrayReferenceValue value) => sum += value.Value).Invoke(ref checksum);
         return checksum;
     }
 }

@@ -72,7 +72,7 @@ public sealed class IterationScenario
     {
         long sum = 0;
         _world.ForEach(in _denseQuery, ref sum,
-            static (ref long checksum, in DenseValue value) => checksum += value.Value);
+            static (ref long checksum, in DenseValue value) => checksum += value.Value).Invoke(ref sum);
 
         var expected = (long)_amount * (_amount + 1) / 2;
         return sum == expected ? sum : throw new InvalidOperationException($"Dense checksum mismatch: {sum} != {expected}.");
@@ -87,7 +87,7 @@ public sealed class IterationScenario
                 position.X += velocity.X / 60f;
                 position.Y += velocity.Y / 60f;
                 checksum += position.X + position.Y;
-            });
+            }).Invoke(ref sum);
 
         return sum;
     }
@@ -108,7 +108,7 @@ public sealed class IterationScenario
                 b.Value = updatedB;
                 c.Value = (updatedA + updatedB) / 2;
                 checksum += a.Value + b.Value + c.Value + d.Value;
-            });
+            }).Invoke(ref sum);
 
         return sum;
     }

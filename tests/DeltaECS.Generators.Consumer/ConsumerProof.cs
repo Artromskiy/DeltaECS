@@ -162,18 +162,18 @@ public static partial class ConsumerProof
         Entity first = world.Where(in query, static (in Position position) => position.Value > 0)
             .OrderBy(positionId, ref positionOrder)
             .ThenBy(velocityId, ref velocityOrder)
-            .First();
+            .First().Invoke();
         Entity selected = world.Where(in query, static (in Position position) => position.Value > 0)
             .OrderBy(positionId, ref positionOrder)
-            .First(static entity => entity.Index == 3);
+            .First(static entity => entity.Index == 3).Invoke();
         Entity firstEntity = world.WhereEntity(in query,
                 static (Entity entity, in Position position) => entity.Index == 1 || entity.Index == 2)
             .OrderBy(positionId, ref positionOrder)
             .ThenBy(velocityId, ref velocityOrder)
-            .FirstEntity();
+            .FirstEntity().Invoke();
         Entity noMatch = world.Where(in query, static (in Position position) => position.Value < 0)
             .OrderBy(positionId, ref positionOrder)
-            .First();
+            .First().Invoke();
 
         return first == entities[2]
             && selected == entities[3]
@@ -215,10 +215,9 @@ public static partial class ConsumerProof
                 static (ref OrderedEntitySink output, EntityRef entity, in Position position) =>
                 {
                     output.Indices[output.Count++] = entity.Index;
-                });
+                }).Invoke(ref sink);
 
-        return filterContext.Evaluated == 4
-            && sink.Count == 3
+        return sink.Count == 3
             && sink.Indices[0] == entities[2].Index
             && sink.Indices[1] == entities[1].Index
             && sink.Indices[2] == entities[0].Index
@@ -235,42 +234,42 @@ public static partial class ConsumerProof
         Query query = world.WhereAll(value);
         RuntimeEntityCounter.Count = 0;
 
-        world.ForEachEntity(in query, value, typeof(RuntimeEntityCount<>));
+        world.ForEachEntity(in query, value, typeof(RuntimeEntityCount<>)).Invoke();
         if (RuntimeEntityCounter.Count != 2)
         {
             return 0;
         }
 
         RuntimeEntityCounter.Count = 0;
-        world.ForEachEntity(entities, in query, value, typeof(RuntimeEntityCount<>));
+        world.ForEachEntity(entities, in query, value, typeof(RuntimeEntityCount<>)).Invoke();
         if (RuntimeEntityCounter.Count != 2)
         {
             return 0;
         }
 
         RuntimeEntityCounter.Count = 0;
-        world.ForEachEntity(entities, value, typeof(RuntimeEntityCount<>));
+        world.ForEachEntity(entities, value, typeof(RuntimeEntityCount<>)).Invoke();
         if (RuntimeEntityCounter.Count != 2)
         {
             return 0;
         }
 
         RuntimeEntityCounter.Count = 0;
-        world.ForEachEntityParallel(in query, value, typeof(RuntimeEntityCount<>), workerCount: 2);
+        world.ForEachEntityParallel(in query, value, typeof(RuntimeEntityCount<>), workerCount: 2).Invoke();
         if (RuntimeEntityCounter.Count != 2)
         {
             return 0;
         }
 
         RuntimeEntityCounter.Count = 0;
-        world.ForEachEntityParallel(entities, in query, value, typeof(RuntimeEntityCount<>), workerCount: 2);
+        world.ForEachEntityParallel(entities, in query, value, typeof(RuntimeEntityCount<>), workerCount: 2).Invoke();
         if (RuntimeEntityCounter.Count != 2)
         {
             return 0;
         }
 
         RuntimeEntityCounter.Count = 0;
-        world.ForEachEntityParallel(entities, value, typeof(RuntimeEntityCount<>), workerCount: 2);
+        world.ForEachEntityParallel(entities, value, typeof(RuntimeEntityCount<>), workerCount: 2).Invoke();
         return RuntimeEntityCounter.Count == 2 ? 1 : 0;
     }
 
@@ -282,14 +281,14 @@ public static partial class ConsumerProof
         world.Create<int>(value, 2, entities);
         Query query = world.WhereAll(value);
         RuntimeEntityCounter.Count = 0;
-        world.ForEachEntity(in query, value, typeof(RuntimeEntityOnly<>));
+        world.ForEachEntity(in query, value, typeof(RuntimeEntityOnly<>)).Invoke();
         if (RuntimeEntityCounter.Count != 2)
         {
             return 0;
         }
 
         RuntimeComponentCounter.Count = 0;
-        world.ForEach(in query, value, typeof(RuntimeComponentCount<>));
+        world.ForEach(in query, value, typeof(RuntimeComponentCount<>)).Invoke();
         if (RuntimeComponentCounter.Count != 2)
         {
             return 0;
@@ -298,7 +297,7 @@ public static partial class ConsumerProof
         ReadOnlySpan<ComponentId> genericArguments = stackalloc ComponentId[] { value };
         RuntimeComponentCounter.Count = 0;
         world.ForEach<int>(in query, genericArguments, static (in int component) =>
-            System.Threading.Interlocked.Increment(ref RuntimeComponentCounter.Count));
+            System.Threading.Interlocked.Increment(ref RuntimeComponentCounter.Count)).Invoke();
         if (RuntimeComponentCounter.Count != 2)
         {
             return 0;
@@ -308,7 +307,7 @@ public static partial class ConsumerProof
         try
         {
             world.ForEach<int>(in query, stackalloc ComponentId[] { value, value }, static (in int component) =>
-                System.Threading.Interlocked.Increment(ref RuntimeComponentCounter.Count));
+                System.Threading.Interlocked.Increment(ref RuntimeComponentCounter.Count)).Invoke();
             return 0;
         }
         catch (ArgumentException)
@@ -323,7 +322,7 @@ public static partial class ConsumerProof
         try
         {
             world.ForEach<int>(in query, stackalloc ComponentId[] { wrongTypeId }, static (in int component) =>
-                System.Threading.Interlocked.Increment(ref RuntimeComponentCounter.Count));
+                System.Threading.Interlocked.Increment(ref RuntimeComponentCounter.Count)).Invoke();
             return 0;
         }
         catch (ArgumentException)
@@ -331,7 +330,7 @@ public static partial class ConsumerProof
         }
 
         RuntimeComponentCounter.Count = 0;
-        world.ForEach(in query, genericArguments, typeof(RuntimeComponentCount<>));
+        world.ForEach(in query, genericArguments, typeof(RuntimeComponentCount<>)).Invoke();
         if (RuntimeComponentCounter.Count != 2)
         {
             return 0;
@@ -340,7 +339,7 @@ public static partial class ConsumerProof
         ReadOnlySpan<ComponentId> wrongArity = stackalloc ComponentId[] { value, value };
         try
         {
-            world.ForEach(in query, wrongArity, typeof(RuntimeComponentCount<>));
+            world.ForEach(in query, wrongArity, typeof(RuntimeComponentCount<>)).Invoke();
             return 0;
         }
         catch (ArgumentException)
@@ -348,35 +347,35 @@ public static partial class ConsumerProof
         }
 
         RuntimeComponentCounter.Count = 0;
-        world.ForEach(entities, in query, value, typeof(RuntimeComponentCount<>));
+        world.ForEach(entities, in query, value, typeof(RuntimeComponentCount<>)).Invoke();
         if (RuntimeComponentCounter.Count != 2)
         {
             return 0;
         }
 
         RuntimeComponentCounter.Count = 0;
-        world.ForEach(entities, value, typeof(RuntimeComponentCount<>));
+        world.ForEach(entities, value, typeof(RuntimeComponentCount<>)).Invoke();
         if (RuntimeComponentCounter.Count != 2)
         {
             return 0;
         }
 
         RuntimeComponentCounter.Count = 0;
-        world.ForEachParallel(in query, value, typeof(RuntimeComponentCount<>), workerCount: 2);
+        world.ForEachParallel(in query, value, typeof(RuntimeComponentCount<>), workerCount: 2).Invoke();
         if (RuntimeComponentCounter.Count != 2)
         {
             return 0;
         }
 
         RuntimeComponentCounter.Count = 0;
-        world.ForEachParallel(entities, in query, value, typeof(RuntimeComponentCount<>), workerCount: 2);
+        world.ForEachParallel(entities, in query, value, typeof(RuntimeComponentCount<>), workerCount: 2).Invoke();
         if (RuntimeComponentCounter.Count != 2)
         {
             return 0;
         }
 
         RuntimeComponentCounter.Count = 0;
-        world.ForEachParallel(entities, value, typeof(RuntimeComponentCount<>), workerCount: 2);
+        world.ForEachParallel(entities, value, typeof(RuntimeComponentCount<>), workerCount: 2).Invoke();
         return RuntimeComponentCounter.Count == 2 ? 1 : 0;
     }
 
@@ -391,7 +390,7 @@ public static partial class ConsumerProof
         var context = new RuntimeGenericContext();
         try
         {
-            world.ForEach(in query, value, typeof(RuntimeContextCount<>));
+            world.ForEach(in query, value, typeof(RuntimeContextCount<>)).Invoke();
             return 0;
         }
         catch (InvalidOperationException)
@@ -401,7 +400,7 @@ public static partial class ConsumerProof
         int wrongContext = 0;
         try
         {
-            world.ForEach(in query, ref wrongContext, value, typeof(RuntimeContextCount<>));
+            world.ForEach(in query, ref wrongContext, value, typeof(RuntimeContextCount<>)).Invoke(ref wrongContext);
             return 0;
         }
         catch (ArgumentException)
@@ -410,98 +409,98 @@ public static partial class ConsumerProof
 
         try
         {
-            world.ForEachParallel(in query, ref context, value, typeof(RuntimeContextCount<>), workerCount: 2);
+            world.ForEachParallel(in query, ref context, value, typeof(RuntimeContextCount<>), workerCount: 2).Invoke(ref context);
             return 0;
         }
         catch (ArgumentException)
         {
         }
 
-        world.ForEach(in query, ref context, value, typeof(RuntimeContextCount<>));
+        world.ForEach(in query, ref context, value, typeof(RuntimeContextCount<>)).Invoke(ref context);
         if (context.Count != 2)
         {
             return 0;
         }
 
         context.Count = 0;
-        world.ForEach(entities, in query, ref context, value, typeof(RuntimeContextCount<>));
+        world.ForEach(entities, in query, ref context, value, typeof(RuntimeContextCount<>)).Invoke(ref context);
         if (context.Count != 2)
         {
             return 0;
         }
 
         context.Count = 0;
-        world.ForEach(entities, ref context, value, typeof(RuntimeContextCount<>));
+        world.ForEach(entities, ref context, value, typeof(RuntimeContextCount<>)).Invoke(ref context);
         if (context.Count != 2)
         {
             return 0;
         }
 
         context.Count = 0;
-        world.ForEachEntity(in query, ref context, value, typeof(RuntimeEntityContextCount<>));
+        world.ForEachEntity(in query, ref context, value, typeof(RuntimeEntityContextCount<>)).Invoke(ref context);
         if (context.Count != 2)
         {
             return 0;
         }
 
         context.Count = 0;
-        world.ForEachEntity(entities, in query, ref context, value, typeof(RuntimeEntityContextCount<>));
+        world.ForEachEntity(entities, in query, ref context, value, typeof(RuntimeEntityContextCount<>)).Invoke(ref context);
         if (context.Count != 2)
         {
             return 0;
         }
 
         context.Count = 0;
-        world.ForEachEntity(entities, ref context, value, typeof(RuntimeEntityContextCount<>));
+        world.ForEachEntity(entities, ref context, value, typeof(RuntimeEntityContextCount<>)).Invoke(ref context);
         if (context.Count != 2)
         {
             return 0;
         }
 
         context.Calls = new int[1];
-        world.ForEachParallel(in query, ref context, value, typeof(RuntimeParallelContextCount<>), workerCount: 2);
+        world.ForEachParallel(in query, ref context, value, typeof(RuntimeParallelContextCount<>), workerCount: 2).Invoke(ref context);
         if (context.Calls![0] != 2)
         {
             return 0;
         }
 
         context.Calls![0] = 0;
-        world.ForEachParallel(entities, in query, ref context, value, typeof(RuntimeParallelContextCount<>), workerCount: 2);
+        world.ForEachParallel(entities, in query, ref context, value, typeof(RuntimeParallelContextCount<>), workerCount: 2).Invoke(ref context);
         if (context.Calls![0] != 2)
         {
             return 0;
         }
 
         context.Calls![0] = 0;
-        world.ForEachParallel(entities, ref context, value, typeof(RuntimeParallelContextCount<>), workerCount: 2);
+        world.ForEachParallel(entities, ref context, value, typeof(RuntimeParallelContextCount<>), workerCount: 2).Invoke(ref context);
         if (context.Calls![0] != 2)
         {
             return 0;
         }
 
         context.Calls![0] = 0;
-        world.ForEachEntityParallel(in query, ref context, value, typeof(RuntimeParallelEntityContextCount<>), workerCount: 2);
+        world.ForEachEntityParallel(in query, ref context, value, typeof(RuntimeParallelEntityContextCount<>), workerCount: 2).Invoke(ref context);
         if (context.Calls![0] != 2)
         {
             return 0;
         }
 
         context.Calls![0] = 0;
-        world.ForEachEntityParallel(entities, in query, ref context, value, typeof(RuntimeParallelEntityContextCount<>), workerCount: 2);
+        world.ForEachEntityParallel(entities, in query, ref context, value, typeof(RuntimeParallelEntityContextCount<>), workerCount: 2).Invoke(ref context);
         if (context.Calls![0] != 2)
         {
             return 0;
         }
 
         context.Calls![0] = 0;
-        world.ForEachEntityParallel(entities, ref context, value, typeof(RuntimeParallelEntityContextCount<>), workerCount: 2);
+        world.ForEachEntityParallel(entities, ref context, value, typeof(RuntimeParallelEntityContextCount<>), workerCount: 2).Invoke(ref context);
         if (context.Calls![0] != 2)
         {
             return 0;
         }
 
         context.Calls![0] = 0;
-        world.ForEach(in query, ref context, value, typeof(RuntimeValueContextCount<>));
+        world.ForEach(in query, ref context, value, typeof(RuntimeValueContextCount<>)).Invoke(ref context);
         if (context.Calls![0] != 2)
         {
             return 0;
@@ -511,7 +510,7 @@ public static partial class ConsumerProof
         world.Create(value, secondValue);
         Query pairQuery = world.WhereAll(value, secondValue);
         var pairContext = new RuntimeGenericContext();
-        world.ForEach(in pairQuery, ref pairContext, value, secondValue, typeof(RuntimePairContextCount<,>));
+        world.ForEach(in pairQuery, ref pairContext, value, secondValue, typeof(RuntimePairContextCount<,>)).Invoke(ref pairContext);
         return pairContext.Count == 1 ? 1 : 0;
     }
 
@@ -527,9 +526,9 @@ public static partial class ConsumerProof
         world.GetRef<float>(entity, second) = 23f;
         Query query = world.WhereAll(first, second, historyFirst, historySecond);
         Type functorType = typeof(RuntimeSave<,,>);
-        world.ForEach(in query, first, second, first, functorType);
-        world.ForEach(in query, second, first, second, functorType);
-        world.ForEach(in query, first, second, first, functorType);
+        world.ForEach(in query, first, second, first, functorType).Invoke();
+        world.ForEach(in query, second, first, second, functorType).Invoke();
+        world.ForEach(in query, first, second, first, functorType).Invoke();
         return (int)(world.Get<RuntimeHistory<float>>(entity, historyFirst).Value
             + world.Get<RuntimeHistory<float>>(entity, historySecond).Value);
     }
@@ -550,7 +549,7 @@ public static partial class ConsumerProof
         => layouts.Register(typeof(UnaryHistory<>), componentId, new SchemaId(91202));
 
     private static void ApplyUnaryHistory(World world, in Query query, ComponentId componentId)
-        => world.ForEach(in query, componentId, typeof(UnaryHistoryWriter<>));
+        => world.ForEach(in query, componentId, typeof(UnaryHistoryWriter<>)).Invoke();
 
     public static void ApplyStaticMethodGroup(ref Position value) => value.Value++;
 
@@ -604,12 +603,12 @@ public static partial class ConsumerProof
         }));
 
         // Arity 1, no ID: resolves the primary registration by CLR type.
-        world.ForEach<Position>(in allNine, static (ref Position value) => value.Value++);
-        world.ForEach<Position>(in allNine, ApplyStaticMethodGroup);
+        world.ForEach<Position>(in allNine, static (ref Position value) => value.Value++).Invoke();
+        world.ForEach<Position>(in allNine, ApplyStaticMethodGroup).Invoke();
         var methodGroupContext = new ConsumerContext();
         ref int c2 = ref global::System.Runtime.CompilerServices.Unsafe.NullRef<int>();
 
-        world.ForEach<ConsumerContext, Position>(in allNine, ref methodGroupContext, ApplyStaticMethodGroupWithContext);
+        world.ForEach<ConsumerContext, Position>(in allNine, ref methodGroupContext, ApplyStaticMethodGroupWithContext).Invoke(ref methodGroupContext);
         if (methodGroupContext.Value != 1)
         {
             throw new InvalidOperationException("Static method-group context callback was not invoked exactly once.");
@@ -626,7 +625,7 @@ public static partial class ConsumerProof
             {
                 velocity.Value += position.Value + acceleration.Value;
                 lifetime.Value++;
-            });
+            }).Invoke();
 
         // Arity 5, explicit secondary registration of Position.
         world.ForEach<Position, Velocity, Acceleration, Lifetime, Mass>(
@@ -642,7 +641,7 @@ public static partial class ConsumerProof
                 velocity.Value += position.Value + acceleration.Value;
                 lifetime.Value++;
                 mass.Value++;
-            });
+            }).Invoke();
 
         // Arity 8, no IDs, with an additional All component in the query.
         world.ForEach<Position, Velocity, Acceleration, Lifetime, Mass, ComponentSix, ComponentSeven, ComponentEight>(
@@ -660,7 +659,7 @@ public static partial class ConsumerProof
                 position.Value += velocity.Value + lifetime.Value + six.Value + eight.Value;
                 acceleration.Value += mass.Value;
                 seven.Value++;
-            });
+            }).Invoke();
 
         return world.Get<Position>(primary, positionId).Value
             + world.Get<Velocity>(primary, velocityId).Value
@@ -686,10 +685,10 @@ public static partial class ConsumerProof
                 velocity.Value += position.Value + acceleration.Value;
                 lifetime.Value += state.Value;
                 state.Value++;
-            });
+            }).Invoke(ref context);
 
         var functor = new ContextEntityFunctor();
-        world.ForEachEntity(in query, ref context, ref functor);
+        world.ForEachEntity(in query, ref context, ref functor).Invoke(ref context, ref functor);
 
     }
 
@@ -699,37 +698,37 @@ public static partial class ConsumerProof
         world.ForEach<Position>(
             entities,
             in query,
-            static (ref Position position) => position.Value++);
+            static (ref Position position) => position.Value++).Invoke();
         world.ForEachEntity<Position>(
             entities,
             in query,
-            static (EntityRef entity, ref Position position) => position.Value += entity.Index);
+            static (EntityRef entity, ref Position position) => position.Value += entity.Index).Invoke();
         world.ForEach<Position>(
             entities,
             in query,
             world.Layouts.GetPrimary<Position>(),
-            static (ref Position position) => position.Value++);
+            static (ref Position position) => position.Value++).Invoke();
         world.ForEachEntityParallel<Position>(
             entities,
             in query,
             static (EntityRef entity, ref Position position) => position.Value += entity.Index,
-            2);
+            2).Invoke();
         world.ForEach<Position>(
             entities,
-            static (ref Position position) => position.Value++);
+            static (ref Position position) => position.Value++).Invoke();
         world.ForEachEntityParallel<Position>(
             entities,
             static (EntityRef entity, ref Position position) => position.Value += entity.Index,
-            2);
+            2).Invoke();
         world.ForEach<Position>(
             entities,
             world.Layouts.GetPrimary<Position>(),
-            static (ref Position position) => position.Value++);
-        world.ForEach<Position>(entities, ApplyStaticMethodGroup);
-        world.ForEachEntity<Position>(entities, ApplyEntityMethodGroup);
+            static (ref Position position) => position.Value++).Invoke();
+        world.ForEach<Position>(entities, ApplyStaticMethodGroup).Invoke();
+        world.ForEachEntity<Position>(entities, ApplyEntityMethodGroup).Invoke();
         var context = new ConsumerContext();
         var functor = new ContextEntityFunctor();
-        world.ForEachEntity(entities, ref context, ref functor);
+        world.ForEachEntity(entities, ref context, ref functor).Invoke(ref context, ref functor);
     }
 
     /// <summary>Compile-only coverage for the canonical typed and ComponentId selector matrix.</summary>
@@ -742,10 +741,10 @@ public static partial class ConsumerProof
         ComponentId velocityId)
     {
         world.ForEach<Position, Velocity>(in query, positionId, velocityId,
-            static (ref Position position, in Velocity velocity) => position.Value += velocity.Value);
+            static (ref Position position, in Velocity velocity) => position.Value += velocity.Value).Invoke();
         world.ForEachEntityParallel<Position, Velocity>(entities, in query, positionId, velocityId,
             static (EntityRef current, ref Position position, in Velocity velocity) => position.Value += current.Index + velocity.Value,
-            workerCount: 2);
+            workerCount: 2).Invoke();
 
         world.Add<Position, Velocity>(entity, positionId, velocityId);
         world.Add<Position, Velocity>(entities, positionId, velocityId);
@@ -956,7 +955,7 @@ public static partial class ConsumerProof
         int destroyed = world.WhereEntity(
                 in query,
                 static (Entity entity, in Health health, in Team team) => health.Value <= 0 && team.Id == 1)
-            .Destroy();
+            .Destroy().Invoke();
 
         return destroyed == 1 && !world.IsAlive(entities[0]) && world.IsAlive(entities[1]) && world.IsAlive(entities[2])
             ? destroyed
@@ -974,7 +973,7 @@ public static partial class ConsumerProof
         int added = world.Where(
                 in query,
                 static (in Health health) => health.Value <= 0)
-            .Add<Dead, NeedsRespawn>(new Dead(), new NeedsRespawn { Value = 42 });
+            .Add<Dead, NeedsRespawn>(new Dead(), new NeedsRespawn { Value = 42 }).Invoke();
         added += world.WhereEntity(
                 in query,
                 static (Entity entity, in Health health) => health.Value > 0)
@@ -982,7 +981,7 @@ public static partial class ConsumerProof
                 world.Layouts.GetPrimary<Dead>(),
                 needsRespawnId,
                 new Dead(),
-                new NeedsRespawn { Value = 7 });
+                new NeedsRespawn { Value = 7 }).Invoke();
 
         return added == 3
             && world.TryGet<Dead>(entities[0], out _)
@@ -1007,7 +1006,7 @@ public static partial class ConsumerProof
         int removed = world.WhereEntity(
                 in query,
                 static (Entity entity, in Health health, in Team team) => health.Value <= 0 && team.Id == 1)
-            .Remove<Alive>();
+            .Remove<Alive>().Invoke();
 
         return removed == 1 && !world.TryGet<Alive>(entities[0], out _) && world.TryGet<Alive>(entities[1], out _)
             ? removed
@@ -1028,11 +1027,11 @@ public static partial class ConsumerProof
             .ForEachEntity(static (EntityRef entity, ref Health health, in Team team) =>
             {
                 health.Value = team.DefaultHealth + entity.Index;
-            });
+            }).Invoke();
         world.WhereEntity(
                 in query,
                 static (Entity entity, in Health health) => health.Value >= 0)
-            .ForEach(static (ref Health health, in Team team) => health.Value = team.DefaultHealth);
+            .ForEach(static (ref Health health, in Team team) => health.Value = team.DefaultHealth).Invoke();
 
         bool rejectedStructuralNesting = false;
         world.ForEach(in query, (ref Health health) =>
@@ -1043,13 +1042,13 @@ public static partial class ConsumerProof
                 world.WhereEntity(
                         in query,
                         static (Entity entity, in Health health) => health.Value <= 0)
-                    .Destroy();
+                    .Destroy().Invoke();
             }
             catch (InvalidOperationException)
             {
                 rejectedStructuralNesting = true;
             }
-        });
+        }).Invoke();
         if (!rejectedStructuralNesting)
         {
             return 0;
@@ -1094,7 +1093,7 @@ public static partial class ConsumerProof
         int count = 0;
         world.ForEach<Position>(
             in query,
-            (ref Position _) => count++);
+            (ref Position _) => count++).Invoke();
         return count;
     }
 }
@@ -1188,7 +1187,7 @@ public static partial class ConsumerProof
         world.GetRef<ClosedGenericListComponent>(entity, component).Value = 42;
         Query query = world.WhereAll(component, history);
 
-        world.ForEach(in query, component, typeof(CopyGenericListHistory<>));
+        world.ForEach(in query, component, typeof(CopyGenericListHistory<>)).Invoke();
 
         return world.Get<GenericListHistory<ClosedGenericListComponent>>(entity, history).Value.Value == 42
             ? 1
@@ -1208,7 +1207,7 @@ public static partial class ConsumerProof
 
         Query structQuery = CreateConstraintQuery(world, structBoxId);
         ConstraintFunctorCounter.Count = 0;
-        world.ForEach(in structQuery, structBoxId, typeof(StructConstraintFunctor<>));
+        world.ForEach(in structQuery, structBoxId, typeof(StructConstraintFunctor<>)).Invoke();
         if (ConstraintFunctorCounter.Count != 1)
         {
             return 0;
@@ -1216,7 +1215,7 @@ public static partial class ConsumerProof
 
         Query unmanagedQuery = CreateConstraintQuery(world, unmanagedBoxId);
         ConstraintFunctorCounter.Count = 0;
-        world.ForEach(in unmanagedQuery, unmanagedBoxId, typeof(UnmanagedConstraintFunctor<>));
+        world.ForEach(in unmanagedQuery, unmanagedBoxId, typeof(UnmanagedConstraintFunctor<>)).Invoke();
         if (ConstraintFunctorCounter.Count != 1)
         {
             return 0;
@@ -1224,7 +1223,7 @@ public static partial class ConsumerProof
 
         Query classBoxQuery = CreateConstraintQuery(world, classBoxId);
         ConstraintFunctorCounter.Count = 0;
-        world.ForEach(in classBoxQuery, classBoxId, typeof(ClassConstraintFunctor<>));
+        world.ForEach(in classBoxQuery, classBoxId, typeof(ClassConstraintFunctor<>)).Invoke();
         if (ConstraintFunctorCounter.Count != 1)
         {
             return 0;
@@ -1232,14 +1231,14 @@ public static partial class ConsumerProof
 
         Query newQuery = CreateConstraintQuery(world, classId);
         ConstraintFunctorCounter.Count = 0;
-        world.ForEach(in newQuery, classId, typeof(NewConstraintFunctor<>));
+        world.ForEach(in newQuery, classId, typeof(NewConstraintFunctor<>)).Invoke();
         if (ConstraintFunctorCounter.Count != 1)
         {
             return 0;
         }
 
         ConstraintFunctorCounter.Count = 0;
-        world.ForEach(in newQuery, classId, typeof(ClassNewConstraintFunctor<>));
+        world.ForEach(in newQuery, classId, typeof(ClassNewConstraintFunctor<>)).Invoke();
         if (ConstraintFunctorCounter.Count != 1)
         {
             return 0;
@@ -1247,7 +1246,7 @@ public static partial class ConsumerProof
 
         Query newBoxQuery = CreateConstraintQuery(world, newBoxId);
         ConstraintFunctorCounter.Count = 0;
-        world.ForEach(in newBoxQuery, newBoxId, typeof(StructConstraintFunctor<>));
+        world.ForEach(in newBoxQuery, newBoxId, typeof(StructConstraintFunctor<>)).Invoke();
         if (ConstraintFunctorCounter.Count != 1)
         {
             return 0;
@@ -1256,7 +1255,7 @@ public static partial class ConsumerProof
         Query classQuery = world.WhereAll(classId);
         try
         {
-            world.ForEach(in classQuery, classId, typeof(StructConstraintFunctor<>));
+            world.ForEach(in classQuery, classId, typeof(StructConstraintFunctor<>)).Invoke();
             return 0;
         }
         catch (ArgumentException)

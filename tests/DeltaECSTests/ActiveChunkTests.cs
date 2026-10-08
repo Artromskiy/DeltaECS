@@ -59,7 +59,7 @@ internal sealed class ActiveChunkTests
     private static float SumPositions(World world, in Query query)
     {
         float sum = 0;
-        world.ForEach(in query, ref sum, static (ref float total, in Position position) => total += position.X);
+        world.ForEach(in query, ref sum, static (ref float total, in Position position) => total += position.X).Invoke(ref sum);
 
         return sum;
     }

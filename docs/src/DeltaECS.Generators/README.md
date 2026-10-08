@@ -27,7 +27,7 @@ query storage or plans, archetypes, or structural kernels.
   world.ForEach(in query,
       static (ref readonly Position position, ref Velocity velocity,
               in Acceleration acceleration, Scale scale) =>
-      velocity.Value += position.Value + acceleration.Value + scale.Value);
+      velocity.Value += position.Value + acceleration.Value + scale.Value).Invoke();
   ```
 
 - Calls may include an `Entity`, mutable caller context, primary registrations,
@@ -46,7 +46,7 @@ query storage or plans, archetypes, or structural kernels.
   ```csharp
   world.WhereEntity(in query,
       static (Entity entity, ref readonly Health health) => health.Value <= 0)
-      .ForEach(static (ref Health health) => health.Value = 0);
+      .ForEach(static (ref Health health) => health.Value = 0).Invoke();
   ```
 - Generated extensions live in the consumer assembly while execution enters a
   shared non-generic DeltaECS runtime bridge.
@@ -86,7 +86,8 @@ query storage or plans, archetypes, or structural kernels.
   var actionState = new ActionState();
   var action = new Reset();
   world.WhereEntity(in query, ref predicateState, ref predicate)
-      .ForEachEntity(ref actionState, ref action);
+      .ForEachEntity(ref actionState, ref action)
+      .Invoke(ref actionState, ref action);
   ```
 
   The lambda form follows the same ordering:
@@ -98,12 +99,13 @@ query storage or plans, archetypes, or structural kernels.
       {
           state.Visited++;
           return health.Value <= 0;
-      }).Destroy();
+      }).Destroy().Invoke();
   ```
 
   `Where` predicates remain read-only; component writes belong in the terminal
-  functor. The generated view and functors stay stack-only and copy caller
-  state back before the terminal returns.
+  functor. The view stores its predicate and source query. Terminal calls return
+  reusable operations; call `Invoke` with caller-owned context/functor values
+  when their mutations must be written back.
 
 ## Generic structural operations
 

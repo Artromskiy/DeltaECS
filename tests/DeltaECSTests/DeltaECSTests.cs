@@ -59,7 +59,7 @@ internal sealed class DeltaECSDeliveryTests
             {
                 position = new Position { X = 1, Y = 2 };
                 total += (long)position.X + (long)velocity.Y;
-            });
+            }).Invoke(ref sum);
 
         Assert.Greater(sum, 0);
 

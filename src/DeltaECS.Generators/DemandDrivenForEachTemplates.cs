@@ -44,7 +44,7 @@ internal static partial class DemandDrivenForEachTemplates
         string? stampWriter = !shape.OrderedQueryReceiver && shape.ComponentModels.Count(static component => component.IsWrite) > 1 && !UsesDenseBinding(shape)
             ? RenderArchetypeStampWriter(shape)
             : null;
-        string? invoker = !shape.OrderedQueryReceiver && (shape.Parallel || shape.HasEntityTarget)
+        string? invoker = shape.Parallel || shape.HasEntityTarget
             ? RenderParallelInvoker(shape)
             : null;
         string extension = GeneratorTemplates.ExtensionTemplate(
@@ -628,7 +628,11 @@ internal static partial class DemandDrivenForEachTemplates
         IterationModel shape = model.Shape;
         if (shape.OrderedQueryReceiver)
         {
-            return RenderOrderedExtensionsBody(shape);
+            string orderedClosedMethodName = "ExecuteClosed_" + GeneratorSupport.StableName(shape.Key);
+            string orderedClosedMethod = RenderClosedDenseMethod(shape, orderedClosedMethodName, shape.Api.Signature.HasExplicitIds
+                ? ", " + shape.Api.Signature.ComponentIdParameters("componentId")
+                : string.Empty);
+            return RenderDenseBinding(shape) + "\n" + orderedClosedMethod + "\n" + RenderOrderedExtensionsBody(shape);
         }
 
         SignatureProjection slots = shape.Api.Signature;
@@ -697,44 +701,60 @@ internal static partial class DemandDrivenForEachTemplates
 
         parameters.Add(callback);
         string visibility = shape.IsFunctor || shape.ImplicitComponents ? "internal" : "public";
-        string signature = $"{visibility} static void {shape.MethodName}{methodGeneric}({string.Join(", ", parameters)})";
-        var arguments = new List<string>
-        {
-            "__entities",
-            "in orderedQuery.SourceQuery"
-        };
+        string signature = $"{visibility} static {OperationType(shape)} {shape.MethodName}{methodGeneric}({string.Join(", ", parameters)})";
+        string closedMethod = "ExecuteClosed_" + GeneratorSupport.StableName(shape.Key);
+        var arguments = new List<string> { "operationOrderedQuery.World", "__entities", "in __query" };
         if (slots.HasExplicitIds)
         {
-            arguments.Add(slots.HasDynamicIds ? "componentIds" : slots.ComponentIdArguments());
+            arguments.Add(slots.HasDynamicIds ? "operationComponentIds" : slots.ComponentIdArguments());
         }
 
+        bool mutableContext = shape.HasContext && shape.ContextMode == ContextModeKind.Ref;
+        string contextName = mutableContext ? "operationContext" : "operationContextCopy";
         if (shape.HasContext)
         {
-            arguments.Add(SignatureProjection.ContextArgument(shape.ContextMode, "context"));
+            arguments.Add(SignatureProjection.ContextArgument(shape.ContextMode, contextName));
         }
 
+        string actionName = shape.IsFunctor ? "operationFunctor" : "action";
         arguments.Add(shape.IsFunctor
-            ? SignatureProjection.ContextArgument(shape.FunctorPassMode, "functor")
-            : "action");
-        string typeArguments = stateGeneric;
+            ? SignatureProjection.ContextArgument(shape.FunctorPassMode, actionName)
+            : actionName);
         string endForEach = shape.OrderedWhereSource is null
-            ? "orderedQuery.EndForEach();"
-            : "orderedQuery.Ordering.EndForEach();";
-        string body = $$"""
+            ? "operationOrderedQuery.EndForEach();"
+            : "operationOrderedQuery.Ordering.EndForEach();";
+        string execution = $$"""
+            global::System.ReadOnlySpan<global::Delta.ECS.Entity> __entities = default;
+            global::Delta.ECS.Query __query = operationOrderedQuery.SourceQuery;
+            try
             {
-                global::System.ReadOnlySpan<global::Delta.ECS.Entity> __entities = default;
-                global::Delta.ECS.Query __query = orderedQuery.SourceQuery;
-                try
-                {
-                    __entities = orderedQuery.BeginForEach();
-                    orderedQuery.World.{{shape.MethodName}}{{typeArguments}}({{arguments[0]}}, in __query{{(arguments.Count > 2 ? ", " + string.Join(", ", arguments.Skip(2)) : string.Empty)}});
-                }
-                finally
-                {
-                    {{endForEach}}
-                }
+                __entities = operationOrderedQuery.BeginForEach();
+                {{closedMethod}}{{stateGeneric}}({{string.Join(", ", arguments)}});
+            }
+            finally
+            {
+                {{endForEach}}
             }
             """;
+        var setup = new List<string> { "var operationOrderedQuery = orderedQuery;" };
+        if (slots.HasDynamicIds)
+        {
+            setup.Add("global::Delta.ECS.ComponentId[] operationComponentIds = componentIds.ToArray();");
+        }
+
+        if (shape.HasContext && !mutableContext)
+        {
+            setup.Add($"{ContextType(shape)} operationContextCopy = context;");
+        }
+
+        string operation = shape.IsFunctor
+            ? mutableContext
+                ? $$"""return new global::Delta.ECS.EcsOperation<{{ContextType(shape)}}, {{shape.FunctorType}}>(context, functor, (ref {{ContextType(shape)}} operationContext, ref {{shape.FunctorType}} operationFunctor) => {{GeneratorTemplates.RenderBlock(string.Empty, execution)}});"""
+                : $$"""return new global::Delta.ECS.EcsOperation<{{shape.FunctorType}}>(functor, (ref {{shape.FunctorType}} operationFunctor) => {{GeneratorTemplates.RenderBlock(string.Empty, execution)}});"""
+            : mutableContext
+                ? $$"""return new global::Delta.ECS.EcsOperation<{{ContextType(shape)}}>(context, (ref {{ContextType(shape)}} operationContext) => {{GeneratorTemplates.RenderBlock(string.Empty, execution)}});"""
+                : $$"""return new global::Delta.ECS.EcsOperation(() => {{GeneratorTemplates.RenderBlock(string.Empty, execution)}});""";
+        string body = GeneratorTemplates.RenderBlock(string.Empty, GeneratorTemplates.JoinNonEmpty(setup.Append(operation)));
         return GeneratorTemplates.Indent(
             RenderMethod(
                 GeneratorTemplates.Documentation(shape.Api),
@@ -1487,46 +1507,79 @@ internal static partial class DemandDrivenForEachTemplates
         {
             parameters.Add("int workerCount = 0");
         }
-        string query = shape.HasQuery
-            ? string.Empty
-            : slots.HasExplicitIds
-                ? slots.HasDynamicIds
-                    ? "global::Delta.ECS.Query query = world.WhereAll(componentIds);"
-                    : $$"""
-                    global::Delta.ECS.Query query = world.WhereAll(stackalloc global::Delta.ECS.ComponentId[]
-                    {
-                        {{slots.ComponentIdArguments()}}
-                    });
-                    """
-                : $"""
-                    global::System.ReadOnlySpan<global::Delta.ECS.ComponentId> components = {GeneratorTemplates.PrimaryComponentIds("world", shape.Components, namespaceName: shape.Namespace)};
-                    global::Delta.ECS.Query query = world.WhereAll(components);
-                """;
-        var invocation = new List<string> { "world" };
+        var setup = new List<string>();
         if (shape.HasEntityTarget)
         {
-            invocation.Add("entities");
+            setup.Add("global::Delta.ECS.Entity[] operationEntities = entities.ToArray();");
         }
-        invocation.Add("in query");
+
+        if (slots.HasDynamicIds)
+        {
+            setup.Add("global::Delta.ECS.ComponentId[] operationComponentIds = componentIds.ToArray();");
+        }
+
+        if (shape.HasQuery)
+        {
+            setup.Add("global::Delta.ECS.Query operationQuery = query;");
+        }
+        else if (slots.HasExplicitIds)
+        {
+            setup.Add(slots.HasDynamicIds
+                ? "global::Delta.ECS.Query operationQuery = world.WhereAll(operationComponentIds);"
+                : $$"""
+                global::Delta.ECS.Query operationQuery = world.WhereAll(stackalloc global::Delta.ECS.ComponentId[]
+                {
+                    {{slots.ComponentIdArguments()}}
+                });
+                """);
+        }
+        else
+        {
+            setup.Add($"global::System.ReadOnlySpan<global::Delta.ECS.ComponentId> operationComponents = {GeneratorTemplates.PrimaryComponentIds("world", shape.Components, namespaceName: shape.Namespace)};");
+            setup.Add("global::Delta.ECS.Query operationQuery = world.WhereAll(operationComponents);");
+        }
+
+        bool mutableContext = shape.HasContext && shape.ContextMode == ContextModeKind.Ref;
+        if (shape.HasContext && !mutableContext)
+        {
+            setup.Add($"{InterceptedContextType(shape)} operationContext = context;");
+        }
+
+        var execution = new List<string> { "world" };
+        if (shape.HasEntityTarget)
+        {
+            execution.Add("operationEntities");
+        }
+
+        execution.Add("in operationQuery");
         if (slots.HasExplicitIds)
         {
-            invocation.Add(slots.HasDynamicIds ? "componentIds" : slots.ComponentIdArguments());
+            execution.Add(slots.HasDynamicIds ? "operationComponentIds" : slots.ComponentIdArguments());
         }
 
         if (shape.HasContext)
         {
-            invocation.Add(SignatureProjection.ContextArgument(shape.ContextMode, "context"));
+            string contextName = mutableContext ? "__context" : "operationContext";
+            execution.Add(SignatureProjection.ContextArgument(shape.ContextMode, contextName));
         }
 
         if (shape.Parallel)
         {
-            invocation.Add("workerCount");
+            execution.Add("workerCount");
         }
-        string body = query + "        ExecuteInterceptedClosed_" + site.Id + "(" + string.Join(", ", invocation) + ");";
+
+        string executionCall = "ExecuteInterceptedClosed_" + site.Id + "(" + string.Join(", ", execution) + ");";
+        string operationType = mutableContext
+            ? $"global::Delta.ECS.EcsOperation<{InterceptedContextType(shape)}>"
+            : "global::Delta.ECS.EcsOperation";
+        string operation = mutableContext
+            ? $"new {operationType}(context, (ref {InterceptedContextType(shape)} __context) => {{ {executionCall} }})"
+            : $"new {operationType}(() => {{ {executionCall} }})";
+        string body = string.Join("\n", setup) + "\nreturn " + operation + ";";
         string declaration = $"""
             [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
             {site.Attribute}
-            internal static void Intercept_{site.Id}({string.Join(", ", parameters)})
+            internal static {operationType} Intercept_{site.Id}({string.Join(", ", parameters)})
             """.Trim();
         return GeneratorTemplates.Indent(GeneratorTemplates.RenderBlock(declaration, body), "    ");
     }
@@ -1875,8 +1928,9 @@ internal static partial class DemandDrivenForEachTemplates
             : ", " + callback + " " + callbackName;
         string workerCountParameter = shape.Parallel ? ", int workerCount = 0" : string.Empty;
         string visibility = shape.IsFunctor || shape.ImplicitComponents ? "internal" : "public";
-        string signature = $"{visibility} static void {methodName}{genericPrefix}({prefix}{query}{componentPart}{contextParameter}{callbackParameter}{workerCountParameter})";
-        string body = BuildBody(
+        string operationType = OperationType(shape);
+        string signature = $"{visibility} static {operationType} {methodName}{genericPrefix}({prefix}{query}{componentPart}{contextParameter}{callbackParameter}{workerCountParameter})";
+        string body = BuildDeferredBody(
             shape,
             profiling,
             StableProfileMethodId(profileName),
@@ -1890,28 +1944,105 @@ internal static partial class DemandDrivenForEachTemplates
             "    ");
     }
 
-    private static string BuildBody(
+    private static string OperationType(IterationModel shape)
+    {
+        string context = shape.HasContext ? ContextType(shape) : string.Empty;
+        string functor = shape.IsFunctor ? shape.FunctorType! : string.Empty;
+        bool mutableContext = shape.HasContext && shape.ContextMode == ContextModeKind.Ref;
+        return (mutableContext, shape.IsFunctor) switch
+        {
+            (true, true) => $"global::Delta.ECS.EcsOperation<{context}, {functor}>",
+            (true, false) => $"global::Delta.ECS.EcsOperation<{context}>",
+            (false, true) => $"global::Delta.ECS.EcsOperation<{functor}>",
+            _ => "global::Delta.ECS.EcsOperation"
+        };
+    }
+
+    private static string BuildDeferredBody(
         IterationModel shape,
         bool profiling,
         int methodId,
         string closedMethodName)
     {
+        bool mutableContext = shape.HasContext && shape.ContextMode == ContextModeKind.Ref;
+        string contextName = mutableContext ? "__context" : "__contextCopy";
+        string functorName = shape.IsFunctor ? "__functor" : "functor";
+        string contextLocal = shape.HasContext && !mutableContext
+            ? $"{ContextType(shape)} __contextCopy = context;"
+            : string.Empty;
+        string operationState = shape.IsFunctor
+            ? shape.HasContext && mutableContext
+                ? $"new {OperationType(shape)}(context, functor, (ref {ContextType(shape)} __context, ref {shape.FunctorType} __functor) =>\n{{\n{BuildBody(shape, profiling, methodId, closedMethodName, contextName, functorName)}\n}})"
+                : $"new {OperationType(shape)}(functor, (ref {shape.FunctorType} __functor) =>\n{{\n{BuildBody(shape, profiling, methodId, closedMethodName, contextName, functorName)}\n}})"
+            : mutableContext
+                ? $"new {OperationType(shape)}(context, (ref {ContextType(shape)} __context) =>\n{{\n{BuildBody(shape, profiling, methodId, closedMethodName, contextName, functorName)}\n}})"
+                : $"new {OperationType(shape)}(() =>\n{{\n{BuildBody(shape, profiling, methodId, closedMethodName, contextName, functorName)}\n}})";
+
+        var setup = new List<string>();
+        if (shape.HasEntityTarget)
+        {
+            setup.Add("global::Delta.ECS.Entity[] operationEntities = entities.ToArray();");
+        }
+
+        if (shape.Api.Signature.HasDynamicIds)
+        {
+            setup.Add("global::Delta.ECS.ComponentId[] operationComponentIds = componentIds.ToArray();");
+        }
+
+        if (shape.HasQuery)
+        {
+            setup.Add("global::Delta.ECS.Query operationQuery = query;");
+        }
+        else if (shape.Api.Signature.HasExplicitIds)
+        {
+            string ids = shape.Api.Signature.HasDynamicIds
+                ? "operationComponentIds"
+                : shape.Api.Signature.ComponentIdArguments();
+            setup.Add($"global::Delta.ECS.Query operationQuery = world.WhereAll({ids});");
+        }
+        else
+        {
+            string components = GeneratorTemplates.PrimaryComponentIds(
+                "world",
+                GeneratorTemplates.Indexed(shape.ComponentModels.Length, index => ComponentType(shape, index)).ToArray(),
+                namespaceName: shape.Namespace);
+            setup.Add($"global::System.ReadOnlySpan<global::Delta.ECS.ComponentId> operationComponents = {components};");
+            setup.Add("global::Delta.ECS.Query operationQuery = world.WhereAll(operationComponents);");
+        }
+
+        if (!mutableContext && contextLocal.Length != 0)
+        {
+            setup.Add(contextLocal);
+        }
+
+        setup.Add($"return {operationState};");
+        return GeneratorTemplates.RenderBlock(string.Empty, string.Join("\n", setup));
+    }
+
+    private static string BuildBody(
+        IterationModel shape,
+        bool profiling,
+        int methodId,
+        string closedMethodName,
+        string contextName,
+        string functorName)
+    {
         SignatureProjection slots = shape.Api.Signature;
         var closedArguments = new List<string>(shape.HasEntityTarget
-            ? new[] { "world", "entities", "in query" }
-            : new[] { "world", "in query" });
+            ? new[] { "world", "operationEntities", "in operationQuery" }
+            : new[] { "world", "in operationQuery" });
         if (slots.HasExplicitIds)
         {
-            closedArguments.Add(slots.HasDynamicIds ? "componentIds" : slots.ComponentIdArguments());
+            closedArguments.Add(slots.HasDynamicIds ? "operationComponentIds" : slots.ComponentIdArguments());
         }
 
         if (shape.HasContext)
         {
-            closedArguments.Add(SignatureProjection.ContextArgument(shape.ContextMode, "context"));
+            closedArguments.Add(SignatureProjection.ContextArgument(shape.ContextMode, contextName));
         }
 
         closedArguments.Add(shape.IsFunctor
-            ? SignatureProjection.ContextArgument(shape.FunctorPassMode, "functor")
+            ? SignatureProjection.ContextArgument(shape.FunctorPassMode, functorName)
             : "action");
         if (shape.Parallel)
         {
@@ -1920,25 +2051,7 @@ internal static partial class DemandDrivenForEachTemplates
 
         string invoke = closedMethodName + StateGeneric(shape, slots.HasGenericSelectors ? slots.GenericList() : string.Empty)
             + "(" + string.Join(", ", closedArguments) + ");";
-        var lines = new List<string> { "{" };
-        if (!shape.HasQuery)
-        {
-            if (slots.HasExplicitIds)
-            {
-                lines.Add(slots.HasDynamicIds
-                    ? "    Query query = world.WhereAll(componentIds);"
-                    : $"    Query query = world.WhereAll(stackalloc ComponentId[] {{ {slots.ComponentIdArguments()} }});");
-            }
-            else
-            {
-                string components = GeneratorTemplates.PrimaryComponentIds(
-                    "world",
-                    GeneratorTemplates.Indexed(shape.ComponentModels.Length, index => ComponentType(shape, index)).ToArray(),
-                    namespaceName: shape.Namespace);
-                lines.Add($"    global::System.ReadOnlySpan<ComponentId> components = {components};");
-                lines.Add("    Query query = world.WhereAll(components);");
-            }
-        }
+        var lines = new List<string>();
         string indent = "    ";
         if (profiling)
         {
@@ -1961,7 +2074,6 @@ internal static partial class DemandDrivenForEachTemplates
             lines.Add($"        global::DeltaECS.Profiling.ProfilerRuntime.Leave({methodId});");
             lines.Add("    }");
         }
-        lines.Add("}");
         return string.Join("\n", lines);
     }
 

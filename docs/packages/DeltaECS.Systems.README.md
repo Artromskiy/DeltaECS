@@ -17,6 +17,10 @@ treats explicit `ComponentId` selectors and calls outside the generated API as
 unknown access; declare their actual component ids and query scopes explicitly
 if you want the scheduler to distinguish those accesses.
 
+Iteration calls return reusable deferred operations. Create one once and call
+`Invoke()` from each system tick so the query plan and generated route stay
+prepared between ticks.
+
 ```csharp
 using Delta.ECS;
 using Delta.ECS.Systems;
@@ -37,6 +41,7 @@ scheduler.Tick();
 public partial class MovementSystem : ISystem
 {
     private readonly Query _query;
+    private EcsOperation? _operation;
 
     public World World { get; init; } = null!;
 
@@ -44,8 +49,9 @@ public partial class MovementSystem : ISystem
 
     public void Tick()
     {
-        World.ForEach(in _query,
+        _operation ??= World.ForEach(in _query,
             static (ref Position p, in Velocity v) => p.X += v.X);
+        _operation.Invoke();
     }
 }
 
@@ -119,6 +125,7 @@ public sealed class CaptureHistorySystem : ISystem
     private readonly Query _query;
     private readonly ComponentId _positionId;
     private readonly SystemAccess _access;
+    private EcsOperation? _captureOperation;
 
     public CaptureHistorySystem(World world, Query query, ComponentId positionId, ComponentId historyId)
     {
@@ -140,7 +147,10 @@ public sealed class CaptureHistorySystem : ISystem
     public SystemAccess Access => _access;
 
     public void Tick()
-        => World.ForEach(in _query, _positionId, typeof(CaptureHistory<>));
+    {
+        _captureOperation ??= World.ForEach(in _query, _positionId, typeof(CaptureHistory<>));
+        _captureOperation.Invoke();
+    }
 }
 ```
 

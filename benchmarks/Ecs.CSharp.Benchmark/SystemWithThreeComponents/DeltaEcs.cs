@@ -17,7 +17,7 @@ namespace Ecs.CSharp.Benchmark
             _deltaEcs.World.ForEach(
                 in _deltaEcs.Query,
                 static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second, ref readonly DeltaComponent3 third) =>
-                    first.Value += second.Value + third.Value);
+                    first.Value += second.Value + third.Value).Invoke();
             return EntityCount;
         }
 
@@ -29,7 +29,7 @@ namespace Ecs.CSharp.Benchmark
                 in _deltaEcs.Query,
                 static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second, ref readonly DeltaComponent3 third) =>
                     first.Value += second.Value + third.Value,
-                workerCount: ParallelContext.ParallelWorkerCount);
+                workerCount: ParallelContext.ParallelWorkerCount).Invoke();
             return EntityCount;
         }
 
@@ -37,7 +37,7 @@ namespace Ecs.CSharp.Benchmark
         [Benchmark]
         public int DeltaECSFunctor()
         {
-            _deltaEcs.World.ForEach(in _deltaEcs.Query, new DeltaComponent3Functor());
+            _deltaEcs.World.ForEach(in _deltaEcs.Query, new DeltaComponent3Functor()).Invoke();
             return EntityCount;
         }
 
@@ -45,7 +45,7 @@ namespace Ecs.CSharp.Benchmark
         [Benchmark]
         public int DeltaECSFunctorParallel()
         {
-            _deltaEcs.World.ForEachParallel(in _deltaEcs.Query, new DeltaComponent3Functor(), workerCount: ParallelContext.ParallelWorkerCount);
+            _deltaEcs.World.ForEachParallel(in _deltaEcs.Query, new DeltaComponent3Functor(), workerCount: ParallelContext.ParallelWorkerCount).Invoke();
             return EntityCount;
         }
     }

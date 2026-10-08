@@ -99,7 +99,7 @@ Generated `ForEach` callbacks execute against an explicit world-owned `Query`:
 var query = world.WhereAll(positionId, velocityId);
 world.ForEach(in query,
     static (ref Position position, in Velocity velocity) =>
-        position.X += velocity.X);
+        position.X += velocity.X).Invoke();
 ```
 
 There is no deferred `QuerySpec` facade. Structural operations use direct

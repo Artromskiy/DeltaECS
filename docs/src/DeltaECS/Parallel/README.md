@@ -13,7 +13,7 @@ world.ForEachParallel(
     {
         position.X += velocity.X;
     },
-    workerCount: 4);
+    workerCount: 4).Invoke();
 ```
 
 The generated callback is invoked inside the worker-owned chunk range. The
@@ -31,7 +31,7 @@ world.ForEachEntityParallel(
     in settings,
     static (in Settings settings, EntityRef entity, ref Position position) =>
         position.X += settings.Step + entity.Index,
-    workerCount: 4);
+    workerCount: 4).Invoke();
 ```
 
 The zero-component, non-entity parallel overloads throw
@@ -47,11 +47,11 @@ shape:
 
 ```csharp
 world.ForEachParallel(in query, in settings,
-    static (in Settings s, ref Position p) => p.X += s.Step);
+    static (in Settings s, ref Position p) => p.X += s.Step).Invoke();
 world.ForEachParallel(in query, in settings,
-    static (ref readonly Settings s, ref Position p) => p.X += s.Step);
+    static (ref readonly Settings s, ref Position p) => p.X += s.Step).Invoke();
 world.ForEachParallel(in query, settings,
-    static (Settings s, ref Position p) => p.X += s.Step);
+    static (Settings s, ref Position p) => p.X += s.Step).Invoke();
 ```
 
 The old parallel `ref state` form is not generated. Use an explicit functor
@@ -67,7 +67,8 @@ struct MoveFunctor : IForEach
 }
 
 var move = new MoveFunctor();
-world.ForEachParallel(in query, ref move, workerCount: 4);
+var operation = world.ForEachParallel(in query, ref move, workerCount: 4);
+operation.Invoke(ref move);
 ```
 
 `workerCount: 0` selects the runtime default worker count and always uses the

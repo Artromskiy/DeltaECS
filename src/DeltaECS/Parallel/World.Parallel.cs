@@ -79,30 +79,29 @@ public sealed partial class World
     /// query or an explicit entity span, with optional <c>ComponentId</c>
     /// selectors, context and worker count.
     /// For example: <c>world.ForEachParallel(in query,
-    /// static (ref Position position) =&gt; position.X++, workerCount: 4)</c>.
+    /// static (ref Position position) =&gt; position.X++, workerCount: 4).Invoke()</c>.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
     /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
-    public void ForEachParallel(in Query query, ForEachAction action, int workerCount = 0)
-        => ThrowHelper.ThrowGeneratedIterationRequired();
+    public EcsOperation ForEachParallel(in Query query, ForEachAction action, int workerCount = 0)
+        => new(ThrowHelper.ThrowGeneratedIterationRequired);
 
     /// <summary>
     /// Iterates every entity selected by <paramref name="query"/> in parallel
     /// without requesting component rows. Generated forms may also include
     /// component rows, explicit <c>ComponentId</c> selectors, context, or an
     /// explicit entity-span target. For example:
-    /// <c>world.ForEachEntityParallel(in query, static entity =&gt; Log(entity.Handle), workerCount: 4)</c>.
+    /// <c>world.ForEachEntityParallel(in query, static entity =&gt; Log(entity.Handle), workerCount: 4).Invoke()</c>.
     /// </summary>
-    public void ForEachEntityParallel(in Query query, ForEachEntityAction action, int workerCount = 0)
+    public EcsOperation ForEachEntityParallel(in Query query, ForEachEntityAction action, int workerCount = 0)
     {
-        ThrowHelper.ThrowIfNull(action, nameof(action));
-        var invoker = new EntityParallelInvoker(action);
-        GeneratedForEachRuntime.ExecuteParallelDense(
-            this,
-            in query,
-            ref invoker,
-            ReadOnlySpan<int>.Empty,
-            workerCount);
+        Query operationQuery = query;
+        return new EcsOperation(() =>
+        {
+            ThrowHelper.ThrowIfNull(action, nameof(action));
+            var invoker = new EntityParallelInvoker(action);
+            GeneratedForEachRuntime.ExecuteParallelDense(this, in operationQuery, ref invoker, ReadOnlySpan<int>.Empty, workerCount);
+        });
     }
 
     /// <summary>
@@ -117,12 +116,12 @@ public sealed partial class World
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
     /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
-    public void ForEachParallel<TContext>(
+    public EcsOperation ForEachParallel<TContext>(
         in Query query,
         in TContext context,
         ForEachContextActionIn<TContext> action,
         int workerCount = 0)
-        => ThrowHelper.ThrowGeneratedIterationRequired();
+        => new(ThrowHelper.ThrowGeneratedIterationRequired);
 
     /// <summary>
     /// Zero-component parallel value-context callback overload.
@@ -135,12 +134,12 @@ public sealed partial class World
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
     /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
-    public void ForEachParallel<TContext>(
+    public EcsOperation ForEachParallel<TContext>(
         in Query query,
         TContext context,
         ForEachContextActionValue<TContext> action,
         int workerCount = 0)
-        => ThrowHelper.ThrowGeneratedIterationRequired();
+        => new(ThrowHelper.ThrowGeneratedIterationRequired);
 
     /// <summary>
     /// Iterates every entity selected by <paramref name="query"/> in parallel
@@ -148,20 +147,20 @@ public sealed partial class World
     /// For example: <c>world.ForEachEntityParallel(in query, in state,
     /// static (in State value, EntityRef entity) =&gt; Log(value, entity.Handle), workerCount: 4)</c>.
     /// </summary>
-    public void ForEachEntityParallel<TContext>(
+    public EcsOperation ForEachEntityParallel<TContext>(
         in Query query,
         in TContext context,
         ForEachContextEntityActionIn<TContext> action,
         int workerCount = 0)
     {
-        ThrowHelper.ThrowIfNull(action, nameof(action));
-        var invoker = new EntityParallelContextInvoker<TContext>(in context, action);
-        GeneratedForEachRuntime.ExecuteParallelDense(
-            this,
-            in query,
-            ref invoker,
-            ReadOnlySpan<int>.Empty,
-            workerCount);
+        Query operationQuery = query;
+        TContext operationContext = context;
+        return new EcsOperation(() =>
+        {
+            ThrowHelper.ThrowIfNull(action, nameof(action));
+            var invoker = new EntityParallelContextInvoker<TContext>(in operationContext, action);
+            GeneratedForEachRuntime.ExecuteParallelDense(this, in operationQuery, ref invoker, ReadOnlySpan<int>.Empty, workerCount);
+        });
     }
 
     /// <summary>
@@ -170,20 +169,19 @@ public sealed partial class World
     /// <c>world.ForEachEntityParallel(in query, state,
     /// static (State value, EntityRef entity) =&gt; Log(value, entity.Handle), workerCount: 4)</c>.
     /// </summary>
-    public void ForEachEntityParallel<TContext>(
+    public EcsOperation ForEachEntityParallel<TContext>(
         in Query query,
         TContext context,
         ForEachContextEntityActionValue<TContext> action,
         int workerCount = 0)
     {
-        ThrowHelper.ThrowIfNull(action, nameof(action));
-        var invoker = new EntityParallelValueContextInvoker<TContext>(context, action);
-        GeneratedForEachRuntime.ExecuteParallelDense(
-            this,
-            in query,
-            ref invoker,
-            ReadOnlySpan<int>.Empty,
-            workerCount);
+        Query operationQuery = query;
+        return new EcsOperation(() =>
+        {
+            ThrowHelper.ThrowIfNull(action, nameof(action));
+            var invoker = new EntityParallelValueContextInvoker<TContext>(context, action);
+            GeneratedForEachRuntime.ExecuteParallelDense(this, in operationQuery, ref invoker, ReadOnlySpan<int>.Empty, workerCount);
+        });
     }
 
     /// <summary>
@@ -192,8 +190,8 @@ public sealed partial class World
     /// parameters and an explicit worker count.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
-    public void ForEachStampParallel(in Query query, ForEachAction action, int workerCount = 0)
-        => ThrowHelper.ThrowGeneratedIterationRequired();
+    public EcsOperation ForEachStampParallel(in Query query, ForEachAction action, int workerCount = 0)
+        => new(ThrowHelper.ThrowGeneratedIterationRequired);
 
     /// <summary>
     /// Zero-component parallel entity stamp callback anchor. Generated
@@ -201,47 +199,47 @@ public sealed partial class World
     /// followed by one or more <c>in Stamp</c> parameters.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
-    public void ForEachEntityStampParallel(in Query query, ForEachEntityAction action, int workerCount = 0)
-        => ThrowHelper.ThrowGeneratedIterationRequired();
+    public EcsOperation ForEachEntityStampParallel(in Query query, ForEachEntityAction action, int workerCount = 0)
+        => new(ThrowHelper.ThrowGeneratedIterationRequired);
 
     /// <summary>
     /// Zero-component parallel stamp context anchor. Generated forms support
     /// read-only or value context and one or more <c>in Stamp</c> parameters.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
-    public void ForEachStampParallel<TContext>(
+    public EcsOperation ForEachStampParallel<TContext>(
         in Query query,
         in TContext context,
         ForEachContextActionIn<TContext> action,
         int workerCount = 0)
-        => ThrowHelper.ThrowGeneratedIterationRequired();
+        => new(ThrowHelper.ThrowGeneratedIterationRequired);
 
     /// <summary>Zero-component parallel value-context stamp anchor.</summary>
     /// <remarks>This zero-component overload always throws.</remarks>
-    public void ForEachStampParallel<TContext>(
+    public EcsOperation ForEachStampParallel<TContext>(
         in Query query,
         TContext context,
         ForEachContextActionValue<TContext> action,
         int workerCount = 0)
-        => ThrowHelper.ThrowGeneratedIterationRequired();
+        => new(ThrowHelper.ThrowGeneratedIterationRequired);
 
     /// <summary>Zero-component parallel entity stamp context anchor.</summary>
     /// <remarks>This zero-component overload always throws.</remarks>
-    public void ForEachEntityStampParallel<TContext>(
+    public EcsOperation ForEachEntityStampParallel<TContext>(
         in Query query,
         in TContext context,
         ForEachContextEntityActionIn<TContext> action,
         int workerCount = 0)
-        => ThrowHelper.ThrowGeneratedIterationRequired();
+        => new(ThrowHelper.ThrowGeneratedIterationRequired);
 
     /// <summary>Zero-component parallel entity value-context stamp anchor.</summary>
     /// <remarks>This zero-component overload always throws.</remarks>
-    public void ForEachEntityStampParallel<TContext>(
+    public EcsOperation ForEachEntityStampParallel<TContext>(
         in Query query,
         TContext context,
         ForEachContextEntityActionValue<TContext> action,
         int workerCount = 0)
-        => ThrowHelper.ThrowGeneratedIterationRequired();
+        => new(ThrowHelper.ThrowGeneratedIterationRequired);
 
     internal StaticParallelQueryExecutor<TInvoker> GetParallelQueryExecutor<TInvoker>()
         where TInvoker : struct, IGeneratedParallelInvoker

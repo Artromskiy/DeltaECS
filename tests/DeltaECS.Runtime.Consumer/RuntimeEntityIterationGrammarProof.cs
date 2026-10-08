@@ -14,21 +14,21 @@ public static partial class RuntimeApiGrammarProof
         Query query = world.WhereAll(positionId);
 
         int sequentialCount = 0;
-        world.ForEachEntity(in query, _ => sequentialCount++);
+        world.ForEachEntity(in query, _ => sequentialCount++).Invoke();
         Require(sequentialCount == entities.Length);
 
         var mutableContext = new CountContext();
         world.ForEachEntity(
             in query,
             ref mutableContext,
-            static (ref CountContext context, EntityRef _) => context.Count++);
+            static (ref CountContext context, EntityRef _) => context.Count++).Invoke(ref mutableContext);
         Require(mutableContext.Count == entities.Length);
 
         int parallelCount = 0;
         world.ForEachEntityParallel(
             in query,
             _ => Interlocked.Increment(ref parallelCount),
-            workerCount: 2);
+            workerCount: 2).Invoke();
         Require(parallelCount == entities.Length);
 
         var readonlyContext = new IterationContext { Counter = new SharedCounter() };
@@ -37,7 +37,7 @@ public static partial class RuntimeApiGrammarProof
             in readonlyContext,
             static (in IterationContext context, EntityRef _) =>
                 Interlocked.Increment(ref context.Counter.Count),
-            workerCount: 2);
+            workerCount: 2).Invoke();
         Require(readonlyContext.Counter.Count == entities.Length);
 
         var valueContext = new IterationContext { Counter = new SharedCounter() };
@@ -46,7 +46,7 @@ public static partial class RuntimeApiGrammarProof
             valueContext,
             static (IterationContext context, EntityRef _) =>
                 Interlocked.Increment(ref context.Counter.Count),
-            workerCount: 2);
+            workerCount: 2).Invoke();
         Require(valueContext.Counter.Count == entities.Length);
     }
 }

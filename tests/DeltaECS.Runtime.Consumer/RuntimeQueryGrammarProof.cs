@@ -71,7 +71,7 @@ public static partial class RuntimeApiGrammarProof
     private static int CountEntities(World world, in Query query)
     {
         int count = 0;
-        world.ForEachEntity(in query, _ => count++);
+        world.ForEachEntity(in query, _ => count++).Invoke();
         return count;
     }
 }

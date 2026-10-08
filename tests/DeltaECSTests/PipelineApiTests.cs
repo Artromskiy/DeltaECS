@@ -24,11 +24,11 @@ internal sealed class PipelineApiTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(() => world.ForEach(in query, action), Throws.InvalidOperationException);
-            Assert.That(() => world.ForEach(in query, ref context, contextAction), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEach(in query, action).Invoke(), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEach(in query, ref context, contextAction).Invoke(), Throws.InvalidOperationException);
         });
-        world.ForEachEntity(in query, entityAction);
-        world.ForEachEntity(in query, ref context, contextEntityAction);
+        world.ForEachEntity(in query, entityAction).Invoke();
+        world.ForEachEntity(in query, ref context, contextEntityAction).Invoke(ref context);
 
         int entityListVisits = 0;
         ReadOnlySpan<Entity> selected = entities.AsSpan(1);
@@ -37,11 +37,11 @@ internal sealed class PipelineApiTests
             selected,
             in query,
             ref entityListVisits,
-            static (ref int visits, EntityRef _) => visits++);
+            static (ref int visits, EntityRef _) => visits++).Invoke(ref entityListVisits);
         world.ForEachEntity(
             selected,
             ref entityListVisits,
-            static (ref int visits, EntityRef _) => visits++);
+            static (ref int visits, EntityRef _) => visits++).Invoke(ref entityListVisits);
 
         Assert.Multiple(() =>
         {
@@ -59,13 +59,13 @@ internal sealed class PipelineApiTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(() => world.ForEachParallel(in query, action, workerCount: 1), Throws.InvalidOperationException);
-            Assert.That(() => world.ForEachParallel(in query, in context, readOnlyContextAction, workerCount: 1), Throws.InvalidOperationException);
-            Assert.That(() => world.ForEachParallel(in query, context, valueContextAction, workerCount: 1), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEachParallel(in query, action, workerCount: 1).Invoke(), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEachParallel(in query, in context, readOnlyContextAction, workerCount: 1).Invoke(), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEachParallel(in query, context, valueContextAction, workerCount: 1).Invoke(), Throws.InvalidOperationException);
         });
-        world.ForEachEntityParallel(in query, entityAction, workerCount: 1);
-        world.ForEachEntityParallel(in query, in context, readOnlyEntityContextAction, workerCount: 1);
-        world.ForEachEntityParallel(in query, context, valueEntityContextAction, workerCount: 1);
+        world.ForEachEntityParallel(in query, entityAction, workerCount: 1).Invoke();
+        world.ForEachEntityParallel(in query, in context, readOnlyEntityContextAction, workerCount: 1).Invoke();
+        world.ForEachEntityParallel(in query, context, valueEntityContextAction, workerCount: 1).Invoke();
 
         Assert.Multiple(() =>
         {
@@ -88,10 +88,10 @@ internal sealed class PipelineApiTests
 
         var query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
         world.ForEach(in query, static (ref PipelinePosition position, in PipelineVelocity velocity) =>
-            position.Value += velocity.Value);
+            position.Value += velocity.Value).Invoke();
 
         world.ForEach(in query, static (ref PipelinePosition position, in PipelineVelocity velocity) =>
-            position.Value += velocity.Value);
+            position.Value += velocity.Value).Invoke();
 
         Assert.That(world.Get<PipelinePosition>(entity, positionId).Value, Is.EqualTo(5));
     }
@@ -114,14 +114,14 @@ internal sealed class PipelineApiTests
             static (EntityRef entity, ref PipelinePosition position, in PipelineVelocity velocity) =>
             {
                 position.Value = entity.Index + velocity.Value;
-            });
+            }).Invoke();
         world.ForEach(
             new[] { entities[0], withoutVelocity },
             in query,
             static (ref PipelinePosition position, in PipelineVelocity velocity) =>
             {
                 position.Value += velocity.Value;
-            });
+            }).Invoke();
 
         Assert.That(world.Get<PipelinePosition>(entities[0], positionId).Value, Is.EqualTo(0));
         Assert.That(world.Get<PipelinePosition>(entities[1], positionId).Value, Is.EqualTo(entities[1].Index));
@@ -141,7 +141,7 @@ internal sealed class PipelineApiTests
         world.ForEach(
             entities,
             positionId,
-            static (ref PipelinePosition position) => position.Value++);
+            static (ref PipelinePosition position) => position.Value++).Invoke();
 
         Assert.That(world.Get<PipelinePosition>(entities[0], positionId).Value, Is.EqualTo(1));
         Assert.That(world.Get<PipelinePosition>(entities[1], positionId).Value, Is.EqualTo(1));
@@ -161,7 +161,7 @@ internal sealed class PipelineApiTests
             entities,
             in query,
             static (EntityRef entity, ref PipelinePosition position) => position.Value = entity.Index + 1,
-            workerCount: 2);
+            workerCount: 2).Invoke();
 
         for (int index = 0; index < entities.Length; index++)
         {
@@ -184,7 +184,7 @@ internal sealed class PipelineApiTests
             in query,
             ref context,
             static (ref WhereContext state, in PipelinePosition position) => position.Value < state.Minimum)
-            .ForEach(static (ref PipelinePosition position) => position.Value++);
+            .ForEach(static (ref PipelinePosition position) => position.Value++).Invoke();
 
         Assert.That(world.Get<PipelinePosition>(entity, positionId).Value, Is.EqualTo(3));
     }
@@ -205,7 +205,7 @@ internal sealed class PipelineApiTests
             in query,
             ref context,
             static (ref WhereContext state, in PipelinePosition position) => position.Value < state.Minimum)
-            .Add<PipelineMarker>();
+            .Add<PipelineMarker>().Invoke();
 
         Assert.That(world.Has<PipelineMarker>(entity), Is.True);
     }
@@ -226,12 +226,12 @@ internal sealed class PipelineApiTests
         world.ForEach(in query, static (ref PipelinePosition position, in PipelineVelocity velocity) =>
         {
             position.Value += velocity.Value;
-        });
+        }).Invoke();
         world.ForEach(in query, (ref PipelinePosition position, in PipelineVelocity velocity) =>
         {
             calls++;
             position.Value += velocity.Value;
-        });
+        }).Invoke();
 
         Assert.That(calls, Is.EqualTo(1));
         Assert.That(world.Get<PipelinePosition>(entity, positionId).Value, Is.EqualTo(5));
@@ -247,14 +247,14 @@ internal sealed class PipelineApiTests
         world.GetRef<PipelinePosition>(entity, positionId) = new PipelinePosition { Value = 3 };
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
         int calls = 0;
-        world.ForEach(in query, static (ref PipelinePosition _) => { });
+        world.ForEach(in query, static (ref PipelinePosition _) => { }).Invoke();
         ForEachAction<PipelinePosition> action = (ref PipelinePosition position) =>
         {
             calls++;
             position.Value++;
         };
 
-        world.ForEach(in query, action);
+        world.ForEach(in query, action).Invoke();
 
         Assert.That(calls, Is.EqualTo(1));
         Assert.That(world.Get<PipelinePosition>(entity, positionId).Value, Is.EqualTo(4));
@@ -271,7 +271,7 @@ internal sealed class PipelineApiTests
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
         s_methodGroupCalls = 0;
 
-        world.ForEach(in query, ApplyMethodGroup);
+        world.ForEach(in query, ApplyMethodGroup).Invoke();
 
         Assert.That(s_methodGroupCalls, Is.EqualTo(1));
         Assert.That(world.Get<PipelinePosition>(entity, positionId).Value, Is.EqualTo(4));

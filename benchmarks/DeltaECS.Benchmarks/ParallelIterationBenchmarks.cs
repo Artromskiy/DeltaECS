@@ -49,7 +49,7 @@ public class ParallelMovement4IterationBenchmarks
             in _query,
             static (ref Movement4A a, ref Movement4B b, ref Movement4C c, in Movement4D d) =>
                 ApplyMovement4(ref a, ref b, ref c, in d),
-            WorkerCount);
+            WorkerCount).Invoke();
     }
 
     [GlobalCleanup]
@@ -60,7 +60,7 @@ public class ParallelMovement4IterationBenchmarks
         _world.ForEach(
             in _query,
             static (ref Movement4A a, ref Movement4B b, ref Movement4C c, in Movement4D d) =>
-                ApplyMovement4(ref a, ref b, ref c, in d));
+                ApplyMovement4(ref a, ref b, ref c, in d)).Invoke();
 
     [Benchmark]
     public void DeltaECSMovement4Parallel() =>
@@ -68,7 +68,7 @@ public class ParallelMovement4IterationBenchmarks
             in _query,
             static (ref Movement4A a, ref Movement4B b, ref Movement4C c, in Movement4D d) =>
                 ApplyMovement4(ref a, ref b, ref c, in d),
-            WorkerCount);
+            WorkerCount).Invoke();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void ApplyMovement4(

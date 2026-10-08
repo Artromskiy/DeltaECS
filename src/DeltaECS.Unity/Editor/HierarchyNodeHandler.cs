@@ -560,7 +560,7 @@ namespace Delta.ECS.Unity.Editor
                 _entityNodes.Add(key, new EntityNode(node, reference, name));
                 _nodes.Add(node, reference);
                 changed = true;
-            });
+            }).Invoke();
 
             return changed;
         }

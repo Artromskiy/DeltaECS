@@ -137,7 +137,7 @@ public class ManyComponentIterationBenchmarks
                     + a40.Value + a41.Value + a42.Value + a43.Value
                     + b40.Value + b41.Value + b42.Value + b43.Value
                     + c40.Value + c41.Value + c42.Value + c43.Value;
-            });
+            }).Invoke(ref checksum);
 
         return checksum;
     }

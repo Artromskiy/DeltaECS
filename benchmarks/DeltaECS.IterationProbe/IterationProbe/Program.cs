@@ -92,7 +92,7 @@ public class IterationBenchmarks : IDisposable
             {
                 state.Visited++;
                 state.Checksum += c0.Value;
-            });
+            }).Invoke(ref state);
         return state.Result;
     }
 
@@ -108,7 +108,7 @@ public class IterationBenchmarks : IDisposable
             {
                 state.Visited++;
                 state.Checksum += c0.Value + c1.Value;
-            });
+            }).Invoke(ref state);
         return state.Result;
     }
 
@@ -124,7 +124,7 @@ public class IterationBenchmarks : IDisposable
             {
                 state.Visited++;
                 state.Checksum += c0.Value + c1.Value + c2.Value;
-            });
+            }).Invoke(ref state);
         return state.Result;
     }
 
@@ -140,7 +140,7 @@ public class IterationBenchmarks : IDisposable
             {
                 state.Visited++;
                 state.Checksum += c0.Value + c1.Value + c2.Value + c3.Value;
-            });
+            }).Invoke(ref state);
         return state.Result;
     }
 
@@ -165,7 +165,7 @@ public class IterationBenchmarks : IDisposable
             {
                 state.Visited++;
                 state.Checksum += c0.Value + c1.Value + c2.Value + c3.Value + c4.Value + c5.Value + c6.Value + c7.Value;
-            });
+            }).Invoke(ref state);
         return state.Result;
     }
 
@@ -201,7 +201,7 @@ public class IterationBenchmarks : IDisposable
                                   + c4.Value + c5.Value + c6.Value + c7.Value
                                   + c8.Value + c9.Value + c10.Value + c11.Value
                                   + c12.Value + c13.Value + c14.Value + c15.Value;
-            });
+            }).Invoke(ref state);
         return state.Result;
     }
 

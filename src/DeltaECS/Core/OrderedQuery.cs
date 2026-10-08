@@ -11,21 +11,28 @@ public readonly struct OrderedQuery
     internal OrderedQuery(OrderedQueryState state) => _state = state;
 
     /// <summary>Returns the first entity in ordering order, or <see langword="default"/> if the query has no result.</summary>
-    public Entity First() => GetState().First(predicate: null);
+    public EcsResultOperation<Entity> First()
+    {
+        OrderedQueryState state = GetState();
+        return new(() => state.First(predicate: null));
+    }
 
     /// <summary>Returns the first entity in ordering order accepted by <paramref name="predicate"/>, or <see langword="default"/>.</summary>
-    public Entity First(Func<Entity, bool> predicate)
+    public EcsResultOperation<Entity> First(Func<Entity, bool> predicate)
     {
-        ThrowHelper.ThrowIfNull(predicate, nameof(predicate));
-
-        return GetState().First(predicate);
+        OrderedQueryState state = GetState();
+        return new(() =>
+        {
+            ThrowHelper.ThrowIfNull(predicate, nameof(predicate));
+            return state.First(predicate);
+        });
     }
 
     /// <summary>Returns the first entity in ordering order, or <see langword="default"/> if the query has no result.</summary>
-    public Entity FirstEntity() => First();
+    public EcsResultOperation<Entity> FirstEntity() => First();
 
     /// <summary>Returns the first entity accepted by <paramref name="predicate"/> in ordering order, or <see langword="default"/>.</summary>
-    public Entity FirstEntity(Func<Entity, bool> predicate) => First(predicate);
+    public EcsResultOperation<Entity> FirstEntity(Func<Entity, bool> predicate) => First(predicate);
 
     /// <summary>Gets the source query used to create this ordered view.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]

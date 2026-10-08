@@ -5,98 +5,102 @@ public sealed partial class World
     /// <summary>
     /// Zero-component delegate callback overload.
     /// Use a component-bearing generated form such as
-    /// <c>world.ForEach(in query, static (ref Position position, in Velocity velocity) =&gt; ...)</c>.
+    /// <c>world.ForEach(in query, static (ref Position position, in Velocity velocity) =&gt; ...).Invoke()</c>.
     /// Generated callbacks use one or more component parameters and may target
     /// the query or an explicit entity span, with optional <c>ComponentId</c>
     /// selectors and caller context.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
     /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
-    public void ForEach(in Query query, ForEachAction action)
-        => ThrowHelper.ThrowGeneratedIterationRequired();
+    public EcsOperation ForEach(in Query query, ForEachAction action)
+        => new(ThrowHelper.ThrowGeneratedIterationRequired);
 
     /// <summary>
     /// Iterates every entity selected by <paramref name="query"/> without
     /// requesting component rows, for example
-    /// <c>world.ForEachEntity(in query, static entity =&gt; Log(entity.Handle))</c>.
+    /// <c>world.ForEachEntity(in query, static entity =&gt; Log(entity.Handle)).Invoke()</c>.
     /// Use a component-bearing generated <c>ForEachEntity</c> form such as
-    /// <c>world.ForEachEntity(in query, static (EntityRef entity, in Position position) =&gt; ...)</c>.
+    /// <c>world.ForEachEntity(in query, static (EntityRef entity, in Position position) =&gt; ...).Invoke()</c>.
     /// Generated forms put <c>EntityRef</c> first and may target the query or an
     /// explicit entity span, include component rows, explicit
     /// <c>ComponentId</c> selectors, or caller context.
     /// </summary>
-    public void ForEachEntity(in Query query, ForEachEntityAction action)
+    public EcsOperation ForEachEntity(in Query query, ForEachEntityAction action)
     {
-        ThrowHelper.ThrowIfNull(action, nameof(action));
-        using var execution = GeneratedForEachRuntime.OpenReadDense(this, in query);
-        while (execution.MoveNextTrusted(out GeneratedReadQuerySlots slots))
+        Query operationQuery = query;
+        return new EcsOperation(() =>
         {
-            int count = slots.Count;
-            if (slots.TryGetTagSlots(out var tagSlots))
+            ThrowHelper.ThrowIfNull(action, nameof(action));
+            using var execution = GeneratedForEachRuntime.OpenReadDense(this, in operationQuery);
+            while (execution.MoveNextTrusted(out GeneratedReadQuerySlots slots))
             {
-                for (int index = 0; index < tagSlots.Length; index++)
+                int count = slots.Count;
+                if (slots.TryGetTagSlots(out var tagSlots))
+                {
+                    for (int index = 0; index < tagSlots.Length; index++)
+                    {
+                        action(slots.GetEntityRef(index));
+                    }
+
+                    continue;
+                }
+
+                for (int index = 0; index < count; index++)
                 {
                     action(slots.GetEntityRef(index));
                 }
-
-                continue;
             }
-
-            for (int index = 0; index < count; index++)
-            {
-                action(slots.GetEntityRef(index));
-            }
-        }
+        });
     }
 
     /// <summary>
     /// Zero-component context callback overload.
     /// Use a component-bearing generated form such as
-    /// <c>world.ForEach(in query, ref state, static (ref State value, ref Position position) =&gt; ...)</c>.
+    /// <c>world.ForEach(in query, ref state, static (ref State value, ref Position position) =&gt; ...).Invoke(ref state)</c>.
     /// Generated forms support caller context, query or explicit entity-span
     /// targets, explicit <c>ComponentId</c> selectors, and one or more component
     /// parameters.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
     /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
-    public void ForEach<TContext>(in Query query, ref TContext context, ForEachContextAction<TContext> action)
-        => ThrowHelper.ThrowGeneratedIterationRequired();
+    public EcsOperation<TContext> ForEach<TContext>(in Query query, ref TContext context, ForEachContextAction<TContext> action)
+        => new(context, (ref TContext _) => ThrowHelper.ThrowGeneratedIterationRequired());
 
     /// <summary>
     /// Iterates every entity selected by <paramref name="query"/> with mutable
     /// caller context and without requesting component rows, for example
-    /// <c>world.ForEachEntity(in query, ref state, static (ref State value, EntityRef entity) =&gt; ...)</c>.
+    /// <c>world.ForEachEntity(in query, ref state, static (ref State value, EntityRef entity) =&gt; ...).Invoke(ref state)</c>.
     /// A generated component-bearing form can also be used, for example
-    /// <c>world.ForEachEntity(in query, ref state, static (ref State value, EntityRef entity, ref Position position) =&gt; ...)</c>.
+    /// <c>world.ForEachEntity(in query, ref state, static (ref State value, EntityRef entity, ref Position position) =&gt; ...).Invoke(ref state)</c>.
     /// Generated forms place <c>EntityRef</c> after caller context and before any
     /// component parameters.
     /// </summary>
-    public void ForEachEntity<TContext>(in Query query, ref TContext context, ForEachContextEntityAction<TContext> action)
+    public EcsOperation<TContext> ForEachEntity<TContext>(in Query query, ref TContext context, ForEachContextEntityAction<TContext> action)
     {
-        ThrowHelper.ThrowIfNull(action, nameof(action));
-        using var execution = GeneratedForEachRuntime.OpenReadDense(this, in query);
-        while (execution.MoveNextTrusted(out GeneratedReadQuerySlots slots))
+        Query operationQuery = query;
+        return new EcsOperation<TContext>(context, (ref TContext operationContext) =>
         {
-            int count = slots.Count;
-            if (slots.TryGetTagSlots(out var tagSlots))
+            ThrowHelper.ThrowIfNull(action, nameof(action));
+            using var execution = GeneratedForEachRuntime.OpenReadDense(this, in operationQuery);
+            while (execution.MoveNextTrusted(out GeneratedReadQuerySlots slots))
             {
-                for (int index = 0; index < tagSlots.Length; index++)
+                int count = slots.Count;
+                if (slots.TryGetTagSlots(out var tagSlots))
                 {
-                    action(
-                        ref context,
-                        slots.GetEntityRef(index));
+                    for (int index = 0; index < tagSlots.Length; index++)
+                    {
+                        action(ref operationContext, slots.GetEntityRef(index));
+                    }
+
+                    continue;
                 }
 
-                continue;
+                for (int index = 0; index < count; index++)
+                {
+                    action(ref operationContext, slots.GetEntityRef(index));
+                }
             }
-
-            for (int index = 0; index < count; index++)
-            {
-                action(
-                    ref context,
-                    slots.GetEntityRef(index));
-            }
-        }
+        });
     }
 
     /// <summary>
@@ -106,8 +110,8 @@ public sealed partial class World
     /// static (in Stamp stamp) =&gt; Process(stamp))</c>.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
-    public void ForEachStamp(in Query query, ForEachAction action)
-        => ThrowHelper.ThrowGeneratedIterationRequired();
+    public EcsOperation ForEachStamp(in Query query, ForEachAction action)
+        => new(ThrowHelper.ThrowGeneratedIterationRequired);
 
     /// <summary>
     /// Zero-component entity stamp callback anchor. Generated
@@ -115,7 +119,7 @@ public sealed partial class World
     /// one or more <c>in Stamp</c> parameters.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
-    public void ForEachEntityStamp(in Query query, ForEachEntityAction action)
-        => ThrowHelper.ThrowGeneratedIterationRequired();
+    public EcsOperation ForEachEntityStamp(in Query query, ForEachEntityAction action)
+        => new(ThrowHelper.ThrowGeneratedIterationRequired);
 
 }

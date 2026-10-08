@@ -72,7 +72,7 @@ public class TagFilteringBenchmarks
         _componentWorld.ForEach(
             in _componentQuery,
             ref checksum,
-            static (ref long sum, ref readonly TagFilteringValueComponent value) => sum += value.Value);
+            static (ref long sum, ref readonly TagFilteringValueComponent value) => sum += value.Value).Invoke(ref checksum);
         return Validate(checksum, "component filter + component iteration");
     }
 
@@ -84,7 +84,7 @@ public class TagFilteringBenchmarks
         _tagWorld.ForEach(
             in _tagQuery,
             ref checksum,
-            static (ref long sum, ref readonly TagFilteringValueComponent value) => sum += value.Value);
+            static (ref long sum, ref readonly TagFilteringValueComponent value) => sum += value.Value).Invoke(ref checksum);
         return Validate(checksum, "tag filter + component iteration");
     }
 
@@ -96,7 +96,7 @@ public class TagFilteringBenchmarks
         _componentWorld.ForEachEntity(
             in _componentEntityQuery,
             ref checksum,
-            static (ref long sum, EntityRef entity) => sum += entity.Index + 1L);
+            static (ref long sum, EntityRef entity) => sum += entity.Index + 1L).Invoke(ref checksum);
         return Validate(checksum, "component filter + entity iteration");
     }
 
@@ -108,7 +108,7 @@ public class TagFilteringBenchmarks
         _tagWorld.ForEachEntity(
             in _tagEntityQuery,
             ref checksum,
-            static (ref long sum, EntityRef entity) => sum += entity.Index + 1L);
+            static (ref long sum, EntityRef entity) => sum += entity.Index + 1L).Invoke(ref checksum);
         return Validate(checksum, "tag filter + entity iteration");
     }
 

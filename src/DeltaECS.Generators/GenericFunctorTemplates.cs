@@ -145,6 +145,14 @@ internal static class GenericFunctorTemplates
 
                     public {{name}}() { }
 
+                    global::Delta.ECS.Query global::Delta.ECS.IGeneratedGenericFunctor.CreateQuery(
+                        global::Delta.ECS.World world,
+                        global::System.ReadOnlySpan<global::Delta.ECS.ComponentId> genericArguments)
+                    {
+                        var components = _components ??= new global::Delta.ECS.ComponentId[] { {{selectors}} };
+                        return world.WhereAll(components);
+                    }
+
                     void global::Delta.ECS.IGeneratedGenericFunctor.Execute(
                         global::Delta.ECS.World world,
                         in global::Delta.ECS.Query query,
@@ -204,15 +212,27 @@ internal static class GenericFunctorTemplates
         }
 
         string generic = hasContext ? "<TContext>" : string.Empty;
-        string contextCall = hasContext ? "ref context, " : string.Empty;
+        string contextCall = hasContext ? "context, " : string.Empty;
         string argumentList = dynamicIds
             ? "functorArguments"
             : $"stackalloc global::Delta.ECS.ComponentId[] {{ {idValues} }}";
+        string componentArguments = dynamicIds ? "functorArguments" : argumentList;
+
+        string queryArgument = "in operationQuery";
+        string entitiesArgument = entityList ? "entities" : "global::System.ReadOnlySpan<global::Delta.ECS.Entity>.Empty";
         string call = hasContext
-            ? $"world.ExecuteGenericFunctor<TContext>(in query, {(entityList ? "entities" : "global::System.ReadOnlySpan<global::Delta.ECS.Entity>.Empty")}, {hasQuery.ToString().ToLowerInvariant()}, global::Delta.ECS.GeneratedGenericFunctorMode.{mode}, functorType, {(parallel ? "workerCount" : "0")}, {contextCall}{argumentList});"
-            : $"world.ExecuteGenericFunctor(in query, {(entityList ? "entities" : "global::System.ReadOnlySpan<global::Delta.ECS.Entity>.Empty")}, {hasQuery.ToString().ToLowerInvariant()}, global::Delta.ECS.GeneratedGenericFunctorMode.{mode}, functorType, {(parallel ? "workerCount" : "0")}, {argumentList});";
-        string body = hasQuery ? call : $"global::Delta.ECS.Query query = default;\n{call}";
-        return $"public static void {method}{generic}({string.Join(", ", parameters)})\n{{\n    {body}\n}}";
+            ? $"return world.CreateGenericFunctorOperation<TContext>({queryArgument}, {entitiesArgument}, {hasQuery.ToString().ToLowerInvariant()}, global::Delta.ECS.GeneratedGenericFunctorMode.{mode}, functorType, {(parallel ? "workerCount" : "0")}, {contextCall}{componentArguments});"
+            : $"return world.CreateGenericFunctorOperation({queryArgument}, {entitiesArgument}, {hasQuery.ToString().ToLowerInvariant()}, global::Delta.ECS.GeneratedGenericFunctorMode.{mode}, functorType, {(parallel ? "workerCount" : "0")}, {componentArguments});";
+        var setup = new List<string>();
+        setup.Add(hasQuery
+            ? "global::Delta.ECS.Query operationQuery = query;"
+            : "global::Delta.ECS.Query operationQuery = default;");
+        setup.Add(call);
+        string body = string.Join("\n", setup);
+        string operationType = hasContext
+            ? "global::Delta.ECS.EcsOperation<TContext>"
+            : "global::Delta.ECS.EcsOperation";
+        return $"public static {operationType} {method}{generic}({string.Join(", ", parameters)})\n{{\n{GeneratorTemplates.Indent(body, "    ")}\n}}";
     }
 
     private static string RenderExecuteBody(GenericFunctorModel model, string arguments, string callbackEntity, string? context)

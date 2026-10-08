@@ -12,7 +12,7 @@ var moving = world
 
 world.ForEach(in moving,
     static (ref Position position, in Velocity velocity) =>
-        position.X += velocity.X);
+        position.X += velocity.X).Invoke();
 ```
 
 ## What DeltaECS provides
@@ -67,7 +67,7 @@ world.Add(entity, velocityId, new Velocity { X = 2 });
 Query moving = world.WhereAll<Position, Velocity>();
 world.ForEach(in moving,
     static (ref Position position, in Velocity velocity) =>
-        position.X += velocity.X);
+        position.X += velocity.X).Invoke();
 
 Console.WriteLine(world.Get<Position>(entity).X); // 12
 
@@ -183,7 +183,8 @@ world.ForEachEntityParallel<T...>(E, Q?, I..., C?, A | F, W)
 ```
 
 The same forms exist for `ForEachEntity`, `ForEachStamp`, and
-`ForEachEntityStamp`. `ForEachEntity` adds the current `Entity` as the first
+`ForEachEntityStamp`. Each terminal returns a reusable deferred operation;
+execute it with `.Invoke()`. `ForEachEntity` adds the current `Entity` as the first
 callback row argument, ahead of selected component rows. Entity-only
 `ForEachEntity` is supported; ordinary `ForEach` requires at least one
 component.
@@ -253,13 +254,13 @@ one terminal:
 world.Where(Q, C?, Predicate) -> view
 world.WhereEntity(Q, C?, Predicate) -> view
 
-view.Destroy()
-view.Add<T...>()
-view.Add<T...>(I...)
-view.Remove<T...>()
-view.Remove<T...>(I...)
-view.ForEach(...)
-view.ForEachEntity(...)
+view.Destroy().Invoke()
+view.Add<T...>().Invoke()
+view.Add<T...>(I...).Invoke()
+view.Remove<T...>().Invoke()
+view.Remove<T...>(I...).Invoke()
+view.ForEach(...).Invoke()
+view.ForEachEntity(...).Invoke()
 ```
 
 The full grammar also documents inferred-value forms, argument modifiers and
@@ -305,20 +306,20 @@ also needs identity:
 ```csharp
 world.ForEach(in combatants,
     static (ref Position position, in Health health) =>
-        position.X += health.Value);
+        position.X += health.Value).Invoke();
 
 world.ForEachEntity(in combatants,
     static (Entity entity, ref Position position, in Health health) =>
     {
         position.X += health.Value;
         Report(entity);
-    });
+    }).Invoke();
 ```
 
 Callback parameter modifiers declare access:
 
 - `ref T` provides writable access to a component row. The write is visible in
-  the world immediately.
+  the world when the operation is invoked.
 - `in T` and `ref readonly T` provide read-only access without copying the
   component value.
 - A value parameter receives a value copy.
@@ -335,10 +336,10 @@ optional query further filters that set:
 ReadOnlySpan<Entity> candidates = entities;
 
 world.ForEach<Position>(candidates,
-    static (ref Position position) => position.X = 0);
+    static (ref Position position) => position.X = 0).Invoke();
 
 world.ForEachEntity<Position>(candidates, in combatants,
-    static (Entity entity, in Position position) => Log(entity, position));
+    static (Entity entity, in Position position) => Log(entity, position)).Invoke();
 ```
 
 The entity-list form preserves the caller's target set; a world-wide query
@@ -352,19 +353,21 @@ Pass context before the callback. The context can be a small struct or a tuple:
 ```csharp
 var state = (DeltaTime: 0.016f, Updated: 0);
 
-world.ForEach(in moving, ref state,
+var movement = world.ForEach(in moving, ref state,
     static (ref (float DeltaTime, int Updated) state,
         ref Position position, in Velocity velocity) =>
     {
         position.X += velocity.X * state.DeltaTime;
         state.Updated++;
     });
+movement.Invoke(ref state);
 
 Console.WriteLine(state.Updated);
 ```
 
-The caller passes mutable state with `ref`; its changes are visible when the
-call returns. A static callback can use that state without capturing locals.
+The returned operation can be stored and reused. Pass mutable state by `ref`
+to `Invoke` so updates go to the caller-owned value. A static callback can use
+that state without capturing locals.
 Entity-aware callbacks receive `Entity` after the context parameter. Tuple
 element names help readability but are not part of the CLR type; use distinct
 named context structs when separate callback shapes need distinct context
@@ -387,7 +390,8 @@ public struct Move : IForEach
 }
 
 var move = new Move { DeltaTime = 0.016f };
-world.ForEach(in moving, ref move);
+var movement = world.ForEach(in moving, ref move);
+movement.Invoke(ref move);
 ```
 
 The generator derives component types and access modes from `Invoke` and emits
@@ -426,11 +430,11 @@ The parallel family mirrors ordinary typed and entity-aware iteration:
 world.ForEachParallel<Position, Velocity>(in moving,
     static (ref Position position, in Velocity velocity) =>
         position.X += velocity.X,
-    workerCount: 4);
+    workerCount: 4).Invoke();
 
 world.ForEachEntityParallel(in combatants,
     static (Entity entity, in Health health) => Report(entity, health),
-    workerCount: 4);
+    workerCount: 4).Invoke();
 ```
 
 The caller chooses `workerCount`; zero selects the runtime default. The
@@ -542,12 +546,12 @@ Use `WhereEntity` when the predicate needs the entity handle:
 ```csharp
 int destroyed = world.Where(in combatants,
         static (in Health health) => health.Value <= 0)
-    .Destroy();
+    .Destroy().Invoke();
 
 int marked = world.WhereEntity(in combatants,
         static (Entity entity, in Health health, in Team team) =>
             health.Value <= 0 && team.Id == 1)
-    .Add<Dead>();
+    .Add<Dead>().Invoke();
 ```
 
 Predicates receive component references as `in` or `ref readonly`. They may
@@ -557,14 +561,14 @@ components, use a terminal iteration:
 ```csharp
 world.Where(in combatants,
         static (in Health health) => health.Value > 0)
-    .ForEach(static (ref Health health) => health.Value++);
+    .ForEach(static (ref Health health) => health.Value++).Invoke();
 ```
 
 Available terminals include `Destroy`, `Add`, `Remove`, `ForEach` and
-`ForEachEntity`. The view is stack-only, and every terminal completes the
-operation immediately. Structural terminals finish the query scope before
-applying ordinary immediate structural changes; no command is queued for a
-later update.
+`ForEachEntity`. The reusable view retains its predicate and query; each
+terminal returns an operation that executes only on `Invoke`. Structural
+terminals finish the query scope before applying ordinary immediate structural
+changes; no command is queued for a later update.
 
 ## Source generation and interception
 

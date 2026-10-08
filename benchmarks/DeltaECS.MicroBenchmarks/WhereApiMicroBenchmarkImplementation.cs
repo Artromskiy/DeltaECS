@@ -66,7 +66,7 @@ public class WhereApiMicroBenchmarkImplementation
                 {
                     accumulator.Value++;
                 }
-            });
+            }).Invoke();
         return _targetCount;
     }
 
@@ -76,7 +76,7 @@ public class WhereApiMicroBenchmarkImplementation
         _world.Where(
                 in _query,
                 static (ref readonly WhereApiValue value) => value.Value <= 0)
-            .ForEach(static (ref WhereApiAccumulator accumulator) => accumulator.Value++);
+            .ForEach(static (ref WhereApiAccumulator accumulator) => accumulator.Value++).Invoke();
         return _targetCount;
     }
 
@@ -86,11 +86,11 @@ public class WhereApiMicroBenchmarkImplementation
         int added = _world.Where(
                 in _query,
                 static (ref readonly WhereApiValue value) => value.Value <= 0)
-            .Add<WhereApiDead>();
+            .Add<WhereApiDead>().Invoke();
         int removed = _world.Where(
                 in _deadQuery,
                 static (ref readonly WhereApiValue value) => value.Value <= 0)
-            .Remove<WhereApiDead>();
+            .Remove<WhereApiDead>().Invoke();
         return added + removed;
     }
 

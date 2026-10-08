@@ -58,13 +58,13 @@ public class GenericRuntimeFunctorTests
 
         Query query = world.WhereAll(value, history);
         Stamp before = GetStamp(world, entities[0], value);
-        world.ForEach(in query, value, typeof(SaveHistory<>));
+        world.ForEach(in query, value, typeof(SaveHistory<>)).Invoke();
         Assert.That(GetStamp(world, entities[0], value), Is.Not.EqualTo(before));
         int[] ordinals = entities.Select(entity => world.Get<History<float>>(entity, history).Ordinal).Order().ToArray();
         Assert.That(ordinals, Is.EqualTo(Enumerable.Range(1, entities.Length)));
 
         Query filtered = query.WhereAll(selected);
-        world.ForEach(in filtered, value, typeof(SaveHistory<>));
+        world.ForEach(in filtered, value, typeof(SaveHistory<>)).Invoke();
         for (int index = 0; index < entities.Length; index++)
         {
             History<float> saved = world.Get<History<float>>(entities[index], history);
@@ -88,13 +88,34 @@ public class GenericRuntimeFunctorTests
         Stamp beforeFirst = GetStamp(world, entity, first);
         Stamp beforeSecond = GetStamp(world, entity, second);
 
-        world.ForEach(in query, first, second, typeof(CopyPair<,>));
+        world.ForEach(in query, first, second, typeof(CopyPair<,>)).Invoke();
 
         Pair<int, float> result = world.Get<Pair<int, float>>(entity, pair);
         Assert.That(result.First, Is.EqualTo(42));
         Assert.That(result.Second, Is.EqualTo(1.5f));
         Assert.That(GetStamp(world, entity, first), Is.EqualTo(beforeFirst));
         Assert.That(GetStamp(world, entity, second), Is.EqualTo(beforeSecond));
+    }
+
+    [Test]
+    public void RuntimeFunctorWithoutExplicitQueryReusesItsLiveImplicitQueryPlan()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId value = layouts.Register<int>(new SchemaId(120_025));
+        ComponentId history = layouts.Register(typeof(History<>), value, new SchemaId(120_125));
+        ComponentId selected = layouts.Register<Selected>(new SchemaId(120_026));
+        using var world = new World(layouts);
+        Entity first = world.Create(value, history);
+        Entity[] entities = { first };
+        var operation = world.ForEach(entities.AsSpan(), value, typeof(SaveHistory<>));
+        world.GetRef<int>(first, value) = 10;
+        operation.Invoke();
+        Assert.That(world.Get<History<int>>(first, history).Saves, Is.EqualTo(1));
+
+        world.Add(first, selected);
+        operation.Invoke();
+
+        Assert.That(world.Get<History<int>>(first, history).Saves, Is.EqualTo(2));
     }
 
     [Test]
@@ -110,8 +131,8 @@ public class GenericRuntimeFunctorTests
         Entity entity = world.Create(value);
         Query query = world.WhereAll(value);
         Stamp before = GetStamp(world, entity, value);
-        Assert.Throws<ArgumentException>(() => world.ForEach(in query, text, typeof(SaveHistory<>)));
-        Assert.Throws<System.Collections.Generic.KeyNotFoundException>(() => world.ForEach(in query, value, typeof(SaveHistory<>)));
+        Assert.Throws<ArgumentException>(() => world.ForEach(in query, text, typeof(SaveHistory<>)).Invoke());
+        Assert.Throws<System.Collections.Generic.KeyNotFoundException>(() => world.ForEach(in query, value, typeof(SaveHistory<>)).Invoke());
         Assert.That(GetStamp(world, entity, value), Is.EqualTo(before));
         Assert.That(world.Destroy(entity), Is.True);
     }

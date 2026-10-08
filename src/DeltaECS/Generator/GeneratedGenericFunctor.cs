@@ -23,6 +23,9 @@ public enum GeneratedGenericFunctorMode
 [EditorBrowsable(EditorBrowsableState.Never)]
 public interface IGeneratedGenericFunctor
 {
+    /// <summary>Creates the query implied by this closed functor's component rows.</summary>
+    Query CreateQuery(World world, ReadOnlySpan<ComponentId> genericArguments);
+
     /// <summary>Executes one default functor across the selected query.</summary>
     void Execute(
         World world,

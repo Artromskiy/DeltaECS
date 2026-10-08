@@ -35,7 +35,7 @@ var any = world.WhereAny<Position, Velocity>();
 var none = world.WhereNone<Velocity>();
 
 world.ForEachEntity(in any,
-    static (EntityRef current) => Console.WriteLine(current.Index));
+    static (EntityRef current) => Console.WriteLine(current.Index)).Invoke();
 ```
 
 `All` requires every listed component, `Any` requires at least one, and `None`
@@ -77,7 +77,7 @@ registrations:
 ```csharp
 world.ForEach(in query, positionId, velocityId,
     static (ref Position position, in Velocity velocity) =>
-        position.X += velocity.X);
+        position.X += velocity.X).Invoke();
 ```
 
 For combined conditions, continue the query chain with explicit IDs:
@@ -88,7 +88,7 @@ var stationary = world
     .WhereNone(velocityId);
 world.Remove<Velocity>(entity);
 world.ForEach(in stationary,
-    static (ref Position position) => position.X = 0);
+    static (ref Position position) => position.X = 0).Invoke();
 Console.WriteLine(world.Get<Position>(entity).X); // 0
 ```
 
@@ -96,12 +96,13 @@ Console.WriteLine(world.Get<Position>(entity).X); // 0
 
 ```csharp
 var step = new Step { DeltaTime = 0.5f };
-world.ForEach<Step, Position, Velocity>(in query, ref step,
+var operation = world.ForEach<Step, Position, Velocity>(in query, ref step,
     static (ref Step state, ref Position position, in Velocity velocity) =>
     {
         position.X += velocity.X * state.DeltaTime;
         state.Updated++;
     });
+operation.Invoke(ref step);
 Console.WriteLine(step.Updated); // 1
 Console.WriteLine(world.Get<Position>(entity).X); // 13
 ```
@@ -133,7 +134,8 @@ var predicate = new IsDeadPredicate();
 var actionState = new ActionState();
 var action = new ResetHealthAction();
 world.WhereEntity(in query, ref predicateState, ref predicate)
-    .ForEachEntity(ref actionState, ref action);
+    .ForEachEntity(ref actionState, ref action)
+    .Invoke(ref actionState, ref action);
 ```
 
 `Invoke` receives `ref TContext` when a context is supplied, then `Entity` for
@@ -191,10 +193,10 @@ int created = world.Create(positionId, velocityId, 2, output);
 
 ## Filter the whole query before a mutation
 
-`world.Where(in query, predicate)` creates a stack-only view over every entity
+`world.Where(in query, predicate)` creates a reusable view over entities
 matched by `query`. Its predicate receives only read-only typed component
-references. `WhereEntity` is the form that receives `Entity` first. Its
-terminal completes the entire operation before returning:
+references. `WhereEntity` is the form that receives `Entity` first. Terminals
+return deferred operations and execute only after `Invoke()`:
 
 These examples use the following component markers:
 
@@ -209,19 +211,19 @@ public struct Alive { }
 int destroyed = world.WhereEntity(
         in query,
         static (Entity current, in Health health) => health.Value <= 0)
-    .Destroy();
+    .Destroy().Invoke();
 
 int tagged = world.WhereEntity(
         in query,
         static (Entity current, in Health health, in Team team) =>
             health.Value <= 0 && team.Id == 1)
-    .Add<Dead>();
+    .Add<Dead>().Invoke();
 
 world.WhereEntity(
         in query,
         static (Entity current, in Health health, in Team team) =>
             health.Value <= 0 && team.Id == 1)
-    .Remove<Alive>();
+    .Remove<Alive>().Invoke();
 ```
 
 Use either `in` or `ref readonly` for a zero-copy read-only component reference:
@@ -230,7 +232,7 @@ Use either `in` or `ref readonly` for a zero-copy read-only component reference:
 world.WhereEntity(
         in query,
         static (Entity current, ref readonly Health health) => health.Value <= 0)
-    .Destroy();
+    .Destroy().Invoke();
 ```
 
 When identity is not needed, omit the entity parameter:
@@ -239,7 +241,7 @@ When identity is not needed, omit the entity parameter:
 int destroyed = world.Where(
         in query,
         static (in Health health) => health.Value <= 0)
-    .Destroy();
+    .Destroy().Invoke();
 ```
 
 `Destroy`, `Add` and `Remove` first collect matching handles in query order,
@@ -259,19 +261,19 @@ world.WhereEntity(
         static (Entity current, in Health health, in Team team) =>
             health.Value <= 0 && team.Id == 1)
     .ForEachEntity(static (EntityRef current, in Health health, in Team team) =>
-        LogDeath(current.Handle, team));
+        LogDeath(current.Handle, team)).Invoke();
 
 world.Where(
         in query,
         static (in Health health, in Team team) =>
             health.Value <= 0 && team.Id == 1)
     .ForEach(static (ref Health health, in Team team) =>
-        health.Value = team.DefaultHealth);
+        health.Value = team.DefaultHealth).Invoke();
 ```
 
-The intermediate view is a stack-only `ref struct`, so it cannot be stored in a
-class, boxed, or returned. It holds the predicate only for the duration of the
-terminal call; no command is retained. `Where` scans all query matches;
+The view stores the query and predicate for reuse. Each terminal returns an
+operation object; keeping that object lets the caller reuse its prepared route
+with `Invoke`. `Where` scans all query matches;
 
 ## Opt into interceptors
 

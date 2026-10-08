@@ -48,13 +48,13 @@ internal sealed class ParallelIterationTests
             in query,
             in state,
             static (ref readonly ParallelState value, ref Position position) => position.X += value.Delta,
-            workerCount: 4);
+            workerCount: 4).Invoke();
 #pragma warning restore CS9198
         world.ForEachParallel(
             in query,
             in state,
             static (in ParallelState value, ref Position position) => position.X += value.Delta,
-            workerCount: 4);
+            workerCount: 4).Invoke();
         world.ForEachEntityParallel(
             in query,
             state,
@@ -63,7 +63,7 @@ internal sealed class ParallelIterationTests
                 _ = entity;
                 position.X += value.Delta;
             },
-            workerCount: 4);
+            workerCount: 4).Invoke();
 
         for (int index = 0; index < entities.Length; index++)
         {
@@ -96,13 +96,13 @@ internal sealed class ParallelIterationTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(() => world.ForEachParallel(in query, action, workerCount: 4), Throws.InvalidOperationException);
-            Assert.That(() => world.ForEachParallel(in query, in state, readOnlyAction, workerCount: 4), Throws.InvalidOperationException);
-            Assert.That(() => world.ForEachParallel(in query, state, valueAction, workerCount: 4), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEachParallel(in query, action, workerCount: 4).Invoke(), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEachParallel(in query, in state, readOnlyAction, workerCount: 4).Invoke(), Throws.InvalidOperationException);
+            Assert.That(() => world.ForEachParallel(in query, state, valueAction, workerCount: 4).Invoke(), Throws.InvalidOperationException);
         });
-        world.ForEachEntityParallel(in query, entityAction, workerCount: 4);
-        world.ForEachEntityParallel(in query, in state, readOnlyEntityAction, workerCount: 4);
-        world.ForEachEntityParallel(in query, state, valueEntityAction, workerCount: 4);
+        world.ForEachEntityParallel(in query, entityAction, workerCount: 4).Invoke();
+        world.ForEachEntityParallel(in query, in state, readOnlyEntityAction, workerCount: 4).Invoke();
+        world.ForEachEntityParallel(in query, state, valueEntityAction, workerCount: 4).Invoke();
 
         int[] entityListVisits = [0];
         ReadOnlySpan<Entity> selected = entities.AsSpan(0, entities.Length / 2);
@@ -112,12 +112,12 @@ internal sealed class ParallelIterationTests
             in query,
             entityListVisits,
             static (int[] visits, EntityRef _) => Interlocked.Increment(ref visits[0]),
-            workerCount: 4);
+            workerCount: 4).Invoke();
         world.ForEachEntityParallel(
             selected,
             entityListVisits,
             static (int[] visits, EntityRef _) => Interlocked.Increment(ref visits[0]),
-            workerCount: 4);
+            workerCount: 4).Invoke();
 
         Assert.Multiple(() =>
         {
@@ -144,14 +144,14 @@ internal sealed class ParallelIterationTests
 
         Query query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
         var singleWorkerAction = new ParallelIncrementFunctor();
-        world.ForEachParallel(in query, ref singleWorkerAction, workerCount: 1);
+        world.ForEachParallel(in query, ref singleWorkerAction, workerCount: 1).Invoke(ref singleWorkerAction);
         Assert.That(singleWorkerAction.Count, Is.EqualTo(entities.Length));
 
         var action = new ParallelIncrementFunctor();
-        world.ForEachParallel(in query, ref action, workerCount: 4);
+        world.ForEachParallel(in query, ref action, workerCount: 4).Invoke(ref action);
         var state = new ParallelState { Delta = 2 };
         var contextual = new ParallelContextFunctor();
-        world.ForEachParallel(in query, in state, ref contextual, workerCount: 4);
+        world.ForEachParallel(in query, in state, ref contextual, workerCount: 4).Invoke(ref contextual);
 
         for (int index = 0; index < entities.Length; index++)
         {
@@ -184,7 +184,7 @@ internal sealed class ParallelIterationTests
                 position.X += velocity.X;
                 position.Y += velocity.Y;
             },
-            workerCount: 4);
+            workerCount: 4).Invoke();
 
         for (int index = 0; index < entities.Length; index++)
         {
@@ -214,7 +214,7 @@ internal sealed class ParallelIterationTests
                 Volatile.Write(ref s_generatedCallbackThreadId, Environment.CurrentManagedThreadId);
                 position.X += velocity.X;
             },
-            workerCount: 2);
+            workerCount: 2).Invoke();
 
         Assert.That(Volatile.Read(ref s_generatedCallbackThreadId), Is.EqualTo(callerThreadId));
 
@@ -224,7 +224,7 @@ internal sealed class ParallelIterationTests
             in query,
             entityListThreadId,
             static (int[] threadId, EntityRef _) => Volatile.Write(ref threadId[0], Environment.CurrentManagedThreadId),
-            workerCount: 2);
+            workerCount: 2).Invoke();
 
         Assert.That(Volatile.Read(ref entityListThreadId[0]), Is.EqualTo(callerThreadId));
     }
@@ -239,12 +239,13 @@ internal sealed class ParallelIterationTests
         var firstBatch = new Entity[128];
         world.Create(new[] { positionId, velocityId }, firstBatch);
         var query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
+        var operation = world.ForEachParallel(in query, s_incrementAction, workerCount: 4);
 
-        RunGeneratedParallel(world, in query);
+        operation.Invoke();
 
         var secondBatch = new Entity[128];
         world.Create(new[] { positionId, velocityId }, secondBatch);
-        RunGeneratedParallel(world, in query);
+        operation.Invoke();
 
         for (int index = 0; index < firstBatch.Length; index++)
         {
@@ -267,10 +268,11 @@ internal sealed class ParallelIterationTests
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(70_071));
         using var world = new World(layouts, initialEntityCapacity: 2_048);
         Query query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
+        var operation = world.ForEachParallel(in query, s_incrementAction, workerCount: 4);
         var entities = new Entity[2_048];
         world.Create([positionId, velocityId], entities);
 
-        RunGeneratedParallel(world, in query);
+        operation.Invoke();
 
         for (int index = 0; index < entities.Length; index++)
         {
@@ -289,10 +291,11 @@ internal sealed class ParallelIterationTests
         var entities = new Entity[entityCount];
         world.Create(new[] { positionId, velocityId }, entities);
         var query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
+        var operation = world.ForEachParallel(in query, s_incrementAction, workerCount: 2);
 
-        RunGeneratedParallel(world, in query, workerCount: 2);
-        RunGeneratedParallel(world, in query, workerCount: 4);
-        RunGeneratedParallel(world, in query, workerCount: 2);
+        operation.Invoke();
+        operation.Invoke();
+        operation.Invoke();
 
         for (int index = 0; index < entities.Length; index++)
         {
@@ -310,26 +313,24 @@ internal sealed class ParallelIterationTests
         var entities = new Entity[2_048];
         world.Create(new[] { positionId, velocityId }, entities);
         var query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
+        var operation = world.ForEachParallel(in query, s_incrementAction, workerCount: 4);
 
         for (int warmup = 0; warmup < 8; warmup++)
         {
-            RunGeneratedParallel(world, in query);
+            operation.Invoke();
         }
 
         for (int measured = 0; measured < 3; measured++)
         {
-            Assert.That(MeasureGeneratedParallelAllocation(world, in query), Is.EqualTo(0));
+            Assert.That(MeasureGeneratedParallelAllocation(operation), Is.EqualTo(0));
         }
     }
 
-    private static void RunGeneratedParallel(World world, in Query query, int workerCount = 4) =>
-        world.ForEachParallel(in query, s_incrementAction, workerCount);
-
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private static long MeasureGeneratedParallelAllocation(World world, in Query query)
+    private static long MeasureGeneratedParallelAllocation(EcsOperation operation)
     {
         long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
-        RunGeneratedParallel(world, in query);
+        operation.Invoke();
         return GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
     }
 

@@ -127,7 +127,7 @@ internal sealed class GeneratedDenseBindingTests
         var state = new DenseBindingReadState();
         for (int index = 0; index < 2; index++)
         {
-            world.ForEach(in query, ref state, static (ref DenseBindingReadState sum, in Health value) => sum.Total += value.Value);
+            world.ForEach(in query, ref state, static (ref DenseBindingReadState sum, in Health value) => sum.Total += value.Value).Invoke(ref state);
         }
         world.TryGetComponentStamp(entity, health, out Stamp after);
         Assert.That(state.Total, Is.EqualTo(2));
@@ -145,12 +145,12 @@ internal sealed class GeneratedDenseBindingTests
         {
             visited++;
             health.Value++;
-        });
+        }).Invoke(ref count);
         return count;
     }
 
     private static void Fail(World world, in Query query)
-        => world.ForEach(in query, static (ref Health health) => ThrowFromCallback(ref health));
+        => world.ForEach(in query, static (ref Health health) => ThrowFromCallback(ref health)).Invoke();
 
     private static void ThrowFromCallback(ref Health _)
         => throw new InvalidOperationException();

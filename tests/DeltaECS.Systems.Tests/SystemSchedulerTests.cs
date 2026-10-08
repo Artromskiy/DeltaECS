@@ -512,6 +512,7 @@ public sealed class SystemSchedulerTests
     private sealed class NestedParallelSystem : ISystem
     {
         private readonly Query _query;
+        private EcsOperation? _operation;
 
         internal NestedParallelSystem(World world, Query query)
         {
@@ -523,7 +524,11 @@ public sealed class SystemSchedulerTests
 
         public SystemAccess Access => new(usesParallelExecutor: true);
 
-        public void Tick() => World.ForEachEntityParallel(in _query, OnEntity, workerCount: 2);
+        public void Tick()
+        {
+            _operation ??= World.ForEachEntityParallel(in _query, OnEntity, workerCount: 2);
+            _operation.Invoke();
+        }
 
         private void OnEntity(EntityRef entity) => _ = World.IsAlive(entity.Handle);
     }
@@ -702,6 +707,7 @@ public sealed partial class PlayerPositionSystem : ISystem
 {
     private readonly Query _query;
     private QueryExecutionProbe _probe;
+    private EcsOperation<QueryExecutionProbe>? _operation;
 
     public PlayerPositionSystem(World world, in Query query, QueryExecutionProbe probe)
     {
@@ -713,14 +719,18 @@ public sealed partial class PlayerPositionSystem : ISystem
     public World World { get; init; }
 
     public void Tick()
-        => World.ForEach(in _query, ref _probe, static (ref QueryExecutionProbe probe, ref SystemPosition position) =>
+    {
+        _operation ??= World.ForEach(in _query, ref _probe, static (ref QueryExecutionProbe probe, ref SystemPosition position) =>
             probe.Execute(ref position));
+        _operation.Invoke(ref _probe);
+    }
 }
 
 public sealed partial class EnemyPositionSystem : ISystem
 {
     private readonly Query _query;
     private QueryExecutionProbe _probe;
+    private EcsOperation<QueryExecutionProbe>? _operation;
 
     public EnemyPositionSystem(World world, in Query query, QueryExecutionProbe probe)
     {
@@ -732,8 +742,11 @@ public sealed partial class EnemyPositionSystem : ISystem
     public World World { get; init; }
 
     public void Tick()
-        => World.ForEach(in _query, ref _probe, static (ref QueryExecutionProbe probe, ref SystemPosition position) =>
+    {
+        _operation ??= World.ForEach(in _query, ref _probe, static (ref QueryExecutionProbe probe, ref SystemPosition position) =>
             probe.Execute(ref position));
+        _operation.Invoke(ref _probe);
+    }
 }
 
 public sealed class AddEnemyToEntitySystem : ISystem
@@ -775,6 +788,7 @@ public sealed class SystemHistoryCaptureSystem : ISystem
     private readonly Query _query;
     private readonly ComponentId _valueId;
     private SystemHistoryContext _context;
+    private EcsOperation<SystemHistoryContext>? _operation;
 
     public SystemHistoryCaptureSystem(World world, in Query query, ComponentId valueId, ComponentId historyId)
     {
@@ -794,13 +808,17 @@ public sealed class SystemHistoryCaptureSystem : ISystem
     public int InvocationCount => _context.InvocationCount;
 
     public void Tick()
-        => World.ForEach(in _query, ref _context, _valueId, typeof(CaptureSystemHistory<>));
+    {
+        _operation ??= World.ForEach(in _query, ref _context, _valueId, typeof(CaptureSystemHistory<>));
+        _operation.Invoke(ref _context);
+    }
 }
 
 public sealed partial class InferredSystemHistoryCaptureSystem : ISystem
 {
     private readonly Query _query;
     private readonly ComponentId _valueId;
+    private EcsOperation? _operation;
 
     public InferredSystemHistoryCaptureSystem(World world, in Query query, ComponentId valueId)
     {
@@ -812,5 +830,8 @@ public sealed partial class InferredSystemHistoryCaptureSystem : ISystem
     public World World { get; init; }
 
     public void Tick()
-        => World.ForEach(in _query, _valueId, typeof(CaptureSystemHistory<>));
+    {
+        _operation ??= World.ForEach(in _query, _valueId, typeof(CaptureSystemHistory<>));
+        _operation.Invoke();
+    }
 }

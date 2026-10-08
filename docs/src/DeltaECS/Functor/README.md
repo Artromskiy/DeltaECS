@@ -20,7 +20,8 @@ struct Counter : IForEachEntity
 }
 
 var counter = new Counter();
-world.ForEachEntity(in query, ref counter);
+var counterOperation = world.ForEachEntity(in query, ref counter);
+counterOperation.Invoke(ref counter);
 ```
 
 The interfaces are markers only: they do not declare `Invoke` and never encode
@@ -45,7 +46,8 @@ struct Movement : IForEach
 }
 
 var movement = new Movement();
-world.ForEach(in query, ref movement);
+var movementOperation = world.ForEach(in query, ref movement);
+movementOperation.Invoke(ref movement);
 ```
 
 Query-wide filters use the same value-type callback model. Implement
@@ -58,14 +60,17 @@ var predicateState = new PredicateState();
 var predicate = new IsDeadPredicate();
 var actionState = new ActionState();
 var action = new ResetHealthAction();
-world.WhereEntity(in query, ref predicateState, ref predicate)
-    .ForEachEntity(ref actionState, ref action);
+var aliveFilter = world.WhereEntity(in query, ref predicateState, ref predicate);
+var resetHealth = aliveFilter.ForEachEntity(ref actionState, ref action);
+resetHealth.Invoke(ref actionState, ref action);
 ```
 
 The predicate `Invoke` order is `ref context` when a context is supplied,
 then `Entity` for `WhereEntity`, then read-only components. Terminal functors
 follow the regular `ForEach` ordering and keep their caller-owned context by
-reference. A no-entity predicate can be as small as:
+reference. The filtered view owns copies of its predicate and predicate
+context, retaining their updated state when reused. A no-entity predicate can
+be as small as:
 
 ```csharp
 struct IsDead : IWherePredicate
@@ -73,5 +78,5 @@ struct IsDead : IWherePredicate
     public bool Invoke(in Health health) => health.Value <= 0;
 }
 
-world.Where(in query, ref predicate).Destroy();
+world.Where(in query, ref predicate).Destroy().Invoke();
 ```

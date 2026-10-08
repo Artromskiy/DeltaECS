@@ -59,13 +59,13 @@ internal sealed class TagComponentTests
             in query,
             positionId,
             ref explicitIdCount,
-            static (ref int count, in Position _) => count++);
+            static (ref int count, in Position _) => count++).Invoke(ref explicitIdCount);
         Assert.That(explicitIdCount, Is.EqualTo(expected));
 
         Query markedOnly = world.WhereAll<MarkedTag>();
         int markedOnlyCount = 0;
         ForEachContextEntityAction<int> countTaggedEntity = static (ref int count, EntityRef _) => count++;
-        world.ForEachEntity(in markedOnly, ref markedOnlyCount, countTaggedEntity);
+        world.ForEachEntity(in markedOnly, ref markedOnlyCount, countTaggedEntity).Invoke(ref markedOnlyCount);
         Assert.That(markedOnlyCount, Is.EqualTo(CountMatches(entities.Length, static index => index % 3 == 0)));
 
         world.Add(entities[3], new[] { extraId });
@@ -75,7 +75,7 @@ internal sealed class TagComponentTests
         Assert.That(world.Has<MarkedTag>(entities[3]), Is.True);
 
         var functor = new CountPositionFunctor();
-        world.ForEach(in query, ref functor);
+        world.ForEach(in query, ref functor).Invoke(ref functor);
         Assert.That(functor.Count, Is.EqualTo(expected));
 
         world.Remove(entities[3], new[] { markedId });
@@ -145,14 +145,14 @@ internal sealed class TagComponentTests
         }
 
         Query query = world.WhereAll<TagValue>().WhereAll<MarkedTag>();
-        world.ForEachParallel(in query, static (ref TagValue value) => value.Value++, workerCount: 2);
-        world.ForEach(entities.AsSpan(), in query, valueId, static (ref TagValue value) => value.Value += 10);
+        world.ForEachParallel(in query, static (ref TagValue value) => value.Value++, workerCount: 2).Invoke();
+        world.ForEach(entities.AsSpan(), in query, valueId, static (ref TagValue value) => value.Value += 10).Invoke();
         world.ForEachParallel(
             entities.AsSpan(),
             in query,
             valueId,
             static (ref TagValue value) => value.Value += 100,
-            workerCount: 2);
+            workerCount: 2).Invoke();
 
         for (int index = 0; index < entities.Length; index++)
         {
@@ -179,7 +179,7 @@ internal sealed class TagComponentTests
         world.ForEach(
             in query,
             ref visited,
-            static (ref int count, in TagValue _) => count++);
+            static (ref int count, in TagValue _) => count++).Invoke(ref visited);
 
         Assert.That(visited, Is.EqualTo(Chunk.Capacity + 2));
     }
@@ -206,11 +206,11 @@ internal sealed class TagComponentTests
 
         Query query = world.WhereAll<TagValue>().WhereAll<MarkedTag>();
         world.Where(in query, static (in TagValue value) => (value.Value & 3) == 0)
-            .ForEach(static (ref TagValue value) => value.Value++);
+            .ForEach(static (ref TagValue value) => value.Value++).Invoke();
         world.Where(in query, static (in TagValue value) => (value.Value & 3) == 1)
-            .Add<BlockedTag>();
+            .Add<BlockedTag>().Invoke();
         world.Where(in query, static (in TagValue value) => value.Value == 1)
-            .Add<ExtraData>();
+            .Add<ExtraData>().Invoke();
 
         for (int index = 0; index < entities.Length; index++)
         {
@@ -254,7 +254,7 @@ internal sealed class TagComponentTests
             {
                 Assert.That(stamps.Remove(entity.Index, out Stamp expectedStamp), Is.True);
                 Assert.That(stamp, Is.EqualTo(expectedStamp));
-            });
+            }).Invoke(ref expected);
 
         Assert.That(expected, Is.Empty);
     }
@@ -325,7 +325,7 @@ internal sealed class TagComponentTests
         world.ForEachStamp<Stamp, MarkedTag>(
             in query,
             ref iteratedStamp,
-            static (ref Stamp result, in Stamp current) => result = current);
+            static (ref Stamp result, in Stamp current) => result = current).Invoke(ref iteratedStamp);
         Assert.That(iteratedStamp, Is.EqualTo(new Stamp(1)));
 
         Assert.That(world.TryGetComponentStamp(unmarked, markedId, out Stamp absentStamp), Is.False);
@@ -393,7 +393,7 @@ internal sealed class TagComponentTests
 
                 tag = default;
                 otherTag = default;
-            });
+            }).Invoke(ref visits);
 
         Assert.That(visits, Is.EqualTo(entities.Length));
         foreach (Entity entity in entities)
@@ -417,7 +417,7 @@ internal sealed class TagComponentTests
     private static int Count(World world, in Query query)
     {
         int count = 0;
-        world.ForEach(in query, ref count, static (ref int total, in Position _) => total++);
+        world.ForEach(in query, ref count, static (ref int total, in Position _) => total++).Invoke(ref count);
         return count;
     }
 

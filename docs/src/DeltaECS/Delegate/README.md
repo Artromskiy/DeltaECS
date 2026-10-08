@@ -18,7 +18,7 @@ world.ForEach<Position, Velocity>(
     static (ref Position position, in Velocity velocity) =>
     {
         position.X += velocity.X;
-    });
+    }).Invoke();
 ```
 
 `in T` declares read access and `ref T` declares write access. Generated forms
