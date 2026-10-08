@@ -50,7 +50,9 @@ internal static class Program
 
         IConfig configuration = DefaultConfig.Instance
             .WithOptions(ConfigOptions.DisableOptimizationsValidator)
-            .WithOrderer(new DefaultOrderer(SummaryOrderPolicy.FastestToSlowest));
+            .WithOrderer(new DefaultOrderer(SummaryOrderPolicy.FastestToSlowest))
+            .AddColumn(new FastestDeltaEcsBaselineColumn())
+            .AddColumn(new FastestDeltaEcsRatioColumn());
 
         foreach (int amount in amounts)
         {

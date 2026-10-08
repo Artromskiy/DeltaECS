@@ -62,6 +62,7 @@
   <ItemGroup Label="Analyzers">
     <PackageReference Include="Arch.System" Version="1.1.0" />
     <PackageReference Include="Arch.System.SourceGenerator" Version="2.1.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="8.0.0" PrivateAssets="all" />
     <PackageReference Include="Myriad.ECS" Version="51.1.0" />
     <PackageReference Include="Roslynator.Analyzers" Version="4.10.0" PrivateAssets="all" />
@@ -71,8 +72,8 @@
   </ItemGroup>
 
   <ItemGroup Label="Benchmark">
-    <PackageReference Include="BenchmarkDotNet" Version="0.13.12" />
-    <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.13.12" />
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+    <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.15.8" />
   </ItemGroup>
 
   <ItemGroup Label="DeltaECS">

@@ -23,7 +23,7 @@
                       ReferenceOutputAssembly="false"
                       GlobalPropertiesToRemove="PublishAot;PublishTrimmed;SelfContained;RuntimeIdentifier"
                       PrivateAssets="all" />
-    <PackageReference Include="BenchmarkDotNet" Version="0.13.12" />
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.5.4"
                       GeneratePathProperty="true"
                       Condition="'$(TargetFramework)' == 'netstandard2.1'" />

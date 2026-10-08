@@ -17,6 +17,6 @@
                       GlobalPropertiesToRemove="PublishAot;PublishTrimmed;SelfContained;RuntimeIdentifier"
                       PrivateAssets="all" />
     <PackageReference Include="Arch" Version="1.2.8.1-alpha" />
-    <PackageReference Include="BenchmarkDotNet" Version="0.13.12" />
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
   </ItemGroup>
 </Project>

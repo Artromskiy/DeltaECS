@@ -165,6 +165,7 @@ jobs:
             echo '| `SystemWithTwoComponentsMultipleComposition` | Iteration over two components across multiple compositions |'
             echo
             echo 'Slow ECS adapters and SIMD benchmarks are excluded from these runs.'
+            echo 'Each table marks the fastest DeltaECS entry as `Baseline`; ratios compare every entry to it.'
             echo
 
             IFS=',' read -r -a entity_counts <<< "$ENTITY_COUNTS"

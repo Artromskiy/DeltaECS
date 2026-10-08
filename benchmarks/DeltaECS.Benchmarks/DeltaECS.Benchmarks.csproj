@@ -22,7 +22,7 @@
 
   <ItemGroup>
     <PackageReference Include="Arch" Version="1.2.8.1-alpha" />
-    <PackageReference Include="BenchmarkDotNet" Version="0.13.12" />
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageReference Include="DefaultEcs" Version="0.17.2" />
     <PackageReference Include="Friflo.Engine.ECS" Version="3.6.0" />
     <PackageReference Include="Leopotam.EcsLite" Version="1.0.1" />
