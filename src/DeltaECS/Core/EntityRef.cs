@@ -17,6 +17,9 @@ public readonly ref struct EntityRef
     private readonly int _slotIndex;
     private readonly QueryPlan? _queryPlan;
     private readonly int[]? _entityRefComponentIndices;
+    private readonly EntityRefStampBatch? _stampBatch;
+    private readonly EntityRefStampBatch.ChunkStampMark? _stampMark;
+    private readonly int _stampBatchGeneration;
 
     internal EntityRef(
         World world,
@@ -24,7 +27,10 @@ public readonly ref struct EntityRef
         Archetype archetype,
         int slotIndex,
         QueryPlan? queryPlan,
-        int[]? entityRefComponentIndices)
+        int[]? entityRefComponentIndices,
+        EntityRefStampBatch? stampBatch,
+        EntityRefStampBatch.ChunkStampMark? stampMark,
+        int stampBatchGeneration)
     {
         _world = world;
         _chunk = chunk;
@@ -32,6 +38,9 @@ public readonly ref struct EntityRef
         _slotIndex = slotIndex;
         _queryPlan = queryPlan;
         _entityRefComponentIndices = entityRefComponentIndices;
+        _stampBatch = stampBatch;
+        _stampMark = stampMark;
+        _stampBatchGeneration = stampBatchGeneration;
     }
 
     /// <summary>Gets the stable handle for the current entity.</summary>
@@ -79,7 +88,10 @@ public readonly ref struct EntityRef
             _slotIndex,
             componentId,
             _queryPlan,
-            _entityRefComponentIndices);
+            _entityRefComponentIndices,
+            _stampBatch,
+            _stampMark,
+            _stampBatchGeneration);
 }
 
 public sealed partial class World
@@ -90,8 +102,20 @@ public sealed partial class World
         Archetype archetype,
         int slotIndex,
         QueryPlan? queryPlan,
-        int[]? entityRefComponentIndices)
-        => new(this, chunk, archetype, slotIndex, queryPlan, entityRefComponentIndices);
+        int[]? entityRefComponentIndices,
+        EntityRefStampBatch? stampBatch,
+        EntityRefStampBatch.ChunkStampMark? stampMark,
+        int stampBatchGeneration)
+        => new(
+            this,
+            chunk,
+            archetype,
+            slotIndex,
+            queryPlan,
+            entityRefComponentIndices,
+            stampBatch,
+            stampMark,
+            stampBatchGeneration);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool Has(
@@ -193,7 +217,10 @@ public sealed partial class World
         int slotIndex,
         ComponentId componentId,
         QueryPlan? queryPlan,
-        int[]? entityRefComponentIndices)
+        int[]? entityRefComponentIndices,
+        EntityRefStampBatch? stampBatch,
+        EntityRefStampBatch.ChunkStampMark? stampMark,
+        int stampBatchGeneration)
     {
         EnsureExecutionAccess();
         Entity entity = chunk.RawEntities[slotIndex];
@@ -224,6 +251,11 @@ public sealed partial class World
             if (componentIndex < 0)
             {
                 ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+            }
+
+            if (stampBatch?.Mark(stampBatchGeneration, stampMark, chunk, route, componentIndex, slotIndex) == true)
+            {
+                return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
             }
 
             Stamp queryStamp = chunk.IncrementComponentStamp(componentIndex, slotIndex);

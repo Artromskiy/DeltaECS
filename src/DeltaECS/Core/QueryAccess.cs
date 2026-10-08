@@ -37,6 +37,8 @@ internal sealed class QueryPlan
     private readonly World _owner;
     private IGeneratedDenseBinding? _lastDenseBinding;
     private Dictionary<RuntimeTypeHandle, IGeneratedDenseBinding>? _denseBindings;
+    private EntityRefStampBatch? _entityRefStampBatch;
+    private int _entityRefStampBatchActive;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal TBinding GetDenseBinding<TBinding, TRows>(in Query query)
@@ -126,6 +128,79 @@ internal sealed class QueryPlan
     internal WeakReference<QueryPlan> WeakReference => _weakReference;
     internal int MatchingVersion => _matchingVersion;
     internal int MatchingArchetypeVersion => _matchingArchetypeVersion;
+    internal int EntityRefDataComponentCount => _entityRefDataComponentCount;
+
+    internal EntityRefStampBatch? GetEntityRefStampBatch(
+        Chunk chunk,
+        out EntityRefStampBatch.ChunkStampMark? mark,
+        out int generation)
+    {
+        mark = null;
+        generation = 0;
+        if (_entityRefDataComponentCount == 0)
+        {
+            return null;
+        }
+
+        EntityRefStampBatch? batch = EntityRefStampBatch.GetCurrent(this);
+        if (batch is null)
+        {
+            if (Interlocked.CompareExchange(ref _entityRefStampBatchActive, 1, 0) != 0)
+            {
+                return null;
+            }
+
+            batch = _entityRefStampBatch ??= new EntityRefStampBatch(this);
+            bool began = false;
+            try
+            {
+                batch.Begin();
+                began = true;
+            }
+            finally
+            {
+                if (!began)
+                {
+                    Volatile.Write(ref _entityRefStampBatchActive, 0);
+                }
+            }
+        }
+
+        generation = batch.Generation;
+        mark = batch.GetMark(chunk);
+        return batch;
+    }
+
+    internal void EndEntityRefStampBatch()
+    {
+        EntityRefStampBatch? batch = _entityRefStampBatch;
+        if (batch is null || !batch.IsCurrentOnThisThread)
+        {
+            return;
+        }
+
+        try
+        {
+            batch.Complete();
+        }
+        finally
+        {
+            Volatile.Write(ref _entityRefStampBatchActive, 0);
+        }
+    }
+
+    internal void IncrementArchetypeComponentStamp(int archetypeId, int componentIndex)
+    {
+        int planIndex = MatchingPlanIndex(archetypeId);
+        if (planIndex < 0)
+        {
+            return;
+        }
+
+        Stamp[] stamps = _matchingPlans.RefAt(planIndex).ArchetypeStamps;
+        ref Stamp stamp = ref stamps.RefAt(componentIndex);
+        stamp = stamp.Next();
+    }
 
     internal bool HasTagFilters
         => _allTagIndices.Length != 0 || _anyTagIndices.Length != 0 || _noneTagIndices.Length != 0;

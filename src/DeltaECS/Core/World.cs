@@ -899,9 +899,17 @@ public sealed partial class World : IDisposable
         Chunk chunk,
         int componentIndex,
         int slotIndex)
-        => new(unchecked(
+    {
+        ulong value = unchecked(
             chunk.GetComponentStampTrusted(componentIndex, slotIndex).Value
-            + _archetypeComponentWriteStamps.RefAt(archetypeId).RefAt(componentIndex).Value));
+            + _archetypeComponentWriteStamps.RefAt(archetypeId).RefAt(componentIndex).Value);
+        if (EntityRefStampBatch.TryGetPending(this, chunk, componentIndex, slotIndex, out int pendingCount))
+        {
+            value = unchecked(value + (ulong)pendingCount);
+        }
+
+        return new Stamp(value);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal EntityComponentStampWriter CreateEntityComponentStampWriter(

@@ -46,6 +46,17 @@ internal struct ComponentStampStorage : IDisposable
         return stamp;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Stamp Adjust(int componentIndex, int slotIndex, int delta)
+    {
+        int offset = Offset(componentIndex, slotIndex);
+        Materialize(componentIndex);
+        ref Stamp value = ref _values.RefAt(offset);
+        Stamp stamp = new(unchecked(value.Value + (ulong)delta));
+        value = stamp;
+        return stamp;
+    }
+
     internal void Set(int componentIndex, int slotIndex, Stamp stamp)
     {
         int offset = Offset(componentIndex, slotIndex);

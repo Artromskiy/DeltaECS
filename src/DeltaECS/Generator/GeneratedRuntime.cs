@@ -525,6 +525,7 @@ public ref struct GeneratedDenseExecution
             return;
         }
 
+        _queryPlan?.EndEntityRefStampBatch();
         if (_ownsLease)
         {
             owner.EndQueryLease();
@@ -614,6 +615,7 @@ public ref struct GeneratedReadDenseExecution
             return;
         }
 
+        _queryPlan?.EndEntityRefStampBatch();
         owner.EndQueryLease();
         _owner = null;
     }

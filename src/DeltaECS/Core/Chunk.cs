@@ -330,6 +330,10 @@ internal sealed class Chunk
     internal Stamp IncrementComponentStamp(int componentIndex, int slotIndex)
         => _componentStamps.Increment(componentIndex, slotIndex);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Stamp AdjustComponentStamp(int componentIndex, int slotIndex, int delta)
+        => _componentStamps.Adjust(componentIndex, slotIndex, delta);
+
     internal void MarkComponentStamped(int componentIndex, int slotIndex, Stamp stamp)
         => _componentStamps.Set(componentIndex, slotIndex, stamp);
 
