@@ -525,15 +525,15 @@ namespace Delta.ECS.Unity.Editor
             bool changed = false;
             runtimeWorld.World.ForEachEntity(in query, entity =>
             {
-                if (runtimeWorld.TryGetStableId(entity, out _) || runtimeWorld.TryGetView(entity, out _))
+                if (runtimeWorld.TryGetStableId(entity.Handle, out _) || runtimeWorld.TryGetView(entity.Handle, out _))
                 {
                     return;
                 }
 
-                var key = new EntityKey(runtimeWorld, entity);
+                var key = new EntityKey(runtimeWorld, entity.Handle);
                 _activeEntityKeys.Add(key);
                 string name = $"ECS Entity {entity.Index}:{entity.Generation}";
-                var reference = new NodeReference(authoring, null, runtimeWorld, entity);
+                var reference = new NodeReference(authoring, null, runtimeWorld, entity.Handle);
                 if (_entityNodes.TryGetValue(key, out EntityNode entityNode))
                 {
                     if (entityNode.Reference.RuntimeWorld != reference.RuntimeWorld

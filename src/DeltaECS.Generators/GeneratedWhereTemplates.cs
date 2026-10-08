@@ -468,14 +468,14 @@ internal static class GeneratedWhereTemplates
         return string.Join(", ", arguments);
     }
 
-    internal static string Render(PredicateModel shape)
+    internal static string Render(PredicateModel shape, bool supportsScoped)
     {
         string hash = GeneratorSupport.StableName(shape.Key);
         string predicate = RenderPredicateDelegate(shape, hash);
         string[] terminalMembers = shape.Terminals.Ordered()
             .SelectMany(terminal => new[]
             {
-                RenderActionDelegate(terminal, hash) is { Length: > 0 } action
+                RenderActionDelegate(terminal, hash, supportsScoped) is { Length: > 0 } action
                     ? action
                     : null,
                 RenderInvoker(shape, terminal, hash)
@@ -536,7 +536,7 @@ internal static class GeneratedWhereTemplates
         return GeneratorTemplates.Declaration(shape.Api, declaration);
     }
 
-    private static string RenderActionDelegate(TerminalModel terminal, string predicateHash)
+    private static string RenderActionDelegate(TerminalModel terminal, string predicateHash, bool supportsScoped)
     {
         if (!terminal.IsCallback || terminal.IsFunctor)
         {
@@ -545,9 +545,15 @@ internal static class GeneratedWhereTemplates
 
         SignatureProjection slots = terminal.Api.Signature;
         string hash = GeneratorSupport.StableName(terminal.SignatureKey);
+        string entityParameter = terminal.HasEntity ? "EntityRef entity" : string.Empty;
+        if (supportsScoped && terminal.HasEntity)
+        {
+            entityParameter = "scoped " + entityParameter;
+        }
+
         string[] parameters = new[]
             {
-                terminal.HasEntity ? "EntityRef entity" : string.Empty
+                entityParameter
             }
             .Append(slots.ComponentParameters(genericPrefix: "U"))
             .Where(static parameter => parameter.Length != 0)

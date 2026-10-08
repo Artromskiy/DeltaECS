@@ -18,6 +18,7 @@ internal static class GeneratorSupport
             ?? Array.Empty<ITypeSymbol>();
 
     private const int FirstInterceptorLanguageVersion = 1100;
+    private const int FirstScopedLanguageVersion = 1100;
     private const string InterceptorNamespace = "Delta.ECS.Generated";
     // RefKind.RefReadOnlyParameter is not available in the oldest Roslyn API
     // referenced by the generator, so keep the host enum value here.
@@ -47,6 +48,10 @@ internal static class GeneratorSupport
     internal static bool SupportsInterceptors(Compilation compilation)
         => compilation.SyntaxTrees.FirstOrDefault()?.Options is CSharpParseOptions options
             && (int)options.LanguageVersion >= FirstInterceptorLanguageVersion;
+
+    internal static bool SupportsScoped(Compilation compilation)
+        => compilation.SyntaxTrees.FirstOrDefault()?.Options is CSharpParseOptions options
+            && (int)options.LanguageVersion >= FirstScopedLanguageVersion;
 
     internal static bool TryGetInterceptionLocation(
         SemanticModel model,

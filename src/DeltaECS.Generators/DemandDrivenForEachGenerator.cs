@@ -59,6 +59,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             && compilation.GetTypeByMetadataName("DeltaECS.Profiling.ProfiledMethodMetadataAttribute") is not null;
         bool languageSupportsInterceptors = GeneratorSupport.SupportsInterceptors(compilation);
         bool languageSupportsRefReadonlyParameters = SupportsRefReadonlyParameters(compilation);
+        bool languageSupportsScoped = GeneratorSupport.SupportsScoped(compilation);
         var shapes = new Dictionary<string, IterationModel>(StringComparer.Ordinal);
         var interceptionSites = new Dictionary<string, List<InterceptionSite>>(StringComparer.Ordinal);
         foreach (InvocationCandidate candidate in GeneratorSupport.ExcludeGenerated(discoveredInvocations))
@@ -128,6 +129,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                         shape,
                         renderContracts && !shape.OrderedQueryReceiver,
                         profiling,
+                        languageSupportsScoped,
                         ContextModes
                             .Where(mode => mode != ContextModeKind.RefReadonly || languageSupportsRefReadonlyParameters)
                             .ToImmutableArray())));

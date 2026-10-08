@@ -72,10 +72,11 @@ internal static partial class DemandDrivenForEachTemplates
         string generic = slots.GenericList();
         string parameters = slots.ComponentParameters();
         string suffix = IsAllWrite(shape.ComponentModels) ? string.Empty : "_" + shape.Pattern;
+        string entityParameter = model.SupportsScoped ? "scoped EntityRef entity" : "EntityRef entity";
         IEnumerable<string> contracts = new[]
         {
             AppendContract("ForEachAction" + suffix, generic, parameters),
-            AppendContract("ForEachEntityAction" + suffix, generic, SignatureProjection.JoinParameters("EntityRef entity", parameters)),
+            AppendContract("ForEachEntityAction" + suffix, generic, SignatureProjection.JoinParameters(entityParameter, parameters)),
         }.Concat(model.SupportedContextModes
             .SelectMany(mode =>
             {
@@ -88,7 +89,7 @@ internal static partial class DemandDrivenForEachTemplates
                     AppendContract(
                         "ForEachContextEntityAction" + modeSuffix + suffix,
                         contextGeneric,
-                        SignatureProjection.JoinParameters(SignatureProjection.JoinParameters(context, "EntityRef entity"), parameters)),
+                        SignatureProjection.JoinParameters(SignatureProjection.JoinParameters(context, entityParameter), parameters)),
                 };
             }));
         return string.Join("\n", contracts) + "\n";

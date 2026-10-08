@@ -676,6 +676,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("ForEachContextActionIn<TContext, T1>"));
         Assert.That(generated, Does.Contain("ForEachContextEntityActionValue<TContext, T1>"));
+        Assert.That(generated, Does.Contain("scoped EntityRef entity"));
         Assert.That(generated, Does.Contain("public bool RequiresSingleThread => false;"));
         Assert.That(generated, Does.Contain("void Visit4(ref"));
         Assert.That(generated, Does.Contain("functor.Invoke(ref row0)"));
@@ -1186,6 +1187,7 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Not.Contain("ForEachContextActionRefReadonly"));
+        Assert.That(generated, Does.Not.Contain("scoped EntityRef"));
 
         AssertCompiles(
             new[] { RuntimeStubFor(LanguageVersion.CSharp9), source },
@@ -1595,7 +1597,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereForEach"));
         Assert.That(generated, Does.Contain("GeneratedWhereAction_"));
-        Assert.That(generated, Does.Contain("(EntityRef entity)"));
+        Assert.That(generated, Does.Contain("(scoped EntityRef entity)"));
         Assert.That(generated, Does.Not.Contain("(entity, )"));
         AssertCompiles(new[] { RuntimeStubSource, WhereZeroArityTerminalSource }, run.GeneratedTrees);
     }

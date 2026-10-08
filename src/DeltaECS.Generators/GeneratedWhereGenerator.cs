@@ -34,6 +34,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         var whereCalls = new Dictionary<InvocationExpressionSyntax, (PredicateModel Shape, WherePredicateBinding Binding)>();
         var interceptionSites = new Dictionary<string, List<WhereInterceptionSite>>(StringComparer.Ordinal);
         bool languageSupportsInterceptors = GeneratorSupport.SupportsInterceptors(compilation);
+        bool languageSupportsScoped = GeneratorSupport.SupportsScoped(compilation);
         ImmutableArray<InvocationCandidate> invocations = GeneratorSupport.ExcludeGenerated(discoveredInvocations);
         foreach (InvocationCandidate invocationCandidate in invocations)
         {
@@ -130,7 +131,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         foreach (PredicateModel shape in shapes.Ordered())
         {
             string hash = GeneratorSupport.StableName(shape.Key);
-            context.AddSource("GeneratedWhere_" + hash + ".g.cs", GeneratedWhereTemplates.Render(shape));
+            context.AddSource("GeneratedWhere_" + hash + ".g.cs", GeneratedWhereTemplates.Render(shape, languageSupportsScoped));
             if (interceptionSites.TryGetValue(shape.Key, out List<WhereInterceptionSite>? sites))
             {
                 foreach (WhereInterceptionSite site in sites.OrderBy(static site => site.Id, StringComparer.Ordinal))

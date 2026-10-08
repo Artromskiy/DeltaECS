@@ -27,6 +27,9 @@ public readonly ref struct EntityRef
     /// <summary>Gets the stable handle for the current entity.</summary>
     public Entity Handle => _chunk.RawEntities[_slotIndex];
 
+    /// <summary>Converts this borrowed view to its stable entity handle.</summary>
+    public static implicit operator Entity(EntityRef entity) => entity.Handle;
+
     /// <summary>Gets the current entity's index.</summary>
     public int Index => Handle.Index;
 

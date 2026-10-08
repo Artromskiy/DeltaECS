@@ -57,10 +57,12 @@ internal sealed class EntityRefTests
         Assert.That(after, Is.EqualTo(new Stamp(state.HealthStamps[2].Value + 1)));
     }
 
-    internal static void InspectEntity(ref ProbeState state, EntityRef entity)
+    internal static void InspectEntity(ref ProbeState state, scoped EntityRef entity)
     {
         Entity handle = entity.Handle;
+        Entity convertedHandle = entity;
         Assert.That(handle, Is.EqualTo(state.Entities[handle.Index]));
+        Assert.That(convertedHandle, Is.EqualTo(handle));
         Assert.That(entity.Index, Is.EqualTo(handle.Index));
         Assert.That(entity.Generation, Is.EqualTo(handle.Generation));
         Assert.That(entity.Has(state.PositionId), Is.True);
