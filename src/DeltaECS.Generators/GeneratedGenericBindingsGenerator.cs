@@ -137,7 +137,10 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
                 return;
             }
 
-            bool needsModuleInitializerAttribute = input.Right.GetTypeByMetadataName("System.Runtime.CompilerServices.ModuleInitializerAttribute") is null;
+            INamedTypeSymbol? moduleInitializerAttribute = input.Right.GetTypeByMetadataName(
+                "System.Runtime.CompilerServices.ModuleInitializerAttribute");
+            bool needsModuleInitializerAttribute = moduleInitializerAttribute is null
+                || !input.Right.IsSymbolAccessibleWithin(moduleInitializerAttribute, input.Right.Assembly);
             var generatedTypeTokens = componentTypes.Values
                 .Select(type =>
                 {
