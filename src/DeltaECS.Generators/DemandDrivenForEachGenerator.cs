@@ -25,6 +25,11 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         "Unsupported ForEach shape",
         "ForEach shape '{0}' is not supported by the demand-driven generator",
         "ForEach");
+    private static readonly DiagnosticDescriptor ExplicitComponentTypesRequired = GeneratorDiagnostics.Error(
+        "DECSGEN011",
+        "ForEach component types must remain explicit",
+        "ForEach component parameter types must be explicit when generic type arguments are omitted; the generator needs them to identify component rows",
+        "ForEach");
     private static readonly DiagnosticDescriptor AmbiguousFunctor = GeneratorDiagnostics.Error(
         "DECSGEN003",
         "Ambiguous ForEach functor",
@@ -409,6 +414,18 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         {
             return false;
         }
+
+        int componentParameterStart = prefixCount + (hasEntity ? 1 : 0);
+        if (genericName is null
+            && componentCount != 0
+            && lambdaParameters
+                .Skip(componentParameterStart)
+                .Take(componentCount)
+                .Any(static parameter => parameter.Type is null))
+        {
+            return Reject(ExplicitComponentTypesRequired, invocation, invocation, out diagnostic);
+        }
+
         string? accessPattern = InferPattern(lambda, componentCount, hasContext, hasEntity);
         if (stamp && accessPattern is not null)
         {
@@ -907,7 +924,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         return true;
     }
 
-    private static bool TryReadPrefix(
+    internal static bool TryReadPrefix(
         SemanticModel model,
         InvocationExpressionSyntax invocation,
         ApiDescriptor descriptor,

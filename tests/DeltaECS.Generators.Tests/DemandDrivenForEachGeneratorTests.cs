@@ -96,6 +96,31 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void ForEachRejectsLambdasThatEraseComponentTypes()
+    {
+        const string source = """
+            namespace Delta.ECS
+            {
+            struct Cmp1 { public int Value; }
+            struct Cmp2 { public int Value; }
+            static class Consumer
+            {
+                public static void Use(World world, in Query query, ComponentId cmp1Id, ComponentId cmp2Id)
+                {
+                    world.ForEach(in query, cmp1Id, cmp2Id, static (cmp1, cmp2) => _ = cmp1 + cmp2).Invoke();
+                }
+            }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGenerator(source);
+
+        Diagnostic diagnostic = run.Diagnostics.Single(static value => value.Id == "DECSGEN011");
+        Assert.That(diagnostic.GetMessage(CultureInfo.InvariantCulture), Does.Contain("component parameter types must be explicit"));
+        Assert.That(run.GeneratedTrees, Is.Empty);
+    }
+
+    [Test]
     public void ComponentComparerDelegatesSupportContextEntitySelectorsAndStaticInterception()
     {
         const string source = """
