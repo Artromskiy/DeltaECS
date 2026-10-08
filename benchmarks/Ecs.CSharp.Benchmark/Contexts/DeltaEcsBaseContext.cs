@@ -101,12 +101,8 @@ namespace Ecs.CSharp.Benchmark.Contexts
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Invoke(EntityRef entity)
         {
-            if (!entity.TryGet(_secondId, out DeltaComponent2 second))
-            {
-                return;
-            }
-
             ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(_firstId);
+            ref DeltaComponent2 second = ref entity.GetRef<DeltaComponent2>(_secondId);
             first.Value += second.Value;
         }
     }
@@ -130,13 +126,9 @@ namespace Ecs.CSharp.Benchmark.Contexts
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Invoke(EntityRef entity)
         {
-            if (!entity.TryGet(_secondId, out DeltaComponent2 second)
-                || !entity.TryGet(_thirdId, out DeltaComponent3 third))
-            {
-                return;
-            }
-
             ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(_firstId);
+            ref DeltaComponent2 second = ref entity.GetRef<DeltaComponent2>(_secondId);
+            ref DeltaComponent3 third = ref entity.GetRef<DeltaComponent3>(_thirdId);
             first.Value += second.Value + third.Value;
         }
     }

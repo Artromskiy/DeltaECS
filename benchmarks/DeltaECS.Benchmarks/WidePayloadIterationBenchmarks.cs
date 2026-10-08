@@ -25,11 +25,13 @@ public class WidePayloadPartialReadIterationBenchmarks
     private DeltaEntity[] _entities = null!;
     private EcsOperation<int>? _iteration;
     private EcsOperation<WidePayloadSingleThreadFunctor>? _functorIteration;
+    private EcsOperation<WidePayloadChecksum>? _entityRefIteration;
+    private EcsOperation<WidePayloadEntityRefSingleThreadFunctor>? _entityRefFunctorIteration;
     private EcsOperation? _parallelIteration;
     private EcsOperation<WidePayloadParallelFunctor>? _parallelFunctorIteration;
     private EcsOperation? _entityRefParallelIteration;
     private EcsOperation<WidePayloadEntityRefFunctor>? _entityRefFunctorParallelIteration;
-    private readonly WidePayloadChecksum _entityRefChecksum = new();
+    private WidePayloadChecksum _entityRefChecksum = new();
 
     [GlobalSetup]
     public void Setup()
@@ -110,6 +112,38 @@ public class WidePayloadPartialReadIterationBenchmarks
             in _query,
             new WidePayloadSingleThreadFunctor(_entityRefChecksum));
         _functorIteration.Invoke();
+
+        return ValidateEntityRefChecksum();
+    }
+
+    [BenchmarkCategory("SingleThread")]
+    [Benchmark]
+    public int DeltaECSWidePayloadPartialReadEntity()
+    {
+        _entityRefChecksum.Value = 0;
+        _entityRefIteration ??= _world.ForEachEntity(
+            in _query,
+            ref _entityRefChecksum,
+            static (ref WidePayloadChecksum checksum, EntityRef entity) =>
+            {
+                ref WidePayload0 payload0 = ref entity.GetRef<WidePayload0>(checksum.FirstId);
+                ref WidePayload7 payload7 = ref entity.GetRef<WidePayload7>(checksum.LastId);
+                checksum.Value += payload0.Value + payload7.Value;
+            });
+        _entityRefIteration.Invoke(ref _entityRefChecksum);
+
+        return ValidateEntityRefChecksum();
+    }
+
+    [BenchmarkCategory("SingleThread")]
+    [Benchmark]
+    public int DeltaECSWidePayloadPartialReadEntityFunctor()
+    {
+        _entityRefChecksum.Value = 0;
+        _entityRefFunctorIteration ??= _world.ForEachEntity(
+            in _query,
+            new WidePayloadEntityRefSingleThreadFunctor(_entityRefChecksum));
+        _entityRefFunctorIteration.Invoke();
 
         return ValidateEntityRefChecksum();
     }
@@ -271,6 +305,20 @@ internal struct WidePayloadEntityRefFunctor : IForEachEntity
         ref WidePayload0 payload0 = ref entity.GetRef<WidePayload0>(_checksum.FirstId);
         ref WidePayload7 payload7 = ref entity.GetRef<WidePayload7>(_checksum.LastId);
         Interlocked.Add(ref _checksum.Value, payload0.Value + payload7.Value);
+    }
+}
+
+internal struct WidePayloadEntityRefSingleThreadFunctor : IForEachEntity
+{
+    private readonly WidePayloadChecksum _checksum;
+
+    internal WidePayloadEntityRefSingleThreadFunctor(WidePayloadChecksum checksum) => _checksum = checksum;
+
+    public void Invoke(EntityRef entity)
+    {
+        ref WidePayload0 payload0 = ref entity.GetRef<WidePayload0>(_checksum.FirstId);
+        ref WidePayload7 payload7 = ref entity.GetRef<WidePayload7>(_checksum.LastId);
+        _checksum.Value += payload0.Value + payload7.Value;
     }
 }
 

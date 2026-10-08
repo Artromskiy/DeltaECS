@@ -13,6 +13,8 @@ namespace Ecs.CSharp.Benchmark
         private EcsOperation? _parallelIteration;
         private EcsOperation<DeltaComponent1Functor>? _functorIteration;
         private EcsOperation<DeltaComponent1Functor>? _parallelFunctorIteration;
+        private EcsOperation? _entityRefIteration;
+        private EcsOperation<DeltaEntityRefFunctor>? _entityRefFunctorIteration;
         private EcsOperation? _entityRefParallelIteration;
         private EcsOperation<DeltaEntityRefFunctor>? _entityRefFunctorParallelIteration;
 
@@ -45,6 +47,32 @@ namespace Ecs.CSharp.Benchmark
         {
             _functorIteration ??= _deltaEcs.World.ForEach(in _deltaEcs.Query, new DeltaComponent1Functor());
             _functorIteration.Invoke();
+            return EntityCount;
+        }
+
+        [BenchmarkCategory(Categories.DeltaECS, Categories.SingleThread)]
+        [Benchmark]
+        public int DeltaECSEntityRef()
+        {
+            _entityRefIteration ??= _deltaEcs.World.ForEachEntity(
+                in _deltaEcs.Query,
+                entity =>
+                {
+                    ref DeltaComponent1 component = ref entity.GetRef<DeltaComponent1>(_deltaEcs.Component);
+                    component.Value++;
+                });
+            _entityRefIteration.Invoke();
+            return EntityCount;
+        }
+
+        [BenchmarkCategory(Categories.DeltaECS, Categories.SingleThread)]
+        [Benchmark]
+        public int DeltaECSEntityRefFunctor()
+        {
+            _entityRefFunctorIteration ??= _deltaEcs.World.ForEachEntity(
+                in _deltaEcs.Query,
+                new DeltaEntityRefFunctor(_deltaEcs.Component));
+            _entityRefFunctorIteration.Invoke();
             return EntityCount;
         }
 

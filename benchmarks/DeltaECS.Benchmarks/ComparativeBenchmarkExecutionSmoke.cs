@@ -110,6 +110,8 @@ public static class ComparativeBenchmarkExecutionSmoke
         {
             Require(benchmark.DeltaECSWidePayloadPartialRead(), 900, "Delta wide payload");
             Require(benchmark.DeltaECSWidePayloadPartialReadFunctor(), 900, "Delta wide payload functor");
+            Require(benchmark.DeltaECSWidePayloadPartialReadEntity(), 900, "Delta wide payload entity");
+            Require(benchmark.DeltaECSWidePayloadPartialReadEntityFunctor(), 900, "Delta wide payload entity functor");
             Require(benchmark.DeltaECSWidePayloadPartialReadParallel(), 900, "Delta wide payload parallel");
             Require(benchmark.DeltaECSWidePayloadPartialReadFunctorParallel(), 900, "Delta wide payload functor parallel");
             Require(benchmark.DeltaECSWidePayloadPartialReadEntityParallel(), 900, "Delta wide payload entity parallel");

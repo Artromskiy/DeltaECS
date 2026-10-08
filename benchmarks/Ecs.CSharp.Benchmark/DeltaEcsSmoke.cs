@@ -29,6 +29,14 @@ namespace Ecs.CSharp.Benchmark
             one.World.ForEachParallel(in one.Query, static (ref DeltaComponent1 component) => ++component.Value).Invoke();
             one.World.ForEach(in one.Query, new DeltaComponent1Functor()).Invoke();
             one.World.ForEachParallel(in one.Query, new DeltaComponent1Functor()).Invoke();
+            one.World.ForEachEntity(
+                in one.Query,
+                entity =>
+                {
+                    ref DeltaComponent1 component = ref entity.GetRef<DeltaComponent1>(one.Component);
+                    component.Value++;
+                }).Invoke();
+            one.World.ForEachEntity(in one.Query, new DeltaEntityRefFunctor(one.Component)).Invoke();
             one.World.ForEachEntityParallel(
                 in one.Query,
                 entity =>
@@ -51,16 +59,21 @@ namespace Ecs.CSharp.Benchmark
                 static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second) => first.Value += second.Value).Invoke();
             two.World.ForEach(in two.Query, new DeltaComponent2Functor()).Invoke();
             two.World.ForEachParallel(in two.Query, new DeltaComponent2Functor()).Invoke();
+            two.World.ForEachEntity(
+                in two.Query,
+                entity =>
+                {
+                    ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(two.First);
+                    ref DeltaComponent2 second = ref entity.GetRef<DeltaComponent2>(two.Second);
+                    first.Value += second.Value;
+                }).Invoke();
+            two.World.ForEachEntity(in two.Query, new DeltaEntityRefTwoComponentFunctor(two.First, two.Second)).Invoke();
             two.World.ForEachEntityParallel(
                 in two.Query,
                 entity =>
                 {
-                    if (!entity.TryGet(two.Second, out DeltaComponent2 second))
-                    {
-                        return;
-                    }
-
                     ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(two.First);
+                    ref DeltaComponent2 second = ref entity.GetRef<DeltaComponent2>(two.Second);
                     first.Value += second.Value;
                 },
                 workerCount: ParallelContext.ParallelWorkerCount).Invoke();
@@ -80,17 +93,25 @@ namespace Ecs.CSharp.Benchmark
                     first.Value += second.Value + third.Value).Invoke();
             three.World.ForEach(in three.Query, new DeltaComponent3Functor()).Invoke();
             three.World.ForEachParallel(in three.Query, new DeltaComponent3Functor()).Invoke();
+            three.World.ForEachEntity(
+                in three.Query,
+                entity =>
+                {
+                    ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(three.First);
+                    ref DeltaComponent2 second = ref entity.GetRef<DeltaComponent2>(three.Second);
+                    ref DeltaComponent3 third = ref entity.GetRef<DeltaComponent3>(three.Third);
+                    first.Value += second.Value + third.Value;
+                }).Invoke();
+            three.World.ForEachEntity(
+                in three.Query,
+                new DeltaEntityRefThreeComponentFunctor(three.First, three.Second, three.Third)).Invoke();
             three.World.ForEachEntityParallel(
                 in three.Query,
                 entity =>
                 {
-                    if (!entity.TryGet(three.Second, out DeltaComponent2 second)
-                        || !entity.TryGet(three.Third, out DeltaComponent3 third))
-                    {
-                        return;
-                    }
-
                     ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(three.First);
+                    ref DeltaComponent2 second = ref entity.GetRef<DeltaComponent2>(three.Second);
+                    ref DeltaComponent3 third = ref entity.GetRef<DeltaComponent3>(three.Third);
                     first.Value += second.Value + third.Value;
                 },
                 workerCount: ParallelContext.ParallelWorkerCount).Invoke();
@@ -108,16 +129,23 @@ namespace Ecs.CSharp.Benchmark
                 static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second) => first.Value += second.Value).Invoke();
             compositions.World.ForEach(in compositions.Query, new DeltaComponent2Functor()).Invoke();
             compositions.World.ForEachParallel(in compositions.Query, new DeltaComponent2Functor()).Invoke();
+            compositions.World.ForEachEntity(
+                in compositions.Query,
+                entity =>
+                {
+                    ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(compositions.First);
+                    ref DeltaComponent2 second = ref entity.GetRef<DeltaComponent2>(compositions.Second);
+                    first.Value += second.Value;
+                }).Invoke();
+            compositions.World.ForEachEntity(
+                in compositions.Query,
+                new DeltaEntityRefTwoComponentFunctor(compositions.First, compositions.Second)).Invoke();
             compositions.World.ForEachEntityParallel(
                 in compositions.Query,
                 entity =>
                 {
-                    if (!entity.TryGet(compositions.Second, out DeltaComponent2 second))
-                    {
-                        return;
-                    }
-
                     ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(compositions.First);
+                    ref DeltaComponent2 second = ref entity.GetRef<DeltaComponent2>(compositions.Second);
                     first.Value += second.Value;
                 },
                 workerCount: ParallelContext.ParallelWorkerCount).Invoke();

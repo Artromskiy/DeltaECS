@@ -13,6 +13,8 @@ namespace Ecs.CSharp.Benchmark
         private EcsOperation? _parallelIteration;
         private EcsOperation<DeltaComponent2Functor>? _functorIteration;
         private EcsOperation<DeltaComponent2Functor>? _parallelFunctorIteration;
+        private EcsOperation? _entityRefIteration;
+        private EcsOperation<DeltaEntityRefTwoComponentFunctor>? _entityRefFunctorIteration;
         private EcsOperation? _entityRefParallelIteration;
         private EcsOperation<DeltaEntityRefTwoComponentFunctor>? _entityRefFunctorParallelIteration;
 
@@ -50,6 +52,33 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
+        [BenchmarkCategory(Categories.DeltaECS, Categories.SingleThread)]
+        [Benchmark]
+        public int DeltaECSEntityRef()
+        {
+            _entityRefIteration ??= _deltaEcs.World.ForEachEntity(
+                in _deltaEcs.Query,
+                entity =>
+                {
+                    ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(_deltaEcs.First);
+                    ref DeltaComponent2 second = ref entity.GetRef<DeltaComponent2>(_deltaEcs.Second);
+                    first.Value += second.Value;
+                });
+            _entityRefIteration.Invoke();
+            return EntityCount;
+        }
+
+        [BenchmarkCategory(Categories.DeltaECS, Categories.SingleThread)]
+        [Benchmark]
+        public int DeltaECSEntityRefFunctor()
+        {
+            _entityRefFunctorIteration ??= _deltaEcs.World.ForEachEntity(
+                in _deltaEcs.Query,
+                new DeltaEntityRefTwoComponentFunctor(_deltaEcs.First, _deltaEcs.Second));
+            _entityRefFunctorIteration.Invoke();
+            return EntityCount;
+        }
+
         [BenchmarkCategory(Categories.DeltaECS, Categories.MultiThread)]
         [Benchmark]
         public int DeltaECSFunctorParallel()
@@ -67,12 +96,8 @@ namespace Ecs.CSharp.Benchmark
                 in _deltaEcs.Query,
                 entity =>
                 {
-                    if (!entity.TryGet(_deltaEcs.Second, out DeltaComponent2 second))
-                    {
-                        return;
-                    }
-
                     ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(_deltaEcs.First);
+                    ref DeltaComponent2 second = ref entity.GetRef<DeltaComponent2>(_deltaEcs.Second);
                     first.Value += second.Value;
                 },
                 workerCount: ParallelContext.ParallelWorkerCount);

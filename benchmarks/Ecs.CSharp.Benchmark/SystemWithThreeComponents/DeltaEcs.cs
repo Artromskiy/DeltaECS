@@ -13,6 +13,8 @@ namespace Ecs.CSharp.Benchmark
         private EcsOperation? _parallelIteration;
         private EcsOperation<DeltaComponent3Functor>? _functorIteration;
         private EcsOperation<DeltaComponent3Functor>? _parallelFunctorIteration;
+        private EcsOperation? _entityRefIteration;
+        private EcsOperation<DeltaEntityRefThreeComponentFunctor>? _entityRefFunctorIteration;
         private EcsOperation? _entityRefParallelIteration;
         private EcsOperation<DeltaEntityRefThreeComponentFunctor>? _entityRefFunctorParallelIteration;
 
@@ -50,6 +52,34 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
+        [BenchmarkCategory(Categories.DeltaECS, Categories.SingleThread)]
+        [Benchmark]
+        public int DeltaECSEntityRef()
+        {
+            _entityRefIteration ??= _deltaEcs.World.ForEachEntity(
+                in _deltaEcs.Query,
+                entity =>
+                {
+                    ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(_deltaEcs.First);
+                    ref DeltaComponent2 second = ref entity.GetRef<DeltaComponent2>(_deltaEcs.Second);
+                    ref DeltaComponent3 third = ref entity.GetRef<DeltaComponent3>(_deltaEcs.Third);
+                    first.Value += second.Value + third.Value;
+                });
+            _entityRefIteration.Invoke();
+            return EntityCount;
+        }
+
+        [BenchmarkCategory(Categories.DeltaECS, Categories.SingleThread)]
+        [Benchmark]
+        public int DeltaECSEntityRefFunctor()
+        {
+            _entityRefFunctorIteration ??= _deltaEcs.World.ForEachEntity(
+                in _deltaEcs.Query,
+                new DeltaEntityRefThreeComponentFunctor(_deltaEcs.First, _deltaEcs.Second, _deltaEcs.Third));
+            _entityRefFunctorIteration.Invoke();
+            return EntityCount;
+        }
+
         [BenchmarkCategory(Categories.DeltaECS, Categories.MultiThread)]
         [Benchmark]
         public int DeltaECSFunctorParallel()
@@ -67,13 +97,9 @@ namespace Ecs.CSharp.Benchmark
                 in _deltaEcs.Query,
                 entity =>
                 {
-                    if (!entity.TryGet(_deltaEcs.Second, out DeltaComponent2 second)
-                        || !entity.TryGet(_deltaEcs.Third, out DeltaComponent3 third))
-                    {
-                        return;
-                    }
-
                     ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(_deltaEcs.First);
+                    ref DeltaComponent2 second = ref entity.GetRef<DeltaComponent2>(_deltaEcs.Second);
+                    ref DeltaComponent3 third = ref entity.GetRef<DeltaComponent3>(_deltaEcs.Third);
                     first.Value += second.Value + third.Value;
                 },
                 workerCount: ParallelContext.ParallelWorkerCount);
