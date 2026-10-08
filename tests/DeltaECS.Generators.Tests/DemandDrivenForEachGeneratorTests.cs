@@ -1302,50 +1302,6 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
-    public void RealConsumerProjectExecutesDenseGeneratedPaths()
-    {
-        int checksum = ConsumerProof.Run();
-
-        Assert.That(checksum, Is.GreaterThan(0));
-    }
-
-    [Test]
-    public void RealConsumerProjectExecutesGeneratedStructuralPaths()
-    {
-        Assert.That(ConsumerProof.RunStructural(), Is.EqualTo(21));
-    }
-
-    [Test]
-    public void RealConsumerProjectExecutesGeneratedQueryPaths()
-    {
-        Assert.That(ConsumerProof.RunGenericQueries(), Is.EqualTo(1));
-    }
-
-    [Test]
-    public void RealConsumerProjectExecutesGeneratedWherePaths()
-    {
-        Assert.That(ConsumerProof.RunGeneratedWhere(), Is.EqualTo(1));
-    }
-
-    [Test]
-    public void RealConsumerProjectOrdersPredicateFilteredEntitiesBeforeFirst()
-    {
-        Assert.That(ConsumerProof.RunOrderedWhereFirst(), Is.EqualTo(1));
-    }
-
-    [Test]
-    public void RealConsumerProjectForEachesPredicateFilteredEntitiesInOrder()
-    {
-        Assert.That(ConsumerProof.RunOrderedWhereForEach(), Is.EqualTo(1));
-    }
-
-    [Test]
-    public void RealConsumerProjectExecutesGeneratedQueryComposition()
-    {
-        Assert.That(ConsumerProof.RunGenericQueries(), Is.EqualTo(1));
-    }
-
-    [Test]
     public void GeneratedConsumerProjectExecutesGeneratedApiGrammarWithoutThrowing()
     {
         Assert.DoesNotThrow(GeneratedApiGrammarProof.Run);

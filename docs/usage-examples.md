@@ -307,6 +307,6 @@ To inspect generated C# in a consumer project, optionally enable:
 Generated files belong under the intermediate output directory; do not copy
 them into application source. See the [generator reference](src/DeltaECS.Generators/README.md)
 for supported callback shapes and diagnostics, and the
-[generated API consumer proof](../tests/DeltaECS.Generators.Consumer/ConsumerProof.cs),
-which the focused NativeAOT smoke app exercises with the same generated callback
-pattern in CI.
+[generated API grammar proof](../tests/DeltaECS.Generators.Consumer/GeneratedApiGrammarProof.cs).
+The separate [runtime-only API grammar proof](../tests/DeltaECS.Runtime.Consumer/RuntimeApiGrammarProof.cs)
+checks public forms that do not require a generator reference.

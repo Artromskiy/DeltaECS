@@ -7,22 +7,6 @@ namespace Delta.ECS.Generators.Tests;
 public class GenericFunctorGeneratorTests
 {
     [Test]
-    public void ConsumerProofSupportsOrderedAndRepeatedVariadicArguments()
-        => Assert.That(Consumer.ConsumerProof.RunRuntimeGenericFunctor(), Is.EqualTo(34));
-
-    [Test]
-    public void ConsumerProofExecutesGenericEntityListAndParallelForms()
-        => Assert.That(Consumer.ConsumerProof.RunRuntimeGenericFunctorEntityForms(), Is.EqualTo(1));
-
-    [Test]
-    public void ConsumerProofExecutesGenericComponentQueryEntityListAndParallelForms()
-        => Assert.That(Consumer.ConsumerProof.RunRuntimeGenericFunctorComponentForms(), Is.EqualTo(1));
-
-    [Test]
-    public void ConsumerProofExecutesGenericFunctorFormsWithContext()
-        => Assert.That(Consumer.ConsumerProof.RunRuntimeGenericFunctorContextForms(), Is.EqualTo(1));
-
-    [Test]
     public void GenericAdapterCompilesWithCSharp9AndConstraints()
     {
         const string source = """

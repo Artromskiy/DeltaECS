@@ -7,14 +7,6 @@ namespace Delta.ECS.Generators.Tests;
 public class GeneratedGenericBindingsGeneratorTests
 {
     [Test]
-    public void StructGenericActionListsRegisterTokensForTheirClosedTypeArguments()
-    {
-        Assert.That(
-            Delta.ECS.Generators.Consumer.ConsumerProof.RunStructGenericListTokenRegistration(),
-            Is.EqualTo(1));
-    }
-
-    [Test]
     public void GenericComponentRegistrationCompilesWithCSharp9()
     {
         const string source = """
@@ -47,7 +39,7 @@ public class GeneratedGenericBindingsGeneratorTests
         var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
             .Where(path => !string.Equals(
                 path,
-                typeof(Delta.ECS.Generators.Consumer.ConsumerProof).Assembly.Location,
+                typeof(Delta.ECS.Generators.Consumer.GeneratedApiGrammarProof).Assembly.Location,
                 StringComparison.Ordinal))
             .Append(typeof(World).Assembly.Location).Distinct()
             .Select(static path => MetadataReference.CreateFromFile(path));

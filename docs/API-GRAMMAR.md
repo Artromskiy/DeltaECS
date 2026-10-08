@@ -139,7 +139,7 @@ layouts.TryVisit(positionId, new RoutedMovementVisitor());
 
 The hooks are `Visit<T>` for an unconstrained route, `VisitUnmanaged<T>`, `VisitStruct<T>`, `VisitClass<T>`, `VisitConstructible<T>`, and `VisitClassConstructible<T>`. They are ordinary virtual methods with their constraints declared by the base class; no marker argument is needed in an override. This path uses the closed generic component route and virtual dispatch. Interface binding remains explicit for each component CLR type.
 
-Use `TryVisit` when the route may not match or the component IDs come from a dynamic list. It returns `false` for an invalid ID, a `null` visitor, or an unsupported visitor route. `Visit` has the same dispatch behavior but silently does nothing for those cases:
+Every registration route also supports `IUnconstrainedVisitor`, which receives the registered CLR type and ID without requiring a marker or interface route. More constrained visitors still match only routes satisfying their constraints. Use `TryVisit` when the route may not match or the component IDs come from a dynamic list. It returns `false` for an invalid ID, a `null` visitor, or an unsupported constrained route. `Visit` has the same dispatch behavior but silently does nothing for those cases:
 
 ```csharp
 ReadOnlySpan<ComponentId> componentIds = stackalloc ComponentId[] { positionId, localPositionId };
@@ -154,7 +154,7 @@ foreach (ComponentId componentId in componentIds)
 }
 ```
 
-The runtime APIs described here are available without adding the generator to the consuming project. The generated API proof and runtime-only API proof are kept in separate consumer projects so both dependency shapes are compiled and executed independently. The runtime-only proof covers registration and visitors, query construction, structural operations, typed single-component access, entity-only iteration, and the integration contract. Component-bearing iteration and other generated forms remain in the generated consumer proof.
+The runtime APIs described here are available without adding the generator to the consuming project. The generated API grammar proof and runtime-only API grammar proof are kept in separate consumer projects so both dependency shapes are compiled and executed independently. The runtime-only proof covers registration and visitors, query construction, structural operations, typed single-component access, entity-only iteration, and the integration contract. Component-bearing iteration and other generated forms remain in the generated grammar proof. Both proofs are invoked by the grammar smoke application and the generator test suite.
 
 When compiling with a language version that does not apply `OverloadResolutionPriority`, supply the marker explicitly to avoid relying on automatic selection among the constrained `Register<T>` overloads.
 

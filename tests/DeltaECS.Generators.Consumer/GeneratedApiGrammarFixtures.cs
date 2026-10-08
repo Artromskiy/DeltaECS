@@ -7,6 +7,9 @@ public struct Cmp1 { public int Value; }
 public struct Cmp2 { public int Value; }
 public struct Cmp3 { public int Value; }
 public struct Cmp4 { public int Value; }
+public struct Dead { }
+public struct Alive { }
+public struct NeedsRespawn { public int Value; }
 
 public struct Context
 {

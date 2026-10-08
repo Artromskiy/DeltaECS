@@ -35,6 +35,7 @@ public static class GeneratedApiGrammarProof
         ComponentId cmp4Id = layouts.GetPrimary<Cmp4>();
         ComponentId deadId = layouts.GetPrimary<Dead>();
         ComponentId aliveId = layouts.GetPrimary<Alive>();
+        GeneratedComponentVisitorGrammarProof.Run(layouts);
         ReadOnlySpan<ComponentId> allComponentIds = stackalloc ComponentId[]
         {
             cmp1Id,
@@ -74,6 +75,7 @@ public static class GeneratedApiGrammarProof
         GeneratedWherePipelineGrammarProof.Run(world, in query, deadId, aliveId, ref context);
         GeneratedOpenGenericFunctorGrammarProof.Run(world, in query, entities, entityArray, cmp1Id, cmp2Id,
             componentIds, ref context);
+        GeneratedOpenGenericRegistrationGrammarProof.Run();
         GeneratedOrderedIterationGrammarProof.Run(world, in query, cmp1Id, cmp2Id, componentIds, ref context);
 
         // Structural mutations consume and destroy the fixture entities, so run last.

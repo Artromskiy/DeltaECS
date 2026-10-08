@@ -3,9 +3,12 @@ namespace Delta.ECS.Runtime.Consumer;
 /// <summary>Public runtime API grammar proof that compiles and runs without a generator reference.</summary>
 public static partial class RuntimeApiGrammarProof
 {
-    /// <summary>Runs the registration and constrained visitor paths selected for NativeAOT coverage.</summary>
+    /// <summary>Runs registration routes and visitor matches selected for NativeAOT coverage.</summary>
     public static void RunAotProof()
-        => VerifyRegistrationAndVisitors();
+    {
+        VerifyRegistrationAndVisitors();
+        VerifyExplicitRegistrationRoutes();
+    }
 
     /// <summary>Runs the public API call shapes that do not require generated consumer code.</summary>
     public static void Run()
@@ -34,6 +37,15 @@ public static partial class RuntimeApiGrammarProof
         ComponentId classId = layouts.Register<ClassComponent>(new SchemaId(930_004));
         ComponentId constructibleClassId = layouts.Register<ConstructibleClass>(new SchemaId(930_005));
         ComponentId unmanagedId = layouts.Register<int>(new SchemaId(930_006));
+        VerifyUnconstrainedVisitor(layouts,
+        [
+            firstPositionId,
+            secondPositionId,
+            managedStructId,
+            classId,
+            constructibleClassId,
+            unmanagedId
+        ]);
 
         Require(layouts.GetComponentType(firstPositionId) == typeof(Position));
         Require(layouts.TryGetPrimary<Position>(out ComponentId primaryPositionId));
@@ -122,6 +134,16 @@ public static partial class RuntimeApiGrammarProof
         ComponentId classNewId = layouts.Register<ConstructibleClass>(new SchemaId(930_015), in classNewConstraint);
         ComponentId unconstrainedId = RegisterWithoutKnownConstraint<UnknownComponent>(layouts, new SchemaId(930_016));
 
+        VerifyUnconstrainedVisitor(layouts,
+        [
+            structId,
+            classId,
+            unmanagedId,
+            newId,
+            classNewId,
+            unconstrainedId
+        ]);
+
         var structVisitor = new StructVisitor();
         var classVisitor = new ClassVisitor();
         var unmanagedVisitor = new UnmanagedVisitor();
@@ -144,6 +166,21 @@ public static partial class RuntimeApiGrammarProof
 
     private static ComponentId RegisterWithoutKnownConstraint<T>(ComponentLayoutRegistry layouts, SchemaId schemaId)
         => layouts.Register<T>(schemaId);
+
+    private static void VerifyUnconstrainedVisitor(ComponentLayoutRegistry layouts, ComponentId[] componentIds)
+    {
+        var visitor = new UnconstrainedVisitor();
+        foreach (ComponentId componentId in componentIds)
+        {
+            Require(layouts.TryVisit(componentId, visitor));
+            Require(visitor.LastComponentId == componentId);
+            Require(visitor.ComponentType == layouts.GetComponentType(componentId));
+        }
+
+        Require(visitor.VisitCount == componentIds.Length);
+        Require(!layouts.TryVisit(ComponentId.Invalid, visitor));
+        Require(visitor.VisitCount == componentIds.Length);
+    }
 
     private static void VerifyInterfaceBindingRoutes()
     {
@@ -349,12 +386,17 @@ public static partial class RuntimeApiGrammarProof
 
     private sealed class UnconstrainedVisitor : IUnconstrainedVisitor
     {
+        public int VisitCount { get; private set; }
+
+        public ComponentId LastComponentId { get; private set; }
+
         public Type? ComponentType { get; private set; }
 
         public void Visit<TComponent>(ComponentId componentId)
         {
-            _ = componentId;
+            LastComponentId = componentId;
             ComponentType = typeof(TComponent);
+            VisitCount++;
         }
     }
 
