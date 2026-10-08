@@ -67,7 +67,7 @@ NewConstraint newConstraint = default;
 ComponentId constructibleId = layouts.Register<Constructible>(new SchemaId(3), in newConstraint);
 ```
 
-`BindInterface<TComponent, TInterface>()` declares a visitor route for one concrete component CLR type and one interface. It applies to every schema registration of that CLR type, including registrations made before or after the binding. The compiler checks that `TComponent` implements `TInterface`; binding another component type requires another call. This uses closed generic code directly and does not require generated interface routes:
+`BindInterface<TComponent, TInterface>()` declares a route for the interface-based visitor contracts for one concrete component CLR type and one interface. It applies to every schema registration of that CLR type, including registrations made before or after the binding. The compiler checks that `TComponent` implements `TInterface`; binding another component type requires another call. This uses closed generic code directly and does not require generated interface routes:
 
 ```csharp
 layouts.BindInterface<Position, IMovable>();
@@ -88,7 +88,7 @@ public interface IMovable { }
 
 public struct Position : IMovable { }
 
-public sealed class MovementVisitor : IComponentTypeVisitor<IMovable>
+public sealed class MovementVisitor : IComponentVisitor<IMovable>
 {
     public RuntimeTypeHandle ConstraintType => typeof(IMovable).TypeHandle;
 
@@ -96,7 +96,31 @@ public sealed class MovementVisitor : IComponentTypeVisitor<IMovable>
 }
 ```
 
-Binding is explicit for each component type. For example, a `Velocity` component that also implements `IMovable` needs its own `layouts.BindInterface<Velocity, IMovable>()` call. A visitor route does not automatically apply to every type that implements the interface.
+The binding is explicit for each component type when using the interface-based visitor contracts. For example, a `Velocity` component that also implements `IMovable` needs its own `layouts.BindInterface<Velocity, IMovable>()` call.
+
+For virtual dispatch, derive from `GeneralComponentTypeVisitor<TConstraint>`. Override the named hooks for the registration shapes the visitor handles. The registry calls the matching hook through the explicitly bound interface route:
+
+```csharp
+layouts.BindInterface<Position, IMovable>();
+ComponentId positionId = layouts.Register<Position>(new SchemaId(7));
+
+public sealed class RoutedMovementVisitor : GeneralComponentTypeVisitor<IMovable>
+{
+    protected override void VisitStruct<T>(ComponentId componentId)
+    {
+        // T is a struct that implements IMovable.
+    }
+
+    protected override void VisitClass<T>(ComponentId componentId)
+    {
+        // T is a class that implements IMovable.
+    }
+}
+
+layouts.TryVisit(positionId, new RoutedMovementVisitor());
+```
+
+The hooks are `Visit<T>` for an unconstrained route, `VisitUnmanaged<T>`, `VisitStruct<T>`, `VisitClass<T>`, `VisitConstructible<T>`, and `VisitClassConstructible<T>`. They are ordinary virtual methods with their constraints declared by the base class; no marker argument is needed in an override. This path uses the closed generic component route and virtual dispatch. Interface binding remains explicit for each component CLR type.
 
 Use `TryVisit` when the route may not match or the component IDs come from a dynamic list. It returns `false` for an invalid ID, a `null` visitor, or an unsupported visitor route. `Visit` has the same dispatch behavior but silently does nothing for those cases:
 

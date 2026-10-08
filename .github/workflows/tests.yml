@@ -77,6 +77,17 @@ jobs:
             -p:PublishDir="$GITHUB_WORKSPACE/artifacts/aot-consumer/linux-x64/"
           artifacts/aot-consumer/linux-x64/DeltaECS.Generators.Aot
 
+      - name: Publish and run NativeAOT component visitor proof
+        run: |
+          dotnet publish tests/DeltaECS.ComponentTypeVisitor.Aot/DeltaECS.ComponentTypeVisitor.Aot.csproj \
+            -c Release \
+            -r linux-x64 \
+            --self-contained true \
+            -p:PublishAot=true \
+            -p:StripSymbols=true \
+            -p:PublishDir="$GITHUB_WORKSPACE/artifacts/aot-component-visitor/linux-x64/"
+          artifacts/aot-component-visitor/linux-x64/DeltaECS.ComponentTypeVisitor.Aot
+
       - name: Record runner information
         run: |
           mkdir -p artifacts/ci-smoke

@@ -86,7 +86,7 @@ public struct Velocity
     public int Value;
 }
 
-public sealed class AotPositionVisitor : IComponentTypeVisitor<IPositionComponent>
+public sealed class AotPositionVisitor : IComponentVisitor<IPositionComponent>
 {
     public RuntimeTypeHandle ConstraintType => typeof(IPositionComponent).TypeHandle;
 
@@ -101,7 +101,7 @@ public sealed class AotPositionVisitor : IComponentTypeVisitor<IPositionComponen
     }
 }
 
-public sealed class AotUnmanagedVisitor : IUnmanagedComponentTypeVisitor
+public sealed class AotUnmanagedVisitor : IUnmanagedVisitor
 {
     public ComponentId ComponentId { get; private set; }
 

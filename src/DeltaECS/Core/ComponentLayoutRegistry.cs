@@ -20,21 +20,20 @@ public sealed partial class ComponentLayoutRegistry
     private int _tagCount;
 
     /// <summary>Visits a compatible registered component type and does nothing for an invalid ID or unsupported visitor.</summary>
-    public void Visit(ComponentId componentId, IComponentTypeVisitor? visitor)
+    public void Visit(ComponentId componentId, IVisitor? visitor)
     {
         _ = TryVisit(componentId, visitor);
     }
 
     /// <summary>Visits a compatible component type; returns false for an invalid ID, null visitor, or unsupported route.</summary>
-    public bool TryVisit(ComponentId componentId, IComponentTypeVisitor? visitor)
+    public bool TryVisit(ComponentId componentId, IVisitor? visitor)
     {
         if (visitor is null || !TryGet(componentId, out _))
         {
             return false;
         }
 
-        IComponentRegistrationToken registrationToken = _componentVisitorTokens[componentId.Value];
-        if (visitor is IComponentTypeVisitorConstraint constrainedVisitor)
+        if (visitor is IComponentVisitor constrainedVisitor)
         {
             RuntimeTypeHandle componentType = _componentTypeTokens[componentId.Value].ComponentType.TypeHandle;
             var key = (componentType, constrainedVisitor.ConstraintType);
@@ -44,7 +43,7 @@ public sealed partial class ComponentLayoutRegistry
             }
         }
 
-        return registrationToken.TryVisit(componentId, visitor);
+        return _componentVisitorTokens[componentId.Value].TryVisit(componentId, visitor);
     }
 
     /// <summary>Registers one component from the generated component catalog.</summary>
