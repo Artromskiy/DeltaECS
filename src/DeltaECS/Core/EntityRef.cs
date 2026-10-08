@@ -17,8 +17,9 @@ public readonly ref struct EntityRef
     private readonly int _slotIndex;
     private readonly QueryPlan? _queryPlan;
     private readonly int[]? _entityRefComponentIndices;
+    private readonly EntityRefStampState? _entityRefStampState;
+    private readonly int _planEntityIndex;
     private readonly EntityRefStampBatch? _stampBatch;
-    private readonly EntityRefStampBatch.ChunkStampMark? _stampMark;
     private readonly int _stampBatchGeneration;
 
     internal EntityRef(
@@ -28,8 +29,9 @@ public readonly ref struct EntityRef
         int slotIndex,
         QueryPlan? queryPlan,
         int[]? entityRefComponentIndices,
+        EntityRefStampState? entityRefStampState,
+        int planEntityIndex,
         EntityRefStampBatch? stampBatch,
-        EntityRefStampBatch.ChunkStampMark? stampMark,
         int stampBatchGeneration)
     {
         _world = world;
@@ -38,8 +40,9 @@ public readonly ref struct EntityRef
         _slotIndex = slotIndex;
         _queryPlan = queryPlan;
         _entityRefComponentIndices = entityRefComponentIndices;
+        _entityRefStampState = entityRefStampState;
+        _planEntityIndex = planEntityIndex;
         _stampBatch = stampBatch;
-        _stampMark = stampMark;
         _stampBatchGeneration = stampBatchGeneration;
     }
 
@@ -89,8 +92,9 @@ public readonly ref struct EntityRef
             componentId,
             _queryPlan,
             _entityRefComponentIndices,
+            _entityRefStampState,
+            _planEntityIndex,
             _stampBatch,
-            _stampMark,
             _stampBatchGeneration);
 }
 
@@ -103,8 +107,9 @@ public sealed partial class World
         int slotIndex,
         QueryPlan? queryPlan,
         int[]? entityRefComponentIndices,
+        EntityRefStampState? entityRefStampState,
+        int planEntityIndex,
         EntityRefStampBatch? stampBatch,
-        EntityRefStampBatch.ChunkStampMark? stampMark,
         int stampBatchGeneration)
         => new(
             this,
@@ -113,8 +118,9 @@ public sealed partial class World
             slotIndex,
             queryPlan,
             entityRefComponentIndices,
+            entityRefStampState,
+            planEntityIndex,
             stampBatch,
-            stampMark,
             stampBatchGeneration);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -218,8 +224,9 @@ public sealed partial class World
         ComponentId componentId,
         QueryPlan? queryPlan,
         int[]? entityRefComponentIndices,
+        EntityRefStampState? entityRefStampState,
+        int planEntityIndex,
         EntityRefStampBatch? stampBatch,
-        EntityRefStampBatch.ChunkStampMark? stampMark,
         int stampBatchGeneration)
     {
         EnsureExecutionAccess();
@@ -253,7 +260,12 @@ public sealed partial class World
                 ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
             }
 
-            if (stampBatch?.Mark(stampBatchGeneration, stampMark, chunk, route, componentIndex, slotIndex) == true)
+            if (stampBatch?.Mark(
+                    stampBatchGeneration,
+                    entityRefStampState,
+                    planEntityIndex,
+                    route,
+                    componentIndex) == true)
             {
                 return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
             }

@@ -22,8 +22,9 @@ public ref struct GeneratedQuerySlots
     private readonly bool _hasTagSlots;
     private readonly QueryPlan? _queryPlan;
     private readonly int[] _entityRefComponentIndices;
+    private readonly EntityRefStampState? _entityRefStampState;
+    private readonly int _planEntityBase;
     private EntityRefStampBatch? _stampBatch;
-    private EntityRefStampBatch.ChunkStampMark? _stampMark;
     private int _stampBatchGeneration;
     private bool _stampBatchResolved;
 
@@ -49,8 +50,9 @@ public ref struct GeneratedQuerySlots
         _offset = offset;
         _queryPlan = queryPlan;
         _entityRefComponentIndices = chunkPlan.EntityRefComponentIndices;
+        _entityRefStampState = chunkPlan.EntityRefStampState;
+        _planEntityBase = chunkPlan.PlanEntityBase;
         _stampBatch = null;
-        _stampMark = null;
         _stampBatchGeneration = 0;
         _stampBatchResolved = false;
         _hasTagSlots = queryPlan is not null && offset == 0 && queryPlan.TryGetTagSlots(_chunk, out _tagSlots);
@@ -96,14 +98,16 @@ public ref struct GeneratedQuerySlots
     public EntityRef GetEntityRef(int index)
     {
         PrepareEntityRefStampBatch();
+        int slotIndex = GetGeneratedSlotIndex(index);
         return _world.CreateEntityRef(
             _chunk,
             _archetype,
-            GetGeneratedSlotIndex(index),
+            slotIndex,
             _queryPlan,
             _entityRefComponentIndices,
+            _entityRefStampState,
+            _planEntityBase + slotIndex,
             _stampBatch,
-            _stampMark,
             _stampBatchGeneration);
     }
 
@@ -119,8 +123,9 @@ public ref struct GeneratedQuerySlots
             slotIndex,
             _queryPlan,
             _entityRefComponentIndices,
+            _entityRefStampState,
+            _planEntityBase + slotIndex,
             _stampBatch,
-            _stampMark,
             _stampBatchGeneration);
     }
 
@@ -135,7 +140,7 @@ public ref struct GeneratedQuerySlots
         _stampBatchResolved = true;
         if (_queryPlan is not null)
         {
-            _stampBatch = _queryPlan.GetEntityRefStampBatch(_chunk, out _stampMark, out _stampBatchGeneration);
+            _stampBatch = _queryPlan.GetEntityRefStampBatch(out _stampBatchGeneration);
         }
     }
 
@@ -257,8 +262,9 @@ public ref struct GeneratedReadQuerySlots
     private readonly bool _hasTagSlots;
     private readonly QueryPlan? _queryPlan;
     private readonly int[] _entityRefComponentIndices;
+    private readonly EntityRefStampState? _entityRefStampState;
+    private readonly int _planEntityBase;
     private EntityRefStampBatch? _stampBatch;
-    private EntityRefStampBatch.ChunkStampMark? _stampMark;
     private int _stampBatchGeneration;
     private bool _stampBatchResolved;
 
@@ -272,8 +278,9 @@ public ref struct GeneratedReadQuerySlots
         _componentIndices = chunkPlan.ComponentIndices;
         _queryPlan = queryPlan;
         _entityRefComponentIndices = chunkPlan.EntityRefComponentIndices;
+        _entityRefStampState = chunkPlan.EntityRefStampState;
+        _planEntityBase = chunkPlan.PlanEntityBase;
         _stampBatch = null;
-        _stampMark = null;
         _stampBatchGeneration = 0;
         _stampBatchResolved = false;
         _hasTagSlots = queryPlan is not null && queryPlan.TryGetTagSlots(_chunk, out _tagSlots);
@@ -301,14 +308,16 @@ public ref struct GeneratedReadQuerySlots
     public EntityRef GetEntityRef(int index)
     {
         PrepareEntityRefStampBatch();
+        int slotIndex = GetGeneratedSlotIndex(index);
         return _world.CreateEntityRef(
             _chunk,
             _archetype,
-            GetGeneratedSlotIndex(index),
+            slotIndex,
             _queryPlan,
             _entityRefComponentIndices,
+            _entityRefStampState,
+            _planEntityBase + slotIndex,
             _stampBatch,
-            _stampMark,
             _stampBatchGeneration);
     }
 
@@ -324,8 +333,9 @@ public ref struct GeneratedReadQuerySlots
             slotIndex,
             _queryPlan,
             _entityRefComponentIndices,
+            _entityRefStampState,
+            _planEntityBase + slotIndex,
             _stampBatch,
-            _stampMark,
             _stampBatchGeneration);
     }
 
@@ -340,7 +350,7 @@ public ref struct GeneratedReadQuerySlots
         _stampBatchResolved = true;
         if (_queryPlan is not null)
         {
-            _stampBatch = _queryPlan.GetEntityRefStampBatch(_chunk, out _stampMark, out _stampBatchGeneration);
+            _stampBatch = _queryPlan.GetEntityRefStampBatch(out _stampBatchGeneration);
         }
     }
 

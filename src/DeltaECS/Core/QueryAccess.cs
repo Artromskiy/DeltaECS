@@ -130,12 +130,8 @@ internal sealed class QueryPlan
     internal int MatchingArchetypeVersion => _matchingArchetypeVersion;
     internal int EntityRefDataComponentCount => _entityRefDataComponentCount;
 
-    internal EntityRefStampBatch? GetEntityRefStampBatch(
-        Chunk chunk,
-        out EntityRefStampBatch.ChunkStampMark? mark,
-        out int generation)
+    internal EntityRefStampBatch? GetEntityRefStampBatch(out int generation)
     {
-        mark = null;
         generation = 0;
         if (_entityRefDataComponentCount == 0)
         {
@@ -167,7 +163,6 @@ internal sealed class QueryPlan
         }
 
         generation = batch.Generation;
-        mark = batch.GetMark(chunk);
         return batch;
     }
 
@@ -738,7 +733,8 @@ internal sealed class QueryPlan
             ChunkPlan next = refreshed.RefAt(index);
             ChunkPlan previous = current.RefAt(index);
             if (!ReferenceEquals(previous.Chunk, next.Chunk)
-                || !ReferenceEquals(previous.ComponentRows, next.ComponentRows))
+                || !ReferenceEquals(previous.ComponentRows, next.ComponentRows)
+                || previous.PlanEntityBase != next.PlanEntityBase)
             {
                 current.RefAt(index) = next;
             }
@@ -942,6 +938,9 @@ internal struct ArchetypePlan
         Archetype = archetype;
         ComponentRows = componentRows;
         EntityRefComponentIndices = entityRefComponentIndices;
+        EntityRefStampState = entityRefComponentIndices.Length == 0
+            ? null
+            : new EntityRefStampState(entityRefComponentIndices);
         ArchetypeStamps = archetypeStamps ?? Array.Empty<Stamp>();
         _chunks = Array.Empty<ChunkPlan>();
         _chunkTopologyVersion = archetype.ChunkTopologyVersion;
@@ -954,6 +953,7 @@ internal struct ArchetypePlan
     internal Archetype Archetype { get; }
     internal int[] ComponentRows { get; }
     internal int[] EntityRefComponentIndices { get; }
+    internal EntityRefStampState? EntityRefStampState { get; }
     internal Stamp[] ArchetypeStamps { get; }
     internal int FindChunkIndex(int globalChunkId, int startIndex = 0, int endIndex = -1)
     {
@@ -989,7 +989,7 @@ internal struct ArchetypePlan
             Array.Resize(ref _chunks, Math.Max(4, _chunks.Length * 2));
         }
 
-        _chunks.RefAt(_chunkCount++) = CreateChunkPlan(chunk);
+        _chunks.RefAt(_chunkCount++) = CreateChunkPlan(chunk, activePosition * Chunk.Capacity);
     }
 
     internal void OnChunkDeactivated(int activePosition, int lastPosition)
@@ -1005,6 +1005,7 @@ internal struct ArchetypePlan
         }
 
         _chunkCount--;
+        RefreshPlanEntityBases();
     }
 
     internal bool RefreshChunks(Archetype archetype)
@@ -1039,11 +1040,12 @@ internal struct ArchetypePlan
             }
             else
             {
-                _chunks.RefAt(chunkIndex) = CreateChunkPlan(chunk);
+                _chunks.RefAt(chunkIndex) = CreateChunkPlan(chunk, chunkIndex * Chunk.Capacity);
             }
         }
 
         _chunkCount = activeCount;
+        RefreshPlanEntityBases();
         for (int index = activeCount; index < previousCount; index++)
         {
             _chunks.RefAt(index) = default;
@@ -1053,7 +1055,7 @@ internal struct ArchetypePlan
         return true;
     }
 
-    private ChunkPlan CreateChunkPlan(Chunk chunk)
+    private ChunkPlan CreateChunkPlan(Chunk chunk, int stampBase)
     {
         Array[] resolvedRows = new Array[ComponentRows.Length];
         var sourceRows = chunk.RawComponentRows;
@@ -1062,7 +1064,23 @@ internal struct ArchetypePlan
             resolvedRows.RefAt(queryRow) = sourceRows.RefAt(ComponentRows.RefAt(queryRow));
         }
 
-        return new ChunkPlan(chunk, resolvedRows, ComponentRows, Archetype, EntityRefComponentIndices);
+        return new ChunkPlan(
+            chunk,
+            resolvedRows,
+            ComponentRows,
+            Archetype,
+            EntityRefComponentIndices,
+            EntityRefStampState,
+            stampBase);
+    }
+
+    private void RefreshPlanEntityBases()
+    {
+        for (int index = 0; index < _chunkCount; index++)
+        {
+            ref ChunkPlan chunkPlan = ref _chunks.RefAt(index);
+            chunkPlan = chunkPlan.WithPlanEntityBase(index * Chunk.Capacity);
+        }
     }
 }
 
@@ -1073,13 +1091,17 @@ internal readonly struct ChunkPlan
         Array[] componentRows,
         int[] componentIndices,
         Archetype archetype,
-        int[] entityRefComponentIndices)
+        int[] entityRefComponentIndices,
+        EntityRefStampState? entityRefStampState,
+        int planEntityBase)
     {
         Chunk = chunk;
         ComponentRows = componentRows;
         ComponentIndices = componentIndices;
         Archetype = archetype;
         EntityRefComponentIndices = entityRefComponentIndices;
+        EntityRefStampState = entityRefStampState;
+        PlanEntityBase = planEntityBase;
     }
 
     internal Chunk Chunk { get; }
@@ -1087,6 +1109,18 @@ internal readonly struct ChunkPlan
     internal int[] ComponentIndices { get; }
     internal Archetype Archetype { get; }
     internal int[] EntityRefComponentIndices { get; }
+    internal EntityRefStampState? EntityRefStampState { get; }
+    internal int PlanEntityBase { get; }
+
+    internal ChunkPlan WithPlanEntityBase(int planEntityBase)
+        => new(
+            Chunk,
+            ComponentRows,
+            ComponentIndices,
+            Archetype,
+            EntityRefComponentIndices,
+            EntityRefStampState,
+            planEntityBase);
 }
 
 internal readonly struct QueryPlanLink

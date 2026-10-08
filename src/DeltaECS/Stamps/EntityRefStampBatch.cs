@@ -1,7 +1,7 @@
 namespace Delta.ECS;
 
 using System;
-using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 internal sealed class EntityRefStampBatch
 {
@@ -9,11 +9,8 @@ internal sealed class EntityRefStampBatch
     private static EntityRefStampBatch? _current;
 
     private readonly QueryPlan _queryPlan;
-    private readonly Dictionary<int, ChunkStampMark> _marksByChunkId = new();
-    private readonly List<ChunkStampMark> _markPool = new();
     private EntityRefStampBatch? _previous;
     private int _generation;
-    private int _markCount;
     private int _ownerThreadId;
     private bool _active;
 
@@ -43,27 +40,11 @@ internal sealed class EntityRefStampBatch
     {
         _generation = _generation == int.MaxValue ? 1 : _generation + 1;
         _ownerThreadId = Environment.CurrentManagedThreadId;
-        _markCount = 0;
-        _marksByChunkId.Clear();
-
-        ReadOnlySpan<ChunkPlan> chunkPlans = _queryPlan.MatchingChunkPlans();
-        for (int index = 0; index < chunkPlans.Length; index++)
+        ReadOnlySpan<ArchetypePlan> plans = _queryPlan.MatchingPlans();
+        for (int planIndex = 0; planIndex < plans.Length; planIndex++)
         {
-            ref readonly ChunkPlan chunkPlan = ref chunkPlans.RefAt(index);
-            ChunkStampMark mark;
-            if (_markCount == _markPool.Count)
-            {
-                mark = new ChunkStampMark(_queryPlan.EntityRefDataComponentCount);
-                _markPool.Add(mark);
-            }
-            else
-            {
-                mark = _markPool[_markCount];
-            }
-
-            mark.Reset(chunkPlan.Chunk, chunkPlan.EntityRefComponentIndices);
-            _marksByChunkId.Add(chunkPlan.Chunk.GlobalId, mark);
-            _markCount++;
+            ref readonly ArchetypePlan plan = ref plans.RefAt(planIndex);
+            plan.EntityRefStampState?.Begin(_generation, plan.ChunkCount * Chunk.Capacity);
         }
 
         _previous = _current;
@@ -71,27 +52,17 @@ internal sealed class EntityRefStampBatch
         _current = this;
     }
 
-    internal ChunkStampMark? GetMark(Chunk chunk)
-        => _active
-            && _ownerThreadId == Environment.CurrentManagedThreadId
-            && _marksByChunkId.TryGetValue(chunk.GlobalId, out ChunkStampMark? mark)
-            && ReferenceEquals(mark.Chunk, chunk)
-                ? mark
-                : null;
-
     internal bool Mark(
         int generation,
-        ChunkStampMark? mark,
-        Chunk chunk,
+        EntityRefStampState? state,
+        int planEntityIndex,
         int route,
-        int componentIndex,
-        int slotIndex)
+        int componentIndex)
         => _active
             && generation == _generation
             && _ownerThreadId == Environment.CurrentManagedThreadId
-            && mark is not null
-            && ReferenceEquals(mark.Chunk, chunk)
-            && mark.Mark(route, componentIndex, slotIndex);
+            && state is not null
+            && state.Mark(generation, planEntityIndex, route, componentIndex);
 
     internal void Complete()
     {
@@ -106,13 +77,7 @@ internal sealed class EntityRefStampBatch
         }
         finally
         {
-            for (int index = 0; index < _markCount; index++)
-            {
-                _markPool[index].Clear();
-            }
-
-            _markCount = 0;
-            _marksByChunkId.Clear();
+            ClearPendingWrites();
             _active = false;
             _ownerThreadId = 0;
             _current = _previous;
@@ -120,7 +85,12 @@ internal sealed class EntityRefStampBatch
         }
     }
 
-    internal static bool TryGetPending(World world, Chunk chunk, int componentIndex, int slotIndex, out int pendingCount)
+    internal static bool TryGetPending(
+        World world,
+        Chunk chunk,
+        int componentIndex,
+        int slotIndex,
+        out int pendingCount)
     {
         int threadId = Environment.CurrentManagedThreadId;
         pendingCount = 0;
@@ -130,17 +100,18 @@ internal sealed class EntityRefStampBatch
             if (!batch._active
                 || batch._ownerThreadId != threadId
                 || !ReferenceEquals(batch._queryPlan.Owner, world)
-                || !batch._marksByChunkId.TryGetValue(chunk.GlobalId, out ChunkStampMark? mark)
-                || !ReferenceEquals(mark.Chunk, chunk))
+                || !batch._queryPlan.TryGetChunkPlan(chunk.ArchetypeId, chunk.GlobalId, out ChunkPlan chunkPlan)
+                || chunkPlan.EntityRefStampState is not { } state
+                || !state.TryGetPending(
+                    componentIndex,
+                    chunkPlan.PlanEntityBase + slotIndex,
+                    out int batchPending))
             {
                 continue;
             }
 
-            if (mark.TryGetPending(componentIndex, slotIndex, out int batchPending))
-            {
-                pendingCount = unchecked(pendingCount + batchPending);
-                foundPending = true;
-            }
+            pendingCount = unchecked(pendingCount + batchPending);
+            foundPending = true;
         }
 
         return foundPending;
@@ -153,54 +124,66 @@ internal sealed class EntityRefStampBatch
         for (int planIndex = 0; planIndex < plans.Length; planIndex++)
         {
             ref readonly ArchetypePlan plan = ref plans.RefAt(planIndex);
+            EntityRefStampState? state = plan.EntityRefStampState;
+            if (state is null)
+            {
+                continue;
+            }
+
             ReadOnlySpan<int> componentIndices = plan.EntityRefComponentIndices;
+            long totalRows = CountRows(plan);
             for (int route = 0; route < routeCount; route++)
             {
                 int componentIndex = componentIndices.RefAt(route);
-                if (componentIndex < 0)
+                int writtenRows = state.WrittenRows(route);
+                if (componentIndex < 0 || writtenRows == 0)
                 {
                     continue;
                 }
 
-                long totalRows = 0;
-                long writtenRows = 0;
-                long singleWriteRows = 0;
-                for (int chunkIndex = 0; chunkIndex < plan.ChunkCount; chunkIndex++)
-                {
-                    Chunk chunk = plan.ChunkArray.RefAt(chunkIndex).Chunk;
-                    ChunkStampMark mark = _marksByChunkId[chunk.GlobalId];
-                    totalRows += chunk.Count;
-                    writtenRows += mark.WrittenRows(route);
-                    singleWriteRows += mark.SingleWriteRows(route);
-                }
-
-                if (writtenRows == 0)
-                {
-                    continue;
-                }
-
+                int singleWriteRows = state.SingleWriteRows(route);
                 long correctionRows = totalRows - singleWriteRows;
                 if (writtenRows > correctionRows)
                 {
                     _queryPlan.IncrementArchetypeComponentStamp(plan.Archetype.Id, componentIndex);
-                    AdjustRowsFromArchetypeStamp(plan, route, componentIndex);
+                    if (correctionRows != 0)
+                    {
+                        AdjustRowsFromArchetypeStamp(plan, state, route, componentIndex);
+                    }
+
                     continue;
                 }
 
-                IncrementWrittenRows(plan, route, componentIndex);
+                IncrementWrittenRows(plan, state, route, componentIndex);
             }
         }
     }
 
-    private void AdjustRowsFromArchetypeStamp(ArchetypePlan plan, int route, int componentIndex)
+    private static long CountRows(in ArchetypePlan plan)
+    {
+        long count = 0;
+        for (int chunkIndex = 0; chunkIndex < plan.ChunkCount; chunkIndex++)
+        {
+            count += plan.ChunkArray.RefAt(chunkIndex).Chunk.Count;
+        }
+
+        return count;
+    }
+
+    private static void AdjustRowsFromArchetypeStamp(
+        in ArchetypePlan plan,
+        EntityRefStampState state,
+        int route,
+        int componentIndex)
     {
         for (int chunkIndex = 0; chunkIndex < plan.ChunkCount; chunkIndex++)
         {
-            Chunk chunk = plan.ChunkArray.RefAt(chunkIndex).Chunk;
-            ChunkStampMark mark = _marksByChunkId[chunk.GlobalId];
+            ref readonly ChunkPlan chunkPlan = ref plan.ChunkArray.RefAt(chunkIndex);
+            Chunk chunk = chunkPlan.Chunk;
+            int planEntityBase = chunkPlan.PlanEntityBase;
             for (int slotIndex = 0; slotIndex < chunk.Count; slotIndex++)
             {
-                int delta = mark.WriteCount(route, slotIndex) - 1;
+                int delta = state.WriteCount(route, planEntityBase + slotIndex) - 1;
                 if (delta != 0)
                 {
                     chunk.AdjustComponentStamp(componentIndex, slotIndex, delta);
@@ -209,155 +192,201 @@ internal sealed class EntityRefStampBatch
         }
     }
 
-    private void IncrementWrittenRows(ArchetypePlan plan, int route, int componentIndex)
+    private static void IncrementWrittenRows(
+        in ArchetypePlan plan,
+        EntityRefStampState state,
+        int route,
+        int componentIndex)
+        => state.AdjustWrittenRows(plan, route, componentIndex);
+
+    private void ClearPendingWrites()
     {
-        for (int chunkIndex = 0; chunkIndex < plan.ChunkCount; chunkIndex++)
+        ReadOnlySpan<ArchetypePlan> plans = _queryPlan.MatchingPlans();
+        for (int planIndex = 0; planIndex < plans.Length; planIndex++)
         {
-            Chunk chunk = plan.ChunkArray.RefAt(chunkIndex).Chunk;
-            ChunkStampMark mark = _marksByChunkId[chunk.GlobalId];
-            mark.IncrementWrittenRows(chunk, route, componentIndex);
+            plans.RefAt(planIndex).EntityRefStampState?.Clear(_generation);
         }
     }
+}
 
-    internal sealed class ChunkStampMark
+internal sealed class EntityRefStampState
+{
+    private readonly int[] _componentIndices;
+    private ulong[] _writtenBits = Array.Empty<ulong>();
+    private readonly int[] _writtenRowsByRoute;
+    private readonly int[] _singleWriteRowsByRoute;
+    private int[] _writeCounts = Array.Empty<int>();
+    private int _entityCapacity;
+    private int _wordsPerRoute;
+    private int _generation;
+    private bool _buffersReadyForCurrentCapacity;
+    private bool _active;
+
+    internal EntityRefStampState(int[] componentIndices)
     {
-        private readonly int[][] _writeCountsByRoute;
-        private readonly ulong[][] _writtenSlotsByRoute;
-        private readonly int[] _writtenRowsByRoute;
-        private readonly int[] _singleWriteRowsByRoute;
-        private int[] _componentIndices = Array.Empty<int>();
+        _componentIndices = componentIndices;
+        _writtenRowsByRoute = new int[componentIndices.Length];
+        _singleWriteRowsByRoute = new int[componentIndices.Length];
+    }
 
-        internal ChunkStampMark(int routeCount)
+    internal void Begin(int generation, int entityCapacity)
+    {
+        _generation = generation;
+        if (entityCapacity > _entityCapacity)
         {
-            _writeCountsByRoute = new int[routeCount][];
-            _writtenSlotsByRoute = new ulong[routeCount][];
-            _writtenRowsByRoute = new int[routeCount];
-            _singleWriteRowsByRoute = new int[routeCount];
+            _entityCapacity = entityCapacity;
+            _buffersReadyForCurrentCapacity = false;
         }
 
-        internal Chunk? Chunk { get; private set; }
+        _active = true;
+    }
 
-        internal void Reset(Chunk chunk, int[] componentIndices)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool Mark(int generation, int planEntityIndex, int route, int componentIndex)
+    {
+        if (!_active
+            || generation != _generation
+            || (uint)route >= (uint)_componentIndices.Length
+            || _componentIndices.RefAt(route) != componentIndex
+            || (uint)planEntityIndex >= (uint)_entityCapacity)
         {
-            Chunk = chunk;
-            _componentIndices = componentIndices;
-        }
-
-        internal bool Mark(int route, int componentIndex, int slotIndex)
-        {
-            if ((uint)route >= (uint)_componentIndices.Length
-                || _componentIndices.RefAt(route) != componentIndex
-                || (uint)slotIndex >= (uint)Chunk!.Count)
-            {
-                return false;
-            }
-
-            int[]? counts = _writeCountsByRoute[route];
-            if (counts is null)
-            {
-                counts = new int[Delta.ECS.Chunk.Capacity];
-                _writeCountsByRoute[route] = counts;
-                _writtenSlotsByRoute[route] = new ulong[(Delta.ECS.Chunk.Capacity + 63) / 64];
-            }
-
-            ref int writeCount = ref counts.RefAt(slotIndex);
-            if (writeCount == 0)
-            {
-                _writtenSlotsByRoute[route][slotIndex >> 6] |= 1UL << (slotIndex & 63);
-                _writtenRowsByRoute[route]++;
-                _singleWriteRowsByRoute[route]++;
-            }
-            else if (writeCount == 1)
-            {
-                _singleWriteRowsByRoute[route]--;
-            }
-
-            writeCount++;
-            return true;
-        }
-
-        internal int WrittenRows(int route) => _writtenRowsByRoute.RefAt(route);
-
-        internal int SingleWriteRows(int route) => _singleWriteRowsByRoute.RefAt(route);
-
-        internal int WriteCount(int route, int slotIndex)
-            => _writeCountsByRoute.RefAt(route) is { } counts
-                ? counts.RefAt(slotIndex)
-                : 0;
-
-        internal bool TryGetPending(int componentIndex, int slotIndex, out int pendingCount)
-        {
-            if (Chunk is not null && (uint)slotIndex < (uint)Chunk.Count)
-            {
-                for (int route = 0; route < _componentIndices.Length; route++)
-                {
-                    if (_componentIndices.RefAt(route) != componentIndex
-                        || _writeCountsByRoute.RefAt(route) is not { } counts)
-                    {
-                        continue;
-                    }
-
-                    pendingCount = counts.RefAt(slotIndex);
-                    return pendingCount != 0;
-                }
-            }
-
-            pendingCount = 0;
             return false;
         }
 
-        internal void IncrementWrittenRows(Chunk chunk, int route, int componentIndex)
+        if (!_buffersReadyForCurrentCapacity)
         {
-            if (_writeCountsByRoute.RefAt(route) is not { } counts
-                || _writtenSlotsByRoute.RefAt(route) is not { } writtenSlots)
+            EnsureWriteCountCapacity();
+            EnsureWrittenBitCapacity();
+            _buffersReadyForCurrentCapacity = true;
+        }
+
+        ref int writeCount = ref _writeCounts.RefAt(GetWriteCountIndex(route, planEntityIndex));
+        if (writeCount == 0)
+        {
+            int bitIndex = GetWrittenBitIndex(route, planEntityIndex);
+            _writtenBits.RefAt(bitIndex) |= 1UL << (planEntityIndex & 63);
+            _writtenRowsByRoute.RefAt(route)++;
+            _singleWriteRowsByRoute.RefAt(route)++;
+        }
+        else if (writeCount == 1)
+        {
+            _singleWriteRowsByRoute.RefAt(route)--;
+        }
+
+        writeCount++;
+        return true;
+    }
+
+    internal bool TryGetPending(int componentIndex, int planEntityIndex, out int pendingCount)
+    {
+        for (int route = 0; route < _componentIndices.Length; route++)
+        {
+            if (_componentIndices.RefAt(route) != componentIndex
+                || (uint)planEntityIndex >= (uint)_entityCapacity
+                || _writeCounts.Length == 0
+                || !_active)
             {
-                return;
+                continue;
             }
 
-            for (int wordIndex = 0; wordIndex < writtenSlots.Length; wordIndex++)
+            pendingCount = _writeCounts.RefAt(GetWriteCountIndex(route, planEntityIndex));
+            return pendingCount != 0;
+        }
+
+        pendingCount = 0;
+        return false;
+    }
+
+    internal int WrittenRows(int route) => _writtenRowsByRoute.RefAt(route);
+
+    internal int SingleWriteRows(int route) => _singleWriteRowsByRoute.RefAt(route);
+
+    internal int WriteCount(int route, int entityIndex)
+        => _writeCounts.Length == 0
+            ? 0
+            : _writeCounts.RefAt(GetWriteCountIndex(route, entityIndex));
+
+    internal void Clear(int generation)
+    {
+        if (!_active || generation != _generation)
+        {
+            return;
+        }
+
+        for (int route = 0; route < _writtenRowsByRoute.Length; route++)
+        {
+            if (_writtenRowsByRoute.RefAt(route) == 0)
             {
-                ulong bits = writtenSlots.RefAt(wordIndex);
+                continue;
+            }
+
+            int bitBase = route * _wordsPerRoute;
+            for (int wordIndex = 0; wordIndex < _wordsPerRoute; wordIndex++)
+            {
+                ref ulong word = ref _writtenBits.RefAt(bitBase + wordIndex);
+                ulong bits = word;
                 while (bits != 0)
                 {
                     int bitIndex = BitOperationsCompat.TrailingZeroCount(bits);
-                    int slotIndex = (wordIndex * 64) + bitIndex;
-                    chunk.AdjustComponentStamp(componentIndex, slotIndex, counts.RefAt(slotIndex));
+                    int planEntityIndex = (wordIndex * 64) + bitIndex;
+                    _writeCounts.RefAt(GetWriteCountIndex(route, planEntityIndex)) = 0;
                     bits &= bits - 1;
                 }
+
+                word = 0;
             }
+
+            _writtenRowsByRoute.RefAt(route) = 0;
+            _singleWriteRowsByRoute.RefAt(route) = 0;
         }
 
-        internal void Clear()
+        _generation = 0;
+        _active = false;
+    }
+
+    private void EnsureWriteCountCapacity()
+    {
+        int required = _componentIndices.Length * _entityCapacity;
+        if (required > _writeCounts.Length)
         {
-            for (int route = 0; route < _writeCountsByRoute.Length; route++)
-            {
-                if (_writeCountsByRoute.RefAt(route) is not { } counts
-                    || _writtenSlotsByRoute.RefAt(route) is not { } writtenSlots)
-                {
-                    continue;
-                }
-
-                for (int wordIndex = 0; wordIndex < writtenSlots.Length; wordIndex++)
-                {
-                    ulong bits = writtenSlots.RefAt(wordIndex);
-                    while (bits != 0)
-                    {
-                        int bitIndex = BitOperationsCompat.TrailingZeroCount(bits);
-                        int slotIndex = (wordIndex * 64) + bitIndex;
-                        counts.RefAt(slotIndex) = 0;
-                        bits &= bits - 1;
-                    }
-
-                    writtenSlots.RefAt(wordIndex) = 0;
-                }
-
-                _writtenRowsByRoute.RefAt(route) = 0;
-                _singleWriteRowsByRoute.RefAt(route) = 0;
-            }
-
-            Chunk = null;
-            _componentIndices = Array.Empty<int>();
+            Array.Resize(ref _writeCounts, required);
         }
     }
 
+    private void EnsureWrittenBitCapacity()
+    {
+        int requiredWordsPerRoute = (_entityCapacity + 63) / 64;
+        if (requiredWordsPerRoute > _wordsPerRoute)
+        {
+            _wordsPerRoute = requiredWordsPerRoute;
+            Array.Resize(ref _writtenBits, _componentIndices.Length * _wordsPerRoute);
+        }
+    }
+
+    internal void AdjustWrittenRows(in ArchetypePlan plan, int route, int componentIndex)
+    {
+        int bitBase = route * _wordsPerRoute;
+        for (int wordIndex = 0; wordIndex < _wordsPerRoute; wordIndex++)
+        {
+            ulong bits = _writtenBits.RefAt(bitBase + wordIndex);
+            while (bits != 0)
+            {
+                int bitIndex = BitOperationsCompat.TrailingZeroCount(bits);
+                int planEntityIndex = (wordIndex * 64) + bitIndex;
+                int chunkIndex = planEntityIndex / Chunk.Capacity;
+                int slotIndex = planEntityIndex % Chunk.Capacity;
+                Chunk chunk = plan.ChunkArray.RefAt(chunkIndex).Chunk;
+                chunk.AdjustComponentStamp(componentIndex, slotIndex, WriteCount(route, planEntityIndex));
+                bits &= bits - 1;
+            }
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private int GetWriteCountIndex(int route, int planEntityIndex)
+        => (route * _entityCapacity) + planEntityIndex;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private int GetWrittenBitIndex(int route, int planEntityIndex)
+        => (route * _wordsPerRoute) + (planEntityIndex >> 6);
 }

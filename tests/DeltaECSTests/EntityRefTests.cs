@@ -145,6 +145,55 @@ internal sealed class EntityRefTests
     }
 
     [Test]
+    public void EntityRefStampIndicesFollowArchetypePlanRefreshes()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(40_088));
+        using var world = new World(layouts);
+        var initialEntities = new Entity[(Chunk.Capacity * 2) + 5];
+        world.Create(stackalloc[] { positionId }, initialEntities);
+        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
+        var operation = world.ForEachEntity(in query, ref positionId, IncrementPosition);
+
+        operation.Invoke(ref positionId);
+
+        var expectedStamps = new Stamp[initialEntities.Length];
+        for (int index = 0; index < initialEntities.Length; index++)
+        {
+            Assert.That(world.TryGetComponentStamp(initialEntities[index], positionId, out expectedStamps[index]), Is.True);
+        }
+
+        Assert.That(world.Destroy(initialEntities.AsSpan(0, Chunk.Capacity)), Is.EqualTo(Chunk.Capacity));
+        operation.Invoke(ref positionId);
+
+        for (int index = Chunk.Capacity; index < initialEntities.Length; index++)
+        {
+            expectedStamps[index] = new Stamp(expectedStamps[index].Value + 1);
+            Assert.That(world.TryGetComponentStamp(initialEntities[index], positionId, out Stamp actual), Is.True);
+            Assert.That(actual, Is.EqualTo(expectedStamps[index]));
+        }
+
+        var addedEntities = new Entity[Chunk.Capacity + 7];
+        world.Create(stackalloc[] { positionId }, addedEntities);
+        var liveEntities = new Entity[(initialEntities.Length - Chunk.Capacity) + addedEntities.Length];
+        initialEntities.AsSpan(Chunk.Capacity).CopyTo(liveEntities);
+        addedEntities.CopyTo(liveEntities, initialEntities.Length - Chunk.Capacity);
+        var stampsBeforeThirdInvoke = new Stamp[liveEntities.Length];
+        for (int index = 0; index < liveEntities.Length; index++)
+        {
+            Assert.That(world.TryGetComponentStamp(liveEntities[index], positionId, out stampsBeforeThirdInvoke[index]), Is.True);
+        }
+
+        operation.Invoke(ref positionId);
+
+        for (int index = 0; index < liveEntities.Length; index++)
+        {
+            Assert.That(world.TryGetComponentStamp(liveEntities[index], positionId, out Stamp actual), Is.True);
+            Assert.That(actual, Is.EqualTo(new Stamp(stampsBeforeThirdInvoke[index].Value + 1)));
+        }
+    }
+
+    [Test]
     public void EntityRefUsesArchetypeStampWhenWritesOutnumberSkippedEntities()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -435,6 +484,9 @@ internal sealed class EntityRefTests
         entity.GetRef<Position>(state.ComponentId).X++;
         throw new InvalidOperationException();
     }
+
+    private static void IncrementPosition(ref ComponentId componentId, scoped EntityRef entity)
+        => entity.GetRef<Position>(componentId).X++;
 
     private readonly struct FirstTag;
 
