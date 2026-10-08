@@ -23,6 +23,9 @@ public class WhereIterationMicroBenchmarkImplementation
     private Query _query;
     private ComponentId _valueId;
     private ComponentId _accumulatorId;
+    private EcsOperation _directIteration = null!;
+    private EcsOperation _whereIteration = null!;
+    private EcsOperation _whereEntityIteration = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -41,6 +44,24 @@ public class WhereIterationMicroBenchmarkImplementation
 
         QuerySpec description = QuerySpec.WhereAll(stackalloc ComponentId[] { _valueId, _accumulatorId });
         _query = _world.CreateQuery(in description);
+
+        _directIteration = _world.ForEach(
+            in _query,
+            static (ref readonly WhereIterationValue _, ref WhereIterationAccumulator accumulator) =>
+                accumulator.Value++);
+        _whereIteration = _world.Where(
+                in _query,
+                static (ref readonly WhereIterationValue _) => true)
+            .ForEach(static (ref WhereIterationAccumulator accumulator) => accumulator.Value++);
+        _whereEntityIteration = _world.WhereEntity(
+                in _query,
+                static (Entity entity, ref readonly WhereIterationValue value) => true)
+            .ForEach(static (ref WhereIterationAccumulator accumulator) => accumulator.Value++);
+
+        _directIteration.Invoke();
+        _whereIteration.Invoke();
+        _whereEntityIteration.Invoke();
+        ResetAccumulators();
     }
 
     [GlobalCleanup]
@@ -49,34 +70,33 @@ public class WhereIterationMicroBenchmarkImplementation
     [Benchmark(Baseline = true)]
     public int ForEach()
     {
-        _world.ForEach(
-            in _query,
-            static (ref readonly WhereIterationValue _, ref WhereIterationAccumulator accumulator) =>
-                accumulator.Value++).Invoke();
+        _directIteration.Invoke();
         return Amount;
     }
 
     [Benchmark]
     public int WhereForEachTrue()
     {
-        _world.Where(
-                in _query,
-                static (ref readonly WhereIterationValue _) => true)
-            .ForEach(static (ref WhereIterationAccumulator accumulator) => accumulator.Value++).Invoke();
+        _whereIteration.Invoke();
         return Amount;
     }
 
     [Benchmark]
     public int WhereEntityForEachTrue()
     {
-        _world.WhereEntity(
-                in _query,
-                static (Entity entity, ref readonly WhereIterationValue value) => true)
-            .ForEach(static (ref WhereIterationAccumulator accumulator) => accumulator.Value++).Invoke();
+        _whereEntityIteration.Invoke();
         return Amount;
     }
 
     internal int ExpectedIterationCount => Amount;
+
+    private void ResetAccumulators()
+    {
+        for (int index = 0; index < _entities.Length; index++)
+        {
+            _world.GetRef<WhereIterationAccumulator>(_entities[index], _accumulatorId) = default;
+        }
+    }
 
     internal int SumAccumulators()
     {

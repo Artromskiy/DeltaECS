@@ -19,6 +19,7 @@ public class ManyComponentIterationBenchmarks
 
     private DeltaWorld _world = null!;
     private Query _query;
+    private EcsOperation<int> _iteration = null!;
     private ComponentId[] _components = null!;
     private DeltaEntity[] _entities = null!;
 
@@ -77,16 +78,8 @@ public class ManyComponentIterationBenchmarks
 
         var spec = QuerySpec.WhereAll(_components);
         _query = _world.CreateQuery(in spec);
-    }
-
-    [GlobalCleanup]
-    public void Cleanup() => _world?.Dispose();
-
-    [Benchmark(Baseline = true)]
-    public int DeltaECSManyComponents()
-    {
-        var checksum = 0;
-        _world.ForEach(
+        int checksum = 0;
+        _iteration = _world.ForEach(
             in _query,
             ref checksum,
             static (
@@ -137,7 +130,25 @@ public class ManyComponentIterationBenchmarks
                     + a40.Value + a41.Value + a42.Value + a43.Value
                     + b40.Value + b41.Value + b42.Value + b43.Value
                     + c40.Value + c41.Value + c42.Value + c43.Value;
-            }).Invoke(ref checksum);
+            });
+        _iteration.Invoke(ref checksum);
+        for (int index = 0; index < _entities.Length; index++)
+        {
+            DeltaEntity entity = _entities[index];
+            _world.GetRef<Movement4A>(entity, _components[0]) = new Movement4A { Value = 1 };
+            _world.GetRef<Movement4B>(entity, _components[1]) = new Movement4B { Value = 2 };
+            _world.GetRef<Movement4C>(entity, _components[2]) = new Movement4C { Value = 3 };
+        }
+    }
+
+    [GlobalCleanup]
+    public void Cleanup() => _world?.Dispose();
+
+    [Benchmark(Baseline = true)]
+    public int DeltaECSManyComponents()
+    {
+        var checksum = 0;
+        _iteration.Invoke(ref checksum);
 
         return checksum;
     }

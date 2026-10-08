@@ -15,6 +15,9 @@ public sealed class IterationScenario
     private readonly ComponentId[] _movement4Ids;
     private readonly Entity[] _movement2Entities;
     private readonly Entity[] _movement4Entities;
+    private readonly EcsOperation<long> _denseIteration;
+    private readonly EcsOperation<double> _movement2Iteration;
+    private readonly EcsOperation<int> _movement4Iteration;
 
     public IterationScenario(int amount)
     {
@@ -52,6 +55,36 @@ public sealed class IterationScenario
 
         var denseDescription = QuerySpec.WhereAll(_dense);
         _denseQuery = _world.CreateQuery(in denseDescription);
+
+        long denseChecksum = 0;
+        _denseIteration = _world.ForEach(in _denseQuery, ref denseChecksum,
+            static (ref long checksum, in DenseValue value) => checksum += value.Value);
+        double movement2Checksum = 0;
+        _movement2Iteration = _world.ForEach(in _movement2Query, ref movement2Checksum,
+            static (ref double checksum, ref Position position, in Velocity velocity) =>
+            {
+                position.X += velocity.X / 60f;
+                position.Y += velocity.Y / 60f;
+                checksum += position.X + position.Y;
+            });
+        int movement4Checksum = 0;
+        _movement4Iteration = _world.ForEach(in _movement4Query, ref movement4Checksum,
+            static (ref int checksum,
+                ref MovementA a,
+                ref MovementB b,
+                ref MovementC c,
+                in MovementD d) =>
+            {
+                var updatedA = a.Value + d.Value;
+                var updatedB = b.Value + d.Value;
+                a.Value = updatedA;
+                b.Value = updatedB;
+                c.Value = (updatedA + updatedB) / 2;
+                checksum += a.Value + b.Value + c.Value + d.Value;
+            });
+        _denseIteration.Invoke(ref denseChecksum);
+        _movement2Iteration.Invoke(ref movement2Checksum);
+        _movement4Iteration.Invoke(ref movement4Checksum);
         ResetMovements();
     }
 
@@ -71,8 +104,7 @@ public sealed class IterationScenario
     public long DenseRead()
     {
         long sum = 0;
-        _world.ForEach(in _denseQuery, ref sum,
-            static (ref long checksum, in DenseValue value) => checksum += value.Value).Invoke(ref sum);
+        _denseIteration.Invoke(ref sum);
 
         var expected = (long)_amount * (_amount + 1) / 2;
         return sum == expected ? sum : throw new InvalidOperationException($"Dense checksum mismatch: {sum} != {expected}.");
@@ -81,13 +113,7 @@ public sealed class IterationScenario
     public double Movement2()
     {
         double sum = 0;
-        _world.ForEach(in _movement2Query, ref sum,
-            static (ref double checksum, ref Position position, in Velocity velocity) =>
-            {
-                position.X += velocity.X / 60f;
-                position.Y += velocity.Y / 60f;
-                checksum += position.X + position.Y;
-            }).Invoke(ref sum);
+        _movement2Iteration.Invoke(ref sum);
 
         return sum;
     }
@@ -95,20 +121,7 @@ public sealed class IterationScenario
     public int Movement4()
     {
         int sum = 0;
-        _world.ForEach(in _movement4Query, ref sum,
-            static (ref int checksum,
-                ref MovementA a,
-                ref MovementB b,
-                ref MovementC c,
-                in MovementD d) =>
-            {
-                var updatedA = a.Value + d.Value;
-                var updatedB = b.Value + d.Value;
-                a.Value = updatedA;
-                b.Value = updatedB;
-                c.Value = (updatedA + updatedB) / 2;
-                checksum += a.Value + b.Value + c.Value + d.Value;
-            }).Invoke(ref sum);
+        _movement4Iteration.Invoke(ref sum);
 
         return sum;
     }

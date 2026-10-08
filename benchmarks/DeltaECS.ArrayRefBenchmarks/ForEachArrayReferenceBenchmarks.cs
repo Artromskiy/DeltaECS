@@ -20,6 +20,7 @@ public class ForEachArrayReferenceBenchmarks : IDisposable
     private World _world = null!; // GlobalSetup initializes the world before benchmark cleanup.
     private Entity[] _entities = null!; // GlobalSetup initializes the output before benchmark execution.
     private Query _query;
+    private EcsOperation<long> _iteration = null!;
 
     /// <summary>Creates the world and verifies the benchmark checksum.</summary>
     [GlobalSetup]
@@ -38,6 +39,11 @@ public class ForEachArrayReferenceBenchmarks : IDisposable
 
         QuerySpec description = QuerySpec.WhereAll(valueId);
         _query = _world.CreateQuery(in description);
+        long checksum = 0;
+        _iteration = _world.ForEach(
+            in _query,
+            ref checksum,
+            static (ref long sum, in ArrayReferenceValue value) => sum += value.Value);
         long expectedChecksum = (long)_entities.Length * (_entities.Length - 1) / 2;
 
         if (ForEachT() != expectedChecksum)
@@ -72,10 +78,7 @@ public class ForEachArrayReferenceBenchmarks : IDisposable
     public long ForEachT()
     {
         long checksum = 0;
-        _world.ForEach(
-            in _query,
-            ref checksum,
-            static (ref long sum, in ArrayReferenceValue value) => sum += value.Value).Invoke(ref checksum);
+        _iteration.Invoke(ref checksum);
         return checksum;
     }
 }

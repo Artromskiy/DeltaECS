@@ -18,6 +18,7 @@ public class WidePayloadPartialReadIterationBenchmarks
 
     private DeltaWorld _world = null!;
     private Query _query;
+    private EcsOperation<int> _iteration = null!;
     private ComponentId[] _components = null!;
     private DeltaEntity[] _entities = null!;
 
@@ -50,16 +51,8 @@ public class WidePayloadPartialReadIterationBenchmarks
 
         var spec = QuerySpec.WhereAll(_components);
         _query = _world.CreateQuery(in spec);
-    }
-
-    [GlobalCleanup]
-    public void Cleanup() => _world?.Dispose();
-
-    [Benchmark(Baseline = true)]
-    public int DeltaECSWidePayloadPartialRead()
-    {
-        var checksum = 0;
-        _world.ForEach(
+        int checksum = 0;
+        _iteration = _world.ForEach(
             in _query,
             ref checksum,
             static (
@@ -80,7 +73,18 @@ public class WidePayloadPartialReadIterationBenchmarks
                 _ = payload5;
                 _ = payload6;
                 checksum += payload0.Value + payload7.Value;
-            }).Invoke(ref checksum);
+            });
+        _iteration.Invoke(ref checksum);
+    }
+
+    [GlobalCleanup]
+    public void Cleanup() => _world?.Dispose();
+
+    [Benchmark(Baseline = true)]
+    public int DeltaECSWidePayloadPartialRead()
+    {
+        var checksum = 0;
+        _iteration.Invoke(ref checksum);
 
         return checksum == Amount * 9
             ? checksum

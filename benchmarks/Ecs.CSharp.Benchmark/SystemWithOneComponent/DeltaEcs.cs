@@ -1,5 +1,4 @@
 using BenchmarkDotNet.Attributes;
-using Delta.ECS;
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.DeltaEcsComponents;
 
@@ -14,9 +13,7 @@ namespace Ecs.CSharp.Benchmark
         [Benchmark]
         public int DeltaECS()
         {
-            _deltaEcs.World.ForEach(
-                in _deltaEcs.Query,
-                static (ref DeltaComponent1 component) => ++component.Value).Invoke();
+            _deltaEcs.Iteration.Invoke();
             return EntityCount;
         }
 
@@ -24,10 +21,7 @@ namespace Ecs.CSharp.Benchmark
         [Benchmark]
         public int DeltaECSParallel()
         {
-            _deltaEcs.World.ForEachParallel(
-                in _deltaEcs.Query,
-                static (ref DeltaComponent1 component) => ++component.Value,
-                workerCount: ParallelContext.ParallelWorkerCount).Invoke();
+            _deltaEcs.ParallelIteration.Invoke();
             return EntityCount;
         }
 
@@ -35,7 +29,7 @@ namespace Ecs.CSharp.Benchmark
         [Benchmark]
         public int DeltaECSFunctor()
         {
-            _deltaEcs.World.ForEach(in _deltaEcs.Query, new DeltaComponent1Functor()).Invoke();
+            _deltaEcs.FunctorIteration.Invoke();
             return EntityCount;
         }
 
@@ -43,7 +37,7 @@ namespace Ecs.CSharp.Benchmark
         [Benchmark]
         public int DeltaECSFunctorParallel()
         {
-            _deltaEcs.World.ForEachParallel(in _deltaEcs.Query, new DeltaComponent1Functor(), workerCount: ParallelContext.ParallelWorkerCount).Invoke();
+            _deltaEcs.ParallelFunctorIteration.Invoke();
             return EntityCount;
         }
     }
