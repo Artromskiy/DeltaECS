@@ -82,7 +82,10 @@ internal sealed class QueryPlan
     private int[] _matchingChunkPlanIndices = Array.Empty<int>();
     private int[] _planIndicesByArchetype = Array.Empty<int>();
     private readonly int[] _readRoutesByComponent;
-    private readonly Type?[] _readRouteTypesByComponent;
+    private readonly Type?[] _componentTypesByComponent;
+    private readonly int[] _entityRefRoutesByComponent;
+    private readonly ComponentId[] _entityRefDataComponents;
+    private int _entityRefDataComponentCount;
     private readonly Dictionary<RuntimeTypeHandle, int> _primaryReadRoutesByType;
     private int _matchingChunkCount;
     private readonly ReadAccess[] _preparedReadAccessesByComponent;
@@ -102,13 +105,16 @@ internal sealed class QueryPlan
         (_noneDataMask, _noneTagIndices) = PartitionQueryMask(world, spec.NoneMask);
         _weakReference = new WeakReference<QueryPlan>(this);
         _readRoutesByComponent = new int[world.Layouts.Count];
-        _readRouteTypesByComponent = new Type?[world.Layouts.Count];
+        _componentTypesByComponent = new Type?[world.Layouts.Count];
+        _entityRefRoutesByComponent = new int[world.Layouts.Count];
+        _entityRefDataComponents = new ComponentId[_allDataMask.Count + _anyDataMask.Count];
         _preparedReadAccessesByComponent = new ReadAccess[world.Layouts.Count];
         _preparedWriteAccessesByComponent = new WriteAccess[world.Layouts.Count];
         _primaryReadRoutesByType = new Dictionary<RuntimeTypeHandle, int>(
             _allDataMask.Count,
             RuntimeTypeHandleComparer.Instance);
         Array.Fill(_readRoutesByComponent, -1);
+        Array.Fill(_entityRefRoutesByComponent, -1);
         PrepareReadRoutes(world);
         for (int archetypeId = 0; archetypeId < world.Archetypes.Count; archetypeId++)
         {
@@ -208,6 +214,29 @@ internal sealed class QueryPlan
 
         return ThrowHelper.ThrowInvalidReadRoute(component);
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetEntityRefRoute(ComponentId component, out int route, out Type? runtimeType)
+    {
+        if (component.IsValid
+            && (uint)component.Value < (uint)_entityRefRoutesByComponent.Length
+            && (route = _entityRefRoutesByComponent.RefAt(component.Value)) != -1)
+        {
+            runtimeType = _componentTypesByComponent.RefAt(component.Value);
+            return true;
+        }
+
+        route = -1;
+        runtimeType = null;
+        return false;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool IsRequiredEntityRefComponent(ComponentId component)
+        => _description.AllMask.Contains(component);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static int GetEntityRefTagIndex(int route) => -2 - route;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static bool IsTagRoute(int route) => route <= TagRouteOffset;
@@ -333,6 +362,7 @@ internal sealed class QueryPlan
         var plan = new ArchetypePlan(
             archetype,
             indices,
+            BuildEntityRefComponentIndices(archetype),
             _owner.GetArchetypeComponentStamps(archetype.Id));
         _matchingArchetypes.RefAt(_matchingCount) = archetype.Id;
         _matchingPlans.RefAt(_matchingCount) = plan;
@@ -427,12 +457,14 @@ internal sealed class QueryPlan
         _preparedReadAccessesByComponent.AsSpan().Clear();
         _preparedWriteAccessesByComponent.AsSpan().Clear();
         Array.Fill(_readRoutesByComponent, -1);
-        _readRouteTypesByComponent.AsSpan().Clear();
+        Array.Fill(_entityRefRoutesByComponent, -1);
+        _entityRefDataComponents.AsSpan().Clear();
+        _componentTypesByComponent.AsSpan().Clear();
     }
 
     private void ValidatePreparedRuntimeType(ComponentId component, Type runtimeType)
     {
-        if (!ReferenceEquals(_readRouteTypesByComponent.RefAt(component.Value), runtimeType))
+        if (!ReferenceEquals(_componentTypesByComponent.RefAt(component.Value), runtimeType))
         {
             ThrowHelper.ThrowComponentTypeMismatch(component, runtimeType);
         }
@@ -441,6 +473,7 @@ internal sealed class QueryPlan
     private void PrepareReadRoutes(World world)
     {
         int route = 0;
+        int entityRefDataRoute = 0;
         foreach (ComponentId component in _allDataMask)
         {
             if (!world.Layouts.TryGet(component, out ComponentLayout layout))
@@ -452,7 +485,9 @@ internal sealed class QueryPlan
             _preparedReadAccessesByComponent.RefAt(component.Value) = new ReadAccess(this, route);
             _preparedWriteAccessesByComponent.RefAt(component.Value) = new WriteAccess(this, route);
             Type runtimeType = layout.RuntimeType;
-            _readRouteTypesByComponent.RefAt(component.Value) = runtimeType;
+            _componentTypesByComponent.RefAt(component.Value) = runtimeType;
+            _entityRefRoutesByComponent.RefAt(component.Value) = entityRefDataRoute;
+            _entityRefDataComponents.RefAt(entityRefDataRoute++) = component;
             if (world.Layouts.TryGetPrimary(runtimeType, out ComponentId primary)
                 && primary == component)
             {
@@ -462,9 +497,24 @@ internal sealed class QueryPlan
             route++;
         }
 
+        foreach (ComponentId component in _anyDataMask)
+        {
+            if (!world.Layouts.TryGet(component, out ComponentLayout layout))
+            {
+                ThrowHelper.ThrowUnregisteredQueryComponent(component, _description);
+            }
+
+            _componentTypesByComponent.RefAt(component.Value) = layout.RuntimeType;
+            if (_entityRefRoutesByComponent.RefAt(component.Value) == -1)
+            {
+                _entityRefRoutesByComponent.RefAt(component.Value) = entityRefDataRoute;
+                _entityRefDataComponents.RefAt(entityRefDataRoute++) = component;
+            }
+        }
+
         foreach (ComponentId component in _description.AllMask)
         {
-            if (!world.Layouts.TryGetTagIndex(component, out _))
+            if (!world.Layouts.TryGetTagIndex(component, out int tagIndex))
             {
                 continue;
             }
@@ -476,16 +526,54 @@ internal sealed class QueryPlan
 
             int tagRoute = GetTagRoute(component);
             _readRoutesByComponent.RefAt(component.Value) = tagRoute;
+            _entityRefRoutesByComponent.RefAt(component.Value) = GetEntityRefTagRoute(tagIndex);
             _preparedReadAccessesByComponent.RefAt(component.Value) = new ReadAccess(this, tagRoute);
             _preparedWriteAccessesByComponent.RefAt(component.Value) = new WriteAccess(this, tagRoute);
             Type runtimeType = layout.RuntimeType;
-            _readRouteTypesByComponent.RefAt(component.Value) = runtimeType;
+            _componentTypesByComponent.RefAt(component.Value) = runtimeType;
             if (world.Layouts.TryGetPrimary(runtimeType, out ComponentId primary)
                 && primary == component)
             {
                 _primaryReadRoutesByType.Add(runtimeType.TypeHandle, tagRoute);
             }
         }
+
+        foreach (ComponentId component in _description.AnyMask)
+        {
+            if (!world.Layouts.TryGetTagIndex(component, out int tagIndex))
+            {
+                continue;
+            }
+
+            if (!world.Layouts.TryGet(component, out ComponentLayout layout))
+            {
+                ThrowHelper.ThrowUnregisteredQueryComponent(component, _description);
+            }
+
+            _componentTypesByComponent.RefAt(component.Value) = layout.RuntimeType;
+            if (_entityRefRoutesByComponent.RefAt(component.Value) == -1)
+            {
+                _entityRefRoutesByComponent.RefAt(component.Value) = GetEntityRefTagRoute(tagIndex);
+            }
+        }
+
+        _entityRefDataComponentCount = entityRefDataRoute;
+    }
+
+    private static int GetEntityRefTagRoute(int tagIndex) => -2 - tagIndex;
+
+    private int[] BuildEntityRefComponentIndices(Archetype archetype)
+    {
+        var indices = new int[_entityRefDataComponents.Length];
+        for (int route = 0; route < _entityRefDataComponentCount; route++)
+        {
+            ComponentId component = _entityRefDataComponents.RefAt(route);
+            indices.RefAt(route) = archetype.Mask.Contains(component)
+                ? archetype.Mask.Rank(component)
+                : -1;
+        }
+
+        return indices;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -773,10 +861,12 @@ internal struct ArchetypePlan
     internal ArchetypePlan(
         Archetype archetype,
         int[] componentRows,
+        int[] entityRefComponentIndices,
         Stamp[]? archetypeStamps = null)
     {
         Archetype = archetype;
         ComponentRows = componentRows;
+        EntityRefComponentIndices = entityRefComponentIndices;
         ArchetypeStamps = archetypeStamps ?? Array.Empty<Stamp>();
         _chunks = Array.Empty<ChunkPlan>();
         _chunkTopologyVersion = archetype.ChunkTopologyVersion;
@@ -788,6 +878,7 @@ internal struct ArchetypePlan
 
     internal Archetype Archetype { get; }
     internal int[] ComponentRows { get; }
+    internal int[] EntityRefComponentIndices { get; }
     internal Stamp[] ArchetypeStamps { get; }
     internal int FindChunkIndex(int globalChunkId, int startIndex = 0, int endIndex = -1)
     {
@@ -896,22 +987,31 @@ internal struct ArchetypePlan
             resolvedRows.RefAt(queryRow) = sourceRows.RefAt(ComponentRows.RefAt(queryRow));
         }
 
-        return new ChunkPlan(chunk, resolvedRows, ComponentRows);
+        return new ChunkPlan(chunk, resolvedRows, ComponentRows, Archetype, EntityRefComponentIndices);
     }
 }
 
 internal readonly struct ChunkPlan
 {
-    internal ChunkPlan(Chunk chunk, Array[] componentRows, int[] componentIndices)
+    internal ChunkPlan(
+        Chunk chunk,
+        Array[] componentRows,
+        int[] componentIndices,
+        Archetype archetype,
+        int[] entityRefComponentIndices)
     {
         Chunk = chunk;
         ComponentRows = componentRows;
         ComponentIndices = componentIndices;
+        Archetype = archetype;
+        EntityRefComponentIndices = entityRefComponentIndices;
     }
 
     internal Chunk Chunk { get; }
     internal Array[] ComponentRows { get; }
     internal int[] ComponentIndices { get; }
+    internal Archetype Archetype { get; }
+    internal int[] EntityRefComponentIndices { get; }
 }
 
 internal readonly struct QueryPlanLink

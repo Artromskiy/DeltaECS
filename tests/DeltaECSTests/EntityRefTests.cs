@@ -57,6 +57,78 @@ internal sealed class EntityRefTests
         Assert.That(after, Is.EqualTo(new Stamp(state.HealthStamps[2].Value + 1)));
     }
 
+    [Test]
+    public void EntityRefUsesPreparedAnyRowsAndRefreshesForNewArchetypes()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(40_081));
+        ComponentId healthId = layouts.Register<Health>(new SchemaId(40_082));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(40_083));
+        using var world = new World(layouts);
+        Entity first = world.Create(
+            stackalloc[] { positionId, healthId },
+            new Position { X = 1 },
+            new Health { Value = 10 });
+        Query query = world.CreateQuery(
+            QuerySpec.WhereAll(positionId)
+                .WithAny(stackalloc[] { healthId, velocityId }));
+        var state = new AnyComponentState
+        {
+            HealthId = healthId,
+            VelocityId = velocityId
+        };
+        var operation = world.ForEachEntity(in query, ref state, InspectAnyComponents);
+
+        operation.Invoke(ref state);
+
+        Assert.That(state.Visited, Is.EqualTo(1));
+        Assert.That(state.HealthEntities, Is.EqualTo(1));
+        Assert.That(state.VelocityEntities, Is.Zero);
+        Assert.That(state.HealthValue, Is.EqualTo(10));
+
+        Entity second = world.Create(
+            stackalloc[] { positionId, velocityId },
+            new Position { X = 2 },
+            new Velocity { X = 3 });
+
+        operation.Invoke(ref state);
+
+        Assert.That(state.Visited, Is.EqualTo(3));
+        Assert.That(state.HealthEntities, Is.EqualTo(2));
+        Assert.That(state.VelocityEntities, Is.EqualTo(1));
+        Assert.That(state.HealthValue, Is.EqualTo(20));
+        Assert.That(world.Get<Position>(first, positionId).X, Is.EqualTo(1));
+        Assert.That(world.Get<Position>(second, positionId).X, Is.EqualTo(2));
+    }
+
+    internal static void InspectAnyComponents(ref AnyComponentState state, scoped EntityRef entity)
+    {
+        state.Visited++;
+        if (entity.Has(state.HealthId))
+        {
+            Assert.That(entity.TryGet(state.HealthId, out Health health), Is.True);
+            state.HealthEntities++;
+            state.HealthValue += health.Value;
+        }
+        else
+        {
+            Assert.That(entity.TryGet(state.HealthId, out Health health), Is.False);
+            Assert.That(health, Is.EqualTo(default(Health)));
+        }
+
+        if (entity.Has(state.VelocityId))
+        {
+            Assert.That(entity.TryGet(state.VelocityId, out Velocity velocity), Is.True);
+            state.VelocityEntities++;
+            state.VelocityValue += velocity.X;
+        }
+        else
+        {
+            Assert.That(entity.TryGet(state.VelocityId, out Velocity velocity), Is.False);
+            Assert.That(velocity, Is.EqualTo(default(Velocity)));
+        }
+    }
+
     internal static void InspectEntity(ref ProbeState state, scoped EntityRef entity)
     {
         Entity handle = entity.Handle;
@@ -148,6 +220,17 @@ internal sealed class EntityRefTests
         internal int Visited;
         internal int HealthWrites;
         internal int MissingHealthReads;
+    }
+
+    internal struct AnyComponentState
+    {
+        internal ComponentId HealthId;
+        internal ComponentId VelocityId;
+        internal int Visited;
+        internal int HealthEntities;
+        internal int VelocityEntities;
+        internal int HealthValue;
+        internal float VelocityValue;
     }
 
     private readonly struct FirstTag;

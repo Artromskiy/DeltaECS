@@ -12,6 +12,7 @@ public ref struct GeneratedQuerySlots
 {
     private readonly World _world;
     private readonly Chunk _chunk;
+    private readonly Archetype _archetype;
     private readonly Span<Entity> _entities;
     private readonly Array[] _resolvedRowsByQuery;
     private readonly int[] _componentIndices;
@@ -20,6 +21,7 @@ public ref struct GeneratedQuerySlots
     private readonly ReadOnlySpan<int> _tagSlots;
     private readonly bool _hasTagSlots;
     private readonly QueryPlan? _queryPlan;
+    private readonly int[] _entityRefComponentIndices;
 
     internal GeneratedQuerySlots(World world, in ChunkPlan chunkPlan, QueryPlan? queryPlan = null)
         : this(world, in chunkPlan, chunkPlan.Chunk.Count, 0, queryPlan)
@@ -35,12 +37,14 @@ public ref struct GeneratedQuerySlots
     {
         _world = world;
         _chunk = chunkPlan.Chunk;
+        _archetype = chunkPlan.Archetype;
         _entities = _chunk.RawEntities;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
         _componentIndices = chunkPlan.ComponentIndices;
         _count = count;
         _offset = offset;
         _queryPlan = queryPlan;
+        _entityRefComponentIndices = chunkPlan.EntityRefComponentIndices;
         _hasTagSlots = queryPlan is not null && offset == 0 && queryPlan.TryGetTagSlots(_chunk, out _tagSlots);
         if (!_hasTagSlots)
         {
@@ -82,13 +86,23 @@ public ref struct GeneratedQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public EntityRef GetEntityRef(int index)
-        => _world.CreateEntityRef(_chunk, GetGeneratedSlotIndex(index));
+        => _world.CreateEntityRef(
+            _chunk,
+            _archetype,
+            GetGeneratedSlotIndex(index),
+            _queryPlan,
+            _entityRefComponentIndices);
 
     /// <summary>Creates a borrowed view for one physical entity slot in this query chunk.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public EntityRef GetEntityRefAtSlot(int slotIndex)
-        => _world.CreateEntityRef(_chunk, slotIndex);
+        => _world.CreateEntityRef(
+            _chunk,
+            _archetype,
+            slotIndex,
+            _queryPlan,
+            _entityRefComponentIndices);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -199,20 +213,26 @@ public ref struct GeneratedReadQuerySlots
 {
     private readonly World _world;
     private readonly Chunk _chunk;
+    private readonly Archetype _archetype;
     private readonly ReadOnlySpan<Entity> _entities;
     private readonly Array[] _resolvedRowsByQuery;
     private readonly int[] _componentIndices;
     private readonly int _count;
     private readonly ReadOnlySpan<int> _tagSlots;
     private readonly bool _hasTagSlots;
+    private readonly QueryPlan? _queryPlan;
+    private readonly int[] _entityRefComponentIndices;
 
     internal GeneratedReadQuerySlots(World world, in ChunkPlan chunkPlan, QueryPlan? queryPlan = null)
     {
         _world = world;
         _chunk = chunkPlan.Chunk;
+        _archetype = chunkPlan.Archetype;
         _entities = _chunk.RawEntities;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
         _componentIndices = chunkPlan.ComponentIndices;
+        _queryPlan = queryPlan;
+        _entityRefComponentIndices = chunkPlan.EntityRefComponentIndices;
         _hasTagSlots = queryPlan is not null && queryPlan.TryGetTagSlots(_chunk, out _tagSlots);
         if (!_hasTagSlots)
         {
@@ -236,13 +256,23 @@ public ref struct GeneratedReadQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public EntityRef GetEntityRef(int index)
-        => _world.CreateEntityRef(_chunk, GetGeneratedSlotIndex(index));
+        => _world.CreateEntityRef(
+            _chunk,
+            _archetype,
+            GetGeneratedSlotIndex(index),
+            _queryPlan,
+            _entityRefComponentIndices);
 
     /// <summary>Creates a borrowed view for one physical entity slot in this query chunk.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public EntityRef GetEntityRefAtSlot(int slotIndex)
-        => _world.CreateEntityRef(_chunk, slotIndex);
+        => _world.CreateEntityRef(
+            _chunk,
+            _archetype,
+            slotIndex,
+            _queryPlan,
+            _entityRefComponentIndices);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]

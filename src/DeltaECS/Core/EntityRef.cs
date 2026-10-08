@@ -15,13 +15,23 @@ public readonly ref struct EntityRef
     private readonly Chunk _chunk;
     private readonly Archetype _archetype;
     private readonly int _slotIndex;
+    private readonly QueryPlan? _queryPlan;
+    private readonly int[]? _entityRefComponentIndices;
 
-    internal EntityRef(World world, Chunk chunk, Archetype archetype, int slotIndex)
+    internal EntityRef(
+        World world,
+        Chunk chunk,
+        Archetype archetype,
+        int slotIndex,
+        QueryPlan? queryPlan,
+        int[]? entityRefComponentIndices)
     {
         _world = world;
         _chunk = chunk;
         _archetype = archetype;
         _slotIndex = slotIndex;
+        _queryPlan = queryPlan;
+        _entityRefComponentIndices = entityRefComponentIndices;
     }
 
     /// <summary>Gets the stable handle for the current entity.</summary>
@@ -39,39 +49,121 @@ public readonly ref struct EntityRef
     /// <summary>Reports whether the current entity has the specified component registration.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Has(ComponentId componentId)
-        => _world.Has(_chunk, _archetype, _slotIndex, componentId);
+        => _world.Has(
+            _chunk,
+            _archetype,
+            _slotIndex,
+            componentId,
+            _queryPlan,
+            _entityRefComponentIndices);
 
     /// <summary>Attempts to read a component by registration, returning its default value when absent or mismatched.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryGet<T>(ComponentId componentId, out T value)
-        => _world.TryGet(_chunk, _archetype, _slotIndex, componentId, out value);
+        => _world.TryGet(
+            _chunk,
+            _archetype,
+            _slotIndex,
+            componentId,
+            _queryPlan,
+            _entityRefComponentIndices,
+            out value);
 
     /// <summary>Gets a writable component reference and marks its change stamp.</summary>
     /// <remarks>For a tag, this returns the shared default placeholder; writes through it are not stored.</remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetRef<T>(ComponentId componentId)
-        => ref _world.GetRef<T>(_chunk, _archetype, _slotIndex, componentId);
+        => ref _world.GetRef<T>(
+            _chunk,
+            _archetype,
+            _slotIndex,
+            componentId,
+            _queryPlan,
+            _entityRefComponentIndices);
 }
 
 public sealed partial class World
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal EntityRef CreateEntityRef(Chunk chunk, int slotIndex)
-        => new(this, chunk, _archetypes[chunk.ArchetypeId], slotIndex);
+    internal EntityRef CreateEntityRef(
+        Chunk chunk,
+        Archetype archetype,
+        int slotIndex,
+        QueryPlan? queryPlan,
+        int[]? entityRefComponentIndices)
+        => new(this, chunk, archetype, slotIndex, queryPlan, entityRefComponentIndices);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool Has(Chunk chunk, Archetype archetype, int slotIndex, ComponentId componentId)
+    internal bool Has(
+        Chunk chunk,
+        Archetype archetype,
+        int slotIndex,
+        ComponentId componentId,
+        QueryPlan? queryPlan,
+        int[]? entityRefComponentIndices)
     {
         EnsureExecutionAccess();
+        if (TryResolveEntityRefAccess(
+                queryPlan,
+                entityRefComponentIndices,
+                componentId,
+                out int route,
+                out int componentIndex,
+                out _))
+        {
+            return route >= 0
+                ? queryPlan!.IsRequiredEntityRefComponent(componentId) || componentIndex >= 0
+                : queryPlan!.IsRequiredEntityRefComponent(componentId)
+                    || chunk.HasTag(QueryPlan.GetEntityRefTagIndex(route), slotIndex);
+        }
+
         return _layouts.TryGetTagIndex(componentId, out int tagIndex)
             ? chunk.HasTag(tagIndex, slotIndex)
             : archetype.Contains(componentId);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool TryGet<T>(Chunk chunk, Archetype archetype, int slotIndex, ComponentId componentId, out T value)
+    internal bool TryGet<T>(
+        Chunk chunk,
+        Archetype archetype,
+        int slotIndex,
+        ComponentId componentId,
+        QueryPlan? queryPlan,
+        int[]? entityRefComponentIndices,
+        out T value)
     {
         EnsureExecutionAccess();
+        if (TryResolveEntityRefAccess(
+                queryPlan,
+                entityRefComponentIndices,
+                componentId,
+                out int route,
+                out int componentIndex,
+                out Type? runtimeType))
+        {
+            if (!ReferenceEquals(runtimeType, typeof(T)))
+            {
+                value = default!;
+                return false;
+            }
+
+            if (route >= 0)
+            {
+                if (componentIndex < 0)
+                {
+                    value = default!;
+                    return false;
+                }
+
+                value = chunk.GetComponentRef<T>(componentIndex, slotIndex);
+                return true;
+            }
+
+            value = default!;
+            return queryPlan!.IsRequiredEntityRefComponent(componentId)
+                || chunk.HasTag(QueryPlan.GetEntityRefTagIndex(route), slotIndex);
+        }
+
         if (!_layouts.TryGet(componentId, out ComponentLayout layout) || !IsCompatibleComponentType<T>(layout))
         {
             value = default!;
@@ -84,22 +176,62 @@ public sealed partial class World
             return chunk.HasTag(tagIndex, slotIndex);
         }
 
-        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
+        if (!archetype.TryGetComponentIndex(componentId, out int fallbackComponentIndex))
         {
             value = default!;
             return false;
         }
 
-        value = chunk.GetComponentRef<T>(componentIndex, slotIndex);
+        value = chunk.GetComponentRef<T>(fallbackComponentIndex, slotIndex);
         return true;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ref T GetRef<T>(Chunk chunk, Archetype archetype, int slotIndex, ComponentId componentId)
+    internal ref T GetRef<T>(
+        Chunk chunk,
+        Archetype archetype,
+        int slotIndex,
+        ComponentId componentId,
+        QueryPlan? queryPlan,
+        int[]? entityRefComponentIndices)
     {
         EnsureExecutionAccess();
-        EnsureRegisteredType<T>(componentId);
         Entity entity = chunk.RawEntities[slotIndex];
+        if (TryResolveEntityRefAccess(
+                queryPlan,
+                entityRefComponentIndices,
+                componentId,
+                out int route,
+                out int componentIndex,
+                out Type? runtimeType))
+        {
+            if (!ReferenceEquals(runtimeType, typeof(T)))
+            {
+                ThrowHelper.ThrowComponentTypeMismatch(componentId, typeof(T));
+            }
+
+            if (route < 0)
+            {
+                if (!queryPlan!.IsRequiredEntityRefComponent(componentId)
+                    && !chunk.HasTag(QueryPlan.GetEntityRefTagIndex(route), slotIndex))
+                {
+                    ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+                }
+
+                return ref GeneratedTagRows.GetReference<T>(0);
+            }
+
+            if (componentIndex < 0)
+            {
+                ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+            }
+
+            Stamp queryStamp = chunk.IncrementComponentStamp(componentIndex, slotIndex);
+            CreateEntityComponentStampWriter(chunk, componentIndex, slotIndex, queryStamp).MarkPoint();
+            return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
+        }
+
+        EnsureRegisteredType<T>(componentId);
         if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
         {
             if (!chunk.HasTag(tagIndex, slotIndex))
@@ -110,13 +242,45 @@ public sealed partial class World
             return ref GeneratedTagRows.GetReference<T>(0);
         }
 
-        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
+        if (!archetype.TryGetComponentIndex(componentId, out int fallbackComponentIndex))
         {
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }
 
-        Stamp stamp = chunk.IncrementComponentStamp(componentIndex, slotIndex);
-        CreateEntityComponentStampWriter(chunk, componentIndex, slotIndex, stamp).MarkPoint();
-        return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
+        Stamp stamp = chunk.IncrementComponentStamp(fallbackComponentIndex, slotIndex);
+        CreateEntityComponentStampWriter(chunk, fallbackComponentIndex, slotIndex, stamp).MarkPoint();
+        return ref chunk.GetComponentRef<T>(fallbackComponentIndex, slotIndex);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool TryResolveEntityRefAccess(
+        QueryPlan? queryPlan,
+        int[]? entityRefComponentIndices,
+        ComponentId componentId,
+        out int route,
+        out int componentIndex,
+        out Type? runtimeType)
+    {
+        if (queryPlan is not null
+            && queryPlan.TryGetEntityRefRoute(componentId, out route, out runtimeType))
+        {
+            if (route < 0)
+            {
+                componentIndex = -1;
+                return true;
+            }
+
+            if (entityRefComponentIndices is not null
+                && (uint)route < (uint)entityRefComponentIndices.Length)
+            {
+                componentIndex = entityRefComponentIndices.RefAt(route);
+                return true;
+            }
+        }
+
+        route = -1;
+        componentIndex = -1;
+        runtimeType = null;
+        return false;
     }
 }
