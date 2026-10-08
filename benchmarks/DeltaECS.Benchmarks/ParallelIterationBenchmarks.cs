@@ -16,10 +16,10 @@ public class ParallelMovement4IterationBenchmarks
 
     private DeltaWorld _world = null!;
     private Query _query;
-    private EcsOperation _singleThreadIteration = null!;
-    private EcsOperation _parallelIteration = null!;
     private ComponentId[] _componentIds = null!;
     private DeltaEntity[] _entities = null!;
+    private EcsOperation? _singleThreadIteration;
+    private EcsOperation? _parallelIteration;
 
     [GlobalSetup]
     public void Setup()
@@ -45,37 +45,39 @@ public class ParallelMovement4IterationBenchmarks
 
         _query = _world.CreateQuery(QuerySpec.WhereAll(_componentIds));
 
-        _singleThreadIteration = _world.ForEach(
-            in _query,
-            static (ref Movement4A a, ref Movement4B b, ref Movement4C c, in Movement4D d) =>
-                ApplyMovement4(ref a, ref b, ref c, in d));
-        _parallelIteration = _world.ForEachParallel(
+        // Exclude worker creation, route preparation and range construction from
+        // the measured steady-state calls.
+        _parallelIteration ??= _world.ForEachParallel(
             in _query,
             static (ref Movement4A a, ref Movement4B b, ref Movement4C c, in Movement4D d) =>
                 ApplyMovement4(ref a, ref b, ref c, in d),
             WorkerCount);
-
-        // Exclude iterator construction, route preparation and range construction
-        // from the measured steady-state calls.
-        _singleThreadIteration.Invoke();
         _parallelIteration.Invoke();
-        for (int index = 0; index < _entities.Length; index++)
-        {
-            _world.GetRef<Movement4A>(_entities[index], _componentIds[0]) = new Movement4A { Value = 1 };
-            _world.GetRef<Movement4B>(_entities[index], _componentIds[1]) = new Movement4B { Value = 2 };
-            _world.GetRef<Movement4C>(_entities[index], _componentIds[2]) = new Movement4C { Value = 3 };
-            _world.GetRef<Movement4D>(_entities[index], _componentIds[3]) = new Movement4D { Value = 4 };
-        }
     }
 
     [GlobalCleanup]
     public void Cleanup() => _world?.Dispose();
 
     [Benchmark(Baseline = true)]
-    public void DeltaECSMovement4() => _singleThreadIteration.Invoke();
+    public void DeltaECSMovement4()
+    {
+        _singleThreadIteration ??= _world.ForEach(
+            in _query,
+            static (ref Movement4A a, ref Movement4B b, ref Movement4C c, in Movement4D d) =>
+                ApplyMovement4(ref a, ref b, ref c, in d));
+        _singleThreadIteration.Invoke();
+    }
 
     [Benchmark]
-    public void DeltaECSMovement4Parallel() => _parallelIteration.Invoke();
+    public void DeltaECSMovement4Parallel()
+    {
+        _parallelIteration ??= _world.ForEachParallel(
+            in _query,
+            static (ref Movement4A a, ref Movement4B b, ref Movement4C c, in Movement4D d) =>
+                ApplyMovement4(ref a, ref b, ref c, in d),
+            WorkerCount);
+        _parallelIteration.Invoke();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void ApplyMovement4(

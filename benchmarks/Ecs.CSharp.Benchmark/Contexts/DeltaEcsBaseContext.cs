@@ -1,6 +1,6 @@
+using System;
 using System.Runtime.CompilerServices;
 using Delta.ECS;
-using IDisposable = System.IDisposable;
 using DeltaComponentId = Delta.ECS.ComponentId;
 using DeltaEntity = Delta.ECS.Entity;
 using DeltaLayoutRegistry = Delta.ECS.ComponentLayoutRegistry;
@@ -73,6 +73,74 @@ namespace Ecs.CSharp.Benchmark.Contexts
             first.Value += second.Value + third.Value;
     }
 
+    internal struct DeltaEntityRefFunctor : IForEachEntity
+    {
+        private readonly DeltaComponentId _componentId;
+
+        internal DeltaEntityRefFunctor(DeltaComponentId componentId) => _componentId = componentId;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Invoke(EntityRef entity)
+        {
+            ref DeltaComponent1 component = ref entity.GetRef<DeltaComponent1>(_componentId);
+            component.Value++;
+        }
+    }
+
+    internal struct DeltaEntityRefTwoComponentFunctor : IForEachEntity
+    {
+        private readonly DeltaComponentId _firstId;
+        private readonly DeltaComponentId _secondId;
+
+        internal DeltaEntityRefTwoComponentFunctor(DeltaComponentId firstId, DeltaComponentId secondId)
+        {
+            _firstId = firstId;
+            _secondId = secondId;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Invoke(EntityRef entity)
+        {
+            if (!entity.TryGet(_secondId, out DeltaComponent2 second))
+            {
+                return;
+            }
+
+            ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(_firstId);
+            first.Value += second.Value;
+        }
+    }
+
+    internal struct DeltaEntityRefThreeComponentFunctor : IForEachEntity
+    {
+        private readonly DeltaComponentId _firstId;
+        private readonly DeltaComponentId _secondId;
+        private readonly DeltaComponentId _thirdId;
+
+        internal DeltaEntityRefThreeComponentFunctor(
+            DeltaComponentId firstId,
+            DeltaComponentId secondId,
+            DeltaComponentId thirdId)
+        {
+            _firstId = firstId;
+            _secondId = secondId;
+            _thirdId = thirdId;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Invoke(EntityRef entity)
+        {
+            if (!entity.TryGet(_secondId, out DeltaComponent2 second)
+                || !entity.TryGet(_thirdId, out DeltaComponent3 third))
+            {
+                return;
+            }
+
+            ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(_firstId);
+            first.Value += second.Value + third.Value;
+        }
+    }
+
     internal sealed class DeltaCreateOneContext : IDisposable
     {
         internal DeltaWorld World { get; }
@@ -133,22 +201,12 @@ namespace Ecs.CSharp.Benchmark.Contexts
 
         internal DeltaQuery Query;
 
-        internal EcsOperation Iteration { get; private set; } = null!;
-
-        internal EcsOperation ParallelIteration { get; private set; } = null!;
-
-        internal EcsOperation<DeltaComponent1Functor> FunctorIteration { get; private set; } = null!;
-
-        internal EcsOperation<DeltaComponent1Functor> ParallelFunctorIteration { get; private set; } = null!;
-
-        private readonly DeltaComponentId _component;
-
-        private readonly DeltaEntity[] _entities;
+        internal DeltaComponentId Component { get; }
 
         internal DeltaSystemOneContext(int entityCount, int entityPadding)
         {
             DeltaLayoutRegistry layouts = new();
-            _component = layouts.Register<DeltaComponent1>(new DeltaSchemaId(901_001));
+            Component = layouts.Register<DeltaComponent1>(new DeltaSchemaId(901_001));
             DeltaComponentId padding = layouts.Register<DeltaComponentPadding>(new DeltaSchemaId(901_000));
             World = new DeltaWorld(layouts, initialEntityCapacity: entityCount * (entityPadding + 1));
 
@@ -158,40 +216,15 @@ namespace Ecs.CSharp.Benchmark.Contexts
                 World.Create(stackalloc[] { padding }, paddingEntities.Length, paddingEntities);
             }
 
-            _entities = new DeltaEntity[entityCount];
-            World.Create(stackalloc[] { _component }, entityCount, _entities);
-            for (int i = 0; i < _entities.Length; i++)
+            DeltaEntity[] entities = new DeltaEntity[entityCount];
+            World.Create(stackalloc[] { Component }, entityCount, entities);
+            for (int i = 0; i < entities.Length; i++)
             {
-                DeltaEntity entity = _entities[i];
-                World.GetRef<DeltaComponent1>(entity, _component) = new DeltaComponent1 { Value = 1 };
+                DeltaEntity entity = entities[i];
+                World.GetRef<DeltaComponent1>(entity, Component) = new DeltaComponent1 { Value = 1 };
             }
 
-            Query = World.CreateQuery(DeltaQuerySpec.WhereAll(_component));
-            Iteration = World.ForEach(
-                in Query,
-                static (ref DeltaComponent1 component) => ++component.Value);
-            ParallelIteration = World.ForEachParallel(
-                in Query,
-                static (ref DeltaComponent1 component) => ++component.Value,
-                workerCount: ParallelContext.ParallelWorkerCount);
-            FunctorIteration = World.ForEach(in Query, new DeltaComponent1Functor());
-            ParallelFunctorIteration = World.ForEachParallel(
-                in Query,
-                new DeltaComponent1Functor(),
-                workerCount: ParallelContext.ParallelWorkerCount);
-            Iteration.Invoke();
-            ParallelIteration.Invoke();
-            FunctorIteration.Invoke();
-            ParallelFunctorIteration.Invoke();
-            ResetComponents();
-        }
-
-        private void ResetComponents()
-        {
-            for (int index = 0; index < _entities.Length; index++)
-            {
-                World.GetRef<DeltaComponent1>(_entities[index], _component) = new DeltaComponent1 { Value = 1 };
-            }
+            Query = World.CreateQuery(DeltaQuerySpec.WhereAll(Component));
         }
 
         void IDisposable.Dispose() => World.Dispose();
@@ -203,19 +236,9 @@ namespace Ecs.CSharp.Benchmark.Contexts
 
         internal DeltaQuery Query;
 
-        internal EcsOperation Iteration { get; private set; } = null!;
-
-        internal EcsOperation ParallelIteration { get; private set; } = null!;
-
-        internal EcsOperation<DeltaComponent2Functor> FunctorIteration { get; private set; } = null!;
-
-        internal EcsOperation<DeltaComponent2Functor> ParallelFunctorIteration { get; private set; } = null!;
-
         internal DeltaComponentId First { get; }
 
         internal DeltaComponentId Second { get; }
-
-        private readonly DeltaEntity[] _entities;
 
         internal DeltaSystemTwoContext(int entityCount, int entityPadding)
         {
@@ -231,44 +254,16 @@ namespace Ecs.CSharp.Benchmark.Contexts
                 World.Create(stackalloc[] { padding }, paddingEntities.Length, paddingEntities);
             }
 
-            _entities = new DeltaEntity[entityCount];
-            World.Create(stackalloc[] { First, Second }, entityCount, _entities);
-            for (int i = 0; i < _entities.Length; i++)
+            DeltaEntity[] entities = new DeltaEntity[entityCount];
+            World.Create(stackalloc[] { First, Second }, entityCount, entities);
+            for (int i = 0; i < entities.Length; i++)
             {
-                DeltaEntity entity = _entities[i];
+                DeltaEntity entity = entities[i];
                 World.GetRef<DeltaComponent1>(entity, First) = new DeltaComponent1 { Value = 1 };
                 World.GetRef<DeltaComponent2>(entity, Second) = new DeltaComponent2 { Value = 2 };
             }
 
             Query = World.CreateQuery(DeltaQuerySpec.WhereAll(stackalloc ComponentId[] { First, Second }));
-            Iteration = World.ForEach(
-                in Query,
-                static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second) =>
-                    first.Value += second.Value);
-            ParallelIteration = World.ForEachParallel(
-                in Query,
-                static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second) =>
-                    first.Value += second.Value,
-                workerCount: ParallelContext.ParallelWorkerCount);
-            FunctorIteration = World.ForEach(in Query, new DeltaComponent2Functor());
-            ParallelFunctorIteration = World.ForEachParallel(
-                in Query,
-                new DeltaComponent2Functor(),
-                workerCount: ParallelContext.ParallelWorkerCount);
-            Iteration.Invoke();
-            ParallelIteration.Invoke();
-            FunctorIteration.Invoke();
-            ParallelFunctorIteration.Invoke();
-            ResetComponents();
-        }
-
-        private void ResetComponents()
-        {
-            for (int index = 0; index < _entities.Length; index++)
-            {
-                World.GetRef<DeltaComponent1>(_entities[index], First) = new DeltaComponent1 { Value = 1 };
-                World.GetRef<DeltaComponent2>(_entities[index], Second) = new DeltaComponent2 { Value = 2 };
-            }
         }
 
         void IDisposable.Dispose() => World.Dispose();
@@ -280,21 +275,11 @@ namespace Ecs.CSharp.Benchmark.Contexts
 
         internal DeltaQuery Query;
 
-        internal EcsOperation Iteration { get; private set; } = null!;
-
-        internal EcsOperation ParallelIteration { get; private set; } = null!;
-
-        internal EcsOperation<DeltaComponent3Functor> FunctorIteration { get; private set; } = null!;
-
-        internal EcsOperation<DeltaComponent3Functor> ParallelFunctorIteration { get; private set; } = null!;
-
         internal DeltaComponentId First { get; }
 
         internal DeltaComponentId Second { get; }
 
         internal DeltaComponentId Third { get; }
-
-        private readonly DeltaEntity[] _entities;
 
         internal DeltaSystemThreeContext(int entityCount, int entityPadding)
         {
@@ -311,46 +296,17 @@ namespace Ecs.CSharp.Benchmark.Contexts
                 World.Create(stackalloc[] { padding }, paddingEntities.Length, paddingEntities);
             }
 
-            _entities = new DeltaEntity[entityCount];
-            World.Create(stackalloc[] { First, Second, Third }, entityCount, _entities);
-            for (int i = 0; i < _entities.Length; i++)
+            DeltaEntity[] entities = new DeltaEntity[entityCount];
+            World.Create(stackalloc[] { First, Second, Third }, entityCount, entities);
+            for (int i = 0; i < entities.Length; i++)
             {
-                DeltaEntity entity = _entities[i];
+                DeltaEntity entity = entities[i];
                 World.GetRef<DeltaComponent1>(entity, First) = new DeltaComponent1 { Value = 1 };
                 World.GetRef<DeltaComponent2>(entity, Second) = new DeltaComponent2 { Value = 2 };
                 World.GetRef<DeltaComponent3>(entity, Third) = new DeltaComponent3 { Value = 3 };
             }
 
             Query = World.CreateQuery(DeltaQuerySpec.WhereAll(stackalloc ComponentId[] { First, Second, Third }));
-            Iteration = World.ForEach(
-                in Query,
-                static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second, ref readonly DeltaComponent3 third) =>
-                    first.Value += second.Value + third.Value);
-            ParallelIteration = World.ForEachParallel(
-                in Query,
-                static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second, ref readonly DeltaComponent3 third) =>
-                    first.Value += second.Value + third.Value,
-                workerCount: ParallelContext.ParallelWorkerCount);
-            FunctorIteration = World.ForEach(in Query, new DeltaComponent3Functor());
-            ParallelFunctorIteration = World.ForEachParallel(
-                in Query,
-                new DeltaComponent3Functor(),
-                workerCount: ParallelContext.ParallelWorkerCount);
-            Iteration.Invoke();
-            ParallelIteration.Invoke();
-            FunctorIteration.Invoke();
-            ParallelFunctorIteration.Invoke();
-            ResetComponents();
-        }
-
-        private void ResetComponents()
-        {
-            for (int index = 0; index < _entities.Length; index++)
-            {
-                World.GetRef<DeltaComponent1>(_entities[index], First) = new DeltaComponent1 { Value = 1 };
-                World.GetRef<DeltaComponent2>(_entities[index], Second) = new DeltaComponent2 { Value = 2 };
-                World.GetRef<DeltaComponent3>(_entities[index], Third) = new DeltaComponent3 { Value = 3 };
-            }
         }
 
         void IDisposable.Dispose() => World.Dispose();
@@ -362,19 +318,9 @@ namespace Ecs.CSharp.Benchmark.Contexts
 
         internal DeltaQuery Query;
 
-        internal EcsOperation Iteration { get; private set; } = null!;
-
-        internal EcsOperation ParallelIteration { get; private set; } = null!;
-
-        internal EcsOperation<DeltaComponent2Functor> FunctorIteration { get; private set; } = null!;
-
-        internal EcsOperation<DeltaComponent2Functor> ParallelFunctorIteration { get; private set; } = null!;
-
         internal DeltaComponentId First { get; }
 
         internal DeltaComponentId Second { get; }
-
-        private readonly DeltaEntity[] _entities;
 
         internal DeltaSystemMultipleCompositionContext(int entityCount)
         {
@@ -386,60 +332,29 @@ namespace Ecs.CSharp.Benchmark.Contexts
             DeltaComponentId padding2 = layouts.Register<DeltaCompositionPadding2>(new DeltaSchemaId(901_011));
             DeltaComponentId padding3 = layouts.Register<DeltaCompositionPadding3>(new DeltaSchemaId(901_012));
             World = new DeltaWorld(layouts, initialEntityCapacity: entityCount);
-            _entities = new DeltaEntity[entityCount];
 
             DeltaComponentId[] composition0 = [First, Second, padding0];
             DeltaComponentId[] composition1 = [First, Second, padding1];
             DeltaComponentId[] composition2 = [First, Second, padding2];
             DeltaComponentId[] composition3 = [First, Second, padding3];
 
-            int offset = 0;
-            offset = CreateComposition(composition0, (entityCount + 3) / 4, offset);
-            offset = CreateComposition(composition1, (entityCount + 2) / 4, offset);
-            offset = CreateComposition(composition2, (entityCount + 1) / 4, offset);
-            _ = CreateComposition(composition3, entityCount / 4, offset);
+            CreateComposition(composition0, (entityCount + 3) / 4);
+            CreateComposition(composition1, (entityCount + 2) / 4);
+            CreateComposition(composition2, (entityCount + 1) / 4);
+            CreateComposition(composition3, entityCount / 4);
 
             Query = World.CreateQuery(DeltaQuerySpec.WhereAll(stackalloc ComponentId[] { First, Second }));
-            Iteration = World.ForEach(
-                in Query,
-                static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second) =>
-                    first.Value += second.Value);
-            ParallelIteration = World.ForEachParallel(
-                in Query,
-                static (ref DeltaComponent1 first, ref readonly DeltaComponent2 second) =>
-                    first.Value += second.Value,
-                workerCount: ParallelContext.ParallelWorkerCount);
-            FunctorIteration = World.ForEach(in Query, new DeltaComponent2Functor());
-            ParallelFunctorIteration = World.ForEachParallel(
-                in Query,
-                new DeltaComponent2Functor(),
-                workerCount: ParallelContext.ParallelWorkerCount);
-            Iteration.Invoke();
-            ParallelIteration.Invoke();
-            FunctorIteration.Invoke();
-            ParallelFunctorIteration.Invoke();
-            ResetComponents();
         }
 
-        private int CreateComposition(DeltaComponentId[] composition, int count, int offset)
+        private void CreateComposition(DeltaComponentId[] composition, int count)
         {
-            World.Create(composition, count, System.MemoryExtensions.AsSpan(_entities, offset, count));
-            for (int index = 0; index < count; index++)
+            DeltaEntity[] entities = new DeltaEntity[count];
+            World.Create(composition, count, entities);
+            for (int index = 0; index < entities.Length; index++)
             {
-                DeltaEntity entity = _entities[offset + index];
+                DeltaEntity entity = entities[index];
                 World.GetRef<DeltaComponent1>(entity, First) = new DeltaComponent1 { Value = 1 };
                 World.GetRef<DeltaComponent2>(entity, Second) = new DeltaComponent2 { Value = 2 };
-            }
-
-            return offset + count;
-        }
-
-        private void ResetComponents()
-        {
-            for (int index = 0; index < _entities.Length; index++)
-            {
-                World.GetRef<DeltaComponent1>(_entities[index], First) = new DeltaComponent1 { Value = 1 };
-                World.GetRef<DeltaComponent2>(_entities[index], Second) = new DeltaComponent2 { Value = 2 };
             }
         }
 
@@ -448,6 +363,6 @@ namespace Ecs.CSharp.Benchmark.Contexts
 
     public static class ParallelContext
     {
-        public static int ParallelWorkerCount = System.Environment.ProcessorCount;
+        public static int ParallelWorkerCount = Environment.ProcessorCount;
     }
 }

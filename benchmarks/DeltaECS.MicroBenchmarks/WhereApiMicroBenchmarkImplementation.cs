@@ -28,10 +28,8 @@ public class WhereApiMicroBenchmarkImplementation
     private Query _deadQuery;
     private ComponentId _valueId;
     private int _targetCount;
-    private EcsOperation _directIteration = null!;
-    private EcsOperation _whereIteration = null!;
-    private EcsResultOperation<int> _addDead = null!;
-    private EcsResultOperation<int> _removeDead = null!;
+    private EcsOperation? _directIteration;
+    private EcsOperation? _whereIteration;
 
     [GlobalSetup]
     public void Setup()
@@ -54,37 +52,6 @@ public class WhereApiMicroBenchmarkImplementation
         _query = _world.CreateQuery(in description);
         QuerySpec deadDescription = QuerySpec.WhereAll(stackalloc ComponentId[] { _valueId, accumulatorId, deadId });
         _deadQuery = _world.CreateQuery(in deadDescription);
-
-        _directIteration = _world.ForEach(
-            in _query,
-            static (ref readonly WhereApiValue value, ref WhereApiAccumulator accumulator) =>
-            {
-                if (value.Value <= 0)
-                {
-                    accumulator.Value++;
-                }
-            });
-        _whereIteration = _world.Where(
-                in _query,
-                static (ref readonly WhereApiValue value) => value.Value <= 0)
-            .ForEach(static (ref WhereApiAccumulator accumulator) => accumulator.Value++);
-        _addDead = _world.Where(
-                in _query,
-                static (ref readonly WhereApiValue value) => value.Value <= 0)
-            .Add<WhereApiDead>();
-        _removeDead = _world.Where(
-                in _deadQuery,
-                static (ref readonly WhereApiValue value) => value.Value <= 0)
-            .Remove<WhereApiDead>();
-
-        _directIteration.Invoke();
-        _whereIteration.Invoke();
-        _ = _addDead.Invoke();
-        _ = _removeDead.Invoke();
-        for (int index = 0; index < _entities.Length; index++)
-        {
-            _world.GetRef<WhereApiAccumulator>(_entities[index], accumulatorId) = default;
-        }
     }
 
     [GlobalCleanup]
@@ -93,6 +60,15 @@ public class WhereApiMicroBenchmarkImplementation
     [Benchmark(Baseline = true)]
     public int DirectForEach()
     {
+        _directIteration ??= _world.ForEach(
+            in _query,
+            static (ref readonly WhereApiValue value, ref WhereApiAccumulator accumulator) =>
+            {
+                if (value.Value <= 0)
+                {
+                    accumulator.Value++;
+                }
+            });
         _directIteration.Invoke();
         return _targetCount;
     }
@@ -100,6 +76,10 @@ public class WhereApiMicroBenchmarkImplementation
     [Benchmark]
     public int WhereForEachRefReadonly()
     {
+        _whereIteration ??= _world.Where(
+                in _query,
+                static (ref readonly WhereApiValue value) => value.Value <= 0)
+            .ForEach(static (ref WhereApiAccumulator accumulator) => accumulator.Value++);
         _whereIteration.Invoke();
         return _targetCount;
     }
@@ -107,8 +87,14 @@ public class WhereApiMicroBenchmarkImplementation
     [Benchmark]
     public int WhereAddRemove()
     {
-        int added = _addDead.Invoke();
-        int removed = _removeDead.Invoke();
+        int added = _world.Where(
+                in _query,
+                static (ref readonly WhereApiValue value) => value.Value <= 0)
+            .Add<WhereApiDead>().Invoke();
+        int removed = _world.Where(
+                in _deadQuery,
+                static (ref readonly WhereApiValue value) => value.Value <= 0)
+            .Remove<WhereApiDead>().Invoke();
         return added + removed;
     }
 

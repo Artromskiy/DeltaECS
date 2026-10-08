@@ -52,12 +52,11 @@ public class Movement4ApiComparisonMicroBenchmarkImplementation
 
     private MicroWorld _fixture = null!;
     private Query _query;
-    private EcsOperation<Movement4NoContextFunctor> _functorOperation = null!;
-    private EcsOperation _delegateOperation = null!;
-    private EcsOperation _interceptedOperation = null!;
-    private EcsOperation<Movement4ApiContext> _delegateContextOperation = null!;
-    private EcsOperation<Movement4ApiContext, Movement4ContextFunctor> _functorContextOperation = null!;
-
+    private EcsOperation<Movement4NoContextFunctor>? _functorOperation;
+    private EcsOperation? _delegateOperation;
+    private EcsOperation? _interceptedOperation;
+    private EcsOperation<Movement4ApiContext>? _delegateContextOperation;
+    private EcsOperation<Movement4ApiContext, Movement4ContextFunctor>? _functorContextOperation;
     [GlobalSetup]
     public void Setup()
     {
@@ -69,39 +68,13 @@ public class Movement4ApiComparisonMicroBenchmarkImplementation
             _fixture.Movement4C,
             _fixture.Movement4D);
         _query = _fixture.World.CreateQuery(in description);
-
-        Movement4NoContextFunctor functor = default;
-        Movement4ApiContext context = default;
-        Movement4ContextFunctor contextFunctor = default;
-        ForEachAction_WWWR<Movement4A, Movement4B, Movement4C, Movement4D> action = ApplyDelegate;
-        _functorOperation = _fixture.World.ForEach(in _query, ref functor);
-        _delegateOperation = _fixture.World.ForEach(in _query, action);
-        _interceptedOperation = _fixture.World.ForEach(in _query, ApplyDelegate);
-        _delegateContextOperation = _fixture.World.ForEach(
-            in _query,
-            ref context,
-            static (ref Movement4ApiContext state, ref Movement4A a, ref Movement4B b, ref Movement4C c, ref readonly Movement4D d) =>
-            {
-                a.Value = d.Value + 1;
-                b.Value = d.Value + 2;
-                c.Value = (a.Value + b.Value) / 2;
-                state.Checksum += a.Value + b.Value + c.Value + d.Value;
-            });
-        _functorContextOperation = _fixture.World.ForEach(in _query, ref context, ref contextFunctor);
-
-        _functorOperation.Invoke(ref functor);
-        s_delegateChecksum = 0;
-        _delegateOperation.Invoke();
-        s_delegateChecksum = 0;
-        _interceptedOperation.Invoke();
-        _delegateContextOperation.Invoke(ref context);
-        _functorContextOperation.Invoke(ref context, ref contextFunctor);
     }
 
     [Benchmark]
     public int Functor()
     {
         var functor = new Movement4NoContextFunctor();
+        _functorOperation ??= _fixture.World.ForEach(in _query, ref functor);
         _functorOperation.Invoke(ref functor);
         return functor.Checksum;
     }
@@ -110,6 +83,9 @@ public class Movement4ApiComparisonMicroBenchmarkImplementation
     public int Delegate()
     {
         s_delegateChecksum = 0;
+        _delegateOperation ??= _fixture.World.ForEach(
+            in _query,
+            (ForEachAction_WWWR<Movement4A, Movement4B, Movement4C, Movement4D>)ApplyDelegate);
         _delegateOperation.Invoke();
         return s_delegateChecksum;
     }
@@ -118,6 +94,7 @@ public class Movement4ApiComparisonMicroBenchmarkImplementation
     public int Intercepted()
     {
         s_delegateChecksum = 0;
+        _interceptedOperation ??= _fixture.World.ForEach(in _query, ApplyDelegate);
         _interceptedOperation.Invoke();
         return s_delegateChecksum;
     }
@@ -139,6 +116,16 @@ public class Movement4ApiComparisonMicroBenchmarkImplementation
     public int DelegateContext()
     {
         var context = new Movement4ApiContext();
+        _delegateContextOperation ??= _fixture.World.ForEach(
+            in _query,
+            ref context,
+            static (ref Movement4ApiContext state, ref Movement4A a, ref Movement4B b, ref Movement4C c, ref readonly Movement4D d) =>
+            {
+                a.Value = d.Value + 1;
+                b.Value = d.Value + 2;
+                c.Value = (a.Value + b.Value) / 2;
+                state.Checksum += a.Value + b.Value + c.Value + d.Value;
+            });
         _delegateContextOperation.Invoke(ref context);
         return context.Checksum;
     }
@@ -148,6 +135,7 @@ public class Movement4ApiComparisonMicroBenchmarkImplementation
     {
         var context = new Movement4ApiContext();
         var functor = new Movement4ContextFunctor();
+        _functorContextOperation ??= _fixture.World.ForEach(in _query, ref context, ref functor);
         _functorContextOperation.Invoke(ref context, ref functor);
         return context.Checksum;
     }

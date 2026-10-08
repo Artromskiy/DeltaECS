@@ -89,12 +89,13 @@ internal sealed class MicroWorld
 }
 internal static class MicroBenchmarkKernels
 {
-    public static EcsOperation<int> CreateMovement2Iteration(
+    public static int IterateMovement2Dense(
+        ref EcsOperation<int>? iteration,
         MicroWorld fixture,
         in Query query)
     {
-        int checksum = 0;
-        return fixture.World.ForEach(
+        var checksum = 0;
+        iteration ??= fixture.World.ForEach(
             in query,
             ref checksum,
             static (ref int sum, ref Position p, ref readonly Velocity v) =>
@@ -103,21 +104,17 @@ internal static class MicroBenchmarkKernels
                 p.Y += v.Y;
                 sum += p.X + p.Y;
             });
-    }
-
-    public static int IterateMovement2Dense(EcsOperation<int> iteration)
-    {
-        var checksum = 0;
         iteration.Invoke(ref checksum);
         return checksum;
     }
 
-    public static EcsOperation<int> CreateMovement4Iteration(
+    public static int IterateMovement4Dense(
+        ref EcsOperation<int>? iteration,
         MicroWorld fixture,
         in Query query)
     {
-        int checksum = 0;
-        return fixture.World.ForEach(
+        var checksum = 0;
+        iteration ??= fixture.World.ForEach(
             in query,
             ref checksum,
             static (ref int sum, ref Movement4A a, ref Movement4B b, ref Movement4C c, ref readonly Movement4D d) =>
@@ -127,14 +124,10 @@ internal static class MicroBenchmarkKernels
                 c.Value = (a.Value + b.Value) / 2;
                 sum += a.Value + b.Value + c.Value + d.Value;
             });
-    }
-
-    public static int IterateMovement4Dense(EcsOperation<int> iteration)
-    {
-        var checksum = 0;
         iteration.Invoke(ref checksum);
         return checksum;
     }
+
 }
 
 public class DenseIterationMicroBenchmarkImplementation
@@ -146,8 +139,8 @@ public class DenseIterationMicroBenchmarkImplementation
     private Entity[] _movement4Entities = null!;
     private Query _movement2Query;
     private Query _movement4Query;
-    private EcsOperation<int> _movement2Iteration = null!;
-    private EcsOperation<int> _movement4Iteration = null!;
+    private EcsOperation<int>? _movement2Iteration;
+    private EcsOperation<int>? _movement4Iteration;
 
     [GlobalSetup]
     public void Setup()
@@ -165,13 +158,6 @@ public class DenseIterationMicroBenchmarkImplementation
             _fixture.Movement4C,
             _fixture.Movement4D);
         _movement4Query = _fixture.World.CreateQuery(in movement4);
-
-        _movement2Iteration = MicroBenchmarkKernels.CreateMovement2Iteration(_fixture, in _movement2Query);
-        _movement4Iteration = MicroBenchmarkKernels.CreateMovement4Iteration(_fixture, in _movement4Query);
-        _ = MicroBenchmarkKernels.IterateMovement2Dense(_movement2Iteration);
-        _ = MicroBenchmarkKernels.IterateMovement4Dense(_movement4Iteration);
-        _fixture.ResetMoving(_movement2Entities);
-        _fixture.ResetMovement4(_movement4Entities);
     }
 
     [IterationSetup(Target = nameof(Movement2Components))]
@@ -182,11 +168,17 @@ public class DenseIterationMicroBenchmarkImplementation
 
     [Benchmark]
     public int Movement2Components() =>
-        MicroBenchmarkKernels.IterateMovement2Dense(_movement2Iteration);
+        MicroBenchmarkKernels.IterateMovement2Dense(
+            ref _movement2Iteration,
+            _fixture,
+            in _movement2Query);
 
     [Benchmark]
     public int Movement4Components() =>
-        MicroBenchmarkKernels.IterateMovement4Dense(_movement4Iteration);
+        MicroBenchmarkKernels.IterateMovement4Dense(
+            ref _movement4Iteration,
+            _fixture,
+            in _movement4Query);
 }
 
 internal record struct GeneratedMovement4Functor : IForEach
@@ -214,7 +206,7 @@ public class GeneratedFunctorMovement4MicroBenchmarkImplementation
     private MicroWorld _fixture = null!;
     private Entity[] _entities = null!;
     private Query _query;
-    private EcsOperation<GeneratedMovement4Functor> _iteration = null!;
+    private EcsOperation<GeneratedMovement4Functor>? _iteration;
 
     [GlobalSetup]
     public void Setup()
@@ -227,10 +219,6 @@ public class GeneratedFunctorMovement4MicroBenchmarkImplementation
             _fixture.Movement4C,
             _fixture.Movement4D);
         _query = _fixture.World.CreateQuery(in description);
-        GeneratedMovement4Functor functor = default;
-        _iteration = _fixture.World.ForEach(in _query, ref functor);
-        _iteration.Invoke(ref functor);
-        _fixture.ResetMovement4(_entities);
     }
 
     [IterationSetup]
@@ -240,6 +228,7 @@ public class GeneratedFunctorMovement4MicroBenchmarkImplementation
     public int Movement4GeneratedFunctor()
     {
         var functor = new GeneratedMovement4Functor();
+        _iteration ??= _fixture.World.ForEach(in _query, ref functor);
         _iteration.Invoke(ref functor);
         return functor.Checksum;
     }
@@ -253,9 +242,11 @@ internal static class MicroContractSmoke
         var movement2Entities = fixture.CreateMoving(8);
         var movement2Description = QuerySpec.WhereAll(stackalloc ComponentId[] { fixture.Position, fixture.Velocity });
         var movement2Query = fixture.World.CreateQuery(in movement2Description);
-        EcsOperation<int> movement2Iteration = MicroBenchmarkKernels.CreateMovement2Iteration(fixture, in movement2Query);
+        EcsOperation<int>? movement2Iteration = null;
         var movement2Sum = MicroBenchmarkKernels.IterateMovement2Dense(
-            movement2Iteration);
+            ref movement2Iteration,
+            fixture,
+            in movement2Query);
         if (movement2Sum != movement2Entities.Length * (movement2Entities.Length + 3))
         {
             throw new InvalidOperationException("Dense Movement2 checksum mismatch.");
@@ -269,9 +260,11 @@ internal static class MicroContractSmoke
             fixture.Movement4C,
             fixture.Movement4D);
         var movement4Query = fixture.World.CreateQuery(in movement4Description);
-        EcsOperation<int> movement4Iteration = MicroBenchmarkKernels.CreateMovement4Iteration(fixture, in movement4Query);
+        EcsOperation<int>? movement4Iteration = null;
         var movement4Sum = MicroBenchmarkKernels.IterateMovement4Dense(
-            movement4Iteration);
+            ref movement4Iteration,
+            fixture,
+            in movement4Query);
         if (movement4Sum != movement4Entities.Length * 20)
         {
             throw new InvalidOperationException("Dense Movement4 checksum mismatch.");

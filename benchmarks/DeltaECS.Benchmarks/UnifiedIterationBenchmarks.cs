@@ -25,7 +25,7 @@ public class ComparativeDenseIterationBenchmarks
     public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
     private DeltaWorld _delta = null!;
     private Query _deltaQuery;
-    private EcsOperation<long> _deltaIteration = null!;
+    private EcsOperation<long>? _deltaIteration;
     private ComponentId _deltaValue;
     private Arch.Core.World _arch = null!;
     private ArchComponentType[] _archTypes = null!;
@@ -55,12 +55,6 @@ public class ComparativeDenseIterationBenchmarks
 
         var spec = QuerySpec.WhereAll(_deltaValue);
         _deltaQuery = _delta.CreateQuery(in spec);
-        long checksum = 0;
-        _deltaIteration = _delta.ForEach(
-            in _deltaQuery,
-            ref checksum,
-            static (ref long sum, ref readonly DenseValue value) => ApplyDense(in value, ref sum));
-        _deltaIteration.Invoke(ref checksum);
 
         _arch = Arch.Core.World.Create();
         _archTypes = new ArchComponentType[] { typeof(DenseValue) };
@@ -110,7 +104,7 @@ public class ComparativeDenseIterationBenchmarks
         (_leo as IDisposable)?.Dispose();
     }
 
-    [Benchmark(Baseline = true)] public long DeltaECSDense() { long sum = 0; _deltaIteration.Invoke(ref sum); return Checksum(sum, (long)Amount * (Amount + 1) / 2, "dense"); }
+    [Benchmark(Baseline = true)] public long DeltaECSDense() { long sum = 0; _deltaIteration ??= _delta.ForEach(in _deltaQuery, ref sum, static (ref long checksum, ref readonly DenseValue value) => ApplyDense(in value, ref checksum)); _deltaIteration.Invoke(ref sum); return Checksum(sum, (long)Amount * (Amount + 1) / 2, "dense"); }
     [Benchmark] public long ArchDense() { long sum = 0; _arch.Query(_archQuery, (ref DenseValue value) => ApplyDense(in value, ref sum)); return Checksum(sum, (long)Amount * (Amount + 1) / 2, "dense"); }
     [Benchmark] public long FrifloEngineECSDense() { long sum = 0; _frifloQuery.ForEachEntity((ref DenseValue value, FrifloEntity _) => ApplyDense(in value, ref sum)); return Checksum(sum, (long)Amount * (Amount + 1) / 2, "dense"); }
     [Benchmark] public long DefaultEcsDense() { long sum = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { var value = entities[i].Get<DenseValue>(); ApplyDense(in value, ref sum); } return Checksum(sum, (long)Amount * (Amount + 1) / 2, "dense"); }
@@ -135,7 +129,7 @@ public class ComparativeMovement2ComponentsBenchmarks
     public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
     private DeltaWorld _delta = null!;
     private Query _deltaQuery;
-    private EcsOperation<double> _deltaIteration = null!;
+    private EcsOperation<double>? _deltaIteration;
     private ComponentId _deltaPosition, _deltaVelocity;
     private DeltaEntity[] _deltaEntities = null!;
     private Arch.Core.World _arch = null!;
@@ -170,12 +164,6 @@ public class ComparativeMovement2ComponentsBenchmarks
         }
         var deltaDescription = QuerySpec.WhereAll(stackalloc ComponentId[] { _deltaPosition, _deltaVelocity });
         _deltaQuery = _delta.CreateQuery(in deltaDescription);
-        double checksum = 0;
-        _deltaIteration = _delta.ForEach(
-            in _deltaQuery,
-            ref checksum,
-            static (ref double sum, ref Movement2Position position, ref readonly Movement2Velocity velocity) =>
-                ApplyMovement2(ref position, in velocity, ref sum));
 
         _arch = Arch.Core.World.Create();
         _archTypes = new ArchComponentType[] { typeof(Movement2Position), typeof(Movement2Velocity) };
@@ -223,8 +211,6 @@ public class ComparativeMovement2ComponentsBenchmarks
             velocity.Y = 4;
         }
         _leoQuery = _leo.Filter<Movement2Position>().Inc<Movement2Velocity>().End();
-        _deltaIteration.Invoke(ref checksum);
-        ResetMovement();
     }
 
     public void ResetMovement()
@@ -295,7 +281,7 @@ public class ComparativeMovement2ComponentsBenchmarks
         (_leo as IDisposable)?.Dispose();
     }
 
-    [Benchmark(Baseline = true)] public double DeltaECSMovement2Components() { double sum = 0; _deltaIteration.Invoke(ref sum); return sum; }
+    [Benchmark(Baseline = true)] public double DeltaECSMovement2Components() { double sum = 0; _deltaIteration ??= _delta.ForEach(in _deltaQuery, ref sum, static (ref double checksum, ref Movement2Position position, ref readonly Movement2Velocity velocity) => ApplyMovement2(ref position, in velocity, ref checksum)); _deltaIteration.Invoke(ref sum); return sum; }
     [Benchmark] public double ArchMovement2Components() { double sum = 0; _arch.Query(_archQuery, (ref Movement2Position position, ref Movement2Velocity velocity) => ApplyMovement2(ref position, in velocity, ref sum)); return sum; }
     [Benchmark] public double FrifloEngineECSMovement2Components() { double sum = 0; _frifloQuery.ForEachEntity((ref Movement2Position position, ref Movement2Velocity velocity, FrifloEntity _) => ApplyMovement2(ref position, in velocity, ref sum)); return sum; }
     [Benchmark] public double DefaultEcsMovement2Components() { double sum = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { ref var position = ref entities[i].Get<Movement2Position>(); var velocity = entities[i].Get<Movement2Velocity>(); ApplyMovement2(ref position, in velocity, ref sum); } return sum; }
@@ -322,7 +308,7 @@ public class ComparativeMovement4ComponentsBenchmarks
 {
     public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
     private DeltaWorld _delta = null!; private Query _deltaQuery; private ComponentId[] _deltaIds = null!; private DeltaEntity[] _deltaEntities = null!;
-    private EcsOperation<int> _deltaIteration = null!;
+    private EcsOperation<int>? _deltaIteration;
     private Arch.Core.World _arch = null!; private ArchComponentType[] _archTypes = null!; private Arch.Core.QueryDescription _archQuery; private Arch.Core.Entity[] _archEntities = null!;
     private EntityStore _friflo = null!; private ArchetypeQuery<Movement4A, Movement4B, Movement4C, Movement4D> _frifloQuery = null!; private FrifloEntity[] _frifloEntities = null!;
     private DefaultWorld _default = null!; private DefaultEcs.Entity[] _defaultEntities = null!; private DefaultEcs.EntitySet _defaultQuery = null!;
@@ -333,12 +319,6 @@ public class ComparativeMovement4ComponentsBenchmarks
     {
         var layouts = new ComponentLayoutRegistry(); _deltaIds = new[] { layouts.Register<Movement4A>(new SchemaId(202_000)), layouts.Register<Movement4B>(new SchemaId(202_001)), layouts.Register<Movement4C>(new SchemaId(202_002)), layouts.Register<Movement4D>(new SchemaId(202_003)) }; _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); _deltaEntities = new DeltaEntity[Amount]; _delta.Create(_deltaIds, _deltaEntities); for (var i = 0; i < Amount; i++) { _delta.GetRef<Movement4A>(_deltaEntities[i], _deltaIds[0]) = new Movement4A { Value = 1 }; _delta.GetRef<Movement4B>(_deltaEntities[i], _deltaIds[1]) = new Movement4B { Value = 2 }; _delta.GetRef<Movement4C>(_deltaEntities[i], _deltaIds[2]) = new Movement4C { Value = 3 }; _delta.GetRef<Movement4D>(_deltaEntities[i], _deltaIds[3]) = new Movement4D { Value = 4 }; }
         var d = QuerySpec.WhereAll(_deltaIds); _deltaQuery = _delta.CreateQuery(in d);
-        int checksum = 0;
-        _deltaIteration = _delta.ForEach(
-            in _deltaQuery,
-            ref checksum,
-            static (ref int sum, ref Movement4A rowA, ref Movement4B rowB, ref Movement4C rowC, in Movement4D rowD) =>
-                ApplyMovement4(ref rowA, ref rowB, ref rowC, in rowD, ref sum));
         _arch = Arch.Core.World.Create(); _archTypes = new ArchComponentType[] { typeof(Movement4A), typeof(Movement4B), typeof(Movement4C), typeof(Movement4D) }; _arch.Reserve(_archTypes, Amount); _archQuery = new Arch.Core.QueryDescription { All = _archTypes }; _archEntities = new Arch.Core.Entity[Amount]; for (var i = 0; i < Amount; i++) { _archEntities[i] = _arch.Create(_archTypes); _arch.Set(_archEntities[i], new Movement4A { Value = 1 }); _arch.Set(_archEntities[i], new Movement4B { Value = 2 }); _arch.Set(_archEntities[i], new Movement4C { Value = 3 }); _arch.Set(_archEntities[i], new Movement4D { Value = 4 }); }
         _friflo = new EntityStore(); _frifloEntities = new FrifloEntity[Amount]; for (var i = 0; i < Amount; i++)
         {
@@ -350,8 +330,6 @@ public class ComparativeMovement4ComponentsBenchmarks
         _defaultQuery = _default.GetEntities().With<Movement4A>().With<Movement4B>().With<Movement4C>().With<Movement4D>().AsSet();
         _leo = new EcsWorld(); _leo0 = _leo.GetPool<Movement4A>(); _leo1 = _leo.GetPool<Movement4B>(); _leo2 = _leo.GetPool<Movement4C>(); _leo3 = _leo.GetPool<Movement4D>(); _leoEntities = new int[Amount]; for (var i = 0; i < Amount; i++) { var e = _leoEntities[i] = _leo.NewEntity(); _leo0.Add(e).Value = 1; _leo1.Add(e).Value = 2; _leo2.Add(e).Value = 3; _leo3.Add(e).Value = 4; }
         _leoQuery = _leo.Filter<Movement4A>().Inc<Movement4B>().Inc<Movement4C>().Inc<Movement4D>().End();
-        _deltaIteration.Invoke(ref checksum);
-        ResetMovement4();
     }
     public void ResetMovement4()
     {
@@ -427,7 +405,7 @@ public class ComparativeMovement4ComponentsBenchmarks
         (_leo as IDisposable)?.Dispose();
     }
 
-    [Benchmark(Baseline = true)] public int DeltaECSMovement4Components() { var sum = 0; _deltaIteration.Invoke(ref sum); return sum; }
+    [Benchmark(Baseline = true)] public int DeltaECSMovement4Components() { var sum = 0; _deltaIteration ??= _delta.ForEach(in _deltaQuery, ref sum, static (ref int checksum, ref Movement4A rowA, ref Movement4B rowB, ref Movement4C rowC, ref readonly Movement4D rowD) => ApplyMovement4(ref rowA, ref rowB, ref rowC, in rowD, ref checksum)); _deltaIteration.Invoke(ref sum); return sum; }
     [Benchmark] public int ArchMovement4Components() { var sum = 0; _arch.Query(_archQuery, (ref Movement4A rowA, ref Movement4B rowB, ref Movement4C rowC, ref Movement4D rowD) => ApplyMovement4(ref rowA, ref rowB, ref rowC, in rowD, ref sum)); return sum; }
     [Benchmark] public int FrifloEngineECSMovement4Components() { var sum = 0; _frifloQuery.ForEachEntity((ref Movement4A rowA, ref Movement4B rowB, ref Movement4C rowC, ref Movement4D rowD, FrifloEntity _) => ApplyMovement4(ref rowA, ref rowB, ref rowC, in rowD, ref sum)); return sum; }
     [Benchmark] public int DefaultEcsMovement4Components() { var sum = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { ref var rowA = ref entities[i].Get<Movement4A>(); ref var rowB = ref entities[i].Get<Movement4B>(); ref var rowC = ref entities[i].Get<Movement4C>(); var rowD = entities[i].Get<Movement4D>(); ApplyMovement4(ref rowA, ref rowB, ref rowC, in rowD, ref sum); } return sum; }
@@ -457,7 +435,7 @@ public class ComparativeWideArchetypeNarrowQueryBenchmarks
 {
     public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
     private DeltaWorld _delta = null!; private Query _deltaQuery; private ComponentId[] _deltaIds = null!;
-    private EcsOperation<int> _deltaIteration = null!;
+    private EcsOperation<int>? _deltaIteration;
     private Arch.Core.World _arch = null!; private ArchComponentType[] _archTypes = null!; private Arch.Core.QueryDescription _archQuery;
     private EntityStore _friflo = null!; private ArchetypeQuery<Wide0, Wide7> _frifloQuery = null!;
     private DefaultWorld _default = null!; private DefaultEcs.Entity[] _defaultEntities = null!; private DefaultEcs.EntitySet _defaultQuery = null!;
@@ -467,12 +445,6 @@ public class ComparativeWideArchetypeNarrowQueryBenchmarks
     {
         var layouts = new ComponentLayoutRegistry(); _deltaIds = new[] { layouts.Register<Wide0>(new SchemaId(203_000)), layouts.Register<Wide1>(new SchemaId(203_001)), layouts.Register<Wide2>(new SchemaId(203_002)), layouts.Register<Wide3>(new SchemaId(203_003)), layouts.Register<Wide4>(new SchemaId(203_004)), layouts.Register<Wide5>(new SchemaId(203_005)), layouts.Register<Wide6>(new SchemaId(203_006)), layouts.Register<Wide7>(new SchemaId(203_007)) }; _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); var de = new DeltaEntity[Amount]; _delta.Create(_deltaIds, de); for (var i = 0; i < Amount; i++) { _delta.GetRef<Wide0>(de[i], _deltaIds[0]) = new Wide0 { Value = 1 }; _delta.GetRef<Wide7>(de[i], _deltaIds[7]) = new Wide7 { Value = 8 }; }
         var d = QuerySpec.WhereAll(stackalloc ComponentId[] { _deltaIds[0], _deltaIds[7] }); _deltaQuery = _delta.CreateQuery(in d);
-        int checksum = 0;
-        _deltaIteration = _delta.ForEach(
-            in _deltaQuery,
-            ref checksum,
-            static (ref int sum, ref readonly Wide0 a, ref readonly Wide7 z) => ApplyWide(in a, in z, ref sum));
-        _deltaIteration.Invoke(ref checksum);
         _arch = Arch.Core.World.Create(); _archTypes = new ArchComponentType[] { typeof(Wide0), typeof(Wide1), typeof(Wide2), typeof(Wide3), typeof(Wide4), typeof(Wide5), typeof(Wide6), typeof(Wide7) }; _arch.Reserve(_archTypes, Amount); _archQuery = new Arch.Core.QueryDescription { All = new ArchComponentType[] { _archTypes[0], _archTypes[7] } }; for (var i = 0; i < Amount; i++) { var e = _arch.Create(_archTypes); _arch.Set(e, new Wide0 { Value = 1 }); _arch.Set(e, new Wide7 { Value = 8 }); }
         _friflo = new EntityStore(); for (var i = 0; i < Amount; i++)
         {
@@ -495,7 +467,7 @@ public class ComparativeWideArchetypeNarrowQueryBenchmarks
         (_leo as IDisposable)?.Dispose();
     }
 
-    [Benchmark(Baseline = true)] public int DeltaECSWideArchetypeNarrowQuery() { var sum = 0; _deltaIteration.Invoke(ref sum); return Check(sum, Amount * 9); }
+    [Benchmark(Baseline = true)] public int DeltaECSWideArchetypeNarrowQuery() { var sum = 0; _deltaIteration ??= _delta.ForEach(in _deltaQuery, ref sum, static (ref int checksum, ref readonly Wide0 a, ref readonly Wide7 z) => ApplyWide(in a, in z, ref checksum)); _deltaIteration.Invoke(ref sum); return Check(sum, Amount * 9); }
     [Benchmark] public int ArchWideArchetypeNarrowQuery() { var sum = 0; _arch.Query(_archQuery, (ref Wide0 a, ref Wide7 z) => ApplyWide(in a, in z, ref sum)); return Check(sum, Amount * 9); }
     [Benchmark] public int FrifloEngineECSWideArchetypeNarrowQuery() { var sum = 0; _frifloQuery.ForEachEntity((ref Wide0 a, ref Wide7 z, FrifloEntity _) => ApplyWide(in a, in z, ref sum)); return Check(sum, Amount * 9); }
     [Benchmark] public int DefaultEcsWideArchetypeNarrowQuery() { var sum = 0; var entities = _defaultQuery.GetEntities(); for (var i = entities.Length - 1; i >= 0; i--) { var a = entities[i].Get<Wide0>(); var z = entities[i].Get<Wide7>(); ApplyWide(in a, in z, ref sum); } return Check(sum, Amount * 9); }
@@ -514,7 +486,7 @@ public class ComparativeSparseQueryBenchmarks
 {
     public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
     private DeltaWorld _delta = null!; private Query _deltaQuery; private ComponentId _deltaA, _deltaB, _deltaC; private DeltaEntity[] _deltaEntities = null!;
-    private EcsOperation<int> _deltaQueryIteration = null!;
+    private EcsOperation<int>? _deltaQueryIteration;
     private Arch.Core.World _arch = null!; private ArchComponentType[] _archMatchTypes = null!; private ArchComponentType[] _archNonMatchTypes = null!; private ArchComponentType _archCType; private Arch.Core.QueryDescription _archQuery;
     private EntityStore _friflo = null!; private ArchetypeQuery<SparseA, SparseB> _frifloQuery = null!;
     private DefaultWorld _default = null!; private DefaultEcs.EntitySet _defaultQuery = null!;
@@ -526,12 +498,6 @@ public class ComparativeSparseQueryBenchmarks
     {
         var layouts = new ComponentLayoutRegistry(); _deltaA = layouts.Register<SparseA>(new SchemaId(204_000)); _deltaB = layouts.Register<SparseB>(new SchemaId(204_001)); _deltaC = layouts.Register<SparseC>(new SchemaId(204_002)); var n0 = layouts.Register<SparseNoise0>(new SchemaId(204_003)); var n1 = layouts.Register<SparseNoise1>(new SchemaId(204_004)); var n2 = layouts.Register<SparseNoise2>(new SchemaId(204_005)); var n3 = layouts.Register<SparseNoise3>(new SchemaId(204_006)); _delta = new DeltaWorld(layouts, initialEntityCapacity: Amount); _deltaEntities = new DeltaEntity[Amount]; for (var i = 0; i < Amount; i++) { var ids = i % ComparativeBenchmarkParameters.SparseMatchStride == 0 ? new[] { _deltaA, _deltaB, n0, n1, n2, n3 } : new[] { _deltaA, _deltaB, _deltaC, n0, n1, n2, n3 }; var entity = _deltaEntities[i] = _delta.Create(ids); _delta.GetRef<SparseA>(entity, _deltaA) = new SparseA { Value = 1 }; _delta.GetRef<SparseB>(entity, _deltaB) = new SparseB { Value = 2 }; }
         _deltaQuery = _delta.WhereAll(_deltaA, _deltaB).WhereNone(_deltaC);
-        int deltaMatches = 0;
-        _deltaQueryIteration = _delta.ForEach(
-            in _deltaQuery,
-            ref deltaMatches,
-            static (ref int matches, ref readonly SparseA a, ref readonly SparseB b) => ApplySparse(ref matches, in a, in b));
-        _deltaQueryIteration.Invoke(ref deltaMatches);
         _arch = Arch.Core.World.Create(); _archCType = typeof(SparseC); _archMatchTypes = new ArchComponentType[] { typeof(SparseA), typeof(SparseB), typeof(SparseNoise0), typeof(SparseNoise1), typeof(SparseNoise2), typeof(SparseNoise3) }; _archNonMatchTypes = new ArchComponentType[] { typeof(SparseA), typeof(SparseB), _archCType, typeof(SparseNoise0), typeof(SparseNoise1), typeof(SparseNoise2), typeof(SparseNoise3) }; _arch.Reserve(_archMatchTypes, Amount); _arch.Reserve(_archNonMatchTypes, Amount); _archQuery = new Arch.Core.QueryDescription { All = new ArchComponentType[] { _archMatchTypes[0], _archMatchTypes[1] }, None = new ArchComponentType[] { _archCType } }; for (var i = 0; i < Amount; i++) { var e = i % ComparativeBenchmarkParameters.SparseMatchStride == 0 ? _arch.Create(_archMatchTypes) : _arch.Create(_archNonMatchTypes); _arch.Set(e, new SparseA { Value = 1 }); _arch.Set(e, new SparseB { Value = 2 }); }
         _friflo = new EntityStore(); for (var i = 0; i < Amount; i++)
         {
@@ -567,7 +533,16 @@ public class ComparativeSparseQueryBenchmarks
         _default?.Dispose();
         (_leo as IDisposable)?.Dispose();
     }
-    [Benchmark(Baseline = true), BenchmarkCategory("Iteration.SparseWorldQueryPlan")] public int DeltaECSSparseWorldQueryPlan() => DeltaQuery();
+    [Benchmark(Baseline = true), BenchmarkCategory("Iteration.SparseWorldQueryPlan")]
+    public int DeltaECSSparseWorldQueryPlan()
+    {
+        int count = 0;
+        _deltaQueryIteration ??= _delta.ForEach(in _deltaQuery, ref count,
+            static (ref int matches, ref readonly SparseA a, ref readonly SparseB b) =>
+                ApplySparse(ref matches, in a, in b));
+        _deltaQueryIteration.Invoke(ref count);
+        return Check(count);
+    }
     [Benchmark, BenchmarkCategory("Iteration.SparseWorldQueryPlan")] public int ArchSparseWorldQueryPlan() => ArchQuery(_archQuery);
     [Benchmark, BenchmarkCategory("Iteration.SparseWorldQueryPlan")] public int FrifloEngineECSSparseWorldQueryPlan() => FrifloQuery(_frifloQuery);
     [Benchmark, BenchmarkCategory("Iteration.SparseWorldQueryPlan")] public int DefaultEcsSparseWorldQueryPlan() => DefaultQuery(_defaultQuery.GetEntities());
@@ -581,18 +556,9 @@ public class ComparativeSparseQueryBenchmarks
     private int DeltaQuery(Query query)
     {
         var count = 0;
-        // This case measures constructing and executing a query plan, so its
-        // iteration operation is intentionally created in the measured call.
         _delta.ForEach(in query, ref count,
             static (ref int matches, ref readonly SparseA a, ref readonly SparseB b) => ApplySparse(ref matches, in a, in b)).Invoke(ref count);
 
-        return Check(count);
-    }
-
-    private int DeltaQuery()
-    {
-        int count = 0;
-        _deltaQueryIteration.Invoke(ref count);
         return Check(count);
     }
     private int ArchQuery(Arch.Core.QueryDescription query) { var count = 0; _arch.Query(query, (ref SparseA a, ref SparseB b) => ApplySparse(ref count, in a, in b)); return Check(count); }

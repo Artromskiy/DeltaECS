@@ -16,11 +16,11 @@ public class TagFilteringBenchmarks
     private Query _componentQuery;
     private Query _tagEntityQuery;
     private Query _componentEntityQuery;
-    private EcsOperation<long> _componentValueIteration = null!;
-    private EcsOperation<long> _tagValueIteration = null!;
-    private EcsOperation<long> _componentEntityIteration = null!;
-    private EcsOperation<long> _tagEntityIteration = null!;
     private long _expectedChecksum;
+    private EcsOperation<long>? _componentValueIteration;
+    private EcsOperation<long>? _tagValueIteration;
+    private EcsOperation<long>? _componentEntityIteration;
+    private EcsOperation<long>? _tagEntityIteration;
 
     [GlobalSetup]
     public void Setup()
@@ -55,24 +55,6 @@ public class TagFilteringBenchmarks
         _tagEntityQuery = _tagWorld.WhereAll<TagFilteringMarkerTag>();
         _componentEntityQuery = _componentWorld.WhereAll<TagFilteringMarkerComponent>();
 
-        long checksum = 0;
-        _componentValueIteration = _componentWorld.ForEach(
-            in _componentQuery,
-            ref checksum,
-            static (ref long sum, ref readonly TagFilteringValueComponent value) => sum += value.Value);
-        _tagValueIteration = _tagWorld.ForEach(
-            in _tagQuery,
-            ref checksum,
-            static (ref long sum, ref readonly TagFilteringValueComponent value) => sum += value.Value);
-        _componentEntityIteration = _componentWorld.ForEachEntity(
-            in _componentEntityQuery,
-            ref checksum,
-            static (ref long sum, EntityRef entity) => sum += entity.Index + 1L);
-        _tagEntityIteration = _tagWorld.ForEachEntity(
-            in _tagEntityQuery,
-            ref checksum,
-            static (ref long sum, EntityRef entity) => sum += entity.Index + 1L);
-
         Validate(ComponentFilterAndValueIteration(), "component filter + component iteration");
         Validate(TagFilterAndValueIteration(), "tag filter + component iteration");
         Validate(ComponentFilterEntityIteration(), "component filter + entity iteration");
@@ -91,6 +73,10 @@ public class TagFilteringBenchmarks
     public long ComponentFilterAndValueIteration()
     {
         long checksum = 0;
+        _componentValueIteration ??= _componentWorld.ForEach(
+            in _componentQuery,
+            ref checksum,
+            static (ref long sum, ref readonly TagFilteringValueComponent value) => sum += value.Value);
         _componentValueIteration.Invoke(ref checksum);
         return Validate(checksum, "component filter + component iteration");
     }
@@ -100,6 +86,10 @@ public class TagFilteringBenchmarks
     public long TagFilterAndValueIteration()
     {
         long checksum = 0;
+        _tagValueIteration ??= _tagWorld.ForEach(
+            in _tagQuery,
+            ref checksum,
+            static (ref long sum, ref readonly TagFilteringValueComponent value) => sum += value.Value);
         _tagValueIteration.Invoke(ref checksum);
         return Validate(checksum, "tag filter + component iteration");
     }
@@ -109,6 +99,10 @@ public class TagFilteringBenchmarks
     public long ComponentFilterEntityIteration()
     {
         long checksum = 0;
+        _componentEntityIteration ??= _componentWorld.ForEachEntity(
+            in _componentEntityQuery,
+            ref checksum,
+            static (ref long sum, EntityRef entity) => sum += entity.Index + 1L);
         _componentEntityIteration.Invoke(ref checksum);
         return Validate(checksum, "component filter + entity iteration");
     }
@@ -118,6 +112,10 @@ public class TagFilteringBenchmarks
     public long TagFilterEntityIteration()
     {
         long checksum = 0;
+        _tagEntityIteration ??= _tagWorld.ForEachEntity(
+            in _tagEntityQuery,
+            ref checksum,
+            static (ref long sum, EntityRef entity) => sum += entity.Index + 1L);
         _tagEntityIteration.Invoke(ref checksum);
         return Validate(checksum, "tag filter + entity iteration");
     }

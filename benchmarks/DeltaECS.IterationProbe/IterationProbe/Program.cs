@@ -25,12 +25,12 @@ public class IterationBenchmarks : IDisposable
     private Query _query4;
     private Query _query8;
     private Query _query16;
-    private EcsOperation<IterationState> _iteration1 = null!;
-    private EcsOperation<IterationState> _iteration2 = null!;
-    private EcsOperation<IterationState> _iteration3 = null!;
-    private EcsOperation<IterationState> _iteration4 = null!;
-    private EcsOperation<IterationState> _iteration8 = null!;
-    private EcsOperation<IterationState> _iteration16 = null!;
+    private EcsOperation<IterationState>? _iteration1;
+    private EcsOperation<IterationState>? _iteration2;
+    private EcsOperation<IterationState>? _iteration3;
+    private EcsOperation<IterationState>? _iteration4;
+    private EcsOperation<IterationState>? _iteration8;
+    private EcsOperation<IterationState>? _iteration16;
 
     [GlobalSetup]
     public void Setup()
@@ -84,33 +84,84 @@ public class IterationBenchmarks : IDisposable
         _query4 = _world.CreateQuery(in query4);
         _query8 = _world.CreateQuery(in query8);
         _query16 = _world.CreateQuery(in query16);
+    }
 
-        IterationState warmup = default;
-        _iteration1 = _world.ForEach(in _query1, ref warmup,
+    [Benchmark]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public long Components1()
+    {
+        var state = new IterationState();
+        _iteration1 ??= _world.ForEach(
+            in _query1,
+            ref state,
             static (ref IterationState state, in C00 c0) =>
             {
                 state.Visited++;
                 state.Checksum += c0.Value;
             });
-        _iteration2 = _world.ForEach(in _query2, ref warmup,
+        _iteration1.Invoke(ref state);
+        return state.Result;
+    }
+
+    [Benchmark]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public long Components2()
+    {
+        var state = new IterationState();
+        _iteration2 ??= _world.ForEach(
+            in _query2,
+            ref state,
             static (ref IterationState state, in C00 c0, in C01 c1) =>
             {
                 state.Visited++;
                 state.Checksum += c0.Value + c1.Value;
             });
-        _iteration3 = _world.ForEach(in _query3, ref warmup,
+        _iteration2.Invoke(ref state);
+        return state.Result;
+    }
+
+    [Benchmark]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public long Components3()
+    {
+        var state = new IterationState();
+        _iteration3 ??= _world.ForEach(
+            in _query3,
+            ref state,
             static (ref IterationState state, in C00 c0, in C01 c1, in C02 c2) =>
             {
                 state.Visited++;
                 state.Checksum += c0.Value + c1.Value + c2.Value;
             });
-        _iteration4 = _world.ForEach(in _query4, ref warmup,
+        _iteration3.Invoke(ref state);
+        return state.Result;
+    }
+
+    [Benchmark]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public long Components4()
+    {
+        var state = new IterationState();
+        _iteration4 ??= _world.ForEach(
+            in _query4,
+            ref state,
             static (ref IterationState state, in C00 c0, in C01 c1, in C02 c2, in C03 c3) =>
             {
                 state.Visited++;
                 state.Checksum += c0.Value + c1.Value + c2.Value + c3.Value;
             });
-        _iteration8 = _world.ForEach(in _query8, ref warmup,
+        _iteration4.Invoke(ref state);
+        return state.Result;
+    }
+
+    [Benchmark]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public long Components8()
+    {
+        var state = new IterationState();
+        _iteration8 ??= _world.ForEach(
+            in _query8,
+            ref state,
             static (
                 ref IterationState state,
                 in C00 c0,
@@ -125,7 +176,18 @@ public class IterationBenchmarks : IDisposable
                 state.Visited++;
                 state.Checksum += c0.Value + c1.Value + c2.Value + c3.Value + c4.Value + c5.Value + c6.Value + c7.Value;
             });
-        _iteration16 = _world.ForEach(in _query16, ref warmup,
+        _iteration8.Invoke(ref state);
+        return state.Result;
+    }
+
+    [Benchmark]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public long Components16()
+    {
+        var state = new IterationState();
+        _iteration16 ??= _world.ForEach(
+            in _query16,
+            ref state,
             static (
                 ref IterationState state,
                 in C00 c0,
@@ -151,72 +213,8 @@ public class IterationBenchmarks : IDisposable
                                   + c8.Value + c9.Value + c10.Value + c11.Value
                                   + c12.Value + c13.Value + c14.Value + c15.Value;
             });
-        Warm(_iteration1);
-        Warm(_iteration2);
-        Warm(_iteration3);
-        Warm(_iteration4);
-        Warm(_iteration8);
-        Warm(_iteration16);
-    }
-
-    [Benchmark]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    public long Components1()
-    {
-        var state = new IterationState();
-        _iteration1.Invoke(ref state);
-        return state.Result;
-    }
-
-    [Benchmark]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    public long Components2()
-    {
-        var state = new IterationState();
-        _iteration2.Invoke(ref state);
-        return state.Result;
-    }
-
-    [Benchmark]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    public long Components3()
-    {
-        var state = new IterationState();
-        _iteration3.Invoke(ref state);
-        return state.Result;
-    }
-
-    [Benchmark]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    public long Components4()
-    {
-        var state = new IterationState();
-        _iteration4.Invoke(ref state);
-        return state.Result;
-    }
-
-    [Benchmark]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    public long Components8()
-    {
-        var state = new IterationState();
-        _iteration8.Invoke(ref state);
-        return state.Result;
-    }
-
-    [Benchmark]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    public long Components16()
-    {
-        var state = new IterationState();
         _iteration16.Invoke(ref state);
         return state.Result;
-    }
-
-    private static void Warm(EcsOperation<IterationState> iteration)
-    {
-        IterationState state = default;
-        iteration.Invoke(ref state);
     }
 
     public void Dispose()
