@@ -66,27 +66,16 @@ jobs:
           dotnet test tests/DeltaECSTests/DeltaECSTests.csproj -c Release --no-build --no-restore
           dotnet build benchmarks/DeltaECS.Benchmarks/DeltaECS.Benchmarks.csproj -c Release --no-restore
 
-      - name: Publish and run NativeAOT consumer proof
+      - name: Publish and run NativeAOT grammar proof
         run: |
-          dotnet publish tests/DeltaECS.Generators.Aot/DeltaECS.Generators.Aot.csproj \
+          dotnet publish tests/DeltaECS.Grammar.Aot/DeltaECS.Grammar.Aot.csproj \
             -c Release \
             -r linux-x64 \
             --self-contained true \
             -p:PublishAot=true \
             -p:StripSymbols=true \
-            -p:PublishDir="$GITHUB_WORKSPACE/artifacts/aot-consumer/linux-x64/"
-          artifacts/aot-consumer/linux-x64/DeltaECS.Generators.Aot
-
-      - name: Publish and run NativeAOT component visitor proof
-        run: |
-          dotnet publish tests/DeltaECS.ComponentTypeVisitor.Aot/DeltaECS.ComponentTypeVisitor.Aot.csproj \
-            -c Release \
-            -r linux-x64 \
-            --self-contained true \
-            -p:PublishAot=true \
-            -p:StripSymbols=true \
-            -p:PublishDir="$GITHUB_WORKSPACE/artifacts/aot-component-visitor/linux-x64/"
-          artifacts/aot-component-visitor/linux-x64/DeltaECS.ComponentTypeVisitor.Aot
+            -p:PublishDir="$GITHUB_WORKSPACE/artifacts/aot-grammar-smoke/linux-x64/"
+          artifacts/aot-grammar-smoke/linux-x64/DeltaECS.Grammar.Aot
 
       - name: Record runner information
         run: |

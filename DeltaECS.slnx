@@ -13,8 +13,7 @@
   <Project Path="tests/DeltaECSTests/DeltaECSTests.csproj" />
   <Project Path="tests/DeltaECS.Systems.Tests/DeltaECS.Systems.Tests.csproj" />
   <Project Path="tests/DeltaECS.Generators.Tests/DeltaECS.Generators.Tests.csproj" />
-  <Project Path="tests/DeltaECS.ComponentTypeVisitor.Aot/DeltaECS.ComponentTypeVisitor.Aot.csproj" />
-  <Project Path="tests/DeltaECS.Generators.Aot/DeltaECS.Generators.Aot.csproj" />
+  <Project Path="tests/DeltaECS.Grammar.Aot/DeltaECS.Grammar.Aot.csproj" />
   <Project Path="tests/DeltaECS.Generators.Consumer/DeltaECS.Generators.Consumer.csproj" />
   <Project Path="tests/DeltaECS.Runtime.Consumer/DeltaECS.Runtime.Consumer.csproj" />
 </Solution>

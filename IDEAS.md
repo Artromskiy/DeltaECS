@@ -98,6 +98,29 @@ Do not promote this idea until dependency validation, structural barriers,
 version invalidation, determinism and small-workload fallback have dedicated
 tests and benchmark evidence.
 
+## Borrowed entity access during entity-only iteration
+
+Status: untested; API and performance idea for dynamic component access.
+
+`ForEachEntity` could offer a scoped `EntityRef` view backed by the current
+chunk and slot. Reads and writes through that view would avoid resolving the
+same `Entity` handle through the world's entity records for each component
+operation. Keep the initial form focused on reusing the known location; it
+must still check component registration and membership when the requested
+`ComponentId` is not guaranteed by the query. Writes must retain component
+stamp behavior, and the borrowed view must not outlive the iteration or a
+structural change.
+
+A later optimization could bind component rows guaranteed by `WhereAll` once
+per query chunk and let `EntityRef` access those rows directly. Keep that
+binding separate from the initial API until a workload shows that per-access
+archetype lookups remain significant. Parallel writes also need declared
+component access before they can be scheduled safely.
+
+Promote only after defining the borrow lifetime and write semantics, adding
+tests for stale/optional component access and stamps, and measuring entity
+lookup against `World.TryGet`, `Has` and `GetRef` in representative workloads.
+
 ## Performance candidates
 
 Evidence and candidate order live in

@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Delta.ECS.Grammar.Aot</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CA1062;CA1724;CS0649;IDE0005;IDE0055</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(PublishAot)' == 'true'">
+    <DefineConstants>$(DefineConstants);NATIVE_AOT</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(PublishAot)' != 'true'">
+    <ProjectReference Include="../../src/DeltaECS/DeltaECS.csproj" />
+    <ProjectReference Include="../DeltaECS.Runtime.Consumer/DeltaECS.Runtime.Consumer.csproj" />
+    <ProjectReference Include="../DeltaECS.Generators.Consumer/DeltaECS.Generators.Consumer.csproj"
+                      GlobalPropertiesToRemove="PublishAot;PublishTrimmed;SelfContained;RuntimeIdentifier" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(PublishAot)' == 'true'">
+    <Reference Include="DeltaECS">
+      <HintPath>../../src/DeltaECS/bin/$(Configuration)/net10.0/DeltaECS.dll</HintPath>
+    </Reference>
+    <Reference Include="DeltaECS.Runtime.Consumer">
+      <HintPath>../DeltaECS.Runtime.Consumer/bin/$(Configuration)/net10.0/DeltaECS.Runtime.Consumer.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>

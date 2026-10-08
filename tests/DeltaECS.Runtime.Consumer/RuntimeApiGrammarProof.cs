@@ -3,6 +3,10 @@ namespace Delta.ECS.Runtime.Consumer;
 /// <summary>Public runtime API grammar proof that compiles and runs without a generator reference.</summary>
 public static partial class RuntimeApiGrammarProof
 {
+    /// <summary>Runs the registration and constrained visitor paths selected for NativeAOT coverage.</summary>
+    public static void RunAotProof()
+        => VerifyRegistrationAndVisitors();
+
     /// <summary>Runs the public API call shapes that do not require generated consumer code.</summary>
     public static void Run()
     {
@@ -19,7 +23,10 @@ public static partial class RuntimeApiGrammarProof
     private static void VerifyRegistrationAndVisitors()
     {
         var layouts = new ComponentLayoutRegistry();
-        layouts.BindInterface<Position, IMovable>();
+        var positionConstraint = new StructConstraint();
+        var classConstraint = new ClassConstraint();
+        layouts.BindInterface<Position, IMovable>(in positionConstraint);
+        layouts.BindInterface<ClassComponent, IMovable>(in classConstraint);
 
         ComponentId firstPositionId = layouts.Register<Position>(new SchemaId(930_001));
         ComponentId secondPositionId = layouts.Register<Position>(new SchemaId(930_002));
@@ -43,6 +50,12 @@ public static partial class RuntimeApiGrammarProof
         Require(layouts.TryVisit(firstPositionId, interfaceVisitor));
         Require(layouts.TryVisit(secondPositionId, interfaceVisitor));
         Require(interfaceVisitor.VisitCount == 2);
+
+        var generalVisitor = new GeneralMovableVisitor();
+        Require(layouts.TryVisit(firstPositionId, generalVisitor));
+        Require(layouts.TryVisit(classId, generalVisitor));
+        Require(generalVisitor.StructVisitCount == 1);
+        Require(generalVisitor.ClassVisitCount == 1);
 
         var structVisitor = new StructVisitor();
         Require(layouts.TryVisit(managedStructId, structVisitor));
@@ -258,6 +271,25 @@ public static partial class RuntimeApiGrammarProof
 
         public void Visit<TComponent>(ComponentId componentId) where TComponent : IOther
             => _ = componentId;
+    }
+
+    private sealed class GeneralMovableVisitor : GeneralComponentTypeVisitor<IMovable>
+    {
+        public int StructVisitCount { get; private set; }
+
+        public int ClassVisitCount { get; private set; }
+
+        protected override void VisitStruct<TComponent>(ComponentId componentId)
+        {
+            _ = componentId;
+            StructVisitCount++;
+        }
+
+        protected override void VisitClass<TComponent>(ComponentId componentId)
+        {
+            _ = componentId;
+            ClassVisitCount++;
+        }
     }
 
     private sealed class StructVisitor : IStructVisitor
