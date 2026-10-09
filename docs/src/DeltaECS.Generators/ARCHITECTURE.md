@@ -82,6 +82,16 @@ When a replacement generator is introduced for an existing public path, mark
 the old path obsolete before migrating its callers and delete the obsolete
 implementation and tests in the same migration.
 
+`ComponentRegistryGenerator` emits one closed registration implementation per
+`[DeltaEcsComponent]`. Its implementation calls
+`ComponentLayoutRegistryRegistrationExtensions.Register<T>` with the concrete
+component type, so C# selects the matching marker route while compiling the
+generated source. `ComponentLayoutRegistry.Register(registration)` remains the
+caller-facing entry point for generated catalog iteration; it invokes that
+closed registration call without selecting constraints again at runtime.
+Generated component type tokens remain responsible for visitor dispatch and
+runtime-selected generic component registration.
+
 ## Runtime-selected generic functor adapters
 
 `GenericFunctorGenerator` discovers accessible generic `IForEach` and

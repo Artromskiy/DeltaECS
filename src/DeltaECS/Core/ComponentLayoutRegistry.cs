@@ -2,6 +2,7 @@ namespace Delta.ECS;
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 /// <summary>Registers component CLR types and their stable schema identities.</summary>
@@ -55,16 +56,7 @@ public sealed partial class ComponentLayoutRegistry
             ThrowHelper.ThrowGeneratedComponentSchemaIdZero(registration.ComponentType);
         }
 
-        IGeneratedComponentTypeToken typeToken = GeneratedComponentTypeTokenRegistry.Get(registration.ComponentType);
-        ComponentRegistrationTypeToken registrationToken = CreateComponentRegistrationTypeToken(typeToken);
-        var visitor = new GeneratedComponentRegistrationVisitor(
-            this,
-            registration.SchemaId,
-            registration.IsTag,
-            typeToken,
-            registrationToken);
-        typeToken.Dispatch(ReadOnlySpan<IGeneratedComponentTypeToken>.Empty, ref visitor);
-        return visitor.ComponentId;
+        return registration.Register(this);
     }
 
     private static ComponentRegistrationTypeToken CreateComponentRegistrationTypeToken(IGeneratedComponentTypeToken typeToken)
@@ -129,21 +121,6 @@ public sealed partial class ComponentLayoutRegistry
 
         void IGeneratedClassComponentTypeVisitor.Visit<T>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining)
             => _registrationToken = new ComponentRegistrationTypeToken(new ClassComponentTypeRegistrationRoute<T>());
-    }
-
-    private struct GeneratedComponentRegistrationVisitor(
-        ComponentLayoutRegistry layouts,
-        SchemaId schemaId,
-        bool isTag,
-        IGeneratedComponentTypeToken typeToken,
-        ComponentRegistrationTypeToken registrationToken) : IGeneratedComponentTypeVisitor
-    {
-        private ComponentId _componentId;
-
-        internal readonly ComponentId ComponentId => _componentId;
-
-        void IGeneratedComponentTypeVisitor.Visit<T>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining)
-            => _componentId = layouts.RegisterGeneratedComponent<T>(schemaId, typeToken, isTag, registrationToken);
     }
 
     private sealed class GenericRegistration(ComponentId[] arguments, ComponentId componentId)
@@ -277,7 +254,8 @@ public sealed partial class ComponentLayoutRegistry
         registrations.Add(new GenericRegistration(componentArguments.ToArray(), componentId));
     }
 
-    internal static bool IsTagType(Type runtimeType)
+    internal static bool IsTagType(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType)
         => runtimeType.IsValueType
             && !runtimeType.IsPrimitive
             && !runtimeType.IsEnum

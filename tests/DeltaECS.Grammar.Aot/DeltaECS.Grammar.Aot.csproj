@@ -17,6 +17,7 @@
   <ItemGroup Condition="'$(PublishAot)' != 'true'">
     <ProjectReference Include="../../src/DeltaECS/DeltaECS.csproj" />
     <ProjectReference Include="../DeltaECS.Runtime.Consumer/DeltaECS.Runtime.Consumer.csproj" />
+    <ProjectReference Include="../DeltaECS.Registration.CSharp9/DeltaECS.Registration.CSharp9.csproj" />
     <ProjectReference Include="../DeltaECS.Generators.Consumer/DeltaECS.Generators.Consumer.csproj"
                       GlobalPropertiesToRemove="PublishAot;PublishTrimmed;SelfContained;RuntimeIdentifier" />
   </ItemGroup>
@@ -27,6 +28,9 @@
     </Reference>
     <Reference Include="DeltaECS.Runtime.Consumer">
       <HintPath>../DeltaECS.Runtime.Consumer/bin/$(Configuration)/net10.0/DeltaECS.Runtime.Consumer.dll</HintPath>
+    </Reference>
+    <Reference Include="DeltaECS.Registration.CSharp9">
+      <HintPath>../DeltaECS.Registration.CSharp9/bin/$(Configuration)/net10.0/DeltaECS.Registration.CSharp9.dll</HintPath>
     </Reference>
   </ItemGroup>
 </Project>

@@ -10,16 +10,11 @@ internal sealed class NamedComponentTypeVisitorTests
     {
         var layouts = new ComponentLayoutRegistry();
         BindUnconstrained<UnconstrainedComponent, IGameComponent>(layouts);
-        StructConstraint structConstraint = default;
-        UnmanagedConstraint unmanagedConstraint = default;
-        ClassConstraint classConstraint = default;
-        NewConstraint newConstraint = default;
-        ClassNewConstraint classNewConstraint = default;
-        layouts.BindInterface<ManagedStructComponent, IGameComponent>(in structConstraint);
-        layouts.BindInterface<UnmanagedComponent, IGameComponent>(in unmanagedConstraint);
-        layouts.BindInterface<ClassComponent, IGameComponent>(in classConstraint);
-        layouts.BindInterface<NewComponent, IGameComponent>(in newConstraint);
-        layouts.BindInterface<ClassNewComponent, IGameComponent>(in classNewConstraint);
+        BindAsStruct<ManagedStructComponent, IGameComponent>(layouts);
+        BindAsUnmanaged<UnmanagedComponent, IGameComponent>(layouts);
+        BindAsClass<ClassComponent, IGameComponent>(layouts);
+        BindAsNew<NewComponent, IGameComponent>(layouts);
+        BindAsClassNew<ClassNewComponent, IGameComponent>(layouts);
 
         ComponentId unconstrainedId = layouts.Register<UnconstrainedComponent>(new SchemaId(80_090));
         ComponentId structId = layouts.Register<ManagedStructComponent>(new SchemaId(80_091));
@@ -39,6 +34,26 @@ internal sealed class NamedComponentTypeVisitorTests
 
     private static void BindUnconstrained<TComponent, TInterface>(ComponentLayoutRegistry layouts)
         where TComponent : TInterface
+        => layouts.BindInterface<TComponent, TInterface>();
+
+    private static void BindAsStruct<TComponent, TInterface>(ComponentLayoutRegistry layouts)
+        where TComponent : struct, TInterface
+        => layouts.BindInterface<TComponent, TInterface>();
+
+    private static void BindAsUnmanaged<TComponent, TInterface>(ComponentLayoutRegistry layouts)
+        where TComponent : unmanaged, TInterface
+        => layouts.BindInterface<TComponent, TInterface>();
+
+    private static void BindAsClass<TComponent, TInterface>(ComponentLayoutRegistry layouts)
+        where TComponent : class, TInterface
+        => layouts.BindInterface<TComponent, TInterface>();
+
+    private static void BindAsNew<TComponent, TInterface>(ComponentLayoutRegistry layouts)
+        where TComponent : TInterface, new()
+        => layouts.BindInterface<TComponent, TInterface>();
+
+    private static void BindAsClassNew<TComponent, TInterface>(ComponentLayoutRegistry layouts)
+        where TComponent : class, TInterface, new()
         => layouts.BindInterface<TComponent, TInterface>();
 
     private static void AssertVisited(

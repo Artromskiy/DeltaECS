@@ -63,22 +63,41 @@ internal sealed class PublicApiShapeTests
     }
 
     [Test]
-    public void ComponentRegistryExposesConstraintAwareRegistrationAndVisitorMethods()
+    public void ComponentRegistryExposesConstraintSelectedRegistrationAndVisitorMethods()
     {
         MethodInfo[] registerMethods = typeof(ComponentLayoutRegistry)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
             .Where(static method => method.Name == "Register")
             .ToArray();
+        MethodInfo[] registrationExtensions = typeof(ComponentLayoutRegistryRegistrationExtensions)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(static method => method.Name == "Register")
+            .ToArray();
+        MethodInfo[] interfaceBindingExtensions = typeof(ComponentLayoutRegistryRegistrationExtensions)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(static method => method.Name == "BindInterface")
+            .ToArray();
 
         Assert.Multiple(() =>
         {
-            Assert.That(registerMethods, Has.Length.EqualTo(9));
+            Assert.That(registerMethods, Has.Length.EqualTo(3));
             MethodInfo[] typedRegistrations = registerMethods.Where(static method => method.IsGenericMethod).ToArray();
-            Assert.That(typedRegistrations, Has.Length.EqualTo(6));
-            Assert.That(
-                typedRegistrations.Any(static method => method.GetParameters().Select(static parameter => parameter.ParameterType)
-                    .SequenceEqual(new[] { typeof(SchemaId) })),
-                Is.True);
+            Assert.That(typedRegistrations, Is.Empty);
+            Assert.That(registrationExtensions, Has.Length.EqualTo(6));
+            Assert.That(registrationExtensions.All(static method => method.IsGenericMethod
+                && method.GetParameters().Length == 2
+                && method.GetParameters()[1].ParameterType == typeof(SchemaId)), Is.True);
+            Assert.That(interfaceBindingExtensions, Has.Length.EqualTo(6));
+            Assert.That(interfaceBindingExtensions.All(static method => method.IsGenericMethod
+                && method.GetGenericArguments().Length == 2
+                && method.GetParameters().Length == 1), Is.True);
+            Assert.That(typeof(IComponentLayoutRegistryUnmanagedRoute).IsAssignableFrom(typeof(ComponentLayoutRegistry)), Is.True);
+            Assert.That(typeof(IComponentLayoutRegistryClassNewRoute).IsAssignableFrom(typeof(ComponentLayoutRegistry)), Is.True);
+            Assert.That(typeof(ComponentLayoutRegistry).Assembly.GetType("Delta.ECS.StructConstraint"), Is.Null);
+            Assert.That(typeof(ComponentLayoutRegistry).Assembly.GetType("Delta.ECS.ClassConstraint"), Is.Null);
+            Assert.That(typeof(ComponentLayoutRegistry).Assembly.GetType("Delta.ECS.UnmanagedConstraint"), Is.Null);
+            Assert.That(typeof(ComponentLayoutRegistry).Assembly.GetType("Delta.ECS.NewConstraint"), Is.Null);
+            Assert.That(typeof(ComponentLayoutRegistry).Assembly.GetType("Delta.ECS.ClassNewConstraint"), Is.Null);
             Assert.That(
                 registerMethods.Any(static method => method.GetParameters().Select(static parameter => parameter.ParameterType)
                     .SequenceEqual(new[] { typeof(Type), typeof(ReadOnlySpan<ComponentId>), typeof(SchemaId) })),

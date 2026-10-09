@@ -16,4 +16,5 @@
   <Project Path="tests/DeltaECS.Grammar.Aot/DeltaECS.Grammar.Aot.csproj" />
   <Project Path="tests/DeltaECS.Generators.Consumer/DeltaECS.Generators.Consumer.csproj" />
   <Project Path="tests/DeltaECS.Runtime.Consumer/DeltaECS.Runtime.Consumer.csproj" />
+  <Project Path="tests/DeltaECS.Registration.CSharp9/DeltaECS.Registration.CSharp9.csproj" />
 </Solution>

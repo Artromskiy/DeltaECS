@@ -133,6 +133,11 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
 
                     public bool IsTag => {{registration.IsTag.ToString().ToLowerInvariant()}};
 
+                    global::Delta.ECS.ComponentId global::Delta.ECS.IGeneratedComponentRegistration.Register(
+                        global::Delta.ECS.ComponentLayoutRegistry layouts)
+                        => global::Delta.ECS.ComponentLayoutRegistryRegistrationExtensions.Register<{{typeName}}>(
+                            layouts,
+                            SchemaId);
                 }
                 """);
         }

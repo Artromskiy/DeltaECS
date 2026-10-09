@@ -81,11 +81,10 @@ internal sealed class ComponentTypeVisitorTests
     }
 
     [Test]
-    public void ExplicitNewConstraintCanSelectLessSpecificRegistrationShape()
+    public void GenericNewConstraintSelectsNewRegistrationShape()
     {
         var layouts = new ComponentLayoutRegistry();
-        NewConstraint newConstraint = default;
-        ComponentId componentId = layouts.Register<ClassNewComponent>(new SchemaId(80_004), in newConstraint);
+        ComponentId componentId = RegisterAsNew<ClassNewComponent>(layouts, new SchemaId(80_004));
 
         var newVisitor = new NewVisitor();
         layouts.Visit(componentId, newVisitor);
@@ -283,8 +282,7 @@ internal sealed class ComponentTypeVisitorTests
         ComponentId unconstrainedId = RegisterWithoutConstraint<int>(layouts, new SchemaId(80_033));
         ComponentId structId = layouts.Register<ManagedStructComponent>(new SchemaId(80_034));
         ComponentId classId = layouts.Register<ClassOnlyComponent>(new SchemaId(80_035));
-        NewConstraint newConstraint = default;
-        ComponentId newId = layouts.Register<ClassNewComponent>(new SchemaId(80_036), in newConstraint);
+        ComponentId newId = RegisterAsNew<ClassNewComponent>(layouts, new SchemaId(80_036));
         ComponentId classNewId = layouts.Register<ClassNewComponent>(new SchemaId(80_037));
         ComponentId unmanagedId = layouts.Register<int>(new SchemaId(80_038));
 
@@ -319,7 +317,7 @@ internal sealed class ComponentTypeVisitorTests
         layouts.BindInterface<ManagedGameComponent, IGameComponent>();
         layouts.BindInterface<UnmanagedGameComponent, IGameComponent>();
         layouts.BindInterface<ClassOnlyGameComponent, IGameComponent>();
-        layouts.BindInterface<NewGameComponent, IGameComponent>(in newConstraint);
+        BindInterfaceAsNew<NewGameComponent, IGameComponent>(layouts);
         layouts.BindInterface<ClassGameComponent, IGameComponent>();
         ComponentId unconstrainedInterfaceId = layouts.Register<UnconstrainedGameComponent>(new SchemaId(80_039));
         ComponentId structInterfaceId = layouts.Register<ManagedGameComponent>(new SchemaId(80_040));
@@ -473,8 +471,7 @@ internal sealed class ComponentTypeVisitorTests
     public void NewInterfaceBindingRequiresNewVisitor()
     {
         var layouts = new ComponentLayoutRegistry();
-        NewConstraint newConstraint = default;
-        layouts.BindInterface<ClassGameComponent, IGameComponent>(in newConstraint);
+        BindInterfaceAsNew<ClassGameComponent, IGameComponent>(layouts);
         ComponentId componentId = layouts.Register<ClassGameComponent>(new SchemaId(80_028));
         var visitor = new NewGameVisitor();
 
@@ -581,6 +578,10 @@ internal sealed class ComponentTypeVisitorTests
 
     private static void BindInterfaceWithoutConstraint<TComponent, TInterface>(ComponentLayoutRegistry layouts)
         where TComponent : TInterface
+        => layouts.BindInterface<TComponent, TInterface>();
+
+    private static void BindInterfaceAsNew<TComponent, TInterface>(ComponentLayoutRegistry layouts)
+        where TComponent : TInterface, new()
         => layouts.BindInterface<TComponent, TInterface>();
 
     private static void AssertRoute(VisitorRoute expected, MultiRouteVisitor visitor)

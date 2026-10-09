@@ -15,6 +15,11 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static ComponentLayoutRegistry ThrowInvalidComponentLayoutRegistryRoute(IComponentLayoutRegistryRoute layouts)
+        => throw new ArgumentException("The route marker is not backed by a component layout registry.", nameof(layouts));
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static ComponentRegistrationTypeToken ThrowGeneratedComponentVisitorTokenMissing()
         => throw new InvalidOperationException("Generated component type dispatch did not create a visitor registration token.");
 
@@ -164,12 +169,6 @@ internal static class ThrowHelper
         => throw new ArgumentException(
             $"The generated component type token represents {tokenType}, not the registered CLR type {registeredType}.",
             "token");
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static IGeneratedComponentTypeToken ThrowGeneratedComponentTypeTokenMissing(Type componentType)
-        => throw new InvalidOperationException(
-            $"No generated component type token exists for '{componentType.FullName}'. Ensure DeltaECS.Generators is referenced.");
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]

@@ -75,13 +75,16 @@ types.
 
 ## Component registration and type visitors
 
-`Register<T>(schemaId)` returns the component ID directly. The compiler selects the strongest standard constraint known for `T` (`class, new()`, `unmanaged`, `struct`, `new()`, or `class`) when overload-priority support is available. A generic caller with no constraints uses the unconstrained form; pass a marker token only when deliberately selecting a less-specific route:
+`Register<T>(schemaId)` returns the component ID directly. The registry's marker-route overloads select the strongest standard constraint visible for `T` (`class, new()`, `unmanaged`, `struct`, `new()`, or `class`). A generic caller with no constraints uses the unconstrained route. To select a narrower route in generic code, declare that constraint on the helper method:
 
 ```csharp
 ComponentId positionId = layouts.Register<Position>(new SchemaId(1));
 
-NewConstraint newConstraint = default;
-ComponentId constructibleId = layouts.Register<Constructible>(new SchemaId(3), in newConstraint);
+static ComponentId RegisterNew<T>(ComponentLayoutRegistry layouts, SchemaId schemaId)
+    where T : new()
+    => layouts.Register<T>(schemaId);
+
+ComponentId constructibleId = RegisterNew<Constructible>(layouts, new SchemaId(3));
 ```
 
 `BindInterface<TComponent, TInterface>()` declares a route for the interface-based visitor contracts for one concrete component CLR type and one interface. It applies to every schema registration of that CLR type, including registrations made before or after the binding. The compiler checks that `TComponent` implements `TInterface`; binding another component type requires another call. This uses closed generic code directly and does not require generated interface routes:
@@ -156,13 +159,22 @@ foreach (ComponentId componentId in componentIds)
 
 The runtime APIs described here are available without adding the generator to the consuming project. The generated API grammar proof and runtime-only API grammar proof are kept in separate consumer projects so both dependency shapes are compiled and executed independently. The runtime-only proof covers registration and visitors, query construction, structural operations, typed single-component access, entity-only iteration, and the integration contract. Component-bearing iteration and other generated forms remain in the generated grammar proof. Both proofs are invoked by the grammar smoke application and the generator test suite.
 
-When compiling with a language version that does not apply `OverloadResolutionPriority`, use the generated `RegisterGenerated<T>` extension for automatically selected registration routes:
+`Register<T>(SchemaId)` and `BindInterface<T, TInterface>()` select a route from the generic constraints visible at the call site. The registry exposes a hidden marker-interface chain to let ordinary C# overload resolution choose the most specific applicable route. This works with C# 9 and does not require a consumer source generator:
 
 ```csharp
-ComponentId id = layouts.RegisterGenerated<Position>(new SchemaId(1));
+ComponentId id = layouts.Register<Position>(new SchemaId(1));
+layouts.BindInterface<Position, IMovable>();
 ```
 
-The extension is emitted by `DeltaECS.Generators` for older language versions and uses the same generated component type tokens as open-generic registration. It works for registered types whether or not they carry `DeltaEcsComponentAttribute`; attribute-based catalog registration remains a separate API. In generic code where the component type is not known to the generator, continue to pass the constraint marker explicitly.
+In a generic helper, declare any constraint that should select a narrower route:
+
+```csharp
+static ComponentId RegisterStruct<T>(ComponentLayoutRegistry layouts, SchemaId schemaId)
+    where T : struct
+    => layouts.Register<T>(schemaId);
+```
+
+An unconstrained `T` selects the unconstrained route even if its eventual closed type happens to be a struct. Generated component-catalog registration remains a separate API and may still use generated type tokens.
 
 ## Generated iteration forms
 

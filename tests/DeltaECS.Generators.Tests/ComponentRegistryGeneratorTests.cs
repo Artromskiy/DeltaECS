@@ -59,7 +59,9 @@ public sealed class ComponentRegistryGeneratorTests
         Assert.That(catalog, Does.Contain("static partial void RegisterComponentCatalog()"));
         Assert.That(catalog, Does.Contain("ComponentType => typeof(global::Example.Position)"));
         Assert.That(catalog, Does.Contain("ComponentType => typeof(global::Example.Health)"));
-        Assert.That(catalog, Does.Not.Contain("ComponentId Register(global::Delta.ECS.ComponentLayoutRegistry layouts)"));
+        Assert.That(catalog, Does.Contain("IGeneratedComponentRegistration.Register("));
+        Assert.That(catalog, Does.Contain("ComponentLayoutRegistryRegistrationExtensions.Register<global::Example.Position>"));
+        Assert.That(catalog, Does.Contain("ComponentLayoutRegistryRegistrationExtensions.Register<global::Example.Health>"));
         Assert.That(catalog, Does.Contain("SchemaId => new(0x000000000000002AUL)"));
         Assert.That(catalog, Does.Contain("public bool IsTag => true;"));
         Assert.That(catalog, Does.Contain("public bool IsTag => false;"));

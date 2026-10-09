@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Delta.ECS.Registration.CSharp9</RootNamespace>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(PublishAot)' != 'true'">
+    <ProjectReference Include="../../src/DeltaECS/DeltaECS.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(PublishAot)' == 'true'">
+    <Reference Include="DeltaECS">
+      <HintPath>../../src/DeltaECS/bin/$(Configuration)/net10.0/DeltaECS.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>

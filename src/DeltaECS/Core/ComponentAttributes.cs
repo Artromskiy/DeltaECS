@@ -22,6 +22,9 @@ namespace Delta.ECS
 
         /// <summary>Gets whether the component is a data-less tag.</summary>
         bool IsTag { get; }
+
+        /// <summary>Registers this component using its generated concrete registration route.</summary>
+        ComponentId Register(ComponentLayoutRegistry layouts);
     }
 
     /// <summary>Receives component registration factories emitted by DeltaECS.Generators.</summary>
