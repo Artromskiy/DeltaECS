@@ -666,6 +666,15 @@ public sealed partial class World : IDisposable
         return _archetypes[chunk.ArchetypeId].Contains(componentId);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool HasTrusted(Entity entity, ComponentId componentId)
+    {
+        Chunk chunk = GetEntityRefLocationTrusted(entity, out int slotIndex);
+        return _layouts.TryGetTagIndex(componentId, out int tagIndex)
+            ? chunk.HasTag(tagIndex, slotIndex)
+            : _archetypes[chunk.ArchetypeId].Contains(componentId);
+    }
+
     /// <summary>Gets the component stamp, or the tag-presence stamp when the entity owns a tag.</summary>
     public bool TryGetComponentStamp(Entity entity, ComponentId componentId, out Stamp stamp)
     {
@@ -675,6 +684,21 @@ public sealed partial class World : IDisposable
         {
             return false;
         }
+
+        return TryGetComponentStamp(chunk, slotIndex, componentId, out stamp);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetComponentStampTrusted(Entity entity, ComponentId componentId, out Stamp stamp)
+    {
+        Chunk chunk = GetEntityRefLocationTrusted(entity, out int slotIndex);
+        return TryGetComponentStamp(chunk, slotIndex, componentId, out stamp);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryGetComponentStamp(Chunk chunk, int slotIndex, ComponentId componentId, out Stamp stamp)
+    {
+        stamp = default;
 
         if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
         {
@@ -710,6 +734,19 @@ public sealed partial class World : IDisposable
             return false;
         }
 
+        return TryGetCore<T>(chunk, slotIndex, componentId, out value);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetTrusted<T>(Entity entity, ComponentId componentId, out T value)
+    {
+        Chunk chunk = GetEntityRefLocationTrusted(entity, out int slotIndex);
+        return TryGetCore<T>(chunk, slotIndex, componentId, out value);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryGetCore<T>(Chunk chunk, int slotIndex, ComponentId componentId, out T value)
+    {
         if (!_layouts.TryGet(componentId, out var layout) || !IsCompatibleComponentType<T>(layout))
         {
             value = default!;
@@ -2245,6 +2282,14 @@ public sealed partial class World : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryResolveEntityLocation(Entity entity, out Chunk chunk, out int slotIndex)
         => TryResolve(entity, out _, out chunk, out slotIndex);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private Chunk GetEntityRefLocationTrusted(Entity entity, out int slotIndex)
+    {
+        ref readonly EntityRecord record = ref RecordAt(entity.Index);
+        slotIndex = record.SlotIndex;
+        return _chunksById[record.ChunkId]!;
+    }
 
     private QueryPlan GetOrCreateQuery(QuerySpec spec)
     {

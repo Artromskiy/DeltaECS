@@ -123,6 +123,19 @@ public sealed partial class World
             return false;
         }
 
+        return TryGetRegisteredCore<T>(chunk, slotIndex, componentId, out value);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryGetRegisteredCoreTrusted<T>(Entity entity, ComponentId componentId, out T value)
+    {
+        Chunk chunk = GetEntityRefLocationTrusted(entity, out int slotIndex);
+        return TryGetRegisteredCore<T>(chunk, slotIndex, componentId, out value);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryGetRegisteredCore<T>(Chunk chunk, int slotIndex, ComponentId componentId, out T value)
+    {
         if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
         {
             value = default!;
@@ -138,6 +151,18 @@ public sealed partial class World
 
         value = chunk.GetComponentRef<T>(componentIndex, slotIndex);
         return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetTrusted<T>(Entity entity, out T value)
+    {
+        if (!TryGetPrimaryComponentId<T>(out ComponentId componentId))
+        {
+            value = default!;
+            return false;
+        }
+
+        return TryGetRegisteredCoreTrusted(entity, componentId, out value);
     }
 
     /// <summary>Reports whether an alive entity owns the primary component for <typeparamref name="T"/>.</summary>
@@ -158,6 +183,14 @@ public sealed partial class World
         EnsureExecutionAccess();
         return IsRegisteredType<T>(componentId) && Has(entity, componentId);
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool HasTrusted<T>(Entity entity) => TryGetPrimaryComponentId<T>(out ComponentId componentId)
+        && HasTrusted(entity, componentId);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool HasTrusted<T>(Entity entity, ComponentId componentId)
+        => IsRegisteredType<T>(componentId) && HasTrusted(entity, componentId);
 
     /// <summary>Reads the primary component stamp when present.</summary>
     public bool TryGetComponentStamp<T>(Entity entity, out Stamp stamp)
@@ -185,6 +218,30 @@ public sealed partial class World
         return TryGetComponentStamp(entity, componentId, out stamp);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetComponentStampTrusted<T>(Entity entity, out Stamp stamp)
+    {
+        if (!TryGetPrimaryComponentId<T>(out ComponentId componentId))
+        {
+            stamp = default;
+            return false;
+        }
+
+        return TryGetComponentStampTrusted(entity, componentId, out stamp);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetComponentStampTrusted<T>(Entity entity, ComponentId componentId, out Stamp stamp)
+    {
+        if (!IsRegisteredType<T>(componentId))
+        {
+            stamp = default;
+            return false;
+        }
+
+        return TryGetComponentStampTrusted(entity, componentId, out stamp);
+    }
+
     /// <summary>
     /// Reads one component, throwing when the entity is stale, missing the row,
     /// or the requested type does not match the registered component type.
@@ -200,6 +257,15 @@ public sealed partial class World
         return value;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal T GetTrusted<T>(Entity entity, ComponentId componentId)
+    {
+        EnsureRegisteredType<T>(componentId);
+        return TryGetRegisteredCoreTrusted(entity, componentId, out T value)
+            ? value
+            : ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+    }
+
     /// <summary>Reads the primary component for <typeparamref name="T"/> or throws when it is missing.</summary>
     public T Get<T>(Entity entity)
     {
@@ -210,6 +276,15 @@ public sealed partial class World
         }
 
         return ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal T GetTrusted<T>(Entity entity)
+    {
+        ComponentId componentId = GetPrimaryComponentId<T>();
+        return TryGetRegisteredCoreTrusted(entity, componentId, out T value)
+            ? value
+            : ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
     }
 
     /// <summary>
@@ -228,6 +303,13 @@ public sealed partial class World
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ref T GetRefTrusted<T>(Entity entity, ComponentId componentId)
+    {
+        EnsureRegisteredType<T>(componentId);
+        return ref GetRefTrustedUnchecked<T>(entity, componentId);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private ref T GetRefUnchecked<T>(Entity entity, ComponentId componentId)
     {
         if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
@@ -235,6 +317,19 @@ public sealed partial class World
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }
 
+        return ref GetRefUnchecked<T>(entity, componentId, chunk, slotIndex);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ref T GetRefTrustedUnchecked<T>(Entity entity, ComponentId componentId)
+    {
+        Chunk chunk = GetEntityRefLocationTrusted(entity, out int slotIndex);
+        return ref GetRefUnchecked<T>(entity, componentId, chunk, slotIndex);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ref T GetRefUnchecked<T>(Entity entity, ComponentId componentId, Chunk chunk, int slotIndex)
+    {
         if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
         {
             if (!chunk.HasTag(tagIndex, slotIndex))
@@ -263,6 +358,9 @@ public sealed partial class World
     /// <summary>Returns a writable reference to the primary component row.</summary>
     public ref T GetRef<T>(Entity entity) => ref GetRefUnchecked<T>(entity, GetPrimaryComponentId<T>());
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ref T GetRefTrusted<T>(Entity entity) => ref GetRefTrustedUnchecked<T>(entity, GetPrimaryComponentId<T>());
+
     /// <summary>Returns a read-only reference to one component row.</summary>
     /// <remarks>
     /// The reference is invalid after a structural operation moves the entity
@@ -277,6 +375,13 @@ public sealed partial class World
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ref readonly T GetReadRefTrusted<T>(Entity entity, ComponentId componentId)
+    {
+        EnsureRegisteredType<T>(componentId);
+        return ref GetReadRefTrustedUnchecked<T>(entity, componentId);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref readonly T GetReadRefUnchecked<T>(Entity entity, ComponentId componentId)
     {
         if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
@@ -284,6 +389,19 @@ public sealed partial class World
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }
 
+        return ref GetReadRefUnchecked<T>(entity, componentId, chunk, slotIndex);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ref readonly T GetReadRefTrustedUnchecked<T>(Entity entity, ComponentId componentId)
+    {
+        Chunk chunk = GetEntityRefLocationTrusted(entity, out int slotIndex);
+        return ref GetReadRefUnchecked<T>(entity, componentId, chunk, slotIndex);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ref readonly T GetReadRefUnchecked<T>(Entity entity, ComponentId componentId, Chunk chunk, int slotIndex)
+    {
         if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
         {
             if (!chunk.HasTag(tagIndex, slotIndex))
@@ -306,6 +424,10 @@ public sealed partial class World
     /// <summary>Returns a read-only reference to the primary component row.</summary>
     public ref readonly T GetReadRef<T>(Entity entity)
         => ref GetReadRefUnchecked<T>(entity, GetPrimaryComponentId<T>());
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ref readonly T GetReadRefTrusted<T>(Entity entity)
+        => ref GetReadRefTrustedUnchecked<T>(entity, GetPrimaryComponentId<T>());
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool IsRegisteredType<T>(ComponentId componentId)
