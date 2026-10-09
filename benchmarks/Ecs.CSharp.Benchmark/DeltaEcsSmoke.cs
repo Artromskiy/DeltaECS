@@ -158,7 +158,73 @@ namespace Ecs.CSharp.Benchmark
                 throw new InvalidOperationException("Composition smoke did not retain every entity.");
             }
 
+            VerifyForEachEntityCursor();
+
             Console.WriteLine("DeltaECS full-fork contract smoke passed.");
+        }
+
+        private static void VerifyForEachEntityCursor()
+        {
+            using DeltaSystemOneContext one = new(32, 0);
+            EcsOperation<DeltaEntityRefFunctor> oneOperation = one.World.ForEachEntity(
+                in one.Query,
+                new DeltaEntityRefFunctor(one.Component));
+            oneOperation.Invoke();
+            AssertOneComponentValue(one, 2);
+            oneOperation.Invoke();
+            AssertOneComponentValue(one, 3);
+
+            using DeltaSystemThreeContext three = new(32, 0);
+            EcsOperation<DeltaEntityRefThreeComponentFunctor> threeOperation = three.World.ForEachEntity(
+                in three.Query,
+                new DeltaEntityRefThreeComponentFunctor(three.First, three.Second, three.Third));
+            threeOperation.Invoke();
+            AssertThreeComponentValues(three, 6);
+            threeOperation.Invoke();
+            AssertThreeComponentValues(three, 11);
+        }
+
+        private static void AssertOneComponentValue(DeltaSystemOneContext context, int expected)
+        {
+            int count = 0;
+            context.World.ForEachEntity(in context.Query, entity =>
+            {
+                if (!entity.TryGet(context.Component, out DeltaComponent1 component) || component.Value != expected)
+                {
+                    throw new InvalidOperationException("EntityRef pointer access changed the wrong one-component row.");
+                }
+
+                count++;
+            }).Invoke();
+
+            if (count != 32)
+            {
+                throw new InvalidOperationException("EntityRef pointer access skipped one-component entities.");
+            }
+        }
+
+        private static void AssertThreeComponentValues(DeltaSystemThreeContext context, int expectedFirst)
+        {
+            int count = 0;
+            context.World.ForEachEntity(in context.Query, entity =>
+            {
+                if (!entity.TryGet(context.First, out DeltaComponent1 first)
+                    || !entity.TryGet(context.Second, out DeltaComponent2 second)
+                    || !entity.TryGet(context.Third, out DeltaComponent3 third)
+                    || first.Value != expectedFirst
+                    || second.Value != 2
+                    || third.Value != 3)
+                {
+                    throw new InvalidOperationException("EntityRef pointer access changed the wrong three-component row.");
+                }
+
+                count++;
+            }).Invoke();
+
+            if (count != 32)
+            {
+                throw new InvalidOperationException("EntityRef pointer access skipped three-component entities.");
+            }
         }
     }
 }

@@ -199,6 +199,10 @@ internal sealed class Chunk
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal Array GetRawComponentRowTrusted(int componentIndex) => _componentRows.RefAt(componentIndex);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool ComponentRowContainsReferences(int componentIndex)
+        => _rowOperations.RefAt(componentIndex).ContainsReferences;
+
     internal Span<Entity> RawEntities => _entities.Span;
 
     internal Array[] RawComponentRows => _componentRows;

@@ -130,7 +130,7 @@ internal sealed class QueryPlan
     internal int MatchingArchetypeVersion => _matchingArchetypeVersion;
     internal int EntityRefDataComponentCount => _entityRefDataComponentCount;
 
-    internal EntityRefStampBatch? GetEntityRefStampBatch(out int generation)
+    internal EntityRefStampBatch? GetEntityRefStampBatch(out int generation, bool useLazyPinnedCursor)
     {
         generation = 0;
         if (_entityRefDataComponentCount == 0)
@@ -150,7 +150,7 @@ internal sealed class QueryPlan
             bool began = false;
             try
             {
-                batch.Begin();
+                batch.Begin(useLazyPinnedCursor);
                 began = true;
             }
             finally

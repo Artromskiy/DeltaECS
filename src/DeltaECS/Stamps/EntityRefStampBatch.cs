@@ -1,6 +1,7 @@
 namespace Delta.ECS;
 
 using System;
+using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 
 internal sealed class EntityRefStampBatch
@@ -13,6 +14,15 @@ internal sealed class EntityRefStampBatch
     private int _generation;
     private int _ownerThreadId;
     private bool _active;
+    private bool _useLazyPinnedCursor;
+    private Chunk? _pinnedChunk;
+    private int _pinnedGeneration;
+    private GCHandle[] _rowPins = Array.Empty<GCHandle>();
+    private bool[] _rowPinAttempted = Array.Empty<bool>();
+    private nint[] _rowPointers = Array.Empty<nint>();
+    private nint[] _rowCursors = Array.Empty<nint>();
+    private int[] _lastCursorSlots = Array.Empty<int>();
+    private int _pinnedRouteCount;
 
     internal EntityRefStampBatch(QueryPlan queryPlan) => _queryPlan = queryPlan;
 
@@ -36,10 +46,12 @@ internal sealed class EntityRefStampBatch
         return null;
     }
 
-    internal void Begin()
+    internal void Begin(bool useLazyPinnedCursor)
     {
+        ReleasePinnedRows();
         _generation = _generation == int.MaxValue ? 1 : _generation + 1;
         _ownerThreadId = Environment.CurrentManagedThreadId;
+        _useLazyPinnedCursor = useLazyPinnedCursor;
         ReadOnlySpan<ArchetypePlan> plans = _queryPlan.MatchingPlans();
         for (int planIndex = 0; planIndex < plans.Length; planIndex++)
         {
@@ -50,6 +62,93 @@ internal sealed class EntityRefStampBatch
         _previous = _current;
         _active = true;
         _current = this;
+    }
+
+    internal void PrepareChunk(int generation, Chunk chunk, int routeCount)
+    {
+        if (!_useLazyPinnedCursor
+            || !_active
+            || generation != _generation)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(_pinnedChunk, chunk) && _pinnedGeneration == generation)
+        {
+            return;
+        }
+
+        ReleasePinnedRows();
+        EnsurePointerCapacity(routeCount);
+        _pinnedChunk = chunk;
+        _pinnedGeneration = generation;
+        _pinnedRouteCount = routeCount;
+        for (int route = 0; route < routeCount; route++)
+        {
+            _rowPinAttempted.RefAt(route) = false;
+            _lastCursorSlots.RefAt(route) = -1;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryPinRow(int generation, int route, Chunk chunk, int componentIndex)
+    {
+        if (!_useLazyPinnedCursor
+            || !_active
+            || generation != _generation
+            || _pinnedGeneration != generation
+            || !ReferenceEquals(_pinnedChunk, chunk)
+            || (uint)route >= (uint)_pinnedRouteCount
+            || componentIndex < 0)
+        {
+            return false;
+        }
+
+        if (_rowPins.RefAt(route).IsAllocated)
+        {
+            return true;
+        }
+
+        if (_rowPinAttempted.RefAt(route))
+        {
+            return false;
+        }
+
+        _rowPinAttempted.RefAt(route) = true;
+        if (chunk.ComponentRowContainsReferences(componentIndex))
+        {
+            return false;
+        }
+
+        GCHandle pin = GCHandle.Alloc(chunk.GetRawComponentRowTrusted(componentIndex), GCHandleType.Pinned);
+        try
+        {
+            nint rowPointer = pin.AddrOfPinnedObject();
+            _rowPins.RefAt(route) = pin;
+            _rowPointers.RefAt(route) = rowPointer;
+            _rowCursors.RefAt(route) = rowPointer;
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            pin.Free();
+            return false;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal unsafe ref T GetPinnedReference<T>(int route, int slotIndex)
+    {
+        nint pointer = _rowCursors.RefAt(route);
+        int previousSlot = _lastCursorSlots.RefAt(route);
+        if (slotIndex != previousSlot + 1)
+        {
+            pointer = _rowPointers.RefAt(route) + slotIndex * Unsafe.SizeOf<T>();
+        }
+
+        _rowCursors.RefAt(route) = pointer + Unsafe.SizeOf<T>();
+        _lastCursorSlots.RefAt(route) = slotIndex;
+        return ref Unsafe.AsRef<T>((void*)pointer);
     }
 
     internal bool Mark(
@@ -78,11 +177,46 @@ internal sealed class EntityRefStampBatch
         finally
         {
             ClearPendingWrites();
+            ReleasePinnedRows();
             _active = false;
             _ownerThreadId = 0;
             _current = _previous;
             _previous = null;
         }
+    }
+
+    private void EnsurePointerCapacity(int required)
+    {
+        if (_rowPins.Length >= required)
+        {
+            return;
+        }
+
+        Array.Resize(ref _rowPins, required);
+        Array.Resize(ref _rowPinAttempted, required);
+        Array.Resize(ref _rowPointers, required);
+        Array.Resize(ref _rowCursors, required);
+        Array.Resize(ref _lastCursorSlots, required);
+    }
+
+    private void ReleasePinnedRows()
+    {
+        for (int route = 0; route < _pinnedRouteCount; route++)
+        {
+            if (_rowPins.RefAt(route).IsAllocated)
+            {
+                _rowPins.RefAt(route).Free();
+            }
+
+            _rowPointers.RefAt(route) = 0;
+            _rowCursors.RefAt(route) = 0;
+            _rowPinAttempted.RefAt(route) = false;
+            _lastCursorSlots.RefAt(route) = -1;
+        }
+
+        _pinnedChunk = null;
+        _pinnedGeneration = 0;
+        _pinnedRouteCount = 0;
     }
 
     internal static bool TryGetPending(

@@ -315,6 +315,10 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         {
             ExceptionDispatchInfo.Capture(exception).Throw();
         }
+        finally
+        {
+            _cachedPlan?.EndEntityRefStampBatch();
+        }
     }
 
     public void Dispose()
@@ -437,7 +441,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
                 {
                     ParallelChunk work = _chunks.RefAt(chunkIndex);
                     ChunkPlan chunkPlan = work.Chunk;
-                    GeneratedQuerySlots slots = new(_world!, in chunkPlan, _cachedPlan);
+                    GeneratedQuerySlots slots = new(_world!, in chunkPlan, _cachedPlan, useLazyPinnedCursor: false);
                     invocation.Invoke(ref slots);
                 }
             }
@@ -485,7 +489,8 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
                     in chunkPlan,
                     rangeCount,
                     rangeStart - chunkStart,
-                    _cachedPlan);
+                    _cachedPlan,
+                    useLazyPinnedCursor: false);
                 invocation.Invoke(ref slots);
             }
 

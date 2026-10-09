@@ -24,21 +24,37 @@ public ref struct GeneratedQuerySlots
     private readonly int[] _entityRefComponentIndices;
     private readonly EntityRefStampState? _entityRefStampState;
     private readonly int _planEntityBase;
+    private readonly bool _useLazyPinnedCursor;
     private EntityRefStampBatch? _stampBatch;
     private int _stampBatchGeneration;
     private bool _stampBatchResolved;
 
-    internal GeneratedQuerySlots(World world, in ChunkPlan chunkPlan, QueryPlan? queryPlan = null)
-        : this(world, in chunkPlan, chunkPlan.Chunk.Count, 0, queryPlan)
+    internal GeneratedQuerySlots(
+        World world,
+        in ChunkPlan chunkPlan,
+        QueryPlan? queryPlan = null,
+        bool useLazyPinnedCursor = true)
+        : this(world, in chunkPlan, chunkPlan.Chunk.Count, 0, queryPlan, useLazyPinnedCursor)
     {
     }
 
-    internal GeneratedQuerySlots(World world, in ChunkPlan chunkPlan, int count, QueryPlan? queryPlan = null)
-        : this(world, in chunkPlan, count, 0, queryPlan)
+    internal GeneratedQuerySlots(
+        World world,
+        in ChunkPlan chunkPlan,
+        int count,
+        QueryPlan? queryPlan = null,
+        bool useLazyPinnedCursor = true)
+        : this(world, in chunkPlan, count, 0, queryPlan, useLazyPinnedCursor)
     {
     }
 
-    internal GeneratedQuerySlots(World world, in ChunkPlan chunkPlan, int count, int offset, QueryPlan? queryPlan = null)
+    internal GeneratedQuerySlots(
+        World world,
+        in ChunkPlan chunkPlan,
+        int count,
+        int offset,
+        QueryPlan? queryPlan = null,
+        bool useLazyPinnedCursor = true)
     {
         _world = world;
         _chunk = chunkPlan.Chunk;
@@ -52,6 +68,7 @@ public ref struct GeneratedQuerySlots
         _entityRefComponentIndices = chunkPlan.EntityRefComponentIndices;
         _entityRefStampState = chunkPlan.EntityRefStampState;
         _planEntityBase = chunkPlan.PlanEntityBase;
+        _useLazyPinnedCursor = useLazyPinnedCursor;
         _stampBatch = null;
         _stampBatchGeneration = 0;
         _stampBatchResolved = false;
@@ -140,7 +157,8 @@ public ref struct GeneratedQuerySlots
         _stampBatchResolved = true;
         if (_queryPlan is not null)
         {
-            _stampBatch = _queryPlan.GetEntityRefStampBatch(out _stampBatchGeneration);
+            _stampBatch = _queryPlan.GetEntityRefStampBatch(out _stampBatchGeneration, _useLazyPinnedCursor);
+            _stampBatch?.PrepareChunk(_stampBatchGeneration, _chunk, _entityRefComponentIndices.Length);
         }
     }
 
@@ -264,11 +282,16 @@ public ref struct GeneratedReadQuerySlots
     private readonly int[] _entityRefComponentIndices;
     private readonly EntityRefStampState? _entityRefStampState;
     private readonly int _planEntityBase;
+    private readonly bool _useLazyPinnedCursor;
     private EntityRefStampBatch? _stampBatch;
     private int _stampBatchGeneration;
     private bool _stampBatchResolved;
 
-    internal GeneratedReadQuerySlots(World world, in ChunkPlan chunkPlan, QueryPlan? queryPlan = null)
+    internal GeneratedReadQuerySlots(
+        World world,
+        in ChunkPlan chunkPlan,
+        QueryPlan? queryPlan = null,
+        bool useLazyPinnedCursor = true)
     {
         _world = world;
         _chunk = chunkPlan.Chunk;
@@ -280,6 +303,7 @@ public ref struct GeneratedReadQuerySlots
         _entityRefComponentIndices = chunkPlan.EntityRefComponentIndices;
         _entityRefStampState = chunkPlan.EntityRefStampState;
         _planEntityBase = chunkPlan.PlanEntityBase;
+        _useLazyPinnedCursor = useLazyPinnedCursor;
         _stampBatch = null;
         _stampBatchGeneration = 0;
         _stampBatchResolved = false;
@@ -350,7 +374,8 @@ public ref struct GeneratedReadQuerySlots
         _stampBatchResolved = true;
         if (_queryPlan is not null)
         {
-            _stampBatch = _queryPlan.GetEntityRefStampBatch(out _stampBatchGeneration);
+            _stampBatch = _queryPlan.GetEntityRefStampBatch(out _stampBatchGeneration, _useLazyPinnedCursor);
+            _stampBatch?.PrepareChunk(_stampBatchGeneration, _chunk, _entityRefComponentIndices.Length);
         }
     }
 

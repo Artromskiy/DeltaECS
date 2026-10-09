@@ -267,6 +267,11 @@ public sealed partial class World
                     route,
                     componentIndex) == true)
             {
+                if (stampBatch.TryPinRow(stampBatchGeneration, route, chunk, componentIndex))
+                {
+                    return ref stampBatch.GetPinnedReference<T>(route, slotIndex);
+                }
+
                 return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
             }
 
