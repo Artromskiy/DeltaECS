@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Delta.ECS;
 
 using System;
@@ -46,9 +48,11 @@ public sealed class EcsOperation<TState>
     }
 
     /// <summary>Executes this operation using and updating its owned state.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Invoke() => _invoke(ref _state);
 
     /// <summary>Executes this operation using and updating caller-owned state.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Invoke(ref TState state) => _invoke(ref state);
 }
 
@@ -71,15 +75,19 @@ public sealed class EcsOperation<TContext, TFunctor>
     }
 
     /// <summary>Executes the operation using and updating its owned context and functor.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Invoke() => _invoke(ref _context, ref _functor);
 
     /// <summary>Executes the operation using its owned context and caller-owned functor.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Invoke(ref TFunctor functor) => _invoke(ref _context, ref functor);
 
     /// <summary>Executes the operation using caller-owned context and its owned functor.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void InvokeWithContext(ref TContext context) => _invoke(ref context, ref _functor);
 
     /// <summary>Executes the operation using and updating caller-owned context and functor.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Invoke(ref TContext context, ref TFunctor functor) => _invoke(ref context, ref functor);
 }
 
@@ -97,5 +105,6 @@ public sealed class EcsResultOperation<TResult>
     }
 
     /// <summary>Executes this operation and returns its result.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TResult Invoke() => _invoke();
 }
