@@ -23,11 +23,9 @@ internal static partial class GeneratorTemplates
         }
         """;
 
-    internal static string JoinNonEmpty(IEnumerable<string> fragments, string separator = "\n")
-        => string.Join(separator, fragments.Where(static fragment => !string.IsNullOrWhiteSpace(fragment)));
+    internal static string JoinNonEmpty(IEnumerable<string> fragments, string separator = "\n") => string.Join(separator, fragments.Where(static fragment => !string.IsNullOrWhiteSpace(fragment)));
 
-    internal static string JoinIndexed(int count, Func<int, string> render, string separator = ", ")
-        => string.Join(separator, Enumerable.Range(0, count).Select(render));
+    internal static string JoinIndexed(int count, Func<int, string> render, string separator = ", ") => string.Join(separator, Enumerable.Range(0, count).Select(render));
 
     internal static string InterceptorUsings(IEnumerable<string> usings)
     {
@@ -41,11 +39,9 @@ internal static partial class GeneratorTemplates
         return string.Join("\n", new[] { ecsUsing }.Concat(otherUsings));
     }
 
-    private static bool IsEcsUsing(string value)
-        => value is "using Delta.ECS;" or "using global::Delta.ECS;";
+    private static bool IsEcsUsing(string value) => value is "using Delta.ECS;" or "using global::Delta.ECS;";
 
-    internal static IEnumerable<string> Indexed(int count, Func<int, string> render)
-        => Enumerable.Range(0, count).Select(render);
+    internal static IEnumerable<string> Indexed(int count, Func<int, string> render) => Enumerable.Range(0, count).Select(render);
 
     internal static IEnumerable<string> Indexed(int count, Func<int, bool> include, Func<int, string> render) => Enumerable.Range(0, count).Where(include).Select(render);
 
@@ -114,8 +110,7 @@ internal static partial class GeneratorTemplates
             JoinNonEmpty(new[] { Documentation(api), attributes ?? string.Empty, declaration }),
             body);
 
-    internal static string Declaration(ApiModel api, string declaration, string? attributes = null)
-        => JoinNonEmpty(new[] { Documentation(api), attributes ?? string.Empty, declaration });
+    internal static string Declaration(ApiModel api, string declaration, string? attributes = null) => JoinNonEmpty(new[] { Documentation(api), attributes ?? string.Empty, declaration });
 
     internal static string RenderBlock(string declaration, string body)
     {
@@ -133,8 +128,7 @@ internal static partial class GeneratorTemplates
             """;
     }
 
-    internal static string Indent(string text, string indent)
-        => string.Join(
+    internal static string Indent(string text, string indent) => string.Join(
             "\n",
             text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
                 .Select(line => line.Length == 0 ? line : indent + line));

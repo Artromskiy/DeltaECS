@@ -227,16 +227,15 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
         return new GenericBindingDiscovery(componentType, null, null, location, IsStructGenericTypeList: true);
     }
 
-    private static bool IsClosedType(ITypeSymbol type)
-        => type switch
-        {
-            ITypeParameterSymbol => false,
-            IArrayTypeSymbol array => IsClosedType(array.ElementType),
-            IPointerTypeSymbol pointer => IsClosedType(pointer.PointedAtType),
-            INamedTypeSymbol namedType => !namedType.IsUnboundGenericType
-                && namedType.TypeArguments.All(IsClosedType),
-            _ => true,
-        };
+    private static bool IsClosedType(ITypeSymbol type) => type switch
+    {
+        ITypeParameterSymbol => false,
+        IArrayTypeSymbol array => IsClosedType(array.ElementType),
+        IPointerTypeSymbol pointer => IsClosedType(pointer.PointedAtType),
+        INamedTypeSymbol namedType => !namedType.IsUnboundGenericType
+            && namedType.TypeArguments.All(IsClosedType),
+        _ => true,
+    };
 
     private static GenericBindingDiscovery? ReadGenericComponentRegistrationDiscovery(InvocationExpressionSyntax invocation, SemanticModel semanticModel)
     {
@@ -317,23 +316,19 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
         return false;
     }
 
-    private static bool IsLayoutRegistry(INamedTypeSymbol? type)
-        => type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Delta.ECS.ComponentLayoutRegistry";
+    private static bool IsLayoutRegistry(INamedTypeSymbol? type) => type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Delta.ECS.ComponentLayoutRegistry";
 
-    private static bool IsComponentLayoutRegistryRegistrationExtensions(INamedTypeSymbol? type)
-        => type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Delta.ECS.ComponentLayoutRegistryRegistrationExtensions";
+    private static bool IsComponentLayoutRegistryRegistrationExtensions(INamedTypeSymbol? type) => type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Delta.ECS.ComponentLayoutRegistryRegistrationExtensions";
 
-    private static bool IsGeneratedGenericComponentRegistrationExtensions(INamedTypeSymbol? type)
-        => type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Delta.ECS.GeneratedGenericComponentRegistrationExtensions";
+    private static bool IsGeneratedGenericComponentRegistrationExtensions(INamedTypeSymbol? type) => type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Delta.ECS.GeneratedGenericComponentRegistrationExtensions";
 
-    private static string GetMethodName(ExpressionSyntax expression)
-        => expression switch
-        {
-            MemberAccessExpressionSyntax member => member.Name.Identifier.ValueText,
-            IdentifierNameSyntax identifier => identifier.Identifier.ValueText,
-            GenericNameSyntax generic => generic.Identifier.ValueText,
-            _ => string.Empty,
-        };
+    private static string GetMethodName(ExpressionSyntax expression) => expression switch
+    {
+        MemberAccessExpressionSyntax member => member.Name.Identifier.ValueText,
+        IdentifierNameSyntax identifier => identifier.Identifier.ValueText,
+        GenericNameSyntax generic => generic.Identifier.ValueText,
+        _ => string.Empty,
+    };
 
     private static void AddIfMissing<TValue>(Dictionary<string, TValue> dictionary, string key, TValue value)
     {

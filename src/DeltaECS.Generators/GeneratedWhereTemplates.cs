@@ -22,7 +22,7 @@ internal static class GeneratedWhereTemplates
         string[] viewTypeArguments = shape.HasContext
             ? new[] { InterceptedPredicateContextType(site) }.Concat(site.PredicateComponents).ToArray()
             : site.PredicateComponents;
-        string viewType = InNamespace(shape.Namespace, "GeneratedWhereQuery_" + hash);
+        string viewType = GeneratorSupport.QualifiedName(shape.Namespace, "GeneratedWhereQuery_" + hash);
         string usings = GeneratorTemplates.InterceptorUsings(site.Usings);
         string predicate = terminal.IsCallback ? string.Empty : RenderInterceptedPredicate(site);
         string action = terminal.IsCallback && !terminal.IsFunctor ? RenderInterceptedAction(site) : string.Empty;
@@ -39,12 +39,10 @@ internal static class GeneratedWhereTemplates
                     : string.Empty);
         operationInvokerType = viewType + SignatureProjection.TypeArguments(viewTypeArguments) + "." + operationInvokerType;
         string operationResult = terminal.IsCallback
-            ? (terminal.HasContext, terminal.IsFunctor) switch
-            {
-                (true, true) => $"global::Delta.ECS.EcsOperation<{terminal.ContextType}, {terminal.FunctorType}, {operationInvokerType}>",
-                (false, true) => $"global::Delta.ECS.EcsOperation<{terminal.FunctorType}, {operationInvokerType}>",
-                _ => $"global::Delta.ECS.EcsOperation<{operationInvokerType}>"
-            }
+            ? EcsOperationTemplates.OperationType(
+                operationInvokerType,
+                terminal.HasContext && terminal.IsFunctor ? terminal.ContextType : null,
+                terminal.IsFunctor ? terminal.FunctorType : null)
             : "global::Delta.ECS.EcsResultOperation<int>";
         string executeInvocation = terminal.HasValues
             ? $$"""Execute_{{site.Id}}(operationView.World, in query{{(terminalSlots.HasExplicitIds ? ", " + (terminalSlots.HasDynamicIds ? "operationComponentIds" : terminalSlots.ComponentIdListArgument("componentId")) : string.Empty)}}{{(terminal.Arity == 0 ? string.Empty : ", " + terminalSlots.ValueNames("operationValue"))}}{{(shape.HasContext ? ", ref operationPredicateContext" : string.Empty)}})"""
@@ -54,17 +52,33 @@ internal static class GeneratedWhereTemplates
             : terminal.IsCallback
             ? terminal.IsFunctor
                 ? $$""", {{(terminal.HasContext ? "ref " + terminal.ContextType + " context, " : string.Empty)}}{{SignatureProjection.ContextParameter(terminal.FunctorPassMode, terminal.FunctorType!, "action")}})"""
-                : $$""", {{InNamespace(shape.Namespace, "GeneratedWhereAction_" + hash + "_" + terminalHash)}}{{SignatureProjection.TypeArguments(site.ActionComponents)}} action)"""
+                : $$""", {{GeneratorSupport.QualifiedName(shape.Namespace, "GeneratedWhereAction_" + hash + "_" + terminalHash)}}{{SignatureProjection.TypeArguments(site.ActionComponents)}} action)"""
             : terminalSlots.HasExplicitIds
                 ? ", " + terminalSlots.ComponentIdParameters("componentId") + ")"
                 : ")";
+        var operationInvokerArguments = new List<string> { "operationView" };
+        if (terminalSlots.HasDynamicIds)
+        {
+            operationInvokerArguments.Add("operationComponentIds");
+        }
+        else if (terminalSlots.HasExplicitIds)
+        {
+            operationInvokerArguments.Add(terminalSlots.ComponentIdArguments("componentId"));
+        }
+
+        if (terminal.IsCallback && !terminal.IsFunctor)
+        {
+            operationInvokerArguments.Add("action");
+        }
+
+        string operationInvoker = $"new {operationInvokerType}({string.Join(", ", operationInvokerArguments)})";
         string operationCreation = terminal.IsCallback
-            ? (terminal.HasContext, terminal.IsFunctor) switch
-            {
-                (true, true) => $$"""return new {{operationResult}}(context, action, new {{operationInvokerType}}(operationView{{(terminalSlots.HasDynamicIds ? ", operationComponentIds" : terminalSlots.HasExplicitIds ? ", " + terminalSlots.ComponentIdArguments("componentId") : string.Empty)}}));""",
-                (false, true) => $$"""return new {{operationResult}}(action, new {{operationInvokerType}}(operationView{{(terminalSlots.HasDynamicIds ? ", operationComponentIds" : terminalSlots.HasExplicitIds ? ", " + terminalSlots.ComponentIdArguments("componentId") : string.Empty)}}));""",
-                _ => $$"""return new {{operationResult}}(new {{operationInvokerType}}(operationView{{(terminalSlots.HasDynamicIds ? ", operationComponentIds" : terminalSlots.HasExplicitIds ? ", " + terminalSlots.ComponentIdArguments("componentId") : string.Empty)}}{{(terminal.IsFunctor ? string.Empty : ", action")}}));"""
-            }
+            ? "return " + EcsOperationTemplates.CreationExpression(
+                operationResult,
+                operationInvoker,
+                terminal.HasContext && terminal.IsFunctor ? terminal.ContextType : null,
+                terminal.IsFunctor ? terminal.FunctorType : null,
+                functorName: "action") + ";"
             : $$"""return new global::Delta.ECS.EcsResultOperation<int>(() => { int result = {{executeInvocation}}; {{(shape.HasContext ? "operationView.PredicateContext = operationPredicateContext;" : string.Empty)}} return result; });""";
         string member = $$"""
             {{site.Attribute}}
@@ -93,14 +107,11 @@ internal static class GeneratedWhereTemplates
         return GeneratedSourceFormatter.Format(source);
     }
 
-    private static string RenderInterceptedValueSignature(WhereInterceptionSite site)
-        => ", " + RenderValueParameters(site.Terminal.Api.Signature, site.Terminal.Components) + ")";
+    private static string RenderInterceptedValueSignature(WhereInterceptionSite site) => ", " + RenderValueParameters(site.Terminal.Api.Signature, site.Terminal.Components) + ")";
 
-    private static string RenderInterceptedPredicate(WhereInterceptionSite site)
-        => RenderInterceptedCallback(site, predicate: true);
+    private static string RenderInterceptedPredicate(WhereInterceptionSite site) => RenderInterceptedCallback(site, predicate: true);
 
-    private static string RenderInterceptedAction(WhereInterceptionSite site)
-        => RenderInterceptedCallback(site, predicate: false);
+    private static string RenderInterceptedAction(WhereInterceptionSite site) => RenderInterceptedCallback(site, predicate: false);
 
     private static string RenderInterceptedCallback(WhereInterceptionSite site, bool predicate)
     {
@@ -160,136 +171,6 @@ internal static class GeneratedWhereTemplates
             .Where(static argument => argument.Length != 0)
             .ToArray();
         return $"{target}({string.Join(", ", arguments)})";
-    }
-
-    private static string RenderInterceptedWhereLoop(WhereInterceptionSite site)
-    {
-        PredicateModel shape = site.Shape;
-        TerminalModel terminal = site.Terminal;
-        SignatureProjection predicateSlots = shape.Api.Signature;
-        SignatureProjection terminalSlots = terminal.Api.Signature;
-        string executeName = "Execute_" + site.Id;
-        string[] signatureArguments = new[]
-        {
-            "global::Delta.ECS.World world",
-            "in global::Delta.ECS.Query query",
-            shape.HasContext ? "ref " + InterceptedPredicateContextType(site) + " predicateContext" : string.Empty,
-            terminal.IsFunctor && terminal.HasContext ? "ref " + terminal.ContextType + " context" : string.Empty,
-            terminal.IsFunctor
-                ? SignatureProjection.ContextParameter(terminal.FunctorPassMode, terminal.FunctorType!, "action")
-                : string.Empty
-        }.Where(static argument => argument.Length != 0).ToArray();
-
-        int accessCount = shape.Arity + terminal.Arity;
-        string accesses = GeneratorTemplates.JoinIndexed(accessCount, index =>
-        {
-            string componentType = index < shape.Arity ? site.PredicateComponents[index] : site.ActionComponents[index - shape.Arity];
-            ComponentModel component = index < shape.Arity
-                ? shape.ComponentModels[index]
-                : terminal.ComponentModels[index - shape.Arity];
-            string accessKind = component.IsWrite ? "Write" : "Read";
-            return $$"""var access{{index}} = global::Delta.ECS.GeneratedForEachRuntime.GetPrepared{{accessKind}}Access<{{componentType}}>(in query);""";
-        }, "\n");
-        string rowDeclarations = GeneratorTemplates.JoinIndexed(accessCount, index =>
-        {
-            string componentType = index < shape.Arity ? site.PredicateComponents[index] : site.ActionComponents[index - shape.Arity];
-            return $$"""ref {{componentType}} row{{index}} = ref global::System.Runtime.CompilerServices.Unsafe.NullRef<{{componentType}}>();""";
-        }, "\n");
-        string rowBindings = GeneratorTemplates.JoinIndexed(accessCount, index =>
-        {
-            string componentType = index < shape.Arity ? site.PredicateComponents[index] : site.ActionComponents[index - shape.Arity];
-            return $$"""row{{index}} = ref global::Delta.ECS.GeneratedForEachRuntime.GetGeneratedArrayReference(slots.GetGeneratedArray<{{componentType}}>(access{{index}}));""";
-        }, "\n");
-        string predicateArguments = string.Join(", ", new[]
-        {
-            shape.HasContext ? "ref predicateContext" : string.Empty,
-            shape.HasEntity ? "__whereEntity_" + site.Id : string.Empty
-        }.Concat(Enumerable.Range(0, shape.Arity)
-            .Select(index => predicateSlots.ComponentArgument(index, $"row{index}")))
-        .Where(static argument => argument.Length != 0));
-        string taggedPredicateArguments = string.Join(", ", new[]
-        {
-            shape.HasContext ? "ref predicateContext" : string.Empty,
-            shape.HasEntity ? "__whereEntity_" + site.Id : string.Empty
-        }.Concat(Enumerable.Range(0, shape.Arity)
-            .Select(index => predicateSlots.ComponentArgument(index, $"taggedRow{index}")))
-        .Where(static argument => argument.Length != 0));
-        bool needsEntity = shape.HasEntity || terminal.IsGeneratedEntityConsumer;
-        string TerminalCall(IReadOnlyList<string> rowNames) => $$"""
-            {{(terminal.IsFunctor ? "action.Invoke" : "Action_" + site.Id)}}({{string.Join(", ", new[]
-                {
-                    terminal.IsFunctor && terminal.HasContext ? "ref context" : string.Empty,
-                    terminal.HasEntity ? "__whereEntityRef_" + site.Id : string.Empty
-                }.Concat(Enumerable.Range(0, terminal.Arity)
-                    .Select(index => terminalSlots.ComponentArgument(index, rowNames[shape.Arity + index])))
-                .Where(static argument => argument.Length != 0))}});
-            """;
-        string terminalCall = TerminalCall(Enumerable.Range(0, accessCount).Select(static index => "row" + index).ToArray());
-        string taggedTerminalCall = TerminalCall(Enumerable.Range(0, accessCount).Select(static index => "taggedRow" + index).ToArray());
-        string entityBody = GeneratorTemplates.JoinNonEmpty(new[]
-        {
-            needsEntity
-                ? $$"""Entity __whereEntity_{{site.Id}} = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index);"""
-                : string.Empty,
-            terminal.HasEntity
-                ? $$"""EntityRef __whereEntityRef_{{site.Id}} = slots.GetEntityRef(index);"""
-                : string.Empty,
-            GeneratorTemplates.RenderBlock($"if (Predicate_{site.Id}({predicateArguments}))", terminalCall)
-        });
-        string denseIteration = GeneratorTemplates.JoinNonEmpty(new[]
-        {
-            "int count = slots.Count;",
-            GeneratorTemplates.RenderBlock(
-                "for (int index = 0; index < count; index++)",
-                GeneratorTemplates.JoinNonEmpty(new[]
-                {
-                    entityBody,
-                    GeneratorTemplates.JoinIndexed(accessCount, index =>
-                        $$"""row{{index}} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row{{index}}, 1);""", "\n")
-                    }))
-        });
-        string taggedIteration = GeneratorTemplates.JoinNonEmpty(new[]
-        {
-            "if (slots.TryGetTagSlots(out var tagSlots))",
-            "{",
-            "    for (int tagIndex = 0; tagIndex < tagSlots.Length; tagIndex++)",
-            "    {",
-            "        int slotIndex = tagSlots[tagIndex];",
-            needsEntity
-                ? $$"""        Entity __whereEntity_{{site.Id}} = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, slotIndex);"""
-                : string.Empty,
-            terminal.HasEntity
-                ? $$"""        EntityRef __whereEntityRef_{{site.Id}} = slots.GetEntityRefAtSlot(slotIndex);"""
-                : string.Empty,
-            GeneratorTemplates.JoinIndexed(accessCount, index =>
-                $$"""        ref {{(index < shape.Arity ? site.PredicateComponents[index] : site.ActionComponents[index - shape.Arity])}} taggedRow{{index}} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row{{index}}, slotIndex);""", "\n"),
-            GeneratorTemplates.RenderBlock($"if (Predicate_{site.Id}({taggedPredicateArguments}))", taggedTerminalCall)
-        }.Where(static line => line.Length != 0).Select(static line => line + "\n").Append("    }\n}"));
-        string iteration = GeneratorTemplates.JoinNonEmpty(new[]
-        {
-            needsEntity
-                ? "ref global::Delta.ECS.Entity firstEntity = ref slots.GetGeneratedEntityReference();"
-                : string.Empty,
-            taggedIteration,
-            GeneratorTemplates.RenderBlock("else", denseIteration)
-        });
-        string executionBody = GeneratorTemplates.JoinNonEmpty(new[]
-        {
-            "using var execution = global::Delta.ECS.GeneratedForEachRuntime.OpenDense(world, in query);",
-            accesses,
-            rowDeclarations,
-            $$"""execution.MarkArchetypeWrites({{GeneratorTemplates.WriteSpan(shape.ComponentModels.Concat(terminal.ComponentModels))}});""",
-            GeneratorTemplates.RenderBlock(
-                "while (execution.MoveNextTrusted(out var slots))",
-                GeneratorTemplates.JoinNonEmpty(new[] { rowBindings, iteration }))
-        });
-        string executeDeclaration = $$"""
-            [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-            private static void {{executeName}}({{string.Join(", ", signatureArguments)}})
-            """.Trim();
-        return GeneratorTemplates.RenderBlock(
-            executeDeclaration,
-            executionBody);
     }
 
     private static string RenderInterceptedStructuralLoop(WhereInterceptionSite site, bool values = false)
@@ -461,9 +342,7 @@ internal static class GeneratedWhereTemplates
             """;
     }
 
-    private static string InterceptedPredicateArguments(
-        PredicateModel shape,
-        string contextName = "predicateContext")
+    private static string InterceptedPredicateArguments(PredicateModel shape, string contextName = "predicateContext")
     {
         var arguments = new List<string>();
         if (shape.HasContext)
@@ -849,8 +728,7 @@ internal static class GeneratedWhereTemplates
             """;
     }
 
-    private static string WhereValueInitializerType(TerminalModel terminal)
-        => WhereValueInitializerName(terminal.Arity) + terminal.Api.Signature.GenericParameters("U");
+    private static string WhereValueInitializerType(TerminalModel terminal) => WhereValueInitializerName(terminal.Arity) + terminal.Api.Signature.GenericParameters("U");
 
     private static string WhereValueInitializerName(int arity) => "GeneratedWhereAddValues" + arity.ToString(CultureInfo.InvariantCulture);
 
@@ -864,9 +742,7 @@ internal static class GeneratedWhereTemplates
             ? terminal.Api.Signature.GenericList("U")
             : string.Empty;
 
-    private static string RenderValueParameters(
-        SignatureProjection slots,
-        IReadOnlyList<string> types)
+    private static string RenderValueParameters(SignatureProjection slots, IReadOnlyList<string> types)
         => GeneratorTemplates.JoinNonEmpty(new[]
         {
             slots.HasExplicitIds ? slots.ComponentIdParameters("componentId") : string.Empty,
@@ -916,8 +792,7 @@ internal static class GeneratedWhereTemplates
                     : GeneratorTemplates.RowReference(componentType, component, accessIndex, indent);
             }));
 
-    private static string PredicateType(PredicateModel shape, string hash)
-        => shape.IsFunctor
+    private static string PredicateType(PredicateModel shape, string hash) => shape.IsFunctor
             ? shape.FunctorType!
             : $"GeneratedWherePredicate_{hash}{PredicateGenericTypes(shape)}";
 
@@ -1041,8 +916,7 @@ internal static class GeneratedWhereTemplates
                 });
             }
 
-            public global::Delta.ECS.EcsResultOperation<global::Delta.ECS.Entity> FirstEntity()
-                => First();
+            public global::Delta.ECS.EcsResultOperation<global::Delta.ECS.Entity> FirstEntity() => First();
 
             public global::Delta.ECS.EcsResultOperation<global::Delta.ECS.Entity> FirstEntity(global::System.Func<global::Delta.ECS.Entity, bool> predicate)
                 => First(predicate);
@@ -1100,29 +974,23 @@ internal static class GeneratedWhereTemplates
             {
                 private readonly global::Delta.ECS.OrderedQuery _ordering;
 
-                internal EntityCollector(global::Delta.ECS.OrderedQuery ordering)
-                    => _ordering = ordering;
+                internal EntityCollector(global::Delta.ECS.OrderedQuery ordering) => _ordering = ordering;
 
-                public void Invoke(global::Delta.ECS.Entity entity)
-                    => _ordering.AppendGeneratedEntity(entity);
+                public void Invoke(global::Delta.ECS.Entity entity) => _ordering.AppendGeneratedEntity(entity);
             }
             """;
         return GeneratorTemplates.RenderBlock($"{visibility} sealed class {typeName}", body);
     }
 
-    internal static string ViewTypeName(PredicateModel shape)
-        => InNamespace(shape.Namespace, "GeneratedWhereQuery_" + GeneratorSupport.StableName(shape.Key));
+    internal static string ViewTypeName(PredicateModel shape) => GeneratorSupport.QualifiedName(shape.Namespace, "GeneratedWhereQuery_" + GeneratorSupport.StableName(shape.Key));
 
-    internal static string OrderedViewTypeName(PredicateModel shape)
-        => InNamespace(shape.Namespace, "GeneratedWhereOrderedQuery_" + GeneratorSupport.StableName(shape.Key));
+    internal static string OrderedViewTypeName(PredicateModel shape) => GeneratorSupport.QualifiedName(shape.Namespace, "GeneratedWhereOrderedQuery_" + GeneratorSupport.StableName(shape.Key));
 
-    internal static string ViewMethodTypeParameters(PredicateModel shape)
-        => GeneratorTemplates.JoinIndexed(
+    internal static string ViewMethodTypeParameters(PredicateModel shape) => GeneratorTemplates.JoinIndexed(
             shape.IsFunctor ? 0 : shape.Arity + (shape.HasContext ? 1 : 0),
             static index => "TWhere" + index.ToString(CultureInfo.InvariantCulture));
 
-    internal static string ViewMethodTypeArguments(PredicateModel shape)
-        => SignatureProjection.TypeArguments(ViewMethodTypeParameters(shape));
+    internal static string ViewMethodTypeArguments(PredicateModel shape) => SignatureProjection.TypeArguments(ViewMethodTypeParameters(shape));
 
     private static string RenderViewTerminal(PredicateModel shape, TerminalModel terminal, string hash)
     {
@@ -1284,7 +1152,7 @@ internal static class GeneratedWhereTemplates
                 string method = terminal.HasEntity ? "ForEachEntity" : "ForEach";
                 return GeneratorTemplates.Method(
                     terminal.Api,
-                    $$"""internal {{OperationTypeForTerminal(shape, terminal, hash, terminalHash, SignatureProjection.TypeArguments(components))}} {{method}}({{concreteActionType}} action)""",
+                    $$"""internal {{OperationTypeForTerminal(terminal, hash, terminalHash, SignatureProjection.TypeArguments(components))}} {{method}}({{concreteActionType}} action)""",
                     $$"""return {{method}}{{SignatureProjection.TypeArguments(components)}}(action);""",
                     "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
             }));
@@ -1308,7 +1176,6 @@ internal static class GeneratedWhereTemplates
         {
             TerminalKind.Destroy or TerminalKind.Add or TerminalKind.Remove => "global::Delta.ECS.EcsResultOperation<int>",
             TerminalKind.ForEach or TerminalKind.ForEachEntity => OperationTypeForTerminal(
-                shape,
                 terminal,
                 hash,
                 terminalHash,
@@ -1375,7 +1242,7 @@ internal static class GeneratedWhereTemplates
         }
 
         string invokerGenericArguments = terminal.IsGeneratedEntityConsumer ? "<TWhereAction>" : genericParameters;
-        string operationType = OperationTypeForTerminal(shape, terminal, hash, terminalHash, invokerGenericArguments);
+        string operationType = OperationTypeForTerminal(terminal, hash, terminalHash, invokerGenericArguments);
         string invokerType = DeferredTerminalInvokerType(hash, terminalHash, invokerGenericArguments);
         var invokerArguments = new List<string> { "this" };
         if (slots.HasExplicitIds)
@@ -1389,45 +1256,36 @@ internal static class GeneratedWhereTemplates
         }
 
         string invoker = $"new {invokerType}({string.Join(", ", invokerArguments)})";
-        string operation = (terminal.HasContext, terminal.IsFunctor) switch
-        {
-            (true, true) => $"new {operationType}(context, action, {invoker})",
-            (true, false) => $"new {operationType}(context, {invoker})",
-            (false, true) => $"new {operationType}(action, {invoker})",
-            _ => $"new {operationType}({invoker})"
-        };
+        string operation = EcsOperationTemplates.CreationExpression(
+            operationType,
+            invoker,
+            terminal.HasContext ? terminal.ContextType : null,
+            terminal.IsFunctor ? terminal.FunctorType : null,
+            functorName: "action");
         setup.Add($"return {operation};");
 
         return GeneratorTemplates.JoinNonEmpty(setup);
     }
 
     private static string OperationTypeForTerminal(
-        PredicateModel shape,
         TerminalModel terminal,
         string predicateHash,
         string terminalHash,
         string invokerArguments)
     {
         string invoker = DeferredTerminalInvokerType(predicateHash, terminalHash, invokerArguments);
-        string context = terminal.ContextType ?? "C";
-        string functor = terminal.FunctorType ?? "TWhereAction";
-        return (terminal.HasContext, terminal.IsFunctor) switch
-        {
-            (true, true) => $"global::Delta.ECS.EcsOperation<{context}, {functor}, {invoker}>",
-            (true, false) => $"global::Delta.ECS.EcsOperation<{context}, {invoker}>",
-            (false, true) => $"global::Delta.ECS.EcsOperation<{functor}, {invoker}>",
-            _ => $"global::Delta.ECS.EcsOperation<{invoker}>"
-        };
+        return EcsOperationTemplates.OperationType(
+            invoker,
+            terminal.HasContext ? terminal.ContextType : null,
+            terminal.IsFunctor ? terminal.FunctorType : null);
     }
 
-    private static string DeferredTerminalInvokerName(string predicateHash, string terminalHash)
-        => "GeneratedWhereOperationInvoker_" + predicateHash + '_' + terminalHash;
+    private static string DeferredTerminalInvokerName(string predicateHash, string terminalHash) => "GeneratedWhereOperationInvoker_" + predicateHash + '_' + terminalHash;
 
     private static string DeferredTerminalInvokerType(
         string predicateHash,
         string terminalHash,
-        string genericArguments)
-        => DeferredTerminalInvokerName(predicateHash, terminalHash) + genericArguments;
+        string genericArguments) => DeferredTerminalInvokerName(predicateHash, terminalHash) + genericArguments;
 
     private static string RenderDeferredTerminalInvoker(
         PredicateModel shape,
@@ -1441,20 +1299,15 @@ internal static class GeneratedWhereTemplates
             : string.Empty;
         string viewType = "GeneratedWhereQuery_" + hash + PredicateGenericTypes(shape);
         bool mutableContext = terminal.HasContext;
-        string interfaceType = (mutableContext, terminal.IsFunctor) switch
-        {
-            (true, true) => $"global::Delta.ECS.IEcsOperationInvoker<{terminal.ContextType}, {terminal.FunctorType}>",
-            (true, false) => $"global::Delta.ECS.IEcsOperationInvoker<{terminal.ContextType}>",
-            (false, true) => $"global::Delta.ECS.IEcsOperationInvoker<{terminal.FunctorType ?? "TWhereAction"}>",
-            _ => "global::Delta.ECS.IEcsOperationInvoker"
-        };
+        string? contextType = mutableContext ? terminal.ContextType : null;
+        string? functorType = terminal.IsFunctor || terminal.IsGeneratedEntityConsumer
+            ? terminal.FunctorType ?? "TWhereAction"
+            : null;
+        string interfaceType = EcsOperationTemplates.InvokerInterface(contextType, functorType);
         string fields = GeneratorTemplates.JoinNonEmpty(new[]
         {
             $"private {viewType} _view;",
-            terminal.Api.Signature.HasDynamicIds ? "private readonly global::Delta.ECS.ComponentId[] _componentIds;" : string.Empty,
-            terminal.Api.Signature.HasExplicitIds && !terminal.Api.Signature.HasDynamicIds
-                ? string.Join("\n", GeneratorTemplates.Indexed(terminal.Arity, index => $"private readonly global::Delta.ECS.ComponentId _componentId{index};"))
-                : string.Empty,
+            terminal.Api.Signature.ComponentIdFields(),
             terminal.IsFunctor || terminal.IsGeneratedEntityConsumer
                 ? string.Empty
                 : $"private readonly {ActionType(terminal, hash, terminalHash)} _action;"
@@ -1462,19 +1315,13 @@ internal static class GeneratedWhereTemplates
         string constructorParameters = string.Join(", ", new[]
         {
             viewType + " view",
-            terminal.Api.Signature.HasDynamicIds ? "global::Delta.ECS.ComponentId[] componentIds" : string.Empty,
-            terminal.Api.Signature.HasExplicitIds && !terminal.Api.Signature.HasDynamicIds
-                ? terminal.Api.Signature.ComponentIdParameters("componentId")
-                : string.Empty,
+            terminal.Api.Signature.ComponentIdStorageParameters(),
             terminal.IsFunctor || terminal.IsGeneratedEntityConsumer ? string.Empty : ActionType(terminal, hash, terminalHash) + " action"
         }.Where(static parameter => parameter.Length != 0));
         string assignments = GeneratorTemplates.JoinNonEmpty(new[]
         {
             "_view = view;",
-            terminal.Api.Signature.HasDynamicIds ? "_componentIds = componentIds;" : string.Empty,
-            terminal.Api.Signature.HasExplicitIds && !terminal.Api.Signature.HasDynamicIds
-                ? string.Join("\n", GeneratorTemplates.Indexed(terminal.Arity, index => $"_componentId{index} = {terminal.Api.Signature.ComponentIdArgument(index, "componentId")};"))
-                : string.Empty,
+            terminal.Api.Signature.ComponentIdAssignments(),
             terminal.IsFunctor || terminal.IsGeneratedEntityConsumer ? string.Empty : "_action = action;"
         });
         var callArguments = new List<string>();
@@ -1505,37 +1352,24 @@ internal static class GeneratedWhereTemplates
             ? "<TWhereAction>"
             : terminal.IsFunctor ? string.Empty : SignatureProjection.TypeArguments(terminal.Api.Signature.GenericList("U"));
         string invocation = $"view.ExecuteTerminal_{terminalHash}{genericCall}({string.Join(", ", callArguments)});";
-        string method = (mutableContext, terminal.IsFunctor || terminal.IsGeneratedEntityConsumer) switch
-        {
-            (true, true) => $"void {interfaceType}.Invoke(ref {terminal.ContextType} context, ref {terminal.FunctorType ?? "TWhereAction"} functor)",
-            (true, false) => $"void {interfaceType}.Invoke(ref {terminal.ContextType} context)",
-            (false, true) => $"void {interfaceType}.Invoke(ref {terminal.FunctorType ?? "TWhereAction"} functor)",
-            _ => $"void {interfaceType}.Invoke()"
-        };
+        string method = EcsOperationTemplates.InvokeMethod(interfaceType, contextType, functorType);
         string body = GeneratorTemplates.JoinNonEmpty(new[]
         {
             $"{viewType} view = _view;",
-            terminal.Api.Signature.HasDynamicIds ? "global::Delta.ECS.ComponentId[] componentIds = _componentIds;" : string.Empty,
-            terminal.Api.Signature.HasExplicitIds && !terminal.Api.Signature.HasDynamicIds
-                ? string.Join("\n", GeneratorTemplates.Indexed(terminal.Arity, index => $"global::Delta.ECS.ComponentId {terminal.Api.Signature.ComponentIdArgument(index, "componentId")} = _componentId{index};"))
-                : string.Empty,
+            terminal.Api.Signature.ComponentIdLocals(),
             invocation,
             "_view = view;"
         });
-        return $$"""
-            [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
-            public struct {{DeferredTerminalInvokerName(hash, terminalHash)}}{{genericParameters}} : {{interfaceType}}{{genericConstraints}}
-            {
-            {{fields}}
-
-                internal {{DeferredTerminalInvokerName(hash, terminalHash)}}({{constructorParameters}})
-                {
-            {{GeneratorTemplates.Indent(assignments, "        ")}}
-                }
-
-            {{GeneratorTemplates.RenderBlock(method, body)}}
-            }
-            """;
+        return EcsOperationTemplates.InvokerStruct(
+            "public",
+            DeferredTerminalInvokerName(hash, terminalHash),
+            genericParameters,
+            interfaceType,
+            genericConstraints,
+            fields,
+            constructorParameters,
+            assignments,
+            GeneratorTemplates.RenderBlock(method, body));
     }
 
     private static string RenderExtensionBody(PredicateModel shape, string hash)
@@ -1578,13 +1412,11 @@ internal static class GeneratedWhereTemplates
             "    ");
     }
 
-    private static string PredicateGenericList(PredicateModel shape)
-        => shape.IsFunctor
+    private static string PredicateGenericList(PredicateModel shape) => shape.IsFunctor
             ? string.Empty
             : SignatureProjection.JoinGeneric(shape.HasContext ? "C" : string.Empty, shape.Api.Signature.GenericList());
 
-    private static string PredicateGenericTypes(PredicateModel shape)
-        => SignatureProjection.TypeArguments(PredicateGenericList(shape));
+    private static string PredicateGenericTypes(PredicateModel shape) => SignatureProjection.TypeArguments(PredicateGenericList(shape));
 
     private static string PredicateContextType(PredicateModel shape) => shape.IsFunctor ? shape.ContextType! : "C";
 
@@ -1593,10 +1425,6 @@ internal static class GeneratedWhereTemplates
             .Concat(binding.Components)
             .ToArray();
 
-    private static string InterceptedPredicateContextType(WhereInterceptionSite site)
-        => site.PredicateShapeBinding.ContextType ?? "global::System.Object";
-
-    private static string InNamespace(string namespaceName, string typeName)
-        => namespaceName.Length == 0 ? "global::" + typeName : "global::" + namespaceName + "." + typeName;
+    private static string InterceptedPredicateContextType(WhereInterceptionSite site) => site.PredicateShapeBinding.ContextType ?? "global::System.Object";
 
 }

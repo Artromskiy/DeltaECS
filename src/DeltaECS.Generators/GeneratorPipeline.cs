@@ -25,8 +25,7 @@ internal sealed class ShapeRegistry<TShape>
         return candidate;
     }
 
-    internal IEnumerable<TShape> Ordered()
-        => _items.OrderBy(static pair => pair.Key, StringComparer.Ordinal)
+    internal IEnumerable<TShape> Ordered() => _items.OrderBy(static pair => pair.Key, StringComparer.Ordinal)
             .Select(static pair => pair.Value);
 }
 

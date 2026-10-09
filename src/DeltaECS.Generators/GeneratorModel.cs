@@ -101,10 +101,7 @@ internal enum StructuralOperation
     Create
 }
 
-internal readonly record struct ComponentModel(
-    string TypeName,
-    AccessKind Access,
-    string? ResolvedTypeName = null)
+internal readonly record struct ComponentModel(string TypeName, AccessKind Access, string? ResolvedTypeName = null)
 {
     internal string ResolvedTypeName { get; } = ResolvedTypeName ?? TypeName;
     internal bool IsWrite => Access == AccessKind.RowWrite;
@@ -170,15 +167,14 @@ internal sealed record ApiModel(
         Execution,
         Name);
 
-    private static string BuildSummary(OperationKind operation, string? name)
-        => operation switch
-        {
-            OperationKind.QueryFactory => $"Builds a query using {name} component constraints.",
-            OperationKind.Structural => $"Executes the generated {name ?? "structural"} operation.",
-            OperationKind.Iteration => $"Iterates matching entities and components using {name ?? "ForEach"}.",
-            OperationKind.Where => "Creates a read-only filtered query view.",
-            _ => "Executes a generated ECS operation."
-        };
+    private static string BuildSummary(OperationKind operation, string? name) => operation switch
+    {
+        OperationKind.QueryFactory => $"Builds a query using {name} component constraints.",
+        OperationKind.Structural => $"Executes the generated {name ?? "structural"} operation.",
+        OperationKind.Iteration => $"Iterates matching entities and components using {name ?? "ForEach"}.",
+        OperationKind.Where => "Creates a read-only filtered query view.",
+        _ => "Executes a generated ECS operation."
+    };
 
     private static string BuildSignatureKey(
         OperationKind operation,

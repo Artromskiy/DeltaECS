@@ -36,8 +36,7 @@ internal static class GeneratorSupport
             ? ImmutableArray<string>.Empty
             : ImmutableArray.Create("using global::Delta.ECS;");
 
-    internal static string QualifiedName(string namespaceName, string typeName)
-        => namespaceName.Length == 0 ? "global::" + typeName : "global::" + namespaceName + "." + typeName;
+    internal static string QualifiedName(string namespaceName, string typeName) => namespaceName.Length == 0 ? "global::" + typeName : "global::" + namespaceName + "." + typeName;
 
     internal static bool IsInterceptionEnabled(AnalyzerConfigOptions options)
         => options.TryGetValue("build_property.InterceptorsNamespaces", out string? namespaces)
@@ -110,11 +109,9 @@ internal static class GeneratorSupport
                 && (candidateFilter is null || candidateFilter(node)),
             static (syntaxContext, _) => new InvocationCandidate((InvocationExpressionSyntax)syntaxContext.Node));
 
-    internal static bool IsGeneratedApiName(string name)
-        => ApiDescriptor.TryGet(name, out _);
+    internal static bool IsGeneratedApiName(string name) => ApiDescriptor.TryGet(name, out _);
 
-    internal static bool IsGeneratedSourcePath(string path)
-        => path.EndsWith("ForEach.g.cs", StringComparison.Ordinal)
+    internal static bool IsGeneratedSourcePath(string path) => path.EndsWith("ForEach.g.cs", StringComparison.Ordinal)
             || path.Contains("DemandForEach_", StringComparison.Ordinal)
             || path.Contains("GeneratedQuery_", StringComparison.Ordinal)
             || path.Contains("GeneratedStructural_", StringComparison.Ordinal)
@@ -140,33 +137,24 @@ internal static class GeneratorSupport
             })
             .ToImmutableArray();
 
-    internal static ImmutableArray<InvocationCandidate> ExcludeGenerated(
-        ImmutableArray<InvocationCandidate> invocations)
+    internal static ImmutableArray<InvocationCandidate> ExcludeGenerated(ImmutableArray<InvocationCandidate> invocations)
         => invocations.IsDefaultOrEmpty
             ? ImmutableArray<InvocationCandidate>.Empty
             : invocations
                 .Where(static candidate => !IsGeneratedSourcePath(candidate.Invocation.SyntaxTree.FilePath))
                 .ToImmutableArray();
 
-    internal static bool IsNamedType(ITypeSymbol? type, string name)
-        => type is INamedTypeSymbol named
+    internal static bool IsNamedType(ITypeSymbol? type, string name) => type is INamedTypeSymbol named
             && named.Name == name
             && named.ContainingNamespace.ToDisplayString() == EcsNamespace;
 
-    internal static bool IsWorldReceiver(SemanticModel model, ExpressionSyntax expression)
-        => IsReceiver(model, expression, "World");
+    internal static bool IsWorldReceiver(SemanticModel model, ExpressionSyntax expression) => IsReceiver(model, expression, "World");
 
-    internal static bool IsQueryReceiver(SemanticModel model, ExpressionSyntax expression)
-        => IsReceiver(model, expression, "Query", allowWorld: true);
+    internal static bool IsQueryReceiver(SemanticModel model, ExpressionSyntax expression) => IsReceiver(model, expression, "Query", allowWorld: true);
 
-    internal static bool IsQuerySpecReceiver(SemanticModel model, ExpressionSyntax expression)
-        => IsReceiver(model, expression, "QuerySpec");
+    internal static bool IsQuerySpecReceiver(SemanticModel model, ExpressionSyntax expression) => IsReceiver(model, expression, "QuerySpec");
 
-    private static bool IsReceiver(
-        SemanticModel model,
-        ExpressionSyntax expression,
-        string typeName,
-        bool allowWorld = false)
+    private static bool IsReceiver(SemanticModel model, ExpressionSyntax expression, string typeName, bool allowWorld = false)
     {
         if (IsNamedType(model.GetTypeInfo(expression).Type, typeName))
         {
@@ -192,17 +180,13 @@ internal static class GeneratorSupport
         return false;
     }
 
-    internal static bool IsEcsType(ITypeSymbol? type, string name)
-        => IsNamedType(type, name);
+    internal static bool IsEcsType(ITypeSymbol? type, string name) => IsNamedType(type, name);
 
-    internal static bool IsEntityType(ITypeSymbol? type)
-        => IsNamedType(type, "Entity");
+    internal static bool IsEntityType(ITypeSymbol? type) => IsNamedType(type, "Entity");
 
-    internal static bool IsEntityRefType(ITypeSymbol? type)
-        => IsNamedType(type, "EntityRef");
+    internal static bool IsEntityRefType(ITypeSymbol? type) => IsNamedType(type, "EntityRef");
 
-    internal static bool IsComponentId(ITypeSymbol? type)
-        => IsNamedType(type, "ComponentId");
+    internal static bool IsComponentId(ITypeSymbol? type) => IsNamedType(type, "ComponentId");
 
     internal static bool HasGenericTypeInChain(INamedTypeSymbol type, bool includeSelf)
     {
@@ -219,20 +203,15 @@ internal static class GeneratorSupport
         return false;
     }
 
-    internal static bool IsInt32(ITypeSymbol? type)
-        => type?.SpecialType == SpecialType.System_Int32;
+    internal static bool IsInt32(ITypeSymbol? type) => type?.SpecialType == SpecialType.System_Int32;
 
-    internal static bool IsStampType(ITypeSymbol? type)
-        => IsNamedType(type, "Stamp");
+    internal static bool IsStampType(ITypeSymbol? type) => IsNamedType(type, "Stamp");
 
-    internal static bool IsEntityBatch(ITypeSymbol? type)
-        => IsBatch(type, "Entity", allowArray: true, allowReadOnlySpan: true);
+    internal static bool IsEntityBatch(ITypeSymbol? type) => IsBatch(type, "Entity", allowArray: true, allowReadOnlySpan: true);
 
-    internal static bool IsEntityOutput(ITypeSymbol? type)
-        => IsBatch(type, "Entity", allowArray: false, allowReadOnlySpan: false);
+    internal static bool IsEntityOutput(ITypeSymbol? type) => IsBatch(type, "Entity", allowArray: false, allowReadOnlySpan: false);
 
-    internal static bool IsComponentIdBatch(ITypeSymbol? type)
-        => IsBatch(type, "ComponentId", allowArray: true, allowReadOnlySpan: true);
+    internal static bool IsComponentIdBatch(ITypeSymbol? type) => IsBatch(type, "ComponentId", allowArray: true, allowReadOnlySpan: true);
 
     private static bool IsBatch(ITypeSymbol? type, string elementName, bool allowArray, bool allowReadOnlySpan)
     {
@@ -260,33 +239,26 @@ internal static class GeneratorSupport
         return type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
     }
 
-    internal static ImmutableArray<ComponentModel> ComponentModels(
-        int arity,
-        AccessKind access,
-        string prefix = "T")
-        => ComponentModels(new string('V', arity), Array.Empty<string>(), false, prefix, access);
+    internal static ImmutableArray<ComponentModel> ComponentModels(int arity, AccessKind access, string prefix = "T") => ComponentModels(new string('V', arity), Array.Empty<string>(), false, prefix, access);
 
-    internal static AccessKind AccessKindFrom(char pattern)
-        => pattern switch
-        {
-            'W' => AccessKind.RowWrite,
-            'R' => AccessKind.RefReadonly,
-            'S' => AccessKind.StampRead,
-            'I' => AccessKind.RowRead,
-            _ => AccessKind.Value
-        };
+    internal static AccessKind AccessKindFrom(char pattern) => pattern switch
+    {
+        'W' => AccessKind.RowWrite,
+        'R' => AccessKind.RefReadonly,
+        'S' => AccessKind.StampRead,
+        'I' => AccessKind.RowRead,
+        _ => AccessKind.Value
+    };
 
-    internal static char PatternLetter(RefKind refKind)
-        => refKind switch
-        {
-            RefKind.In => 'I',
-            RefKind.Ref => 'W',
-            _ when IsRefReadonly(refKind) => 'R',
-            _ => 'V'
-        };
+    internal static char PatternLetter(RefKind refKind) => refKind switch
+    {
+        RefKind.In => 'I',
+        RefKind.Ref => 'W',
+        _ when IsRefReadonly(refKind) => 'R',
+        _ => 'V'
+    };
 
-    internal static bool IsRefReadonly(RefKind refKind)
-        => (int)refKind == RefReadOnlyParameterValue;
+    internal static bool IsRefReadonly(RefKind refKind) => (int)refKind == RefReadOnlyParameterValue;
 
     internal static char PatternLetter(ParameterSyntax parameter)
     {
@@ -297,19 +269,17 @@ internal static class GeneratorSupport
             : parameter.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.InKeyword)) ? 'I' : 'V';
     }
 
-    internal static bool IsAccessibleType(ITypeSymbol type)
-        => type switch
-        {
-            IArrayTypeSymbol array => IsAccessibleType(array.ElementType),
-            IPointerTypeSymbol pointer => IsAccessibleType(pointer.PointedAtType),
-            INamedTypeSymbol named => named.DeclaredAccessibility is (Accessibility.Public or Accessibility.Internal)
-                && (named.ContainingType is null || IsAccessibleType(named.ContainingType))
-                && named.TypeArguments.All(IsAccessibleType),
-            _ => true
-        };
+    internal static bool IsAccessibleType(ITypeSymbol type) => type switch
+    {
+        IArrayTypeSymbol array => IsAccessibleType(array.ElementType),
+        IPointerTypeSymbol pointer => IsAccessibleType(pointer.PointedAtType),
+        INamedTypeSymbol named => named.DeclaredAccessibility is (Accessibility.Public or Accessibility.Internal)
+            && (named.ContainingType is null || IsAccessibleType(named.ContainingType))
+            && named.TypeArguments.All(IsAccessibleType),
+        _ => true
+    };
 
-    internal static bool ContainsTypeParameter(ITypeSymbol type)
-        => type is ITypeParameterSymbol
+    internal static bool ContainsTypeParameter(ITypeSymbol type) => type is ITypeParameterSymbol
             || type is INamedTypeSymbol named && named.TypeArguments.Any(ContainsTypeParameter)
             || type is IArrayTypeSymbol array && ContainsTypeParameter(array.ElementType);
 
@@ -409,9 +379,7 @@ internal static class GeneratorSupport
         return true;
     }
 
-    internal static IEnumerable<ITypeSymbol?> ClosedTypesFromLambda(
-        SemanticModel model,
-        LambdaExpressionSyntax lambda)
+    internal static IEnumerable<ITypeSymbol?> ClosedTypesFromLambda(SemanticModel model, LambdaExpressionSyntax lambda)
     {
         foreach (ParameterSyntax parameter in CallbackReader.LambdaParameters(lambda))
         {

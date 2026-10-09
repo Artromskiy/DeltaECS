@@ -23,10 +23,7 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
             static shape => shape.Key,
             static shape => GeneratedQueryTemplates.Render(shape));
 
-    private static bool TryReadShape(
-        SemanticModel model,
-        InvocationExpressionSyntax invocation,
-        out QueryModel? shape)
+    private static bool TryReadShape(SemanticModel model, InvocationExpressionSyntax invocation, out QueryModel? shape)
     {
         shape = null;
         if (invocation.Expression is not MemberAccessExpressionSyntax member

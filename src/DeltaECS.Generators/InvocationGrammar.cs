@@ -18,11 +18,9 @@ internal readonly record struct ApiDescriptor(
     InvocationTailRule Tail,
     int MinimumArity)
 {
-    internal ApiDescriptor WithTarget(InvocationTargetRule target)
-        => this with { Target = target };
+    internal ApiDescriptor WithTarget(InvocationTargetRule target) => this with { Target = target };
 
-    internal ApiDescriptor WithTail(InvocationTailRule tail)
-        => this with { Tail = tail };
+    internal ApiDescriptor WithTail(InvocationTailRule tail) => this with { Tail = tail };
 
     internal static bool TryGet(string name, out ApiDescriptor descriptor)
     {
@@ -61,26 +59,22 @@ internal readonly record struct ApiDescriptor(
             minimumArity: hasEntity && !isStamp ? 0 : 1);
     }
 
-    private static ApiDescriptor QueryFactory()
-        => CreateDescriptor(GeneratedApiKind.QueryFactory, allowsIds: true);
+    private static ApiDescriptor QueryFactory() => CreateDescriptor(GeneratedApiKind.QueryFactory, allowsIds: true);
 
-    private static ApiDescriptor Where(string name)
-        => CreateDescriptor(
+    private static ApiDescriptor Where(string name) => CreateDescriptor(
             GeneratedApiKind.Where,
             hasEntity: name == "WhereEntity",
             query: QueryMode.Required,
             allowsContext: true,
             requiresCallback: true);
 
-    private static ApiDescriptor Ordering()
-        => CreateDescriptor(
+    private static ApiDescriptor Ordering() => CreateDescriptor(
             GeneratedApiKind.Ordering,
             allowsIds: true,
             allowsContext: true,
             requiresCallback: true);
 
-    private static ApiDescriptor Structural(string name)
-        => CreateDescriptor(
+    private static ApiDescriptor Structural(string name) => CreateDescriptor(
             GeneratedApiKind.Structural,
             target: name == "Create" ? InvocationTargetRule.None : InvocationTargetRule.StructuralTarget,
             allowsIds: true,
@@ -131,9 +125,7 @@ internal enum InvocationTailRule
 
 internal static class InvocationGrammar
 {
-    internal static bool IsWhereInvocation(
-        ExpressionSyntax expression,
-        out InvocationExpressionSyntax? whereInvocation)
+    internal static bool IsWhereInvocation(ExpressionSyntax expression, out InvocationExpressionSyntax? whereInvocation)
     {
         whereInvocation = expression as InvocationExpressionSyntax;
         return whereInvocation?.Expression is MemberAccessExpressionSyntax member
@@ -213,10 +205,6 @@ internal sealed class InvocationCursor(
     SeparatedSyntaxList<ArgumentSyntax> arguments,
     ApiDescriptor descriptor)
 {
-    private readonly SemanticModel _model = model;
-    private readonly SeparatedSyntaxList<ArgumentSyntax> _arguments = arguments;
-    private readonly ApiDescriptor _descriptor = descriptor;
-
     internal bool TryRead(
         int callbackIndex,
         out InvocationCursorResult result,
@@ -234,12 +222,12 @@ internal sealed class InvocationCursor(
         int contextIndex = -1;
         ContextModeKind contextMode = ContextModeKind.None;
 
-        if (contextArgumentPresent && (!_descriptor.AllowsContext || callbackIndex < 1))
+        if (contextArgumentPresent && (!descriptor.AllowsContext || callbackIndex < 1))
         {
             return false;
         }
 
-        if (_descriptor.Target == InvocationTargetRule.StructuralTarget)
+        if (descriptor.Target == InvocationTargetRule.StructuralTarget)
         {
             if (!TryTarget(index, out target))
             {
@@ -249,7 +237,7 @@ internal sealed class InvocationCursor(
             hasTarget = true;
             index++;
         }
-        else if (_descriptor.Target == InvocationTargetRule.EntityListOptional
+        else if (descriptor.Target == InvocationTargetRule.EntityListOptional
             && TryTarget(index, out TargetKind candidateTarget)
             && candidateTarget == TargetKind.EntityList)
         {
@@ -258,8 +246,8 @@ internal sealed class InvocationCursor(
             index++;
         }
 
-        if (requireQuery || _descriptor.Query == QueryMode.Required
-            || (_descriptor.Query == QueryMode.Optional && HasQuery(index)))
+        if (requireQuery || descriptor.Query == QueryMode.Required
+            || (descriptor.Query == QueryMode.Optional && HasQuery(index)))
         {
             if (!HasQuery(index))
             {
@@ -273,8 +261,8 @@ internal sealed class InvocationCursor(
 
         int componentArgumentLimit = contextArgumentPresent
             ? callbackIndex - 1
-            : callbackIndex >= 0 ? callbackIndex : _arguments.Count;
-        if (_descriptor.AllowsIds)
+            : callbackIndex >= 0 ? callbackIndex : arguments.Count;
+        if (descriptor.AllowsIds)
         {
             while (index < componentArgumentLimit && IsComponentId(index))
             {
@@ -283,7 +271,7 @@ internal sealed class InvocationCursor(
             }
 
             if (index < componentArgumentLimit
-                && GeneratorSupport.IsComponentIdBatch(_model.GetTypeInfo(_arguments[index].Expression).Type))
+                && GeneratorSupport.IsComponentIdBatch(model.GetTypeInfo(arguments[index].Expression).Type))
             {
                 if (componentIdCount != 0)
                 {
@@ -294,7 +282,7 @@ internal sealed class InvocationCursor(
             }
         }
 
-        if (_descriptor.AllowsContext && (contextArgumentPresent || callbackIndex > index))
+        if (descriptor.AllowsContext && (contextArgumentPresent || callbackIndex > index))
         {
             if (callbackIndex != index + 1 || (!contextArgumentPresent && IsComponentId(index)))
             {
@@ -302,13 +290,13 @@ internal sealed class InvocationCursor(
             }
 
             contextIndex = index;
-            contextMode = CallbackReader.ContextMode(CallbackReader.ArgumentRefKind(_arguments[index]));
+            contextMode = CallbackReader.ContextMode(CallbackReader.ArgumentRefKind(arguments[index]));
             index++;
         }
 
         int tailStart = -1;
         bool hasOutput = false;
-        if (_descriptor.RequiresCallback)
+        if (descriptor.RequiresCallback)
         {
             if (callbackIndex != index)
             {
@@ -322,33 +310,33 @@ internal sealed class InvocationCursor(
             return false;
         }
 
-        int tailCount = _arguments.Count - index;
-        if (_descriptor.Tail == InvocationTailRule.None && tailCount != 0)
+        int tailCount = arguments.Count - index;
+        if (descriptor.Tail == InvocationTailRule.None && tailCount != 0)
         {
             return false;
         }
 
-        if (_descriptor.Tail == InvocationTailRule.Values)
+        if (descriptor.Tail == InvocationTailRule.Values)
         {
             tailStart = index;
         }
-        else if (_descriptor.Tail == InvocationTailRule.WorkerCount)
+        else if (descriptor.Tail == InvocationTailRule.WorkerCount)
         {
             if (tailCount > 1
-                || (tailCount == 1 && !GeneratorSupport.IsInt32(_model.GetTypeInfo(_arguments[index].Expression).Type)))
+                || (tailCount == 1 && !GeneratorSupport.IsInt32(model.GetTypeInfo(arguments[index].Expression).Type)))
             {
                 return false;
             }
 
             tailStart = index;
         }
-        else if (_descriptor.Tail == InvocationTailRule.CountOutput)
+        else if (descriptor.Tail == InvocationTailRule.CountOutput)
         {
             hasOutput = tailCount == 2
-                && GeneratorSupport.IsEntityOutput(_model.GetTypeInfo(_arguments[_arguments.Count - 1].Expression).Type);
-            int countIndex = _arguments.Count - (hasOutput ? 2 : 1);
+                && GeneratorSupport.IsEntityOutput(model.GetTypeInfo(arguments[arguments.Count - 1].Expression).Type);
+            int countIndex = arguments.Count - (hasOutput ? 2 : 1);
             if (tailCount is < 1 or > 2
-                || !GeneratorSupport.IsInt32(_model.GetTypeInfo(_arguments[countIndex].Expression).Type)
+                || !GeneratorSupport.IsInt32(model.GetTypeInfo(arguments[countIndex].Expression).Type)
                 || (tailCount == 2 && !hasOutput))
             {
                 return false;
@@ -372,24 +360,22 @@ internal sealed class InvocationCursor(
         return true;
     }
 
-    private bool HasQuery(int index)
-        => index < _arguments.Count
-            && _arguments[index].RefKindKeyword.IsKind(SyntaxKind.InKeyword)
-            && GeneratorSupport.IsEcsType(_model.GetTypeInfo(_arguments[index].Expression).Type, "Query");
+    private bool HasQuery(int index) => index < arguments.Count
+            && arguments[index].RefKindKeyword.IsKind(SyntaxKind.InKeyword)
+            && GeneratorSupport.IsEcsType(model.GetTypeInfo(arguments[index].Expression).Type, "Query");
 
-    private bool IsComponentId(int index)
-        => GeneratorSupport.IsComponentId(_model.GetTypeInfo(_arguments[index].Expression).Type);
+    private bool IsComponentId(int index) => GeneratorSupport.IsComponentId(model.GetTypeInfo(arguments[index].Expression).Type);
 
     private bool TryTarget(int index, out TargetKind target)
     {
         target = TargetKind.World;
-        if (index >= _arguments.Count)
+        if (index >= arguments.Count)
         {
             return false;
         }
 
-        ArgumentSyntax argument = _arguments[index];
-        ITypeSymbol? type = _model.GetTypeInfo(argument.Expression).Type;
+        ArgumentSyntax argument = arguments[index];
+        ITypeSymbol? type = model.GetTypeInfo(argument.Expression).Type;
         if (GeneratorSupport.IsEntityBatch(type))
         {
             target = TargetKind.EntityList;
@@ -437,12 +423,7 @@ internal readonly record struct InvocationCursorResult(
 /// <summary>Reconciles every component-associated arity discovered by a reader.</summary>
 internal static class ArityEvidence
 {
-    internal static bool TryBind(
-        int minimum,
-        out int arity,
-        int? first = null,
-        int? second = null,
-        int? third = null)
+    internal static bool TryBind(int minimum, out int arity, int? first = null, int? second = null, int? third = null)
     {
         int? canonical = first ?? second ?? third;
         arity = canonical.GetValueOrDefault();
@@ -453,6 +434,5 @@ internal static class ArityEvidence
             && Matches(third, arity);
     }
 
-    private static bool Matches(int? evidence, int arity)
-        => !evidence.HasValue || evidence.Value >= 0 && evidence.Value == arity;
+    private static bool Matches(int? evidence, int arity) => !evidence.HasValue || evidence.Value >= 0 && evidence.Value == arity;
 }

@@ -285,18 +285,17 @@ internal static class GenericTypeDispatchTemplates
         }
     }
 
-    private static string VisitorInterface(GenericTypeConstraintKind kind)
-        => kind switch
-        {
-            GenericTypeConstraintKind.Struct => "global::Delta.ECS.IGeneratedStructComponentTypeVisitor",
-            GenericTypeConstraintKind.Unmanaged => "global::Delta.ECS.IGeneratedUnmanagedComponentTypeVisitor",
-            GenericTypeConstraintKind.Class => "global::Delta.ECS.IGeneratedClassComponentTypeVisitor",
-            GenericTypeConstraintKind.NullableClass => "global::Delta.ECS.IGeneratedNullableClassComponentTypeVisitor",
-            GenericTypeConstraintKind.New => "global::Delta.ECS.IGeneratedConstructibleComponentTypeVisitor",
-            GenericTypeConstraintKind.ClassNew => "global::Delta.ECS.IGeneratedClassConstructibleComponentTypeVisitor",
-            GenericTypeConstraintKind.NullableClassNew => "global::Delta.ECS.IGeneratedNullableClassConstructibleComponentTypeVisitor",
-            _ => "global::Delta.ECS.IGeneratedComponentTypeVisitor",
-        };
+    private static string VisitorInterface(GenericTypeConstraintKind kind) => kind switch
+    {
+        GenericTypeConstraintKind.Struct => "global::Delta.ECS.IGeneratedStructComponentTypeVisitor",
+        GenericTypeConstraintKind.Unmanaged => "global::Delta.ECS.IGeneratedUnmanagedComponentTypeVisitor",
+        GenericTypeConstraintKind.Class => "global::Delta.ECS.IGeneratedClassComponentTypeVisitor",
+        GenericTypeConstraintKind.NullableClass => "global::Delta.ECS.IGeneratedNullableClassComponentTypeVisitor",
+        GenericTypeConstraintKind.New => "global::Delta.ECS.IGeneratedConstructibleComponentTypeVisitor",
+        GenericTypeConstraintKind.ClassNew => "global::Delta.ECS.IGeneratedClassConstructibleComponentTypeVisitor",
+        GenericTypeConstraintKind.NullableClassNew => "global::Delta.ECS.IGeneratedNullableClassConstructibleComponentTypeVisitor",
+        _ => "global::Delta.ECS.IGeneratedComponentTypeVisitor",
+    };
 
     private static string DispatchCall(GenericTypeConstraintKind kind, string token, string remaining, string visitor)
     {
@@ -306,18 +305,17 @@ internal static class GenericTypeDispatchTemplates
             : $"global::Delta.ECS.GeneratedComponentTypeDispatch.{method}({token}, {remaining}, ref {visitor});";
     }
 
-    private static string DispatchMethod(GenericTypeConstraintKind kind)
-        => kind switch
-        {
-            GenericTypeConstraintKind.Struct => "DispatchStruct",
-            GenericTypeConstraintKind.Unmanaged => "DispatchUnmanaged",
-            GenericTypeConstraintKind.Class => "DispatchClass",
-            GenericTypeConstraintKind.NullableClass => "DispatchNullableClass",
-            GenericTypeConstraintKind.New => "DispatchConstructible",
-            GenericTypeConstraintKind.ClassNew => "DispatchClassConstructible",
-            GenericTypeConstraintKind.NullableClassNew => "DispatchNullableClassConstructible",
-            _ => string.Empty,
-        };
+    private static string DispatchMethod(GenericTypeConstraintKind kind) => kind switch
+    {
+        GenericTypeConstraintKind.Struct => "DispatchStruct",
+        GenericTypeConstraintKind.Unmanaged => "DispatchUnmanaged",
+        GenericTypeConstraintKind.Class => "DispatchClass",
+        GenericTypeConstraintKind.NullableClass => "DispatchNullableClass",
+        GenericTypeConstraintKind.New => "DispatchConstructible",
+        GenericTypeConstraintKind.ClassNew => "DispatchClassConstructible",
+        GenericTypeConstraintKind.NullableClassNew => "DispatchNullableClassConstructible",
+        _ => string.Empty,
+    };
 
     private static string ConstraintClauses(
         IEnumerable<GenericTypeParameterConstraint> constraints,

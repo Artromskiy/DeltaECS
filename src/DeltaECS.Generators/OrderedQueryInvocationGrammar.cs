@@ -58,13 +58,7 @@ internal static class OrderedQueryInvocationGrammar
     internal static bool TryReadWhereSource(ExpressionSyntax expression, SemanticModel model, out PredicateModel? shape)
     {
         shape = null;
-        if (expression is not InvocationExpressionSyntax invocation
-            || invocation.Expression is not MemberAccessExpressionSyntax member)
-        {
-            return false;
-        }
-
-        if (member.Name.Identifier.ValueText is not ("Where" or "WhereEntity"))
+        if (expression is not InvocationExpressionSyntax invocation)
         {
             return false;
         }
@@ -72,10 +66,7 @@ internal static class OrderedQueryInvocationGrammar
         return GeneratedWhereGenerator.TryReadPredicate(model, invocation, out shape);
     }
 
-    internal static bool TryReadOrderedWhereSource(
-        ExpressionSyntax expression,
-        SemanticModel model,
-        out PredicateModel? shape)
+    internal static bool TryReadOrderedWhereSource(ExpressionSyntax expression, SemanticModel model, out PredicateModel? shape)
     {
         shape = null;
         if (expression is not InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax member })

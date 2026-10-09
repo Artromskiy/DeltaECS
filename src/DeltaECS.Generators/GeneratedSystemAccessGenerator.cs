@@ -237,29 +237,20 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
         bool queryScoped = !cursor.HasComponentIds
             && cursor.HasQuery
             && TryGetReadOnlyQueryField(model, invocation, cursor.QueryArgumentIndex, out queryExpression);
+        GeneratedSystemAccessAccumulator callbackAccess = queryScoped
+            ? new GeneratedSystemAccessAccumulator()
+            : accumulator;
+        ReadCallback(
+            model,
+            invocation.ArgumentList.Arguments[callbackIndex].Expression,
+            genericTypes,
+            descriptor.HasEntity,
+            cursor.HasContext,
+            descriptor.Value == ValueDomain.Stamp,
+            callbackAccess);
         if (queryScoped)
         {
-            var queryAccess = new GeneratedSystemAccessAccumulator();
-            ReadCallback(
-                model,
-                invocation.ArgumentList.Arguments[callbackIndex].Expression,
-                genericTypes,
-                descriptor.HasEntity,
-                cursor.HasContext,
-                descriptor.Value == ValueDomain.Stamp,
-                queryAccess);
-            accumulator.AddQueryAccess(queryExpression, queryAccess);
-        }
-        else
-        {
-            ReadCallback(
-                model,
-                invocation.ArgumentList.Arguments[callbackIndex].Expression,
-                genericTypes,
-                descriptor.HasEntity,
-                cursor.HasContext,
-                descriptor.Value == ValueDomain.Stamp,
-                accumulator);
+            accumulator.AddQueryAccess(queryExpression, callbackAccess);
         }
     }
 

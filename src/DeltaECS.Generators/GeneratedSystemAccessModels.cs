@@ -45,20 +45,15 @@ internal sealed class GeneratedSystemAccessAccumulator
     internal bool UnknownWorldAccess { get; private set; }
     internal bool UsesParallelExecutor { get; private set; }
 
-    internal void Read(ITypeSymbol? type)
-        => Add(_reads, type);
+    internal void Read(ITypeSymbol? type) => Add(_reads, type);
 
-    internal void Write(ITypeSymbol? type)
-        => Add(_writes, type);
+    internal void Write(ITypeSymbol? type) => Add(_writes, type);
 
-    internal void StampRead(ITypeSymbol? type)
-        => Add(_stampReads, type);
+    internal void StampRead(ITypeSymbol? type) => Add(_stampReads, type);
 
-    internal void Add(ITypeSymbol? type)
-        => Add(_adds, type);
+    internal void Add(ITypeSymbol? type) => Add(_adds, type);
 
-    internal void Remove(ITypeSymbol? type)
-        => Add(_removes, type);
+    internal void Remove(ITypeSymbol? type) => Add(_removes, type);
 
     internal void Apply(IEnumerable<ITypeSymbol> types, Action<ITypeSymbol> access)
     {
@@ -68,23 +63,17 @@ internal sealed class GeneratedSystemAccessAccumulator
         }
     }
 
-    internal void ReadTopology()
-        => ReadsTopology = true;
+    internal void ReadTopology() => ReadsTopology = true;
 
-    internal void WriteTopology()
-        => WritesTopology = true;
+    internal void WriteTopology() => WritesTopology = true;
 
-    internal void CreateEntities()
-        => CreatesEntities = true;
+    internal void CreateEntities() => CreatesEntities = true;
 
-    internal void DestroyEntities()
-        => DestroysEntities = true;
+    internal void DestroyEntities() => DestroysEntities = true;
 
-    internal void Unknown()
-        => UnknownWorldAccess = true;
+    internal void Unknown() => UnknownWorldAccess = true;
 
-    internal void Parallel()
-        => UsesParallelExecutor = true;
+    internal void Parallel() => UsesParallelExecutor = true;
 
     internal void AddQueryAccess(string queryExpression, GeneratedSystemAccessAccumulator access)
     {
@@ -106,11 +95,7 @@ internal sealed class GeneratedSystemAccessAccumulator
             access._stampReads.ToImmutableArray()));
     }
 
-    internal GeneratedSystemAccessModel Build(
-        string @namespace,
-        string typeName,
-        string helperName,
-        bool injectProperty)
+    internal GeneratedSystemAccessModel Build(string @namespace, string typeName, string helperName, bool injectProperty)
         => new(
             @namespace,
             typeName,

@@ -56,8 +56,7 @@ internal sealed class PredicateModel(
         }
     }
 
-    internal void RegisterStaticMethodGroup()
-        => AddUnique(StaticMethodGroupBindings, ConcreteBinding);
+    internal void RegisterStaticMethodGroup() => AddUnique(StaticMethodGroupBindings, ConcreteBinding);
 
     private static void AddUnique(List<WherePredicateBinding> values, WherePredicateBinding candidate)
     {
@@ -167,8 +166,7 @@ internal sealed class TerminalModel(
         }
     }
 
-    internal void RegisterStaticMethodGroup()
-        => AddUnique(StaticMethodGroupComponents, Components);
+    internal void RegisterStaticMethodGroup() => AddUnique(StaticMethodGroupComponents, Components);
 
     private static void AddUnique(List<string[]> values, string[] candidate)
     {
@@ -223,11 +221,9 @@ internal enum TerminalKind
 
 internal static class GeneratedWhereModelNames
 {
-    internal static string[] Predicate(PredicateModel shape)
-        => Names(shape.HasContext ? 1 : 0, shape.HasEntity ? 1 : 0, shape.Arity);
+    internal static string[] Predicate(PredicateModel shape) => Names(shape.HasContext ? 1 : 0, shape.HasEntity ? 1 : 0, shape.Arity);
 
-    internal static string[] Action(TerminalModel terminal)
-        => Names(0, terminal.HasEntity ? 1 : 0, terminal.Arity);
+    internal static string[] Action(TerminalModel terminal) => Names(0, terminal.HasEntity ? 1 : 0, terminal.Arity);
 
     private static string[] Names(int contextCount, int entityCount, int componentCount)
     {

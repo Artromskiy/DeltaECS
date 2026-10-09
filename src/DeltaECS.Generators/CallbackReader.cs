@@ -51,13 +51,12 @@ internal sealed class CallSiteBinding(
 /// <summary>Shared semantic rules for generated callback arguments.</summary>
 internal static class CallbackReader
 {
-    internal static ParameterSyntax[] LambdaParameters(LambdaExpressionSyntax? lambda)
-        => lambda switch
-        {
-            SimpleLambdaExpressionSyntax simple => new[] { simple.Parameter },
-            ParenthesizedLambdaExpressionSyntax parenthesized => parenthesized.ParameterList.Parameters.ToArray(),
-            _ => Array.Empty<ParameterSyntax>()
-        };
+    internal static ParameterSyntax[] LambdaParameters(LambdaExpressionSyntax? lambda) => lambda switch
+    {
+        SimpleLambdaExpressionSyntax simple => new[] { simple.Parameter },
+        ParenthesizedLambdaExpressionSyntax parenthesized => parenthesized.ParameterList.Parameters.ToArray(),
+        _ => Array.Empty<ParameterSyntax>()
+    };
 
     internal static bool IsEntityParameter(SemanticModel model, ParameterSyntax parameter, bool allowImplicit = false)
         => parameter.Modifiers.Count == 0
@@ -69,12 +68,30 @@ internal static class CallbackReader
             && ((parameter.Type is not null && GeneratorSupport.IsEntityRefType(model.GetTypeInfo(parameter.Type).Type))
                 || (allowImplicit && parameter.Type is null));
 
-    internal static bool IsSupportedRefKind(RefKind refKind)
-        => refKind is RefKind.None or RefKind.In or RefKind.Ref
+    internal static bool TryReadEntityPrefix(IReadOnlyList<IParameterSymbol> parameters, ref int index, bool required, bool entityRef = false)
+    {
+        if (!required)
+        {
+            return true;
+        }
+
+        if (index >= parameters.Count
+            || parameters[index].RefKind != RefKind.None
+            || (entityRef
+                ? !GeneratorSupport.IsEntityRefType(parameters[index].Type)
+                : !GeneratorSupport.IsEntityType(parameters[index].Type)))
+        {
+            return false;
+        }
+
+        index++;
+        return true;
+    }
+
+    internal static bool IsSupportedRefKind(RefKind refKind) => refKind is RefKind.None or RefKind.In or RefKind.Ref
             || GeneratorSupport.IsRefReadonly(refKind);
 
-    internal static bool IsSupportedReadRefKind(RefKind refKind)
-        => refKind is RefKind.None or RefKind.In
+    internal static bool IsSupportedReadRefKind(RefKind refKind) => refKind is RefKind.None or RefKind.In
             || GeneratorSupport.IsRefReadonly(refKind);
 
     internal static RefKind ArgumentRefKind(ArgumentSyntax argument)
@@ -139,10 +156,7 @@ internal static class CallbackReader
             && model.GetSymbolInfo(member.Expression).Symbol is INamedTypeSymbol or INamespaceSymbol or IAliasSymbol;
     }
 
-    internal static bool TryGetMethodGroupTarget(
-        SemanticModel model,
-        ExpressionSyntax expression,
-        out IMethodSymbol? method)
+    internal static bool TryGetMethodGroupTarget(SemanticModel model, ExpressionSyntax expression, out IMethodSymbol? method)
     {
         ExpressionSyntax originalExpression = expression;
         expression = UnwrapMethodGroupExpression(expression);
@@ -179,17 +193,8 @@ internal static class CallbackReader
         int expectedParameterCount,
         ImmutableArray<ITypeSymbol?> expectedTypes,
         bool hasEntity,
-        out IMethodSymbol? method)
-        => TryGetMethodGroupTarget(model, expression, expectedParameterCount, expectedTypes, hasEntity, entityRef: false, out method);
-
-    internal static bool TryGetMethodGroupTarget(
-        SemanticModel model,
-        ExpressionSyntax expression,
-        int expectedParameterCount,
-        ImmutableArray<ITypeSymbol?> expectedTypes,
-        bool hasEntity,
-        bool entityRef,
-        out IMethodSymbol? method)
+        out IMethodSymbol? method,
+        bool entityRef = false)
     {
         ExpressionSyntax normalized = UnwrapMethodGroupExpression(expression);
 
@@ -273,15 +278,11 @@ internal static class CallbackReader
         return false;
     }
 
-    internal static string MethodGroupTarget(IMethodSymbol method)
-        => method.ContainingType is { } containingType
+    internal static string MethodGroupTarget(IMethodSymbol method) => method.ContainingType is { } containingType
             ? containingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "." + method.Name
             : ThrowHelper.ThrowMethodGroupTargetMissing(method);
 
-    internal static bool TryGetMarker(
-        INamedTypeSymbol type,
-        Func<string, bool> name,
-        out INamedTypeSymbol? marker)
+    internal static bool TryGetMarker(INamedTypeSymbol type, Func<string, bool> name, out INamedTypeSymbol? marker)
     {
         INamedTypeSymbol[] markers = type.AllInterfaces
             .Where(static candidate => candidate.ContainingNamespace.ToDisplayString() == GeneratorSupport.EcsNamespace)
@@ -305,8 +306,7 @@ internal static class CallbackReader
         return result;
     }
 
-    internal static bool HasWherePredicateMarker(INamedTypeSymbol type)
-        => TryGetMarker(type, static name => name == "IWherePredicate", out _);
+    internal static bool HasWherePredicateMarker(INamedTypeSymbol type) => TryGetMarker(type, static name => name == "IWherePredicate", out _);
 
     internal static bool HasValidPrefix(
         IMethodSymbol method,
@@ -331,27 +331,15 @@ internal static class CallbackReader
             index++;
         }
 
-        if (hasEntity)
+        if (!TryReadEntityPrefix(method.Parameters, ref index, hasEntity, entityRef))
         {
-            if (method.Parameters.Length <= index
-                || method.Parameters[index].RefKind != Microsoft.CodeAnalysis.RefKind.None
-                || !(entityRef
-                    ? GeneratorSupport.IsEntityRefType(method.Parameters[index].Type)
-                    : GeneratorSupport.IsEntityType(method.Parameters[index].Type)))
-            {
-                return false;
-            }
-
-            index++;
+            return false;
         }
 
         return method.Parameters.Length >= index;
     }
 
-    internal static bool HasAccessibleLambdaReferences(
-        SemanticModel model,
-        LambdaExpressionSyntax lambda,
-        out string? reason)
+    internal static bool HasAccessibleLambdaReferences(SemanticModel model, LambdaExpressionSyntax lambda, out string? reason)
     {
         foreach (ParameterSyntax parameter in LambdaParameters(lambda))
         {

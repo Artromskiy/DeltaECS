@@ -192,16 +192,12 @@ internal static class ComponentComparerTemplateSupport
             : GeneratedWhereTemplates.ViewTypeName(source)) + whereTypeArguments;
     }
 
-    internal static string OrderedReturnType(PredicateModel? source, string whereTypeArguments)
-        => source is null
+    internal static string OrderedReturnType(PredicateModel? source, string whereTypeArguments) => source is null
             ? "global::Delta.ECS.OrderedQuery"
             : GeneratedWhereTemplates.OrderedViewTypeName(source)
                 + whereTypeArguments;
 
-    internal static string SourceQueryDeclaration(
-        PredicateModel? source,
-        bool thenBy,
-        RegistrationBindingKind registration)
+    internal static string SourceQueryDeclaration(PredicateModel? source, bool thenBy, RegistrationBindingKind registration)
     {
         bool needsSourceQuery = source is null
             ? thenBy && registration == RegistrationBindingKind.Primary
@@ -215,10 +211,7 @@ internal static class ComponentComparerTemplateSupport
         return $"global::Delta.ECS.Query sourceQuery = query.{sourceProperty};\n";
     }
 
-    private static string ComponentIdsDeclaration(
-        int arity,
-        RegistrationBindingKind registration,
-        string primaryIds)
+    private static string ComponentIdsDeclaration(int arity, RegistrationBindingKind registration, string primaryIds)
     {
         return registration switch
         {

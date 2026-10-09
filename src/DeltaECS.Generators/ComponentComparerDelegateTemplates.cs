@@ -31,12 +31,7 @@ internal static class ComponentComparerDelegateTemplates
             index => $"ref readonly {genericTypes[index]} right{index} = ref world.GetGeneratedOrderedQueryKey<{genericTypes[index]}>(right, _componentId{index});", "\n");
         string compareRows = leftRows + "\n" + rightRows;
         string contextField = model.HasContext ? $"private {model.ContextType} _context;" : string.Empty;
-        string contextParameter = model.HasContext
-            ? ", " + SignatureProjection.ContextParameter(model.ContextMode, model.ContextType!, "context")
-            : string.Empty;
-        string contextArgument = model.HasContext
-            ? ", " + SignatureProjection.ContextArgument(model.ContextMode, "context")
-            : string.Empty;
+        (string contextParameter, string contextArgument) = ContextArguments(model);
         string callbackField = "private readonly " + delegateName + " _callback;";
         string callbackCall = "_callback(" + invokeArguments.Replace("_context", "context") + ")";
         string source = $$"""
@@ -89,8 +84,7 @@ internal static class ComponentComparerDelegateTemplates
                         _callback = callback;
                     }
 
-                    protected override int Invoke({{invokeParameters}})
-                        => {{callbackCall}};
+                    protected override int Invoke({{invokeParameters}}) => {{callbackCall}};
                 }
 
             {{RenderExtensions(model, delegateName, genericNames, whereSources)}}
@@ -109,12 +103,7 @@ internal static class ComponentComparerDelegateTemplates
         string extensionClass = "global::Delta.ECS.GeneratedComponentComparerDelegateExtensions_" + model.Hash;
         string delegateType = extensionClass + ".Compare" + genericArguments;
         string adapterType = extensionClass + ".AdapterBase<" + genericNames + ">";
-        string contextParameter = model.HasContext
-            ? ", " + SignatureProjection.ContextParameter(model.ContextMode, model.ContextType!, "context")
-            : string.Empty;
-        string contextArgument = model.HasContext
-            ? ", " + SignatureProjection.ContextArgument(model.ContextMode, "context")
-            : string.Empty;
+        (string contextParameter, string contextArgument) = ContextArguments(model);
         string selectorParameters = SelectorParameters(site.RegistrationBinding, model.ComponentTypes.Length);
         string selectorNames = SelectorArgumentNames(site.RegistrationBinding, model.ComponentTypes.Length);
         PredicateModel? whereSource = site.WhereSource;
@@ -204,12 +193,7 @@ internal static class ComponentComparerDelegateTemplates
         IReadOnlyList<PredicateModel>? whereSources)
     {
         string genericClause = GenericArguments(genericNames);
-        string contextParameter = model.HasContext
-            ? ", " + SignatureProjection.ContextParameter(model.ContextMode, model.ContextType!, "context")
-            : string.Empty;
-        string contextArgument = model.HasContext
-            ? ", " + SignatureProjection.ContextArgument(model.ContextMode, "context")
-            : string.Empty;
+        (string contextParameter, string contextArgument) = ContextArguments(model);
         string adapter = "DelegateAdapter<" + genericNames + ">";
 
         return ComponentComparerTemplateSupport.RenderOrderedMethods(
@@ -222,34 +206,36 @@ internal static class ComponentComparerDelegateTemplates
             whereSources);
     }
 
+    private static (string Parameter, string Argument) ContextArguments(ComponentComparerDelegateModel model)
+        => model.HasContext
+            ? (", " + SignatureProjection.ContextParameter(model.ContextMode, model.ContextType!, "context"),
+                ", " + SignatureProjection.ContextArgument(model.ContextMode, "context"))
+            : (string.Empty, string.Empty);
+
     private static string PrimaryIds(string delegateName, string[] componentTypes, string query)
     {
         string registrations = PrimaryIds(componentTypes, "world");
         return $"global::Delta.ECS.GeneratedForEachRuntime.GetGeneratedPrimaryComponentIds<{delegateName}>(in {query}, static world => new global::Delta.ECS.ComponentId[] {{ {registrations} }})";
     }
 
-    private static string SelectorParameters(RegistrationBindingKind kind, int arity)
-        => SelectorArguments(kind, arity, parameters: true);
+    private static string SelectorParameters(RegistrationBindingKind kind, int arity) => SelectorArguments(kind, arity, parameters: true);
 
-    private static string SelectorArgumentNames(RegistrationBindingKind kind, int arity)
-        => SelectorArguments(kind, arity, parameters: false);
+    private static string SelectorArgumentNames(RegistrationBindingKind kind, int arity) => SelectorArguments(kind, arity, parameters: false);
 
-    private static string SelectorArguments(RegistrationBindingKind kind, int arity, bool parameters)
-        => kind switch
-        {
-            RegistrationBindingKind.Explicit => GeneratorTemplates.JoinIndexed(
-                arity,
-                index => parameters
-                    ? $"global::Delta.ECS.ComponentId componentId{index}"
-                    : $"componentId{index}"),
-            RegistrationBindingKind.Dynamic => parameters
-                ? "global::System.ReadOnlySpan<global::Delta.ECS.ComponentId> componentIds"
-                : "componentIds",
-            _ => string.Empty
-        };
+    private static string SelectorArguments(RegistrationBindingKind kind, int arity, bool parameters) => kind switch
+    {
+        RegistrationBindingKind.Explicit => GeneratorTemplates.JoinIndexed(
+            arity,
+            index => parameters
+                ? $"global::Delta.ECS.ComponentId componentId{index}"
+                : $"componentId{index}"),
+        RegistrationBindingKind.Dynamic => parameters
+            ? "global::System.ReadOnlySpan<global::Delta.ECS.ComponentId> componentIds"
+            : "componentIds",
+        _ => string.Empty
+    };
 
-    private static string PrimaryIds(string[] componentTypes, string world)
-        => string.Join(", ", componentTypes
+    private static string PrimaryIds(string[] componentTypes, string world) => string.Join(", ", componentTypes
             .Select(type => $"{world}.Layouts.GetPrimary(typeof({type}))"));
 
     private static string CallbackParameters(ComponentComparerDelegateModel model, string[] genericTypes, string[] parameterNames)
@@ -284,8 +270,7 @@ internal static class ComponentComparerDelegateTemplates
         return string.Join(", ", parameters);
     }
 
-    private static string ComponentParameter(ComponentComparerDelegateModel model, int index, string type, string name)
-        => SignatureProjection.ComponentParameter(model.ComponentModes[index], type, name);
+    private static string ComponentParameter(ComponentComparerDelegateModel model, int index, string type, string name) => SignatureProjection.ComponentParameter(model.ComponentModes[index], type, name);
 
     private static string[] DefaultParameterNames(ComponentComparerDelegateModel model)
     {
@@ -310,18 +295,14 @@ internal static class ComponentComparerDelegateTemplates
         return names.ToArray();
     }
 
-    private static string ComponentArgument(ComponentComparerDelegateModel model, int index, string name)
-        => SignatureProjection.ComponentArgument(model.ComponentModes[index], name);
+    private static string ComponentArgument(ComponentComparerDelegateModel model, int index, string name) => SignatureProjection.ComponentArgument(model.ComponentModes[index], name);
 
-    private static string GenericParameterNames(ComponentComparerDelegateModel model)
-        => model.ContextIsGeneric
+    private static string GenericParameterNames(ComponentComparerDelegateModel model) => model.ContextIsGeneric
             ? GenericNames(model.ComponentTypes.Length) + ", TContext"
             : GenericNames(model.ComponentTypes.Length);
 
-    private static string GenericNames(int arity)
-        => string.Join(", ", Enumerable.Range(0, arity).Select(static index => "T" + (index + 1)));
+    private static string GenericNames(int arity) => string.Join(", ", Enumerable.Range(0, arity).Select(static index => "T" + (index + 1)));
 
-    private static string GenericArguments(string names)
-        => "<" + names + ">";
+    private static string GenericArguments(string names) => "<" + names + ">";
 
 }

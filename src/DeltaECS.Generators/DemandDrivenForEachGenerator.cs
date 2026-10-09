@@ -46,8 +46,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         "ForEach interception was not applied: {0}; the delegate fallback remains active",
         "ForEach");
 
-    public void Initialize(IncrementalGeneratorInitializationContext context)
-        => GeneratorPipeline.RegisterInterceptorInput(context, Execute);
+    public void Initialize(IncrementalGeneratorInitializationContext context) => GeneratorPipeline.RegisterInterceptorInput(context, Execute);
 
     private static void Execute(
         Compilation compilation,
@@ -150,8 +149,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
     }
 
-    private static IterationModel OrderedEntityListShape(IterationModel shape)
-        => new(
+    private static IterationModel OrderedEntityListShape(IterationModel shape) => new(
             shape.RegistrationBinding,
             shape.HasEntity,
             shape.HasContext,
@@ -220,7 +218,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 IMethodSymbol? candidate;
                 bool resolved = expectedParameterCount < 0
                     ? CallbackReader.TryGetMethodGroupTarget(model, invocation.ArgumentList.Arguments[index].Expression, out candidate)
-                    : CallbackReader.TryGetMethodGroupTarget(model, invocation.ArgumentList.Arguments[index].Expression, expectedParameterCount, expectedTypes, namedEntity, entityRef: true, out candidate);
+                    : CallbackReader.TryGetMethodGroupTarget(model, invocation.ArgumentList.Arguments[index].Expression, expectedParameterCount, expectedTypes, namedEntity, out candidate, entityRef: true);
                 if (resolved)
                 {
                     resolvedMethod = candidate;
@@ -512,25 +510,23 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             contextMode = NormalizeParallelContext(parallel, contextMode);
         }
 
-        shape = new IterationModel(
-            prefix.RegistrationBinding,
+        shape = CreateIterationModel(
+            model,
+            invocation,
+            member,
+            descriptor,
+            orderedQueryReceiver,
+            orderedWhereSource,
+            prefix,
             hasEntity,
             hasContext,
-            isFunctor: false,
+            false,
             accessPattern,
             components,
             functorType: null,
             contextType: lambdaContextType,
-            parallel: parallel,
             contextMode: contextMode,
-            methodName: member.Name.Identifier.ValueText,
-            hasEntityTarget: orderedQueryReceiver || prefix.HasTarget,
-            hasQuery: orderedQueryReceiver || prefix.HasQuery,
-            isStamp: stamp,
-            typeBinding: genericName is not null ? TypeBindingKind.Generic : TypeBindingKind.CallbackInferred,
-            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation),
-            orderedQueryReceiver: orderedQueryReceiver,
-            orderedWhereSource: orderedWhereSource);
+            typeBinding: genericName is not null ? TypeBindingKind.Generic : TypeBindingKind.CallbackInferred);
         return true;
     }
 
@@ -570,7 +566,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             IMethodSymbol? candidate;
             bool resolved = expectedMethodParameterCount < 0
                 ? CallbackReader.TryGetMethodGroupTarget(model, expression, out candidate)
-                : CallbackReader.TryGetMethodGroupTarget(model, expression, expectedMethodParameterCount, expectedTypes, namedEntity, entityRef: true, out candidate);
+                : CallbackReader.TryGetMethodGroupTarget(model, expression, expectedMethodParameterCount, expectedTypes, namedEntity, out candidate, entityRef: true);
             if (resolved)
             {
                 callbackArgumentIndex = index;
@@ -629,18 +625,11 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         bool hasEntity = false;
-        if (namedEntity)
+        if (!CallbackReader.TryReadEntityPrefix(methodTarget.Parameters, ref parameterIndex, namedEntity, entityRef: true))
         {
-            if (methodTarget.Parameters.Length <= parameterIndex
-                || methodTarget.Parameters[parameterIndex].RefKind != RefKind.None
-                || !GeneratorSupport.IsEntityRefType(methodTarget.Parameters[parameterIndex].Type))
-            {
-                return false;
-            }
-
-            hasEntity = true;
-            parameterIndex++;
+            return false;
         }
+        hasEntity = namedEntity;
 
         IParameterSymbol[] componentParameters = methodTarget.Parameters.Skip(parameterIndex).ToArray();
         if (!namedEntity && componentParameters.Any(static parameter =>
@@ -736,29 +725,23 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             pattern = NormalizeStampPattern(pattern);
         }
 
-        shape = new IterationModel(
-            prefix.HasComponentIdSpan
-                ? RegistrationBindingKind.Dynamic
-                : componentIdCount == componentParameters.Length && componentIdCount != 0
-                    ? RegistrationBindingKind.Explicit
-                    : RegistrationBindingKind.Primary,
+        shape = CreateIterationModel(
+            model,
+            invocation,
+            member,
+            descriptor,
+            orderedQueryReceiver,
+            orderedWhereSource,
+            prefix,
             hasEntity,
             hasContext,
-            isFunctor: false,
+            false,
             pattern,
             components,
             functorType: null,
-            contextType,
-            parallel: parallel,
+            contextType: contextType,
             contextMode: contextMode,
-            methodName: member.Name.Identifier.ValueText,
-            hasEntityTarget: orderedQueryReceiver || prefix.HasTarget,
-            hasQuery: orderedQueryReceiver || prefix.HasQuery,
-            isStamp: stamp,
-            typeBinding: genericName is not null ? TypeBindingKind.Generic : TypeBindingKind.CallbackInferred,
-            namespaceName: GeneratorSupport.ContainingNamespace(model, invocation),
-            orderedQueryReceiver: orderedQueryReceiver,
-            orderedWhereSource: orderedWhereSource);
+            typeBinding: genericName is not null ? TypeBindingKind.Generic : TypeBindingKind.CallbackInferred);
         return true;
     }
 
@@ -828,18 +811,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return false;
         }
         int componentIdCount = prefix.ComponentIdCount;
-        int contextArgumentIndex = prefix.ContextIndex;
         ContextModeKind contextMode = prefix.ContextMode;
-        if (hasContext)
-        {
-            if (invocation.ArgumentList.Arguments.Count <= contextArgumentIndex
-                || invocation.ArgumentList.Arguments[contextArgumentIndex].Expression is null)
-            {
-                return Reject(Unsupported, invocation, invocation, out diagnostic);
-            }
-
-            contextMode = CallbackReader.ContextMode(CallbackReader.ArgumentRefKind(invocation.ArgumentList.Arguments[contextArgumentIndex]));
-        }
         if (!TryNormalizeParallelContext(parallel, contextMode, invocation, out contextMode, out diagnostic))
         {
             return false;
@@ -915,28 +887,65 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         {
             return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
-        shape = new IterationModel(
-            prefix.RegistrationBinding,
+        shape = CreateIterationModel(
+            model,
+            invocation,
+            member,
+            descriptor,
+            orderedQueryReceiver,
+            orderedWhereSource,
+            prefix,
             hasEntity,
             hasContext,
-            isFunctor: true,
+            true,
             pattern,
             components,
             GeneratorSupport.DisplayType(functorType),
-            contextType is { } resolvedContextType ? GeneratorSupport.DisplayType(resolvedContextType) : null,
-            parallel: parallel,
+            contextType: contextType is { } resolvedContextType ? GeneratorSupport.DisplayType(resolvedContextType) : null,
+            contextMode: contextMode,
+            typeBinding: genericSelectors ? TypeBindingKind.Generic : TypeBindingKind.CallbackInferred,
+            functorPassMode: functorPassMode);
+        return true;
+    }
+
+    private static IterationModel CreateIterationModel(
+        SemanticModel model,
+        InvocationExpressionSyntax invocation,
+        MemberAccessExpressionSyntax member,
+        ApiDescriptor descriptor,
+        bool orderedQueryReceiver,
+        PredicateModel? orderedWhereSource,
+        InvocationCursorResult prefix,
+        bool hasEntity,
+        bool hasContext,
+        bool isFunctor,
+        string pattern,
+        string[] components,
+        string? functorType,
+        string? contextType,
+        ContextModeKind contextMode,
+        TypeBindingKind typeBinding,
+        ContextModeKind functorPassMode = ContextModeKind.Ref)
+        => new(
+            prefix.RegistrationBinding,
+            hasEntity,
+            hasContext,
+            isFunctor,
+            pattern,
+            components,
+            functorType,
+            contextType,
+            parallel: descriptor.Schedule == Schedule.Parallel,
             contextMode: contextMode,
             methodName: member.Name.Identifier.ValueText,
             hasEntityTarget: orderedQueryReceiver || prefix.HasTarget,
             hasQuery: orderedQueryReceiver || prefix.HasQuery,
-            isStamp: stamp,
-            typeBinding: genericSelectors ? TypeBindingKind.Generic : TypeBindingKind.CallbackInferred,
+            isStamp: descriptor.Value == ValueDomain.Stamp,
+            typeBinding: typeBinding,
             functorPassMode: functorPassMode,
             namespaceName: GeneratorSupport.ContainingNamespace(model, invocation),
             orderedQueryReceiver: orderedQueryReceiver,
             orderedWhereSource: orderedWhereSource);
-        return true;
-    }
 
     internal static bool TryReadPrefix(
         SemanticModel model,
@@ -964,8 +973,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         return false;
     }
 
-    private static string FunctorSignature(IMethodSymbol method)
-        => string.Join(string.Empty, method.Parameters.Select(static parameter => GeneratorSupport.PatternLetter(parameter.RefKind)));
+    private static string FunctorSignature(IMethodSymbol method) => string.Join(string.Empty, method.Parameters.Select(static parameter => GeneratorSupport.PatternLetter(parameter.RefKind)));
 
     private static bool TryNormalizeParallelContext(
         bool parallel,
@@ -981,8 +989,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         return diagnostic is null;
     }
 
-    private static ContextModeKind NormalizeParallelContext(bool parallel, ContextModeKind mode)
-        => parallel && mode == ContextModeKind.RefReadonly ? ContextModeKind.In : mode;
+    private static ContextModeKind NormalizeParallelContext(bool parallel, ContextModeKind mode) => parallel && mode == ContextModeKind.RefReadonly ? ContextModeKind.In : mode;
 
     private static bool IsStampSyntax(ParameterSyntax parameter)
     {
@@ -995,11 +1002,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         return refKind is RefKind.In || GeneratorSupport.IsRefReadonly(refKind);
     }
 
-    private static string NormalizeStampPattern(string pattern)
-        => pattern.Replace('R', 'I');
+    private static string NormalizeStampPattern(string pattern) => pattern.Replace('R', 'I');
 
-    private static int FindCallbackArgumentIndex(SeparatedSyntaxList<ArgumentSyntax> arguments)
-        => arguments.IndexOf(arguments.First(static argument => argument.Expression is LambdaExpressionSyntax));
+    private static int FindCallbackArgumentIndex(SeparatedSyntaxList<ArgumentSyntax> arguments) => arguments.IndexOf(arguments.First(static argument => argument.Expression is LambdaExpressionSyntax));
 
     private static string[] LambdaComponentTypes(
         SemanticModel model,
@@ -1018,11 +1023,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             : Array.Empty<string>();
     }
 
-    private static string? InferPattern(
-        LambdaExpressionSyntax lambda,
-        int componentCount,
-        bool hasContext,
-        bool hasEntity)
+    private static string? InferPattern(LambdaExpressionSyntax lambda, int componentCount, bool hasContext, bool hasEntity)
     {
         var parameters = CallbackReader.LambdaParameters(lambda);
         int start = (hasContext ? 1 : 0) + (hasEntity ? 1 : 0);

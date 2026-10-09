@@ -102,14 +102,13 @@ public sealed class GenericFunctorGenerator : IIncrementalGenerator
         => (type.ContainingType is null ? Enumerable.Empty<ITypeParameterSymbol>() : TypeParameters(type.ContainingType))
             .Concat(type.TypeParameters);
 
-    private static string Selector(ITypeSymbol type, ITypeParameterSymbol[] parameters)
-        => type switch
-        {
-            ITypeParameterSymbol parameter => $"genericArguments[{Array.FindIndex(parameters, candidate => SymbolEqualityComparer.Default.Equals(candidate, parameter))}]",
-            INamedTypeSymbol { IsGenericType: true } named when GeneratorSupport.ContainsTypeParameter(named)
-                => GenericComponentSelector(named, parameters),
-            _ => $"world.Layouts.GetPrimary<{GeneratorSupport.DisplayType(type)}>()"
-        };
+    private static string Selector(ITypeSymbol type, ITypeParameterSymbol[] parameters) => type switch
+    {
+        ITypeParameterSymbol parameter => $"genericArguments[{Array.FindIndex(parameters, candidate => SymbolEqualityComparer.Default.Equals(candidate, parameter))}]",
+        INamedTypeSymbol { IsGenericType: true } named when GeneratorSupport.ContainsTypeParameter(named)
+            => GenericComponentSelector(named, parameters),
+        _ => $"world.Layouts.GetPrimary<{GeneratorSupport.DisplayType(type)}>()"
+    };
 
     private static string GenericComponentSelector(INamedTypeSymbol type, ITypeParameterSymbol[] parameters)
     {

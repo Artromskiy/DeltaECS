@@ -36,9 +36,7 @@ internal readonly record struct GenericTypeParameterConstraint(int Index, Generi
 
 internal static class GenericTypeConstraintSupport
 {
-    internal static bool TryGetSupported(
-        INamedTypeSymbol type,
-        out ImmutableArray<GenericTypeParameterConstraint> constraints)
+    internal static bool TryGetSupported(INamedTypeSymbol type, out ImmutableArray<GenericTypeParameterConstraint> constraints)
     {
         if (type.ContainingType is { IsGenericType: true })
         {

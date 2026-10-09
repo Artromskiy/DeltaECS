@@ -239,13 +239,11 @@ public sealed class ComponentComparerGenerator : IIncrementalGenerator
         return true;
     }
 
-    private static bool HasComparerMarker(INamedTypeSymbol type)
-        => type.AllInterfaces.Any(static candidate =>
+    private static bool HasComparerMarker(INamedTypeSymbol type) => type.AllInterfaces.Any(static candidate =>
             candidate.Name is "IComponentComparer" or "IComponentComparerEntity"
             && candidate.ContainingNamespace.ToDisplayString() == GeneratorSupport.EcsNamespace);
 
-    private static bool HasEntityComparerMarker(INamedTypeSymbol type)
-        => type.AllInterfaces.Any(static candidate =>
+    private static bool HasEntityComparerMarker(INamedTypeSymbol type) => type.AllInterfaces.Any(static candidate =>
             candidate.Name == "IComponentComparerEntity"
             && candidate.ContainingNamespace.ToDisplayString() == GeneratorSupport.EcsNamespace);
 

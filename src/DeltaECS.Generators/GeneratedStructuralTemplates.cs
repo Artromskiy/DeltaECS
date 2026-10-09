@@ -104,8 +104,7 @@ internal static class GeneratedStructuralTemplates
         }, ", ");
     }
 
-    private static string ValueParameters(SignatureProjection slots)
-        => slots.Arity == 1
+    private static string ValueParameters(SignatureProjection slots) => slots.Arity == 1
             ? $"in {slots.GenericType(0)} value"
             : slots.ValueParameters();
 
@@ -191,17 +190,15 @@ internal static class GeneratedStructuralTemplates
         });
     }
 
-    private static string RenderComponents(StructuralModel shape, SignatureProjection slots)
-        => GeneratorTemplates.ComponentIdSpan(slots, "target", shape.Namespace);
+    private static string RenderComponents(StructuralModel shape, SignatureProjection slots) => GeneratorTemplates.ComponentIdSpan(slots, "target", shape.Namespace);
 
-    private static string MethodName(StructuralModel shape)
-        => shape.Operation switch
-        {
-            StructuralOperation.Create => "Create",
-            StructuralOperation.Add => "Add",
-            StructuralOperation.Remove => "Remove",
-            _ => "Create"
-        };
+    private static string MethodName(StructuralModel shape) => shape.Operation switch
+    {
+        StructuralOperation.Create => "Create",
+        StructuralOperation.Add => "Add",
+        StructuralOperation.Remove => "Remove",
+        _ => "Create"
+    };
 
     private static string ReturnType(StructuralModel shape)
         => shape.Operation == StructuralOperation.Create && (shape.HasValues || shape.CreatesOne)

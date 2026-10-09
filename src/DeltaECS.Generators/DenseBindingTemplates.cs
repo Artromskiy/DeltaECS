@@ -2,8 +2,7 @@ namespace Delta.ECS.Generators;
 
 internal static partial class DemandDrivenForEachTemplates
 {
-    private static bool UsesDenseBinding(IterationModel shape)
-        => !shape.Parallel && !shape.HasEntityTarget && !shape.IsStamp
+    private static bool UsesDenseBinding(IterationModel shape) => !shape.Parallel && !shape.HasEntityTarget && !shape.IsStamp
             && !shape.HasEntity && !shape.Api.Signature.HasExplicitIds && shape.ComponentModels.Length > 0;
 
     private static string BindingTypeArguments(IterationModel shape, bool closed)

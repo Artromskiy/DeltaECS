@@ -101,8 +101,7 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
         context.AddSource("GeneratedComponentCatalog.g.cs", Render(registrations));
     }
 
-    private static bool IsTagType(INamedTypeSymbol type)
-        => type.TypeKind == TypeKind.Struct
+    private static bool IsTagType(INamedTypeSymbol type) => type.TypeKind == TypeKind.Struct
             && !type.GetMembers().OfType<IFieldSymbol>().Any(static field => !field.IsStatic && !field.IsConst)
             && !type.GetAttributes()
                 .Where(static attribute => attribute.AttributeClass?.ToDisplayString()

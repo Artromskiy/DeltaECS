@@ -96,8 +96,7 @@ internal static partial class DemandDrivenForEachTemplates
         List<string> lines,
         IterationModel shape,
         string contextName,
-        IReadOnlyList<string> denseLoopLines,
-        bool usesReadSlots)
+        IReadOnlyList<string> denseLoopLines)
         => AppendTagSelectionLoop(
             lines,
             shape,
@@ -114,34 +113,25 @@ internal static partial class DemandDrivenForEachTemplates
         string tryGetTagSlots,
         string entityAtSlot)
     {
-        lines.Add($"        if ({tryGetTagSlots})");
-        lines.Add("        {");
-        lines.Add("            for (int tagIndex = 0; tagIndex < tagSlots.Length; tagIndex++)");
-        lines.Add("            {");
-        lines.Add("                int slotIndex = tagSlots[tagIndex];");
+        var selectedBody = new List<string>();
         if (shape.HasEntity)
         {
-            lines.Add($"                EntityRef taggedEntity = {entityAtSlot};");
+            selectedBody.Add($"                EntityRef taggedEntity = {entityAtSlot};");
         }
 
         for (int index = 0; index < shape.ComponentModels.Length; index++)
         {
-            lines.Add($"                ref {ComponentType(shape, index)} tagged{index} = ref {UnsafeAdd($"component{index}", "slotIndex")};");
+            selectedBody.Add($"                ref {ComponentType(shape, index)} tagged{index} = ref {UnsafeAdd($"component{index}", "slotIndex")};");
         }
 
-        lines.Add("                " + AppendClosedInvocation(
+        selectedBody.Add("                " + AppendClosedInvocation(
             shape,
             "action",
             "action",
             contextName,
             "tagged",
             shape.HasEntity ? "taggedEntity" : string.Empty) + ";");
-        lines.Add("            }");
-        lines.Add("        }");
-        lines.Add("        else");
-        lines.Add("        {");
-        lines.AddRange(denseLoopLines.Select(static line => "    " + line));
-        lines.Add("        }");
+        AppendTagSelectionBranch(lines, tryGetTagSlots, selectedBody, denseLoopLines);
     }
 
     private static void AppendInterceptedTagSelectionLoop(
@@ -150,27 +140,23 @@ internal static partial class DemandDrivenForEachTemplates
         InterceptionSite site,
         string tagSlotsLookup,
         string tagContextSetup,
-        bool usesReadSlots,
         string callbackName,
         string[] parameters,
         bool inlineLambda,
         string[] rowNames,
         IReadOnlyList<string> denseLoopLines)
     {
-        lines.Add($"        if ({tagSlotsLookup})");
-        lines.Add("        {");
+        var setup = new List<string>();
         if (tagContextSetup.Length != 0)
         {
-            lines.AddRange(SplitLines(tagContextSetup).Select(static line => "            " + line));
+            setup.AddRange(SplitLines(tagContextSetup).Select(static line => "            " + line));
         }
-        lines.Add("            for (int tagIndex = 0; tagIndex < tagSlots.Length; tagIndex++)");
-        lines.Add("            {");
-        lines.Add("                int slotIndex = tagSlots[tagIndex];");
 
+        var selectedBody = new List<string>();
         int parameterIndex = shape.HasContext ? 1 : 0;
         if (shape.HasEntity)
         {
-            lines.Add($"                global::Delta.ECS.EntityRef {parameters[parameterIndex]} = slots.GetEntityRefAtSlot(slotIndex);");
+            selectedBody.Add($"                global::Delta.ECS.EntityRef {parameters[parameterIndex]} = slots.GetEntityRefAtSlot(slotIndex);");
             parameterIndex++;
         }
 
@@ -179,10 +165,10 @@ internal static partial class DemandDrivenForEachTemplates
             for (int index = 0; index < shape.ComponentModels.Length; index++)
             {
                 string modifier = shape.ComponentModels[index].IsWrite ? "ref " : "ref readonly ";
-                lines.Add($"                {modifier}{shape.ComponentModels[index].ResolvedTypeName} {parameters[parameterIndex + index]} = ref {UnsafeAdd(rowNames[index], "slotIndex")};");
+                selectedBody.Add($"                {modifier}{shape.ComponentModels[index].ResolvedTypeName} {parameters[parameterIndex + index]} = ref {UnsafeAdd(rowNames[index], "slotIndex")};");
             }
 
-            lines.Add(AppendInterceptedLambdaBody(site, "                "));
+            selectedBody.Add(AppendInterceptedLambdaBody(site, "                "));
         }
         else
         {
@@ -193,9 +179,30 @@ internal static partial class DemandDrivenForEachTemplates
                 callbackParameters[firstComponentParameter + index] = UnsafeAdd(rowNames[index], "slotIndex");
             }
 
-            lines.Add("                " + AppendCallbackInvocation(shape, callbackName, callbackParameters, string.Empty));
+            selectedBody.Add("                " + AppendCallbackInvocation(shape, callbackName, callbackParameters, string.Empty));
         }
 
+        AppendTagSelectionBranch(lines, tagSlotsLookup, selectedBody, denseLoopLines, setup);
+    }
+
+    private static void AppendTagSelectionBranch(
+        List<string> lines,
+        string tagSlotsLookup,
+        IReadOnlyList<string> selectedBody,
+        IReadOnlyList<string> denseLoopLines,
+        IReadOnlyList<string>? setup = null)
+    {
+        lines.Add($"        if ({tagSlotsLookup})");
+        lines.Add("        {");
+        if (setup is not null)
+        {
+            lines.AddRange(setup);
+        }
+
+        lines.Add("            for (int tagIndex = 0; tagIndex < tagSlots.Length; tagIndex++)");
+        lines.Add("            {");
+        lines.Add("                int slotIndex = tagSlots[tagIndex];");
+        lines.AddRange(selectedBody);
         lines.Add("            }");
         lines.Add("        }");
         lines.Add("        else");
@@ -213,36 +220,31 @@ internal static partial class DemandDrivenForEachTemplates
         bool inlineLambda,
         IReadOnlyList<string> denseLoopLines)
     {
-        lines.Add("        if (slots.HasTagFilters && slots.TryGetTagSlots(out var tagSlots))");
-        lines.Add("        {");
-        lines.Add("            for (int tagIndex = 0; tagIndex < tagSlots.Length; tagIndex++)");
-        lines.Add("            {");
-        lines.Add("                int slotIndex = tagSlots[tagIndex];");
+        var selectedBody = new List<string>();
         int parameterIndex = shape.HasContext ? 1 : 0;
         if (shape.HasEntity)
         {
-            lines.Add($"                global::Delta.ECS.EntityRef {parameters[parameterIndex++]} = slots.GetEntityRefAtSlot(slotIndex);");
+            selectedBody.Add($"                global::Delta.ECS.EntityRef {parameters[parameterIndex++]} = slots.GetEntityRefAtSlot(slotIndex);");
         }
 
         for (int index = 0; index < shape.ComponentModels.Length; index++)
         {
-            lines.Add($"                Stamp {parameters[parameterIndex + index]} = slots.GetGeneratedStamp(_access{index}, tagIndex);");
+            selectedBody.Add($"                Stamp {parameters[parameterIndex + index]} = slots.GetGeneratedStamp(_access{index}, tagIndex);");
         }
 
         if (inlineLambda)
         {
-            lines.Add(AppendInterceptedLambdaBody(site, "                "));
+            selectedBody.Add(AppendInterceptedLambdaBody(site, "                "));
         }
         else
         {
-            lines.Add("                " + AppendCallbackInvocation(shape, callbackName, parameters, string.Empty));
+            selectedBody.Add("                " + AppendCallbackInvocation(shape, callbackName, parameters, string.Empty));
         }
 
-        lines.Add("            }");
-        lines.Add("        }");
-        lines.Add("        else");
-        lines.Add("        {");
-        lines.AddRange(denseLoopLines.Select(static line => "    " + line));
-        lines.Add("        }");
+        AppendTagSelectionBranch(
+            lines,
+            "slots.HasTagFilters && slots.TryGetTagSlots(out var tagSlots)",
+            selectedBody,
+            denseLoopLines);
     }
 }

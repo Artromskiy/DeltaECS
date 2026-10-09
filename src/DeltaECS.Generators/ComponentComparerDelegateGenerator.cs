@@ -290,12 +290,10 @@ public sealed class ComponentComparerDelegateGenerator : IIncrementalGenerator
         => GeneratorSupport.IsEntityType(parameterTypes[index])
             && CallbackReader.ParameterRefKind(parameters[index]) == RefKind.None;
 
-    private static string? ContextTypeName(ITypeSymbol? contextType)
-        => contextType is null
+    private static string? ContextTypeName(ITypeSymbol? contextType) => contextType is null
             ? null
             : contextType is ITypeParameterSymbol ? "TContext" : GeneratorSupport.DisplayType(contextType);
 
-    private static bool IsReadOnlyComponentParameter(RefKind kind)
-        => kind is RefKind.None or RefKind.In || GeneratorSupport.IsRefReadonly(kind);
+    private static bool IsReadOnlyComponentParameter(RefKind kind) => kind is RefKind.None or RefKind.In || GeneratorSupport.IsRefReadonly(kind);
 
 }
