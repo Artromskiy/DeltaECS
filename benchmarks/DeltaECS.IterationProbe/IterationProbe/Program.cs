@@ -25,12 +25,12 @@ public class IterationBenchmarks : IDisposable
     private Query _query4;
     private Query _query8;
     private Query _query16;
-    private EcsOperation<IterationState>? _iteration1;
-    private EcsOperation<IterationState>? _iteration2;
-    private EcsOperation<IterationState>? _iteration3;
-    private EcsOperation<IterationState>? _iteration4;
-    private EcsOperation<IterationState>? _iteration8;
-    private EcsOperation<IterationState>? _iteration16;
+    private IOperation<IterationState>? _iteration1;
+    private IOperation<IterationState>? _iteration2;
+    private IOperation<IterationState>? _iteration3;
+    private IOperation<IterationState>? _iteration4;
+    private IOperation<IterationState>? _iteration8;
+    private IOperation<IterationState>? _iteration16;
 
     [GlobalSetup]
     public void Setup()

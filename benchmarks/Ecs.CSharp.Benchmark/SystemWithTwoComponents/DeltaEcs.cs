@@ -9,14 +9,14 @@ namespace Ecs.CSharp.Benchmark
     {
         [Context]
         private readonly DeltaSystemTwoContext _deltaEcs;
-        private EcsOperation? _iteration;
-        private EcsOperation? _parallelIteration;
-        private EcsOperation<DeltaComponent2Functor>? _functorIteration;
-        private EcsOperation<DeltaComponent2Functor>? _parallelFunctorIteration;
-        private EcsOperation? _entityRefIteration;
-        private EcsOperation<DeltaEntityRefTwoComponentFunctor>? _entityRefFunctorIteration;
-        private EcsOperation? _entityRefParallelIteration;
-        private EcsOperation<DeltaEntityRefTwoComponentFunctor>? _entityRefFunctorParallelIteration;
+        private IOperation? _iteration;
+        private IOperation? _parallelIteration;
+        private IOperation<DeltaComponent2Functor>? _functorIteration;
+        private IOperation<DeltaComponent2Functor>? _parallelFunctorIteration;
+        private IOperation? _entityRefIteration;
+        private IOperation<DeltaEntityRefTwoComponentFunctor>? _entityRefFunctorIteration;
+        private IOperation? _entityRefParallelIteration;
+        private IOperation<DeltaEntityRefTwoComponentFunctor>? _entityRefFunctorParallelIteration;
 
         [BenchmarkCategory(Categories.DeltaECS, Categories.SingleThread)]
         [Benchmark]

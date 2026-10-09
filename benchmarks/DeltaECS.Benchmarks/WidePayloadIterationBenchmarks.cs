@@ -23,14 +23,14 @@ public class WidePayloadPartialReadIterationBenchmarks
     private Query _query;
     private ComponentId[] _components = null!;
     private DeltaEntity[] _entities = null!;
-    private EcsOperation<int>? _iteration;
-    private EcsOperation<WidePayloadSingleThreadFunctor>? _functorIteration;
-    private EcsOperation<WidePayloadChecksum>? _entityRefIteration;
-    private EcsOperation<WidePayloadEntityRefSingleThreadFunctor>? _entityRefFunctorIteration;
-    private EcsOperation? _parallelIteration;
-    private EcsOperation<WidePayloadParallelFunctor>? _parallelFunctorIteration;
-    private EcsOperation? _entityRefParallelIteration;
-    private EcsOperation<WidePayloadEntityRefFunctor>? _entityRefFunctorParallelIteration;
+    private IOperation<int>? _iteration;
+    private IOperation<WidePayloadSingleThreadFunctor>? _functorIteration;
+    private IOperation<WidePayloadChecksum>? _entityRefIteration;
+    private IOperation<WidePayloadEntityRefSingleThreadFunctor>? _entityRefFunctorIteration;
+    private IOperation? _parallelIteration;
+    private IOperation<WidePayloadParallelFunctor>? _parallelFunctorIteration;
+    private IOperation? _entityRefParallelIteration;
+    private IOperation<WidePayloadEntityRefFunctor>? _entityRefFunctorParallelIteration;
     private WidePayloadChecksum _entityRefChecksum = new();
 
     [GlobalSetup]

@@ -12,8 +12,8 @@ public sealed partial class World
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
     /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
-    public EcsOperation ForEach(in Query query, ForEachAction action)
-        => new(ThrowHelper.ThrowGeneratedIterationRequired);
+    public EcsOperation<ThrowingOperationInvoker> ForEach(in Query query, ForEachAction action)
+        => new(default(ThrowingOperationInvoker));
 
     /// <summary>
     /// Iterates every entity selected by <paramref name="query"/> without
@@ -25,33 +25,8 @@ public sealed partial class World
     /// explicit entity span, include component rows, explicit
     /// <c>ComponentId</c> selectors, or caller context.
     /// </summary>
-    public EcsOperation ForEachEntity(in Query query, ForEachEntityAction action)
-    {
-        Query operationQuery = query;
-        return new EcsOperation(() =>
-        {
-            ThrowHelper.ThrowIfNull(action, nameof(action));
-            using var execution = GeneratedForEachRuntime.OpenReadDense(this, in operationQuery);
-            while (execution.MoveNextTrusted(out GeneratedReadQuerySlots slots))
-            {
-                int count = slots.Count;
-                if (slots.TryGetTagSlots(out var tagSlots))
-                {
-                    for (int index = 0; index < tagSlots.Length; index++)
-                    {
-                        action(slots.GetEntityRef(index));
-                    }
-
-                    continue;
-                }
-
-                for (int index = 0; index < count; index++)
-                {
-                    action(slots.GetEntityRef(index));
-                }
-            }
-        });
-    }
+    public EcsOperation<ForEachEntityOperationInvoker> ForEachEntity(in Query query, ForEachEntityAction action)
+        => new(new ForEachEntityOperationInvoker(this, query, action));
 
     /// <summary>
     /// Zero-component context callback overload.
@@ -63,8 +38,8 @@ public sealed partial class World
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
     /// <exception cref="System.InvalidOperationException">The generated component-bearing overload was not selected.</exception>
-    public EcsOperation<TContext> ForEach<TContext>(in Query query, ref TContext context, ForEachContextAction<TContext> action)
-        => new(context, (ref TContext _) => ThrowHelper.ThrowGeneratedIterationRequired());
+    public EcsOperation<TContext, ThrowingOperationInvoker<TContext>> ForEach<TContext>(in Query query, ref TContext context, ForEachContextAction<TContext> action)
+        => new(context, default(ThrowingOperationInvoker<TContext>));
 
     /// <summary>
     /// Iterates every entity selected by <paramref name="query"/> with mutable
@@ -75,33 +50,8 @@ public sealed partial class World
     /// Generated forms place <c>EntityRef</c> after caller context and before any
     /// component parameters.
     /// </summary>
-    public EcsOperation<TContext> ForEachEntity<TContext>(in Query query, ref TContext context, ForEachContextEntityAction<TContext> action)
-    {
-        Query operationQuery = query;
-        return new EcsOperation<TContext>(context, (ref TContext operationContext) =>
-        {
-            ThrowHelper.ThrowIfNull(action, nameof(action));
-            using var execution = GeneratedForEachRuntime.OpenReadDense(this, in operationQuery);
-            while (execution.MoveNextTrusted(out GeneratedReadQuerySlots slots))
-            {
-                int count = slots.Count;
-                if (slots.TryGetTagSlots(out var tagSlots))
-                {
-                    for (int index = 0; index < tagSlots.Length; index++)
-                    {
-                        action(ref operationContext, slots.GetEntityRef(index));
-                    }
-
-                    continue;
-                }
-
-                for (int index = 0; index < count; index++)
-                {
-                    action(ref operationContext, slots.GetEntityRef(index));
-                }
-            }
-        });
-    }
+    public EcsOperation<TContext, ForEachEntityContextOperationInvoker<TContext>> ForEachEntity<TContext>(in Query query, ref TContext context, ForEachContextEntityAction<TContext> action)
+        => new(context, new ForEachEntityContextOperationInvoker<TContext>(this, query, action));
 
     /// <summary>
     /// Zero-component stamp callback anchor. Use a generated
@@ -110,8 +60,8 @@ public sealed partial class World
     /// static (in Stamp stamp) =&gt; Process(stamp))</c>.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
-    public EcsOperation ForEachStamp(in Query query, ForEachAction action)
-        => new(ThrowHelper.ThrowGeneratedIterationRequired);
+    public EcsOperation<ThrowingOperationInvoker> ForEachStamp(in Query query, ForEachAction action)
+        => new(default(ThrowingOperationInvoker));
 
     /// <summary>
     /// Zero-component entity stamp callback anchor. Generated
@@ -119,7 +69,89 @@ public sealed partial class World
     /// one or more <c>in Stamp</c> parameters.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
-    public EcsOperation ForEachEntityStamp(in Query query, ForEachEntityAction action)
-        => new(ThrowHelper.ThrowGeneratedIterationRequired);
+    public EcsOperation<ThrowingOperationInvoker> ForEachEntityStamp(in Query query, ForEachEntityAction action)
+        => new(default(ThrowingOperationInvoker));
 
+}
+
+/// <summary>Direct executor for a zero-component entity callback operation.</summary>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+public readonly struct ForEachEntityOperationInvoker : IEcsOperationInvoker
+{
+    private readonly World _world;
+    private readonly Query _query;
+    private readonly ForEachEntityAction _action;
+
+    internal ForEachEntityOperationInvoker(World world, in Query query, ForEachEntityAction action)
+    {
+        _world = world;
+        _query = query;
+        _action = action;
+    }
+
+    /// <summary>Executes the entity callback over the stored query.</summary>
+    public void Invoke()
+    {
+        ThrowHelper.ThrowIfNull(_action, nameof(_action));
+        using var execution = GeneratedForEachRuntime.OpenReadDense(_world, in _query);
+        while (execution.MoveNextTrusted(out GeneratedReadQuerySlots slots))
+        {
+            if (slots.TryGetTagSlots(out var tagSlots))
+            {
+                for (int index = 0; index < tagSlots.Length; index++)
+                {
+                    _action(slots.GetEntityRef(index));
+                }
+
+                continue;
+            }
+
+            int count = slots.Count;
+            for (int index = 0; index < count; index++)
+            {
+                _action(slots.GetEntityRef(index));
+            }
+        }
+    }
+}
+
+/// <summary>Direct executor for a zero-component entity callback with mutable context.</summary>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+public readonly struct ForEachEntityContextOperationInvoker<TContext> : IEcsOperationInvoker<TContext>
+{
+    private readonly World _world;
+    private readonly Query _query;
+    private readonly ForEachContextEntityAction<TContext> _action;
+
+    internal ForEachEntityContextOperationInvoker(World world, in Query query, ForEachContextEntityAction<TContext> action)
+    {
+        _world = world;
+        _query = query;
+        _action = action;
+    }
+
+    /// <summary>Executes the entity callback using and updating caller-owned context.</summary>
+    public void Invoke(ref TContext context)
+    {
+        ThrowHelper.ThrowIfNull(_action, nameof(_action));
+        using var execution = GeneratedForEachRuntime.OpenReadDense(_world, in _query);
+        while (execution.MoveNextTrusted(out GeneratedReadQuerySlots slots))
+        {
+            if (slots.TryGetTagSlots(out var tagSlots))
+            {
+                for (int index = 0; index < tagSlots.Length; index++)
+                {
+                    _action(ref context, slots.GetEntityRef(index));
+                }
+
+                continue;
+            }
+
+            int count = slots.Count;
+            for (int index = 0; index < count; index++)
+            {
+                _action(ref context, slots.GetEntityRef(index));
+            }
+        }
+    }
 }

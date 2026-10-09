@@ -73,7 +73,8 @@ internal static partial class GeneratorTemplates
         string owner,
         string namespaceName,
         string genericPrefix = "T",
-        bool query = false)
+        bool query = false,
+        string componentIdPrefix = "component")
     {
         if (slots.HasDynamicIds)
         {
@@ -84,7 +85,7 @@ internal static partial class GeneratorTemplates
         {
             string assignments = JoinIndexed(
                 slots.Arity,
-                index => $$"""components[{{index}}] = {{slots.ComponentIdArgument(index)}};""",
+                index => $$"""components[{{index}}] = {{slots.ComponentIdArgument(index, componentIdPrefix)}};""",
                 "\n");
             return $$"""
                 global::System.Span<global::Delta.ECS.ComponentId> components = stackalloc global::Delta.ECS.ComponentId[{{slots.Arity}}];

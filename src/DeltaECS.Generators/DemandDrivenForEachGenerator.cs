@@ -184,6 +184,18 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         site = null;
         reason = null;
 
+        if (model.GetSymbolInfo(invocation).Symbol is IMethodSymbol
+            {
+                IsExtensionMethod: false,
+                ContainingType.Name: "World",
+                ContainingType.ContainingNamespace: { } @namespace
+            }
+            && @namespace.ToDisplayString() == "Delta.ECS")
+        {
+            reason = "the call targets a World instance method with its own operation type";
+            return false;
+        }
+
         LambdaExpressionSyntax? lambda = invocation.ArgumentList.Arguments
             .Select(static argument => argument.Expression)
             .OfType<LambdaExpressionSyntax>()

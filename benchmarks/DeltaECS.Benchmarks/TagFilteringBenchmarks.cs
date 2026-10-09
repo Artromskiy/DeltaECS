@@ -17,10 +17,10 @@ public class TagFilteringBenchmarks
     private Query _tagEntityQuery;
     private Query _componentEntityQuery;
     private long _expectedChecksum;
-    private EcsOperation<long>? _componentValueIteration;
-    private EcsOperation<long>? _tagValueIteration;
-    private EcsOperation<long>? _componentEntityIteration;
-    private EcsOperation<long>? _tagEntityIteration;
+    private IOperation<long>? _componentValueIteration;
+    private IOperation<long>? _tagValueIteration;
+    private IOperation<long>? _componentEntityIteration;
+    private IOperation<long>? _tagEntityIteration;
 
     [GlobalSetup]
     public void Setup()

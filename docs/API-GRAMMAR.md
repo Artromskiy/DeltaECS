@@ -792,9 +792,16 @@ world.WhereEntity(Q, C?, A | F) -> WhereView
 WhereView.OrderBy(I... | D, C?, A | F) -> OrderedWhereView
 OrderedWhereView.ThenBy(I... | D, C?, A | F) -> OrderedWhereView
 OrderedWhereView.First(P?) -> EcsResultOperation<Entity>; Invoke() -> Entity
-OrderedWhereView.ForEach(...) -> EcsOperation; Invoke() executes
-OrderedWhereView.ForEachEntity(...) -> EcsOperation; Invoke() executes
+OrderedWhereView.ForEach(...) -> EcsOperation<TInvoker>; Invoke() executes
+OrderedWhereView.ForEachEntity(...) -> EcsOperation<TInvoker>; Invoke() executes
 ```
+
+Void-returning deferred operations are mutable value types and implement
+`IOperation` plus a state-specific `IOperation<T...>` interface when the form
+accepts caller-owned context or functor state. Invoke the concrete value
+directly to avoid boxing. Store heterogeneous operations as `IOperation` (or a
+state-specific interface) to box once, or pass the concrete operation to a
+generic method constrained by the matching operation interface.
 
 The ordering selectors and comparer can be omitted when the generated primary
 registration and callback inference are sufficient. `P` is an optional

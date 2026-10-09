@@ -90,7 +90,7 @@ internal sealed class MicroWorld
 internal static class MicroBenchmarkKernels
 {
     public static int IterateMovement2Dense(
-        ref EcsOperation<int>? iteration,
+        ref IOperation<int>? iteration,
         MicroWorld fixture,
         in Query query)
     {
@@ -109,7 +109,7 @@ internal static class MicroBenchmarkKernels
     }
 
     public static int IterateMovement4Dense(
-        ref EcsOperation<int>? iteration,
+        ref IOperation<int>? iteration,
         MicroWorld fixture,
         in Query query)
     {
@@ -139,8 +139,8 @@ public class DenseIterationMicroBenchmarkImplementation
     private Entity[] _movement4Entities = null!;
     private Query _movement2Query;
     private Query _movement4Query;
-    private EcsOperation<int>? _movement2Iteration;
-    private EcsOperation<int>? _movement4Iteration;
+    private IOperation<int>? _movement2Iteration;
+    private IOperation<int>? _movement4Iteration;
 
     [GlobalSetup]
     public void Setup()
@@ -206,7 +206,7 @@ public class GeneratedFunctorMovement4MicroBenchmarkImplementation
     private MicroWorld _fixture = null!;
     private Entity[] _entities = null!;
     private Query _query;
-    private EcsOperation<GeneratedMovement4Functor>? _iteration;
+    private IOperation<GeneratedMovement4Functor>? _iteration;
 
     [GlobalSetup]
     public void Setup()
@@ -242,7 +242,7 @@ internal static class MicroContractSmoke
         var movement2Entities = fixture.CreateMoving(8);
         var movement2Description = QuerySpec.WhereAll(stackalloc ComponentId[] { fixture.Position, fixture.Velocity });
         var movement2Query = fixture.World.CreateQuery(in movement2Description);
-        EcsOperation<int>? movement2Iteration = null;
+        IOperation<int>? movement2Iteration = null;
         var movement2Sum = MicroBenchmarkKernels.IterateMovement2Dense(
             ref movement2Iteration,
             fixture,
@@ -260,7 +260,7 @@ internal static class MicroContractSmoke
             fixture.Movement4C,
             fixture.Movement4D);
         var movement4Query = fixture.World.CreateQuery(in movement4Description);
-        EcsOperation<int>? movement4Iteration = null;
+        IOperation<int>? movement4Iteration = null;
         var movement4Sum = MicroBenchmarkKernels.IterateMovement4Dense(
             ref movement4Iteration,
             fixture,

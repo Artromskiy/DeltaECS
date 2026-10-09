@@ -166,7 +166,7 @@ namespace Ecs.CSharp.Benchmark
         private static void VerifyForEachEntityCursor()
         {
             using DeltaSystemOneContext one = new(32, 0);
-            EcsOperation<DeltaEntityRefFunctor> oneOperation = one.World.ForEachEntity(
+            IOperation<DeltaEntityRefFunctor> oneOperation = one.World.ForEachEntity(
                 in one.Query,
                 new DeltaEntityRefFunctor(one.Component));
             oneOperation.Invoke();
@@ -175,7 +175,7 @@ namespace Ecs.CSharp.Benchmark
             AssertOneComponentValue(one, 3);
 
             using DeltaSystemThreeContext three = new(32, 0);
-            EcsOperation<DeltaEntityRefThreeComponentFunctor> threeOperation = three.World.ForEachEntity(
+            IOperation<DeltaEntityRefThreeComponentFunctor> threeOperation = three.World.ForEachEntity(
                 in three.Query,
                 new DeltaEntityRefThreeComponentFunctor(three.First, three.Second, three.Third));
             threeOperation.Invoke();

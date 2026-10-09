@@ -426,8 +426,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(run);
 
         AssertNoDiagnostics(run.Diagnostics);
-        Assert.That(generated, Does.Contain("global::Delta.ECS.ValueFunctor functor"));
-        Assert.That(generated, Does.Not.Contain("ref global::Delta.ECS.ValueFunctor functor"));
+        Assert.That(generated, Does.Contain("ForEach(this World world, in Query query, global::Delta.ECS.ValueFunctor functor)"));
+        Assert.That(generated, Does.Contain("IEcsOperationInvoker<global::Delta.ECS.ValueFunctor>.Invoke(ref global::Delta.ECS.ValueFunctor functor)"));
         Assert.That(generated, Does.Not.Contain("functor = invoker.Functor;"));
         AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
     }
@@ -1358,8 +1358,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(run);
 
         AssertNoDiagnostics(run.Diagnostics);
-        Assert.That(generated, Does.Contain("public static global::Delta.ECS.EcsOperation ForEach<T1, T2>(this World world"));
-        Assert.That(generated, Does.Contain("public static global::Delta.ECS.EcsOperation ForEachParallel<T1, T2>(this World world"));
+        Assert.That(generated, Does.Contain("global::Delta.ECS.EcsOperation<DemandForEachOperationInvoker_"));
+        Assert.That(generated, Does.Contain("> ForEach<T1, T2>(this World world"));
+        Assert.That(generated, Does.Contain("> ForEachParallel<T1, T2>(this World world"));
         Assert.That(generated, Does.Contain("public static int Add<T1, T2>(this World target"));
         Assert.That(generated, Does.Contain("public static int Remove<T1, T2>(this World target"));
         Assert.That(generated, Does.Contain("public static int Create<T1, T2>(this World target"));
@@ -1508,7 +1509,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(run);
 
         AssertNoDiagnostics(run.Diagnostics);
-        Assert.That(generated, Does.Contain("ComponentId component0, ComponentId component1"));
+        Assert.That(generated, Does.Contain("ComponentId componentId0, ComponentId componentId1"));
         Assert.That(generated, Does.Contain("GetPreparedWriteAccess(in query, componentId0"));
         Assert.That(generated, Does.Contain("GetPreparedReadAccess(in query, componentId1"));
 
@@ -1534,9 +1535,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Add<U1>(ComponentId componentId, in U1 value0)"));
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Add<U1>(ComponentId componentId)"));
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Remove<U1>(ComponentId componentId)"));
-        Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Remove<U1, U2>(ComponentId component0, ComponentId component1)"));
+        Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Remove<U1, U2>(ComponentId componentId0, ComponentId componentId1)"));
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Add<U1, U2>(in U1 value0, in U2 value1)"));
-        Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Add<U1, U2>(ComponentId component0, ComponentId component1, in U1 value0, in U2 value1)"));
+        Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Add<U1, U2>(ComponentId componentId0, ComponentId componentId1, in U1 value0, in U2 value1)"));
         Assert.That(generated, Does.Contain("public void Execute(ref GeneratedQuerySlots slots, ref GeneratedWhereStructuralContext context)"));
         Assert.That(generated, Does.Contain("public void Invoke(ref GeneratedQuerySlots slots)"));
         Assert.That(generated, Does.Not.Contain("Invoke(ref GeneratedQuerySlots slots, int index)"));
@@ -1637,7 +1638,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Remove<U1>()"));
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Remove<U1>(ComponentId componentId)"));
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Remove<U1, U2>()"));
-        Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Remove<U1, U2>(ComponentId component0, ComponentId component1)"));
+        Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Remove<U1, U2>(ComponentId componentId0, ComponentId componentId1)"));
         AssertCompiles(new[] { RuntimeStubSource, WhereStructuralParameterMatrixSource }, run.GeneratedTrees);
 
         GeneratorDriverRunResult intercepted = RunGeneratorWithInterceptors(WhereStructuralParameterMatrixSource);
@@ -1759,15 +1760,16 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("GeneratedWhereInterceptor_"));
         Assert.That(generated, Does.Contain("InterceptsLocationAttribute"));
         Assert.That(generated, Does.Contain("Predicate_"));
-        Assert.That(generated, Does.Contain("execution.MarkArchetypeWrites"));
+        Assert.That(generated, Does.Contain("GeneratedWhereOperationInvoker_"));
+        Assert.That(generated, Does.Contain("global::Delta.ECS.EcsOperation<"));
         Assert.That(generated, Does.Contain("ref global::Delta.ECS.InterceptedWhereSystem.Mutation action"));
         Assert.That(generated, Does.Contain("action.Invoke"));
         Assert.That(generated, Does.Contain("private struct StructuralInvoker_"));
         Assert.That(generated, Does.Contain("IGeneratedWhereStructuralInvoker"));
         Assert.That(generated, Does.Contain("context.ProcessRun"));
-        Assert.That(generated, Does.Contain("ref global::Delta.ECS.Health row0 = ref global::System.Runtime.CompilerServices.Unsafe.NullRef<global::Delta.ECS.Health>()"));
-        Assert.That(generated, Does.Contain("row0 = ref global::Delta.ECS.GeneratedForEachRuntime.GetGeneratedArrayReference(slots.GetGeneratedArray<global::Delta.ECS.Health>(access0))"));
-        Assert.That(generated, Does.Contain("row0 = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row0, 1)"));
+        Assert.That(generated, Does.Contain("EcsOperation<global::Delta.ECS.InterceptedWhereSystem.Context, global::Delta.ECS.InterceptedWhereSystem.EntityMutation, global::Delta.ECS.GeneratedWhereQuery_"));
+        Assert.That(generated, Does.Contain("void global::Delta.ECS.IEcsOperationInvoker<global::Delta.ECS.InterceptedWhereSystem.Context, global::Delta.ECS.InterceptedWhereSystem.EntityMutation>.Invoke(ref global::Delta.ECS.InterceptedWhereSystem.Context context, ref global::Delta.ECS.InterceptedWhereSystem.EntityMutation functor)"));
+        Assert.That(generated, Does.Contain("view.ExecuteTerminal_"));
 
         AssertCompiles(new[] { RuntimeStubSource, WhereInterceptionSource }, run.GeneratedTrees);
     }
@@ -1779,10 +1781,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(run);
 
         AssertNoDiagnostics(run.Diagnostics);
-        Assert.That(generated, Does.Contain("InterceptedWhereSystem.IsDead(in component0)"));
-        Assert.That(generated, Does.Contain("InterceptedWhereSystem.Reset(ref component0)"));
-        Assert.That(generated, Does.Contain("InterceptedWhereSystem.IsDeadEntity(entity, in component0)"));
-        Assert.That(generated, Does.Contain("InterceptedWhereSystem.ResetEntity(entity, ref component0)"));
+        Assert.That(generated, Does.Contain("GeneratedWhereOperationInvoker_"));
+        Assert.That(generated, Does.Contain("global::Delta.ECS.EcsOperation<global::Delta.ECS.GeneratedWhereQuery_"));
 
         AssertCompiles(
             new[] { RuntimeStubSource, WhereMethodGroupInterceptionSource },

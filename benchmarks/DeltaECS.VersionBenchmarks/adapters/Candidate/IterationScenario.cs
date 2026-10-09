@@ -9,9 +9,9 @@ public sealed class IterationScenario
     private readonly Query _denseQuery;
     private readonly Query _movement2Query;
     private readonly Query _movement4Query;
-    private EcsOperation<long>? _denseIteration;
-    private EcsOperation<double>? _movement2Iteration;
-    private EcsOperation<int>? _movement4Iteration;
+    private IOperation<long>? _denseIteration;
+    private IOperation<double>? _movement2Iteration;
+    private IOperation<int>? _movement4Iteration;
     private readonly ComponentId _position;
     private readonly ComponentId _velocity;
     private readonly ComponentId _dense;

@@ -21,7 +21,7 @@ public class ManyComponentIterationBenchmarks
     private Query _query;
     private ComponentId[] _components = null!;
     private DeltaEntity[] _entities = null!;
-    private EcsOperation<int>? _iteration;
+    private IOperation<int>? _iteration;
 
     [GlobalSetup]
     public void Setup()

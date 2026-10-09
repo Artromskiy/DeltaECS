@@ -20,7 +20,7 @@ public class ForEachArrayReferenceBenchmarks : IDisposable
     private World _world = null!; // GlobalSetup initializes the world before benchmark cleanup.
     private Entity[] _entities = null!; // GlobalSetup initializes the output before benchmark execution.
     private Query _query;
-    private EcsOperation<long>? _iteration;
+    private IOperation<long>? _iteration;
 
     /// <summary>Creates the world and verifies the benchmark checksum.</summary>
     [GlobalSetup]

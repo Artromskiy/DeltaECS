@@ -18,8 +18,8 @@ public class ParallelMovement4IterationBenchmarks
     private Query _query;
     private ComponentId[] _componentIds = null!;
     private DeltaEntity[] _entities = null!;
-    private EcsOperation? _singleThreadIteration;
-    private EcsOperation? _parallelIteration;
+    private IOperation? _singleThreadIteration;
+    private IOperation? _parallelIteration;
 
     [GlobalSetup]
     public void Setup()

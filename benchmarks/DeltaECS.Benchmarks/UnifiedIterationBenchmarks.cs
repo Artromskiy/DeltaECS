@@ -25,7 +25,7 @@ public class ComparativeDenseIterationBenchmarks
     public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
     private DeltaWorld _delta = null!;
     private Query _deltaQuery;
-    private EcsOperation<long>? _deltaIteration;
+    private IOperation<long>? _deltaIteration;
     private ComponentId _deltaValue;
     private Arch.Core.World _arch = null!;
     private ArchComponentType[] _archTypes = null!;
@@ -129,7 +129,7 @@ public class ComparativeMovement2ComponentsBenchmarks
     public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
     private DeltaWorld _delta = null!;
     private Query _deltaQuery;
-    private EcsOperation<double>? _deltaIteration;
+    private IOperation<double>? _deltaIteration;
     private ComponentId _deltaPosition, _deltaVelocity;
     private DeltaEntity[] _deltaEntities = null!;
     private Arch.Core.World _arch = null!;
@@ -308,7 +308,7 @@ public class ComparativeMovement4ComponentsBenchmarks
 {
     public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
     private DeltaWorld _delta = null!; private Query _deltaQuery; private ComponentId[] _deltaIds = null!; private DeltaEntity[] _deltaEntities = null!;
-    private EcsOperation<int>? _deltaIteration;
+    private IOperation<int>? _deltaIteration;
     private Arch.Core.World _arch = null!; private ArchComponentType[] _archTypes = null!; private Arch.Core.QueryDescription _archQuery; private Arch.Core.Entity[] _archEntities = null!;
     private EntityStore _friflo = null!; private ArchetypeQuery<Movement4A, Movement4B, Movement4C, Movement4D> _frifloQuery = null!; private FrifloEntity[] _frifloEntities = null!;
     private DefaultWorld _default = null!; private DefaultEcs.Entity[] _defaultEntities = null!; private DefaultEcs.EntitySet _defaultQuery = null!;
@@ -435,7 +435,7 @@ public class ComparativeWideArchetypeNarrowQueryBenchmarks
 {
     public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
     private DeltaWorld _delta = null!; private Query _deltaQuery; private ComponentId[] _deltaIds = null!;
-    private EcsOperation<int>? _deltaIteration;
+    private IOperation<int>? _deltaIteration;
     private Arch.Core.World _arch = null!; private ArchComponentType[] _archTypes = null!; private Arch.Core.QueryDescription _archQuery;
     private EntityStore _friflo = null!; private ArchetypeQuery<Wide0, Wide7> _frifloQuery = null!;
     private DefaultWorld _default = null!; private DefaultEcs.Entity[] _defaultEntities = null!; private DefaultEcs.EntitySet _defaultQuery = null!;
@@ -486,7 +486,7 @@ public class ComparativeSparseQueryBenchmarks
 {
     public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
     private DeltaWorld _delta = null!; private Query _deltaQuery; private ComponentId _deltaA, _deltaB, _deltaC; private DeltaEntity[] _deltaEntities = null!;
-    private EcsOperation<int>? _deltaQueryIteration;
+    private IOperation<int>? _deltaQueryIteration;
     private Arch.Core.World _arch = null!; private ArchComponentType[] _archMatchTypes = null!; private ArchComponentType[] _archNonMatchTypes = null!; private ArchComponentType _archCType; private Arch.Core.QueryDescription _archQuery;
     private EntityStore _friflo = null!; private ArchetypeQuery<SparseA, SparseB> _frifloQuery = null!;
     private DefaultWorld _default = null!; private DefaultEcs.EntitySet _defaultQuery = null!;

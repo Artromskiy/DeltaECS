@@ -28,8 +28,8 @@ public class WhereApiMicroBenchmarkImplementation
     private Query _deadQuery;
     private ComponentId _valueId;
     private int _targetCount;
-    private EcsOperation? _directIteration;
-    private EcsOperation? _whereIteration;
+    private IOperation? _directIteration;
+    private IOperation? _whereIteration;
 
     [GlobalSetup]
     public void Setup()

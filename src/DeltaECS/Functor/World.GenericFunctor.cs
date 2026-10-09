@@ -37,9 +37,120 @@ public sealed partial class World
         internal readonly IGeneratedGenericFunctor Executor = executor;
     }
 
+    /// <summary>Direct executor for a runtime-selected generic functor operation.</summary>
+    [System.ComponentModel.EditorBrowsable(EditorBrowsableState.Never)]
+    public struct GenericFunctorOperationInvoker : IEcsOperationInvoker
+    {
+        private readonly World _world;
+        private Query _query;
+        private readonly Entity[] _entities;
+        private bool _hasQuery;
+        private readonly GeneratedGenericFunctorMode _mode;
+        private readonly Type _functorType;
+        private readonly int _workerCount;
+        private readonly ComponentId[] _arguments;
+        private IGeneratedGenericFunctor? _executor;
+
+        internal GenericFunctorOperationInvoker(
+            World world,
+            in Query query,
+            Entity[] entities,
+            bool hasQuery,
+            GeneratedGenericFunctorMode mode,
+            Type functorType,
+            int workerCount,
+            ComponentId[] arguments)
+        {
+            _world = world;
+            _query = query;
+            _entities = entities;
+            _hasQuery = hasQuery;
+            _mode = mode;
+            _functorType = functorType;
+            _workerCount = workerCount;
+            _arguments = arguments;
+            _executor = null;
+        }
+
+        /// <summary>Resolves the typed executor once and runs the operation.</summary>
+        public void Invoke()
+        {
+            _world.ValidateGenericFunctorOperation(in _query, _hasQuery, _functorType);
+            _executor ??= _world.ResolveGenericFunctor(in _query, _hasQuery, _functorType, _arguments);
+            if (!_hasQuery)
+            {
+                _query = _executor.CreateQuery(_world, _arguments);
+                _hasQuery = true;
+            }
+
+            _executor.Execute(_world, in _query, _entities, _hasQuery, _mode, _workerCount, _arguments);
+        }
+    }
+
+    /// <summary>Direct executor for a runtime-selected generic functor with mutable context.</summary>
+    [System.ComponentModel.EditorBrowsable(EditorBrowsableState.Never)]
+    public struct GenericFunctorContextOperationInvoker<TContext> : IEcsOperationInvoker<TContext>
+    {
+        private readonly World _world;
+        private Query _query;
+        private readonly Entity[] _entities;
+        private bool _hasQuery;
+        private readonly GeneratedGenericFunctorMode _mode;
+        private readonly Type _functorType;
+        private readonly int _workerCount;
+        private readonly ComponentId[] _arguments;
+        private IGeneratedGenericFunctor<TContext>? _executor;
+
+        internal GenericFunctorContextOperationInvoker(
+            World world,
+            in Query query,
+            Entity[] entities,
+            bool hasQuery,
+            GeneratedGenericFunctorMode mode,
+            Type functorType,
+            int workerCount,
+            ComponentId[] arguments)
+        {
+            _world = world;
+            _query = query;
+            _entities = entities;
+            _hasQuery = hasQuery;
+            _mode = mode;
+            _functorType = functorType;
+            _workerCount = workerCount;
+            _arguments = arguments;
+            _executor = null;
+        }
+
+        /// <summary>Resolves the typed executor once and runs the operation.</summary>
+        public void Invoke(ref TContext context)
+        {
+            _world.ValidateGenericFunctorOperation(in _query, _hasQuery, _functorType);
+            if (_executor is null)
+            {
+                IGeneratedGenericFunctor executor = _world.ResolveGenericFunctor(in _query, _hasQuery, _functorType, _arguments);
+                if (!_hasQuery)
+                {
+                    _query = executor.CreateQuery(_world, _arguments);
+                    _hasQuery = true;
+                }
+
+                if (executor is not IGeneratedGenericFunctor<TContext> typedExecutor)
+                {
+                    ThrowHelper.ThrowGenericFunctorContextMismatch(_functorType, typeof(TContext));
+                    return;
+                }
+
+                _executor = typedExecutor;
+            }
+
+            _executor.Execute(_world, in _query, _entities, _hasQuery, _mode, _workerCount, ref context, _arguments);
+        }
+    }
+
     /// <summary>Creates a reusable operation for a runtime-selected generic functor.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public EcsOperation CreateGenericFunctorOperation(
+    public EcsOperation<GenericFunctorOperationInvoker> CreateGenericFunctorOperation(
         in Query query,
         ReadOnlySpan<Entity> entities,
         bool hasQuery,
@@ -51,26 +162,13 @@ public sealed partial class World
         Query operationQuery = query;
         Entity[] operationEntities = entities.ToArray();
         ComponentId[] operationArguments = arguments.ToArray();
-        IGeneratedGenericFunctor? executor = null;
-        bool operationHasQuery = hasQuery;
-
-        return new EcsOperation(() =>
-        {
-            ValidateGenericFunctorOperation(in operationQuery, operationHasQuery, functorType);
-            executor ??= ResolveGenericFunctor(in operationQuery, operationHasQuery, functorType, operationArguments);
-            if (!operationHasQuery)
-            {
-                operationQuery = executor.CreateQuery(this, operationArguments);
-                operationHasQuery = true;
-            }
-
-            executor.Execute(this, in operationQuery, operationEntities, operationHasQuery, mode, workerCount, operationArguments);
-        });
+        return new EcsOperation<GenericFunctorOperationInvoker>(
+            new GenericFunctorOperationInvoker(this, in operationQuery, operationEntities, hasQuery, mode, functorType, workerCount, operationArguments));
     }
 
     /// <summary>Creates a reusable operation for a runtime-selected generic functor with mutable caller-owned context.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public EcsOperation<TContext> CreateGenericFunctorOperation<TContext>(
+    public EcsOperation<TContext, GenericFunctorContextOperationInvoker<TContext>> CreateGenericFunctorOperation<TContext>(
         in Query query,
         ReadOnlySpan<Entity> entities,
         bool hasQuery,
@@ -83,40 +181,17 @@ public sealed partial class World
         Query operationQuery = query;
         Entity[] operationEntities = entities.ToArray();
         ComponentId[] operationArguments = arguments.ToArray();
-        IGeneratedGenericFunctor<TContext>? executor = null;
-        bool operationHasQuery = hasQuery;
-
-        return new EcsOperation<TContext>(context, (ref TContext operationContext) =>
-        {
-            ValidateGenericFunctorOperation(in operationQuery, operationHasQuery, functorType);
-            if (executor is null)
-            {
-                IGeneratedGenericFunctor genericExecutor = ResolveGenericFunctor(in operationQuery, operationHasQuery, functorType, operationArguments);
-                if (!operationHasQuery)
-                {
-                    operationQuery = genericExecutor.CreateQuery(this, operationArguments);
-                    operationHasQuery = true;
-                }
-
-                if (genericExecutor is not IGeneratedGenericFunctor<TContext> typedExecutor)
-                {
-                    ThrowHelper.ThrowGenericFunctorContextMismatch(functorType, typeof(TContext));
-                    return;
-                }
-
-                executor = typedExecutor;
-            }
-
-            executor!.Execute(
+        return new EcsOperation<TContext, GenericFunctorContextOperationInvoker<TContext>>(
+            context,
+            new GenericFunctorContextOperationInvoker<TContext>(
                 this,
                 in operationQuery,
                 operationEntities,
-                operationHasQuery,
+                hasQuery,
                 mode,
+                functorType,
                 workerCount,
-                ref operationContext,
-                operationArguments);
-        });
+                operationArguments));
     }
 
     private IGeneratedGenericFunctor ResolveGenericFunctor(

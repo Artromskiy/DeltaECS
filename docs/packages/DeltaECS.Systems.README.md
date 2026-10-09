@@ -41,7 +41,7 @@ scheduler.Tick();
 public partial class MovementSystem : ISystem
 {
     private readonly Query _query;
-    private EcsOperation? _operation;
+    private IOperation? _operation;
 
     public World World { get; init; } = null!;
 
@@ -125,7 +125,7 @@ public sealed class CaptureHistorySystem : ISystem
     private readonly Query _query;
     private readonly ComponentId _positionId;
     private readonly SystemAccess _access;
-    private EcsOperation? _captureOperation;
+    private IOperation? _captureOperation;
 
     public CaptureHistorySystem(World world, Query query, ComponentId positionId, ComponentId historyId)
     {

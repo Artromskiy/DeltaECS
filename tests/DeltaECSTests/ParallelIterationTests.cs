@@ -327,7 +327,8 @@ internal sealed class ParallelIterationTests
     }
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private static long MeasureGeneratedParallelAllocation(EcsOperation operation)
+    private static long MeasureGeneratedParallelAllocation<TOperation>(TOperation operation)
+        where TOperation : IOperation
     {
         long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
         operation.Invoke();

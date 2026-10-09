@@ -23,9 +23,9 @@ public class WhereIterationMicroBenchmarkImplementation
     private Query _query;
     private ComponentId _valueId;
     private ComponentId _accumulatorId;
-    private EcsOperation? _directIteration;
-    private EcsOperation? _whereIteration;
-    private EcsOperation? _whereEntityIteration;
+    private IOperation? _directIteration;
+    private IOperation? _whereIteration;
+    private IOperation? _whereEntityIteration;
 
     [GlobalSetup]
     public void Setup()

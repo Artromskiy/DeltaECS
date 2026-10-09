@@ -230,8 +230,8 @@ internal static class GenericFunctorTemplates
         setup.Add(call);
         string body = string.Join("\n", setup);
         string operationType = hasContext
-            ? "global::Delta.ECS.EcsOperation<TContext>"
-            : "global::Delta.ECS.EcsOperation";
+            ? "global::Delta.ECS.EcsOperation<TContext, global::Delta.ECS.World.GenericFunctorContextOperationInvoker<TContext>>"
+            : "global::Delta.ECS.EcsOperation<global::Delta.ECS.World.GenericFunctorOperationInvoker>";
         return $"public static {operationType} {method}{generic}({string.Join(", ", parameters)})\n{{\n{GeneratorTemplates.Indent(body, "    ")}\n}}";
     }
 

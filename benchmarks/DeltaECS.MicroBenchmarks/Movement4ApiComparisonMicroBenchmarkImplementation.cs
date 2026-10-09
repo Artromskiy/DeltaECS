@@ -52,11 +52,11 @@ public class Movement4ApiComparisonMicroBenchmarkImplementation
 
     private MicroWorld _fixture = null!;
     private Query _query;
-    private EcsOperation<Movement4NoContextFunctor>? _functorOperation;
-    private EcsOperation? _delegateOperation;
-    private EcsOperation? _interceptedOperation;
-    private EcsOperation<Movement4ApiContext>? _delegateContextOperation;
-    private EcsOperation<Movement4ApiContext, Movement4ContextFunctor>? _functorContextOperation;
+    private IOperation<Movement4NoContextFunctor>? _functorOperation;
+    private IOperation? _delegateOperation;
+    private IOperation? _interceptedOperation;
+    private IOperation<Movement4ApiContext>? _delegateContextOperation;
+    private IOperation<Movement4ApiContext, Movement4ContextFunctor>? _functorContextOperation;
     [GlobalSetup]
     public void Setup()
     {

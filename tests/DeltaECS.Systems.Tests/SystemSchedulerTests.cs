@@ -512,7 +512,7 @@ public sealed class SystemSchedulerTests
     private sealed class NestedParallelSystem : ISystem
     {
         private readonly Query _query;
-        private EcsOperation? _operation;
+        private IOperation? _operation;
 
         internal NestedParallelSystem(World world, Query query)
         {
@@ -707,7 +707,7 @@ public sealed partial class PlayerPositionSystem : ISystem
 {
     private readonly Query _query;
     private QueryExecutionProbe _probe;
-    private EcsOperation<QueryExecutionProbe>? _operation;
+    private IOperation<QueryExecutionProbe>? _operation;
 
     public PlayerPositionSystem(World world, in Query query, QueryExecutionProbe probe)
     {
@@ -730,7 +730,7 @@ public sealed partial class EnemyPositionSystem : ISystem
 {
     private readonly Query _query;
     private QueryExecutionProbe _probe;
-    private EcsOperation<QueryExecutionProbe>? _operation;
+    private IOperation<QueryExecutionProbe>? _operation;
 
     public EnemyPositionSystem(World world, in Query query, QueryExecutionProbe probe)
     {
@@ -788,7 +788,7 @@ public sealed class SystemHistoryCaptureSystem : ISystem
     private readonly Query _query;
     private readonly ComponentId _valueId;
     private SystemHistoryContext _context;
-    private EcsOperation<SystemHistoryContext>? _operation;
+    private IOperation<SystemHistoryContext>? _operation;
 
     public SystemHistoryCaptureSystem(World world, in Query query, ComponentId valueId, ComponentId historyId)
     {
@@ -818,7 +818,7 @@ public sealed partial class InferredSystemHistoryCaptureSystem : ISystem
 {
     private readonly Query _query;
     private readonly ComponentId _valueId;
-    private EcsOperation? _operation;
+    private IOperation? _operation;
 
     public InferredSystemHistoryCaptureSystem(World world, in Query query, ComponentId valueId)
     {
