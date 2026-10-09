@@ -1,5 +1,7 @@
 namespace Delta.ECS;
 
+using System.Runtime.CompilerServices;
+
 public sealed partial class World
 {
     /// <summary>
@@ -97,10 +99,12 @@ public readonly struct ForEachEntityOperationInvoker : IEcsOperationInvoker
         var entityRef = new EntityRef(_world);
         while (execution.MoveNextTrusted(out GeneratedReadQuerySlots slots))
         {
+            ref readonly Entity firstEntity = ref slots.GetGeneratedEntityReference();
+            ref Entity firstEntityReference = ref Unsafe.AsRef(in firstEntity);
             int count = slots.Count;
             for (int index = 0; index < count; index++)
             {
-                entityRef._entity = slots.EntityAt(index);
+                entityRef._entity = Unsafe.Add(ref firstEntityReference, slots.GetGeneratedSlotIndex(index));
                 _action(entityRef);
             }
         }
