@@ -89,99 +89,85 @@ internal readonly struct ComponentTypeRegistrationRouteVisitor : IComponentTypeR
     bool IComponentTypeRegistrationRouteVisitor.VisitUnconstrained<TComponent>(ComponentId componentId)
         => TryVisitUnconstrained<TComponent>(componentId);
 
-    bool IComponentTypeRegistrationRouteVisitor.VisitStruct<TComponent>(ComponentId componentId)
+    bool IComponentTypeRegistrationRouteVisitor.VisitStruct<TComponent>(ComponentId componentId) => _visitor switch
     {
-        if (_visitor is INewVisitor newVisitor)
-        {
-            newVisitor.Visit<TComponent>(componentId);
-            return true;
-        }
+        INewVisitor visitor => TrueVisit<TComponent>(visitor, componentId),
+        IStructVisitor visitor => TrueVisit<TComponent>(visitor, componentId),
+        _ => TryVisitUnconstrained<TComponent>(componentId)
+    };
 
-        if (_visitor is IStructVisitor structVisitor)
-        {
-            structVisitor.Visit<TComponent>(componentId);
-            return true;
-        }
+    bool IComponentTypeRegistrationRouteVisitor.VisitClass<TComponent>(ComponentId componentId) => _visitor switch
+    {
+        IClassVisitor visitor => TrueVisit<TComponent>(visitor, componentId),
+        _ => TryVisitUnconstrained<TComponent>(componentId)
+    };
 
-        return TryVisitUnconstrained<TComponent>(componentId);
+    bool IComponentTypeRegistrationRouteVisitor.VisitUnmanaged<TComponent>(ComponentId componentId) => _visitor switch
+    {
+        INewVisitor visitor => TrueVisit<TComponent>(visitor, componentId),
+        IUnmanagedVisitor visitor => TrueVisit<TComponent>(visitor, componentId),
+        IStructVisitor visitor => TrueVisit<TComponent>(visitor, componentId),
+        _ => TryVisitUnconstrained<TComponent>(componentId)
+    };
+
+    bool IComponentTypeRegistrationRouteVisitor.VisitNew<TComponent>(ComponentId componentId) => _visitor switch
+    {
+        INewVisitor visitor => TrueVisit<TComponent>(visitor, componentId),
+        _ => TryVisitUnconstrained<TComponent>(componentId)
+    };
+
+    bool IComponentTypeRegistrationRouteVisitor.VisitClassNew<TComponent>(ComponentId componentId) => _visitor switch
+    {
+        IClassNewVisitor visitor => TrueVisit<TComponent>(visitor, componentId),
+        IClassVisitor visitor => TrueVisit<TComponent>(visitor, componentId),
+        INewVisitor visitor => TrueVisit<TComponent>(visitor, componentId),
+        _ => TryVisitUnconstrained<TComponent>(componentId)
+    };
+
+    private bool TryVisitUnconstrained<TComponent>(ComponentId componentId) => _visitor switch
+    {
+        IUnconstrainedVisitor visitor => TrueVisit<TComponent>(visitor, componentId),
+        _ => false
+    };
+
+    private static bool TrueVisit<TComponent>(IUnconstrainedVisitor visitor, ComponentId componentId)
+    {
+        visitor.Visit<TComponent>(componentId);
+        return true;
     }
 
-    bool IComponentTypeRegistrationRouteVisitor.VisitClass<TComponent>(ComponentId componentId)
+    private static bool TrueVisit<TComponent>(IStructVisitor visitor, ComponentId componentId)
+        where TComponent : struct
     {
-        if (_visitor is IClassVisitor classVisitor)
-        {
-            classVisitor.Visit<TComponent>(componentId);
-            return true;
-        }
-
-        return TryVisitUnconstrained<TComponent>(componentId);
+        visitor.Visit<TComponent>(componentId);
+        return true;
     }
 
-    bool IComponentTypeRegistrationRouteVisitor.VisitUnmanaged<TComponent>(ComponentId componentId)
+    private static bool TrueVisit<TComponent>(IClassVisitor visitor, ComponentId componentId)
+        where TComponent : class
     {
-        if (_visitor is INewVisitor newVisitor)
-        {
-            newVisitor.Visit<TComponent>(componentId);
-            return true;
-        }
-
-        if (_visitor is IUnmanagedVisitor unmanagedVisitor)
-        {
-            unmanagedVisitor.Visit<TComponent>(componentId);
-            return true;
-        }
-
-        if (_visitor is IStructVisitor structVisitor)
-        {
-            structVisitor.Visit<TComponent>(componentId);
-            return true;
-        }
-
-        return TryVisitUnconstrained<TComponent>(componentId);
+        visitor.Visit<TComponent>(componentId);
+        return true;
     }
 
-    bool IComponentTypeRegistrationRouteVisitor.VisitNew<TComponent>(ComponentId componentId)
+    private static bool TrueVisit<TComponent>(IUnmanagedVisitor visitor, ComponentId componentId)
+        where TComponent : unmanaged
     {
-        if (_visitor is INewVisitor newVisitor)
-        {
-            newVisitor.Visit<TComponent>(componentId);
-            return true;
-        }
-
-        return TryVisitUnconstrained<TComponent>(componentId);
+        visitor.Visit<TComponent>(componentId);
+        return true;
     }
 
-    bool IComponentTypeRegistrationRouteVisitor.VisitClassNew<TComponent>(ComponentId componentId)
+    private static bool TrueVisit<TComponent>(INewVisitor visitor, ComponentId componentId)
+        where TComponent : new()
     {
-        if (_visitor is IClassNewVisitor classNewVisitor)
-        {
-            classNewVisitor.Visit<TComponent>(componentId);
-            return true;
-        }
-
-        if (_visitor is IClassVisitor classVisitor)
-        {
-            classVisitor.Visit<TComponent>(componentId);
-            return true;
-        }
-
-        if (_visitor is INewVisitor newVisitor)
-        {
-            newVisitor.Visit<TComponent>(componentId);
-            return true;
-        }
-
-        return TryVisitUnconstrained<TComponent>(componentId);
+        visitor.Visit<TComponent>(componentId);
+        return true;
     }
 
-    private bool TryVisitUnconstrained<TComponent>(ComponentId componentId)
+    private static bool TrueVisit<TComponent>(IClassNewVisitor visitor, ComponentId componentId)
+        where TComponent : class, new()
     {
-        if (_visitor is not IUnconstrainedVisitor unconstrainedVisitor)
-        {
-            return false;
-        }
-
-        unconstrainedVisitor.Visit<TComponent>(componentId);
+        visitor.Visit<TComponent>(componentId);
         return true;
     }
 }
