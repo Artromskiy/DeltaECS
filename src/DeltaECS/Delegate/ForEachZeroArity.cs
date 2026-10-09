@@ -1,6 +1,7 @@
 namespace Delta.ECS;
 
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 public sealed partial class World
 {
@@ -101,11 +102,27 @@ public readonly struct ForEachEntityOperationInvoker : IEcsOperationInvoker
         {
             ref readonly Entity firstEntity = ref slots.GetGeneratedEntityReference();
             ref Entity firstEntityReference = ref Unsafe.AsRef(in firstEntity);
+            if (slots.TryGetTagSlots(out var tagSlots))
+            {
+                int tagCount = tagSlots.Length;
+                ref int tagSlot = ref Unsafe.AsRef(in MemoryMarshal.GetReference(tagSlots));
+                for (int index = 0; index < tagCount; index++)
+                {
+                    entityRef._entity = Unsafe.Add(ref firstEntityReference, tagSlot);
+                    _action(entityRef);
+                    tagSlot = ref Unsafe.Add(ref tagSlot, 1);
+                }
+
+                continue;
+            }
+
             int count = slots.Count;
+            ref Entity currentEntity = ref firstEntityReference;
             for (int index = 0; index < count; index++)
             {
-                entityRef._entity = Unsafe.Add(ref firstEntityReference, slots.GetGeneratedSlotIndex(index));
+                entityRef._entity = currentEntity;
                 _action(entityRef);
+                currentEntity = ref Unsafe.Add(ref currentEntity, 1);
             }
         }
     }
@@ -131,22 +148,32 @@ public readonly struct ForEachEntityContextOperationInvoker<TContext> : IEcsOper
     {
         ThrowHelper.ThrowIfNull(_action, nameof(_action));
         using var execution = GeneratedForEachRuntime.OpenReadDense(_world, in _query);
+        var entityRef = new EntityRef(_world);
         while (execution.MoveNextTrusted(out GeneratedReadQuerySlots slots))
         {
+            ref readonly Entity firstEntity = ref slots.GetGeneratedEntityReference();
+            ref Entity firstEntityReference = ref Unsafe.AsRef(in firstEntity);
             if (slots.TryGetTagSlots(out var tagSlots))
             {
-                for (int index = 0; index < tagSlots.Length; index++)
+                int tagCount = tagSlots.Length;
+                ref int tagSlot = ref Unsafe.AsRef(in MemoryMarshal.GetReference(tagSlots));
+                for (int index = 0; index < tagCount; index++)
                 {
-                    _action(ref context, slots.GetEntityRef(index));
+                    entityRef._entity = Unsafe.Add(ref firstEntityReference, tagSlot);
+                    _action(ref context, entityRef);
+                    tagSlot = ref Unsafe.Add(ref tagSlot, 1);
                 }
 
                 continue;
             }
 
             int count = slots.Count;
+            ref Entity currentEntity = ref firstEntityReference;
             for (int index = 0; index < count; index++)
             {
-                _action(ref context, slots.GetEntityRef(index));
+                entityRef._entity = currentEntity;
+                _action(ref context, entityRef);
+                currentEntity = ref Unsafe.Add(ref currentEntity, 1);
             }
         }
     }

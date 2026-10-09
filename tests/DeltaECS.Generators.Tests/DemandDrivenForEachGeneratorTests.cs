@@ -992,6 +992,10 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("batch.Chunk.TryGetTagSlots(out var tagSlots)"));
         Assert.That(generated, Does.Contain("execution.TryGetTagSlots(out var tagSlots)"));
         Assert.That(generated, Does.Not.Contain(".HasTagFilters && "));
+        int batchTagLookup = generated.IndexOf("batch.Chunk.TryGetTagSlots(out var tagSlots)", StringComparison.Ordinal);
+        int batchTagBranch = generated.LastIndexOf("if (execution.HasTagFilters)", batchTagLookup, StringComparison.Ordinal);
+        int batchCountRead = generated.IndexOf("int count = batch.Chunk.Count;", batchTagBranch, StringComparison.Ordinal);
+        Assert.That(batchCountRead, Is.GreaterThan(batchTagLookup));
         AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
     }
 
@@ -1060,6 +1064,10 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(intercepted, Does.Contain("if (execution.HasTagFilters)"));
         Assert.That(intercepted, Does.Contain("batch.Chunk.TryGetTagSlots(out var tagSlots)"));
         Assert.That(intercepted, Does.Not.Contain(".HasTagFilters && "));
+        int batchTagLookup = intercepted.IndexOf("batch.Chunk.TryGetTagSlots(out var tagSlots)", StringComparison.Ordinal);
+        int batchTagBranch = intercepted.LastIndexOf("if (execution.HasTagFilters)", batchTagLookup, StringComparison.Ordinal);
+        int batchCountRead = intercepted.IndexOf("int count = batch.Chunk.Count;", batchTagBranch, StringComparison.Ordinal);
+        Assert.That(batchCountRead, Is.GreaterThan(batchTagLookup));
 
         AssertCompiles(new[] { RuntimeStubSource, InterceptionSource }, run.GeneratedTrees);
     }

@@ -7,6 +7,61 @@ using NUnit.Framework;
 internal sealed class EntityRefTests
 {
     [Test]
+    public void EntityRefSupportsPrimaryComponentAccess()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(40_070));
+        ComponentId tagId = layouts.Register<FirstTag>(new SchemaId(40_069));
+        layouts.Register<Velocity>(new SchemaId(40_068));
+        using var world = new World(layouts);
+        Entity entity = world.Create(positionId, new Position { X = 1, Y = 2 });
+        Assert.That(world.Add(entity, tagId), Is.True);
+        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
+
+        world.ForEachEntity(in query, current =>
+        {
+            Assert.That(current.Handle, Is.EqualTo(entity));
+            Assert.That(current.Has<Position>(), Is.True);
+            Assert.That(current.Has<Position>(positionId), Is.True);
+            Assert.That(current.Has<Velocity>(), Is.False);
+            Assert.That(current.TryGet(out Position value), Is.True);
+            Assert.That(value, Is.EqualTo(new Position { X = 1, Y = 2 }));
+            Assert.That(current.TryGet<Position>(positionId, out Position explicitValue), Is.True);
+            Assert.That(explicitValue, Is.EqualTo(value));
+            Assert.That(current.Get<Position>(), Is.EqualTo(value));
+            Assert.That(current.Get<Position>(positionId), Is.EqualTo(value));
+
+            ref readonly Position primaryRead = ref current.GetReadRef<Position>();
+            ref readonly Position explicitRead = ref current.GetReadRef<Position>(positionId);
+            Assert.That(primaryRead, Is.EqualTo(value));
+            Assert.That(explicitRead, Is.EqualTo(value));
+
+            Assert.That(current.Has<FirstTag>(), Is.True);
+            Assert.That(current.TryGet<FirstTag>(out FirstTag tag), Is.True);
+            Assert.That(tag, Is.EqualTo(default(FirstTag)));
+            Assert.That(current.TryGetComponentStamp<FirstTag>(out Stamp tagStamp), Is.True);
+            Assert.That(tagStamp, Is.EqualTo(new Stamp(1)));
+            Assert.That(current.TryGetComponentStamp(tagId, out Stamp dynamicTagStamp), Is.True);
+            Assert.That(dynamicTagStamp, Is.EqualTo(tagStamp));
+            Assert.That(current.TryGetComponentStamp<FirstTag>(tagId, out Stamp typedTagStamp), Is.True);
+            Assert.That(typedTagStamp, Is.EqualTo(tagStamp));
+
+            Assert.That(current.TryGetComponentStamp<Position>(out Stamp before), Is.True);
+            ref Position writable = ref current.GetRef<Position>();
+            writable.X++;
+            ref Position explicitWritable = ref current.GetRef<Position>(positionId);
+            explicitWritable.Y++;
+            Assert.That(current.TryGetComponentStamp<Position>(positionId, out Stamp after), Is.True);
+            Assert.That(after, Is.Not.EqualTo(before));
+
+            Assert.That(current.TryGet<Velocity>(out _), Is.False);
+            Assert.That(current.TryGetComponentStamp<Velocity>(out _), Is.False);
+        }).Invoke();
+
+        Assert.That(world.Get<Position>(entity), Is.EqualTo(new Position { X = 2, Y = 3 }));
+    }
+
+    [Test]
     public void EntityRefUsesCurrentSlotAndChecksDynamicComponentAccess()
     {
         var layouts = new ComponentLayoutRegistry();

@@ -923,6 +923,23 @@ internal static partial class DemandDrivenForEachTemplates
         lines.Add("    }");
     }
 
+    private static void PrependDenseLoopCount(
+        List<string> denseLoopLines,
+        bool isStamp,
+        bool bound,
+        bool hasEntity,
+        string countName,
+        string batchName)
+    {
+        if (isStamp || (!bound && !hasEntity))
+        {
+            return;
+        }
+
+        string countSource = bound ? $"{batchName}.Chunk.Count" : "slots.Count";
+        denseLoopLines.Insert(0, $"int {countName} = {countSource};");
+    }
+
     private static string RenderInterceptedClosedMethod(IterationModel shape, InterceptionSite site)
     {
         IterationModel closedShape = new(
@@ -1112,7 +1129,10 @@ internal static partial class DemandDrivenForEachTemplates
                 lines.Add("            do");
                 lines.Add("            {");
                 lines.Add($"                ref var {batch} = ref {batchCursor};");
-                lines.Add($"                int {countName} = {batch}.Chunk.Count;");
+                if (shape.IsStamp)
+                {
+                    lines.Add($"                int {countName} = {batch}.Chunk.Count;");
+                }
             }
             else
             {
@@ -1134,7 +1154,7 @@ internal static partial class DemandDrivenForEachTemplates
                         : $"                {rowNames[index]} = ref GeneratedForEachRuntime.GetGeneratedRow<{type}>(componentRows, route{index});");
                 }
             }
-            if (!bound && (shape.IsStamp || closedShape.HasEntity))
+            if (!bound && shape.IsStamp)
             {
                 lines.Add($"            int {countName} = slots.Count;");
             }
@@ -1191,6 +1211,8 @@ internal static partial class DemandDrivenForEachTemplates
                 lines.Add("        }");
             }
         }
+
+        PrependDenseLoopCount(denseLoopLines, shape.IsStamp, bound, closedShape.HasEntity, countName, batch);
 
         AppendChunkFilterBranch(lines, shape.IsStamp, AppendChunkLoop);
         interceptedVisitMethods = visitMethods;
@@ -1813,7 +1835,10 @@ internal static partial class DemandDrivenForEachTemplates
                 lines.Add("            do");
                 lines.Add("            {");
                 lines.Add("                ref var batch = ref batchCursor;");
-                lines.Add("                int count = batch.Chunk.Count;");
+                if (shape.IsStamp)
+                {
+                    lines.Add("                int count = batch.Chunk.Count;");
+                }
             }
             else
             {
@@ -1823,7 +1848,7 @@ internal static partial class DemandDrivenForEachTemplates
                 lines.Add("        {");
             }
 
-            if (!bound && (shape.IsStamp || shape.HasEntity))
+            if (!bound && shape.IsStamp)
             {
                 lines.Add("            int count = slots.Count;");
             }
@@ -1888,6 +1913,8 @@ internal static partial class DemandDrivenForEachTemplates
                 lines.Add("        }");
             }
         }
+
+        PrependDenseLoopCount(denseLoopLines, shape.IsStamp, bound, shape.HasEntity, "count", "batch");
 
         AppendChunkFilterBranch(lines, shape.IsStamp, AppendChunkLoop);
 
