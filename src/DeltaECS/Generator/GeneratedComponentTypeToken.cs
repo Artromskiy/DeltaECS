@@ -177,6 +177,16 @@ public static class GeneratedComponentTypeTokenRegistry
         }
     }
 
+    internal static IGeneratedComponentTypeToken GetGenerated<T>()
+    {
+        lock (Gate)
+        {
+            return Tokens.TryGetValue(typeof(T), out IGeneratedComponentTypeToken? token)
+                ? token
+                : ThrowHelper.ThrowGeneratedComponentTypeTokenMissing(typeof(T));
+        }
+    }
+
     internal static IGeneratedComponentTypeToken Get(Type componentType)
     {
         ThrowHelper.ThrowIfNull(componentType, nameof(componentType));

@@ -150,6 +150,15 @@ public static class GeneratedGenericBindingRegistry
         return layouts.RegisterGeneratedGenericComponent<T>(schemaId, componentArguments, typeToken);
     }
 
+    /// <summary>Registers a closed component type using its generated constraint-capability token.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static ComponentId RegisterComponentType<T>(ComponentLayoutRegistry layouts, SchemaId schemaId)
+    {
+        ThrowHelper.ThrowIfNull(layouts, nameof(layouts));
+        IGeneratedComponentTypeToken typeToken = GeneratedComponentTypeTokenRegistry.GetGenerated<T>();
+        return layouts.RegisterGeneratedComponent<T>(schemaId, typeToken);
+    }
+
     /// <summary>Registers an open generic component from generated code using positional component IDs.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static ComponentId RegisterComponentDefinition(

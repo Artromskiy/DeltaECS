@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Delta.ECS.Generators;
@@ -161,8 +162,29 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
                 functorDispatchers,
                 generatedTypeTokens,
                 componentRegistrationArities,
+                generatedTypeTokens.Length != 0 && !SupportsOverloadResolutionPriority(input.Right),
                 needsModuleInitializerAttribute));
         });
+    }
+
+    private static bool SupportsOverloadResolutionPriority(Compilation compilation)
+    {
+        // This generator targets older Roslyn packages, so keep the C# 13 enum lookup runtime-based.
+        if (!Enum.TryParse("CSharp13", out LanguageVersion csharp13))
+        {
+            return false;
+        }
+
+        foreach (SyntaxTree syntaxTree in compilation.SyntaxTrees)
+        {
+            if (syntaxTree.Options is CSharpParseOptions options
+                && LanguageVersionFacts.MapSpecifiedToEffectiveVersion(options.LanguageVersion) < csharp13)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static void ReportUnsupportedConstraints(SourceProductionContext output, INamedTypeSymbol definition, Location location)
@@ -177,13 +199,18 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
         IMethodSymbol? method = syntax.SemanticModel.GetSymbolInfo(invocation).Symbol as IMethodSymbol;
         if (method is null)
         {
-            return ReadGenericComponentRegistrationDiscovery(invocation, syntax.SemanticModel)
+            return ReadGeneratedComponentRegistrationDiscovery(invocation, syntax.SemanticModel)
+                ?? ReadGenericComponentRegistrationDiscovery(invocation, syntax.SemanticModel)
                 ?? ReadFunctorDiscovery(invocation, syntax.SemanticModel);
         }
 
-        if (IsLayoutRegistry(method.ContainingType) || IsGeneratedComponentRegistrationExtensions(method.ContainingType))
+        if (IsLayoutRegistry(method.ContainingType)
+            || IsGeneratedGenericComponentRegistrationExtensions(method.ContainingType)
+            || IsGeneratedComponentRegistrationExtensions(method.ContainingType))
         {
-            if (method.IsGenericMethod && method.Name == "Register" && method.TypeArguments.Length == 1)
+            if (method.IsGenericMethod
+                && (method.Name == "Register" || method.Name == "RegisterGenerated")
+                && method.TypeArguments.Length == 1)
             {
                 return new GenericBindingDiscovery(method.TypeArguments[0], null, null, invocation.GetLocation());
             }
@@ -193,6 +220,29 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
 
         return ReadStructGenericTypeListDiscovery(method, invocation.GetLocation())
             ?? ReadFunctorDiscovery(invocation, syntax.SemanticModel);
+    }
+
+    private static GenericBindingDiscovery? ReadGeneratedComponentRegistrationDiscovery(
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel)
+    {
+        if (GetMethodName(invocation.Expression) != "RegisterGenerated"
+            || invocation.Expression is not MemberAccessExpressionSyntax member
+            || semanticModel.GetTypeInfo(member.Expression).Type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                != "global::Delta.ECS.ComponentLayoutRegistry"
+            || member.Name is not GenericNameSyntax genericName
+            || genericName.TypeArgumentList.Arguments.Count != 1)
+        {
+            return null;
+        }
+
+        ITypeSymbol? componentType = semanticModel.GetTypeInfo(genericName.TypeArgumentList.Arguments[0]).Type;
+        if (componentType is null || !IsClosedType(componentType) || !GeneratorSupport.IsAccessibleSymbol(componentType))
+        {
+            return null;
+        }
+
+        return new GenericBindingDiscovery(componentType, null, null, invocation.GetLocation());
     }
 
     private static GenericBindingDiscovery? ReadStructGenericTypeListDiscovery(IMethodSymbol method, Location location)
@@ -315,8 +365,11 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
     private static bool IsLayoutRegistry(INamedTypeSymbol? type)
         => type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Delta.ECS.ComponentLayoutRegistry";
 
-    private static bool IsGeneratedComponentRegistrationExtensions(INamedTypeSymbol? type)
+    private static bool IsGeneratedGenericComponentRegistrationExtensions(INamedTypeSymbol? type)
         => type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Delta.ECS.GeneratedGenericComponentRegistrationExtensions";
+
+    private static bool IsGeneratedComponentRegistrationExtensions(INamedTypeSymbol? type)
+        => type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Delta.ECS.GeneratedComponentRegistrationExtensions";
 
     private static string GetMethodName(ExpressionSyntax expression)
         => expression switch

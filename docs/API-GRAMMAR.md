@@ -156,7 +156,13 @@ foreach (ComponentId componentId in componentIds)
 
 The runtime APIs described here are available without adding the generator to the consuming project. The generated API grammar proof and runtime-only API grammar proof are kept in separate consumer projects so both dependency shapes are compiled and executed independently. The runtime-only proof covers registration and visitors, query construction, structural operations, typed single-component access, entity-only iteration, and the integration contract. Component-bearing iteration and other generated forms remain in the generated grammar proof. Both proofs are invoked by the grammar smoke application and the generator test suite.
 
-When compiling with a language version that does not apply `OverloadResolutionPriority`, supply the marker explicitly to avoid relying on automatic selection among the constrained `Register<T>` overloads.
+When compiling with a language version that does not apply `OverloadResolutionPriority`, use the generated `RegisterGenerated<T>` extension for automatically selected registration routes:
+
+```csharp
+ComponentId id = layouts.RegisterGenerated<Position>(new SchemaId(1));
+```
+
+The extension is emitted by `DeltaECS.Generators` for older language versions and uses the same generated component type tokens as open-generic registration. It works for registered types whether or not they carry `DeltaEcsComponentAttribute`; attribute-based catalog registration remains a separate API. In generic code where the component type is not known to the generator, continue to pass the constraint marker explicitly.
 
 ## Generated iteration forms
 

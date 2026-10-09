@@ -2,6 +2,13 @@ namespace Delta.ECS;
 
 public sealed partial class ComponentLayoutRegistry
 {
+    internal ComponentId RegisterGeneratedComponent<T>(SchemaId schemaId, IGeneratedComponentTypeToken typeToken)
+    {
+        ThrowHelper.ThrowIfNull(typeToken, nameof(typeToken));
+        ComponentRegistrationTypeToken registrationToken = CreateComponentRegistrationTypeToken(typeToken);
+        return RegisterGeneratedComponent<T>(schemaId, typeToken, IsTagType(typeof(T)), registrationToken);
+    }
+
     internal ComponentId RegisterGeneratedComponent<T>(
         SchemaId schemaId,
         IGeneratedComponentTypeToken typeToken,
