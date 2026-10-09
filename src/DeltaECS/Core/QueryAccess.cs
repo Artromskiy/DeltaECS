@@ -37,8 +37,6 @@ internal sealed class QueryPlan
     private readonly World _owner;
     private IGeneratedDenseBinding? _lastDenseBinding;
     private Dictionary<RuntimeTypeHandle, IGeneratedDenseBinding>? _denseBindings;
-    private EntityRefStampBatch? _entityRefStampBatch;
-    private int _entityRefStampBatchActive;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal TBinding GetDenseBinding<TBinding, TRows>(in Query query)
@@ -85,9 +83,6 @@ internal sealed class QueryPlan
     private int[] _planIndicesByArchetype = Array.Empty<int>();
     private readonly int[] _readRoutesByComponent;
     private readonly Type?[] _componentTypesByComponent;
-    private readonly int[] _entityRefRoutesByComponent;
-    private readonly ComponentId[] _entityRefDataComponents;
-    private int _entityRefDataComponentCount;
     private readonly Dictionary<RuntimeTypeHandle, int> _primaryReadRoutesByType;
     private int _matchingChunkCount;
     private readonly ReadAccess[] _preparedReadAccessesByComponent;
@@ -108,15 +103,12 @@ internal sealed class QueryPlan
         _weakReference = new WeakReference<QueryPlan>(this);
         _readRoutesByComponent = new int[world.Layouts.Count];
         _componentTypesByComponent = new Type?[world.Layouts.Count];
-        _entityRefRoutesByComponent = new int[world.Layouts.Count];
-        _entityRefDataComponents = new ComponentId[_allDataMask.Count + _anyDataMask.Count];
         _preparedReadAccessesByComponent = new ReadAccess[world.Layouts.Count];
         _preparedWriteAccessesByComponent = new WriteAccess[world.Layouts.Count];
         _primaryReadRoutesByType = new Dictionary<RuntimeTypeHandle, int>(
             _allDataMask.Count,
             RuntimeTypeHandleComparer.Instance);
         Array.Fill(_readRoutesByComponent, -1);
-        Array.Fill(_entityRefRoutesByComponent, -1);
         PrepareReadRoutes(world);
         for (int archetypeId = 0; archetypeId < world.Archetypes.Count; archetypeId++)
         {
@@ -128,74 +120,6 @@ internal sealed class QueryPlan
     internal WeakReference<QueryPlan> WeakReference => _weakReference;
     internal int MatchingVersion => _matchingVersion;
     internal int MatchingArchetypeVersion => _matchingArchetypeVersion;
-    internal int EntityRefDataComponentCount => _entityRefDataComponentCount;
-
-    internal EntityRefStampBatch? GetEntityRefStampBatch(out int generation, bool useLazyPinnedCursor)
-    {
-        generation = 0;
-        if (_entityRefDataComponentCount == 0)
-        {
-            return null;
-        }
-
-        EntityRefStampBatch? batch = EntityRefStampBatch.GetCurrent(this);
-        if (batch is null)
-        {
-            if (Interlocked.CompareExchange(ref _entityRefStampBatchActive, 1, 0) != 0)
-            {
-                return null;
-            }
-
-            batch = _entityRefStampBatch ??= new EntityRefStampBatch(this);
-            bool began = false;
-            try
-            {
-                batch.Begin(useLazyPinnedCursor);
-                began = true;
-            }
-            finally
-            {
-                if (!began)
-                {
-                    Volatile.Write(ref _entityRefStampBatchActive, 0);
-                }
-            }
-        }
-
-        generation = batch.Generation;
-        return batch;
-    }
-
-    internal void EndEntityRefStampBatch()
-    {
-        EntityRefStampBatch? batch = _entityRefStampBatch;
-        if (batch is null || !batch.IsCurrentOnThisThread)
-        {
-            return;
-        }
-
-        try
-        {
-            batch.Complete();
-        }
-        finally
-        {
-            Volatile.Write(ref _entityRefStampBatchActive, 0);
-        }
-    }
-
-    internal void IncrementArchetypeComponentStamp(int archetypeId, int componentIndex)
-    {
-        int planIndex = MatchingPlanIndex(archetypeId);
-        if (planIndex < 0)
-        {
-            return;
-        }
-
-        Stamp[] stamps = _matchingPlans.RefAt(planIndex).ArchetypeStamps;
-        ref Stamp stamp = ref stamps.RefAt(componentIndex);
-        stamp = stamp.Next();
-    }
 
     internal bool HasTagFilters
         => _allTagIndices.Length != 0 || _anyTagIndices.Length != 0 || _noneTagIndices.Length != 0;
@@ -284,29 +208,6 @@ internal sealed class QueryPlan
 
         return ThrowHelper.ThrowInvalidReadRoute(component);
     }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool TryGetEntityRefRoute(ComponentId component, out int route, out Type? runtimeType)
-    {
-        if (component.IsValid
-            && (uint)component.Value < (uint)_entityRefRoutesByComponent.Length
-            && (route = _entityRefRoutesByComponent.RefAt(component.Value)) != -1)
-        {
-            runtimeType = _componentTypesByComponent.RefAt(component.Value);
-            return true;
-        }
-
-        route = -1;
-        runtimeType = null;
-        return false;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool IsRequiredEntityRefComponent(ComponentId component)
-        => _description.AllMask.Contains(component);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static int GetEntityRefTagIndex(int route) => -2 - route;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static bool IsTagRoute(int route) => route <= TagRouteOffset;
@@ -432,7 +333,6 @@ internal sealed class QueryPlan
         var plan = new ArchetypePlan(
             archetype,
             indices,
-            BuildEntityRefComponentIndices(archetype),
             _owner.GetArchetypeComponentStamps(archetype.Id));
         _matchingArchetypes.RefAt(_matchingCount) = archetype.Id;
         _matchingPlans.RefAt(_matchingCount) = plan;
@@ -527,8 +427,6 @@ internal sealed class QueryPlan
         _preparedReadAccessesByComponent.AsSpan().Clear();
         _preparedWriteAccessesByComponent.AsSpan().Clear();
         Array.Fill(_readRoutesByComponent, -1);
-        Array.Fill(_entityRefRoutesByComponent, -1);
-        _entityRefDataComponents.AsSpan().Clear();
         _componentTypesByComponent.AsSpan().Clear();
     }
 
@@ -543,7 +441,6 @@ internal sealed class QueryPlan
     private void PrepareReadRoutes(World world)
     {
         int route = 0;
-        int entityRefDataRoute = 0;
         foreach (ComponentId component in _allDataMask)
         {
             if (!world.Layouts.TryGet(component, out ComponentLayout layout))
@@ -556,8 +453,6 @@ internal sealed class QueryPlan
             _preparedWriteAccessesByComponent.RefAt(component.Value) = new WriteAccess(this, route);
             Type runtimeType = layout.RuntimeType;
             _componentTypesByComponent.RefAt(component.Value) = runtimeType;
-            _entityRefRoutesByComponent.RefAt(component.Value) = entityRefDataRoute;
-            _entityRefDataComponents.RefAt(entityRefDataRoute++) = component;
             if (world.Layouts.TryGetPrimary(runtimeType, out ComponentId primary)
                 && primary == component)
             {
@@ -575,16 +470,11 @@ internal sealed class QueryPlan
             }
 
             _componentTypesByComponent.RefAt(component.Value) = layout.RuntimeType;
-            if (_entityRefRoutesByComponent.RefAt(component.Value) == -1)
-            {
-                _entityRefRoutesByComponent.RefAt(component.Value) = entityRefDataRoute;
-                _entityRefDataComponents.RefAt(entityRefDataRoute++) = component;
-            }
         }
 
         foreach (ComponentId component in _description.AllMask)
         {
-            if (!world.Layouts.TryGetTagIndex(component, out int tagIndex))
+            if (!world.Layouts.TryGetTagIndex(component, out _))
             {
                 continue;
             }
@@ -596,7 +486,6 @@ internal sealed class QueryPlan
 
             int tagRoute = GetTagRoute(component);
             _readRoutesByComponent.RefAt(component.Value) = tagRoute;
-            _entityRefRoutesByComponent.RefAt(component.Value) = GetEntityRefTagRoute(tagIndex);
             _preparedReadAccessesByComponent.RefAt(component.Value) = new ReadAccess(this, tagRoute);
             _preparedWriteAccessesByComponent.RefAt(component.Value) = new WriteAccess(this, tagRoute);
             Type runtimeType = layout.RuntimeType;
@@ -610,7 +499,7 @@ internal sealed class QueryPlan
 
         foreach (ComponentId component in _description.AnyMask)
         {
-            if (!world.Layouts.TryGetTagIndex(component, out int tagIndex))
+            if (!world.Layouts.TryGetTagIndex(component, out _))
             {
                 continue;
             }
@@ -621,29 +510,7 @@ internal sealed class QueryPlan
             }
 
             _componentTypesByComponent.RefAt(component.Value) = layout.RuntimeType;
-            if (_entityRefRoutesByComponent.RefAt(component.Value) == -1)
-            {
-                _entityRefRoutesByComponent.RefAt(component.Value) = GetEntityRefTagRoute(tagIndex);
-            }
         }
-
-        _entityRefDataComponentCount = entityRefDataRoute;
-    }
-
-    private static int GetEntityRefTagRoute(int tagIndex) => -2 - tagIndex;
-
-    private int[] BuildEntityRefComponentIndices(Archetype archetype)
-    {
-        var indices = new int[_entityRefDataComponents.Length];
-        for (int route = 0; route < _entityRefDataComponentCount; route++)
-        {
-            ComponentId component = _entityRefDataComponents.RefAt(route);
-            indices.RefAt(route) = archetype.Mask.Contains(component)
-                ? archetype.Mask.Rank(component)
-                : -1;
-        }
-
-        return indices;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -733,8 +600,7 @@ internal sealed class QueryPlan
             ChunkPlan next = refreshed.RefAt(index);
             ChunkPlan previous = current.RefAt(index);
             if (!ReferenceEquals(previous.Chunk, next.Chunk)
-                || !ReferenceEquals(previous.ComponentRows, next.ComponentRows)
-                || previous.PlanEntityBase != next.PlanEntityBase)
+                || !ReferenceEquals(previous.ComponentRows, next.ComponentRows))
             {
                 current.RefAt(index) = next;
             }
@@ -932,15 +798,10 @@ internal struct ArchetypePlan
     internal ArchetypePlan(
         Archetype archetype,
         int[] componentRows,
-        int[] entityRefComponentIndices,
         Stamp[]? archetypeStamps = null)
     {
         Archetype = archetype;
         ComponentRows = componentRows;
-        EntityRefComponentIndices = entityRefComponentIndices;
-        EntityRefStampState = entityRefComponentIndices.Length == 0
-            ? null
-            : new EntityRefStampState(entityRefComponentIndices);
         ArchetypeStamps = archetypeStamps ?? Array.Empty<Stamp>();
         _chunks = Array.Empty<ChunkPlan>();
         _chunkTopologyVersion = archetype.ChunkTopologyVersion;
@@ -952,8 +813,6 @@ internal struct ArchetypePlan
 
     internal Archetype Archetype { get; }
     internal int[] ComponentRows { get; }
-    internal int[] EntityRefComponentIndices { get; }
-    internal EntityRefStampState? EntityRefStampState { get; }
     internal Stamp[] ArchetypeStamps { get; }
     internal int FindChunkIndex(int globalChunkId, int startIndex = 0, int endIndex = -1)
     {
@@ -989,7 +848,7 @@ internal struct ArchetypePlan
             Array.Resize(ref _chunks, Math.Max(4, _chunks.Length * 2));
         }
 
-        _chunks.RefAt(_chunkCount++) = CreateChunkPlan(chunk, activePosition * Chunk.Capacity);
+        _chunks.RefAt(_chunkCount++) = CreateChunkPlan(chunk);
     }
 
     internal void OnChunkDeactivated(int activePosition, int lastPosition)
@@ -1005,7 +864,6 @@ internal struct ArchetypePlan
         }
 
         _chunkCount--;
-        RefreshPlanEntityBases();
     }
 
     internal bool RefreshChunks(Archetype archetype)
@@ -1040,12 +898,11 @@ internal struct ArchetypePlan
             }
             else
             {
-                _chunks.RefAt(chunkIndex) = CreateChunkPlan(chunk, chunkIndex * Chunk.Capacity);
+                _chunks.RefAt(chunkIndex) = CreateChunkPlan(chunk);
             }
         }
 
         _chunkCount = activeCount;
-        RefreshPlanEntityBases();
         for (int index = activeCount; index < previousCount; index++)
         {
             _chunks.RefAt(index) = default;
@@ -1055,7 +912,7 @@ internal struct ArchetypePlan
         return true;
     }
 
-    private ChunkPlan CreateChunkPlan(Chunk chunk, int stampBase)
+    private ChunkPlan CreateChunkPlan(Chunk chunk)
     {
         Array[] resolvedRows = new Array[ComponentRows.Length];
         var sourceRows = chunk.RawComponentRows;
@@ -1067,20 +924,7 @@ internal struct ArchetypePlan
         return new ChunkPlan(
             chunk,
             resolvedRows,
-            ComponentRows,
-            Archetype,
-            EntityRefComponentIndices,
-            EntityRefStampState,
-            stampBase);
-    }
-
-    private void RefreshPlanEntityBases()
-    {
-        for (int index = 0; index < _chunkCount; index++)
-        {
-            ref ChunkPlan chunkPlan = ref _chunks.RefAt(index);
-            chunkPlan = chunkPlan.WithPlanEntityBase(index * Chunk.Capacity);
-        }
+            ComponentRows);
     }
 }
 
@@ -1089,38 +933,16 @@ internal readonly struct ChunkPlan
     internal ChunkPlan(
         Chunk chunk,
         Array[] componentRows,
-        int[] componentIndices,
-        Archetype archetype,
-        int[] entityRefComponentIndices,
-        EntityRefStampState? entityRefStampState,
-        int planEntityBase)
+        int[] componentIndices)
     {
         Chunk = chunk;
         ComponentRows = componentRows;
         ComponentIndices = componentIndices;
-        Archetype = archetype;
-        EntityRefComponentIndices = entityRefComponentIndices;
-        EntityRefStampState = entityRefStampState;
-        PlanEntityBase = planEntityBase;
     }
 
     internal Chunk Chunk { get; }
     internal Array[] ComponentRows { get; }
     internal int[] ComponentIndices { get; }
-    internal Archetype Archetype { get; }
-    internal int[] EntityRefComponentIndices { get; }
-    internal EntityRefStampState? EntityRefStampState { get; }
-    internal int PlanEntityBase { get; }
-
-    internal ChunkPlan WithPlanEntityBase(int planEntityBase)
-        => new(
-            Chunk,
-            ComponentRows,
-            ComponentIndices,
-            Archetype,
-            EntityRefComponentIndices,
-            EntityRefStampState,
-            planEntityBase);
 }
 
 internal readonly struct QueryPlanLink

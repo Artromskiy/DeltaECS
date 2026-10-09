@@ -12,7 +12,6 @@ public ref struct GeneratedQuerySlots
 {
     private readonly World _world;
     private readonly Chunk _chunk;
-    private readonly Archetype _archetype;
     private readonly Span<Entity> _entities;
     private readonly Array[] _resolvedRowsByQuery;
     private readonly int[] _componentIndices;
@@ -21,20 +20,12 @@ public ref struct GeneratedQuerySlots
     private readonly ReadOnlySpan<int> _tagSlots;
     private readonly bool _hasTagSlots;
     private readonly QueryPlan? _queryPlan;
-    private readonly int[] _entityRefComponentIndices;
-    private readonly EntityRefStampState? _entityRefStampState;
-    private readonly int _planEntityBase;
-    private readonly bool _useLazyPinnedCursor;
-    private EntityRefStampBatch? _stampBatch;
-    private int _stampBatchGeneration;
-    private bool _stampBatchResolved;
 
     internal GeneratedQuerySlots(
         World world,
         in ChunkPlan chunkPlan,
-        QueryPlan? queryPlan = null,
-        bool useLazyPinnedCursor = true)
-        : this(world, in chunkPlan, chunkPlan.Chunk.Count, 0, queryPlan, useLazyPinnedCursor)
+        QueryPlan? queryPlan = null)
+        : this(world, in chunkPlan, chunkPlan.Chunk.Count, 0, queryPlan)
     {
     }
 
@@ -42,9 +33,8 @@ public ref struct GeneratedQuerySlots
         World world,
         in ChunkPlan chunkPlan,
         int count,
-        QueryPlan? queryPlan = null,
-        bool useLazyPinnedCursor = true)
-        : this(world, in chunkPlan, count, 0, queryPlan, useLazyPinnedCursor)
+        QueryPlan? queryPlan = null)
+        : this(world, in chunkPlan, count, 0, queryPlan)
     {
     }
 
@@ -53,25 +43,16 @@ public ref struct GeneratedQuerySlots
         in ChunkPlan chunkPlan,
         int count,
         int offset,
-        QueryPlan? queryPlan = null,
-        bool useLazyPinnedCursor = true)
+        QueryPlan? queryPlan = null)
     {
         _world = world;
         _chunk = chunkPlan.Chunk;
-        _archetype = chunkPlan.Archetype;
         _entities = _chunk.RawEntities;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
         _componentIndices = chunkPlan.ComponentIndices;
         _count = count;
         _offset = offset;
         _queryPlan = queryPlan;
-        _entityRefComponentIndices = chunkPlan.EntityRefComponentIndices;
-        _entityRefStampState = chunkPlan.EntityRefStampState;
-        _planEntityBase = chunkPlan.PlanEntityBase;
-        _useLazyPinnedCursor = useLazyPinnedCursor;
-        _stampBatch = null;
-        _stampBatchGeneration = 0;
-        _stampBatchResolved = false;
         _hasTagSlots = queryPlan is not null && offset == 0 && queryPlan.TryGetTagSlots(_chunk, out _tagSlots);
         if (!_hasTagSlots)
         {
@@ -113,54 +94,13 @@ public ref struct GeneratedQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public EntityRef GetEntityRef(int index)
-    {
-        PrepareEntityRefStampBatch();
-        int slotIndex = GetGeneratedSlotIndex(index);
-        return _world.CreateEntityRef(
-            _chunk,
-            _archetype,
-            slotIndex,
-            _queryPlan,
-            _entityRefComponentIndices,
-            _entityRefStampState,
-            _planEntityBase + slotIndex,
-            _stampBatch,
-            _stampBatchGeneration);
-    }
+        => new(_world, EntityAt(index));
 
     /// <summary>Creates a borrowed view for one physical entity slot in this query chunk.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public EntityRef GetEntityRefAtSlot(int slotIndex)
-    {
-        PrepareEntityRefStampBatch();
-        return _world.CreateEntityRef(
-            _chunk,
-            _archetype,
-            slotIndex,
-            _queryPlan,
-            _entityRefComponentIndices,
-            _entityRefStampState,
-            _planEntityBase + slotIndex,
-            _stampBatch,
-            _stampBatchGeneration);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void PrepareEntityRefStampBatch()
-    {
-        if (_stampBatchResolved)
-        {
-            return;
-        }
-
-        _stampBatchResolved = true;
-        if (_queryPlan is not null)
-        {
-            _stampBatch = _queryPlan.GetEntityRefStampBatch(out _stampBatchGeneration, _useLazyPinnedCursor);
-            _stampBatch?.PrepareChunk(_stampBatchGeneration, _chunk, _entityRefComponentIndices.Length);
-        }
-    }
+        => new(_world, _entities.RefAt(slotIndex));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -271,7 +211,6 @@ public ref struct GeneratedReadQuerySlots
 {
     private readonly World _world;
     private readonly Chunk _chunk;
-    private readonly Archetype _archetype;
     private readonly ReadOnlySpan<Entity> _entities;
     private readonly Array[] _resolvedRowsByQuery;
     private readonly int[] _componentIndices;
@@ -279,34 +218,18 @@ public ref struct GeneratedReadQuerySlots
     private readonly ReadOnlySpan<int> _tagSlots;
     private readonly bool _hasTagSlots;
     private readonly QueryPlan? _queryPlan;
-    private readonly int[] _entityRefComponentIndices;
-    private readonly EntityRefStampState? _entityRefStampState;
-    private readonly int _planEntityBase;
-    private readonly bool _useLazyPinnedCursor;
-    private EntityRefStampBatch? _stampBatch;
-    private int _stampBatchGeneration;
-    private bool _stampBatchResolved;
 
     internal GeneratedReadQuerySlots(
         World world,
         in ChunkPlan chunkPlan,
-        QueryPlan? queryPlan = null,
-        bool useLazyPinnedCursor = true)
+        QueryPlan? queryPlan = null)
     {
         _world = world;
         _chunk = chunkPlan.Chunk;
-        _archetype = chunkPlan.Archetype;
         _entities = _chunk.RawEntities;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
         _componentIndices = chunkPlan.ComponentIndices;
         _queryPlan = queryPlan;
-        _entityRefComponentIndices = chunkPlan.EntityRefComponentIndices;
-        _entityRefStampState = chunkPlan.EntityRefStampState;
-        _planEntityBase = chunkPlan.PlanEntityBase;
-        _useLazyPinnedCursor = useLazyPinnedCursor;
-        _stampBatch = null;
-        _stampBatchGeneration = 0;
-        _stampBatchResolved = false;
         _hasTagSlots = queryPlan is not null && queryPlan.TryGetTagSlots(_chunk, out _tagSlots);
         if (!_hasTagSlots)
         {
@@ -330,54 +253,13 @@ public ref struct GeneratedReadQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public EntityRef GetEntityRef(int index)
-    {
-        PrepareEntityRefStampBatch();
-        int slotIndex = GetGeneratedSlotIndex(index);
-        return _world.CreateEntityRef(
-            _chunk,
-            _archetype,
-            slotIndex,
-            _queryPlan,
-            _entityRefComponentIndices,
-            _entityRefStampState,
-            _planEntityBase + slotIndex,
-            _stampBatch,
-            _stampBatchGeneration);
-    }
+        => new(_world, EntityAt(index));
 
     /// <summary>Creates a borrowed view for one physical entity slot in this query chunk.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public EntityRef GetEntityRefAtSlot(int slotIndex)
-    {
-        PrepareEntityRefStampBatch();
-        return _world.CreateEntityRef(
-            _chunk,
-            _archetype,
-            slotIndex,
-            _queryPlan,
-            _entityRefComponentIndices,
-            _entityRefStampState,
-            _planEntityBase + slotIndex,
-            _stampBatch,
-            _stampBatchGeneration);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void PrepareEntityRefStampBatch()
-    {
-        if (_stampBatchResolved)
-        {
-            return;
-        }
-
-        _stampBatchResolved = true;
-        if (_queryPlan is not null)
-        {
-            _stampBatch = _queryPlan.GetEntityRefStampBatch(out _stampBatchGeneration, _useLazyPinnedCursor);
-            _stampBatch?.PrepareChunk(_stampBatchGeneration, _chunk, _entityRefComponentIndices.Length);
-        }
-    }
+        => new(_world, _entities.RefAt(slotIndex));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -390,7 +272,7 @@ public ref struct GeneratedReadQuerySlots
     /// <summary>Maps a logical query index to its physical slot within the chunk.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public int GetGeneratedSlotIndex(int index)
+    public readonly int GetGeneratedSlotIndex(int index)
         => _hasTagSlots ? _tagSlots.RefAt(index) : index;
 
     /// <summary>Maps a logical query index to its row offset from a generated row reference.</summary>

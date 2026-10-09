@@ -94,22 +94,14 @@ public readonly struct ForEachEntityOperationInvoker : IEcsOperationInvoker
     {
         ThrowHelper.ThrowIfNull(_action, nameof(_action));
         using var execution = GeneratedForEachRuntime.OpenReadDense(_world, in _query);
+        var entityRef = new EntityRef(_world);
         while (execution.MoveNextTrusted(out GeneratedReadQuerySlots slots))
         {
-            if (slots.TryGetTagSlots(out var tagSlots))
-            {
-                for (int index = 0; index < tagSlots.Length; index++)
-                {
-                    _action(slots.GetEntityRef(index));
-                }
-
-                continue;
-            }
-
             int count = slots.Count;
             for (int index = 0; index < count; index++)
             {
-                _action(slots.GetEntityRef(index));
+                entityRef._entity = slots.EntityAt(index);
+                _action(entityRef);
             }
         }
     }
