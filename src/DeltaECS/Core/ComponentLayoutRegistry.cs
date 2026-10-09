@@ -62,65 +62,35 @@ public sealed partial class ComponentLayoutRegistry
     private static ComponentRegistrationTypeToken CreateComponentRegistrationTypeToken(IGeneratedComponentTypeToken typeToken)
     {
         var visitor = new GeneratedComponentTypeRegistrationTokenFactory();
-
-        if (typeToken is IGeneratedClassConstructibleComponentTypeToken classNewToken)
-        {
-            classNewToken.DispatchClassConstructible(ReadOnlySpan<IGeneratedComponentTypeToken>.Empty, ref visitor);
-        }
-        else if (typeToken is IGeneratedUnmanagedComponentTypeToken unmanagedToken)
-        {
-            unmanagedToken.DispatchUnmanaged(ReadOnlySpan<IGeneratedComponentTypeToken>.Empty, ref visitor);
-        }
-        else if (typeToken is IGeneratedStructComponentTypeToken structToken)
-        {
-            structToken.DispatchStruct(ReadOnlySpan<IGeneratedComponentTypeToken>.Empty, ref visitor);
-        }
-        else if (typeToken is IGeneratedConstructibleComponentTypeToken newToken)
-        {
-            newToken.DispatchConstructible(ReadOnlySpan<IGeneratedComponentTypeToken>.Empty, ref visitor);
-        }
-        else if (typeToken is IGeneratedClassComponentTypeToken classToken)
-        {
-            classToken.DispatchClass(ReadOnlySpan<IGeneratedComponentTypeToken>.Empty, ref visitor);
-        }
-        else
-        {
-            typeToken.Dispatch(ReadOnlySpan<IGeneratedComponentTypeToken>.Empty, ref visitor);
-        }
-
+        typeToken.DispatchRegistrationRoute(ref visitor);
         return visitor.RegistrationToken;
     }
 
     private struct GeneratedComponentTypeRegistrationTokenFactory :
-        IGeneratedComponentTypeVisitor,
-        IGeneratedClassConstructibleComponentTypeVisitor,
-        IGeneratedUnmanagedComponentTypeVisitor,
-        IGeneratedStructComponentTypeVisitor,
-        IGeneratedConstructibleComponentTypeVisitor,
-        IGeneratedClassComponentTypeVisitor
+        IGeneratedComponentRegistrationRouteVisitor
     {
         private ComponentRegistrationTypeToken? _registrationToken;
 
         internal readonly ComponentRegistrationTypeToken RegistrationToken => _registrationToken
             ?? ThrowHelper.ThrowGeneratedComponentVisitorTokenMissing();
 
-        void IGeneratedComponentTypeVisitor.Visit<T>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining)
+        void IGeneratedComponentRegistrationRouteVisitor.VisitUnconstrained<T>()
             => _registrationToken = new ComponentRegistrationTypeToken(new UnconstrainedComponentTypeRegistrationRoute<T>());
 
-        void IGeneratedClassConstructibleComponentTypeVisitor.Visit<T>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining)
-            => _registrationToken = new ComponentRegistrationTypeToken(new ClassNewComponentTypeRegistrationRoute<T>());
-
-        void IGeneratedUnmanagedComponentTypeVisitor.Visit<T>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining)
-            => _registrationToken = new ComponentRegistrationTypeToken(new UnmanagedComponentTypeRegistrationRoute<T>());
-
-        void IGeneratedStructComponentTypeVisitor.Visit<T>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining)
+        void IGeneratedComponentRegistrationRouteVisitor.VisitStruct<T>()
             => _registrationToken = new ComponentRegistrationTypeToken(new StructComponentTypeRegistrationRoute<T>());
 
-        void IGeneratedConstructibleComponentTypeVisitor.Visit<T>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining)
+        void IGeneratedComponentRegistrationRouteVisitor.VisitUnmanaged<T>()
+            => _registrationToken = new ComponentRegistrationTypeToken(new UnmanagedComponentTypeRegistrationRoute<T>());
+
+        void IGeneratedComponentRegistrationRouteVisitor.VisitClass<T>()
+            => _registrationToken = new ComponentRegistrationTypeToken(new ClassComponentTypeRegistrationRoute<T>());
+
+        void IGeneratedComponentRegistrationRouteVisitor.VisitConstructible<T>()
             => _registrationToken = new ComponentRegistrationTypeToken(new NewComponentTypeRegistrationRoute<T>());
 
-        void IGeneratedClassComponentTypeVisitor.Visit<T>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining)
-            => _registrationToken = new ComponentRegistrationTypeToken(new ClassComponentTypeRegistrationRoute<T>());
+        void IGeneratedComponentRegistrationRouteVisitor.VisitClassConstructible<T>()
+            => _registrationToken = new ComponentRegistrationTypeToken(new ClassNewComponentTypeRegistrationRoute<T>());
     }
 
     private sealed class GenericRegistration(ComponentId[] arguments, ComponentId componentId)

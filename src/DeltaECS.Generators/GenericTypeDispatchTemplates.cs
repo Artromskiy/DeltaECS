@@ -186,13 +186,62 @@ internal static class GenericTypeDispatchTemplates
     }
 
     private static string RenderTokenMethods(string componentType, bool isValueType, bool isUnmanaged, bool isClass, bool hasNew)
-        => string.Join("\n", TokenKinds(isValueType, isUnmanaged, isClass, hasNew)
+    {
+        string dispatchMethods = string.Join("\n", TokenKinds(isValueType, isUnmanaged, isClass, hasNew)
             .Select(kind =>
             {
                 string method = kind == GenericTypeConstraintKind.None ? "Dispatch" : DispatchMethod(kind);
                 string visitor = VisitorInterface(kind);
                 return $"public void {method}<TVisitor>(global::System.ReadOnlySpan<global::Delta.ECS.IGeneratedComponentTypeToken> remaining, ref TVisitor visitor) where TVisitor : struct, {visitor} => visitor.Visit<{componentType}>(remaining);";
             }));
+        string registrationDispatch = RenderRegistrationRouteDispatchMethod(
+            componentType,
+            isValueType,
+            isUnmanaged,
+            isClass,
+            hasNew);
+        return dispatchMethods + "\n" + registrationDispatch;
+    }
+
+    private static string RenderRegistrationRouteDispatchMethod(
+        string componentType,
+        bool isValueType,
+        bool isUnmanaged,
+        bool isClass,
+        bool hasNew)
+    {
+        string visitorMethod;
+        if (isClass && hasNew)
+        {
+            visitorMethod = "VisitClassConstructible";
+        }
+        else if (isUnmanaged)
+        {
+            visitorMethod = "VisitUnmanaged";
+        }
+        else if (isValueType)
+        {
+            visitorMethod = "VisitStruct";
+        }
+        else if (hasNew)
+        {
+            visitorMethod = "VisitConstructible";
+        }
+        else if (isClass)
+        {
+            visitorMethod = "VisitClass";
+        }
+        else
+        {
+            visitorMethod = "VisitUnconstrained";
+        }
+
+        return $$"""
+            public void DispatchRegistrationRoute<TVisitor>(ref TVisitor visitor)
+                where TVisitor : struct, global::Delta.ECS.IGeneratedComponentRegistrationRouteVisitor
+                => visitor.{{visitorMethod}}<{{componentType}}>();
+            """;
+    }
 
     private static string TokenInterfaces(bool isValueType, bool isUnmanaged, bool isClass, bool hasNew)
     {

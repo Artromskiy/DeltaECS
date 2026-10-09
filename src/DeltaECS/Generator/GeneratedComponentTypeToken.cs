@@ -11,9 +11,36 @@ public interface IGeneratedComponentTypeToken
     /// <summary>Gets the CLR type represented by this token.</summary>
     Type ComponentType { get; }
 
+    /// <summary>Dispatches this registered type to its most specific registration route.</summary>
+    void DispatchRegistrationRoute<TVisitor>(ref TVisitor visitor)
+        where TVisitor : struct, IGeneratedComponentRegistrationRouteVisitor;
+
     /// <summary>Dispatches this registered type to an unconstrained generated visitor.</summary>
     void Dispatch<TVisitor>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining, ref TVisitor visitor)
         where TVisitor : struct, IGeneratedComponentTypeVisitor;
+}
+
+/// <summary>Compiler-support visitor for selecting a component registration route.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public interface IGeneratedComponentRegistrationRouteVisitor
+{
+    /// <summary>Receives a type without a built-in constraint.</summary>
+    void VisitUnconstrained<T>();
+
+    /// <summary>Receives a value type.</summary>
+    void VisitStruct<T>() where T : struct;
+
+    /// <summary>Receives an unmanaged type.</summary>
+    void VisitUnmanaged<T>() where T : unmanaged;
+
+    /// <summary>Receives a reference type.</summary>
+    void VisitClass<T>() where T : class;
+
+    /// <summary>Receives a type with a public parameterless constructor.</summary>
+    void VisitConstructible<T>() where T : new();
+
+    /// <summary>Receives a reference type with a public parameterless constructor.</summary>
+    void VisitClassConstructible<T>() where T : class, new();
 }
 
 /// <summary>Compiler-support visitor used to close unconstrained generated generic bindings.</summary>
@@ -298,6 +325,10 @@ internal sealed class GeneratedComponentTypeToken<T> : IGeneratedComponentTypeTo
     private GeneratedComponentTypeToken() { }
 
     public Type ComponentType => typeof(T);
+
+    public void DispatchRegistrationRoute<TVisitor>(ref TVisitor visitor)
+        where TVisitor : struct, IGeneratedComponentRegistrationRouteVisitor
+        => visitor.VisitUnconstrained<T>();
 
     public void Dispatch<TVisitor>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining, ref TVisitor visitor)
         where TVisitor : struct, IGeneratedComponentTypeVisitor

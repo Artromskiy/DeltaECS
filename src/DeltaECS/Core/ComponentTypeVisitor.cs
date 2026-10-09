@@ -20,10 +20,20 @@ public interface IComponentVisitor : IVisitor
 }
 
 /// <summary>Visits a registered component that implements <typeparamref name="TConstraint"/>.</summary>
-public interface IComponentVisitor<TConstraint> : IComponentVisitor
+public interface IComponentVisitor<in TConstraint> : IComponentVisitor
 {
     /// <summary>Receives a component type satisfying the interface route.</summary>
     void Visit<TComponent>(ComponentId componentId) where TComponent : TConstraint;
+
+    /// <summary>Visits the component when this visitor selects the matching interface constraint.</summary>
+    bool TryVisit<TComponent>(ComponentId componentId) where TComponent : TConstraint
+        => ComponentVisitorConstraints.HasMatchingConstraint<TConstraint>(this) && TrueVisit<TComponent>(componentId);
+
+    private bool TrueVisit<TComponent>(ComponentId componentId) where TComponent : TConstraint
+    {
+        Visit<TComponent>(componentId);
+        return true;
+    }
 }
 
 /// <summary>Visits a component type registered as a value type.</summary>
@@ -62,38 +72,94 @@ public interface IClassNewVisitor : IVisitor
 }
 
 /// <summary>Visits a component type satisfying a value-type and interface constraint.</summary>
-public interface IStructVisitor<TConstraint> : IComponentVisitor
+public interface IStructVisitor<in TConstraint> : IComponentVisitor
 {
     /// <summary>Receives a constrained value type.</summary>
     void Visit<TComponent>(ComponentId componentId) where TComponent : struct, TConstraint;
+
+    /// <summary>Visits the component when this visitor selects the matching interface constraint.</summary>
+    bool TryVisit<TComponent>(ComponentId componentId) where TComponent : struct, TConstraint
+        => ComponentVisitorConstraints.HasMatchingConstraint<TConstraint>(this) && TrueVisit<TComponent>(componentId);
+
+    private bool TrueVisit<TComponent>(ComponentId componentId) where TComponent : struct, TConstraint
+    {
+        Visit<TComponent>(componentId);
+        return true;
+    }
 }
 
 /// <summary>Visits a component type satisfying a reference-type and interface constraint.</summary>
-public interface IClassVisitor<TConstraint> : IComponentVisitor
+public interface IClassVisitor<in TConstraint> : IComponentVisitor
 {
     /// <summary>Receives a constrained reference type.</summary>
     void Visit<TComponent>(ComponentId componentId) where TComponent : class, TConstraint;
+
+    /// <summary>Visits the component when this visitor selects the matching interface constraint.</summary>
+    bool TryVisit<TComponent>(ComponentId componentId) where TComponent : class, TConstraint
+        => ComponentVisitorConstraints.HasMatchingConstraint<TConstraint>(this) && TrueVisit<TComponent>(componentId);
+
+    private bool TrueVisit<TComponent>(ComponentId componentId) where TComponent : class, TConstraint
+    {
+        Visit<TComponent>(componentId);
+        return true;
+    }
 }
 
 /// <summary>Visits an unmanaged component type satisfying an interface constraint.</summary>
-public interface IUnmanagedVisitor<TConstraint> : IComponentVisitor
+public interface IUnmanagedVisitor<in TConstraint> : IComponentVisitor
 {
     /// <summary>Receives a constrained unmanaged type.</summary>
     void Visit<TComponent>(ComponentId componentId) where TComponent : unmanaged, TConstraint;
+
+    /// <summary>Visits the component when this visitor selects the matching interface constraint.</summary>
+    bool TryVisit<TComponent>(ComponentId componentId) where TComponent : unmanaged, TConstraint
+        => ComponentVisitorConstraints.HasMatchingConstraint<TConstraint>(this) && TrueVisit<TComponent>(componentId);
+
+    private bool TrueVisit<TComponent>(ComponentId componentId) where TComponent : unmanaged, TConstraint
+    {
+        Visit<TComponent>(componentId);
+        return true;
+    }
 }
 
 /// <summary>Visits a component type satisfying an interface and constructor constraint.</summary>
-public interface INewVisitor<TConstraint> : IComponentVisitor
+public interface INewVisitor<in TConstraint> : IComponentVisitor
 {
     /// <summary>Receives a constrained constructible type.</summary>
     void Visit<TComponent>(ComponentId componentId) where TComponent : TConstraint, new();
+
+    /// <summary>Visits the component when this visitor selects the matching interface constraint.</summary>
+    bool TryVisit<TComponent>(ComponentId componentId) where TComponent : TConstraint, new()
+        => ComponentVisitorConstraints.HasMatchingConstraint<TConstraint>(this) && TrueVisit<TComponent>(componentId);
+
+    private bool TrueVisit<TComponent>(ComponentId componentId) where TComponent : TConstraint, new()
+    {
+        Visit<TComponent>(componentId);
+        return true;
+    }
 }
 
 /// <summary>Visits a component type satisfying reference, interface, and constructor constraints.</summary>
-public interface IClassNewVisitor<TConstraint> : IComponentVisitor
+public interface IClassNewVisitor<in TConstraint> : IComponentVisitor
 {
     /// <summary>Receives a constrained constructible reference type.</summary>
     void Visit<TComponent>(ComponentId componentId) where TComponent : class, TConstraint, new();
+
+    /// <summary>Visits the component when this visitor selects the matching interface constraint.</summary>
+    bool TryVisit<TComponent>(ComponentId componentId) where TComponent : class, TConstraint, new()
+        => ComponentVisitorConstraints.HasMatchingConstraint<TConstraint>(this) && TrueVisit<TComponent>(componentId);
+
+    private bool TrueVisit<TComponent>(ComponentId componentId) where TComponent : class, TConstraint, new()
+    {
+        Visit<TComponent>(componentId);
+        return true;
+    }
+}
+
+internal static class ComponentVisitorConstraints
+{
+    internal static bool HasMatchingConstraint<TConstraint>(IComponentVisitor visitor)
+        => visitor.ConstraintType.Equals(typeof(TConstraint).TypeHandle);
 }
 
 
@@ -123,21 +189,39 @@ public abstract class GeneralComponentTypeVisitor<TConstraint> :
     /// <summary>Visits a component type satisfying the class, interface, and constructor constraints.</summary>
     protected virtual void VisitClassConstructible<TComponent>(ComponentId componentId) where TComponent : class, TConstraint, new() { }
 
-    internal void DispatchUnconstrained<TComponent>(ComponentId componentId) where TComponent : TConstraint
-        => Visit<TComponent>(componentId);
+    internal bool TryUnconstrained<TComponent>(ComponentId componentId) where TComponent : TConstraint
+    {
+        Visit<TComponent>(componentId);
+        return true;
+    }
 
-    internal void DispatchUnmanaged<TComponent>(ComponentId componentId) where TComponent : unmanaged, TConstraint
-        => VisitUnmanaged<TComponent>(componentId);
+    internal bool TryUnmanaged<TComponent>(ComponentId componentId) where TComponent : unmanaged, TConstraint
+    {
+        VisitUnmanaged<TComponent>(componentId);
+        return true;
+    }
 
-    internal void DispatchStruct<TComponent>(ComponentId componentId) where TComponent : struct, TConstraint
-        => VisitStruct<TComponent>(componentId);
+    internal bool TryStruct<TComponent>(ComponentId componentId) where TComponent : struct, TConstraint
+    {
+        VisitStruct<TComponent>(componentId);
+        return true;
+    }
 
-    internal void DispatchClass<TComponent>(ComponentId componentId) where TComponent : class, TConstraint
-        => VisitClass<TComponent>(componentId);
+    internal bool TryClass<TComponent>(ComponentId componentId) where TComponent : class, TConstraint
+    {
+        VisitClass<TComponent>(componentId);
+        return true;
+    }
 
-    internal void DispatchNew<TComponent>(ComponentId componentId) where TComponent : TConstraint, new()
-        => VisitConstructible<TComponent>(componentId);
+    internal bool TryNew<TComponent>(ComponentId componentId) where TComponent : TConstraint, new()
+    {
+        VisitConstructible<TComponent>(componentId);
+        return true;
+    }
 
-    internal void DispatchClassNew<TComponent>(ComponentId componentId) where TComponent : class, TConstraint, new()
-        => VisitClassConstructible<TComponent>(componentId);
+    internal bool TryClassNew<TComponent>(ComponentId componentId) where TComponent : class, TConstraint, new()
+    {
+        VisitClassConstructible<TComponent>(componentId);
+        return true;
+    }
 }
