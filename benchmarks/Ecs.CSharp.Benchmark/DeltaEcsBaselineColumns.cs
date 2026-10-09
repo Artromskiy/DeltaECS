@@ -30,7 +30,7 @@ namespace Ecs.CSharp.Benchmark
 
         public string ColumnName => "Ratio";
 
-        public string Legend => "Ratio to the fastest DeltaECS benchmark; Baseline marks that benchmark.";
+        public string Legend => "Ratio to the fastest DeltaECS benchmark; Delta marks that benchmark.";
 
         public bool AlwaysShow => true;
 
@@ -48,7 +48,7 @@ namespace Ecs.CSharp.Benchmark
             BenchmarkReport? report = DeltaEcsBaselineSelector.Find(summary, benchmarkCase);
             if (baseline == report)
             {
-                return "Baseline";
+                return "Delta";
             }
 
             if (baseline?.ResultStatistics is not { } baselineStatistics
