@@ -65,9 +65,7 @@ public sealed partial class World : IDisposable
     /// <summary>Creates a world using the supplied component layouts.</summary>
     /// <param name="layouts">The registered component layouts, or null to create an empty registry.</param>
     /// <param name="initialEntityCapacity">The initial capacity for entity records.</param>
-    public World(
-        ComponentLayoutRegistry? layouts = null,
-        int initialEntityCapacity = DefaultInitialCapacity)
+    public World(ComponentLayoutRegistry? layouts = null, int initialEntityCapacity = DefaultInitialCapacity)
     {
         ThrowHelper.ThrowIfNegative(initialEntityCapacity, nameof(initialEntityCapacity));
 
@@ -196,33 +194,27 @@ public sealed partial class World : IDisposable
 
     /// <summary>Creates a query requiring the supplied component registrations.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Query WhereAll(ReadOnlySpan<ComponentId> components)
-        => CreateQuery(QuerySpec.WhereAll(components));
+    public Query WhereAll(ReadOnlySpan<ComponentId> components) => CreateQuery(QuerySpec.WhereAll(components));
 
     /// <summary>Creates a query requiring the supplied component registration.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Query WhereAll(ComponentId component)
-        => CreateQuery(QuerySpec.WhereAll(component));
+    public Query WhereAll(ComponentId component) => CreateQuery(QuerySpec.WhereAll(component));
 
     /// <summary>Creates a query matching at least one supplied component registration.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Query WhereAny(ReadOnlySpan<ComponentId> components)
-        => CreateQuery(QuerySpec.WhereAny(components));
+    public Query WhereAny(ReadOnlySpan<ComponentId> components) => CreateQuery(QuerySpec.WhereAny(components));
 
     /// <summary>Creates a query matching the supplied component registration.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Query WhereAny(ComponentId component)
-        => CreateQuery(QuerySpec.WhereAny(component));
+    public Query WhereAny(ComponentId component) => CreateQuery(QuerySpec.WhereAny(component));
 
     /// <summary>Creates a query excluding the supplied component registrations.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Query WhereNone(ReadOnlySpan<ComponentId> components)
-        => CreateQuery(QuerySpec.WhereNone(components));
+    public Query WhereNone(ReadOnlySpan<ComponentId> components) => CreateQuery(QuerySpec.WhereNone(components));
 
     /// <summary>Creates a query excluding the supplied component registration.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Query WhereNone(ComponentId component)
-        => CreateQuery(QuerySpec.WhereNone(component));
+    public Query WhereNone(ComponentId component) => CreateQuery(QuerySpec.WhereNone(component));
 
     /// <summary>Creates one entity with the supplied component registrations.</summary>
     public Entity Create(ReadOnlySpan<ComponentId> componentIds)
@@ -232,8 +224,7 @@ public sealed partial class World : IDisposable
     }
 
     /// <summary>Creates one entity with the supplied component registration.</summary>
-    public Entity Create(ComponentId componentId)
-        => Create(stackalloc ComponentId[1] { componentId });
+    public Entity Create(ComponentId componentId) => Create(stackalloc ComponentId[1] { componentId });
 
     /// <summary>Creates entities with the supplied component registration and caller-owned output storage.</summary>
     public int Create(ComponentId componentId, int count, Span<Entity> output)
@@ -751,12 +742,10 @@ public sealed partial class World : IDisposable
     }
 
     /// <summary>Adds the registrations supplied by an array to one entity.</summary>
-    public bool Add(Entity entity, ComponentId[] componentIds)
-        => Add(entity, (ReadOnlySpan<ComponentId>)componentIds);
+    public bool Add(Entity entity, ComponentId[] componentIds) => Add(entity, (ReadOnlySpan<ComponentId>)componentIds);
 
     /// <summary>Adds one component registration to one entity.</summary>
-    public bool Add(Entity entity, ComponentId componentId)
-        => Add(entity, stackalloc ComponentId[1] { componentId });
+    public bool Add(Entity entity, ComponentId componentId) => Add(entity, stackalloc ComponentId[1] { componentId });
 
     /// <summary>Adds the component set to every entity in a caller-owned batch.</summary>
     public int Add(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> componentIds)
@@ -795,8 +784,7 @@ public sealed partial class World : IDisposable
         => ApplyQueryComponents(query, true, componentIds);
 
     /// <summary>Adds one component registration to every entity matched by a query.</summary>
-    public int Add(in Query query, ComponentId componentId)
-        => Add(in query, stackalloc ComponentId[] { componentId });
+    public int Add(in Query query, ComponentId componentId) => Add(in query, stackalloc ComponentId[] { componentId });
 
     /// <summary>Removes a component set from every entity matched by a query.</summary>
     public int Remove(in Query query, ReadOnlySpan<ComponentId> componentIds)
@@ -894,11 +882,7 @@ public sealed partial class World : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Stamp GetComponentStamp(
-        int archetypeId,
-        Chunk chunk,
-        int componentIndex,
-        int slotIndex)
+    internal Stamp GetComponentStamp(int archetypeId, Chunk chunk, int componentIndex, int slotIndex)
     {
         return new Stamp(unchecked(
             chunk.GetComponentStampTrusted(componentIndex, slotIndex).Value
@@ -914,8 +898,7 @@ public sealed partial class World : IDisposable
         => new(chunk, componentIndex, slotIndex, stamp);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Stamp[] GetArchetypeComponentStamps(int archetypeId)
-        => _archetypeComponentWriteStamps.RefAt(archetypeId);
+    internal Stamp[] GetArchetypeComponentStamps(int archetypeId) => _archetypeComponentWriteStamps.RefAt(archetypeId);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void BeginQueryLease() => _activeChunkLeases++;
@@ -1237,9 +1220,7 @@ public sealed partial class World : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void BeginGeneratedWhereMutation(
-        Archetype sourceArchetype,
-        Archetype? targetArchetype)
+    internal void BeginGeneratedWhereMutation(Archetype sourceArchetype, Archetype? targetArchetype)
     {
         // Keep query plans live until a predicate actually selects a run.
         if (!_queryPlanBatchActive)
@@ -1350,8 +1331,7 @@ public sealed partial class World : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void MarkGeneratedWhereAffected(Archetype archetype)
-        => DeferQueryPlanUpdates(archetype);
+    internal void MarkGeneratedWhereAffected(Archetype archetype) => DeferQueryPlanUpdates(archetype);
 
     private void BeginGeneratedWherePlanCache()
     {
@@ -1826,11 +1806,7 @@ public sealed partial class World : IDisposable
         MoveEntity(recordIndex, edge, out _, out _);
     }
 
-    private void MoveEntity(
-        int recordIndex,
-        TransitionEdge edge,
-        out Chunk targetChunk,
-        out int targetSlotIndex)
+    private void MoveEntity(int recordIndex, TransitionEdge edge, out Chunk targetChunk, out int targetSlotIndex)
     {
         ref var sourceRecord = ref RecordAt(recordIndex);
         Chunk sourceChunk = GetRecordChunk(sourceRecord);
@@ -1889,10 +1865,7 @@ public sealed partial class World : IDisposable
         }
     }
 
-    private TransitionEdge GetTransitionEdge(
-        int sourceArchetypeId,
-        ComponentSet changeSet,
-        bool isAdd)
+    private TransitionEdge GetTransitionEdge(int sourceArchetypeId, ComponentSet changeSet, bool isAdd)
     {
         var key = new TransitionKey(sourceArchetypeId, changeSet.Id, isAdd);
         if (_transitionCache.TryGetValue(key, out var edge))
@@ -1981,14 +1954,13 @@ public sealed partial class World : IDisposable
         List<QuerySpec>? deadQueries = null;
         foreach (var entry in _queryCache)
         {
-            if (entry.Value.TryGetTarget(out QueryPlan? queryPlan))
-            {
-                queryPlan.OnArchetypeCreated(archetype);
-            }
-            else
+            if (!entry.Value.TryGetTarget(out QueryPlan? queryPlan))
             {
                 (deadQueries ??= new List<QuerySpec>()).Add(entry.Key);
+                continue;
             }
+
+            queryPlan.OnArchetypeCreated(archetype);
         }
 
         if (deadQueries is not null)
@@ -2071,9 +2043,7 @@ public sealed partial class World : IDisposable
     internal bool TryGetComponentSet(ComponentSetId id, out ComponentSet? set)
         => _componentSetCache.TryGet(id, out set);
 
-    internal ComponentSet GetOrCreateComponentSet(
-        RuntimeTypeHandle key,
-        Func<World, ComponentId[]> resolver)
+    internal ComponentSet GetOrCreateComponentSet(RuntimeTypeHandle key, Func<World, ComponentId[]> resolver)
     {
         EnsureExecutionAccess();
         if (_componentSetCache.TryGet(key, out ComponentSet? cached))
@@ -2249,11 +2219,7 @@ public sealed partial class World : IDisposable
     private ref EntityRecord RecordAt(int recordIndex) => ref _records.RefAt(recordIndex);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TryResolve(
-        Entity entity,
-        out int recordIndex,
-        out Chunk chunk,
-        out int slotIndex)
+    private bool TryResolve(Entity entity, out int recordIndex, out Chunk chunk, out int slotIndex)
     {
         recordIndex = entity.Index;
         chunk = null!;
@@ -2423,21 +2389,14 @@ public sealed partial class World : IDisposable
         if (_batchEdgeStamp == int.MaxValue)
         {
             _batchEdgeStamps.Clear();
-            _batchEdgeStamp = 1;
-        }
-        else
-        {
-            _batchEdgeStamp++;
+            _batchEdgeStamp = 0;
         }
 
+        _batchEdgeStamp++;
         return _batchEdgeStamp;
     }
 
-    private TransitionEdge GetBatchTransitionEdge(
-        int sourceArchetypeId,
-        ComponentSet changeSet,
-        bool isAdd,
-        int stamp)
+    private TransitionEdge GetBatchTransitionEdge(int sourceArchetypeId, ComponentSet changeSet, bool isAdd, int stamp)
     {
         if ((uint)sourceArchetypeId >= (uint)_batchEdgeStamps.Length)
         {

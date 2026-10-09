@@ -5,16 +5,13 @@ using System.Runtime.CompilerServices;
 public sealed partial class World
 {
     /// <summary>Creates one entity with the primary component for <typeparamref name="T"/>.</summary>
-    public Entity Create<T>()
-        => Create(GetPrimaryComponentId<T>());
+    public Entity Create<T>() => Create(GetPrimaryComponentId<T>());
 
     /// <summary>Creates entities with the primary component for <typeparamref name="T"/> into caller-owned storage.</summary>
-    public int Create<T>(int count, Span<Entity> output)
-        => Create<T>(GetPrimaryComponentId<T>(), count, output);
+    public int Create<T>(int count, Span<Entity> output) => Create<T>(GetPrimaryComponentId<T>(), count, output);
 
     /// <summary>Creates entities with the primary component for <typeparamref name="T"/> without retaining handles.</summary>
-    public int Create<T>(int count)
-        => Create<T>(GetPrimaryComponentId<T>(), count, Span<Entity>.Empty);
+    public int Create<T>(int count) => Create<T>(GetPrimaryComponentId<T>(), count, Span<Entity>.Empty);
 
     /// <summary>Creates typed component entities into caller-owned storage.</summary>
     public int Create<T>(ComponentId componentId, int count, Span<Entity> output)
@@ -69,8 +66,7 @@ public sealed partial class World
             GetPrimaryComponentId<T>()) == 1;
 
     /// <summary>Removes the primary component for <typeparamref name="T"/> from every eligible entity.</summary>
-    public int Remove<T>(ReadOnlySpan<Entity> entities)
-        => RemoveComponentBatch(entities, GetPrimaryComponentId<T>());
+    public int Remove<T>(ReadOnlySpan<Entity> entities) => RemoveComponentBatch(entities, GetPrimaryComponentId<T>());
 
     /// <summary>Removes one typed component from an alive entity.</summary>
     public bool Remove<T>(Entity entity, ComponentId componentId)
@@ -265,8 +261,7 @@ public sealed partial class World
     }
 
     /// <summary>Returns a writable reference to the primary component row.</summary>
-    public ref T GetRef<T>(Entity entity)
-        => ref GetRefUnchecked<T>(entity, GetPrimaryComponentId<T>());
+    public ref T GetRef<T>(Entity entity) => ref GetRefUnchecked<T>(entity, GetPrimaryComponentId<T>());
 
     /// <summary>Returns a read-only reference to one component row.</summary>
     /// <remarks>
@@ -354,22 +349,19 @@ public sealed partial class World
             MoveEntity(recordIndex, edge, out Chunk targetChunk, out int targetSlotIndex);
             var targetArchetype = _archetypes[targetChunk.ArchetypeId];
             int targetComponentIndex = targetArchetype.Mask.Rank(componentId);
-            if (pendingChunk is not null
-                && ReferenceEquals(pendingChunk, targetChunk)
-                && pendingComponentIndex == targetComponentIndex
-                && targetSlotIndex == pendingSlotIndex + pendingCount)
-            {
-                pendingCount++;
-            }
-            else
+            if (pendingChunk is null
+                || !ReferenceEquals(pendingChunk, targetChunk)
+                || pendingComponentIndex != targetComponentIndex
+                || targetSlotIndex != pendingSlotIndex + pendingCount)
             {
                 FillComponentRange(pendingChunk, pendingComponentIndex, pendingSlotIndex, pendingCount, in value);
                 pendingChunk = targetChunk;
                 pendingComponentIndex = targetComponentIndex;
                 pendingSlotIndex = targetSlotIndex;
-                pendingCount = 1;
+                pendingCount = 0;
             }
 
+            pendingCount++;
             changed++;
         }
 
@@ -483,14 +475,10 @@ public sealed partial class World
             }
 
             Archetype targetArchetype = _archetypes[targetChunk.ArchetypeId];
-            if (ReferenceEquals(pendingChunk, targetChunk)
-                && ReferenceEquals(pendingArchetype, targetArchetype)
-                && ReferenceEquals(pendingAddedRows, edge.AddedTargetRowIndices)
-                && targetSlot == pendingSlot + pendingCount)
-            {
-                pendingCount++;
-            }
-            else
+            if (!ReferenceEquals(pendingChunk, targetChunk)
+                || !ReferenceEquals(pendingArchetype, targetArchetype)
+                || !ReferenceEquals(pendingAddedRows, edge.AddedTargetRowIndices)
+                || targetSlot != pendingSlot + pendingCount)
             {
                 InitializeGeneratedComponentRange(
                     pendingChunk,
@@ -504,9 +492,10 @@ public sealed partial class World
                 pendingArchetype = targetArchetype;
                 pendingAddedRows = edge.AddedTargetRowIndices;
                 pendingSlot = targetSlot;
-                pendingCount = 1;
+                pendingCount = 0;
             }
 
+            pendingCount++;
             changed++;
         }
 
@@ -563,12 +552,7 @@ public sealed partial class World
         initializer.Initialize(ref writer);
     }
 
-    private static void FillComponentRange<T>(
-        Chunk? chunk,
-        int componentIndex,
-        int slotIndex,
-        int count,
-        in T value)
+    private static void FillComponentRange<T>(Chunk? chunk, int componentIndex, int slotIndex, int count, in T value)
     {
         if (chunk is null || count == 0)
         {
@@ -594,11 +578,9 @@ public sealed partial class World
         }
     }
 
-    internal void ValidateGeneratedComponentType<T>(ComponentId componentId)
-        => EnsureRegisteredType<T>(componentId);
+    internal void ValidateGeneratedComponentType<T>(ComponentId componentId) => EnsureRegisteredType<T>(componentId);
 
-    internal bool IsGeneratedComponentType<T>(ComponentId componentId)
-        => IsRegisteredType<T>(componentId);
+    internal bool IsGeneratedComponentType<T>(ComponentId componentId) => IsRegisteredType<T>(componentId);
 
     private void InitializeComponentValue<T>(Entity entity, ComponentId componentId, in T value)
     {

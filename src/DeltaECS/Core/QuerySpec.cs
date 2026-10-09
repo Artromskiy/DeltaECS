@@ -37,8 +37,7 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
         return hash.ToHashCode();
     }
 
-    private static ComponentMask BuildMask(ReadOnlySpan<ComponentId> ids)
-        => ComponentMask.From(ids);
+    private static ComponentMask BuildMask(ReadOnlySpan<ComponentId> ids) => ComponentMask.From(ids);
 
     /// <summary>Determines whether this filter has the same requirements as another filter.</summary>
     public bool Equals(QuerySpec other) => Hash == other.Hash
@@ -79,16 +78,13 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
         => new(ReadOnlySpan<ComponentId>.Empty, ReadOnlySpan<ComponentId>.Empty, components);
 
     /// <summary>Creates a filter requiring the specified component registration.</summary>
-    public static QuerySpec WhereAll(ComponentId component0)
-        => WhereAll(stackalloc ComponentId[1] { component0 });
+    public static QuerySpec WhereAll(ComponentId component0) => WhereAll(stackalloc ComponentId[1] { component0 });
 
     /// <summary>Creates a filter matching the specified component registration.</summary>
-    public static QuerySpec WhereAny(ComponentId component0)
-        => WhereAny(stackalloc ComponentId[1] { component0 });
+    public static QuerySpec WhereAny(ComponentId component0) => WhereAny(stackalloc ComponentId[1] { component0 });
 
     /// <summary>Creates a filter excluding entities with the specified component registration.</summary>
-    public static QuerySpec WhereNone(ComponentId component0)
-        => WhereNone(stackalloc ComponentId[1] { component0 });
+    public static QuerySpec WhereNone(ComponentId component0) => WhereNone(stackalloc ComponentId[1] { component0 });
 
     /// <summary>Gets an empty query specification that can be extended with generated filters.</summary>
     public static QuerySpec Empty => new(
@@ -97,15 +93,12 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
         default(ComponentMask));
 
     /// <summary>Adds an all-components filter to this specification.</summary>
-    public QuerySpec WithAll(ReadOnlySpan<ComponentId> components)
-        => Compose(WhereAll(components));
+    public QuerySpec WithAll(ReadOnlySpan<ComponentId> components) => Compose(WhereAll(components));
 
     /// <summary>Adds an any-components filter to this specification.</summary>
-    public QuerySpec WithAny(ReadOnlySpan<ComponentId> components)
-        => Compose(WhereAny(components));
+    public QuerySpec WithAny(ReadOnlySpan<ComponentId> components) => Compose(WhereAny(components));
 
     /// <summary>Adds a none-components filter to this specification.</summary>
-    public QuerySpec WithNone(ReadOnlySpan<ComponentId> components)
-        => Compose(WhereNone(components));
+    public QuerySpec WithNone(ReadOnlySpan<ComponentId> components) => Compose(WhereNone(components));
 
 }

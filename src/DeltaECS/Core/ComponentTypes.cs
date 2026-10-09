@@ -74,8 +74,7 @@ internal readonly struct ComponentMask : IEquatable<ComponentMask>
 
     public bool IsEmpty => _storage is null;
 
-    public static ComponentMask From(ReadOnlySpan<ComponentId> componentIds)
-        => FromCore(componentIds);
+    public static ComponentMask From(ReadOnlySpan<ComponentId> componentIds) => FromCore(componentIds);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains(ComponentId componentId)

@@ -66,8 +66,7 @@ internal sealed class ComponentSet
 
     internal ComponentSetId Id { get; private set; }
 
-    internal bool Matches(ReadOnlySpan<ComponentId> componentIds)
-        => _componentIds.AsSpan().SequenceEqual(componentIds);
+    internal bool Matches(ReadOnlySpan<ComponentId> componentIds) => _componentIds.AsSpan().SequenceEqual(componentIds);
 
     internal void AssignId(ComponentSetId id) => Id = id;
 
@@ -109,14 +108,10 @@ internal sealed class ComponentSetCache
         return false;
     }
 
-    internal bool TryGet(
-        RuntimeTypeHandle key,
-        [NotNullWhen(true)] out ComponentSet? set)
+    internal bool TryGet(RuntimeTypeHandle key, [NotNullWhen(true)] out ComponentSet? set)
         => _typed.TryGetValue(key, out set);
 
-    internal bool TryGet(
-        ReadOnlySpan<ComponentId> componentIds,
-        [NotNullWhen(true)] out ComponentSet? set)
+    internal bool TryGet(ReadOnlySpan<ComponentId> componentIds, [NotNullWhen(true)] out ComponentSet? set)
     {
         int hash = ComponentSet.ComputeHash(componentIds);
         if (_dynamic.TryGetValue(hash, out List<ComponentSet>? candidates))

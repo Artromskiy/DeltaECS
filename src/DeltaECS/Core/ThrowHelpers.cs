@@ -242,8 +242,7 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowDisposedWorld()
-        => throw new ObjectDisposedException(nameof(World));
+    internal static void ThrowDisposedWorld() => throw new ObjectDisposedException(nameof(World));
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -310,8 +309,7 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowStampRange(string parameterName)
-        => throw new ArgumentOutOfRangeException(parameterName);
+    internal static void ThrowStampRange(string parameterName) => throw new ArgumentOutOfRangeException(parameterName);
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -325,8 +323,7 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowChunkFull()
-        => throw new InvalidOperationException("Chunk is full.");
+    internal static void ThrowChunkFull() => throw new InvalidOperationException("Chunk is full.");
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -413,8 +410,7 @@ internal static class ThrowHelper
         => throw new InvalidOperationException("An ordered query cannot be nested while another ordered query is active on the same world.");
 
     [DoesNotReturn]
-    internal static void Rethrow(Exception exception)
-        => ExceptionDispatchInfo.Capture(exception).Throw();
+    internal static void Rethrow(Exception exception) => ExceptionDispatchInfo.Capture(exception).Throw();
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -469,6 +465,5 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static T ThrowInvalidComponentLayoutId<T>()
-        => throw new ArgumentOutOfRangeException("id");
+    internal static T ThrowInvalidComponentLayoutId<T>() => throw new ArgumentOutOfRangeException("id");
 }

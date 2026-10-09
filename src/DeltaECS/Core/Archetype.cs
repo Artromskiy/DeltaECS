@@ -82,15 +82,14 @@ internal sealed class Archetype
         for (int index = 0; index < _queryPlans.Count;)
         {
             QueryPlanLink link = _queryPlans[index];
-            if (link.Query.TryGetTarget(out QueryPlan? query))
-            {
-                query.RefreshArchetype(link.PlanIndex, this, dirtyPlans);
-                index++;
-            }
-            else
+            if (!link.Query.TryGetTarget(out QueryPlan? query))
             {
                 RemoveQueryPlanLink(index);
+                continue;
             }
+
+            query.RefreshArchetype(link.PlanIndex, this, dirtyPlans);
+            index++;
         }
     }
 
@@ -124,12 +123,7 @@ internal sealed class Archetype
         return false;
     }
 
-    internal void AddEntity(
-        Entity entity,
-        int chunkId,
-        out int chunkIndex,
-        out int slotIndex,
-        out bool reusedSlot)
+    internal void AddEntity(Entity entity, int chunkId, out int chunkIndex, out int slotIndex, out bool reusedSlot)
     {
         if (TryTakeAvailableChunk(0, false, out int availableIndex, out var available))
         {
@@ -581,15 +575,14 @@ internal sealed class Archetype
         for (int index = 0; index < _queryPlans.Count;)
         {
             QueryPlanLink link = _queryPlans[index];
-            if (link.Query.TryGetTarget(out QueryPlan? query))
-            {
-                query.OnChunkActivated(link.PlanIndex, chunk, activePosition);
-                index++;
-            }
-            else
+            if (!link.Query.TryGetTarget(out QueryPlan? query))
             {
                 RemoveQueryPlanLink(index);
+                continue;
             }
+
+            query.OnChunkActivated(link.PlanIndex, chunk, activePosition);
+            index++;
         }
     }
 
@@ -622,15 +615,14 @@ internal sealed class Archetype
         for (int index = 0; index < _queryPlans.Count;)
         {
             QueryPlanLink link = _queryPlans[index];
-            if (link.Query.TryGetTarget(out QueryPlan? query))
-            {
-                query.OnChunkDeactivated(link.PlanIndex, position, lastPosition);
-                index++;
-            }
-            else
+            if (!link.Query.TryGetTarget(out QueryPlan? query))
             {
                 RemoveQueryPlanLink(index);
+                continue;
             }
+
+            query.OnChunkDeactivated(link.PlanIndex, position, lastPosition);
+            index++;
         }
     }
 

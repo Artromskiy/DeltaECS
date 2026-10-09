@@ -10,11 +10,7 @@ internal readonly struct EntityComponentStampWriter
     private readonly int _slotIndex;
     private readonly Stamp _stamp;
 
-    internal EntityComponentStampWriter(
-        Chunk chunk,
-        int componentIndex,
-        int slotIndex,
-        Stamp stamp)
+    internal EntityComponentStampWriter(Chunk chunk, int componentIndex, int slotIndex, Stamp stamp)
     {
         _chunk = chunk;
         _componentIndex = componentIndex;
@@ -23,6 +19,5 @@ internal readonly struct EntityComponentStampWriter
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void MarkPoint()
-        => _chunk.MarkComponentStamped(_componentIndex, _slotIndex, _stamp);
+    internal void MarkPoint() => _chunk.MarkComponentStamped(_componentIndex, _slotIndex, _stamp);
 }

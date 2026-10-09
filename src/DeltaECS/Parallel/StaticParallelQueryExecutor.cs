@@ -64,10 +64,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         _schedulingStrategy = schedulingStrategy;
     }
 
-    internal void Execute(
-        QueryPlan plan,
-        ref TInvoker invoker,
-        int requestedWorkerCount)
+    internal void Execute(QueryPlan plan, ref TInvoker invoker, int requestedWorkerCount)
     {
         ThrowHelper.ThrowIfNegative(requestedWorkerCount, nameof(requestedWorkerCount));
         if (Volatile.Read(ref _disposed))
@@ -678,10 +675,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
 
     private sealed class Worker
     {
-        internal Worker(
-            StaticParallelQueryExecutor<TInvoker> owner,
-            int index,
-            WorkerSlot slot)
+        internal Worker(StaticParallelQueryExecutor<TInvoker> owner, int index, WorkerSlot slot)
         {
             Slot = slot;
             Thread = new Thread(static state => ((Worker)state!).Owner.WorkerLoop((Worker)state!))

@@ -403,8 +403,7 @@ internal sealed class Chunk
     internal void CopyTagsWithin(int sourceSlotIndex, int targetSlotIndex, int count)
         => _tagMasks?.CopyRangeTo(_tagMasks, sourceSlotIndex, targetSlotIndex, count);
 
-    internal void ClearTagRange(int slotIndex, int count)
-        => _tagMasks?.ClearRange(slotIndex, count);
+    internal void ClearTagRange(int slotIndex, int count) => _tagMasks?.ClearRange(slotIndex, count);
 
     internal void CopySlot(int sourceSlotIndex, int destinationSlotIndex, int componentIndex)
     {

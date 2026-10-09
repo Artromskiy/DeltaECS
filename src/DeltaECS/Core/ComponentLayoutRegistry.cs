@@ -108,10 +108,7 @@ public sealed partial class ComponentLayoutRegistry
     /// <paramref name="componentArgument"/> and registers the resulting type.
     /// Uses the explicitly supplied schema identity for the closed type.
     /// </summary>
-    public ComponentId Register(
-        Type genericTypeDefinition,
-        ComponentId componentArgument,
-        SchemaId schemaId)
+    public ComponentId Register(Type genericTypeDefinition, ComponentId componentArgument, SchemaId schemaId)
     {
         Span<ComponentId> arguments = stackalloc ComponentId[1] { componentArgument };
         return Register(genericTypeDefinition, arguments, schemaId);
@@ -224,8 +221,7 @@ public sealed partial class ComponentLayoutRegistry
         registrations.Add(new GenericRegistration(componentArguments.ToArray(), componentId));
     }
 
-    internal static bool IsTagType(
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType)
+    internal static bool IsTagType([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType)
         => runtimeType.IsValueType
             && !runtimeType.IsPrimitive
             && !runtimeType.IsEnum
@@ -295,8 +291,7 @@ public sealed partial class ComponentLayoutRegistry
         return componentId;
     }
 
-    internal bool IsTag(ComponentId id)
-        => id.IsValid && (uint)id.Value < (uint)_isTag.Count && _isTag[id.Value];
+    internal bool IsTag(ComponentId id) => id.IsValid && (uint)id.Value < (uint)_isTag.Count && _isTag[id.Value];
 
     internal bool TryGetTagIndex(ComponentId id, out int tagIndex)
     {

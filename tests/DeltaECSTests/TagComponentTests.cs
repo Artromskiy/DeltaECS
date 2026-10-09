@@ -185,6 +185,29 @@ internal sealed class TagComponentTests
     }
 
     [Test]
+    public void TagFilterCacheStoresSelectedSlotsInOrder()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId valueId = layouts.Register<TagValue>(new SchemaId(98_035));
+        ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_036));
+        using var world = new World(layouts);
+        var entities = new Entity[16];
+        world.Create(new[] { valueId }, entities);
+        foreach (int index in new[] { 1, 2, 5, 6, 7, 12 })
+        {
+            world.Add(entities[index], new[] { markedId });
+        }
+
+        Query query = world.WhereAll<TagValue>().WhereAll<MarkedTag>();
+        ReadOnlySpan<ChunkPlan> chunks = query.Cached.MatchingChunkPlans();
+        Assert.That(chunks.Length, Is.EqualTo(1));
+        bool hasSparseSlots = query.Cached.TryGetTagSlots(chunks[0].Chunk, out ReadOnlySpan<int> slots);
+
+        Assert.That(hasSparseSlots, Is.True);
+        Assert.That(slots.ToArray(), Is.EqualTo(new[] { 1, 2, 5, 6, 7, 12 }));
+    }
+
+    [Test]
     public void WhereCallbacksAndStructuralTerminalsHonorTagFilters()
     {
         var layouts = new ComponentLayoutRegistry();

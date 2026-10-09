@@ -69,8 +69,7 @@ public readonly struct OrderedQuery
 
     /// <summary>Adds a generated component comparer as a lexicographic key.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public OrderedQuery AppendGenerated(IGeneratedComponentComparer comparer)
-        => new(GetState().Append(comparer));
+    public OrderedQuery AppendGenerated(IGeneratedComponentComparer comparer) => new(GetState().Append(comparer));
 
     /// <summary>Starts a generated ordered-query operation for a composed predicate view.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -97,8 +96,7 @@ public readonly struct OrderedQuery
     [EditorBrowsable(EditorBrowsableState.Never)]
     public int CompareGeneratedEntities(Entity left, Entity right) => GetState().Compare(left, right);
 
-    private OrderedQueryState GetState()
-        => _state ?? ThrowHelper.ThrowOrderedQueryNotInitialized<OrderedQueryState>();
+    private OrderedQueryState GetState() => _state ?? ThrowHelper.ThrowOrderedQueryNotInitialized<OrderedQueryState>();
 }
 
 internal sealed class OrderedQueryState

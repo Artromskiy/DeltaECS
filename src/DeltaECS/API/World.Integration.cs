@@ -256,10 +256,7 @@ public sealed partial class World : IEcsWorld
         return true;
     }
 
-    private bool ApplyIntegrationComponents(
-        Entity entity,
-        ReadOnlySpan<ComponentId> components,
-        bool isAdd)
+    private bool ApplyIntegrationComponents(Entity entity, ReadOnlySpan<ComponentId> components, bool isAdd)
     {
         EnsureIntegrationActive();
         EnsureNoActiveLease(isAdd ? "add components" : "remove components");

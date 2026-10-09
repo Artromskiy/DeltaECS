@@ -139,10 +139,7 @@ internal struct ComponentStampStorage : IDisposable
         return replacement;
     }
 
-    internal void CopyRemappedTo(
-        ref ComponentStampStorage target,
-        ReadOnlySpan<int> sourceToTarget,
-        int activeCount)
+    internal void CopyRemappedTo(ref ComponentStampStorage target, ReadOnlySpan<int> sourceToTarget, int activeCount)
     {
         if (sourceToTarget.Length != _componentCount
             || target._capacity != _capacity
@@ -236,9 +233,9 @@ internal struct ComponentStampStorage : IDisposable
         }
 
         int targetTailStart = targetSlotIndex + (copiedTailStart - sourceSlotIndex);
+        target.Materialize(targetComponentIndex);
         if (_values.Length == 0)
         {
-            target.Materialize(targetComponentIndex);
             target._values.Span
                 .Slice(
                     (targetComponentIndex * target._capacity) + targetTailStart,
@@ -247,7 +244,6 @@ internal struct ComponentStampStorage : IDisposable
         }
         else
         {
-            target.Materialize(targetComponentIndex);
             int sourceOffset = (sourceComponentIndex * _capacity) + copiedTailStart;
             int targetOffset = (targetComponentIndex * target._capacity) + targetTailStart;
             _values.ReadOnlySpan

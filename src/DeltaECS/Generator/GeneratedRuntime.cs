@@ -158,7 +158,6 @@ public struct GeneratedWhereStructuralContext
 
             if (_plan.IsDestroy)
             {
-                _changedCount += count;
                 _world.FreeGeneratedWhereRun(_sourceChunk, sourceSlot, count);
             }
             else
@@ -174,10 +173,10 @@ public struct GeneratedWhereStructuralContext
                     _plan.TagIndices,
                     _plan.IsAdd,
                     ref initializer);
-                _changedCount += count;
                 _tagsChanged |= tagsChanged;
             }
 
+            _changedCount += count;
             return;
         }
 
@@ -741,8 +740,7 @@ public static partial class GeneratedForEachRuntime
     /// <summary>Validates the world/query pair used by a generated mutation view.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ValidateGeneratedWhere(World world, in Query query)
-        => _ = ValidateQuery(world, in query);
+    public static void ValidateGeneratedWhere(World world, in Query query) => _ = ValidateQuery(world, in query);
 
     /// <summary>Composes a generated typed query with an additional query specification.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -1161,14 +1159,12 @@ public static partial class GeneratedForEachRuntime
     /// <summary>Returns a cached primary read access using the generated component type.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ReadAccess GetPreparedReadAccess<T>(in Query query)
-        => query.Cached.GetPreparedPrimaryReadAccess<T>();
+    public static ReadAccess GetPreparedReadAccess<T>(in Query query) => query.Cached.GetPreparedPrimaryReadAccess<T>();
 
     /// <summary>Returns a cached primary read route without materializing an access token.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static int GetPreparedReadRoute<T>(in Query query)
-        => query.Cached.GetPreparedPrimaryReadRoute<T>();
+    public static int GetPreparedReadRoute<T>(in Query query) => query.Cached.GetPreparedPrimaryReadRoute<T>();
 
     /// <summary>Returns a cached explicit-component read route after sequence validation.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -1203,8 +1199,7 @@ public static partial class GeneratedForEachRuntime
     /// <summary>Returns a cached primary write route without materializing an access token.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static int GetPreparedWriteRoute<T>(in Query query)
-        => query.Cached.GetPreparedPrimaryWriteRoute<T>();
+    public static int GetPreparedWriteRoute<T>(in Query query) => query.Cached.GetPreparedPrimaryWriteRoute<T>();
 
     /// <summary>Returns a cached explicit-component write route after sequence validation.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -1221,8 +1216,7 @@ public static partial class GeneratedForEachRuntime
     /// <summary>Returns a trusted query-local route used by generated parallel invokers.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static int GetReadQueryComponentIndex(ReadAccess access)
-        => access.QueryComponentIndex;
+    public static int GetReadQueryComponentIndex(ReadAccess access) => access.QueryComponentIndex;
 
     /// <summary>
     /// Returns a cached explicit-component read access after dense scope
@@ -1230,10 +1224,7 @@ public static partial class GeneratedForEachRuntime
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ReadAccess GetPreparedReadAccess(
-        in Query query,
-        ComponentId component,
-        Type runtimeType)
+    public static ReadAccess GetPreparedReadAccess(in Query query, ComponentId component, Type runtimeType)
         => query.Cached.GetPreparedReadAccess(component, runtimeType);
 
     /// <summary>
@@ -1242,10 +1233,7 @@ public static partial class GeneratedForEachRuntime
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static WriteAccess GetPreparedWriteAccess(
-        in Query query,
-        ComponentId component,
-        Type runtimeType)
+    public static WriteAccess GetPreparedWriteAccess(in Query query, ComponentId component, Type runtimeType)
         => query.Cached.GetPreparedWriteAccess(component, runtimeType);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

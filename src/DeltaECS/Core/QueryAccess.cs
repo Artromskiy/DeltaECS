@@ -252,8 +252,7 @@ internal sealed class QueryPlan
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TryGetPreparedPrimaryRoute<T>(out int route)
-        => TryGetPrimaryRoute(typeof(T).TypeHandle, out route);
+    private bool TryGetPreparedPrimaryRoute<T>(out int route) => TryGetPrimaryRoute(typeof(T).TypeHandle, out route);
 
     internal ReadAccess GetPreparedReadAccess(ComponentId component, Type runtimeType)
     {
@@ -363,10 +362,7 @@ internal sealed class QueryPlan
         _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
     }
 
-    internal void RefreshArchetype(
-        int planIndex,
-        Archetype archetype,
-        List<QueryPlan>? dirtyPlans = null)
+    internal void RefreshArchetype(int planIndex, Archetype archetype, List<QueryPlan>? dirtyPlans = null)
     {
         ref ArchetypePlan plan = ref _matchingPlans.RefAt(planIndex);
         int previousChunkCount = plan.ChunkCount;
@@ -567,27 +563,25 @@ internal sealed class QueryPlan
         }
 
         int delta = currentChunkCount - previousChunkCount;
+        int tailCount = _matchingChunkCount - start - previousChunkCount;
         if (delta > 0)
         {
             EnsureMatchingChunkPlanCapacity(_matchingChunkCount + delta);
-            int tailCount = _matchingChunkCount - start - previousChunkCount;
             _matchingChunkPlans.AsSpan(start + previousChunkCount, tailCount)
                 .CopyTo(_matchingChunkPlans.AsSpan(start + currentChunkCount, tailCount));
             _matchingChunkPlanIndices.AsSpan(start + previousChunkCount, tailCount)
                 .CopyTo(_matchingChunkPlanIndices.AsSpan(start + currentChunkCount, tailCount));
-            _matchingChunkCount += delta;
         }
         else if (delta < 0)
         {
-            int tailCount = _matchingChunkCount - start - previousChunkCount;
             _matchingChunkPlans.AsSpan(start + previousChunkCount, tailCount)
                 .CopyTo(_matchingChunkPlans.AsSpan(start + currentChunkCount, tailCount));
             _matchingChunkPlanIndices.AsSpan(start + previousChunkCount, tailCount)
                 .CopyTo(_matchingChunkPlanIndices.AsSpan(start + currentChunkCount, tailCount));
-            _matchingChunkCount += delta;
-            _matchingChunkPlans.AsSpan(_matchingChunkCount, -delta).Clear();
+            _matchingChunkPlans.AsSpan(_matchingChunkCount + delta, -delta).Clear();
         }
 
+        _matchingChunkCount += delta;
         if (currentChunkCount == 0)
         {
             return;
@@ -795,10 +789,7 @@ internal sealed class QueryPlan
 
 internal struct ArchetypePlan
 {
-    internal ArchetypePlan(
-        Archetype archetype,
-        int[] componentRows,
-        Stamp[]? archetypeStamps = null)
+    internal ArchetypePlan(Archetype archetype, int[] componentRows, Stamp[]? archetypeStamps = null)
     {
         Archetype = archetype;
         ComponentRows = componentRows;
@@ -930,10 +921,7 @@ internal struct ArchetypePlan
 
 internal readonly struct ChunkPlan
 {
-    internal ChunkPlan(
-        Chunk chunk,
-        Array[] componentRows,
-        int[] componentIndices)
+    internal ChunkPlan(Chunk chunk, Array[] componentRows, int[] componentIndices)
     {
         Chunk = chunk;
         ComponentRows = componentRows;

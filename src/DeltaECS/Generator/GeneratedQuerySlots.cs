@@ -87,46 +87,36 @@ public ref struct GeneratedQuerySlots
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public Entity EntityAt(int index)
-        => _entities.RefAt(_hasTagSlots ? _tagSlots.RefAt(index) : _offset + index);
+    public Entity EntityAt(int index) => _entities.RefAt(_hasTagSlots ? _tagSlots.RefAt(index) : _offset + index);
 
     /// <summary>Creates a borrowed view for one logical entity in this query chunk.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public EntityRef GetEntityRef(int index)
-        => new(_world, EntityAt(index));
+    public EntityRef GetEntityRef(int index) => new(_world, EntityAt(index));
 
     /// <summary>Creates a borrowed view for one physical entity slot in this query chunk.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public EntityRef GetEntityRefAtSlot(int slotIndex)
-        => new(_world, _entities.RefAt(slotIndex));
+    public EntityRef GetEntityRefAtSlot(int slotIndex) => new(_world, _entities.RefAt(slotIndex));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public bool TryGetTagSlots(out ReadOnlySpan<int> slots)
-    {
-        slots = _tagSlots;
-        return _hasTagSlots;
-    }
+    public bool TryGetTagSlots(out ReadOnlySpan<int> slots) { slots = _tagSlots; return _hasTagSlots; }
 
     /// <summary>Maps a logical query index to its physical slot within the chunk.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public int GetGeneratedSlotIndex(int index)
-        => _hasTagSlots ? _tagSlots.RefAt(index) : _offset + index;
+    public int GetGeneratedSlotIndex(int index) => _hasTagSlots ? _tagSlots.RefAt(index) : _offset + index;
 
     /// <summary>Maps a logical query index to its row offset from a generated row reference.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public int GetGeneratedRowOffset(int index)
-        => _hasTagSlots ? _tagSlots.RefAt(index) : index;
+    public int GetGeneratedRowOffset(int index) => _hasTagSlots ? _tagSlots.RefAt(index) : index;
 
     /// <summary>Gets the first entity reference for the current validated slot range.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public ref Entity GetGeneratedEntityReference()
-        => ref Unsafe.Add(ref _entities.GetRefAtZero(), _offset);
+    public ref Entity GetGeneratedEntityReference() => ref Unsafe.Add(ref _entities.GetRefAtZero(), _offset);
 
     /// <summary>Gets the trusted first element of a validated read row.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -154,14 +144,12 @@ public ref struct GeneratedQuerySlots
     /// <summary>Gets the validated component array for generated chunk-row binding.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public T[] GetGeneratedArray<T>(ReadAccess access)
-        => GetGeneratedArray<T>(access.QueryComponentIndex);
+    public T[] GetGeneratedArray<T>(ReadAccess access) => GetGeneratedArray<T>(access.QueryComponentIndex);
 
     /// <summary>Gets the validated component array for generated chunk-row binding.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public T[] GetGeneratedArray<T>(WriteAccess access)
-        => GetGeneratedArray<T>(access.QueryComponentIndex);
+    public T[] GetGeneratedArray<T>(WriteAccess access) => GetGeneratedArray<T>(access.QueryComponentIndex);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -203,6 +191,7 @@ public ref struct GeneratedQuerySlots
     [EditorBrowsable(EditorBrowsableState.Never)]
     public Stamp GetGeneratedStamp(ReadAccess access, int index)
         => GetGeneratedStamp(access.QueryComponentIndex, index);
+
 }
 
 /// <summary>Trusted compiler-support slot iterator for a read-only query chunk.</summary>
@@ -217,19 +206,14 @@ public ref struct GeneratedReadQuerySlots
     private readonly int _count;
     private readonly ReadOnlySpan<int> _tagSlots;
     private readonly bool _hasTagSlots;
-    private readonly QueryPlan? _queryPlan;
 
-    internal GeneratedReadQuerySlots(
-        World world,
-        in ChunkPlan chunkPlan,
-        QueryPlan? queryPlan = null)
+    internal GeneratedReadQuerySlots(World world, in ChunkPlan chunkPlan, QueryPlan? queryPlan = null)
     {
         _world = world;
         _chunk = chunkPlan.Chunk;
         _entities = _chunk.RawEntities;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
         _componentIndices = chunkPlan.ComponentIndices;
-        _queryPlan = queryPlan;
         _hasTagSlots = queryPlan is not null && queryPlan.TryGetTagSlots(_chunk, out _tagSlots);
         if (!_hasTagSlots)
         {
@@ -246,45 +230,35 @@ public ref struct GeneratedReadQuerySlots
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Entity EntityAt(int index)
-        => _entities.RefAt(_hasTagSlots ? _tagSlots.RefAt(index) : index);
+    public Entity EntityAt(int index) => _entities.RefAt(_hasTagSlots ? _tagSlots.RefAt(index) : index);
 
     /// <summary>Creates a borrowed view for one logical entity in this query chunk.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public EntityRef GetEntityRef(int index)
-        => new(_world, EntityAt(index));
+    public EntityRef GetEntityRef(int index) => new(_world, EntityAt(index));
 
     /// <summary>Creates a borrowed view for one physical entity slot in this query chunk.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public EntityRef GetEntityRefAtSlot(int slotIndex)
-        => new(_world, _entities.RefAt(slotIndex));
+    public EntityRef GetEntityRefAtSlot(int slotIndex) => new(_world, _entities.RefAt(slotIndex));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public bool TryGetTagSlots(out ReadOnlySpan<int> slots)
-    {
-        slots = _tagSlots;
-        return _hasTagSlots;
-    }
+    public bool TryGetTagSlots(out ReadOnlySpan<int> slots) { slots = _tagSlots; return _hasTagSlots; }
 
     /// <summary>Maps a logical query index to its physical slot within the chunk.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public readonly int GetGeneratedSlotIndex(int index)
-        => _hasTagSlots ? _tagSlots.RefAt(index) : index;
+    public readonly int GetGeneratedSlotIndex(int index) => _hasTagSlots ? _tagSlots.RefAt(index) : index;
 
     /// <summary>Maps a logical query index to its row offset from a generated row reference.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public int GetGeneratedRowOffset(int index)
-        => _hasTagSlots ? _tagSlots.RefAt(index) : index;
+    public int GetGeneratedRowOffset(int index) => _hasTagSlots ? _tagSlots.RefAt(index) : index;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public ref readonly Entity GetGeneratedEntityReference()
-        => ref _entities.GetRefAtZero();
+    public ref readonly Entity GetGeneratedEntityReference() => ref _entities.GetRefAtZero();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetGeneratedReadReference<T>(int queryComponentIndex)
@@ -308,8 +282,7 @@ public ref struct GeneratedReadQuerySlots
     /// <summary>Gets the validated component array for generated chunk-row binding.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public T[] GetGeneratedArray<T>(ReadAccess access)
-        => GetGeneratedArray<T>(access.QueryComponentIndex);
+    public T[] GetGeneratedArray<T>(ReadAccess access) => GetGeneratedArray<T>(access.QueryComponentIndex);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetGeneratedReadReference<T>(ReadAccess access)
@@ -330,4 +303,5 @@ public ref struct GeneratedReadQuerySlots
     [EditorBrowsable(EditorBrowsableState.Never)]
     public Stamp GetGeneratedStamp(ReadAccess access, int index)
         => GetGeneratedStamp(access.QueryComponentIndex, index);
+
 }
