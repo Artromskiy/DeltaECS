@@ -1,7 +1,3 @@
-Ai: How fast you want your ECS to be
-Me: Yes
-Ai: Here it is
-Me: Hold my beer
 
 ---
 
