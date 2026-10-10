@@ -36,10 +36,13 @@ Reference the runtime and generator from the project that contains your systems.
 Keep both packages on the same version. The generator is a build-time dependency
 and is not copied to the application at runtime.
 
+The floating version `*` resolves to the latest stable release on restore. Use
+an exact version instead when you need reproducible dependency resolution.
+
 ```xml
 <ItemGroup>
-  <PackageReference Include="DeltaECS" Version="0.0.32" />
-  <PackageReference Include="DeltaECS.Generators" Version="0.0.32" PrivateAssets="all" />
+  <PackageReference Include="DeltaECS" Version="*" />
+  <PackageReference Include="DeltaECS.Generators" Version="*" PrivateAssets="all" />
 </ItemGroup>
 ```
 
@@ -596,6 +599,13 @@ The runtime targets .NET Standard 2.1 and .NET 10. The generator targets .NET
 Standard 2.0 as a compiler tool. `World` owns its component storage and should
 be disposed when the application no longer needs it.
 
+## Unity in practice
+
+For a larger Unity codebase using DeltaECS, browse the public [Sky Pirates
+project](https://github.com/Artromskiy/SkyPirates), including its
+[entity-view system](https://github.com/Artromskiy/SkyPirates/blob/main/Assets/Scripts/SkyPirates/Client/Systems/EntityViewSystem.cs).
+The project is published for viewing; check its license before reusing code.
+
 ## Performance and benchmark results
 
 DeltaECS is designed for dense component iteration and explicit component
@@ -606,6 +616,7 @@ single headline number as representative.
 
 - [Complete ECS C# benchmark results](docs/benchmarks/ecs-csharp-results.md)
 - [Benchmark methodology](docs/benchmarks/ecs-csharp-benchmark.md)
+- [GitHub Actions benchmark runs and summaries](https://github.com/Artromskiy/DeltaECS/actions/workflows/ecs-csharp-benchmark.yml)
 
 ## Documentation
 
