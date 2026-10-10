@@ -23,7 +23,7 @@ internal static partial class DemandDrivenForEachTemplates
             lines.Add("    for (int tagIndex = 0; tagIndex < tagCount; tagIndex++)");
             lines.Add("    {");
             lines.Add("        int slotIndex = tagSlot;");
-            lines.Add("        GeneratedForEachRuntime.SetEntity(ref entity, global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntityReference, tagSlot));");
+            lines.Add("        slots.SetEntityRefSlot(ref entityRefView, slotIndex);");
         }
         else
         {
@@ -69,7 +69,7 @@ internal static partial class DemandDrivenForEachTemplates
             return denseLoopBody;
         }
 
-        string entityAssignment = "GeneratedForEachRuntime.SetEntity(ref entity, global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntityReference, tagSlot));";
+        string entityAssignment = "slots.SetEntityRefSlot(ref entityRefView, slotIndex);";
         string stampLocals = GeneratorTemplates.JoinNonEmpty(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
             $"Stamp component{index} = slots.GetGeneratedStamp(_access{index}, tagIndex);"));
         string invocation = AppendClosedInvocation(shape, actionName, functorName, contextName, "component", "entity");
@@ -131,7 +131,7 @@ internal static partial class DemandDrivenForEachTemplates
         var selectedBody = new List<string>();
         if (shape.HasEntity)
         {
-            selectedBody.Add($"                GeneratedForEachRuntime.SetEntity(ref {entityName}, global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntityReference, tagSlot));");
+            selectedBody.Add("                slots.SetEntityRefSlot(ref entityRefView, slotIndex);");
         }
 
         for (int index = 0; index < shape.ComponentModels.Length; index++)
@@ -171,7 +171,7 @@ internal static partial class DemandDrivenForEachTemplates
         int parameterIndex = shape.HasContext ? 1 : 0;
         if (shape.HasEntity)
         {
-            selectedBody.Add($"                GeneratedForEachRuntime.SetEntity(ref {parameters[parameterIndex]}, global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntityReference, tagSlot));");
+            selectedBody.Add("                slots.SetEntityRefSlot(ref entityRefView, slotIndex);");
             parameterIndex++;
         }
 
@@ -261,7 +261,8 @@ internal static partial class DemandDrivenForEachTemplates
         int parameterIndex = shape.HasContext ? 1 : 0;
         if (shape.HasEntity)
         {
-            selectedBody.Add($"                GeneratedForEachRuntime.SetEntity(ref {parameters[parameterIndex++]}, global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntityReference, tagSlot));");
+            selectedBody.Add("                slots.SetEntityRefSlot(ref entityRefView, slotIndex);");
+            parameterIndex++;
         }
 
         for (int index = 0; index < shape.ComponentModels.Length; index++)

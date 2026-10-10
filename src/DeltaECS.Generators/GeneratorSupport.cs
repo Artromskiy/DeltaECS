@@ -450,17 +450,14 @@ internal static class GeneratorSupport
 
     internal static string StableName(string value)
     {
-        unchecked
+        // Keep generated identifiers stable while making collisions
+        // effectively negligible for independently generated shapes.
+        ulong hash = 14695981039346656037UL;
+        foreach (char character in value)
         {
-            // Keep generated identifiers stable while making collisions
-            // effectively negligible for independently generated shapes.
-            ulong hash = 14695981039346656037UL;
-            foreach (char character in value)
-            {
-                hash = (hash ^ character) * 1099511628211UL;
-            }
-
-            return hash.ToString("X16", CultureInfo.InvariantCulture);
+            hash = (hash ^ character) * 1099511628211UL;
         }
+
+        return hash.ToString("X16", CultureInfo.InvariantCulture);
     }
 }

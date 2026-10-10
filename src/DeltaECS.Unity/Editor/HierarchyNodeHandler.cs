@@ -525,15 +525,15 @@ namespace Delta.ECS.Unity.Editor
             bool changed = false;
             runtimeWorld.World.ForEachEntity(in query, entity =>
             {
-                if (runtimeWorld.TryGetStableId(entity.Handle, out _) || runtimeWorld.TryGetView(entity.Handle, out _))
+                if (runtimeWorld.TryGetStableId(entity, out _) || runtimeWorld.TryGetView(entity, out _))
                 {
                     return;
                 }
 
-                var key = new EntityKey(runtimeWorld, entity.Handle);
+                var key = new EntityKey(runtimeWorld, entity);
                 _activeEntityKeys.Add(key);
                 string name = $"ECS Entity {entity.Index}:{entity.Generation}";
-                var reference = new NodeReference(authoring, null, runtimeWorld, entity.Handle);
+                var reference = new NodeReference(authoring, null, runtimeWorld, entity);
                 if (_entityNodes.TryGetValue(key, out EntityNode entityNode))
                 {
                     if (entityNode.Reference.RuntimeWorld != reference.RuntimeWorld
@@ -942,8 +942,8 @@ namespace Delta.ECS.Unity.Editor
 
             public override bool Equals(object obj) => obj is EntityKey other && Equals(other);
             public override int GetHashCode() => _runtimeWorld != null
-                ? unchecked((_runtimeWorld.GetHashCode() * 397) ^ _runtimeEntity.GetHashCode())
-                : unchecked((_authoringId.GetHashCode() * 397) ^ StringComparer.Ordinal.GetHashCode(_stableId ?? string.Empty));
+                ? (_runtimeWorld.GetHashCode() * 397) ^ _runtimeEntity.GetHashCode()
+                : (_authoringId.GetHashCode() * 397) ^ StringComparer.Ordinal.GetHashCode(_stableId ?? string.Empty);
         }
     }
 

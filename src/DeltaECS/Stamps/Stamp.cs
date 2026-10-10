@@ -31,5 +31,5 @@ public readonly struct Stamp : IEquatable<Stamp>
     public override string ToString() => Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Stamp Next() => new(unchecked(Value + 1));
+    internal Stamp Next() => new(Value + 1);
 }

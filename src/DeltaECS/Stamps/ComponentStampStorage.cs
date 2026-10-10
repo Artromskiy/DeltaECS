@@ -52,7 +52,7 @@ internal struct ComponentStampStorage : IDisposable
         int offset = Offset(componentIndex, slotIndex);
         Materialize(componentIndex);
         ref Stamp value = ref _values.RefAt(offset);
-        Stamp stamp = new(unchecked(value.Value + (ulong)delta));
+        Stamp stamp = new(value.Value + (ulong)delta);
         value = stamp;
         return stamp;
     }

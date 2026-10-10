@@ -165,6 +165,18 @@ public sealed partial class World
         return TryGetRegisteredCoreTrusted(entity, componentId, out value);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetTrusted<T>(ref GeneratedEntityRefView view, out T value)
+    {
+        if (!TryGetPrimaryComponentId<T>(out ComponentId componentId))
+        {
+            value = default!;
+            return false;
+        }
+
+        return TryGetRegisteredCore<T>(view.Chunk!, view.SlotIndex, componentId, out value);
+    }
+
     /// <summary>Reports whether an alive entity owns the primary component for <typeparamref name="T"/>.</summary>
     public bool Has<T>(Entity entity)
     {
@@ -191,6 +203,14 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool HasTrusted<T>(Entity entity, ComponentId componentId)
         => IsRegisteredType<T>(componentId) && HasTrusted(entity, componentId);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool HasTrusted<T>(ref GeneratedEntityRefView view)
+        => TryGetPrimaryComponentId<T>(out ComponentId componentId) && HasTrusted<T>(ref view, componentId);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool HasTrusted<T>(ref GeneratedEntityRefView view, ComponentId componentId)
+        => IsRegisteredType<T>(componentId) && HasTrusted(ref view, componentId);
 
     /// <summary>Reads the primary component stamp when present.</summary>
     public bool TryGetComponentStamp<T>(Entity entity, out Stamp stamp)
@@ -242,6 +262,30 @@ public sealed partial class World
         return TryGetComponentStampTrusted(entity, componentId, out stamp);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetComponentStampTrusted<T>(ref GeneratedEntityRefView view, out Stamp stamp)
+    {
+        if (!TryGetPrimaryComponentId<T>(out ComponentId componentId))
+        {
+            stamp = default;
+            return false;
+        }
+
+        return TryGetComponentStampTrusted<T>(ref view, componentId, out stamp);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetComponentStampTrusted<T>(ref GeneratedEntityRefView view, ComponentId componentId, out Stamp stamp)
+    {
+        if (!IsRegisteredType<T>(componentId))
+        {
+            stamp = default;
+            return false;
+        }
+
+        return TryGetComponentStampTrusted(ref view, componentId, out stamp);
+    }
+
     /// <summary>
     /// Reads one component, throwing when the entity is stale, missing the row,
     /// or the requested type does not match the registered component type.
@@ -266,6 +310,15 @@ public sealed partial class World
             : ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal T GetTrusted<T>(ref GeneratedEntityRefView view, ComponentId componentId)
+    {
+        EnsureRegisteredType<T>(componentId);
+        return TryGetRegisteredCore<T>(view.Chunk!, view.SlotIndex, componentId, out T value)
+            ? value
+            : ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
+    }
+
     /// <summary>Reads the primary component for <typeparamref name="T"/> or throws when it is missing.</summary>
     public T Get<T>(Entity entity)
     {
@@ -285,6 +338,15 @@ public sealed partial class World
         return TryGetRegisteredCoreTrusted(entity, componentId, out T value)
             ? value
             : ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal T GetTrusted<T>(ref GeneratedEntityRefView view)
+    {
+        ComponentId componentId = GetPrimaryComponentId<T>();
+        return TryGetRegisteredCore<T>(view.Chunk!, view.SlotIndex, componentId, out T value)
+            ? value
+            : ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
     }
 
     /// <summary>
@@ -307,6 +369,13 @@ public sealed partial class World
     {
         EnsureRegisteredType<T>(componentId);
         return ref GetRefTrustedUnchecked<T>(entity, componentId);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ref T GetRefTrusted<T>(ref GeneratedEntityRefView view, ComponentId componentId)
+    {
+        EnsureRegisteredType<T>(componentId);
+        return ref GetRefUnchecked<T>(ref view, componentId, view.Chunk!);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -355,11 +424,47 @@ public sealed partial class World
         return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ref T GetRefUnchecked<T>(ref GeneratedEntityRefView view, ComponentId componentId, Chunk chunk)
+    {
+        int slotIndex = view.SlotIndex;
+        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
+        {
+            if (!chunk.HasTag(tagIndex, slotIndex))
+            {
+                ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
+            }
+
+            return ref GeneratedTagRows.GetReference<T>(0);
+        }
+
+        var archetype = _archetypes[chunk.ArchetypeId];
+        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
+        {
+            ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
+        }
+
+        Stamp stamp = chunk.IncrementComponentStamp(componentIndex, slotIndex);
+        CreateEntityComponentStampWriter(
+            chunk,
+            componentIndex,
+            slotIndex,
+            stamp).MarkPoint();
+        return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
+    }
+
     /// <summary>Returns a writable reference to the primary component row.</summary>
     public ref T GetRef<T>(Entity entity) => ref GetRefUnchecked<T>(entity, GetPrimaryComponentId<T>());
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref T GetRefTrusted<T>(Entity entity) => ref GetRefTrustedUnchecked<T>(entity, GetPrimaryComponentId<T>());
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ref T GetRefTrusted<T>(ref GeneratedEntityRefView view)
+    {
+        ComponentId componentId = GetPrimaryComponentId<T>();
+        return ref GetRefUnchecked<T>(ref view, componentId, view.Chunk!);
+    }
 
     /// <summary>Returns a read-only reference to one component row.</summary>
     /// <remarks>
@@ -379,6 +484,13 @@ public sealed partial class World
     {
         EnsureRegisteredType<T>(componentId);
         return ref GetReadRefTrustedUnchecked<T>(entity, componentId);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ref readonly T GetReadRefTrusted<T>(ref GeneratedEntityRefView view, ComponentId componentId)
+    {
+        EnsureRegisteredType<T>(componentId);
+        return ref GetReadRefUnchecked<T>(ref view, componentId, view.Chunk!);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -421,6 +533,29 @@ public sealed partial class World
         return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ref readonly T GetReadRefUnchecked<T>(ref GeneratedEntityRefView view, ComponentId componentId, Chunk chunk)
+    {
+        int slotIndex = view.SlotIndex;
+        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
+        {
+            if (!chunk.HasTag(tagIndex, slotIndex))
+            {
+                ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
+            }
+
+            return ref GeneratedTagRows.GetReference<T>(0);
+        }
+
+        var archetype = _archetypes[chunk.ArchetypeId];
+        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
+        {
+            ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
+        }
+
+        return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
+    }
+
     /// <summary>Returns a read-only reference to the primary component row.</summary>
     public ref readonly T GetReadRef<T>(Entity entity)
         => ref GetReadRefUnchecked<T>(entity, GetPrimaryComponentId<T>());
@@ -428,6 +563,13 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref readonly T GetReadRefTrusted<T>(Entity entity)
         => ref GetReadRefTrustedUnchecked<T>(entity, GetPrimaryComponentId<T>());
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ref readonly T GetReadRefTrusted<T>(ref GeneratedEntityRefView view)
+    {
+        ComponentId componentId = GetPrimaryComponentId<T>();
+        return ref GetReadRefUnchecked<T>(ref view, componentId, view.Chunk!);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool IsRegisteredType<T>(ComponentId componentId)

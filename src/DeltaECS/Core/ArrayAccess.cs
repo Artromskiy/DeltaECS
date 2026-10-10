@@ -6,6 +6,32 @@ using System.Runtime.InteropServices;
 
 internal static class ArrayAccess
 {
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static unsafe Span<T> AsSpan<T>(nint address, int length) where T : unmanaged =>
+        length == 0 ? Span<T>.Empty : new((void*)address, length);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static unsafe ReadOnlySpan<T> AsReadOnlySpan<T>(nint address, int length) where T : unmanaged =>
+        AsSpan<T>(address, length);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static unsafe ref T GetRefAtZero<T>(nint address) where T : unmanaged =>
+        ref Unsafe.AsRef<T>((void*)address);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static ref T RefAt<T>(nint address, int index) where T : unmanaged =>
+        ref Unsafe.Add(ref GetRefAtZero<T>(address), index);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static nint AddBytes(nint address, nuint byteCount) =>
+        checked(address + checked((nint)byteCount));
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static unsafe nint GetAddress(void* pointer) => (nint)pointer;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static unsafe void* GetPointer(nint address) => (void*)address;
+
 #if NETSTANDARD2_1
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static unsafe ref T GetRefAtZero<T>(this T[] array)

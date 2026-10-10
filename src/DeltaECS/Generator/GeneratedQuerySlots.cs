@@ -92,17 +92,39 @@ public ref struct GeneratedQuerySlots
     /// <summary>Creates a borrowed view for one logical entity in this query chunk.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public EntityRef GetEntityRef(int index) => new(_world, EntityAt(index));
+    public EntityRef GetEntityRef(ref GeneratedEntityRefView view, int index)
+    {
+        view.SetLocation(_chunk, _hasTagSlots ? _tagSlots.RefAt(index) : _offset + index);
+        return GeneratedForEachRuntime.CreateEntityRef(_world, ref view);
+    }
 
     /// <summary>Creates a reusable borrowed view for generated iteration over this chunk.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public EntityRef CreateEntityRef() => new(_world);
+    public EntityRef CreateEntityRef(ref GeneratedEntityRefView view)
+        => GeneratedForEachRuntime.CreateEntityRef(_world, ref view);
 
     /// <summary>Creates a borrowed view for one physical entity slot in this query chunk.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public EntityRef GetEntityRefAtSlot(int slotIndex) => new(_world, _entities.RefAt(slotIndex));
+    public EntityRef GetEntityRefAtSlot(ref GeneratedEntityRefView view, int slotIndex)
+    {
+        view.SetLocation(_chunk, slotIndex);
+        return GeneratedForEachRuntime.CreateEntityRef(_world, ref view);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public void BindEntityRef(ref GeneratedEntityRefView view, int slotIndex)
+        => view.SetLocation(_chunk, slotIndex);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public void BindEntityRef(ref GeneratedEntityRefView view) => view.SetChunk(_chunk);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public void SetEntityRefSlot(ref GeneratedEntityRefView view, int slotIndex) => view.SetSlot(slotIndex);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -240,12 +262,33 @@ public ref struct GeneratedReadQuerySlots
     /// <summary>Creates a borrowed view for one logical entity in this query chunk.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public EntityRef GetEntityRef(int index) => new(_world, EntityAt(index));
+    public EntityRef GetEntityRef(ref GeneratedEntityRefView view, int index)
+    {
+        view.SetLocation(_chunk, _hasTagSlots ? _tagSlots.RefAt(index) : index);
+        return GeneratedForEachRuntime.CreateEntityRef(_world, ref view);
+    }
 
     /// <summary>Creates a borrowed view for one physical entity slot in this query chunk.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public EntityRef GetEntityRefAtSlot(int slotIndex) => new(_world, _entities.RefAt(slotIndex));
+    public EntityRef GetEntityRefAtSlot(ref GeneratedEntityRefView view, int slotIndex)
+    {
+        view.SetLocation(_chunk, slotIndex);
+        return GeneratedForEachRuntime.CreateEntityRef(_world, ref view);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public void BindEntityRef(ref GeneratedEntityRefView view, int slotIndex)
+        => view.SetLocation(_chunk, slotIndex);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public void BindEntityRef(ref GeneratedEntityRefView view) => view.SetChunk(_chunk);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public void SetEntityRefSlot(ref GeneratedEntityRefView view, int slotIndex) => view.SetSlot(slotIndex);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]

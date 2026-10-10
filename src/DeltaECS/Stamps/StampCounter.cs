@@ -7,5 +7,5 @@ internal struct StampCounter
     private ulong _value;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Stamp Next() => new(unchecked(++_value));
+    internal Stamp Next() => new(++_value);
 }

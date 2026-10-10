@@ -35,6 +35,7 @@ public static class GeneratedApiGrammarProof
         ComponentId cmp4Id = layouts.GetPrimary<Cmp4>();
         ComponentId deadId = layouts.GetPrimary<Dead>();
         ComponentId aliveId = layouts.GetPrimary<Alive>();
+        GeneratedComponentCatalogGrammarProof.Run();
         GeneratedComponentVisitorGrammarProof.Run(layouts);
         ReadOnlySpan<ComponentId> allComponentIds = stackalloc ComponentId[]
         {
@@ -69,6 +70,7 @@ public static class GeneratedApiGrammarProof
 
         GeneratedIterationGrammarProof.Run(world, in query, entities, entityArray, cmp1Id, cmp2Id,
             componentIds, singleComponentId, ref context, in readContext);
+        GeneratedOperationGrammarProof.Run(world, in query, ref context);
         GeneratedStampGrammarProof.Run(world, in query, entities, entityArray, cmp1Id, cmp2Id,
             componentIds, singleComponentId, ref context, in readContext);
         GeneratedQueryGrammarProof.Run(world, in query, cmp1Id, cmp2Id, componentIds);

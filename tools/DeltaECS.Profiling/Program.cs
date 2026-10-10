@@ -72,7 +72,7 @@ static long RunSmoke(ProfileCommandLine options, TextWriter report)
         long checksum = 0;
         for (int launch = 0; launch < options.Launches; launch++)
         {
-            checksum = unchecked(checksum + RunWorkload(runWorkload, workItem, leaf));
+            checksum += RunWorkload(runWorkload, workItem, leaf);
         }
 
         profiler.WriteReport(report, methodNames, calibration: null, options.Report);

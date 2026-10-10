@@ -261,7 +261,7 @@ world.WhereEntity(
         static (Entity current, in Health health, in Team team) =>
             health.Value <= 0 && team.Id == 1)
     .ForEachEntity(static (EntityRef current, in Health health, in Team team) =>
-        LogDeath(current.Handle, team)).Invoke();
+        LogDeath(current, team)).Invoke();
 
 world.Where(
         in query,

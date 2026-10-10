@@ -323,7 +323,7 @@ internal sealed class StructuralAlgorithmTests
 
     private sealed class DeterministicRandom(int seed)
     {
-        private uint _state = unchecked((uint)seed);
+        private uint _state = (uint)seed;
 
         public int Next(int maxValue)
             => (int)(NextUInt32() % (uint)maxValue);

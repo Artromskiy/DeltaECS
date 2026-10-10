@@ -163,6 +163,7 @@ public sealed partial class World : IDisposable
         _primaryComponentIdsByType.Clear();
         _genericFunctors.Clear();
         _lastGenericFunctorEntry = null;
+        DisposeGenericFunctorInputBlocks();
 
         foreach (var archetype in _archetypes)
         {
@@ -675,6 +676,15 @@ public sealed partial class World : IDisposable
             : _archetypes[chunk.ArchetypeId].Contains(componentId);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool HasTrusted(ref GeneratedEntityRefView view, ComponentId componentId)
+    {
+        Chunk chunk = view.Chunk!;
+        return _layouts.TryGetTagIndex(componentId, out int tagIndex)
+            ? chunk.HasTag(tagIndex, view.SlotIndex)
+            : _archetypes[chunk.ArchetypeId].Contains(componentId);
+    }
+
     /// <summary>Gets the component stamp, or the tag-presence stamp when the entity owns a tag.</summary>
     public bool TryGetComponentStamp(Entity entity, ComponentId componentId, out Stamp stamp)
     {
@@ -694,6 +704,10 @@ public sealed partial class World : IDisposable
         Chunk chunk = GetEntityRefLocationTrusted(entity, out int slotIndex);
         return TryGetComponentStamp(chunk, slotIndex, componentId, out stamp);
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetComponentStampTrusted(ref GeneratedEntityRefView view, ComponentId componentId, out Stamp stamp)
+        => TryGetComponentStamp(view.Chunk!, view.SlotIndex, componentId, out stamp);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryGetComponentStamp(Chunk chunk, int slotIndex, ComponentId componentId, out Stamp stamp)
@@ -743,6 +757,10 @@ public sealed partial class World : IDisposable
         Chunk chunk = GetEntityRefLocationTrusted(entity, out int slotIndex);
         return TryGetCore<T>(chunk, slotIndex, componentId, out value);
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetTrusted<T>(ref GeneratedEntityRefView view, ComponentId componentId, out T value)
+        => TryGetCore<T>(view.Chunk!, view.SlotIndex, componentId, out value);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryGetCore<T>(Chunk chunk, int slotIndex, ComponentId componentId, out T value)
@@ -921,9 +939,9 @@ public sealed partial class World : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal Stamp GetComponentStamp(int archetypeId, Chunk chunk, int componentIndex, int slotIndex)
     {
-        return new Stamp(unchecked(
+        return new Stamp(
             chunk.GetComponentStampTrusted(componentIndex, slotIndex).Value
-            + _archetypeComponentWriteStamps.RefAt(archetypeId).RefAt(componentIndex).Value));
+            + _archetypeComponentWriteStamps.RefAt(archetypeId).RefAt(componentIndex).Value);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -2500,11 +2518,8 @@ public sealed partial class World : IDisposable
         public override bool Equals(object? obj) => obj is TransitionKey other && Equals(other);
         public override int GetHashCode()
         {
-            unchecked
-            {
-                int hash = (SourceArchetypeId * TransitionHashMultiplier) ^ ChangeSetId.Value;
-                return (hash * TransitionHashMultiplier) ^ (IsAdd ? 1 : 0);
-            }
+            int hash = (SourceArchetypeId * TransitionHashMultiplier) ^ ChangeSetId.Value;
+            return (hash * TransitionHashMultiplier) ^ (IsAdd ? 1 : 0);
         }
     }
 

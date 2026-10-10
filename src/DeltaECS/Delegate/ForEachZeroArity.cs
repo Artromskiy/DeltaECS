@@ -1,8 +1,5 @@
 namespace Delta.ECS;
 
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-
 public sealed partial class World
 {
     /// <summary>
@@ -21,7 +18,7 @@ public sealed partial class World
     /// <summary>
     /// Iterates every entity selected by <paramref name="query"/> without
     /// requesting component rows, for example
-    /// <c>world.ForEachEntity(in query, static entity =&gt; Log(entity.Handle)).Invoke()</c>.
+    /// <c>world.ForEachEntity(in query, static entity =&gt; Log(entity)).Invoke()</c>.
     /// Use a component-bearing generated <c>ForEachEntity</c> form such as
     /// <c>world.ForEachEntity(in query, static (EntityRef entity, in Position position) =&gt; ...).Invoke()</c>.
     /// Generated forms put <c>EntityRef</c> first and may target the query or an
@@ -97,32 +94,28 @@ public readonly struct ForEachEntityOperationInvoker : IEcsOperationInvoker
     {
         ThrowHelper.ThrowIfNull(_action, nameof(_action));
         using var execution = GeneratedForEachRuntime.OpenReadDense(_world, in _query);
-        var entityRef = new EntityRef(_world);
+        GeneratedEntityRefView view = default;
+        EntityRef entityRef = GeneratedForEachRuntime.CreateEntityRef(_world, ref view);
         while (execution.MoveNextTrusted(out GeneratedReadQuerySlots slots))
         {
-            ref readonly Entity firstEntity = ref slots.GetGeneratedEntityReference();
-            ref Entity firstEntityReference = ref Unsafe.AsRef(in firstEntity);
+            slots.BindEntityRef(ref view);
             if (slots.TryGetTagSlots(out var tagSlots))
             {
                 int tagCount = tagSlots.Length;
-                ref int tagSlot = ref Unsafe.AsRef(in MemoryMarshal.GetReference(tagSlots));
                 for (int index = 0; index < tagCount; index++)
                 {
-                    entityRef._entity = Unsafe.Add(ref firstEntityReference, tagSlot);
+                    slots.SetEntityRefSlot(ref view, tagSlots.RefAt(index));
                     _action(entityRef);
-                    tagSlot = ref Unsafe.Add(ref tagSlot, 1);
                 }
 
                 continue;
             }
 
             int count = slots.Count;
-            ref Entity currentEntity = ref firstEntityReference;
             for (int index = 0; index < count; index++)
             {
-                entityRef._entity = currentEntity;
+                slots.SetEntityRefSlot(ref view, slots.GetGeneratedSlotIndex(index));
                 _action(entityRef);
-                currentEntity = ref Unsafe.Add(ref currentEntity, 1);
             }
         }
     }
@@ -148,32 +141,28 @@ public readonly struct ForEachEntityContextOperationInvoker<TContext> : IEcsOper
     {
         ThrowHelper.ThrowIfNull(_action, nameof(_action));
         using var execution = GeneratedForEachRuntime.OpenReadDense(_world, in _query);
-        var entityRef = new EntityRef(_world);
+        GeneratedEntityRefView view = default;
+        EntityRef entityRef = GeneratedForEachRuntime.CreateEntityRef(_world, ref view);
         while (execution.MoveNextTrusted(out GeneratedReadQuerySlots slots))
         {
-            ref readonly Entity firstEntity = ref slots.GetGeneratedEntityReference();
-            ref Entity firstEntityReference = ref Unsafe.AsRef(in firstEntity);
+            slots.BindEntityRef(ref view);
             if (slots.TryGetTagSlots(out var tagSlots))
             {
                 int tagCount = tagSlots.Length;
-                ref int tagSlot = ref Unsafe.AsRef(in MemoryMarshal.GetReference(tagSlots));
                 for (int index = 0; index < tagCount; index++)
                 {
-                    entityRef._entity = Unsafe.Add(ref firstEntityReference, tagSlot);
+                    slots.SetEntityRefSlot(ref view, tagSlots.RefAt(index));
                     _action(ref context, entityRef);
-                    tagSlot = ref Unsafe.Add(ref tagSlot, 1);
                 }
 
                 continue;
             }
 
             int count = slots.Count;
-            ref Entity currentEntity = ref firstEntityReference;
             for (int index = 0; index < count; index++)
             {
-                entityRef._entity = currentEntity;
+                slots.SetEntityRefSlot(ref view, slots.GetGeneratedSlotIndex(index));
                 _action(ref context, entityRef);
-                currentEntity = ref Unsafe.Add(ref currentEntity, 1);
             }
         }
     }

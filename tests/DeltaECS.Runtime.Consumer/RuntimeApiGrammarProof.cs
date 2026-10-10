@@ -1,5 +1,7 @@
 namespace Delta.ECS.Runtime.Consumer;
 
+using System.Runtime.CompilerServices;
+
 /// <summary>Public runtime API grammar proof that compiles and runs without a generator reference.</summary>
 public static partial class RuntimeApiGrammarProof
 {
@@ -16,10 +18,12 @@ public static partial class RuntimeApiGrammarProof
         VerifyRegistrationAndVisitors();
         VerifyConstraintSelectedRegistrationRoutes();
         VerifyInterfaceBindingRoutes();
+        VerifyWorldAndHandleApi();
         VerifyQueries();
         VerifyStructuralOperations();
         VerifyTypedAccess();
         VerifyEntityIteration();
+        VerifyEntityRefAccess();
         VerifyIntegration();
     }
 
@@ -261,11 +265,11 @@ public static partial class RuntimeApiGrammarProof
         where TComponent : class, TInterface, new()
         => layouts.BindInterface<TComponent, TInterface>();
 
-    private static void Require(bool condition)
+    private static void Require(bool condition, [CallerArgumentExpression(nameof(condition))] string? expression = null)
     {
         if (!condition)
         {
-            throw new InvalidOperationException("Runtime API grammar proof failed.");
+            throw new InvalidOperationException($"Runtime API grammar proof failed: {expression}.");
         }
     }
 

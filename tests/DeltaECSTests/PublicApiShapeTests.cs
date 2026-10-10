@@ -138,6 +138,25 @@ internal sealed class PublicApiShapeTests
     }
 
     [Test]
+    public void EntityRefExposesItsEntityThroughImplicitConversionOnly()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                typeof(EntityRef).GetProperty("Handle", BindingFlags.Public | BindingFlags.Instance),
+                Is.Null);
+            Assert.That(
+                typeof(EntityRef).GetMethod(
+                    "op_Implicit",
+                    BindingFlags.Public | BindingFlags.Static,
+                    binder: null,
+                    new[] { typeof(EntityRef) },
+                    modifiers: null)?.ReturnType,
+                Is.EqualTo(typeof(Entity)));
+        });
+    }
+
+    [Test]
     public void RemovedLowLevelQueryTraversalIsAbsent()
     {
         var assembly = typeof(World).Assembly;

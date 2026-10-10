@@ -23,6 +23,27 @@ V...  — values corresponding positionally to T...
 G...  — ComponentId arguments that close a generic functor type
 ```
 
+## World and entity handles
+
+The world owns its layouts, entity storage, and query cache. Use a `using`
+declaration to release its native storage:
+
+```text
+new World(layouts?, initialEntityCapacity?) -> World
+world.Layouts -> ComponentLayoutRegistry
+world.AliveEntityCount -> int
+world.Dispose()
+
+new Entity(index, generation) -> Entity
+entity.IsValid -> bool
+world.IsAlive(entity) -> bool
+query.IsValid -> bool
+```
+
+`Entity.IsValid` checks only the handle's index and generation shape. Liveness
+is world-specific, so use `World.IsAlive`. A `Query` belongs to its creating
+world and becomes invalid when that world is disposed.
+
 The canonical argument order is:
 
 ```text
@@ -174,7 +195,71 @@ static ComponentId RegisterStruct<T>(ComponentLayoutRegistry layouts, SchemaId s
     => layouts.Register<T>(schemaId);
 ```
 
-An unconstrained `T` selects the unconstrained route even if its eventual closed type happens to be a struct. Generated component-catalog registration remains a separate API and may still use generated type tokens.
+An unconstrained `T` selects the unconstrained route even if its eventual closed type happens to be a struct.
+
+The registry exposes the primary registration and CLR type for existing
+components. `GetPrimary` throws if the type is not registered; `TryGetPrimary`
+returns `false` and `ComponentId.Invalid`. Type overloads are useful when the
+CLR type is known only at runtime:
+
+```text
+layouts.GetComponentType(I) -> Type
+layouts.GetPrimary<T>() -> ComponentId
+layouts.TryGetPrimary<T>(out ComponentId) -> bool
+layouts.GetPrimary(Type) -> ComponentId
+layouts.TryGetPrimary(Type, out ComponentId) -> bool
+```
+
+When the generator emits a component catalog, register every entry or retrieve
+one by type:
+
+```csharp
+foreach (IGeneratedComponentRegistration registration in GeneratedComponentCatalog.GetRegistrations())
+{
+    layouts.Register(registration);
+}
+
+IGeneratedComponentRegistration positionRegistration =
+    GeneratedComponentCatalog.GetRegistration<Position>();
+layouts.Register(positionRegistration);
+```
+
+`GetRegistrations` returns a deterministic array snapshot. These catalog calls
+require generated registrations in the consumer assembly; ordinary
+`Register<T>(schemaId)` and runtime visitor calls do not.
+
+## Runtime integration contract
+
+`World` implements `IEcsWorld` explicitly. Cast it to this neutral contract
+when a tooling or runtime bridge needs registration IDs and object-based
+component access:
+
+```text
+IEcsWorld integration = world
+integration.Catalog -> RuntimeComponentCatalog
+catalog.Components -> ReadOnlyMemory<ComponentDescriptor>
+catalog.Stamp -> Stamp
+descriptor.Id / Schema / Name / ValueType / Capabilities / AllowsNull / IsTag
+ComponentCapabilities = None | Read | Write
+integration.Initialize() / Update() / Shutdown()
+integration.IsAlive(e) -> bool
+integration.Create(D) -> Entity
+integration.Destroy(e) -> bool
+integration.Add(e, D) / Remove(e, D) -> bool
+integration.TryGetComponents(e, Span<ComponentId>, out totalCount) -> bool
+integration.TryRead(e, I, out ComponentSnapshot, out EcsReadError) -> bool
+integration.TryWrite(e, I, object?, expectedStamp, out writtenStamp, out EcsWriteError) -> bool
+snapshot.Value / snapshot.Stamp
+EcsReadErrorCode = None | EntityNotAlive | ComponentUnknown | ComponentMissing | Unsupported
+EcsWriteErrorCode = None | EntityNotAlive | ComponentUnknown | ComponentMissing | StaleStamp | InvalidValue | Unsupported
+```
+
+`TryGetComponents` writes the ascending prefix that fits in the destination
+and reports the full count. `TryWrite` checks the expected stamp before
+changing the component. The error enums distinguish missing entities or
+components, unsupported object access, invalid values, and stale stamps. This
+contract works without generated consumer code; the component catalog itself
+is produced by the registration generator.
 
 ## Generated iteration forms
 
@@ -223,9 +308,10 @@ world.ForEachEntityParallel(E, Q?, I... | D, C, F, W)
 
 `ForEach` callbacks receive component rows. `ForEachEntity` callbacks receive
 a borrowed `EntityRef` for the current chunk slot as their first argument. It
-exposes the stable handle through `Handle`, plus dynamic `Has`, `TryGet<T>`,
-and `GetRef<T>` access without resolving the handle through the world's entity
-table. This is useful when the component registrations are selected at runtime:
+converts implicitly to the stable `Entity` handle and provides dynamic `Has`,
+`TryGet<T>`, and `GetRef<T>` access without resolving that handle through the
+world's entity table. This is useful when component registrations are selected
+at runtime:
 
 ```csharp
 world.ForEachEntity(in query, static (EntityRef entity) =>
@@ -250,8 +336,23 @@ missing or its registration has another CLR type, and writes to a data
 component update its stamp. A tag has no per-entity value: its `TryGet` result
 is `default(T)`, and writes through `GetRef` are ignored.
 
+`EntityRef` also supports primary-registration forms. Supply a `ComponentId`
+when the entity has multiple registrations of the same CLR type:
+
+```text
+implicit Entity entity = entityRef; entityRef.Index; entityRef.Generation
+entity.Has(I) | entity.Has<T>() | entity.Has<T>(I) -> bool
+entity.TryGet<T>(out T) | entity.TryGet<T>(I, out T) -> bool
+entity.Get<T>() | entity.Get<T>(I) -> T
+entity.GetRef<T>() | entity.GetRef<T>(I) -> ref T
+entity.GetReadRef<T>() | entity.GetReadRef<T>(I) -> ref readonly T
+entity.TryGetComponentStamp<T>(out Stamp) -> bool
+entity.TryGetComponentStamp(I, out Stamp) -> bool
+entity.TryGetComponentStamp<T>(I, out Stamp) -> bool
+```
+
 Use `EntityRef` only while its callback is running and before any structural
-change; store `entity.Handle` when the entity must be retained. The view already
+change; assign it to `Entity` when the handle must be retained. The view already
 contains the current world, chunk, archetype, and slot, so each access skips
 entity-handle resolution. It does not pre-bind component rows from the query.
 Parallel callbacks always use parallel execution; `W` is the caller's
@@ -298,7 +399,7 @@ world.ForEachEntityStampParallel(E, Q?, I... | D, C?, A | F, W)
 ```csharp
 world.ForEachEntityStamp<Health>(
     in query,
-    static (EntityRef entity, in Stamp stamp) => Process(entity.Handle, stamp)).Invoke();
+    static (EntityRef entity, in Stamp stamp) => Process(entity, stamp)).Invoke();
 
 world.ForEachStampParallel<Health>(
     in query,
@@ -309,7 +410,7 @@ world.ForEachEntityStamp(
     entities,
     in query,
     healthId,
-    static (EntityRef entity, in Stamp stamp) => Process(entity.Handle, stamp)).Invoke();
+    static (EntityRef entity, in Stamp stamp) => Process(entity, stamp)).Invoke();
 ```
 
 The zero-component stamp overloads are documentation anchors and throw
@@ -318,43 +419,85 @@ typed component or provide the corresponding `ComponentId` selector.
 
 ## Structural forms
 
-Typed and non-generic structural operations have matching target shapes:
+Direct `World` structural calls execute immediately. Entity targets return
+`bool` to report whether that entity changed; entity-list and query targets
+return the number of changed entities. Generated typed forms accept primary
+registrations or explicit selectors:
 
 ```text
-world.Add<T...>(e | E | Q, I... | D)
-world.Remove<T...>(e | E | Q, I... | D)
-world.Add<T...>(e | E, I..., V...)
-world.Destroy(e | E | Q)
+world.Add<T...>(e | E | Q) -> bool | int
+world.Add<T...>(e | E, I... | D) -> bool | int
+world.Add<T...>(e | E, V...) -> bool | int
+world.Add<T...>(e | E, I... | D, V...) -> bool | int
+world.Remove<T...>(e | E | Q) -> bool | int
+world.Remove<T...>(e | E, I... | D) -> bool | int
+world.Destroy(e) -> bool
+world.Destroy(E | Q) -> int
 
-world.Add(e | E | Q, I... | D)
-world.Remove(e | E | Q, I... | D)
-world.Add(e, V...)
+world.Add(e | E | Q, I... | D) -> bool | int
+world.Remove(e | E | Q, I... | D) -> bool | int
+world.Add(e | E, V...) -> bool | int
 
-world.Create<T...>(N, O?)
-world.Create<T...>(I... | D, N, O?)
+world.Create<T>() -> Entity
+world.Create<T...>(N, O?) -> int
+world.Create<T...>(I... | D) -> Entity
+world.Create<T...>(I... | D, N, O?) -> int
 world.Create<T...>(I... | D, V...) -> Entity
-world.Create(I... | D, N, O?)
+world.Create(I... | D) -> Entity
+world.Create(I... | D, O) -> int
+world.Create(I... | D, N, O?) -> int
 ```
 
-The `I...` forms are positional `ComponentId` arguments; `D` is one explicit
+`I...` forms are positional `ComponentId` arguments; `D` is one explicit
 `ReadOnlySpan<ComponentId>` at the same selector position. `Add` and `Remove`
 accept them after the target; `Create` places them before `N` and `O`.
-For value forms, generic type arguments may be inferred from `V...`. The
-positions of `I...` and `V...` correspond to the component types in `T...`.
-Multi-value `Add` applies the values while performing one combined structural
-transition per eligible entity; `Create` initializes one entity with the
-selected registrations.
+Generic value types may be inferred from `V...`; multi-component value-based
+`Create` and `Add` forms require explicit registrations, and the positions of
+`I...` and `V...` correspond to component types in `T...`. Multi-value `Add`
+applies all values during one combined structural transition per eligible
+entity. The runtime's primary-registration `Create<T>()` is the single-component
+convenience form.
 
-`O` is optional caller-owned output storage. Omitting it creates entities
-without retaining handles. Structural terminals execute synchronously when
-their operation is invoked and cannot run from an active traversal callback.
+`N` is the number of entities to create and `O` is optional caller-owned
+output storage. Without `O`, created handles are not retained. Single-entity
+`Create` returns its `Entity`; count forms return the number created. Direct
+structural calls cannot run from an active traversal callback. A structural
+terminal on a generated `Where` view instead returns a deferred operation that
+runs on `Invoke()`.
+
+## Single-entity typed access
+
+Typed accessors use the primary registration unless an explicit ID is supplied.
+`TryGet`, `Has`, and stamp lookups return `false` when the entity, component, or
+CLR type does not match. `Get` and `GetRef` throw when the requested component
+is unavailable; `GetReadRef` returns a read-only reference.
+
+```text
+world.TryGet<T>(e, out T) -> bool
+world.TryGet<T>(e, I, out T) -> bool
+world.Has(e, I) | world.Has<T>(e) | world.Has<T>(e, I) -> bool
+world.Get<T>(e) | world.Get<T>(e, I) -> T
+world.GetRef<T>(e) | world.GetRef<T>(e, I) -> ref T
+world.GetReadRef<T>(e) | world.GetReadRef<T>(e, I) -> ref readonly T
+world.TryGetComponentStamp<T>(e, out Stamp) -> bool
+world.TryGetComponentStamp<T>(e, I, out Stamp) -> bool
+world.TryGetComponentStamp(e, I, out Stamp) -> bool
+```
+
+`Add<T>(e, in value)` and `Add<T>(E, in value)` initialize the primary
+registration, returning `bool` or a changed-entity count. Typed `Remove<T>`
+also has primary and explicit-ID entity and entity-list forms. Generated
+multi-component forms use the structural grammar above.
 
 ## Query factories
 
 The query builder has three names only. A call returns a new `Query`, so the
-chain can continue from either the world or the previous query:
+chain can continue from either the world or the previous query. A specification
+can also be built separately and passed to `CreateQuery`:
 
 ```text
+world.CreateQuery(in QuerySpec) -> Query
+
 world.WhereAll<T...>() -> Query
 world.WhereAny<T...>() -> Query
 world.WhereNone<T...>() -> Query
@@ -389,16 +532,28 @@ span length to match their generic arity and validate each registration's CLR
 type.
 
 The low-level `QuerySpec.WhereAll`, `WhereAny`, and `WhereNone` factories take
-an explicit `ReadOnlySpan<ComponentId>` for dynamic lists of any length. For
-positional fluent filters, start with `QuerySpec.Empty`; the generator emits
-extension overloads for the `WhereAll`, `WhereAny`, and `WhereNone` arities
-used by calls in the consumer project. There is no fixed positional arity
-limit, and unused overloads are not generated. The generated `World` and
-`Query` query factories likewise provide positional overloads for the call-site
-arities used by the consumer.
+an explicit `ReadOnlySpan<ComponentId>` for dynamic lists of any length; each
+also has a single-ID overload. Runtime composition uses `WithAll`, `WithAny`,
+and `WithNone` with spans. For generated positional fluent filters, start with
+`QuerySpec.Empty`; the generator emits `WhereAll`, `WhereAny`, and `WhereNone`
+extension overloads for the arities used in the consumer project. There is no
+fixed positional arity limit, and unused overloads are not generated. The
+generated `World` and `Query` query factories likewise provide positional
+overloads for call-site arities.
+
+```text
+QuerySpec.Empty.WithAll(D) -> QuerySpec
+QuerySpec.Empty.WithAny(D) -> QuerySpec
+QuerySpec.Empty.WithNone(D) -> QuerySpec
+```
 
 ```csharp
-QuerySpec spec = QuerySpec.Empty
+QuerySpec runtimeSpec = QuerySpec.Empty
+    .WithAll(stackalloc ComponentId[] { positionId, velocityId })
+    .WithNone(stackalloc ComponentId[] { deadId });
+Query runtimeQuery = world.CreateQuery(in runtimeSpec);
+
+QuerySpec generatedSpec = QuerySpec.Empty
     .WhereAll(positionId, velocityId)
     .WhereNone(deadId, escapedId);
 ```
@@ -639,7 +794,7 @@ OrderedQuery ordered = candidates
 
 ordered.ForEachEntity(static (EntityRef entity, in Priority priority, in SyncId syncId) =>
 {
-    ProcessInOrder(entity.Handle, priority, syncId);
+    ProcessInOrder(entity, priority, syncId);
 }).Invoke();
 
 Entity first = ordered.First().Invoke();
@@ -796,12 +951,21 @@ OrderedWhereView.ForEach(...) -> EcsOperation<TInvoker>; Invoke() executes
 OrderedWhereView.ForEachEntity(...) -> EcsOperation<TInvoker>; Invoke() executes
 ```
 
-Void-returning deferred operations are mutable value types and implement
-`IOperation` plus a state-specific `IOperation<T...>` interface when the form
-accepts caller-owned context or functor state. Invoke the concrete value
-directly to avoid boxing. Store heterogeneous operations as `IOperation` (or a
-state-specific interface) to box once, or pass the concrete operation to a
-generic method constrained by the matching operation interface.
+Void-returning deferred operations are mutable value types. Their concrete
+executor type is inferred by the compiler:
+
+```text
+EcsOperation<TInvoker> : IOperation
+EcsOperation<TState, TInvoker> : IOperation<TState>
+EcsOperation<TContext, TFunctor, TInvoker> : IOperation<TContext, TFunctor>
+EcsResultOperation<TResult>.Invoke() -> TResult
+```
+
+Stateful operations expose `Invoke` overloads for operation-owned state,
+caller-owned state, or both. Invoke the concrete value directly to avoid
+boxing. Store heterogeneous operations as `IOperation` (or a state-specific
+interface) to box once, or pass the concrete operation to a generic method
+constrained by the matching operation interface.
 
 The ordering selectors and comparer can be omitted when the generated primary
 registration and callback inference are sufficient. `P` is an optional

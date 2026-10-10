@@ -11,6 +11,12 @@ public struct Dead { }
 public struct Alive { }
 public struct NeedsRespawn { public int Value; }
 
+[DeltaEcsComponent(SchemaId = 920_008UL)]
+public struct CatalogComponent { public int Value; }
+
+[DeltaEcsComponent(SchemaId = 920_009UL)]
+public struct CatalogTag { }
+
 public struct Context
 {
     public int Value;

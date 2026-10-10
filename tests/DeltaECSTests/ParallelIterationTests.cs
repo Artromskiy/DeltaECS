@@ -103,6 +103,10 @@ internal sealed class ParallelIterationTests
         world.ForEachEntityParallel(in query, entityAction, workerCount: 4).Invoke();
         world.ForEachEntityParallel(in query, in state, readOnlyEntityAction, workerCount: 4).Invoke();
         world.ForEachEntityParallel(in query, state, valueEntityAction, workerCount: 4).Invoke();
+        world.ForEachEntityParallel(
+            in query,
+            entity => entity.GetRef<Position>(positionId).X++,
+            workerCount: 4).Invoke();
 
         int[] entityListVisits = [0];
         ReadOnlySpan<Entity> selected = entities.AsSpan(0, entities.Length / 2);
@@ -126,6 +130,11 @@ internal sealed class ParallelIterationTests
             Assert.That(valueContextVisits, Is.EqualTo(entities.Length));
             Assert.That(entityListVisits[0], Is.EqualTo(selectedCount * 2));
         });
+
+        foreach (Entity entity in entities)
+        {
+            Assert.That(world.Get<Position>(entity, positionId).X, Is.EqualTo(1));
+        }
     }
 
     [Test]

@@ -14,6 +14,10 @@ public static partial class RuntimeApiGrammarProof
         Require(world.IsAlive(one));
         Require(world.Has(one, positionId));
         Require(world.TryGetComponentStamp(one, positionId, out _));
+        Entity spanCreated = world.Create(stackalloc ComponentId[] { positionId, velocityId });
+        Require(world.IsAlive(spanCreated));
+        Require(world.Has(spanCreated, positionId));
+        Require(world.Has(spanCreated, velocityId));
 
         Span<Entity> output = stackalloc Entity[2];
         Require(world.Create(stackalloc ComponentId[] { positionId }, output) == 2);

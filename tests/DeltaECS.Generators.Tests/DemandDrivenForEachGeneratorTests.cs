@@ -398,8 +398,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         AssertNoDiagnostics(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN003"));
         Assert.That(generated, Does.Contain("ref global::Delta.ECS.SimpleFunctor functor"));
         Assert.That(generated, Does.Contain("GetGeneratedArray<global::Delta.ECS.T1>(access0)"));
-        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.CreateEntityRef(world)"));
-        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.SetEntity(ref entity, currentEntity)"));
+        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.CreateEntityRef(world, ref entityRefView)"));
+        Assert.That(generated, Does.Contain("slots.SetEntityRefSlot(ref entityRefView, slots.GetGeneratedSlotIndex(index))"));
+        Assert.That(generated, Does.Not.Contain("GeneratedForEachRuntime.SetEntity(ref"));
         Assert.That(generated, Does.Not.Contain("slots.GetEntityRef(index)"));
         Assert.That(generated, Does.Not.Contain("IForEachEntity_W"));
     }
@@ -1985,6 +1986,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
         using System;
         public readonly struct Entity { public int Index { get; } }
+        public struct GeneratedEntityRefView { }
         public ref struct EntityRef { public int Index { get; } }
         public readonly struct ComponentId { }
         public readonly struct Stamp { }
@@ -2068,10 +2070,14 @@ public sealed class DemandDrivenForEachGeneratorTests
             public bool HasTagFilters => false;
             public bool TryGetTagSlots(out ReadOnlySpan<int> slots) { slots = default; return false; }
             public Entity EntityAt(int index) => default;
-            public EntityRef GetEntityRef(int index) => default;
-            public EntityRef GetEntityRefAtSlot(int slotIndex) => default;
-            public EntityRef CreateEntityRef() => default;
+            public EntityRef GetEntityRef(ref GeneratedEntityRefView view, int index) => default;
+            public EntityRef GetEntityRefAtSlot(ref GeneratedEntityRefView view, int slotIndex) => default;
+            public EntityRef CreateEntityRef(ref GeneratedEntityRefView view) => default;
+            public void BindEntityRef(ref GeneratedEntityRefView view, int slotIndex) { }
+            public void BindEntityRef(ref GeneratedEntityRefView view) { }
+            public void SetEntityRefSlot(ref GeneratedEntityRefView view, int slotIndex) { }
             public int GetGeneratedRowOffset(int index) => index;
+            public int GetGeneratedSlotIndex(int index) => index;
             public ref Entity GetGeneratedEntityReference() => throw new NotImplementedException();
             public T[] GetGeneratedArray<T>(int queryComponentIndex) => Array.Empty<T>();
             public T[] GetGeneratedArray<T>(ReadAccess access) => Array.Empty<T>();
@@ -2087,9 +2093,13 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
             public int Count => 0;
             public Entity EntityAt(int index) => default;
-            public EntityRef GetEntityRef(int index) => default;
-            public EntityRef GetEntityRefAtSlot(int slotIndex) => default;
+            public EntityRef GetEntityRef(ref GeneratedEntityRefView view, int index) => default;
+            public EntityRef GetEntityRefAtSlot(ref GeneratedEntityRefView view, int slotIndex) => default;
+            public void BindEntityRef(ref GeneratedEntityRefView view, int slotIndex) { }
+            public void BindEntityRef(ref GeneratedEntityRefView view) { }
+            public void SetEntityRefSlot(ref GeneratedEntityRefView view, int slotIndex) { }
             public int GetGeneratedRowOffset(int index) => index;
+            public int GetGeneratedSlotIndex(int index) => index;
             public ref readonly Entity GetGeneratedEntityReference() => throw new NotImplementedException();
             public ref T GetGeneratedReadReference<T>(int queryComponentIndex) => throw new NotImplementedException();
             public ref T GetGeneratedReadReference<T>(ReadAccess access) => throw new NotImplementedException();
@@ -2161,8 +2171,7 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static ref Entity GetGeneratedEntityReference(ref GeneratedQuerySlots slots) => ref slots.GetGeneratedEntityReference();
             public static ref Entity GetGeneratedEntityReference(ref GeneratedReadQuerySlots slots) => throw new NotImplementedException();
             public static ref int GetGeneratedTagSlotReference(ReadOnlySpan<int> slots) => throw new NotImplementedException();
-            public static EntityRef CreateEntityRef(World world) => default;
-            public static void SetEntity(ref EntityRef entityRef, Entity entity) { }
+            public static EntityRef CreateEntityRef(World world, ref GeneratedEntityRefView view) => default;
             public static GeneratedBoundExecution<TRows> OpenBoundDense<TBinding, TRows>(World world, in Query query)
                 where TBinding : GeneratedDenseBinding<TRows>, new() where TRows : struct => default;
             public static GeneratedBoundExecution<TRows> OpenBoundDenseRead<TBinding, TRows>(World world, in Query query)

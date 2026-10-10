@@ -3,7 +3,7 @@ namespace Delta.ECS;
 using System.Runtime.CompilerServices;
 
 /// <summary>Trusted native storage owned and disposed by its containing ECS object.</summary>
-internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
+internal struct NativeMemory<T> : IDisposable where T : unmanaged
 {
     private nint _address;
     private int _length;
@@ -25,12 +25,12 @@ internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
     internal int Length => _length;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ref T RefAt(int index) => ref Unsafe.Add(ref *(T*)_address, index);
+    internal ref T RefAt(int index) => ref ArrayAccess.RefAt<T>(_address, index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ref T GetRefAtZero() => ref *(T*)_address;
+    internal ref T GetRefAtZero() => ref ArrayAccess.GetRefAtZero<T>(_address);
 
-    internal Span<T> Span => new((void*)_address, _length);
+    internal Span<T> Span => ArrayAccess.AsSpan<T>(_address, _length);
 
     internal ReadOnlySpan<T> ReadOnlySpan => Span;
 
@@ -46,7 +46,7 @@ internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
         int copied = Math.Min(_length, length);
         if (copied != 0)
         {
-            Span[..copied].CopyTo(new Span<T>((void*)replacement, length));
+            Span[..copied].CopyTo(ArrayAccess.AsSpan<T>(replacement, length));
         }
 
         ReleaseBuffer();
@@ -58,7 +58,7 @@ internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
     {
         if (_length != 0)
         {
-            NativeMemoryCompat.Clear((void*)_address, ByteLength(_length));
+            NativeMemoryCompat.Clear(_address, ByteLength(_length));
         }
     }
 
@@ -83,7 +83,7 @@ internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
 
         nuint bytes = ByteLength(length);
         nint address = NativeMemoryCompat.Alloc(bytes);
-        NativeMemoryCompat.Clear((void*)address, bytes);
+        NativeMemoryCompat.Clear(address, bytes);
         return address;
     }
 
@@ -91,7 +91,7 @@ internal unsafe struct NativeMemory<T> : IDisposable where T : unmanaged
 
     private void ReleaseBuffer()
     {
-        NativeMemoryCompat.Free((void*)_address);
+        NativeMemoryCompat.Free(_address);
         _address = 0;
     }
 }

@@ -599,6 +599,13 @@ internal static class GeneratedWhereTemplates
                         """);
         }
 
+        if (terminal.HasEntity && !terminal.IsGeneratedEntityConsumer)
+        {
+            executeLines.Add("GeneratedEntityRefView entityRefView = default;");
+            executeLines.Add("EntityRef entityRef = slots.CreateEntityRef(ref entityRefView);");
+            executeLines.Add("slots.BindEntityRef(ref entityRefView);");
+        }
+
         var loopLines = new List<string>();
         string componentRows = RenderSlotLocals(shape.ComponentModels, shape.IsFunctor ? shape.Components : null, "            ", elements: true);
         if (componentRows.Length != 0)
@@ -610,10 +617,6 @@ internal static class GeneratedWhereTemplates
         if (needsEntity)
         {
             loopLines.Add("            Entity entity = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index);");
-        }
-        if (terminal.HasEntity && !terminal.IsGeneratedEntityConsumer)
-        {
-            loopLines.Add("            EntityRef entityRef = slots.GetEntityRefAtSlot(index);");
         }
         string predicateInvocation = RenderPredicateInvocation(shape);
         if (terminal.IsCallback)
@@ -682,21 +685,30 @@ internal static class GeneratedWhereTemplates
         }
         if (terminal.IsCallback)
         {
-            string tagLoopBody = GeneratorTemplates.JoinNonEmpty(new[]
+            var tagLoopLines = new List<string> { "int index = tagSlots[tagIndex];" };
+            if (terminal.HasEntity && !terminal.IsGeneratedEntityConsumer)
             {
-                "int index = tagSlots[tagIndex];",
-                string.Join("\n", loopLines)
-            });
+                tagLoopLines.Add("slots.SetEntityRefSlot(ref entityRefView, index);");
+            }
+
+            tagLoopLines.AddRange(loopLines);
+            var denseLoopLines = new List<string>();
+            if (terminal.HasEntity && !terminal.IsGeneratedEntityConsumer)
+            {
+                denseLoopLines.Add("slots.SetEntityRefSlot(ref entityRefView, slots.GetGeneratedSlotIndex(index));");
+            }
+
+            denseLoopLines.AddRange(loopLines);
             executeLines.Add(GeneratorTemplates.RenderBlock(
                 "if (slots.TryGetTagSlots(out var tagSlots))",
                 GeneratorTemplates.RenderBlock(
                     "for (int tagIndex = 0; tagIndex < tagSlots.Length; tagIndex++)",
-                    tagLoopBody)));
+                    string.Join("\n", tagLoopLines))));
             executeLines.Add(GeneratorTemplates.RenderBlock(
                 "else",
                 GeneratorTemplates.RenderBlock(
                     "for (int index = 0; index < count; index++)",
-                    string.Join("\n", loopLines))));
+                    string.Join("\n", denseLoopLines))));
         }
         else
         {

@@ -148,12 +148,14 @@ internal sealed class FunctorForEachTests
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId healthId = layouts.Register<Health>(new SchemaId(60_087));
+        ComponentId tagId = layouts.Register<WhereEntityTag>(new SchemaId(60_089));
         using var world = new World(layouts);
         Entity dead = world.Create([healthId]);
         Entity alive = world.Create([healthId]);
         world.GetRef<Health>(dead, healthId).Value = -1;
         world.GetRef<Health>(alive, healthId).Value = 10;
-        Query query = world.CreateQuery(QuerySpec.WhereAll(healthId));
+        world.Add(dead, tagId);
+        Query query = world.CreateQuery(QuerySpec.WhereAll(healthId).WithAny(stackalloc[] { tagId }));
         var functor = new ZeroArityWhereEntityFunctor();
         s_zeroArityWhereVisits = 0;
 
@@ -357,10 +359,18 @@ internal sealed class FunctorForEachTests
     {
         public int Count;
 
-        public void Invoke(EntityRef _) => Count++;
+        public void Invoke(EntityRef entity)
+        {
+            Assert.That(entity.Get<Health>().Value, Is.EqualTo(-1));
+            Count++;
+        }
     }
 
-    private static void CountZeroArityWhereEntity(EntityRef _) => s_zeroArityWhereVisits++;
+    private static void CountZeroArityWhereEntity(EntityRef entity)
+    {
+        Assert.That(entity.Get<Health>().Value, Is.EqualTo(-1));
+        s_zeroArityWhereVisits++;
+    }
 
     internal struct WherePredicateState
     {
@@ -437,4 +447,6 @@ internal sealed class FunctorForEachTests
             health.Value++;
         }
     }
+
+    private readonly struct WhereEntityTag;
 }

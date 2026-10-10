@@ -42,7 +42,14 @@ internal static class GeneratedIterationGrammarProof
         // Query-wide entity-aware callbacks.
         world.ForEachEntity(in query, static (EntityRef entity, in Cmp1 cmp1) => _ = entity.Index + cmp1.Value).Invoke();
         world.ForEachEntity<Cmp1>(in query, cmp1Id,
-            static (EntityRef entity, ref Cmp1 cmp1) => cmp1.Value += entity.Index).Invoke();
+            static (EntityRef entity, ref Cmp1 cmp1) =>
+            {
+                if (entity.Has<Cmp1>() && entity.TryGet<Cmp1>(out Cmp1 value))
+                {
+                    ref readonly Cmp1 readOnly = ref entity.GetReadRef<Cmp1>();
+                    cmp1.Value += entity.Get<Cmp1>().Value + readOnly.Value + value.Value + entity.Index;
+                }
+            }).Invoke();
         world.ForEachEntity<Cmp1, Cmp2>(in query, componentIds,
             static (EntityRef entity, in Cmp1 cmp1, ref Cmp2 cmp2) => cmp2.Value += entity.Index + cmp1.Value).Invoke();
         world.ForEachEntity<Context, Cmp1>(in query, ref context,

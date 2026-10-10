@@ -530,7 +530,7 @@ public sealed class SystemSchedulerTests
             _operation.Invoke();
         }
 
-        private void OnEntity(EntityRef entity) => _ = World.IsAlive(entity.Handle);
+        private void OnEntity(EntityRef entity) => _ = World.IsAlive(entity);
     }
 
     private readonly struct GeneratedSetKey

@@ -644,12 +644,11 @@ public static partial class GeneratedForEachRuntime
     /// <summary>Creates a reusable entity view for a generated entity iteration.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static EntityRef CreateEntityRef(World world) => new(world);
-
-    /// <summary>Updates the current entity in a generated entity iteration view.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void SetEntity(ref EntityRef entityRef, Entity entity) => entityRef._entity = entity;
+    public static EntityRef CreateEntityRef(World world, ref GeneratedEntityRefView view)
+    {
+        view.SetWorld(world);
+        return new EntityRef(MemoryMarshal.CreateSpan(ref view, 1));
+    }
 
     /// <summary>Executes one generated multi-component value add without an intermediate transition.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]

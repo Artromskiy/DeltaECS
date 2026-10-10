@@ -20,7 +20,8 @@ internal sealed class EntityRefTests
 
         world.ForEachEntity(in query, current =>
         {
-            Assert.That(current.Handle, Is.EqualTo(entity));
+            Entity currentEntity = current;
+            Assert.That(currentEntity, Is.EqualTo(entity));
             Assert.That(current.Has<Position>(), Is.True);
             Assert.That(current.Has<Position>(positionId), Is.True);
             Assert.That(current.Has<Velocity>(), Is.False);
@@ -169,6 +170,44 @@ internal sealed class EntityRefTests
         int emptyVisits = 0;
         world.ForEachEntity(in empty, _ => emptyVisits++).Invoke();
         Assert.That(emptyVisits, Is.Zero);
+    }
+
+    [Test]
+    public void ComponentEntityIterationUsesTheBoundEntityRefViewForTaggedSlots()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(40_079));
+        ComponentId tagId = layouts.Register<FirstTag>(new SchemaId(40_080));
+        using var world = new World(layouts);
+        var entities = new Entity[8];
+        world.Create(stackalloc[] { positionId }, entities);
+        for (int index = 0; index < entities.Length; index++)
+        {
+            world.GetRef<Position>(entities[index], positionId).X = index;
+            if ((index & 1) == 0)
+            {
+                world.Add(entities[index], tagId);
+            }
+        }
+
+        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId).WithAny(stackalloc[] { tagId }));
+        int visits = 0;
+        world.ForEachEntity(in query, (EntityRef entity, ref Position position) =>
+        {
+            Assert.That(entity.Has<FirstTag>(tagId), Is.True);
+            Assert.That(entity.TryGet(out Position value), Is.True);
+            Assert.That(value.X, Is.EqualTo(position.X));
+            ref readonly Position readOnly = ref entity.GetReadRef<Position>(positionId);
+            Assert.That(readOnly.X, Is.EqualTo(position.X));
+            entity.GetRef<Position>(positionId).X++;
+            visits++;
+        }).Invoke();
+
+        Assert.That(visits, Is.EqualTo(entities.Length / 2));
+        for (int index = 0; index < entities.Length; index++)
+        {
+            Assert.That(world.Get<Position>(entities[index], positionId).X, Is.EqualTo(index + ((index & 1) == 0 ? 1 : 0)));
+        }
     }
 
     [Test]
@@ -429,7 +468,7 @@ internal sealed class EntityRefTests
 
     internal static void InspectEntity(ref ProbeState state, scoped EntityRef entity)
     {
-        Entity handle = entity.Handle;
+        Entity handle = entity;
         Entity convertedHandle = entity;
         Assert.That(handle, Is.EqualTo(state.Entities[handle.Index]));
         Assert.That(convertedHandle, Is.EqualTo(handle));
@@ -552,7 +591,7 @@ internal sealed class EntityRefTests
         ulong before = state.Before[entity.Index].Value;
         entity.GetRef<Position>(state.ComponentId).X++;
         state.StampsWereVisible &= state.World.TryGetComponentStamp(
-                entity.Handle,
+                entity,
                 state.ComponentId,
                 out Stamp pending)
             && pending.Value == before + 1;
@@ -569,7 +608,7 @@ internal sealed class EntityRefTests
         entity.GetRef<Position>(state.ComponentId).X++;
         entity.GetRef<Position>(state.ComponentId).X++;
         state.StampsWereVisible &= state.World.TryGetComponentStamp(
-                entity.Handle,
+                entity,
                 state.ComponentId,
                 out Stamp pending)
             && pending.Value == before + 2;
@@ -585,7 +624,7 @@ internal sealed class EntityRefTests
         ulong before = state.Before[entity.Index].Value;
         entity.GetRef<Position>(state.ComponentId).X++;
         state.StampsWereVisible &= state.World.TryGetComponentStamp(
-                entity.Handle,
+                entity,
                 state.ComponentId,
                 out Stamp pending)
             && pending.Value == before + 1;

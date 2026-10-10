@@ -15,6 +15,9 @@ internal static class GeneratedStructuralGrammarProof
         ReadOnlySpan<ComponentId> componentIds)
     {
         // Create: count/output, typed/ID/span selectors, and initial values.
+        _ = world.Create<Cmp1, Cmp2>(componentIds);
+        _ = world.Create(cmp1Id, cmp2Id);
+        _ = world.Create(componentIds);
         _ = world.Create<Cmp1, Cmp2>(2);
         Span<Entity> output = stackalloc Entity[2];
         _ = world.Create<Cmp1, Cmp2>(2, output);

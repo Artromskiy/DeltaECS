@@ -14,9 +14,16 @@ public static partial class RuntimeApiGrammarProof
 
         RuntimeComponentCatalog catalog = integration.Catalog;
         Require(catalog.Components.Span.Length == 2);
+        Require(catalog.Stamp.Value > 0);
         Require(catalog.Components.Span[0].Id == positionId);
         Require(catalog.Components.Span[1].Id == markerId);
         Require(catalog.Components.Span[1].IsTag);
+        ComponentDescriptor position = catalog.Components.Span[0];
+        Require(position.Schema == new SchemaId(935_001));
+        Require(position.Name == typeof(Position).FullName);
+        Require(position.ValueType == typeof(Position));
+        Require(position.Capabilities == (ComponentCapabilities.Read | ComponentCapabilities.Write));
+        Require(!position.AllowsNull && !position.IsTag);
 
         integration.Initialize();
         integration.Update();

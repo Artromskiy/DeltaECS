@@ -72,17 +72,14 @@ internal sealed class ComponentSet
 
     internal static int ComputeHash(ReadOnlySpan<ComponentId> componentIds)
     {
-        unchecked
+        uint hash = FnvOffsetBasis;
+        hash = (hash ^ (uint)componentIds.Length) * FnvPrime;
+        for (int index = 0; index < componentIds.Length; index++)
         {
-            uint hash = FnvOffsetBasis;
-            hash = (hash ^ (uint)componentIds.Length) * FnvPrime;
-            for (int index = 0; index < componentIds.Length; index++)
-            {
-                hash = (hash ^ (uint)componentIds[index].Value) * FnvPrime;
-            }
-
-            return (int)hash;
+            hash = (hash ^ (uint)componentIds[index].Value) * FnvPrime;
         }
+
+        return (int)hash;
     }
 }
 

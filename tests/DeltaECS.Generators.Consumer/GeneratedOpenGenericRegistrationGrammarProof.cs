@@ -9,6 +9,7 @@ internal static class GeneratedOpenGenericRegistrationGrammarProof
     {
         VerifyGenericListRegistration();
         VerifyUnaryGenericRegistration();
+        VerifyMultiArgumentGenericRegistration();
         VerifyStandardConstraints();
     }
 
@@ -44,6 +45,25 @@ internal static class GeneratedOpenGenericRegistrationGrammarProof
         world.ForEach(in query, valueId, typeof(UnaryHistoryWriter<>)).Invoke();
 
         Require(world.Get<UnaryHistory<int>>(entity, historyId).Value == 1);
+    }
+
+    private static void VerifyMultiArgumentGenericRegistration()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId firstId = layouts.Register<Cmp1>(new SchemaId(921_012));
+        ComponentId secondId = layouts.Register<Cmp2>(new SchemaId(921_013));
+
+        ComponentId positionalId = layouts.Register(
+            typeof(GenericPair<,>),
+            firstId,
+            secondId,
+            new SchemaId(921_014));
+        ReadOnlySpan<ComponentId> arguments = stackalloc ComponentId[] { firstId, secondId };
+        ComponentId spanId = layouts.Register(typeof(GenericPair<,>), arguments, new SchemaId(921_014));
+
+        Require(spanId == positionalId);
+        Require(layouts.GetComponentType(positionalId) == typeof(GenericPair<Cmp1, Cmp2>));
+        Require(layouts.GetComponentType(spanId) == typeof(GenericPair<Cmp1, Cmp2>));
     }
 
     private static void VerifyStandardConstraints()
@@ -117,6 +137,13 @@ internal static class GeneratedOpenGenericRegistrationGrammarProof
     }
 
 }
+
+internal struct GenericPair<TFirst, TSecond>
+{
+    internal TFirst First;
+    internal TSecond Second;
+}
+
 internal interface IGenericListAction
 {
     void Register<T>() where T : struct;

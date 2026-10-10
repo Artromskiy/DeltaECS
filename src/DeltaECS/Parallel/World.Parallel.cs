@@ -19,9 +19,13 @@ public sealed partial class World
         public void Invoke(ref GeneratedQuerySlots slots)
         {
             int count = slots.Count;
+            GeneratedEntityRefView view = default;
+            EntityRef entityRef = slots.CreateEntityRef(ref view);
+            slots.BindEntityRef(ref view);
             for (int index = 0; index < count; index++)
             {
-                _action(slots.GetEntityRef(index));
+                slots.SetEntityRefSlot(ref view, slots.GetGeneratedSlotIndex(index));
+                _action(entityRef);
             }
         }
     }
@@ -42,9 +46,13 @@ public sealed partial class World
         public void Invoke(ref GeneratedQuerySlots slots)
         {
             int count = slots.Count;
+            GeneratedEntityRefView view = default;
+            EntityRef entityRef = slots.CreateEntityRef(ref view);
+            slots.BindEntityRef(ref view);
             for (int index = 0; index < count; index++)
             {
-                _action(in _context, slots.GetEntityRef(index));
+                slots.SetEntityRefSlot(ref view, slots.GetGeneratedSlotIndex(index));
+                _action(in _context, entityRef);
             }
         }
     }
@@ -65,9 +73,13 @@ public sealed partial class World
         public void Invoke(ref GeneratedQuerySlots slots)
         {
             int count = slots.Count;
+            GeneratedEntityRefView view = default;
+            EntityRef entityRef = slots.CreateEntityRef(ref view);
+            slots.BindEntityRef(ref view);
             for (int index = 0; index < count; index++)
             {
-                _action(_context, slots.GetEntityRef(index));
+                slots.SetEntityRefSlot(ref view, slots.GetGeneratedSlotIndex(index));
+                _action(_context, entityRef);
             }
         }
     }
@@ -173,7 +185,7 @@ public sealed partial class World
     /// without requesting component rows. Generated forms may also include
     /// component rows, explicit <c>ComponentId</c> selectors, context, or an
     /// explicit entity-span target. For example:
-    /// <c>world.ForEachEntityParallel(in query, static entity =&gt; Log(entity.Handle), workerCount: 4).Invoke()</c>.
+    /// <c>world.ForEachEntityParallel(in query, static entity =&gt; Log(entity), workerCount: 4).Invoke()</c>.
     /// </summary>
     public EcsOperation<EntityParallelOperation> ForEachEntityParallel(in Query query, ForEachEntityAction action, int workerCount = 0)
         => new(new EntityParallelOperation(this, query, action, workerCount));
@@ -219,7 +231,7 @@ public sealed partial class World
     /// Iterates every entity selected by <paramref name="query"/> in parallel
     /// with read-only caller context and without requesting component rows.
     /// For example: <c>world.ForEachEntityParallel(in query, in state,
-    /// static (in State value, EntityRef entity) =&gt; Log(value, entity.Handle), workerCount: 4)</c>.
+    /// static (in State value, EntityRef entity) =&gt; Log(value, entity), workerCount: 4)</c>.
     /// </summary>
     public EcsOperation<EntityParallelInContextOperation<TContext>> ForEachEntityParallel<TContext>(
         in Query query,
@@ -232,7 +244,7 @@ public sealed partial class World
     /// Iterates every entity selected by <paramref name="query"/> in parallel
     /// with value context and without requesting component rows. For example:
     /// <c>world.ForEachEntityParallel(in query, state,
-    /// static (State value, EntityRef entity) =&gt; Log(value, entity.Handle), workerCount: 4)</c>.
+    /// static (State value, EntityRef entity) =&gt; Log(value, entity), workerCount: 4)</c>.
     /// </summary>
     public EcsOperation<EntityParallelValueContextOperation<TContext>> ForEachEntityParallel<TContext>(
         in Query query,
