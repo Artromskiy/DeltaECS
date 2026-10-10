@@ -1,6 +1,6 @@
 {
   "name": "com.artromskiy.deltaecs.unity",
-  "version": "0.0.46",
+  "version": "0.0.47",
   "displayName": "DeltaECS Unity",
   "description": "Unity scene authoring and editor integration for DeltaECS.",
   "unity": "6000.7",
