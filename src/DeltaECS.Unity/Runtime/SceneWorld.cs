@@ -32,6 +32,7 @@ namespace Delta.ECS.Unity
         public World World => _world;
         internal IEcsWorld Integration => _integration;
         internal SceneData SceneData => _sceneData;
+        internal Scene UnityScene => _authoring != null ? _authoring.gameObject.scene : default;
         internal bool IsBound => !_disposed;
 
         /// <summary>Returns the integration-owned runtime context for a loaded Unity scene.</summary>
