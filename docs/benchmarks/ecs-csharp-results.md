@@ -1,6 +1,8 @@
-# Ecs.CSharp.Benchmark results
+# Historical Ecs.CSharp.Benchmark results
 
-This page contains the complete result tables from the vendored [`Ecs.CSharp.Benchmark`](ecs-csharp-benchmark.md) fork. It covers all seven upstream scenario groups and every implementation included in the run (154 benchmarks).
+> Historical snapshot from 2026-09-09. These tables describe package version 0.0.14 and are not current performance results. See the [latest GitHub Actions runs and summaries](https://github.com/Artromskiy/DeltaECS/actions/workflows/ecs-csharp-benchmark.yml) for current measurements.
+
+This page preserves the complete result tables from the vendored [`Ecs.CSharp.Benchmark`](ecs-csharp-benchmark.md) fork. It covers all seven upstream scenario groups and every implementation included in the run (154 benchmarks).
 
 **Run:** 2026-09-09, package version 0.0.14, 100,000 entities, zero padding, one launch. `DeltaECSParallel` uses four workers; the other methods use the implementation and execution mode in their method name.
 

@@ -2,7 +2,9 @@
 
 The [project README](../README.md) is the public entry point. This page is a
 navigation index; detailed contracts, implementation notes and historical
-performance evidence stay in their dedicated documents.
+performance evidence stay in their dedicated documents. Current comparative
+benchmark summaries are published by the
+[GitHub Actions workflow](https://github.com/Artromskiy/DeltaECS/actions/workflows/ecs-csharp-benchmark.yml).
 
 The canonical generated API grammar and argument order are in
 [API grammar](API-GRAMMAR.md). Update that contract together with generator
@@ -29,7 +31,7 @@ or public API changes.
 - [Performance index](performance/README.md)
 - [Benchmark guide](benchmarks/README.md)
 - [C# benchmark details](benchmarks/ecs-csharp-benchmark.md)
-- [C# benchmark results](benchmarks/ecs-csharp-results.md)
+- [Historical C# benchmark results (2026-09-09)](benchmarks/ecs-csharp-results.md)
 - [GitHub benchmark workflow](github-benchmarks.md)
 
 Historical JIT and BenchmarkDotNet documents are evidence for past decisions,

@@ -96,10 +96,12 @@ The query excludes paused and defeated enemies, filters to the damage zone, then
 
 ## Fast, and measured
 
-DeltaECS is designed for very fast dense iteration. We publish comparative results across different component counts, entity compositions and execution modes; performance depends on the workload and hardware, so check the scenario closest to yours.
+DeltaECS is benchmarked against other C# ECS libraries across different
+component counts, entity compositions and execution modes. Performance depends
+on the workload and hardware, so compare the scenario closest to yours.
 
-- [Full benchmark results and methodology](docs/benchmarks/ecs-csharp-results.md)
-- Benchmark runs and summaries on GitHub Actions
+- [Latest benchmark runs and result summaries](https://github.com/Artromskiy/DeltaECS/actions/workflows/ecs-csharp-benchmark.yml)
+- [Benchmark setup and reproduction](docs/github-benchmarks.md)
 
 ## Unity
 

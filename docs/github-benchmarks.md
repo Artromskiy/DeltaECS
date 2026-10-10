@@ -1,9 +1,11 @@
 # Ecs.CSharp.Benchmark on GitHub
 
-Run the benchmark manually from **Actions → Ecs.CSharp.Benchmark → Run
-workflow**. The workflow builds the Release benchmark project, executes each
-entity count in a separate BenchmarkDotNet run, and adds the standard GitHub
-Markdown result tables to the workflow summary.
+Open the [Ecs.CSharp.Benchmark workflow](https://github.com/Artromskiy/DeltaECS/actions/workflows/ecs-csharp-benchmark.yml)
+to see recent runs and summaries, or run it manually from **Actions →
+Ecs.CSharp.Benchmark → Run workflow**. The workflow builds the Release
+benchmark project, executes each entity count in a separate BenchmarkDotNet
+run, and adds the standard GitHub Markdown result tables to the workflow
+summary.
 
 Default parameters:
 
