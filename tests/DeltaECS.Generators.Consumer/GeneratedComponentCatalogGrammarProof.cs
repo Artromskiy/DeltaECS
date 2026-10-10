@@ -8,9 +8,24 @@ internal static class GeneratedComponentCatalogGrammarProof
     internal static void Run()
     {
         IGeneratedComponentRegistration[] registrations = GeneratedComponentCatalog.GetRegistrations();
-        if (registrations.Length != 2)
+        int componentRegistrationCount = 0;
+        int tagRegistrationCount = 0;
+        foreach (IGeneratedComponentRegistration registration in registrations)
         {
-            throw new InvalidOperationException("The generated component catalog returned an unexpected registration count.");
+            if (registration.ComponentType == typeof(CatalogComponent))
+            {
+                componentRegistrationCount++;
+            }
+
+            if (registration.ComponentType == typeof(CatalogTag))
+            {
+                tagRegistrationCount++;
+            }
+        }
+
+        if (componentRegistrationCount != 1 || tagRegistrationCount != 1)
+        {
+            throw new InvalidOperationException("The generated component catalog did not return exactly one registration for each fixture type.");
         }
 
         IGeneratedComponentRegistration componentRegistration = GeneratedComponentCatalog.GetRegistration<CatalogComponent>();
@@ -22,10 +37,8 @@ internal static class GeneratedComponentCatalogGrammarProof
         }
 
         var layouts = new ComponentLayoutRegistry();
-        foreach (IGeneratedComponentRegistration registration in registrations)
-        {
-            layouts.Register(registration);
-        }
+        layouts.Register(componentRegistration);
+        layouts.Register(tagRegistration);
 
         ComponentId componentId = layouts.GetPrimary<CatalogComponent>();
         ComponentId tagId = layouts.GetPrimary<CatalogTag>();
