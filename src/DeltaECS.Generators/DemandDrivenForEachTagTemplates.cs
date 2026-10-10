@@ -13,15 +13,23 @@ internal static partial class DemandDrivenForEachTemplates
         var lines = new List<string>
         {
             "if (slots.HasTagFilters && slots.TryGetTagSlots(out var tagSlots))",
-            "{",
-            "    for (int tagIndex = 0; tagIndex < tagSlots.Length; tagIndex++)",
-            "    {",
-            "        int slotIndex = tagSlots[tagIndex];"
+            "{"
         };
 
         if (shape.HasEntity)
         {
-            lines.Add("        EntityRef taggedEntity = slots.GetEntityRefAtSlot(slotIndex);");
+            lines.Add("    int tagCount = tagSlots.Length;");
+            lines.Add("    ref int tagSlot = ref GeneratedForEachRuntime.GetGeneratedTagSlotReference(tagSlots);");
+            lines.Add("    for (int tagIndex = 0; tagIndex < tagCount; tagIndex++)");
+            lines.Add("    {");
+            lines.Add("        int slotIndex = tagSlot;");
+            lines.Add("        GeneratedForEachRuntime.SetEntity(ref entity, global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntityReference, tagSlot));");
+        }
+        else
+        {
+            lines.Add("    for (int tagIndex = 0; tagIndex < tagSlots.Length; tagIndex++)");
+            lines.Add("    {");
+            lines.Add("        int slotIndex = tagSlots[tagIndex];");
         }
 
         for (int index = 0; index < shape.ComponentModels.Length; index++)
@@ -35,7 +43,11 @@ internal static partial class DemandDrivenForEachTemplates
             functorName,
             contextName,
             "tagged",
-            shape.HasEntity ? "taggedEntity" : string.Empty) + ";");
+            shape.HasEntity ? "entity" : string.Empty) + ";");
+        if (shape.HasEntity)
+        {
+            lines.Add("        tagSlot = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref tagSlot, 1);");
+        }
         lines.Add("    }");
         lines.Add("}");
         lines.Add("else");
@@ -57,19 +69,22 @@ internal static partial class DemandDrivenForEachTemplates
             return denseLoopBody;
         }
 
-        string entityArgument = "EntityRef entity = slots.GetEntityRefAtSlot(slotIndex);";
+        string entityAssignment = "GeneratedForEachRuntime.SetEntity(ref entity, global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntityReference, tagSlot));";
         string stampLocals = GeneratorTemplates.JoinNonEmpty(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
             $"Stamp component{index} = slots.GetGeneratedStamp(_access{index}, tagIndex);"));
         string invocation = AppendClosedInvocation(shape, actionName, functorName, contextName, "component", "entity");
         return $$"""
             if (slots.HasTagFilters && slots.TryGetTagSlots(out var tagSlots))
             {
-                for (int tagIndex = 0; tagIndex < tagSlots.Length; tagIndex++)
+                int tagCount = tagSlots.Length;
+                ref int tagSlot = ref GeneratedForEachRuntime.GetGeneratedTagSlotReference(tagSlots);
+                for (int tagIndex = 0; tagIndex < tagCount; tagIndex++)
                 {
-                    int slotIndex = tagSlots[tagIndex];
-                    {{entityArgument}}
+                    int slotIndex = tagSlot;
+                    {{entityAssignment}}
             {{GeneratorTemplates.Indent(stampLocals, "        ")}}
                     {{invocation}};
+                    tagSlot = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref tagSlot, 1);
                 }
             }
             else
@@ -90,7 +105,7 @@ internal static partial class DemandDrivenForEachTemplates
             contextName,
             denseLoopLines,
             "batch.Chunk.TryGetTagSlots(out var tagSlots)",
-            "slots.GetEntityRefAtSlot(slotIndex)");
+            shape.HasEntity ? "entity" : string.Empty);
 
     private static void AppendUnboundTagSelectionLoop(
         List<string> lines,
@@ -103,7 +118,7 @@ internal static partial class DemandDrivenForEachTemplates
             contextName,
             denseLoopLines,
             "execution.TryGetTagSlots(out var tagSlots)",
-            "slots.GetEntityRefAtSlot(slotIndex)");
+            shape.HasEntity ? "entity" : string.Empty);
 
     private static void AppendTagSelectionLoop(
         List<string> lines,
@@ -111,12 +126,12 @@ internal static partial class DemandDrivenForEachTemplates
         string contextName,
         IReadOnlyList<string> denseLoopLines,
         string tryGetTagSlots,
-        string entityAtSlot)
+        string entityName)
     {
         var selectedBody = new List<string>();
         if (shape.HasEntity)
         {
-            selectedBody.Add($"                EntityRef taggedEntity = {entityAtSlot};");
+            selectedBody.Add($"                GeneratedForEachRuntime.SetEntity(ref {entityName}, global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntityReference, tagSlot));");
         }
 
         for (int index = 0; index < shape.ComponentModels.Length; index++)
@@ -130,8 +145,8 @@ internal static partial class DemandDrivenForEachTemplates
             "action",
             contextName,
             "tagged",
-            shape.HasEntity ? "taggedEntity" : string.Empty) + ";");
-        AppendTagSelectionBranch(lines, tryGetTagSlots, selectedBody, denseLoopLines);
+            shape.HasEntity ? entityName : string.Empty) + ";");
+        AppendTagSelectionBranch(lines, tryGetTagSlots, selectedBody, denseLoopLines, entityName);
     }
 
     private static void AppendInterceptedTagSelectionLoop(
@@ -156,7 +171,7 @@ internal static partial class DemandDrivenForEachTemplates
         int parameterIndex = shape.HasContext ? 1 : 0;
         if (shape.HasEntity)
         {
-            selectedBody.Add($"                global::Delta.ECS.EntityRef {parameters[parameterIndex]} = slots.GetEntityRefAtSlot(slotIndex);");
+            selectedBody.Add($"                GeneratedForEachRuntime.SetEntity(ref {parameters[parameterIndex]}, global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntityReference, tagSlot));");
             parameterIndex++;
         }
 
@@ -182,7 +197,13 @@ internal static partial class DemandDrivenForEachTemplates
             selectedBody.Add("                " + AppendCallbackInvocation(shape, callbackName, callbackParameters, string.Empty));
         }
 
-        AppendTagSelectionBranch(lines, tagSlotsLookup, selectedBody, denseLoopLines, setup);
+        AppendTagSelectionBranch(
+            lines,
+            tagSlotsLookup,
+            selectedBody,
+            denseLoopLines,
+            shape.HasEntity ? parameters[shape.HasContext ? 1 : 0] : string.Empty,
+            setup);
     }
 
     private static void AppendTagSelectionBranch(
@@ -190,6 +211,7 @@ internal static partial class DemandDrivenForEachTemplates
         string tagSlotsLookup,
         IReadOnlyList<string> selectedBody,
         IReadOnlyList<string> denseLoopLines,
+        string entityName = "",
         IReadOnlyList<string>? setup = null)
     {
         lines.Add($"        if ({tagSlotsLookup})");
@@ -199,10 +221,25 @@ internal static partial class DemandDrivenForEachTemplates
             lines.AddRange(setup);
         }
 
-        lines.Add("            for (int tagIndex = 0; tagIndex < tagSlots.Length; tagIndex++)");
+        if (entityName.Length != 0)
+        {
+            lines.Add("            int tagCount = tagSlots.Length;");
+            lines.Add("            ref int tagSlot = ref GeneratedForEachRuntime.GetGeneratedTagSlotReference(tagSlots);");
+        }
+
+        lines.Add(entityName.Length != 0
+            ? "            for (int tagIndex = 0; tagIndex < tagCount; tagIndex++)"
+            : "            for (int tagIndex = 0; tagIndex < tagSlots.Length; tagIndex++)");
         lines.Add("            {");
-        lines.Add("                int slotIndex = tagSlots[tagIndex];");
+        lines.Add(entityName.Length != 0
+            ? "                int slotIndex = tagSlot;"
+            : "                int slotIndex = tagSlots[tagIndex];");
         lines.AddRange(selectedBody);
+        if (entityName.Length != 0)
+        {
+            lines.Add("                tagSlot = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref tagSlot, 1);");
+        }
+
         lines.Add("            }");
         lines.Add("        }");
         lines.Add("        else");
@@ -224,7 +261,7 @@ internal static partial class DemandDrivenForEachTemplates
         int parameterIndex = shape.HasContext ? 1 : 0;
         if (shape.HasEntity)
         {
-            selectedBody.Add($"                global::Delta.ECS.EntityRef {parameters[parameterIndex++]} = slots.GetEntityRefAtSlot(slotIndex);");
+            selectedBody.Add($"                GeneratedForEachRuntime.SetEntity(ref {parameters[parameterIndex++]}, global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntityReference, tagSlot));");
         }
 
         for (int index = 0; index < shape.ComponentModels.Length; index++)
@@ -245,6 +282,7 @@ internal static partial class DemandDrivenForEachTemplates
             lines,
             "slots.HasTagFilters && slots.TryGetTagSlots(out var tagSlots)",
             selectedBody,
-            denseLoopLines);
+            denseLoopLines,
+            shape.HasEntity ? parameters[shape.HasContext ? 1 : 0] : string.Empty);
     }
 }

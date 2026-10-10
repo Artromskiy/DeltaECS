@@ -94,6 +94,11 @@ public ref struct GeneratedQuerySlots
     [EditorBrowsable(EditorBrowsableState.Never)]
     public EntityRef GetEntityRef(int index) => new(_world, EntityAt(index));
 
+    /// <summary>Creates a reusable borrowed view for generated iteration over this chunk.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public EntityRef CreateEntityRef() => new(_world);
+
     /// <summary>Creates a borrowed view for one physical entity slot in this query chunk.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]

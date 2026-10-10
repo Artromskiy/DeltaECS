@@ -398,7 +398,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         AssertNoDiagnostics(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN003"));
         Assert.That(generated, Does.Contain("ref global::Delta.ECS.SimpleFunctor functor"));
         Assert.That(generated, Does.Contain("GetGeneratedArray<global::Delta.ECS.T1>(access0)"));
-        Assert.That(generated, Does.Contain("EntityRef entity = slots.GetEntityRef(index)"));
+        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.CreateEntityRef(world)"));
+        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.SetEntity(ref entity, currentEntity)"));
+        Assert.That(generated, Does.Not.Contain("slots.GetEntityRef(index)"));
         Assert.That(generated, Does.Not.Contain("IForEachEntity_W"));
     }
 
@@ -1983,7 +1985,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         {
         using System;
         public readonly struct Entity { public int Index { get; } }
-        public readonly ref struct EntityRef { public int Index { get; } }
+        public ref struct EntityRef { public int Index { get; } }
         public readonly struct ComponentId { }
         public readonly struct Stamp { }
         public interface IComponentComparer { }
@@ -2068,6 +2070,7 @@ public sealed class DemandDrivenForEachGeneratorTests
             public Entity EntityAt(int index) => default;
             public EntityRef GetEntityRef(int index) => default;
             public EntityRef GetEntityRefAtSlot(int slotIndex) => default;
+            public EntityRef CreateEntityRef() => default;
             public int GetGeneratedRowOffset(int index) => index;
             public ref Entity GetGeneratedEntityReference() => throw new NotImplementedException();
             public T[] GetGeneratedArray<T>(int queryComponentIndex) => Array.Empty<T>();
@@ -2155,6 +2158,11 @@ public sealed class DemandDrivenForEachGeneratorTests
         }
         public static class GeneratedForEachRuntime
         {
+            public static ref Entity GetGeneratedEntityReference(ref GeneratedQuerySlots slots) => ref slots.GetGeneratedEntityReference();
+            public static ref Entity GetGeneratedEntityReference(ref GeneratedReadQuerySlots slots) => throw new NotImplementedException();
+            public static ref int GetGeneratedTagSlotReference(ReadOnlySpan<int> slots) => throw new NotImplementedException();
+            public static EntityRef CreateEntityRef(World world) => default;
+            public static void SetEntity(ref EntityRef entityRef, Entity entity) { }
             public static GeneratedBoundExecution<TRows> OpenBoundDense<TBinding, TRows>(World world, in Query query)
                 where TBinding : GeneratedDenseBinding<TRows>, new() where TRows : struct => default;
             public static GeneratedBoundExecution<TRows> OpenBoundDenseRead<TBinding, TRows>(World world, in Query query)

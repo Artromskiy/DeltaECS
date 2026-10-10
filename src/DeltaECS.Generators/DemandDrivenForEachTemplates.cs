@@ -140,14 +140,16 @@ internal static partial class DemandDrivenForEachTemplates
                 string componentType = shape.ComponentModels[index].TypeName;
                 return $"ref {componentType} row{index} = ref slots.GetGeneratedReadReference<{componentType}>(_access{index});";
             }));
-        string entityBase = string.Empty;
+        string entityBase = shape.HasEntity
+            ? "EntityRef entity = slots.CreateEntityRef();\n        ref Entity firstEntityReference = ref GeneratedForEachRuntime.GetGeneratedEntityReference(ref slots);"
+            : string.Empty;
         string invocation = AppendClosedInvocation(shape, "_action", "_functor", "_context", shape.IsStamp ? "component" : "row", "entity");
         string loopBody;
         string visitHelpers = string.Empty;
         if (shape.IsStamp)
         {
             string entity = shape.HasEntity
-                ? "EntityRef entity = slots.GetEntityRef(index);"
+                ? "GeneratedForEachRuntime.SetEntity(ref entity, global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntityReference, index));"
                 : string.Empty;
             string components = GeneratorTemplates.JoinNonEmpty(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
                 $"Stamp component{index} = slots.GetGeneratedStamp(_access{index}, index);"));
@@ -166,9 +168,10 @@ internal static partial class DemandDrivenForEachTemplates
             {
                 var loopLines = new List<string>
                 {
+                    "ref Entity currentEntity = ref firstEntityReference;",
                     "for (int index = 0; index < count; index++)",
                     "{",
-                    "    EntityRef entity = slots.GetEntityRef(index);"
+                    "    GeneratedForEachRuntime.SetEntity(ref entity, currentEntity);"
                 };
                 loopLines.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
                     $"    ref {shape.ComponentModels[index].TypeName} current{index} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref row{index}, slots.GetGeneratedRowOffset(index));"));
@@ -180,6 +183,7 @@ internal static partial class DemandDrivenForEachTemplates
                     "current",
                     "entity",
                     index => $"current{index}") + ";");
+                loopLines.Add("    currentEntity = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref currentEntity, 1);");
                 loopLines.Add("}");
                 loopBody = AppendParallelTagSelectionLoop(
                     shape,
@@ -1005,6 +1009,11 @@ internal static partial class DemandDrivenForEachTemplates
             lines.AddRange(SplitLines(AppendQueryComponentRoutes(closedShape, "    ")));
             lines.AddRange(SplitLines(AppendArchetypeWriteSetup(shape, "    ")));
         }
+        if (closedShape.HasEntity)
+        {
+            int entityParameterIndex = closedShape.HasContext ? 1 : 0;
+            lines.Add($"    global::Delta.ECS.EntityRef {parameters[entityParameterIndex]} = GeneratedForEachRuntime.CreateEntityRef(world);");
+        }
         string batch = GeneratedLocalName(site, "batch", 0);
         string batchCursor = GeneratedLocalName(site, "batchCursor", 0);
         string firstBatch = GeneratedLocalName(site, "firstBatch", 0);
@@ -1031,9 +1040,10 @@ internal static partial class DemandDrivenForEachTemplates
             int entityParameterIndex = closedShape.HasContext ? 1 : 0;
             if (closedShape.HasEntity)
             {
+                denseLoopLines.Add("ref Entity currentEntity = ref firstEntityReference;");
                 denseLoopLines.Add("for (int index = 0; index < count; index++)");
                 denseLoopLines.Add("{");
-                denseLoopLines.Add($"    global::Delta.ECS.EntityRef {parameters[entityParameterIndex]} = slots.GetEntityRef(index);");
+                denseLoopLines.Add($"    GeneratedForEachRuntime.SetEntity(ref {parameters[entityParameterIndex]}, currentEntity);");
                 if (inlineLambda)
                 {
                     for (int index = 0; index < closedShape.ComponentModels.Length; index++)
@@ -1054,6 +1064,7 @@ internal static partial class DemandDrivenForEachTemplates
                     denseLoopLines.Add(AppendCallbackInvocation(closedShape, callbackName, callbackParameters, "    "));
                 }
 
+                denseLoopLines.Add("    currentEntity = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref currentEntity, 1);");
                 denseLoopLines.Add("}");
             }
             else
@@ -1142,6 +1153,11 @@ internal static partial class DemandDrivenForEachTemplates
                 lines.Add("        {");
             }
 
+            if (closedShape.HasEntity)
+            {
+                lines.Add("            ref Entity firstEntityReference = ref GeneratedForEachRuntime.GetGeneratedEntityReference(ref slots);");
+            }
+
             if (!shape.IsStamp)
             {
                 for (int index = 0; index < closedShape.ComponentModels.Length; index++)
@@ -1165,7 +1181,7 @@ internal static partial class DemandDrivenForEachTemplates
                 int stampParameterIndex = closedShape.HasContext ? 1 : 0;
                 if (closedShape.HasEntity)
                 {
-                    lines.Add($"                global::Delta.ECS.EntityRef {parameters[stampParameterIndex]} = slots.GetEntityRef({indexName});");
+                    lines.Add($"                GeneratedForEachRuntime.SetEntity(ref {parameters[stampParameterIndex]}, global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntityReference, slots.GetGeneratedRowOffset({indexName})));");
                     stampParameterIndex++;
                 }
 
@@ -1276,6 +1292,12 @@ internal static partial class DemandDrivenForEachTemplates
             body.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
                 $"        ref {shape.ComponentModels[index].ResolvedTypeName} {rowNames[index]} = ref slots.GetGeneratedReadReference<{shape.ComponentModels[index].ResolvedTypeName}>(_access{index});"));
         }
+        if (shape.HasEntity)
+        {
+            int entityParameterIndex = shape.HasContext ? 1 : 0;
+            body.Add($"        global::Delta.ECS.EntityRef {parameters[entityParameterIndex]} = slots.CreateEntityRef();");
+            body.Add("        ref Entity firstEntityReference = ref GeneratedForEachRuntime.GetGeneratedEntityReference(ref slots);");
+        }
         body.Add($"        int {countName} = slots.Count;");
 
         if (shape.IsStamp)
@@ -1288,7 +1310,7 @@ internal static partial class DemandDrivenForEachTemplates
             int parameterIndex = shape.HasContext ? 1 : 0;
             if (shape.HasEntity)
             {
-                denseLoopLines.Add($"    global::Delta.ECS.EntityRef {parameters[parameterIndex++]} = slots.GetEntityRef({indexName});");
+                denseLoopLines.Add($"    GeneratedForEachRuntime.SetEntity(ref {parameters[parameterIndex++]}, global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntityReference, {indexName}));");
             }
 
             denseLoopLines.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
@@ -1312,9 +1334,10 @@ internal static partial class DemandDrivenForEachTemplates
                 int entityParameterIndex = shape.HasContext ? 1 : 0;
                 var denseLoopLines = new List<string>
                 {
+                    "ref Entity currentEntity = ref firstEntityReference;",
                     $"for (int {indexName} = 0; {indexName} < {countName}; {indexName}++)",
                     "{",
-                    $"    global::Delta.ECS.EntityRef {parameters[entityParameterIndex]} = slots.GetEntityRef({indexName});"
+                    $"    GeneratedForEachRuntime.SetEntity(ref {parameters[entityParameterIndex]}, currentEntity);"
                 };
                 for (int index = 0; index < shape.ComponentModels.Length; index++)
                 {
@@ -1322,6 +1345,8 @@ internal static partial class DemandDrivenForEachTemplates
                 }
 
                 denseLoopLines.Add(AppendCallbackBody(shape, site, inlineLambda, callbackName, parameters, "    "));
+
+                denseLoopLines.Add("    currentEntity = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref currentEntity, 1);");
 
                 denseLoopLines.Add("}");
                 string contextSetup = shape.HasContext
@@ -1710,6 +1735,11 @@ internal static partial class DemandDrivenForEachTemplates
             return GeneratorTemplates.Indent(string.Join("\n", lines), "    ");
         }
 
+        if (shape.HasEntity)
+        {
+            lines.Add("    EntityRef entity = GeneratedForEachRuntime.CreateEntityRef(world);");
+        }
+
         if (shape.IsFunctor)
         {
             lines.Add("    var action = functor;");
@@ -1748,9 +1778,10 @@ internal static partial class DemandDrivenForEachTemplates
         {
             if (shape.HasEntity)
             {
+                denseLoopLines.Add("ref Entity currentEntity = ref firstEntityReference;");
                 denseLoopLines.Add("for (int index = 0; index < count; index++)");
                 denseLoopLines.Add("{");
-                denseLoopLines.Add("    EntityRef entity = slots.GetEntityRef(index);");
+                denseLoopLines.Add("    GeneratedForEachRuntime.SetEntity(ref entity, currentEntity);");
                 denseLoopLines.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
                     $"    ref {ComponentType(shape, index)} current{index} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref component{index}, slots.GetGeneratedRowOffset(index));"));
                 denseLoopLines.Add("    " + AppendClosedInvocation(
@@ -1761,6 +1792,7 @@ internal static partial class DemandDrivenForEachTemplates
                     "current",
                     "entity",
                     index => $"current{index}") + ";");
+                denseLoopLines.Add("    currentEntity = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref currentEntity, 1);");
                 denseLoopLines.Add("}");
             }
             else
@@ -1848,6 +1880,11 @@ internal static partial class DemandDrivenForEachTemplates
                 lines.Add("        {");
             }
 
+            if (shape.HasEntity)
+            {
+                lines.Add("            ref Entity firstEntityReference = ref GeneratedForEachRuntime.GetGeneratedEntityReference(ref slots);");
+            }
+
             if (!bound && shape.IsStamp)
             {
                 lines.Add("            int count = slots.Count;");
@@ -1874,7 +1911,7 @@ internal static partial class DemandDrivenForEachTemplates
                 lines.Add("            {");
                 if (shape.HasEntity)
                 {
-                    lines.Add("                EntityRef entity = slots.GetEntityRef(index);");
+                    lines.Add("                GeneratedForEachRuntime.SetEntity(ref entity, global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntityReference, slots.GetGeneratedRowOffset(index)));");
                 }
 
                 for (int index = 0; index < shape.ComponentModels.Length; index++)

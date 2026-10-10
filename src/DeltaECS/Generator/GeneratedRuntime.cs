@@ -6,6 +6,7 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 /// <summary>Compiler-support contract for a generated query predicate.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
@@ -622,6 +623,34 @@ public ref struct GeneratedReadDenseExecution
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static partial class GeneratedForEachRuntime
 {
+    /// <summary>Gets the first entity reference for generated iteration.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ref Entity GetGeneratedEntityReference(ref GeneratedQuerySlots slots)
+        => ref slots.GetGeneratedEntityReference();
+
+    /// <summary>Gets the first entity reference for generated read-only iteration.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ref Entity GetGeneratedEntityReference(ref GeneratedReadQuerySlots slots)
+        => ref Unsafe.AsRef(in slots.GetGeneratedEntityReference());
+
+    /// <summary>Gets the first tag slot for generated iteration.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ref int GetGeneratedTagSlotReference(ReadOnlySpan<int> slots)
+        => ref Unsafe.AsRef(in MemoryMarshal.GetReference(slots));
+
+    /// <summary>Creates a reusable entity view for a generated entity iteration.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static EntityRef CreateEntityRef(World world) => new(world);
+
+    /// <summary>Updates the current entity in a generated entity iteration view.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void SetEntity(ref EntityRef entityRef, Entity entity) => entityRef._entity = entity;
+
     /// <summary>Executes one generated multi-component value add without an intermediate transition.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
