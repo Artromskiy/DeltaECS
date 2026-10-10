@@ -403,8 +403,7 @@ public sealed partial class World
             Chunk chunk = view.Chunk!;
             int componentIndex = view.PreparedComponentIndex;
             int slotIndex = view.SlotIndex;
-            Stamp stamp = chunk.IncrementComponentStamp(componentIndex, slotIndex);
-            CreateEntityComponentStampWriter(chunk, componentIndex, slotIndex, stamp).MarkPoint();
+            chunk.IncrementComponentStamp(componentIndex, slotIndex);
             return ref view.GetPreparedComponentRef<T>();
         }
 
@@ -449,12 +448,7 @@ public sealed partial class World
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }
 
-        Stamp stamp = chunk.IncrementComponentStamp(componentIndex, slotIndex);
-        CreateEntityComponentStampWriter(
-            chunk,
-            componentIndex,
-            slotIndex,
-            stamp).MarkPoint();
+        chunk.IncrementComponentStamp(componentIndex, slotIndex);
         return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
     }
 
@@ -478,12 +472,7 @@ public sealed partial class World
             ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
         }
 
-        Stamp stamp = chunk.IncrementComponentStamp(componentIndex, slotIndex);
-        CreateEntityComponentStampWriter(
-            chunk,
-            componentIndex,
-            slotIndex,
-            stamp).MarkPoint();
+        chunk.IncrementComponentStamp(componentIndex, slotIndex);
         return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
     }
 

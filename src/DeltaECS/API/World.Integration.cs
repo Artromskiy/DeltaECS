@@ -241,12 +241,7 @@ public sealed partial class World : IEcsWorld
         }
 
         chunk.GetRawComponentRow(componentIndex).SetValue(value, slotIndex);
-        Stamp entityStamp = chunk.IncrementComponentStamp(componentIndex, slotIndex);
-        CreateEntityComponentStampWriter(
-            chunk,
-            componentIndex,
-            slotIndex,
-            entityStamp).MarkPoint();
+        chunk.IncrementComponentStamp(componentIndex, slotIndex);
         writtenStamp = GetComponentStamp(
             archetype.Id,
             chunk,

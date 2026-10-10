@@ -969,14 +969,6 @@ public sealed partial class World : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal EntityComponentStampWriter CreateEntityComponentStampWriter(
-        Chunk chunk,
-        int componentIndex,
-        int slotIndex,
-        Stamp stamp)
-        => new(chunk, componentIndex, slotIndex, stamp);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal Stamp[] GetArchetypeComponentStamps(int archetypeId) => _archetypeComponentWriteStamps.RefAt(archetypeId);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
