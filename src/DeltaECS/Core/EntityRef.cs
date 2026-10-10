@@ -92,18 +92,107 @@ public struct GeneratedEntityRefView
     internal World? World;
     internal Chunk? Chunk;
     internal int SlotIndex;
+    private QueryPlan? _queryPlan;
+    private Array[]? _componentRows;
+    private int[]? _componentIndices;
+    private ComponentId _cachedComponentId;
+    private Type? _cachedComponentType;
+    private int _cachedReadRoute;
+    private int _cachedComponentIndex;
+    private Array? _cachedComponentRow;
+    private bool _hasCachedComponent;
 
     internal readonly Entity CurrentEntity => Chunk!.RawEntities.RefAt(SlotIndex);
 
-    internal void SetWorld(World world) => World = world;
+    internal void SetWorld(World world)
+    {
+        if (World is not null && !ReferenceEquals(World, world))
+        {
+            _queryPlan = null;
+            _componentRows = null;
+            _componentIndices = null;
+            _cachedComponentRow = null;
+            _hasCachedComponent = false;
+        }
 
-    internal void SetChunk(Chunk chunk) => Chunk = chunk;
+        World = world;
+    }
+
+    internal void SetChunk(Chunk chunk)
+    {
+        Chunk = chunk;
+        _queryPlan = null;
+        _componentRows = null;
+        _componentIndices = null;
+        _cachedComponentRow = null;
+        _hasCachedComponent = false;
+    }
+
+    internal void SetQueryChunk(
+        Chunk chunk,
+        QueryPlan? queryPlan,
+        Array[] componentRows,
+        int[] componentIndices)
+    {
+        if (ReferenceEquals(Chunk, chunk)
+            && ReferenceEquals(_queryPlan, queryPlan)
+            && ReferenceEquals(_componentRows, componentRows)
+            && ReferenceEquals(_componentIndices, componentIndices))
+        {
+            return;
+        }
+
+        SetChunk(chunk);
+        _queryPlan = queryPlan;
+        _componentRows = componentRows;
+        _componentIndices = componentIndices;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryBindPreparedComponent(ComponentId componentId, Type? componentType, out bool isTag)
+    {
+        if (_hasCachedComponent
+            && _cachedComponentId == componentId
+            && ReferenceEquals(_cachedComponentType, componentType))
+        {
+            isTag = QueryPlan.IsTagRoute(_cachedReadRoute);
+            return _cachedReadRoute >= 0 || isTag;
+        }
+
+        _cachedComponentId = componentId;
+        _cachedComponentType = componentType;
+        _cachedReadRoute = -1;
+        _cachedComponentIndex = -1;
+        _cachedComponentRow = null;
+        _hasCachedComponent = true;
+        if (_queryPlan is null || !_queryPlan.TryGetEntityRefReadRoute(componentId, componentType, out int route))
+        {
+            isTag = false;
+            return false;
+        }
+
+        _cachedReadRoute = route;
+        isTag = QueryPlan.IsTagRoute(route);
+        if (!isTag)
+        {
+            _cachedComponentIndex = _componentIndices!.RefAt(route);
+            _cachedComponentRow = _componentRows!.RefAt(route);
+        }
+
+        return true;
+    }
+
+    internal readonly int PreparedComponentIndex => _cachedComponentIndex;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ref T GetPreparedComponentRef<T>()
+        => ref Unsafe.Add(ref Unsafe.As<T[]>(_cachedComponentRow!).GetRefAtZero(), SlotIndex);
 
     internal void SetSlot(int slotIndex) => SlotIndex = slotIndex;
 
     internal void SetLocation(Chunk chunk, int slotIndex)
     {
-        Chunk = chunk;
+        SetChunk(chunk);
         SlotIndex = slotIndex;
     }
 }

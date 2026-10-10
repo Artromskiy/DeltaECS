@@ -679,6 +679,11 @@ public sealed partial class World : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool HasTrusted(ref GeneratedEntityRefView view, ComponentId componentId)
     {
+        if (view.TryBindPreparedComponent(componentId, null, out _))
+        {
+            return true;
+        }
+
         Chunk chunk = view.Chunk!;
         return _layouts.TryGetTagIndex(componentId, out int tagIndex)
             ? chunk.HasTag(tagIndex, view.SlotIndex)
@@ -707,7 +712,18 @@ public sealed partial class World : IDisposable
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetComponentStampTrusted(ref GeneratedEntityRefView view, ComponentId componentId, out Stamp stamp)
-        => TryGetComponentStamp(view.Chunk!, view.SlotIndex, componentId, out stamp);
+    {
+        if (view.TryBindPreparedComponent(componentId, null, out bool isTag))
+        {
+            Chunk chunk = view.Chunk!;
+            stamp = isTag
+                ? new Stamp(1)
+                : GetComponentStamp(chunk.ArchetypeId, chunk, view.PreparedComponentIndex, view.SlotIndex);
+            return true;
+        }
+
+        return TryGetComponentStamp(view.Chunk!, view.SlotIndex, componentId, out stamp);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryGetComponentStamp(Chunk chunk, int slotIndex, ComponentId componentId, out Stamp stamp)
@@ -760,7 +776,15 @@ public sealed partial class World : IDisposable
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetTrusted<T>(ref GeneratedEntityRefView view, ComponentId componentId, out T value)
-        => TryGetCore<T>(view.Chunk!, view.SlotIndex, componentId, out value);
+    {
+        if (view.TryBindPreparedComponent(componentId, typeof(T), out bool isTag))
+        {
+            value = isTag ? default! : view.GetPreparedComponentRef<T>();
+            return true;
+        }
+
+        return TryGetCore<T>(view.Chunk!, view.SlotIndex, componentId, out value);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryGetCore<T>(Chunk chunk, int slotIndex, ComponentId componentId, out T value)

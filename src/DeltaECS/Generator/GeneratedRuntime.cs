@@ -961,7 +961,7 @@ public static partial class GeneratedForEachRuntime
                     continue;
                 }
 
-                var slots = new GeneratedQuerySlots(world, in chunkPlan, 1, slot);
+                var slots = new GeneratedQuerySlots(world, in chunkPlan, 1, slot, plan, tagFiltersAlreadyMatched: true);
                 invocation.Invoke(ref slots);
             }
 

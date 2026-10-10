@@ -18,7 +18,11 @@ internal sealed class PipelineApiTests
         int context = 0;
         ForEachAction action = static () => { };
         int entityVisits = 0;
-        ForEachEntityAction entityAction = _ => entityVisits++;
+        ForEachEntityAction entityAction = entity =>
+        {
+            entity.GetRef<PipelinePosition>(positionId).Value++;
+            entityVisits++;
+        };
         ForEachContextAction<int> contextAction = static (ref int _) => { };
         ForEachContextEntityAction<int> contextEntityAction = static (ref int value, EntityRef _) => value++;
 
@@ -70,6 +74,7 @@ internal sealed class PipelineApiTests
         Assert.Multiple(() =>
         {
             Assert.That(entityVisits, Is.EqualTo(entities.Length * 2));
+            Assert.That(world.Get<PipelinePosition>(entities[0], positionId).Value, Is.EqualTo(2));
             Assert.That(readOnlyContextVisits, Is.EqualTo(entities.Length));
             Assert.That(valueContextVisits, Is.EqualTo(entities.Length));
         });
@@ -111,9 +116,9 @@ internal sealed class PipelineApiTests
         world.ForEachEntity(
             entities.AsSpan(1),
             in query,
-            static (EntityRef entity, ref PipelinePosition position, in PipelineVelocity velocity) =>
+            (EntityRef entity, ref PipelinePosition position, in PipelineVelocity velocity) =>
             {
-                position.Value = entity.Index + velocity.Value;
+                entity.GetRef<PipelinePosition>(positionId).Value = entity.Index + velocity.Value;
             }).Invoke();
         world.ForEach(
             new[] { entities[0], withoutVelocity },
@@ -160,7 +165,8 @@ internal sealed class PipelineApiTests
         world.ForEachEntityParallel(
             entities,
             in query,
-            static (EntityRef entity, ref PipelinePosition position) => position.Value = entity.Index + 1,
+            (EntityRef entity, ref PipelinePosition position) =>
+                entity.GetRef<PipelinePosition>(positionId).Value = entity.Index + 1,
             workerCount: 2).Invoke();
 
         for (int index = 0; index < entities.Length; index++)

@@ -18,6 +18,7 @@ public ref struct GeneratedQuerySlots
     private readonly int _count;
     private readonly int _offset;
     private readonly ReadOnlySpan<int> _tagSlots;
+    private readonly bool _hasTagFilters;
     private readonly bool _hasTagSlots;
     private readonly QueryPlan? _queryPlan;
 
@@ -43,7 +44,8 @@ public ref struct GeneratedQuerySlots
         in ChunkPlan chunkPlan,
         int count,
         int offset,
-        QueryPlan? queryPlan = null)
+        QueryPlan? queryPlan = null,
+        bool tagFiltersAlreadyMatched = false)
     {
         _world = world;
         _chunk = chunkPlan.Chunk;
@@ -53,7 +55,8 @@ public ref struct GeneratedQuerySlots
         _count = count;
         _offset = offset;
         _queryPlan = queryPlan;
-        _hasTagSlots = queryPlan is not null && offset == 0 && queryPlan.TryGetTagSlots(_chunk, out _tagSlots);
+        _hasTagFilters = !tagFiltersAlreadyMatched && queryPlan is not null && queryPlan.HasTagFilters;
+        _hasTagSlots = _hasTagFilters && offset == 0 && queryPlan is not null && queryPlan.TryGetTagSlots(_chunk, out _tagSlots);
         if (!_hasTagSlots)
         {
             _tagSlots = default;
@@ -73,7 +76,7 @@ public ref struct GeneratedQuerySlots
 
     /// <summary>Reports whether the owning query applies tag filters.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public bool HasTagFilters => _queryPlan?.HasTagFilters ?? false;
+    public bool HasTagFilters => _hasTagFilters;
 
     /// <summary>Tests whether a physical chunk slot satisfies the query's tag filters.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -94,7 +97,7 @@ public ref struct GeneratedQuerySlots
     [EditorBrowsable(EditorBrowsableState.Never)]
     public EntityRef GetEntityRef(ref GeneratedEntityRefView view, int index)
     {
-        view.SetLocation(_chunk, _hasTagSlots ? _tagSlots.RefAt(index) : _offset + index);
+        BindEntityRef(ref view, _hasTagSlots ? _tagSlots.RefAt(index) : _offset + index);
         return GeneratedForEachRuntime.CreateEntityRef(_world, ref view);
     }
 
@@ -109,18 +112,22 @@ public ref struct GeneratedQuerySlots
     [EditorBrowsable(EditorBrowsableState.Never)]
     public EntityRef GetEntityRefAtSlot(ref GeneratedEntityRefView view, int slotIndex)
     {
-        view.SetLocation(_chunk, slotIndex);
+        BindEntityRef(ref view, slotIndex);
         return GeneratedForEachRuntime.CreateEntityRef(_world, ref view);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public void BindEntityRef(ref GeneratedEntityRefView view, int slotIndex)
-        => view.SetLocation(_chunk, slotIndex);
+    {
+        view.SetQueryChunk(_chunk, _queryPlan, _resolvedRowsByQuery, _componentIndices);
+        view.SetSlot(slotIndex);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public void BindEntityRef(ref GeneratedEntityRefView view) => view.SetChunk(_chunk);
+    public void BindEntityRef(ref GeneratedEntityRefView view)
+        => view.SetQueryChunk(_chunk, _queryPlan, _resolvedRowsByQuery, _componentIndices);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -230,6 +237,7 @@ public ref struct GeneratedReadQuerySlots
     private readonly ReadOnlySpan<Entity> _entities;
     private readonly Array[] _resolvedRowsByQuery;
     private readonly int[] _componentIndices;
+    private readonly QueryPlan? _queryPlan;
     private readonly int _count;
     private readonly ReadOnlySpan<int> _tagSlots;
     private readonly bool _hasTagSlots;
@@ -241,6 +249,7 @@ public ref struct GeneratedReadQuerySlots
         _entities = _chunk.RawEntities;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
         _componentIndices = chunkPlan.ComponentIndices;
+        _queryPlan = queryPlan;
         _hasTagSlots = queryPlan is not null && queryPlan.TryGetTagSlots(_chunk, out _tagSlots);
         if (!_hasTagSlots)
         {
@@ -264,7 +273,7 @@ public ref struct GeneratedReadQuerySlots
     [EditorBrowsable(EditorBrowsableState.Never)]
     public EntityRef GetEntityRef(ref GeneratedEntityRefView view, int index)
     {
-        view.SetLocation(_chunk, _hasTagSlots ? _tagSlots.RefAt(index) : index);
+        BindEntityRef(ref view, _hasTagSlots ? _tagSlots.RefAt(index) : index);
         return GeneratedForEachRuntime.CreateEntityRef(_world, ref view);
     }
 
@@ -273,18 +282,22 @@ public ref struct GeneratedReadQuerySlots
     [EditorBrowsable(EditorBrowsableState.Never)]
     public EntityRef GetEntityRefAtSlot(ref GeneratedEntityRefView view, int slotIndex)
     {
-        view.SetLocation(_chunk, slotIndex);
+        BindEntityRef(ref view, slotIndex);
         return GeneratedForEachRuntime.CreateEntityRef(_world, ref view);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public void BindEntityRef(ref GeneratedEntityRefView view, int slotIndex)
-        => view.SetLocation(_chunk, slotIndex);
+    {
+        view.SetQueryChunk(_chunk, _queryPlan, _resolvedRowsByQuery, _componentIndices);
+        view.SetSlot(slotIndex);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public void BindEntityRef(ref GeneratedEntityRefView view) => view.SetChunk(_chunk);
+    public void BindEntityRef(ref GeneratedEntityRefView view)
+        => view.SetQueryChunk(_chunk, _queryPlan, _resolvedRowsByQuery, _componentIndices);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]

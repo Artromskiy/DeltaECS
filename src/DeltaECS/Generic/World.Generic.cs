@@ -174,7 +174,7 @@ public sealed partial class World
             return false;
         }
 
-        return TryGetRegisteredCore<T>(view.Chunk!, view.SlotIndex, componentId, out value);
+        return TryGetTrusted<T>(ref view, componentId, out value);
     }
 
     /// <summary>Reports whether an alive entity owns the primary component for <typeparamref name="T"/>.</summary>
@@ -210,7 +210,14 @@ public sealed partial class World
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool HasTrusted<T>(ref GeneratedEntityRefView view, ComponentId componentId)
-        => IsRegisteredType<T>(componentId) && HasTrusted(ref view, componentId);
+    {
+        if (view.TryBindPreparedComponent(componentId, typeof(T), out _))
+        {
+            return true;
+        }
+
+        return IsRegisteredType<T>(componentId) && HasTrusted(ref view, componentId);
+    }
 
     /// <summary>Reads the primary component stamp when present.</summary>
     public bool TryGetComponentStamp<T>(Entity entity, out Stamp stamp)
@@ -277,6 +284,15 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetComponentStampTrusted<T>(ref GeneratedEntityRefView view, ComponentId componentId, out Stamp stamp)
     {
+        if (view.TryBindPreparedComponent(componentId, typeof(T), out bool isTag))
+        {
+            Chunk chunk = view.Chunk!;
+            stamp = isTag
+                ? new Stamp(1)
+                : GetComponentStamp(chunk.ArchetypeId, chunk, view.PreparedComponentIndex, view.SlotIndex);
+            return true;
+        }
+
         if (!IsRegisteredType<T>(componentId))
         {
             stamp = default;
@@ -313,6 +329,11 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal T GetTrusted<T>(ref GeneratedEntityRefView view, ComponentId componentId)
     {
+        if (view.TryBindPreparedComponent(componentId, typeof(T), out bool isTag))
+        {
+            return isTag ? default! : view.GetPreparedComponentRef<T>();
+        }
+
         EnsureRegisteredType<T>(componentId);
         return TryGetRegisteredCore<T>(view.Chunk!, view.SlotIndex, componentId, out T value)
             ? value
@@ -344,9 +365,7 @@ public sealed partial class World
     internal T GetTrusted<T>(ref GeneratedEntityRefView view)
     {
         ComponentId componentId = GetPrimaryComponentId<T>();
-        return TryGetRegisteredCore<T>(view.Chunk!, view.SlotIndex, componentId, out T value)
-            ? value
-            : ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
+        return GetTrusted<T>(ref view, componentId);
     }
 
     /// <summary>
@@ -374,6 +393,21 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref T GetRefTrusted<T>(ref GeneratedEntityRefView view, ComponentId componentId)
     {
+        if (view.TryBindPreparedComponent(componentId, typeof(T), out bool isTag))
+        {
+            if (isTag)
+            {
+                return ref GeneratedTagRows.GetReference<T>(0);
+            }
+
+            Chunk chunk = view.Chunk!;
+            int componentIndex = view.PreparedComponentIndex;
+            int slotIndex = view.SlotIndex;
+            Stamp stamp = chunk.IncrementComponentStamp(componentIndex, slotIndex);
+            CreateEntityComponentStampWriter(chunk, componentIndex, slotIndex, stamp).MarkPoint();
+            return ref view.GetPreparedComponentRef<T>();
+        }
+
         EnsureRegisteredType<T>(componentId);
         return ref GetRefUnchecked<T>(ref view, componentId, view.Chunk!);
     }
@@ -463,7 +497,7 @@ public sealed partial class World
     internal ref T GetRefTrusted<T>(ref GeneratedEntityRefView view)
     {
         ComponentId componentId = GetPrimaryComponentId<T>();
-        return ref GetRefUnchecked<T>(ref view, componentId, view.Chunk!);
+        return ref GetRefTrusted<T>(ref view, componentId);
     }
 
     /// <summary>Returns a read-only reference to one component row.</summary>
@@ -489,6 +523,13 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref readonly T GetReadRefTrusted<T>(ref GeneratedEntityRefView view, ComponentId componentId)
     {
+        if (view.TryBindPreparedComponent(componentId, typeof(T), out bool isTag))
+        {
+            return ref isTag
+                ? ref GeneratedTagRows.GetReference<T>(0)
+                : ref view.GetPreparedComponentRef<T>();
+        }
+
         EnsureRegisteredType<T>(componentId);
         return ref GetReadRefUnchecked<T>(ref view, componentId, view.Chunk!);
     }
@@ -568,7 +609,7 @@ public sealed partial class World
     internal ref readonly T GetReadRefTrusted<T>(ref GeneratedEntityRefView view)
     {
         ComponentId componentId = GetPrimaryComponentId<T>();
-        return ref GetReadRefUnchecked<T>(ref view, componentId, view.Chunk!);
+        return ref GetReadRefTrusted<T>(ref view, componentId);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

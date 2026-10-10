@@ -210,6 +210,25 @@ internal sealed class QueryPlan
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetEntityRefReadRoute(ComponentId component, Type? runtimeType, out int route)
+    {
+        if (component.IsValid
+            && (uint)component.Value < (uint)_readRoutesByComponent.Length)
+        {
+            route = _readRoutesByComponent.RefAt(component.Value);
+            if ((route >= 0 || IsTagRoute(route))
+                && (runtimeType is null
+                    || ReferenceEquals(_componentTypesByComponent.RefAt(component.Value), runtimeType)))
+            {
+                return true;
+            }
+        }
+
+        route = -1;
+        return false;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static bool IsTagRoute(int route) => route <= TagRouteOffset;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

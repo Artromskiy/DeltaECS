@@ -185,7 +185,7 @@ internal sealed class FunctorForEachTests
         var predicateState = new WherePredicateState();
         var predicate = new DeadHealthPredicate();
         var actionState = new WhereActionState();
-        var action = new ResetHealthAction();
+        var action = new ResetHealthAction(healthId);
 
         world.WhereEntity(in query, ref predicateState, ref predicate)
             .ForEachEntity(ref actionState, ref action).Invoke(ref actionState, ref action);
@@ -430,10 +430,14 @@ internal sealed class FunctorForEachTests
 
     internal struct ResetHealthAction : IForEachContextEntity<WhereActionState>
     {
+        private readonly ComponentId _healthId;
+
+        internal ResetHealthAction(ComponentId healthId) => _healthId = healthId;
+
         public void Invoke(ref WhereActionState state, EntityRef entity, ref Health health)
         {
             state.Matched++;
-            health.Value = 0;
+            entity.GetRef<Health>(_healthId).Value = 0;
         }
     }
 

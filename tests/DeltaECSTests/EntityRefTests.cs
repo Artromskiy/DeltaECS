@@ -117,6 +117,7 @@ internal sealed class EntityRefTests
     public void DelegateForEachEntityReusesEntityRefAcrossChunksAndTagSlots()
     {
         var layouts = new ComponentLayoutRegistry();
+        ComponentId healthId = layouts.Register<Health>(new SchemaId(40_085));
         ComponentId positionId = layouts.Register<Position>(new SchemaId(40_076));
         ComponentId tagId = layouts.Register<FirstTag>(new SchemaId(40_077));
         ComponentId missingId = layouts.Register<Velocity>(new SchemaId(40_078));
@@ -125,6 +126,11 @@ internal sealed class EntityRefTests
         int entityCount = Chunk.Capacity * 2 + 3;
         var entities = new Entity[entityCount];
         world.Create(stackalloc[] { positionId }, entities);
+        for (int index = 1; index < entities.Length; index += 2)
+        {
+            world.Add(entities[index], healthId);
+        }
+
         int taggedCount = 0;
         for (int index = 0; index < entities.Length; index += 2)
         {
@@ -176,6 +182,7 @@ internal sealed class EntityRefTests
     public void ComponentEntityIterationUsesTheBoundEntityRefViewForTaggedSlots()
     {
         var layouts = new ComponentLayoutRegistry();
+        ComponentId healthId = layouts.Register<Health>(new SchemaId(40_086));
         ComponentId positionId = layouts.Register<Position>(new SchemaId(40_079));
         ComponentId tagId = layouts.Register<FirstTag>(new SchemaId(40_080));
         using var world = new World(layouts);
@@ -184,6 +191,11 @@ internal sealed class EntityRefTests
         for (int index = 0; index < entities.Length; index++)
         {
             world.GetRef<Position>(entities[index], positionId).X = index;
+            if (index % 4 == 0)
+            {
+                world.Add(entities[index], healthId);
+            }
+
             if ((index & 1) == 0)
             {
                 world.Add(entities[index], tagId);
