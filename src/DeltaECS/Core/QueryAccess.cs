@@ -38,36 +38,6 @@ internal sealed class QueryPlan
     private IGeneratedDenseBinding? _lastDenseBinding;
     private Dictionary<RuntimeTypeHandle, IGeneratedDenseBinding>? _denseBindings;
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal TBinding GetDenseBinding<TBinding, TRows>(in Query query)
-        where TBinding : GeneratedDenseBinding<TRows>, new()
-        where TRows : struct
-    {
-        if (_lastDenseBinding is TBinding binding)
-        {
-            return binding;
-        }
-        return ResolveDenseBinding<TBinding, TRows>(in query);
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private TBinding ResolveDenseBinding<TBinding, TRows>(in Query query)
-        where TBinding : GeneratedDenseBinding<TRows>, new()
-        where TRows : struct
-    {
-        _denseBindings ??= new Dictionary<RuntimeTypeHandle, IGeneratedDenseBinding>(RuntimeTypeHandleComparer.Instance);
-        RuntimeTypeHandle key = typeof(TBinding).TypeHandle;
-        if (!_denseBindings.TryGetValue(key, out IGeneratedDenseBinding? existing))
-        {
-            var created = new TBinding();
-            created.Initialize(in query);
-            existing = created;
-            _denseBindings.Add(key, created);
-        }
-        _lastDenseBinding = existing;
-        return (TBinding)existing;
-    }
-
     private readonly QuerySpec _description;
     private readonly ComponentMask _allDataMask;
     private readonly ComponentMask _anyDataMask;
@@ -93,6 +63,15 @@ internal sealed class QueryPlan
     private bool _matchingChunkPlansDirty;
     private TagSlotCacheEntry?[] _tagSlotsByChunk = Array.Empty<TagSlotCacheEntry?>();
     private readonly object _tagSlotGate = new();
+
+    internal World Owner => _owner;
+    internal WeakReference<QueryPlan> WeakReference => _weakReference;
+    internal int MatchingVersion => _matchingVersion;
+    internal int MatchingArchetypeVersion => _matchingArchetypeVersion;
+
+    internal bool HasTagFilters
+        => _allTagIndices.Length != 0 || _anyTagIndices.Length != 0 || _noneTagIndices.Length != 0;
+
     internal QueryPlan(World world, QuerySpec spec)
     {
         _owner = world;
@@ -116,13 +95,17 @@ internal sealed class QueryPlan
         }
     }
 
-    internal World Owner => _owner;
-    internal WeakReference<QueryPlan> WeakReference => _weakReference;
-    internal int MatchingVersion => _matchingVersion;
-    internal int MatchingArchetypeVersion => _matchingArchetypeVersion;
-
-    internal bool HasTagFilters
-        => _allTagIndices.Length != 0 || _anyTagIndices.Length != 0 || _noneTagIndices.Length != 0;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal TBinding GetDenseBinding<TBinding, TRows>(in Query query)
+        where TBinding : GeneratedDenseBinding<TRows>, new()
+        where TRows : struct
+    {
+        if (_lastDenseBinding is TBinding binding)
+        {
+            return binding;
+        }
+        return ResolveDenseBinding<TBinding, TRows>(in query);
+    }
 
     internal bool TryGetTagSlots(Chunk chunk, out ReadOnlySpan<int> slots)
     {
@@ -231,8 +214,6 @@ internal sealed class QueryPlan
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static bool IsTagRoute(int route) => route <= TagRouteOffset;
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int GetTagRoute(ComponentId component) => TagRouteOffset - component.Value;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ReadAccess GetPreparedPrimaryReadAccess<T>()
@@ -270,8 +251,6 @@ internal sealed class QueryPlan
             : ThrowHelper.ThrowMissingPrimaryWriteAccess(typeof(T)).QueryComponentIndex;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TryGetPreparedPrimaryRoute<T>(out int route) => TryGetPrimaryRoute(typeof(T).TypeHandle, out route);
 
     internal ReadAccess GetPreparedReadAccess(ComponentId component, Type runtimeType)
     {
@@ -444,6 +423,30 @@ internal sealed class QueryPlan
         Array.Fill(_readRoutesByComponent, -1);
         _componentTypesByComponent.AsSpan().Clear();
     }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private TBinding ResolveDenseBinding<TBinding, TRows>(in Query query)
+        where TBinding : GeneratedDenseBinding<TRows>, new()
+        where TRows : struct
+    {
+        _denseBindings ??= new Dictionary<RuntimeTypeHandle, IGeneratedDenseBinding>(RuntimeTypeHandleComparer.Instance);
+        RuntimeTypeHandle key = typeof(TBinding).TypeHandle;
+        if (!_denseBindings.TryGetValue(key, out IGeneratedDenseBinding? existing))
+        {
+            var created = new TBinding();
+            created.Initialize(in query);
+            existing = created;
+            _denseBindings.Add(key, created);
+        }
+        _lastDenseBinding = existing;
+        return (TBinding)existing;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int GetTagRoute(ComponentId component) => TagRouteOffset - component.Value;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryGetPreparedPrimaryRoute<T>(out int route) => TryGetPrimaryRoute(typeof(T).TypeHandle, out route);
 
     private void ValidatePreparedRuntimeType(ComponentId component, Type runtimeType)
     {
@@ -788,14 +791,6 @@ internal sealed class QueryPlan
         entry.Dense = count == chunk.Count;
     }
 
-    private sealed class TagSlotCacheEntry
-    {
-        internal int Version = int.MinValue;
-        internal int[] Slots = Array.Empty<int>();
-        internal int Count;
-        internal bool Dense;
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void IncrementMatchingVersion()
         => _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
@@ -804,6 +799,13 @@ internal sealed class QueryPlan
     private void IncrementMatchingArchetypeVersion()
         => _matchingArchetypeVersion = _matchingArchetypeVersion == int.MaxValue ? 1 : _matchingArchetypeVersion + 1;
 
+    private sealed class TagSlotCacheEntry
+    {
+        internal int Version = int.MinValue;
+        internal int[] Slots = Array.Empty<int>();
+        internal int Count;
+        internal bool Dense;
+    }
 }
 
 internal struct ArchetypePlan
