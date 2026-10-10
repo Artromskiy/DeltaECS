@@ -26,6 +26,31 @@ internal sealed class IntegrationWorldTests
     }
 
     [Test]
+    public void IntegrationIsAliveIsAllowedDuringIterationButOtherIntegrationAccessIsNot()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(50_001));
+        using var storage = new World(layouts);
+        IEcsWorld integration = storage;
+        integration.Initialize();
+        Entity entity = integration.Create(stackalloc[] { positionId });
+        Query query = storage.CreateQuery(QuerySpec.WhereAll(positionId));
+        bool wasAliveDuringIteration = false;
+
+        storage.ForEachEntity(in query, current =>
+        {
+            Entity currentEntity = current;
+            wasAliveDuringIteration = integration.IsAlive(currentEntity);
+            Assert.Throws<InvalidOperationException>(
+                () => integration.TryRead(currentEntity, positionId, out _, out _));
+            Assert.Throws<InvalidOperationException>(() => integration.Destroy(currentEntity));
+        }).Invoke();
+
+        Assert.That(wasAliveDuringIteration, Is.True);
+        integration.Shutdown();
+    }
+
+    [Test]
     public void CatalogRefreshesIndependentlyForTypedLayouts()
     {
         var layouts = new ComponentLayoutRegistry();

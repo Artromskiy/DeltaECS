@@ -113,7 +113,7 @@ public interface IEcsWorld
     /// <summary>Shuts down the integration lifecycle.</summary>
     void Shutdown();
 
-    /// <summary>Determines whether an entity handle is alive in this world.</summary>
+    /// <summary>Determines whether an entity handle is alive in this world; safe during query iteration.</summary>
     bool IsAlive(Entity entity);
 
     /// <summary>Creates an entity with the supplied component registrations.</summary>

@@ -53,7 +53,6 @@ public sealed partial class World : IEcsWorld
     bool IEcsWorld.IsAlive(Entity entity)
     {
         EnsureIntegrationActive();
-        EnsureNoActiveLease("inspect entities through the integration API");
         return IsAlive(entity);
     }
 

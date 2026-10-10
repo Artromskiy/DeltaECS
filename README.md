@@ -111,6 +111,6 @@ See DeltaECS used in the Sky Pirates Unity project, including its entity-view sy
 
 - [API cookbook](docs/usage-examples.md)
 - [API grammar](docs/API-GRAMMAR.md)
-- GitHub Wiki
+- [GitHub Wiki](https://github.com/Artromskiy/DeltaECS/wiki)
 - [Runtime package](docs/packages/DeltaECS.README.md)
 - [Source generator](docs/packages/DeltaECS.Generators.README.md)
