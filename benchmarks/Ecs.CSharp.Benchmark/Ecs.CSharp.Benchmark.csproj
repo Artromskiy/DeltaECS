@@ -101,6 +101,8 @@
 
     <PackageReference Include="Leopotam.EcsLite" Version="1.0.1" />
 
+    <PackageReference Include="FFS.StaticEcs" Version="2.2.8" />
+
 		<PackageReference Include="Flecs.NET.Release" Version="4.0.3" />
   </ItemGroup>
 

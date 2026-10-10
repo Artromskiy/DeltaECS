@@ -18,6 +18,8 @@ namespace Ecs.CSharp.Benchmark
         public const string TinyEcs = "TinyEcs";
         public const string DeltaECS = "DeltaECS";
         public const string DeltaECSBatch = "DeltaECS.Batch";
+        public const string StaticEcs = "StaticEcs";
+        public const string StaticEcsBatch = "StaticEcs.Batch";
 
         public const string CreateEntity = "CreateEntity";
         public const string System = "System";

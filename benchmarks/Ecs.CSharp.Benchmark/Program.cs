@@ -40,6 +40,7 @@ internal static class Program
         if (args.Length > 0 && string.Equals(args[0], "contract-smoke", StringComparison.OrdinalIgnoreCase))
         {
             DeltaEcsSmoke.Run();
+            StaticEcsSmoke.Run();
             return;
         }
 
