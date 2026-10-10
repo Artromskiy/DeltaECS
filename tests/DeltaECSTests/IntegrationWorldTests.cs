@@ -26,7 +26,7 @@ internal sealed class IntegrationWorldTests
     }
 
     [Test]
-    public void IntegrationIsAliveIsAllowedDuringIterationButOtherIntegrationAccessIsNot()
+    public void IntegrationReadOperationsAreAllowedDuringIterationButWritesAreNot()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(50_001));
@@ -34,19 +34,40 @@ internal sealed class IntegrationWorldTests
         IEcsWorld integration = storage;
         integration.Initialize();
         Entity entity = integration.Create(stackalloc[] { positionId });
+        storage.GetRef<Position>(entity, positionId) = new Position(42);
         Query query = storage.CreateQuery(QuerySpec.WhereAll(positionId));
         bool wasAliveDuringIteration = false;
+        bool readComponentsDuringIteration = false;
+        bool readValueDuringIteration = false;
 
         storage.ForEachEntity(in query, current =>
         {
             Entity currentEntity = current;
             wasAliveDuringIteration = integration.IsAlive(currentEntity);
-            Assert.Throws<InvalidOperationException>(
-                () => integration.TryRead(currentEntity, positionId, out _, out _));
+            ComponentId[] components = new ComponentId[1];
+            readComponentsDuringIteration = integration.TryGetComponents(currentEntity, components, out int count)
+                && count == 1
+                && components[0] == positionId;
+            readValueDuringIteration = integration.TryRead(currentEntity, positionId, out ComponentSnapshot snapshot, out EcsReadError error)
+                && snapshot.Value is Position position
+                && position.Value == 42
+                && error.Code == EcsReadErrorCode.None;
+            Assert.Throws<InvalidOperationException>(() => integration.TryWrite(
+                currentEntity,
+                positionId,
+                new Position(43),
+                new Stamp(2),
+                out _,
+                out _));
             Assert.Throws<InvalidOperationException>(() => integration.Destroy(currentEntity));
         }).Invoke();
 
-        Assert.That(wasAliveDuringIteration, Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(wasAliveDuringIteration, Is.True);
+            Assert.That(readComponentsDuringIteration, Is.True);
+            Assert.That(readValueDuringIteration, Is.True);
+        });
         integration.Shutdown();
     }
 

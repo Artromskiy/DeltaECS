@@ -87,7 +87,6 @@ public sealed partial class World : IEcsWorld
         out int totalCount)
     {
         EnsureIntegrationActive();
-        EnsureNoActiveLease("inspect entities through the integration API");
         totalCount = 0;
         if (!TryResolve(entity, out _, out Chunk chunk, out _))
         {
@@ -107,7 +106,6 @@ public sealed partial class World : IEcsWorld
         out EcsReadError error)
     {
         EnsureIntegrationActive();
-        EnsureNoActiveLease("read components through the integration API");
         snapshot = default;
 
         if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))

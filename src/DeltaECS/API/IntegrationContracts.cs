@@ -131,14 +131,14 @@ public interface IEcsWorld
     /// <summary>
     /// Reports the full component count and writes the ascending prefix that
     /// fits in <paramref name="destination"/>. A live zero-component entity
-    /// succeeds with a total count of zero.
+    /// succeeds with a total count of zero. Safe during query iteration.
     /// </summary>
     bool TryGetComponents(
         Entity entity,
         Span<ComponentId> destination,
         out int totalCount);
 
-    /// <summary>Reads a component value and its current revision through the object API.</summary>
+    /// <summary>Reads a component value and its current revision through the object API; safe during query iteration.</summary>
     bool TryRead(
         Entity entity,
         ComponentId component,
