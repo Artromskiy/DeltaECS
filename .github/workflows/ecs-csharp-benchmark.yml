@@ -129,6 +129,32 @@ jobs:
                 --exporters github csv json \
                 --artifacts "$mode_directory"
 
+              python3 - "$mode_directory" "$thread_mode" <<'PY'
+          import glob
+          import os
+          import re
+          import sys
+
+          mode_directory, thread_mode = sys.argv[1:]
+          suites = [
+              "CreateEntityWithOneComponent",
+              "CreateEntityWithTwoComponents",
+              "CreateEntityWithThreeComponents",
+              "SystemWithOneComponent",
+              "SystemWithTwoComponents",
+              "SystemWithThreeComponents",
+              "SystemWithTwoComponentsMultipleComposition",
+          ]
+          if thread_mode == "MultiThread":
+              suites = suites[3:]
+
+          logs = glob.glob(os.path.join(mode_directory, "BenchmarkRun-*.log"))
+          actual = list(dict.fromkeys(re.findall(r"// Benchmark: ([^.]+)\.", open(logs[0], encoding="utf-8", errors="replace").read()))) if logs else []
+          if actual != suites:
+              print(f"::error::Benchmark suite order changed: {actual}; expected {suites}.")
+              sys.exit(1)
+          PY
+
               expected_suites=4
               if [ "$thread_mode" = SingleThread ]; then
                 expected_suites=7
@@ -166,7 +192,6 @@ jobs:
         run: |
           python3 - <<'PY'
           import csv
-          import glob
           import os
           import re
 
@@ -191,8 +216,17 @@ jobs:
               ("TinyEcs", "TinyEcs"),
               ("Arch", "Arch"),
           )
-          mean_pattern = re.compile(r"^\s*([0-9][0-9,.]*)\s*(ns|us|µs|ms|s)\s*$")
-          unit_to_ns = {"ns": 1, "us": 1_000, "µs": 1_000, "ms": 1_000_000, "s": 1_000_000_000}
+          mean_pattern = re.compile(r"^\s*([0-9][0-9,.]*)\s*(ns|us|µs|μs|ms|s)\s*$")
+          unit_to_ns = {"ns": 1, "us": 1_000, "µs": 1_000, "μs": 1_000, "ms": 1_000_000, "s": 1_000_000_000}
+          suites = (
+              "CreateEntityWithOneComponent",
+              "CreateEntityWithTwoComponents",
+              "CreateEntityWithThreeComponents",
+              "SystemWithOneComponent",
+              "SystemWithTwoComponents",
+              "SystemWithThreeComponents",
+              "SystemWithTwoComponentsMultipleComposition",
+          )
 
           def ecs_name(method):
               for prefix, name in method_prefixes:
@@ -212,23 +246,23 @@ jobs:
           rows = []
           for entity_count in entity_counts:
               for thread_mode, mode_label in (("SingleThread", "Single-thread"), ("MultiThread", "Multi-thread")):
-                  root = f"artifacts/ecs-csharp/{entity_count}/{thread_mode}"
-                  for report in sorted(glob.glob(f"{root}/**/*-report.csv", recursive=True)):
-                      suite = os.path.basename(report).removesuffix("-report.csv")
-                      suite = suite.removeprefix("Ecs.CSharp.Benchmark.")
+                  mode_suites = suites if thread_mode == "SingleThread" else suites[3:]
+                  root = f"artifacts/ecs-csharp/{entity_count}/{thread_mode}/results"
+                  for suite in mode_suites:
+                      report = f"{root}/Ecs.CSharp.Benchmark.{suite}-report.csv"
                       best_by_ecs = {}
-                      with open(report, newline="", encoding="utf-8-sig") as source:
-                          for result in csv.DictReader(source):
-                              method = result.get("Method", "")
-                              mean = mean_ns(result.get("Mean", ""))
-                              if not method or mean is None:
-                                  continue
-                              name = ecs_name(method)
-                              best_by_ecs[name] = min(mean, best_by_ecs.get(name, float("inf")))
+                      if os.path.exists(report):
+                          with open(report, newline="", encoding="utf-8-sig") as source:
+                              for result in csv.DictReader(source):
+                                  method = result.get("Method", "")
+                                  mean = mean_ns(result.get("Mean", ""))
+                                  if not method or mean is None:
+                                      continue
+                                  name = ecs_name(method)
+                                  best_by_ecs[name] = min(mean, best_by_ecs.get(name, float("inf")))
 
                       ranked = sorted(best_by_ecs.items(), key=lambda entry: entry[1])
-                      if ranked:
-                          rows.append((suite, entity_count, mode_label, ranked))
+                      rows.append((suite, entity_count, mode_label, ranked))
 
           with open(summary_path, "a", encoding="utf-8") as summary:
               summary.write("## Results at a glance\n\n")
@@ -236,6 +270,9 @@ jobs:
               summary.write("| Test | Entities | Threads | Winner ECS | Advantage vs next ECS |\n")
               summary.write("|---|---:|---|---|---|\n")
               for suite, entity_count, mode_label, ranked in rows:
+                  if not ranked:
+                      summary.write(f"| `{suite}` | {entity_count} | {mode_label} | No result | — |\n")
+                      continue
                   winner, winner_ns = ranked[0]
                   if len(ranked) > 1:
                       runner_up, runner_up_ns = ranked[1]
@@ -278,6 +315,15 @@ jobs:
 
             IFS=',' read -r -a entity_counts <<< "$ENTITY_COUNTS"
             requested_count=0
+            benchmark_suites=(
+              CreateEntityWithOneComponent
+              CreateEntityWithTwoComponents
+              CreateEntityWithThreeComponents
+              SystemWithOneComponent
+              SystemWithTwoComponents
+              SystemWithThreeComponents
+              SystemWithTwoComponentsMultipleComposition
+            )
             for entity_count in "${entity_counts[@]}"; do
               entity_count="${entity_count//[[:space:]]/}"
               if [[ "$entity_count" =~ ^[1-9][0-9]*$ ]]; then
@@ -304,7 +350,17 @@ jobs:
                 fi
                 echo "#### $mode_label"
                 echo
-                mapfile -t reports < <(find "artifacts/ecs-csharp/$entity_count/$thread_mode" -type f -name '*-report-github.md' 2>/dev/null | sort)
+                mode_suites=("${benchmark_suites[@]}")
+                if [ "$thread_mode" = MultiThread ]; then
+                  mode_suites=("${benchmark_suites[@]:3}")
+                fi
+                reports=()
+                for suite in "${mode_suites[@]}"; do
+                  report="artifacts/ecs-csharp/$entity_count/$thread_mode/results/Ecs.CSharp.Benchmark.$suite-report-github.md"
+                  if [ -f "$report" ]; then
+                    reports+=("$report")
+                  fi
+                done
                 for report in "${reports[@]}"; do
                   report_count=$((report_count + 1))
                   suite="$(basename "$report" -report-github.md)"
