@@ -1053,9 +1053,14 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("InterceptsLocationAttribute"));
         Assert.That(generated, Does.Contain("ExecuteInterceptedClosed_"));
         Assert.That(generated, Does.Contain("value.Value++"));
+        Assert.That(generated, Does.Contain("if (_interceptedExecution is { } interceptedExecution)"));
+        Assert.That(generated, Does.Contain("interceptedExecution(_world, in _query);"));
+        Assert.That(generated, Does.Contain("InterceptedExecution_"));
         Assert.That(generated, Does.Contain("ForEachAction<global::Delta.ECS.T1> _"));
         Assert.That(generated, Does.Not.Contain("InterceptedFunctor_"));
         Assert.That(generated, Does.Not.Contain("ref functor"));
+        Assert.That(intercepted, Does.Contain("operationQuery, ExecuteInterceptedClosed_"));
+        Assert.That(intercepted, Does.Not.Contain("operationQuery, _)"));
         Assert.That(intercepted, Does.Contain("ref var batch = ref batchCursor;"));
         Assert.That(intercepted, Does.Not.Contain("= execution.Rows[chunk"));
         Assert.That(intercepted, Does.Contain("ref var batchCursor = ref"));

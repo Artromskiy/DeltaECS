@@ -102,4 +102,5 @@ internal sealed record IterationRenderModel(
     bool RenderContracts,
     bool Profiling,
     bool SupportsScoped,
-    ImmutableArray<ContextModeKind> SupportedContextModes);
+    ImmutableArray<ContextModeKind> SupportedContextModes,
+    bool HasInterceptedExecution = false);

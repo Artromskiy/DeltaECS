@@ -122,6 +122,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             bool renderContracts = true;
             foreach (IterationModel shape in patternGroup)
             {
+                interceptionSites.TryGetValue(shape.Key, out List<InterceptionSite>? interceptorSites);
                 context.AddSource(
                     $"DemandForEach_{GeneratorSupport.StableName(shape.Key)}.g.cs",
                     DemandDrivenForEachTemplates.Render(new IterationRenderModel(
@@ -131,8 +132,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                         languageSupportsScoped,
                         ContextModes
                             .Where(mode => mode != ContextModeKind.RefReadonly || languageSupportsRefReadonlyParameters)
-                            .ToImmutableArray())));
-                if (interceptionSites.TryGetValue(shape.Key, out List<InterceptionSite>? interceptorSites))
+                            .ToImmutableArray(),
+                        interceptorSites?.Any(DemandDrivenForEachTemplates.SupportsDirectExecution) == true)));
+                if (interceptorSites is not null)
                 {
                     foreach (InterceptionSite interceptorSite in interceptorSites.OrderBy(static site => site.Id, StringComparer.Ordinal))
                     {

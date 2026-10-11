@@ -657,9 +657,27 @@ internal static partial class DemandDrivenForEachTemplates
             shape,
             closedMethodName,
             model.Profiling,
-            StableProfileMethodId(className + "." + shape.MethodName));
-        return RenderDenseBinding(shape) + "\n" + closed + "\n" + operationInvoker + "\n" + extension;
+            StableProfileMethodId(className + "." + shape.MethodName),
+            model.HasInterceptedExecution);
+        string executionDelegate = model.HasInterceptedExecution
+            ? RenderInterceptedExecutionDelegate(shape)
+            : string.Empty;
+        return GeneratorTemplates.JoinNonEmpty([RenderDenseBinding(shape), closed, executionDelegate, operationInvoker, extension]);
     }
+
+    internal static bool SupportsDirectExecution(InterceptionSite site) =>
+        CanInlineInterceptedLambda(site)
+        && !site.Shape.HasContext
+        && !site.Shape.HasEntityTarget
+        && !site.Shape.Parallel
+        && !site.Shape.IsStamp
+        && !site.Shape.Api.Signature.HasExplicitIds;
+
+    private static string RenderInterceptedExecutionDelegate(IterationModel shape) =>
+        $"internal delegate void {InterceptedExecutionName(shape)}(global::Delta.ECS.World world, in global::Delta.ECS.Query query);";
+
+    private static string InterceptedExecutionName(IterationModel shape) =>
+        "InterceptedExecution_" + GeneratorSupport.StableName(shape.Key);
 
     private static string RenderOrderedExtensionsBody(IterationModel shape)
     {
@@ -1543,6 +1561,7 @@ internal static partial class DemandDrivenForEachTemplates
     private static string RenderInterceptor(IterationModel shape, InterceptionSite site)
     {
         SignatureProjection slots = shape.Api.Signature;
+        bool specializedInvoker = SupportsDirectExecution(site);
         var parameters = new List<string> { "this global::Delta.ECS.World world" };
         if (shape.HasEntityTarget)
         {
@@ -1620,7 +1639,9 @@ internal static partial class DemandDrivenForEachTemplates
 
         if (slots.HasExplicitIds)
         {
-            invokerArguments.Add(slots.HasDynamicIds ? "operationComponentIds" : slots.ComponentIdArguments("componentId"));
+            invokerArguments.Add(slots.HasDynamicIds
+                ? "operationComponentIds"
+                : slots.ComponentIdArguments("componentId"));
         }
 
         if (shape.HasContext && !mutableContext)
@@ -1630,7 +1651,7 @@ internal static partial class DemandDrivenForEachTemplates
 
         if (!shape.IsFunctor)
         {
-            invokerArguments.Add("_");
+            invokerArguments.Add(specializedInvoker ? "ExecuteInterceptedClosed_" + site.Id : "_");
         }
 
         if (shape.Parallel)
@@ -2041,7 +2062,7 @@ internal static partial class DemandDrivenForEachTemplates
 
     private static string OperationInvokerType(IterationModel shape) => OperationInvokerName(shape) + OperationInvokerGenericParameters(shape);
 
-    private static string RenderOperationInvoker(IterationModel shape, string closedMethodName, bool profiling, int methodId)
+    private static string RenderOperationInvoker(IterationModel shape, string closedMethodName, bool profiling, int methodId, bool hasInterceptedExecution)
     {
         string genericParameters = OperationInvokerGenericParameters(shape);
         bool mutableContext = shape.HasContext && shape.ContextMode == ContextModeKind.Ref;
@@ -2068,7 +2089,29 @@ internal static partial class DemandDrivenForEachTemplates
             "_query = query;"
         };
         AppendOperationInvokerMembers(shape, fields, constructorParameters, constructorAssignments);
-        string methods = RenderOperationInvokerMethods(shape, closedMethodName, profiling, methodId, stateInterface);
+        if (hasInterceptedExecution)
+        {
+            fields.Add($"private readonly {InterceptedExecutionName(shape)}? _interceptedExecution;");
+            constructorAssignments.Add("_interceptedExecution = null;");
+        }
+
+        string methods = RenderOperationInvokerMethods(shape, closedMethodName, profiling, methodId, stateInterface, hasInterceptedExecution);
+        if (hasInterceptedExecution)
+        {
+            string executionDelegate = InterceptedExecutionName(shape);
+            methods = $$"""
+                internal {{OperationInvokerName(shape)}}(global::Delta.ECS.World world, global::Delta.ECS.Query query, {{executionDelegate}} interceptedExecution)
+                {
+                    _world = world;
+                    _query = query;
+                    _action = null!;
+                    _interceptedExecution = interceptedExecution;
+                }
+
+            {{methods}}
+            """;
+        }
+
         return EcsOperationTemplates.InvokerStruct(
             visibility,
             OperationInvokerName(shape),
@@ -2107,7 +2150,8 @@ internal static partial class DemandDrivenForEachTemplates
         string closedMethodName,
         bool profiling,
         int methodId,
-        string stateInterface)
+        string stateInterface,
+        bool hasInterceptedExecution)
     {
         string generic = shape.Api.Signature.HasGenericSelectors ? shape.Api.Signature.GenericList() : string.Empty;
         string contextName = shape.HasContext
@@ -2116,6 +2160,9 @@ internal static partial class DemandDrivenForEachTemplates
         string functorName = "functor";
         var lines = new List<string>
         {
+            hasInterceptedExecution
+                ? "if (_interceptedExecution is { } interceptedExecution) { interceptedExecution(_world, in _query); return; }"
+                : string.Empty,
             "global::Delta.ECS.World world = _world;",
             shape.HasEntityTarget ? "global::Delta.ECS.Entity[] operationEntities = _entities;" : string.Empty,
             "global::Delta.ECS.Query operationQuery = _query;",
