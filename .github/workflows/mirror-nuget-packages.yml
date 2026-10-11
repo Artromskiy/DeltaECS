@@ -1,0 +1,66 @@
+name: Mirror NuGet packages to GitHub Packages
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: mirror-nuget-packages
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: Mirror published DeltaECS packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Install .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Mirror NuGet versions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          github_feed="https://nuget.pkg.github.com/${GITHUB_REPOSITORY_OWNER}/index.json"
+          packages=(DeltaECS DeltaECS.Generators DeltaECS.Systems)
+          nuget_config="${RUNNER_TEMP}/NuGet.Config"
+          printf '%s\n' '<configuration><packageSources><clear /></packageSources></configuration>' > "$nuget_config"
+          trap 'rm -f "$nuget_config"' EXIT
+
+          dotnet nuget add source \
+            --username "$GITHUB_ACTOR" \
+            --password "$GITHUB_TOKEN" \
+            --store-password-in-clear-text \
+            --name github \
+            --configfile "$nuget_config" \
+            "$github_feed"
+
+          for package in "${packages[@]}"; do
+            package_lower="$(printf '%s' "$package" | tr '[:upper:]' '[:lower:]')"
+            flat_feed="https://api.nuget.org/v3-flatcontainer/${package_lower}"
+            versions="$(curl --fail --silent --show-error --location "${flat_feed}/index.json" \
+              | jq -r '.versions[] | select(test("-") | not)')"
+
+            while IFS= read -r version; do
+              package_file="${RUNNER_TEMP}/${package_lower}.${version}.nupkg"
+              package_url="${flat_feed}/${version}/${package_lower}.${version}.nupkg"
+              curl --fail --silent --show-error --location "$package_url" --output "$package_file"
+              printf 'Mirroring %s %s to GitHub Packages\n' "$package" "$version"
+              dotnet nuget push "$package_file" \
+                --source github \
+                --configfile "$nuget_config" \
+                --skip-duplicate
+              rm "$package_file"
+            done <<< "$versions"
+          done
