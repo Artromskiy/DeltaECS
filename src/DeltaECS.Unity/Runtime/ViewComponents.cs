@@ -2,6 +2,13 @@ using Delta.ECS;
 
 namespace Delta.ECS.Unity
 {
+    /// <summary>Receives the entity context after a Unity view is bound to an entity.</summary>
+    public interface IEntityView
+    {
+        /// <summary>Initializes this view for its bound entity.</summary>
+        void OnBind(EntityContext context);
+    }
+
     /// <summary>Selects the Unity prefab used to represent an entity.</summary>
     [DeltaEcsComponent(SchemaId = 0x405B11F5A17E14A1UL)]
     public readonly struct ViewToken
