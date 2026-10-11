@@ -161,10 +161,10 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
         {
             Execute(ref contextCopy, writeVersion);
         }
-        catch
+        catch (Exception exception)
         {
             ResetChangeTrackingCore();
-            throw;
+            ThrowHelper.Rethrow(exception);
         }
         finally
         {
