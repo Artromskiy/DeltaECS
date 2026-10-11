@@ -166,3 +166,49 @@ type-erased case call is outside that loop, once per matching case/archetype.
 Thus another callback wrapper or moving the same ref across cases does not
 make the per-entity call thinner. Raw reports are under
 `artifacts/history-row-theoretical-1048576/archetype-{shared-entity-ref,current-thin-call-baseline}/`.
+
+## Entity-major fusion of component cases — 2026-10-11
+
+Baseline: current case-major typed-row execution. Candidate: for dense plans,
+bind each matching component row once per chunk, update one shared
+`EntityRef` per slot, then invoke every matching processor for that entity.
+This changes callback order from case-major to entity-major and adds a
+type-erased case dispatch for every entity-component pair. Tag-filtered plans
+kept the existing path. The existing benchmark checksum validation passed.
+
+The 1,048,576-entity, 400-ID/4-CLR-type random-composition workload used
+BenchmarkDotNet 0.15.8 on Apple M4 Pro / .NET 10.0.12 Arm64 RyuJIT, 10
+warmups, 30 × 200 ms iterations, one launch. Baseline measured
+`14.360 ± 0.229 ms` (0.335 ms StdDev); the fused candidate measured
+`42.184 ± 0.236 ms` (0.323 ms StdDev), a `+193.8%` regression. Both reported
+0 B allocated. The candidate's 99.9% interval does not overlap the baseline.
+It was reverted: per-entity interface dispatch outweighs the saved slot and
+chunk-loop setup. Raw logs are under
+`artifacts/history-case-fusion/{baseline,candidate}.log`.
+
+## Cache current entity in the scoped view — 2026-10-11
+
+The profile showed `EntityRef` conversion reading the current `Entity` through
+`ArrayAccess.RefAt(baseAddress, slot)`. The candidate replaced that lookup with
+an `Entity` field in `GeneratedEntityRefView`; dense and tag-filtered
+`ForEachArchetype` loops advanced an entity ref with `Unsafe.Add` and copied
+the current handle into the view before invoking the processor. This was
+intended to remove slot-based address resolution from callback reads.
+
+The `HistoryRestoreBenchmarks.ForEachArchetype` case was run at 1,048,576
+entities, with 400 component IDs over four CLR types and random compositions
+(5–20 components per entity), on Apple M4 Pro / macOS Tahoe 26.5.2 / .NET
+10.0.12 Arm64 RyuJIT. BenchmarkDotNet 0.15.8 used 10 warmups, 30 × 200 ms
+iterations and one launch. A baseline before the candidate measured
+`14.530 ± 0.645 ms` (0.946 ms StdDev); the candidate measured
+`19.332 ± 1.776 ms` (2.603 ms StdDev); a baseline after it measured
+`14.035 ± 0.481 ms` (0.691 ms StdDev). The candidate's 99.9% interval did
+not overlap either baseline interval. The checksum validation passed and all
+runs allocated 0 B. The handle copy and per-entity cursor path were reverted.
+
+This harness measures archetype restore, not the exact `WorldHistory.Save()`
+capture path shown in the Unity profile. The profile also rounded
+`ArrayAccess.RefAt` to 0.0%; it does not establish that this helper is a
+meaningful share of total ECS time. The existing implementation remains the
+faster measured option. Raw logs are under
+`BenchmarkDotNet.Artifacts/Delta.ECS.HistoryBenchmarks.HistoryRestoreBenchmarks-20261011-{201001,201035,201228}.log`.

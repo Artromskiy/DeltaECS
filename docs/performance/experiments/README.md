@@ -27,6 +27,10 @@ See [full measurements and JIT evidence](typed-loop-2026-09-16.md).
 
 Baseline `f5000dc` versus the working-tree `IArchetypeForEachComponent<TContext,T>` path, which binds the component row once per chunk and avoids `EntityRef.GetRef(id)` lookup and per-entity case dispatch. The workload, all-size results, and rejected alternatives are recorded in [the detailed report](history-archetype-component-access-2026-10-11.md). Typed rows beat the baseline at 32, 1,024 and 1,048,576 entities, but remain 21% slower at 131,072. Skipping empty archetypes and per-case match checks for non-tag queries reduced the immediate 1,048,576-entity archetype benchmark from `16.888 ± 0.180 ms` to `15.40 ± 0.230 ms` (`−8.81%`, 0 B). A non-unrolled `while` loop advancing the existing entity/component refs did not improve the earlier result. Caching the native entity-row address in the stack view and hoisting the stamp-array lookup measured `14.00 ± 0.165 ms` versus a fresh A/B baseline of `16.175 ± 0.182 ms` (`−13.4%`, 0 B). Skipping stamps entirely improved this candidate only to `13.016 ± 0.125 ms`. FullOpts ARM64 disassembly reports a 460-byte typed executor; its processor body is inlined into the entity loop, while the type-erased case call is outside that loop and runs once per matching case/archetype. These results do not reach the 3× target. The detailed report records the disassembly and all retained/rejected experiments.
 
+The follow-up entity-major fusion attempt measured `42.184 ± 0.236 ms` versus a fresh case-major baseline of `14.360 ± 0.229 ms` at 1,048,576 entities (`+193.8%`, both 0 B). Per-entity type-erased processor dispatch erased the loop-setup savings, so fusion was reverted; details are in the report above.
+
+Caching the current `Entity` in `GeneratedEntityRefView` and advancing an entity cursor with `Unsafe.Add` measured `19.332 ± 1.776 ms` versus two case-major baseline runs at `14.530 ± 0.645 ms` and `14.035 ± 0.481 ms` for the 1,048,576-entity history workload. The candidate regressed and was reverted; details are in the report above.
+
 ## Measurement corrections
 
 | Correction | Evidence | Result |
