@@ -418,7 +418,7 @@ internal static class ThrowHelper
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowArchetypeComponentMustBeRequired(ComponentId componentId)
         => throw new ArgumentException(
-            $"Archetype iteration component {componentId} must be a data component required by the query's WhereAll filter.",
+            $"Archetype iteration component {componentId} must be required by the query's WhereAll filter.",
             nameof(componentId));
 
     [DoesNotReturn]

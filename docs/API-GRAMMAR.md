@@ -354,17 +354,19 @@ the current borrowed `EntityRef`. This API is available without the source
 generator and can be configured from a component visitor loop before the
 operation is retained and invoked repeatedly.
 
-For direct component access, bind the required data component's `ComponentId`
-at setup. The row index is cached per matching archetype, and that processor
-walks the typed component row directly instead of resolving every access
-through `EntityRef`:
+For direct component access, bind a component required by `WhereAll` at setup.
+For a data component, its row index is cached per matching archetype, and the
+processor walks the typed component row directly instead of resolving every
+access through `EntityRef`:
 
 ```csharp
 restore.Process<Health, RestoreHealth>(in healthQuery, healthId, new RestoreHealth());
 ```
 
-The component must be a data component in the query's `WhereAll` filter. Its
-write stamp is updated for each processed entity.
+For a tag, the processor receives the same shared placeholder reference used by
+generated `ForEach`; writes through it are not stored. Tags have no component
+row; their presence stamp remains fixed. Data component write stamps advance
+once per matching archetype before its processors run.
 
 `EntityRef` also supports primary-registration forms. Supply a `ComponentId`
 when the entity has multiple registrations of the same CLR type:

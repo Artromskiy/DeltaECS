@@ -12,6 +12,7 @@ public interface IArchetypeForEachEntity<TContext>
 }
 
 /// <summary>Processes a required component with direct typed access during archetype iteration.</summary>
+/// <remarks>For a tag component, the reference points to the shared placeholder and writes are not stored.</remarks>
 public interface IArchetypeForEachComponent<TContext, TComponent>
 {
     /// <summary>Processes the current entity and its writable component reference.</summary>
@@ -56,7 +57,7 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
         return this;
     }
 
-    /// <summary>Adds a query and processor with a component row bound once per matching archetype.</summary>
+    /// <summary>Adds a query and processor with its component access bound once per matching archetype.</summary>
     public ArchetypeForEachOperation<TContext> Process<TComponent, TProcessor>(in Query query, ComponentId componentId, TProcessor processor)
         where TProcessor : struct, IArchetypeForEachComponent<TContext, TComponent>
     {
@@ -71,7 +72,7 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
         }
 
         _world.ValidateGeneratedComponentType<TComponent>(componentId);
-        if (!query.Cached.RequiresAllData(componentId))
+        if (!query.Cached.RequiresAll(componentId))
         {
             ThrowHelper.ThrowArchetypeComponentMustBeRequired(componentId);
         }
@@ -284,6 +285,7 @@ internal sealed class ArchetypeForEachCase<TContext, TProcessor> : IArchetypeFor
 internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProcessor> : IArchetypeForEachCase<TContext>
     where TProcessor : struct, IArchetypeForEachComponent<TContext, TComponent>
 {
+    private const int TagComponentIndex = -2;
     private readonly QueryPlan _query;
     private readonly ComponentId _componentId;
     private TProcessor _processor;
@@ -297,13 +299,19 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
 
     public bool TryBindArchetype(Archetype archetype, out int componentIndex)
     {
-        if (_query.MatchesArchetype(archetype))
+        if (!_query.MatchesArchetype(archetype))
         {
-            return archetype.TryGetComponentIndex(_componentId, out componentIndex);
+            componentIndex = -1;
+            return false;
         }
 
-        componentIndex = -1;
-        return false;
+        if (_query.Owner.Layouts.TryGetTagIndex(_componentId, out _))
+        {
+            componentIndex = TagComponentIndex;
+            return true;
+        }
+
+        return archetype.TryGetComponentIndex(_componentId, out componentIndex);
     }
 
     public bool HasTagFilters => _query.HasTagFilters;
@@ -318,8 +326,9 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
         {
             Chunk chunk = archetype.GetActiveChunk(chunkIndex);
             view.SetChunk(chunk);
-            Span<TComponent> components = chunk.GetComponentRow<TComponent>(componentIndex);
-            ref TComponent component = ref components.GetRefAtZero();
+            ref TComponent component = ref componentIndex == TagComponentIndex
+                ? ref GeneratedTagRows.GetReference<TComponent>(0)
+                : ref chunk.GetComponentRow<TComponent>(componentIndex).GetRefAtZero();
             int chunkCount = chunk.Count;
             if (_query.HasTagFilters && _query.TryGetTagSlots(chunk, out ReadOnlySpan<int> tagSlots))
             {

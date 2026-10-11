@@ -103,6 +103,46 @@ internal sealed class ArchetypeForEachOperationTests
     }
 
     [Test]
+    public void ProcessTagPassesPlaceholderReferenceForMatchingEntities()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_310));
+        ComponentId activeId = layouts.Register<Active>(new SchemaId(60_311));
+        using var world = new World(layouts);
+        Span<Entity> entities = stackalloc Entity[3];
+        world.Create([positionId], entities);
+        world.Add(entities[0], activeId);
+        world.Add(entities[2], activeId);
+
+        Query active = world.WhereAll(positionId).WhereAll(activeId);
+        var state = new IterationState();
+        var operation = world.ForEachArchetype(state)
+            .Process<Active, VisitActiveTag>(in active, activeId, new VisitActiveTag());
+
+        operation.Invoke(ref state);
+
+        Assert.That(state.Active, Is.EqualTo(new[] { entities[0].Index, entities[2].Index }));
+        Assert.That(world.Has<Active>(entities[0]), Is.True);
+        Assert.That(world.Has<Active>(entities[1]), Is.False);
+        Assert.That(world.Has<Active>(entities[2]), Is.True);
+        Assert.That(world.TryGetComponentStamp(entities[0], activeId, out Stamp stamp), Is.True);
+        Assert.That(stamp, Is.EqualTo(new Stamp(1)));
+    }
+
+    [Test]
+    public void ProcessTagRequiresWhereAllMembership()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId activeId = layouts.Register<Active>(new SchemaId(60_312));
+        using var world = new World(layouts);
+        Query all = world.CreateQuery(QuerySpec.Empty);
+
+        Assert.Throws<System.ArgumentException>(() => world
+            .ForEachArchetype(new IterationState())
+            .Process<Active, VisitActiveTag>(in all, activeId, new VisitActiveTag()));
+    }
+
+    [Test]
     public void InvokeCopiesStructContextBackOnlyAfterSuccessfulExecution()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -166,6 +206,15 @@ internal sealed class ArchetypeForEachOperationTests
     private readonly struct SetPosition(int value) : IArchetypeForEachComponent<IterationState, Position>
     {
         public void Invoke(ref IterationState context, EntityRef entity, ref Position component) => component.Value = value;
+    }
+
+    private readonly struct VisitActiveTag : IArchetypeForEachComponent<IterationState, Active>
+    {
+        public void Invoke(ref IterationState context, EntityRef entity, ref Active component)
+        {
+            component = default;
+            context.Active.Add(entity.Index);
+        }
     }
 
     private struct Position

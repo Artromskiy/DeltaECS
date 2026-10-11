@@ -660,7 +660,10 @@ internal sealed class QueryPlan
         && !archetype.Mask.Intersects(_noneDataMask)
         && (_anyDataMask.IsEmpty || _anyTagIndices.Length != 0 || archetype.Mask.Intersects(_anyDataMask));
 
-    internal bool RequiresAllData(ComponentId componentId) => _allDataMask.Contains(componentId);
+    internal bool RequiresAll(ComponentId componentId)
+        => _allDataMask.Contains(componentId)
+            || (_owner.Layouts.TryGetTagIndex(componentId, out int tagIndex)
+                && Array.IndexOf(_allTagIndices, tagIndex) >= 0);
 
     private static (ComponentMask DataMask, int[] TagIndices) PartitionQueryMask(World world, ComponentMask source)
     {
