@@ -102,6 +102,41 @@ internal sealed class ArchetypeForEachOperationTests
     }
 
     [Test]
+    public void ProcessChangedRunsInitiallyAndThenOnlyForEntitiesWithNewStamps()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_314));
+        using var world = new World(layouts);
+        Span<Entity> entities = stackalloc Entity[2];
+        world.Create([positionId], entities);
+        Query positions = world.WhereAll(positionId);
+        var state = new ChangedEntities();
+        var operation = world.ForEachArchetype(state)
+            .ProcessChanged<Position, CollectChangedPosition>(in positions, positionId, new CollectChangedPosition());
+
+        operation.Invoke(ref state);
+        Assert.That(state.Entities, Is.EqualTo(new[] { entities[0].Index, entities[1].Index }));
+
+        state.Entities.Clear();
+        operation.Invoke(ref state);
+        Assert.That(state.Entities, Is.Empty);
+
+        world.GetRef<Position>(entities[1], positionId).Value++;
+        operation.Invoke(ref state);
+        Assert.That(state.Entities, Is.EqualTo(new[] { entities[1].Index }));
+
+        state.Entities.Clear();
+        Entity added = world.Create([positionId]);
+        operation.Invoke(ref state);
+        Assert.That(state.Entities, Is.EqualTo(new[] { added.Index }));
+
+        state.Entities.Clear();
+        operation.ResetChangeTracking();
+        operation.Invoke(ref state);
+        Assert.That(state.Entities, Is.EquivalentTo(new[] { entities[0].Index, entities[1].Index, added.Index }));
+    }
+
+    [Test]
     public void ProcessComponentRequiresWhereAllMembership()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -265,6 +300,16 @@ internal sealed class ArchetypeForEachOperationTests
             context.ValueTotal += component.Value;
             component.Value++;
         }
+    }
+
+    private sealed class ChangedEntities
+    {
+        internal readonly List<int> Entities = new();
+    }
+
+    private readonly struct CollectChangedPosition : IArchetypeForEachComponentIn<ChangedEntities, Position>
+    {
+        public void Invoke(ref ChangedEntities context, EntityRef entity, in Position component) => context.Entities.Add(entity.Index);
     }
 
     private readonly struct VisitActiveTag : IArchetypeForEachComponent<IterationState, Active>

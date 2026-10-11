@@ -90,6 +90,12 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
         where TProcessor : struct, IArchetypeForEachComponentIn<TContext, TComponent>
         => AddComponentProcessor<TComponent, InComponentProcessor<TContext, TComponent, TProcessor>>(in query, componentId, new(processor), writesComponent: false);
 
+    /// <summary>Adds a read-only component processor that runs only when an entity's component stamp changed since the previous successful invocation.</summary>
+    /// <remarks>The first invocation processes every matching entity. Stamps are tracked per entity for the lifetime of this operation. Tags have no writable row stamp and are processed on every invocation; entities that no longer match are not reported.</remarks>
+    public ArchetypeForEachOperation<TContext> ProcessChanged<TComponent, TProcessor>(in Query query, ComponentId componentId, TProcessor processor)
+        where TProcessor : struct, IArchetypeForEachComponentIn<TContext, TComponent>
+        => AddComponentProcessor<TComponent, InComponentProcessor<TContext, TComponent, TProcessor>>(in query, componentId, new(processor), writesComponent: false, onlyWhenChanged: true);
+
     /// <summary>Adds a required component processor that receives a ref-readonly reference.</summary>
     public ArchetypeForEachOperation<TContext> ProcessReadRef<TComponent, TProcessor>(in Query query, ComponentId componentId, TProcessor processor)
         where TProcessor : struct, IArchetypeForEachComponentRefReadonly<TContext, TComponent>
@@ -100,7 +106,7 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
         where TProcessor : struct, IArchetypeForEachComponentValue<TContext, TComponent>
         => AddComponentProcessor<TComponent, ValueComponentProcessor<TContext, TComponent, TProcessor>>(in query, componentId, new(processor), writesComponent: false);
 
-    private ArchetypeForEachOperation<TContext> AddComponentProcessor<TComponent, TProcessor>(in Query query, ComponentId componentId, TProcessor processor, bool writesComponent)
+    private ArchetypeForEachOperation<TContext> AddComponentProcessor<TComponent, TProcessor>(in Query query, ComponentId componentId, TProcessor processor, bool writesComponent, bool onlyWhenChanged = false)
         where TProcessor : struct, IArchetypeForEachComponent<TContext, TComponent>
     {
         if (_invoking)
@@ -119,7 +125,7 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
             ThrowHelper.ThrowArchetypeComponentMustBeRequired(componentId);
         }
 
-        _cases.Add(new ArchetypeForEachComponentCase<TContext, TComponent, TProcessor>(query.Cached, componentId, processor, writesComponent));
+        _cases.Add(new ArchetypeForEachComponentCase<TContext, TComponent, TProcessor>(query.Cached, componentId, processor, writesComponent, onlyWhenChanged));
         _caseVersion++;
         return this;
     }
@@ -155,6 +161,11 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
         {
             Execute(ref contextCopy, writeVersion);
         }
+        catch
+        {
+            ResetChangeTrackingCore();
+            throw;
+        }
         finally
         {
             _world.EndQueryLease();
@@ -162,6 +173,25 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
         }
 
         context = contextCopy;
+    }
+
+    /// <summary>Resets per-entity component stamps tracked by <see cref="ProcessChanged{TComponent, TProcessor}"/>.</summary>
+    public void ResetChangeTracking()
+    {
+        if (_invoking)
+        {
+            ThrowHelper.ThrowArchetypeOperationAlreadyRunning();
+        }
+
+        ResetChangeTrackingCore();
+    }
+
+    private void ResetChangeTrackingCore()
+    {
+        for (int caseIndex = 0; caseIndex < _cases.Count; caseIndex++)
+        {
+            _cases[caseIndex].ResetChangeTracking();
+        }
     }
 
     private void EnsurePlans()
@@ -273,6 +303,7 @@ internal interface IArchetypeForEachCase<TContext>
     bool TryBindArchetype(Archetype archetype, out int componentIndex);
     bool HasMatchingEntities(Archetype archetype);
     void Execute(ref TContext context, Archetype archetype, int componentIndex);
+    void ResetChangeTracking();
 }
 
 internal sealed class ArchetypeForEachCase<TContext, TProcessor> : IArchetypeForEachCase<TContext>
@@ -298,6 +329,8 @@ internal sealed class ArchetypeForEachCase<TContext, TProcessor> : IArchetypeFor
     public bool HasTagFilters => _query.HasTagFilters;
 
     public bool HasMatchingEntities(Archetype archetype) => _query.HasMatchingEntities(archetype);
+
+    public void ResetChangeTracking() { }
 
     public void Execute(ref TContext context, Archetype archetype, int componentIndex)
     {
@@ -335,14 +368,18 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
     private readonly QueryPlan _query;
     private readonly ComponentId _componentId;
     private readonly bool _writesComponent;
+    private readonly bool _onlyWhenChanged;
     private TProcessor _processor;
+    private Entity[] _lastCapturedEntities = Array.Empty<Entity>();
+    private Stamp[] _lastCapturedStamps = Array.Empty<Stamp>();
 
-    internal ArchetypeForEachComponentCase(QueryPlan query, ComponentId componentId, TProcessor processor, bool writesComponent)
+    internal ArchetypeForEachComponentCase(QueryPlan query, ComponentId componentId, TProcessor processor, bool writesComponent, bool onlyWhenChanged)
     {
         _query = query;
         _componentId = componentId;
         _processor = processor;
         _writesComponent = writesComponent;
+        _onlyWhenChanged = onlyWhenChanged;
     }
 
     public bool TryBindArchetype(Archetype archetype, out int componentIndex)
@@ -368,8 +405,20 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
 
     public bool HasMatchingEntities(Archetype archetype) => _query.HasMatchingEntities(archetype);
 
+    public void ResetChangeTracking()
+    {
+        Array.Clear(_lastCapturedEntities, 0, _lastCapturedEntities.Length);
+        Array.Clear(_lastCapturedStamps, 0, _lastCapturedStamps.Length);
+    }
+
     public void Execute(ref TContext context, Archetype archetype, int componentIndex)
     {
+        if (_onlyWhenChanged)
+        {
+            ExecuteChanged(ref context, archetype, componentIndex);
+            return;
+        }
+
         GeneratedEntityRefView view = default;
         EntityRef entity = GeneratedForEachRuntime.CreateEntityRef(_query.Owner, ref view);
         for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
@@ -405,6 +454,84 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
                 denseSlotIndex++;
             }
         }
+    }
+
+    private void ExecuteChanged(ref TContext context, Archetype archetype, int componentIndex)
+    {
+        GeneratedEntityRefView view = default;
+        EntityRef entity = GeneratedForEachRuntime.CreateEntityRef(_query.Owner, ref view);
+        for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
+        {
+            Chunk chunk = archetype.GetActiveChunk(chunkIndex);
+            view.SetChunk(chunk);
+            ref TComponent component = ref componentIndex == TagComponentIndex
+                ? ref GeneratedTagRows.GetReference<TComponent>(0)
+                : ref chunk.GetComponentRow<TComponent>(componentIndex).GetRefAtZero();
+            int chunkCount = chunk.Count;
+            if (_query.HasTagFilters && _query.TryGetTagSlots(chunk, out ReadOnlySpan<int> tagSlots))
+            {
+                int currentSlot = 0;
+                for (int tagIndex = 0; tagIndex < tagSlots.Length; tagIndex++)
+                {
+                    int selectedSlot = tagSlots.RefAt(tagIndex);
+                    int slotAdvance = selectedSlot - currentSlot;
+                    component = ref Unsafe.Add(ref component, slotAdvance);
+                    view.SetSlot(selectedSlot);
+                    InvokeChanged(ref context, entity, ref component, archetype, chunk, componentIndex, selectedSlot);
+                    currentSlot = selectedSlot;
+                }
+
+                continue;
+            }
+
+            int denseSlotIndex = 0;
+            while (denseSlotIndex < chunkCount)
+            {
+                view.SetSlot(denseSlotIndex);
+                InvokeChanged(ref context, entity, ref component, archetype, chunk, componentIndex, denseSlotIndex);
+                component = ref Unsafe.Add(ref component, 1);
+                denseSlotIndex++;
+            }
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void InvokeChanged(ref TContext context, EntityRef entity, ref TComponent component, Archetype archetype, Chunk chunk, int componentIndex, int slotIndex)
+    {
+        if (componentIndex == TagComponentIndex)
+        {
+            _processor.Invoke(ref context, entity, ref component);
+            return;
+        }
+
+        Entity handle = entity;
+        EnsureChangeTrackingCapacity(handle.Index);
+        Stamp stamp = _query.Owner.GetComponentStamp(archetype.Id, chunk, componentIndex, slotIndex);
+        if (_lastCapturedEntities.RefAt(handle.Index) == handle && _lastCapturedStamps.RefAt(handle.Index) == stamp)
+        {
+            return;
+        }
+
+        _processor.Invoke(ref context, entity, ref component);
+        _lastCapturedEntities.RefAt(handle.Index) = handle;
+        _lastCapturedStamps.RefAt(handle.Index) = stamp;
+    }
+
+    private void EnsureChangeTrackingCapacity(int entityIndex)
+    {
+        if (entityIndex < _lastCapturedEntities.Length && entityIndex < _lastCapturedStamps.Length)
+        {
+            return;
+        }
+
+        int capacity = Math.Max(4, Math.Max(_lastCapturedEntities.Length, _lastCapturedStamps.Length) * 2);
+        while (capacity <= entityIndex)
+        {
+            capacity = checked(capacity * 2);
+        }
+
+        Array.Resize(ref _lastCapturedEntities, capacity);
+        Array.Resize(ref _lastCapturedStamps, capacity);
     }
 }
 
