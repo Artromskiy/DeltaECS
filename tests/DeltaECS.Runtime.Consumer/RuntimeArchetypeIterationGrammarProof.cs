@@ -45,7 +45,7 @@ public static partial class RuntimeApiGrammarProof
         public void Visit<T>(ComponentId componentId)
         {
             Query query = _world.WhereAll(componentId);
-            _operation.Process<T, RecordComponent<T>>(in query, componentId, new RecordComponent<T>());
+            _operation.ProcessRef<T, RecordComponent<T>>(in query, componentId, new RecordComponent<T>());
         }
     }
 

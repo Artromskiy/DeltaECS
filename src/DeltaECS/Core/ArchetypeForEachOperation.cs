@@ -19,6 +19,27 @@ public interface IArchetypeForEachComponent<TContext, TComponent>
     void Invoke(ref TContext context, EntityRef entity, ref TComponent component);
 }
 
+/// <summary>Processes a required component through a read-only reference.</summary>
+public interface IArchetypeForEachComponentIn<TContext, TComponent>
+{
+    /// <summary>Processes the current entity and its read-only component reference.</summary>
+    void Invoke(ref TContext context, EntityRef entity, in TComponent component);
+}
+
+/// <summary>Processes a required component through a read-only reference with explicit ref-readonly semantics.</summary>
+public interface IArchetypeForEachComponentRefReadonly<TContext, TComponent>
+{
+    /// <summary>Processes the current entity and its ref-readonly component reference.</summary>
+    void Invoke(ref TContext context, EntityRef entity, ref readonly TComponent component);
+}
+
+/// <summary>Processes a required component using a value copy.</summary>
+public interface IArchetypeForEachComponentValue<TContext, TComponent>
+{
+    /// <summary>Processes the current entity and a copy of its component value.</summary>
+    void Invoke(ref TContext context, EntityRef entity, TComponent component);
+}
+
 /// <summary>A reusable operation with query-specific archetype processors.</summary>
 /// <remarks>Queries and processors are added during setup. Each invocation reuses the matching archetype plan.</remarks>
 public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
@@ -58,7 +79,28 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
     }
 
     /// <summary>Adds a query and processor with its component access bound once per matching archetype.</summary>
+    public ArchetypeForEachOperation<TContext> ProcessRef<TComponent, TProcessor>(in Query query, ComponentId componentId, TProcessor processor)
+        where TProcessor : struct, IArchetypeForEachComponent<TContext, TComponent>
+    {
+        return AddComponentProcessor<TComponent, TProcessor>(in query, componentId, processor, writesComponent: true);
+    }
+
+    /// <summary>Adds a required component processor that receives a read-only reference.</summary>
+    public ArchetypeForEachOperation<TContext> ProcessIn<TComponent, TProcessor>(in Query query, ComponentId componentId, TProcessor processor)
+        where TProcessor : struct, IArchetypeForEachComponentIn<TContext, TComponent>
+        => AddComponentProcessor<TComponent, InComponentProcessor<TContext, TComponent, TProcessor>>(in query, componentId, new(processor), writesComponent: false);
+
+    /// <summary>Adds a required component processor that receives a ref-readonly reference.</summary>
+    public ArchetypeForEachOperation<TContext> ProcessReadRef<TComponent, TProcessor>(in Query query, ComponentId componentId, TProcessor processor)
+        where TProcessor : struct, IArchetypeForEachComponentRefReadonly<TContext, TComponent>
+        => AddComponentProcessor<TComponent, RefReadonlyComponentProcessor<TContext, TComponent, TProcessor>>(in query, componentId, new(processor), writesComponent: false);
+
+    /// <summary>Adds a required component processor that receives a value copy.</summary>
     public ArchetypeForEachOperation<TContext> Process<TComponent, TProcessor>(in Query query, ComponentId componentId, TProcessor processor)
+        where TProcessor : struct, IArchetypeForEachComponentValue<TContext, TComponent>
+        => AddComponentProcessor<TComponent, ValueComponentProcessor<TContext, TComponent, TProcessor>>(in query, componentId, new(processor), writesComponent: false);
+
+    private ArchetypeForEachOperation<TContext> AddComponentProcessor<TComponent, TProcessor>(in Query query, ComponentId componentId, TProcessor processor, bool writesComponent)
         where TProcessor : struct, IArchetypeForEachComponent<TContext, TComponent>
     {
         if (_invoking)
@@ -77,7 +119,7 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
             ThrowHelper.ThrowArchetypeComponentMustBeRequired(componentId);
         }
 
-        _cases.Add(new ArchetypeForEachComponentCase<TContext, TComponent, TProcessor>(query.Cached, componentId, processor));
+        _cases.Add(new ArchetypeForEachComponentCase<TContext, TComponent, TProcessor>(query.Cached, componentId, processor, writesComponent));
         _caseVersion++;
         return this;
     }
@@ -204,13 +246,14 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
         for (int bindingIndex = 0; bindingIndex < plan.Cases.Length; bindingIndex++)
         {
             ref readonly ArchetypeForEachBinding binding = ref plan.Cases.RefAt(bindingIndex);
-            if (binding.ComponentIndex < 0
+            IArchetypeForEachCase<TContext> @case = _cases[binding.CaseIndex];
+            if (!@case.WritesComponent
+                || binding.ComponentIndex < 0
                 || plan.MarkedWriteVersions.RefAt(binding.ComponentIndex) == writeVersion)
             {
                 continue;
             }
 
-            IArchetypeForEachCase<TContext> @case = _cases[binding.CaseIndex];
             if (binding.HasTagFilters && !@case.HasMatchingEntities(plan.Archetype))
             {
                 continue;
@@ -225,6 +268,7 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
 
 internal interface IArchetypeForEachCase<TContext>
 {
+    bool WritesComponent { get; }
     bool HasTagFilters { get; }
     bool TryBindArchetype(Archetype archetype, out int componentIndex);
     bool HasMatchingEntities(Archetype archetype);
@@ -248,6 +292,8 @@ internal sealed class ArchetypeForEachCase<TContext, TProcessor> : IArchetypeFor
         componentIndex = -1;
         return _query.MatchesArchetype(archetype);
     }
+
+    public bool WritesComponent => false;
 
     public bool HasTagFilters => _query.HasTagFilters;
 
@@ -288,13 +334,15 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
     private const int TagComponentIndex = -2;
     private readonly QueryPlan _query;
     private readonly ComponentId _componentId;
+    private readonly bool _writesComponent;
     private TProcessor _processor;
 
-    internal ArchetypeForEachComponentCase(QueryPlan query, ComponentId componentId, TProcessor processor)
+    internal ArchetypeForEachComponentCase(QueryPlan query, ComponentId componentId, TProcessor processor, bool writesComponent)
     {
         _query = query;
         _componentId = componentId;
         _processor = processor;
+        _writesComponent = writesComponent;
     }
 
     public bool TryBindArchetype(Archetype archetype, out int componentIndex)
@@ -315,6 +363,8 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
     }
 
     public bool HasTagFilters => _query.HasTagFilters;
+
+    public bool WritesComponent => _writesComponent;
 
     public bool HasMatchingEntities(Archetype archetype) => _query.HasMatchingEntities(archetype);
 
@@ -356,6 +406,39 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
             }
         }
     }
+}
+
+internal struct InComponentProcessor<TContext, TComponent, TProcessor> : IArchetypeForEachComponent<TContext, TComponent>
+    where TProcessor : struct, IArchetypeForEachComponentIn<TContext, TComponent>
+{
+    private TProcessor _processor;
+
+    internal InComponentProcessor(TProcessor processor) => _processor = processor;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Invoke(ref TContext context, EntityRef entity, ref TComponent component) => _processor.Invoke(ref context, entity, in component);
+}
+
+internal struct RefReadonlyComponentProcessor<TContext, TComponent, TProcessor> : IArchetypeForEachComponent<TContext, TComponent>
+    where TProcessor : struct, IArchetypeForEachComponentRefReadonly<TContext, TComponent>
+{
+    private TProcessor _processor;
+
+    internal RefReadonlyComponentProcessor(TProcessor processor) => _processor = processor;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Invoke(ref TContext context, EntityRef entity, ref TComponent component) => _processor.Invoke(ref context, entity, in component);
+}
+
+internal struct ValueComponentProcessor<TContext, TComponent, TProcessor> : IArchetypeForEachComponent<TContext, TComponent>
+    where TProcessor : struct, IArchetypeForEachComponentValue<TContext, TComponent>
+{
+    private TProcessor _processor;
+
+    internal ValueComponentProcessor(TProcessor processor) => _processor = processor;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Invoke(ref TContext context, EntityRef entity, ref TComponent component) => _processor.Invoke(ref context, entity, component);
 }
 
 internal readonly struct ArchetypeForEachBinding(int caseIndex, int componentIndex, bool hasTagFilters)

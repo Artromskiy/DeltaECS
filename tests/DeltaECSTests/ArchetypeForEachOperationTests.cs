@@ -55,8 +55,8 @@ internal sealed class ArchetypeForEachOperationTests
 
         Query positions = world.WhereAll(positionId);
         var operation = world.ForEachArchetype(new IterationState())
-            .Process<Position, SetPosition>(in positions, positionId, new SetPosition(17))
-            .Process<Position, SetPosition>(in positions, positionId, new SetPosition(17));
+            .ProcessRef<Position, SetPosition>(in positions, positionId, new SetPosition(17))
+            .ProcessRef<Position, SetPosition>(in positions, positionId, new SetPosition(17));
 
         operation.Invoke();
 
@@ -69,6 +69,39 @@ internal sealed class ArchetypeForEachOperationTests
     }
 
     [Test]
+    public void ReadOnlyComponentFormsDoNotAdvanceStamps()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_313));
+        using var world = new World(layouts);
+        Span<Entity> entities = stackalloc Entity[2];
+        world.Create([positionId], entities);
+        world.GetRef<Position>(entities[0], positionId).Value = 3;
+        world.GetRef<Position>(entities[1], positionId).Value = 7;
+        world.TryGetComponentStamp(entities[0], positionId, out Stamp firstStampBefore);
+        world.TryGetComponentStamp(entities[1], positionId, out Stamp secondStampBefore);
+
+        Query positions = world.WhereAll(positionId);
+        var state = new ReadComponentModes();
+        var operation = world.ForEachArchetype(state)
+            .ProcessIn<Position, SumIn>(in positions, positionId, new SumIn())
+            .ProcessReadRef<Position, SumRefReadonly>(in positions, positionId, new SumRefReadonly())
+            .Process<Position, SumValue>(in positions, positionId, new SumValue());
+
+        operation.Invoke(ref state);
+
+        Assert.That(state.InTotal, Is.EqualTo(10));
+        Assert.That(state.RefReadonlyTotal, Is.EqualTo(10));
+        Assert.That(state.ValueTotal, Is.EqualTo(10));
+        Assert.That(world.Get<Position>(entities[0], positionId).Value, Is.EqualTo(3));
+        Assert.That(world.Get<Position>(entities[1], positionId).Value, Is.EqualTo(7));
+        world.TryGetComponentStamp(entities[0], positionId, out Stamp firstStampAfter);
+        world.TryGetComponentStamp(entities[1], positionId, out Stamp secondStampAfter);
+        Assert.That(firstStampAfter, Is.EqualTo(firstStampBefore));
+        Assert.That(secondStampAfter, Is.EqualTo(secondStampBefore));
+    }
+
+    [Test]
     public void ProcessComponentRequiresWhereAllMembership()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -78,7 +111,7 @@ internal sealed class ArchetypeForEachOperationTests
 
         Assert.Throws<System.ArgumentException>(() => world
             .ForEachArchetype(new IterationState())
-            .Process<Position, SetPosition>(in all, positionId, new SetPosition(1)));
+            .ProcessRef<Position, SetPosition>(in all, positionId, new SetPosition(1)));
     }
 
     [Test]
@@ -94,7 +127,7 @@ internal sealed class ArchetypeForEachOperationTests
 
         Query activePositions = world.WhereAll(positionId).WhereAll(activeId);
         var operation = world.ForEachArchetype(new IterationState())
-            .Process<Position, SetPosition>(in activePositions, positionId, new SetPosition(9));
+            .ProcessRef<Position, SetPosition>(in activePositions, positionId, new SetPosition(9));
 
         operation.Invoke();
 
@@ -117,7 +150,7 @@ internal sealed class ArchetypeForEachOperationTests
         Query active = world.WhereAll(positionId).WhereAll(activeId);
         var state = new IterationState();
         var operation = world.ForEachArchetype(state)
-            .Process<Active, VisitActiveTag>(in active, activeId, new VisitActiveTag());
+            .ProcessRef<Active, VisitActiveTag>(in active, activeId, new VisitActiveTag());
 
         operation.Invoke(ref state);
 
@@ -139,7 +172,7 @@ internal sealed class ArchetypeForEachOperationTests
 
         Assert.Throws<System.ArgumentException>(() => world
             .ForEachArchetype(new IterationState())
-            .Process<Active, VisitActiveTag>(in all, activeId, new VisitActiveTag()));
+            .ProcessRef<Active, VisitActiveTag>(in all, activeId, new VisitActiveTag()));
     }
 
     [Test]
@@ -206,6 +239,32 @@ internal sealed class ArchetypeForEachOperationTests
     private readonly struct SetPosition(int value) : IArchetypeForEachComponent<IterationState, Position>
     {
         public void Invoke(ref IterationState context, EntityRef entity, ref Position component) => component.Value = value;
+    }
+
+    private struct ReadComponentModes
+    {
+        internal int InTotal;
+        internal int RefReadonlyTotal;
+        internal int ValueTotal;
+    }
+
+    private readonly struct SumIn : IArchetypeForEachComponentIn<ReadComponentModes, Position>
+    {
+        public void Invoke(ref ReadComponentModes context, EntityRef entity, in Position component) => context.InTotal += component.Value;
+    }
+
+    private readonly struct SumRefReadonly : IArchetypeForEachComponentRefReadonly<ReadComponentModes, Position>
+    {
+        public void Invoke(ref ReadComponentModes context, EntityRef entity, ref readonly Position component) => context.RefReadonlyTotal += component.Value;
+    }
+
+    private readonly struct SumValue : IArchetypeForEachComponentValue<ReadComponentModes, Position>
+    {
+        public void Invoke(ref ReadComponentModes context, EntityRef entity, Position component)
+        {
+            context.ValueTotal += component.Value;
+            component.Value++;
+        }
     }
 
     private readonly struct VisitActiveTag : IArchetypeForEachComponent<IterationState, Active>

@@ -360,7 +360,7 @@ processor walks the typed component row directly instead of resolving every
 access through `EntityRef`:
 
 ```csharp
-restore.Process<Health, RestoreHealth>(in healthQuery, healthId, new RestoreHealth());
+restore.ProcessRef<Health, RestoreHealth>(in healthQuery, healthId, new RestoreHealth());
 ```
 
 For a tag, the processor receives the same shared placeholder reference used by
