@@ -45,6 +45,26 @@ internal sealed class ComponentLayoutRegistryTests
     }
 
     [Test]
+    public void SchemaIdResolvesRegisteredComponentId()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        var schemaId = new SchemaId(70_016);
+        ComponentId expected = layouts.Register<Position>(schemaId);
+
+        Assert.That(layouts.TryGetComponentId(schemaId, out ComponentId actual), Is.True);
+        Assert.That(actual, Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void UnknownSchemaIdDoesNotResolve()
+    {
+        var layouts = new ComponentLayoutRegistry();
+
+        Assert.That(layouts.TryGetComponentId(new SchemaId(70_017), out ComponentId missing), Is.False);
+        Assert.That(missing, Is.EqualTo(ComponentId.Invalid));
+    }
+
+    [Test]
     public void ConflictingSchemaIsRejectedWithoutChangingPrimary()
     {
         var layouts = new ComponentLayoutRegistry();

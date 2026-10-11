@@ -323,6 +323,19 @@ public sealed partial class ComponentLayoutRegistry
         return false;
     }
 
+    /// <summary>Tries to resolve a component registration from its stable schema identity.</summary>
+    public bool TryGetComponentId(SchemaId schemaId, out ComponentId componentId)
+    {
+        if (_idsBySchema.TryGetValue(schemaId, out int value))
+        {
+            componentId = new ComponentId(value);
+            return true;
+        }
+
+        componentId = ComponentId.Invalid;
+        return false;
+    }
+
     /// <summary>Gets the primary component registration for a CLR type.</summary>
     public ComponentId GetPrimary(Type runtimeType)
     {
