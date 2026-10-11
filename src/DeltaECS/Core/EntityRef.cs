@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 namespace Delta.ECS;
 
@@ -9,12 +8,12 @@ public ref struct EntityRef
 {
     private Span<GeneratedEntityRefView> _view;
 
-    internal EntityRef(Span<GeneratedEntityRefView> view)
+    internal EntityRef(ref GeneratedEntityRefView view)
     {
-        _view = view;
+        _view = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(ref view, 1);
     }
 
-    private ref GeneratedEntityRefView View => ref MemoryMarshal.GetReference(_view);
+    private ref GeneratedEntityRefView View => ref System.Runtime.InteropServices.MemoryMarshal.GetReference(_view);
 
     /// <summary>Converts this scoped view to its stable entity handle.</summary>
     public static implicit operator Entity(EntityRef entity) => entity.View.CurrentEntity;
@@ -91,6 +90,7 @@ public struct GeneratedEntityRefView
 {
     internal World? World;
     internal Chunk? Chunk;
+    private nint _entityAddress;
     internal int SlotIndex;
     private QueryPlan? _queryPlan;
     private Array[]? _componentRows;
@@ -102,7 +102,7 @@ public struct GeneratedEntityRefView
     private Array? _cachedComponentRow;
     private bool _hasCachedComponent;
 
-    internal readonly Entity CurrentEntity => Chunk!.RawEntities.RefAt(SlotIndex);
+    internal readonly Entity CurrentEntity => ArrayAccess.RefAt<Entity>(_entityAddress, SlotIndex);
 
     internal void SetWorld(World world)
     {
@@ -121,6 +121,7 @@ public struct GeneratedEntityRefView
     internal void SetChunk(Chunk chunk)
     {
         Chunk = chunk;
+        _entityAddress = chunk.EntityAddress;
         _queryPlan = null;
         _componentRows = null;
         _componentIndices = null;

@@ -119,7 +119,7 @@ namespace Ecs.CSharp.Benchmark.Contexts
 
     internal sealed class StaticEcsSystemMultipleCompositionContext : StaticEcsBaseContext
     {
-        public StaticEcsSystemMultipleCompositionContext(int entityCount, int _)
+        public StaticEcsSystemMultipleCompositionContext(int entityCount)
             : base(entityCount, (uint)ParallelContext.ParallelWorkerCount)
         {
             for (int index = 0; index < entityCount; index++)

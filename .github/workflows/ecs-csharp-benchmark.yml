@@ -138,8 +138,116 @@ jobs:
                 echo "::error::$thread_mode produced $report_count result tables for $entity_count entities; expected $expected_suites."
                 exit 1
               fi
+
+              python3 - "$mode_directory" <<'PY'
+          import csv
+          import glob
+          import os
+          import sys
+
+          failures = []
+          for path in glob.glob(os.path.join(sys.argv[1], "**", "*-report.csv"), recursive=True):
+              with open(path, newline="", encoding="utf-8-sig") as source:
+                  for result in csv.DictReader(source):
+                      if result.get("Mean", "").strip().upper() == "NA":
+                          failures.append(f"{os.path.basename(path)}: {result.get('Method', 'unknown method')}")
+
+          if failures:
+              print("BenchmarkDotNet produced NA means:", file=sys.stderr)
+              print("\n".join(failures), file=sys.stderr)
+              sys.exit(1)
+          PY
             done
           done
+
+      - name: Add benchmark winner summary
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import csv
+          import glob
+          import os
+          import re
+
+          method_prefixes = (
+              ("DeltaECSBatchGeneric", "DeltaECS"),
+              ("DeltaECSBatch", "DeltaECS"),
+              ("DeltaECS", "DeltaECS"),
+              ("LeopotamEcsLite", "Leopotam.EcsLite"),
+              ("LeopotamEcs", "Leopotam.Ecs"),
+              ("FrifloEngineEcs", "FrifloEngineEcs"),
+              ("DefaultEcs", "DefaultEcs"),
+              ("MonoGameExtended", "MonoGame.Extended"),
+              ("StaticEcsBatch", "StaticEcs"),
+              ("StaticEcs", "StaticEcs"),
+              ("SveltoECS", "Svelto.ECS"),
+              ("FlecsNet", "FlecsNet"),
+              ("Fennecs", "Fennecs"),
+              ("HypEcs", "HypEcs"),
+              ("Morpeh", "Morpeh"),
+              ("Myriad", "Myriad.ECS"),
+              ("RelEcs", "RelEcs"),
+              ("TinyEcs", "TinyEcs"),
+              ("Arch", "Arch"),
+          )
+          mean_pattern = re.compile(r"^\s*([0-9][0-9,.]*)\s*(ns|us|µs|ms|s)\s*$")
+          unit_to_ns = {"ns": 1, "us": 1_000, "µs": 1_000, "ms": 1_000_000, "s": 1_000_000_000}
+
+          def ecs_name(method):
+              for prefix, name in method_prefixes:
+                  if method.startswith(prefix):
+                      return name
+              return method
+
+          def mean_ns(value):
+              match = mean_pattern.match(value or "")
+              if match is None:
+                  return None
+              number, unit = match.groups()
+              return float(number.replace(",", "")) * unit_to_ns[unit]
+
+          summary_path = os.environ["GITHUB_STEP_SUMMARY"]
+          entity_counts = [value.strip() for value in os.environ.get("ENTITY_COUNTS", "").split(",") if value.strip()]
+          rows = []
+          for entity_count in entity_counts:
+              for thread_mode, mode_label in (("SingleThread", "Single-thread"), ("MultiThread", "Multi-thread")):
+                  root = f"artifacts/ecs-csharp/{entity_count}/{thread_mode}"
+                  for report in sorted(glob.glob(f"{root}/**/*-report.csv", recursive=True)):
+                      suite = os.path.basename(report).removesuffix("-report.csv")
+                      suite = suite.removeprefix("Ecs.CSharp.Benchmark.")
+                      best_by_ecs = {}
+                      with open(report, newline="", encoding="utf-8-sig") as source:
+                          for result in csv.DictReader(source):
+                              method = result.get("Method", "")
+                              mean = mean_ns(result.get("Mean", ""))
+                              if not method or mean is None:
+                                  continue
+                              name = ecs_name(method)
+                              best_by_ecs[name] = min(mean, best_by_ecs.get(name, float("inf")))
+
+                      ranked = sorted(best_by_ecs.items(), key=lambda entry: entry[1])
+                      if ranked:
+                          rows.append((suite, entity_count, mode_label, ranked))
+
+          with open(summary_path, "a", encoding="utf-8") as summary:
+              summary.write("## Results at a glance\n\n")
+              summary.write("Each ECS is ranked by its fastest method in the test. The advantage compares the winner with the fastest different ECS name.\n\n")
+              summary.write("| Test | Entities | Threads | Winner ECS | Advantage vs next ECS |\n")
+              summary.write("|---|---:|---|---|---|\n")
+              for suite, entity_count, mode_label, ranked in rows:
+                  winner, winner_ns = ranked[0]
+                  if len(ranked) > 1:
+                      runner_up, runner_up_ns = ranked[1]
+                      advantage = (runner_up_ns - winner_ns) / runner_up_ns * 100
+                      comparison = f"{advantage:.1f}% vs {runner_up}"
+                  else:
+                      comparison = "—"
+                  summary.write(f"| `{suite}` | {entity_count} | {mode_label} | **{winner}** | {comparison} |\n")
+              if not rows:
+                  summary.write("| No benchmark results available | — | — | — | — |\n")
+              summary.write("\n")
+          PY
 
       - name: Add result tables to workflow summary
         if: always()

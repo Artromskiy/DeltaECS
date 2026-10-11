@@ -205,6 +205,8 @@ internal sealed class Chunk
 
     internal Span<Entity> RawEntities => _entities.Span;
 
+    internal nint EntityAddress => _entities.Address;
+
     internal Array[] RawComponentRows => _componentRows;
 
     internal void SetArchetypeLocation(int archetypeId, int archetypeIndex)

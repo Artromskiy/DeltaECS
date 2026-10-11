@@ -58,7 +58,7 @@ namespace Ecs.CSharp.Benchmark
                     AssertComponent1Sum(32);
                 }
 
-                using (new StaticEcsSystemMultipleCompositionContext(8, 0))
+                using (new StaticEcsSystemMultipleCompositionContext(8))
                 {
                     StaticEcsWorld.Query().WriteBlock<Component1>().Read<Component2>().For(default(StaticEcsBlockTwo));
                     StaticEcsWorld.Query().WriteBlock<Component1>().Read<Component2>().ForParallel(

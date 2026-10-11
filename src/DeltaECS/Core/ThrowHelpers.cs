@@ -61,6 +61,16 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowCannotAddArchetypeProcessorWhileRunning()
+        => throw new InvalidOperationException("Cannot add a query processor while the operation is running.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowArchetypeOperationAlreadyRunning()
+        => throw new InvalidOperationException("The operation is already running.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowNull(string parameterName)
     {
         throw new ArgumentNullException(parameterName);
@@ -402,6 +412,13 @@ internal static class ThrowHelper
     internal static void ThrowOrderedQueryKeyMustBeRequired(ComponentId componentId)
         => throw new ArgumentException(
             $"Ordering key component {componentId} must be required by the query's WhereAll filter.",
+            nameof(componentId));
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowArchetypeComponentMustBeRequired(ComponentId componentId)
+        => throw new ArgumentException(
+            $"Archetype iteration component {componentId} must be a data component required by the query's WhereAll filter.",
             nameof(componentId));
 
     [DoesNotReturn]

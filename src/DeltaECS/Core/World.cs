@@ -217,6 +217,9 @@ public sealed partial class World : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Query WhereNone(ComponentId component) => CreateQuery(QuerySpec.WhereNone(component));
 
+    /// <summary>Creates a reusable operation that combines query-specific processors into one archetype traversal.</summary>
+    public ArchetypeForEachOperation<TContext> ForEachArchetype<TContext>(TContext context) => new(this, context);
+
     /// <summary>Creates one entity with the supplied component registrations.</summary>
     public Entity Create(ReadOnlySpan<ComponentId> componentIds)
     {

@@ -23,6 +23,10 @@ confirmed improvement: three components at 100000 entities, -1.31%; seven are
 inconclusive. All measurements allocate 0 B. Requested changes are retained.
 See [full measurements and JIT evidence](typed-loop-2026-09-16.md).
 
+## Archetype history restore with typed component access — 2026-10-11
+
+Baseline `f5000dc` versus the working-tree `IArchetypeForEachComponent<TContext,T>` path, which binds the component row once per chunk and avoids `EntityRef.GetRef(id)` lookup and per-entity case dispatch. The workload, all-size results, and rejected alternatives are recorded in [the detailed report](history-archetype-component-access-2026-10-11.md). Typed rows beat the baseline at 32, 1,024 and 1,048,576 entities, but remain 21% slower at 131,072. Skipping empty archetypes and per-case match checks for non-tag queries reduced the immediate 1,048,576-entity archetype benchmark from `16.888 ± 0.180 ms` to `15.40 ± 0.230 ms` (`−8.81%`, 0 B). A non-unrolled `while` loop advancing the existing entity/component refs did not improve the earlier result. Caching the native entity-row address in the stack view and hoisting the stamp-array lookup measured `14.00 ± 0.165 ms` versus a fresh A/B baseline of `16.175 ± 0.182 ms` (`−13.4%`, 0 B). Skipping stamps entirely improved this candidate only to `13.016 ± 0.125 ms`. FullOpts ARM64 disassembly reports a 460-byte typed executor; its processor body is inlined into the entity loop, while the type-erased case call is outside that loop and runs once per matching case/archetype. These results do not reach the 3× target. The detailed report records the disassembly and all retained/rejected experiments.
+
 ## Measurement corrections
 
 | Correction | Evidence | Result |

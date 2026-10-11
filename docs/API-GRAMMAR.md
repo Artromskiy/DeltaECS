@@ -336,6 +336,36 @@ missing or its registration has another CLR type, and writes to a data
 component update its stamp. A tag has no per-entity value: its `TryGet` result
 is `default(T)`, and writes through `GetRef` are ignored.
 
+For several query-specific processors, retain one archetype operation and add
+its queries during setup. `Invoke` reuses the per-archetype query plan and
+runs processors in registration order for each matching archetype:
+
+```csharp
+var restore = world
+    .ForEachArchetype(restoreState)
+    .Process(in healthQuery, new RestoreHealth())
+    .Process(in positionQuery, new RestorePosition());
+
+restore.Invoke(ref restoreState);
+```
+
+`IArchetypeForEachEntity<TContext>` processors receive the shared context and
+the current borrowed `EntityRef`. This API is available without the source
+generator and can be configured from a component visitor loop before the
+operation is retained and invoked repeatedly.
+
+For direct component access, bind the required data component's `ComponentId`
+at setup. The row index is cached per matching archetype, and that processor
+walks the typed component row directly instead of resolving every access
+through `EntityRef`:
+
+```csharp
+restore.Process<Health, RestoreHealth>(in healthQuery, healthId, new RestoreHealth());
+```
+
+The component must be a data component in the query's `WhereAll` filter. Its
+write stamp is updated for each processed entity.
+
 `EntityRef` also supports primary-registration forms. Supply a `ComponentId`
 when the entity has multiple registrations of the same CLR type:
 

@@ -647,7 +647,7 @@ public static partial class GeneratedForEachRuntime
     public static EntityRef CreateEntityRef(World world, ref GeneratedEntityRefView view)
     {
         view.SetWorld(world);
-        return new EntityRef(MemoryMarshal.CreateSpan(ref view, 1));
+        return new EntityRef(ref view);
     }
 
     /// <summary>Executes one generated multi-component value add without an intermediate transition.</summary>

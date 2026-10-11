@@ -24,6 +24,8 @@ internal struct NativeMemory<T> : IDisposable where T : unmanaged
 
     internal int Length => _length;
 
+    internal nint Address => _address;
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref T RefAt(int index) => ref ArrayAccess.RefAt<T>(_address, index);
 

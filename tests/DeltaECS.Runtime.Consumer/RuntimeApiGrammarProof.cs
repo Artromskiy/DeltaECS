@@ -23,6 +23,7 @@ public static partial class RuntimeApiGrammarProof
         VerifyStructuralOperations();
         VerifyTypedAccess();
         VerifyEntityIteration();
+        VerifyArchetypeIteration();
         VerifyEntityRefAccess();
         VerifyIntegration();
     }

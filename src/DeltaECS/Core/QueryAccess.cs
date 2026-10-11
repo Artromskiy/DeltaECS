@@ -177,6 +177,25 @@ internal sealed class QueryPlan
         return true;
     }
 
+    internal bool HasMatchingEntities(Archetype archetype)
+    {
+        if (!HasTagFilters)
+        {
+            return archetype.ActiveChunkCount != 0;
+        }
+
+        for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
+        {
+            if (!TryGetTagSlots(archetype.GetActiveChunk(chunkIndex), out ReadOnlySpan<int> slots)
+                || !slots.IsEmpty)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     internal int ResolveReadRoute(ComponentId component)
     {
         if (component.IsValid
@@ -313,7 +332,7 @@ internal sealed class QueryPlan
     internal void OnArchetypeCreated(Archetype archetype)
     {
         EnsureArchetypeCapacity(archetype.Id + 1);
-        if (!Matches(archetype))
+        if (!MatchesArchetype(archetype))
         {
             return;
         }
@@ -637,9 +656,11 @@ internal sealed class QueryPlan
         Array.Resize(ref _matchingChunkPlanIndices, capacity);
     }
 
-    private bool Matches(Archetype archetype) => archetype.Mask.ContainsAll(_allDataMask)
+    internal bool MatchesArchetype(Archetype archetype) => archetype.Mask.ContainsAll(_allDataMask)
         && !archetype.Mask.Intersects(_noneDataMask)
         && (_anyDataMask.IsEmpty || _anyTagIndices.Length != 0 || archetype.Mask.Intersects(_anyDataMask));
+
+    internal bool RequiresAllData(ComponentId componentId) => _allDataMask.Contains(componentId);
 
     private static (ComponentMask DataMask, int[] TagIndices) PartitionQueryMask(World world, ComponentMask source)
     {
