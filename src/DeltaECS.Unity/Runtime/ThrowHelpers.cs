@@ -1,6 +1,10 @@
+#nullable enable
+
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
+using Delta.ECS;
 
 namespace Delta.ECS.Unity
 {
@@ -40,5 +44,10 @@ namespace Delta.ECS.Unity
             ExceptionDispatchInfo.Capture(exception).Throw();
             return default;
         }
+
+        [DoesNotReturn]
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static World ThrowMissingEntityContextWorld()
+            => throw new InvalidOperationException("The default entity context does not reference a world.");
     }
 }

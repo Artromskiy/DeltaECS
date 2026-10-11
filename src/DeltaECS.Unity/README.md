@@ -75,5 +75,29 @@ public struct Position
 }
 ```
 
+## Initialize views when they are bound
+
+Implement `IEntityView` on a `MonoBehaviour` when a view needs to receive its
+entity after binding. `OnBind` receives an `EntityContext` containing the
+owning world and entity:
+
+```csharp
+using Delta.ECS.Unity;
+using UnityEngine;
+
+public sealed class UnitView : MonoBehaviour, IEntityView
+{
+    private EntityContext _context;
+
+    public void OnBind(EntityContext context) => _context = context;
+}
+```
+
+The binder calls `OnBind` for implementations on the view and its child
+GameObjects, including inactive children. It runs after the view is associated
+with the entity and after the ECS query has finished, so the callback can use
+the regular `World` API. A stored context can later be checked with
+`context.IsAlive` before using its entity.
+
 See the [DeltaECS documentation](https://github.com/Artromskiy/DeltaECS/wiki)
 for the runtime and generator APIs.
