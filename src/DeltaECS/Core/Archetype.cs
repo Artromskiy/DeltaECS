@@ -26,6 +26,7 @@ internal sealed class Archetype
     private bool _deferQueryPlanUpdates;
     private int _blockPartialCandidateCount;
     private int _blockEmptyCandidateCount;
+    private long _changeVersion;
 
     internal Archetype(
         int id,
@@ -62,6 +63,11 @@ internal sealed class Archetype
     internal int ActiveChunkCount => _activeChunkCount;
 
     internal int ChunkTopologyVersion => _chunkTopologyVersion;
+
+    internal long ChangeVersion => _changeVersion;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void MarkChanged() => _changeVersion++;
 
     internal void Attach(QueryPlan query, int planIndex)
     {
@@ -140,11 +146,13 @@ internal sealed class Archetype
                 PushAvailableChunk(chunkIndex);
             }
 
+            MarkChanged();
             return;
         }
 
         chunkIndex = _chunks.Count;
         _chunks.Add(new Chunk(
+            this,
             _layouts,
             _rowOperations,
             chunkId,
@@ -160,6 +168,8 @@ internal sealed class Archetype
         {
             PushAvailableChunk(chunkIndex);
         }
+
+        MarkChanged();
     }
 
     internal int ReserveRange(
@@ -181,6 +191,7 @@ internal sealed class Archetype
         {
             chunkIndex = _chunks.Count;
             chunk = new Chunk(
+                this,
                 _layouts,
                 _rowOperations,
                 chunkId,
@@ -196,6 +207,7 @@ internal sealed class Archetype
         bool wasEmpty = chunk.IsEmpty;
         int reserved = Math.Min(count, Chunk.Capacity - chunk.Count);
         chunk.ReserveRange(reserved, out reusedCount);
+        MarkChanged();
         if (wasEmpty && reserved > 0)
         {
             ActivateChunk(chunkIndex);
@@ -213,6 +225,7 @@ internal sealed class Archetype
     {
         var chunk = _chunks[chunkIndex];
         var moved = chunk.RemoveSwapBack(slotIndex);
+        MarkChanged();
         if (chunk.IsEmpty)
         {
             DeactivateChunk(chunkIndex);

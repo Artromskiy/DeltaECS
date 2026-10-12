@@ -409,6 +409,7 @@ public ref struct GeneratedDenseExecution
                 continue;
             }
 
+            plan.Archetype.MarkChanged();
             GeneratedForEachRuntime.IncrementArchetypeStamp(
                 plan.ArchetypeStamps,
                 queryComponentIndex);
@@ -436,6 +437,7 @@ public ref struct GeneratedDenseExecution
                 continue;
             }
 
+            plan.Archetype.MarkChanged();
             Stamp[] stamps = plan.ArchetypeStamps;
             for (int accessIndex = 0; accessIndex < queryComponentIndices.Length; accessIndex++)
             {
@@ -1131,6 +1133,7 @@ public static partial class GeneratedForEachRuntime
                 continue;
             }
 
+            plan.Archetype.MarkChanged();
             Stamp[] stamps = plan.ArchetypeStamps;
             for (int componentIndex = 0; componentIndex < componentIndices.Length; componentIndex++)
             {

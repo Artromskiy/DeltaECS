@@ -137,6 +137,51 @@ internal sealed class ArchetypeForEachOperationTests
     }
 
     [Test]
+    public void ProcessChangedRechecksArchetypeAfterTypedArchetypeWrite()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_315));
+        using var world = new World(layouts);
+        Span<Entity> entities = stackalloc Entity[2];
+        world.Create([positionId], entities);
+        Query positions = world.WhereAll(positionId);
+        var state = new ChangedEntities();
+        var changed = world.ForEachArchetype(state)
+            .ProcessChanged<Position, CollectChangedPosition>(in positions, positionId, new CollectChangedPosition());
+
+        changed.Invoke(ref state);
+        Assert.That(state.Entities, Is.EquivalentTo(new[] { entities[0].Index, entities[1].Index }));
+
+        state.Entities.Clear();
+        world.ForEachArchetype(new IterationState())
+            .ProcessRef<Position, SetPosition>(in positions, positionId, new SetPosition(11))
+            .Invoke();
+
+        changed.Invoke(ref state);
+
+        Assert.That(state.Entities, Is.EquivalentTo(new[] { entities[0].Index, entities[1].Index }));
+    }
+
+    [Test]
+    public void ProcessChangedStillProcessesTagsOnEveryInvocation()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId activeId = layouts.Register<Active>(new SchemaId(60_316));
+        using var world = new World(layouts);
+        Entity entity = world.Create([activeId]);
+        Query active = world.WhereAll(activeId);
+        var state = new ChangedEntities();
+        var operation = world.ForEachArchetype(state)
+            .ProcessChanged<Active, CollectChangedActive>(in active, activeId, new CollectChangedActive());
+
+        operation.Invoke(ref state);
+        state.Entities.Clear();
+        operation.Invoke(ref state);
+
+        Assert.That(state.Entities, Is.EqualTo(new[] { entity.Index }));
+    }
+
+    [Test]
     public void ProcessComponentRequiresWhereAllMembership()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -310,6 +355,11 @@ internal sealed class ArchetypeForEachOperationTests
     private readonly struct CollectChangedPosition : IArchetypeForEachComponentIn<ChangedEntities, Position>
     {
         public void Invoke(ref ChangedEntities context, EntityRef entity, in Position component) => context.Entities.Add(entity.Index);
+    }
+
+    private readonly struct CollectChangedActive : IArchetypeForEachComponentIn<ChangedEntities, Active>
+    {
+        public void Invoke(ref ChangedEntities context, EntityRef entity, in Active component) => context.Entities.Add(entity.Index);
     }
 
     private readonly struct VisitActiveTag : IArchetypeForEachComponent<IterationState, Active>

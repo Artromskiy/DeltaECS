@@ -273,6 +273,7 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
     private void MarkWrites(in ArchetypeForEachPlan plan, uint writeVersion)
     {
         Stamp[] stamps = _world.GetArchetypeComponentStamps(plan.Archetype.Id);
+        bool markedWrite = false;
         for (int bindingIndex = 0; bindingIndex < plan.Cases.Length; bindingIndex++)
         {
             ref readonly ArchetypeForEachBinding binding = ref plan.Cases.RefAt(bindingIndex);
@@ -292,6 +293,12 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
             plan.MarkedWriteVersions.RefAt(binding.ComponentIndex) = writeVersion;
             ref Stamp stamp = ref stamps.RefAt(binding.ComponentIndex);
             stamp = stamp.Next();
+            markedWrite = true;
+        }
+
+        if (markedWrite)
+        {
+            plan.Archetype.MarkChanged();
         }
     }
 }
@@ -372,6 +379,7 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
     private TProcessor _processor;
     private Entity[] _lastCapturedEntities = Array.Empty<Entity>();
     private Stamp[] _lastCapturedStamps = Array.Empty<Stamp>();
+    private long[] _lastArchetypeChangeVersions = Array.Empty<long>();
 
     internal ArchetypeForEachComponentCase(QueryPlan query, ComponentId componentId, TProcessor processor, bool writesComponent, bool onlyWhenChanged)
     {
@@ -396,6 +404,11 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
             return true;
         }
 
+        if (_onlyWhenChanged)
+        {
+            EnsureArchetypeChangeVersionCapacity(archetype.Id);
+        }
+
         return archetype.TryGetComponentIndex(_componentId, out componentIndex);
     }
 
@@ -409,6 +422,7 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
     {
         Array.Clear(_lastCapturedEntities, 0, _lastCapturedEntities.Length);
         Array.Clear(_lastCapturedStamps, 0, _lastCapturedStamps.Length);
+        Array.Fill(_lastArchetypeChangeVersions, long.MinValue);
     }
 
     public void Execute(ref TContext context, Archetype archetype, int componentIndex)
@@ -458,6 +472,13 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
 
     private void ExecuteChanged(ref TContext context, Archetype archetype, int componentIndex)
     {
+        long changeVersion = archetype.ChangeVersion;
+        bool trackArchetypeVersion = componentIndex != TagComponentIndex;
+        if (trackArchetypeVersion && _lastArchetypeChangeVersions.RefAt(archetype.Id) == changeVersion)
+        {
+            return;
+        }
+
         GeneratedEntityRefView view = default;
         EntityRef entity = GeneratedForEachRuntime.CreateEntityRef(_query.Owner, ref view);
         for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
@@ -493,6 +514,24 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
                 denseSlotIndex++;
             }
         }
+
+        if (trackArchetypeVersion)
+        {
+            _lastArchetypeChangeVersions.RefAt(archetype.Id) = changeVersion;
+        }
+    }
+
+    private void EnsureArchetypeChangeVersionCapacity(int archetypeId)
+    {
+        if (archetypeId < _lastArchetypeChangeVersions.Length)
+        {
+            return;
+        }
+
+        int previousLength = _lastArchetypeChangeVersions.Length;
+        int capacity = Math.Max(archetypeId + 1, Math.Max(4, previousLength * 2));
+        Array.Resize(ref _lastArchetypeChangeVersions, capacity);
+        Array.Fill(_lastArchetypeChangeVersions, long.MinValue, previousLength, capacity - previousLength);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

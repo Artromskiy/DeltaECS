@@ -8,6 +8,7 @@ internal sealed class Chunk
 {
     internal const int Capacity = 1024;
     private readonly ComponentRowArrayPool _componentRowArrayPool;
+    private readonly Archetype _archetype;
     private Array[] _componentRows;
     private ComponentRowOperations[] _rowOperations;
     private NativeMemory<Entity> _entities;
@@ -22,6 +23,7 @@ internal sealed class Chunk
     private int _freeRecordListIndex = -1;
 
     internal Chunk(
+        Archetype archetype,
         ComponentLayout[] layouts,
         ComponentRowOperations[] rowOperations,
         int globalId,
@@ -35,6 +37,7 @@ internal sealed class Chunk
         }
 
         _componentRowArrayPool = componentRowArrayPool;
+        _archetype = archetype;
         GlobalId = globalId;
         _archetypeId = archetypeId;
         _archetypeIndex = archetypeIndex;
@@ -98,6 +101,11 @@ internal sealed class Chunk
             {
                 changedEntities++;
             }
+        }
+
+        if (changedEntities != 0)
+        {
+            _archetype.MarkChanged();
         }
 
         return changedEntities;
@@ -334,7 +342,10 @@ internal sealed class Chunk
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal Stamp IncrementComponentStamp(int componentIndex, int slotIndex)
-        => _componentStamps.Increment(componentIndex, slotIndex);
+    {
+        _archetype.MarkChanged();
+        return _componentStamps.Increment(componentIndex, slotIndex);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal Stamp AdjustComponentStamp(int componentIndex, int slotIndex, int delta)
