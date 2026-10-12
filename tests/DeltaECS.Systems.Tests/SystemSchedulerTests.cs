@@ -766,7 +766,7 @@ public sealed class AddEnemyToEntitySystem : ISystem
 
     public SystemAccess Access { get; }
 
-    public void Tick() => World.Add<EnemyUnit>(_entity, _enemyId);
+    public void Tick() => World.Add(_entity, _enemyId);
 }
 
 public struct SystemHistoryContext

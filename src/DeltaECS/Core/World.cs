@@ -234,6 +234,10 @@ public sealed partial class World : IDisposable
     public int Create(ComponentId componentId, int count, Span<Entity> output)
         => Create(stackalloc ComponentId[1] { componentId }, count, output);
 
+    /// <summary>Creates entities with the supplied component registration without retaining handles.</summary>
+    public int Create(ComponentId componentId, int count)
+        => Create(stackalloc ComponentId[1] { componentId }, count);
+
     /// <summary>Creates one entity for each output slot and stores its handle.</summary>
     public int Create(ReadOnlySpan<ComponentId> componentIds, Span<Entity> output)
     {

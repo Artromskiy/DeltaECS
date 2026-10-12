@@ -32,10 +32,6 @@ public readonly ref struct EntityRef
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Has<T>() => View.World!.HasTrusted<T>(ref View);
 
-    /// <summary>Reports whether the current entity has the specified registration of <typeparamref name="T"/>.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Has<T>(ComponentId componentId) => View.World!.HasTrusted<T>(ref View, componentId);
-
     /// <summary>Attempts to read a component by registration, returning its default value when absent or mismatched.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryGet<T>(ComponentId componentId, out T value) => View.World!.TryGetTrusted(ref View, componentId, out value);
@@ -77,11 +73,6 @@ public readonly ref struct EntityRef
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryGetComponentStamp(ComponentId componentId, out Stamp stamp)
         => View.World!.TryGetComponentStampTrusted(ref View, componentId, out stamp);
-
-    /// <summary>Attempts to read the stamp for the specified registration of <typeparamref name="T"/>.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetComponentStamp<T>(ComponentId componentId, out Stamp stamp)
-        => View.World!.TryGetComponentStampTrusted<T>(ref View, componentId, out stamp);
 }
 
 /// <summary>Stack-owned backing view for a scoped entity reference.</summary>

@@ -709,8 +709,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         }
 
         if (name is "Add" or "Remove"
-            && (member.Name is GenericNameSyntax
-                || name == "Add" && member.Name is IdentifierNameSyntax))
+            && member.Name is GenericNameSyntax or IdentifierNameSyntax)
         {
             GenericNameSyntax? generic = member.Name as GenericNameSyntax;
             int? genericArity = generic?.TypeArgumentList.Arguments.Count;
@@ -734,7 +733,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
                 return false;
             }
 
-            if (generic is null && !hasValues)
+            if (generic is not null && !hasValues && selection.HasComponentIds)
             {
                 return false;
             }
@@ -743,17 +742,22 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
                 ? generic.TypeArgumentList.Arguments
                     .Select(argument => GeneratorSupport.DisplayType(model.GetTypeInfo(argument).Type!))
                     .ToArray()
-                : Enumerable.Range(selection.TailStart, selection.TailCount)
-                    .Select(index => GeneratorSupport.DisplayType(model.GetTypeInfo(invocation.ArgumentList.Arguments[index].Expression).Type!))
-                    .ToArray();
+                : hasValues
+                    ? Enumerable.Range(selection.TailStart, selection.TailCount)
+                        .Select(index => GeneratorSupport.DisplayType(model.GetTypeInfo(invocation.ArgumentList.Arguments[index].Expression).Type!))
+                        .ToArray()
+                    : Array.Empty<string>();
+            string pattern = generic is null && !hasValues
+                ? new string('V', selection.HasComponentIdSpan ? 0 : selection.ComponentIdCount)
+                : string.Empty;
 
             terminal = new TerminalModel(
                 name == "Add" ? TerminalKind.Add : TerminalKind.Remove,
-                string.Empty,
+                pattern,
                 hasEntity: false,
                 components: componentTypes,
                 hasValues: hasValues,
-                typeBinding: TypeBindingKind.Generic,
+                typeBinding: generic is null && !hasValues ? TypeBindingKind.None : TypeBindingKind.Generic,
                 registrationBinding: registrationBinding);
             return true;
         }

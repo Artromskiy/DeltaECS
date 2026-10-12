@@ -373,14 +373,13 @@ when the entity has multiple registrations of the same CLR type:
 
 ```text
 implicit Entity entity = entityRef; entityRef.Index; entityRef.Generation
-entity.Has(I) | entity.Has<T>() | entity.Has<T>(I) -> bool
+entity.Has(I) | entity.Has<T>() -> bool
 entity.TryGet<T>(out T) | entity.TryGet<T>(I, out T) -> bool
 entity.Get<T>() | entity.Get<T>(I) -> T
 entity.GetRef<T>() | entity.GetRef<T>(I) -> ref T
 entity.GetReadRef<T>() | entity.GetReadRef<T>(I) -> ref readonly T
 entity.TryGetComponentStamp<T>(out Stamp) -> bool
 entity.TryGetComponentStamp(I, out Stamp) -> bool
-entity.TryGetComponentStamp<T>(I, out Stamp) -> bool
 ```
 
 Use `EntityRef` only while its callback is running and before any structural
@@ -400,13 +399,13 @@ worker ordering. It is read-only: callbacks receive `in Stamp` (or
 Query-wide forms:
 
 ```text
-world.ForEachStamp<T...>(Q, I... | D, C?, A | F)
-world.ForEachEntityStamp<T...>(Q, I... | D, C?, A | F)
+world.ForEachStamp<T...>(Q, C?, A | F)
+world.ForEachEntityStamp<T...>(Q, C?, A | F)
 world.ForEachStamp(Q, I... | D, C?, A | F)
 world.ForEachEntityStamp(Q, I... | D, C?, A | F)
 
-world.ForEachStampParallel<T...>(Q, I... | D, C?, A | F, W)
-world.ForEachEntityStampParallel<T...>(Q, I... | D, C?, A | F, W)
+world.ForEachStampParallel<T...>(Q, C?, A | F, W)
+world.ForEachEntityStampParallel<T...>(Q, C?, A | F, W)
 world.ForEachStampParallel(Q, I... | D, C?, A | F, W)
 world.ForEachEntityStampParallel(Q, I... | D, C?, A | F, W)
 ```
@@ -414,13 +413,13 @@ world.ForEachEntityStampParallel(Q, I... | D, C?, A | F, W)
 Entity-list forms accept `E` first and an optional `Q` after it:
 
 ```text
-world.ForEachStamp<T...>(E, Q?, I... | D, C?, A | F)
-world.ForEachEntityStamp<T...>(E, Q?, I... | D, C?, A | F)
+world.ForEachStamp<T...>(E, Q?, C?, A | F)
+world.ForEachEntityStamp<T...>(E, Q?, C?, A | F)
 world.ForEachStamp(E, Q?, I... | D, C?, A | F)
 world.ForEachEntityStamp(E, Q?, I... | D, C?, A | F)
 
-world.ForEachStampParallel<T...>(E, Q?, I... | D, C?, A | F, W)
-world.ForEachEntityStampParallel<T...>(E, Q?, I... | D, C?, A | F, W)
+world.ForEachStampParallel<T...>(E, Q?, C?, A | F, W)
+world.ForEachEntityStampParallel<T...>(E, Q?, C?, A | F, W)
 world.ForEachStampParallel(E, Q?, I... | D, C?, A | F, W)
 world.ForEachEntityStampParallel(E, Q?, I... | D, C?, A | F, W)
 ```
@@ -458,11 +457,9 @@ registrations or explicit selectors:
 
 ```text
 world.Add<T...>(e | E | Q) -> bool | int
-world.Add<T...>(e | E, I... | D) -> bool | int
 world.Add<T...>(e | E, V...) -> bool | int
 world.Add<T...>(e | E, I... | D, V...) -> bool | int
 world.Remove<T...>(e | E | Q) -> bool | int
-world.Remove<T...>(e | E, I... | D) -> bool | int
 world.Destroy(e) -> bool
 world.Destroy(E | Q) -> int
 
@@ -472,8 +469,6 @@ world.Add(e | E, V...) -> bool | int
 
 world.Create<T>() -> Entity
 world.Create<T...>(N, O?) -> int
-world.Create<T...>(I... | D) -> Entity
-world.Create<T...>(I... | D, N, O?) -> int
 world.Create<T...>(I... | D, V...) -> Entity
 world.Create(I... | D) -> Entity
 world.Create(I... | D, O) -> int
@@ -481,8 +476,10 @@ world.Create(I... | D, N, O?) -> int
 ```
 
 `I...` forms are positional `ComponentId` arguments; `D` is one explicit
-`ReadOnlySpan<ComponentId>` at the same selector position. `Add` and `Remove`
-accept them after the target; `Create` places them before `N` and `O`.
+`ReadOnlySpan<ComponentId>` at the same selector position. Type-erased `Add`
+and `Remove` accept IDs after the target; `Create` places them before `N` and
+`O`. Generic selectors are reserved for primary-registration forms and forms
+that also consume typed values.
 Generic value types may be inferred from `V...`; multi-component value-based
 `Create` and `Add` forms require explicit registrations, and the positions of
 `I...` and `V...` correspond to component types in `T...`. Multi-value `Add`
@@ -507,19 +504,19 @@ is unavailable; `GetReadRef` returns a read-only reference.
 ```text
 world.TryGet<T>(e, out T) -> bool
 world.TryGet<T>(e, I, out T) -> bool
-world.Has(e, I) | world.Has<T>(e) | world.Has<T>(e, I) -> bool
+world.Has(e, I) | world.Has<T>(e) -> bool
 world.Get<T>(e) | world.Get<T>(e, I) -> T
 world.GetRef<T>(e) | world.GetRef<T>(e, I) -> ref T
 world.GetReadRef<T>(e) | world.GetReadRef<T>(e, I) -> ref readonly T
 world.TryGetComponentStamp<T>(e, out Stamp) -> bool
-world.TryGetComponentStamp<T>(e, I, out Stamp) -> bool
 world.TryGetComponentStamp(e, I, out Stamp) -> bool
 ```
 
 `Add<T>(e, in value)` and `Add<T>(E, in value)` initialize the primary
-registration, returning `bool` or a changed-entity count. Typed `Remove<T>`
-also has primary and explicit-ID entity and entity-list forms. Generated
-multi-component forms use the structural grammar above.
+registration, returning `bool` or a changed-entity count. `Remove<T>` selects
+the primary registration; use TypeErased `Remove(e | E | Q, I... | D)` when
+the registration is selected by ID. Generated multi-component forms use the
+structural grammar above.
 
 ## Query factories
 
@@ -548,20 +545,12 @@ query
     .WhereNone(I... | D)
     .WhereAny(I... | D) -> Query
 
-world.WhereAll<T...>(D) -> Query
-world.WhereAny<T...>(D) -> Query
-world.WhereNone<T...>(D) -> Query
-
-query
-    .WhereAll<T...>(D)
-    .WhereNone<T...>(D)
-    .WhereAny<T...>(D) -> Query
 ```
 
 `WhereAll` appends components to `All`, `WhereNone` appends to `None`, and
-`WhereAny` appends to the shared `Any` filter. Typed span forms require the
-span length to match their generic arity and validate each registration's CLR
-type.
+`WhereAny` appends to the shared `Any` filter. Type-erased ID forms select
+registrations directly; use typed forms without IDs to select primary
+registrations by CLR type.
 
 The low-level `QuerySpec.WhereAll`, `WhereAny`, and `WhereNone` factories take
 an explicit `ReadOnlySpan<ComponentId>` for dynamic lists of any length; each

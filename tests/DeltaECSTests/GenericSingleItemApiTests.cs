@@ -77,7 +77,7 @@ internal sealed class GenericSingleItemApiTests
         Entity generic = world.Create<Position>();
         Entity nonGeneric = world.Create(stackalloc[] { positionId });
         Entity[] typedBatch = new Entity[2];
-        world.Create<Position>(positionId, typedBatch.Length, typedBatch);
+        world.Create(positionId, typedBatch.Length, typedBatch);
 
         Assert.Multiple(() =>
         {
@@ -85,7 +85,7 @@ internal sealed class GenericSingleItemApiTests
             Assert.That(typedBatch, Has.All.Matches<Entity>(entity => world.IsAlive(entity)));
             Assert.That(world.Has<Position>(generic), Is.True);
             Assert.That(world.Has(generic, positionId), Is.True);
-            Assert.That(world.Has<Position>(generic, positionId), Is.True);
+            Assert.That(world.Has(generic, positionId), Is.True);
             Assert.That(world.TryGetComponentStamp<Position>(generic, out Stamp genericStamp), Is.True);
             Assert.That(world.TryGetComponentStamp(generic, positionId, out Stamp nonGenericStamp), Is.True);
             Assert.That(genericStamp, Is.EqualTo(nonGenericStamp));
@@ -211,8 +211,8 @@ internal sealed class GenericSingleItemApiTests
         Assert.That(world.TryGetComponentStamp(entity, velocityId, out Stamp velocityAfterAdd), Is.True);
         Assert.That(world.Add(entity, velocityId, new Velocity()), Is.False);
         Assert.That(world.TryGet(entity, velocityId, out Velocity _), Is.True);
-        Assert.That(world.Remove<Velocity>(entity, velocityId), Is.True);
-        Assert.That(world.Remove<Velocity>(entity, velocityId), Is.False);
+        Assert.That(world.Remove(entity, velocityId), Is.True);
+        Assert.That(world.Remove(entity, velocityId), Is.False);
         Assert.That(world.TryGet(entity, velocityId, out Velocity _), Is.False);
         Assert.That(world.TryGet(entity, positionId, out Position _), Is.True);
         Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionAfterRemove), Is.True);
@@ -399,9 +399,9 @@ internal sealed class GenericSingleItemApiTests
         Assert.Multiple(() =>
         {
             Assert.That(world.AliveEntityCount, Is.EqualTo(entities.Length));
-            Assert.That(world.Has<float>(entities[0], healthId), Is.False);
+            Assert.That(world.TryGet<float>(entities[0], healthId, out _), Is.False);
             Assert.That(world.Get<Position>(entities[0], positionId), Is.EqualTo(initialPosition));
-            Assert.That(world.Has<float>(entities[1], healthId), Is.False);
+            Assert.That(world.TryGet<float>(entities[1], healthId, out _), Is.False);
         });
     }
 
@@ -418,7 +418,7 @@ internal sealed class GenericSingleItemApiTests
         var destination = new Entity[3];
         int written = world.Create(stackalloc[] { positionId }, 3, destination);
         var typedDestination = new Entity[2];
-        int typedWritten = world.Create<Position>(positionId, 2, typedDestination);
+        int typedWritten = world.Create(positionId, 2, typedDestination);
 
         Assert.Multiple(() =>
         {
@@ -454,14 +454,14 @@ internal sealed class GenericSingleItemApiTests
         Assert.That(initialized, Is.EqualTo(velocity));
         Assert.That(world.TryGet(stale, velocityId, out Velocity _), Is.False);
 
-        Assert.That(world.Remove<Velocity>(entities, velocityId), Is.EqualTo(3));
-        Assert.That(world.Remove<Velocity>(entities, velocityId), Is.EqualTo(0));
+        Assert.That(world.Remove(entities, velocityId), Is.EqualTo(3));
+        Assert.That(world.Remove(entities, velocityId), Is.EqualTo(0));
         Assert.That(world.TryGet(entities[0], velocityId, out Velocity _), Is.False);
         Assert.That(world.TryGet(entities[2], positionId, out Position _), Is.True);
     }
 
     [Test]
-    public void TypedBatchOperationsRejectMismatchedComponentTypes()
+    public void TypeErasedBatchOperationsUseTheSelectedRegistration()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_051));
@@ -473,8 +473,8 @@ internal sealed class GenericSingleItemApiTests
         Assert.Multiple(() =>
         {
             Assert.That(world.Add(entities, positionId, in velocity), Is.Zero);
-            Assert.That(world.Remove<Velocity>(entities, positionId), Is.Zero);
-            Assert.That(world.TryGet(entities[0], positionId, out Position _), Is.True);
+            Assert.That(world.Remove(entities, positionId), Is.EqualTo(entities.Length));
+            Assert.That(world.TryGet(entities[0], positionId, out Position _), Is.False);
         });
     }
 
@@ -493,7 +493,7 @@ internal sealed class GenericSingleItemApiTests
             Assert.Throws<InvalidOperationException>(
                 () => _ = world.GetRef<Position>(entity, positionId));
             Assert.That(world.Add(entity, positionId, new Position()), Is.False);
-            Assert.That(world.Remove<Position>(entity, positionId), Is.False);
+            Assert.That(world.Remove(entity, positionId), Is.False);
         });
 
         Assert.Throws<InvalidOperationException>(() => world.Get<Position>(entity, positionId));

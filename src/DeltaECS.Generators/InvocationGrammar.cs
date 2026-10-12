@@ -183,11 +183,14 @@ internal static class InvocationGrammar
             return false;
         }
 
+        int? componentIdArity = result.ComponentIdCount == 0
+            ? !hasValues && genericArity is null && result.HasComponentIdSpan ? descriptor.MinimumArity : null
+            : result.ComponentIdCount;
         if (!ArityEvidence.TryBind(
                 descriptor.MinimumArity,
                 out arity,
                 genericArity,
-                result.ComponentIdCount == 0 ? null : result.ComponentIdCount,
+                componentIdArity,
                 hasValues ? result.TailCount : null))
         {
             return false;

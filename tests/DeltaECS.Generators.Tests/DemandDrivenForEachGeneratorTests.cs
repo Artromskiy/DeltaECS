@@ -631,6 +631,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("ForEachAction_I<Stamp>"));
         Assert.That(generated, Does.Contain("GetGeneratedStamp(access0, index)"));
         Assert.That(generated, Does.Contain("ExecuteEntityListParallel"));
+        Assert.That(generated, Does.Not.Contain("ForEachStamp<T1, T2>(this World world, in Query query, ComponentId"));
 
         AssertCompiles(
             new[] { RuntimeStubSource, StampIterationSource },
@@ -1343,9 +1344,11 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("ExecuteGeneratedAdd"));
         Assert.That(generated, Does.Not.Contain(" Set<"));
         Assert.That(generated, Does.Not.Contain("ExecuteGeneratedSet"));
-        Assert.That(generated, Does.Contain("public static int Add<T1, T2>(this World target"));
-        Assert.That(generated, Does.Contain("public static int Remove<T1, T2>(this World target"));
-        Assert.That(generated, Does.Contain("public static int Create<T1, T2>(this World target"));
+        Assert.That(generated, Does.Contain("public static bool Add(this World target, Entity entity, ComponentId component0, ComponentId component1)"));
+        Assert.That(generated, Does.Contain("public static bool Remove(this World target, Entity entity, ComponentId component0, ComponentId component1)"));
+        Assert.That(generated, Does.Contain("public static int Create(this World target, ComponentId component0, ComponentId component1, int count)"));
+        Assert.That(generated, Does.Not.Contain("Add<T1, T2>(this World target, Entity entity, ComponentId"));
+        Assert.That(generated, Does.Not.Contain("Remove<T1, T2>(this World target, Entity entity, ComponentId"));
         Assert.That(generated, Does.Contain("GetGeneratedPrimaryComponentIds<global::Delta.ECS.GeneratedPrimaryComponentSetKey<T1, T2>>"));
 
         AssertCompiles(new[] { RuntimeStubSource, StructuralSource }, run.GeneratedTrees);
@@ -1377,9 +1380,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("global::Delta.ECS.EcsOperation<DemandForEachOperationInvoker_"));
         Assert.That(generated, Does.Contain("> ForEach<T1, T2>(this World world"));
         Assert.That(generated, Does.Contain("> ForEachParallel<T1, T2>(this World world"));
-        Assert.That(generated, Does.Contain("public static int Add<T1, T2>(this World target"));
-        Assert.That(generated, Does.Contain("public static int Remove<T1, T2>(this World target"));
-        Assert.That(generated, Does.Contain("public static int Create<T1, T2>(this World target"));
+        Assert.That(generated, Does.Contain("public static bool Add(this World target, Entity entity, ComponentId component0, ComponentId component1)"));
+        Assert.That(generated, Does.Contain("public static bool Remove(this World target, Entity entity, ComponentId component0, ComponentId component1)"));
+        Assert.That(generated, Does.Contain("public static int Create(this World target, ComponentId component0, ComponentId component1, int count)"));
 
         AssertCompiles(new[] { RuntimeStubSource, GrammarMatrixSource }, run.GeneratedTrees);
     }
@@ -1396,6 +1399,8 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("public static Query WhereNone<T1>(this World world)"));
         Assert.That(generated, Does.Contain("GetGeneratedPrimaryComponentIds<global::Delta.ECS.GeneratedPrimaryComponentSetKey<T1, T2>>"));
         Assert.That(generated, Does.Contain("QuerySpec.WhereAny(components)"));
+        Assert.That(generated, Does.Not.Contain("WhereAll<T1, T2>(this World world, ComponentId"));
+        Assert.That(generated, Does.Not.Contain("WhereNone<T1, T2>(this Query query, ComponentId"));
 
         AssertCompiles(new[] { RuntimeStubSource, GenericQuerySource }, run.GeneratedTrees);
     }
@@ -1549,9 +1554,11 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereForEach"));
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Add<U1>(in U1 value0)"));
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Add<U1>(ComponentId componentId, in U1 value0)"));
-        Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Add<U1>(ComponentId componentId)"));
-        Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Remove<U1>(ComponentId componentId)"));
-        Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Remove<U1, U2>(ComponentId componentId0, ComponentId componentId1)"));
+        Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Add(ComponentId componentId)"));
+        Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Remove(ComponentId componentId)"));
+        Assert.That(generated, Does.Not.Contain("Add<U1>(ComponentId componentId)"));
+        Assert.That(generated, Does.Not.Contain("Remove<U1>(ComponentId componentId)"));
+        Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Remove(ComponentId componentId0, ComponentId componentId1)"));
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Add<U1, U2>(in U1 value0, in U2 value1)"));
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Add<U1, U2>(ComponentId componentId0, ComponentId componentId1, in U1 value0, in U2 value1)"));
         Assert.That(generated, Does.Contain("public void Execute(ref GeneratedQuerySlots slots, ref GeneratedWhereStructuralContext context)"));
@@ -1648,13 +1655,13 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Add<U1>()"));
-        Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Add<U1>(ComponentId componentId)"));
+        Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Add(ComponentId componentId)"));
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Add<U1>(in U1 value0)"));
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Add<U1>(ComponentId componentId, in U1 value0)"));
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Remove<U1>()"));
-        Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Remove<U1>(ComponentId componentId)"));
+        Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Remove(ComponentId componentId)"));
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Remove<U1, U2>()"));
-        Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Remove<U1, U2>(ComponentId componentId0, ComponentId componentId1)"));
+        Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Remove(ComponentId componentId0, ComponentId componentId1)"));
         AssertCompiles(new[] { RuntimeStubSource, WhereStructuralParameterMatrixSource }, run.GeneratedTrees);
 
         GeneratorDriverRunResult intercepted = RunGeneratorWithInterceptors(WhereStructuralParameterMatrixSource);
@@ -2027,7 +2034,15 @@ public sealed class DemandDrivenForEachGeneratorTests
             public QuerySpec WithNone(ReadOnlySpan<ComponentId> components) => default;
             public static QuerySpec Empty => default;
         }
-        public readonly struct Query { }
+        public readonly struct Query
+        {
+            public Query WhereAll(ReadOnlySpan<ComponentId> components) => default;
+            public Query WhereAny(ReadOnlySpan<ComponentId> components) => default;
+            public Query WhereNone(ReadOnlySpan<ComponentId> components) => default;
+            public Query WhereAll(ComponentId component) => default;
+            public Query WhereAny(ComponentId component) => default;
+            public Query WhereNone(ComponentId component) => default;
+        }
         public readonly struct ReadAccess { }
         public readonly struct WriteAccess { }
         public delegate void ForEachAction();
@@ -2190,6 +2205,8 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static void ValidateComponentIdCount(ReadOnlySpan<ComponentId> components, int expected) { }
             public static bool ExecuteGeneratedAdd<TInitializer>(World world, Entity entity, ReadOnlySpan<ComponentId> components, ref TInitializer initializer)
                 where TInitializer : struct, IGeneratedComponentValueInitializer => true;
+            public static Entity ExecuteGeneratedCreate<TInitializer>(World world, ReadOnlySpan<ComponentId> components, ref TInitializer initializer)
+                where TInitializer : struct, IGeneratedComponentValueInitializer => default;
             public static ref T GetGeneratedRow<T>(Array[] componentRows, int queryComponentIndex) => throw new NotImplementedException();
             public static GeneratedDenseExecution OpenDense(World world, in Query query) => default;
             public static GeneratedDenseExecution OpenWriteDense(World world, in Query query) => default;
@@ -2270,28 +2287,28 @@ public sealed class DemandDrivenForEachGeneratorTests
                 world.Create<Position, Velocity>(2);
                 Span<Entity> output = stackalloc Entity[2];
                 world.Create<Position, Velocity>(2, output);
-                world.Create<Position, Velocity>(position, velocity, 2);
-                world.Create<Position, Velocity>(position, velocity, 2, output);
-                world.Create<Position, Velocity>(selectedComponents, 2, output);
+                world.Create(position, velocity, 2);
+                world.Create(position, velocity, 2, output);
+                world.Create(selectedComponents, 2, output);
                 Entity entity = default;
                 world.Add<Position, Velocity>(entity);
-                world.Add<Position, Velocity>(entity, position, velocity);
-                world.Add<Position, Velocity>(entity, selectedComponents);
+                world.Add(entity, position, velocity);
+                world.Add(entity, selectedComponents);
                 world.Add<Position, Velocity>(entities);
-                world.Add<Position, Velocity>(entities, position, velocity);
-                world.Add<Position, Velocity>(entities, selectedComponents);
+                world.Add(entities, position, velocity);
+                world.Add(entities, selectedComponents);
                 world.Remove<Position, Velocity>(entity);
-                world.Remove<Position, Velocity>(entity, position, velocity);
-                world.Remove<Position, Velocity>(entity, selectedComponents);
+                world.Remove(entity, position, velocity);
+                world.Remove(entity, selectedComponents);
                 world.Remove<Position, Velocity>(entities);
-                world.Remove<Position, Velocity>(entities, position, velocity);
-                world.Remove<Position, Velocity>(entities, selectedComponents);
+                world.Remove(entities, position, velocity);
+                world.Remove(entities, selectedComponents);
                 world.Add<Position, Velocity>(in query);
-                world.Add<Position, Velocity>(in query, position, velocity);
-                world.Add<Position, Velocity>(in query, selectedComponents);
+                world.Add(in query, position, velocity);
+                world.Add(in query, selectedComponents);
                 world.Remove<Position, Velocity>(in query);
-                world.Remove<Position, Velocity>(in query, position, velocity);
-                world.Remove<Position, Velocity>(in query, selectedComponents);
+                world.Remove(in query, position, velocity);
+                world.Remove(in query, selectedComponents);
                 world.Add(entity, new Position(), new Velocity());
                 world.Add<Position, Velocity>(entity, new Position(), new Velocity());
             }
@@ -2325,8 +2342,8 @@ public sealed class DemandDrivenForEachGeneratorTests
                 Query all = world.WhereAll<Position, Velocity>();
                 Query any = world.WhereAny<Position, Velocity, Acceleration>();
                 Query none = world.WhereNone<Acceleration>();
-                Query bySpan = world.WhereAll<Position, Velocity>(components);
-                Query chained = query.WhereNone<Position, Velocity>(components);
+                Query bySpan = world.WhereAll(components);
+                Query chained = query.WhereNone(components);
                 _ = all;
                 _ = any;
                 _ = none;
@@ -2439,13 +2456,13 @@ public sealed class DemandDrivenForEachGeneratorTests
                     });
 
                 Entity entity = default;
-                world.Add<T1, T2>(entity, first, second);
-                world.Remove<T1, T2>(entity, first, second);
-                world.Add<T1, T2>(entities, first, second);
-                world.Remove<T1, T2>(entities, first, second);
-                world.Add<T1, T2>(in query, first, second);
-                world.Remove<T1, T2>(in query, first, second);
-                world.Create<T1, T2>(first, second, 2);
+                world.Add(entity, first, second);
+                world.Remove(entity, first, second);
+                world.Add(entities, first, second);
+                world.Remove(entities, first, second);
+                world.Add(in query, first, second);
+                world.Remove(in query, first, second);
+                world.Create(first, second, 2);
             }
         }
         """;
@@ -2518,13 +2535,13 @@ public sealed class DemandDrivenForEachGeneratorTests
             {
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Destroy();
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Add<Dead>();
-                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Add<Dead>(deadId);
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Add(deadId);
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
                     .Add<Dead>(new Dead());
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
                     .Add<Dead>(world.Layouts.GetPrimary<Dead>(), new Dead());
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Remove<Alive>();
-                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Remove<Alive>(aliveId);
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Remove(aliveId);
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
                     .ForEach(static (ref Health health) => health.Value = 0);
                 world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
@@ -2550,7 +2567,7 @@ public sealed class DemandDrivenForEachGeneratorTests
                     .Add<Dead, Alive>(deadId, aliveId, new Dead(), new Alive());
                 world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
                     health.Value <= 0 && team.Id == 1)
-                    .Remove<Dead, Alive>(deadId, aliveId);
+                    .Remove(deadId, aliveId);
             }
         }
         }
@@ -2642,17 +2659,17 @@ public sealed class DemandDrivenForEachGeneratorTests
                 global::System.ReadOnlySpan<ComponentId> componentIds)
             {
                 world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>();
-                world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>(deadId);
+                world.Where(in query, static (in Health health) => health.Value <= 0).Add(deadId);
                 world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>(new Dead());
                 world.Where(in query, static (in Health health) => health.Value <= 0).Add(new Dead());
                 world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>(deadId, new Dead());
-                world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>(componentIds);
+                world.Where(in query, static (in Health health) => health.Value <= 0).Add(componentIds);
                 world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>(componentIds, new Dead());
                 world.Where(in query, static (in Health health) => health.Value <= 0).Remove<Dead>();
-                world.Where(in query, static (in Health health) => health.Value <= 0).Remove<Dead>(deadId);
+                world.Where(in query, static (in Health health) => health.Value <= 0).Remove(deadId);
                 world.Where(in query, static (in Health health) => health.Value <= 0).Remove<Dead, Alive>();
-                world.Where(in query, static (in Health health) => health.Value <= 0).Remove<Dead, Alive>(deadId, aliveId);
-                world.Where(in query, static (in Health health) => health.Value <= 0).Remove<Dead, Alive>(componentIds);
+                world.Where(in query, static (in Health health) => health.Value <= 0).Remove(deadId, aliveId);
+                world.Where(in query, static (in Health health) => health.Value <= 0).Remove(componentIds);
             }
         }
         """;

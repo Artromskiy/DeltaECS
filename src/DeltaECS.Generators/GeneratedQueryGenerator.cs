@@ -54,7 +54,7 @@ public sealed class GeneratedQueryGenerator : IIncrementalGenerator
             {
                 return false;
             }
-            if (selection.ComponentIdCount != 0 && selection.ComponentIdCount != genericArity)
+            if (selection.HasComponentIds)
             {
                 return false;
             }

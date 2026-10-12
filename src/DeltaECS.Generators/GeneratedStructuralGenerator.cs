@@ -95,6 +95,11 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
             return false;
         }
 
+        if (!hasValues && genericArity.HasValue && cursorResult.HasComponentIds)
+        {
+            return false;
+        }
+
         shape = new StructuralModel(
             name == "Remove" ? StructuralOperation.Remove : StructuralOperation.Add,
             cursorResult.Target,
@@ -195,8 +200,7 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         else
         {
             if (!selection.HasComponentIds
-                || (genericArity != 0 && selection.ComponentIdCount != 0 && selection.ComponentIdCount != genericArity)
-                || (genericArity == 0 && selection.HasComponentIdSpan))
+                || (genericArity != 0 && selection.HasComponentIds))
             {
                 return false;
             }

@@ -388,6 +388,10 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         {
             return false;
         }
+        if (stamp && genericName is not null && prefix.HasComponentIds)
+        {
+            return Reject(Unsupported, invocation, invocation, out diagnostic);
+        }
         bool hasContext = prefix.HasContext;
         ContextModeKind contextMode = prefix.ContextMode;
         if (!TryNormalizeParallelContext(parallel, contextMode, invocation, out contextMode, out diagnostic))
@@ -605,6 +609,10 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         {
             return false;
         }
+        if (stamp && genericName is not null && prefix.HasComponentIds)
+        {
+            return Reject(Unsupported, invocation, invocation, out diagnostic);
+        }
         int componentIdCount = prefix.ComponentIdCount;
         bool hasContext = prefix.HasContext;
         ContextModeKind contextMode = prefix.ContextMode;
@@ -811,6 +819,10 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         if (!TryReadPrefix(model, invocation, descriptor, orderedQueryReceiver, functorArgumentIndex, out InvocationCursorResult prefix))
         {
             return false;
+        }
+        if (stamp && member.Name is GenericNameSyntax && prefix.HasComponentIds)
+        {
+            return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
         int componentIdCount = prefix.ComponentIdCount;
         ContextModeKind contextMode = prefix.ContextMode;

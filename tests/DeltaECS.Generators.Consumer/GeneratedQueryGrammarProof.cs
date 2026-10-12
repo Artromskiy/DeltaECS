@@ -11,9 +11,9 @@ internal static class GeneratedQueryGrammarProof
         _ = world.WhereAll<Cmp1, Cmp2>();
         _ = world.WhereAny<Cmp1, Cmp2>();
         _ = world.WhereNone<Cmp1, Cmp2>();
-        _ = world.WhereAll<Cmp1, Cmp2>(ids);
-        _ = world.WhereAny<Cmp1, Cmp2>(ids);
-        _ = world.WhereNone<Cmp1, Cmp2>(ids);
+        _ = world.WhereAll(ids);
+        _ = world.WhereAny(ids);
+        _ = world.WhereNone(ids);
         _ = world.WhereAll(cmp1Id, cmp2Id);
         _ = world.WhereAny(cmp1Id, cmp2Id);
         _ = world.WhereAny(ids);
@@ -32,9 +32,9 @@ internal static class GeneratedQueryGrammarProof
         _ = query.WhereAll(ids);
         _ = query.WhereAny(ids);
         _ = query.WhereNone(ids);
-        _ = query.WhereAll<Cmp1, Cmp2>(ids);
-        _ = query.WhereAny<Cmp1, Cmp2>(ids);
-        _ = query.WhereNone<Cmp1, Cmp2>(ids);
+        _ = query.WhereAll(ids);
+        _ = query.WhereAny(ids);
+        _ = query.WhereNone(ids);
 
         // QuerySpec span factories and positional fluent filters.
         _ = QuerySpec.WhereAll(ids).WithAny(ids).WithNone(ids);

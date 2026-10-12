@@ -23,7 +23,7 @@ internal sealed class EntityRefTests
             Entity currentEntity = current;
             Assert.That(currentEntity, Is.EqualTo(entity));
             Assert.That(current.Has<Position>(), Is.True);
-            Assert.That(current.Has<Position>(positionId), Is.True);
+            Assert.That(current.Has(positionId), Is.True);
             Assert.That(current.Has<Velocity>(), Is.False);
             Assert.That(current.TryGet(out Position value), Is.True);
             Assert.That(value, Is.EqualTo(new Position { X = 1, Y = 2 }));
@@ -44,7 +44,7 @@ internal sealed class EntityRefTests
             Assert.That(tagStamp, Is.EqualTo(new Stamp(1)));
             Assert.That(current.TryGetComponentStamp(tagId, out Stamp dynamicTagStamp), Is.True);
             Assert.That(dynamicTagStamp, Is.EqualTo(tagStamp));
-            Assert.That(current.TryGetComponentStamp<FirstTag>(tagId, out Stamp typedTagStamp), Is.True);
+            Assert.That(current.TryGetComponentStamp(tagId, out Stamp typedTagStamp), Is.True);
             Assert.That(typedTagStamp, Is.EqualTo(tagStamp));
 
             Assert.That(current.TryGetComponentStamp<Position>(out Stamp before), Is.True);
@@ -52,7 +52,7 @@ internal sealed class EntityRefTests
             writable.X++;
             ref Position explicitWritable = ref current.GetRef<Position>(positionId);
             explicitWritable.Y++;
-            Assert.That(current.TryGetComponentStamp<Position>(positionId, out Stamp after), Is.True);
+            Assert.That(current.TryGetComponentStamp(positionId, out Stamp after), Is.True);
             Assert.That(after, Is.Not.EqualTo(before));
 
             Assert.That(current.TryGet<Velocity>(out _), Is.False);
@@ -206,7 +206,7 @@ internal sealed class EntityRefTests
         int visits = 0;
         world.ForEachEntity(in query, (EntityRef entity, ref Position position) =>
         {
-            Assert.That(entity.Has<FirstTag>(tagId), Is.True);
+            Assert.That(entity.Has(tagId), Is.True);
             Assert.That(entity.TryGet(out Position value), Is.True);
             Assert.That(value.X, Is.EqualTo(position.X));
             ref readonly Position readOnly = ref entity.GetReadRef<Position>(positionId);

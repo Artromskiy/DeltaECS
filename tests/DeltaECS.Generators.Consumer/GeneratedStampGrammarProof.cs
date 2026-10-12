@@ -19,9 +19,9 @@ internal static class GeneratedStampGrammarProof
     {
         // Query-wide stamp callbacks, including explicit and dynamic selectors.
         world.ForEachStamp<Cmp1>(in query, static (in Stamp stamp) => _ = stamp).Invoke();
-        world.ForEachEntityStamp<Cmp1, Cmp2>(in query, cmp1Id, cmp2Id,
+        world.ForEachEntityStamp(in query, cmp1Id, cmp2Id,
             static (EntityRef entity, in Stamp first, in Stamp second) => _ = entity.Index + first.GetHashCode() + second.GetHashCode()).Invoke();
-        world.ForEachStamp<Cmp1, Cmp2>(in query, componentIds,
+        world.ForEachStamp(in query, componentIds,
             static (in Stamp first, in Stamp second) => _ = first.GetHashCode() + second.GetHashCode()).Invoke();
         world.ForEachStamp(in query, componentIds,
             static (in Stamp first, in Stamp second) => _ = first.GetHashCode() + second.GetHashCode()).Invoke();
@@ -31,13 +31,13 @@ internal static class GeneratedStampGrammarProof
             static (EntityRef entity, in Stamp stamp) => _ = entity.Index + stamp.GetHashCode()).Invoke();
         world.ForEachEntityStamp(in query, componentIds,
             static (EntityRef entity, in Stamp first, in Stamp second) => _ = entity.Index + first.GetHashCode() + second.GetHashCode()).Invoke();
-        world.ForEachStamp<Context, Cmp1, Cmp2>(in query, cmp1Id, cmp2Id, ref context,
+        world.ForEachStamp(in query, cmp1Id, cmp2Id, ref context,
             static (ref Context state, in Stamp first, in Stamp second) => state.Value += first.GetHashCode() + second.GetHashCode()).Invoke();
-        world.ForEachStamp<Context, Cmp1, Cmp2>(in query, componentIds, ref context,
+        world.ForEachStamp(in query, componentIds, ref context,
             static (ref Context state, in Stamp first, in Stamp second) => state.Value += first.GetHashCode() + second.GetHashCode()).Invoke();
         world.ForEachEntityStamp<Context, Cmp1>(in query, ref context,
             static (ref Context state, EntityRef entity, in Stamp stamp) => state.Value += entity.Index + stamp.GetHashCode()).Invoke();
-        world.ForEachEntityStamp<Context, Cmp1>(in query, cmp1Id, ref context,
+        world.ForEachEntityStamp(in query, cmp1Id, ref context,
             static (ref Context state, EntityRef entity, in Stamp stamp) => state.Value += entity.Index + stamp.GetHashCode()).Invoke();
 
         // Entity-list stamp callbacks.
@@ -49,35 +49,35 @@ internal static class GeneratedStampGrammarProof
             static (EntityRef entity, in Stamp stamp) => _ = entity.Index + stamp.GetHashCode()).Invoke();
         world.ForEachEntityStamp<Cmp1>(entities, in query,
             static (EntityRef entity, in Stamp stamp) => _ = entity.Index + stamp.GetHashCode()).Invoke();
-        world.ForEachStamp<Cmp1, Cmp2>(entities, componentIds,
+        world.ForEachStamp(entities, componentIds,
             static (in Stamp first, in Stamp second) => _ = first.GetHashCode() + second.GetHashCode()).Invoke();
         world.ForEachEntityStamp(entities, componentIds,
             static (EntityRef entity, in Stamp first, in Stamp second) => _ = entity.Index + first.GetHashCode() + second.GetHashCode()).Invoke();
         world.ForEachStamp<Cmp1>(entities,
             static (in Stamp stamp) => _ = stamp.GetHashCode()).Invoke();
-        world.ForEachEntityStamp<Cmp1>(entities, cmp1Id,
+        world.ForEachEntityStamp(entities, cmp1Id,
             static (EntityRef entity, in Stamp stamp) => _ = entity.Index + stamp.GetHashCode()).Invoke();
         world.ForEachEntityStamp<Cmp1>(entityArray, in query,
             static (EntityRef entity, in Stamp stamp) => _ = entity.Index + stamp.GetHashCode()).Invoke();
         world.ForEachStamp<Context, Cmp1>(entities, in query, ref context,
             static (ref Context state, in Stamp stamp) => state.Value += stamp.GetHashCode()).Invoke();
-        world.ForEachStamp<Context, Cmp1>(entities, cmp1Id, ref context,
+        world.ForEachStamp(entities, cmp1Id, ref context,
             static (ref Context state, in Stamp stamp) => state.Value += stamp.GetHashCode()).Invoke();
-        world.ForEachStamp<Context, Cmp1>(entities, stackalloc ComponentId[] { cmp1Id }, ref context,
+        world.ForEachStamp(entities, stackalloc ComponentId[] { cmp1Id }, ref context,
             static (ref Context state, in Stamp stamp) => state.Value += stamp.GetHashCode()).Invoke();
         world.ForEachEntityStamp<Context, Cmp1>(entities, ref context,
             static (ref Context state, EntityRef entity, in Stamp stamp) => state.Value += entity.Index + stamp.GetHashCode()).Invoke();
-        world.ForEachEntityStamp<Context, Cmp1>(entityArray, in query, cmp1Id, ref context,
+        world.ForEachEntityStamp(entityArray, in query, cmp1Id, ref context,
             static (ref Context state, EntityRef entity, in Stamp stamp) => state.Value += entity.Index + stamp.GetHashCode()).Invoke();
 
         // Parallel stamp callbacks, followed by functor and context forms.
-        world.ForEachStampParallel<Cmp1>(in query, cmp1Id,
+        world.ForEachStampParallel(in query, cmp1Id,
             static (in Stamp stamp) => _ = stamp,
             workerCount: 2).Invoke();
         world.ForEachStampParallel(in query, cmp1Id,
             static (in Stamp stamp) => _ = stamp.GetHashCode(),
             workerCount: 2).Invoke();
-        world.ForEachEntityStampParallel<Cmp1, Cmp2>(in query, componentIds,
+        world.ForEachEntityStampParallel(in query, componentIds,
             static (EntityRef entity, in Stamp first, in Stamp second) => _ = entity.Index + first.GetHashCode() + second.GetHashCode(),
             workerCount: 2).Invoke();
         world.ForEachStampParallel<Context, Cmp1>(in query, in readContext,
@@ -86,10 +86,10 @@ internal static class GeneratedStampGrammarProof
         world.ForEachEntityStampParallel<Context, Cmp1>(in query, in readContext,
             static (in Context state, EntityRef entity, in Stamp stamp) => _ = state.Value + entity.Index + stamp.GetHashCode(),
             workerCount: 2).Invoke();
-        world.ForEachStampParallel<Cmp1>(entities, in query, cmp1Id,
+        world.ForEachStampParallel(entities, in query, cmp1Id,
             static (in Stamp stamp) => _ = stamp,
             workerCount: 2).Invoke();
-        world.ForEachStampParallel<Cmp1, Cmp2>(in query, componentIds,
+        world.ForEachStampParallel(in query, componentIds,
             static (in Stamp first, in Stamp second) => _ = first.GetHashCode() + second.GetHashCode(),
             workerCount: 2).Invoke();
         world.ForEachEntityStampParallel(in query, cmp1Id,
@@ -101,10 +101,10 @@ internal static class GeneratedStampGrammarProof
         world.ForEachEntityStampParallel(in query, cmp1Id,
             static (EntityRef entity, in Stamp stamp) => _ = entity.Index + stamp.GetHashCode(),
             workerCount: 2).Invoke();
-        world.ForEachEntityStampParallel<Cmp1, Cmp2>(entities, in query, componentIds,
+        world.ForEachEntityStampParallel(entities, in query, componentIds,
             static (EntityRef entity, in Stamp first, in Stamp second) => _ = entity.Index + first.GetHashCode() + second.GetHashCode(),
             workerCount: 2).Invoke();
-        world.ForEachStampParallel<Cmp1, Cmp2>(entities, componentIds,
+        world.ForEachStampParallel(entities, componentIds,
             static (in Stamp first, in Stamp second) => _ = first.GetHashCode() + second.GetHashCode(),
             workerCount: 2).Invoke();
         world.ForEachStampParallel(entities, in query, cmp1Id,
@@ -119,7 +119,7 @@ internal static class GeneratedStampGrammarProof
         world.ForEachEntityStampParallel<Cmp1>(entityArray,
             static (EntityRef entity, in Stamp stamp) => _ = entity.Index + stamp.GetHashCode(),
             workerCount: 2).Invoke();
-        world.ForEachEntityStampParallel<Cmp1>(entities, cmp1Id,
+        world.ForEachEntityStampParallel(entities, cmp1Id,
             static (EntityRef entity, in Stamp stamp) => _ = entity.Index + stamp.GetHashCode(),
             workerCount: 2).Invoke();
 
@@ -136,11 +136,11 @@ internal static class GeneratedStampGrammarProof
         world.ForEachEntityStamp<Cmp1>(entities, ref functorEntityStamp).Invoke();
         world.ForEachEntityStamp<Cmp1>(entityArray, in query, ref functorEntityStamp).Invoke();
         var functorEntityStampPair = new EntityStampPairFunctor();
-        world.ForEachEntityStamp<Cmp1, Cmp2>(entities, componentIds, ref functorEntityStampPair).Invoke();
+        world.ForEachEntityStamp(entities, componentIds, ref functorEntityStampPair).Invoke();
         world.ForEachEntityStamp(entities, in query, componentIds, ref functorEntityStampPair).Invoke();
         var functorContext = new StampContextFunctor();
         world.ForEachStamp<Cmp1>(in query, ref context, ref functorContext).Invoke();
-        world.ForEachStamp<Cmp1>(entities, cmp1Id, ref context, ref functorContext).Invoke();
+        world.ForEachStamp(entities, cmp1Id, ref context, ref functorContext).Invoke();
         var functorParallelStampContext = new StampParallelContextFunctor();
         world.ForEachStampParallel<Cmp1>(in query, in readContext, ref functorParallelStampContext, workerCount: 2).Invoke();
         world.ForEachStampParallel(in query, cmp1Id, ref functorStamp, workerCount: 2).Invoke();

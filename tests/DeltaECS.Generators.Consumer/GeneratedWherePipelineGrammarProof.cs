@@ -28,16 +28,16 @@ internal static class GeneratedWherePipelineGrammarProof
             {
                 state.Value += entity.Index;
                 return cmp3.Value < cmp4.Value;
-            }).Remove<Alive>(aliveId).Invoke();
+            }).Remove(aliveId).Invoke();
 
         var predicate = new WherePredicateContext();
-        world.Where(in query, ref context, ref predicate).Add<Dead>(deadId).Invoke();
-        world.Where(in query, ref context, ref predicate).Add<Dead, Alive>(tagIds).Invoke();
-        world.Where(in query, ref context, ref predicate).Add<Dead, Alive>(deadId, aliveId).Invoke();
+        world.Where(in query, ref context, ref predicate).Add(deadId).Invoke();
+        world.Where(in query, ref context, ref predicate).Add(tagIds).Invoke();
+        world.Where(in query, ref context, ref predicate).Add(deadId, aliveId).Invoke();
         world.Where(in query, ref context, ref predicate).Add<Dead, Alive>(new Dead(), new Alive()).Invoke();
         world.Where(in query, ref context, ref predicate).Add<Dead, Alive>(tagIds, new Dead(), new Alive()).Invoke();
         var entityPredicate = new WhereEntityPredicateContext();
-        world.WhereEntity(in query, ref context, ref entityPredicate).Remove<Dead, Alive>(tagIds).Invoke();
+        world.WhereEntity(in query, ref context, ref entityPredicate).Remove(tagIds).Invoke();
 
         // Structural terminals (Destroy, Add, Remove) and iteration terminals.
         world.Where(in query, static (in Cmp3 cmp3) => cmp3.Value < 0)
@@ -47,11 +47,11 @@ internal static class GeneratedWherePipelineGrammarProof
         world.WhereEntity(in query, static (Entity entity, in Cmp3 cmp3) => cmp3.Value < entity.Index)
             .Add<Dead, NeedsRespawn>(deadId, needsRespawnId, new Dead(), new NeedsRespawn()).Invoke();
         world.Where(in query, static (in Cmp3 cmp3) => cmp3.Value < 0)
-            .Remove<Dead>(deadId).Invoke();
+            .Remove(deadId).Invoke();
         world.Where(in query, static (in Cmp3 cmp3) => cmp3.Value < 0)
             .Remove<Dead>().Invoke();
         world.WhereEntity(in query, static (Entity entity, in Cmp3 cmp3) => cmp3.Value < entity.Index)
-            .Remove<Dead, Alive>(tagIds).Invoke();
+            .Remove(tagIds).Invoke();
 
         world.Where(in query, static (in Cmp3 cmp3) => cmp3.Value < 0)
             .ForEach(static (ref Cmp3 cmp3) => cmp3.Value = 0).Invoke();

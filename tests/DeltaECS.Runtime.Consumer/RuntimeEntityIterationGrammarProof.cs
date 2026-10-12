@@ -76,8 +76,8 @@ public static partial class RuntimeApiGrammarProof
             Require(current == entity && handle == entity);
             Require(current.Index == entity.Index && current.Generation == entity.Generation);
             Require(current.Has(positionId));
-            Require(current.Has<Position>() && current.Has<Position>(positionId));
-            Require(!current.Has<Velocity>() && !current.Has<Velocity>(velocityId) && !current.Has<Velocity>(positionId));
+            Require(current.Has<Position>() && current.Has(positionId));
+            Require(!current.Has<Velocity>() && !current.Has(velocityId) && current.Has(positionId));
             Require(!current.Has(unregisteredId));
 
             Require(current.TryGet<Position>(out Position primaryValue));
@@ -101,7 +101,7 @@ public static partial class RuntimeApiGrammarProof
             Require(current.TryGetComponentStamp<Marker>(out Stamp tagStamp));
             Require(tagStamp == new Stamp(1));
             Require(current.TryGetComponentStamp(markerId, out Stamp dynamicTagStamp));
-            Require(current.TryGetComponentStamp<Marker>(markerId, out Stamp typedTagStamp));
+            Require(current.TryGetComponentStamp(markerId, out Stamp typedTagStamp));
             Require(dynamicTagStamp == tagStamp && typedTagStamp == tagStamp);
             _ = current.GetRef<Marker>();
 
@@ -111,11 +111,11 @@ public static partial class RuntimeApiGrammarProof
             ref Position dynamicWritable = ref current.GetRef<Position>(positionId);
             dynamicWritable.Value++;
             Require(current.TryGetComponentStamp(positionId, out Stamp after));
-            Require(current.TryGetComponentStamp<Position>(positionId, out Stamp typedAfter));
+            Require(current.TryGetComponentStamp(positionId, out Stamp typedAfter));
             Require(after == typedAfter && after != before);
             Require(!current.TryGetComponentStamp<Velocity>(out _));
             Require(!current.TryGetComponentStamp(velocityId, out _));
-            Require(!current.TryGetComponentStamp<Velocity>(positionId, out _));
+            Require(current.TryGetComponentStamp(positionId, out _));
             Require(!current.TryGetComponentStamp(unregisteredId, out _));
             visits++;
         });

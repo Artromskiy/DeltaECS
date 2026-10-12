@@ -26,21 +26,21 @@ public static partial class RuntimeApiGrammarProof
         world.GetRef<Position>(secondary, secondaryPositionId).Value = 20;
         Require(world.TryGet<Position>(secondary, secondaryPositionId, out Position secondaryCopy));
         Require(secondaryCopy.Value == 20);
-        Require(world.Has<Position>(secondary, secondaryPositionId));
+        Require(world.Has(secondary, secondaryPositionId));
         Require(world.Get<Position>(secondary, secondaryPositionId).Value == 20);
         ref readonly Position secondaryReadOnly = ref world.GetReadRef<Position>(secondary, secondaryPositionId);
         Require(secondaryReadOnly.Value == 20);
-        Require(world.TryGetComponentStamp<Position>(secondary, secondaryPositionId, out Stamp secondaryStamp));
+        Require(world.TryGetComponentStamp(secondary, secondaryPositionId, out Stamp secondaryStamp));
         Require(secondaryStamp.Value > 0);
         Require(!world.TryGet<Position>(secondary, primaryPositionId, out _));
-        Require(!world.Has<Position>(secondary, primaryPositionId));
+        Require(!world.Has(secondary, primaryPositionId));
 
         Span<Entity> primaryBatch = stackalloc Entity[2];
         Require(world.Create<Position>(primaryBatch.Length, primaryBatch) == primaryBatch.Length);
         Require(world.Create<Position>(1) == 1);
         Span<Entity> secondaryBatch = stackalloc Entity[2];
-        Require(world.Create<Position>(secondaryPositionId, secondaryBatch.Length, secondaryBatch) == secondaryBatch.Length);
-        Require(world.Create<Position>(secondaryPositionId, 1) == 1);
+        Require(world.Create(secondaryPositionId, secondaryBatch.Length, secondaryBatch) == secondaryBatch.Length);
+        Require(world.Create(secondaryPositionId, 1) == 1);
 
         Entity added = world.Create(markerId);
         Position addedValue = new() { Value = 31 };
@@ -59,8 +59,8 @@ public static partial class RuntimeApiGrammarProof
         Require(world.Remove<Position>(batch) == batch.Length);
         Entity explicitPrimary = world.Create(markerId);
         Require(world.Add(explicitPrimary, in batchValue));
-        Require(world.Remove<Position>(explicitPrimary, primaryPositionId));
-        Require(world.Remove<Position>(secondaryBatch, secondaryPositionId) == secondaryBatch.Length);
+        Require(world.Remove(explicitPrimary, primaryPositionId));
+        Require(world.Remove(secondaryBatch, secondaryPositionId) == secondaryBatch.Length);
 
         Entity tagged = world.Create<Marker>();
         Require(world.Has<Marker>(tagged));

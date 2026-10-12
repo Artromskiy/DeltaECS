@@ -288,7 +288,9 @@ internal static class GeneratedWhereTemplates
             : terminalSlots.HasDynamicIds
                 ? GeneratorTemplates.JoinNonEmpty(new[]
                 {
-                    $"global::Delta.ECS.GeneratedForEachRuntime.ValidateComponentIdCount(componentIds, {terminal.Arity});",
+                    terminalSlots.HasGenericSelectors
+                        ? $"global::Delta.ECS.GeneratedForEachRuntime.ValidateComponentIdCount(componentIds, {terminal.Arity});"
+                        : string.Empty,
                     terminalSlots.HasGenericSelectors
                         ? GeneratorTemplates.JoinIndexed(terminal.Arity, index =>
                             $"global::Delta.ECS.GeneratedForEachRuntime.ValidateComponentType<{site.ActionComponents[index]}>(world, componentIds[{index}]);", "\n")
@@ -750,9 +752,9 @@ internal static class GeneratedWhereTemplates
             ? terminal.Api.Signature.GenericList("U")
             : string.Empty;
 
-    private static string TerminalGenericList(TerminalModel terminal) => terminal.Kind is TerminalKind.Add or TerminalKind.Remove || terminal.IsCallback && !terminal.IsFunctor
-            ? terminal.Api.Signature.GenericList("U")
-            : string.Empty;
+    private static string TerminalGenericList(TerminalModel terminal) => terminal.Kind is TerminalKind.Add or TerminalKind.Remove
+            ? terminal.Api.Signature.HasGenericSelectors ? terminal.Api.Signature.GenericList("U") : string.Empty
+            : terminal.IsCallback && !terminal.IsFunctor ? terminal.Api.Signature.GenericList("U") : string.Empty;
 
     private static string RenderValueParameters(SignatureProjection slots, IReadOnlyList<string> types)
         => GeneratorTemplates.JoinNonEmpty(new[]
@@ -1041,7 +1043,10 @@ internal static class GeneratedWhereTemplates
         body.Add("GeneratedForEachRuntime.ValidateGeneratedWhere(_world, in _query);");
         if (terminalSlots.HasDynamicIds)
         {
-            body.Add($"GeneratedForEachRuntime.ValidateComponentIdCount(componentIds, {terminal.Arity});");
+            if (terminalSlots.HasGenericSelectors)
+            {
+                body.Add($"GeneratedForEachRuntime.ValidateComponentIdCount(componentIds, {terminal.Arity});");
+            }
             if (terminalSlots.HasGenericSelectors)
             {
                 body.AddRange(GeneratorTemplates.Indexed(terminal.Arity, index =>

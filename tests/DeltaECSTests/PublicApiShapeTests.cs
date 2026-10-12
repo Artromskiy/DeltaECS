@@ -43,6 +43,30 @@ internal sealed class PublicApiShapeTests
     }
 
     [Test]
+    public void ExplicitRegistrationSelectionDoesNotExposeRedundantGenericOverloads()
+    {
+        Type[] idCreateParameters = [typeof(ComponentId), typeof(int), typeof(Span<Entity>)];
+        Type[] idCreateCountParameters = [typeof(ComponentId), typeof(int)];
+        Type[] removeParameters = [typeof(Entity), typeof(ComponentId)];
+        Type[] batchRemoveParameters = [typeof(ReadOnlySpan<Entity>), typeof(ComponentId)];
+        Type[] hasParameters = [typeof(Entity), typeof(ComponentId)];
+        Type[] stampParameters = [typeof(Entity), typeof(ComponentId), typeof(Stamp).MakeByRefType()];
+        Type[] entityRefStampParameters = [typeof(ComponentId), typeof(Stamp).MakeByRefType()];
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.Create), idCreateParameters).IsGenericMethod, Is.False);
+            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.Create), idCreateCountParameters).IsGenericMethod, Is.False);
+            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.Remove), removeParameters).IsGenericMethod, Is.False);
+            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.Remove), batchRemoveParameters).IsGenericMethod, Is.False);
+            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.Has), hasParameters).IsGenericMethod, Is.False);
+            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.TryGetComponentStamp), stampParameters).IsGenericMethod, Is.False);
+            Assert.That(PublicInstanceMethod(typeof(EntityRef), nameof(EntityRef.Has), typeof(ComponentId)).IsGenericMethod, Is.False);
+            Assert.That(PublicInstanceMethod(typeof(EntityRef), nameof(EntityRef.TryGetComponentStamp), entityRefStampParameters).IsGenericMethod, Is.False);
+        });
+    }
+
+    [Test]
     public void ValueReplacementSetApiIsAbsent()
     {
         Assert.Multiple(() =>

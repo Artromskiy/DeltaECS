@@ -23,9 +23,6 @@ namespace Delta.ECS.Unity
         /// <summary>Reports whether the entity owns the primary registration for <typeparamref name="T"/>.</summary>
         public bool Has<T>() => World?.Has<T>(Entity) ?? false;
 
-        /// <summary>Reports whether the entity owns the specified registration of <typeparamref name="T"/>.</summary>
-        public bool Has<T>(ComponentId componentId) => World?.Has<T>(Entity, componentId) ?? false;
-
         /// <summary>Attempts to read the primary component for <typeparamref name="T"/>.</summary>
         public bool TryGet<T>(out T value)
         {
@@ -94,19 +91,6 @@ namespace Delta.ECS.Unity
             }
 
             return world.TryGetComponentStamp(Entity, componentId, out stamp);
-        }
-
-        /// <summary>Attempts to read the stamp for the specified registration of <typeparamref name="T"/>.</summary>
-        public bool TryGetComponentStamp<T>(ComponentId componentId, out Stamp stamp)
-        {
-            World? world = World;
-            if (world is null)
-            {
-                stamp = default;
-                return false;
-            }
-
-            return world.TryGetComponentStamp<T>(Entity, componentId, out stamp);
         }
 
         internal EntityContext(World world, Entity entity)

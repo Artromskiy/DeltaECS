@@ -8,24 +8,10 @@ public sealed partial class World
     public Entity Create<T>() => Create(GetPrimaryComponentId<T>());
 
     /// <summary>Creates entities with the primary component for <typeparamref name="T"/> into caller-owned storage.</summary>
-    public int Create<T>(int count, Span<Entity> output) => Create<T>(GetPrimaryComponentId<T>(), count, output);
+    public int Create<T>(int count, Span<Entity> output) => Create(GetPrimaryComponentId<T>(), count, output);
 
     /// <summary>Creates entities with the primary component for <typeparamref name="T"/> without retaining handles.</summary>
-    public int Create<T>(int count) => Create<T>(GetPrimaryComponentId<T>(), count, Span<Entity>.Empty);
-
-    /// <summary>Creates typed component entities into caller-owned storage.</summary>
-    public int Create<T>(ComponentId componentId, int count, Span<Entity> output)
-    {
-        EnsureRegisteredType<T>(componentId);
-        return Create(componentId, count, output);
-    }
-
-    /// <summary>Creates typed entities with the specified component registration and returns their handles.</summary>
-    public int Create<T>(ComponentId componentId, int count)
-    {
-        EnsureRegisteredType<T>(componentId);
-        return Create<T>(componentId, count, Span<Entity>.Empty);
-    }
+    public int Create<T>(int count) => Create(GetPrimaryComponentId<T>(), count);
 
     /// <summary>
     /// Adds and initializes the primary component for <typeparamref name="T"/> on one entity.
@@ -67,32 +53,6 @@ public sealed partial class World
 
     /// <summary>Removes the primary component for <typeparamref name="T"/> from every eligible entity.</summary>
     public int Remove<T>(ReadOnlySpan<Entity> entities) => RemoveComponentBatch(entities, GetPrimaryComponentId<T>());
-
-    /// <summary>Removes one typed component from an alive entity.</summary>
-    public bool Remove<T>(Entity entity, ComponentId componentId)
-    {
-        EnsureExecutionAccess();
-        if (!IsRegisteredType<T>(componentId)
-            || !IsAlive(entity)
-            || !TryGetCore<T>(entity, componentId, out _))
-        {
-            return false;
-        }
-
-        return RemoveComponentBatch(stackalloc[] { entity }, componentId) == 1;
-    }
-
-    /// <summary>Removes one typed component from every eligible entity in a batch.</summary>
-    public int Remove<T>(ReadOnlySpan<Entity> entities, ComponentId componentId)
-    {
-        EnsureExecutionAccess();
-        if (!IsRegisteredType<T>(componentId) || entities.Length == 0)
-        {
-            return 0;
-        }
-
-        return RemoveComponentBatch(entities, componentId);
-    }
 
     /// <summary>Reads the primary component or reports tag presence, returning default for a tag.</summary>
     public bool TryGet<T>(Entity entity, out T value)
@@ -190,13 +150,6 @@ public sealed partial class World
         return Has(entity, componentId);
     }
 
-    /// <summary>Reports whether an alive entity owns a typed component registration.</summary>
-    public bool Has<T>(Entity entity, ComponentId componentId)
-    {
-        EnsureExecutionAccess();
-        return IsRegisteredType<T>(componentId) && Has(entity, componentId);
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool HasTrusted<T>(Entity entity) => TryGetPrimaryComponentId<T>(out ComponentId componentId)
         && HasTrusted(entity, componentId);
@@ -225,19 +178,6 @@ public sealed partial class World
     {
         EnsureExecutionAccess();
         if (!TryGetPrimaryComponentId<T>(out ComponentId componentId))
-        {
-            stamp = default;
-            return false;
-        }
-
-        return TryGetComponentStamp(entity, componentId, out stamp);
-    }
-
-    /// <summary>Reads a typed component stamp when the entity owns the matching registration.</summary>
-    public bool TryGetComponentStamp<T>(Entity entity, ComponentId componentId, out Stamp stamp)
-    {
-        EnsureExecutionAccess();
-        if (!IsRegisteredType<T>(componentId))
         {
             stamp = default;
             return false;

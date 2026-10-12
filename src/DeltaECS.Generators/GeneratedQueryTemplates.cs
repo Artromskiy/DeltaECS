@@ -62,15 +62,6 @@ internal static class GeneratedQueryTemplates
             model.Namespace,
             query: factory.Query));
 
-        if (slots.HasExplicitIds && slots.HasGenericSelectors)
-        {
-            body.AddRange(GeneratorTemplates.Indexed(
-                slots.Arity,
-                index => factory.Query
-                    ? $"GeneratedForEachRuntime.ValidateComponentType<{slots.GenericType(index)}>(in {factory.Name}, {slots.ComponentIdArgument(index)});"
-                    : $"GeneratedForEachRuntime.ValidateComponentType<{slots.GenericType(index)}>({factory.Name}, {slots.ComponentIdArgument(index)});"));
-        }
-
         if (factory.QuerySpec)
         {
             body.Add($"return {QuerySpecResult(model.Kind)};");
