@@ -1,6 +1,7 @@
 namespace Delta.ECS;
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -278,31 +279,6 @@ public sealed partial class World : IDisposable
         }
     }
 
-    internal bool HasComponentChangeObserver(ComponentId componentId)
-    {
-        ComponentChangeObserverRoute?[]? routes = Volatile.Read(ref _componentChangeObservers);
-        if (routes is null || (uint)componentId.Value >= (uint)routes.Length)
-        {
-            return false;
-        }
-
-        WeakReference<ComponentChangeObserver>[]? observers = routes[componentId.Value]?.Observers;
-        if (observers is null)
-        {
-            return false;
-        }
-
-        for (int index = 0; index < observers.Length; index++)
-        {
-            if (observers[index].TryGetTarget(out _))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     internal void EnsureComponentChangeObserverCapacity(int capacity)
     {
         if (_componentChangeObservers is null)
@@ -357,6 +333,72 @@ public sealed partial class World : IDisposable
             {
                 observer.Record(entity);
             }
+        }
+    }
+
+    internal ComponentChangeObserver[]? ResolveComponentChangeObservers(ComponentId componentId, out int count)
+    {
+        ComponentChangeObserverRoute?[]? routes = Volatile.Read(ref _componentChangeObservers);
+        if (routes is null || (uint)componentId.Value >= (uint)routes.Length)
+        {
+            count = 0;
+            return null;
+        }
+
+        WeakReference<ComponentChangeObserver>[]? observers = routes[componentId.Value]?.Observers;
+        if (observers is null)
+        {
+            count = 0;
+            return null;
+        }
+
+        ComponentChangeObserver? firstObserver = null;
+        int firstObserverIndex = 0;
+        for (; firstObserverIndex < observers.Length; firstObserverIndex++)
+        {
+            if (observers[firstObserverIndex].TryGetTarget(out firstObserver))
+            {
+                break;
+            }
+        }
+
+        if (firstObserver is null)
+        {
+            count = 0;
+            return null;
+        }
+
+        ComponentChangeObserver[] resolved = ArrayPool<ComponentChangeObserver>.Shared.Rent(observers.Length);
+        resolved[0] = firstObserver;
+        count = 1;
+        for (int index = firstObserverIndex + 1; index < observers.Length; index++)
+        {
+            if (observers[index].TryGetTarget(out ComponentChangeObserver? observer))
+            {
+                resolved[count++] = observer;
+            }
+        }
+
+        return resolved;
+    }
+
+    internal bool HasComponentChangeObserverRoutes => Volatile.Read(ref _componentChangeObservers) is not null;
+
+    internal static void ReturnComponentChangeObservers(ComponentChangeObserver[] observers, int count)
+    {
+        Array.Clear(observers, 0, count);
+        ArrayPool<ComponentChangeObserver>.Shared.Return(observers);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void RecordComponentChangeObservers(ComponentChangeObserver[] observers, int count, Entity entity)
+    {
+        ref ComponentChangeObserver observer = ref observers.GetRefAtZero();
+        while (count != 0)
+        {
+            observer.Record(entity);
+            observer = ref Unsafe.Add(ref observer, 1);
+            count--;
         }
     }
 

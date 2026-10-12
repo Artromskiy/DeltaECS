@@ -208,6 +208,44 @@ internal sealed class ArchetypeForEachOperationTests
     }
 
     [Test]
+    public void ForEachChangeObservesEntityListAndArchetypeIteration()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<ComponentChangePosition>(new SchemaId(60_321));
+        using var world = new World(layouts);
+        Entity[] entities = new Entity[2];
+        world.Create([positionId], entities);
+        Query query = world.WhereAll(positionId);
+        var changes = new List<(Entity Entity, ChangeKind Kind, int Value)>();
+        var observer = world.ForEachChange<ComponentChangePosition>(positionId,
+            (Entity entity, ChangeKind kind, ref ComponentChangePosition position) => changes.Add((entity, kind, position.Value)));
+
+        observer.Invoke();
+        changes.Clear();
+        world.ForEach(entities.AsSpan(), in query, positionId,
+            static (ref ComponentChangePosition position) => position.Value++).Invoke();
+        observer.Invoke();
+
+        Assert.That(changes, Is.EqualTo(new[]
+        {
+            (entities[0], ChangeKind.Modified, 1),
+            (entities[1], ChangeKind.Modified, 1)
+        }));
+
+        changes.Clear();
+        var archetypeOperation = world.ForEachArchetype(new IterationState())
+            .ProcessRef<ComponentChangePosition, SetChangePosition>(in query, positionId, new SetChangePosition(9));
+        archetypeOperation.Invoke();
+        observer.Invoke();
+
+        Assert.That(changes, Is.EqualTo(new[]
+        {
+            (entities[0], ChangeKind.Modified, 9),
+            (entities[1], ChangeKind.Modified, 9)
+        }));
+    }
+
+    [Test]
     public void ProcessComponentRequiresWhereAllMembership()
     {
         var layouts = new ComponentRegistry();
@@ -343,6 +381,11 @@ internal sealed class ArchetypeForEachOperationTests
     private readonly struct SetPosition(int value) : IArchetypeForEachComponent<IterationState, Position>
     {
         public void Invoke(ref IterationState context, EntityRef entity, ref Position component) => component.Value = value;
+    }
+
+    private readonly struct SetChangePosition(int value) : IArchetypeForEachComponent<IterationState, ComponentChangePosition>
+    {
+        public void Invoke(ref IterationState context, EntityRef entity, ref ComponentChangePosition component) => component.Value = value;
     }
 
     private struct ReadComponentModes

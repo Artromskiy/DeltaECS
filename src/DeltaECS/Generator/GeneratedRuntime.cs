@@ -680,37 +680,47 @@ public static partial class GeneratedForEachRuntime
 
     internal static void RecordComponentWrite(QueryPlan plan, int route)
     {
-        if (QueryPlan.IsTagRoute(route))
+        World world = plan.Owner;
+        if (QueryPlan.IsTagRoute(route) || !world.HasComponentChangeObserverRoutes)
         {
             return;
         }
 
         ComponentId componentId = plan.GetDataComponentId(route);
-        World world = plan.Owner;
-        if (!world.HasComponentChangeObserver(componentId))
+        ComponentChangeObserver[]? observers = world.ResolveComponentChangeObservers(componentId, out int observerCount);
+        if (observers is null)
         {
             return;
         }
 
-        ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
-        for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
+        try
         {
-            Chunk chunk = chunks.RefAt(chunkIndex).Chunk;
-            Span<Entity> entities = chunk.RawEntities;
-            if (plan.TryGetTagSlots(chunk, out ReadOnlySpan<int> tagSlots))
+            ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
+            for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
             {
-                for (int index = 0; index < tagSlots.Length; index++)
+                Chunk chunk = chunks.RefAt(chunkIndex).Chunk;
+                Span<Entity> entities = chunk.RawEntities;
+                if (plan.TryGetTagSlots(chunk, out ReadOnlySpan<int> tagSlots))
                 {
-                    world.RecordComponentChange(entities.RefAt(tagSlots.RefAt(index)), componentId);
+                    for (int index = 0; index < tagSlots.Length; index++)
+                    {
+                        Entity entity = entities.RefAt(tagSlots.RefAt(index));
+                        World.RecordComponentChangeObservers(observers, observerCount, entity);
+                    }
+
+                    continue;
                 }
 
-                continue;
+                for (int slotIndex = 0; slotIndex < chunk.Count; slotIndex++)
+                {
+                    Entity entity = entities.RefAt(slotIndex);
+                    World.RecordComponentChangeObservers(observers, observerCount, entity);
+                }
             }
-
-            for (int slotIndex = 0; slotIndex < chunk.Count; slotIndex++)
-            {
-                world.RecordComponentChange(entities.RefAt(slotIndex), componentId);
-            }
+        }
+        finally
+        {
+            World.ReturnComponentChangeObservers(observers, observerCount);
         }
     }
 
@@ -1079,46 +1089,44 @@ public static partial class GeneratedForEachRuntime
         ReadOnlySpan<Entity> entities,
         ReadOnlySpan<int> routes)
     {
-        bool hasWatchedRoute = false;
-        for (int routeIndex = 0; routeIndex < routes.Length; routeIndex++)
-        {
-            int route = routes.RefAt(routeIndex);
-            if (!QueryPlan.IsTagRoute(route)
-                && world.HasComponentChangeObserver(plan.GetDataComponentId(route)))
-            {
-                hasWatchedRoute = true;
-                break;
-            }
-        }
-
-        if (!hasWatchedRoute)
+        if (entities.Length == 0 || routes.Length == 0 || !world.HasComponentChangeObserverRoutes)
         {
             return;
         }
 
-        for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
+        for (int routeIndex = 0; routeIndex < routes.Length; routeIndex++)
         {
-            Entity entity = entities.RefAt(entityIndex);
-            if (!world.TryResolveEntityLocation(entity, out Chunk chunk, out int slotIndex)
-                || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk.GlobalId, out _)
-                || !plan.MatchesTagSlot(chunk, slotIndex))
+            int route = routes.RefAt(routeIndex);
+            if (QueryPlan.IsTagRoute(route))
             {
                 continue;
             }
 
-            for (int routeIndex = 0; routeIndex < routes.Length; routeIndex++)
+            ComponentId componentId = plan.GetDataComponentId(route);
+            ComponentChangeObserver[]? observers = world.ResolveComponentChangeObservers(componentId, out int observerCount);
+            if (observers is null)
             {
-                int route = routes.RefAt(routeIndex);
-                if (QueryPlan.IsTagRoute(route))
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                ComponentId componentId = plan.GetDataComponentId(route);
-                if (world.HasComponentChangeObserver(componentId))
+            try
+            {
+                for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
                 {
-                    world.RecordComponentChange(entity, componentId);
+                    Entity entity = entities.RefAt(entityIndex);
+                    if (!world.TryResolveEntityLocation(entity, out Chunk chunk, out int slotIndex)
+                        || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk.GlobalId, out _)
+                        || !plan.MatchesTagSlot(chunk, slotIndex))
+                    {
+                        continue;
+                    }
+
+                    World.RecordComponentChangeObservers(observers, observerCount, entity);
                 }
+            }
+            finally
+            {
+                World.ReturnComponentChangeObservers(observers, observerCount);
             }
         }
     }

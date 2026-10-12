@@ -149,8 +149,14 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
         TContext contextCopy = context;
         _invoking = true;
         _world.BeginQueryLease();
+        int preparedCaseCount = 0;
         try
         {
+            for (; preparedCaseCount < _cases.Count; preparedCaseCount++)
+            {
+                _cases[preparedCaseCount].PrepareChangeObservers();
+            }
+
             Execute(ref contextCopy);
         }
         catch (Exception exception)
@@ -159,6 +165,11 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
         }
         finally
         {
+            for (int caseIndex = preparedCaseCount - 1; caseIndex >= 0; caseIndex--)
+            {
+                _cases[caseIndex].ReleaseChangeObservers();
+            }
+
             _world.EndQueryLease();
             _invoking = false;
         }
@@ -228,6 +239,8 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
 internal interface IArchetypeForEachCase<TContext>
 {
     bool TryBindArchetype(Archetype archetype, out int componentIndex);
+    void PrepareChangeObservers();
+    void ReleaseChangeObservers();
     void Execute(ref TContext context, Archetype archetype, int componentIndex);
 }
 
@@ -248,6 +261,10 @@ internal sealed class ArchetypeForEachCase<TContext, TProcessor> : IArchetypeFor
         componentIndex = -1;
         return _query.MatchesArchetype(archetype);
     }
+
+    public void PrepareChangeObservers() { }
+
+    public void ReleaseChangeObservers() { }
 
     public void Execute(ref TContext context, Archetype archetype, int componentIndex)
     {
@@ -285,6 +302,8 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
     private readonly QueryPlan _query;
     private readonly ComponentId _componentId;
     private readonly bool _writesComponent;
+    private ComponentChangeObserver[]? _changeObservers;
+    private int _changeObserverCount;
     private TProcessor _processor;
 
     internal ArchetypeForEachComponentCase(QueryPlan query, ComponentId componentId, TProcessor processor, bool writesComponent)
@@ -310,6 +329,27 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
         }
 
         return archetype.TryGetComponentIndex(_componentId, out componentIndex);
+    }
+
+    public void PrepareChangeObservers()
+    {
+        if (_writesComponent && _query.Owner.HasComponentChangeObserverRoutes)
+        {
+            _changeObservers = _query.Owner.ResolveComponentChangeObservers(_componentId, out _changeObserverCount);
+        }
+    }
+
+    public void ReleaseChangeObservers()
+    {
+        ComponentChangeObserver[]? observers = _changeObservers;
+        if (observers is null)
+        {
+            return;
+        }
+
+        World.ReturnComponentChangeObservers(observers, _changeObserverCount);
+        _changeObservers = null;
+        _changeObserverCount = 0;
     }
 
     public void Execute(ref TContext context, Archetype archetype, int componentIndex)
@@ -356,10 +396,13 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void RecordWrite(EntityRef entity)
     {
-        if (_writesComponent && _query.Owner.HasComponentChangeObserver(_componentId))
+        ComponentChangeObserver[]? observers = _changeObservers;
+        if (observers is null)
         {
-            _query.Owner.RecordComponentChange(entity, _componentId);
+            return;
         }
+
+        World.RecordComponentChangeObservers(observers, _changeObserverCount, entity);
     }
 
 }
