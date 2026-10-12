@@ -1,3 +1,5 @@
+#pragma warning disable CS0618 // This consumer intentionally exercises obsolete stamp iteration forms.
+
 using System;
 using Delta.ECS;
 

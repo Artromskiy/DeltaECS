@@ -761,7 +761,8 @@ internal static partial class DemandDrivenForEachTemplates
                 GeneratorTemplates.Documentation(shape.Api),
                 signature,
                 body,
-                null),
+                null,
+                shape.IsStamp),
             "    ");
         return operationInvoker + "\n" + extension;
     }
@@ -2024,7 +2025,8 @@ internal static partial class DemandDrivenForEachTemplates
                 GeneratorTemplates.Documentation(shape.Api),
                 signature,
                 body,
-                profiling ? profileName : null),
+                profiling ? profileName : null,
+                shape.IsStamp),
             "    ");
     }
 
@@ -2316,16 +2318,20 @@ internal static partial class DemandDrivenForEachTemplates
         return string.Join("\n", lines);
     }
 
-    private static string RenderMethod(string documentation, string signature, string body, string? profileName)
+    private static string RenderMethod(string documentation, string signature, string body, string? profileName, bool obsolete = false)
     {
         string profile = profileName is null
             ? string.Empty
             : $"""
                 [global::DeltaECS.Profiling.ProfiledMethodMetadataAttribute({StableProfileMethodId(profileName)}, "{profileName}")]
                 """.TrimEnd();
+        string obsoleteAttribute = obsolete
+            ? "[global::System.Obsolete(\"Use ArchetypeForEachOperation.ProcessChanged for change-driven processing.\")]"
+            : string.Empty;
         return $"""
             {documentation}
             {profile}
+            {obsoleteAttribute}
             [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
             {signature}
             {GeneratorTemplates.Indent(body, "    ")}

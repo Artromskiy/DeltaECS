@@ -60,6 +60,7 @@ public sealed partial class World
     /// static (in Stamp stamp) =&gt; Process(stamp))</c>.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
+    [System.Obsolete("Use ArchetypeForEachOperation.ProcessChanged for change-driven processing.")]
     public EcsOperation<ThrowingOperationInvoker> ForEachStamp(in Query query, ForEachAction action)
         => new(default(ThrowingOperationInvoker));
 
@@ -69,6 +70,7 @@ public sealed partial class World
     /// one or more <c>in Stamp</c> parameters.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
+    [System.Obsolete("Use ArchetypeForEachOperation.ProcessChanged for change-driven processing.")]
     public EcsOperation<ThrowingOperationInvoker> ForEachEntityStamp(in Query query, ForEachEntityAction action)
         => new(default(ThrowingOperationInvoker));
 

@@ -630,6 +630,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("ForEachAction_I<Stamp>"));
         Assert.That(generated, Does.Contain("GetGeneratedStamp(access0, index)"));
+        Assert.That(generated, Does.Contain("global::System.Obsolete(\"Use ArchetypeForEachOperation.ProcessChanged for change-driven processing.\")"));
         Assert.That(generated, Does.Contain("ExecuteEntityListParallel"));
         Assert.That(generated, Does.Not.Contain("ForEachStamp<T1, T2>(this World world, in Query query, ComponentId"));
 

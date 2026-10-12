@@ -259,6 +259,7 @@ public sealed partial class World
     /// parameters and an explicit worker count.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
+    [System.Obsolete("Use ArchetypeForEachOperation.ProcessChanged for change-driven processing.")]
     public EcsOperation<ThrowingOperationInvoker> ForEachStampParallel(in Query query, ForEachAction action, int workerCount = 0)
         => new(default(ThrowingOperationInvoker));
 
@@ -268,6 +269,7 @@ public sealed partial class World
     /// followed by one or more <c>in Stamp</c> parameters.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
+    [System.Obsolete("Use ArchetypeForEachOperation.ProcessChanged for change-driven processing.")]
     public EcsOperation<ThrowingOperationInvoker> ForEachEntityStampParallel(in Query query, ForEachEntityAction action, int workerCount = 0)
         => new(default(ThrowingOperationInvoker));
 
@@ -276,6 +278,7 @@ public sealed partial class World
     /// read-only or value context and one or more <c>in Stamp</c> parameters.
     /// </summary>
     /// <remarks>This zero-component overload always throws.</remarks>
+    [System.Obsolete("Use ArchetypeForEachOperation.ProcessChanged for change-driven processing.")]
     public EcsOperation<ThrowingOperationInvoker> ForEachStampParallel<TContext>(
         in Query query,
         in TContext context,
@@ -285,6 +288,7 @@ public sealed partial class World
 
     /// <summary>Zero-component parallel value-context stamp anchor.</summary>
     /// <remarks>This zero-component overload always throws.</remarks>
+    [System.Obsolete("Use ArchetypeForEachOperation.ProcessChanged for change-driven processing.")]
     public EcsOperation<ThrowingOperationInvoker> ForEachStampParallel<TContext>(
         in Query query,
         TContext context,
@@ -294,6 +298,7 @@ public sealed partial class World
 
     /// <summary>Zero-component parallel entity stamp context anchor.</summary>
     /// <remarks>This zero-component overload always throws.</remarks>
+    [System.Obsolete("Use ArchetypeForEachOperation.ProcessChanged for change-driven processing.")]
     public EcsOperation<ThrowingOperationInvoker> ForEachEntityStampParallel<TContext>(
         in Query query,
         in TContext context,
@@ -303,6 +308,7 @@ public sealed partial class World
 
     /// <summary>Zero-component parallel entity value-context stamp anchor.</summary>
     /// <remarks>This zero-component overload always throws.</remarks>
+    [System.Obsolete("Use ArchetypeForEachOperation.ProcessChanged for change-driven processing.")]
     public EcsOperation<ThrowingOperationInvoker> ForEachEntityStampParallel<TContext>(
         in Query query,
         TContext context,

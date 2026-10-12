@@ -67,6 +67,25 @@ internal sealed class PublicApiShapeTests
     }
 
     [Test]
+    public void StampIterationFallbacksAreObsolete()
+    {
+        string[] stampMethods =
+        [
+            "ForEachStamp",
+            "ForEachEntityStamp",
+            "ForEachStampParallel",
+            "ForEachEntityStampParallel"
+        ];
+        MethodInfo[] methods = new[] { typeof(World), typeof(FunctorAnchors) }
+            .SelectMany(static type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static))
+            .Where(method => stampMethods.Contains(method.Name))
+            .ToArray();
+
+        Assert.That(methods, Is.Not.Empty);
+        Assert.That(methods.All(static method => method.IsDefined(typeof(ObsoleteAttribute), inherit: false)), Is.True);
+    }
+
+    [Test]
     public void ValueReplacementSetApiIsAbsent()
     {
         Assert.Multiple(() =>

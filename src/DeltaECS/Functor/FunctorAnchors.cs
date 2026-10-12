@@ -40,6 +40,7 @@ public static class FunctorAnchors
     /// Fallback when no generated stamp <c>ForEachStamp</c> functor overload is
     /// selected.
     /// </summary>
+    [System.Obsolete("Use ArchetypeForEachOperation.ProcessChanged for change-driven processing.")]
     public static EcsOperation<ThrowingOperationInvoker> ForEachStamp<T>(this World world, in Query query, T action)
         where T : IForEach
     {
@@ -53,6 +54,7 @@ public static class FunctorAnchors
     /// Fallback when no generated stamp <c>ForEachEntityStamp</c> functor
     /// overload is selected.
     /// </summary>
+    [System.Obsolete("Use ArchetypeForEachOperation.ProcessChanged for change-driven processing.")]
     public static EcsOperation<ThrowingOperationInvoker> ForEachEntityStamp<T>(this World world, in Query query, T action)
         where T : IForEachEntity
     {
@@ -65,6 +67,7 @@ public static class FunctorAnchors
     /// <summary>
     /// Fallback when no generated parallel stamp functor overload is selected.
     /// </summary>
+    [System.Obsolete("Use ArchetypeForEachOperation.ProcessChanged for change-driven processing.")]
     public static EcsOperation<ThrowingOperationInvoker> ForEachStampParallel<T>(
         this World world,
         in Query query,
@@ -83,6 +86,7 @@ public static class FunctorAnchors
     /// Fallback when no generated parallel entity stamp functor overload is
     /// selected.
     /// </summary>
+    [System.Obsolete("Use ArchetypeForEachOperation.ProcessChanged for change-driven processing.")]
     public static EcsOperation<ThrowingOperationInvoker> ForEachEntityStampParallel<T>(
         this World world,
         in Query query,

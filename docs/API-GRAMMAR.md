@@ -390,11 +390,13 @@ Parallel callbacks always use parallel execution; `W` is the caller's
 worker-count choice, clamped to the supported range. A parallel context is
 passed read-only or by value; mutable `ref` context is rejected.
 
-## Stamp iteration forms
+## Stamp iteration forms (obsolete)
 
 Stamp iteration uses the same target, query, selector, context, callback, and
 worker ordering. It is read-only: callbacks receive `in Stamp` (or
 `ref readonly Stamp` where the language supports it), and no stamp is changed.
+These forms are obsolete; use `ArchetypeForEachOperation.ProcessChanged` for
+change-driven component processing.
 
 Query-wide forms:
 
