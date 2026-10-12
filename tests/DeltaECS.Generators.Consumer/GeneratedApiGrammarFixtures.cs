@@ -11,11 +11,26 @@ public struct Dead { }
 public struct Alive { }
 public struct NeedsRespawn { public int Value; }
 
-[DeltaEcsComponent(SchemaId = 920_008UL)]
+[ComponentSchema(920_008UL)]
+[ComponentGroup<CatalogGroups>(CatalogGroups.History | CatalogGroups.Replicated)]
+[ComponentGroup<CatalogTargets>(CatalogTargets.Server)]
 public struct CatalogComponent { public int Value; }
 
-[DeltaEcsComponent(SchemaId = 920_009UL)]
+[ComponentSchema(920_009UL)]
+[ComponentGroup<CatalogGroups>(CatalogGroups.History)]
 public struct CatalogTag { }
+
+[Flags]
+public enum CatalogGroups : byte
+{
+    History = 1,
+    Replicated = 2,
+}
+
+public enum CatalogTargets : short
+{
+    Server = 10,
+}
 
 public struct Context
 {

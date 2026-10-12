@@ -10,19 +10,13 @@ internal static class ComponentSchemaIdHash
 
     internal static AttributeData? ComponentAttribute(INamedTypeSymbol type)
         => type.GetAttributes().FirstOrDefault(static attribute =>
-            GeneratorSupport.IsNamedType(attribute.AttributeClass, "DeltaEcsComponentAttribute"));
+            GeneratorSupport.IsNamedType(attribute.AttributeClass, "ComponentSchemaAttribute"));
 
     internal static (bool IsPresent, ulong Value) ExplicitSchemaId(AttributeData attribute)
     {
-        foreach (KeyValuePair<string, TypedConstant> argument in attribute.NamedArguments)
-        {
-            if (argument.Key == "SchemaId")
-            {
-                return (true, argument.Value.Value is ulong value ? value : 0UL);
-            }
-        }
-
-        return default;
+        return attribute.ConstructorArguments.Length != 0
+            ? (true, attribute.ConstructorArguments[0].Value is ulong value ? value : 0UL)
+            : default;
     }
 
     internal static ulong Compute(string metadataName)

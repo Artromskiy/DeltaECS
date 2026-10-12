@@ -50,7 +50,7 @@ The generator targets `netstandard2.0` and is shipped from
 the consumer project.
 
 For Unity component authoring, `DeltaECS.Generators` also derives schema IDs
-for types marked with `Delta.ECS.DeltaEcsComponentAttribute` and
+for types marked with `Delta.ECS.ComponentSchemaAttribute` and
 generates strongly typed registration factories. `DeltaECS.Unity` uses these
 factories to register components without enumerating every type in loaded
 assemblies. A name-derived ID is stable for a given metadata name; set a
@@ -60,6 +60,32 @@ attribute as an explicit `SchemaId`, and reports explicit zero IDs. The
 generator reports duplicate IDs within the consumer compilation; the Unity
 registry also checks for collisions when it combines catalogs from loaded
 assemblies.
+
+Use a generic `ComponentGroup<TEnum>` attribute to collect generated component
+IDs by enum value:
+
+```csharp
+[Flags]
+public enum ComponentGroups : byte
+{
+    History = 1,
+    Replicated = 2,
+}
+
+[ComponentSchema(42)]
+[ComponentGroup<ComponentGroups>(ComponentGroups.History | ComponentGroups.Replicated)]
+public struct Health { public float Value; }
+
+ReadOnlySpan<ComponentId> history = layouts.GetGroup(ComponentGroups.History);
+ReadOnlySpan<ComponentId> replicated = layouts.GetGroup(ComponentGroups.Replicated);
+```
+
+For a `[Flags]` enum, combined values add the component to every set bit. For
+an ordinary enum, each supplied value names one independent group. Register
+the component through its generated registration for the group membership to
+be added to that layout registry. Generic attributes require C# 11 or later;
+other generated component registration forms remain available to older C#
+consumers.
 
 Where functors implement `IWherePredicate`. Use `Where` for component-only
 predicates and `WhereEntity` when the predicate also needs the current entity.

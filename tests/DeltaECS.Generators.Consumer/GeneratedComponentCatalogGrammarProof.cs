@@ -42,13 +42,23 @@ internal static class GeneratedComponentCatalogGrammarProof
 
         ComponentId componentId = layouts.GetPrimary<CatalogComponent>();
         ComponentId tagId = layouts.GetPrimary<CatalogTag>();
+        ReadOnlySpan<ComponentId> historyGroup = layouts.GetGroup(CatalogGroups.History);
+        ReadOnlySpan<ComponentId> replicatedGroup = layouts.GetGroup(CatalogGroups.Replicated);
+        ReadOnlySpan<ComponentId> serverGroup = layouts.GetGroup(CatalogTargets.Server);
         using var world = new World(layouts);
         Entity entity = world.Create(componentId);
         if (!world.Add(entity, tagId)
             || layouts.GetComponentType(componentId) != typeof(CatalogComponent)
-            || layouts.GetComponentType(tagId) != typeof(CatalogTag))
+            || layouts.GetComponentType(tagId) != typeof(CatalogTag)
+            || historyGroup.Length != 2
+            || !historyGroup.Contains(componentId)
+            || !historyGroup.Contains(tagId)
+            || replicatedGroup.Length != 1
+            || !replicatedGroup.Contains(componentId)
+            || serverGroup.Length != 1
+            || !serverGroup.Contains(componentId))
         {
-            throw new InvalidOperationException("Generated component catalog registration did not initialize the layout.");
+            throw new InvalidOperationException("Generated component catalog registration did not initialize component groups.");
         }
     }
 }

@@ -30,12 +30,12 @@ separate NuGet packages and are not included in this UPM package.
 ## Register components
 
 Install `DeltaECS.Generators` in the assembly that declares components, then
-mark component structs with `DeltaEcsComponentAttribute`:
+mark component structs with `ComponentSchemaAttribute`:
 
 ```csharp
 using Delta.ECS;
 
-[DeltaEcsComponent]
+[ComponentSchema]
 public struct Health
 {
     public float Value;
@@ -67,7 +67,7 @@ The generator reports the stable schema ID for each component. Set
 unchanged after a type rename:
 
 ```csharp
-[DeltaEcsComponent(SchemaId = 0x1234UL)]
+[ComponentSchema(0x1234UL)]
 public struct Position
 {
     public float X;

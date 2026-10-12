@@ -21,13 +21,13 @@ public sealed class ComponentRegistryGeneratorTests
             using Delta.ECS;
             namespace Example
             {
-                [DeltaEcsComponent]
+                [ComponentSchema]
                 public struct Position { public float X; }
 
-                [DeltaEcsComponent(SchemaId = 42UL)]
+                [ComponentSchema(42UL)]
                 public struct Health { public float Value; }
 
-                [DeltaEcsComponent]
+                [ComponentSchema]
                 public struct Marker { }
 
                 public static class Entry
@@ -122,10 +122,10 @@ public sealed class ComponentRegistryGeneratorTests
             using Delta.ECS;
             namespace Example
             {
-                [DeltaEcsComponent]
+                [ComponentSchema]
                 public struct Position { }
 
-                [DeltaEcsComponent(SchemaId = 0UL)]
+                [ComponentSchema(0UL)]
                 public struct ZeroSchema { }
             }
             """;
@@ -146,13 +146,13 @@ public sealed class ComponentRegistryGeneratorTests
             using Delta.ECS;
             namespace Example
             {
-                [DeltaEcsComponent(SchemaId = 0UL)]
+                [ComponentSchema(0UL)]
                 public struct ZeroSchema { }
 
-                [DeltaEcsComponent(SchemaId = 42UL)]
+                [ComponentSchema(42UL)]
                 public struct First { }
 
-                [DeltaEcsComponent(SchemaId = 42UL)]
+                [ComponentSchema(42UL)]
                 public struct Second { }
             }
             """;

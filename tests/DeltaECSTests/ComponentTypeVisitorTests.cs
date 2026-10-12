@@ -855,13 +855,13 @@ internal sealed class ComponentTypeVisitorTests
     }
 }
 
-[DeltaEcsComponent(SchemaId = 80_031)]
+[ComponentSchema(80_031)]
 internal struct GeneratedUnmanagedVisitorComponent
 {
     public int Value { get; set; }
 }
 
-[DeltaEcsComponent(SchemaId = 80_032)]
+[ComponentSchema(80_032)]
 internal struct GeneratedManagedVisitorComponent
 {
     public string? Value { get; set; }

@@ -30,7 +30,7 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
             .Collect();
 
         var markedComponents = context.SyntaxProvider.ForAttributeWithMetadataName(
-                "Delta.ECS.DeltaEcsComponentAttribute",
+                "Delta.ECS.ComponentSchemaAttribute",
                 static (node, _) => node is StructDeclarationSyntax or RecordDeclarationSyntax,
                 static (syntax, _) => (INamedTypeSymbol)syntax.TargetSymbol)
             .Collect();

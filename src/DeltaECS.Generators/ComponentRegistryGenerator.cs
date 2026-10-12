@@ -27,7 +27,7 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var components = context.SyntaxProvider.ForAttributeWithMetadataName(
-                "Delta.ECS.DeltaEcsComponentAttribute",
+                "Delta.ECS.ComponentSchemaAttribute",
                 static (node, _) => node is StructDeclarationSyntax or RecordDeclarationSyntax,
                 static (syntax, _) => new MarkedComponent(
                     (INamedTypeSymbol)syntax.TargetSymbol,
@@ -74,7 +74,7 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
                 continue;
             }
 
-            var registration = new ComponentRegistration(type, schemaId, IsTagType(type));
+            var registration = new ComponentRegistration(type, schemaId, IsTagType(type), ReadComponentGroups(type));
             if (schemas.TryGetValue(schemaId, out ComponentRegistration previous))
             {
                 context.ReportDiagnostic(Diagnostic.Create(
@@ -111,6 +111,101 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
                     && argument.Value.Value is int size
                     && size > 1);
 
+    private static List<ComponentGroupRegistration> ReadComponentGroups(INamedTypeSymbol componentType)
+    {
+        var groups = new List<ComponentGroupRegistration>();
+        var seen = new HashSet<(string EnumType, ulong Value)>();
+        foreach (AttributeData attribute in componentType.GetAttributes())
+        {
+            INamedTypeSymbol? attributeType = attribute.AttributeClass;
+            if (attributeType is null
+                || attributeType.OriginalDefinition.MetadataName != "ComponentGroupAttribute`1"
+                || attributeType.ContainingNamespace.ToDisplayString() != "Delta.ECS"
+                || attributeType.TypeArguments[0] is not INamedTypeSymbol enumType
+                || enumType.TypeKind != TypeKind.Enum)
+            {
+                continue;
+            }
+
+            bool isFlags = enumType.GetAttributes().Any(static enumAttribute =>
+                enumAttribute.AttributeClass?.ToDisplayString() == "System.FlagsAttribute");
+            foreach (TypedConstant constructorArgument in attribute.ConstructorArguments)
+            {
+                if (constructorArgument.Kind == TypedConstantKind.Array)
+                {
+                    foreach (TypedConstant groupId in constructorArgument.Values)
+                    {
+                        AddGroup(enumType, groupId, isFlags, groups, seen);
+                    }
+
+                    continue;
+                }
+
+                AddGroup(enumType, constructorArgument, isFlags, groups, seen);
+            }
+        }
+
+        return groups;
+    }
+
+    private static void AddGroup(
+        INamedTypeSymbol enumType,
+        TypedConstant constant,
+        bool isFlags,
+        List<ComponentGroupRegistration> groups,
+        HashSet<(string EnumType, ulong Value)> seen)
+    {
+        if (constant.Value is null || enumType.EnumUnderlyingType is null)
+        {
+            return;
+        }
+
+        ulong value = ToEnumBits(constant.Value, enumType.EnumUnderlyingType.SpecialType);
+        if (!isFlags || value == 0)
+        {
+            AddGroup(enumType, value, groups, seen);
+            return;
+        }
+
+        int bitIndex = 0;
+        while (value != 0)
+        {
+            if ((value & 1) != 0)
+            {
+                AddGroup(enumType, 1UL << bitIndex, groups, seen);
+            }
+
+            value >>= 1;
+            bitIndex++;
+        }
+    }
+
+    private static void AddGroup(
+        INamedTypeSymbol enumType,
+        ulong value,
+        List<ComponentGroupRegistration> groups,
+        HashSet<(string EnumType, ulong Value)> seen)
+    {
+        string enumTypeName = enumType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        if (seen.Add((enumTypeName, value)))
+        {
+            groups.Add(new ComponentGroupRegistration(enumType, value));
+        }
+    }
+
+    private static ulong ToEnumBits(object value, SpecialType underlyingType) => underlyingType switch
+    {
+        SpecialType.System_SByte => (byte)(sbyte)value,
+        SpecialType.System_Byte => (byte)value,
+        SpecialType.System_Int16 => (ushort)(short)value,
+        SpecialType.System_UInt16 => (ushort)value,
+        SpecialType.System_Int32 => (uint)(int)value,
+        SpecialType.System_UInt32 => (uint)value,
+        SpecialType.System_Int64 => (ulong)(long)value,
+        SpecialType.System_UInt64 => (ulong)value,
+        _ => 0,
+    };
+
     private static string Render(List<ComponentRegistration> registrations)
     {
         var factories = new List<string>();
@@ -134,9 +229,14 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
 
                     global::Delta.ECS.ComponentId global::Delta.ECS.IGeneratedComponentRegistration.Register(
                         global::Delta.ECS.ComponentLayoutRegistry layouts)
-                        => global::Delta.ECS.ComponentLayoutRegistryRegistrationExtensions.Register<{{typeName}}>(
+                    {
+                        global::Delta.ECS.ComponentId componentId = global::Delta.ECS.ComponentLayoutRegistryRegistrationExtensions.Register<{{typeName}}>(
                             layouts,
                             SchemaId);
+                {{GeneratorTemplates.Indent(string.Join("\n", registration.Groups.Select(group =>
+                    $"layouts.RegisterGeneratedComponentGroup(typeof({group.EnumType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}).TypeHandle, 0x{group.Value:X16}UL, componentId);")), "        ")}}
+                        return componentId;
+                    }
                 }
                 """);
         }
@@ -163,5 +263,11 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
 
     private sealed record MarkedComponent(INamedTypeSymbol Type, Location Location);
 
-    private sealed record ComponentRegistration(INamedTypeSymbol Type, ulong SchemaId, bool IsTag);
+    private sealed record ComponentRegistration(
+        INamedTypeSymbol Type,
+        ulong SchemaId,
+        bool IsTag,
+        List<ComponentGroupRegistration> Groups);
+
+    private sealed record ComponentGroupRegistration(INamedTypeSymbol EnumType, ulong Value);
 }

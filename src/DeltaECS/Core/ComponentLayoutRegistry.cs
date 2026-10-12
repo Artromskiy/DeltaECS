@@ -3,6 +3,7 @@ namespace Delta.ECS;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Reflection;
 
 /// <summary>Registers component CLR types and their stable schema identities.</summary>
@@ -15,6 +16,7 @@ public sealed partial class ComponentLayoutRegistry
     private readonly List<IGeneratedComponentTypeToken> _componentTypeTokens = new();
     private readonly List<IComponentRegistrationToken> _componentVisitorTokens = new();
     private readonly Dictionary<(RuntimeTypeHandle ComponentType, RuntimeTypeHandle InterfaceType), IComponentInterfaceVisitorRoute> _interfaceVisitorRoutes = new();
+    private readonly Dictionary<(RuntimeTypeHandle EnumType, ulong GroupId), ComponentGroupMembers> _componentGroups = new();
     private readonly List<bool> _isTag = new();
     private readonly List<int> _tagIndices = new();
     private readonly Dictionary<Type, List<GenericRegistration>> _genericRegistrations = new();
@@ -57,6 +59,64 @@ public sealed partial class ComponentLayoutRegistry
         }
 
         return registration.Register(this);
+    }
+
+    /// <summary>Gets the generated component IDs assigned to an enum group.</summary>
+    /// <remarks>The returned span remains valid if the registry later registers more generated components.</remarks>
+    public ReadOnlySpan<ComponentId> GetGroup<TEnum>(TEnum groupId) where TEnum : struct, Enum
+        => _componentGroups.TryGetValue((typeof(TEnum).TypeHandle, GetGroupValue(groupId)), out ComponentGroupMembers? members)
+            ? members.GetComponents()
+            : ReadOnlySpan<ComponentId>.Empty;
+
+    /// <summary>Registers a generated component's enum group membership.</summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public void RegisterGeneratedComponentGroup(RuntimeTypeHandle enumType, ulong groupId, ComponentId componentId)
+    {
+        var key = (enumType, groupId);
+        if (!_componentGroups.TryGetValue(key, out ComponentGroupMembers? members))
+        {
+            members = new ComponentGroupMembers();
+            _componentGroups.Add(key, members);
+        }
+
+        members.Add(componentId);
+    }
+
+    private static ulong GetGroupValue<TEnum>(TEnum groupId) where TEnum : struct, Enum
+    {
+        object boxedValue = groupId;
+        IFormatProvider invariant = CultureInfo.InvariantCulture;
+        return Type.GetTypeCode(Enum.GetUnderlyingType(typeof(TEnum))) switch
+        {
+            TypeCode.SByte => (byte)Convert.ToSByte(boxedValue, invariant),
+            TypeCode.Byte => Convert.ToByte(boxedValue, invariant),
+            TypeCode.Int16 => (ushort)Convert.ToInt16(boxedValue, invariant),
+            TypeCode.UInt16 => Convert.ToUInt16(boxedValue, invariant),
+            TypeCode.Int32 => (uint)Convert.ToInt32(boxedValue, invariant),
+            TypeCode.UInt32 => Convert.ToUInt32(boxedValue, invariant),
+            TypeCode.Int64 => (ulong)Convert.ToInt64(boxedValue, invariant),
+            TypeCode.UInt64 => Convert.ToUInt64(boxedValue, invariant),
+            _ => throw new InvalidOperationException($"Unsupported enum underlying type for '{typeof(TEnum)}'."),
+        };
+    }
+
+    private sealed class ComponentGroupMembers
+    {
+        private readonly List<ComponentId> _componentIds = new();
+        private ComponentId[]? _cached;
+
+        internal void Add(ComponentId componentId)
+        {
+            if (_componentIds.Contains(componentId))
+            {
+                return;
+            }
+
+            _componentIds.Add(componentId);
+            _cached = null;
+        }
+
+        internal ReadOnlySpan<ComponentId> GetComponents() => _cached ??= _componentIds.ToArray();
     }
 
     private static ComponentRegistrationTypeToken CreateComponentRegistrationTypeToken(IGeneratedComponentTypeToken typeToken)

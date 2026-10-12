@@ -2,12 +2,29 @@ using System.ComponentModel;
 
 namespace Delta.ECS
 {
-    /// <summary>Marks a component for generated registration.</summary>
+    /// <summary>Marks a component for generated registration and optionally assigns a stable schema ID.</summary>
     [AttributeUsage(AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
-    public sealed class DeltaEcsComponentAttribute : Attribute
+    public sealed class ComponentSchemaAttribute : Attribute
     {
-        /// <summary>An explicitly assigned stable schema ID; zero requests a generated name-based ID.</summary>
-        public ulong SchemaId { get; set; }
+        /// <summary>Marks a component whose schema ID is derived from its qualified name.</summary>
+        public ComponentSchemaAttribute() { }
+
+        /// <summary>Marks a component with an explicitly assigned stable schema ID.</summary>
+        public ComponentSchemaAttribute(ulong schemaId) => SchemaId = schemaId;
+
+        /// <summary>An explicitly assigned stable schema ID, or zero when the ID is name-derived.</summary>
+        public ulong SchemaId { get; }
+    }
+
+    /// <summary>Assigns a component to one or more groups identified by an enum.</summary>
+    [AttributeUsage(AttributeTargets.Struct, AllowMultiple = true, Inherited = false)]
+    public sealed class ComponentGroupAttribute<TEnum> : Attribute where TEnum : struct, Enum
+    {
+        /// <summary>Assigns a component to the specified enum groups.</summary>
+        public ComponentGroupAttribute(params TEnum[] groupIds) => GroupIds = groupIds;
+
+        /// <summary>Gets the enum values that identify the component groups.</summary>
+        public TEnum[] GroupIds { get; }
     }
 
     /// <summary>Generated strongly typed registration for one marked component.</summary>

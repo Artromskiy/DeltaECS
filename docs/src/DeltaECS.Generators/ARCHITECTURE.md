@@ -83,7 +83,7 @@ the old path obsolete before migrating its callers and delete the obsolete
 implementation and tests in the same migration.
 
 `ComponentRegistryGenerator` emits one closed registration implementation per
-`[DeltaEcsComponent]`. Its implementation calls
+`[ComponentSchema]`. Its implementation calls
 `ComponentLayoutRegistryRegistrationExtensions.Register<T>` with the concrete
 component type, so C# selects the matching marker route while compiling the
 generated source. `ComponentLayoutRegistry.Register(registration)` remains the
