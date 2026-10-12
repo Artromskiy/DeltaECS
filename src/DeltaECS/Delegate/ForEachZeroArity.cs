@@ -53,26 +53,6 @@ public sealed partial class World
     public EcsOperation<TContext, ForEachEntityContextOperationInvoker<TContext>> ForEachEntity<TContext>(in Query query, ref TContext context, ForEachContextEntityAction<TContext> action)
         => new(context, new ForEachEntityContextOperationInvoker<TContext>(this, query, action));
 
-    /// <summary>
-    /// Zero-component stamp callback anchor. Use a generated
-    /// <c>ForEachStamp</c> form with one or more <c>in Stamp</c> parameters,
-    /// for example <c>world.ForEachStamp&lt;Health&gt;(in query,
-    /// static (in Stamp stamp) =&gt; Process(stamp))</c>.
-    /// </summary>
-    /// <remarks>This zero-component overload always throws.</remarks>
-    [System.Obsolete("Use ArchetypeForEachOperation.ProcessChanged for change-driven processing.")]
-    public EcsOperation<ThrowingOperationInvoker> ForEachStamp(in Query query, ForEachAction action)
-        => new(default(ThrowingOperationInvoker));
-
-    /// <summary>
-    /// Zero-component entity stamp callback anchor. Generated
-    /// <c>ForEachEntityStamp</c> callbacks receive <c>EntityRef</c> followed by
-    /// one or more <c>in Stamp</c> parameters.
-    /// </summary>
-    /// <remarks>This zero-component overload always throws.</remarks>
-    [System.Obsolete("Use ArchetypeForEachOperation.ProcessChanged for change-driven processing.")]
-    public EcsOperation<ThrowingOperationInvoker> ForEachEntityStamp(in Query query, ForEachEntityAction action)
-        => new(default(ThrowingOperationInvoker));
 
 }
 

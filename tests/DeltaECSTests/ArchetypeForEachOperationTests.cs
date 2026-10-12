@@ -61,8 +61,6 @@ internal sealed class ArchetypeForEachOperationTests
         using var world = new World(layouts);
         Span<Entity> entities = stackalloc Entity[2];
         world.Create([positionId, velocityId], entities);
-        world.TryGetComponentStamp(entities[0], positionId, out Stamp stampBefore);
-        world.TryGetComponentStamp(entities[1], positionId, out Stamp secondStampBefore);
 
         Query positions = world.WhereAll(positionId);
         var operation = world.ForEachArchetype(new IterationState())
@@ -73,14 +71,10 @@ internal sealed class ArchetypeForEachOperationTests
 
         Assert.That(world.Get<Position>(entities[0], positionId).Value, Is.EqualTo(17));
         Assert.That(world.Get<Position>(entities[1], positionId).Value, Is.EqualTo(17));
-        world.TryGetComponentStamp(entities[0], positionId, out Stamp stampAfter);
-        world.TryGetComponentStamp(entities[1], positionId, out Stamp secondStampAfter);
-        Assert.That(stampAfter.Value, Is.EqualTo(stampBefore.Value + 1));
-        Assert.That(secondStampAfter.Value, Is.EqualTo(secondStampBefore.Value + 1));
     }
 
     [Test]
-    public void ReadOnlyComponentFormsDoNotAdvanceStamps()
+    public void ReadOnlyComponentFormsPreserveValues()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_313));
@@ -89,8 +83,6 @@ internal sealed class ArchetypeForEachOperationTests
         world.Create([positionId], entities);
         world.GetRef<Position>(entities[0], positionId).Value = 3;
         world.GetRef<Position>(entities[1], positionId).Value = 7;
-        world.TryGetComponentStamp(entities[0], positionId, out Stamp firstStampBefore);
-        world.TryGetComponentStamp(entities[1], positionId, out Stamp secondStampBefore);
 
         Query positions = world.WhereAll(positionId);
         var state = new ReadComponentModes();
@@ -106,90 +98,6 @@ internal sealed class ArchetypeForEachOperationTests
         Assert.That(state.ValueTotal, Is.EqualTo(10));
         Assert.That(world.Get<Position>(entities[0], positionId).Value, Is.EqualTo(3));
         Assert.That(world.Get<Position>(entities[1], positionId).Value, Is.EqualTo(7));
-        world.TryGetComponentStamp(entities[0], positionId, out Stamp firstStampAfter);
-        world.TryGetComponentStamp(entities[1], positionId, out Stamp secondStampAfter);
-        Assert.That(firstStampAfter, Is.EqualTo(firstStampBefore));
-        Assert.That(secondStampAfter, Is.EqualTo(secondStampBefore));
-    }
-
-    [Test]
-    public void ProcessChangedRunsInitiallyAndThenOnlyForEntitiesWithNewStamps()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_314));
-        using var world = new World(layouts);
-        Span<Entity> entities = stackalloc Entity[2];
-        world.Create([positionId], entities);
-        Query positions = world.WhereAll(positionId);
-        var state = new ChangedEntities();
-        var operation = world.ForEachArchetype(state)
-            .ProcessChanged<Position, CollectChangedPosition>(in positions, positionId, new CollectChangedPosition());
-
-        operation.Invoke(ref state);
-        Assert.That(state.Entities, Is.EqualTo(new[] { entities[0].Index, entities[1].Index }));
-
-        state.Entities.Clear();
-        operation.Invoke(ref state);
-        Assert.That(state.Entities, Is.Empty);
-
-        world.GetRef<Position>(entities[1], positionId).Value++;
-        operation.Invoke(ref state);
-        Assert.That(state.Entities, Is.EqualTo(new[] { entities[1].Index }));
-
-        state.Entities.Clear();
-        Entity added = world.Create([positionId]);
-        operation.Invoke(ref state);
-        Assert.That(state.Entities, Is.EqualTo(new[] { added.Index }));
-
-        state.Entities.Clear();
-        operation.ResetChangeTracking();
-        operation.Invoke(ref state);
-        Assert.That(state.Entities, Is.EquivalentTo(new[] { entities[0].Index, entities[1].Index, added.Index }));
-    }
-
-    [Test]
-    public void ProcessChangedRechecksArchetypeAfterTypedArchetypeWrite()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_315));
-        using var world = new World(layouts);
-        Span<Entity> entities = stackalloc Entity[2];
-        world.Create([positionId], entities);
-        Query positions = world.WhereAll(positionId);
-        var state = new ChangedEntities();
-        var changed = world.ForEachArchetype(state)
-            .ProcessChanged<Position, CollectChangedPosition>(in positions, positionId, new CollectChangedPosition());
-
-        changed.Invoke(ref state);
-        Assert.That(state.Entities, Is.EquivalentTo(new[] { entities[0].Index, entities[1].Index }));
-
-        state.Entities.Clear();
-        world.ForEachArchetype(new IterationState())
-            .ProcessRef<Position, SetPosition>(in positions, positionId, new SetPosition(11))
-            .Invoke();
-
-        changed.Invoke(ref state);
-
-        Assert.That(state.Entities, Is.EquivalentTo(new[] { entities[0].Index, entities[1].Index }));
-    }
-
-    [Test]
-    public void ProcessChangedStillProcessesTagsOnEveryInvocation()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        ComponentId activeId = layouts.Register<Active>(new SchemaId(60_316));
-        using var world = new World(layouts);
-        Entity entity = world.Create([activeId]);
-        Query active = world.WhereAll(activeId);
-        var state = new ChangedEntities();
-        var operation = world.ForEachArchetype(state)
-            .ProcessChanged<Active, CollectChangedActive>(in active, activeId, new CollectChangedActive());
-
-        operation.Invoke(ref state);
-        state.Entities.Clear();
-        operation.Invoke(ref state);
-
-        Assert.That(state.Entities, Is.EqualTo(new[] { entity.Index }));
     }
 
     [Test]
@@ -356,8 +264,6 @@ internal sealed class ArchetypeForEachOperationTests
         Assert.That(world.Has<Active>(entities[0]), Is.True);
         Assert.That(world.Has<Active>(entities[1]), Is.False);
         Assert.That(world.Has<Active>(entities[2]), Is.True);
-        Assert.That(world.TryGetComponentStamp(entities[0], activeId, out Stamp stamp), Is.True);
-        Assert.That(stamp, Is.EqualTo(new Stamp(1)));
     }
 
     [Test]
@@ -463,21 +369,6 @@ internal sealed class ArchetypeForEachOperationTests
             context.ValueTotal += component.Value;
             component.Value++;
         }
-    }
-
-    private sealed class ChangedEntities
-    {
-        internal readonly List<int> Entities = new();
-    }
-
-    private readonly struct CollectChangedPosition : IArchetypeForEachComponentIn<ChangedEntities, Position>
-    {
-        public void Invoke(ref ChangedEntities context, EntityRef entity, in Position component) => context.Entities.Add(entity.Index);
-    }
-
-    private readonly struct CollectChangedActive : IArchetypeForEachComponentIn<ChangedEntities, Active>
-    {
-        public void Invoke(ref ChangedEntities context, EntityRef entity, in Active component) => context.Entities.Add(entity.Index);
     }
 
     private readonly struct VisitActiveTag : IArchetypeForEachComponent<IterationState, Active>

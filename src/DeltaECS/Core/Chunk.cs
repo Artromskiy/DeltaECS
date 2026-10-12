@@ -12,7 +12,6 @@ internal sealed class Chunk
     private Array[] _componentRows;
     private ComponentRowOperations[] _rowOperations;
     private NativeMemory<Entity> _entities;
-    private ComponentStampStorage _componentStamps;
     private ChunkTagMasks? _tagMasks;
     private int _archetypeId;
     private int _archetypeIndex;
@@ -42,7 +41,6 @@ internal sealed class Chunk
         _archetypeId = archetypeId;
         _archetypeIndex = archetypeIndex;
         _entities = new NativeMemory<Entity>(Capacity);
-        _componentStamps = new ComponentStampStorage(layouts.Length, Capacity);
         _componentRows = new Array[layouts.Length];
         _rowOperations = rowOperations;
         for (int index = 0; index < layouts.Length; index++)
@@ -101,11 +99,6 @@ internal sealed class Chunk
             {
                 changedEntities++;
             }
-        }
-
-        if (changedEntities != 0)
-        {
-            _archetype.MarkChanged();
         }
 
         return changedEntities;
@@ -176,13 +169,11 @@ internal sealed class Chunk
         {
             _entities.RefAt(slotIndex) = moved;
             CopySlot(lastSlotIndex, slotIndex);
-            _componentStamps.CopySlot(lastSlotIndex, slotIndex);
             _tagMasks?.CopySlotTo(_tagMasks, lastSlotIndex, slotIndex);
         }
 
         _entities.RefAt(lastSlotIndex) = default;
         ClearReferenceRows(lastSlotIndex);
-        _componentStamps.ClearSlot(lastSlotIndex);
         _tagMasks?.ClearRange(lastSlotIndex, 1);
         _count = lastSlotIndex;
         return slotIndex < lastSlotIndex ? moved : default;
@@ -226,8 +217,7 @@ internal sealed class Chunk
     internal void AdoptLayout(
         ComponentLayout[] layouts,
         ComponentRowOperations[] rowOperations,
-        ReadOnlySpan<int> sourceToTarget,
-        ReadOnlySpan<int> addedTargetRows)
+        ReadOnlySpan<int> sourceToTarget)
     {
         if (sourceToTarget.Length != _componentRows.Length)
         {
@@ -262,20 +252,15 @@ internal sealed class Chunk
                 Capacity);
         }
 
-        ComponentStampStorage replacement = _componentStamps.Remap(sourceToTarget, targetRows.Length);
-        _componentStamps.Dispose();
-        _componentStamps = replacement;
         _componentRows = targetRows;
         _rowOperations = rowOperations;
-        StampRowsRange(0, _count, addedTargetRows, new Stamp(1));
     }
 
     internal void AdoptLayoutFromEmptyChunk(
         Chunk donor,
         ComponentLayout[] layouts,
         ComponentRowOperations[] rowOperations,
-        ReadOnlySpan<int> sourceToTarget,
-        ReadOnlySpan<int> addedTargetRows)
+        ReadOnlySpan<int> sourceToTarget)
     {
         if (!donor.IsEmpty
             || sourceToTarget.Length != _componentRows.Length
@@ -299,17 +284,9 @@ internal sealed class Chunk
             }
         }
 
-        _componentStamps.CopyRemappedTo(
-            ref donor._componentStamps,
-            sourceToTarget,
-            _count);
-        _componentStamps.Dispose();
-        _componentStamps = donor._componentStamps;
-        donor._componentStamps = default;
         donor._componentRows = Array.Empty<Array>();
         _componentRows = targetRows;
         _rowOperations = rowOperations;
-        StampRowsRange(0, _count, addedTargetRows, new Stamp(1));
     }
 
     internal void TrimTail(int count)
@@ -330,35 +307,10 @@ internal sealed class Chunk
             ClearReferenceRows(slotIndex);
         }
 
-        _componentStamps.ClearRange(start, count);
         _tagMasks?.ClearRange(start, count);
         _entities.Span.Slice(start, count).Clear();
         _count = start;
     }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Stamp GetComponentStampTrusted(int componentIndex, int slotIndex)
-        => _componentStamps.GetTrusted(componentIndex, slotIndex);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Stamp IncrementComponentStamp(int componentIndex, int slotIndex)
-    {
-        _archetype.MarkChanged();
-        return _componentStamps.Increment(componentIndex, slotIndex);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Stamp AdjustComponentStamp(int componentIndex, int slotIndex, int delta)
-        => _componentStamps.Adjust(componentIndex, slotIndex, delta);
-
-    internal void MarkComponentStamped(int componentIndex, int slotIndex, Stamp stamp)
-        => _componentStamps.Set(componentIndex, slotIndex, stamp);
-
-    internal void StampAllRange(int slotIndex, int count, Stamp stamp)
-        => _componentStamps.SetSlotRange(slotIndex, count, stamp);
-
-    internal void StampRowsRange(int slotIndex, int count, ReadOnlySpan<int> componentIndices, Stamp stamp)
-        => _componentStamps.SetRowsRange(slotIndex, count, componentIndices, stamp);
 
     internal void CopySlotTo(Chunk target, int sourceSlotIndex, int targetSlotIndex, int sourceComponentIndex, int targetComponentIndex)
     {
@@ -368,29 +320,6 @@ internal sealed class Chunk
             target.GetRawComponentRowTrusted(targetComponentIndex),
             targetSlotIndex,
             1);
-        _componentStamps.CopyComponentSlotTo(
-            ref target._componentStamps,
-            sourceSlotIndex,
-            targetSlotIndex,
-            sourceComponentIndex,
-            targetComponentIndex);
-    }
-
-    internal void CopyStampRangeTo(
-        Chunk target,
-        int sourceSlotIndex,
-        int targetSlotIndex,
-        int count,
-        int sourceComponentIndex,
-        int targetComponentIndex)
-    {
-        _componentStamps.CopyComponentRangeTo(
-            ref target._componentStamps,
-            sourceSlotIndex,
-            targetSlotIndex,
-            count,
-            sourceComponentIndex,
-            targetComponentIndex);
     }
 
     internal void CopyTagsTo(Chunk target, int sourceSlotIndex, int targetSlotIndex)
@@ -491,7 +420,6 @@ internal sealed class Chunk
             }
         }
 
-        _componentStamps.ClearRange(0, _count);
         _tagMasks?.ClearAll();
         _count = 0;
     }
@@ -540,7 +468,6 @@ internal sealed class Chunk
         }
 
         _componentRows = Array.Empty<Array>();
-        _componentStamps.Dispose();
         _entities.Dispose();
     }
 }

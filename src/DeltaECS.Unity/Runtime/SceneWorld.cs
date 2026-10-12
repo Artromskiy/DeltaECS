@@ -253,8 +253,8 @@ namespace Delta.ECS.Unity
                     }
 
                     object value = data.CreateValue(descriptor.ValueType, ResolveEntity);
-                    if (_integration.TryRead(entity, descriptor.Id, out ComponentSnapshot snapshot, out _)
-                        && !_integration.TryWrite(entity, descriptor.Id, value, snapshot.Stamp, out _, out EcsWriteError error))
+                    if (_integration.TryRead(entity, descriptor.Id, out _, out _)
+                        && !_integration.TryWrite(entity, descriptor.Id, value, out EcsWriteError error))
                     {
                         Debug.LogError($"Failed to load {descriptor.Name} on '{authoring.Name}': {error.Code}.");
                     }
@@ -436,7 +436,7 @@ namespace Delta.ECS.Unity
                 return false;
             }
 
-            if (!_integration.TryWrite(entity, descriptor.Id, value, snapshot.Stamp, out _, out error))
+            if (!_integration.TryWrite(entity, descriptor.Id, value, out error))
             {
                 return false;
             }
@@ -503,7 +503,7 @@ namespace Delta.ECS.Unity
                 return false;
             }
 
-            if (!_integration.TryWrite(entity, descriptor.Id, value, snapshot.Stamp, out _, out error))
+            if (!_integration.TryWrite(entity, descriptor.Id, value, out error))
             {
                 _integration.Remove(entity, new[] { descriptor.Id });
                 failureReason = $"The default component value could not be written ({error.Code}).";

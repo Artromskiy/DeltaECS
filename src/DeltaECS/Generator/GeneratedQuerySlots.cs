@@ -210,22 +210,6 @@ public readonly ref struct GeneratedQuerySlots
     public ref T GetGeneratedWriteReference<T>(WriteAccess access)
         => ref GetGeneratedWriteReference<T>(access.QueryComponentIndex);
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public Stamp GetGeneratedStamp(int queryComponentIndex, int index)
-        => QueryPlan.IsTagRoute(queryComponentIndex)
-            ? new Stamp(1)
-            : _world.GetComponentStamp(
-                _chunk.ArchetypeId,
-                _chunk,
-                _componentIndices.RefAt(queryComponentIndex),
-                _hasTagSlots ? _tagSlots.RefAt(index) : _offset + index);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public Stamp GetGeneratedStamp(ReadAccess access, int index)
-        => GetGeneratedStamp(access.QueryComponentIndex, index);
-
 }
 
 /// <summary>Trusted compiler-support slot iterator for a read-only query chunk.</summary>
@@ -348,21 +332,5 @@ public readonly ref struct GeneratedReadQuerySlots
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetGeneratedReadReference<T>(ReadAccess access)
         => ref GetGeneratedReadReference<T>(access.QueryComponentIndex);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public Stamp GetGeneratedStamp(int queryComponentIndex, int index)
-        => QueryPlan.IsTagRoute(queryComponentIndex)
-            ? new Stamp(1)
-            : _world.GetComponentStamp(
-                _chunk.ArchetypeId,
-                _chunk,
-                _componentIndices.RefAt(queryComponentIndex),
-                _hasTagSlots ? _tagSlots.RefAt(index) : index);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public Stamp GetGeneratedStamp(ReadAccess access, int index)
-        => GetGeneratedStamp(access.QueryComponentIndex, index);
 
 }

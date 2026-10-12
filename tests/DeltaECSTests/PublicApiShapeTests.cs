@@ -50,8 +50,6 @@ internal sealed class PublicApiShapeTests
         Type[] removeParameters = [typeof(Entity), typeof(ComponentId)];
         Type[] batchRemoveParameters = [typeof(ReadOnlySpan<Entity>), typeof(ComponentId)];
         Type[] hasParameters = [typeof(Entity), typeof(ComponentId)];
-        Type[] stampParameters = [typeof(Entity), typeof(ComponentId), typeof(Stamp).MakeByRefType()];
-        Type[] entityRefStampParameters = [typeof(ComponentId), typeof(Stamp).MakeByRefType()];
 
         Assert.Multiple(() =>
         {
@@ -60,14 +58,15 @@ internal sealed class PublicApiShapeTests
             Assert.That(PublicInstanceMethod(typeof(World), nameof(World.Remove), removeParameters).IsGenericMethod, Is.False);
             Assert.That(PublicInstanceMethod(typeof(World), nameof(World.Remove), batchRemoveParameters).IsGenericMethod, Is.False);
             Assert.That(PublicInstanceMethod(typeof(World), nameof(World.Has), hasParameters).IsGenericMethod, Is.False);
-            Assert.That(PublicInstanceMethod(typeof(World), nameof(World.TryGetComponentStamp), stampParameters).IsGenericMethod, Is.False);
             Assert.That(PublicInstanceMethod(typeof(EntityRef), nameof(EntityRef.Has), typeof(ComponentId)).IsGenericMethod, Is.False);
-            Assert.That(PublicInstanceMethod(typeof(EntityRef), nameof(EntityRef.TryGetComponentStamp), entityRefStampParameters).IsGenericMethod, Is.False);
+            Assert.That(typeof(World).Assembly.GetType("Delta.ECS.Stamp"), Is.Null);
+            Assert.That(typeof(World).GetMethods().Any(static method => method.Name == "TryGetComponentStamp"), Is.False);
+            Assert.That(typeof(EntityRef).GetMethods().Any(static method => method.Name == "TryGetComponentStamp"), Is.False);
         });
     }
 
     [Test]
-    public void StampIterationFallbacksAreObsolete()
+    public void StampIterationApiIsRemoved()
     {
         string[] stampMethods =
         [
@@ -81,8 +80,7 @@ internal sealed class PublicApiShapeTests
             .Where(method => stampMethods.Contains(method.Name))
             .ToArray();
 
-        Assert.That(methods, Is.Not.Empty);
-        Assert.That(methods.All(static method => method.IsDefined(typeof(ObsoleteAttribute), inherit: false)), Is.True);
+        Assert.That(methods, Is.Empty);
     }
 
     [Test]

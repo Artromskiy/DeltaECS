@@ -16,9 +16,6 @@ internal static partial class DemandDrivenForEachTemplates
 
         return GeneratorTemplates.JoinNonEmpty(new[]
         {
-            shape.ComponentModels.Count(static component => component.IsWrite) > 1
-                ? RenderArchetypeStampWriter(shape)
-                : string.Empty,
             shape.Parallel || shape.HasEntityTarget ? RenderParallelInvoker(shape) : string.Empty,
             shape.Parallel
                 ? RenderClosedParallelMethod(shape, methodName, componentParameters)
@@ -41,9 +38,6 @@ internal static partial class DemandDrivenForEachTemplates
         string? contracts = model.RenderContracts && !shape.OrderedQueryReceiver && !shape.IsFunctor && shape.ComponentModels.Length > 0
             ? RenderContracts(model)
             : null;
-        string? stampWriter = !shape.OrderedQueryReceiver && shape.ComponentModels.Count(static component => component.IsWrite) > 1 && !UsesDenseBinding(shape)
-            ? RenderArchetypeStampWriter(shape)
-            : null;
         string? invoker = shape.Parallel || shape.HasEntityTarget
             ? RenderParallelInvoker(shape)
             : null;
@@ -54,7 +48,7 @@ internal static partial class DemandDrivenForEachTemplates
         string? componentSetKey = !shape.OrderedQueryReceiver && !shape.HasQuery && !shape.Api.Signature.HasExplicitIds
             ? GeneratorTemplates.PrimaryComponentSetKeyDeclaration(shape.Api.Selector.Arity)
             : null;
-        string[] members = new[] { componentSetKey, contracts, stampWriter, invoker, extension }
+        string[] members = new[] { componentSetKey, contracts, invoker, extension }
             .OfType<string>()
             .ToArray();
         ImmutableArray<string> usings = ImmutableArray.Create("using System;")
@@ -96,35 +90,6 @@ internal static partial class DemandDrivenForEachTemplates
     }
 
     private static string AppendContract(string name, string generic, string parameters) => $"public delegate void {SignatureProjection.TypeWithArguments(name, generic)}({parameters});";
-
-    private static string RenderArchetypeStampWriter(IterationModel shape)
-    {
-        string name = ArchetypeStampWriterName(shape);
-        int[] writes = GeneratorTemplates.WriteIndices(shape.ComponentModels).ToArray();
-        string fields = GeneratorTemplates.JoinNonEmpty(writes.Select(index => $"private readonly int _access{index};"));
-        string constructorParameters = string.Join(", ", writes.Select(index => $"int access{index}"));
-        string assignments = GeneratorTemplates.JoinNonEmpty(writes.Select(index => $"_access{index} = access{index};"));
-        string increments = GeneratorTemplates.JoinNonEmpty(writes.Select(index =>
-            $"GeneratedForEachRuntime.IncrementArchetypeStamp(stamps, _access{index});"));
-        return $$"""
-            [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
-            internal struct {{name}} : IGeneratedArchetypeStampWriter
-            {
-            {{fields}}
-
-                internal {{name}}({{constructorParameters}})
-                {
-            {{assignments}}
-                }
-
-                [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-                void IGeneratedArchetypeStampWriter.Write(Stamp[] stamps)
-                {
-            {{increments}}
-                }
-            }
-            """;
-    }
 
     private static string RenderParallelInvoker(IterationModel shape)
     {
@@ -761,8 +726,7 @@ internal static partial class DemandDrivenForEachTemplates
                 GeneratorTemplates.Documentation(shape.Api),
                 signature,
                 body,
-                null,
-                shape.IsStamp),
+                null),
             "    ");
         return operationInvoker + "\n" + extension;
     }
@@ -971,7 +935,6 @@ internal static partial class DemandDrivenForEachTemplates
             contextType: shape.ContextType,
             contextMode: shape.ContextMode,
             methodName: shape.MethodName,
-            isStamp: shape.IsStamp,
             typeBinding: TypeBindingKind.CallbackInferred);
         bool bound = UsesDenseBinding(shape);
         string[] parameters = InterceptedParameterNames(site);
@@ -1522,7 +1485,6 @@ internal static partial class DemandDrivenForEachTemplates
             methodName: shape.MethodName,
             hasEntityTarget: shape.HasEntityTarget,
             hasQuery: true,
-            isStamp: shape.IsStamp,
             typeBinding: TypeBindingKind.CallbackInferred);
         string[] parameters = InterceptedParameterNames(site);
         string methodName = "ExecuteInterceptedClosed_" + site.Id;
@@ -2025,8 +1987,7 @@ internal static partial class DemandDrivenForEachTemplates
                 GeneratorTemplates.Documentation(shape.Api),
                 signature,
                 body,
-                profiling ? profileName : null,
-                shape.IsStamp),
+                profiling ? profileName : null),
             "    ");
     }
 
@@ -2318,20 +2279,16 @@ internal static partial class DemandDrivenForEachTemplates
         return string.Join("\n", lines);
     }
 
-    private static string RenderMethod(string documentation, string signature, string body, string? profileName, bool obsolete = false)
+    private static string RenderMethod(string documentation, string signature, string body, string? profileName)
     {
         string profile = profileName is null
             ? string.Empty
             : $"""
                 [global::DeltaECS.Profiling.ProfiledMethodMetadataAttribute({StableProfileMethodId(profileName)}, "{profileName}")]
                 """.TrimEnd();
-        string obsoleteAttribute = obsolete
-            ? "[global::System.Obsolete(\"Use ArchetypeForEachOperation.ProcessChanged for change-driven processing.\")]"
-            : string.Empty;
         return $"""
             {documentation}
             {profile}
-            {obsoleteAttribute}
             [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
             {signature}
             {GeneratorTemplates.Indent(body, "    ")}
@@ -2340,20 +2297,12 @@ internal static partial class DemandDrivenForEachTemplates
 
     private static string AppendArchetypeWriteSetup(IterationModel shape, string indent)
     {
-        int writeCount = shape.ComponentModels.Count(static component => component.IsWrite);
-        if (writeCount > 1)
-        {
-            string routes = string.Join(", ", GeneratorTemplates.WriteIndices(shape.ComponentModels).Select(index => "route" + index));
-            return string.Join("\n", new[]
-            {
-                $"{indent}var stampWriter = new {ArchetypeStampWriterName(shape)}({routes});",
-                $"{indent}execution.MarkArchetypeWrites(ref stampWriter);",
-                $"{indent}execution.RecordComponentWrites(stackalloc int[] {{ {routes} }});"
-            });
-        }
-
-        return string.Join("\n", GeneratorTemplates.WriteIndices(shape.ComponentModels)
-            .Select(index => $"{indent}execution.MarkArchetypeWrite(route{index});"));
+        string[] routes = GeneratorTemplates.WriteIndices(shape.ComponentModels)
+            .Select(index => "route" + index)
+            .ToArray();
+        return routes.Length == 0
+            ? string.Empty
+            : $"{indent}execution.RecordComponentWrites(stackalloc int[] {{ {string.Join(", ", routes)} }});";
     }
 
     private static string AppendQueryComponentRoutes(IterationModel shape, string indent)
@@ -2438,8 +2387,6 @@ internal static partial class DemandDrivenForEachTemplates
                 : shape.HasContext ? SignatureProjection.JoinGeneric("TContext", generic) : generic);
 
     private static string ParallelInvokerName(IterationModel shape) => "DemandForEachParallelInvoker_" + GeneratorSupport.StableName(shape.Key);
-    private static string ArchetypeStampWriterName(IterationModel shape) => "DemandForEachArchetypeStampWriter_" + GeneratorSupport.StableName(shape.Key);
-
     private static string ComponentType(IterationModel shape, int index) => shape.ComponentModels[index].TypeName;
 
     private static string CallbackComponentType(IterationModel shape, int index) => shape.IsStamp ? "global::Delta.ECS.Stamp" : shape.ComponentModels[index].ResolvedTypeName;

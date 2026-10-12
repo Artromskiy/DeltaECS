@@ -246,7 +246,6 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
             genericTypes,
             descriptor.HasEntity,
             cursor.HasContext,
-            descriptor.Value == ValueDomain.Stamp,
             callbackAccess);
         if (queryScoped)
         {
@@ -306,7 +305,6 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
             genericTypes,
             hasEntity,
             isTerminal ? callbackIndex != 0 : callbackIndex > 1,
-            stamp: false,
             accumulator);
     }
 
@@ -352,7 +350,7 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
         GeneratedSystemAccessAccumulator accumulator)
     {
         if (name is not ("Get" or "GetRead" or "GetReadRef" or "GetRefRead" or "GetRef"
-            or "TryGet" or "Has" or "TryGetComponentStamp"))
+            or "TryGet" or "Has"))
         {
             return false;
         }
@@ -373,7 +371,6 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
         Action<ITypeSymbol> access = name switch
         {
             "GetRef" => accumulator.Write,
-            "TryGetComponentStamp" => accumulator.StampRead,
             _ => accumulator.Read
         };
         accumulator.Apply(types, access);
@@ -404,7 +401,6 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
         IReadOnlyList<ITypeSymbol> genericTypes,
         bool hasEntity,
         bool hasContext,
-        bool stamp,
         GeneratedSystemAccessAccumulator accumulator)
     {
         if (expression is LambdaExpressionSyntax lambda)
@@ -418,7 +414,7 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
                 index++;
             }
 
-            ReadComponentParameters(parameters, index, genericTypes, stamp, accumulator);
+            ReadComponentParameters(parameters, index, genericTypes, accumulator);
             return;
         }
 
@@ -434,7 +430,7 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
                 .ToArray();
             if (methods.Length == 1)
             {
-                ReadMethodParameters(methods[0], hasContext, hasEntity, genericTypes, stamp, accumulator);
+                ReadMethodParameters(methods[0], hasContext, hasEntity, genericTypes, accumulator);
                 return;
             }
         }
@@ -449,7 +445,7 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
                 return;
             }
 
-            ReadMethodParameters(delegateInvoke, hasContext, hasEntity, genericTypes, stamp, accumulator);
+            ReadMethodParameters(delegateInvoke, hasContext, hasEntity, genericTypes, accumulator);
             return;
         }
 
@@ -474,7 +470,7 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
                     index++;
                 }
 
-                ReadComponentParameters(method.Parameters, index, genericTypes, stamp, accumulator);
+                ReadComponentParameters(method.Parameters, index, genericTypes, accumulator);
                 return;
             }
         }
@@ -482,7 +478,7 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
         if (CallbackReader.TryGetMethodGroupTarget(model, expression, out IMethodSymbol? callbackMethod)
             && callbackMethod is not null)
         {
-            ReadMethodParameters(callbackMethod, hasContext, hasEntity, genericTypes, stamp, accumulator);
+            ReadMethodParameters(callbackMethod, hasContext, hasEntity, genericTypes, accumulator);
             return;
         }
 
@@ -494,7 +490,6 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
         bool hasContext,
         bool hasEntity,
         IReadOnlyList<ITypeSymbol> genericTypes,
-        bool stamp,
         GeneratedSystemAccessAccumulator accumulator)
     {
         int index = hasContext ? 1 : 0;
@@ -503,14 +498,13 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
             index++;
         }
 
-        ReadComponentParameters(method.Parameters, index, genericTypes, stamp, accumulator);
+        ReadComponentParameters(method.Parameters, index, genericTypes, accumulator);
     }
 
     private static void ReadComponentParameters(
         IReadOnlyList<IParameterSymbol?> parameters,
         int start,
         IReadOnlyList<ITypeSymbol> genericTypes,
-        bool stamp,
         GeneratedSystemAccessAccumulator accumulator)
     {
         for (int index = start, componentIndex = 0; index < parameters.Count; index++, componentIndex++)
@@ -519,21 +513,16 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
             ITypeSymbol? type = genericTypes.Count > componentIndex
                 ? genericTypes[componentIndex]
                 : parameter?.Type;
-            AddCallbackType(type, parameter?.RefKind ?? RefKind.None, stamp, accumulator);
+            AddCallbackType(type, parameter?.RefKind ?? RefKind.None, accumulator);
         }
     }
 
     private static void AddCallbackType(
         ITypeSymbol? type,
         RefKind refKind,
-        bool stamp,
         GeneratedSystemAccessAccumulator accumulator)
     {
-        if (stamp)
-        {
-            accumulator.StampRead(type);
-        }
-        else if (refKind == RefKind.Ref)
+        if (refKind == RefKind.Ref)
         {
             accumulator.Write(type);
         }

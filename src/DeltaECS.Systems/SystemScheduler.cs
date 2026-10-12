@@ -339,10 +339,8 @@ public sealed class SystemScheduler : IDisposable
         if (ComponentAccessConflicts(
             left.Reads,
             left.Writes,
-            left.StampReads,
             right.Reads,
-            right.Writes,
-            right.StampReads))
+            right.Writes))
         {
             return true;
         }
@@ -355,10 +353,8 @@ public sealed class SystemScheduler : IDisposable
             if (ComponentAccessConflicts(
                 leftQuery.Reads,
                 leftQuery.Writes,
-                leftQuery.StampReads,
                 right.Reads,
-                right.Writes,
-                right.StampReads))
+                right.Writes))
             {
                 return true;
             }
@@ -369,10 +365,8 @@ public sealed class SystemScheduler : IDisposable
                 if (ComponentAccessConflicts(
                     leftQuery.Reads,
                     leftQuery.Writes,
-                    leftQuery.StampReads,
                     rightQuery.Reads,
-                    rightQuery.Writes,
-                    rightQuery.StampReads)
+                    rightQuery.Writes)
                     && MatchingArchetypesIntersect(leftQuery.QueryPlan, rightQuery.QueryPlan))
                 {
                     return true;
@@ -386,10 +380,8 @@ public sealed class SystemScheduler : IDisposable
             if (ComponentAccessConflicts(
                 left.Reads,
                 left.Writes,
-                left.StampReads,
                 rightQuery.Reads,
-                rightQuery.Writes,
-                rightQuery.StampReads))
+                rightQuery.Writes))
             {
                 return true;
             }
@@ -401,15 +393,11 @@ public sealed class SystemScheduler : IDisposable
     private static bool ComponentAccessConflicts(
         ReadOnlySpan<ComponentId> leftReads,
         ReadOnlySpan<ComponentId> leftWrites,
-        ReadOnlySpan<ComponentId> leftStampReads,
         ReadOnlySpan<ComponentId> rightReads,
-        ReadOnlySpan<ComponentId> rightWrites,
-        ReadOnlySpan<ComponentId> rightStampReads)
+        ReadOnlySpan<ComponentId> rightWrites)
         => Intersects(leftWrites, rightReads)
             || Intersects(leftWrites, rightWrites)
-            || Intersects(rightWrites, leftReads)
-            || Intersects(leftStampReads, rightWrites)
-            || Intersects(rightStampReads, leftWrites);
+            || Intersects(rightWrites, leftReads);
 
     private static bool MatchingArchetypesIntersect(QueryPlan left, QueryPlan right)
     {

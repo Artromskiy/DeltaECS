@@ -81,9 +81,7 @@ when its owning world is disposed.
 
 The three-loop row traversal and its access tokens are internal compiler and
 runtime support. Consumers use generated `ForEach` terminals, which prepare
-typed rows and manage the structural lease automatically. For change
-detection outside a traversal, use
-`World.TryGetComponentStamp(Entity, ComponentId, out Stamp)`.
+typed rows and manage the structural lease automatically.
 
 Generated `ForEach` APIs use the same validated plan but enter a closed trusted
 execution method. Dense callbacks resolve each requested row once per chunk and

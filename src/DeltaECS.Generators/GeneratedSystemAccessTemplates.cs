@@ -34,7 +34,6 @@ internal static class GeneratedSystemAccessTemplates
             {
                 RenderIds("reads", model.Reads),
                 RenderIds("writes", model.Writes),
-                RenderIds("stampReads", model.StampReads),
                 RenderIds("adds", model.Adds),
                 RenderIds("removes", model.Removes),
                 model.QueryAccesses.IsDefaultOrEmpty ? string.Empty : "queryAccesses: queryAccesses",
@@ -91,8 +90,7 @@ internal static class GeneratedSystemAccessTemplates
             new[]
             {
                 RenderIds("reads", access.Reads, "((global::Delta.ECS.Systems.ISystem)this).World"),
-                RenderIds("writes", access.Writes, "((global::Delta.ECS.Systems.ISystem)this).World"),
-                RenderIds("stampReads", access.StampReads, "((global::Delta.ECS.Systems.ISystem)this).World")
+                RenderIds("writes", access.Writes, "((global::Delta.ECS.Systems.ISystem)this).World")
             },
             ",\n");
         string arguments = componentArguments.Length == 0

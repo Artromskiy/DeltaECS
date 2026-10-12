@@ -277,7 +277,6 @@ component access:
 IEcsWorld integration = world
 integration.Catalog -> RuntimeComponentCatalog
 catalog.Components -> ReadOnlyMemory<ComponentDescriptor>
-catalog.Stamp -> Stamp
 descriptor.Id / Schema / Name / ValueType / Capabilities / AllowsNull / IsTag
 ComponentCapabilities = None | Read | Write
 integration.Initialize() / Update() / Shutdown()
@@ -287,18 +286,18 @@ integration.Destroy(e) -> bool
 integration.Add(e, D) / Remove(e, D) -> bool
 integration.TryGetComponents(e, Span<ComponentId>, out totalCount) -> bool
 integration.TryRead(e, I, out ComponentSnapshot, out EcsReadError) -> bool
-integration.TryWrite(e, I, object?, expectedStamp, out writtenStamp, out EcsWriteError) -> bool
-snapshot.Value / snapshot.Stamp
+integration.TryWrite(e, I, object?, out EcsWriteError) -> bool
+snapshot.Value
 EcsReadErrorCode = None | EntityNotAlive | ComponentUnknown | ComponentMissing | Unsupported
-EcsWriteErrorCode = None | EntityNotAlive | ComponentUnknown | ComponentMissing | StaleStamp | InvalidValue | Unsupported
+EcsWriteErrorCode = None | EntityNotAlive | ComponentUnknown | ComponentMissing | InvalidValue | Unsupported
 ```
 
 `TryGetComponents` writes the ascending prefix that fits in the destination
-and reports the full count. `TryWrite` checks the expected stamp before
-changing the component. The error enums distinguish missing entities or
-components, unsupported object access, invalid values, and stale stamps. This
-contract works without generated consumer code; the component catalog itself
-is produced by the registration generator.
+and reports the full count. `TryWrite` writes the supplied value without a
+version check. The error enums distinguish missing entities or components,
+unsupported object access, and invalid values. This contract works without
+generated consumer code; the component catalog itself is produced by the
+registration generator.
 
 ## Generated iteration forms
 
@@ -371,8 +370,8 @@ world.ForEachEntity(in query, static (EntityRef entity) =>
 `Has` and `TryGet<T>` check membership because the requested component may not
 be present. `TryGet<T>` also returns `false` for an unregistered ID or an ID
 registered with another CLR type. `GetRef<T>` throws if the component is
-missing or its registration has another CLR type, and writes to a data
-component update its stamp. A tag has no per-entity value: its `TryGet` result
+missing or its registration has another CLR type. A tag has no per-entity
+value: its `TryGet` result
 is `default(T)`, and writes through `GetRef` are ignored.
 
 For several query-specific processors, retain one archetype operation and add
@@ -435,8 +434,7 @@ restore.ProcessRef<Health, RestoreHealth>(in healthQuery, healthId, new RestoreH
 
 For a tag, the processor receives the same shared placeholder reference used by
 generated `ForEach`; writes through it are not stored. Tags have no component
-row; their presence stamp remains fixed. Data component write stamps advance
-once per matching archetype before its processors run.
+row.
 
 `EntityRef` also supports primary-registration forms. Supply a `ComponentId`
 when the entity has multiple registrations of the same CLR type:
@@ -448,8 +446,6 @@ entity.TryGet<T>(out T) | entity.TryGet<T>(I, out T) -> bool
 entity.Get<T>() | entity.Get<T>(I) -> T
 entity.GetRef<T>() | entity.GetRef<T>(I) -> ref T
 entity.GetReadRef<T>() | entity.GetReadRef<T>(I) -> ref readonly T
-entity.TryGetComponentStamp<T>(out Stamp) -> bool
-entity.TryGetComponentStamp(I, out Stamp) -> bool
 ```
 
 Use `EntityRef` only while its callback is running and before any structural
@@ -459,66 +455,6 @@ entity-handle resolution. It does not pre-bind component rows from the query.
 Parallel callbacks always use parallel execution; `W` is the caller's
 worker-count choice, clamped to the supported range. A parallel context is
 passed read-only or by value; mutable `ref` context is rejected.
-
-## Stamp iteration forms (obsolete)
-
-Stamp iteration uses the same target, query, selector, context, callback, and
-worker ordering. It is read-only: callbacks receive `in Stamp` (or
-`ref readonly Stamp` where the language supports it), and no stamp is changed.
-These forms are obsolete; use `ArchetypeForEachOperation.ProcessChanged` for
-change-driven component processing.
-
-Query-wide forms:
-
-```text
-world.ForEachStamp<T...>(Q, C?, A | F)
-world.ForEachEntityStamp<T...>(Q, C?, A | F)
-world.ForEachStamp(Q, I... | D, C?, A | F)
-world.ForEachEntityStamp(Q, I... | D, C?, A | F)
-
-world.ForEachStampParallel<T...>(Q, C?, A | F, W)
-world.ForEachEntityStampParallel<T...>(Q, C?, A | F, W)
-world.ForEachStampParallel(Q, I... | D, C?, A | F, W)
-world.ForEachEntityStampParallel(Q, I... | D, C?, A | F, W)
-```
-
-Entity-list forms accept `E` first and an optional `Q` after it:
-
-```text
-world.ForEachStamp<T...>(E, Q?, C?, A | F)
-world.ForEachEntityStamp<T...>(E, Q?, C?, A | F)
-world.ForEachStamp(E, Q?, I... | D, C?, A | F)
-world.ForEachEntityStamp(E, Q?, I... | D, C?, A | F)
-
-world.ForEachStampParallel<T...>(E, Q?, C?, A | F, W)
-world.ForEachEntityStampParallel<T...>(E, Q?, C?, A | F, W)
-world.ForEachStampParallel(E, Q?, I... | D, C?, A | F, W)
-world.ForEachEntityStampParallel(E, Q?, I... | D, C?, A | F, W)
-```
-
-`ForEachStamp` callbacks receive only the requested stamps. The
-`ForEachEntityStamp` variants put the borrowed `EntityRef` first:
-
-```csharp
-world.ForEachEntityStamp<Health>(
-    in query,
-    static (EntityRef entity, in Stamp stamp) => Process(entity, stamp)).Invoke();
-
-world.ForEachStampParallel<Health>(
-    in query,
-    static (in Stamp stamp) => Process(stamp),
-    workerCount: 4).Invoke();
-
-world.ForEachEntityStamp(
-    entities,
-    in query,
-    healthId,
-    static (EntityRef entity, in Stamp stamp) => Process(entity, stamp)).Invoke();
-```
-
-The zero-component stamp overloads are documentation anchors and throw
-`InvalidOperationException`; a generated stamp form must name at least one
-typed component or provide the corresponding `ComponentId` selector.
 
 ## Structural forms
 
@@ -569,8 +505,8 @@ runs on `Invoke()`.
 ## Single-entity typed access
 
 Typed accessors use the primary registration unless an explicit ID is supplied.
-`TryGet`, `Has`, and stamp lookups return `false` when the entity, component, or
-CLR type does not match. `Get` and `GetRef` throw when the requested component
+`TryGet` and `Has` return `false` when the entity, component, or CLR type does
+not match. `Get` and `GetRef` throw when the requested component
 is unavailable; `GetReadRef` returns a read-only reference.
 
 ```text
@@ -580,8 +516,6 @@ world.Has(e, I) | world.Has<T>(e) -> bool
 world.Get<T>(e) | world.Get<T>(e, I) -> T
 world.GetRef<T>(e) | world.GetRef<T>(e, I) -> ref T
 world.GetReadRef<T>(e) | world.GetReadRef<T>(e, I) -> ref readonly T
-world.TryGetComponentStamp<T>(e, out Stamp) -> bool
-world.TryGetComponentStamp(e, I, out Stamp) -> bool
 ```
 
 `Add<T>(e, in value)` and `Add<T>(E, in value)` initialize the primary
@@ -678,8 +612,8 @@ current `Entity` as its first predicate parameter. Predicate component rows
 use `in` or `ref readonly`. A structural terminal applies component writes
 before it performs the structural change.
 
-Zero-component `ForEach` and all zero-component stamp forms throw
-`InvalidOperationException`. `ForEachEntity`, `ForEachEntityParallel`, and a
+Zero-component `ForEach` forms throw `InvalidOperationException`.
+`ForEachEntity`, `ForEachEntityParallel`, and a
 `Where` view's `ForEachEntity` may omit component parameters because the
 callback still receives `Entity`. Functor forms use the generated callback-slot pass mode so the caller can
 choose `ref` (mutations returned), `in` / `ref readonly`, or by value. Value and
@@ -727,10 +661,6 @@ world.ForEachEntityParallel(E, Q?, C?, G... | D, typeof(F<>), W)
 
 Open generic functors are supported by the ordinary parallel forms shown
 above, including query-wide and entity-list calls, with or without context.
-Only stamp iteration is excluded: `ForEachStamp`, `ForEachEntityStamp`, and
-their parallel forms do not currently accept an open generic functor type
-token.
-
 The generator emits a visitor stage for each generic parameter. Every component
 registration retains its CLR type through a compiler-support token. Stages
 support `struct`, `unmanaged`, `class`, `class?`, and `new()` constraints,

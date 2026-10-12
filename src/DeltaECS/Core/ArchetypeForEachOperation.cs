@@ -50,7 +50,6 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
     private TContext _context = default!;
     private int _caseVersion;
     private int _plannedCaseVersion = -1;
-    private uint _writeVersion;
     private bool _invoking;
 
     internal ArchetypeForEachOperation(World world, TContext context)
@@ -90,12 +89,6 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
         where TProcessor : struct, IArchetypeForEachComponentIn<TContext, TComponent>
         => AddComponentProcessor<TComponent, InComponentProcessor<TContext, TComponent, TProcessor>>(in query, componentId, new(processor), writesComponent: false);
 
-    /// <summary>Adds a read-only component processor that runs only when an entity's component stamp changed since the previous successful invocation.</summary>
-    /// <remarks>The first invocation processes every matching entity. Stamps are tracked per entity for the lifetime of this operation. Tags have no writable row stamp and are processed on every invocation; entities that no longer match are not reported.</remarks>
-    public ArchetypeForEachOperation<TContext> ProcessChanged<TComponent, TProcessor>(in Query query, ComponentId componentId, TProcessor processor)
-        where TProcessor : struct, IArchetypeForEachComponentIn<TContext, TComponent>
-        => AddComponentProcessor<TComponent, InComponentProcessor<TContext, TComponent, TProcessor>>(in query, componentId, new(processor), writesComponent: false, onlyWhenChanged: true);
-
     /// <summary>Adds a required component processor that receives a ref-readonly reference.</summary>
     public ArchetypeForEachOperation<TContext> ProcessReadRef<TComponent, TProcessor>(in Query query, ComponentId componentId, TProcessor processor)
         where TProcessor : struct, IArchetypeForEachComponentRefReadonly<TContext, TComponent>
@@ -106,7 +99,7 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
         where TProcessor : struct, IArchetypeForEachComponentValue<TContext, TComponent>
         => AddComponentProcessor<TComponent, ValueComponentProcessor<TContext, TComponent, TProcessor>>(in query, componentId, new(processor), writesComponent: false);
 
-    private ArchetypeForEachOperation<TContext> AddComponentProcessor<TComponent, TProcessor>(in Query query, ComponentId componentId, TProcessor processor, bool writesComponent, bool onlyWhenChanged = false)
+    private ArchetypeForEachOperation<TContext> AddComponentProcessor<TComponent, TProcessor>(in Query query, ComponentId componentId, TProcessor processor, bool writesComponent)
         where TProcessor : struct, IArchetypeForEachComponent<TContext, TComponent>
     {
         if (_invoking)
@@ -125,7 +118,7 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
             ThrowHelper.ThrowArchetypeComponentMustBeRequired(componentId);
         }
 
-        _cases.Add(new ArchetypeForEachComponentCase<TContext, TComponent, TProcessor>(query.Cached, componentId, processor, writesComponent, onlyWhenChanged));
+        _cases.Add(new ArchetypeForEachComponentCase<TContext, TComponent, TProcessor>(query.Cached, componentId, processor, writesComponent));
         _caseVersion++;
         return this;
     }
@@ -153,17 +146,15 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
         }
 
         EnsurePlans();
-        uint writeVersion = NextWriteVersion();
         TContext contextCopy = context;
         _invoking = true;
         _world.BeginQueryLease();
         try
         {
-            Execute(ref contextCopy, writeVersion);
+            Execute(ref contextCopy);
         }
         catch (Exception exception)
         {
-            ResetChangeTrackingCore();
             ThrowHelper.Rethrow(exception);
         }
         finally
@@ -173,25 +164,6 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
         }
 
         context = contextCopy;
-    }
-
-    /// <summary>Resets per-entity component stamps tracked by <see cref="ProcessChanged{TComponent, TProcessor}"/>.</summary>
-    public void ResetChangeTracking()
-    {
-        if (_invoking)
-        {
-            ThrowHelper.ThrowArchetypeOperationAlreadyRunning();
-        }
-
-        ResetChangeTrackingCore();
-    }
-
-    private void ResetChangeTrackingCore()
-    {
-        for (int caseIndex = 0; caseIndex < _cases.Count; caseIndex++)
-        {
-            _cases[caseIndex].ResetChangeTracking();
-        }
     }
 
     private void EnsurePlans()
@@ -220,38 +192,20 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
                 {
                     matchingCases[matchIndex++] = new ArchetypeForEachBinding(
                         caseIndex,
-                        componentIndex,
-                        _cases[caseIndex].HasTagFilters);
+                        componentIndex);
                 }
             }
 
             plans[archetypeIndex] = new ArchetypeForEachPlan(
                 archetype,
-                matchingCases,
-                new uint[archetype.ComponentCount]);
+                matchingCases);
         }
 
         _plans = plans;
         _plannedCaseVersion = _caseVersion;
     }
 
-    private uint NextWriteVersion()
-    {
-        if (_writeVersion != uint.MaxValue)
-        {
-            return ++_writeVersion;
-        }
-
-        for (int planIndex = 0; planIndex < _plans.Length; planIndex++)
-        {
-            _plans.RefAt(planIndex).MarkedWriteVersions.AsSpan().Clear();
-        }
-
-        _writeVersion = 1;
-        return _writeVersion;
-    }
-
-    private void Execute(ref TContext context, uint writeVersion)
+    private void Execute(ref TContext context)
     {
         for (int planIndex = 0; planIndex < _plans.Length; planIndex++)
         {
@@ -261,7 +215,6 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
                 continue;
             }
 
-            MarkWrites(in plan, writeVersion);
             for (int caseIndex = 0; caseIndex < plan.Cases.Length; caseIndex++)
             {
                 ref readonly ArchetypeForEachBinding binding = ref plan.Cases.RefAt(caseIndex);
@@ -270,47 +223,12 @@ public sealed class ArchetypeForEachOperation<TContext> : IOperation<TContext>
         }
     }
 
-    private void MarkWrites(in ArchetypeForEachPlan plan, uint writeVersion)
-    {
-        Stamp[] stamps = _world.GetArchetypeComponentStamps(plan.Archetype.Id);
-        bool markedWrite = false;
-        for (int bindingIndex = 0; bindingIndex < plan.Cases.Length; bindingIndex++)
-        {
-            ref readonly ArchetypeForEachBinding binding = ref plan.Cases.RefAt(bindingIndex);
-            IArchetypeForEachCase<TContext> @case = _cases[binding.CaseIndex];
-            if (!@case.WritesComponent
-                || binding.ComponentIndex < 0
-                || plan.MarkedWriteVersions.RefAt(binding.ComponentIndex) == writeVersion)
-            {
-                continue;
-            }
-
-            if (binding.HasTagFilters && !@case.HasMatchingEntities(plan.Archetype))
-            {
-                continue;
-            }
-
-            plan.MarkedWriteVersions.RefAt(binding.ComponentIndex) = writeVersion;
-            ref Stamp stamp = ref stamps.RefAt(binding.ComponentIndex);
-            stamp = stamp.Next();
-            markedWrite = true;
-        }
-
-        if (markedWrite)
-        {
-            plan.Archetype.MarkChanged();
-        }
-    }
 }
 
 internal interface IArchetypeForEachCase<TContext>
 {
-    bool WritesComponent { get; }
-    bool HasTagFilters { get; }
     bool TryBindArchetype(Archetype archetype, out int componentIndex);
-    bool HasMatchingEntities(Archetype archetype);
     void Execute(ref TContext context, Archetype archetype, int componentIndex);
-    void ResetChangeTracking();
 }
 
 internal sealed class ArchetypeForEachCase<TContext, TProcessor> : IArchetypeForEachCase<TContext>
@@ -330,14 +248,6 @@ internal sealed class ArchetypeForEachCase<TContext, TProcessor> : IArchetypeFor
         componentIndex = -1;
         return _query.MatchesArchetype(archetype);
     }
-
-    public bool WritesComponent => false;
-
-    public bool HasTagFilters => _query.HasTagFilters;
-
-    public bool HasMatchingEntities(Archetype archetype) => _query.HasMatchingEntities(archetype);
-
-    public void ResetChangeTracking() { }
 
     public void Execute(ref TContext context, Archetype archetype, int componentIndex)
     {
@@ -375,19 +285,14 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
     private readonly QueryPlan _query;
     private readonly ComponentId _componentId;
     private readonly bool _writesComponent;
-    private readonly bool _onlyWhenChanged;
     private TProcessor _processor;
-    private Entity[] _lastCapturedEntities = Array.Empty<Entity>();
-    private Stamp[] _lastCapturedStamps = Array.Empty<Stamp>();
-    private long[] _lastArchetypeChangeVersions = Array.Empty<long>();
 
-    internal ArchetypeForEachComponentCase(QueryPlan query, ComponentId componentId, TProcessor processor, bool writesComponent, bool onlyWhenChanged)
+    internal ArchetypeForEachComponentCase(QueryPlan query, ComponentId componentId, TProcessor processor, bool writesComponent)
     {
         _query = query;
         _componentId = componentId;
         _processor = processor;
         _writesComponent = writesComponent;
-        _onlyWhenChanged = onlyWhenChanged;
     }
 
     public bool TryBindArchetype(Archetype archetype, out int componentIndex)
@@ -404,35 +309,11 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
             return true;
         }
 
-        if (_onlyWhenChanged)
-        {
-            EnsureArchetypeChangeVersionCapacity(archetype.Id);
-        }
-
         return archetype.TryGetComponentIndex(_componentId, out componentIndex);
-    }
-
-    public bool HasTagFilters => _query.HasTagFilters;
-
-    public bool WritesComponent => _writesComponent;
-
-    public bool HasMatchingEntities(Archetype archetype) => _query.HasMatchingEntities(archetype);
-
-    public void ResetChangeTracking()
-    {
-        Array.Clear(_lastCapturedEntities, 0, _lastCapturedEntities.Length);
-        Array.Clear(_lastCapturedStamps, 0, _lastCapturedStamps.Length);
-        Array.Fill(_lastArchetypeChangeVersions, long.MinValue);
     }
 
     public void Execute(ref TContext context, Archetype archetype, int componentIndex)
     {
-        if (_onlyWhenChanged)
-        {
-            ExecuteChanged(ref context, archetype, componentIndex);
-            return;
-        }
-
         GeneratedEntityRefView view = default;
         EntityRef entity = GeneratedForEachRuntime.CreateEntityRef(_query.Owner, ref view);
         for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
@@ -452,7 +333,7 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
                     int slotAdvance = selectedSlot - currentSlot;
                     component = ref Unsafe.Add(ref component, slotAdvance);
                     view.SetSlot(selectedSlot);
-                    RecordWrite(entity, componentIndex);
+                    RecordWrite(entity);
                     _processor.Invoke(ref context, entity, ref component);
                     currentSlot = selectedSlot;
                 }
@@ -464,7 +345,7 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
             while (denseSlotIndex < chunkCount)
             {
                 view.SetSlot(denseSlotIndex);
-                RecordWrite(entity, componentIndex);
+                RecordWrite(entity);
                 _processor.Invoke(ref context, entity, ref component);
                 component = ref Unsafe.Add(ref component, 1);
                 denseSlotIndex++;
@@ -472,118 +353,15 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
         }
     }
 
-    private void ExecuteChanged(ref TContext context, Archetype archetype, int componentIndex)
-    {
-        long changeVersion = archetype.ChangeVersion;
-        bool trackArchetypeVersion = componentIndex != TagComponentIndex;
-        if (trackArchetypeVersion && _lastArchetypeChangeVersions.RefAt(archetype.Id) == changeVersion)
-        {
-            return;
-        }
-
-        GeneratedEntityRefView view = default;
-        EntityRef entity = GeneratedForEachRuntime.CreateEntityRef(_query.Owner, ref view);
-        for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
-        {
-            Chunk chunk = archetype.GetActiveChunk(chunkIndex);
-            view.SetChunk(chunk);
-            ref TComponent component = ref componentIndex == TagComponentIndex
-                ? ref GeneratedTagRows.GetReference<TComponent>(0)
-                : ref chunk.GetComponentRow<TComponent>(componentIndex).GetRefAtZero();
-            int chunkCount = chunk.Count;
-            if (_query.HasTagFilters && _query.TryGetTagSlots(chunk, out ReadOnlySpan<int> tagSlots))
-            {
-                int currentSlot = 0;
-                for (int tagIndex = 0; tagIndex < tagSlots.Length; tagIndex++)
-                {
-                    int selectedSlot = tagSlots.RefAt(tagIndex);
-                    int slotAdvance = selectedSlot - currentSlot;
-                    component = ref Unsafe.Add(ref component, slotAdvance);
-                    view.SetSlot(selectedSlot);
-                    InvokeChanged(ref context, entity, ref component, archetype, chunk, componentIndex, selectedSlot);
-                    currentSlot = selectedSlot;
-                }
-
-                continue;
-            }
-
-            int denseSlotIndex = 0;
-            while (denseSlotIndex < chunkCount)
-            {
-                view.SetSlot(denseSlotIndex);
-                InvokeChanged(ref context, entity, ref component, archetype, chunk, componentIndex, denseSlotIndex);
-                component = ref Unsafe.Add(ref component, 1);
-                denseSlotIndex++;
-            }
-        }
-
-        if (trackArchetypeVersion)
-        {
-            _lastArchetypeChangeVersions.RefAt(archetype.Id) = changeVersion;
-        }
-    }
-
-    private void EnsureArchetypeChangeVersionCapacity(int archetypeId)
-    {
-        if (archetypeId < _lastArchetypeChangeVersions.Length)
-        {
-            return;
-        }
-
-        int previousLength = _lastArchetypeChangeVersions.Length;
-        int capacity = Math.Max(archetypeId + 1, Math.Max(4, previousLength * 2));
-        Array.Resize(ref _lastArchetypeChangeVersions, capacity);
-        Array.Fill(_lastArchetypeChangeVersions, long.MinValue, previousLength, capacity - previousLength);
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void InvokeChanged(ref TContext context, EntityRef entity, ref TComponent component, Archetype archetype, Chunk chunk, int componentIndex, int slotIndex)
+    private void RecordWrite(EntityRef entity)
     {
-        if (componentIndex == TagComponentIndex)
-        {
-            _processor.Invoke(ref context, entity, ref component);
-            return;
-        }
-
-        Entity handle = entity;
-        EnsureChangeTrackingCapacity(handle.Index);
-        Stamp stamp = _query.Owner.GetComponentStamp(archetype.Id, chunk, componentIndex, slotIndex);
-        if (_lastCapturedEntities.RefAt(handle.Index) == handle && _lastCapturedStamps.RefAt(handle.Index) == stamp)
-        {
-            return;
-        }
-
-        RecordWrite(entity, componentIndex);
-        _processor.Invoke(ref context, entity, ref component);
-        _lastCapturedEntities.RefAt(handle.Index) = handle;
-        _lastCapturedStamps.RefAt(handle.Index) = stamp;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void RecordWrite(EntityRef entity, int componentIndex)
-    {
-        if (_writesComponent && componentIndex != TagComponentIndex && _query.Owner.HasComponentChangeObserver(_componentId))
+        if (_writesComponent && _query.Owner.HasComponentChangeObserver(_componentId))
         {
             _query.Owner.RecordComponentChange(entity, _componentId);
         }
     }
 
-    private void EnsureChangeTrackingCapacity(int entityIndex)
-    {
-        if (entityIndex < _lastCapturedEntities.Length && entityIndex < _lastCapturedStamps.Length)
-        {
-            return;
-        }
-
-        int capacity = Math.Max(4, Math.Max(_lastCapturedEntities.Length, _lastCapturedStamps.Length) * 2);
-        while (capacity <= entityIndex)
-        {
-            capacity = checked(capacity * 2);
-        }
-
-        Array.Resize(ref _lastCapturedEntities, capacity);
-        Array.Resize(ref _lastCapturedStamps, capacity);
-    }
 }
 
 internal struct InComponentProcessor<TContext, TComponent, TProcessor> : IArchetypeForEachComponent<TContext, TComponent>
@@ -619,19 +397,16 @@ internal struct ValueComponentProcessor<TContext, TComponent, TProcessor> : IArc
     public void Invoke(ref TContext context, EntityRef entity, ref TComponent component) => _processor.Invoke(ref context, entity, component);
 }
 
-internal readonly struct ArchetypeForEachBinding(int caseIndex, int componentIndex, bool hasTagFilters)
+internal readonly struct ArchetypeForEachBinding(int caseIndex, int componentIndex)
 {
     internal readonly int CaseIndex = caseIndex;
     internal readonly int ComponentIndex = componentIndex;
-    internal readonly bool HasTagFilters = hasTagFilters;
 }
 
 internal readonly struct ArchetypeForEachPlan(
     Archetype archetype,
-    ArchetypeForEachBinding[] cases,
-    uint[] markedWriteVersions)
+    ArchetypeForEachBinding[] cases)
 {
     internal readonly Archetype Archetype = archetype;
     internal readonly ArchetypeForEachBinding[] Cases = cases;
-    internal readonly uint[] MarkedWriteVersions = markedWriteVersions;
 }

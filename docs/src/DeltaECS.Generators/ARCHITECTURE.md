@@ -54,7 +54,7 @@ initializer and access blocks before the raw-string template boundary.
 joins, documentation, declarations, code blocks, write-index selection and
 row/element references. Query, structural, iteration and `Where` renderers use
 `SignatureProjection` for repeated arity fragments while retaining their
-specialized dense, entity-list, parallel, stamp and fused structural kernels.
+specialized dense, entity-list, parallel and fused structural kernels.
 
 The four generators use the same semantic and arity vocabulary. Their readers
 produce an `ApiModel`-backed model; pure renderers project it into deterministic

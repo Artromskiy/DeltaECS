@@ -38,7 +38,6 @@ int primaryBatchAdded = world.Add<Velocity>(primaryDestination, new Velocity());
 
 bool hasPosition = world.Has<Position>(primaryEntity);
 bool hasExplicitPosition = world.Has<Position>(primaryEntity, positionId);
-bool hasStamp = world.TryGetComponentStamp<Position>(primaryEntity, out Stamp stamp);
 
 if (world.TryGet(primaryEntity, out Position primaryPosition))
 {

@@ -9,18 +9,15 @@ public readonly struct SystemQueryAccess
     private static readonly ComponentId[] Empty = Array.Empty<ComponentId>();
     private readonly ComponentId[]? _reads;
     private readonly ComponentId[]? _writes;
-    private readonly ComponentId[]? _stampReads;
 
     /// <summary>Creates query-scoped access metadata from world-local component ids.</summary>
     /// <param name="query">The query that limits the entities accessed.</param>
     /// <param name="reads">Components read for matching entities.</param>
     /// <param name="writes">Components written for matching entities.</param>
-    /// <param name="stampReads">Component stamps observed for matching entities.</param>
     public SystemQueryAccess(
         in Query query,
         ReadOnlySpan<ComponentId> reads = default,
-        ReadOnlySpan<ComponentId> writes = default,
-        ReadOnlySpan<ComponentId> stampReads = default)
+        ReadOnlySpan<ComponentId> writes = default)
     {
         if (!query.IsValid)
         {
@@ -30,7 +27,6 @@ public readonly struct SystemQueryAccess
         Query = query;
         _reads = SystemAccess.Copy(reads, nameof(reads));
         _writes = SystemAccess.Copy(writes, nameof(writes));
-        _stampReads = SystemAccess.Copy(stampReads, nameof(stampReads));
     }
 
     /// <summary>Gets the query limiting this access.</summary>
@@ -41,9 +37,6 @@ public readonly struct SystemQueryAccess
 
     /// <summary>Gets components written for matching entities.</summary>
     public ReadOnlySpan<ComponentId> Writes => _writes ?? Empty;
-
-    /// <summary>Gets component stamps observed for matching entities.</summary>
-    public ReadOnlySpan<ComponentId> StampReads => _stampReads ?? Empty;
 
     internal QueryPlan QueryPlan => Query.Cached;
 }

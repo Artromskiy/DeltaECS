@@ -33,23 +33,12 @@ public readonly record struct ComponentDescriptor(
     public bool IsTag { get; init; }
 }
 
-/// <summary>
-/// Represents the value and exact component revision observed by a tooling read.
-/// Reference values may retain storage identity; mutating such an object directly
-/// bypasses revision tracking and is the caller's responsibility. For a data-less
-/// tag, the value is its boxed default and the stamp is default because tags have
-/// membership but no per-entity value revision.
-/// </summary>
-public readonly record struct ComponentSnapshot(
-    object? Value,
-    Stamp Stamp);
+/// <summary>Represents a component value observed by a tooling read.</summary>
+public readonly record struct ComponentSnapshot(object? Value);
 
 /// <summary>A snapshot of component registrations exposed by a world.</summary>
 /// <param name="Components">The descriptors in component-id order.</param>
-/// <param name="Stamp">The revision of the catalog snapshot.</param>
-public readonly record struct RuntimeComponentCatalog(
-    ReadOnlyMemory<ComponentDescriptor> Components,
-    Stamp Stamp);
+public readonly record struct RuntimeComponentCatalog(ReadOnlyMemory<ComponentDescriptor> Components);
 
 /// <summary>Identifies why a tooling component read failed.</summary>
 public enum EcsReadErrorCode
@@ -82,8 +71,6 @@ public enum EcsWriteErrorCode
     ComponentUnknown,
     /// <summary>The entity does not have the requested component.</summary>
     ComponentMissing,
-    /// <summary>The expected stamp does not match the current component revision.</summary>
-    StaleStamp,
     /// <summary>The supplied value is null or has an incompatible CLR type.</summary>
     InvalidValue,
     /// <summary>The component type cannot be written through the object API.</summary>
@@ -138,19 +125,17 @@ public interface IEcsWorld
         Span<ComponentId> destination,
         out int totalCount);
 
-    /// <summary>Reads a component value and its current revision through the object API; safe during query iteration.</summary>
+    /// <summary>Reads a component value through the object API; safe during query iteration.</summary>
     bool TryRead(
         Entity entity,
         ComponentId component,
         out ComponentSnapshot snapshot,
         out EcsReadError error);
 
-    /// <summary>Writes a component value if its current revision matches the expected stamp.</summary>
+    /// <summary>Writes a component value through the object API.</summary>
     bool TryWrite(
         Entity entity,
         ComponentId component,
         object? value,
-        Stamp expectedStamp,
-        out Stamp writtenStamp,
         out EcsWriteError error);
 }

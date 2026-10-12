@@ -19,8 +19,6 @@ public static partial class RuntimeApiGrammarProof
         Require(world.Has<Position>(primary));
         ref readonly Position primaryReadOnly = ref world.GetReadRef<Position>(primary);
         Require(primaryReadOnly.Value == 10);
-        Require(world.TryGetComponentStamp<Position>(primary, out Stamp primaryStamp));
-        Require(primaryStamp.Value > 0);
 
         Entity secondary = world.Create(secondaryPositionId);
         world.GetRef<Position>(secondary, secondaryPositionId).Value = 20;
@@ -30,8 +28,6 @@ public static partial class RuntimeApiGrammarProof
         Require(world.Get<Position>(secondary, secondaryPositionId).Value == 20);
         ref readonly Position secondaryReadOnly = ref world.GetReadRef<Position>(secondary, secondaryPositionId);
         Require(secondaryReadOnly.Value == 20);
-        Require(world.TryGetComponentStamp(secondary, secondaryPositionId, out Stamp secondaryStamp));
-        Require(secondaryStamp.Value > 0);
         Require(!world.TryGet<Position>(secondary, primaryPositionId, out _));
         Require(!world.Has(secondary, primaryPositionId));
 
@@ -67,13 +63,10 @@ public static partial class RuntimeApiGrammarProof
         Require(world.TryGet<Marker>(tagged, out Marker markerValue));
         Require(markerValue.Equals(default(Marker)));
         Require(world.Get<Marker>(tagged).Equals(default(Marker)));
-        Require(world.TryGetComponentStamp<Marker>(tagged, out Stamp tagStamp));
-        Require(tagStamp == new Stamp(1));
         ref Marker markerReference = ref world.GetRef<Marker>(tagged);
         markerReference = default;
         Require(world.Add(tagged, in markerReference) == false);
         Require(world.Remove<Marker>(tagged));
-        Require(!world.TryGetComponentStamp<Marker>(tagged, out _));
 
         Require(world.Layouts.GetComponentType(primaryPositionId) == typeof(Position));
     }

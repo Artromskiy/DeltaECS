@@ -165,7 +165,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             methodName: shape.MethodName,
             hasEntityTarget: true,
             hasQuery: true,
-            isStamp: shape.IsStamp,
             typeBinding: shape.Api.Selector.TypeBinding,
             functorPassMode: shape.FunctorPassMode,
             namespaceName: shape.Namespace);
@@ -206,7 +205,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         {
             GenericNameSyntax? genericName = (invocation.Expression as MemberAccessExpressionSyntax)?.Name as GenericNameSyntax;
             bool namedEntity = shape.HasEntity;
-            ImmutableArray<ITypeSymbol?> expectedTypes = genericName is null || shape.IsStamp
+            ImmutableArray<ITypeSymbol?> expectedTypes = genericName is null
                 ? ImmutableArray<ITypeSymbol?>.Empty
                 : genericName.TypeArgumentList.Arguments
                     .Select(argument => model.GetTypeInfo(argument).Type)
@@ -350,7 +349,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         GenericNameSyntax? genericName = member.Name as GenericNameSyntax;
-        bool stamp = descriptor.Value == ValueDomain.Stamp;
         bool parallel = descriptor.Schedule == Schedule.Parallel;
         bool isOrderedWhereReceiver = OrderedQueryInvocationGrammar.TryReadOrderedWhereSource(
             member.Expression,
@@ -364,7 +362,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return false;
         }
 
-        if (orderedQueryReceiver && (parallel || stamp))
+        if (orderedQueryReceiver && parallel)
         {
             return false;
         }
@@ -387,10 +385,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         if (!TryReadPrefix(model, invocation, descriptor, orderedQueryReceiver, callbackArgumentIndex, out InvocationCursorResult prefix))
         {
             return false;
-        }
-        if (stamp && genericName is not null && prefix.HasComponentIds)
-        {
-            return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
         bool hasContext = prefix.HasContext;
         ContextModeKind contextMode = prefix.ContextMode;
@@ -445,11 +439,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         string? accessPattern = InferPattern(lambda, componentCount, hasContext, hasEntity);
-        if (stamp && accessPattern is not null)
-        {
-            accessPattern = NormalizeStampPattern(accessPattern);
-        }
-
         if (accessPattern is null || accessPattern.Length != componentCount || accessPattern.Any(static c => c is not ('R' or 'W' or 'I' or 'V')))
         {
             return Reject(Unsupported, invocation, invocation, out diagnostic);
@@ -468,23 +457,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         if (components.Length != componentCount)
         {
             return Reject(Unsupported, invocation, invocation, out diagnostic);
-        }
-
-        if (stamp)
-        {
-            if (genericName is null && !explicitIds)
-            {
-                return Reject(Unsupported, invocation, invocation, out diagnostic);
-            }
-
-            ParameterSyntax[] stampParameters = lambdaParameters
-                .Skip(prefixCount + (hasEntity ? 1 : 0))
-                .ToArray();
-            if (stampParameters.Length != componentCount
-                || stampParameters.Any(static parameter => !IsStampSyntax(parameter)))
-            {
-                return Reject(Unsupported, invocation, invocation, out diagnostic);
-            }
         }
 
         string? lambdaContextType = null;
@@ -557,8 +529,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         IMethodSymbol? methodTarget = null;
         GenericNameSyntax? genericName = member.Name as GenericNameSyntax;
         bool namedEntity = descriptor.HasEntity;
-        bool stampName = descriptor.Value == ValueDomain.Stamp;
-        ImmutableArray<ITypeSymbol?> expectedTypes = genericName is null || stampName
+        ImmutableArray<ITypeSymbol?> expectedTypes = genericName is null
             ? ImmutableArray<ITypeSymbol?>.Empty
             : genericName.TypeArgumentList.Arguments
                 .Select(argument => model.GetTypeInfo(argument).Type)
@@ -602,16 +573,11 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return false;
         }
 
-        bool stamp = descriptor.Value == ValueDomain.Stamp;
         bool parallel = descriptor.Schedule == Schedule.Parallel;
         namedEntity = descriptor.HasEntity;
         if (!TryReadPrefix(model, invocation, descriptor, orderedQueryReceiver, callbackArgumentIndex, out InvocationCursorResult prefix))
         {
             return false;
-        }
-        if (stamp && genericName is not null && prefix.HasComponentIds)
-        {
-            return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
         int componentIdCount = prefix.ComponentIdCount;
         bool hasContext = prefix.HasContext;
@@ -646,13 +612,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 GeneratorSupport.IsEntityType(parameter.Type) || GeneratorSupport.IsEntityRefType(parameter.Type)))
         {
             return false;
-        }
-
-        if (stamp && componentParameters.Any(static parameter =>
-                !GeneratorSupport.IsStampType(parameter.Type)
-                || parameter.RefKind is not RefKind.In && !GeneratorSupport.IsRefReadonly(parameter.RefKind)))
-        {
-            return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
 
         int genericCount = genericName?.TypeArgumentList.Arguments.Count ?? 0;
@@ -695,7 +654,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 ITypeSymbol? requestedType = requestedTypes[requestedComponentStart + index];
                 ITypeSymbol expectedType = methodTarget.Parameters[methodComponentStart + index].Type;
                 if (requestedType is null
-                    || (!stamp && !SymbolEqualityComparer.Default.Equals(requestedType, expectedType)))
+                    || !SymbolEqualityComparer.Default.Equals(requestedType, expectedType))
                 {
                     return false;
                 }
@@ -724,16 +683,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 .ToArray();
         }
 
-        if (stamp && genericName is null && !prefix.HasComponentIds)
-        {
-            return Reject(Unsupported, invocation, invocation, out diagnostic);
-        }
-
         string pattern = new(componentParameters.Select(static parameter => GeneratorSupport.PatternLetter(parameter.RefKind)).ToArray());
-        if (stamp)
-        {
-            pattern = NormalizeStampPattern(pattern);
-        }
 
         shape = CreateIterationModel(
             model,
@@ -803,7 +753,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return Reject(InaccessibleFunctor, invocation, functorType.Name, out diagnostic);
         }
 
-        bool stamp = descriptor.Value == ValueDomain.Stamp;
         bool parallel = descriptor.Schedule == Schedule.Parallel;
         bool namedEntity = descriptor.HasEntity;
         if (namedEntity != hasEntity)
@@ -819,10 +768,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         if (!TryReadPrefix(model, invocation, descriptor, orderedQueryReceiver, functorArgumentIndex, out InvocationCursorResult prefix))
         {
             return false;
-        }
-        if (stamp && member.Name is GenericNameSyntax && prefix.HasComponentIds)
-        {
-            return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
         int componentIdCount = prefix.ComponentIdCount;
         ContextModeKind contextMode = prefix.ContextMode;
@@ -860,26 +805,14 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         contextMode = NormalizeParallelContext(parallel, invokeContextMode);
         int prefixCount = (hasContext ? 1 : 0) + (hasEntity ? 1 : 0);
         IParameterSymbol[] componentParameters = invoke.Parameters.Skip(prefixCount).ToArray();
-        if (componentParameters.Length == 0 && !(hasEntity && !stamp))
+        if (componentParameters.Length == 0 && !hasEntity)
         {
-            // Component-only / stamp zero-arity falls through to FunctorAnchors.
-            // Entity-aware sequential forms (MinimumArity 0) are still generated.
+            // Component-only zero-arity falls through to FunctorAnchors.
             return false;
-        }
-
-        if (stamp && componentParameters.Any(static parameter =>
-                !GeneratorSupport.IsStampType(parameter.Type)
-                || parameter.RefKind is not RefKind.In && !GeneratorSupport.IsRefReadonly(parameter.RefKind)))
-        {
-            return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
 
         GenericNameSyntax? genericName = member.Name as GenericNameSyntax;
         bool genericSelectors = genericName is not null;
-        if (stamp && !genericSelectors && !prefix.HasComponentIds)
-        {
-            return Reject(Unsupported, invocation, invocation, out diagnostic);
-        }
 
         string pattern = new(componentParameters.Select(static parameter => GeneratorSupport.PatternLetter(parameter.RefKind)).ToArray());
         string[] components = genericSelectors
@@ -954,7 +887,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             methodName: member.Name.Identifier.ValueText,
             hasEntityTarget: orderedQueryReceiver || prefix.HasTarget,
             hasQuery: orderedQueryReceiver || prefix.HasQuery,
-            isStamp: descriptor.Value == ValueDomain.Stamp,
             typeBinding: typeBinding,
             functorPassMode: functorPassMode,
             namespaceName: GeneratorSupport.ContainingNamespace(model, invocation),
@@ -1004,19 +936,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
     }
 
     private static ContextModeKind NormalizeParallelContext(bool parallel, ContextModeKind mode) => parallel && mode == ContextModeKind.RefReadonly ? ContextModeKind.In : mode;
-
-    private static bool IsStampSyntax(ParameterSyntax parameter)
-    {
-        if (parameter.Type?.ToString() is not ("Stamp" or "global::Delta.ECS.Stamp"))
-        {
-            return false;
-        }
-
-        RefKind refKind = CallbackReader.ParameterRefKind(parameter);
-        return refKind is RefKind.In || GeneratorSupport.IsRefReadonly(refKind);
-    }
-
-    private static string NormalizeStampPattern(string pattern) => pattern.Replace('R', 'I');
 
     private static int FindCallbackArgumentIndex(SeparatedSyntaxList<ArgumentSyntax> arguments) => arguments.IndexOf(arguments.First(static argument => argument.Expression is LambdaExpressionSyntax));
 

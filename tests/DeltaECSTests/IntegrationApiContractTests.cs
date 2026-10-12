@@ -51,7 +51,6 @@ internal sealed class IntegrationApiContractTests
         string[] writeErrors = Enum.GetNames<EcsWriteErrorCode>();
 
         Assert.That(commonReadErrors, Is.SubsetOf(writeErrors));
-        Assert.That(writeErrors, Does.Contain(nameof(EcsWriteErrorCode.StaleStamp)));
         Assert.That(writeErrors, Does.Contain(nameof(EcsWriteErrorCode.InvalidValue)));
     }
 
@@ -59,7 +58,7 @@ internal sealed class IntegrationApiContractTests
     public void SnapshotMayPreserveMutableReferenceIdentity()
     {
         var value = new MutableReference();
-        var snapshot = new ComponentSnapshot(value, default);
+        var snapshot = new ComponentSnapshot(value);
 
         Assert.That(snapshot.Value, Is.SameAs(value));
     }

@@ -57,9 +57,7 @@ public class GenericRuntimeFunctorTests
         }
 
         Query query = world.WhereAll(value, history);
-        Stamp before = GetStamp(world, entities[0], value);
         world.ForEach(in query, value, typeof(SaveHistory<>)).Invoke();
-        Assert.That(GetStamp(world, entities[0], value), Is.Not.EqualTo(before));
         int[] ordinals = entities.Select(entity => world.Get<History<float>>(entity, history).Ordinal).Order().ToArray();
         Assert.That(ordinals, Is.EqualTo(Enumerable.Range(1, entities.Length)));
 
@@ -85,16 +83,11 @@ public class GenericRuntimeFunctorTests
         world.GetRef<int>(entity, first) = 42;
         world.GetRef<float>(entity, second) = 1.5f;
         Query query = world.WhereAll(first, second, pair);
-        Stamp beforeFirst = GetStamp(world, entity, first);
-        Stamp beforeSecond = GetStamp(world, entity, second);
-
         world.ForEach(in query, first, second, typeof(CopyPair<,>)).Invoke();
 
         Pair<int, float> result = world.Get<Pair<int, float>>(entity, pair);
         Assert.That(result.First, Is.EqualTo(42));
         Assert.That(result.Second, Is.EqualTo(1.5f));
-        Assert.That(GetStamp(world, entity, first), Is.EqualTo(beforeFirst));
-        Assert.That(GetStamp(world, entity, second), Is.EqualTo(beforeSecond));
     }
 
     [Test]
@@ -130,17 +123,9 @@ public class GenericRuntimeFunctorTests
         using var world = new World(layouts);
         Entity entity = world.Create(value);
         Query query = world.WhereAll(value);
-        Stamp before = GetStamp(world, entity, value);
         Assert.Throws<ArgumentException>(() => world.ForEach(in query, text, typeof(SaveHistory<>)).Invoke());
         Assert.Throws<System.Collections.Generic.KeyNotFoundException>(() => world.ForEach(in query, value, typeof(SaveHistory<>)).Invoke());
-        Assert.That(GetStamp(world, entity, value), Is.EqualTo(before));
         Assert.That(world.Destroy(entity), Is.True);
-    }
-
-    private static Stamp GetStamp(World world, Entity entity, ComponentId component)
-    {
-        Assert.That(world.TryGetComponentStamp(entity, component, out Stamp stamp), Is.True);
-        return stamp;
     }
 
     public struct History<T>

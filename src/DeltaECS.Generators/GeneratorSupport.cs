@@ -205,8 +205,6 @@ internal static class GeneratorSupport
 
     internal static bool IsInt32(ITypeSymbol? type) => type?.SpecialType == SpecialType.System_Int32;
 
-    internal static bool IsStampType(ITypeSymbol? type) => IsNamedType(type, "Stamp");
-
     internal static bool IsEntityBatch(ITypeSymbol? type) => IsBatch(type, "Entity", allowArray: true, allowReadOnlySpan: true);
 
     internal static bool IsEntityOutput(ITypeSymbol? type) => IsBatch(type, "Entity", allowArray: false, allowReadOnlySpan: false);
@@ -245,7 +243,6 @@ internal static class GeneratorSupport
     {
         'W' => AccessKind.RowWrite,
         'R' => AccessKind.RefReadonly,
-        'S' => AccessKind.StampRead,
         'I' => AccessKind.RowRead,
         _ => AccessKind.Value
     };
@@ -395,7 +392,6 @@ internal static class GeneratorSupport
     }
 
     internal static ApiModel CreateIterationShape(
-        bool isStamp,
         bool parallel,
         bool hasEntity,
         bool hasEntityTarget,
@@ -422,9 +418,7 @@ internal static class GeneratorSupport
                 typeBinding == TypeBindingKind.Generic
                     ? "T" + (index + 1).ToString(CultureInfo.InvariantCulture)
                     : components[index],
-                isStamp
-                    ? AccessKind.StampRead
-                    : AccessKindFrom(index < pattern.Length ? pattern[index] : 'I'),
+                AccessKindFrom(index < pattern.Length ? pattern[index] : 'I'),
                 components[index]));
         }
 
@@ -443,7 +437,7 @@ internal static class GeneratorSupport
             callback,
             new ExecutionModel(
                 target == TargetKind.EntityList ? Scope.EntityList : Scope.QueryWide,
-                isStamp ? ValueDomain.Stamp : ValueDomain.Component,
+                ValueDomain.Component,
                 parallel ? Schedule.Parallel : Schedule.Sequential),
             Name: methodName);
     }

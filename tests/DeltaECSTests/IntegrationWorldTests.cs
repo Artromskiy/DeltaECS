@@ -56,8 +56,6 @@ internal sealed class IntegrationWorldTests
                 currentEntity,
                 positionId,
                 new Position(43),
-                new Stamp(2),
-                out _,
                 out _));
             Assert.Throws<InvalidOperationException>(() => integration.Destroy(currentEntity));
         }).Invoke();
@@ -90,7 +88,6 @@ internal sealed class IntegrationWorldTests
             Assert.That(first.Components.Span[0].Schema, Is.EqualTo(new SchemaId(50_001)));
             Assert.That(first.Components.Span[0].ValueType, Is.EqualTo(typeof(Position)));
             Assert.That(first.Components.Span[0].Capabilities, Is.EqualTo(ComponentCapabilities.Read | ComponentCapabilities.Write));
-            Assert.That(first.Stamp, Is.Not.EqualTo(second.Stamp));
             Assert.That(second.Components.Length, Is.EqualTo(2));
             Assert.That(second.Components.Span[0].Id.Value, Is.LessThan(second.Components.Span[1].Id.Value));
             Assert.That(second.Components.Span[1].Id, Is.EqualTo(velocityId));
@@ -101,7 +98,7 @@ internal sealed class IntegrationWorldTests
 
         world.Initialize();
         _ = world.Create(ReadOnlySpan<ComponentId>.Empty);
-        Assert.That(world.Catalog.Stamp, Is.EqualTo(second.Stamp));
+        Assert.That(world.Catalog.Components.Length, Is.EqualTo(second.Components.Length));
         world.Shutdown();
     }
 
@@ -182,7 +179,7 @@ internal sealed class IntegrationWorldTests
     }
 
     [Test]
-    public void ObjectReadWriteValidatesErrorsTypesAndExactStamps()
+    public void ObjectReadWriteValidatesErrorsAndTypes()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(50_031));
@@ -199,7 +196,7 @@ internal sealed class IntegrationWorldTests
             Assert.That(readError.Code, Is.EqualTo(EcsReadErrorCode.None));
         });
 
-        Assert.That(world.TryWrite(entity, positionId, new Position(42), initial.Stamp, out Stamp written, out EcsWriteError writeError), Is.True);
+        Assert.That(world.TryWrite(entity, positionId, new Position(42), out EcsWriteError writeError), Is.True);
         Assert.Multiple(() =>
         {
             Assert.That(writeError.Code, Is.EqualTo(EcsWriteErrorCode.None));
@@ -208,20 +205,18 @@ internal sealed class IntegrationWorldTests
         Assert.Multiple(() =>
         {
             Assert.That(updated.Value, Is.EqualTo(new Position(42)));
-            Assert.That(updated.Stamp, Is.EqualTo(written));
         });
 
-        Assert.That(world.TryWrite(entity, positionId, new Position(43), initial.Stamp, out Stamp staleWritten, out EcsWriteError stale), Is.False);
-        Assert.That(world.TryWrite(entity, positionId, new Velocity(1), written, out _, out EcsWriteError wrongType), Is.False);
-        Assert.That(world.TryWrite(entity, positionId, null, written, out _, out EcsWriteError nullValue), Is.False);
+        Assert.That(world.TryWrite(entity, positionId, new Position(43), out EcsWriteError secondWrite), Is.True);
+        Assert.That(world.TryWrite(entity, positionId, new Velocity(1), out EcsWriteError wrongType), Is.False);
+        Assert.That(world.TryWrite(entity, positionId, null, out EcsWriteError nullValue), Is.False);
         Assert.That(world.TryRead(entity, velocityId, out _, out EcsReadError missing), Is.False);
         Assert.That(world.TryRead(entity, new ComponentId(200), out _, out EcsReadError unknown), Is.False);
-        Assert.That(world.TryWrite(entity, velocityId, new Velocity(1), default, out _, out EcsWriteError missingWrite), Is.False);
-        Assert.That(world.TryWrite(entity, new ComponentId(200), new Position(1), default, out _, out EcsWriteError unknownWrite), Is.False);
+        Assert.That(world.TryWrite(entity, velocityId, new Velocity(1), out EcsWriteError missingWrite), Is.False);
+        Assert.That(world.TryWrite(entity, new ComponentId(200), new Position(1), out EcsWriteError unknownWrite), Is.False);
         Assert.Multiple(() =>
         {
-            Assert.That(staleWritten, Is.EqualTo(default(Stamp)));
-            Assert.That(stale.Code, Is.EqualTo(EcsWriteErrorCode.StaleStamp));
+            Assert.That(secondWrite.Code, Is.EqualTo(EcsWriteErrorCode.None));
             Assert.That(wrongType.Code, Is.EqualTo(EcsWriteErrorCode.InvalidValue));
             Assert.That(nullValue.Code, Is.EqualTo(EcsWriteErrorCode.InvalidValue));
             Assert.That(missing.Code, Is.EqualTo(EcsReadErrorCode.ComponentMissing));
@@ -232,7 +227,7 @@ internal sealed class IntegrationWorldTests
 
         Assert.That(world.Destroy(entity), Is.True);
         Assert.That(world.TryRead(entity, positionId, out _, out EcsReadError deadRead), Is.False);
-        Assert.That(world.TryWrite(entity, positionId, new Position(1), written, out _, out EcsWriteError deadWrite), Is.False);
+        Assert.That(world.TryWrite(entity, positionId, new Position(1), out EcsWriteError deadWrite), Is.False);
         Assert.Multiple(() =>
         {
             Assert.That(deadRead.Code, Is.EqualTo(EcsReadErrorCode.EntityNotAlive));
@@ -273,31 +268,26 @@ internal sealed class IntegrationWorldTests
         {
             Assert.That(tagSnapshot.Value, Is.EqualTo(default(IntegrationTag)));
             Assert.That(tagSnapshot.Value?.GetType(), Is.EqualTo(typeof(IntegrationTag)));
-            Assert.That(tagSnapshot.Stamp, Is.EqualTo(new Stamp(1)));
             Assert.That(tagReadError.Code, Is.EqualTo(EcsReadErrorCode.None));
         });
 
-        Assert.That(world.TryWrite(tagged, tagId, default(IntegrationTag), new Stamp(1), out Stamp written, out EcsWriteError tagWriteError), Is.True);
-        Assert.Multiple(() =>
-        {
-            Assert.That(written, Is.EqualTo(new Stamp(1)));
-            Assert.That(tagWriteError.Code, Is.EqualTo(EcsWriteErrorCode.None));
-        });
-        Assert.That(world.TryWrite(tagged, tagId, default(IntegrationTag), default, out _, out EcsWriteError staleTag), Is.False);
-        Assert.That(staleTag.Code, Is.EqualTo(EcsWriteErrorCode.StaleStamp));
-        Assert.That(world.TryWrite(tagged, tagId, new object(), new Stamp(1), out _, out EcsWriteError wrongTagValue), Is.False);
+        Assert.That(world.TryWrite(tagged, tagId, default(IntegrationTag), out EcsWriteError tagWriteError), Is.True);
+        Assert.That(tagWriteError.Code, Is.EqualTo(EcsWriteErrorCode.None));
+        Assert.That(world.TryWrite(tagged, tagId, default(IntegrationTag), out EcsWriteError secondTagWrite), Is.True);
+        Assert.That(secondTagWrite.Code, Is.EqualTo(EcsWriteErrorCode.None));
+        Assert.That(world.TryWrite(tagged, tagId, new object(), out EcsWriteError wrongTagValue), Is.False);
         Assert.That(wrongTagValue.Code, Is.EqualTo(EcsWriteErrorCode.InvalidValue));
 
         Assert.That(world.TryRead(untagged, tagId, out _, out EcsReadError missingTag), Is.False);
         Assert.That(missingTag.Code, Is.EqualTo(EcsReadErrorCode.ComponentMissing));
-        Assert.That(world.TryWrite(untagged, tagId, default(IntegrationTag), default, out _, out EcsWriteError missingTagWrite), Is.False);
+        Assert.That(world.TryWrite(untagged, tagId, default(IntegrationTag), out EcsWriteError missingTagWrite), Is.False);
         Assert.That(missingTagWrite.Code, Is.EqualTo(EcsWriteErrorCode.ComponentMissing));
 
         world.Shutdown();
     }
 
     [Test]
-    public void MutableReferenceIdentityIsPreservedAndDirectMutationDoesNotAdvanceStamp()
+    public void MutableReferenceIdentityIsPreservedAcrossDirectMutation()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId referenceId = layouts.Register<MutableReference>(new SchemaId(50_041));
@@ -309,7 +299,7 @@ internal sealed class IntegrationWorldTests
         Assert.That(empty.Value, Is.Null);
 
         var value = new MutableReference { Value = 7 };
-        Assert.That(world.TryWrite(entity, referenceId, value, empty.Stamp, out Stamp written, out _), Is.True);
+        Assert.That(world.TryWrite(entity, referenceId, value, out _), Is.True);
         Assert.That(world.TryRead(entity, referenceId, out ComponentSnapshot observed, out _), Is.True);
         Assert.That(observed.Value, Is.SameAs(value));
 
@@ -320,11 +310,9 @@ internal sealed class IntegrationWorldTests
         {
             Assert.That(mutated.Value, Is.SameAs(value));
             Assert.That(mutatedValue?.Value, Is.EqualTo(9));
-            Assert.That(mutated.Stamp, Is.EqualTo(written));
         });
 
-        Assert.That(world.TryWrite(entity, referenceId, value, mutated.Stamp, out Stamp rewritten, out _), Is.True);
-        Assert.That(rewritten, Is.Not.EqualTo(written));
+        Assert.That(world.TryWrite(entity, referenceId, value, out _), Is.True);
         world.Shutdown();
     }
 

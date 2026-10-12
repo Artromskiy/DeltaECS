@@ -84,10 +84,10 @@ public SystemAccess Access => new(
     readsTopology: true);
 ```
 
-Unscoped `reads`, `writes` and stamp reads remain world-wide and conflict with
-the same component in any query scope. Query filters over overlay tags do not
-separate archetypes, so they remain conservative when both queries can visit
-the same archetype.
+Unscoped `reads` and `writes` remain world-wide and conflict with the same
+component in any query scope. Query filters over overlay tags do not separate
+archetypes, so they remain conservative when both queries can visit the same
+archetype.
 
 ## Use an open generic functor in a system
 

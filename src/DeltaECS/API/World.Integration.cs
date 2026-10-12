@@ -8,7 +8,6 @@ public sealed partial class World : IEcsWorld
 {
     private RuntimeComponentCatalog _integrationCatalog;
     private int _integrationCatalogLayoutCount = -1;
-    private StampCounter _catalogStamps;
     private IntegrationLifecycleState _integrationLifecycle;
 
     RuntimeComponentCatalog IEcsWorld.Catalog
@@ -129,7 +128,7 @@ public sealed partial class World : IEcsWorld
             }
 
             object defaultValue = Array.CreateInstance(layout.RuntimeType, 1).GetValue(0)!;
-            snapshot = new ComponentSnapshot(defaultValue, new Stamp(1));
+            snapshot = new ComponentSnapshot(defaultValue);
             error = new EcsReadError(EcsReadErrorCode.None);
             return true;
         }
@@ -148,12 +147,7 @@ public sealed partial class World : IEcsWorld
         }
 
         object? value = chunk.GetRawComponentRow(componentIndex).GetValue(slotIndex);
-        Stamp componentStamp = GetComponentStamp(
-            archetype.Id,
-            chunk,
-            componentIndex,
-            slotIndex);
-        snapshot = new ComponentSnapshot(value, componentStamp);
+        snapshot = new ComponentSnapshot(value);
         error = new EcsReadError(EcsReadErrorCode.None);
         return true;
     }
@@ -162,14 +156,10 @@ public sealed partial class World : IEcsWorld
         Entity entity,
         ComponentId component,
         object? value,
-        Stamp expectedStamp,
-        out Stamp writtenStamp,
         out EcsWriteError error)
     {
         EnsureIntegrationActive();
         EnsureNoActiveLease("write components through the integration API");
-        writtenStamp = default;
-
         if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
             error = new EcsWriteError(EcsWriteErrorCode.EntityNotAlive);
@@ -190,19 +180,12 @@ public sealed partial class World : IEcsWorld
                 return false;
             }
 
-            if (expectedStamp != new Stamp(1))
-            {
-                error = new EcsWriteError(EcsWriteErrorCode.StaleStamp);
-                return false;
-            }
-
             if (value is null || value.GetType() != layout.RuntimeType)
             {
                 error = new EcsWriteError(EcsWriteErrorCode.InvalidValue);
                 return false;
             }
 
-            writtenStamp = new Stamp(1);
             error = new EcsWriteError(EcsWriteErrorCode.None);
             return true;
         }
@@ -223,12 +206,6 @@ public sealed partial class World : IEcsWorld
             return false;
         }
 
-        if (GetComponentStamp(archetype.Id, chunk, componentIndex, slotIndex) != expectedStamp)
-        {
-            error = new EcsWriteError(EcsWriteErrorCode.StaleStamp);
-            return false;
-        }
-
         bool allowsNull = AllowsNull(valueType);
         if ((value is null && !allowsNull)
             || (value is not null && value.GetType() != valueType))
@@ -242,12 +219,6 @@ public sealed partial class World : IEcsWorld
         {
             RecordComponentChange(entity, component);
         }
-        chunk.IncrementComponentStamp(componentIndex, slotIndex);
-        writtenStamp = GetComponentStamp(
-            archetype.Id,
-            chunk,
-            componentIndex,
-            slotIndex);
         error = new EcsWriteError(EcsWriteErrorCode.None);
         return true;
     }
@@ -297,7 +268,7 @@ public sealed partial class World : IEcsWorld
             };
         }
 
-        _integrationCatalog = new RuntimeComponentCatalog(descriptors, _catalogStamps.Next());
+        _integrationCatalog = new RuntimeComponentCatalog(descriptors);
         _integrationCatalogLayoutCount = layoutCount;
     }
 

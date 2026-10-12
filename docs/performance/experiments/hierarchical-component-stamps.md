@@ -1,10 +1,7 @@
 # Historical four-term component stamp experiment
 
-> Superseded by the current two-term contract in
-> [`src/DeltaECS/Stamps/README.md`](../../src/DeltaECS/Stamps/README.md).
-> The measurements below are retained as historical evidence for the removed
-> world/component and chunk/component terms and must not be read as the current
-> formula.
+> Archived experiment: the component-stamp system was removed. The measurements
+> below are historical evidence only and do not describe the current runtime.
 
 ## Scope
 
@@ -19,8 +16,8 @@ effective(Entity, Component) =
 ```
 
 The sum is an unchecked `ulong` equality token. It is not an ordered clock.
-The existing per-slot `ComponentStampStorage` remains the entity/component
-term. The chunk, archetype and world terms in this historical candidate were
+The former per-slot `ComponentStampStorage` held the entity/component term. The
+chunk, archetype and world terms in this historical candidate were
 stored in buffers owned by `World`, indexed by archetype id, chunk id and
 component ordinal/id. `Chunk` and `Archetype` therefore did not acquire
 additional hierarchy fields or references.
@@ -36,8 +33,8 @@ conservative:
 - clearing a physical chunk clears its chunk-level terms before reuse, while
   archetype- and world-level terms retain their own scope.
 
-The public `World.TryGetComponentStamp` and the then-existing row API returned
-the combined value. No public type or call shape changed in that experiment.
+The former public `World.TryGetComponentStamp` and row API returned the
+combined value. No public type or call shape changed in that experiment.
 
 ## Correctness evidence
 

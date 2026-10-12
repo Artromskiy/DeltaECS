@@ -98,25 +98,12 @@ public static partial class RuntimeApiGrammarProof
             Require(current.TryGet<Marker>(out Marker tagValue) && tagValue.Equals(default(Marker)));
             Require(current.Get<Marker>().Equals(default(Marker)));
             Require(current.GetReadRef<Marker>().Equals(default(Marker)));
-            Require(current.TryGetComponentStamp<Marker>(out Stamp tagStamp));
-            Require(tagStamp == new Stamp(1));
-            Require(current.TryGetComponentStamp(markerId, out Stamp dynamicTagStamp));
-            Require(current.TryGetComponentStamp(markerId, out Stamp typedTagStamp));
-            Require(dynamicTagStamp == tagStamp && typedTagStamp == tagStamp);
             _ = current.GetRef<Marker>();
 
-            Require(current.TryGetComponentStamp<Position>(out Stamp before));
             ref Position writable = ref current.GetRef<Position>();
             writable.Value++;
             ref Position dynamicWritable = ref current.GetRef<Position>(positionId);
             dynamicWritable.Value++;
-            Require(current.TryGetComponentStamp(positionId, out Stamp after));
-            Require(current.TryGetComponentStamp(positionId, out Stamp typedAfter));
-            Require(after == typedAfter && after != before);
-            Require(!current.TryGetComponentStamp<Velocity>(out _));
-            Require(!current.TryGetComponentStamp(velocityId, out _));
-            Require(current.TryGetComponentStamp(positionId, out _));
-            Require(!current.TryGetComponentStamp(unregisteredId, out _));
             visits++;
         });
 

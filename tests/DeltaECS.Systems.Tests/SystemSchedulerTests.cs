@@ -349,9 +349,6 @@ public sealed class SystemSchedulerTests
             () => Task.Run(() => world.Has(default, Position)).GetAwaiter().GetResult(),
             Throws.TypeOf<InvalidOperationException>());
         Assert.That(
-            () => Task.Run(() => world.TryGetComponentStamp(default, Position, out _)).GetAwaiter().GetResult(),
-            Throws.TypeOf<InvalidOperationException>());
-        Assert.That(
             () => Task.Run(() => GeneratedForEachRuntime.GetGeneratedPrimaryComponentIds<GeneratedSetKey>(
                 world,
                 static _ => new[] { Position }).Length).GetAwaiter().GetResult(),

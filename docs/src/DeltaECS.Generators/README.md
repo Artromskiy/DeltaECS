@@ -219,9 +219,9 @@ struct functor; a method group functor forwards directly to its resolved static
 method. The same lowering is used for `world.Where(...).ForEach(...)` and
 `world.WhereEntity(...).ForEach(...)` pipelines when the predicate and terminal
 are static lambdas or static method groups. These forms enter a closed trusted
-execution method with chunk-level row resolution. Query ownership, leases,
-mutation stamps and write-row marking therefore remain in the shared runtime
-path.
+execution method with chunk-level row resolution. Query ownership and leases
+therefore remain in the shared runtime path; component mutation stamps are not
+part of the runtime API.
 
 When the consumer uses C# 9 or C# 10, including Unity projects with a
 `netstandard2.1` API profile, the generator skips interceptor source because

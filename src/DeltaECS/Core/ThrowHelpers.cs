@@ -319,10 +319,6 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowStampRange(string parameterName) => throw new ArgumentOutOfRangeException(parameterName);
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowChunkRowOperationsMismatch(string parameterName)
         => throw new ArgumentException("Each component row must have cached operations.", parameterName);
 
@@ -459,6 +455,11 @@ internal static class ThrowHelper
     internal static void ThrowComponentAliasConflict(string alias, ComponentId existing, ComponentId componentId)
         => throw new InvalidOperationException(
             $"Component alias '{alias}' is already assigned to component {existing.Value}, not {componentId.Value}.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static ulong ThrowUnsupportedEnumUnderlyingType(Type enumType)
+        => throw new InvalidOperationException($"Unsupported enum underlying type for '{enumType}'.");
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]

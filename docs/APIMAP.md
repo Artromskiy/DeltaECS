@@ -32,7 +32,6 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `Functor` | Marker contracts for generated struct-functor callbacks | [Functor API](src/DeltaECS/Functor/README.md) |
 | `Parallel` | Chunk-disjoint multi-threaded query execution | [Parallel API](src/DeltaECS/Parallel/README.md) |
 | `API` | Neutral integration contract implemented by `World` | [Integration API](src/DeltaECS/API/README.md) |
-| `Stamps` | Catalog and entity/component revision values | [Stamp contract](src/DeltaECS/Stamps/README.md) |
 | `Properties` | Assembly metadata; no consumer API | — |
 
 The consumer source generator is documented in
@@ -50,14 +49,13 @@ The consumer source generator is documented in
 | `QuerySpec` | Opaque `All`/`Any`/`None` selection description created by the fluent query factories | `src/DeltaECS/Core/QuerySpec.cs` |
 | `Query` | World-owned cached query and generated API input | `src/DeltaECS/Core/EntityTypes.cs` |
 | `ReadAccess`, `WriteAccess` | Compiler-support access tokens used by generated callbacks | `src/DeltaECS/Core/QueryAccess.cs` |
-| `World.Create<T>`, `Add<T>`, `Remove<T>`, `TryGet<T>`, `Has<T>`, `Get<T>`, `GetRef<T>` and typed stamps | Single-component typed conveniences over core operations | `src/DeltaECS/Generic/World.Generic.cs` |
+| `World.Create<T>`, `Add<T>`, `Remove<T>`, `TryGet<T>`, `Has<T>`, `Get<T>`, `GetRef<T>` | Single-component typed conveniences over core operations | `src/DeltaECS/Generic/World.Generic.cs` |
 | Generated `World.Create<T1,...>`, `Add<T1,...>`, `Remove<T1,...>` | On-demand primary-component structural operations | `src/DeltaECS.Generators/GeneratedStructuralGenerator.cs` |
 | `World/Query.WhereAll`, `WhereAny`, `WhereNone` | Runtime `ComponentId` factories; generated typed variants compose through the existing query cache | `src/DeltaECS/Core/World.cs`, `src/DeltaECS/Core/EntityTypes.cs`, `src/DeltaECS.Generators/GeneratedQueryGenerator.cs`, `src/DeltaECS/Core/QuerySpec.cs` |
 | `World.ForEach`, `ForEachEntity` | Delegate callback entry points; entity-aware iteration may omit component rows, while component-only zero-arity calls remain throwing anchors | `src/DeltaECS/Delegate/ForEachZeroArity.cs` |
 | `IForEach*` | Stable functor marker contracts | `src/DeltaECS/Functor/ForEachFunctorContracts.cs` |
 | `World.ForEachParallel` | Generated typed parallel query callback entry point | `src/DeltaECS/Parallel/World.Parallel.cs` |
 | `IEcsWorld` | Neutral lifecycle, structural and object-value integration contract | `src/DeltaECS/API/IntegrationContracts.cs` |
-| `Stamp` | 64-bit equality token for exact component revisions | `src/DeltaECS/Stamps/Stamp.cs` |
 
 ## Query execution boundary
 
@@ -114,21 +112,14 @@ work, inspect the focused test class after locating the source method.
 ## Lifetime, revision and integration rules
 
 - Structural mutation is rejected while a conflicting query scope is active.
-- Read and write access intent is declared before row traversal; point writes
-  use entity stamps and generated dense writes use archetype stamps.
+- Read and write access intent is declared before row traversal.
 - `Entity` and `ComponentId` are compact world-local core values. `SchemaId`
   is the stable cross-world identity used by integration consumers.
-- `Stamp` is a 64-bit equality token (`ulong Value`). It is not wall-clock
-  time; consumers compare exact values and must not infer ordering from them.
-- Effective component stamps combine entity/component and archetype/component
-  terms. Archetype overrides are centrally owned by `World` and do not enlarge
-  `Archetype`. There is no aggregate world mutation stamp; consumers use exact
-  entity/component stamps.
 - `IEcsWorld` (`Delta.ECS.Integration`) is a neutral local .NET boundary. It uses the core `Entity` and
   `ComponentId` types and exposes object snapshots only for integration work.
 
-See the [integration README](src/DeltaECS/API/README.md) and
-[stamp README](src/DeltaECS/Stamps/README.md) for their complete contracts.
+See the [integration README](src/DeltaECS/API/README.md) for its complete
+contract.
 
 ## Focused test map
 

@@ -144,7 +144,7 @@ public sealed partial class ComponentLayoutRegistry
             TypeCode.UInt32 => Convert.ToUInt32(boxedValue, invariant),
             TypeCode.Int64 => (ulong)Convert.ToInt64(boxedValue, invariant),
             TypeCode.UInt64 => Convert.ToUInt64(boxedValue, invariant),
-            _ => throw new InvalidOperationException($"Unsupported enum underlying type for '{typeof(TEnum)}'."),
+            _ => ThrowHelper.ThrowUnsupportedEnumUnderlyingType(typeof(TEnum)),
         };
     }
 

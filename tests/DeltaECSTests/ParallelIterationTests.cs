@@ -41,7 +41,6 @@ internal sealed class ParallelIterationTests
         world.Create([positionId], entities);
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
         var state = new ParallelState { Delta = 2 };
-        Assert.That(world.TryGetComponentStamp(entities[0], positionId, out Stamp stampBefore), Is.True);
 
 #pragma warning disable CS9198 // This test preserves the supported ref readonly lambda spelling for an in context parameter.
         world.ForEachParallel(
@@ -70,8 +69,6 @@ internal sealed class ParallelIterationTests
             Assert.That(world.Get<Position>(entities[index], positionId).X, Is.EqualTo(6));
         }
 
-        Assert.That(world.TryGetComponentStamp(entities[0], positionId, out Stamp stampAfter), Is.True);
-        Assert.That(stampAfter, Is.EqualTo(new Stamp(stampBefore.Value + 3)));
     }
 
     [Test]

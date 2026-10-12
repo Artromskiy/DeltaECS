@@ -48,7 +48,7 @@ public readonly ref struct EntityRef
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public T Get<T>(ComponentId componentId) => View.World!.GetTrusted<T>(ref View, componentId);
 
-    /// <summary>Gets a writable component reference and marks its change stamp.</summary>
+    /// <summary>Gets a writable component reference.</summary>
     /// <remarks>For a tag, this returns the shared default placeholder; writes through it are not stored.</remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetRef<T>(ComponentId componentId) => ref View.World!.GetRefTrusted<T>(ref View, componentId);
@@ -65,14 +65,6 @@ public readonly ref struct EntityRef
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref readonly T GetReadRef<T>(ComponentId componentId) => ref View.World!.GetReadRefTrusted<T>(ref View, componentId);
 
-    /// <summary>Attempts to read the stamp for the primary component of <typeparamref name="T"/>.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetComponentStamp<T>(out Stamp stamp) => View.World!.TryGetComponentStampTrusted<T>(ref View, out stamp);
-
-    /// <summary>Attempts to read the stamp for the specified component registration.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetComponentStamp(ComponentId componentId, out Stamp stamp)
-        => View.World!.TryGetComponentStampTrusted(ref View, componentId, out stamp);
 }
 
 /// <summary>Stack-owned backing view for a scoped entity reference.</summary>

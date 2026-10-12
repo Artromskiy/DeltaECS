@@ -173,76 +173,6 @@ public sealed partial class World
         return IsRegisteredType<T>(componentId) && HasTrusted(ref view, componentId);
     }
 
-    /// <summary>Reads the primary component stamp when present.</summary>
-    public bool TryGetComponentStamp<T>(Entity entity, out Stamp stamp)
-    {
-        EnsureExecutionAccess();
-        if (!TryGetPrimaryComponentId<T>(out ComponentId componentId))
-        {
-            stamp = default;
-            return false;
-        }
-
-        return TryGetComponentStamp(entity, componentId, out stamp);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool TryGetComponentStampTrusted<T>(Entity entity, out Stamp stamp)
-    {
-        if (!TryGetPrimaryComponentId<T>(out ComponentId componentId))
-        {
-            stamp = default;
-            return false;
-        }
-
-        return TryGetComponentStampTrusted(entity, componentId, out stamp);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool TryGetComponentStampTrusted<T>(Entity entity, ComponentId componentId, out Stamp stamp)
-    {
-        if (!IsRegisteredType<T>(componentId))
-        {
-            stamp = default;
-            return false;
-        }
-
-        return TryGetComponentStampTrusted(entity, componentId, out stamp);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool TryGetComponentStampTrusted<T>(ref GeneratedEntityRefView view, out Stamp stamp)
-    {
-        if (!TryGetPrimaryComponentId<T>(out ComponentId componentId))
-        {
-            stamp = default;
-            return false;
-        }
-
-        return TryGetComponentStampTrusted<T>(ref view, componentId, out stamp);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool TryGetComponentStampTrusted<T>(ref GeneratedEntityRefView view, ComponentId componentId, out Stamp stamp)
-    {
-        if (view.TryBindPreparedComponent(componentId, typeof(T), out bool isTag))
-        {
-            Chunk chunk = view.Chunk!;
-            stamp = isTag
-                ? new Stamp(1)
-                : GetComponentStamp(chunk.ArchetypeId, chunk, view.PreparedComponentIndex, view.SlotIndex);
-            return true;
-        }
-
-        if (!IsRegisteredType<T>(componentId))
-        {
-            stamp = default;
-            return false;
-        }
-
-        return TryGetComponentStampTrusted(ref view, componentId, out stamp);
-    }
-
     /// <summary>
     /// Reads one component, throwing when the entity is stale, missing the row,
     /// or the requested type does not match the registered component type.
@@ -348,7 +278,6 @@ public sealed partial class World
             {
                 RecordComponentChange(view.CurrentEntity, componentId);
             }
-            chunk.IncrementComponentStamp(componentIndex, slotIndex);
             return ref view.GetPreparedComponentRef<T>();
         }
 
@@ -397,7 +326,6 @@ public sealed partial class World
         {
             RecordComponentChange(entity, componentId);
         }
-        chunk.IncrementComponentStamp(componentIndex, slotIndex);
         return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
     }
 
@@ -425,7 +353,6 @@ public sealed partial class World
         {
             RecordComponentChange(view.CurrentEntity, componentId);
         }
-        chunk.IncrementComponentStamp(componentIndex, slotIndex);
         return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
     }
 
@@ -570,7 +497,7 @@ public sealed partial class World
 
         EnsureNoActiveLease("add components");
         ComponentSet changeSet = GetOrCreateComponentSet(stackalloc[] { componentId });
-        int edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
+        int edgeGeneration = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
         int changed = 0;
         Chunk? pendingChunk = null;
         int pendingComponentIndex = -1;
@@ -585,9 +512,9 @@ public sealed partial class World
             }
 
             var sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
-            var edge = edgeStamp == 0
+            var edge = edgeGeneration == 0
                 ? GetTransitionEdge(sourceArchetype.Id, changeSet, true)
-                : GetBatchTransitionEdge(sourceArchetype.Id, changeSet, true, edgeStamp);
+                : GetBatchTransitionEdge(sourceArchetype.Id, changeSet, true, edgeGeneration);
             if (edge.IsNoOp)
             {
                 continue;
@@ -679,7 +606,7 @@ public sealed partial class World
         }
 
         ComponentSet changeSet = GetOrCreateComponentSet(componentIds);
-        int edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
+        int edgeGeneration = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
         int changed = 0;
         Chunk? pendingChunk = null;
         Archetype? pendingArchetype = null;
@@ -697,9 +624,9 @@ public sealed partial class World
             }
 
             Archetype sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
-            TransitionEdge edge = edgeStamp == 0
+            TransitionEdge edge = edgeGeneration == 0
                 ? GetTransitionEdge(sourceArchetype.Id, changeSet, true)
-                : GetBatchTransitionEdge(sourceArchetype.Id, changeSet, true, edgeStamp);
+                : GetBatchTransitionEdge(sourceArchetype.Id, changeSet, true, edgeGeneration);
             bool archetypeChanged = !edge.IsNoOp;
             if (!archetypeChanged && changeSet.TagIndices.Length == 0)
             {

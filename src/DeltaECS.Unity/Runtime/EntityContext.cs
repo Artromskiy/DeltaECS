@@ -67,32 +67,6 @@ namespace Delta.ECS.Unity
         /// <summary>Gets a read-only reference to the specified registration of <typeparamref name="T"/>.</summary>
         public ref readonly T GetReadRef<T>(ComponentId componentId) => ref GetWorld().GetReadRef<T>(Entity, componentId);
 
-        /// <summary>Attempts to read the stamp for the primary component of <typeparamref name="T"/>.</summary>
-        public bool TryGetComponentStamp<T>(out Stamp stamp)
-        {
-            World? world = World;
-            if (world is null)
-            {
-                stamp = default;
-                return false;
-            }
-
-            return world.TryGetComponentStamp<T>(Entity, out stamp);
-        }
-
-        /// <summary>Attempts to read the stamp for the specified component registration.</summary>
-        public bool TryGetComponentStamp(ComponentId componentId, out Stamp stamp)
-        {
-            World? world = World;
-            if (world is null)
-            {
-                stamp = default;
-                return false;
-            }
-
-            return world.TryGetComponentStamp(Entity, componentId, out stamp);
-        }
-
         internal EntityContext(World world, Entity entity)
         {
             World = world;

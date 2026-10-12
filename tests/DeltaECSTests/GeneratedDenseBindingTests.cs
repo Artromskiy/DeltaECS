@@ -73,13 +73,7 @@ internal sealed class GeneratedDenseBindingTests
         Entity first = world.Create(health);
         Entity second = world.Create(stackalloc ComponentId[] { health, velocity });
         Query query = world.WhereAll<Health>();
-        world.TryGetComponentStamp(first, health, out Stamp beforeFirst);
-        world.TryGetComponentStamp(second, health, out Stamp beforeSecond);
         Assert.That(() => Fail(world, in query), Throws.InvalidOperationException);
-        world.TryGetComponentStamp(first, health, out Stamp afterFirst);
-        world.TryGetComponentStamp(second, health, out Stamp afterSecond);
-        Assert.That(afterFirst.Value, Is.EqualTo(beforeFirst.Value + 1));
-        Assert.That(afterSecond.Value, Is.EqualTo(beforeSecond.Value + 1));
         Assert.That(() => world.Create(health), Throws.Nothing);
         Assert.That(Visit(world, in query), Is.EqualTo(3));
     }
@@ -96,26 +90,17 @@ internal sealed class GeneratedDenseBindingTests
         Assert.That(Visit(world, in query), Is.EqualTo(1));
 
         Entity healthAndVelocity = world.Create(stackalloc ComponentId[] { health, velocity });
-        world.TryGetComponentStamp(healthAndVelocity, health, out Stamp beforeNewArchetype);
         Assert.That(Visit(world, in query), Is.EqualTo(2));
-        world.TryGetComponentStamp(healthAndVelocity, health, out Stamp afterNewArchetype);
-        Assert.That(afterNewArchetype.Value, Is.EqualTo(beforeNewArchetype.Value + 1));
 
         world.Destroy(healthOnly);
-        world.TryGetComponentStamp(healthAndVelocity, health, out Stamp beforeDeactivationRefresh);
         Assert.That(Visit(world, in query), Is.EqualTo(1));
-        world.TryGetComponentStamp(healthAndVelocity, health, out Stamp afterDeactivationRefresh);
-        Assert.That(afterDeactivationRefresh.Value, Is.EqualTo(beforeDeactivationRefresh.Value + 1));
 
         Entity reactivatedHealthOnly = world.Create(health);
-        world.TryGetComponentStamp(reactivatedHealthOnly, health, out Stamp beforeReactivationRefresh);
         Assert.That(Visit(world, in query), Is.EqualTo(2));
-        world.TryGetComponentStamp(reactivatedHealthOnly, health, out Stamp afterReactivationRefresh);
-        Assert.That(afterReactivationRefresh.Value, Is.EqualTo(beforeReactivationRefresh.Value + 1));
     }
 
     [Test]
-    public void ReadOnlySignaturePreservesStampsAndDisposedWorldRejectsCachedBinding()
+    public void ReadOnlySignatureAndDisposedWorldRejectCachedBinding()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId health = layouts.Register<Health>(new SchemaId(96007));
@@ -123,15 +108,12 @@ internal sealed class GeneratedDenseBindingTests
         Entity entity = world.Create(health);
         Query query = world.WhereAll<Health>();
         Visit(world, in query);
-        world.TryGetComponentStamp(entity, health, out Stamp before);
         var state = new DenseBindingReadState();
         for (int index = 0; index < 2; index++)
         {
             world.ForEach(in query, ref state, static (ref DenseBindingReadState sum, in Health value) => sum.Total += value.Value).Invoke(ref state);
         }
-        world.TryGetComponentStamp(entity, health, out Stamp after);
         Assert.That(state.Total, Is.EqualTo(2));
-        Assert.That(after, Is.EqualTo(before));
         // Revisit the write signature after the read signature occupied the last-binding slot.
         Assert.That(Visit(world, in query), Is.EqualTo(1));
         world.Dispose();

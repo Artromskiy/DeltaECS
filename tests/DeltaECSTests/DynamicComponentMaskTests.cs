@@ -68,6 +68,5 @@ internal sealed class DynamicComponentMaskTests
         Entity entity = world.Create(ids);
 
         Assert.That(world.IsAlive(entity), Is.True);
-        Assert.That(world.TryGetComponentStamp(entity, ids[^1], out _), Is.True);
     }
 }

@@ -198,7 +198,6 @@ internal sealed class QueryStructuralOperationsTests
         {
             world.GetRef<Position>(source[index], PositionId) = new Position { X = index + 10, Y = -index };
         }
-        Assert.That(world.TryGetComponentStamp(source[0], PositionId, out var sourceStamp), Is.True);
 
         var sourceQuery = world.CreateQuery(new QuerySpec(
             new[] { PositionId },
@@ -224,8 +223,6 @@ internal sealed class QueryStructuralOperationsTests
             Assert.That(world.TryGet<byte>(entity, markerId, out var marker), Is.True);
             Assert.That(marker, Is.EqualTo(0));
         }
-        Assert.That(world.TryGetComponentStamp(source[0], PositionId, out var migratedStamp), Is.True);
-        Assert.That(migratedStamp, Is.EqualTo(sourceStamp));
 
         var observed = targetQuery.Cached.MatchingChunkPlans().Length == 0
             ? 0

@@ -37,7 +37,7 @@ internal sealed class GenericSingleItemApiTests
     }
 
     [Test]
-    public void HasChecksPrimaryComponentWithoutReadingOrChangingStamp()
+    public void HasChecksPrimaryComponent()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_003));
@@ -48,8 +48,6 @@ internal sealed class GenericSingleItemApiTests
         world.Destroy(stale);
 
         Entity current = world.Create(positionId, new Position { X = 3, Y = 4 });
-        Assert.That(world.TryGetComponentStamp(current, positionId, out Stamp before), Is.True);
-
         Assert.Multiple(() =>
         {
             Assert.That(world.Has<Position>(current), Is.True);
@@ -63,8 +61,6 @@ internal sealed class GenericSingleItemApiTests
             Assert.That(world.Has(default, positionId), Is.False);
         });
 
-        Assert.That(world.TryGetComponentStamp(current, positionId, out Stamp after), Is.True);
-        Assert.That(after, Is.EqualTo(before));
     }
 
     [Test]
@@ -86,9 +82,6 @@ internal sealed class GenericSingleItemApiTests
             Assert.That(world.Has<Position>(generic), Is.True);
             Assert.That(world.Has(generic, positionId), Is.True);
             Assert.That(world.Has(generic, positionId), Is.True);
-            Assert.That(world.TryGetComponentStamp<Position>(generic, out Stamp genericStamp), Is.True);
-            Assert.That(world.TryGetComponentStamp(generic, positionId, out Stamp nonGenericStamp), Is.True);
-            Assert.That(genericStamp, Is.EqualTo(nonGenericStamp));
         });
 
         var value = new Velocity { X = 3, Y = 4 };
@@ -125,19 +118,11 @@ internal sealed class GenericSingleItemApiTests
         using var world = new World(layouts);
 
         Entity entity = world.Create(positionId, new Position { X = 1, Y = 2 });
-        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp createdStamp), Is.True);
-
         Assert.That(world.TryGet(entity, positionId, out Position initial), Is.True);
         Assert.That(initial, Is.EqualTo(new Position { X = 1, Y = 2 }));
         Assert.That(world.Get<Position>(entity, positionId), Is.EqualTo(initial));
         world.GetRef<Position>(entity, positionId) = new Position { X = 3, Y = 4 };
         Assert.That(world.Get<Position>(entity, positionId), Is.EqualTo(new Position { X = 3, Y = 4 }));
-        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp setStamp), Is.True);
-        Assert.Multiple(() =>
-        {
-            Assert.That(createdStamp, Is.EqualTo(new Stamp(1)));
-            Assert.That(createdStamp, Is.Not.EqualTo(setStamp));
-        });
     }
 
     [Test]
@@ -147,34 +132,26 @@ internal sealed class GenericSingleItemApiTests
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_005));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId, new Position { X = 1, Y = 2 });
-        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp before), Is.True);
-
         ref Position primary = ref world.GetRef<Position>(entity);
         primary.X = 3;
         ref Position explicitId = ref world.GetRef<Position>(entity, positionId);
         explicitId.Y = 4;
 
         Assert.That(world.Get<Position>(entity), Is.EqualTo(new Position { X = 3, Y = 4 }));
-        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp after), Is.True);
-        Assert.That(after, Is.Not.EqualTo(before));
     }
 
     [Test]
-    public void GetReadRefReturnsPrimaryAndExplicitRowsWithoutChangingStamp()
+    public void GetReadRefReturnsPrimaryAndExplicitRows()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_006));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId, new Position { X = 5, Y = 6 });
-        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp before), Is.True);
-
         ref readonly Position primary = ref world.GetReadRef<Position>(entity);
         ref readonly Position explicitId = ref world.GetReadRef<Position>(entity, positionId);
 
         Assert.That(primary, Is.EqualTo(new Position { X = 5, Y = 6 }));
         Assert.That(explicitId, Is.EqualTo(primary));
-        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp after), Is.True);
-        Assert.That(after, Is.EqualTo(before));
     }
 
     [Test]
@@ -204,24 +181,13 @@ internal sealed class GenericSingleItemApiTests
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_012));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId, new Position());
-        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionBefore), Is.True);
-
         Assert.That(world.Add(entity, velocityId, new Velocity { X = 5, Y = 6 }), Is.True);
-        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionAfterAdd), Is.True);
-        Assert.That(world.TryGetComponentStamp(entity, velocityId, out Stamp velocityAfterAdd), Is.True);
         Assert.That(world.Add(entity, velocityId, new Velocity()), Is.False);
         Assert.That(world.TryGet(entity, velocityId, out Velocity _), Is.True);
         Assert.That(world.Remove(entity, velocityId), Is.True);
         Assert.That(world.Remove(entity, velocityId), Is.False);
         Assert.That(world.TryGet(entity, velocityId, out Velocity _), Is.False);
         Assert.That(world.TryGet(entity, positionId, out Position _), Is.True);
-        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionAfterRemove), Is.True);
-        Assert.Multiple(() =>
-        {
-            Assert.That(positionAfterAdd, Is.EqualTo(positionBefore));
-            Assert.That(positionAfterRemove, Is.EqualTo(positionBefore));
-            Assert.That(velocityAfterAdd, Is.EqualTo(new Stamp(1)));
-        });
     }
 
     [Test]
@@ -246,10 +212,6 @@ internal sealed class GenericSingleItemApiTests
             Assert.That(world.Get<Health>(entity), Is.EqualTo(new Health { Value = 7 }));
         });
 
-        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp positionStamp), Is.True);
-        Assert.That(world.TryGetComponentStamp(entity, velocityId, out Stamp velocityStamp), Is.True);
-        Assert.That(positionStamp, Is.EqualTo(new Stamp(1)));
-        Assert.That(velocityStamp, Is.EqualTo(new Stamp(1)));
         Assert.That(world.Add(entity, new Position { X = 9 }, new Velocity { X = 9 }), Is.False);
         Assert.That(world.TryGet(entity, positionId, out Position unchangedPosition), Is.True);
         Assert.That(unchangedPosition, Is.EqualTo(position));
@@ -310,10 +272,6 @@ internal sealed class GenericSingleItemApiTests
         {
             Assert.That(world.Get<float>(entity, healthId), Is.EqualTo(100f));
             Assert.That(world.Get<float>(entity, staminaId), Is.EqualTo(75f));
-            Assert.That(world.TryGetComponentStamp(entity, healthId, out Stamp healthStamp), Is.True);
-            Assert.That(world.TryGetComponentStamp(entity, staminaId, out Stamp staminaStamp), Is.True);
-            Assert.That(healthStamp, Is.EqualTo(new Stamp(1)));
-            Assert.That(staminaStamp, Is.EqualTo(new Stamp(1)));
         });
     }
 
@@ -345,10 +303,6 @@ internal sealed class GenericSingleItemApiTests
             {
                 Assert.That(world.Get<float>(entity, staminaId), Is.EqualTo(75f));
                 Assert.That(world.Get<float>(entity, healthId), Is.EqualTo(100f));
-                Assert.That(world.TryGetComponentStamp(entity, staminaId, out Stamp staminaStamp), Is.True);
-                Assert.That(world.TryGetComponentStamp(entity, healthId, out Stamp healthStamp), Is.True);
-                Assert.That(staminaStamp, Is.EqualTo(new Stamp(1)));
-                Assert.That(healthStamp, Is.EqualTo(new Stamp(1)));
             });
         }
 

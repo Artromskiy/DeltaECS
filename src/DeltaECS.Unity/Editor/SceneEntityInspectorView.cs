@@ -862,8 +862,7 @@ namespace Delta.ECS.Unity.Editor
                 return;
             }
 
-            if (!world.Integration.TryWrite(entity, descriptor.Id, updated, snapshot.Stamp,
-                    out _, out EcsWriteError writeError))
+            if (!world.Integration.TryWrite(entity, descriptor.Id, updated, out EcsWriteError writeError))
             {
                 Debug.LogWarning($"Could not edit {descriptor.Name}: {writeError.Code}.");
                 RefreshRuntimeView();

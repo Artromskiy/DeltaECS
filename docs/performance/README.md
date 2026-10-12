@@ -23,10 +23,8 @@ QuerySpec -> Query -> generated ForEach
 physical component rows. `ArchetypePlan.RefreshChunks` prepares a
 `ChunkPlan` for every active chunk. Each `ChunkPlan` stores direct `Array`
 references in query order, so generated row preparation resolves one row per
-chunk, not once per entity. Write access marks the physical component row
-through the same chunk boundary and the operation-specific stamp route. The
-query write session carries only scope lifetime and write intent; it is not a
-global mutation tick.
+chunk, not once per entity. The runtime does not maintain per-component
+mutation stamps; query write sessions track scope lifetime and write intent.
 
 The generated execution owns the structural lease for the duration of the
 callback. Its compiler-support cursors are internal stack-only views;
@@ -51,7 +49,7 @@ callback syntax, not storage or public safety guarantees.
   parameters; raw row, pointer and ordinal APIs remain internal.
 - Opt-in Roslyn interception lowers supported static delegate call sites to
   generated struct functors while retaining the same `World.ForEach` spelling,
-  validation, lease and write-stamp path. Unsupported callbacks use the
+  validation and lease path. Unsupported callbacks use the
   ordinary delegate fallback.
 
 These statements describe the current source. Code size alone is not a

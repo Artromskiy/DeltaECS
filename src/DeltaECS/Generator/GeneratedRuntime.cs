@@ -255,14 +255,6 @@ public interface IGeneratedParallelInvoker : IGeneratedWhereInvoker
     bool RequiresSingleThread { get; }
 }
 
-/// <summary>Compiler-support contract for generated archetype stamp writers.</summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
-public interface IGeneratedArchetypeStampWriter
-{
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    void Write(Stamp[] stamps);
-}
-
 /// <summary>Compiler-support contract for generated multi-component value operations.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public interface IGeneratedComponentValueInitializer
@@ -393,102 +385,18 @@ public ref struct GeneratedDenseExecution
     [EditorBrowsable(EditorBrowsableState.Never)]
     public bool HasTagFilters => _queryPlan?.HasTagFilters ?? false;
 
-    /// <summary>
-    /// Marks one write component for every non-empty matching archetype once
-    /// before the generated chunk loop starts.
-    /// </summary>
+    /// <summary>Reports one generated component write before the chunk loop starts.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void MarkArchetypeWrite(int queryComponentIndex)
+    public void RecordComponentWrite(int queryComponentIndex)
     {
-        for (int planIndex = 0; planIndex < _plans.Length; planIndex++)
-        {
-            ref readonly ArchetypePlan plan = ref _plans.RefAt(planIndex);
-            if (plan.ChunkCount == 0)
-            {
-                continue;
-            }
-
-            plan.Archetype.MarkChanged();
-            GeneratedForEachRuntime.IncrementArchetypeStamp(
-                plan.ArchetypeStamps,
-                queryComponentIndex);
-        }
-
         if (_queryPlan is not null)
         {
             GeneratedForEachRuntime.RecordComponentWrite(_queryPlan, queryComponentIndex);
         }
     }
 
-    /// <summary>
-    /// Marks several write components for every non-empty matching archetype
-    /// in one plan traversal before the generated chunk loop starts.
-    /// </summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void MarkArchetypeWrites(scoped ReadOnlySpan<int> queryComponentIndices)
-    {
-        if (queryComponentIndices.IsEmpty)
-        {
-            return;
-        }
-
-        for (int planIndex = 0; planIndex < _plans.Length; planIndex++)
-        {
-            ref readonly ArchetypePlan plan = ref _plans.RefAt(planIndex);
-            if (plan.ChunkCount == 0)
-            {
-                continue;
-            }
-
-            plan.Archetype.MarkChanged();
-            Stamp[] stamps = plan.ArchetypeStamps;
-            for (int accessIndex = 0; accessIndex < queryComponentIndices.Length; accessIndex++)
-            {
-                int queryComponentIndex = queryComponentIndices.RefAt(accessIndex);
-                bool duplicate = false;
-                for (int previous = 0; previous < accessIndex; previous++)
-                {
-                    duplicate |= queryComponentIndices.RefAt(previous) == queryComponentIndex;
-                }
-
-                if (duplicate)
-                {
-                    continue;
-                }
-
-                GeneratedForEachRuntime.IncrementArchetypeStamp(
-                    stamps,
-                    queryComponentIndex);
-            }
-        }
-
-        if (_queryPlan is not null)
-        {
-            GeneratedForEachRuntime.RecordComponentWrites(_queryPlan, queryComponentIndices);
-        }
-    }
-
-    /// <summary>Runs the generated, arity-specific writer once for every matching archetype.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void MarkArchetypeWrites<TWriter>(ref TWriter writer)
-        where TWriter : struct, IGeneratedArchetypeStampWriter
-    {
-        for (int planIndex = 0; planIndex < _plans.Length; planIndex++)
-        {
-            ref readonly ArchetypePlan plan = ref _plans.RefAt(planIndex);
-            if (plan.ChunkCount == 0)
-            {
-                continue;
-            }
-
-            writer.Write(plan.ArchetypeStamps);
-        }
-    }
-
-    /// <summary>Reports component writes for generated routes without changing their archetype stamps.</summary>
+    /// <summary>Reports generated component writes before the chunk loop starts.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void RecordComponentWrites(scoped ReadOnlySpan<int> queryComponentIndices)
@@ -762,19 +670,6 @@ public static partial class GeneratedForEachRuntime
     public static void ThrowIfNull([NotNull] object? value, string parameterName)
         => ThrowHelper.ThrowIfNull(value, parameterName);
 
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void IncrementArchetypeStamp(Stamp[] stamps, int componentIndex)
-    {
-        if (componentIndex < 0)
-        {
-            return;
-        }
-
-        ref Stamp stamp = ref stamps.RefAt(componentIndex);
-        stamp = stamp.Next();
-    }
-
     internal static void RecordComponentWrites(QueryPlan plan, scoped ReadOnlySpan<int> routes)
     {
         for (int index = 0; index < routes.Length; index++)
@@ -975,7 +870,7 @@ public static partial class GeneratedForEachRuntime
             queryPlan: plan);
         try
         {
-            execution.MarkArchetypeWrites(writeComponentIndices);
+            execution.RecordComponentWrites(writeComponentIndices);
             TInvoker invocation = invoker;
             while (execution.MoveNextTrusted(out var slots))
             {
@@ -1013,7 +908,6 @@ public static partial class GeneratedForEachRuntime
         scoped ReadOnlySpan<int> writeComponentIndices)
         where TInvoker : struct, IGeneratedParallelInvoker
     {
-        MarkArchetypeWrites(plan.MatchingPlans(), writeComponentIndices);
         RecordEntityListWrites(world, plan, entities, writeComponentIndices);
         TInvoker invocation = invoker;
         world.BeginQueryLease();
@@ -1062,8 +956,6 @@ public static partial class GeneratedForEachRuntime
             return;
         }
 
-        ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
-        MarkArchetypeWrites(plans, writeComponentIndices);
         RecordEntityListWrites(world, plan, entities, writeComponentIndices);
         world.BeginQueryLease();
         bool entered = false;
@@ -1114,7 +1006,7 @@ public static partial class GeneratedForEachRuntime
         TInvoker invocation = invoker;
         try
         {
-            execution.MarkArchetypeWrites(writeComponentIndices);
+            execution.RecordComponentWrites(writeComponentIndices);
             while (execution.MoveNextTrusted(out var slots))
             {
                 GeneratedWhereStructuralContext context = world.BeginGeneratedWhereChunk(
@@ -1158,8 +1050,6 @@ public static partial class GeneratedForEachRuntime
             return;
         }
 
-        ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
-        MarkArchetypeWrites(plans, writeComponentIndices);
         RecordComponentWrites(plan, writeComponentIndices);
         world.BeginQueryLease();
         bool entered = false;
@@ -1180,43 +1070,6 @@ public static partial class GeneratedForEachRuntime
             }
 
             world.EndQueryLease();
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void MarkArchetypeWrites(
-        ReadOnlySpan<ArchetypePlan> plans,
-        scoped ReadOnlySpan<int> componentIndices)
-    {
-        if (componentIndices.IsEmpty)
-        {
-            return;
-        }
-
-        for (int planIndex = 0; planIndex < plans.Length; planIndex++)
-        {
-            ref readonly ArchetypePlan plan = ref plans.RefAt(planIndex);
-            if (plan.ChunkCount == 0)
-            {
-                continue;
-            }
-
-            plan.Archetype.MarkChanged();
-            Stamp[] stamps = plan.ArchetypeStamps;
-            for (int componentIndex = 0; componentIndex < componentIndices.Length; componentIndex++)
-            {
-                int queryComponentIndex = componentIndices.RefAt(componentIndex);
-                bool duplicate = false;
-                for (int previous = 0; previous < componentIndex; previous++)
-                {
-                    duplicate |= componentIndices.RefAt(previous) == queryComponentIndex;
-                }
-
-                if (!duplicate)
-                {
-                    IncrementArchetypeStamp(stamps, queryComponentIndex);
-                }
-            }
         }
     }
 
@@ -1320,24 +1173,6 @@ public static partial class GeneratedForEachRuntime
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int GetPreparedReadRoute<T>(in Query query, ComponentId component)
         => query.Cached.GetPreparedReadAccess(component, typeof(T)).QueryComponentIndex;
-
-    /// <summary>Returns a cached stamp access for a generated primary component.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ReadAccess GetPreparedStampAccess<T>(in Query query)
-        => query.Cached.GetPreparedPrimaryReadAccess<T>();
-
-    /// <summary>Returns a cached stamp access for an explicit component registration.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ReadAccess GetPreparedStampAccess(in Query query, ComponentId component)
-        => query.Cached.GetPreparedStampAccess(component);
-
-    /// <summary>Returns a cached typed stamp access for an explicit component registration.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ReadAccess GetPreparedStampAccess<T>(in Query query, ComponentId component)
-        => query.Cached.GetPreparedReadAccess(component, typeof(T));
 
     /// <summary>Returns a cached primary write access using the generated component type.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]

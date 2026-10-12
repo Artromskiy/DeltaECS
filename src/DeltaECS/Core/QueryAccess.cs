@@ -291,13 +291,6 @@ internal sealed class QueryPlan
         return _preparedReadAccessesByComponent.RefAt(component.Value);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ReadAccess GetPreparedStampAccess(ComponentId component)
-    {
-        ResolveReadRoute(component);
-        return _preparedReadAccessesByComponent.RefAt(component.Value);
-    }
-
     internal WriteAccess GetPreparedWriteAccess(ComponentId component, Type runtimeType)
     {
         ResolveReadRoute(component);
@@ -361,8 +354,7 @@ internal sealed class QueryPlan
         int planIndex = _matchingCount;
         var plan = new ArchetypePlan(
             archetype,
-            indices,
-            _owner.GetArchetypeComponentStamps(archetype.Id));
+            indices);
         _matchingArchetypes.RefAt(_matchingCount) = archetype.Id;
         _matchingPlans.RefAt(_matchingCount) = plan;
         _planIndicesByArchetype.RefAt(archetype.Id) = _matchingCount++;
@@ -848,11 +840,10 @@ internal sealed class QueryPlan
 
 internal struct ArchetypePlan
 {
-    internal ArchetypePlan(Archetype archetype, int[] componentRows, Stamp[]? archetypeStamps = null)
+    internal ArchetypePlan(Archetype archetype, int[] componentRows)
     {
         Archetype = archetype;
         ComponentRows = componentRows;
-        ArchetypeStamps = archetypeStamps ?? Array.Empty<Stamp>();
         _chunks = Array.Empty<ChunkPlan>();
         _chunkTopologyVersion = archetype.ChunkTopologyVersion;
         for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
@@ -863,7 +854,6 @@ internal struct ArchetypePlan
 
     internal Archetype Archetype { get; }
     internal int[] ComponentRows { get; }
-    internal Stamp[] ArchetypeStamps { get; }
     internal int FindChunkIndex(int globalChunkId, int startIndex = 0, int endIndex = -1)
     {
         int end = endIndex < 0 ? _chunkCount : Math.Min(endIndex, _chunkCount);

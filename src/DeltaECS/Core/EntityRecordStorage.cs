@@ -12,6 +12,7 @@ internal sealed class EntityRecordStorage
 
     internal int Capacity
     {
+        get => _items.Length;
         set => EnsureCapacity(value);
     }
 

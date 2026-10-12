@@ -135,38 +135,6 @@ public struct WherePredicate : IWherePredicate
     public bool Invoke(in Cmp3 cmp3, in Cmp4 cmp4) => cmp3.Value < cmp4.Value;
 }
 
-public struct StampFunctor : IForEach
-{
-    public void Invoke(in Stamp stamp) => _ = stamp;
-}
-
-public struct EntityStampFunctor : IForEachEntity
-{
-    public void Invoke(EntityRef entity, in Stamp stamp) => _ = entity.Index + stamp.GetHashCode();
-}
-
-public struct EntityStampPairFunctor : IForEachEntity
-{
-    public void Invoke(EntityRef entity, in Stamp first, in Stamp second)
-        => _ = entity.Index + first.GetHashCode() + second.GetHashCode();
-}
-
-public struct StampContextFunctor : IForEachContext<Context>
-{
-    public void Invoke(ref Context context, in Stamp stamp) => context.Value += stamp.GetHashCode();
-}
-
-public struct StampParallelContextFunctor : IForEachContext<Context>
-{
-    public void Invoke(in Context context, in Stamp stamp) => _ = context.Value + stamp.GetHashCode();
-}
-
-public struct EntityStampContextFunctor : IForEachContextEntity<Context>
-{
-    public void Invoke(ref Context context, EntityRef entity, in Stamp stamp)
-        => context.Value += entity.Index + stamp.GetHashCode();
-}
-
 public struct GenericFunctor<TFirst, TSecond> : IForEach
 {
     public void Invoke(in TFirst first, in TSecond second) { }

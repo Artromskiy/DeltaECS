@@ -27,9 +27,7 @@ internal readonly record struct ApiDescriptor(
         descriptor = name switch
         {
             "ForEach" or "ForEachEntity"
-                or "ForEachParallel" or "ForEachEntityParallel"
-                or "ForEachStamp" or "ForEachEntityStamp"
-                or "ForEachStampParallel" or "ForEachEntityStampParallel" => Iteration(name),
+                or "ForEachParallel" or "ForEachEntityParallel" => Iteration(name),
             "WhereAll" or "WhereAny" or "WhereNone" => QueryFactory(),
             "Where" or "WhereEntity" => Where(name),
             "OrderBy" or "ThenBy" => Ordering(),
@@ -41,14 +39,11 @@ internal readonly record struct ApiDescriptor(
 
     private static ApiDescriptor Iteration(string name)
     {
-        bool hasEntity = name is "ForEachEntity" or "ForEachEntityParallel"
-            or "ForEachEntityStamp" or "ForEachEntityStampParallel";
-        bool isStamp = name.Contains("Stamp", StringComparison.Ordinal);
+        bool hasEntity = name is "ForEachEntity" or "ForEachEntityParallel";
         bool isParallel = name.EndsWith("Parallel", StringComparison.Ordinal);
         return CreateDescriptor(
             GeneratedApiKind.Iteration,
             hasEntity: hasEntity,
-            value: isStamp ? ValueDomain.Stamp : ValueDomain.Component,
             schedule: isParallel ? Schedule.Parallel : Schedule.Sequential,
             target: InvocationTargetRule.EntityListOptional,
             query: QueryMode.Optional,
@@ -56,7 +51,7 @@ internal readonly record struct ApiDescriptor(
             allowsContext: true,
             requiresCallback: true,
             tail: isParallel ? InvocationTailRule.WorkerCount : InvocationTailRule.None,
-            minimumArity: hasEntity && !isStamp ? 0 : 1);
+            minimumArity: hasEntity ? 0 : 1);
     }
 
     private static ApiDescriptor QueryFactory() => CreateDescriptor(GeneratedApiKind.QueryFactory, allowsIds: true);

@@ -28,6 +28,15 @@ internal abstract class ComponentChangeObserver
     internal ComponentId ComponentId { get; }
 
     internal abstract void Record(Entity entity);
+
+    internal abstract void EnsureCapacity(int capacity);
+}
+
+internal sealed class ComponentChangeObserverRoute
+{
+    internal readonly WeakReference<ComponentChangeObserver>[] Observers;
+
+    internal ComponentChangeObserverRoute(WeakReference<ComponentChangeObserver>[] observers) => Observers = observers;
 }
 
 /// <summary>Reports changes to one component registration across the world.</summary>
@@ -38,9 +47,8 @@ public sealed class ComponentChangeOperation<T> : IOperation
     private readonly ComponentChangeAction<T> _action;
     private HashSet<Entity> _entities = new();
     private HashSet<Entity> _currentEntities = new();
-    private HashSet<Entity> _modifiedEntities = new();
-    private HashSet<Entity> _processingModifiedEntities = new();
-    private readonly object _modifiedGate = new();
+    private int[] _modifiedEntityGenerations = Array.Empty<int>();
+    private int[] _processingModifiedEntityGenerations = Array.Empty<int>();
     private readonly Observer _observer;
     private bool _invoking;
     private int _invokingThreadId;
@@ -66,11 +74,9 @@ public sealed class ComponentChangeOperation<T> : IOperation
 
         _invoking = true;
         Volatile.Write(ref _invokingThreadId, Environment.CurrentManagedThreadId);
-        lock (_modifiedGate)
-        {
-            (_modifiedEntities, _processingModifiedEntities) = (_processingModifiedEntities, _modifiedEntities);
-            _modifiedEntities.Clear();
-        }
+        (_modifiedEntityGenerations, _processingModifiedEntityGenerations) =
+            (_processingModifiedEntityGenerations, _modifiedEntityGenerations);
+        Array.Clear(_modifiedEntityGenerations, 0, _modifiedEntityGenerations.Length);
 
         _world.BeginQueryLease();
         bool completed = false;
@@ -81,7 +87,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
             VisitRemovedEntities();
             (_entities, _currentEntities) = (_currentEntities, _entities);
             _currentEntities.Clear();
-            _processingModifiedEntities.Clear();
+            Array.Clear(_processingModifiedEntityGenerations, 0, _processingModifiedEntityGenerations.Length);
             completed = true;
         }
         finally
@@ -89,15 +95,16 @@ public sealed class ComponentChangeOperation<T> : IOperation
             if (!completed)
             {
                 _currentEntities.Clear();
-                lock (_modifiedGate)
+                for (int index = 0; index < _processingModifiedEntityGenerations.Length; index++)
                 {
-                    foreach (Entity entity in _processingModifiedEntities)
+                    if (_processingModifiedEntityGenerations[index] != 0
+                        && _modifiedEntityGenerations[index] == 0)
                     {
-                        _modifiedEntities.Add(entity);
+                        _modifiedEntityGenerations[index] = _processingModifiedEntityGenerations[index];
                     }
-
-                    _processingModifiedEntities.Clear();
                 }
+
+                Array.Clear(_processingModifiedEntityGenerations, 0, _processingModifiedEntityGenerations.Length);
             }
 
             _world.EndQueryLease();
@@ -110,11 +117,20 @@ public sealed class ComponentChangeOperation<T> : IOperation
     {
         if (Volatile.Read(ref _invokingThreadId) != Environment.CurrentManagedThreadId)
         {
-            lock (_modifiedGate)
-            {
-                _modifiedEntities.Add(entity);
-            }
+            _modifiedEntityGenerations[entity.Index] = entity.Generation;
         }
+    }
+
+    private void EnsureCapacity(int capacity)
+    {
+        if (capacity <= _modifiedEntityGenerations.Length)
+        {
+            return;
+        }
+
+        int newCapacity = Math.Max(capacity, _modifiedEntityGenerations.Length == 0 ? 4 : _modifiedEntityGenerations.Length * 2);
+        Array.Resize(ref _modifiedEntityGenerations, newCapacity);
+        Array.Resize(ref _processingModifiedEntityGenerations, newCapacity);
     }
 
     private void VisitCurrentEntities()
@@ -144,7 +160,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
 
                     Entity entity = entities.RefAt(slot);
                     bool added = !_entities.Contains(entity);
-                    bool modified = !added && _processingModifiedEntities.Contains(entity);
+                    bool modified = !added && _processingModifiedEntityGenerations[entity.Index] == entity.Generation;
                     _currentEntities.Add(entity);
                     if (!added && !modified)
                     {
@@ -182,5 +198,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
             : base(componentId) => _operation = operation;
 
         internal override void Record(Entity entity) => _operation.Record(entity);
+
+        internal override void EnsureCapacity(int capacity) => _operation.EnsureCapacity(capacity);
     }
 }

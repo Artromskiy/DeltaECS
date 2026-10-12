@@ -40,23 +40,12 @@ internal sealed class EntityRefTests
             Assert.That(current.Has<FirstTag>(), Is.True);
             Assert.That(current.TryGet<FirstTag>(out FirstTag tag), Is.True);
             Assert.That(tag, Is.EqualTo(default(FirstTag)));
-            Assert.That(current.TryGetComponentStamp<FirstTag>(out Stamp tagStamp), Is.True);
-            Assert.That(tagStamp, Is.EqualTo(new Stamp(1)));
-            Assert.That(current.TryGetComponentStamp(tagId, out Stamp dynamicTagStamp), Is.True);
-            Assert.That(dynamicTagStamp, Is.EqualTo(tagStamp));
-            Assert.That(current.TryGetComponentStamp(tagId, out Stamp typedTagStamp), Is.True);
-            Assert.That(typedTagStamp, Is.EqualTo(tagStamp));
-
-            Assert.That(current.TryGetComponentStamp<Position>(out Stamp before), Is.True);
             ref Position writable = ref current.GetRef<Position>();
             writable.X++;
             ref Position explicitWritable = ref current.GetRef<Position>(positionId);
             explicitWritable.Y++;
-            Assert.That(current.TryGetComponentStamp(positionId, out Stamp after), Is.True);
-            Assert.That(after, Is.Not.EqualTo(before));
 
             Assert.That(current.TryGet<Velocity>(out _), Is.False);
-            Assert.That(current.TryGetComponentStamp<Velocity>(out _), Is.False);
         }).Invoke();
 
         Assert.That(world.Get<Position>(entity), Is.EqualTo(new Position { X = 2, Y = 3 }));
@@ -91,15 +80,13 @@ internal sealed class EntityRefTests
                 .WithAny(stackalloc[] { firstTagId, secondTagId }));
         var state = new ProbeState
         {
-            World = world,
             Entities = entities,
             PositionId = positionId,
             HealthId = healthId,
             VelocityId = velocityId,
             FirstTagId = firstTagId,
             SecondTagId = secondTagId,
-            UnregisteredId = new ComponentId(1000),
-            HealthStamps = new Stamp[entities.Length]
+            UnregisteredId = new ComponentId(1000)
         };
 
         world.ForEachEntity(in query, ref state, InspectEntity).Invoke(ref state);
@@ -109,8 +96,6 @@ internal sealed class EntityRefTests
         Assert.That(state.MissingHealthReads, Is.EqualTo(4));
         Assert.That(world.Get<Health>(entities[2], healthId).Value, Is.EqualTo(21));
         Assert.That(world.Get<Health>(entities[0], healthId).Value, Is.EqualTo(10));
-        Assert.That(world.TryGetComponentStamp(entities[2], healthId, out Stamp after), Is.True);
-        Assert.That(after, Is.EqualTo(new Stamp(state.HealthStamps[2].Value + 1)));
     }
 
     [Test]
@@ -266,190 +251,6 @@ internal sealed class EntityRefTests
         Assert.That(world.Get<Position>(second, positionId).X, Is.EqualTo(2));
     }
 
-    [Test]
-    public void EntityRefWritesStampsImmediatelyAcrossAllChunks()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        ComponentId positionId = layouts.Register<Position>(new SchemaId(40_084));
-        using var world = new World(layouts);
-        var entities = new Entity[Chunk.Capacity + 7];
-        world.Create(stackalloc[] { positionId }, entities);
-
-        for (int index = 0; index < entities.Length; index += 3)
-        {
-            world.GetRef<Position>(entities[index], positionId).X = index;
-        }
-
-        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
-        var before = new Stamp[entities.Length];
-        var entityTerms = new Stamp[entities.Length];
-        for (int index = 0; index < entities.Length; index++)
-        {
-            Assert.That(world.TryGetComponentStamp(entities[index], positionId, out before[index]), Is.True);
-            int slot = index % Chunk.Capacity;
-            entityTerms[index] = world.Archetypes[0].GetChunk(index / Chunk.Capacity).GetComponentStampTrusted(0, slot);
-        }
-
-        Stamp archetypeStampBefore = world.GetArchetypeComponentStamps(world.Archetypes[0].Id)[0];
-        var state = new DirectStampState(world, positionId, before);
-
-        world.ForEachEntity(in query, ref state, WriteEveryEntity).Invoke(ref state);
-
-        Assert.That(state.StampsWereVisible, Is.True);
-        Assert.That(
-            world.GetArchetypeComponentStamps(world.Archetypes[0].Id)[0],
-            Is.EqualTo(archetypeStampBefore));
-        for (int index = 0; index < entities.Length; index++)
-        {
-            Assert.That(world.TryGetComponentStamp(entities[index], positionId, out Stamp after), Is.True);
-            Assert.That(after, Is.EqualTo(new Stamp(before[index].Value + 1)));
-            int slot = index % Chunk.Capacity;
-            Stamp entityTermAfter = world.Archetypes[0].GetChunk(index / Chunk.Capacity).GetComponentStampTrusted(0, slot);
-            Assert.That(entityTermAfter, Is.EqualTo(new Stamp(entityTerms[index].Value + 1)));
-        }
-    }
-
-    [Test]
-    public void EntityRefStampIndicesFollowArchetypePlanRefreshes()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        ComponentId positionId = layouts.Register<Position>(new SchemaId(40_088));
-        using var world = new World(layouts);
-        var initialEntities = new Entity[(Chunk.Capacity * 2) + 5];
-        world.Create(stackalloc[] { positionId }, initialEntities);
-        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
-        var operation = world.ForEachEntity(in query, ref positionId, IncrementPosition);
-
-        operation.Invoke(ref positionId);
-
-        var expectedStamps = new Stamp[initialEntities.Length];
-        for (int index = 0; index < initialEntities.Length; index++)
-        {
-            Assert.That(world.TryGetComponentStamp(initialEntities[index], positionId, out expectedStamps[index]), Is.True);
-        }
-
-        Assert.That(world.Destroy(initialEntities.AsSpan(0, Chunk.Capacity)), Is.EqualTo(Chunk.Capacity));
-        operation.Invoke(ref positionId);
-
-        for (int index = Chunk.Capacity; index < initialEntities.Length; index++)
-        {
-            expectedStamps[index] = new Stamp(expectedStamps[index].Value + 1);
-            Assert.That(world.TryGetComponentStamp(initialEntities[index], positionId, out Stamp actual), Is.True);
-            Assert.That(actual, Is.EqualTo(expectedStamps[index]));
-        }
-
-        var addedEntities = new Entity[Chunk.Capacity + 7];
-        world.Create(stackalloc[] { positionId }, addedEntities);
-        var liveEntities = new Entity[(initialEntities.Length - Chunk.Capacity) + addedEntities.Length];
-        initialEntities.AsSpan(Chunk.Capacity).CopyTo(liveEntities);
-        addedEntities.CopyTo(liveEntities, initialEntities.Length - Chunk.Capacity);
-        var stampsBeforeThirdInvoke = new Stamp[liveEntities.Length];
-        for (int index = 0; index < liveEntities.Length; index++)
-        {
-            Assert.That(world.TryGetComponentStamp(liveEntities[index], positionId, out stampsBeforeThirdInvoke[index]), Is.True);
-        }
-
-        operation.Invoke(ref positionId);
-
-        for (int index = 0; index < liveEntities.Length; index++)
-        {
-            Assert.That(world.TryGetComponentStamp(liveEntities[index], positionId, out Stamp actual), Is.True);
-            Assert.That(actual, Is.EqualTo(new Stamp(stampsBeforeThirdInvoke[index].Value + 1)));
-        }
-    }
-
-    [Test]
-    public void EntityRefWritesOnlyStampWrittenEntities()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        ComponentId positionId = layouts.Register<Position>(new SchemaId(40_087));
-        using var world = new World(layouts);
-        var entities = new Entity[6];
-        world.Create(stackalloc[] { positionId }, entities);
-        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
-        var before = new Stamp[entities.Length];
-        var entityTerms = new Stamp[entities.Length];
-        for (int index = 0; index < entities.Length; index++)
-        {
-            Assert.That(world.TryGetComponentStamp(entities[index], positionId, out before[index]), Is.True);
-            entityTerms[index] = world.Archetypes[0].GetChunk(0).GetComponentStampTrusted(0, index);
-        }
-
-        Stamp archetypeStampBefore = world.GetArchetypeComponentStamps(world.Archetypes[0].Id)[0];
-        var state = new DirectStampState(world, positionId, before);
-
-        world.ForEachEntity(in query, ref state, WriteFirstFourOnce).Invoke(ref state);
-
-        Assert.That(state.StampsWereVisible, Is.True);
-        Assert.That(world.GetArchetypeComponentStamps(world.Archetypes[0].Id)[0], Is.EqualTo(archetypeStampBefore));
-        for (int index = 0; index < entities.Length; index++)
-        {
-            Assert.That(world.TryGetComponentStamp(entities[index], positionId, out Stamp after), Is.True);
-            Assert.That(after, Is.EqualTo(new Stamp(before[index].Value + (index < 4 ? 1UL : 0UL))));
-            Stamp expectedEntityTerm = index < 4
-                ? new Stamp(entityTerms[index].Value + 1)
-                : entityTerms[index];
-            Assert.That(world.Archetypes[0].GetChunk(0).GetComponentStampTrusted(0, index), Is.EqualTo(expectedEntityTerm));
-        }
-    }
-
-    [Test]
-    public void EntityRefWritesSparseStampsImmediatelyWithoutChangingUnwrittenEntities()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        ComponentId positionId = layouts.Register<Position>(new SchemaId(40_085));
-        using var world = new World(layouts);
-        var entities = new Entity[6];
-        world.Create(stackalloc[] { positionId }, entities);
-        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
-        var before = new Stamp[entities.Length];
-        for (int index = 0; index < entities.Length; index++)
-        {
-            Assert.That(world.TryGetComponentStamp(entities[index], positionId, out before[index]), Is.True);
-        }
-
-        Stamp archetypeStampBefore = world.GetArchetypeComponentStamps(world.Archetypes[0].Id)[0];
-        var state = new DirectStampState(world, positionId, before);
-
-        world.ForEachEntity(in query, ref state, WriteSparseRepeatedly).Invoke(ref state);
-
-        Assert.That(state.StampsWereVisible, Is.True);
-        Assert.That(world.GetArchetypeComponentStamps(world.Archetypes[0].Id)[0], Is.EqualTo(archetypeStampBefore));
-        for (int index = 0; index < entities.Length; index++)
-        {
-            Assert.That(world.TryGetComponentStamp(entities[index], positionId, out Stamp after), Is.True);
-            ulong expected = before[index].Value + (index % 2 == 0 ? 2UL : 0UL);
-            Assert.That(after, Is.EqualTo(new Stamp(expected)));
-        }
-    }
-
-    [Test]
-    public void EntityRefKeepsImmediateStampWhenCallbackThrows()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        ComponentId positionId = layouts.Register<Position>(new SchemaId(40_086));
-        using var world = new World(layouts);
-        Entity entity = world.Create(positionId);
-        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
-        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp before), Is.True);
-        var state = new DirectStampState(world, positionId, new[] { before });
-
-        var operation = world.ForEachEntity(in query, ref state, WriteThenThrow);
-        bool callbackThrew = false;
-        try
-        {
-            operation.Invoke(ref state);
-        }
-        catch (InvalidOperationException)
-        {
-            callbackThrew = true;
-        }
-
-        Assert.That(callbackThrew, Is.True);
-        Assert.That(world.TryGetComponentStamp(entity, positionId, out Stamp after), Is.True);
-        Assert.That(after, Is.EqualTo(new Stamp(before.Value + 1)));
-    }
-
     internal static void InspectAnyComponents(ref AnyComponentState state, scoped EntityRef entity)
     {
         state.Visited++;
@@ -503,8 +304,6 @@ internal sealed class EntityRefTests
         if (expectedHealth)
         {
             Assert.That(health.Value, Is.EqualTo(20));
-            Assert.That(state.World.TryGetComponentStamp(handle, state.HealthId, out Stamp stamp), Is.True);
-            state.HealthStamps[handle.Index] = stamp;
             ref Health healthRef = ref entity.GetRef<Health>(state.HealthId);
             healthRef.Value++;
             state.HealthWrites++;
@@ -557,7 +356,6 @@ internal sealed class EntityRefTests
 
     internal struct ProbeState
     {
-        internal World World;
         internal Entity[] Entities;
         internal ComponentId PositionId;
         internal ComponentId HealthId;
@@ -565,7 +363,6 @@ internal sealed class EntityRefTests
         internal ComponentId FirstTagId;
         internal ComponentId SecondTagId;
         internal ComponentId UnregisteredId;
-        internal Stamp[] HealthStamps;
         internal int Visited;
         internal int HealthWrites;
         internal int MissingHealthReads;
@@ -580,72 +377,6 @@ internal sealed class EntityRefTests
         internal int VelocityEntities;
         internal int HealthValue;
         internal float VelocityValue;
-    }
-
-    internal struct DirectStampState
-    {
-        internal DirectStampState(World world, ComponentId componentId, Stamp[] before)
-        {
-            World = world;
-            ComponentId = componentId;
-            Before = before;
-            StampsWereVisible = true;
-        }
-
-        internal World World;
-        internal ComponentId ComponentId;
-        internal Stamp[] Before;
-        internal bool StampsWereVisible;
-    }
-
-    private static void WriteEveryEntity(ref DirectStampState state, scoped EntityRef entity)
-    {
-        ulong before = state.Before[entity.Index].Value;
-        entity.GetRef<Position>(state.ComponentId).X++;
-        state.StampsWereVisible &= state.World.TryGetComponentStamp(
-                entity,
-                state.ComponentId,
-                out Stamp pending)
-            && pending.Value == before + 1;
-    }
-
-    private static void WriteSparseRepeatedly(ref DirectStampState state, scoped EntityRef entity)
-    {
-        if (entity.Index % 2 != 0)
-        {
-            return;
-        }
-
-        ulong before = state.Before[entity.Index].Value;
-        entity.GetRef<Position>(state.ComponentId).X++;
-        entity.GetRef<Position>(state.ComponentId).X++;
-        state.StampsWereVisible &= state.World.TryGetComponentStamp(
-                entity,
-                state.ComponentId,
-                out Stamp pending)
-            && pending.Value == before + 2;
-    }
-
-    private static void WriteFirstFourOnce(ref DirectStampState state, scoped EntityRef entity)
-    {
-        if (entity.Index >= 4)
-        {
-            return;
-        }
-
-        ulong before = state.Before[entity.Index].Value;
-        entity.GetRef<Position>(state.ComponentId).X++;
-        state.StampsWereVisible &= state.World.TryGetComponentStamp(
-                entity,
-                state.ComponentId,
-                out Stamp pending)
-            && pending.Value == before + 1;
-    }
-
-    private static void WriteThenThrow(ref DirectStampState state, scoped EntityRef entity)
-    {
-        entity.GetRef<Position>(state.ComponentId).X++;
-        throw new InvalidOperationException();
     }
 
     private static void IncrementPosition(ref ComponentId componentId, scoped EntityRef entity)

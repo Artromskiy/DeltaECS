@@ -41,7 +41,6 @@ internal sealed class IterationModel(
     string methodName = "ForEach",
     bool hasEntityTarget = false,
     bool hasQuery = true,
-    bool isStamp = false,
     TypeBindingKind typeBinding = TypeBindingKind.CallbackInferred,
     ContextModeKind functorPassMode = ContextModeKind.Ref,
     string namespaceName = "",
@@ -53,8 +52,7 @@ internal sealed class IterationModel(
     public bool HasContext => Api.Context.Mode != ContextModeKind.None;
     public bool IsFunctor => Api.Callback?.Source == CallbackSource.Functor;
     public bool ImplicitComponents => Api.Selector.TypeBinding != TypeBindingKind.Generic;
-    public string Pattern => string.Concat(ComponentModels.Select(static component =>
-        component.Access == AccessKind.StampRead ? 'I' : component.Access switch
+    public string Pattern => string.Concat(ComponentModels.Select(static component => component.Access switch
         {
             AccessKind.RowWrite => 'W',
             AccessKind.RefReadonly => 'R',
@@ -70,13 +68,12 @@ internal sealed class IterationModel(
     public ContextModeKind FunctorPassMode => Api.Callback?.PassMode ?? ContextModeKind.None;
     public bool HasEntityTarget => Api.Target == TargetKind.EntityList;
     public bool HasQuery => Api.Query != QueryMode.None;
-    public bool IsStamp => Api.Execution.Value == ValueDomain.Stamp;
+    public bool IsStamp => false;
     public string MethodName => Api.Name ?? "ForEach";
     public string Namespace { get; } = namespaceName;
     public bool OrderedQueryReceiver { get; } = orderedQueryReceiver;
     public PredicateModel? OrderedWhereSource { get; } = orderedWhereSource;
     internal ApiModel Api { get; } = GeneratorSupport.CreateIterationShape(
-        isStamp,
         parallel,
         hasEntity,
         hasEntityTarget,

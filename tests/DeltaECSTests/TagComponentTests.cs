@@ -249,40 +249,6 @@ internal sealed class TagComponentTests
     }
 
     [Test]
-    public void EntityStampIterationMapsTagSelectedEntitiesAndStamps()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        ComponentId valueId = layouts.Register<TagValue>(new SchemaId(98_061));
-        ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_062));
-        using var world = new World(layouts);
-        var entities = new Entity[8];
-        world.Create(new[] { valueId }, entities);
-        var expected = new Dictionary<int, Stamp>();
-        for (int index = 0; index < entities.Length; index++)
-        {
-            world.GetRef<TagValue>(entities[index], valueId).Value = index;
-            if ((index & 1) == 1)
-            {
-                world.Add(entities[index], new[] { markedId });
-                Assert.That(world.TryGetComponentStamp(entities[index], valueId, out Stamp stamp), Is.True);
-                expected.Add(entities[index].Index, stamp);
-            }
-        }
-
-        Query query = world.WhereAll<TagValue>().WhereAll<MarkedTag>();
-        world.ForEachEntityStamp<Dictionary<int, Stamp>, TagValue>(
-            in query,
-            ref expected,
-            static (ref Dictionary<int, Stamp> stamps, EntityRef entity, in Stamp stamp) =>
-            {
-                Assert.That(stamps.Remove(entity.Index, out Stamp expectedStamp), Is.True);
-                Assert.That(stamp, Is.EqualTo(expectedStamp));
-            }).Invoke(ref expected);
-
-        Assert.That(expected, Is.Empty);
-    }
-
-    [Test]
     public void RegistrationInfersTagsFromFieldlessValueTypes()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -329,35 +295,6 @@ internal sealed class TagComponentTests
     }
 
     [Test]
-    public void TagStampsReportMembershipWithOneAndAbsenceWithDefault()
-    {
-        var layouts = new ComponentLayoutRegistry();
-        ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_028));
-        _ = layouts.Register<OtherTag>(new SchemaId(98_029));
-        using var world = new World(layouts);
-        Entity marked = world.Create<MarkedTag>();
-        Entity unmarked = world.Create<OtherTag>();
-
-        Assert.That(world.TryGetComponentStamp(marked, markedId, out Stamp registeredStamp), Is.True);
-        Assert.That(registeredStamp, Is.EqualTo(new Stamp(1)));
-        Assert.That(world.TryGetComponentStamp<MarkedTag>(marked, out Stamp primaryStamp), Is.True);
-        Assert.That(primaryStamp, Is.EqualTo(new Stamp(1)));
-
-        Query query = world.CreateQuery(QuerySpec.WhereAll(markedId));
-        Stamp iteratedStamp = default;
-        world.ForEachStamp<Stamp, MarkedTag>(
-            in query,
-            ref iteratedStamp,
-            static (ref Stamp result, in Stamp current) => result = current).Invoke(ref iteratedStamp);
-        Assert.That(iteratedStamp, Is.EqualTo(new Stamp(1)));
-
-        Assert.That(world.TryGetComponentStamp(unmarked, markedId, out Stamp absentStamp), Is.False);
-        Assert.That(absentStamp, Is.EqualTo(default(Stamp)));
-        Assert.That(world.TryGetComponentStamp<MarkedTag>(unmarked, out Stamp absentPrimaryStamp), Is.False);
-        Assert.That(absentPrimaryStamp, Is.EqualTo(default(Stamp)));
-    }
-
-    [Test]
     public void TagValueApisReturnDefaultAndTreatAddsAsMembershipChanges()
     {
         var layouts = new ComponentLayoutRegistry();
@@ -374,8 +311,6 @@ internal sealed class TagComponentTests
         ref readonly MarkedTag readOnlyTagReference = ref world.GetReadRef<MarkedTag>(marked, markedId);
         Assert.That(readOnlyTagReference, Is.EqualTo(default(MarkedTag)));
         Assert.That(world.Get<MarkedTag>(marked), Is.EqualTo(default(MarkedTag)));
-        Assert.That(world.TryGetComponentStamp(marked, markedId, out Stamp stamp), Is.True);
-        Assert.That(stamp, Is.EqualTo(new Stamp(1)));
         Assert.Throws<InvalidOperationException>(() => world.Get<MarkedTag>(unmarked));
         Assert.Throws<InvalidOperationException>(() => world.GetRef<MarkedTag>(unmarked, markedId));
 

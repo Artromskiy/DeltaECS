@@ -622,24 +622,6 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
-    public void StampIterationGeneratesTypedSelectorsAndAllCallbackForms()
-    {
-        GeneratorDriverRunResult run = RunGenerator(StampIterationSource);
-        string generated = GeneratedText(run);
-
-        AssertNoDiagnostics(run.Diagnostics);
-        Assert.That(generated, Does.Contain("ForEachAction_I<Stamp>"));
-        Assert.That(generated, Does.Contain("GetGeneratedStamp(access0, index)"));
-        Assert.That(generated, Does.Contain("global::System.Obsolete(\"Use ArchetypeForEachOperation.ProcessChanged for change-driven processing.\")"));
-        Assert.That(generated, Does.Contain("ExecuteEntityListParallel"));
-        Assert.That(generated, Does.Not.Contain("ForEachStamp<T1, T2>(this World world, in Query query, ComponentId"));
-
-        AssertCompiles(
-            new[] { RuntimeStubSource, StampIterationSource },
-            run.GeneratedTrees);
-    }
-
-    [Test]
     public void ParallelContextModesGenerateCompilableOverloads()
     {
         const string source = """
@@ -1250,20 +1232,6 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         AssertCompiles(
             new[] { RuntimeStubSource, StaticMethodGroupInterceptionSource },
-            run.GeneratedTrees);
-    }
-
-    [Test]
-    public void StampMethodGroupsGenerateDirectReadOnlyCallbacks()
-    {
-        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(StampMethodGroupSource);
-        string generated = GeneratedText(run);
-
-        AssertNoDiagnostics(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"));
-        Assert.That(generated, Does.Contain("global::Delta.ECS.StampCallbacks.Update(in component0)"));
-
-        AssertCompiles(
-            new[] { RuntimeStubSource, StampMethodGroupSource },
             run.GeneratedTrees);
     }
 
@@ -2002,7 +1970,6 @@ public sealed class DemandDrivenForEachGeneratorTests
         public struct GeneratedEntityRefView { }
         public ref struct EntityRef { public int Index { get; } }
         public readonly struct ComponentId { }
-        public readonly struct Stamp { }
         public interface IComponentComparer { }
         public interface IComponentComparerEntity { }
         public interface IGeneratedWhereEntityConsumer { void Invoke(Entity entity); }
@@ -2107,8 +2074,6 @@ public sealed class DemandDrivenForEachGeneratorTests
             public ref T GetGeneratedReadReference<T>(ReadAccess access) => throw new NotImplementedException();
             public ref T GetGeneratedWriteReference<T>(int queryComponentIndex) => throw new NotImplementedException();
             public ref T GetGeneratedWriteReference<T>(WriteAccess access) => throw new NotImplementedException();
-            public Stamp GetGeneratedStamp(ReadAccess access, int index) => default;
-            public Stamp GetGeneratedStamp(int queryComponentIndex, int index) => default;
         }
         public ref struct GeneratedReadQuerySlots
         {
@@ -2124,8 +2089,6 @@ public sealed class DemandDrivenForEachGeneratorTests
             public ref readonly Entity GetGeneratedEntityReference() => throw new NotImplementedException();
             public ref T GetGeneratedReadReference<T>(int queryComponentIndex) => throw new NotImplementedException();
             public ref T GetGeneratedReadReference<T>(ReadAccess access) => throw new NotImplementedException();
-            public Stamp GetGeneratedStamp(ReadAccess access, int index) => default;
-            public Stamp GetGeneratedStamp(int queryComponentIndex, int index) => default;
         }
         public readonly struct GeneratedBoundChunk
         {
@@ -2161,8 +2124,6 @@ public sealed class DemandDrivenForEachGeneratorTests
             public void MarkArchetypeWrite(int queryComponentIndex) { }
             public void MarkArchetypeWrites(scoped ReadOnlySpan<int> queryComponentIndices) { }
             public void RecordComponentWrites(scoped ReadOnlySpan<int> queryComponentIndices) { }
-            public void MarkArchetypeWrites<TWriter>(ref TWriter writer)
-                where TWriter : struct, IGeneratedArchetypeStampWriter { }
             public void Dispose() { }
         }
         public ref struct GeneratedReadDenseExecution
@@ -2178,7 +2139,6 @@ public sealed class DemandDrivenForEachGeneratorTests
             }
             public void Dispose() { }
         }
-        public interface IGeneratedArchetypeStampWriter { void Write(Stamp[] stamps); }
         public interface IGeneratedComponentValueInitializer
         {
             void Initialize(ref GeneratedComponentValueWriter writer);
@@ -2216,9 +2176,6 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static ReadAccess GetPreparedReadAccess<T>(in Query query) => default;
             public static int GetPreparedReadRoute<T>(in Query query) => default;
             public static int GetPreparedReadRoute<T>(in Query query, ComponentId component) => default;
-            public static ReadAccess GetPreparedStampAccess<T>(in Query query) => default;
-            public static ReadAccess GetPreparedStampAccess(in Query query, ComponentId component) => default;
-            public static ReadAccess GetPreparedStampAccess<T>(in Query query, ComponentId component) => default;
             public static WriteAccess GetPreparedWriteAccess<T>(in Query query) => default;
             public static int GetPreparedWriteRoute<T>(in Query query) => default;
             public static int GetPreparedWriteRoute<T>(in Query query, ComponentId component) => default;
@@ -2244,7 +2201,6 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static WriteAccess GetPreparedWriteAccess(in Query query, ComponentId component, Type runtimeType) => default;
             public static int GetWriteQueryComponentIndex(WriteAccess access) => default;
             public static int GetReadQueryComponentIndex(ReadAccess access) => default;
-            public static void IncrementArchetypeStamp(Stamp[] stamps, int componentIndex) { }
         }
         public sealed partial class World
         {
@@ -2768,41 +2724,6 @@ public sealed class DemandDrivenForEachGeneratorTests
         }
         """;
 
-    private const string StampIterationSource = """
-        namespace Delta.ECS;
-        using System;
-        struct Health { public int Value; }
-        struct StampContext { public int Value; }
-        struct StampFunctor : IForEach
-        {
-            public void Invoke(in Stamp stamp) { }
-        }
-        struct StampContextFunctor : IForEachContext<StampContext>
-        {
-            public void Invoke(ref StampContext context, in Stamp stamp) { context.Value += stamp.GetHashCode(); }
-        }
-        static class StampConsumer
-        {
-            public static void Use(World world, in Query query, ComponentId healthId, ReadOnlySpan<Entity> entities)
-            {
-                var context = new StampContext();
-                world.ForEachStamp<Health>(in query, static (in Stamp stamp) => { _ = stamp; });
-                world.ForEachEntityStamp<Health>(in query, static (EntityRef entity, ref readonly Stamp stamp) => { _ = entity; _ = stamp; });
-                world.ForEachStamp<StampContext, Health>(in query, ref context, static (ref StampContext state, in Stamp stamp) => state.Value += stamp.GetHashCode());
-                world.ForEachStamp(in query, healthId, static (in Stamp stamp) => { _ = stamp; });
-                world.ForEachStampParallel<Health>(in query, static (in Stamp stamp) => { _ = stamp; }, workerCount: 2);
-                world.ForEachStamp(entities, in query, healthId, static (in Stamp stamp) => { _ = stamp; });
-                world.ForEachEntityStampParallel(entities, in query, healthId, static (EntityRef entity, in Stamp stamp) => { _ = entity; _ = stamp; }, workerCount: 2);
-                world.ForEachStampParallel(in query, healthId, static (in Stamp stamp) => { _ = stamp; }, workerCount: 2);
-                world.ForEachEntityStampParallel<StampContext, Health>(in query, in context, static (in StampContext state, EntityRef entity, in Stamp stamp) => { _ = state; _ = entity; _ = stamp; }, workerCount: 2);
-                var functor = new StampFunctor();
-                world.ForEachStamp<Health>(in query, ref functor);
-                var contextFunctor = new StampContextFunctor();
-                world.ForEachStamp<Health>(in query, ref context, ref contextFunctor);
-            }
-        }
-        """;
-
     private const string ConsumerSource = """
         namespace Delta.ECS;
         using System;
@@ -3046,29 +2967,6 @@ public sealed class DemandDrivenForEachGeneratorTests
                 world.ForEachParallel<Context, T1>(in query, in context, UpdateParallel, workerCount: 2);
                 world.ForEachEntity<T1>(in query, UpdateEntity);
                 world.ForEachEntityParallel<Context, T1>(in query, in context, UpdateEntityParallel, workerCount: 2);
-            }
-        }
-        """;
-
-    private const string StampMethodGroupSource = """
-        namespace Delta.ECS;
-        struct Health { public int Value; }
-        static class StampCallbacks
-        {
-            public static void Update(in Stamp stamp) => _ = stamp;
-            public static void UpdateReadonly(ref readonly Stamp stamp) => _ = stamp;
-            public static void UpdateEntity(EntityRef entity, in Stamp stamp) => _ = entity;
-        }
-        static class StampConsumer
-        {
-            public static void Use(World world, Query query, ComponentId healthId)
-            {
-                world.ForEachStamp<Health>(in query, StampCallbacks.Update);
-                world.ForEachStamp<Health>(in query, StampCallbacks.UpdateReadonly);
-                world.ForEachEntityStamp<Health>(in query, StampCallbacks.UpdateEntity);
-                world.ForEachStamp(in query, healthId, StampCallbacks.Update);
-                world.ForEachStampParallel<Health>(in query, StampCallbacks.Update, workerCount: 2);
-                world.ForEachEntityStampParallel<Health>(in query, StampCallbacks.UpdateEntity, workerCount: 2);
             }
         }
         """;

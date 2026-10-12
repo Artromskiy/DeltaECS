@@ -14,7 +14,6 @@ public static partial class RuntimeApiGrammarProof
 
         RuntimeComponentCatalog catalog = integration.Catalog;
         Require(catalog.Components.Span.Length == 2);
-        Require(catalog.Stamp.Value > 0);
         Require(catalog.Components.Span[0].Id == positionId);
         Require(catalog.Components.Span[1].Id == markerId);
         Require(catalog.Components.Span[1].IsTag);
@@ -43,19 +42,8 @@ public static partial class RuntimeApiGrammarProof
             entity,
             positionId,
             value,
-            snapshot.Stamp,
-            out Stamp writtenStamp,
             out EcsWriteError writeError));
         Require(writeError.Code == EcsWriteErrorCode.None);
-        Require(writtenStamp != snapshot.Stamp);
-        Require(!integration.TryWrite(
-            entity,
-            positionId,
-            value,
-            snapshot.Stamp,
-            out _,
-            out EcsWriteError staleWriteError));
-        Require(staleWriteError.Code == EcsWriteErrorCode.StaleStamp);
         Require(integration.TryRead(entity, positionId, out ComponentSnapshot updated, out _));
         Require(((Position)updated.Value!).Value == 77);
 

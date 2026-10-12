@@ -12,7 +12,6 @@ internal sealed record GeneratedSystemAccessModel(
     ImmutableArray<GeneratedSystemQueryAccessModel> QueryAccesses,
     ImmutableArray<string> Reads,
     ImmutableArray<string> Writes,
-    ImmutableArray<string> StampReads,
     ImmutableArray<string> Adds,
     ImmutableArray<string> Removes,
     bool ReadsTopology,
@@ -26,14 +25,12 @@ internal sealed record GeneratedSystemAccessModel(
 internal sealed record GeneratedSystemQueryAccessModel(
     string QueryExpression,
     ImmutableArray<string> Reads,
-    ImmutableArray<string> Writes,
-    ImmutableArray<string> StampReads);
+    ImmutableArray<string> Writes);
 
 internal sealed class GeneratedSystemAccessAccumulator
 {
     private readonly SortedSet<string> _reads = new(StringComparer.Ordinal);
     private readonly SortedSet<string> _writes = new(StringComparer.Ordinal);
-    private readonly SortedSet<string> _stampReads = new(StringComparer.Ordinal);
     private readonly SortedSet<string> _adds = new(StringComparer.Ordinal);
     private readonly SortedSet<string> _removes = new(StringComparer.Ordinal);
     private readonly List<GeneratedSystemQueryAccessModel> _queryAccesses = new();
@@ -48,8 +45,6 @@ internal sealed class GeneratedSystemAccessAccumulator
     internal void Read(ITypeSymbol? type) => Add(_reads, type);
 
     internal void Write(ITypeSymbol? type) => Add(_writes, type);
-
-    internal void StampRead(ITypeSymbol? type) => Add(_stampReads, type);
 
     internal void Add(ITypeSymbol? type) => Add(_adds, type);
 
@@ -83,7 +78,7 @@ internal sealed class GeneratedSystemAccessAccumulator
             return;
         }
 
-        if (access._reads.Count == 0 && access._writes.Count == 0 && access._stampReads.Count == 0)
+        if (access._reads.Count == 0 && access._writes.Count == 0)
         {
             return;
         }
@@ -91,8 +86,7 @@ internal sealed class GeneratedSystemAccessAccumulator
         _queryAccesses.Add(new GeneratedSystemQueryAccessModel(
             queryExpression,
             access._reads.ToImmutableArray(),
-            access._writes.ToImmutableArray(),
-            access._stampReads.ToImmutableArray()));
+            access._writes.ToImmutableArray()));
     }
 
     internal GeneratedSystemAccessModel Build(string @namespace, string typeName, string helperName, bool injectProperty)
@@ -104,7 +98,6 @@ internal sealed class GeneratedSystemAccessAccumulator
             _queryAccesses.ToImmutableArray(),
             _reads.ToImmutableArray(),
             _writes.ToImmutableArray(),
-            _stampReads.ToImmutableArray(),
             _adds.ToImmutableArray(),
             _removes.ToImmutableArray(),
             ReadsTopology,
@@ -123,7 +116,6 @@ internal sealed class GeneratedSystemAccessAccumulator
         }
 
         if (GeneratorSupport.IsEntityType(type)
-            || GeneratorSupport.IsStampType(type)
             || GeneratorSupport.IsEcsType(type, "ComponentId")
             )
         {

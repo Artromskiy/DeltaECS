@@ -14,7 +14,6 @@ public readonly struct SystemAccess
     private static readonly SystemQueryAccess[] EmptyQueryAccesses = Array.Empty<SystemQueryAccess>();
     private readonly ComponentId[]? _reads;
     private readonly ComponentId[]? _writes;
-    private readonly ComponentId[]? _stampReads;
     private readonly ComponentId[]? _adds;
     private readonly ComponentId[]? _removes;
     private readonly SystemQueryAccess[]? _queryAccesses;
@@ -22,7 +21,6 @@ public readonly struct SystemAccess
     /// <summary>Creates access metadata from world-local component ids.</summary>
     /// <param name="reads">Components read by the system.</param>
     /// <param name="writes">Components written by the system.</param>
-    /// <param name="stampReads">Component stamps observed by the system.</param>
     /// <param name="adds">Components added by structural operations.</param>
     /// <param name="removes">Components removed by structural operations.</param>
     /// <param name="readsTopology">Whether the system observes entity topology.</param>
@@ -35,7 +33,6 @@ public readonly struct SystemAccess
     public SystemAccess(
         ReadOnlySpan<ComponentId> reads = default,
         ReadOnlySpan<ComponentId> writes = default,
-        ReadOnlySpan<ComponentId> stampReads = default,
         ReadOnlySpan<ComponentId> adds = default,
         ReadOnlySpan<ComponentId> removes = default,
         bool readsTopology = false,
@@ -48,7 +45,6 @@ public readonly struct SystemAccess
     {
         _reads = Copy(reads, nameof(reads));
         _writes = Copy(writes, nameof(writes));
-        _stampReads = Copy(stampReads, nameof(stampReads));
         _adds = Copy(adds, nameof(adds));
         _removes = Copy(removes, nameof(removes));
         _queryAccesses = CopyQueryAccesses(queryAccesses);
@@ -65,9 +61,6 @@ public readonly struct SystemAccess
 
     /// <summary>Gets components whose data may be written.</summary>
     public ReadOnlySpan<ComponentId> Writes => _writes ?? Empty;
-
-    /// <summary>Gets components whose change stamps may be observed.</summary>
-    public ReadOnlySpan<ComponentId> StampReads => _stampReads ?? Empty;
 
     /// <summary>Gets components added by structural operations.</summary>
     public ReadOnlySpan<ComponentId> Adds => _adds ?? Empty;

@@ -15,8 +15,7 @@ internal enum OperationKind
 
 internal enum ValueDomain
 {
-    Component,
-    Stamp
+    Component
 }
 
 internal enum Schedule
@@ -75,8 +74,7 @@ internal enum AccessKind
     Value,
     RowRead,
     RowWrite,
-    RefReadonly,
-    StampRead
+    RefReadonly
 }
 
 internal enum CallbackSource
@@ -109,13 +107,13 @@ internal readonly record struct ComponentModel(string TypeName, AccessKind Acces
     {
         AccessKind.RowWrite => "ref ",
         AccessKind.RefReadonly => "ref readonly ",
-        AccessKind.StampRead or AccessKind.RowRead => "in ",
+        AccessKind.RowRead => "in ",
         _ => string.Empty
     };
     internal string InvocationModifier => Access switch
     {
         AccessKind.RowWrite => "ref ",
-        AccessKind.RefReadonly or AccessKind.StampRead or AccessKind.RowRead => "in ",
+        AccessKind.RefReadonly or AccessKind.RowRead => "in ",
         _ => string.Empty
     };
 }

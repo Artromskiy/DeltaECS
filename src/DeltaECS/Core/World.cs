@@ -30,7 +30,7 @@ public sealed partial class World : IDisposable
     private readonly Dictionary<TransitionKey, TransitionEdge> _transitionCache = new();
     private readonly ComponentSetCache _componentSetCache = new();
     private readonly Dictionary<QuerySpec, WeakReference<QueryPlan>> _queryCache = new();
-    private Dictionary<ComponentId, List<WeakReference<ComponentChangeObserver>>>? _componentChangeObservers;
+    private ComponentChangeObserverRoute?[]? _componentChangeObservers;
     private readonly object _componentChangeGate = new();
     private readonly List<Entity> _queryEntityScratch = new();
     private int _queryCacheSweepCountdown = QueryCacheSweepInterval;
@@ -39,25 +39,24 @@ public sealed partial class World : IDisposable
     private readonly List<QueryPlan> _deferredQueryPlans = new(InitialDeferredQueryPlanCapacity);
     private GeneratedWhereStructuralPlan[] _generatedWhereArchetypePlans = Array.Empty<GeneratedWhereStructuralPlan>();
     private GeneratedWhereTargetCursor?[] _generatedWhereTargetCursors = Array.Empty<GeneratedWhereTargetCursor?>();
-    private NativeMemory<int> _generatedWhereTargetCursorStamps = new(0);
-    private NativeMemory<int> _deferredQueryPlanArchetypeStamps = new(0);
+    private NativeMemory<int> _generatedWhereTargetCursorGenerations = new(0);
+    private NativeMemory<int> _deferredQueryPlanArchetypeGenerations = new(0);
     private Archetype[] _generatedWhereSourceArchetypes = Array.Empty<Archetype>();
     private NativeMemory<int> _generatedWhereSourceCounts = new(0);
     private int _generatedWhereSourceArchetypeCount;
-    private int _generatedWherePlanStamp;
-    private int _deferredQueryPlanArchetypeStamp;
+    private int _generatedWherePlanGeneration;
+    private int _deferredQueryPlanArchetypeGeneration;
     private int _generatedWhereDestroyCapacity;
     private bool _generatedWhereDestroyCapacityReserved;
     private bool _generatedWhereStructuralActive;
     private bool _queryPlanBatchActive;
     private TransitionEdge[] _batchEdgeSlots = Array.Empty<TransitionEdge>();
-    private NativeMemory<int> _batchEdgeStamps = new(0);
-    private int _batchEdgeStamp;
+    private NativeMemory<int> _batchEdgeGenerations = new(0);
+    private int _batchEdgeGeneration;
     private int _nextChunkId;
     private int _tagVersion;
     private Chunk?[] _chunksById = Array.Empty<Chunk?>();
     private int _activeChunkLeases;
-    private Stamp[][] _archetypeComponentWriteStamps = Array.Empty<Stamp[]>();
     private bool _disposed;
     private int _schedulerExecutionActive;
 
@@ -218,17 +217,15 @@ public sealed partial class World : IDisposable
         _freeRecords.Dispose();
         _destroyScratch.Dispose();
         _generatedWhereSourceCounts.Dispose();
-        _generatedWhereTargetCursorStamps.Dispose();
-        _deferredQueryPlanArchetypeStamps.Dispose();
+        _generatedWhereTargetCursorGenerations.Dispose();
+        _deferredQueryPlanArchetypeGenerations.Dispose();
         _deferredQueryPlanArchetypes.Clear();
         _deferredQueryPlans.Clear();
-        _batchEdgeStamps.Dispose();
-        _archetypeComponentWriteStamps = Array.Empty<Stamp[]>();
+        _batchEdgeGenerations.Dispose();
         _componentRowArrayPool.Clear();
         _chunksById = Array.Empty<Chunk?>();
         _freeRecordChunks.Clear();
-        _componentChangeObservers?.Clear();
-        _componentChangeObservers = null;
+        Volatile.Write(ref _componentChangeObservers, null);
         GC.SuppressFinalize(this);
     }
 
@@ -272,85 +269,115 @@ public sealed partial class World : IDisposable
 
     internal void RegisterComponentChangeObserver(ComponentChangeObserver observer)
     {
+        EnsureNoActiveLease("register a component change observer");
         lock (_componentChangeGate)
         {
-            _componentChangeObservers ??= new Dictionary<ComponentId, List<WeakReference<ComponentChangeObserver>>>();
-            if (!_componentChangeObservers.TryGetValue(observer.ComponentId, out List<WeakReference<ComponentChangeObserver>>? observers))
+            observer.EnsureCapacity(_records.Capacity);
+            ComponentChangeObserverRoute?[]? current = _componentChangeObservers;
+            int required = observer.ComponentId.Value + 1;
+            var routes = new ComponentChangeObserverRoute?[Math.Max(current?.Length ?? 0, required)];
+            if (current is not null)
             {
-                observers = new List<WeakReference<ComponentChangeObserver>>();
-                _componentChangeObservers.Add(observer.ComponentId, observers);
+                Array.Copy(current, routes, current.Length);
+            }
+
+            WeakReference<ComponentChangeObserver>[]? existing = routes[observer.ComponentId.Value]?.Observers;
+            var observers = new List<WeakReference<ComponentChangeObserver>>((existing?.Length ?? 0) + 1);
+            if (existing is not null)
+            {
+                for (int index = 0; index < existing.Length; index++)
+                {
+                    if (existing[index].TryGetTarget(out _))
+                    {
+                        observers.Add(existing[index]);
+                    }
+                }
             }
 
             observers.Add(new WeakReference<ComponentChangeObserver>(observer));
+            routes[observer.ComponentId.Value] = new ComponentChangeObserverRoute(observers.ToArray());
+            Volatile.Write(ref _componentChangeObservers, routes);
         }
     }
 
     internal bool HasComponentChangeObserver(ComponentId componentId)
     {
-        if (_componentChangeObservers is null)
+        ComponentChangeObserverRoute?[]? routes = Volatile.Read(ref _componentChangeObservers);
+        if (routes is null || (uint)componentId.Value >= (uint)routes.Length)
         {
             return false;
         }
 
-        lock (_componentChangeGate)
+        WeakReference<ComponentChangeObserver>[]? observers = routes[componentId.Value]?.Observers;
+        if (observers is null)
         {
-            if (_componentChangeObservers is null
-                || !_componentChangeObservers.TryGetValue(componentId, out List<WeakReference<ComponentChangeObserver>>? observers))
-            {
-                return false;
-            }
+            return false;
+        }
 
-            for (int index = observers.Count - 1; index >= 0; index--)
-            {
-                if (!observers[index].TryGetTarget(out _))
-                {
-                    observers.RemoveAt(index);
-                }
-            }
-
-            if (observers.Count != 0)
+        for (int index = 0; index < observers.Length; index++)
+        {
+            if (observers[index].TryGetTarget(out _))
             {
                 return true;
             }
+        }
 
-            _componentChangeObservers.Remove(componentId);
-            if (_componentChangeObservers.Count == 0)
+        return false;
+    }
+
+    internal void EnsureComponentChangeObserverCapacity(int capacity)
+    {
+        if (_componentChangeObservers is null)
+        {
+            return;
+        }
+
+        lock (_componentChangeGate)
+        {
+            ComponentChangeObserverRoute?[]? routes = _componentChangeObservers;
+            if (routes is null)
             {
-                _componentChangeObservers = null;
+                return;
             }
-            return false;
+
+            for (int routeIndex = 0; routeIndex < routes.Length; routeIndex++)
+            {
+                WeakReference<ComponentChangeObserver>[]? observers = routes[routeIndex]?.Observers;
+                if (observers is null)
+                {
+                    continue;
+                }
+
+                for (int observerIndex = 0; observerIndex < observers.Length; observerIndex++)
+                {
+                    if (observers[observerIndex].TryGetTarget(out ComponentChangeObserver? observer))
+                    {
+                        observer.EnsureCapacity(capacity);
+                    }
+                }
+            }
         }
     }
 
     internal void RecordComponentChange(Entity entity, ComponentId componentId)
     {
-        lock (_componentChangeGate)
+        ComponentChangeObserverRoute?[]? routes = Volatile.Read(ref _componentChangeObservers);
+        if (routes is null || (uint)componentId.Value >= (uint)routes.Length)
         {
-            if (_componentChangeObservers is null
-                || !_componentChangeObservers.TryGetValue(componentId, out List<WeakReference<ComponentChangeObserver>>? observers))
-            {
-                return;
-            }
+            return;
+        }
 
-            for (int index = observers.Count - 1; index >= 0; index--)
-            {
-                if (observers[index].TryGetTarget(out ComponentChangeObserver? observer))
-                {
-                    observer.Record(entity);
-                }
-                else
-                {
-                    observers.RemoveAt(index);
-                }
-            }
+        WeakReference<ComponentChangeObserver>[]? observers = routes[componentId.Value]?.Observers;
+        if (observers is null)
+        {
+            return;
+        }
 
-            if (observers.Count == 0)
+        for (int index = 0; index < observers.Length; index++)
+        {
+            if (observers[index].TryGetTarget(out ComponentChangeObserver? observer))
             {
-                _componentChangeObservers.Remove(componentId);
-                if (_componentChangeObservers.Count == 0)
-                {
-                    _componentChangeObservers = null;
-                }
+                observer.Record(entity);
             }
         }
     }
@@ -445,7 +472,7 @@ public sealed partial class World : IDisposable
         DeferQueryPlanUpdates(archetype);
         try
         {
-            _records.EnsureCapacity(checked(_records.Count + count));
+            EnsureEntityRecordCapacity(checked(_records.Count + count));
             bool appendOnly = _freeCount == 0 && _freeRecordChunks.Count == 0;
             int appendedRecordStart = _records.Count;
             Span<EntityRecord> appendedRecords = appendOnly ? _records.Append(count) : default;
@@ -472,7 +499,6 @@ public sealed partial class World : IDisposable
                     chunk.InitializeSlotRange(slotIndex, reusedCount);
                 }
 
-                chunk.StampAllRange(slotIndex, reserved, new Stamp(1));
                 Span<Entity> chunkEntities = chunk.RawEntities;
                 if (appendOnly)
                 {
@@ -547,7 +573,7 @@ public sealed partial class World : IDisposable
         DeferQueryPlanUpdates(archetype);
         try
         {
-            _records.EnsureCapacity(checked(_records.Count + count));
+            EnsureEntityRecordCapacity(checked(_records.Count + count));
             bool appendOnly = _freeCount == 0 && _freeRecordChunks.Count == 0;
             int appendedRecordStart = _records.Count;
             Span<EntityRecord> appendedRecords = appendOnly ? _records.Append(count) : default;
@@ -574,7 +600,6 @@ public sealed partial class World : IDisposable
                     chunk.InitializeSlotRange(slotIndex, reusedCount);
                 }
 
-                chunk.StampAllRange(slotIndex, reserved, new Stamp(1));
                 Span<Entity> chunkEntities = chunk.RawEntities;
                 if (appendOnly)
                 {
@@ -833,71 +858,6 @@ public sealed partial class World : IDisposable
             : _archetypes[chunk.ArchetypeId].Contains(componentId);
     }
 
-    /// <summary>Gets the component stamp, or the tag-presence stamp when the entity owns a tag.</summary>
-    public bool TryGetComponentStamp(Entity entity, ComponentId componentId, out Stamp stamp)
-    {
-        EnsureExecutionAccess();
-        stamp = default;
-        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
-        {
-            return false;
-        }
-
-        return TryGetComponentStamp(chunk, slotIndex, componentId, out stamp);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool TryGetComponentStampTrusted(Entity entity, ComponentId componentId, out Stamp stamp)
-    {
-        Chunk chunk = GetEntityRefLocationTrusted(entity, out int slotIndex);
-        return TryGetComponentStamp(chunk, slotIndex, componentId, out stamp);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool TryGetComponentStampTrusted(ref GeneratedEntityRefView view, ComponentId componentId, out Stamp stamp)
-    {
-        if (view.TryBindPreparedComponent(componentId, null, out bool isTag))
-        {
-            Chunk chunk = view.Chunk!;
-            stamp = isTag
-                ? new Stamp(1)
-                : GetComponentStamp(chunk.ArchetypeId, chunk, view.PreparedComponentIndex, view.SlotIndex);
-            return true;
-        }
-
-        return TryGetComponentStamp(view.Chunk!, view.SlotIndex, componentId, out stamp);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TryGetComponentStamp(Chunk chunk, int slotIndex, ComponentId componentId, out Stamp stamp)
-    {
-        stamp = default;
-
-        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
-        {
-            if (!chunk.HasTag(tagIndex, slotIndex))
-            {
-                return false;
-            }
-
-            stamp = new Stamp(1);
-            return true;
-        }
-
-        var archetype = _archetypes[chunk.ArchetypeId];
-        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
-        {
-            return false;
-        }
-
-        stamp = GetComponentStamp(
-            archetype.Id,
-            chunk,
-            componentIndex,
-            slotIndex);
-        return true;
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryGetCore<T>(Entity entity, ComponentId componentId, out T value)
     {
@@ -1104,17 +1064,6 @@ public sealed partial class World : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Stamp GetComponentStamp(int archetypeId, Chunk chunk, int componentIndex, int slotIndex)
-    {
-        return new Stamp(
-            chunk.GetComponentStampTrusted(componentIndex, slotIndex).Value
-            + _archetypeComponentWriteStamps.RefAt(archetypeId).RefAt(componentIndex).Value);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Stamp[] GetArchetypeComponentStamps(int archetypeId) => _archetypeComponentWriteStamps.RefAt(archetypeId);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void BeginQueryLease() => _activeChunkLeases++;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1133,7 +1082,7 @@ public sealed partial class World : IDisposable
             return 0;
         }
 
-        int edgeStamp = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
+        int edgeGeneration = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
         int changed = 0;
         bool tagsChanged = false;
         bool batch = entities.Length > 1;
@@ -1154,9 +1103,9 @@ public sealed partial class World : IDisposable
 
                 bool entityTagsChanged = ApplyTags(chunk, slotIndex, changeSet.TagIndices, isAdd);
                 int sourceArchetypeId = chunk.ArchetypeId;
-                var edge = edgeStamp == 0
+                var edge = edgeGeneration == 0
                     ? GetTransitionEdge(sourceArchetypeId, changeSet, isAdd)
-                    : GetBatchTransitionEdge(sourceArchetypeId, changeSet, isAdd, edgeStamp);
+                    : GetBatchTransitionEdge(sourceArchetypeId, changeSet, isAdd, edgeGeneration);
                 if (!edge.IsNoOp)
                 {
                     MoveEntity(recordIndex, edge);
@@ -1219,7 +1168,7 @@ public sealed partial class World : IDisposable
         }
 
         ReadOnlySpan<int> matchingArchetypes = cached.MatchingArchetypes();
-        int edgeStamp = BeginBatchEdgeCache();
+        int edgeGeneration = BeginBatchEdgeCache();
         int changed = 0;
         BeginQueryPlanBatch();
 
@@ -1233,7 +1182,7 @@ public sealed partial class World : IDisposable
                     continue;
                 }
 
-                var edge = GetBatchTransitionEdge(sourceArchetype.Id, changeSet, isAdd, edgeStamp);
+                var edge = GetBatchTransitionEdge(sourceArchetype.Id, changeSet, isAdd, edgeGeneration);
                 if (edge.IsNoOp)
                 {
                     continue;
@@ -1276,7 +1225,7 @@ public sealed partial class World : IDisposable
 
         int changed = 0;
         bool tagsChanged = false;
-        int edgeStamp = BeginBatchEdgeCache();
+        int edgeGeneration = BeginBatchEdgeCache();
         BeginQueryPlanBatch();
         try
         {
@@ -1291,7 +1240,7 @@ public sealed partial class World : IDisposable
                 bool entityChanged = ApplyTags(chunk, slotIndex, changeSet.TagIndices, isAdd);
                 if (!changeSet.Mask.IsEmpty)
                 {
-                    TransitionEdge edge = GetBatchTransitionEdge(chunk.ArchetypeId, changeSet, isAdd, edgeStamp);
+                    TransitionEdge edge = GetBatchTransitionEdge(chunk.ArchetypeId, changeSet, isAdd, edgeGeneration);
                     if (!edge.IsNoOp)
                     {
                         MoveEntity(recordIndex, edge);
@@ -1503,12 +1452,12 @@ public sealed partial class World : IDisposable
     {
         int archetypeId = archetype.Id;
         EnsureGeneratedWhereArchetypeCapacity(archetypeId + 1);
-        if (_deferredQueryPlanArchetypeStamps.RefAt(archetypeId) == _deferredQueryPlanArchetypeStamp)
+        if (_deferredQueryPlanArchetypeGenerations.RefAt(archetypeId) == _deferredQueryPlanArchetypeGeneration)
         {
             return;
         }
 
-        _deferredQueryPlanArchetypeStamps.RefAt(archetypeId) = _deferredQueryPlanArchetypeStamp;
+        _deferredQueryPlanArchetypeGenerations.RefAt(archetypeId) = _deferredQueryPlanArchetypeGeneration;
         _deferredQueryPlanArchetypes.Add(archetype);
         archetype.DeferQueryPlanUpdates();
     }
@@ -1517,7 +1466,7 @@ public sealed partial class World : IDisposable
     {
         _deferredQueryPlanArchetypes.Clear();
         _deferredQueryPlans.Clear();
-        _deferredQueryPlanArchetypeStamp = NextGeneratedWhereStamp(_deferredQueryPlanArchetypeStamp);
+        _deferredQueryPlanArchetypeGeneration = NextGeneratedWhereGeneration(_deferredQueryPlanArchetypeGeneration);
         EnsureGeneratedWhereArchetypeCapacity(_archetypes.Count);
         _queryPlanBatchActive = true;
     }
@@ -1549,14 +1498,14 @@ public sealed partial class World : IDisposable
 
     private void BeginGeneratedWherePlanCache()
     {
-        _generatedWherePlanStamp = NextGeneratedWhereStamp(_generatedWherePlanStamp);
+        _generatedWherePlanGeneration = NextGeneratedWhereGeneration(_generatedWherePlanGeneration);
         EnsureGeneratedWhereArchetypeCapacity(_archetypes.Count);
     }
 
     private GeneratedWhereTargetCursor GetGeneratedWhereTargetCursor(int archetypeId)
     {
         EnsureGeneratedWhereArchetypeCapacity(archetypeId + 1);
-        if (_generatedWhereTargetCursorStamps.RefAt(archetypeId) != _generatedWherePlanStamp)
+        if (_generatedWhereTargetCursorGenerations.RefAt(archetypeId) != _generatedWherePlanGeneration)
         {
             GeneratedWhereTargetCursor? cursor = _generatedWhereTargetCursors[archetypeId];
             if (cursor is null)
@@ -1566,7 +1515,7 @@ public sealed partial class World : IDisposable
             }
 
             cursor.Reset();
-            _generatedWhereTargetCursorStamps.RefAt(archetypeId) = _generatedWherePlanStamp;
+            _generatedWhereTargetCursorGenerations.RefAt(archetypeId) = _generatedWherePlanGeneration;
         }
 
         return _generatedWhereTargetCursors[archetypeId]!;
@@ -1583,8 +1532,8 @@ public sealed partial class World : IDisposable
         int capacity = Math.Max(required, previousLength == 0 ? 4 : previousLength * 2);
         Array.Resize(ref _generatedWhereArchetypePlans, capacity);
         Array.Resize(ref _generatedWhereTargetCursors, capacity);
-        _generatedWhereTargetCursorStamps.Resize(capacity);
-        _deferredQueryPlanArchetypeStamps.Resize(capacity);
+        _generatedWhereTargetCursorGenerations.Resize(capacity);
+        _deferredQueryPlanArchetypeGenerations.Resize(capacity);
     }
 
     private void EnsureGeneratedWhereSourceArchetypeCapacity(int required)
@@ -1609,16 +1558,16 @@ public sealed partial class World : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private int NextGeneratedWhereStamp(int stamp)
+    private int NextGeneratedWhereGeneration(int generation)
     {
-        if (stamp == int.MaxValue)
+        if (generation == int.MaxValue)
         {
-            _generatedWhereTargetCursorStamps.Span.Clear();
-            _deferredQueryPlanArchetypeStamps.Span.Clear();
+            _generatedWhereTargetCursorGenerations.Span.Clear();
+            _deferredQueryPlanArchetypeGenerations.Span.Clear();
             return 1;
         }
 
-        return stamp + 1;
+        return generation + 1;
     }
 
     internal bool CopyGeneratedWhereRun<TInitializer>(
@@ -1738,13 +1687,6 @@ public sealed partial class World : IDisposable
                 chunk.GetRawComponentRowTrusted(componentIndex),
                 targetSlot,
                 count);
-            chunk.CopyStampRangeTo(
-                chunk,
-                sourceSlot,
-                targetSlot,
-                count,
-                componentIndex,
-                componentIndex);
         }
 
         if (_layouts.TagCount != 0)
@@ -1820,8 +1762,7 @@ public sealed partial class World : IDisposable
                 adopted.AdoptLayout(
                     targetArchetype.Layouts,
                     targetArchetype.RowOperations,
-                    edge.SourceToTargetRowIndices,
-                    edge.AddedTargetRowIndices);
+                    edge.SourceToTargetRowIndices);
             }
             else
             {
@@ -1829,8 +1770,7 @@ public sealed partial class World : IDisposable
                     donor,
                     targetArchetype.Layouts,
                     targetArchetype.RowOperations,
-                    edge.SourceToTargetRowIndices,
-                    edge.AddedTargetRowIndices);
+                    edge.SourceToTargetRowIndices);
                 Chunk replacedDonor = targetArchetype.ReplaceEmptyChunk(donorChunkIndex, adopted);
                 DisposeDetachedChunk(replacedDonor);
             }
@@ -1880,17 +1820,9 @@ public sealed partial class World : IDisposable
                 target.GetRawComponentRowTrusted(targetComponentIndex),
                 targetSlot,
                 count);
-            source.CopyStampRangeTo(
-                target,
-                sourceSlot,
-                targetSlot,
-                count,
-                sourceComponentIndex,
-                targetComponentIndex);
         }
 
         target.InitializeRowsRange(targetSlot, count, edge.AddedTargetRowIndices);
-        target.StampRowsRange(targetSlot, count, edge.AddedTargetRowIndices, new Stamp(1));
         UpdateChunkRecordLocations(target, targetSlot, count);
         if (_layouts.TagCount != 0)
         {
@@ -2058,11 +1990,6 @@ public sealed partial class World : IDisposable
         {
             targetChunk.InitializeRows(targetSlotIndex, edge.AddedTargetRowIndices);
         }
-        for (int i = 0; i < edge.AddedTargetRowIndices.Length; i++)
-        {
-            targetChunk.MarkComponentStamped(edge.AddedTargetRowIndices.RefAt(i), targetSlotIndex, new Stamp(1));
-        }
-
         var moved = sourceArchetype.RemoveEntity(sourceChunkIndex, sourceSlotIndex);
         sourceRecord.ChunkId = targetChunk.GlobalId;
         sourceRecord.SlotIndex = targetSlotIndex;
@@ -2164,7 +2091,6 @@ public sealed partial class World : IDisposable
             _componentRowArrayPool);
         _archetypeByMask.Add(mask, archetype.Id);
         _archetypes.Add(archetype);
-        RegisterArchetypeStampStorage(archetype.Id, archetype.ComponentCount);
         List<QuerySpec>? deadQueries = null;
         foreach (var entry in _queryCache)
         {
@@ -2186,23 +2112,6 @@ public sealed partial class World : IDisposable
         }
 
         return archetype;
-    }
-
-    private void RegisterArchetypeStampStorage(int archetypeId, int componentCount)
-    {
-        if (archetypeId >= _archetypeComponentWriteStamps.Length)
-        {
-            int capacity = Math.Max(
-                archetypeId + 1,
-                _archetypeComponentWriteStamps.Length == 0
-                    ? 4
-                    : _archetypeComponentWriteStamps.Length * 2);
-            Array.Resize(ref _archetypeComponentWriteStamps, capacity);
-        }
-
-        _archetypeComponentWriteStamps.RefAt(archetypeId) = componentCount == 0
-            ? Array.Empty<Stamp>()
-            : new Stamp[componentCount];
     }
 
     private void RegisterChunk(Chunk chunk)
@@ -2347,6 +2256,17 @@ public sealed partial class World : IDisposable
         int index = _records.Count;
         _records.Add(new EntityRecord { Generation = 1, ChunkId = -1, SlotIndex = -1 });
         return index;
+    }
+
+    private void EnsureEntityRecordCapacity(int capacity)
+    {
+        if (capacity <= _records.Capacity)
+        {
+            return;
+        }
+
+        _records.EnsureCapacity(capacity);
+        EnsureComponentChangeObserverCapacity(_records.Capacity);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -2608,31 +2528,31 @@ public sealed partial class World : IDisposable
     private int BeginBatchEdgeCache()
     {
         EnsureBatchEdgeCapacity(_archetypes.Count);
-        if (_batchEdgeStamp == int.MaxValue)
+        if (_batchEdgeGeneration == int.MaxValue)
         {
-            _batchEdgeStamps.Clear();
-            _batchEdgeStamp = 0;
+            _batchEdgeGenerations.Clear();
+            _batchEdgeGeneration = 0;
         }
 
-        _batchEdgeStamp++;
-        return _batchEdgeStamp;
+        _batchEdgeGeneration++;
+        return _batchEdgeGeneration;
     }
 
-    private TransitionEdge GetBatchTransitionEdge(int sourceArchetypeId, ComponentSet changeSet, bool isAdd, int stamp)
+    private TransitionEdge GetBatchTransitionEdge(int sourceArchetypeId, ComponentSet changeSet, bool isAdd, int generation)
     {
-        if ((uint)sourceArchetypeId >= (uint)_batchEdgeStamps.Length)
+        if ((uint)sourceArchetypeId >= (uint)_batchEdgeGenerations.Length)
         {
             EnsureBatchEdgeCapacity(sourceArchetypeId + 1);
         }
 
-        if (_batchEdgeStamps.RefAt(sourceArchetypeId) == stamp)
+        if (_batchEdgeGenerations.RefAt(sourceArchetypeId) == generation)
         {
             return _batchEdgeSlots.RefAt(sourceArchetypeId);
         }
 
         var edge = GetTransitionEdge(sourceArchetypeId, changeSet, isAdd);
         _batchEdgeSlots.RefAt(sourceArchetypeId) = edge;
-        _batchEdgeStamps.RefAt(sourceArchetypeId) = stamp;
+        _batchEdgeGenerations.RefAt(sourceArchetypeId) = generation;
         return edge;
     }
 
@@ -2645,7 +2565,7 @@ public sealed partial class World : IDisposable
 
         int capacity = Math.Max(required, _batchEdgeSlots.Length == 0 ? InitialBatchEdgeCapacity : _batchEdgeSlots.Length * 2);
         Array.Resize(ref _batchEdgeSlots, capacity);
-        _batchEdgeStamps.Resize(capacity);
+        _batchEdgeGenerations.Resize(capacity);
     }
 
     private void EnsureDestroyScratch(int required)

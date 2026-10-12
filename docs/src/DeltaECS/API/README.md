@@ -9,24 +9,18 @@ The interface combines:
 - lifecycle: `Initialize`, `Update`, `Shutdown`;
 - entity structure: `Create`, `Destroy`, `Add`, `Remove`;
 - component discovery: `Catalog`, `TryGetComponents`;
-- object tooling: symmetric `TryRead` and optimistic `TryWrite`.
+- object tooling: symmetric `TryRead` and `TryWrite`.
 
 ```csharp
 if (ecs.TryRead(entity, component, out var snapshot, out var readError))
 {
-    bool written = ecs.TryWrite(
-        entity,
-        component,
-        editedValue,
-        snapshot.Stamp,
-        out Stamp writtenStamp,
-        out EcsWriteError writeError);
+    bool written = ecs.TryWrite(entity, component, editedValue, out EcsWriteError writeError);
 }
 ```
 
-`TryWrite` accepts the exact stamp observed by `TryRead`; a stale stamp reports
-`StaleStamp`. Catalog entries expose world-local `ComponentId`, stable
-`SchemaId`, CLR `ValueType`, nullability and read/write capabilities.
+`TryWrite` writes the supplied value without a version check. Catalog entries
+expose world-local `ComponentId`, stable `SchemaId`, CLR `ValueType`, nullability
+and read/write capabilities.
 
 This is an in-process .NET contract. `object?` values are not an IPC encoding.
 Reference components may preserve object identity; mutating a returned object

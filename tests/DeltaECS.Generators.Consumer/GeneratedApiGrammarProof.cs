@@ -71,8 +71,6 @@ public static class GeneratedApiGrammarProof
         GeneratedIterationGrammarProof.Run(world, in query, entities, entityArray, cmp1Id, cmp2Id,
             componentIds, singleComponentId, ref context, in readContext);
         GeneratedOperationGrammarProof.Run(world, in query, ref context);
-        GeneratedStampGrammarProof.Run(world, in query, entities, entityArray, cmp1Id, cmp2Id,
-            componentIds, singleComponentId, ref context, in readContext);
         GeneratedQueryGrammarProof.Run(world, in query, cmp1Id, cmp2Id, componentIds);
         GeneratedWherePipelineGrammarProof.Run(world, in query, deadId, aliveId, ref context);
         GeneratedOpenGenericFunctorGrammarProof.Run(world, in query, entities, entityArray, cmp1Id, cmp2Id,
