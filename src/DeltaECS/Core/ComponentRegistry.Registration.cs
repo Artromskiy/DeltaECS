@@ -2,7 +2,7 @@ namespace Delta.ECS;
 
 using System.Diagnostics.CodeAnalysis;
 
-public sealed partial class ComponentLayoutRegistry
+public sealed partial class ComponentRegistry
 {
     internal void BindInterfaceRoute<TComponent, TInterface>(IComponentInterfaceVisitorRoute route)
         where TComponent : TInterface

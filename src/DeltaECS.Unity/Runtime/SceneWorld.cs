@@ -175,14 +175,15 @@ namespace Delta.ECS.Unity
 
         private static World CreateWorld(int initialEntityCapacity)
         {
-            var world = new World(initialEntityCapacity: initialEntityCapacity);
+            var layouts = new ComponentRegistry();
+            foreach (IGeneratedComponentRegistration registration in GeneratedComponentCatalog.GetRegistrations())
+            {
+                layouts.Register(registration);
+            }
+
+            var world = new World(layouts, initialEntityCapacity);
             try
             {
-                foreach (IGeneratedComponentRegistration registration in GeneratedComponentCatalog.GetRegistrations())
-                {
-                    world.Register(registration);
-                }
-
                 return world;
             }
             catch (Exception exception)
@@ -524,7 +525,7 @@ namespace Delta.ECS.Unity
 
         public bool TryFindFirstEntity<T>(out Entity entity) where T : struct
         {
-            if (_world.Layouts.TryGetPrimary(typeof(T), out ComponentId componentId))
+            if (_world.Components.TryGetPrimary(typeof(T), out ComponentId componentId))
             {
                 foreach (Entity candidate in _entitiesByStableId.Values)
                 {
@@ -542,7 +543,7 @@ namespace Delta.ECS.Unity
 
         public bool HasComponent<T>(Entity entity) where T : struct =>
             _world.IsAlive(entity)
-            && _world.Layouts.TryGetPrimary(typeof(T), out ComponentId componentId)
+            && _world.Components.TryGetPrimary(typeof(T), out ComponentId componentId)
             && _world.Has(entity, componentId);
 
         internal bool TryGetAuthoring(string stableId, out EntityAuthoring authoring)

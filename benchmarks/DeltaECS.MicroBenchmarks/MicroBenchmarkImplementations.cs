@@ -6,7 +6,7 @@ namespace Delta.ECS.MicroBenchmarks;
 
 internal static class MicroIds
 {
-    public static (ComponentId Position, ComponentId Velocity, ComponentId Auxiliary, ComponentId Reference, ComponentId Movement4A, ComponentId Movement4B, ComponentId Movement4C, ComponentId Movement4D) Register(ComponentLayoutRegistry layouts)
+    public static (ComponentId Position, ComponentId Velocity, ComponentId Auxiliary, ComponentId Reference, ComponentId Movement4A, ComponentId Movement4B, ComponentId Movement4C, ComponentId Movement4D) Register(ComponentRegistry layouts)
         => (
             layouts.Register<Position>(new SchemaId(30_001)),
             layouts.Register<Velocity>(new SchemaId(30_002)),
@@ -29,7 +29,7 @@ public struct Movement4D { public int Value; }
 
 internal sealed class MicroWorld
 {
-    public readonly ComponentLayoutRegistry Layouts = new();
+    public readonly ComponentRegistry Layouts = new();
     public readonly ComponentId Position;
     public readonly ComponentId Velocity;
     public readonly ComponentId Auxiliary;

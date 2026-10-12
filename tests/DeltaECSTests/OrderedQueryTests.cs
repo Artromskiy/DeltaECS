@@ -19,7 +19,7 @@ internal sealed class OrderedQueryTests
     [Test]
     public void OrderedForEachUsesStableLexicographicOrderAndReevaluatesKeys()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId keyId = layouts.Register<OrderKey>(new SchemaId(71_001));
         ComponentId tieId = layouts.Register<TieKey>(new SchemaId(71_002));
         ComponentId tagId = layouts.Register<OrderTag>(new SchemaId(71_003));
@@ -67,7 +67,7 @@ internal sealed class OrderedQueryTests
     [Test]
     public void OrderBySupportsPrimaryAndExplicitRegistrationsAndTagKeys()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId primaryId = layouts.Register<OrderKey>(new SchemaId(71_011));
         ComponentId secondaryId = layouts.Register<OrderKey>(new SchemaId(71_012));
         ComponentId tagId = layouts.Register<OrderTag>(new SchemaId(71_013));
@@ -93,7 +93,7 @@ internal sealed class OrderedQueryTests
     [Test]
     public void DelegateComparersSupportContextEntityAndChaining()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId keyId = layouts.Register<OrderKey>(new SchemaId(71_015));
         using var world = new World(layouts);
         var entities = new Entity[4];
@@ -144,7 +144,7 @@ internal sealed class OrderedQueryTests
     [Test]
     public void FirstReturnsDefaultForEmptyOrderedQuery()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId keyId = layouts.Register<OrderKey>(new SchemaId(71_021));
         ComponentId tagId = layouts.Register<OrderTag>(new SchemaId(71_022));
         using var world = new World(layouts);
@@ -165,7 +165,7 @@ internal sealed class OrderedQueryTests
     [Test]
     public void OrderingKeyMustBeRequiredAndHaveMatchingRegistrationType()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId keyId = layouts.Register<OrderKey>(new SchemaId(71_031));
         ComponentId tieId = layouts.Register<TieKey>(new SchemaId(71_032));
         using var world = new World(layouts);

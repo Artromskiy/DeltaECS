@@ -255,21 +255,15 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
                     public bool IsTag => {{registration.IsTag.ToString().ToLowerInvariant()}};
 
                     global::Delta.ECS.ComponentId global::Delta.ECS.IGeneratedComponentRegistration.Register(
-                        global::Delta.ECS.ComponentLayoutRegistry layouts)
+                        global::Delta.ECS.ComponentRegistry layouts)
                     {
-                        global::Delta.ECS.ComponentId componentId = global::Delta.ECS.ComponentLayoutRegistryRegistrationExtensions.Register<{{typeName}}>(
+                        global::Delta.ECS.ComponentId componentId = global::Delta.ECS.ComponentRegistryRegistrationExtensions.Register<{{typeName}}>(
                             layouts,
                             SchemaId);
                 {{GeneratorTemplates.Indent(string.Join("\n", registration.Groups.Select(group =>
                     $"layouts.RegisterGeneratedComponentGroup(typeof({group.EnumType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}).TypeHandle, 0x{group.Value:X16}UL, componentId);")), "        ")}}
                 {{GeneratorTemplates.Indent(aliasCalls, "        ")}}
                         return componentId;
-                    }
-
-                    global::Delta.ECS.ComponentId global::Delta.ECS.IGeneratedComponentRegistration.Register(
-                        global::Delta.ECS.World world)
-                    {
-                        return ((global::Delta.ECS.IGeneratedComponentRegistration)this).Register(world.Layouts);
                     }
                 }
                 """);

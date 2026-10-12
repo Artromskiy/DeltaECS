@@ -31,7 +31,7 @@ using System;
 using System.Numerics;
 using Delta.ECS;
 
-var layouts = new ComponentLayoutRegistry();
+var layouts = new ComponentRegistry();
 using var world = new World(layouts);
 
 layouts.Register<Position>(new SchemaId(1));

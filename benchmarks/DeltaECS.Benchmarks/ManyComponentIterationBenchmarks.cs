@@ -26,7 +26,7 @@ public class ManyComponentIterationBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         _components =
         [
             layouts.Register<Movement4A>( new SchemaId(203_000)),

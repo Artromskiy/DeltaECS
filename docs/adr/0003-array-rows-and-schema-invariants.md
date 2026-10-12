@@ -13,7 +13,7 @@ registration must also remain stable when a layout is requested more than once.
 
 - `ComponentLayout` stores the schema id and registered CLR runtime type used
   to create a component array. Array rows use the CLR type directly.
-- `ComponentLayoutRegistry.Register` reuses an existing `SchemaId` only when
+- `ComponentRegistry.Register` reuses an existing `SchemaId` only when
   the complete layout, including runtime type, matches. A mismatch throws.
 - `Register<T>` is a convenience boundary. The registry records `typeof(T)`
   and determines whether the type contains managed references for row cleanup.

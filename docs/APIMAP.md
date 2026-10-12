@@ -45,7 +45,7 @@ The consumer source generator is documented in
 | `Entity` | Index/generation entity handle | `src/DeltaECS/Core/EntityTypes.cs` |
 | `ComponentId` | World-local component identity | `src/DeltaECS/Core/ComponentTypes.cs` |
 | `SchemaId` | Stable schema identity used during component registration | `src/DeltaECS/Core/ComponentTypes.cs` |
-| `ComponentLayoutRegistry` | Component registration and primary CLR-type lookup | `src/DeltaECS/Core/ComponentLayoutRegistry.cs` |
+| `ComponentRegistry` | Component registration and primary CLR-type lookup | `src/DeltaECS/Core/ComponentRegistry.cs` |
 | `QuerySpec` | Opaque `All`/`Any`/`None` selection description created by the fluent query factories | `src/DeltaECS/Core/QuerySpec.cs` |
 | `Query` | World-owned cached query and generated API input | `src/DeltaECS/Core/EntityTypes.cs` |
 | `ReadAccess`, `WriteAccess` | Compiler-support access tokens used by generated callbacks | `src/DeltaECS/Core/QueryAccess.cs` |
@@ -103,7 +103,7 @@ build-time only and is not part of a NativeAOT deployment.
 - Entity resolution and structural transitions: `src/DeltaECS/Core/World.cs`.
 - Archetype ownership and active chunks: `src/DeltaECS/Core/Archetype.cs`.
 - Component rows, swap-back and reference clearing: `src/DeltaECS/Core/Chunk.cs`.
-- Layout registration: `src/DeltaECS/Core/ComponentLayoutRegistry.cs`.
+- Layout registration: `src/DeltaECS/Core/ComponentRegistry.cs`.
 - Query matching and physical row plans: `src/DeltaECS/Core/QueryAccess.cs`.
 
 Do not start a pure API/documentation task in structural tests. For storage

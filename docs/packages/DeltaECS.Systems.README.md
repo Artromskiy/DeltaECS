@@ -26,8 +26,8 @@ using Delta.ECS;
 using Delta.ECS.Systems;
 
 using var world = new World();
-world.Layouts.Register<Velocity>(new SchemaId(1));
-world.Layouts.Register<Position>(new SchemaId(2));
+world.Components.Register<Velocity>(new SchemaId(1));
+world.Components.Register<Position>(new SchemaId(2));
 
 Query movementQuery = world.WhereAll<Position, Velocity>();
 Entity mover = world.Create<Position>();
@@ -101,8 +101,8 @@ using Delta.ECS;
 using Delta.ECS.Systems;
 
 using var world = new World();
-ComponentId positionId = world.Layouts.Register<Position>(new SchemaId(10));
-ComponentId historyId = world.Layouts.Register(typeof(History<>), positionId, new SchemaId(11));
+ComponentId positionId = world.Components.Register<Position>(new SchemaId(10));
+ComponentId historyId = world.Components.Register(typeof(History<>), positionId, new SchemaId(11));
 Entity entity = world.Create(positionId, historyId);
 world.GetRef<Position>(entity, positionId).X = 4f;
 Query query = world.WhereAll(positionId, historyId);

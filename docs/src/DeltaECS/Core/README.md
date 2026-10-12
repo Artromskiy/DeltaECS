@@ -11,7 +11,7 @@ through entity storage, query descriptions, access tokens or iterators.
   particular world. Destroyed handles become stale.
 - `ComponentId` is a world-local component identity.
 - `SchemaId` is stable tooling/schema identity.
-- `ComponentLayoutRegistry` registers layouts and resolves primary component
+- `ComponentRegistry` registers layouts and resolves primary component
   registrations by CLR `Type`. `Register<T>(schemaId)` returns the component ID
   directly and records the strongest type constraint available at the call site.
   Empty non-primitive structs are inferred as data-less tags.

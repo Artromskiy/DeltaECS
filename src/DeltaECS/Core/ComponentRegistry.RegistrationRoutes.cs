@@ -5,62 +5,62 @@ using System.Diagnostics.CodeAnalysis;
 
 /// <summary>Routes component registry extension calls through the selected registration constraints.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IComponentLayoutRegistryRoute
+public interface IComponentRegistryRoute
 {
 }
 
 /// <summary>Registration route marker for types that satisfy <c>new()</c>.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IComponentLayoutRegistryNewRoute : IComponentLayoutRegistryRoute
+public interface IComponentRegistryNewRoute : IComponentRegistryRoute
 {
 }
 
 /// <summary>Registration route marker for struct types.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IComponentLayoutRegistryStructRoute : IComponentLayoutRegistryNewRoute
+public interface IComponentRegistryStructRoute : IComponentRegistryNewRoute
 {
 }
 
 /// <summary>Registration route marker for unmanaged types.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IComponentLayoutRegistryUnmanagedRoute : IComponentLayoutRegistryStructRoute
+public interface IComponentRegistryUnmanagedRoute : IComponentRegistryStructRoute
 {
 }
 
 /// <summary>Registration route marker for class types.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IComponentLayoutRegistryClassRoute : IComponentLayoutRegistryRoute
+public interface IComponentRegistryClassRoute : IComponentRegistryRoute
 {
 }
 
 /// <summary>Registration route marker for constructible class types.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public interface IComponentLayoutRegistryClassNewRoute :
-    IComponentLayoutRegistryClassRoute,
-    IComponentLayoutRegistryNewRoute
+public interface IComponentRegistryClassNewRoute :
+    IComponentRegistryClassRoute,
+    IComponentRegistryNewRoute
 {
 }
 
-public sealed partial class ComponentLayoutRegistry :
-    IComponentLayoutRegistryUnmanagedRoute,
-    IComponentLayoutRegistryClassNewRoute
+public sealed partial class ComponentRegistry :
+    IComponentRegistryUnmanagedRoute,
+    IComponentRegistryClassNewRoute
 {
 }
 
 /// <summary>Provides constraint-selected registration and interface binding for component layouts.</summary>
-public static class ComponentLayoutRegistryRegistrationExtensions
+public static class ComponentRegistryRegistrationExtensions
 {
     /// <summary>Registers a component using the constraints available for <typeparamref name="T"/>.</summary>
     public static ComponentId Register<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        this IComponentLayoutRegistryRoute layouts,
+        this IComponentRegistryRoute layouts,
         SchemaId schemaId)
         => ResolveRegistry(layouts).RegisterTypedComponent<T>(schemaId, new UnconstrainedComponentTypeRegistrationRoute<T>());
 
     /// <summary>Registers a component with a public parameterless constructor.</summary>
     public static ComponentId Register<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        this IComponentLayoutRegistryNewRoute layouts,
+        this IComponentRegistryNewRoute layouts,
         SchemaId schemaId)
         where T : new()
         => ResolveRegistry(layouts).RegisterTypedComponent<T>(schemaId, new NewComponentTypeRegistrationRoute<T>());
@@ -68,7 +68,7 @@ public static class ComponentLayoutRegistryRegistrationExtensions
     /// <summary>Registers a struct component.</summary>
     public static ComponentId Register<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        this IComponentLayoutRegistryStructRoute layouts,
+        this IComponentRegistryStructRoute layouts,
         SchemaId schemaId)
         where T : struct
         => ResolveRegistry(layouts).RegisterTypedComponent<T>(schemaId, new StructComponentTypeRegistrationRoute<T>());
@@ -76,7 +76,7 @@ public static class ComponentLayoutRegistryRegistrationExtensions
     /// <summary>Registers an unmanaged component.</summary>
     public static ComponentId Register<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        this IComponentLayoutRegistryUnmanagedRoute layouts,
+        this IComponentRegistryUnmanagedRoute layouts,
         SchemaId schemaId)
         where T : unmanaged
         => ResolveRegistry(layouts).RegisterTypedComponent<T>(schemaId, new UnmanagedComponentTypeRegistrationRoute<T>());
@@ -84,7 +84,7 @@ public static class ComponentLayoutRegistryRegistrationExtensions
     /// <summary>Registers a class component.</summary>
     public static ComponentId Register<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        this IComponentLayoutRegistryClassRoute layouts,
+        this IComponentRegistryClassRoute layouts,
         SchemaId schemaId)
         where T : class
         => ResolveRegistry(layouts).RegisterTypedComponent<T>(schemaId, new ClassComponentTypeRegistrationRoute<T>());
@@ -92,7 +92,7 @@ public static class ComponentLayoutRegistryRegistrationExtensions
     /// <summary>Registers a constructible class component.</summary>
     public static ComponentId Register<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        this IComponentLayoutRegistryClassNewRoute layouts,
+        this IComponentRegistryClassNewRoute layouts,
         SchemaId schemaId)
         where T : class, new()
         => ResolveRegistry(layouts).RegisterTypedComponent<T>(schemaId, new ClassNewComponentTypeRegistrationRoute<T>());
@@ -101,7 +101,7 @@ public static class ComponentLayoutRegistryRegistrationExtensions
     public static void BindInterface<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TComponent,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TInterface>(
-        this IComponentLayoutRegistryRoute layouts)
+        this IComponentRegistryRoute layouts)
         where TComponent : TInterface
         => ResolveRegistry(layouts).BindInterfaceRoute<TComponent, TInterface>(
             new UnconstrainedComponentInterfaceVisitorRoute<TComponent, TInterface>());
@@ -110,7 +110,7 @@ public static class ComponentLayoutRegistryRegistrationExtensions
     public static void BindInterface<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TComponent,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TInterface>(
-        this IComponentLayoutRegistryNewRoute layouts)
+        this IComponentRegistryNewRoute layouts)
         where TComponent : TInterface, new()
         => ResolveRegistry(layouts).BindInterfaceRoute<TComponent, TInterface>(
             new NewComponentInterfaceVisitorRoute<TComponent, TInterface>());
@@ -119,7 +119,7 @@ public static class ComponentLayoutRegistryRegistrationExtensions
     public static void BindInterface<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TComponent,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TInterface>(
-        this IComponentLayoutRegistryStructRoute layouts)
+        this IComponentRegistryStructRoute layouts)
         where TComponent : struct, TInterface
         => ResolveRegistry(layouts).BindInterfaceRoute<TComponent, TInterface>(
             new StructComponentInterfaceVisitorRoute<TComponent, TInterface>());
@@ -128,7 +128,7 @@ public static class ComponentLayoutRegistryRegistrationExtensions
     public static void BindInterface<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TComponent,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TInterface>(
-        this IComponentLayoutRegistryUnmanagedRoute layouts)
+        this IComponentRegistryUnmanagedRoute layouts)
         where TComponent : unmanaged, TInterface
         => ResolveRegistry(layouts).BindInterfaceRoute<TComponent, TInterface>(
             new UnmanagedComponentInterfaceVisitorRoute<TComponent, TInterface>());
@@ -137,7 +137,7 @@ public static class ComponentLayoutRegistryRegistrationExtensions
     public static void BindInterface<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TComponent,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TInterface>(
-        this IComponentLayoutRegistryClassRoute layouts)
+        this IComponentRegistryClassRoute layouts)
         where TComponent : class, TInterface
         => ResolveRegistry(layouts).BindInterfaceRoute<TComponent, TInterface>(
             new ClassComponentInterfaceVisitorRoute<TComponent, TInterface>());
@@ -146,20 +146,20 @@ public static class ComponentLayoutRegistryRegistrationExtensions
     public static void BindInterface<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TComponent,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TInterface>(
-        this IComponentLayoutRegistryClassNewRoute layouts)
+        this IComponentRegistryClassNewRoute layouts)
         where TComponent : class, TInterface, new()
         => ResolveRegistry(layouts).BindInterfaceRoute<TComponent, TInterface>(
             new ClassNewComponentInterfaceVisitorRoute<TComponent, TInterface>());
 
-    private static ComponentLayoutRegistry ResolveRegistry(IComponentLayoutRegistryRoute layouts)
+    private static ComponentRegistry ResolveRegistry(IComponentRegistryRoute layouts)
     {
         ThrowHelper.ThrowIfNull(layouts, nameof(layouts));
 
-        if (layouts is ComponentLayoutRegistry registry)
+        if (layouts is ComponentRegistry registry)
         {
             return registry;
         }
 
-        return ThrowHelper.ThrowInvalidComponentLayoutRegistryRoute(layouts);
+        return ThrowHelper.ThrowInvalidComponentRegistryRoute(layouts);
     }
 }

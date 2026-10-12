@@ -301,9 +301,9 @@ internal sealed class QueryStructuralOperationsTests
         return weakReferences;
     }
 
-    private static ComponentLayoutRegistry CreateLayouts()
+    private static ComponentRegistry CreateLayouts()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         layouts.Register<Position>(new SchemaId(1));
         layouts.Register<Velocity>(new SchemaId(2));
         layouts.Register<Health>(new SchemaId(3));

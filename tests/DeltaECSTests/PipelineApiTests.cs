@@ -9,7 +9,7 @@ internal sealed class PipelineApiTests
     [Test]
     public void ZeroArityEntityCallbacksIterateWithoutComponentRows()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_004));
         using var world = new World(layouts);
         var entities = new Entity[3];
@@ -83,7 +83,7 @@ internal sealed class PipelineApiTests
     [Test]
     public void InferredForEachUsesPreparedWriteRoutes()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_005));
         ComponentId velocityId = layouts.Register<PipelineVelocity>(new SchemaId(70_006));
         using var world = new World(layouts);
@@ -104,7 +104,7 @@ internal sealed class PipelineApiTests
     [Test]
     public void EntityListForEachFiltersByQueryAndUsesTheRequestedSlots()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_020));
         ComponentId velocityId = layouts.Register<PipelineVelocity>(new SchemaId(70_021));
         using var world = new World(layouts);
@@ -137,7 +137,7 @@ internal sealed class PipelineApiTests
     [Test]
     public void EntityListForEachCanBuildItsQueryFromTheSelector()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_023));
         using var world = new World(layouts);
         Entity[] entities = new Entity[2];
@@ -155,7 +155,7 @@ internal sealed class PipelineApiTests
     [Test]
     public void EntityListParallelForEachUsesTheGeneratedParallelExecutor()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_026));
         using var world = new World(layouts);
         var entities = new Entity[8];
@@ -178,7 +178,7 @@ internal sealed class PipelineApiTests
     [Test]
     public void WhereInterceptionPreservesPredicateContext()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_022));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId);
@@ -198,7 +198,7 @@ internal sealed class PipelineApiTests
     [Test]
     public void WhereStructuralInterceptionPreservesPredicateContext()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_024));
         layouts.Register<PipelineMarker>(new SchemaId(70_025));
         using var world = new World(layouts);
@@ -219,7 +219,7 @@ internal sealed class PipelineApiTests
     [Test]
     public void StaticLambdaDelegatePathInvokesOnceAndPreservesRefWriteSemantics()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_008));
         ComponentId velocityId = layouts.Register<PipelineVelocity>(new SchemaId(70_009));
         using var world = new World(layouts);
@@ -246,7 +246,7 @@ internal sealed class PipelineApiTests
     [Test]
     public void PrecreatedDelegateFallbackStillExecutesOnce()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_010));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId);
@@ -269,7 +269,7 @@ internal sealed class PipelineApiTests
     [Test]
     public void MethodGroupDelegateFallbackStillExecutesOnce()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_011));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId);

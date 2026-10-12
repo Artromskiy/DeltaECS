@@ -17,7 +17,7 @@ public sealed partial class World : IDisposable
     private const int InitialBatchEdgeCapacity = 4;
     private const int TransitionHashMultiplier = 397;
 
-    private readonly ComponentLayoutRegistry _layouts;
+    private readonly ComponentRegistry _layouts;
     private readonly Dictionary<RuntimeTypeHandle, ComponentId> _primaryComponentIdsByType =
         new(RuntimeTypeHandleComparer.Instance);
     private readonly List<Archetype> _archetypes = new();
@@ -66,11 +66,11 @@ public sealed partial class World : IDisposable
     /// <summary>Creates a world using the supplied component layouts.</summary>
     /// <param name="layouts">The registered component layouts, or null to create an empty registry.</param>
     /// <param name="initialEntityCapacity">The initial capacity for entity records.</param>
-    public World(ComponentLayoutRegistry? layouts = null, int initialEntityCapacity = DefaultInitialCapacity)
+    public World(ComponentRegistry? layouts = null, int initialEntityCapacity = DefaultInitialCapacity)
     {
         ThrowHelper.ThrowIfNegative(initialEntityCapacity, nameof(initialEntityCapacity));
 
-        _layouts = layouts ?? new ComponentLayoutRegistry();
+        _layouts = layouts ?? new ComponentRegistry();
         _records.Capacity = initialEntityCapacity;
     }
 
@@ -87,29 +87,14 @@ public sealed partial class World : IDisposable
         private set => _aliveEntityCount = value;
     }
 
-    /// <summary>Gets the registry containing this world's component layouts.</summary>
-    public ComponentLayoutRegistry Layouts
+    /// <summary>Gets the registry containing this world's components.</summary>
+    public ComponentRegistry Components
     {
         get
         {
             EnsureExecutionAccess();
             return _layouts;
         }
-    }
-
-    /// <summary>Registers a generated component and its aliases in this world.</summary>
-    public ComponentId Register(IGeneratedComponentRegistration registration)
-    {
-        EnsureExecutionAccess();
-        ThrowHelper.ThrowIfNull(registration, nameof(registration));
-        return registration.Register(this);
-    }
-
-    /// <summary>Adds an alias for a registered component in this world's catalog.</summary>
-    public void AddAlias(string alias, ComponentId componentId)
-    {
-        EnsureExecutionAccess();
-        _layouts.AddAlias(alias, componentId);
     }
 
     /// <summary>Tries to get the component registered under an alias in this world's catalog.</summary>
@@ -124,13 +109,6 @@ public sealed partial class World : IDisposable
         => TryGetAlias(alias, out ComponentId componentId)
             ? componentId
             : ThrowHelper.ThrowComponentAliasNotFound(alias);
-
-    /// <summary>Adds a registered component to a group in this world's layout registry.</summary>
-    public void AddGroup<TEnum>(TEnum groupId, ComponentId componentId) where TEnum : struct, Enum
-    {
-        EnsureExecutionAccess();
-        _layouts.AddGroup(groupId, componentId);
-    }
 
     /// <summary>Gets the registered components in a group in this world.</summary>
     public ReadOnlySpan<ComponentId> GetGroup<TEnum>(TEnum groupId) where TEnum : struct, Enum

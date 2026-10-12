@@ -56,7 +56,7 @@ internal static partial class GeneratorTemplates
         string key = GeneratorSupport.QualifiedName(namespaceName, "GeneratedPrimaryComponentSetKey")
             + SignatureProjection.TypeArguments(componentTypes);
         string registrations = string.Join(", ", componentTypes.Select(
-            static type => "cacheWorld.Layouts.GetPrimary<" + type + ">()"));
+            static type => "cacheWorld.Components.GetPrimary<" + type + ">()"));
         string target = query ? "in " + owner : owner;
         return $$"""global::Delta.ECS.GeneratedForEachRuntime.GetGeneratedPrimaryComponentIds<{{key}}>({{target}}, static cacheWorld => new global::Delta.ECS.ComponentId[] { {{registrations}} })""";
     }

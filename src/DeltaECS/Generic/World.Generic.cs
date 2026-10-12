@@ -713,7 +713,7 @@ public sealed partial class World
         int[]? addedRows,
         int slotIndex,
         int count,
-        ComponentLayoutRegistry layouts,
+        ComponentRegistry layouts,
         ref TInitializer initializer)
         where TInitializer : struct, IGeneratedComponentValueInitializer
     {

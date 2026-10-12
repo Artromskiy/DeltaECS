@@ -16,7 +16,7 @@ internal sealed class StructuralAlgorithmTests
     [Test]
     public void DestroyBatchRandomContiguousDuplicateAndStaleHandlesPreservesSurvivors()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         var valueId = layouts.Register<DestroyValue>(new SchemaId(30_001));
         using var world = new World(layouts);
         var entities = new Entity[96];
@@ -73,7 +73,7 @@ internal sealed class StructuralAlgorithmTests
     [Test]
     public void DestroyBatchRecreateRecyclesAllDestroyedRecordsWithNewGenerations()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         var valueId = layouts.Register<DestroyValue>(new SchemaId(30_002));
         using var world = new World(layouts);
         var old = new Entity[64];
@@ -102,7 +102,7 @@ internal sealed class StructuralAlgorithmTests
     [Test]
     public void DestroyBatch10KSmokeUsesExactCountAndLeavesValidHandles()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         var valueId = layouts.Register<DestroyValue>(new SchemaId(30_003));
         using var world = new World(layouts);
         var entities = new Entity[10_000];
@@ -131,7 +131,7 @@ internal sealed class StructuralAlgorithmTests
     [Test]
     public void RandomizedBatchTransitionsMatchReferenceModelAndPreserveValues()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         var positionId = layouts.Register<TransitionPosition>(new SchemaId(30_010));
         var velocityId = layouts.Register<TransitionVelocity>(new SchemaId(30_011));
         var healthId = layouts.Register<TransitionHealth>(new SchemaId(30_012));

@@ -9,7 +9,7 @@ internal sealed class ComponentRowOperationTests
     [Test]
     public void SwapBackCopiesValueManagedStructAndClassRows()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         var valueId = layouts.Register<int>(new SchemaId(10_001));
         var managedStructId = layouts.Register<ManagedPayload>(new SchemaId(10_002));
         var classId = layouts.Register<ReferencePayload>(new SchemaId(10_003));
@@ -36,7 +36,7 @@ internal sealed class ComponentRowOperationTests
     [Test]
     public void ReusedCreateSlotInitializesAllRowsToDefault()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         var valueId = layouts.Register<int>(new SchemaId(10_011));
         var managedStructId = layouts.Register<ManagedPayload>(new SchemaId(10_012));
         var classId = layouts.Register<ReferencePayload>(new SchemaId(10_013));
@@ -62,7 +62,7 @@ internal sealed class ComponentRowOperationTests
     [Test]
     public void ReusedTransitionSlotInitializesOnlyAddedRows()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         var sharedId = layouts.Register<int>(new SchemaId(10_021));
         var addedValueId = layouts.Register<int>(new SchemaId(10_022));
         var addedReferenceId = layouts.Register<ReferencePayload>(new SchemaId(10_023));
@@ -91,7 +91,7 @@ internal sealed class ComponentRowOperationTests
     [Test]
     public void SwapBackDoesNotClearUnmanagedTailButClearsReferenceTail()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         var valueId = layouts.Register<int>(new SchemaId(10_031));
         var referenceId = layouts.Register<ReferencePayload>(new SchemaId(10_032));
         using var world = new World(layouts);
@@ -118,7 +118,7 @@ internal sealed class ComponentRowOperationTests
     [Test]
     public void SwapBackUpdatesMovedRecordAndStaleGenerationIsRejected()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         var id = layouts.Register<int>(new SchemaId(10_041));
         using var world = new World(layouts);
         var first = world.Create(new[] { id });
@@ -136,7 +136,7 @@ internal sealed class ComponentRowOperationTests
     [Test]
     public void InvalidEntityNeverReturnsAComponentReference()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         var id = layouts.Register<int>(new SchemaId(10_051));
         using var world = new World(layouts);
         var invalid = default(Entity);

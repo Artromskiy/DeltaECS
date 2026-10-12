@@ -24,7 +24,7 @@ public class ParallelMovement4IterationBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         _componentIds =
         [
             layouts.Register<Movement4A>(new SchemaId(280_000)),

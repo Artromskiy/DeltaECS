@@ -236,7 +236,7 @@ internal static class ComponentComparerDelegateTemplates
     };
 
     private static string PrimaryIds(string[] componentTypes, string world) => string.Join(", ", componentTypes
-            .Select(type => $"{world}.Layouts.GetPrimary(typeof({type}))"));
+            .Select(type => $"{world}.Components.GetPrimary(typeof({type}))"));
 
     private static string CallbackParameters(ComponentComparerDelegateModel model, string[] genericTypes, string[] parameterNames)
     {

@@ -106,21 +106,23 @@ internal sealed class PublicApiShapeTests
     [Test]
     public void ComponentRegistryExposesConstraintSelectedRegistrationAndVisitorMethods()
     {
-        MethodInfo[] registerMethods = typeof(ComponentLayoutRegistry)
+        MethodInfo[] registerMethods = typeof(ComponentRegistry)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
             .Where(static method => method.Name == "Register")
             .ToArray();
-        MethodInfo[] registrationExtensions = typeof(ComponentLayoutRegistryRegistrationExtensions)
+        MethodInfo[] registrationExtensions = typeof(ComponentRegistryRegistrationExtensions)
             .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
             .Where(static method => method.Name == "Register")
             .ToArray();
-        MethodInfo[] interfaceBindingExtensions = typeof(ComponentLayoutRegistryRegistrationExtensions)
+        MethodInfo[] interfaceBindingExtensions = typeof(ComponentRegistryRegistrationExtensions)
             .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
             .Where(static method => method.Name == "BindInterface")
             .ToArray();
 
         Assert.Multiple(() =>
         {
+            Assert.That(typeof(World).GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                .Any(static method => method.Name is "Register" or "AddAlias" or "AddGroup"), Is.False);
             Assert.That(registerMethods, Has.Length.EqualTo(3));
             MethodInfo[] typedRegistrations = registerMethods.Where(static method => method.IsGenericMethod).ToArray();
             Assert.That(typedRegistrations, Is.Empty);
@@ -132,13 +134,13 @@ internal sealed class PublicApiShapeTests
             Assert.That(interfaceBindingExtensions.All(static method => method.IsGenericMethod
                 && method.GetGenericArguments().Length == 2
                 && method.GetParameters().Length == 1), Is.True);
-            Assert.That(typeof(IComponentLayoutRegistryUnmanagedRoute).IsAssignableFrom(typeof(ComponentLayoutRegistry)), Is.True);
-            Assert.That(typeof(IComponentLayoutRegistryClassNewRoute).IsAssignableFrom(typeof(ComponentLayoutRegistry)), Is.True);
-            Assert.That(typeof(ComponentLayoutRegistry).Assembly.GetType("Delta.ECS.StructConstraint"), Is.Null);
-            Assert.That(typeof(ComponentLayoutRegistry).Assembly.GetType("Delta.ECS.ClassConstraint"), Is.Null);
-            Assert.That(typeof(ComponentLayoutRegistry).Assembly.GetType("Delta.ECS.UnmanagedConstraint"), Is.Null);
-            Assert.That(typeof(ComponentLayoutRegistry).Assembly.GetType("Delta.ECS.NewConstraint"), Is.Null);
-            Assert.That(typeof(ComponentLayoutRegistry).Assembly.GetType("Delta.ECS.ClassNewConstraint"), Is.Null);
+            Assert.That(typeof(IComponentRegistryUnmanagedRoute).IsAssignableFrom(typeof(ComponentRegistry)), Is.True);
+            Assert.That(typeof(IComponentRegistryClassNewRoute).IsAssignableFrom(typeof(ComponentRegistry)), Is.True);
+            Assert.That(typeof(ComponentRegistry).Assembly.GetType("Delta.ECS.StructConstraint"), Is.Null);
+            Assert.That(typeof(ComponentRegistry).Assembly.GetType("Delta.ECS.ClassConstraint"), Is.Null);
+            Assert.That(typeof(ComponentRegistry).Assembly.GetType("Delta.ECS.UnmanagedConstraint"), Is.Null);
+            Assert.That(typeof(ComponentRegistry).Assembly.GetType("Delta.ECS.NewConstraint"), Is.Null);
+            Assert.That(typeof(ComponentRegistry).Assembly.GetType("Delta.ECS.ClassNewConstraint"), Is.Null);
             Assert.That(
                 registerMethods.Any(static method => method.GetParameters().Select(static parameter => parameter.ParameterType)
                     .SequenceEqual(new[] { typeof(Type), typeof(ReadOnlySpan<ComponentId>), typeof(SchemaId) })),
@@ -148,10 +150,10 @@ internal sealed class PublicApiShapeTests
                     .SequenceEqual(new[] { typeof(IGeneratedComponentRegistration) })),
                 Is.True);
             Assert.That(
-                typeof(ComponentLayoutRegistry).GetMethod("RegisterTag", BindingFlags.Public | BindingFlags.Instance),
+                typeof(ComponentRegistry).GetMethod("RegisterTag", BindingFlags.Public | BindingFlags.Instance),
                 Is.Null);
             Assert.That(
-                typeof(ComponentLayoutRegistry).GetMethod(
+                typeof(ComponentRegistry).GetMethod(
                     "Register",
                     BindingFlags.Public | BindingFlags.Instance,
                     binder: null,
@@ -159,9 +161,9 @@ internal sealed class PublicApiShapeTests
                     modifiers: null),
                 Is.Null);
             Assert.That(
-                typeof(ComponentLayoutRegistry).GetMethod("Visit", new[] { typeof(ComponentId), typeof(IVisitor) }),
+                typeof(ComponentRegistry).GetMethod("Visit", new[] { typeof(ComponentId), typeof(IVisitor) }),
                 Is.Not.Null);
-            Assert.That(typeof(ComponentLayoutRegistry).GetProperty("Visitors"), Is.Null);
+            Assert.That(typeof(ComponentRegistry).GetProperty("Visitors"), Is.Null);
         });
     }
 
@@ -244,10 +246,10 @@ internal sealed class PublicApiShapeTests
             }
 
             Assert.That(typeof(ComponentLayout).GetMethod("Align", BindingFlags.Public | BindingFlags.Static), Is.Null);
-            Assert.That(typeof(ComponentLayoutRegistry).GetProperty(nameof(ComponentLayoutRegistry.Count), BindingFlags.Public | BindingFlags.Instance), Is.Null);
-            Assert.That(typeof(ComponentLayoutRegistry).GetMethod("TryGetId", BindingFlags.Public | BindingFlags.Instance), Is.Null);
-            Assert.That(typeof(ComponentLayoutRegistry).GetMethod(nameof(ComponentLayoutRegistry.Get), BindingFlags.Public | BindingFlags.Instance), Is.Null);
-            Assert.That(typeof(ComponentLayoutRegistry).GetMethod(nameof(ComponentLayoutRegistry.TryGet), BindingFlags.Public | BindingFlags.Instance), Is.Null);
+            Assert.That(typeof(ComponentRegistry).GetProperty(nameof(ComponentRegistry.Count), BindingFlags.Public | BindingFlags.Instance), Is.Null);
+            Assert.That(typeof(ComponentRegistry).GetMethod("TryGetId", BindingFlags.Public | BindingFlags.Instance), Is.Null);
+            Assert.That(typeof(ComponentRegistry).GetMethod(nameof(ComponentRegistry.Get), BindingFlags.Public | BindingFlags.Instance), Is.Null);
+            Assert.That(typeof(ComponentRegistry).GetMethod(nameof(ComponentRegistry.TryGet), BindingFlags.Public | BindingFlags.Instance), Is.Null);
         });
     }
 

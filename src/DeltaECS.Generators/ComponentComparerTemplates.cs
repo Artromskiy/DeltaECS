@@ -28,7 +28,7 @@ internal static class ComponentComparerTemplates
             static index => $"in left{index}",
             static index => $"in right{index}");
         string primaryIds = string.Join(", ", model.ComponentTypes.Select(static componentType =>
-            $"world.Layouts.GetPrimary(typeof({componentType}))"));
+            $"world.Components.GetPrimary(typeof({componentType}))"));
         string contextField = signature.HasContext ? $"private {signature.ContextType} _context;" : string.Empty;
         string contextConstructorParameter = signature.HasContext
             ? ", " + SignatureProjection.ContextParameter(signature.ContextMode, signature.ContextType!, "context")

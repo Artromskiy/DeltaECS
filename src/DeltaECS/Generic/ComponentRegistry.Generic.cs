@@ -1,6 +1,6 @@
 namespace Delta.ECS;
 
-public sealed partial class ComponentLayoutRegistry
+public sealed partial class ComponentRegistry
 {
     internal ComponentId RegisterGeneratedComponent<T>(
         SchemaId schemaId,

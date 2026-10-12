@@ -11,7 +11,7 @@ internal sealed class TagComponentTests
     [Test]
     public void TagsAreStoredWithoutRowsAndFilterGeneratedQueries()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(98_001));
         ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_002));
         ComponentId otherId = layouts.Register<OtherTag>(new SchemaId(98_003));
@@ -97,7 +97,7 @@ internal sealed class TagComponentTests
     [Test]
     public void AddingAndRemovingTagsThroughQueriesOnlyChangesMatchingEntities()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(98_011));
         ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_012));
         ComponentId blockedId = layouts.Register<BlockedTag>(new SchemaId(98_013));
@@ -133,7 +133,7 @@ internal sealed class TagComponentTests
     [Test]
     public void ParallelAndEntityListIterationApplyTagFilters()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId valueId = layouts.Register<TagValue>(new SchemaId(98_031));
         ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_032));
         using var world = new World(layouts);
@@ -163,7 +163,7 @@ internal sealed class TagComponentTests
     [Test]
     public void TaggedIterationUsesDenseChunksAndFiltersPartialChunks()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId valueId = layouts.Register<TagValue>(new SchemaId(98_033));
         ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_034));
         using var world = new World(layouts);
@@ -187,7 +187,7 @@ internal sealed class TagComponentTests
     [Test]
     public void TagFilterCacheStoresSelectedSlotsInOrder()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId valueId = layouts.Register<TagValue>(new SchemaId(98_035));
         ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_036));
         using var world = new World(layouts);
@@ -210,7 +210,7 @@ internal sealed class TagComponentTests
     [Test]
     public void WhereCallbacksAndStructuralTerminalsHonorTagFilters()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId valueId = layouts.Register<TagValue>(new SchemaId(98_041));
         ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_042));
         ComponentId blockedId = layouts.Register<BlockedTag>(new SchemaId(98_043));
@@ -251,7 +251,7 @@ internal sealed class TagComponentTests
     [Test]
     public void RegistrationInfersTagsFromFieldlessValueTypes()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
 
         ComponentId tagId = layouts.Register<MarkedTag>(new SchemaId(98_021));
         ComponentId dataId = layouts.Register<TagWithData>(new SchemaId(98_022));
@@ -276,7 +276,7 @@ internal sealed class TagComponentTests
     [Test]
     public void TryGetReportsTagPresenceAndReturnsDefaultValue()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_026));
         _ = layouts.Register<OtherTag>(new SchemaId(98_027));
         using var world = new World(layouts);
@@ -297,7 +297,7 @@ internal sealed class TagComponentTests
     [Test]
     public void TagValueApisReturnDefaultAndTreatAddsAsMembershipChanges()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_030));
         _ = layouts.Register<OtherTag>(new SchemaId(98_035));
         _ = layouts.Register<TagValue>(new SchemaId(98_039));
@@ -330,7 +330,7 @@ internal sealed class TagComponentTests
     [Test]
     public void GeneratedIterationCanReadAndWriteTagValuesAsDefault()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         _ = layouts.Register<MarkedTag>(new SchemaId(98_036));
         _ = layouts.Register<OtherTag>(new SchemaId(98_037));
         using var world = new World(layouts);
@@ -364,7 +364,7 @@ internal sealed class TagComponentTests
     [Test]
     public void RepeatedFieldlessTypeRegistrationsRemainTags()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId first = layouts.Register<MarkedTag>(new SchemaId(98_051));
         ComponentId second = layouts.Register<MarkedTag>(new SchemaId(98_052));
 

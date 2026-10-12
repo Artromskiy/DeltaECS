@@ -34,7 +34,7 @@ public class WhereApiMicroBenchmarkImplementation
     [GlobalSetup]
     public void Setup()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         _valueId = layouts.Register<WhereApiValue>(new SchemaId(92_001));
         ComponentId accumulatorId = layouts.Register<WhereApiAccumulator>(new SchemaId(92_002));
         ComponentId deadId = layouts.Register<WhereApiDead>(new SchemaId(92_003));

@@ -25,12 +25,12 @@ public class TagFilteringBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        var tagLayouts = new ComponentLayoutRegistry();
+        var tagLayouts = new ComponentRegistry();
         ComponentId tagValueId = tagLayouts.Register<TagFilteringValueComponent>(new SchemaId(207_000));
         _ = tagLayouts.Register<TagFilteringMarkerTag>(new SchemaId(207_001));
         _tagWorld = new World(tagLayouts, initialEntityCapacity: Amount);
 
-        var componentLayouts = new ComponentLayoutRegistry();
+        var componentLayouts = new ComponentRegistry();
         ComponentId componentValueId = componentLayouts.Register<TagFilteringValueComponent>(new SchemaId(207_000));
         ComponentId componentMarkerId = componentLayouts.Register<TagFilteringMarkerComponent>(new SchemaId(207_002));
         _componentWorld = new World(componentLayouts, initialEntityCapacity: Amount);

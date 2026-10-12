@@ -17,13 +17,13 @@ public sealed class GeneratedSystemAccessGeneratorTests
                 public readonly struct Entity { }
                 public readonly struct ComponentId { }
                 public readonly struct Query { }
-                public sealed class ComponentLayoutRegistry
+                public sealed class ComponentRegistry
                 {
                     public ComponentId GetPrimary<T>() => default;
                 }
                 public sealed class World
                 {
-                    public ComponentLayoutRegistry Layouts { get; } = new();
+                    public ComponentRegistry Components { get; } = new();
                     public void ForEach<T1, T2>(in Query query, ForEachAction<T1, T2> action) { }
                     public ref T GetRef<T>(Entity entity) => throw new NotImplementedException();
                     public T Get<T>(Entity entity) => default!;
@@ -134,10 +134,10 @@ public sealed class GeneratedSystemAccessGeneratorTests
             {
                 public readonly struct ComponentId { }
                 public readonly struct Query { }
-                public sealed class ComponentLayoutRegistry { public ComponentId GetPrimary<T>() => default; }
+                public sealed class ComponentRegistry { public ComponentId GetPrimary<T>() => default; }
                 public sealed class World
                 {
-                    public ComponentLayoutRegistry Layouts { get; } = new();
+                    public ComponentRegistry Components { get; } = new();
                     public void ForEach<T>(in Query query, ForEachAction<T> action) { }
                 }
                 public delegate void ForEachAction<T>(ref T component);

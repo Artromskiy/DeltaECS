@@ -34,7 +34,7 @@ internal sealed class ParallelIterationTests
     [Test]
     public void GeneratedForEachParallelSupportsReadOnlyAndValueState()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(70_090));
         using var world = new World(layouts, initialEntityCapacity: 2_048);
         var entities = new Entity[2_048];
@@ -74,7 +74,7 @@ internal sealed class ParallelIterationTests
     [Test]
     public void ZeroArityEntityParallelCallbacksVisitEveryEntity()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(70_093));
         using var world = new World(layouts, initialEntityCapacity: 2_048);
         var entities = new Entity[2_048];
@@ -137,7 +137,7 @@ internal sealed class ParallelIterationTests
     [Test]
     public void GeneratedForEachParallelSupportsExplicitFunctorsAndContext()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(70_091));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(70_092));
         using var world = new World(layouts, initialEntityCapacity: Chunk.Capacity * 4);
@@ -170,7 +170,7 @@ internal sealed class ParallelIterationTests
     [Test]
     public void GeneratedForEachParallelProcessesEveryEntity()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         var positionId = layouts.Register<Position>(new SchemaId(70_020));
         var velocityId = layouts.Register<Velocity>(new SchemaId(70_021));
         using var world = new World(layouts, initialEntityCapacity: 2_048);
@@ -203,7 +203,7 @@ internal sealed class ParallelIterationTests
     [Test]
     public void GeneratedForEachParallelUsesSingleThreadPathForSingleChunk()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(70_080));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(70_081));
         using var world = new World(layouts, initialEntityCapacity: 8);
@@ -238,7 +238,7 @@ internal sealed class ParallelIterationTests
     [Test]
     public void GeneratedForEachParallelRebuildsCachedRangesAfterTopologyChange()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         var positionId = layouts.Register<Position>(new SchemaId(70_030));
         var velocityId = layouts.Register<Velocity>(new SchemaId(70_031));
         using var world = new World(layouts, initialEntityCapacity: 256);
@@ -269,7 +269,7 @@ internal sealed class ParallelIterationTests
     [Test]
     public void GeneratedForEachParallelIncludesChunksActivatedAfterQueryCreation()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(70_070));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(70_071));
         using var world = new World(layouts, initialEntityCapacity: 2_048);
@@ -289,7 +289,7 @@ internal sealed class ParallelIterationTests
     [Test]
     public void GeneratedForEachParallelGrowsWorkerPoolWithoutLosingSignals()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         var positionId = layouts.Register<Position>(new SchemaId(70_050));
         var velocityId = layouts.Register<Velocity>(new SchemaId(70_051));
         int entityCount = Chunk.Capacity * 4;
@@ -312,7 +312,7 @@ internal sealed class ParallelIterationTests
     [Test]
     public void GeneratedForEachParallelWarmPathDoesNotAllocateOnCallerThread()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         var positionId = layouts.Register<Position>(new SchemaId(70_040));
         var velocityId = layouts.Register<Velocity>(new SchemaId(70_041));
         using var world = new World(layouts, initialEntityCapacity: 2_048);

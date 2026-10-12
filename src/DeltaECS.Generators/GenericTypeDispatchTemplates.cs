@@ -10,7 +10,7 @@ internal static class GenericTypeDispatchTemplates
         string arguments = GeneratorTemplates.JoinIndexed(arity, static index => $"componentArgument{index}");
         return $$"""
             public static global::Delta.ECS.ComponentId Register(
-                this global::Delta.ECS.ComponentLayoutRegistry layouts,
+                this global::Delta.ECS.ComponentRegistry layouts,
                 global::System.Type genericTypeDefinition,
                 {{parameters}},
                 global::Delta.ECS.SchemaId schemaId)
@@ -34,7 +34,7 @@ internal static class GenericTypeDispatchTemplates
             internal static class {{binding.DispatcherName}}
             {
                 internal static global::Delta.ECS.ComponentId Register(
-                    global::Delta.ECS.ComponentLayoutRegistry layouts,
+                    global::Delta.ECS.ComponentRegistry layouts,
                     global::Delta.ECS.SchemaId schemaId,
                     global::System.ReadOnlySpan<global::Delta.ECS.ComponentId> componentArguments,
                     global::System.ReadOnlySpan<global::Delta.ECS.IGeneratedComponentTypeToken> typeArguments)
@@ -47,12 +47,12 @@ internal static class GenericTypeDispatchTemplates
 
                 private sealed class State
                 {
-                    internal readonly global::Delta.ECS.ComponentLayoutRegistry Layouts;
+                    internal readonly global::Delta.ECS.ComponentRegistry Layouts;
                     internal readonly global::Delta.ECS.SchemaId SchemaId;
                     internal readonly global::Delta.ECS.ComponentId[] ComponentArguments;
 
                     internal State(
-                        global::Delta.ECS.ComponentLayoutRegistry layouts,
+                        global::Delta.ECS.ComponentRegistry layouts,
                         global::Delta.ECS.SchemaId schemaId,
                         global::Delta.ECS.ComponentId[] componentArguments)
                     {

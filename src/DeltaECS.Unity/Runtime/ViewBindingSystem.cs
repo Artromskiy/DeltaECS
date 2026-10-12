@@ -25,8 +25,8 @@ namespace Delta.ECS.Unity
             _catalog = catalog ?? UnityThrowHelpers.ThrowArgumentNull<ViewPrefabCatalog>(nameof(catalog));
             _world = _sceneWorld.World;
 
-            ComponentId viewTokenId = _world.Layouts.GetPrimary<ViewToken>();
-            _viewBoundId = _world.Layouts.GetPrimary<ViewBound>();
+            ComponentId viewTokenId = _world.Components.GetPrimary<ViewToken>();
+            _viewBoundId = _world.Components.GetPrimary<ViewBound>();
             Query query = _world.WhereAll(stackalloc ComponentId[1] { viewTokenId })
                 .WhereNone(stackalloc ComponentId[1] { _viewBoundId });
             _bindOperation = _world.ForEachEntity(in query, QueueViewBinding);

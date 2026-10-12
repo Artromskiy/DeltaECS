@@ -30,7 +30,7 @@ public class WhereIterationMicroBenchmarkImplementation
     [GlobalSetup]
     public void Setup()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         _valueId = layouts.Register<WhereIterationValue>(new SchemaId(92_101));
         _accumulatorId = layouts.Register<WhereIterationAccumulator>(new SchemaId(92_102));
         _world = new World(layouts, initialEntityCapacity: Amount);

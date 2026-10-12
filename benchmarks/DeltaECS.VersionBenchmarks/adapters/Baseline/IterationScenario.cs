@@ -26,7 +26,7 @@ public sealed class IterationScenario
     public IterationScenario(int amount)
     {
         _amount = amount;
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         _dense = layouts.Register<DenseValue>(new SchemaId(950_000));
         _position = layouts.Register<Position>(new SchemaId(950_001));
         _velocity = layouts.Register<Velocity>(new SchemaId(950_002));

@@ -36,7 +36,7 @@ public class WidePayloadPartialReadIterationBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         _components =
         [
             layouts.Register<WidePayload0>( new SchemaId(206_000)),

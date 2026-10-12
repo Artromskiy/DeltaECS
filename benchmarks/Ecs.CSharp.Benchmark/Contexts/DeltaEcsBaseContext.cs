@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using Delta.ECS;
 using DeltaComponentId = Delta.ECS.ComponentId;
 using DeltaEntity = Delta.ECS.Entity;
-using DeltaLayoutRegistry = Delta.ECS.ComponentLayoutRegistry;
+using DeltaLayoutRegistry = Delta.ECS.ComponentRegistry;
 using DeltaQuery = Delta.ECS.Query;
 using DeltaQuerySpec = Delta.ECS.QuerySpec;
 using DeltaSchemaId = Delta.ECS.SchemaId;

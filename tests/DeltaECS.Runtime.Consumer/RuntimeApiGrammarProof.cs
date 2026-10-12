@@ -30,7 +30,7 @@ public static partial class RuntimeApiGrammarProof
 
     private static void VerifyRegistrationAndVisitors()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         layouts.BindInterface<Position, IMovable>();
         layouts.BindInterface<ClassComponent, IMovable>();
 
@@ -123,7 +123,7 @@ public static partial class RuntimeApiGrammarProof
 
     private static void VerifyConstraintSelectedRegistrationRoutes()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId structId = RegisterAsStruct<ManagedStruct>(layouts, new SchemaId(930_011));
         ComponentId classId = RegisterAsClass<ClassComponent>(layouts, new SchemaId(930_012));
         ComponentId unmanagedId = RegisterAsUnmanaged<int>(layouts, new SchemaId(930_013));
@@ -161,30 +161,30 @@ public static partial class RuntimeApiGrammarProof
         Require(unconstrainedVisitor.ComponentType == typeof(UnknownComponent));
     }
 
-    private static ComponentId RegisterWithoutKnownConstraint<T>(ComponentLayoutRegistry layouts, SchemaId schemaId)
+    private static ComponentId RegisterWithoutKnownConstraint<T>(ComponentRegistry layouts, SchemaId schemaId)
         => layouts.Register<T>(schemaId);
 
-    private static ComponentId RegisterAsStruct<T>(ComponentLayoutRegistry layouts, SchemaId schemaId)
+    private static ComponentId RegisterAsStruct<T>(ComponentRegistry layouts, SchemaId schemaId)
         where T : struct
         => layouts.Register<T>(schemaId);
 
-    private static ComponentId RegisterAsClass<T>(ComponentLayoutRegistry layouts, SchemaId schemaId)
+    private static ComponentId RegisterAsClass<T>(ComponentRegistry layouts, SchemaId schemaId)
         where T : class
         => layouts.Register<T>(schemaId);
 
-    private static ComponentId RegisterAsUnmanaged<T>(ComponentLayoutRegistry layouts, SchemaId schemaId)
+    private static ComponentId RegisterAsUnmanaged<T>(ComponentRegistry layouts, SchemaId schemaId)
         where T : unmanaged
         => layouts.Register<T>(schemaId);
 
-    private static ComponentId RegisterAsNew<T>(ComponentLayoutRegistry layouts, SchemaId schemaId)
+    private static ComponentId RegisterAsNew<T>(ComponentRegistry layouts, SchemaId schemaId)
         where T : new()
         => layouts.Register<T>(schemaId);
 
-    private static ComponentId RegisterAsClassNew<T>(ComponentLayoutRegistry layouts, SchemaId schemaId)
+    private static ComponentId RegisterAsClassNew<T>(ComponentRegistry layouts, SchemaId schemaId)
         where T : class, new()
         => layouts.Register<T>(schemaId);
 
-    private static void VerifyUnconstrainedVisitor(ComponentLayoutRegistry layouts, ComponentId[] componentIds)
+    private static void VerifyUnconstrainedVisitor(ComponentRegistry layouts, ComponentId[] componentIds)
     {
         var visitor = new UnconstrainedVisitor();
         foreach (ComponentId componentId in componentIds)
@@ -201,68 +201,68 @@ public static partial class RuntimeApiGrammarProof
 
     private static void VerifyInterfaceBindingRoutes()
     {
-        var structLayouts = new ComponentLayoutRegistry();
+        var structLayouts = new ComponentRegistry();
         BindInterfaceAsStruct<ManagedStruct, IMovable>(structLayouts);
         ComponentId structId = RegisterAsStruct<ManagedStruct>(structLayouts, new SchemaId(930_021));
         var structVisitor = new GeneralMovableVisitor();
         Require(structLayouts.TryVisit(structId, structVisitor));
         Require(structVisitor.StructVisitCount == 1);
 
-        var classLayouts = new ComponentLayoutRegistry();
+        var classLayouts = new ComponentRegistry();
         BindInterfaceAsClass<ClassComponent, IMovable>(classLayouts);
         ComponentId classId = RegisterAsClass<ClassComponent>(classLayouts, new SchemaId(930_022));
         var classVisitor = new GeneralMovableVisitor();
         Require(classLayouts.TryVisit(classId, classVisitor));
         Require(classVisitor.ClassVisitCount == 1);
 
-        var unmanagedLayouts = new ComponentLayoutRegistry();
+        var unmanagedLayouts = new ComponentRegistry();
         BindInterfaceAsUnmanaged<Position, IMovable>(unmanagedLayouts);
         ComponentId unmanagedId = RegisterAsUnmanaged<Position>(unmanagedLayouts, new SchemaId(930_023));
         var unmanagedVisitor = new GeneralMovableVisitor();
         Require(unmanagedLayouts.TryVisit(unmanagedId, unmanagedVisitor));
         Require(unmanagedVisitor.UnmanagedVisitCount == 1);
 
-        var newLayouts = new ComponentLayoutRegistry();
+        var newLayouts = new ComponentRegistry();
         BindInterfaceAsNew<NewComponent, IMovable>(newLayouts);
         ComponentId newId = RegisterAsNew<NewComponent>(newLayouts, new SchemaId(930_024));
         var newVisitor = new NewMovableVisitor();
         Require(newLayouts.TryVisit(newId, newVisitor));
         Require(newVisitor.ComponentType == typeof(NewComponent));
 
-        var classNewLayouts = new ComponentLayoutRegistry();
+        var classNewLayouts = new ComponentRegistry();
         BindInterfaceAsClassNew<ConstructibleClass, IMovable>(classNewLayouts);
         ComponentId classNewId = RegisterAsClassNew<ConstructibleClass>(classNewLayouts, new SchemaId(930_025));
         var classNewVisitor = new ClassNewMovableVisitor();
         Require(classNewLayouts.TryVisit(classNewId, classNewVisitor));
         Require(classNewVisitor.ComponentType == typeof(ConstructibleClass));
 
-        var unconstrainedLayouts = new ComponentLayoutRegistry();
+        var unconstrainedLayouts = new ComponentRegistry();
         BindInterfaceWithoutKnownConstraint<Position, IMovable>(unconstrainedLayouts);
         ComponentId unconstrainedId = RegisterWithoutKnownConstraint<Position>(unconstrainedLayouts, new SchemaId(930_026));
         Require(unconstrainedLayouts.TryVisit(unconstrainedId, new MovableVisitor()));
     }
 
-    private static void BindInterfaceWithoutKnownConstraint<TComponent, TInterface>(ComponentLayoutRegistry layouts)
+    private static void BindInterfaceWithoutKnownConstraint<TComponent, TInterface>(ComponentRegistry layouts)
         where TComponent : TInterface
         => layouts.BindInterface<TComponent, TInterface>();
 
-    private static void BindInterfaceAsStruct<TComponent, TInterface>(ComponentLayoutRegistry layouts)
+    private static void BindInterfaceAsStruct<TComponent, TInterface>(ComponentRegistry layouts)
         where TComponent : struct, TInterface
         => layouts.BindInterface<TComponent, TInterface>();
 
-    private static void BindInterfaceAsClass<TComponent, TInterface>(ComponentLayoutRegistry layouts)
+    private static void BindInterfaceAsClass<TComponent, TInterface>(ComponentRegistry layouts)
         where TComponent : class, TInterface
         => layouts.BindInterface<TComponent, TInterface>();
 
-    private static void BindInterfaceAsUnmanaged<TComponent, TInterface>(ComponentLayoutRegistry layouts)
+    private static void BindInterfaceAsUnmanaged<TComponent, TInterface>(ComponentRegistry layouts)
         where TComponent : unmanaged, TInterface
         => layouts.BindInterface<TComponent, TInterface>();
 
-    private static void BindInterfaceAsNew<TComponent, TInterface>(ComponentLayoutRegistry layouts)
+    private static void BindInterfaceAsNew<TComponent, TInterface>(ComponentRegistry layouts)
         where TComponent : TInterface, new()
         => layouts.BindInterface<TComponent, TInterface>();
 
-    private static void BindInterfaceAsClassNew<TComponent, TInterface>(ComponentLayoutRegistry layouts)
+    private static void BindInterfaceAsClassNew<TComponent, TInterface>(ComponentRegistry layouts)
         where TComponent : class, TInterface, new()
         => layouts.BindInterface<TComponent, TInterface>();
 

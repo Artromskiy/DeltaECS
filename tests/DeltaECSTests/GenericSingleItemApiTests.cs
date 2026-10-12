@@ -10,7 +10,7 @@ internal sealed class GenericSingleItemApiTests
     [Test]
     public void PrimaryGenericOverloadsResolveTheRegisteredPrimaryComponent()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         layouts.Register<Position>(new SchemaId(60_061));
         layouts.Register<Velocity>(new SchemaId(60_062));
         using var world = new World(layouts);
@@ -39,7 +39,7 @@ internal sealed class GenericSingleItemApiTests
     [Test]
     public void HasChecksPrimaryComponent()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_003));
         layouts.Register<Velocity>(new SchemaId(60_004));
         using var world = new World(layouts);
@@ -66,7 +66,7 @@ internal sealed class GenericSingleItemApiTests
     [Test]
     public void GenericAndNonGenericSingleEntityOperationsHaveEquivalentResults()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_007));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_008));
         using var world = new World(layouts);
@@ -98,7 +98,7 @@ internal sealed class GenericSingleItemApiTests
     [Test]
     public void UntypedSingleEntityStructuralOperationsReportWhetherTheyChanged()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_071));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_072));
         using var world = new World(layouts);
@@ -113,7 +113,7 @@ internal sealed class GenericSingleItemApiTests
     [Test]
     public void TypedCreateGetRefAndTryGetUseTheExistingComponentRows()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_001));
         using var world = new World(layouts);
 
@@ -128,7 +128,7 @@ internal sealed class GenericSingleItemApiTests
     [Test]
     public void GetRefReturnsMutablePrimaryAndExplicitComponentRows()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_005));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId, new Position { X = 1, Y = 2 });
@@ -143,7 +143,7 @@ internal sealed class GenericSingleItemApiTests
     [Test]
     public void GetReadRefReturnsPrimaryAndExplicitRows()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_006));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId, new Position { X = 5, Y = 6 });
@@ -157,7 +157,7 @@ internal sealed class GenericSingleItemApiTests
     [Test]
     public void GetRefFailsFastWhenTheEntityDoesNotContainTheComponent()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_081));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_082));
         using var world = new World(layouts);
@@ -176,7 +176,7 @@ internal sealed class GenericSingleItemApiTests
     [Test]
     public void TypedAddAndRemoveAreSingleComponentStructuralTransitions()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_011));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_012));
         using var world = new World(layouts);
@@ -193,7 +193,7 @@ internal sealed class GenericSingleItemApiTests
     [Test]
     public void TypedPairAddInitializesBothComponentsInOneTransition()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId healthId = layouts.Register<Health>(new SchemaId(60_013));
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_014));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_015));
@@ -220,7 +220,7 @@ internal sealed class GenericSingleItemApiTests
     [Test]
     public void TypedValueAddInitializesFourComponentsInOneTransition()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_016));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_017));
         ComponentId healthId = layouts.Register<Health>(new SchemaId(60_018));
@@ -261,7 +261,7 @@ internal sealed class GenericSingleItemApiTests
     [Test]
     public void GeneratedCreateInitializesMultipleExplicitRegistrations()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId healthId = layouts.Register<float>(new SchemaId(60_024));
         ComponentId staminaId = layouts.Register<float>(new SchemaId(60_025));
         using var world = new World(layouts);
@@ -278,7 +278,7 @@ internal sealed class GenericSingleItemApiTests
     [Test]
     public void GeneratedBatchAddInitializesMultipleExplicitRegistrationsInOneTransition()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_026));
         ComponentId healthId = layouts.Register<float>(new SchemaId(60_027));
         ComponentId staminaId = layouts.Register<float>(new SchemaId(60_028));
@@ -314,7 +314,7 @@ internal sealed class GenericSingleItemApiTests
     [Test]
     public void GeneratedBatchAddUsesPrimaryRegistrationsAndPreservesExistingValues()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         layouts.Register<Position>(new SchemaId(60_031));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_032));
         using var world = new World(layouts);
@@ -338,7 +338,7 @@ internal sealed class GenericSingleItemApiTests
     [Test]
     public void GeneratedValueOperationsValidateEveryExplicitRegistrationBeforeMutation()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId healthId = layouts.Register<float>(new SchemaId(60_029));
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_030));
         using var world = new World(layouts);
@@ -362,7 +362,7 @@ internal sealed class GenericSingleItemApiTests
     [Test]
     public void BatchCreateSupportsOwnedAndCallerOwnedEntityStorage()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_031));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_032));
         using var world = new World(layouts);
@@ -392,7 +392,7 @@ internal sealed class GenericSingleItemApiTests
     [Test]
     public void TypedBatchAddInitializesOnlyNewComponentsAndRemoveSkipsIneligibleEntities()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_041));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_042));
         using var world = new World(layouts);
@@ -417,7 +417,7 @@ internal sealed class GenericSingleItemApiTests
     [Test]
     public void TypeErasedBatchOperationsUseTheSelectedRegistration()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_051));
         using var world = new World(layouts);
         Entity[] entities = new Entity[2];
@@ -435,7 +435,7 @@ internal sealed class GenericSingleItemApiTests
     [Test]
     public void StaleAndMismatchedHandlesDoNotMutateThroughTheGenericBoundary()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_021));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId, new Position());

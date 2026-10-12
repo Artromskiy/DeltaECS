@@ -21,7 +21,7 @@ internal sealed class ArchetypeForEachOperationTests
     [Test]
     public void ProcessRunsMatchingQueriesDuringOneReusableTraversal()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_301));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_302));
         ComponentId pausedId = layouts.Register<Paused>(new SchemaId(60_303));
@@ -55,7 +55,7 @@ internal sealed class ArchetypeForEachOperationTests
     [Test]
     public void ProcessBindsRequiredComponentRowAndPassesWritableReference()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_304));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_305));
         using var world = new World(layouts);
@@ -76,7 +76,7 @@ internal sealed class ArchetypeForEachOperationTests
     [Test]
     public void ReadOnlyComponentFormsPreserveValues()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_313));
         using var world = new World(layouts);
         Span<Entity> entities = stackalloc Entity[2];
@@ -103,7 +103,7 @@ internal sealed class ArchetypeForEachOperationTests
     [Test]
     public void ForEachChangeReportsInitialAddsModificationsRemovalsAndDestroyedEntities()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<ComponentChangePosition>(new SchemaId(60_317));
         using var world = new World(layouts);
         Span<Entity> entities = stackalloc Entity[2];
@@ -155,7 +155,7 @@ internal sealed class ArchetypeForEachOperationTests
     [Test]
     public void ForEachChangeConsumesWritesMadeThroughItsCallbackReference()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<ComponentChangePosition>(new SchemaId(60_318));
         using var world = new World(layouts);
         Entity entity = world.Create([positionId]);
@@ -177,7 +177,7 @@ internal sealed class ArchetypeForEachOperationTests
     [Test]
     public void ForEachChangeObservesGeneratedWritableIteration()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<ComponentChangePosition>(new SchemaId(60_319));
         ComponentId velocityId = layouts.Register<ComponentChangeVelocity>(new SchemaId(60_320));
         using var world = new World(layouts);
@@ -210,7 +210,7 @@ internal sealed class ArchetypeForEachOperationTests
     [Test]
     public void ProcessComponentRequiresWhereAllMembership()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_306));
         using var world = new World(layouts);
         Query all = world.CreateQuery(QuerySpec.Empty);
@@ -223,7 +223,7 @@ internal sealed class ArchetypeForEachOperationTests
     [Test]
     public void ProcessComponentRespectsTagFilters()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_307));
         ComponentId activeId = layouts.Register<Active>(new SchemaId(60_308));
         using var world = new World(layouts);
@@ -244,7 +244,7 @@ internal sealed class ArchetypeForEachOperationTests
     [Test]
     public void ProcessTagPassesPlaceholderReferenceForMatchingEntities()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_310));
         ComponentId activeId = layouts.Register<Active>(new SchemaId(60_311));
         using var world = new World(layouts);
@@ -269,7 +269,7 @@ internal sealed class ArchetypeForEachOperationTests
     [Test]
     public void ProcessTagRequiresWhereAllMembership()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId activeId = layouts.Register<Active>(new SchemaId(60_312));
         using var world = new World(layouts);
         Query all = world.CreateQuery(QuerySpec.Empty);
@@ -282,7 +282,7 @@ internal sealed class ArchetypeForEachOperationTests
     [Test]
     public void InvokeCopiesStructContextBackOnlyAfterSuccessfulExecution()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_309));
         using var world = new World(layouts);
         Span<Entity> entities = stackalloc Entity[2];

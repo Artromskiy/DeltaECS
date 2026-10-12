@@ -84,9 +84,9 @@ implementation and tests in the same migration.
 
 `ComponentRegistryGenerator` emits one closed registration implementation per
 `[ComponentSchema]`. Its implementation calls
-`ComponentLayoutRegistryRegistrationExtensions.Register<T>` with the concrete
+`ComponentRegistryRegistrationExtensions.Register<T>` with the concrete
 component type, so C# selects the matching marker route while compiling the
-generated source. `ComponentLayoutRegistry.Register(registration)` remains the
+generated source. `ComponentRegistry.Register(registration)` remains the
 caller-facing entry point for generated catalog iteration; it invokes that
 closed registration call without selecting constraints again at runtime.
 Generated component type tokens remain responsible for visitor dispatch and

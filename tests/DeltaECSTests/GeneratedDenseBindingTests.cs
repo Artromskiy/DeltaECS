@@ -9,7 +9,7 @@ internal sealed class GeneratedDenseBindingTests
     [Test]
     public void BindingTracksLiveCountsAndChunkAdoption()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId health = layouts.Register<Health>(new SchemaId(96001));
         ComponentId velocity = layouts.Register<Velocity>(new SchemaId(96002));
         using var world = new World(layouts);
@@ -46,10 +46,10 @@ internal sealed class GeneratedDenseBindingTests
     [Test]
     public void SameSignatureAndQueryShapeRemainWorldLocal()
     {
-        var firstLayouts = new ComponentLayoutRegistry();
+        var firstLayouts = new ComponentRegistry();
         firstLayouts.Register<Velocity>(new SchemaId(96003));
         ComponentId firstId = firstLayouts.Register<Health>(new SchemaId(96004));
-        var secondLayouts = new ComponentLayoutRegistry();
+        var secondLayouts = new ComponentRegistry();
         ComponentId secondId = secondLayouts.Register<Health>(new SchemaId(96004));
         using var first = new World(firstLayouts);
         using var second = new World(secondLayouts);
@@ -66,7 +66,7 @@ internal sealed class GeneratedDenseBindingTests
     [Test]
     public void WritesMarkEveryMatchingArchetypeBeforeCallbackThrowsAndReleaseLease()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId health = layouts.Register<Health>(new SchemaId(96005));
         ComponentId velocity = layouts.Register<Velocity>(new SchemaId(96006));
         using var world = new World(layouts);
@@ -81,7 +81,7 @@ internal sealed class GeneratedDenseBindingTests
     [Test]
     public void WriteTargetsRefreshWhenMatchingArchetypesActivateAndDeactivate()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId health = layouts.Register<Health>(new SchemaId(96008));
         ComponentId velocity = layouts.Register<Velocity>(new SchemaId(96009));
         using var world = new World(layouts);
@@ -102,7 +102,7 @@ internal sealed class GeneratedDenseBindingTests
     [Test]
     public void ReadOnlySignatureAndDisposedWorldRejectCachedBinding()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId health = layouts.Register<Health>(new SchemaId(96007));
         using var world = new World(layouts);
         Entity entity = world.Create(health);

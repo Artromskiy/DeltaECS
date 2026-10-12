@@ -81,11 +81,11 @@ internal sealed class QueryPlan
         (_anyDataMask, _anyTagIndices) = PartitionQueryMask(world, spec.AnyMask);
         (_noneDataMask, _noneTagIndices) = PartitionQueryMask(world, spec.NoneMask);
         _weakReference = new WeakReference<QueryPlan>(this);
-        _readRoutesByComponent = new int[world.Layouts.Count];
+        _readRoutesByComponent = new int[world.Components.Count];
         _dataComponentsByRoute = new ComponentId[_allDataMask.Count];
-        _componentTypesByComponent = new Type?[world.Layouts.Count];
-        _preparedReadAccessesByComponent = new ReadAccess[world.Layouts.Count];
-        _preparedWriteAccessesByComponent = new WriteAccess[world.Layouts.Count];
+        _componentTypesByComponent = new Type?[world.Components.Count];
+        _preparedReadAccessesByComponent = new ReadAccess[world.Components.Count];
+        _preparedWriteAccessesByComponent = new WriteAccess[world.Components.Count];
         _primaryReadRoutesByType = new Dictionary<RuntimeTypeHandle, int>(
             _allDataMask.Count,
             RuntimeTypeHandleComparer.Instance);
@@ -485,7 +485,7 @@ internal sealed class QueryPlan
         int route = 0;
         foreach (ComponentId component in _allDataMask)
         {
-            if (!world.Layouts.TryGet(component, out ComponentLayout layout))
+            if (!world.Components.TryGet(component, out ComponentLayout layout))
             {
                 ThrowHelper.ThrowUnregisteredQueryComponent(component, _description);
             }
@@ -496,7 +496,7 @@ internal sealed class QueryPlan
             _preparedWriteAccessesByComponent.RefAt(component.Value) = new WriteAccess(this, route);
             Type runtimeType = layout.RuntimeType;
             _componentTypesByComponent.RefAt(component.Value) = runtimeType;
-            if (world.Layouts.TryGetPrimary(runtimeType, out ComponentId primary)
+            if (world.Components.TryGetPrimary(runtimeType, out ComponentId primary)
                 && primary == component)
             {
                 _primaryReadRoutesByType.Add(runtimeType.TypeHandle, route);
@@ -507,7 +507,7 @@ internal sealed class QueryPlan
 
         foreach (ComponentId component in _anyDataMask)
         {
-            if (!world.Layouts.TryGet(component, out ComponentLayout layout))
+            if (!world.Components.TryGet(component, out ComponentLayout layout))
             {
                 ThrowHelper.ThrowUnregisteredQueryComponent(component, _description);
             }
@@ -517,12 +517,12 @@ internal sealed class QueryPlan
 
         foreach (ComponentId component in _description.AllMask)
         {
-            if (!world.Layouts.TryGetTagIndex(component, out _))
+            if (!world.Components.TryGetTagIndex(component, out _))
             {
                 continue;
             }
 
-            if (!world.Layouts.TryGet(component, out ComponentLayout layout))
+            if (!world.Components.TryGet(component, out ComponentLayout layout))
             {
                 ThrowHelper.ThrowUnregisteredQueryComponent(component, _description);
             }
@@ -533,7 +533,7 @@ internal sealed class QueryPlan
             _preparedWriteAccessesByComponent.RefAt(component.Value) = new WriteAccess(this, tagRoute);
             Type runtimeType = layout.RuntimeType;
             _componentTypesByComponent.RefAt(component.Value) = runtimeType;
-            if (world.Layouts.TryGetPrimary(runtimeType, out ComponentId primary)
+            if (world.Components.TryGetPrimary(runtimeType, out ComponentId primary)
                 && primary == component)
             {
                 _primaryReadRoutesByType.Add(runtimeType.TypeHandle, tagRoute);
@@ -542,12 +542,12 @@ internal sealed class QueryPlan
 
         foreach (ComponentId component in _description.AnyMask)
         {
-            if (!world.Layouts.TryGetTagIndex(component, out _))
+            if (!world.Components.TryGetTagIndex(component, out _))
             {
                 continue;
             }
 
-            if (!world.Layouts.TryGet(component, out ComponentLayout layout))
+            if (!world.Components.TryGet(component, out ComponentLayout layout))
             {
                 ThrowHelper.ThrowUnregisteredQueryComponent(component, _description);
             }
@@ -668,7 +668,7 @@ internal sealed class QueryPlan
 
     internal bool RequiresAll(ComponentId componentId)
         => _allDataMask.Contains(componentId)
-            || (_owner.Layouts.TryGetTagIndex(componentId, out int tagIndex)
+            || (_owner.Components.TryGetTagIndex(componentId, out int tagIndex)
                 && Array.IndexOf(_allTagIndices, tagIndex) >= 0);
 
     private static (ComponentMask DataMask, int[] TagIndices) PartitionQueryMask(World world, ComponentMask source)
@@ -684,12 +684,12 @@ internal sealed class QueryPlan
         int tagCount = 0;
         foreach (ComponentId component in source)
         {
-            if (!world.Layouts.TryGet(component, out _))
+            if (!world.Components.TryGet(component, out _))
             {
                 ThrowHelper.ThrowUnregisteredQueryComponent(component, default);
             }
 
-            if (world.Layouts.TryGetTagIndex(component, out int tagIndex))
+            if (world.Components.TryGetTagIndex(component, out int tagIndex))
             {
                 tagIndices[tagCount++] = tagIndex;
             }

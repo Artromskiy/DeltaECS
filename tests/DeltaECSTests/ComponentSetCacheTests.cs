@@ -9,7 +9,7 @@ internal sealed class ComponentSetCacheTests
     [Test]
     public void SpanComponentSetsAreReusedAfterValidation()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(90_001));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(90_002));
         using var world = new World(layouts);
@@ -28,7 +28,7 @@ internal sealed class ComponentSetCacheTests
     [Test]
     public void EquivalentSelectorsWithDifferentOrderShareOneSetIdentity()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(90_005));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(90_006));
         using var world = new World(layouts);
@@ -48,7 +48,7 @@ internal sealed class ComponentSetCacheTests
     [Test]
     public void TypedComponentSetUsesTheStableRuntimeTypeHandleKey()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(90_011));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(90_012));
         using var world = new World(layouts);

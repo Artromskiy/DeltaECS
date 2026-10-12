@@ -10,7 +10,7 @@ public sealed class GenericFunctorOperationInputTests
     {
         ProbeFunctor.CallCount = 0;
         using var world = new World();
-        ComponentId componentId = world.Layouts.Register<ProbeComponent>(new SchemaId(1));
+        ComponentId componentId = world.Components.Register<ProbeComponent>(new SchemaId(1));
         Entity first = world.Create(componentId);
         Entity second = world.Create(componentId);
         GeneratedGenericBindingRegistry.RegisterFunctorDispatcher(

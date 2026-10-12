@@ -7,7 +7,7 @@ using System.ComponentModel;
 /// <summary>Creates a closed generic component using generated type-token dispatch.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public delegate ComponentId GeneratedGenericComponentDispatcher(
-    ComponentLayoutRegistry layouts,
+    ComponentRegistry layouts,
     SchemaId schemaId,
     ReadOnlySpan<ComponentId> componentArguments,
     ReadOnlySpan<IGeneratedComponentTypeToken> typeArguments);
@@ -131,7 +131,7 @@ public static class GeneratedGenericBindingRegistry
 
     /// <summary>Registers a closed generic component from generated code.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public static ComponentId RegisterComponent<T>(ComponentLayoutRegistry layouts, SchemaId schemaId, ReadOnlySpan<ComponentId> componentArguments)
+    public static ComponentId RegisterComponent<T>(ComponentRegistry layouts, SchemaId schemaId, ReadOnlySpan<ComponentId> componentArguments)
     {
         ThrowHelper.ThrowIfNull(layouts, nameof(layouts));
         return layouts.RegisterGeneratedGenericComponent<T>(schemaId, componentArguments, GeneratedComponentTypeTokenRegistry.Get<T>());
@@ -140,7 +140,7 @@ public static class GeneratedGenericBindingRegistry
     /// <summary>Registers a closed generic component with its generated constraint-capability token.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static ComponentId RegisterComponent<T>(
-        ComponentLayoutRegistry layouts,
+        ComponentRegistry layouts,
         SchemaId schemaId,
         ReadOnlySpan<ComponentId> componentArguments,
         IGeneratedComponentTypeToken typeToken)
@@ -153,7 +153,7 @@ public static class GeneratedGenericBindingRegistry
     /// <summary>Registers an open generic component from generated code using positional component IDs.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static ComponentId RegisterComponentDefinition(
-        ComponentLayoutRegistry layouts,
+        ComponentRegistry layouts,
         Type genericDefinition,
         SchemaId schemaId,
         ReadOnlySpan<ComponentId> componentArguments)

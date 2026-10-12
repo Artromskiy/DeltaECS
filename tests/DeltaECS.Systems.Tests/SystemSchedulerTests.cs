@@ -187,7 +187,7 @@ public sealed class SystemSchedulerTests
     {
         using var world = new World();
         using var otherWorld = new World();
-        _ = otherWorld.Layouts.Register<SystemPosition>(new SchemaId(81011));
+        _ = otherWorld.Components.Register<SystemPosition>(new SchemaId(81011));
         Query foreignQuery = otherWorld.WhereAll<SystemPosition>();
         var access = new SystemAccess(
             queryAccesses: new[]
@@ -205,8 +205,8 @@ public sealed class SystemSchedulerTests
     public void OpenGenericFunctorRunsInsideScheduledSystem()
     {
         using var world = new World();
-        ComponentId valueId = world.Layouts.Register<int>(new SchemaId(81001));
-        ComponentId historyId = world.Layouts.Register(typeof(SystemHistory<>), valueId, new SchemaId(81002));
+        ComponentId valueId = world.Components.Register<int>(new SchemaId(81001));
+        ComponentId historyId = world.Components.Register(typeof(SystemHistory<>), valueId, new SchemaId(81002));
         Entity entity = world.Create(valueId, historyId);
         world.GetRef<int>(entity, valueId) = 42;
         Query query = world.WhereAll(valueId, historyId);
@@ -224,8 +224,8 @@ public sealed class SystemSchedulerTests
     public void OpenGenericFunctorWithoutExplicitAccessIsConservative()
     {
         using var world = new World();
-        ComponentId valueId = world.Layouts.Register<int>(new SchemaId(81003));
-        ComponentId historyId = world.Layouts.Register(typeof(SystemHistory<>), valueId, new SchemaId(81004));
+        ComponentId valueId = world.Components.Register<int>(new SchemaId(81003));
+        ComponentId historyId = world.Components.Register(typeof(SystemHistory<>), valueId, new SchemaId(81004));
         Query query = world.WhereAll(valueId, historyId);
         var system = new InferredSystemHistoryCaptureSystem(world, in query, valueId);
 
@@ -238,9 +238,9 @@ public sealed class SystemSchedulerTests
     {
         Assume.That(Environment.ProcessorCount, Is.GreaterThanOrEqualTo(2));
         using var world = new World();
-        ComponentId positionId = world.Layouts.Register<SystemPosition>(new SchemaId(81005));
-        ComponentId playerId = world.Layouts.Register<PlayerUnit>(new SchemaId(81006));
-        ComponentId enemyId = world.Layouts.Register<EnemyUnit>(new SchemaId(81007));
+        ComponentId positionId = world.Components.Register<SystemPosition>(new SchemaId(81005));
+        ComponentId playerId = world.Components.Register<PlayerUnit>(new SchemaId(81006));
+        ComponentId enemyId = world.Components.Register<EnemyUnit>(new SchemaId(81007));
         Entity player = world.Create(positionId, playerId);
         Entity enemy = world.Create(positionId, enemyId);
         world.GetRef<SystemPosition>(player, positionId).Value = 1;
@@ -278,9 +278,9 @@ public sealed class SystemSchedulerTests
     public void NewMatchingArchetypeCreatedDuringTickSerializesRemainingSystems()
     {
         using var world = new World();
-        ComponentId positionId = world.Layouts.Register<SystemPosition>(new SchemaId(81008));
-        ComponentId playerId = world.Layouts.Register<PlayerUnit>(new SchemaId(81009));
-        ComponentId enemyId = world.Layouts.Register<EnemyUnit>(new SchemaId(81010));
+        ComponentId positionId = world.Components.Register<SystemPosition>(new SchemaId(81008));
+        ComponentId playerId = world.Components.Register<PlayerUnit>(new SchemaId(81009));
+        ComponentId enemyId = world.Components.Register<EnemyUnit>(new SchemaId(81010));
         Entity player = world.Create(positionId, playerId);
         _ = world.Create(positionId, enemyId);
         var probe = new QueryExecutionProbe();
@@ -331,7 +331,7 @@ public sealed class SystemSchedulerTests
     public void ExternalWorldAccessFailsFastDuringTick()
     {
         using var world = new World();
-        _ = world.Layouts.Register<GeneratedSetComponent>(new SchemaId(1));
+        _ = world.Components.Register<GeneratedSetComponent>(new SchemaId(1));
         _ = GeneratedForEachRuntime.GetGeneratedPrimaryComponentIds<GeneratedSetKey>(
             world,
             static _ => new[] { Position });
@@ -383,7 +383,7 @@ public sealed class SystemSchedulerTests
     {
         Assume.That(Environment.ProcessorCount, Is.GreaterThanOrEqualTo(2));
         using var world = new World();
-        ComponentId component = world.Layouts.Register<GeneratedSetComponent>(new SchemaId(2));
+        ComponentId component = world.Components.Register<GeneratedSetComponent>(new SchemaId(2));
         world.Create([component], 4);
         Query query = world.WhereAll(component);
         using var scheduler = new SystemScheduler(world, workerCount: 1);

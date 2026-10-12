@@ -61,9 +61,10 @@ public sealed class ComponentRegistryGeneratorTests
         Assert.That(catalog, Does.Contain("ComponentType => typeof(global::Example.Position)"));
         Assert.That(catalog, Does.Contain("ComponentType => typeof(global::Example.Health)"));
         Assert.That(catalog, Does.Contain("IGeneratedComponentRegistration.Register("));
+        Assert.That(catalog, Does.Not.Contain("global::Delta.ECS.World world"));
         Assert.That(catalog, Does.Contain("layouts.AddAlias(\"position\", componentId);"));
-        Assert.That(catalog, Does.Contain("ComponentLayoutRegistryRegistrationExtensions.Register<global::Example.Position>"));
-        Assert.That(catalog, Does.Contain("ComponentLayoutRegistryRegistrationExtensions.Register<global::Example.Health>"));
+        Assert.That(catalog, Does.Contain("ComponentRegistryRegistrationExtensions.Register<global::Example.Position>"));
+        Assert.That(catalog, Does.Contain("ComponentRegistryRegistrationExtensions.Register<global::Example.Health>"));
         Assert.That(catalog, Does.Contain("SchemaId => new(0x000000000000002AUL)"));
         Assert.That(catalog, Does.Contain("public bool IsTag => true;"));
         Assert.That(catalog, Does.Contain("public bool IsTag => false;"));
@@ -91,7 +92,7 @@ public sealed class ComponentRegistryGeneratorTests
         Assert.That(registered.Single(static item => item.ComponentType.FullName == "Example.Position").IsTag, Is.False);
         Assert.That(registered.Single(static item => item.ComponentType.FullName == "Example.Marker").IsTag, Is.True);
 
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         foreach (IGeneratedComponentRegistration registration in GeneratedComponentCatalog.GetRegistrations())
         {
             layouts.Register(registration);
@@ -104,16 +105,15 @@ public sealed class ComponentRegistryGeneratorTests
 
         Assert.That(layouts.TryGetPrimary(generatedAssembly.GetType("Example.Marker")!, out ComponentId markerId), Is.True);
         using var generatedWorld = new World(layouts);
+        Assert.That(generatedWorld.GetAlias("position"), Is.EqualTo(positionId));
         Entity marker = generatedWorld.Create(markerId);
         Assert.That(generatedWorld.Has(marker, markerId), Is.True);
 
-        var selectedRegistrationLayouts = new ComponentLayoutRegistry();
+        var selectedRegistrationLayouts = new ComponentRegistry();
         var entryType = generatedAssembly.GetType("Example.Entry")!;
         var positionRegistration = (IGeneratedComponentRegistration)entryType
             .GetMethod("GetPositionRegistration", BindingFlags.Public | BindingFlags.Static)!
             .Invoke(null, null)!;
-        Assert.That(generatedWorld.Register(positionRegistration), Is.EqualTo(positionId));
-        Assert.That(generatedWorld.GetAlias("position"), Is.EqualTo(positionId));
         ComponentId selectedPositionId = selectedRegistrationLayouts.Register(positionRegistration);
         Assert.That(selectedRegistrationLayouts.GetComponentType(selectedPositionId).FullName, Is.EqualTo("Example.Position"));
         Assert.That(selectedRegistrationLayouts.GetAlias("position"), Is.EqualTo(selectedPositionId));

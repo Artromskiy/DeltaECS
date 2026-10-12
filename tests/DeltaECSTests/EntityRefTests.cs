@@ -9,7 +9,7 @@ internal sealed class EntityRefTests
     [Test]
     public void EntityRefSupportsPrimaryComponentAccess()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(40_070));
         ComponentId tagId = layouts.Register<FirstTag>(new SchemaId(40_069));
         layouts.Register<Velocity>(new SchemaId(40_068));
@@ -54,7 +54,7 @@ internal sealed class EntityRefTests
     [Test]
     public void EntityRefUsesCurrentSlotAndChecksDynamicComponentAccess()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(40_071));
         ComponentId healthId = layouts.Register<Health>(new SchemaId(40_072));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(40_073));
@@ -101,7 +101,7 @@ internal sealed class EntityRefTests
     [Test]
     public void DelegateForEachEntityReusesEntityRefAcrossChunksAndTagSlots()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId healthId = layouts.Register<Health>(new SchemaId(40_085));
         ComponentId positionId = layouts.Register<Position>(new SchemaId(40_076));
         ComponentId tagId = layouts.Register<FirstTag>(new SchemaId(40_077));
@@ -166,7 +166,7 @@ internal sealed class EntityRefTests
     [Test]
     public void ComponentEntityIterationUsesTheBoundEntityRefViewForTaggedSlots()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId healthId = layouts.Register<Health>(new SchemaId(40_086));
         ComponentId positionId = layouts.Register<Position>(new SchemaId(40_079));
         ComponentId tagId = layouts.Register<FirstTag>(new SchemaId(40_080));
@@ -210,7 +210,7 @@ internal sealed class EntityRefTests
     [Test]
     public void EntityRefUsesPreparedAnyRowsAndRefreshesForNewArchetypes()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(40_081));
         ComponentId healthId = layouts.Register<Health>(new SchemaId(40_082));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(40_083));

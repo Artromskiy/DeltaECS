@@ -135,7 +135,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
 
     private void VisitCurrentEntities()
     {
-        bool isTag = _world.Layouts.TryGetTagIndex(_observer.ComponentId, out int tagIndex);
+        bool isTag = _world.Components.TryGetTagIndex(_observer.ComponentId, out int tagIndex);
         List<Archetype> archetypes = _world.Archetypes;
         for (int archetypeIndex = 0; archetypeIndex < archetypes.Count; archetypeIndex++)
         {

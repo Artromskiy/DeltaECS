@@ -4,10 +4,10 @@ public static partial class RuntimeApiGrammarProof
 {
     private static void VerifyWorldAndHandleApi()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(931_011));
         var world = new World(layouts, initialEntityCapacity: 0);
-        Require(ReferenceEquals(world.Layouts, layouts));
+        Require(ReferenceEquals(world.Components, layouts));
         Require(world.AliveEntityCount == 0);
 
         Entity invalid = default;

@@ -6,7 +6,7 @@ public static partial class RuntimeApiGrammarProof
 {
     private static void VerifyEntityIteration()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(934_001));
         using var world = new World(layouts);
         Span<Entity> entities = stackalloc Entity[8];
@@ -58,7 +58,7 @@ public static partial class RuntimeApiGrammarProof
 
     private static void VerifyEntityRefAccess()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(934_011));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(934_012));
         ComponentId markerId = layouts.Register<Marker>(new SchemaId(934_013));

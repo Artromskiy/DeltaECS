@@ -28,7 +28,7 @@ internal sealed class IntegrationWorldTests
     [Test]
     public void IntegrationReadOperationsAreAllowedDuringIterationButWritesAreNot()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(50_001));
         using var storage = new World(layouts);
         IEcsWorld integration = storage;
@@ -72,7 +72,7 @@ internal sealed class IntegrationWorldTests
     [Test]
     public void CatalogRefreshesIndependentlyForTypedLayouts()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(50_001));
         using var storage = new World(layouts);
         IEcsWorld world = storage;
@@ -105,7 +105,7 @@ internal sealed class IntegrationWorldTests
     [Test]
     public void ZeroComponentEntitySupportsAddFirstRemoveLastAndDestroy()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(50_011));
         using var storage = new World(layouts);
         IEcsWorld world = storage;
@@ -156,7 +156,7 @@ internal sealed class IntegrationWorldTests
     [Test]
     public void StructuralChangesAreAtomicAndReportNoOps()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(50_021));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(50_022));
         var unknownId = new ComponentId(200);
@@ -181,7 +181,7 @@ internal sealed class IntegrationWorldTests
     [Test]
     public void ObjectReadWriteValidatesErrorsAndTypes()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(50_031));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(50_032));
         using var storage = new World(layouts);
@@ -240,7 +240,7 @@ internal sealed class IntegrationWorldTests
     [Test]
     public void IntegrationContractExposesTagMembershipWithoutDataRows()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(50_051));
         ComponentId tagId = layouts.Register<IntegrationTag>(new SchemaId(50_052));
         using var storage = new World(layouts);
@@ -289,7 +289,7 @@ internal sealed class IntegrationWorldTests
     [Test]
     public void MutableReferenceIdentityIsPreservedAcrossDirectMutation()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId referenceId = layouts.Register<MutableReference>(new SchemaId(50_041));
         using var storage = new World(layouts);
         IEcsWorld world = storage;

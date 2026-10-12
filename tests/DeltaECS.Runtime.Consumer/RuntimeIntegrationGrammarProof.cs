@@ -6,7 +6,7 @@ public static partial class RuntimeApiGrammarProof
 {
     private static void VerifyIntegration()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(935_001));
         ComponentId markerId = layouts.Register<Marker>(new SchemaId(935_002));
         using var world = new World(layouts);

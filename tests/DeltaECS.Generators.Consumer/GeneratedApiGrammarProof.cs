@@ -12,9 +12,9 @@ public static class GeneratedApiGrammarProof
     public const int Compiled = 1;
 
     /// <summary>Registers concrete fixture rows so the generic-binding generator discovers them.</summary>
-    private static ComponentLayoutRegistry RegisterComponents()
+    private static ComponentRegistry RegisterComponents()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         layouts.Register<Cmp1>(new SchemaId(920001));
         layouts.Register<Cmp2>(new SchemaId(920002));
         layouts.Register<Cmp3>(new SchemaId(920003));

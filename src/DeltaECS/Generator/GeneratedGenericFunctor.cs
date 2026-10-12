@@ -60,7 +60,7 @@ public static partial class GeneratedForEachRuntime
     public static ComponentId GetGenericFunctorComponent<T>(World world, ReadOnlySpan<ComponentId> genericArguments)
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
-        return world.Layouts.GetGenericComponent(typeof(T), genericArguments);
+        return world.Components.GetGenericComponent(typeof(T), genericArguments);
     }
 
     /// <summary>Throws when a generic functor requires a context but none was passed.</summary>

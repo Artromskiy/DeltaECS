@@ -15,7 +15,7 @@ internal static class GeneratedOpenGenericRegistrationGrammarProof
 
     private static void VerifyGenericListRegistration()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         var register = new RegisterGenericListComponent(layouts);
         GenericListComponents.ForEachData(ref register);
 
@@ -37,8 +37,8 @@ internal static class GeneratedOpenGenericRegistrationGrammarProof
     private static void VerifyUnaryGenericRegistration()
     {
         using var world = new World();
-        ComponentId valueId = world.Layouts.Register<int>(new SchemaId(921_002));
-        ComponentId historyId = world.Layouts.Register(typeof(UnaryHistory<>), valueId, new SchemaId(921_003));
+        ComponentId valueId = world.Components.Register<int>(new SchemaId(921_002));
+        ComponentId historyId = world.Components.Register(typeof(UnaryHistory<>), valueId, new SchemaId(921_003));
         Entity entity = world.Create(valueId, historyId);
         Query query = world.WhereAll(valueId, historyId);
 
@@ -49,7 +49,7 @@ internal static class GeneratedOpenGenericRegistrationGrammarProof
 
     private static void VerifyMultiArgumentGenericRegistration()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId firstId = layouts.Register<Cmp1>(new SchemaId(921_012));
         ComponentId secondId = layouts.Register<Cmp2>(new SchemaId(921_013));
 
@@ -69,13 +69,13 @@ internal static class GeneratedOpenGenericRegistrationGrammarProof
     private static void VerifyStandardConstraints()
     {
         using var world = new World();
-        ComponentId structId = world.Layouts.Register<Cmp1>(new SchemaId(921_004));
-        ComponentId intId = world.Layouts.Register<int>(new SchemaId(921_005));
-        ComponentId classId = world.Layouts.Register<ConstructibleGenericComponent>(new SchemaId(921_006));
-        ComponentId structBoxId = world.Layouts.Register(typeof(StructBox<>), structId, new SchemaId(921_007));
-        ComponentId unmanagedBoxId = world.Layouts.Register(typeof(UnmanagedBox<>), intId, new SchemaId(921_008));
-        ComponentId classBoxId = world.Layouts.Register(typeof(ClassBox<>), classId, new SchemaId(921_009));
-        ComponentId newBoxId = world.Layouts.Register(typeof(NewBox<>), classId, new SchemaId(921_010));
+        ComponentId structId = world.Components.Register<Cmp1>(new SchemaId(921_004));
+        ComponentId intId = world.Components.Register<int>(new SchemaId(921_005));
+        ComponentId classId = world.Components.Register<ConstructibleGenericComponent>(new SchemaId(921_006));
+        ComponentId structBoxId = world.Components.Register(typeof(StructBox<>), structId, new SchemaId(921_007));
+        ComponentId unmanagedBoxId = world.Components.Register(typeof(UnmanagedBox<>), intId, new SchemaId(921_008));
+        ComponentId classBoxId = world.Components.Register(typeof(ClassBox<>), classId, new SchemaId(921_009));
+        ComponentId newBoxId = world.Components.Register(typeof(NewBox<>), classId, new SchemaId(921_010));
 
         CreateEntity(world, structBoxId);
         CreateEntity(world, unmanagedBoxId);
@@ -156,7 +156,7 @@ internal static class GenericListComponents
         => action.Register<GenericListComponent>();
 }
 
-internal readonly struct RegisterGenericListComponent(ComponentLayoutRegistry layouts) : IGenericListAction
+internal readonly struct RegisterGenericListComponent(ComponentRegistry layouts) : IGenericListAction
 {
     public void Register<T>() where T : struct
         => _ = layouts.Register<T>(new SchemaId(921_011));

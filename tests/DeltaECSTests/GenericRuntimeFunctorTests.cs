@@ -10,7 +10,7 @@ public class GenericRuntimeFunctorTests
     [Test]
     public void RegistrationClosesTypesAndPreservesSourceRegistrationIdentity()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId health = layouts.Register<float>(new SchemaId(120_001));
         ComponentId mana = layouts.Register<float>(new SchemaId(120_002));
         ComponentId healthHistory = layouts.Register(typeof(History<>), health, new SchemaId(120_101));
@@ -26,11 +26,11 @@ public class GenericRuntimeFunctorTests
         Assert.Throws<InvalidOperationException>(() => layouts.Register(typeof(History<>), health, new SchemaId(120_104)));
         Assert.That(layouts.Count, Is.EqualTo(countBeforeConflict));
 
-        Assert.That(typeof(ComponentLayoutRegistry).GetMethods()
+        Assert.That(typeof(ComponentRegistry).GetMethods()
             .Where(static method => method.Name == "Register" && !method.IsGenericMethod)
             .SelectMany(static method => method.GetParameters())
             .Any(static parameter => parameter.ParameterType.IsArray), Is.False);
-        Assert.That(typeof(ComponentLayoutRegistry).GetMethods()
+        Assert.That(typeof(ComponentRegistry).GetMethods()
             .Where(static method => method.Name == "Register" && !method.IsGenericMethod)
             .SelectMany(static method => method.GetParameters())
             .Any(static parameter => parameter.ParameterType == typeof(ReadOnlySpan<ComponentId>)), Is.True);
@@ -39,7 +39,7 @@ public class GenericRuntimeFunctorTests
     [Test]
     public void RuntimeFunctorUsesDerivedRowsAndOneStateAcrossChunksWithTagFiltering()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         layouts.Register<float>(new SchemaId(120_011));
         ComponentId value = layouts.Register<float>(new SchemaId(120_012));
         ComponentId history = layouts.Register(typeof(History<>), value, new SchemaId(120_111));
@@ -74,7 +74,7 @@ public class GenericRuntimeFunctorTests
     [Test]
     public void TwoGenericArgumentsCanBindThreeRowsAndReadOnlyModes()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId first = layouts.Register<int>(new SchemaId(120_021));
         ComponentId second = layouts.Register<float>(new SchemaId(120_022));
         ComponentId pair = layouts.Register(typeof(Pair<,>), first, second, new SchemaId(120_121));
@@ -93,7 +93,7 @@ public class GenericRuntimeFunctorTests
     [Test]
     public void RuntimeFunctorWithoutExplicitQueryReusesItsLiveImplicitQueryPlan()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId value = layouts.Register<int>(new SchemaId(120_025));
         ComponentId history = layouts.Register(typeof(History<>), value, new SchemaId(120_125));
         ComponentId selected = layouts.Register<Selected>(new SchemaId(120_026));
@@ -114,7 +114,7 @@ public class GenericRuntimeFunctorTests
     [Test]
     public void InvalidDefinitionsConstraintsAndMissingRowsFailBeforeIteration()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId value = layouts.Register<int>(new SchemaId(120_031));
         ComponentId text = layouts.Register<string>(new SchemaId(120_032));
         Assert.Throws<ArgumentException>(() => layouts.Register(typeof(int), value, new SchemaId(120_131)));

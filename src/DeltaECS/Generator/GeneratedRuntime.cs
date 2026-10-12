@@ -267,7 +267,7 @@ public interface IGeneratedComponentValueInitializer
 [EditorBrowsable(EditorBrowsableState.Never)]
 public readonly ref struct GeneratedComponentValueWriter
 {
-    private readonly ComponentLayoutRegistry _layouts;
+    private readonly ComponentRegistry _layouts;
     private readonly Chunk _targetChunk;
     private readonly Archetype _targetArchetype;
     private readonly int _targetSlotIndex;
@@ -275,7 +275,7 @@ public readonly ref struct GeneratedComponentValueWriter
     private readonly int _targetCount;
 
     internal GeneratedComponentValueWriter(
-        ComponentLayoutRegistry layouts,
+        ComponentRegistry layouts,
         Chunk targetChunk,
         Archetype targetArchetype,
         int targetSlotIndex,
@@ -291,7 +291,7 @@ public readonly ref struct GeneratedComponentValueWriter
     }
 
     internal GeneratedComponentValueWriter(
-        ComponentLayoutRegistry layouts,
+        ComponentRegistry layouts,
         Chunk targetChunk,
         Archetype targetArchetype,
         int targetSlotIndex)

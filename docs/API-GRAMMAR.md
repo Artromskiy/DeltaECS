@@ -30,7 +30,7 @@ declaration to release its native storage:
 
 ```text
 new World(layouts?, initialEntityCapacity?) -> World
-world.Layouts -> ComponentLayoutRegistry
+world.Components -> ComponentRegistry
 world.AliveEntityCount -> int
 world.Dispose()
 
@@ -101,7 +101,7 @@ types.
 ```csharp
 ComponentId positionId = layouts.Register<Position>(new SchemaId(1));
 
-static ComponentId RegisterNew<T>(ComponentLayoutRegistry layouts, SchemaId schemaId)
+static ComponentId RegisterNew<T>(ComponentRegistry layouts, SchemaId schemaId)
     where T : new()
     => layouts.Register<T>(schemaId);
 
@@ -190,7 +190,7 @@ layouts.BindInterface<Position, IMovable>();
 In a generic helper, declare any constraint that should select a narrower route:
 
 ```csharp
-static ComponentId RegisterStruct<T>(ComponentLayoutRegistry layouts, SchemaId schemaId)
+static ComponentId RegisterStruct<T>(ComponentRegistry layouts, SchemaId schemaId)
     where T : struct
     => layouts.Register<T>(schemaId);
 ```
@@ -230,10 +230,9 @@ require generated registrations in the consumer assembly; ordinary
 
 `ComponentAlias` assigns one or more ordinal string aliases to a generated
 component. Aliases and group membership are catalog metadata stored in the
-`ComponentLayoutRegistry`; the `World` methods are forwarding conveniences.
-Registering a generated entry through either the registry or world adds its
-aliases and groups to that catalog. Catalogs can be shared by worlds, so both
-aliases and groups are shared as well. Manual additions can use either API:
+`ComponentRegistry`. Register generated entries and manual metadata
+through the layout registry; `World` exposes read APIs for its catalog. Catalogs
+can be shared by worlds, so aliases and groups are shared as well:
 
 ```csharp
 using System;
@@ -251,15 +250,16 @@ public enum WorldComponentGroup
 [ComponentGroup<WorldComponentGroup>(WorldComponentGroup.History)]
 public struct Health { public int Value; }
 
-using var world = new World();
+var layouts = new ComponentRegistry();
 foreach (IGeneratedComponentRegistration registration in GeneratedComponentCatalog.GetRegistrations())
 {
-    world.Register(registration);
+    layouts.Register(registration);
 }
 
+using var world = new World(layouts);
 ComponentId healthId = world.GetAlias("health");
-world.AddAlias("configured-health", healthId);
-world.AddGroup(WorldComponentGroup.Rollback, healthId);
+layouts.AddAlias("configured-health", healthId);
+layouts.AddGroup(WorldComponentGroup.Rollback, healthId);
 ReadOnlySpan<ComponentId> rollbackComponents = world.GetGroup(WorldComponentGroup.Rollback);
 ```
 
@@ -901,9 +901,9 @@ registrations, pass one positional `ComponentId` per compared component. A
 `ReadOnlySpan<ComponentId>` can supply the same list dynamically:
 
 ```csharp
-ComponentId priorityId = world.Layouts.Register<Priority>(new SchemaId(30));
-ComponentId syncIdComponentId = world.Layouts.Register<SyncId>(new SchemaId(31));
-ComponentId healthId = world.Layouts.Register<Health>(new SchemaId(32));
+ComponentId priorityId = world.Components.Register<Priority>(new SchemaId(30));
+ComponentId syncIdComponentId = world.Components.Register<SyncId>(new SchemaId(31));
+ComponentId healthId = world.Components.Register<Health>(new SchemaId(32));
 Query candidatesById = world.WhereAll(priorityId, syncIdComponentId, healthId);
 var orderingContext = new OrderingContext { Offset = 3 };
 

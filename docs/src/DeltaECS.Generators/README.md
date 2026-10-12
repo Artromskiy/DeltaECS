@@ -176,7 +176,7 @@ Query combatants = world
 
 Each generated factory resolves primary component registrations, fills a
 stack-only `ComponentId` span and calls the existing `World.CreateQuery` path.
-The initial call uses `world.Layouts.GetPrimary<T>()`; a `Query` extension
+The initial call uses `world.Components.GetPrimary<T>()`; a `Query` extension
 resolves the same registration through the query's owning world and composes
 the masks into a new query. Equivalent specifications continue to share the
 same query behavior.

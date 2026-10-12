@@ -46,7 +46,7 @@ Generated module initializers expose one registration per marked component.
 Register the full catalog into a layout registry, then create the world:
 
 ```csharp
-var layouts = new ComponentLayoutRegistry();
+var layouts = new ComponentRegistry();
 foreach (IGeneratedComponentRegistration registration in GeneratedComponentCatalog.GetRegistrations())
 {
     layouts.Register(registration);
@@ -58,7 +58,7 @@ using var world = new World(layouts);
 To register only one generated component, pass its registration directly:
 
 ```csharp
-var layouts = new ComponentLayoutRegistry();
+var layouts = new ComponentRegistry();
 layouts.Register(GeneratedComponentCatalog.GetRegistration<Health>());
 ```
 

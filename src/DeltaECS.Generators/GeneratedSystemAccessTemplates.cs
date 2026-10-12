@@ -109,7 +109,7 @@ internal static class GeneratedSystemAccessTemplates
             {{name}}: stackalloc global::Delta.ECS.ComponentId[]
             {
             {{GeneratorTemplates.Indent(
-                string.Join(",\n", types.Select(type => worldExpression + ".Layouts.GetPrimary<" + type + ">()")),
+                string.Join(",\n", types.Select(type => worldExpression + ".Components.GetPrimary<" + type + ">()")),
                 "    ")}}
             }
             """;

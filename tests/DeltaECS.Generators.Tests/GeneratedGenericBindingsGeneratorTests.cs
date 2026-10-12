@@ -22,7 +22,7 @@ public class GeneratedGenericBindingsGeneratorTests
 
             public static class Caller
             {
-                public static ComponentId Register(ComponentLayoutRegistry layouts)
+                public static ComponentId Register(ComponentRegistry layouts)
                 {
                     ComponentId position = layouts.Register<Position>(new SchemaId(1));
                     ComponentId velocity = layouts.Register<Velocity>(new SchemaId(3));

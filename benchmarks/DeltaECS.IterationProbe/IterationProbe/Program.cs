@@ -35,7 +35,7 @@ public class IterationBenchmarks : IDisposable
     [GlobalSetup]
     public void Setup()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId[] ids =
         [
             layouts.Register<C00>(new SchemaId(81_001)),

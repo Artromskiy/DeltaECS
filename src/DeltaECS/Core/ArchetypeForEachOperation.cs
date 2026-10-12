@@ -303,7 +303,7 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
             return false;
         }
 
-        if (_query.Owner.Layouts.TryGetTagIndex(_componentId, out _))
+        if (_query.Owner.Components.TryGetTagIndex(_componentId, out _))
         {
             componentIndex = TagComponentIndex;
             return true;

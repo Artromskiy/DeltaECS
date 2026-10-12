@@ -17,7 +17,7 @@ internal sealed class WorldHistory : IDisposable
 
     internal WorldHistory(int entityCount)
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         for (int index = 0; index < HistoryComponentCount; index++)
         {
             _componentIds[index] = RegisterComponent(layouts, index, new SchemaId((ulong)(index + 1)));
@@ -94,7 +94,7 @@ internal sealed class WorldHistory : IDisposable
 
     public void Dispose() => _world.Dispose();
 
-    private static ComponentId RegisterComponent(ComponentLayoutRegistry layouts, int index, SchemaId schemaId) => (index % ComponentTypeCount) switch
+    private static ComponentId RegisterComponent(ComponentRegistry layouts, int index, SchemaId schemaId) => (index % ComponentTypeCount) switch
     {
         0 => layouts.Register<HistoryPosition>(schemaId),
         1 => layouts.Register<HistoryVelocity>(schemaId),

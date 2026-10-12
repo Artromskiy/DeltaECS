@@ -7,7 +7,7 @@ using System.Globalization;
 using System.Reflection;
 
 /// <summary>Registers component CLR types and their stable schema identities.</summary>
-public sealed partial class ComponentLayoutRegistry
+public sealed partial class ComponentRegistry
 {
     private readonly Dictionary<SchemaId, int> _idsBySchema = new();
     private readonly Dictionary<Type, ComponentId> _primaryIdsByType = new();

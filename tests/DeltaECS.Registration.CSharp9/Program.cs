@@ -19,7 +19,7 @@ namespace Delta.ECS.Registration.CSharp9
         /// <summary>Validates constraint-selected registration and interface visitor routes.</summary>
         public static void Run()
         {
-            var layouts = new ComponentLayoutRegistry();
+            var layouts = new ComponentRegistry();
 
             ComponentId unmanagedId = layouts.Register<int>(new SchemaId(1));
             AssertVisited<int>(layouts, unmanagedId, new UnmanagedVisitor());
@@ -83,20 +83,20 @@ namespace Delta.ECS.Registration.CSharp9
 
         private static ComponentId RegisterStruct<
             [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-            ComponentLayoutRegistry layouts,
+            ComponentRegistry layouts,
             SchemaId schemaId)
             where T : struct
             => layouts.Register<T>(schemaId);
 
         private static ComponentId RegisterUnconstrained<
             [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-            ComponentLayoutRegistry layouts,
+            ComponentRegistry layouts,
             SchemaId schemaId)
             => layouts.Register<T>(schemaId);
 
         private static ComponentId RegisterNew<
             [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-            ComponentLayoutRegistry layouts,
+            ComponentRegistry layouts,
             SchemaId schemaId)
             where T : new()
             => layouts.Register<T>(schemaId);
@@ -104,7 +104,7 @@ namespace Delta.ECS.Registration.CSharp9
         private static ComponentId BindAndRegisterStruct<
             [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T,
             [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TInterface>(
-            ComponentLayoutRegistry layouts,
+            ComponentRegistry layouts,
             SchemaId schemaId)
             where T : struct, TInterface
         {
@@ -115,7 +115,7 @@ namespace Delta.ECS.Registration.CSharp9
         private static ComponentId BindAndRegisterInterface<
             [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T,
             [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TInterface>(
-            ComponentLayoutRegistry layouts,
+            ComponentRegistry layouts,
             SchemaId schemaId)
             where T : TInterface
         {
@@ -126,7 +126,7 @@ namespace Delta.ECS.Registration.CSharp9
         private static ComponentId BindAndRegisterUnmanagedInterface<
             [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T,
             [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TInterface>(
-            ComponentLayoutRegistry layouts,
+            ComponentRegistry layouts,
             SchemaId schemaId)
             where T : unmanaged, TInterface
         {
@@ -137,7 +137,7 @@ namespace Delta.ECS.Registration.CSharp9
         private static ComponentId BindAndRegisterClassInterface<
             [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T,
             [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TInterface>(
-            ComponentLayoutRegistry layouts,
+            ComponentRegistry layouts,
             SchemaId schemaId)
             where T : class, TInterface
         {
@@ -148,7 +148,7 @@ namespace Delta.ECS.Registration.CSharp9
         private static ComponentId BindAndRegisterNewInterface<
             [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T,
             [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TInterface>(
-            ComponentLayoutRegistry layouts,
+            ComponentRegistry layouts,
             SchemaId schemaId)
             where T : TInterface, new()
         {
@@ -159,7 +159,7 @@ namespace Delta.ECS.Registration.CSharp9
         private static ComponentId BindAndRegisterClassNewInterface<
             [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T,
             [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TInterface>(
-            ComponentLayoutRegistry layouts,
+            ComponentRegistry layouts,
             SchemaId schemaId)
             where T : class, TInterface, new()
         {
@@ -169,10 +169,10 @@ namespace Delta.ECS.Registration.CSharp9
 
         private static void AssertInterfaceRoute<T>(
             string expectedRoute,
-            Func<ComponentLayoutRegistry, ComponentId> bindAndRegister)
+            Func<ComponentRegistry, ComponentId> bindAndRegister)
             where T : IGameComponent
         {
-            var layouts = new ComponentLayoutRegistry();
+            var layouts = new ComponentRegistry();
             ComponentId id = bindAndRegister(layouts);
             var visitor = new InterfaceRouteVisitor();
             if (!layouts.TryVisit(id, visitor)
@@ -192,7 +192,7 @@ namespace Delta.ECS.Registration.CSharp9
             }
         }
 
-        private static void AssertVisited<T>(ComponentLayoutRegistry layouts, ComponentId componentId, ProbeVisitor visitor)
+        private static void AssertVisited<T>(ComponentRegistry layouts, ComponentId componentId, ProbeVisitor visitor)
         {
             if (!layouts.TryVisit(componentId, visitor)
                 || visitor.ComponentType != typeof(T)
@@ -203,7 +203,7 @@ namespace Delta.ECS.Registration.CSharp9
             }
         }
 
-        private static void AssertRejected(ComponentLayoutRegistry layouts, ComponentId componentId, ProbeVisitor visitor)
+        private static void AssertRejected(ComponentRegistry layouts, ComponentId componentId, ProbeVisitor visitor)
         {
             if (layouts.TryVisit(componentId, visitor) || visitor.VisitCount != 0)
             {

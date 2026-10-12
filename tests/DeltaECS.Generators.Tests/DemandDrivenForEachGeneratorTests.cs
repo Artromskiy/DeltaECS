@@ -788,8 +788,8 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         Assert.That(generated, Does.Contain("GetPreparedReadRoute<T1>(in query)"));
         Assert.That(generated, Does.Contain("GetPreparedWriteRoute<T2>(in query)"));
-        Assert.That(generated, Does.Not.Contain("AccessRead(world, in query, world.Layouts.GetPrimary"));
-        Assert.That(generated, Does.Not.Contain("AccessWrite(world, in query, world.Layouts.GetPrimary"));
+        Assert.That(generated, Does.Not.Contain("AccessRead(world, in query, world.Components.GetPrimary"));
+        Assert.That(generated, Does.Not.Contain("AccessWrite(world, in query, world.Components.GetPrimary"));
         Assert.That(generated, Does.Not.Contain("ResolveComponentIds"));
         Assert.That(generated, Does.Not.Contain("AllMask.Count != destination.Length"));
     }
@@ -2045,7 +2045,7 @@ public sealed class DemandDrivenForEachGeneratorTests
             bool RequiresSingleThread { get; }
             void Invoke(ref GeneratedQuerySlots slots);
         }
-        public sealed class ComponentLayoutRegistry
+        public sealed class ComponentRegistry
         {
             public ComponentId GetPrimary(Type type) => default;
             public ComponentId GetPrimary<T>() => default;
@@ -2204,7 +2204,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         }
         public sealed partial class World
         {
-            public ComponentLayoutRegistry Layouts { get; } = new();
+            public ComponentRegistry Components { get; } = new();
             public void ValidateGeneratedOrderedQueryKey<T>(in Query query, ComponentId componentId) { }
             public ref readonly T GetGeneratedOrderedQueryKey<T>(Entity entity, ComponentId componentId) => throw new NotImplementedException();
             public Query WhereAll(ReadOnlySpan<ComponentId> components) => default;
@@ -2497,7 +2497,7 @@ public sealed class DemandDrivenForEachGeneratorTests
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
                     .Add<Dead>(new Dead());
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
-                    .Add<Dead>(world.Layouts.GetPrimary<Dead>(), new Dead());
+                    .Add<Dead>(world.Components.GetPrimary<Dead>(), new Dead());
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Remove<Alive>();
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Remove(aliveId);
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)

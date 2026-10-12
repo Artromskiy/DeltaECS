@@ -5,7 +5,7 @@ namespace Delta.ECS.Generators.Consumer;
 
 internal static class GeneratedComponentVisitorGrammarProof
 {
-    internal static void Run(ComponentLayoutRegistry layouts)
+    internal static void Run(ComponentRegistry layouts)
     {
         ComponentId[] componentIds =
         [

@@ -52,10 +52,7 @@ namespace Delta.ECS
         bool IsTag { get; }
 
         /// <summary>Registers this component using its generated concrete registration route.</summary>
-        ComponentId Register(ComponentLayoutRegistry layouts);
-
-        /// <summary>Registers this component and its metadata in a world's catalog.</summary>
-        ComponentId Register(World world);
+        ComponentId Register(ComponentRegistry layouts);
     }
 
     /// <summary>Receives component registration factories emitted by DeltaECS.Generators.</summary>
@@ -76,7 +73,7 @@ namespace Delta.ECS
             }
         }
 
-        /// <summary>Copies generated registrations for one-time Unity world initialization.</summary>
+        /// <summary>Copies generated registrations for one-time layout initialization.</summary>
         internal static IGeneratedComponentRegistration[] GetRegistrations()
         {
             lock (Gate)

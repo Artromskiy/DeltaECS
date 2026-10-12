@@ -15,7 +15,7 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static ComponentLayoutRegistry ThrowInvalidComponentLayoutRegistryRoute(IComponentLayoutRegistryRoute layouts)
+    internal static ComponentRegistry ThrowInvalidComponentRegistryRoute(IComponentRegistryRoute layouts)
         => throw new ArgumentException("The route marker is not backed by a component layout registry.", nameof(layouts));
 
     [DoesNotReturn]

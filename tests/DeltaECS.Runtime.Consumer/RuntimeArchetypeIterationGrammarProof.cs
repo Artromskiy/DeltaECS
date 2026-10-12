@@ -4,7 +4,7 @@ public static partial class RuntimeApiGrammarProof
 {
     private static void VerifyArchetypeIteration()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId firstId = layouts.Register<FirstValue>(new SchemaId(934_031));
         ComponentId secondId = layouts.Register<SecondValue>(new SchemaId(934_032));
         using var world = new World(layouts);

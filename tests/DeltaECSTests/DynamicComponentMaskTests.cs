@@ -57,7 +57,7 @@ internal sealed class DynamicComponentMaskTests
     [Test]
     public void WorldCreatesArchetypeWithMoreThanTheOriginalFourWordBoundary()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         var ids = new ComponentId[257];
         for (int index = 0; index < ids.Length; index++)
         {

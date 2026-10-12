@@ -11,7 +11,7 @@ internal sealed class FunctorForEachTests
     [Test]
     public void ZeroArityFunctorAnchorThrows()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_081));
         using var world = new World(layouts);
         world.Create(new[] { positionId });
@@ -26,7 +26,7 @@ internal sealed class FunctorForEachTests
     [Test]
     public void DenseFunctorStateIsWrittenBackAfterTraversal()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_088));
         using var world = new World(layouts, initialEntityCapacity: 600);
         Entity[] entities = new Entity[600];
@@ -43,7 +43,7 @@ internal sealed class FunctorForEachTests
     [Test]
     public void DeferredOperationIsReusableAndTracksNewQueryArchetypes()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_092));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_093));
         using var world = new World(layouts);
@@ -66,7 +66,7 @@ internal sealed class FunctorForEachTests
     [Test]
     public void DeferredFunctorOperationKeepsOwnedStateAndAcceptsCallerState()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_094));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId);
@@ -91,7 +91,7 @@ internal sealed class FunctorForEachTests
     [Test]
     public void DeferredOperationValidatesQueryOnlyWhenInvoked()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         layouts.Register<Position>(new SchemaId(60_095));
         using var world = new World(layouts);
         Query invalid = default;
@@ -103,7 +103,7 @@ internal sealed class FunctorForEachTests
     [Test]
     public void DenseFunctorStateIsNotWrittenBackWhenTraversalThrows()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId valueId = layouts.Register<FunctorProbeComponent>(new SchemaId(60_090));
         using var world = new World(layouts, initialEntityCapacity: 600);
         var entities = new Entity[600];
@@ -123,7 +123,7 @@ internal sealed class FunctorForEachTests
     [Test]
     public void ZeroArityEntityFunctorsVisitEveryEntity()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_086));
         using var world = new World(layouts);
         var entities = new Entity[3];
@@ -146,7 +146,7 @@ internal sealed class FunctorForEachTests
     [Test]
     public void WhereSupportsZeroArityEntityTerminals()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId healthId = layouts.Register<Health>(new SchemaId(60_087));
         ComponentId tagId = layouts.Register<WhereEntityTag>(new SchemaId(60_089));
         using var world = new World(layouts);
@@ -174,7 +174,7 @@ internal sealed class FunctorForEachTests
     [Test]
     public void WhereFunctorSupportsPredicateAndTerminalContext()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId healthId = layouts.Register<Health>(new SchemaId(60_082));
         using var world = new World(layouts);
         Entity dead = world.Create(new[] { healthId });
@@ -199,7 +199,7 @@ internal sealed class FunctorForEachTests
     [Test]
     public void WhereFunctorSupportsStructuralTerminal()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId healthId = layouts.Register<Health>(new SchemaId(60_083));
         using var world = new World(layouts);
         Entity dead = world.Create(new[] { healthId });
@@ -222,7 +222,7 @@ internal sealed class FunctorForEachTests
     [Test]
     public void WhereSupportsPredicateWithoutEntity()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId healthId = layouts.Register<Health>(new SchemaId(60_085));
         using var world = new World(layouts);
         Entity dead = world.Create(new[] { healthId });
@@ -242,7 +242,7 @@ internal sealed class FunctorForEachTests
     [Test]
     public void WhereWritesFunctorStateBackAfterCompleteTraversal()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId healthId = layouts.Register<Health>(new SchemaId(60_089));
         using var world = new World(layouts, initialEntityCapacity: 600);
         Entity[] entities = new Entity[600];
@@ -260,7 +260,7 @@ internal sealed class FunctorForEachTests
     [Test]
     public void WhereFunctorStateIsNotWrittenBackWhenTraversalThrows()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId healthId = layouts.Register<Health>(new SchemaId(60_091));
         using var world = new World(layouts, initialEntityCapacity: 600);
         var entities = new Entity[600];
@@ -288,7 +288,7 @@ internal sealed class FunctorForEachTests
     [Test]
     public void WhereLambdaSupportsInterceptedFunctorTerminal()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId healthId = layouts.Register<Health>(new SchemaId(60_084));
         using var world = new World(layouts);
         Entity entity = world.Create(new[] { healthId });

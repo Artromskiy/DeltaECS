@@ -21,7 +21,7 @@ internal sealed class DeltaECSDeliveryTests
     {
         Assert.That(default(Entity).IsValid, Is.False);
 
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         RegisterComponentLayouts(layouts);
         using var world = new World(layouts);
 
@@ -41,7 +41,7 @@ internal sealed class DeltaECSDeliveryTests
     [Test]
     public void DenseBatchCreateDestroySucceedsAndQuery()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         RegisterComponentLayouts(layouts);
         using var world = new World(layouts);
 
@@ -71,7 +71,7 @@ internal sealed class DeltaECSDeliveryTests
     [Test]
     public void ImmediateBatchTransitionCompletesBeforeReturnAndIsIdempotent()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         RegisterComponentLayouts(layouts);
         using var world = new World(layouts);
         var entities = new Entity[5];
@@ -94,7 +94,7 @@ internal sealed class DeltaECSDeliveryTests
     [Test]
     public void QueryCacheRemainsValidAfterNewArchetypeAppears()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         RegisterComponentLayouts(layouts);
         using var world = new World(layouts);
 
@@ -117,7 +117,7 @@ internal sealed class DeltaECSDeliveryTests
     [Test]
     public void QuerySpecIsImmutableAfterCreation()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         RegisterComponentLayouts(layouts);
         using var world = new World(layouts);
 
@@ -171,7 +171,7 @@ internal sealed class DeltaECSDeliveryTests
     [Test]
     public void ComponentQueryMasksMatchAllAnyNoneAndCombinedConditions()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         RegisterComponentLayouts(layouts);
         using var world = new World(layouts);
         world.Create(new[] { PositionId, VelocityId });
@@ -226,7 +226,7 @@ internal sealed class DeltaECSDeliveryTests
     [Test]
     public void GeneratedQueryCompositionExtendsMasksAndReusesTheQueryCache()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         RegisterComponentLayouts(layouts);
         using var world = new World(layouts);
         QuerySpec expectedSpec = new(
@@ -257,7 +257,7 @@ internal sealed class DeltaECSDeliveryTests
     [Test]
     public void ComponentIdQueryFactoriesComposeFromWorldAndQuery()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         RegisterComponentLayouts(layouts);
         using var world = new World(layouts);
 
@@ -313,7 +313,7 @@ internal sealed class DeltaECSDeliveryTests
     [Test]
     public void O1ChunkAcquisitionReusesNonFullChunksWithoutDoubling()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         RegisterComponentLayouts(layouts);
         using var world = new World(layouts);
 
@@ -347,7 +347,7 @@ internal sealed class DeltaECSDeliveryTests
     [Test]
     public void RegistryDeduplicatesEqualSchemaAndRejectsConflictingLayout()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         var first = layouts.Register<Position>(new SchemaId(10_001));
         var duplicate = layouts.Register<Position>(new SchemaId(10_001));
 
@@ -361,7 +361,7 @@ internal sealed class DeltaECSDeliveryTests
     [Test]
     public void TransitionAddRemovePreservesData()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         RegisterComponentLayouts(layouts);
         using var world = new World(layouts);
 
@@ -389,7 +389,7 @@ internal sealed class DeltaECSDeliveryTests
     [Test]
     public void RandomizedInvariantsWithTransitions()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         RegisterComponentLayouts(layouts);
         using var world = new World(layouts);
         var random = new TestRandom(123456);
@@ -498,7 +498,7 @@ internal sealed class DeltaECSDeliveryTests
         }
     }
 
-    private static void RegisterComponentLayouts(ComponentLayoutRegistry layouts)
+    private static void RegisterComponentLayouts(ComponentRegistry layouts)
     {
         layouts.Register<Position>(new SchemaId(1));
         layouts.Register<Velocity>(new SchemaId(2));

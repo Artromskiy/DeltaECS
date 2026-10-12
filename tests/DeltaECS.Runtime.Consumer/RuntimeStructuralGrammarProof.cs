@@ -4,7 +4,7 @@ public static partial class RuntimeApiGrammarProof
 {
     private static void VerifyStructuralOperations()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(932_001));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(932_002));
         ComponentId markerId = layouts.Register<Marker>(new SchemaId(932_003));

@@ -183,7 +183,7 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
         }
 
         if (IsLayoutRegistry(method.ContainingType)
-            || IsComponentLayoutRegistryRegistrationExtensions(method.ContainingType)
+            || IsComponentRegistryRegistrationExtensions(method.ContainingType)
             || IsGeneratedGenericComponentRegistrationExtensions(method.ContainingType))
         {
             if (method.IsGenericMethod
@@ -316,9 +316,9 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
         return false;
     }
 
-    private static bool IsLayoutRegistry(INamedTypeSymbol? type) => type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Delta.ECS.ComponentLayoutRegistry";
+    private static bool IsLayoutRegistry(INamedTypeSymbol? type) => type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Delta.ECS.ComponentRegistry";
 
-    private static bool IsComponentLayoutRegistryRegistrationExtensions(INamedTypeSymbol? type) => type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Delta.ECS.ComponentLayoutRegistryRegistrationExtensions";
+    private static bool IsComponentRegistryRegistrationExtensions(INamedTypeSymbol? type) => type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Delta.ECS.ComponentRegistryRegistrationExtensions";
 
     private static bool IsGeneratedGenericComponentRegistrationExtensions(INamedTypeSymbol? type) => type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Delta.ECS.GeneratedGenericComponentRegistrationExtensions";
 

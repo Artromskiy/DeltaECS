@@ -36,18 +36,19 @@ internal static class GeneratedComponentCatalogGrammarProof
             throw new InvalidOperationException("The generated component catalog returned an unexpected component registration.");
         }
 
-        using var world = new World();
-        ComponentId componentId = world.Register(componentRegistration);
-        ComponentId tagId = world.Register(tagRegistration);
-        world.AddGroup(CatalogTargets.Client, componentId);
+        var layouts = new ComponentRegistry();
+        ComponentId componentId = layouts.Register(componentRegistration);
+        ComponentId tagId = layouts.Register(tagRegistration);
+        layouts.AddGroup(CatalogTargets.Client, componentId);
+        using var world = new World(layouts);
         ReadOnlySpan<ComponentId> historyGroup = world.GetGroup(CatalogGroups.History);
         ReadOnlySpan<ComponentId> replicatedGroup = world.GetGroup(CatalogGroups.Replicated);
         ReadOnlySpan<ComponentId> serverGroup = world.GetGroup(CatalogTargets.Server);
         ReadOnlySpan<ComponentId> clientGroup = world.GetGroup(CatalogTargets.Client);
         Entity entity = world.Create(componentId);
         if (!world.Add(entity, tagId)
-            || world.Layouts.GetComponentType(componentId) != typeof(CatalogComponent)
-            || world.Layouts.GetComponentType(tagId) != typeof(CatalogTag)
+            || world.Components.GetComponentType(componentId) != typeof(CatalogComponent)
+            || world.Components.GetComponentType(tagId) != typeof(CatalogTag)
             || world.GetAlias("catalog.component") != componentId
             || historyGroup.Length != 2
             || !historyGroup.Contains(componentId)
@@ -60,7 +61,7 @@ internal static class GeneratedComponentCatalogGrammarProof
             throw new InvalidOperationException("Generated component catalog registration did not initialize component groups.");
         }
 
-        world.AddAlias("catalog.component.manual", componentId);
+        layouts.AddAlias("catalog.component.manual", componentId);
         if (clientGroup.Length != 1 || !clientGroup.Contains(componentId)
             || !world.TryGetAlias("catalog.component.manual", out ComponentId manualAlias)
             || manualAlias != componentId)

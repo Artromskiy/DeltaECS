@@ -7,7 +7,7 @@ internal static class GeneratedWherePipelineGrammarProof
 {
     internal static void Run(World world, in Query query, ComponentId deadId, ComponentId aliveId, ref Context context)
     {
-        ComponentId needsRespawnId = world.Layouts.GetPrimary<NeedsRespawn>();
+        ComponentId needsRespawnId = world.Components.GetPrimary<NeedsRespawn>();
         ReadOnlySpan<ComponentId> tagIds = stackalloc ComponentId[] { deadId, aliveId };
 
         // Component-only/entity-aware predicates: delegates, contexts, and functors.

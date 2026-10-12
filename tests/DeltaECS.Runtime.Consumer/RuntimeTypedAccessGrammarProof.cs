@@ -4,7 +4,7 @@ public static partial class RuntimeApiGrammarProof
 {
     private static void VerifyTypedAccess()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId primaryPositionId = layouts.Register<Position>(new SchemaId(933_001));
         ComponentId secondaryPositionId = layouts.Register<Position>(new SchemaId(933_002));
         ComponentId markerId = layouts.Register<Marker>(new SchemaId(933_003));
@@ -68,6 +68,6 @@ public static partial class RuntimeApiGrammarProof
         Require(world.Add(tagged, in markerReference) == false);
         Require(world.Remove<Marker>(tagged));
 
-        Require(world.Layouts.GetComponentType(primaryPositionId) == typeof(Position));
+        Require(world.Components.GetComponentType(primaryPositionId) == typeof(Position));
     }
 }

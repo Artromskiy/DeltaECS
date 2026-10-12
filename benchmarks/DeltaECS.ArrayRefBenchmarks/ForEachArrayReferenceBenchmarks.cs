@@ -26,7 +26,7 @@ public class ForEachArrayReferenceBenchmarks : IDisposable
     [GlobalSetup]
     public void Setup()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         ComponentId valueId = layouts.Register<ArrayReferenceValue>(new SchemaId(96_001));
         _world = new World(layouts, initialEntityCapacity: Program.Amount);
         _entities = new Entity[Program.Amount];

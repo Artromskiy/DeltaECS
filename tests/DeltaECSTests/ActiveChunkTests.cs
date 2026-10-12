@@ -11,7 +11,7 @@ internal sealed class ActiveChunkTests
     [Test]
     public void EmptyChunksAreExcludedAndReusedChunksRejoinTheActiveList()
     {
-        var layouts = new ComponentLayoutRegistry();
+        var layouts = new ComponentRegistry();
         layouts.Register<Position>(new SchemaId(1));
         using var world = new World(layouts);
         const int chunkSize = Chunk.Capacity;
