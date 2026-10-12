@@ -52,6 +52,7 @@ internal sealed class QueryPlan
     private int[] _matchingChunkPlanIndices = Array.Empty<int>();
     private int[] _planIndicesByArchetype = Array.Empty<int>();
     private readonly int[] _readRoutesByComponent;
+    private readonly ComponentId[] _dataComponentsByRoute;
     private readonly Type?[] _componentTypesByComponent;
     private readonly Dictionary<RuntimeTypeHandle, int> _primaryReadRoutesByType;
     private int _matchingChunkCount;
@@ -81,6 +82,7 @@ internal sealed class QueryPlan
         (_noneDataMask, _noneTagIndices) = PartitionQueryMask(world, spec.NoneMask);
         _weakReference = new WeakReference<QueryPlan>(this);
         _readRoutesByComponent = new int[world.Layouts.Count];
+        _dataComponentsByRoute = new ComponentId[_allDataMask.Count];
         _componentTypesByComponent = new Type?[world.Layouts.Count];
         _preparedReadAccessesByComponent = new ReadAccess[world.Layouts.Count];
         _preparedWriteAccessesByComponent = new WriteAccess[world.Layouts.Count];
@@ -209,6 +211,17 @@ internal sealed class QueryPlan
         }
 
         return ThrowHelper.ThrowInvalidReadRoute(component);
+    }
+
+    internal ComponentId GetDataComponentId(int route)
+    {
+        if ((uint)route < (uint)_dataComponentsByRoute.Length)
+        {
+            return _dataComponentsByRoute.RefAt(route);
+        }
+
+        ThrowHelper.ThrowInvalidReadRoute(new ComponentId(route));
+        return default;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -486,6 +499,7 @@ internal sealed class QueryPlan
             }
 
             _readRoutesByComponent.RefAt(component.Value) = route;
+            _dataComponentsByRoute.RefAt(route) = component;
             _preparedReadAccessesByComponent.RefAt(component.Value) = new ReadAccess(this, route);
             _preparedWriteAccessesByComponent.RefAt(component.Value) = new WriteAccess(this, route);
             Type runtimeType = layout.RuntimeType;

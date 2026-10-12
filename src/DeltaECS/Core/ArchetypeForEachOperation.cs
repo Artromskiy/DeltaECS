@@ -452,6 +452,7 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
                     int slotAdvance = selectedSlot - currentSlot;
                     component = ref Unsafe.Add(ref component, slotAdvance);
                     view.SetSlot(selectedSlot);
+                    RecordWrite(entity, componentIndex);
                     _processor.Invoke(ref context, entity, ref component);
                     currentSlot = selectedSlot;
                 }
@@ -463,6 +464,7 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
             while (denseSlotIndex < chunkCount)
             {
                 view.SetSlot(denseSlotIndex);
+                RecordWrite(entity, componentIndex);
                 _processor.Invoke(ref context, entity, ref component);
                 component = ref Unsafe.Add(ref component, 1);
                 denseSlotIndex++;
@@ -551,9 +553,19 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
             return;
         }
 
+        RecordWrite(entity, componentIndex);
         _processor.Invoke(ref context, entity, ref component);
         _lastCapturedEntities.RefAt(handle.Index) = handle;
         _lastCapturedStamps.RefAt(handle.Index) = stamp;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void RecordWrite(EntityRef entity, int componentIndex)
+    {
+        if (_writesComponent && componentIndex != TagComponentIndex && _query.Owner.HasComponentChangeObserver(_componentId))
+        {
+            _query.Owner.RecordComponentChange(entity, _componentId);
+        }
     }
 
     private void EnsureChangeTrackingCapacity(int entityIndex)

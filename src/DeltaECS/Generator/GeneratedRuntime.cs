@@ -414,6 +414,11 @@ public ref struct GeneratedDenseExecution
                 plan.ArchetypeStamps,
                 queryComponentIndex);
         }
+
+        if (_queryPlan is not null)
+        {
+            GeneratedForEachRuntime.RecordComponentWrite(_queryPlan, queryComponentIndex);
+        }
     }
 
     /// <summary>
@@ -458,6 +463,11 @@ public ref struct GeneratedDenseExecution
                     queryComponentIndex);
             }
         }
+
+        if (_queryPlan is not null)
+        {
+            GeneratedForEachRuntime.RecordComponentWrites(_queryPlan, queryComponentIndices);
+        }
     }
 
     /// <summary>Runs the generated, arity-specific writer once for every matching archetype.</summary>
@@ -475,6 +485,17 @@ public ref struct GeneratedDenseExecution
             }
 
             writer.Write(plan.ArchetypeStamps);
+        }
+    }
+
+    /// <summary>Reports component writes for generated routes without changing their archetype stamps.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void RecordComponentWrites(scoped ReadOnlySpan<int> queryComponentIndices)
+    {
+        if (_queryPlan is not null)
+        {
+            GeneratedForEachRuntime.RecordComponentWrites(_queryPlan, queryComponentIndices);
         }
     }
 
@@ -754,6 +775,50 @@ public static partial class GeneratedForEachRuntime
         stamp = stamp.Next();
     }
 
+    internal static void RecordComponentWrites(QueryPlan plan, scoped ReadOnlySpan<int> routes)
+    {
+        for (int index = 0; index < routes.Length; index++)
+        {
+            RecordComponentWrite(plan, routes.RefAt(index));
+        }
+    }
+
+    internal static void RecordComponentWrite(QueryPlan plan, int route)
+    {
+        if (QueryPlan.IsTagRoute(route))
+        {
+            return;
+        }
+
+        ComponentId componentId = plan.GetDataComponentId(route);
+        World world = plan.Owner;
+        if (!world.HasComponentChangeObserver(componentId))
+        {
+            return;
+        }
+
+        ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
+        for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
+        {
+            Chunk chunk = chunks.RefAt(chunkIndex).Chunk;
+            Span<Entity> entities = chunk.RawEntities;
+            if (plan.TryGetTagSlots(chunk, out ReadOnlySpan<int> tagSlots))
+            {
+                for (int index = 0; index < tagSlots.Length; index++)
+                {
+                    world.RecordComponentChange(entities.RefAt(tagSlots.RefAt(index)), componentId);
+                }
+
+                continue;
+            }
+
+            for (int slotIndex = 0; slotIndex < chunk.Count; slotIndex++)
+            {
+                world.RecordComponentChange(entities.RefAt(slotIndex), componentId);
+            }
+        }
+    }
+
     /// <summary>Gets the first element of a validated generated component row.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -949,6 +1014,7 @@ public static partial class GeneratedForEachRuntime
         where TInvoker : struct, IGeneratedParallelInvoker
     {
         MarkArchetypeWrites(plan.MatchingPlans(), writeComponentIndices);
+        RecordEntityListWrites(world, plan, entities, writeComponentIndices);
         TInvoker invocation = invoker;
         world.BeginQueryLease();
         try
@@ -998,6 +1064,7 @@ public static partial class GeneratedForEachRuntime
 
         ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
         MarkArchetypeWrites(plans, writeComponentIndices);
+        RecordEntityListWrites(world, plan, entities, writeComponentIndices);
         world.BeginQueryLease();
         bool entered = false;
         try
@@ -1093,6 +1160,7 @@ public static partial class GeneratedForEachRuntime
 
         ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
         MarkArchetypeWrites(plans, writeComponentIndices);
+        RecordComponentWrites(plan, writeComponentIndices);
         world.BeginQueryLease();
         bool entered = false;
         try
@@ -1147,6 +1215,56 @@ public static partial class GeneratedForEachRuntime
                 if (!duplicate)
                 {
                     IncrementArchetypeStamp(stamps, queryComponentIndex);
+                }
+            }
+        }
+    }
+
+    private static void RecordEntityListWrites(
+        World world,
+        QueryPlan plan,
+        ReadOnlySpan<Entity> entities,
+        ReadOnlySpan<int> routes)
+    {
+        bool hasWatchedRoute = false;
+        for (int routeIndex = 0; routeIndex < routes.Length; routeIndex++)
+        {
+            int route = routes.RefAt(routeIndex);
+            if (!QueryPlan.IsTagRoute(route)
+                && world.HasComponentChangeObserver(plan.GetDataComponentId(route)))
+            {
+                hasWatchedRoute = true;
+                break;
+            }
+        }
+
+        if (!hasWatchedRoute)
+        {
+            return;
+        }
+
+        for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
+        {
+            Entity entity = entities.RefAt(entityIndex);
+            if (!world.TryResolveEntityLocation(entity, out Chunk chunk, out int slotIndex)
+                || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk.GlobalId, out _)
+                || !plan.MatchesTagSlot(chunk, slotIndex))
+            {
+                continue;
+            }
+
+            for (int routeIndex = 0; routeIndex < routes.Length; routeIndex++)
+            {
+                int route = routes.RefAt(routeIndex);
+                if (QueryPlan.IsTagRoute(route))
+                {
+                    continue;
+                }
+
+                ComponentId componentId = plan.GetDataComponentId(route);
+                if (world.HasComponentChangeObserver(componentId))
+                {
+                    world.RecordComponentChange(entity, componentId);
                 }
             }
         }

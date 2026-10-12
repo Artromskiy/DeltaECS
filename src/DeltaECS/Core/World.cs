@@ -30,6 +30,8 @@ public sealed partial class World : IDisposable
     private readonly Dictionary<TransitionKey, TransitionEdge> _transitionCache = new();
     private readonly ComponentSetCache _componentSetCache = new();
     private readonly Dictionary<QuerySpec, WeakReference<QueryPlan>> _queryCache = new();
+    private Dictionary<ComponentId, List<WeakReference<ComponentChangeObserver>>>? _componentChangeObservers;
+    private readonly object _componentChangeGate = new();
     private readonly List<Entity> _queryEntityScratch = new();
     private int _queryCacheSweepCountdown = QueryCacheSweepInterval;
     private NativeMemory<DestroyEntry> _destroyScratch = new(InitialDestroyScratchCapacity);
@@ -183,6 +185,8 @@ public sealed partial class World : IDisposable
         _componentRowArrayPool.Clear();
         _chunksById = Array.Empty<Chunk?>();
         _freeRecordChunks.Clear();
+        _componentChangeObservers?.Clear();
+        _componentChangeObservers = null;
         GC.SuppressFinalize(this);
     }
 
@@ -219,6 +223,95 @@ public sealed partial class World : IDisposable
 
     /// <summary>Creates a reusable operation that combines query-specific processors into one archetype traversal.</summary>
     public ArchetypeForEachOperation<TContext> ForEachArchetype<TContext>(TContext context) => new(this, context);
+
+    /// <summary>Creates a reusable operation that reports changes to one component registration across the world.</summary>
+    public ComponentChangeOperation<T> ForEachChange<T>(ComponentId componentId, ComponentChangeAction<T> action)
+        => new(this, componentId, action);
+
+    internal void RegisterComponentChangeObserver(ComponentChangeObserver observer)
+    {
+        lock (_componentChangeGate)
+        {
+            _componentChangeObservers ??= new Dictionary<ComponentId, List<WeakReference<ComponentChangeObserver>>>();
+            if (!_componentChangeObservers.TryGetValue(observer.ComponentId, out List<WeakReference<ComponentChangeObserver>>? observers))
+            {
+                observers = new List<WeakReference<ComponentChangeObserver>>();
+                _componentChangeObservers.Add(observer.ComponentId, observers);
+            }
+
+            observers.Add(new WeakReference<ComponentChangeObserver>(observer));
+        }
+    }
+
+    internal bool HasComponentChangeObserver(ComponentId componentId)
+    {
+        if (_componentChangeObservers is null)
+        {
+            return false;
+        }
+
+        lock (_componentChangeGate)
+        {
+            if (_componentChangeObservers is null
+                || !_componentChangeObservers.TryGetValue(componentId, out List<WeakReference<ComponentChangeObserver>>? observers))
+            {
+                return false;
+            }
+
+            for (int index = observers.Count - 1; index >= 0; index--)
+            {
+                if (!observers[index].TryGetTarget(out _))
+                {
+                    observers.RemoveAt(index);
+                }
+            }
+
+            if (observers.Count != 0)
+            {
+                return true;
+            }
+
+            _componentChangeObservers.Remove(componentId);
+            if (_componentChangeObservers.Count == 0)
+            {
+                _componentChangeObservers = null;
+            }
+            return false;
+        }
+    }
+
+    internal void RecordComponentChange(Entity entity, ComponentId componentId)
+    {
+        lock (_componentChangeGate)
+        {
+            if (_componentChangeObservers is null
+                || !_componentChangeObservers.TryGetValue(componentId, out List<WeakReference<ComponentChangeObserver>>? observers))
+            {
+                return;
+            }
+
+            for (int index = observers.Count - 1; index >= 0; index--)
+            {
+                if (observers[index].TryGetTarget(out ComponentChangeObserver? observer))
+                {
+                    observer.Record(entity);
+                }
+                else
+                {
+                    observers.RemoveAt(index);
+                }
+            }
+
+            if (observers.Count == 0)
+            {
+                _componentChangeObservers.Remove(componentId);
+                if (_componentChangeObservers.Count == 0)
+                {
+                    _componentChangeObservers = null;
+                }
+            }
+        }
+    }
 
     /// <summary>Creates one entity with the supplied component registrations.</summary>
     public Entity Create(ReadOnlySpan<ComponentId> componentIds)
@@ -453,7 +546,8 @@ public sealed partial class World : IDisposable
                             ChunkId = chunk.GlobalId,
                             SlotIndex = reservedSlot
                         };
-                        chunkEntities[reservedSlot] = new Entity(recordIndex, 1);
+                        var entity = new Entity(recordIndex, 1);
+                        chunkEntities[reservedSlot] = entity;
                     }
                 }
                 else

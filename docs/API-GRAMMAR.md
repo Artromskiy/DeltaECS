@@ -349,6 +349,37 @@ var restore = world
 restore.Invoke(ref restoreState);
 ```
 
+For one component registration, retain a change operation. Its first `Invoke`
+reports every existing instance as `Added`. Later calls report components that
+became present, components opened for writing, and components that are no longer
+present. The callback receives a writable reference for `Added` and `Modified`.
+For `Removed`, including entity destruction, the reference is
+`Unsafe.NullRef<T>()` and the entity handle is the previous handle; after
+destruction that handle is stale.
+
+```csharp
+var changes = world.ForEachChange<Health>(healthId,
+    static (Entity entity, ChangeKind change, ref Health health) =>
+    {
+        if (change == ChangeKind.Removed)
+        {
+            RecordRemoval(entity);
+            return;
+        }
+
+        RecordCurrent(entity, in health);
+    });
+
+changes.Invoke();
+```
+
+The operation watches the whole world; no query is needed. Membership is
+compared at each invocation, so additions followed by removals between calls
+are coalesced to the final state. A writable `ref` access counts as `Modified`
+even when the caller leaves the value unchanged. Writes through the operation's
+own callback are included in that callback and are not reported again by the
+same operation.
+
 `IArchetypeForEachEntity<TContext>` processors receive the shared context and
 the current borrowed `EntityRef`. This API is available without the source
 generator and can be configured from a component visitor loop before the

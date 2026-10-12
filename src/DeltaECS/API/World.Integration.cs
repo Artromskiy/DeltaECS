@@ -238,6 +238,10 @@ public sealed partial class World : IEcsWorld
         }
 
         chunk.GetRawComponentRow(componentIndex).SetValue(value, slotIndex);
+        if (_componentChangeObservers is not null)
+        {
+            RecordComponentChange(entity, component);
+        }
         chunk.IncrementComponentStamp(componentIndex, slotIndex);
         writtenStamp = GetComponentStamp(
             archetype.Id,

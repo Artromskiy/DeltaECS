@@ -2344,10 +2344,12 @@ internal static partial class DemandDrivenForEachTemplates
         if (writeCount > 1)
         {
             string routes = string.Join(", ", GeneratorTemplates.WriteIndices(shape.ComponentModels).Select(index => "route" + index));
-            return $"""
-                {indent}var stampWriter = new {ArchetypeStampWriterName(shape)}({routes});
-                {indent}execution.MarkArchetypeWrites(ref stampWriter);
-                """.TrimEnd();
+            return string.Join("\n", new[]
+            {
+                $"{indent}var stampWriter = new {ArchetypeStampWriterName(shape)}({routes});",
+                $"{indent}execution.MarkArchetypeWrites(ref stampWriter);",
+                $"{indent}execution.RecordComponentWrites(stackalloc int[] {{ {routes} }});"
+            });
         }
 
         return string.Join("\n", GeneratorTemplates.WriteIndices(shape.ComponentModels)

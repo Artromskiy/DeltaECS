@@ -1,8 +1,19 @@
 namespace Delta.ECS.Tests;
 
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Delta.ECS;
 using NUnit.Framework;
+
+internal struct ComponentChangePosition
+{
+    internal int Value;
+}
+
+internal struct ComponentChangeVelocity
+{
+    internal int Value;
+}
 
 [TestFixture]
 internal sealed class ArchetypeForEachOperationTests
@@ -179,6 +190,113 @@ internal sealed class ArchetypeForEachOperationTests
         operation.Invoke(ref state);
 
         Assert.That(state.Entities, Is.EqualTo(new[] { entity.Index }));
+    }
+
+    [Test]
+    public void ForEachChangeReportsInitialAddsModificationsRemovalsAndDestroyedEntities()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<ComponentChangePosition>(new SchemaId(60_317));
+        using var world = new World(layouts);
+        Span<Entity> entities = stackalloc Entity[2];
+        world.Create([positionId], entities);
+        var changes = new List<(Entity Entity, ChangeKind Kind, bool HasComponent, int Value)>();
+        var operation = world.ForEachChange<ComponentChangePosition>(positionId,
+            (Entity entity, ChangeKind kind, ref ComponentChangePosition position) =>
+                changes.Add((entity, kind, !Unsafe.IsNullRef(ref position), Unsafe.IsNullRef(ref position) ? 0 : position.Value)));
+
+        operation.Invoke();
+        Assert.That(changes, Is.EqualTo(new[]
+        {
+            (entities[0], ChangeKind.Added, true, 0),
+            (entities[1], ChangeKind.Added, true, 0)
+        }));
+
+        changes.Clear();
+        operation.Invoke();
+        Assert.That(changes, Is.Empty);
+
+        ref ComponentChangePosition unchanged = ref world.GetRef<ComponentChangePosition>(entities[0], positionId);
+        _ = unchanged.Value;
+        operation.Invoke();
+        Assert.That(changes, Is.EqualTo(new[] { (entities[0], ChangeKind.Modified, true, 0) }));
+
+        changes.Clear();
+        world.GetRef<ComponentChangePosition>(entities[1], positionId).Value = 12;
+        operation.Invoke();
+        Assert.That(changes, Is.EqualTo(new[] { (entities[1], ChangeKind.Modified, true, 12) }));
+
+        changes.Clear();
+        world.Remove(entities[0], positionId);
+        operation.Invoke();
+        Assert.That(changes, Is.EqualTo(new[] { (entities[0], ChangeKind.Removed, false, 0) }));
+        Assert.That(world.IsAlive(entities[0]), Is.True);
+
+        changes.Clear();
+        world.Add(entities[0], positionId);
+        operation.Invoke();
+        Assert.That(changes, Is.EqualTo(new[] { (entities[0], ChangeKind.Added, true, 0) }));
+
+        changes.Clear();
+        world.Destroy(entities[1]);
+        operation.Invoke();
+        Assert.That(changes, Is.EqualTo(new[] { (entities[1], ChangeKind.Removed, false, 0) }));
+        Assert.That(world.IsAlive(changes[0].Entity), Is.False);
+    }
+
+    [Test]
+    public void ForEachChangeConsumesWritesMadeThroughItsCallbackReference()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<ComponentChangePosition>(new SchemaId(60_318));
+        using var world = new World(layouts);
+        Entity entity = world.Create([positionId]);
+        int callbackCount = 0;
+        var operation = world.ForEachChange<ComponentChangePosition>(positionId,
+            (Entity entity, ChangeKind kind, ref ComponentChangePosition position) =>
+            {
+                callbackCount++;
+                position.Value++;
+            });
+
+        operation.Invoke();
+        operation.Invoke();
+
+        Assert.That(callbackCount, Is.EqualTo(1));
+        Assert.That(world.Get<ComponentChangePosition>(entity, positionId).Value, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void ForEachChangeObservesGeneratedWritableIteration()
+    {
+        var layouts = new ComponentLayoutRegistry();
+        ComponentId positionId = layouts.Register<ComponentChangePosition>(new SchemaId(60_319));
+        ComponentId velocityId = layouts.Register<ComponentChangeVelocity>(new SchemaId(60_320));
+        using var world = new World(layouts);
+        Entity entity = world.Create([positionId, velocityId]);
+        Query query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
+        var positionChanges = new List<(Entity Entity, ChangeKind Kind, int Value)>();
+        var velocityChanges = new List<(Entity Entity, ChangeKind Kind, int Value)>();
+        var positionOperation = world.ForEachChange<ComponentChangePosition>(positionId,
+            (Entity changedEntity, ChangeKind kind, ref ComponentChangePosition position) => positionChanges.Add((changedEntity, kind, position.Value)));
+        var velocityOperation = world.ForEachChange<ComponentChangeVelocity>(velocityId,
+            (Entity changedEntity, ChangeKind kind, ref ComponentChangeVelocity velocity) => velocityChanges.Add((changedEntity, kind, velocity.Value)));
+
+        positionOperation.Invoke();
+        velocityOperation.Invoke();
+        positionChanges.Clear();
+        velocityChanges.Clear();
+        world.ForEach<ComponentChangePosition, ComponentChangeVelocity>(in query, positionId, velocityId,
+            static (ref ComponentChangePosition position, ref ComponentChangeVelocity velocity) =>
+            {
+                position.Value++;
+                velocity.Value++;
+            }).Invoke();
+        positionOperation.Invoke();
+        velocityOperation.Invoke();
+
+        Assert.That(positionChanges, Is.EqualTo(new[] { (entity, ChangeKind.Modified, 1) }));
+        Assert.That(velocityChanges, Is.EqualTo(new[] { (entity, ChangeKind.Modified, 1) }));
     }
 
     [Test]

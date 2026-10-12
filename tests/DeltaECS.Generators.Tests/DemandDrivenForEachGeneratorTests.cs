@@ -2160,6 +2160,7 @@ public sealed class DemandDrivenForEachGeneratorTests
             }
             public void MarkArchetypeWrite(int queryComponentIndex) { }
             public void MarkArchetypeWrites(scoped ReadOnlySpan<int> queryComponentIndices) { }
+            public void RecordComponentWrites(scoped ReadOnlySpan<int> queryComponentIndices) { }
             public void MarkArchetypeWrites<TWriter>(ref TWriter writer)
                 where TWriter : struct, IGeneratedArchetypeStampWriter { }
             public void Dispose() { }

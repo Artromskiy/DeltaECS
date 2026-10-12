@@ -344,6 +344,10 @@ public sealed partial class World
             Chunk chunk = view.Chunk!;
             int componentIndex = view.PreparedComponentIndex;
             int slotIndex = view.SlotIndex;
+            if (_componentChangeObservers is not null)
+            {
+                RecordComponentChange(view.CurrentEntity, componentId);
+            }
             chunk.IncrementComponentStamp(componentIndex, slotIndex);
             return ref view.GetPreparedComponentRef<T>();
         }
@@ -389,6 +393,10 @@ public sealed partial class World
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }
 
+        if (_componentChangeObservers is not null)
+        {
+            RecordComponentChange(entity, componentId);
+        }
         chunk.IncrementComponentStamp(componentIndex, slotIndex);
         return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
     }
@@ -413,6 +421,10 @@ public sealed partial class World
             ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
         }
 
+        if (_componentChangeObservers is not null)
+        {
+            RecordComponentChange(view.CurrentEntity, componentId);
+        }
         chunk.IncrementComponentStamp(componentIndex, slotIndex);
         return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
     }

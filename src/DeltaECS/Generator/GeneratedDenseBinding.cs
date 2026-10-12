@@ -70,6 +70,7 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
     private int[] _writes = Array.Empty<int>();
     private WriteStampTarget[] _writeTargets = Array.Empty<WriteStampTarget>();
     private int _writeTargetCount;
+    private QueryPlan? _queryPlan;
 
     /// <summary>Resolves the complete component signature once for the owning query.</summary>
     protected abstract void Prepare(in Query query);
@@ -103,7 +104,11 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
         _writes = unique;
     }
 
-    internal void Initialize(in Query query) => Prepare(in query);
+    internal void Initialize(in Query query)
+    {
+        _queryPlan = query.Cached;
+        Prepare(in query);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ReadOnlySpan<TRows> GetRows(QueryPlan plan)
@@ -184,6 +189,8 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
             return;
         }
 
+        GeneratedForEachRuntime.RecordComponentWrites(_queryPlan!, _writes);
+
         ref WriteStampTarget target = ref _writeTargets.GetRefAtZero();
         if ((count & ~3) != 0)
         {
@@ -253,6 +260,7 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
         _writeTargets.AsSpan().Clear();
         _writeTargets = Array.Empty<WriteStampTarget>();
         _writeTargetCount = 0;
+        _queryPlan = null;
     }
 }
 
