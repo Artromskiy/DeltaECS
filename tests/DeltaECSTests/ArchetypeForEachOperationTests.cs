@@ -153,6 +153,35 @@ internal sealed class ArchetypeForEachOperationTests
     }
 
     [Test]
+    public void ForEachChangeDoesNotTreatReusedEntityIndexAsModifiedOldEntity()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<ComponentChangePosition>(new SchemaId(60_322));
+        using var world = new World(layouts);
+        Entity original = world.Create([positionId]);
+        var changes = new List<(Entity Entity, ChangeKind Kind)>();
+        var operation = world.ForEachChange<ComponentChangePosition>(positionId,
+            (Entity entity, ChangeKind kind, ref ComponentChangePosition component) => changes.Add((entity, kind)));
+
+        operation.Invoke();
+        changes.Clear();
+        world.GetRef<ComponentChangePosition>(original, positionId).Value++;
+        world.Destroy(original);
+        Entity replacement = world.Create([positionId]);
+
+        Assert.That(replacement.Index, Is.EqualTo(original.Index));
+        Assert.That(replacement.Generation, Is.Not.EqualTo(original.Generation));
+
+        operation.Invoke();
+
+        Assert.That(changes, Is.EqualTo(new[]
+        {
+            (replacement, ChangeKind.Added),
+            (original, ChangeKind.Removed)
+        }));
+    }
+
+    [Test]
     public void ForEachChangeConsumesWritesMadeThroughItsCallbackReference()
     {
         var layouts = new ComponentRegistry();

@@ -213,8 +213,8 @@ internal sealed class TagComponentTests
         var layouts = new ComponentRegistry();
         ComponentId valueId = layouts.Register<TagValue>(new SchemaId(98_041));
         ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_042));
-        ComponentId blockedId = layouts.Register<BlockedTag>(new SchemaId(98_043));
-        ComponentId extraId = layouts.Register<ExtraData>(new SchemaId(98_044));
+        layouts.Register<BlockedTag>(new SchemaId(98_043));
+        layouts.Register<ExtraData>(new SchemaId(98_044));
         using var world = new World(layouts);
         var entities = new Entity[12];
         world.Create(new[] { valueId }, entities);

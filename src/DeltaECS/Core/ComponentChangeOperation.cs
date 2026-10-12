@@ -47,8 +47,8 @@ public sealed class ComponentChangeOperation<T> : IOperation
     private readonly ComponentChangeAction<T> _action;
     private HashSet<Entity> _entities = new();
     private HashSet<Entity> _currentEntities = new();
-    private int[] _modifiedEntityGenerations = Array.Empty<int>();
-    private int[] _processingModifiedEntityGenerations = Array.Empty<int>();
+    private byte[] _modifiedEntityMarkers = Array.Empty<byte>();
+    private byte[] _processingModifiedEntityMarkers = Array.Empty<byte>();
     private readonly Observer _observer;
     private bool _invoking;
     private int _invokingThreadId;
@@ -74,9 +74,9 @@ public sealed class ComponentChangeOperation<T> : IOperation
 
         _invoking = true;
         Volatile.Write(ref _invokingThreadId, Environment.CurrentManagedThreadId);
-        (_modifiedEntityGenerations, _processingModifiedEntityGenerations) =
-            (_processingModifiedEntityGenerations, _modifiedEntityGenerations);
-        Array.Clear(_modifiedEntityGenerations, 0, _modifiedEntityGenerations.Length);
+        (_modifiedEntityMarkers, _processingModifiedEntityMarkers) =
+            (_processingModifiedEntityMarkers, _modifiedEntityMarkers);
+        Array.Clear(_modifiedEntityMarkers, 0, _modifiedEntityMarkers.Length);
 
         _world.BeginQueryLease();
         bool completed = false;
@@ -87,7 +87,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
             VisitRemovedEntities();
             (_entities, _currentEntities) = (_currentEntities, _entities);
             _currentEntities.Clear();
-            Array.Clear(_processingModifiedEntityGenerations, 0, _processingModifiedEntityGenerations.Length);
+            Array.Clear(_processingModifiedEntityMarkers, 0, _processingModifiedEntityMarkers.Length);
             completed = true;
         }
         finally
@@ -95,16 +95,15 @@ public sealed class ComponentChangeOperation<T> : IOperation
             if (!completed)
             {
                 _currentEntities.Clear();
-                for (int index = 0; index < _processingModifiedEntityGenerations.Length; index++)
+                for (int index = 0; index < _processingModifiedEntityMarkers.Length; index++)
                 {
-                    if (_processingModifiedEntityGenerations[index] != 0
-                        && _modifiedEntityGenerations[index] == 0)
+                    if (_processingModifiedEntityMarkers[index] != 0)
                     {
-                        _modifiedEntityGenerations[index] = _processingModifiedEntityGenerations[index];
+                        _modifiedEntityMarkers[index] = 1;
                     }
                 }
 
-                Array.Clear(_processingModifiedEntityGenerations, 0, _processingModifiedEntityGenerations.Length);
+                Array.Clear(_processingModifiedEntityMarkers, 0, _processingModifiedEntityMarkers.Length);
             }
 
             _world.EndQueryLease();
@@ -117,20 +116,20 @@ public sealed class ComponentChangeOperation<T> : IOperation
     {
         if (Volatile.Read(ref _invokingThreadId) != Environment.CurrentManagedThreadId)
         {
-            _modifiedEntityGenerations[entity.Index] = entity.Generation;
+            _modifiedEntityMarkers[entity.Index] = 1;
         }
     }
 
     private void EnsureCapacity(int capacity)
     {
-        if (capacity <= _modifiedEntityGenerations.Length)
+        if (capacity <= _modifiedEntityMarkers.Length)
         {
             return;
         }
 
-        int newCapacity = Math.Max(capacity, _modifiedEntityGenerations.Length == 0 ? 4 : _modifiedEntityGenerations.Length * 2);
-        Array.Resize(ref _modifiedEntityGenerations, newCapacity);
-        Array.Resize(ref _processingModifiedEntityGenerations, newCapacity);
+        int newCapacity = Math.Max(capacity, _modifiedEntityMarkers.Length == 0 ? 4 : _modifiedEntityMarkers.Length * 2);
+        Array.Resize(ref _modifiedEntityMarkers, newCapacity);
+        Array.Resize(ref _processingModifiedEntityMarkers, newCapacity);
     }
 
     private void VisitCurrentEntities()
@@ -160,7 +159,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
 
                     Entity entity = entities.RefAt(slot);
                     bool added = !_entities.Contains(entity);
-                    bool modified = !added && _processingModifiedEntityGenerations[entity.Index] == entity.Generation;
+                    bool modified = !added && _processingModifiedEntityMarkers[entity.Index] != 0;
                     _currentEntities.Add(entity);
                     if (!added && !modified)
                     {

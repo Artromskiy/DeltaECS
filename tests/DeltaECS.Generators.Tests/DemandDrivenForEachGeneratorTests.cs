@@ -578,7 +578,7 @@ public sealed class DemandDrivenForEachGeneratorTests
     public void TupleContextElementNamesDoNotCreateDuplicateForEachShapes()
     {
         GeneratorDriverRunResult run = RunGenerator(TupleContextElementNamesSource);
-        string generated = GeneratedText(run);
+        GeneratedText(run);
 
         AssertNoDiagnostics(run.Diagnostics);
         Assert.That(

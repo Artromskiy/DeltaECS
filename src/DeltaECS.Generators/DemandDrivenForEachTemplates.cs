@@ -2116,7 +2116,7 @@ internal static partial class DemandDrivenForEachTemplates
         string stateInterface,
         bool hasInterceptedExecution)
     {
-        string generic = shape.Api.Signature.HasGenericSelectors ? shape.Api.Signature.GenericList() : string.Empty;
+        _ = shape.Api.Signature.HasGenericSelectors ? shape.Api.Signature.GenericList() : string.Empty;
         string contextName = shape.HasContext
             ? shape.ContextMode == ContextModeKind.Ref ? "context" : "contextCopy"
             : "context";

@@ -97,9 +97,7 @@ internal sealed class ChunkTagMasks
         }
 
         int sourceWord = sourceSlot >> WordShift;
-        int targetWord = targetSlot >> WordShift;
         int sourceBit = sourceSlot & WordMask;
-        int targetBit = targetSlot & WordMask;
         int tagCount = _summaries.Length;
         for (int tagIndex = 0; tagIndex < tagCount; tagIndex++)
         {

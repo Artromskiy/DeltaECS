@@ -271,9 +271,6 @@ public sealed partial class World
                 return ref GeneratedTagRows.GetReference<T>(0);
             }
 
-            Chunk chunk = view.Chunk!;
-            int componentIndex = view.PreparedComponentIndex;
-            int slotIndex = view.SlotIndex;
             if (_componentChangeObservers is not null)
             {
                 RecordComponentChange(view.CurrentEntity, componentId);

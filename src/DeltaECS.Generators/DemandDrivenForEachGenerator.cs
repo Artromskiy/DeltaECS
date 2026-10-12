@@ -444,14 +444,12 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
 
-        bool explicitIds = componentCount != 0
-            && (prefix.HasComponentIdSpan || prefix.ComponentIdCount == componentCount);
         var typeArguments = genericName?.TypeArgumentList.Arguments
-            .Select(argument => model.GetTypeInfo(argument).Type is { } type
-                ? GeneratorSupport.DisplayType(type)
-                : argument.ToString())
-            .ToArray()
-            ?? LambdaComponentTypes(model, lambda, prefixCount, hasEntity);
+                                .Select(argument => model.GetTypeInfo(argument).Type is { } type
+                                    ? GeneratorSupport.DisplayType(type)
+                                    : argument.ToString())
+                                .ToArray()
+                            ?? LambdaComponentTypes(model, lambda, prefixCount, hasEntity);
         int componentStart = genericName is null ? 0 : prefixCount;
         var components = typeArguments.Skip(componentStart).ToArray();
         if (components.Length != componentCount)

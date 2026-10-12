@@ -70,8 +70,8 @@ internal sealed class GeneratedDenseBindingTests
         ComponentId health = layouts.Register<Health>(new SchemaId(96005));
         ComponentId velocity = layouts.Register<Velocity>(new SchemaId(96006));
         using var world = new World(layouts);
-        Entity first = world.Create(health);
-        Entity second = world.Create(stackalloc ComponentId[] { health, velocity });
+        world.Create(health);
+        world.Create(stackalloc ComponentId[] { health, velocity });
         Query query = world.WhereAll<Health>();
         Assert.That(() => Fail(world, in query), Throws.InvalidOperationException);
         Assert.That(() => world.Create(health), Throws.Nothing);
@@ -89,13 +89,13 @@ internal sealed class GeneratedDenseBindingTests
         Query query = world.WhereAll<Health>();
         Assert.That(Visit(world, in query), Is.EqualTo(1));
 
-        Entity healthAndVelocity = world.Create(stackalloc ComponentId[] { health, velocity });
+        world.Create(stackalloc ComponentId[] { health, velocity });
         Assert.That(Visit(world, in query), Is.EqualTo(2));
 
         world.Destroy(healthOnly);
         Assert.That(Visit(world, in query), Is.EqualTo(1));
 
-        Entity reactivatedHealthOnly = world.Create(health);
+        world.Create(health);
         Assert.That(Visit(world, in query), Is.EqualTo(2));
     }
 
@@ -105,7 +105,7 @@ internal sealed class GeneratedDenseBindingTests
         var layouts = new ComponentRegistry();
         ComponentId health = layouts.Register<Health>(new SchemaId(96007));
         using var world = new World(layouts);
-        Entity entity = world.Create(health);
+        world.Create(health);
         Query query = world.WhereAll<Health>();
         Visit(world, in query);
         var state = new DenseBindingReadState();

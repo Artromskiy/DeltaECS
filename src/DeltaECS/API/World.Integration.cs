@@ -277,7 +277,7 @@ public sealed partial class World : IEcsWorld
         for (int index = 0; index < components.Length; index++)
         {
             ComponentId component = components.RefAt(index);
-            if (!_layouts.TryGet(component, out var layout))
+            if (!_layouts.TryGet(component, out _))
             {
                 ThrowHelper.ThrowIntegrationComponentNotRegistered(component.Value, nameof(components));
             }
