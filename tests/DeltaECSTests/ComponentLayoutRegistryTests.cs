@@ -56,12 +56,13 @@ internal sealed class ComponentLayoutRegistryTests
     }
 
     [Test]
-    public void WorldAliasesAndGroupsCanBeAddedAndResolved()
+    public void CatalogAliasesAndGroupsCanBeAddedAndResolvedThroughWorld()
     {
         var layouts = new ComponentLayoutRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(70_018));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(70_019));
         using var world = new World(layouts);
+        using var anotherWorld = new World(layouts);
 
         world.AddAlias("position", positionId);
         world.AddAlias("position", positionId);
@@ -70,9 +71,12 @@ internal sealed class ComponentLayoutRegistryTests
         world.AddGroup(ComponentGroups.History, velocityId);
 
         Assert.That(world.GetAlias("position"), Is.EqualTo(positionId));
+        Assert.That(layouts.GetAlias("position"), Is.EqualTo(positionId));
+        Assert.That(anotherWorld.GetAlias("position"), Is.EqualTo(positionId));
         Assert.That(world.TryGetAlias("missing", out ComponentId missing), Is.False);
         Assert.That(missing, Is.EqualTo(ComponentId.Invalid));
         Assert.That(world.GetGroup(ComponentGroups.History).ToArray(), Is.EqualTo(new[] { positionId, velocityId }));
+        Assert.That(anotherWorld.GetGroup(ComponentGroups.History).ToArray(), Is.EqualTo(new[] { positionId, velocityId }));
         Assert.Throws<InvalidOperationException>(() => world.AddAlias("position", velocityId));
         Assert.Throws<ArgumentException>(() => world.AddAlias("  ", positionId));
     }

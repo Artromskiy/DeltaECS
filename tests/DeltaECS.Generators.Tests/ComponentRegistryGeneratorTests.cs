@@ -61,7 +61,7 @@ public sealed class ComponentRegistryGeneratorTests
         Assert.That(catalog, Does.Contain("ComponentType => typeof(global::Example.Position)"));
         Assert.That(catalog, Does.Contain("ComponentType => typeof(global::Example.Health)"));
         Assert.That(catalog, Does.Contain("IGeneratedComponentRegistration.Register("));
-        Assert.That(catalog, Does.Contain("world.AddAlias(\"position\", componentId);"));
+        Assert.That(catalog, Does.Contain("layouts.AddAlias(\"position\", componentId);"));
         Assert.That(catalog, Does.Contain("ComponentLayoutRegistryRegistrationExtensions.Register<global::Example.Position>"));
         Assert.That(catalog, Does.Contain("ComponentLayoutRegistryRegistrationExtensions.Register<global::Example.Health>"));
         Assert.That(catalog, Does.Contain("SchemaId => new(0x000000000000002AUL)"));
@@ -116,6 +116,7 @@ public sealed class ComponentRegistryGeneratorTests
         Assert.That(generatedWorld.GetAlias("position"), Is.EqualTo(positionId));
         ComponentId selectedPositionId = selectedRegistrationLayouts.Register(positionRegistration);
         Assert.That(selectedRegistrationLayouts.GetComponentType(selectedPositionId).FullName, Is.EqualTo("Example.Position"));
+        Assert.That(selectedRegistrationLayouts.GetAlias("position"), Is.EqualTo(selectedPositionId));
         Assert.Throws<InvalidOperationException>(() => GeneratedComponentCatalog.GetRegistration<Guid>());
     }
 

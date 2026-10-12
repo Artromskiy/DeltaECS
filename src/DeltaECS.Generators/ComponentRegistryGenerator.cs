@@ -241,7 +241,7 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
             string factoryName = "ComponentRegistration_" + GeneratorSupport.StableName(typeName);
             string schemaId = registration.SchemaId.ToString("X16", System.Globalization.CultureInfo.InvariantCulture);
             string aliasCalls = string.Join("\n", registration.Aliases.Select(alias =>
-                $"world.AddAlias({Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(alias, quote: true)}, componentId);"));
+                $"layouts.AddAlias({Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(alias, quote: true)}, componentId);"));
             registrationCalls.Add($"global::Delta.ECS.GeneratedComponentRegistrationRegistry.Register(new global::Delta.ECS.Generated.{factoryName}());");
             factories.Add($$"""
                 internal sealed class {{factoryName}} : global::Delta.ECS.IGeneratedComponentRegistration
@@ -262,15 +262,14 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
                             SchemaId);
                 {{GeneratorTemplates.Indent(string.Join("\n", registration.Groups.Select(group =>
                     $"layouts.RegisterGeneratedComponentGroup(typeof({group.EnumType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}).TypeHandle, 0x{group.Value:X16}UL, componentId);")), "        ")}}
+                {{GeneratorTemplates.Indent(aliasCalls, "        ")}}
                         return componentId;
                     }
 
                     global::Delta.ECS.ComponentId global::Delta.ECS.IGeneratedComponentRegistration.Register(
                         global::Delta.ECS.World world)
                     {
-                        global::Delta.ECS.ComponentId componentId = ((global::Delta.ECS.IGeneratedComponentRegistration)this).Register(world.Layouts);
-                {{GeneratorTemplates.Indent(aliasCalls, "        ")}}
-                        return componentId;
+                        return ((global::Delta.ECS.IGeneratedComponentRegistration)this).Register(world.Layouts);
                     }
                 }
                 """);

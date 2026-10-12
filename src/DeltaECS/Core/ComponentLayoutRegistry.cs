@@ -17,6 +17,7 @@ public sealed partial class ComponentLayoutRegistry
     private readonly List<IComponentRegistrationToken> _componentVisitorTokens = new();
     private readonly Dictionary<(RuntimeTypeHandle ComponentType, RuntimeTypeHandle InterfaceType), IComponentInterfaceVisitorRoute> _interfaceVisitorRoutes = new();
     private readonly Dictionary<(RuntimeTypeHandle EnumType, ulong GroupId), ComponentGroupMembers> _componentGroups = new();
+    private readonly Dictionary<string, ComponentId> _componentIdsByAlias = new(StringComparer.Ordinal);
     private readonly List<bool> _isTag = new();
     private readonly List<int> _tagIndices = new();
     private readonly Dictionary<Type, List<GenericRegistration>> _genericRegistrations = new();
@@ -68,11 +69,52 @@ public sealed partial class ComponentLayoutRegistry
             ? members.GetComponents()
             : ReadOnlySpan<ComponentId>.Empty;
 
-    internal void AddComponentToGroup<TEnum>(TEnum groupId, ComponentId componentId) where TEnum : struct, Enum
+    /// <summary>Adds a registered component to a group in this catalog.</summary>
+    public void AddGroup<TEnum>(TEnum groupId, ComponentId componentId) where TEnum : struct, Enum
     {
         _ = GetComponentType(componentId);
         RegisterGeneratedComponentGroup(typeof(TEnum).TypeHandle, GetGroupValue(groupId), componentId);
     }
+
+    /// <summary>Adds an alias for a registered component in this catalog.</summary>
+    public void AddAlias(string alias, ComponentId componentId)
+    {
+        if (string.IsNullOrWhiteSpace(alias))
+        {
+            ThrowHelper.ThrowInvalidComponentAlias(nameof(alias));
+        }
+
+        _ = GetComponentType(componentId);
+        if (_componentIdsByAlias.TryGetValue(alias, out ComponentId existing))
+        {
+            if (existing == componentId)
+            {
+                return;
+            }
+
+            ThrowHelper.ThrowComponentAliasConflict(alias, existing, componentId);
+        }
+
+        _componentIdsByAlias.Add(alias, componentId);
+    }
+
+    /// <summary>Tries to get the component registered under an alias in this catalog.</summary>
+    public bool TryGetAlias(string alias, out ComponentId componentId)
+    {
+        if (!string.IsNullOrWhiteSpace(alias) && _componentIdsByAlias.TryGetValue(alias, out componentId))
+        {
+            return true;
+        }
+
+        componentId = ComponentId.Invalid;
+        return false;
+    }
+
+    /// <summary>Gets the component registered under an alias in this catalog.</summary>
+    public ComponentId GetAlias(string alias)
+        => TryGetAlias(alias, out ComponentId componentId)
+            ? componentId
+            : ThrowHelper.ThrowComponentAliasNotFound(alias);
 
     /// <summary>Registers a generated component's enum group membership.</summary>
     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]

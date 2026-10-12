@@ -18,7 +18,6 @@ public sealed partial class World : IDisposable
     private const int TransitionHashMultiplier = 397;
 
     private readonly ComponentLayoutRegistry _layouts;
-    private readonly Dictionary<string, ComponentId> _componentIdsByAlias = new(StringComparer.Ordinal);
     private readonly Dictionary<RuntimeTypeHandle, ComponentId> _primaryComponentIdsByType =
         new(RuntimeTypeHandleComparer.Instance);
     private readonly List<Archetype> _archetypes = new();
@@ -107,43 +106,21 @@ public sealed partial class World : IDisposable
         return registration.Register(this);
     }
 
-    /// <summary>Adds an alias for a registered component in this world.</summary>
+    /// <summary>Adds an alias for a registered component in this world's catalog.</summary>
     public void AddAlias(string alias, ComponentId componentId)
     {
         EnsureExecutionAccess();
-        if (string.IsNullOrWhiteSpace(alias))
-        {
-            ThrowHelper.ThrowInvalidComponentAlias(nameof(alias));
-        }
-
-        _ = _layouts.GetComponentType(componentId);
-        if (_componentIdsByAlias.TryGetValue(alias, out ComponentId existing))
-        {
-            if (existing == componentId)
-            {
-                return;
-            }
-
-            ThrowHelper.ThrowComponentAliasConflict(alias, existing, componentId);
-        }
-
-        _componentIdsByAlias.Add(alias, componentId);
+        _layouts.AddAlias(alias, componentId);
     }
 
-    /// <summary>Tries to get the component registered under an alias in this world.</summary>
+    /// <summary>Tries to get the component registered under an alias in this world's catalog.</summary>
     public bool TryGetAlias(string alias, out ComponentId componentId)
     {
         EnsureExecutionAccess();
-        if (!string.IsNullOrWhiteSpace(alias) && _componentIdsByAlias.TryGetValue(alias, out componentId))
-        {
-            return true;
-        }
-
-        componentId = ComponentId.Invalid;
-        return false;
+        return _layouts.TryGetAlias(alias, out componentId);
     }
 
-    /// <summary>Gets the component registered under an alias in this world.</summary>
+    /// <summary>Gets the component registered under an alias in this world's catalog.</summary>
     public ComponentId GetAlias(string alias)
         => TryGetAlias(alias, out ComponentId componentId)
             ? componentId
@@ -153,7 +130,7 @@ public sealed partial class World : IDisposable
     public void AddGroup<TEnum>(TEnum groupId, ComponentId componentId) where TEnum : struct, Enum
     {
         EnsureExecutionAccess();
-        _layouts.AddComponentToGroup(groupId, componentId);
+        _layouts.AddGroup(groupId, componentId);
     }
 
     /// <summary>Gets the registered components in a group in this world.</summary>
@@ -227,7 +204,6 @@ public sealed partial class World : IDisposable
 
         _queryCache.Clear();
         _componentSetCache.Clear();
-        _componentIdsByAlias.Clear();
         _primaryComponentIdsByType.Clear();
         _genericFunctors.Clear();
         _lastGenericFunctorEntry = null;

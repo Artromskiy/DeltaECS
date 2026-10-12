@@ -229,9 +229,11 @@ require generated registrations in the consumer assembly; ordinary
 `Register<T>(schemaId)` and runtime visitor calls do not.
 
 `ComponentAlias` assigns one or more ordinal string aliases to a generated
-component. Register catalog entries through the world to make generated
-aliases available there. Alias mappings belong to the world; groups belong to
-its `ComponentLayoutRegistry`. Manual additions use the same world API:
+component. Aliases and group membership are catalog metadata stored in the
+`ComponentLayoutRegistry`; the `World` methods are forwarding conveniences.
+Registering a generated entry through either the registry or world adds its
+aliases and groups to that catalog. Catalogs can be shared by worlds, so both
+aliases and groups are shared as well. Manual additions can use either API:
 
 ```csharp
 using System;

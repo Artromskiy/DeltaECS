@@ -16,7 +16,7 @@ namespace Delta.ECS
         public ulong SchemaId { get; }
     }
 
-    /// <summary>Assigns a world-resolvable name to a generated component registration.</summary>
+    /// <summary>Assigns a catalog-resolvable name to a generated component registration.</summary>
     [AttributeUsage(AttributeTargets.Struct, AllowMultiple = true, Inherited = false)]
     public sealed class ComponentAliasAttribute : Attribute
     {
@@ -54,7 +54,7 @@ namespace Delta.ECS
         /// <summary>Registers this component using its generated concrete registration route.</summary>
         ComponentId Register(ComponentLayoutRegistry layouts);
 
-        /// <summary>Registers this component and its aliases in a world.</summary>
+        /// <summary>Registers this component and its metadata in a world's catalog.</summary>
         ComponentId Register(World world);
     }
 
