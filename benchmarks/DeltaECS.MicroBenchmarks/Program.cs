@@ -6,14 +6,21 @@ internal static class Program
 {
     public static void Main(string[] args)
     {
-        if (args.Length > 0 && string.Equals(args[0], "contract-smoke", StringComparison.OrdinalIgnoreCase))
+        bool changeTrackingOnly = args.Length > 0
+            && string.Equals(args[0], "change-tracking", StringComparison.OrdinalIgnoreCase);
+        Type[] benchmarkTypes = changeTrackingOnly
+            ? [typeof(ForEachWriteObserverMicroBenchmarks), typeof(ForEachChangeMicroBenchmarks)]
+            : MicroBenchmarkCatalog.Types;
+        string[] workloadArgs = changeTrackingOnly ? args[1..] : args;
+
+        if (!changeTrackingOnly && args.Length > 0 && string.Equals(args[0], "contract-smoke", StringComparison.OrdinalIgnoreCase))
         {
             MicroContractSmoke.Run();
             return;
         }
 
-        var benchmarkArgs = MicroBenchmarkConfiguration.Extract(args, out int[]? requestedAmounts);
-        foreach (Type benchmarkType in MicroBenchmarkCatalog.Types)
+        var benchmarkArgs = MicroBenchmarkConfiguration.Extract(workloadArgs, out int[]? requestedAmounts);
+        foreach (Type benchmarkType in benchmarkTypes)
         {
             int[] amounts = requestedAmounts ?? MicroBenchmarkConfiguration.DefaultAmounts(benchmarkType);
             foreach (int amount in amounts)

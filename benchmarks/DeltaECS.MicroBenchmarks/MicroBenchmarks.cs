@@ -13,7 +13,9 @@ internal static class MicroBenchmarkCatalog
         typeof(WhereIterationMicroBenchmarks),
         typeof(WhereApiMicroBenchmarks),
         typeof(StructuralOperationsMicroBenchmarks),
-        typeof(QueryBatchStructuralOperationsMicroBenchmarks)
+        typeof(QueryBatchStructuralOperationsMicroBenchmarks),
+        typeof(ForEachWriteObserverMicroBenchmarks),
+        typeof(ForEachChangeMicroBenchmarks)
     ];
 }
 
@@ -49,5 +51,15 @@ public class StructuralOperationsMicroBenchmarks : StructuralOperationsMicroBenc
 
 [MemoryDiagnoser]
 public class QueryBatchStructuralOperationsMicroBenchmarks : QueryBatchStructuralOperationsMicroBenchmarkImplementation
+{
+}
+
+[MemoryDiagnoser]
+public class ForEachWriteObserverMicroBenchmarks : ForEachWriteObserverMicroBenchmarkImplementation
+{
+}
+
+[MemoryDiagnoser]
+public class ForEachChangeMicroBenchmarks : ForEachChangeMicroBenchmarkImplementation
 {
 }

@@ -204,8 +204,26 @@ workload; without either option the four documented default amounts are run.
 ## Microbenchmarks and JIT
 
 `MicroBenchmarks.cs` is only the short BDN catalog and wrappers. Fixture and
-kernel code belongs in `MicroBenchmarkImplementations.cs`; the only retained
-microbenchmark family is iteration/API shape comparison.
+kernel code belongs in `MicroBenchmarkImplementations.cs` and focused companion
+files. The `change-tracking` route measures ordinary `ForEach` with zero, one,
+or several `ForEachChange` observers for one- and four-component write callbacks
+(0/1/4 observers for one writable component; 0/1/4/16 for four), then measures
+`ForEachChange` first invocation, no-change invocation, and
+invocations after 1% or 50% of entities were opened for writing. Stateful cases
+run one measured invocation per iteration so setup changes do not get consumed
+by an earlier invocation in the same iteration. The default amount is 131,072
+entities:
+
+```bash
+dotnet benchmarks/DeltaECS.MicroBenchmarks/bin/Release/net10.0/DeltaECS.MicroBenchmarks.dll \
+  change-tracking --amount 131072 --filter '*' \
+  --job Default --warmupCount 5 --iterationCount 20 --iterationTime 200 --launchCount 1 \
+  --exporters markdown \
+  --artifacts artifacts/change-tracking-131k
+```
+
+Other microbenchmark routes isolate DeltaECS iteration/API shapes for JIT and
+focused throughput work.
 
 For a JIT probe after the project is built:
 
