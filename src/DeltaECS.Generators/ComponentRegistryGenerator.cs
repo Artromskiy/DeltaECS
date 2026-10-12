@@ -74,7 +74,12 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
                 continue;
             }
 
-            var registration = new ComponentRegistration(type, schemaId, IsTagType(type), ReadComponentGroups(type));
+            var registration = new ComponentRegistration(
+                type,
+                schemaId,
+                IsTagType(type),
+                ReadComponentAliases(type),
+                ReadComponentGroups(type));
             if (schemas.TryGetValue(schemaId, out ComponentRegistration previous))
             {
                 context.ReportDiagnostic(Diagnostic.Create(
@@ -148,6 +153,26 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
         return groups;
     }
 
+    private static List<string> ReadComponentAliases(INamedTypeSymbol componentType)
+    {
+        var aliases = new List<string>();
+        foreach (AttributeData attribute in componentType.GetAttributes())
+        {
+            INamedTypeSymbol? attributeType = attribute.AttributeClass;
+            if (attributeType?.MetadataName != "ComponentAliasAttribute"
+                || attributeType.ContainingNamespace.ToDisplayString() != "Delta.ECS"
+                || attribute.ConstructorArguments.Length != 1
+                || attribute.ConstructorArguments[0].Value is not string alias)
+            {
+                continue;
+            }
+
+            aliases.Add(alias);
+        }
+
+        return aliases;
+    }
+
     private static void AddGroup(
         INamedTypeSymbol enumType,
         TypedConstant constant,
@@ -215,6 +240,8 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
             string typeName = registration.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             string factoryName = "ComponentRegistration_" + GeneratorSupport.StableName(typeName);
             string schemaId = registration.SchemaId.ToString("X16", System.Globalization.CultureInfo.InvariantCulture);
+            string aliasCalls = string.Join("\n", registration.Aliases.Select(alias =>
+                $"world.AddAlias({Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(alias, quote: true)}, componentId);"));
             registrationCalls.Add($"global::Delta.ECS.GeneratedComponentRegistrationRegistry.Register(new global::Delta.ECS.Generated.{factoryName}());");
             factories.Add($$"""
                 internal sealed class {{factoryName}} : global::Delta.ECS.IGeneratedComponentRegistration
@@ -235,6 +262,14 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
                             SchemaId);
                 {{GeneratorTemplates.Indent(string.Join("\n", registration.Groups.Select(group =>
                     $"layouts.RegisterGeneratedComponentGroup(typeof({group.EnumType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}).TypeHandle, 0x{group.Value:X16}UL, componentId);")), "        ")}}
+                        return componentId;
+                    }
+
+                    global::Delta.ECS.ComponentId global::Delta.ECS.IGeneratedComponentRegistration.Register(
+                        global::Delta.ECS.World world)
+                    {
+                        global::Delta.ECS.ComponentId componentId = ((global::Delta.ECS.IGeneratedComponentRegistration)this).Register(world.Layouts);
+                {{GeneratorTemplates.Indent(aliasCalls, "        ")}}
                         return componentId;
                     }
                 }
@@ -267,6 +302,7 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
         INamedTypeSymbol Type,
         ulong SchemaId,
         bool IsTag,
+        List<string> Aliases,
         List<ComponentGroupRegistration> Groups);
 
     private sealed record ComponentGroupRegistration(INamedTypeSymbol EnumType, ulong Value);

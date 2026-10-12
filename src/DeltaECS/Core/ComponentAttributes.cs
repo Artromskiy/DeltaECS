@@ -16,6 +16,17 @@ namespace Delta.ECS
         public ulong SchemaId { get; }
     }
 
+    /// <summary>Assigns a world-resolvable name to a generated component registration.</summary>
+    [AttributeUsage(AttributeTargets.Struct, AllowMultiple = true, Inherited = false)]
+    public sealed class ComponentAliasAttribute : Attribute
+    {
+        /// <summary>Assigns one alias to a component.</summary>
+        public ComponentAliasAttribute(string alias) => Alias = alias;
+
+        /// <summary>Gets the assigned alias.</summary>
+        public string Alias { get; }
+    }
+
     /// <summary>Assigns a component to one or more groups identified by an enum.</summary>
     [AttributeUsage(AttributeTargets.Struct, AllowMultiple = true, Inherited = false)]
     public sealed class ComponentGroupAttribute<TEnum> : Attribute where TEnum : struct, Enum
@@ -42,6 +53,9 @@ namespace Delta.ECS
 
         /// <summary>Registers this component using its generated concrete registration route.</summary>
         ComponentId Register(ComponentLayoutRegistry layouts);
+
+        /// <summary>Registers this component and its aliases in a world.</summary>
+        ComponentId Register(World world);
     }
 
     /// <summary>Receives component registration factories emitted by DeltaECS.Generators.</summary>

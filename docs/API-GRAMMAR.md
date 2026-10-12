@@ -228,6 +228,43 @@ layouts.Register(positionRegistration);
 require generated registrations in the consumer assembly; ordinary
 `Register<T>(schemaId)` and runtime visitor calls do not.
 
+`ComponentAlias` assigns one or more ordinal string aliases to a generated
+component. Register catalog entries through the world to make generated
+aliases available there. Alias mappings belong to the world; groups belong to
+its `ComponentLayoutRegistry`. Manual additions use the same world API:
+
+```csharp
+using System;
+using Delta.ECS;
+
+[Flags]
+public enum WorldComponentGroup
+{
+    History = 1,
+    Rollback = 2,
+}
+
+[ComponentSchema(10)]
+[ComponentAlias("health")]
+[ComponentGroup<WorldComponentGroup>(WorldComponentGroup.History)]
+public struct Health { public int Value; }
+
+using var world = new World();
+foreach (IGeneratedComponentRegistration registration in GeneratedComponentCatalog.GetRegistrations())
+{
+    world.Register(registration);
+}
+
+ComponentId healthId = world.GetAlias("health");
+world.AddAlias("configured-health", healthId);
+world.AddGroup(WorldComponentGroup.Rollback, healthId);
+ReadOnlySpan<ComponentId> rollbackComponents = world.GetGroup(WorldComponentGroup.Rollback);
+```
+
+`AddAlias` accepts repeated registration of the same alias/ID pair and rejects
+an alias mapped to another component. `TryGetAlias` returns `false` for an
+unknown alias, while `GetAlias` throws. Group membership is deduplicated.
+
 ## Runtime integration contract
 
 `World` implements `IEcsWorld` explicitly. Cast it to this neutral contract

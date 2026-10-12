@@ -22,6 +22,7 @@ public sealed class ComponentRegistryGeneratorTests
             namespace Example
             {
                 [ComponentSchema]
+                [ComponentAlias("position")]
                 public struct Position { public float X; }
 
                 [ComponentSchema(42UL)]
@@ -60,6 +61,7 @@ public sealed class ComponentRegistryGeneratorTests
         Assert.That(catalog, Does.Contain("ComponentType => typeof(global::Example.Position)"));
         Assert.That(catalog, Does.Contain("ComponentType => typeof(global::Example.Health)"));
         Assert.That(catalog, Does.Contain("IGeneratedComponentRegistration.Register("));
+        Assert.That(catalog, Does.Contain("world.AddAlias(\"position\", componentId);"));
         Assert.That(catalog, Does.Contain("ComponentLayoutRegistryRegistrationExtensions.Register<global::Example.Position>"));
         Assert.That(catalog, Does.Contain("ComponentLayoutRegistryRegistrationExtensions.Register<global::Example.Health>"));
         Assert.That(catalog, Does.Contain("SchemaId => new(0x000000000000002AUL)"));
@@ -110,6 +112,8 @@ public sealed class ComponentRegistryGeneratorTests
         var positionRegistration = (IGeneratedComponentRegistration)entryType
             .GetMethod("GetPositionRegistration", BindingFlags.Public | BindingFlags.Static)!
             .Invoke(null, null)!;
+        Assert.That(generatedWorld.Register(positionRegistration), Is.EqualTo(positionId));
+        Assert.That(generatedWorld.GetAlias("position"), Is.EqualTo(positionId));
         ComponentId selectedPositionId = selectedRegistrationLayouts.Register(positionRegistration);
         Assert.That(selectedRegistrationLayouts.GetComponentType(selectedPositionId).FullName, Is.EqualTo("Example.Position"));
         Assert.Throws<InvalidOperationException>(() => GeneratedComponentCatalog.GetRegistration<Guid>());

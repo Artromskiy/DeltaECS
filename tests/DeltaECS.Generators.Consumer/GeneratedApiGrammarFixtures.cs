@@ -12,6 +12,7 @@ public struct Alive { }
 public struct NeedsRespawn { public int Value; }
 
 [ComponentSchema(920_008UL)]
+[ComponentAlias("catalog.component")]
 [ComponentGroup<CatalogGroups>(CatalogGroups.History | CatalogGroups.Replicated)]
 [ComponentGroup<CatalogTargets>(CatalogTargets.Server)]
 public struct CatalogComponent { public int Value; }
@@ -30,6 +31,7 @@ public enum CatalogGroups : byte
 public enum CatalogTargets : short
 {
     Server = 10,
+    Client = 12,
 }
 
 public struct Context

@@ -68,6 +68,12 @@ public sealed partial class ComponentLayoutRegistry
             ? members.GetComponents()
             : ReadOnlySpan<ComponentId>.Empty;
 
+    internal void AddComponentToGroup<TEnum>(TEnum groupId, ComponentId componentId) where TEnum : struct, Enum
+    {
+        _ = GetComponentType(componentId);
+        RegisterGeneratedComponentGroup(typeof(TEnum).TypeHandle, GetGroupValue(groupId), componentId);
+    }
+
     /// <summary>Registers a generated component's enum group membership.</summary>
     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public void RegisterGeneratedComponentGroup(RuntimeTypeHandle enumType, ulong groupId, ComponentId componentId)

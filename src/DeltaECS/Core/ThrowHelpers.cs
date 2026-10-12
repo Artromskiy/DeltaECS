@@ -451,6 +451,22 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowInvalidComponentAlias(string parameterName)
+        => throw new ArgumentException("Component aliases cannot be null, empty, or whitespace.", parameterName);
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowComponentAliasConflict(string alias, ComponentId existing, ComponentId componentId)
+        => throw new InvalidOperationException(
+            $"Component alias '{alias}' is already assigned to component {existing.Value}, not {componentId.Value}.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static ComponentId ThrowComponentAliasNotFound(string alias)
+        => throw new KeyNotFoundException($"No component is registered under alias '{alias}'.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowGeneratedComponentSchemaIdZero(Type componentType)
         => throw new InvalidOperationException($"Generated schema ID 0 is invalid for component '{componentType.FullName}'.");
 

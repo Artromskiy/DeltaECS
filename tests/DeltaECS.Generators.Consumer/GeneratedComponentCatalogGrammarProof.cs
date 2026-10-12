@@ -36,20 +36,19 @@ internal static class GeneratedComponentCatalogGrammarProof
             throw new InvalidOperationException("The generated component catalog returned an unexpected component registration.");
         }
 
-        var layouts = new ComponentLayoutRegistry();
-        layouts.Register(componentRegistration);
-        layouts.Register(tagRegistration);
-
-        ComponentId componentId = layouts.GetPrimary<CatalogComponent>();
-        ComponentId tagId = layouts.GetPrimary<CatalogTag>();
-        ReadOnlySpan<ComponentId> historyGroup = layouts.GetGroup(CatalogGroups.History);
-        ReadOnlySpan<ComponentId> replicatedGroup = layouts.GetGroup(CatalogGroups.Replicated);
-        ReadOnlySpan<ComponentId> serverGroup = layouts.GetGroup(CatalogTargets.Server);
-        using var world = new World(layouts);
+        using var world = new World();
+        ComponentId componentId = world.Register(componentRegistration);
+        ComponentId tagId = world.Register(tagRegistration);
+        world.AddGroup(CatalogTargets.Client, componentId);
+        ReadOnlySpan<ComponentId> historyGroup = world.GetGroup(CatalogGroups.History);
+        ReadOnlySpan<ComponentId> replicatedGroup = world.GetGroup(CatalogGroups.Replicated);
+        ReadOnlySpan<ComponentId> serverGroup = world.GetGroup(CatalogTargets.Server);
+        ReadOnlySpan<ComponentId> clientGroup = world.GetGroup(CatalogTargets.Client);
         Entity entity = world.Create(componentId);
         if (!world.Add(entity, tagId)
-            || layouts.GetComponentType(componentId) != typeof(CatalogComponent)
-            || layouts.GetComponentType(tagId) != typeof(CatalogTag)
+            || world.Layouts.GetComponentType(componentId) != typeof(CatalogComponent)
+            || world.Layouts.GetComponentType(tagId) != typeof(CatalogTag)
+            || world.GetAlias("catalog.component") != componentId
             || historyGroup.Length != 2
             || !historyGroup.Contains(componentId)
             || !historyGroup.Contains(tagId)
@@ -59,6 +58,14 @@ internal static class GeneratedComponentCatalogGrammarProof
             || !serverGroup.Contains(componentId))
         {
             throw new InvalidOperationException("Generated component catalog registration did not initialize component groups.");
+        }
+
+        world.AddAlias("catalog.component.manual", componentId);
+        if (clientGroup.Length != 1 || !clientGroup.Contains(componentId)
+            || !world.TryGetAlias("catalog.component.manual", out ComponentId manualAlias)
+            || manualAlias != componentId)
+        {
+            throw new InvalidOperationException("The world component alias or group APIs returned unexpected values.");
         }
     }
 }

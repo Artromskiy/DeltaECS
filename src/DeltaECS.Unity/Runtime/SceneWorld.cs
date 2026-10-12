@@ -120,7 +120,7 @@ namespace Delta.ECS.Unity
 
         internal static SceneWorld CreatePreview(SceneData sceneData)
         {
-            var world = new World(CreateComponentLayouts(), DefaultEntityCapacity);
+            var world = CreateWorld(DefaultEntityCapacity);
             try
             {
                 return new SceneWorld(world, sceneData, null,
@@ -140,7 +140,7 @@ namespace Delta.ECS.Unity
                 UnityThrowHelpers.ThrowArgumentNull(nameof(authoring));
             }
 
-            var world = new World(CreateComponentLayouts(), DefaultEntityCapacity);
+            var world = CreateWorld(DefaultEntityCapacity);
             try
             {
                 return new SceneWorld(world, authoring.SceneData, authoring,
@@ -160,7 +160,7 @@ namespace Delta.ECS.Unity
                 UnityThrowHelpers.ThrowArgumentNull(nameof(authoring));
             }
 
-            var world = new World(CreateComponentLayouts(), RuntimeEntityCapacity);
+            var world = CreateWorld(RuntimeEntityCapacity);
             try
             {
                 return new SceneWorld(world, authoring.SceneData, authoring,
@@ -173,15 +173,23 @@ namespace Delta.ECS.Unity
             }
         }
 
-        private static ComponentLayoutRegistry CreateComponentLayouts()
+        private static World CreateWorld(int initialEntityCapacity)
         {
-            var layouts = new ComponentLayoutRegistry();
-            foreach (IGeneratedComponentRegistration registration in GeneratedComponentCatalog.GetRegistrations())
+            var world = new World(initialEntityCapacity: initialEntityCapacity);
+            try
             {
-                layouts.Register(registration);
-            }
+                foreach (IGeneratedComponentRegistration registration in GeneratedComponentCatalog.GetRegistrations())
+                {
+                    world.Register(registration);
+                }
 
-            return layouts;
+                return world;
+            }
+            catch (Exception exception)
+            {
+                world.Dispose();
+                return UnityThrowHelpers.Rethrow<World>(exception);
+            }
         }
 
         internal void RebuildAuthoringEntities()
