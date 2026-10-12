@@ -117,13 +117,14 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryGetRegisteredCore<T>(Entity entity, ComponentId componentId, out T value)
     {
-        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
+        if (TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
-            value = default!;
-            return false;
+            return TryGetRegisteredCore<T>(chunk, slotIndex, componentId, out value);
         }
 
-        return TryGetRegisteredCore<T>(chunk, slotIndex, componentId, out value);
+        value = default!;
+        return false;
+
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

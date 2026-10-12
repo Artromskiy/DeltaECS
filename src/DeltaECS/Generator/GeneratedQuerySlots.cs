@@ -8,7 +8,7 @@ using System.Runtime.CompilerServices;
 
 /// <summary>Trusted compiler-support slot iterator for one validated query chunk.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public ref struct GeneratedQuerySlots
+public readonly ref struct GeneratedQuerySlots
 {
     private readonly World _world;
     private readonly Chunk _chunk;
@@ -230,7 +230,7 @@ public ref struct GeneratedQuerySlots
 
 /// <summary>Trusted compiler-support slot iterator for a read-only query chunk.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public ref struct GeneratedReadQuerySlots
+public readonly ref struct GeneratedReadQuerySlots
 {
     private readonly World _world;
     private readonly Chunk _chunk;

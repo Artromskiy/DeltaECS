@@ -73,7 +73,7 @@ namespace Ecs.CSharp.Benchmark.Contexts
             first.Value += second.Value + third.Value;
     }
 
-    internal struct DeltaEntityRefFunctor : IForEachEntity
+    internal readonly struct DeltaEntityRefFunctor : IForEachEntity
     {
         private readonly DeltaComponentId _componentId;
 
@@ -87,7 +87,7 @@ namespace Ecs.CSharp.Benchmark.Contexts
         }
     }
 
-    internal struct DeltaEntityRefTwoComponentFunctor : IForEachEntity
+    internal readonly struct DeltaEntityRefTwoComponentFunctor : IForEachEntity
     {
         private readonly DeltaComponentId _firstId;
         private readonly DeltaComponentId _secondId;
@@ -107,7 +107,7 @@ namespace Ecs.CSharp.Benchmark.Contexts
         }
     }
 
-    internal struct DeltaEntityRefThreeComponentFunctor : IForEachEntity
+    internal readonly struct DeltaEntityRefThreeComponentFunctor : IForEachEntity
     {
         private readonly DeltaComponentId _firstId;
         private readonly DeltaComponentId _secondId;

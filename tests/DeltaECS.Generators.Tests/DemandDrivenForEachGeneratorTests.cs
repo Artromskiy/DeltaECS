@@ -2644,6 +2644,7 @@ public sealed class DemandDrivenForEachGeneratorTests
                 world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>();
                 world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>(deadId);
                 world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>(new Dead());
+                world.Where(in query, static (in Health health) => health.Value <= 0).Add(new Dead());
                 world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>(deadId, new Dead());
                 world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>(componentIds);
                 world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>(componentIds, new Dead());

@@ -4,9 +4,9 @@ namespace Delta.ECS;
 
 /// <summary>A scoped entity handle for an entity-aware iteration callback.</summary>
 /// <remarks>Component access uses trusted world paths while this scoped view is valid.</remarks>
-public ref struct EntityRef
+public readonly ref struct EntityRef
 {
-    private Span<GeneratedEntityRefView> _view;
+    private readonly Span<GeneratedEntityRefView> _view;
 
     internal EntityRef(ref GeneratedEntityRefView view)
     {

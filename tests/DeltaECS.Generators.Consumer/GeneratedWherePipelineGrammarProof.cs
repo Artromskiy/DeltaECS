@@ -42,6 +42,8 @@ internal static class GeneratedWherePipelineGrammarProof
         // Structural terminals (Destroy, Add, Remove) and iteration terminals.
         world.Where(in query, static (in Cmp3 cmp3) => cmp3.Value < 0)
             .Add<Dead>(new Dead()).Invoke();
+        world.Where(in query, static (in Cmp3 cmp3) => cmp3.Value < 0)
+            .Add(new Dead()).Invoke();
         world.WhereEntity(in query, static (Entity entity, in Cmp3 cmp3) => cmp3.Value < entity.Index)
             .Add<Dead, NeedsRespawn>(deadId, needsRespawnId, new Dead(), new NeedsRespawn()).Invoke();
         world.Where(in query, static (in Cmp3 cmp3) => cmp3.Value < 0)

@@ -709,18 +709,24 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         }
 
         if (name is "Add" or "Remove"
-            && member.Name is GenericNameSyntax genericName
-            && genericName.TypeArgumentList.Arguments.Count >= 1)
+            && (member.Name is GenericNameSyntax
+                || name == "Add" && member.Name is IdentifierNameSyntax))
         {
-            int arity = genericName.TypeArgumentList.Arguments.Count;
+            GenericNameSyntax? generic = member.Name as GenericNameSyntax;
+            int? genericArity = generic?.TypeArgumentList.Arguments.Count;
+            if (genericArity == 0)
+            {
+                return false;
+            }
+
             ApiDescriptor terminalDescriptor = descriptor.WithTarget(InvocationTargetRule.None);
             if (!InvocationGrammar.TryReadStructuralMutation(
                     model,
                     invocation.ArgumentList.Arguments,
                     terminalDescriptor,
-                    arity,
+                    genericArity,
                     valuesAllowed: name == "Add",
-                    out _,
+                    out InvocationCursorResult selection,
                     out _,
                     out bool hasValues,
                     out RegistrationBindingKind registrationBinding))
@@ -728,13 +734,24 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
                 return false;
             }
 
+            if (generic is null && !hasValues)
+            {
+                return false;
+            }
+
+            string[] componentTypes = generic is not null
+                ? generic.TypeArgumentList.Arguments
+                    .Select(argument => GeneratorSupport.DisplayType(model.GetTypeInfo(argument).Type!))
+                    .ToArray()
+                : Enumerable.Range(selection.TailStart, selection.TailCount)
+                    .Select(index => GeneratorSupport.DisplayType(model.GetTypeInfo(invocation.ArgumentList.Arguments[index].Expression).Type!))
+                    .ToArray();
+
             terminal = new TerminalModel(
                 name == "Add" ? TerminalKind.Add : TerminalKind.Remove,
                 string.Empty,
                 hasEntity: false,
-                components: genericName.TypeArgumentList.Arguments
-                    .Select(argument => GeneratorSupport.DisplayType(model.GetTypeInfo(argument).Type!))
-                    .ToArray(),
+                components: componentTypes,
                 hasValues: hasValues,
                 typeBinding: TypeBindingKind.Generic,
                 registrationBinding: registrationBinding);

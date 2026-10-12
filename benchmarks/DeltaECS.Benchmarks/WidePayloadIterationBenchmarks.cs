@@ -242,7 +242,7 @@ internal sealed class WidePayloadChecksum
     internal int Value;
 }
 
-internal struct WidePayloadSingleThreadFunctor : IForEach
+internal readonly struct WidePayloadSingleThreadFunctor : IForEach
 {
     private readonly WidePayloadChecksum _checksum;
 
@@ -268,7 +268,7 @@ internal struct WidePayloadSingleThreadFunctor : IForEach
     }
 }
 
-internal struct WidePayloadParallelFunctor : IForEach
+internal readonly struct WidePayloadParallelFunctor : IForEach
 {
     private readonly WidePayloadChecksum _checksum;
 
@@ -294,7 +294,7 @@ internal struct WidePayloadParallelFunctor : IForEach
     }
 }
 
-internal struct WidePayloadEntityRefFunctor : IForEachEntity
+internal readonly struct WidePayloadEntityRefFunctor : IForEachEntity
 {
     private readonly WidePayloadChecksum _checksum;
 
@@ -308,7 +308,7 @@ internal struct WidePayloadEntityRefFunctor : IForEachEntity
     }
 }
 
-internal struct WidePayloadEntityRefSingleThreadFunctor : IForEachEntity
+internal readonly struct WidePayloadEntityRefSingleThreadFunctor : IForEachEntity
 {
     private readonly WidePayloadChecksum _checksum;
 

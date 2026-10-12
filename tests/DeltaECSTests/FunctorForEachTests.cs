@@ -428,7 +428,7 @@ internal sealed class FunctorForEachTests
         public int Matched;
     }
 
-    internal struct ResetHealthAction : IForEachContextEntity<WhereActionState>
+    internal readonly struct ResetHealthAction : IForEachContextEntity<WhereActionState>
     {
         private readonly ComponentId _healthId;
 

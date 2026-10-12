@@ -273,7 +273,7 @@ public interface IGeneratedComponentValueInitializer
 
 /// <summary>Trusted writer for values written by generated structural operations.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public ref struct GeneratedComponentValueWriter
+public readonly ref struct GeneratedComponentValueWriter
 {
     private readonly ComponentLayoutRegistry _layouts;
     private readonly Chunk _targetChunk;

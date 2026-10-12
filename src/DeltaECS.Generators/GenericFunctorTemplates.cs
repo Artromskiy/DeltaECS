@@ -223,11 +223,13 @@ internal static class GenericFunctorTemplates
         string call = hasContext
             ? $"return world.CreateGenericFunctorOperation<TContext>({queryArgument}, {entitiesArgument}, {hasQuery.ToString().ToLowerInvariant()}, global::Delta.ECS.GeneratedGenericFunctorMode.{mode}, functorType, {(parallel ? "workerCount" : "0")}, {contextCall}{componentArguments});"
             : $"return world.CreateGenericFunctorOperation({queryArgument}, {entitiesArgument}, {hasQuery.ToString().ToLowerInvariant()}, global::Delta.ECS.GeneratedGenericFunctorMode.{mode}, functorType, {(parallel ? "workerCount" : "0")}, {componentArguments});";
-        var setup = new List<string>();
-        setup.Add(hasQuery
-            ? "global::Delta.ECS.Query operationQuery = query;"
-            : "global::Delta.ECS.Query operationQuery = default;");
-        setup.Add(call);
+        List<string> setup =
+        [
+            hasQuery
+                ? "global::Delta.ECS.Query operationQuery = query;"
+                : "global::Delta.ECS.Query operationQuery = default;",
+            call
+        ];
         string body = string.Join("\n", setup);
         string operationType = hasContext
             ? "global::Delta.ECS.EcsOperation<TContext, global::Delta.ECS.World.GenericFunctorContextOperationInvoker<TContext>>"
@@ -243,7 +245,41 @@ internal static class GenericFunctorTemplates
         string? contextArgument = model.HasContext
             ? SignatureProjection.ContextArgument(model.ContextMode, context!)
             : null;
-        string call(string method, bool entityList, bool parallel)
+        return $$"""
+                 var components = _components ??= new global::Delta.ECS.ComponentId[] { {{GeneratorTemplates.JoinIndexed(model.Rows.Length, index => model.Rows[index].Selector)}} };
+                 global::Delta.ECS.Query selectedQuery = hasQuery ? query : world.WhereAll(components);
+                 var functor = default({{model.TypeName}});
+                 if (((mode is global::Delta.ECS.GeneratedGenericFunctorMode.Entity or global::Delta.ECS.GeneratedGenericFunctorMode.EntityListEntity or global::Delta.ECS.GeneratedGenericFunctorMode.ParallelEntity or global::Delta.ECS.GeneratedGenericFunctorMode.EntityListParallelEntity)) != {{callbackEntity}})
+                 {
+                     global::Delta.ECS.GeneratedForEachRuntime.ThrowGenericFunctorModeMismatch(typeof({{model.TypeName}}), mode);
+                 }
+
+                 {{parallelRefGuard}}
+                 switch (mode)
+                 {
+                     case global::Delta.ECS.GeneratedGenericFunctorMode.Components:
+                     case global::Delta.ECS.GeneratedGenericFunctorMode.Entity:
+                         {{Call("ExecuteTyped", false, false)}}
+                         break;
+                     case global::Delta.ECS.GeneratedGenericFunctorMode.EntityList:
+                     case global::Delta.ECS.GeneratedGenericFunctorMode.EntityListEntity:
+                         {{Call("ExecuteEntityList", true, false)}}
+                         break;
+                     case global::Delta.ECS.GeneratedGenericFunctorMode.ParallelComponents:
+                     case global::Delta.ECS.GeneratedGenericFunctorMode.ParallelEntity:
+                         {{Call("ExecuteParallel", false, true)}}
+                         break;
+                     case global::Delta.ECS.GeneratedGenericFunctorMode.EntityListParallel:
+                     case global::Delta.ECS.GeneratedGenericFunctorMode.EntityListParallelEntity:
+                         {{Call("ExecuteEntityListParallel", true, true)}}
+                         break;
+                     default:
+                         global::Delta.ECS.GeneratedForEachRuntime.ThrowInvalidGenericFunctorMode(mode);
+                         break;
+                 }
+                 """;
+
+        string Call(string method, bool entityList, bool parallel)
         {
             var callArguments = new List<string> { "world" };
             if (entityList)
@@ -270,38 +306,5 @@ internal static class GenericFunctorTemplates
 
             return $"{method}({string.Join(", ", callArguments)});";
         }
-        return $$"""
-            var components = _components ??= new global::Delta.ECS.ComponentId[] { {{GeneratorTemplates.JoinIndexed(model.Rows.Length, index => model.Rows[index].Selector)}} };
-            global::Delta.ECS.Query selectedQuery = hasQuery ? query : world.WhereAll(components);
-            var functor = default({{model.TypeName}});
-            if (((mode is global::Delta.ECS.GeneratedGenericFunctorMode.Entity or global::Delta.ECS.GeneratedGenericFunctorMode.EntityListEntity or global::Delta.ECS.GeneratedGenericFunctorMode.ParallelEntity or global::Delta.ECS.GeneratedGenericFunctorMode.EntityListParallelEntity)) != {{callbackEntity}})
-            {
-                global::Delta.ECS.GeneratedForEachRuntime.ThrowGenericFunctorModeMismatch(typeof({{model.TypeName}}), mode);
-            }
-
-            {{parallelRefGuard}}
-            switch (mode)
-            {
-                case global::Delta.ECS.GeneratedGenericFunctorMode.Components:
-                case global::Delta.ECS.GeneratedGenericFunctorMode.Entity:
-                    {{call("ExecuteTyped", false, false)}}
-                    break;
-                case global::Delta.ECS.GeneratedGenericFunctorMode.EntityList:
-                case global::Delta.ECS.GeneratedGenericFunctorMode.EntityListEntity:
-                    {{call("ExecuteEntityList", true, false)}}
-                    break;
-                case global::Delta.ECS.GeneratedGenericFunctorMode.ParallelComponents:
-                case global::Delta.ECS.GeneratedGenericFunctorMode.ParallelEntity:
-                    {{call("ExecuteParallel", false, true)}}
-                    break;
-                case global::Delta.ECS.GeneratedGenericFunctorMode.EntityListParallel:
-                case global::Delta.ECS.GeneratedGenericFunctorMode.EntityListParallelEntity:
-                    {{call("ExecuteEntityListParallel", true, true)}}
-                    break;
-                default:
-                    global::Delta.ECS.GeneratedForEachRuntime.ThrowInvalidGenericFunctorMode(mode);
-                    break;
-            }
-            """;
     }
 }

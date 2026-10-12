@@ -156,7 +156,7 @@ internal static class GenericListComponents
         => action.Register<GenericListComponent>();
 }
 
-internal struct RegisterGenericListComponent(ComponentLayoutRegistry layouts) : IGenericListAction
+internal readonly struct RegisterGenericListComponent(ComponentLayoutRegistry layouts) : IGenericListAction
 {
     public void Register<T>() where T : struct
         => _ = layouts.Register<T>(new SchemaId(921_011));
