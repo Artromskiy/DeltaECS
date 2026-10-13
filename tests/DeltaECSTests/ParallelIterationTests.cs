@@ -33,6 +33,69 @@ internal sealed class ParallelIterationTests
     private static readonly ForEachAction_WI<Position, Velocity> s_incrementAction = Increment;
     internal static int s_generatedCallbackThreadId;
 
+    [TestCase(1, false)]
+    [TestCase(4, false)]
+    [TestCase(1, true)]
+    [TestCase(4, true)]
+    public void ParallelCallbackFailureReleasesTheWorldAndAllowsRetry(int workerCount, bool entityList)
+    {
+        using var world = new World();
+        ComponentId positionId = world.Components.Register<Position>(new SchemaId(70_100));
+        ComponentId tagId = world.Components.Register<ParallelFilterTag>(new SchemaId(70_101));
+        var entities = new Entity[Chunk.Capacity * 4];
+        world.Create([positionId], entities);
+        for (int index = 0; index < entities.Length; index += 2)
+        {
+            world.Add(entities[index], tagId);
+        }
+
+        Query query = world.WhereAll([positionId, tagId]);
+        var state = new ParallelFailureState();
+        var invoker = new FailingParallelInvoker(state);
+        void Invoke()
+        {
+            if (entityList)
+            {
+                GeneratedForEachRuntime.ExecuteEntityListParallel(world, in query, entities, ref invoker, [], workerCount);
+            }
+            else
+            {
+                GeneratedForEachRuntime.ExecuteParallelDense(world, in query, ref invoker, [], workerCount);
+            }
+        }
+
+        Assert.That(Assert.Throws<InvalidOperationException>(Invoke), Is.SameAs(state.Failure));
+        Entity probe = world.Create(positionId);
+        Assert.That(world.IsAlive(probe), Is.True);
+        state.ShouldThrow = false;
+        Invoke();
+        Assert.That(state.Visited, Is.EqualTo(entities.Length / 2));
+        Invoke();
+        Assert.That(state.Visited, Is.EqualTo(entities.Length));
+    }
+
+    private sealed class ParallelFailureState
+    {
+        internal readonly Exception Failure = new InvalidOperationException("callback failure");
+        internal bool ShouldThrow = true;
+        internal int Visited;
+    }
+
+    private readonly struct FailingParallelInvoker(ParallelFailureState state) : IGeneratedParallelInvoker
+    {
+        public bool RequiresSingleThread => false;
+
+        public void Invoke(ref GeneratedQuerySlots slots)
+        {
+            if (state.ShouldThrow)
+            {
+                throw state.Failure;
+            }
+
+            Interlocked.Add(ref state.Visited, slots.Count);
+        }
+    }
+
     [Test]
     public void GeneratedForEachParallelSupportsReadOnlyAndValueState()
     {

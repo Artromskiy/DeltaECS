@@ -786,38 +786,28 @@ public static partial class GeneratedForEachRuntime
             return;
         }
 
-        int wordCount = (chunk.Count + 63) >> 6;
+        int wordCount = ComponentChangeMasks.WordCount(chunk.Count);
+        ReadOnlySpan<ulong> mask = selectionMask;
+        DirtyKind kind;
         if (tagIndex < 0)
         {
-            ReadOnlySpan<ulong> mask = selectionMask.Slice(0, wordCount);
-            for (int observerIndex = 0; observerIndex < observerCount; observerIndex++)
-            {
-                observers[observerIndex].RecordChunkMask(chunk, mask);
-            }
-
-            return;
+            kind = ComponentChangeMasks.Classify(mask, chunk.Count);
         }
-
-        bool any = false;
-        for (int wordIndex = 0; wordIndex < wordCount; wordIndex++)
+        else
         {
-            int remaining = chunk.Count - (wordIndex << 6);
-            ulong valid = remaining >= 64 ? ulong.MaxValue : (1UL << remaining) - 1;
-            ulong selected = hasSelection ? selectionMask[wordIndex] : valid;
-            ulong word = selected & chunk.GetTagWord(tagIndex, wordIndex);
-            writeMask[wordIndex] = word;
-            any |= word != 0;
+            kind = ComponentChangeMasks.SelectTagChanges(chunk, tagIndex,
+                hasSelection ? DirtyKind.Mask : DirtyKind.All, selectionMask, writeMask);
+            mask = writeMask.Slice(0, wordCount);
         }
 
-        if (!any)
+        if (kind == DirtyKind.None)
         {
             return;
         }
 
-        ReadOnlySpan<ulong> tagWriteMask = writeMask.Slice(0, wordCount);
         for (int observerIndex = 0; observerIndex < observerCount; observerIndex++)
         {
-            observers[observerIndex].RecordChunkMask(chunk, tagWriteMask);
+            observers[observerIndex].RecordChunkMask(chunk, mask, kind);
         }
     }
 
@@ -1024,7 +1014,7 @@ public static partial class GeneratedForEachRuntime
             {
                 Entity entity = entities.RefAt(index);
                 if (!world.TryResolveEntityLocation(entity, out Chunk chunk, out int slot)
-                    || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk.GlobalId, out ChunkPlan chunkPlan)
+                    || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk, out ChunkPlan chunkPlan)
                     || !plan.MatchesTagSlot(chunk, slot))
                 {
                     continue;
@@ -1064,14 +1054,14 @@ public static partial class GeneratedForEachRuntime
         }
 
         RecordEntityListWrites(world, plan, entities, writeComponentIndices);
+        world.PrepareComponentChangeObserverChunks(plan.MatchingChunkPlans());
+        plan.PrepareTagSlotCache();
+        var executor = world.GetParallelQueryExecutor<TInvoker>();
+        world.EnterParallelExecution();
         world.BeginQueryLease();
-        bool entered = false;
         try
         {
-            world.EnterParallelExecution();
-            entered = true;
-            plan.PrepareTagSlotCache();
-            world.GetParallelQueryExecutor<TInvoker>().ExecuteEntityList(
+            executor.ExecuteEntityList(
                 world,
                 plan,
                 entities,
@@ -1080,11 +1070,7 @@ public static partial class GeneratedForEachRuntime
         }
         finally
         {
-            if (entered)
-            {
-                world.ExitParallelExecution();
-            }
-
+            world.ExitParallelExecution();
             world.EndQueryLease();
         }
     }
@@ -1159,25 +1145,21 @@ public static partial class GeneratedForEachRuntime
         }
 
         RecordComponentWrites(plan, writeComponentIndices);
+        world.PrepareComponentChangeObserverChunks(plan.MatchingChunkPlans());
+        plan.PrepareTagSlotCache();
+        var executor = world.GetParallelQueryExecutor<TInvoker>();
+        world.EnterParallelExecution();
         world.BeginQueryLease();
-        bool entered = false;
         try
         {
-            world.EnterParallelExecution();
-            entered = true;
-            plan.PrepareTagSlotCache();
-            world.GetParallelQueryExecutor<TInvoker>().Execute(
+            executor.Execute(
                 plan,
                 ref invoker,
                 requestedWorkerCount);
         }
         finally
         {
-            if (entered)
-            {
-                world.ExitParallelExecution();
-            }
-
+            world.ExitParallelExecution();
             world.EndQueryLease();
         }
     }
@@ -1209,7 +1191,7 @@ public static partial class GeneratedForEachRuntime
             {
                 Entity entity = entities.RefAt(entityIndex);
                 if (!world.TryResolveEntityLocation(entity, out Chunk chunk, out int slotIndex)
-                    || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk.GlobalId, out _)
+                    || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk, out _)
                     || !plan.MatchesTagSlot(chunk, slotIndex)
                     || (isTag && !chunk.HasTag(tagIndex, slotIndex)))
                 {
@@ -1218,8 +1200,8 @@ public static partial class GeneratedForEachRuntime
 
                 World.RecordComponentChangeObservers(observers, observerCount, chunk, slotIndex);
             }
-            World.ReturnComponentChangeObservers(observers, observerCount);
 
+            World.ReturnComponentChangeObservers(observers, observerCount);
         }
     }
 

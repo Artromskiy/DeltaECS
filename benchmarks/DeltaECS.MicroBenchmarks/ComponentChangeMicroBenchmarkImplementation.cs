@@ -135,6 +135,7 @@ internal sealed class ForEachChangeComponentFixture : IDisposable
 {
     private readonly ComponentId _componentId;
     private readonly Entity[] _entities;
+    private long _notificationCount;
 
     internal ForEachChangeComponentFixture(int amount)
     {
@@ -144,13 +145,17 @@ internal sealed class ForEachChangeComponentFixture : IDisposable
         World = new World(layouts, initialEntityCapacity: amount);
         _entities = new Entity[amount];
         World.Create([_componentId, unusedId], amount, _entities);
+        if (MicroBenchmarkConfiguration.ScatterChanges) { new Random(93_001).Shuffle(_entities); }
         Operation = World.ForEachChange<ChangeWriteA>(
             _componentId,
-            static (Entity entity, ChangeKind change, ref ChangeWriteA component) => { });
+            MicroBenchmarkConfiguration.CountChangeCallbacks ? Record : static (Entity entity, ChangeKind change, ref ChangeWriteA component) => { });
     }
 
     internal World World { get; }
     internal ComponentChangeOperation<ChangeWriteA> Operation { get; }
+    internal long NotificationCount => _notificationCount;
+
+    private void Record(Entity entity, ChangeKind change, ref ChangeWriteA component) => _notificationCount++;
 
     internal void MarkModified(int count)
     {
@@ -167,6 +172,7 @@ internal sealed class ForEachChangeTagFixture : IDisposable
 {
     private readonly ComponentId _tagId;
     private readonly Entity[] _entities;
+    private long _notificationCount;
 
     internal ForEachChangeTagFixture(int amount)
     {
@@ -176,13 +182,17 @@ internal sealed class ForEachChangeTagFixture : IDisposable
         World = new World(layouts, initialEntityCapacity: amount);
         _entities = new Entity[amount];
         World.Create([_tagId, unusedId], amount, _entities);
+        if (MicroBenchmarkConfiguration.ScatterChanges) { new Random(93_001).Shuffle(_entities); }
         Operation = World.ForEachChange<ChangeWriteTagA>(
             _tagId,
-            static (Entity entity, ChangeKind change, ref ChangeWriteTagA tag) => { });
+            MicroBenchmarkConfiguration.CountChangeCallbacks ? Record : static (Entity entity, ChangeKind change, ref ChangeWriteTagA tag) => { });
     }
 
     internal World World { get; }
     internal ComponentChangeOperation<ChangeWriteTagA> Operation { get; }
+    internal long NotificationCount => _notificationCount;
+
+    private void Record(Entity entity, ChangeKind change, ref ChangeWriteTagA component) => _notificationCount++;
 
     internal void MarkModified(int count)
     {

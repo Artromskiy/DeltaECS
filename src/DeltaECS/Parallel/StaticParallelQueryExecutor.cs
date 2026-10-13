@@ -25,7 +25,6 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
     private const int WorkerPollSpinCount = 8;
     private const int CacheLineSize = 64;
     private const int MinimumEntitiesPerWorker = Chunk.Capacity / 2;
-    private readonly object _lifecycle = new();
     private WorkerSlot[] _workerSlots = Array.Empty<WorkerSlot>();
     private Worker[] _workers = Array.Empty<Worker>();
     private TInvoker[] _workerInvokers = Array.Empty<TInvoker>();
@@ -66,12 +65,6 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
 
     internal void Execute(QueryPlan plan, ref TInvoker invoker, int requestedWorkerCount)
     {
-        ThrowHelper.ThrowIfNegative(requestedWorkerCount, nameof(requestedWorkerCount));
-        if (_disposed)
-        {
-            ThrowHelper.ThrowDisposedWorld();
-        }
-
         BuildChunkList(plan);
         _world = plan.Owner;
         if (_chunkCount == 0)
@@ -173,37 +166,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         _splitChunkRanges = splitChunkRanges;
         PrepareRanges(plan, workerCount, splitChunkRanges);
 
-        for (int workerIndex = 0; workerIndex < workerCount; workerIndex++)
-        {
-            _workerInvokers.RefAt(workerIndex) = invoker;
-            _workerFailures.RefAt(workerIndex) = null;
-        }
-
-        int run = _runVersion == int.MaxValue ? 1 : _runVersion + 1;
-        _runVersion = run;
-        for (int workerIndex = 1; workerIndex < workerCount; workerIndex++)
-        {
-            WorkerSlot slot = _workerSlots.RefAt(workerIndex);
-            Volatile.Write(ref slot.PublishedRun, run);
-        }
-
-        ExecuteRange(0, run, workerSlot: null);
-        for (int workerIndex = 1; workerIndex < workerCount; workerIndex++)
-        {
-            while (Volatile.Read(ref _workerSlots.RefAt(workerIndex).CompletedRun) != run)
-            {
-                Thread.SpinWait(WorkerPollSpinCount);
-            }
-        }
-
-        invoker = _workerInvokers.GetRefAtZero();
-        for (int workerIndex = 0; workerIndex < workerCount; workerIndex++)
-        {
-            if (_workerFailures.RefAt(workerIndex) is { } failure)
-            {
-                failure.Throw();
-            }
-        }
+        ExecuteWorkers(ref invoker, workerCount);
         _splitChunkRanges = false;
     }
 
@@ -214,12 +177,6 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         ref TInvoker invoker,
         int requestedWorkerCount)
     {
-        ThrowHelper.ThrowIfNegative(requestedWorkerCount, nameof(requestedWorkerCount));
-        if (_disposed)
-        {
-            ThrowHelper.ThrowDisposedWorld();
-        }
-
         EnsureEntityCapacity(entities.Length);
         entities.CopyTo(_entities.AsSpan(0, entities.Length));
         _entityWorld = world;
@@ -252,37 +209,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             EnsureWorkerCapacity(workerCount - 1);
             PrepareEntityRanges(_entityCount, workerCount);
 
-            for (int workerIndex = 0; workerIndex < workerCount; workerIndex++)
-            {
-                _workerInvokers.RefAt(workerIndex) = invoker;
-                _workerFailures.RefAt(workerIndex) = null;
-            }
-
-            int run = _runVersion == int.MaxValue ? 1 : _runVersion + 1;
-            _runVersion = run;
-            for (int workerIndex = 1; workerIndex < workerCount; workerIndex++)
-            {
-                WorkerSlot slot = _workerSlots.RefAt(workerIndex);
-                Volatile.Write(ref slot.PublishedRun, run);
-            }
-
-            ExecuteRange(0, run, workerSlot: null);
-            for (int workerIndex = 1; workerIndex < workerCount; workerIndex++)
-            {
-                while (Volatile.Read(ref _workerSlots.RefAt(workerIndex).CompletedRun) != run)
-                {
-                    Thread.SpinWait(WorkerPollSpinCount);
-                }
-            }
-
-            invoker = _workerInvokers.GetRefAtZero();
-            for (int workerIndex = 0; workerIndex < workerCount; workerIndex++)
-            {
-                if (_workerFailures.RefAt(workerIndex) is { } failure)
-                {
-                    failure.Throw();
-                }
-            }
+            ExecuteWorkers(ref invoker, workerCount);
         }
         finally
         {
@@ -293,41 +220,65 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         }
     }
 
+    private void ExecuteWorkers(ref TInvoker invoker, int workerCount)
+    {
+        for (int workerIndex = 0; workerIndex < workerCount; workerIndex++)
+        {
+            _workerInvokers.RefAt(workerIndex) = invoker;
+            _workerFailures.RefAt(workerIndex) = null;
+        }
+
+        int run = _runVersion == int.MaxValue ? 1 : _runVersion + 1;
+        _runVersion = run;
+        for (int workerIndex = 1; workerIndex < workerCount; workerIndex++)
+        {
+            WorkerSlot slot = _workerSlots.RefAt(workerIndex);
+            Volatile.Write(ref slot.PublishedRun, run);
+        }
+
+        ExecuteRange(0, run, workerSlot: null);
+        for (int workerIndex = 1; workerIndex < workerCount; workerIndex++)
+        {
+            while (Volatile.Read(ref _workerSlots.RefAt(workerIndex).CompletedRun) != run)
+            {
+                Thread.SpinWait(WorkerPollSpinCount);
+            }
+        }
+
+        invoker = _workerInvokers.GetRefAtZero();
+        for (int workerIndex = 0; workerIndex < workerCount; workerIndex++)
+        {
+            if (_workerFailures.RefAt(workerIndex) is { } failure)
+            {
+                failure.Throw();
+            }
+        }
+    }
+
     private void ExecuteSingleThread(ref TInvoker invoker)
     {
         TInvoker invocation = invoker;
-        try
+        for (int chunkIndex = 0; chunkIndex < _chunkCount; chunkIndex++)
         {
-            for (int chunkIndex = 0; chunkIndex < _chunkCount; chunkIndex++)
-            {
-                ParallelChunk work = _chunks.RefAt(chunkIndex);
-                ChunkPlan chunkPlan = work.Chunk;
-                GeneratedQuerySlots slots = new(_world!, in chunkPlan, _cachedPlan);
-                invocation.Invoke(ref slots);
-            }
+            ParallelChunk work = _chunks.RefAt(chunkIndex);
+            ChunkPlan chunkPlan = work.Chunk;
+            GeneratedQuerySlots slots = new(_world!, in chunkPlan, _cachedPlan);
+            invocation.Invoke(ref slots);
+        }
 
-            invoker = invocation;
-        }
-        catch (Exception exception)
-        {
-            ExceptionDispatchInfo.Capture(exception).Throw();
-        }
+        invoker = invocation;
     }
 
     public void Dispose()
     {
-        Worker[] workers;
-        lock (_lifecycle)
+        if (_disposed)
         {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _disposed = true;
-            Volatile.Write(ref _stopping, 1);
-            workers = _workers;
+            return;
         }
+
+        _disposed = true;
+        Volatile.Write(ref _stopping, 1);
+        Worker[] workers = _workers;
 
         for (int workerIndex = 0; workerIndex < workers.Length; workerIndex++)
         {
@@ -407,6 +358,8 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         ParallelRange range = _ranges.RefAt(workerIndex);
         World? world = _world;
         bool schedulerWorker = false;
+        int previousChangeWorker = World.ChangeTrackingWorkerIndex;
+        World.ChangeTrackingWorkerIndex = workerIndex;
         try
         {
             if (workerSlot is not null && world is not null)
@@ -447,6 +400,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         }
         finally
         {
+            World.ChangeTrackingWorkerIndex = previousChangeWorker;
             if (schedulerWorker && world is { } schedulerWorld)
             {
                 schedulerWorld.ExitSchedulerWorker();
@@ -499,7 +453,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         {
             Entity entity = _entities[index];
             if (!world.TryResolveEntityLocation(entity, out Chunk chunk, out int slot)
-                || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk.GlobalId, out ChunkPlan chunkPlan)
+                || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk, out ChunkPlan chunkPlan)
                 || !plan.MatchesTagSlot(chunk, slot))
             {
                 continue;
@@ -514,10 +468,11 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
 
     private void WorkerLoop(Worker worker)
     {
+        // Disposal follows completion of the current pass, so only idle workers need the stop poll.
         int workerIndex = worker.Index;
         WorkerSlot workerSlot = worker.Slot;
         int observedRun = 0;
-        while (Volatile.Read(ref _stopping) == 0)
+        while (true)
         {
             int run;
             while ((run = Volatile.Read(ref workerSlot.PublishedRun)) == observedRun)
@@ -528,11 +483,6 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
                 }
 
                 Thread.SpinWait(WorkerPollSpinCount);
-            }
-
-            if (Volatile.Read(ref _stopping) != 0)
-            {
-                return;
             }
 
             observedRun = run;
@@ -548,38 +498,30 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             return;
         }
 
-        lock (_lifecycle)
+        int previousLength = _workers.Length;
+        int totalWorkers = requiredBackgroundWorkers + 1;
+        if (_workerSlots.Length < totalWorkers)
         {
-            if (_disposed)
+            int previousSlotLength = _workerSlots.Length;
+            Array.Resize(ref _workerSlots, totalWorkers);
+            Array.Resize(ref _workerInvokers, totalWorkers);
+            Array.Resize(ref _workerFailures, totalWorkers);
+            for (int workerIndex = previousSlotLength; workerIndex < totalWorkers; workerIndex++)
             {
-                ThrowHelper.ThrowDisposedWorld();
+                _workerSlots.RefAt(workerIndex) = new WorkerSlot();
             }
+        }
 
-            int previousLength = _workers.Length;
-            int totalWorkers = requiredBackgroundWorkers + 1;
-            if (_workerSlots.Length < totalWorkers)
-            {
-                int previousSlotLength = _workerSlots.Length;
-                Array.Resize(ref _workerSlots, totalWorkers);
-                Array.Resize(ref _workerInvokers, totalWorkers);
-                Array.Resize(ref _workerFailures, totalWorkers);
-                for (int workerIndex = previousSlotLength; workerIndex < totalWorkers; workerIndex++)
-                {
-                    _workerSlots.RefAt(workerIndex) = new WorkerSlot();
-                }
-            }
+        if (_workers.Length < requiredBackgroundWorkers)
+        {
+            Array.Resize(ref _workers, requiredBackgroundWorkers);
+        }
 
-            if (_workers.Length < requiredBackgroundWorkers)
-            {
-                Array.Resize(ref _workers, requiredBackgroundWorkers);
-            }
-
-            for (int workerIndex = previousLength; workerIndex < requiredBackgroundWorkers; workerIndex++)
-            {
-                Worker worker = new(this, workerIndex + 1, _workerSlots.RefAt(workerIndex + 1));
-                _workers.RefAt(workerIndex) = worker;
-                worker.Thread.Start(worker);
-            }
+        for (int workerIndex = previousLength; workerIndex < requiredBackgroundWorkers; workerIndex++)
+        {
+            Worker worker = new(this, workerIndex + 1, _workerSlots.RefAt(workerIndex + 1));
+            _workers.RefAt(workerIndex) = worker;
+            worker.Thread.Start(worker);
         }
     }
 

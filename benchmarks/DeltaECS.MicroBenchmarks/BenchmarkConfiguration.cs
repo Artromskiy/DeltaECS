@@ -5,6 +5,11 @@ namespace Delta.ECS.MicroBenchmarks;
 internal static class MicroBenchmarkConfiguration
 {
     private const string AmountEnvironmentVariable = "DELTAECS_MICROBENCHMARK_AMOUNT";
+    private const string CallbackEnvironmentVariable = "DELTAECS_CHANGE_CALLBACK";
+    private const string LayoutEnvironmentVariable = "DELTAECS_CHANGE_LAYOUT";
+
+    internal static bool CountChangeCallbacks => Environment.GetEnvironmentVariable(CallbackEnvironmentVariable) == "count";
+    internal static bool ScatterChanges => Environment.GetEnvironmentVariable(LayoutEnvironmentVariable) == "scattered";
 
     internal static int CurrentAmount
     {
@@ -41,6 +46,24 @@ internal static class MicroBenchmarkConfiguration
         for (int index = 0; index < args.Length; index++)
         {
             string argument = args[index];
+            if (argument is "--change-callback" or "--change-layout")
+            {
+                if (++index >= args.Length)
+                {
+                    throw new ArgumentException($"Missing value for {argument}.", nameof(args));
+                }
+
+                string value = args[index];
+                bool callback = argument == "--change-callback";
+                if (callback ? value is not ("empty" or "count") : value is not ("dense" or "scattered"))
+                {
+                    throw new ArgumentException($"Invalid value for {argument}: '{value}'.", nameof(args));
+                }
+
+                Environment.SetEnvironmentVariable(callback ? CallbackEnvironmentVariable : LayoutEnvironmentVariable, value);
+                continue;
+            }
+
             if (TryGetValue(argument, "--amount", out string inline)
                 || TryGetValue(argument, "--amounts", out inline))
             {

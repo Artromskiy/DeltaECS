@@ -165,16 +165,17 @@ internal sealed class QueryPlan
 
         entry = GetTagSlotCacheEntry(chunk.GlobalId);
         int version = _owner.TagVersion;
-        if (entry.Version == version)
+        if (entry.Version == version && ReferenceEquals(entry.Chunk, chunk))
         {
             return true;
         }
 
         lock (_tagSlotGate)
         {
-            if (entry.Version != version)
+            if (entry.Version != version || !ReferenceEquals(entry.Chunk, chunk))
             {
                 BuildTagSlots(chunk, constrainByAnyTags, entry);
+                entry.Chunk = chunk;
                 entry.Version = version;
             }
         }
@@ -359,13 +360,13 @@ internal sealed class QueryPlan
             : -1;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool TryGetChunkPlan(int archetypeId, int globalChunkId, out ChunkPlan chunkPlan)
+    internal bool TryGetChunkPlan(int archetypeId, Chunk chunk, out ChunkPlan chunkPlan)
     {
         int planIndex = MatchingPlanIndex(archetypeId);
         if (planIndex >= 0)
         {
             ArchetypePlan plan = _matchingPlans.RefAt(planIndex);
-            int chunkIndex = plan.FindChunkIndex(globalChunkId);
+            int chunkIndex = plan.FindChunkIndex(chunk);
             if (chunkIndex >= 0)
             {
                 chunkPlan = plan.ChunkArray.RefAt(chunkIndex);
@@ -882,6 +883,7 @@ internal sealed class QueryPlan
 
     private sealed class TagSlotCacheEntry
     {
+        internal Chunk? Chunk;
         internal int Version = int.MinValue;
         internal int[] Slots = Array.Empty<int>();
         internal ulong[] Mask = Array.Empty<ulong>();
@@ -906,12 +908,12 @@ internal struct ArchetypePlan
 
     internal Archetype Archetype { get; }
     internal int[] ComponentRows { get; }
-    internal int FindChunkIndex(int globalChunkId, int startIndex = 0, int endIndex = -1)
+    internal int FindChunkIndex(Chunk chunk, int startIndex = 0, int endIndex = -1)
     {
         int end = endIndex < 0 ? _chunkCount : Math.Min(endIndex, _chunkCount);
         for (int index = startIndex; index < end; index++)
         {
-            if (_chunks.RefAt(index).Chunk.GlobalId == globalChunkId)
+            if (ReferenceEquals(_chunks.RefAt(index).Chunk, chunk))
             {
                 return index;
             }
@@ -981,7 +983,7 @@ internal struct ArchetypePlan
                 continue;
             }
 
-            int existingIndex = FindChunkIndex(chunk.GlobalId, chunkIndex + 1, previousCount);
+            int existingIndex = FindChunkIndex(chunk, chunkIndex + 1, previousCount);
             if (existingIndex >= 0)
             {
                 ChunkPlan moved = _chunks.RefAt(existingIndex);

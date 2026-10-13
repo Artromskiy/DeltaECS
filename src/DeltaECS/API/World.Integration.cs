@@ -217,7 +217,7 @@ public sealed partial class World : IEcsWorld
         chunk.GetRawComponentRow(componentIndex).SetValue(value, slotIndex);
         if (_componentChangeObservers is not null)
         {
-            RecordComponentChange(entity, component);
+            RecordComponentChange(chunk, slotIndex, component);
         }
         error = new EcsWriteError(EcsWriteErrorCode.None);
         return true;

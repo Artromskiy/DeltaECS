@@ -4,10 +4,14 @@ using System.Threading;
 
 public sealed partial class World
 {
-    private readonly object _parallelExecutorGate = new();
     // Access is exclusive while _parallelExecutionActive is held by the caller.
     private Dictionary<Type, IDisposable>? _generatedParallelExecutors;
     private int _parallelExecutionActive;
+
+    [ThreadStatic]
+    internal static int ChangeTrackingWorkerIndex;
+
+    internal bool IsParallelExecutionActive => _parallelExecutionActive != 0;
 
     private readonly struct EntityParallelInvoker : IGeneratedParallelInvoker
     {
@@ -258,28 +262,15 @@ public sealed partial class World
         where TInvoker : struct, IGeneratedParallelInvoker
     {
         Type invokerType = typeof(TInvoker);
-        Dictionary<Type, IDisposable>? executors = _generatedParallelExecutors;
-        if (executors is not null
-            && executors.TryGetValue(invokerType, out IDisposable? cached))
+        var executors = _generatedParallelExecutors ??= new Dictionary<Type, IDisposable>();
+        if (executors.TryGetValue(invokerType, out IDisposable? cached))
         {
             return (StaticParallelQueryExecutor<TInvoker>)cached;
         }
 
-        lock (_parallelExecutorGate)
-        {
-            ThrowHelper.ThrowIfDisposed(_disposed, this);
-            executors = _generatedParallelExecutors;
-            if (executors is not null
-                && executors.TryGetValue(invokerType, out IDisposable? existing))
-            {
-                return (StaticParallelQueryExecutor<TInvoker>)existing;
-            }
-
-            var executor = new StaticParallelQueryExecutor<TInvoker>();
-            (executors ??= new Dictionary<Type, IDisposable>()).Add(invokerType, executor);
-            _generatedParallelExecutors = executors;
-            return executor;
-        }
+        var executor = new StaticParallelQueryExecutor<TInvoker>();
+        executors.Add(invokerType, executor);
+        return executor;
     }
 
     internal void EnterParallelExecution()
@@ -293,24 +284,23 @@ public sealed partial class World
 
     internal void ExitParallelExecution()
     {
-        Volatile.Write(ref _parallelExecutionActive, 0);
+        MergeParallelComponentChanges();
+        _parallelExecutionActive = 0;
     }
 
     private void DisposeGeneratedParallelExecutors()
     {
-        IDisposable[] generatedExecutors;
-        lock (_parallelExecutorGate)
+        if (_generatedParallelExecutors is not { } executors)
         {
-            generatedExecutors = _generatedParallelExecutors is { } executors
-                ? executors.Values.ToArray()
-                : Array.Empty<IDisposable>();
-            _generatedParallelExecutors?.Clear();
+            return;
         }
 
-        for (int index = 0; index < generatedExecutors.Length; index++)
+        foreach (IDisposable executor in executors.Values)
         {
-            generatedExecutors.RefAt(index).Dispose();
+            executor.Dispose();
         }
+
+        executors.Clear();
     }
 
 }

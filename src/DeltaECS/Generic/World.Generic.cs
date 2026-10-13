@@ -270,7 +270,7 @@ public sealed partial class World
             {
                 if (_componentChangeObservers is not null)
                 {
-                    RecordComponentChange(view.CurrentEntity, componentId);
+                    RecordComponentChange(view.Chunk!, view.SlotIndex, componentId);
                 }
 
                 return ref GeneratedTagRows.GetReference<T>(0);
@@ -278,7 +278,7 @@ public sealed partial class World
 
             if (_componentChangeObservers is not null)
             {
-                RecordComponentChange(view.CurrentEntity, componentId);
+                RecordComponentChange(view.Chunk!, view.SlotIndex, componentId);
             }
             return ref view.GetPreparedComponentRef<T>();
         }
@@ -317,7 +317,7 @@ public sealed partial class World
 
             if (_componentChangeObservers is not null)
             {
-                RecordComponentChange(entity, componentId);
+                RecordComponentChange(chunk, slotIndex, componentId);
             }
 
             return ref GeneratedTagRows.GetReference<T>(0);
@@ -331,7 +331,7 @@ public sealed partial class World
 
         if (_componentChangeObservers is not null)
         {
-            RecordComponentChange(entity, componentId);
+            RecordComponentChange(chunk, slotIndex, componentId);
         }
         return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
     }
@@ -349,7 +349,7 @@ public sealed partial class World
 
             if (_componentChangeObservers is not null)
             {
-                RecordComponentChange(view.CurrentEntity, componentId);
+                RecordComponentChange(chunk, slotIndex, componentId);
             }
 
             return ref GeneratedTagRows.GetReference<T>(0);
@@ -363,7 +363,7 @@ public sealed partial class World
 
         if (_componentChangeObservers is not null)
         {
-            RecordComponentChange(view.CurrentEntity, componentId);
+            RecordComponentChange(chunk, slotIndex, componentId);
         }
         return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
     }
@@ -532,7 +532,6 @@ public sealed partial class World
                 continue;
             }
 
-            RecordComponentMembershipChanges(entity, sourceChunk, sourceSlotIndex, stackalloc[] { componentId }, isAdd: true);
             MoveEntity(recordIndex, edge, out Chunk targetChunk, out int targetSlotIndex);
             var targetArchetype = _archetypes[targetChunk.ArchetypeId];
             int targetComponentIndex = targetArchetype.Mask.Rank(componentId);
@@ -576,8 +575,6 @@ public sealed partial class World
         {
             return false;
         }
-
-        RecordComponentMembershipChanges(entity, sourceChunk, sourceSlotIndex, changeSet.ComponentIds, isAdd: true);
 
         Chunk targetChunk = sourceChunk;
         int targetSlotIndex = sourceSlotIndex;
@@ -647,8 +644,6 @@ public sealed partial class World
             {
                 continue;
             }
-
-            RecordComponentMembershipChanges(entity, sourceChunk, sourceSlotIndex, changeSet.ComponentIds, isAdd: true);
 
             Chunk targetChunk = sourceChunk;
             int targetSlot = sourceSlotIndex;

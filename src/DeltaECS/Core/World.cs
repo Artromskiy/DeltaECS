@@ -39,7 +39,6 @@ public sealed partial class World : IDisposable
     // These snapshots change only outside query execution; parallel callbacks observe them after executor publication.
     private ComponentChangeObserverRoute?[]? _componentChangeObservers;
     private WeakReference<ComponentChangeObserver>[] _componentChangeObserverList = Array.Empty<WeakReference<ComponentChangeObserver>>();
-    private readonly object _componentChangeGate = new();
     private readonly List<Entity> _queryEntityScratch = new();
     private int _queryCacheSweepCountdown = QueryCacheSweepInterval;
     private NativeMemory<DestroyEntry> _destroyScratch = new(InitialDestroyScratchCapacity);
@@ -63,6 +62,7 @@ public sealed partial class World : IDisposable
     private int _batchEdgeGeneration;
     private int _nextChunkId;
     private int _tagVersion;
+    private readonly List<int> _freeChunkIds = new();
     private Chunk?[] _chunksById = Array.Empty<Chunk?>();
     private int _activeChunkLeases;
     private bool _disposed;
@@ -128,6 +128,7 @@ public sealed partial class World : IDisposable
     internal bool IsDisposed => _disposed;
 
     internal int TagVersion => _tagVersion;
+
 
     internal List<Archetype> Archetypes => _archetypes;
 
@@ -209,6 +210,7 @@ public sealed partial class World : IDisposable
         _deferredQueryPlans.Clear();
         _batchEdgeGenerations.Dispose();
         _componentRowArrayPool.Clear();
+        _freeChunkIds.Clear();
         _chunksById = Array.Empty<Chunk?>();
         _freeRecordChunks.Clear();
         _componentChangeObservers = null;
@@ -254,47 +256,61 @@ public sealed partial class World : IDisposable
     internal void RegisterComponentChangeObserver(ComponentChangeObserver observer)
     {
         EnsureNoActiveLease("register a component change observer");
-        lock (_componentChangeGate)
+        observer.EnsureCapacity(_records.Capacity);
+        ComponentChangeObserverRoute?[]? current = _componentChangeObservers;
+        int required = observer.ComponentId.Value + 1;
+        var routes = new ComponentChangeObserverRoute?[Math.Max(current?.Length ?? 0, required)];
+        if (current is not null)
         {
-            observer.EnsureCapacity(_records.Capacity);
-            ComponentChangeObserverRoute?[]? current = _componentChangeObservers;
-            int required = observer.ComponentId.Value + 1;
-            var routes = new ComponentChangeObserverRoute?[Math.Max(current?.Length ?? 0, required)];
-            if (current is not null)
-            {
-                Array.Copy(current, routes, current.Length);
-            }
+            Array.Copy(current, routes, current.Length);
+        }
 
-            WeakReference<ComponentChangeObserver>[]? existing = routes[observer.ComponentId.Value]?.Observers;
-            var observers = new List<WeakReference<ComponentChangeObserver>>((existing?.Length ?? 0) + 1);
-            if (existing is not null)
+        WeakReference<ComponentChangeObserver>[]? existing = routes[observer.ComponentId.Value]?.Observers;
+        var observers = new List<WeakReference<ComponentChangeObserver>>((existing?.Length ?? 0) + 1);
+        if (existing is not null)
+        {
+            for (int index = 0; index < existing.Length; index++)
             {
-                for (int index = 0; index < existing.Length; index++)
+                if (existing[index].TryGetTarget(out _))
                 {
-                    if (existing[index].TryGetTarget(out _))
-                    {
-                        observers.Add(existing[index]);
-                    }
+                    observers.Add(existing[index]);
                 }
             }
+        }
 
-            var observerReference = new WeakReference<ComponentChangeObserver>(observer);
-            observers.Add(observerReference);
-            routes[observer.ComponentId.Value] = new ComponentChangeObserverRoute(observers.ToArray());
-            _componentChangeObservers = routes;
+        var observerReference = new WeakReference<ComponentChangeObserver>(observer);
+        observers.Add(observerReference);
+        routes[observer.ComponentId.Value] = new ComponentChangeObserverRoute(observers.ToArray());
+        _componentChangeObservers = routes;
 
-            WeakReference<ComponentChangeObserver>[] currentList = _componentChangeObserverList;
-            var observerList = new List<WeakReference<ComponentChangeObserver>>(currentList.Length + 1);
-            for (int index = 0; index < currentList.Length; index++)
+        WeakReference<ComponentChangeObserver>[] currentList = _componentChangeObserverList;
+        var observerList = new List<WeakReference<ComponentChangeObserver>>(currentList.Length + 1);
+        for (int index = 0; index < currentList.Length; index++)
+        {
+            if (currentList[index].TryGetTarget(out _))
             {
-                if (currentList[index].TryGetTarget(out _))
-                {
-                    observerList.Add(currentList[index]);
-                }
+                observerList.Add(currentList[index]);
+            }
+        }
+
+        observerList.Add(observerReference);
+        _componentChangeObserverList = observerList.ToArray();
+    }
+
+    internal void PrepareComponentChangeObserverChunks(ReadOnlySpan<ChunkPlan> chunks)
+    {
+        WeakReference<ComponentChangeObserver>[] observers = _componentChangeObserverList;
+        for (int observerIndex = 0; observerIndex < observers.Length; observerIndex++)
+        {
+            if (!observers[observerIndex].TryGetTarget(out ComponentChangeObserver? observer))
+            {
+                continue;
             }
 
-            observerList.Add(observerReference);
-            _componentChangeObserverList = observerList.ToArray();
+            for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
+            {
+                observer.PrepareChunk(chunks.RefAt(chunkIndex).Chunk);
+            }
         }
     }
 
@@ -372,39 +388,32 @@ public sealed partial class World : IDisposable
 
     internal void EnsureComponentChangeObserverCapacity(int capacity)
     {
-        if (_componentChangeObservers is null)
+        ComponentChangeObserverRoute?[]? routes = _componentChangeObservers;
+        if (routes is null)
         {
             return;
         }
 
-        lock (_componentChangeGate)
+        for (int routeIndex = 0; routeIndex < routes.Length; routeIndex++)
         {
-            ComponentChangeObserverRoute?[]? routes = _componentChangeObservers;
-            if (routes is null)
+            WeakReference<ComponentChangeObserver>[]? observers = routes[routeIndex]?.Observers;
+            if (observers is null)
             {
-                return;
+                continue;
             }
 
-            for (int routeIndex = 0; routeIndex < routes.Length; routeIndex++)
+            for (int observerIndex = 0; observerIndex < observers.Length; observerIndex++)
             {
-                WeakReference<ComponentChangeObserver>[]? observers = routes[routeIndex]?.Observers;
-                if (observers is null)
+                if (observers[observerIndex].TryGetTarget(out ComponentChangeObserver? observer))
                 {
-                    continue;
-                }
-
-                for (int observerIndex = 0; observerIndex < observers.Length; observerIndex++)
-                {
-                    if (observers[observerIndex].TryGetTarget(out ComponentChangeObserver? observer))
-                    {
-                        observer.EnsureCapacity(capacity);
-                    }
+                    observer.EnsureCapacity(capacity);
                 }
             }
         }
     }
 
-    internal void RecordComponentChange(Entity entity, ComponentId componentId)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void RecordComponentChange(Chunk chunk, int slotIndex, ComponentId componentId)
     {
         ComponentChangeObserverRoute?[]? routes = _componentChangeObservers;
         if (routes is null || (uint)componentId.Value >= (uint)routes.Length)
@@ -422,59 +431,139 @@ public sealed partial class World : IDisposable
         {
             if (observers[index].TryGetTarget(out ComponentChangeObserver? observer))
             {
-                observer.Record(entity);
+                observer.RecordChunkSlot(chunk, slotIndex);
             }
         }
     }
 
-    internal void RecordComponentMembershipChanges(
-        Entity entity,
-        Chunk chunk,
-        int slotIndex,
-        ReadOnlySpan<ComponentId> componentIds,
-        bool isAdd)
+    internal void MergeParallelComponentChanges()
     {
-        if (_componentChangeObservers is null)
+        foreach (WeakReference<ComponentChangeObserver> reference in _componentChangeObserverList)
+        {
+            if (reference.TryGetTarget(out ComponentChangeObserver? observer))
+            {
+                observer.MergeParallel();
+            }
+        }
+    }
+
+    private void RecordEntityMembershipRange(Chunk chunk, int slot, int count, bool present)
+    {
+        foreach (WeakReference<ComponentChangeObserver> reference in _componentChangeObserverList)
+        {
+            if (!reference.TryGetTarget(out ComponentChangeObserver? observer))
+            {
+                continue;
+            }
+
+            bool tag = _layouts.TryGetTagIndex(observer.ComponentId, out int tagIndex);
+            if (!tag && !_archetypes[chunk.ArchetypeId].Mask.Contains(observer.ComponentId))
+            {
+                continue;
+            }
+
+            ReadOnlySpan<Entity> entities = chunk.RawEntities.Slice(slot, count);
+            if (!tag)
+            {
+                observer.RecordMembershipRange(entities, present);
+                continue;
+            }
+
+            for (int index = 0; index < entities.Length; index++)
+            {
+                if (!tag || chunk.HasTag(tagIndex, slot + index))
+                {
+                    observer.RecordMembership(entities[index], present);
+                }
+            }
+        }
+    }
+
+    private void RecordTransitionMembershipRange(Chunk chunk, int slot, int count, Archetype target)
+    {
+        Archetype source = _archetypes[chunk.ArchetypeId];
+        foreach (WeakReference<ComponentChangeObserver> reference in _componentChangeObserverList)
+        {
+            if (!reference.TryGetTarget(out ComponentChangeObserver? observer)
+                || _layouts.TryGetTagIndex(observer.ComponentId, out _))
+            {
+                continue;
+            }
+
+            bool present = target.Mask.Contains(observer.ComponentId);
+            if (source.Mask.Contains(observer.ComponentId) == present)
+            {
+                continue;
+            }
+
+            observer.RecordMembershipRange(chunk.RawEntities.Slice(slot, count), present);
+        }
+    }
+
+    private void RecordTagMembershipRange(Chunk chunk, int slot, int count, ReadOnlySpan<int> tagIndices, bool present)
+    {
+        foreach (WeakReference<ComponentChangeObserver> reference in _componentChangeObserverList)
+        {
+            if (!reference.TryGetTarget(out ComponentChangeObserver? observer)
+                || !_layouts.TryGetTagIndex(observer.ComponentId, out int tagIndex)
+                || tagIndices.IndexOf(tagIndex) < 0)
+            {
+                continue;
+            }
+
+            for (int index = slot; index < slot + count; index++)
+            {
+                if (chunk.HasTag(tagIndex, index) != present)
+                {
+                    observer.RecordMembership(chunk.RawEntities[index], present);
+                }
+            }
+        }
+    }
+
+    internal void RecordComponentMembershipChanges(Chunk chunk, int slotIndex, int count, ReadOnlySpan<ComponentId> componentIds, bool isAdd)
+    {
+        if (_componentChangeObservers is not { } routes)
         {
             return;
         }
 
         Archetype archetype = _archetypes[chunk.ArchetypeId];
-        for (int index = 0; index < componentIds.Length; index++)
+        ReadOnlySpan<Entity> entities = chunk.RawEntities.Slice(slotIndex, count);
+        foreach (ComponentId id in componentIds)
         {
-            ComponentId componentId = componentIds.RefAt(index);
-            ComponentChangeObserverRoute?[]? routes = _componentChangeObservers;
-            if ((uint)componentId.Value >= (uint)routes.Length || routes[componentId.Value] is null)
+            if ((uint)id.Value >= (uint)routes.Length || routes[id.Value] is not { } route)
             {
                 continue;
             }
 
-            bool hasComponent = _layouts.TryGetTagIndex(componentId, out int tagIndex)
-                ? chunk.HasTag(tagIndex, slotIndex)
-                : archetype.Mask.Contains(componentId);
-            if (hasComponent != isAdd)
+            bool tag = _layouts.TryGetTagIndex(id, out int tagIndex);
+            if (!tag && archetype.Mask.Contains(id) == isAdd)
             {
-                RecordComponentChange(entity, componentId);
+                continue;
             }
-        }
-    }
 
-    internal void RecordComponentMembershipChanges(
-        Chunk chunk,
-        int slotIndex,
-        int count,
-        ReadOnlySpan<ComponentId> componentIds,
-        bool isAdd)
-    {
-        if (_componentChangeObservers is null)
-        {
-            return;
-        }
+            foreach (WeakReference<ComponentChangeObserver> reference in route.Observers)
+            {
+                if (!reference.TryGetTarget(out ComponentChangeObserver? observer))
+                {
+                    continue;
+                }
 
-        Span<Entity> entities = chunk.RawEntities.Slice(slotIndex, count);
-        for (int index = 0; index < count; index++)
-        {
-            RecordComponentMembershipChanges(entities.RefAt(index), chunk, slotIndex + index, componentIds, isAdd);
+                if (!tag)
+                {
+                    observer.RecordMembershipRange(entities, isAdd);
+                    continue;
+                }
+
+                for (int index = 0; index < count; index++)
+                {
+                    if (chunk.HasTag(tagIndex, slotIndex + index) != isAdd)
+                    {
+                        observer.RecordMembership(entities[index], isAdd);
+                    }
+                }
+            }
         }
     }
 
@@ -707,6 +796,8 @@ public sealed partial class World : IDisposable
                     output.RefAt(outputIndex++) = entity;
                 }
             }
+
+            RecordEntityMembershipRange(chunk, slotIndex, reserved, present: true);
         }
 
         AliveEntityCount += count;
@@ -717,7 +808,6 @@ public sealed partial class World : IDisposable
 
         EndQueryPlanBatch();
         return count;
-
     }
 
     private int CreateBatchNoOutput(Archetype archetype, int count, ReadOnlySpan<int> tagIndices)
@@ -802,6 +892,7 @@ public sealed partial class World : IDisposable
                 }
             }
 
+            RecordEntityMembershipRange(chunk, slotIndex, reserved, present: true);
             created += reserved;
         }
 
@@ -813,7 +904,6 @@ public sealed partial class World : IDisposable
 
         EndQueryPlanBatch();
         return count;
-
     }
 
     /// <summary>Destroys one entity and reports whether the handle was alive.</summary>
@@ -854,68 +944,66 @@ public sealed partial class World : IDisposable
         }
 
         BeginQueryPlanBatch();
+        int destroyed;
         if (count == 1)
         {
             // A single valid handle needs neither sorting nor a second
             // record/lifetime validation: no mutation has happened yet.
             DestroyResolved(_destroyScratch.GetRefAtZero().RecordIndex);
-            EndQueryPlanBatch();
-            return 1;
+            destroyed = 1;
         }
-
-        if (IsAscendingDestroyOrder(count))
+        else if (IsAscendingDestroyOrder(count))
         {
             EnsureFreeRecordCapacity(_freeCount + count);
-            int ascendingDestroyed = DestroyAscendingBatch(count);
-            EndQueryPlanBatch();
-            return ascendingDestroyed;
+            destroyed = DestroyAscendingBatch(count);
         }
-
-        SpanSortCompat.Sort(_destroyScratch.Span[..count], DestroyEntryComparer.Instance);
-        EnsureFreeRecordCapacity(_freeCount + count);
-        int destroyed = 0;
-        int groupStart = 0;
-        while (groupStart < count)
+        else
         {
-            var first = _destroyScratch.RefAt(groupStart);
-            int groupEnd = groupStart + 1;
-            while (groupEnd < count)
+            SpanSortCompat.Sort(_destroyScratch.Span[..count], DestroyEntryComparer.Instance);
+            EnsureFreeRecordCapacity(_freeCount + count);
+            destroyed = 0;
+            int groupStart = 0;
+            while (groupStart < count)
             {
-                var next = _destroyScratch.RefAt(groupEnd);
-                if (next.Archetype != first.Archetype || next.ChunkId != first.ChunkId)
+                var first = _destroyScratch.RefAt(groupStart);
+                int groupEnd = groupStart + 1;
+                while (groupEnd < count)
                 {
-                    break;
+                    var next = _destroyScratch.RefAt(groupEnd);
+                    if (next.Archetype != first.Archetype || next.ChunkId != first.ChunkId)
+                    {
+                        break;
+                    }
+
+                    groupEnd++;
                 }
 
-                groupEnd++;
-            }
-
-            int groupCount = groupEnd - groupStart;
-            var archetype = _archetypes[first.Archetype];
-            var chunk = GetChunkById(first.ChunkId);
-            if (groupCount == chunk.Count && IsCompleteDestroyChunk(groupStart, groupCount))
-            {
-                destroyed += DestroyChunk(archetype, chunk.ArchetypeIndex);
-            }
-            else
-            {
-                for (int index = groupStart; index < groupEnd; index++)
+                int groupCount = groupEnd - groupStart;
+                var archetype = _archetypes[first.Archetype];
+                var chunk = GetChunkById(first.ChunkId);
+                if (groupCount == chunk.Count && IsCompleteDestroyChunk(groupStart, groupCount))
                 {
-                    var entry = _destroyScratch.RefAt(index);
-                    if (IsCurrentDestroyEntry(entry))
+                    destroyed += DestroyChunk(archetype, chunk.ArchetypeIndex);
+                }
+                else
+                {
+                    for (int index = groupStart; index < groupEnd; index++)
                     {
-                        DestroyResolved(entry.RecordIndex);
-                        destroyed++;
+                        var entry = _destroyScratch.RefAt(index);
+                        if (IsCurrentDestroyEntry(entry))
+                        {
+                            DestroyResolved(entry.RecordIndex);
+                            destroyed++;
+                        }
                     }
                 }
-            }
 
-            groupStart = groupEnd;
+                groupStart = groupEnd;
+            }
         }
 
         EndQueryPlanBatch();
         return destroyed;
-
     }
 
     private int DestroyAscendingBatch(int count)
@@ -1169,11 +1257,10 @@ public sealed partial class World : IDisposable
                     taggedDestroyed++;
                 }
             }
-            EndQueryPlanBatch();
 
+            EndQueryPlanBatch();
             _queryEntityScratch.Clear();
             return taggedDestroyed;
-
         }
 
         ReadOnlySpan<int> archetypes = cached.MatchingArchetypes();
@@ -1196,7 +1283,6 @@ public sealed partial class World : IDisposable
 
         EndQueryPlanBatch();
         return destroyed;
-
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1235,8 +1321,6 @@ public sealed partial class World : IDisposable
                 continue;
             }
 
-            RecordComponentMembershipChanges(entity, chunk, slotIndex, changeSet.ComponentIds, isAdd);
-
             bool entityTagsChanged = ApplyTags(chunk, slotIndex, changeSet.TagIndices, isAdd);
             int sourceArchetypeId = chunk.ArchetypeId;
             var edge = edgeGeneration == 0
@@ -1264,8 +1348,8 @@ public sealed partial class World : IDisposable
         {
             EndQueryPlanBatch();
         }
-        return changed;
 
+        return changed;
     }
 
     private bool ApplyTags(Chunk chunk, int slotIndex, ReadOnlySpan<int> tagIndices, bool isAdd)
@@ -1276,6 +1360,7 @@ public sealed partial class World : IDisposable
         }
 
         chunk.EnsureTagCapacity(_layouts.TagCount);
+        RecordTagMembershipRange(chunk, slotIndex, 1, tagIndices, isAdd);
         return chunk.ApplyTags(tagIndices, slotIndex, 1, isAdd) != 0;
     }
 
@@ -1304,7 +1389,6 @@ public sealed partial class World : IDisposable
         int edgeGeneration = BeginBatchEdgeCache();
         int changed = 0;
         BeginQueryPlanBatch();
-
         for (int matchingIndex = 0; matchingIndex < matchingArchetypes.Length; matchingIndex++)
         {
             var sourceArchetype = _archetypes[matchingArchetypes.RefAt(matchingIndex)];
@@ -1324,7 +1408,6 @@ public sealed partial class World : IDisposable
 
         EndQueryPlanBatch();
         return changed;
-
     }
 
     private int ApplyQueryComponentsByEntity(QueryPlan plan, ComponentSet changeSet, bool isAdd)
@@ -1389,7 +1472,6 @@ public sealed partial class World : IDisposable
         EndQueryPlanBatch();
         _queryEntityScratch.Clear();
         return changed;
-
     }
 
     internal bool BeginGeneratedWhereStructural(
@@ -1536,6 +1618,7 @@ public sealed partial class World : IDisposable
         }
 
         chunk.EnsureTagCapacity(_layouts.TagCount);
+        RecordTagMembershipRange(chunk, slotIndex, count, tagIndices, isAdd);
         return chunk.ApplyTags(tagIndices, slotIndex, count, isAdd);
     }
 
@@ -1560,11 +1643,11 @@ public sealed partial class World : IDisposable
         {
             EndQueryPlanBatch();
         }
+
         _generatedWhereStructuralActive = false;
         _generatedWhereSourceArchetypeCount = 0;
         _generatedWhereDestroyCapacity = 0;
         _generatedWhereDestroyCapacityReserved = false;
-
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1602,10 +1685,10 @@ public sealed partial class World : IDisposable
         {
             _deferredQueryPlans[index].CompleteChunkPlanRefresh();
         }
+
         _deferredQueryPlanArchetypes.Clear();
         _deferredQueryPlans.Clear();
         _queryPlanBatchActive = false;
-
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1735,6 +1818,7 @@ public sealed partial class World : IDisposable
             if (!tagIndices.IsEmpty)
             {
                 target.EnsureTagCapacity(_layouts.TagCount);
+                RecordTagMembershipRange(target, targetSlot, copied, tagIndices, isAdd);
                 tagsChanged |= target.ApplyTags(tagIndices, targetSlot, copied, isAdd) != 0;
             }
 
@@ -1763,6 +1847,7 @@ public sealed partial class World : IDisposable
             _generatedWhereDestroyCapacityReserved = true;
         }
 
+        RecordEntityMembershipRange(sourceChunk, sourceSlot, count, present: false);
         Span<int> freeRecords = _freeRecords.Span.Slice(_freeCount, count);
         Span<Entity> entities = sourceChunk.RawEntities.Slice(sourceSlot, count);
         for (int index = 0; index < count; index++)
@@ -1858,6 +1943,7 @@ public sealed partial class World : IDisposable
         targetArchetype.PrepareBlockMoveCandidates(initialTargetChunkCount);
         while (sourceArchetype.TryGetLastActiveChunk(out int sourceChunkIndex, out Chunk sourceChunk))
         {
+            RecordTransitionMembershipRange(sourceChunk, 0, sourceChunk.Count, targetArchetype);
             while (sourceChunk.Count != 0
                 && targetArchetype.TryTakeBlockPartialChunk(out Chunk targetChunk))
             {
@@ -1923,6 +2009,7 @@ public sealed partial class World : IDisposable
             && ReferenceEquals(_chunksById[chunk.GlobalId], chunk))
         {
             _chunksById[chunk.GlobalId] = null;
+            _freeChunkIds.Add(chunk.GlobalId);
         }
 
         chunk.Dispose();
@@ -1976,6 +2063,7 @@ public sealed partial class World : IDisposable
             DeferQueryPlanUpdates(archetype);
         }
 
+        RecordEntityMembershipRange(chunk, 0, count, present: false);
         chunk.BeginFreeRecordBlock(count);
         chunk.SetFreeRecordListIndex(_freeRecordChunks.Count);
         _freeRecordChunks.Add(chunk);
@@ -2065,6 +2153,7 @@ public sealed partial class World : IDisposable
         int chunkIndex = chunk.ArchetypeIndex;
         int slotIndex = record.SlotIndex;
         int lastSlotIndex = chunk.Count - 1;
+        RecordEntityMembershipRange(chunk, slotIndex, 1, present: false);
         var moved = archetype.RemoveEntity(chunkIndex, slotIndex);
         RemoveComponentChangeSwapBack(chunk, slotIndex, lastSlotIndex);
         if (moved.IsValid)
@@ -2101,6 +2190,7 @@ public sealed partial class World : IDisposable
         }
 
         int sourceSlotIndex = sourceRecord.SlotIndex;
+        RecordTransitionMembershipRange(sourceChunk, sourceSlotIndex, 1, targetArchetype);
         int sourceChunkIndex = sourceChunk.ArchetypeIndex;
         int targetChunkId = targetArchetype.HasAvailableChunk(0) ? -1 : AllocateChunkId();
         targetArchetype.AddEntity(
@@ -2144,6 +2234,7 @@ public sealed partial class World : IDisposable
         {
             _tagVersion++;
         }
+
     }
 
     private TransitionEdge GetTransitionEdge(int sourceArchetypeId, ComponentSet changeSet, bool isAdd)
@@ -2460,7 +2551,18 @@ public sealed partial class World : IDisposable
         _freeRecords.Resize(Math.Max(required, _freeRecords.Length == 0 ? 4 : _freeRecords.Length * 2));
     }
 
-    private int AllocateChunkId() => _nextChunkId++;
+    private int AllocateChunkId()
+    {
+        int lastIndex = _freeChunkIds.Count - 1;
+        if (lastIndex < 0)
+        {
+            return _nextChunkId++;
+        }
+
+        int chunkId = _freeChunkIds[lastIndex];
+        _freeChunkIds.RemoveAt(lastIndex);
+        return chunkId;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal Chunk GetChunkById(int chunkId)
@@ -2563,7 +2665,7 @@ public sealed partial class World : IDisposable
 
     internal void EnterSchedulerWorker()
     {
-        if (Volatile.Read(ref _schedulerExecutionActive) == 0
+        if (_schedulerExecutionActive == 0
             || _schedulerExecutionWorld is not null)
         {
             ThrowHelper.ThrowUnauthorizedSchedulerWorker();
@@ -2574,7 +2676,7 @@ public sealed partial class World : IDisposable
 
     internal bool TryEnterSchedulerWorker()
     {
-        if (Volatile.Read(ref _schedulerExecutionActive) == 0)
+        if (_schedulerExecutionActive == 0)
         {
             return false;
         }
@@ -2593,7 +2695,7 @@ public sealed partial class World : IDisposable
 
     internal void EnsureExecutionAccess()
     {
-        if (Volatile.Read(ref _schedulerExecutionActive) != 0
+        if (_schedulerExecutionActive != 0
             && !ReferenceEquals(_schedulerExecutionWorld, this))
         {
             ThrowHelper.ThrowWorldSchedulerExecutionActive();
@@ -2607,7 +2709,7 @@ public sealed partial class World : IDisposable
             _schedulerExecutionWorld = null;
         }
 
-        Volatile.Write(ref _schedulerExecutionActive, 0);
+        _schedulerExecutionActive = 0;
     }
 
     private sealed class SchedulerExecutionLease : IDisposable
