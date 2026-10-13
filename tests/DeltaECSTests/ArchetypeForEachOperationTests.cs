@@ -153,6 +153,55 @@ internal sealed class ArchetypeForEachOperationTests
     }
 
     [Test]
+    public void ForEachChangeGrowsIndexedSnapshotWithWorldEntityCapacity()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<ComponentChangePosition>(new SchemaId(60_332));
+        using var world = new World(layouts, initialEntityCapacity: 1);
+        var changes = new List<(Entity Entity, ChangeKind Kind)>();
+        var operation = world.ForEachChange<ComponentChangePosition>(positionId,
+            (Entity entity, ChangeKind kind, ref ComponentChangePosition _) => changes.Add((entity, kind)));
+        Span<Entity> entities = stackalloc Entity[3];
+
+        world.Create([positionId], entities);
+        operation.Invoke();
+
+        Assert.That(changes, Is.EqualTo(new[]
+        {
+            (entities[0], ChangeKind.Added),
+            (entities[1], ChangeKind.Added),
+            (entities[2], ChangeKind.Added)
+        }));
+    }
+
+    [Test]
+    public void ForEachChangeDoesNotAdvanceSnapshotWhenCallbackThrows()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<ComponentChangePosition>(new SchemaId(60_333));
+        using var world = new World(layouts);
+        Entity entity = world.Create([positionId]);
+        var changes = new List<(Entity Entity, ChangeKind Kind)>();
+        bool shouldThrow = true;
+        var operation = world.ForEachChange<ComponentChangePosition>(positionId,
+            (Entity changedEntity, ChangeKind kind, ref ComponentChangePosition _) =>
+            {
+                if (shouldThrow)
+                {
+                    throw new InvalidOperationException();
+                }
+
+                changes.Add((changedEntity, kind));
+            });
+
+        Assert.Throws<InvalidOperationException>(() => operation.Invoke());
+        shouldThrow = false;
+        operation.Invoke();
+
+        Assert.That(changes, Is.EqualTo(new[] { (entity, ChangeKind.Added) }));
+    }
+
+    [Test]
     public void ForEachChangeDoesNotTreatReusedEntityIndexAsModifiedOldEntity()
     {
         var layouts = new ComponentRegistry();

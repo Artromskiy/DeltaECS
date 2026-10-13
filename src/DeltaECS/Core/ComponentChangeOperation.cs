@@ -1,6 +1,5 @@
 namespace Delta.ECS;
 
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -49,8 +48,10 @@ public sealed class ComponentChangeOperation<T> : IOperation
 {
     private readonly World _world;
     private readonly ComponentChangeAction<T> _action;
-    private HashSet<Entity> _entities = new();
-    private HashSet<Entity> _currentEntities = new();
+    private Entity[] _entities = Array.Empty<Entity>();
+    private Entity[] _currentEntities = Array.Empty<Entity>();
+    private ulong[] _entityPresence = Array.Empty<ulong>();
+    private ulong[] _currentEntityPresence = Array.Empty<ulong>();
     private ulong[] _modifiedEntityMarkers = Array.Empty<ulong>();
     private ulong[] _processingModifiedEntityMarkers = Array.Empty<ulong>();
     private readonly Observer _observer;
@@ -80,17 +81,15 @@ public sealed class ComponentChangeOperation<T> : IOperation
         Volatile.Write(ref _invokingThreadId, Environment.CurrentManagedThreadId);
         (_modifiedEntityMarkers, _processingModifiedEntityMarkers) =
             (_processingModifiedEntityMarkers, _modifiedEntityMarkers);
-        Array.Clear(_modifiedEntityMarkers, 0, _modifiedEntityMarkers.Length);
 
         _world.BeginQueryLease();
         bool completed = false;
         try
         {
-            _currentEntities.Clear();
             VisitCurrentEntities();
             VisitRemovedEntities();
             (_entities, _currentEntities) = (_currentEntities, _entities);
-            _currentEntities.Clear();
+            (_entityPresence, _currentEntityPresence) = (_currentEntityPresence, _entityPresence);
             Array.Clear(_processingModifiedEntityMarkers, 0, _processingModifiedEntityMarkers.Length);
             completed = true;
         }
@@ -98,7 +97,6 @@ public sealed class ComponentChangeOperation<T> : IOperation
         {
             if (!completed)
             {
-                _currentEntities.Clear();
                 for (int index = 0; index < _processingModifiedEntityMarkers.Length; index++)
                 {
                     _modifiedEntityMarkers[index] |= _processingModifiedEntityMarkers[index];
@@ -107,6 +105,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
                 Array.Clear(_processingModifiedEntityMarkers, 0, _processingModifiedEntityMarkers.Length);
             }
 
+            Array.Clear(_currentEntityPresence, 0, _currentEntityPresence.Length);
             _world.EndQueryLease();
             Volatile.Write(ref _invokingThreadId, 0);
             _invoking = false;
@@ -232,15 +231,25 @@ public sealed class ComponentChangeOperation<T> : IOperation
 
     private void EnsureCapacity(int capacity)
     {
-        int required = (capacity + 63) >> 6;
-        if (required <= _modifiedEntityMarkers.Length)
+        if (capacity > _entities.Length)
         {
-            return;
+            Array.Resize(ref _entities, capacity);
+            Array.Resize(ref _currentEntities, capacity);
         }
 
-        int newCapacity = Math.Max(required, _modifiedEntityMarkers.Length == 0 ? 4 : _modifiedEntityMarkers.Length * 2);
-        Array.Resize(ref _modifiedEntityMarkers, newCapacity);
-        Array.Resize(ref _processingModifiedEntityMarkers, newCapacity);
+        int requiredWords = (capacity + 63) >> 6;
+        if (requiredWords > _entityPresence.Length)
+        {
+            Array.Resize(ref _entityPresence, requiredWords);
+            Array.Resize(ref _currentEntityPresence, requiredWords);
+        }
+
+        if (requiredWords > _modifiedEntityMarkers.Length)
+        {
+            int newCapacity = Math.Max(requiredWords, _modifiedEntityMarkers.Length == 0 ? 4 : _modifiedEntityMarkers.Length * 2);
+            Array.Resize(ref _modifiedEntityMarkers, newCapacity);
+            Array.Resize(ref _processingModifiedEntityMarkers, newCapacity);
+        }
     }
 
     private void VisitCurrentEntities()
@@ -269,9 +278,10 @@ public sealed class ComponentChangeOperation<T> : IOperation
                     }
 
                     Entity entity = entities.RefAt(slot);
-                    bool added = !_entities.Contains(entity);
+                    bool added = !IsMarked(_entityPresence, entity.Index) || _entities[entity.Index] != entity;
                     bool modified = !added && IsMarked(_processingModifiedEntityMarkers, entity.Index);
-                    _currentEntities.Add(entity);
+                    _currentEntities[entity.Index] = entity;
+                    MarkEntity(_currentEntityPresence, entity.Index);
                     if (!added && !modified)
                     {
                         continue;
@@ -292,16 +302,39 @@ public sealed class ComponentChangeOperation<T> : IOperation
 
     private void VisitRemovedEntities()
     {
-        foreach (Entity entity in _entities)
+        for (int wordIndex = 0; wordIndex < _entityPresence.Length; wordIndex++)
         {
-            if (_currentEntities.Contains(entity))
+            ulong previous = _entityPresence[wordIndex];
+            ulong current = _currentEntityPresence[wordIndex];
+            ulong removed = previous & ~current;
+            while (removed != 0)
             {
-                continue;
+                int bit = BitOperationsCompat.TrailingZeroCount(removed);
+                InvokeRemoved(_entities[(wordIndex << 6) + bit]);
+                removed &= removed - 1;
             }
 
-            ref T component = ref Unsafe.NullRef<T>();
-            _action(entity, ChangeKind.Removed, ref component);
+            ulong shared = previous & current;
+            while (shared != 0)
+            {
+                int bit = BitOperationsCompat.TrailingZeroCount(shared);
+                int entityIndex = (wordIndex << 6) + bit;
+                Entity previousEntity = _entities[entityIndex];
+                if (previousEntity != _currentEntities[entityIndex])
+                {
+                    InvokeRemoved(previousEntity);
+                }
+
+                shared &= shared - 1;
+            }
         }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void InvokeRemoved(Entity entity)
+    {
+        ref T component = ref Unsafe.NullRef<T>();
+        _action(entity, ChangeKind.Removed, ref component);
     }
 
     private sealed class Observer : ComponentChangeObserver
