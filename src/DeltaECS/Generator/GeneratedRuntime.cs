@@ -720,22 +720,9 @@ public static partial class GeneratedForEachRuntime
                     continue;
                 }
 
-                Span<Entity> entities = chunk.RawEntities;
-                if (plan.TryGetTagSlots(chunk, out ReadOnlySpan<int> tagSlots))
+                for (int observerIndex = 0; observerIndex < observerCount; observerIndex++)
                 {
-                    for (int index = 0; index < tagSlots.Length; index++)
-                    {
-                        Entity entity = entities.RefAt(tagSlots.RefAt(index));
-                        World.RecordComponentChangeObservers(observers, observerCount, entity);
-                    }
-
-                    continue;
-                }
-
-                for (int slotIndex = 0; slotIndex < chunk.Count; slotIndex++)
-                {
-                    Entity entity = entities.RefAt(slotIndex);
-                    World.RecordComponentChangeObservers(observers, observerCount, entity);
+                    observers[observerIndex].RecordChunk(chunk, plan);
                 }
             }
         }

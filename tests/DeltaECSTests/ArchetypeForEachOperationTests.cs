@@ -365,6 +365,28 @@ internal sealed class ArchetypeForEachOperationTests
     }
 
     [Test]
+    public void ForEachChangeKeepsChunkWritesWhenEntityMovesBeforeObservation()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<ComponentChangePosition>(new SchemaId(60_330));
+        ComponentId velocityId = layouts.Register<ComponentChangeVelocity>(new SchemaId(60_331));
+        using var world = new World(layouts);
+        Entity entity = world.Create([positionId]);
+        Query query = world.WhereAll(positionId);
+        var changes = new List<(Entity Entity, ChangeKind Kind)>();
+        var operation = world.ForEachChange<ComponentChangePosition>(positionId,
+            (Entity changedEntity, ChangeKind kind, ref ComponentChangePosition _) => changes.Add((changedEntity, kind)));
+
+        operation.Invoke();
+        changes.Clear();
+        world.ForEach<ComponentChangePosition>(in query, positionId, static (ref ComponentChangePosition position) => position.Value++).Invoke();
+        world.Add(entity, velocityId);
+        operation.Invoke();
+
+        Assert.That(changes, Is.EqualTo(new[] { (entity, ChangeKind.Modified) }));
+    }
+
+    [Test]
     public void ForEachChangeObservesEntityListAndArchetypeIteration()
     {
         var layouts = new ComponentRegistry();

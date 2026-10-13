@@ -360,6 +360,7 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
         {
             Chunk chunk = archetype.GetActiveChunk(chunkIndex);
             view.SetChunk(chunk);
+            RecordChunkWrite(chunk);
             ref TComponent component = ref componentIndex == TagComponentIndex
                 ? ref GeneratedTagRows.GetReference<TComponent>(0)
                 : ref chunk.GetComponentRow<TComponent>(componentIndex).GetRefAtZero();
@@ -373,7 +374,6 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
                     int slotAdvance = selectedSlot - currentSlot;
                     component = ref Unsafe.Add(ref component, slotAdvance);
                     view.SetSlot(selectedSlot);
-                    RecordWrite(entity);
                     _processor.Invoke(ref context, entity, ref component);
                     currentSlot = selectedSlot;
                 }
@@ -385,7 +385,6 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
             while (denseSlotIndex < chunkCount)
             {
                 view.SetSlot(denseSlotIndex);
-                RecordWrite(entity);
                 _processor.Invoke(ref context, entity, ref component);
                 component = ref Unsafe.Add(ref component, 1);
                 denseSlotIndex++;
@@ -394,7 +393,7 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void RecordWrite(EntityRef entity)
+    private void RecordChunkWrite(Chunk chunk)
     {
         ComponentChangeObserver[]? observers = _changeObservers;
         if (observers is null)
@@ -402,7 +401,20 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
             return;
         }
 
-        World.RecordComponentChangeObservers(observers, _changeObserverCount, entity);
+        if (_query.Owner.Components.TryGetTagIndex(_componentId, out int tagIndex))
+        {
+            for (int index = 0; index < _changeObserverCount; index++)
+            {
+                observers[index].RecordTagChunk(chunk, tagIndex, _query);
+            }
+
+            return;
+        }
+
+        for (int index = 0; index < _changeObserverCount; index++)
+        {
+            observers[index].RecordChunk(chunk, _query);
+        }
     }
 
 }

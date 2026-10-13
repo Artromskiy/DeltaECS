@@ -29,6 +29,8 @@ internal abstract class ComponentChangeObserver
 
     internal abstract void Record(Entity entity);
 
+    internal abstract void RecordChunk(Chunk chunk, QueryPlan query);
+
     internal abstract void RecordTagChunk(Chunk chunk, int tagIndex, QueryPlan query);
 
     internal abstract void EnsureCapacity(int capacity);
@@ -115,15 +117,40 @@ public sealed class ComponentChangeOperation<T> : IOperation
     {
         if (Volatile.Read(ref _invokingThreadId) != Environment.CurrentManagedThreadId)
         {
-            _modifiedEntityMarkers[entity.Index >> 6] |= 1UL << (entity.Index & 63);
+            MarkEntity(_modifiedEntityMarkers, entity.Index);
         }
+    }
+
+    private void RecordChunk(Chunk chunk, QueryPlan query)
+    {
+        if (Volatile.Read(ref _invokingThreadId) == Environment.CurrentManagedThreadId)
+        {
+            return;
+        }
+
+        Span<Entity> entities = chunk.RawEntities;
+        if (query.TryGetTagSlots(chunk, out ReadOnlySpan<int> selectedSlots))
+        {
+            for (int index = 0; index < selectedSlots.Length; index++)
+            {
+                MarkEntity(_modifiedEntityMarkers, entities.RefAt(selectedSlots.RefAt(index)).Index);
+            }
+
+            return;
+        }
+
+        MarkEntityRange(_modifiedEntityMarkers, entities);
     }
 
     private void RecordTagChunk(Chunk chunk, int tagIndex, QueryPlan query)
     {
+        if (Volatile.Read(ref _invokingThreadId) == Environment.CurrentManagedThreadId)
+        {
+            return;
+        }
+
         int wordCount = (chunk.Count + 63) >> 6;
         bool hasSelection = query.TryGetTagSlots(chunk, out ReadOnlySpan<int> selectedSlots);
-        Span<Entity> entities = chunk.RawEntities;
         int selectedIndex = 0;
         for (int wordIndex = 0; wordIndex < wordCount; wordIndex++)
         {
@@ -150,14 +177,58 @@ public sealed class ComponentChangeOperation<T> : IOperation
             }
 
             ulong changedSlots = writeMask & chunk.GetTagWord(tagIndex, wordIndex);
-            while (changedSlots != 0)
-            {
-                int bit = BitOperationsCompat.TrailingZeroCount(changedSlots);
-                Record(entities.RefAt((wordIndex << 6) + bit));
-                changedSlots &= changedSlots - 1;
-            }
+            MarkChunkWord(chunk, wordIndex, changedSlots);
         }
     }
+
+    private void MarkChunkWord(Chunk chunk, int wordIndex, ulong slots)
+    {
+        Span<Entity> entities = chunk.RawEntities;
+        while (slots != 0)
+        {
+            int bit = BitOperationsCompat.TrailingZeroCount(slots);
+            MarkEntity(_modifiedEntityMarkers, entities.RefAt((wordIndex << 6) + bit).Index);
+            slots &= slots - 1;
+        }
+    }
+
+    private static void MarkEntityRange(ulong[] markers, Span<Entity> entities)
+    {
+        int count = entities.Length;
+        if (count == 0)
+        {
+            return;
+        }
+
+        int firstIndex = entities.GetRefAtZero().Index;
+        for (int index = 1; index < count; index++)
+        {
+            if (entities.RefAt(index).Index != firstIndex + index)
+            {
+                for (int entityIndex = 0; entityIndex < count; entityIndex++)
+                {
+                    MarkEntity(markers, entities.RefAt(entityIndex).Index);
+                }
+
+                return;
+            }
+        }
+
+        int end = firstIndex + count;
+        int firstWord = firstIndex >> 6;
+        int lastWord = (end - 1) >> 6;
+        for (int word = firstWord; word <= lastWord; word++)
+        {
+            int startBit = word == firstWord ? firstIndex & 63 : 0;
+            int endBit = word == lastWord ? ((end - 1) & 63) + 1 : 64;
+            ulong mask = (ulong.MaxValue << startBit) & (ulong.MaxValue >> (64 - endBit));
+            markers[word] |= mask;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void MarkEntity(ulong[] markers, int entityIndex)
+        => markers[entityIndex >> 6] |= 1UL << (entityIndex & 63);
 
     private void EnsureCapacity(int capacity)
     {
@@ -241,6 +312,8 @@ public sealed class ComponentChangeOperation<T> : IOperation
             : base(componentId) => _operation = operation;
 
         internal override void Record(Entity entity) => _operation.Record(entity);
+
+        internal override void RecordChunk(Chunk chunk, QueryPlan query) => _operation.RecordChunk(chunk, query);
 
         internal override void RecordTagChunk(Chunk chunk, int tagIndex, QueryPlan query)
             => _operation.RecordTagChunk(chunk, tagIndex, query);
