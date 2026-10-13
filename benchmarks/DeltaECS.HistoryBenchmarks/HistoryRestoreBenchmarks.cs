@@ -22,9 +22,6 @@ public class HistoryRestoreBenchmarks : IDisposable
     public void PerComponentQueries() => _history.RestoreByComponent();
 
     [Benchmark]
-    public void ForEachArchetype() => _history.RestoreByArchetype();
-
-    [Benchmark]
     public void SingleComponentRow() => _singleComponentRow.Restore();
 
     public void Dispose()

@@ -374,19 +374,6 @@ missing or its registration has another CLR type. A tag has no per-entity
 value: its `TryGet` result
 is `default(T)`, and writes through `GetRef` are ignored.
 
-For several query-specific processors, retain one archetype operation and add
-its queries during setup. `Invoke` reuses the per-archetype query plan and
-runs processors in registration order for each matching archetype:
-
-```csharp
-var restore = world
-    .ForEachArchetype(restoreState)
-    .Process(in healthQuery, new RestoreHealth())
-    .Process(in positionQuery, new RestorePosition());
-
-restore.Invoke(ref restoreState);
-```
-
 For one component registration, retain a change operation. Its first `Invoke`
 reports every existing instance as `Added`. Later calls report components that
 became present, components opened for writing, and components that are no longer
@@ -417,24 +404,6 @@ are coalesced to the final state. A writable `ref` access counts as `Modified`
 even when the caller leaves the value unchanged. Writes through the operation's
 own callback are included in that callback and are not reported again by the
 same operation.
-
-`IArchetypeForEachEntity<TContext>` processors receive the shared context and
-the current borrowed `EntityRef`. This API is available without the source
-generator and can be configured from a component visitor loop before the
-operation is retained and invoked repeatedly.
-
-For direct component access, bind a component required by `WhereAll` at setup.
-For a data component, its row index is cached per matching archetype, and the
-processor walks the typed component row directly instead of resolving every
-access through `EntityRef`:
-
-```csharp
-restore.ProcessRef<Health, RestoreHealth>(in healthQuery, healthId, new RestoreHealth());
-```
-
-For a tag, the processor receives the same shared placeholder reference used by
-generated `ForEach`; writes through it are not stored. Tags have no component
-row.
 
 `EntityRef` also supports primary-registration forms. Supply a `ComponentId`
 when the entity has multiple registrations of the same CLR type:

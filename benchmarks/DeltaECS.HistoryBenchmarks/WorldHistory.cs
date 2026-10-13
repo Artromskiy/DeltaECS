@@ -13,7 +13,6 @@ internal sealed class WorldHistory : IDisposable
     private readonly ComponentId[] _componentIds = new ComponentId[HistoryComponentCount];
     private readonly ComponentId[][] _entityComponentIds;
     private readonly IOperation[] _componentRestores = new IOperation[HistoryComponentCount];
-    private readonly ArchetypeForEachOperation<RestoreContext> _archetypeRestore;
 
     internal WorldHistory(int entityCount)
     {
@@ -41,12 +40,10 @@ internal sealed class WorldHistory : IDisposable
             }
         }
 
-        _archetypeRestore = _world.ForEachArchetype(default(RestoreContext));
         for (int index = 0; index < HistoryComponentCount; index++)
         {
             Query query = _world.WhereAll(_componentIds[index]);
             _componentRestores[index] = CreateComponentRestore(in query, _componentIds[index], index);
-            AddArchetypeRestore(in query, _componentIds[index], index);
         }
     }
 
@@ -59,8 +56,6 @@ internal sealed class WorldHistory : IDisposable
             _componentRestores[index].Invoke();
         }
     }
-
-    internal void RestoreByArchetype() => _archetypeRestore.Invoke();
 
     internal ulong Checksum()
     {
@@ -136,17 +131,6 @@ internal sealed class WorldHistory : IDisposable
         _ => _world.ForEachEntity(in query, id, new RestoreArmor(id))
     };
 
-    private void AddArchetypeRestore(in Query query, ComponentId id, int index)
-    {
-        switch (index % ComponentTypeCount)
-        {
-            case 0: _archetypeRestore.Process<HistoryPosition, ArchetypeRestorePosition>(in query, id, new ArchetypeRestorePosition(id)); break;
-            case 1: _archetypeRestore.Process<HistoryVelocity, ArchetypeRestoreVelocity>(in query, id, new ArchetypeRestoreVelocity(id)); break;
-            case 2: _archetypeRestore.Process<HistoryHealth, ArchetypeRestoreHealth>(in query, id, new ArchetypeRestoreHealth(id)); break;
-            default: _archetypeRestore.Process<HistoryArmor, ArchetypeRestoreArmor>(in query, id, new ArchetypeRestoreArmor(id)); break;
-        }
-    }
-
     private static int SnapshotValue(EntityRef entity, ComponentId componentId) => entity.Index + componentId.Value + 1;
 
     private void SetComponentValue(Entity entity, ComponentId componentId, int value)
@@ -168,8 +152,6 @@ internal sealed class WorldHistory : IDisposable
         _ => _world.Get<HistoryArmor>(entity, componentId).Value
     };
 
-    internal struct RestoreContext;
-
     internal readonly struct RestorePosition(ComponentId id) : IForEachEntity
     {
         public void Invoke(EntityRef entity, ref HistoryPosition component) => component.Value = SnapshotValue(entity, id);
@@ -188,25 +170,5 @@ internal sealed class WorldHistory : IDisposable
     internal readonly struct RestoreArmor(ComponentId id) : IForEachEntity
     {
         public void Invoke(EntityRef entity, ref HistoryArmor component) => component.Value = SnapshotValue(entity, id);
-    }
-
-    internal readonly struct ArchetypeRestorePosition(ComponentId id) : IArchetypeForEachComponent<RestoreContext, HistoryPosition>
-    {
-        public void Invoke(ref RestoreContext context, EntityRef entity, ref HistoryPosition component) => component.Value = entity.Index + id.Value + 1;
-    }
-
-    internal readonly struct ArchetypeRestoreVelocity(ComponentId id) : IArchetypeForEachComponent<RestoreContext, HistoryVelocity>
-    {
-        public void Invoke(ref RestoreContext context, EntityRef entity, ref HistoryVelocity component) => component.Value = entity.Index + id.Value + 1;
-    }
-
-    internal readonly struct ArchetypeRestoreHealth(ComponentId id) : IArchetypeForEachComponent<RestoreContext, HistoryHealth>
-    {
-        public void Invoke(ref RestoreContext context, EntityRef entity, ref HistoryHealth component) => component.Value = entity.Index + id.Value + 1;
-    }
-
-    internal readonly struct ArchetypeRestoreArmor(ComponentId id) : IArchetypeForEachComponent<RestoreContext, HistoryArmor>
-    {
-        public void Invoke(ref RestoreContext context, EntityRef entity, ref HistoryArmor component) => component.Value = entity.Index + id.Value + 1;
     }
 }

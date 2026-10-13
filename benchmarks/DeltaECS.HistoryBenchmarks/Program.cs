@@ -34,17 +34,15 @@ internal static class Program
 
     private static int ValidateEquivalentResults(int entityCount)
     {
-        using var perComponent = new WorldHistory(entityCount);
-        using var archetype = new WorldHistory(entityCount);
-        perComponent.RestoreByComponent();
-        archetype.RestoreByArchetype();
+        using var history = new WorldHistory(entityCount);
+        history.RestoreByComponent();
 
-        ulong expected = perComponent.ExpectedChecksum();
-        if (perComponent.Checksum() != expected || archetype.Checksum() != expected)
+        ulong expected = history.ExpectedChecksum();
+        if (history.Checksum() != expected)
         {
             throw new InvalidOperationException("A history restore path produced incorrect component values.");
         }
 
-        return archetype.ComponentMembershipCount;
+        return history.ComponentMembershipCount;
     }
 }
