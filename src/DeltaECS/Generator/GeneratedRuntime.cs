@@ -1070,6 +1070,7 @@ public static partial class GeneratedForEachRuntime
         {
             world.EnterParallelExecution();
             entered = true;
+            plan.PrepareTagSlotCache();
             world.GetParallelQueryExecutor<TInvoker>().ExecuteEntityList(
                 world,
                 plan,
@@ -1164,6 +1165,7 @@ public static partial class GeneratedForEachRuntime
         {
             world.EnterParallelExecution();
             entered = true;
+            plan.PrepareTagSlotCache();
             world.GetParallelQueryExecutor<TInvoker>().Execute(
                 plan,
                 ref invoker,

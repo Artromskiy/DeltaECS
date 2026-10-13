@@ -25,6 +25,8 @@ internal struct ParallelContextFunctor : IForEachContext<ParallelState>
     public void Invoke(in ParallelState state, ref Position position, in Velocity velocity) => position.X += state.Delta + velocity.X;
 }
 
+internal readonly struct ParallelFilterTag;
+
 [TestFixture]
 internal sealed class ParallelIterationTests
 {
@@ -197,6 +199,53 @@ internal sealed class ParallelIterationTests
             Position actual = world.Get<Position>(entities[index], positionId);
             Assert.That(actual.X, Is.EqualTo(4));
             Assert.That(actual.Y, Is.EqualTo(6));
+        }
+    }
+
+    [Test]
+    public void GeneratedForEachParallelRefreshesPreparedTagSlotsAfterTagChanges()
+    {
+        const int entityCount = 2_048;
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(70_094));
+        ComponentId tagId = layouts.Register<ParallelFilterTag>(new SchemaId(70_095));
+        using var world = new World(layouts, initialEntityCapacity: entityCount);
+        var entities = new Entity[entityCount];
+        world.Create(stackalloc ComponentId[1] { positionId }, entities);
+        for (int index = 0; index < entityCount; index += 2)
+        {
+            world.Add(entities[index], tagId);
+        }
+
+        Query query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, tagId }));
+        var operation = world.ForEachParallel(
+            in query,
+            static (ref Position position) => position.X++,
+            workerCount: 4);
+        operation.Invoke();
+
+        for (int index = 0; index < entityCount; index++)
+        {
+            Assert.That(world.Get<Position>(entities[index], positionId).X, Is.EqualTo(index % 2 == 0 ? 1 : 0));
+        }
+
+        for (int index = 0; index < entityCount; index++)
+        {
+            if ((index & 1) == 0)
+            {
+                world.Remove(entities[index], tagId);
+            }
+            else
+            {
+                world.Add(entities[index], tagId);
+            }
+        }
+
+        operation.Invoke();
+
+        for (int index = 0; index < entityCount; index++)
+        {
+            Assert.That(world.Get<Position>(entities[index], positionId).X, Is.EqualTo(1));
         }
     }
 

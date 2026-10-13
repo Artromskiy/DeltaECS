@@ -3,7 +3,6 @@ namespace Delta.ECS;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using System.Threading;
 
 /// <summary>Non-generic query access token for a read row.</summary>
 public readonly struct ReadAccess
@@ -140,6 +139,20 @@ internal sealed class QueryPlan
         return true;
     }
 
+    internal void PrepareTagSlotCache()
+    {
+        if (!HasTagFilters)
+        {
+            return;
+        }
+
+        ReadOnlySpan<ChunkPlan> chunks = MatchingChunkPlans();
+        for (int index = 0; index < chunks.Length; index++)
+        {
+            TryGetTagSelection(chunks[index].Chunk, out _);
+        }
+    }
+
     private bool TryGetTagSelection(Chunk chunk, out TagSlotCacheEntry? entry)
     {
         bool constrainByAnyTags = _anyTagIndices.Length != 0
@@ -152,7 +165,7 @@ internal sealed class QueryPlan
 
         entry = GetTagSlotCacheEntry(chunk.GlobalId);
         int version = _owner.TagVersion;
-        if (Volatile.Read(ref entry.Version) == version)
+        if (entry.Version == version)
         {
             return true;
         }
@@ -162,7 +175,7 @@ internal sealed class QueryPlan
             if (entry.Version != version)
             {
                 BuildTagSlots(chunk, constrainByAnyTags, entry);
-                Volatile.Write(ref entry.Version, version);
+                entry.Version = version;
             }
         }
 
@@ -746,7 +759,7 @@ internal sealed class QueryPlan
             }
         }
 
-        TagSlotCacheEntry? entry = Volatile.Read(ref _tagSlotsByChunk[chunkId]);
+        TagSlotCacheEntry? entry = _tagSlotsByChunk[chunkId];
         if (entry is not null)
         {
             return entry;
@@ -758,7 +771,7 @@ internal sealed class QueryPlan
             if (entry is null)
             {
                 entry = new TagSlotCacheEntry();
-                Volatile.Write(ref _tagSlotsByChunk[chunkId], entry);
+                _tagSlotsByChunk[chunkId] = entry;
             }
 
             return entry;

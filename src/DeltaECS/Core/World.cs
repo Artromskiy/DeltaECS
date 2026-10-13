@@ -8,6 +8,11 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 
 /// <summary>Owns entities, component storage, archetypes, and cached queries.</summary>
+/// <remarks>
+/// A world is not generally thread-safe. Generated parallel iteration is the supported concurrent execution path;
+/// do not invoke other world operations or dispose the world concurrently with an active operation.
+/// Structural changes and observer registration are rejected while a query lease is active.
+/// </remarks>
 public sealed partial class World : IDisposable
 {
     private const int DefaultInitialCapacity = 1024;
@@ -31,6 +36,7 @@ public sealed partial class World : IDisposable
     private readonly Dictionary<TransitionKey, TransitionEdge> _transitionCache = new();
     private readonly ComponentSetCache _componentSetCache = new();
     private readonly Dictionary<QuerySpec, WeakReference<QueryPlan>> _queryCache = new();
+    // These snapshots change only outside query execution; parallel callbacks observe them after executor publication.
     private ComponentChangeObserverRoute?[]? _componentChangeObservers;
     private WeakReference<ComponentChangeObserver>[] _componentChangeObserverList = Array.Empty<WeakReference<ComponentChangeObserver>>();
     private readonly object _componentChangeGate = new();
@@ -205,8 +211,8 @@ public sealed partial class World : IDisposable
         _componentRowArrayPool.Clear();
         _chunksById = Array.Empty<Chunk?>();
         _freeRecordChunks.Clear();
-        Volatile.Write(ref _componentChangeObservers, null);
-        Volatile.Write(ref _componentChangeObserverList, Array.Empty<WeakReference<ComponentChangeObserver>>());
+        _componentChangeObservers = null;
+        _componentChangeObserverList = Array.Empty<WeakReference<ComponentChangeObserver>>();
         GC.SuppressFinalize(this);
     }
 
@@ -275,7 +281,7 @@ public sealed partial class World : IDisposable
             var observerReference = new WeakReference<ComponentChangeObserver>(observer);
             observers.Add(observerReference);
             routes[observer.ComponentId.Value] = new ComponentChangeObserverRoute(observers.ToArray());
-            Volatile.Write(ref _componentChangeObservers, routes);
+            _componentChangeObservers = routes;
 
             WeakReference<ComponentChangeObserver>[] currentList = _componentChangeObserverList;
             var observerList = new List<WeakReference<ComponentChangeObserver>>(currentList.Length + 1);
@@ -288,13 +294,13 @@ public sealed partial class World : IDisposable
             }
 
             observerList.Add(observerReference);
-            Volatile.Write(ref _componentChangeObserverList, observerList.ToArray());
+            _componentChangeObserverList = observerList.ToArray();
         }
     }
 
     internal void PrepareComponentChangeAddRange(Chunk chunk, int slotIndex, int count)
     {
-        WeakReference<ComponentChangeObserver>[] observers = Volatile.Read(ref _componentChangeObserverList);
+        WeakReference<ComponentChangeObserver>[] observers = _componentChangeObserverList;
         for (int index = 0; index < observers.Length; index++)
         {
             if (observers[index].TryGetTarget(out ComponentChangeObserver? observer))
@@ -306,7 +312,7 @@ public sealed partial class World : IDisposable
 
     internal void MoveComponentChangeRange(Chunk source, int sourceSlot, Chunk target, int targetSlot, int count)
     {
-        WeakReference<ComponentChangeObserver>[] observers = Volatile.Read(ref _componentChangeObserverList);
+        WeakReference<ComponentChangeObserver>[] observers = _componentChangeObserverList;
         for (int index = 0; index < observers.Length; index++)
         {
             if (observers[index].TryGetTarget(out ComponentChangeObserver? observer))
@@ -318,7 +324,7 @@ public sealed partial class World : IDisposable
 
     internal void CopyComponentChangeRangeWithin(Chunk chunk, int sourceSlot, int targetSlot, int count)
     {
-        WeakReference<ComponentChangeObserver>[] observers = Volatile.Read(ref _componentChangeObserverList);
+        WeakReference<ComponentChangeObserver>[] observers = _componentChangeObserverList;
         for (int index = 0; index < observers.Length; index++)
         {
             if (observers[index].TryGetTarget(out ComponentChangeObserver? observer))
@@ -330,7 +336,7 @@ public sealed partial class World : IDisposable
 
     internal void RemoveComponentChangeSwapBack(Chunk chunk, int slotIndex, int lastSlotIndex)
     {
-        WeakReference<ComponentChangeObserver>[] observers = Volatile.Read(ref _componentChangeObserverList);
+        WeakReference<ComponentChangeObserver>[] observers = _componentChangeObserverList;
         for (int index = 0; index < observers.Length; index++)
         {
             if (observers[index].TryGetTarget(out ComponentChangeObserver? observer))
@@ -342,7 +348,7 @@ public sealed partial class World : IDisposable
 
     internal void TrimComponentChangeChunkTail(Chunk chunk, int count)
     {
-        WeakReference<ComponentChangeObserver>[] observers = Volatile.Read(ref _componentChangeObserverList);
+        WeakReference<ComponentChangeObserver>[] observers = _componentChangeObserverList;
         for (int index = 0; index < observers.Length; index++)
         {
             if (observers[index].TryGetTarget(out ComponentChangeObserver? observer))
@@ -354,7 +360,7 @@ public sealed partial class World : IDisposable
 
     private void ClearComponentChangeChunk(Chunk chunk)
     {
-        WeakReference<ComponentChangeObserver>[] observers = Volatile.Read(ref _componentChangeObserverList);
+        WeakReference<ComponentChangeObserver>[] observers = _componentChangeObserverList;
         for (int index = 0; index < observers.Length; index++)
         {
             if (observers[index].TryGetTarget(out ComponentChangeObserver? observer))
@@ -400,7 +406,7 @@ public sealed partial class World : IDisposable
 
     internal void RecordComponentChange(Entity entity, ComponentId componentId)
     {
-        ComponentChangeObserverRoute?[]? routes = Volatile.Read(ref _componentChangeObservers);
+        ComponentChangeObserverRoute?[]? routes = _componentChangeObservers;
         if (routes is null || (uint)componentId.Value >= (uint)routes.Length)
         {
             return;
@@ -474,7 +480,7 @@ public sealed partial class World : IDisposable
 
     internal ComponentChangeObserver[]? ResolveComponentChangeObservers(ComponentId componentId, out int count)
     {
-        ComponentChangeObserverRoute?[]? routes = Volatile.Read(ref _componentChangeObservers);
+        ComponentChangeObserverRoute?[]? routes = _componentChangeObservers;
         if (routes is null || (uint)componentId.Value >= (uint)routes.Length)
         {
             count = 0;
@@ -518,7 +524,7 @@ public sealed partial class World : IDisposable
         return resolved;
     }
 
-    internal bool HasComponentChangeObserverRoutes => Volatile.Read(ref _componentChangeObservers) is not null;
+    internal bool HasComponentChangeObserverRoutes => _componentChangeObservers is not null;
 
     internal static void ReturnComponentChangeObservers(ComponentChangeObserver[] observers, int count)
     {

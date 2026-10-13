@@ -86,7 +86,8 @@ public sealed class ComponentChangeOperation<T> : IOperation
     private Dictionary<Chunk, DirtyChunkState> _processingDirtyChunks = new();
     private readonly Observer _observer;
     private bool _invoking;
-    private int _invokingThreadId;
+    [ThreadStatic]
+    private static ComponentChangeOperation<T>? s_invoking;
 
     internal ComponentChangeOperation(World world, ComponentId componentId, ComponentChangeAction<T> action)
     {
@@ -108,13 +109,14 @@ public sealed class ComponentChangeOperation<T> : IOperation
         }
 
         _invoking = true;
-        Volatile.Write(ref _invokingThreadId, Environment.CurrentManagedThreadId);
         (_modifiedEntityMarkers, _processingModifiedEntityMarkers) =
             (_processingModifiedEntityMarkers, _modifiedEntityMarkers);
         (_dirtyChunks, _processingDirtyChunks) = (_processingDirtyChunks, _dirtyChunks);
         _dirtyChunks.Clear();
 
         _world.BeginQueryLease();
+        ComponentChangeOperation<T>? previousInvoking = s_invoking;
+        s_invoking = this;
         bool completed = false;
         try
         {
@@ -143,14 +145,17 @@ public sealed class ComponentChangeOperation<T> : IOperation
 
             Array.Clear(_currentEntityPresence, 0, _currentEntityPresence.Length);
             _world.EndQueryLease();
-            Volatile.Write(ref _invokingThreadId, 0);
+            s_invoking = previousInvoking;
             _invoking = false;
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool ShouldRecord() => !ReferenceEquals(s_invoking, this);
+
     private void Record(Entity entity)
     {
-        if (Volatile.Read(ref _invokingThreadId) != Environment.CurrentManagedThreadId)
+        if (ShouldRecord())
         {
             MarkEntity(_modifiedEntityMarkers, entity.Index);
         }
@@ -158,7 +163,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
 
     private void RecordChunk(Chunk chunk)
     {
-        if (Volatile.Read(ref _invokingThreadId) == Environment.CurrentManagedThreadId)
+        if (!ShouldRecord())
         {
             return;
         }
@@ -171,7 +176,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
 
     private void RecordChunkSlot(Chunk chunk, int slotIndex)
     {
-        if (Volatile.Read(ref _invokingThreadId) != Environment.CurrentManagedThreadId)
+        if (ShouldRecord())
         {
             SetSlot(_dirtyChunks, chunk, slotIndex, true);
         }
@@ -179,7 +184,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
 
     private void RecordChunkMask(Chunk chunk, ReadOnlySpan<ulong> mask)
     {
-        if (Volatile.Read(ref _invokingThreadId) == Environment.CurrentManagedThreadId)
+        if (!ShouldRecord())
         {
             return;
         }

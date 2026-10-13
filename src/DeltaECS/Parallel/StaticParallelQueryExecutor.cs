@@ -67,7 +67,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
     internal void Execute(QueryPlan plan, ref TInvoker invoker, int requestedWorkerCount)
     {
         ThrowHelper.ThrowIfNegative(requestedWorkerCount, nameof(requestedWorkerCount));
-        if (Volatile.Read(ref _disposed))
+        if (_disposed)
         {
             ThrowHelper.ThrowDisposedWorld();
         }
@@ -215,7 +215,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         int requestedWorkerCount)
     {
         ThrowHelper.ThrowIfNegative(requestedWorkerCount, nameof(requestedWorkerCount));
-        if (Volatile.Read(ref _disposed))
+        if (_disposed)
         {
             ThrowHelper.ThrowDisposedWorld();
         }
@@ -324,7 +324,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
                 return;
             }
 
-            Volatile.Write(ref _disposed, true);
+            _disposed = true;
             Volatile.Write(ref _stopping, 1);
             workers = _workers;
         }

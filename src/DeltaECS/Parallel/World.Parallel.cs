@@ -5,6 +5,7 @@ using System.Threading;
 public sealed partial class World
 {
     private readonly object _parallelExecutorGate = new();
+    // Access is exclusive while _parallelExecutionActive is held by the caller.
     private Dictionary<Type, IDisposable>? _generatedParallelExecutors;
     private int _parallelExecutionActive;
 
@@ -257,7 +258,7 @@ public sealed partial class World
         where TInvoker : struct, IGeneratedParallelInvoker
     {
         Type invokerType = typeof(TInvoker);
-        Dictionary<Type, IDisposable>? executors = Volatile.Read(ref _generatedParallelExecutors);
+        Dictionary<Type, IDisposable>? executors = _generatedParallelExecutors;
         if (executors is not null
             && executors.TryGetValue(invokerType, out IDisposable? cached))
         {
@@ -276,14 +277,14 @@ public sealed partial class World
 
             var executor = new StaticParallelQueryExecutor<TInvoker>();
             (executors ??= new Dictionary<Type, IDisposable>()).Add(invokerType, executor);
-            Volatile.Write(ref _generatedParallelExecutors, executors);
+            _generatedParallelExecutors = executors;
             return executor;
         }
     }
 
     internal void EnterParallelExecution()
     {
-        ThrowHelper.ThrowIfDisposed(Volatile.Read(ref _disposed), this);
+        ThrowHelper.ThrowIfDisposed(_disposed, this);
         if (Interlocked.CompareExchange(ref _parallelExecutionActive, 1, 0) != 0)
         {
             ThrowHelper.ThrowParallelExecutionActive();
