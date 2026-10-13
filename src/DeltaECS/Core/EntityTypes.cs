@@ -80,6 +80,14 @@ public readonly struct Query
     /// <summary>Gets whether this query belongs to a live, undisposed world.</summary>
     public bool IsValid => _owner is not null && _cached is not null && !_owner.IsDisposed;
 
+    /// <summary>Returns the first entity matching this query, or <see langword="default"/> if there is no match.</summary>
+    public EcsResultOperation<Entity> First()
+    {
+        EnsureValid();
+        Query query = this;
+        return new EcsResultOperation<Entity>(() => query.FindFirst());
+    }
+
     /// <summary>Extends this query's required component registrations.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Query WhereAll(ReadOnlySpan<ComponentId> components) => Compose(QuerySpec.WhereAll(components));
@@ -106,6 +114,21 @@ public readonly struct Query
         {
             ThrowHelper.ThrowInvalidEntityQueryHandle();
         }
+    }
+
+    private Entity FindFirst()
+    {
+        Query query = this;
+        using GeneratedReadDenseExecution execution = GeneratedForEachRuntime.OpenReadDense(_owner, in query);
+        while (execution.MoveNextTrusted(out GeneratedReadQuerySlots slots))
+        {
+            if (slots.Count != 0)
+            {
+                return slots.EntityAt(0);
+            }
+        }
+
+        return default;
     }
 
 }

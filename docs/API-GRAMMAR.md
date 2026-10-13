@@ -76,6 +76,9 @@ composable views, while their terminal operations are deferred. An operation
 retains its `Query` and live `QueryPlan`, not a snapshot of matching chunks.
 Each invocation validates execution state and visits the query's current
 matching chunks, including archetypes created after the operation was built.
+`Query.First()` is a deferred result terminal: `query.First().Invoke()` returns
+the first matching entity in query traversal order, or `default(Entity)` when
+there is no match.
 
 Functor operations keep a typed copy of the functor without converting it to an
 interface. `Invoke()` uses and updates that operation-owned copy, while

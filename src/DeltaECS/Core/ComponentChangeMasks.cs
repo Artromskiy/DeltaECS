@@ -4,6 +4,7 @@ using System;
 using System.Runtime.CompilerServices;
 
 /// <summary>Word and range operations for component change and presence masks.</summary>
+/// <remarks>Bit positions and lengths are trusted, in-range chunk-local values.</remarks>
 internal static class ComponentChangeMasks
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -13,13 +14,13 @@ internal static class ComponentChangeMasks
     internal static int WordStart(int wordIndex) => wordIndex << 6;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static int WordLength(int count, int wordIndex) => Math.Min(64, count - WordStart(wordIndex));
+    internal static int WordLength(int count, int wordIndex) => Math.Min(64, count - (wordIndex << 6));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static ulong Intersect(ulong left, ulong right) => left & right;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static void Union(ref ulong target, ulong source) => target |= source;
+    private static void Union(ref ulong target, ulong source) => target |= source;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static bool IsFullWord(ulong word, int count, int wordIndex) => word == GetValidWord(count, wordIndex);
@@ -27,71 +28,201 @@ internal static class ComponentChangeMasks
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static int TakeFirstSlot(ref ulong word, int wordIndex)
     {
-        int slot = WordStart(wordIndex) + BitOperationsCompat.TrailingZeroCount(word);
+        int slot = (wordIndex << 6) + BitOperationsCompat.TrailingZeroCount(word);
         word &= word - 1;
         return slot;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static bool IsMarked(ulong[] mask, int index) => GetSlot(mask, index);
+    internal static bool IsMarked(ReadOnlySpan<ulong> mask, int index) => GetSlot(mask, index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static void MarkEntity(ulong[] mask, int index) => SetSlot(mask, index, true);
+    internal static void MarkEntity(Span<ulong> mask, int index) => SetSlot(mask, index, true);
 
-    internal static void MergeRange(ulong[] source, int sourceSlot, ulong[] target, int targetSlot, int count)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ulong LowMask(int count) => count == 64 ? ulong.MaxValue : (1UL << count) - 1;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ulong Read64(ReadOnlySpan<ulong> words, int bitIndex)
     {
-        // Scratch preserves the source when ranges share storage.
-        Span<ulong> moved = stackalloc ulong[Chunk.WordCount];
-        moved.Clear();
+        int wordIndex = bitIndex >> 6;
+        int shift = bitIndex & 63;
+        ulong result = words[wordIndex] >> shift;
+        if (shift != 0 && wordIndex + 1 < words.Length)
+        {
+            result |= words[wordIndex + 1] << (64 - shift);
+        }
+
+        return result;
+    }
+
+    // Copy/OR at most 64 bits. Capture the complete source before touching the target;
+    // this also handles overlapping short moves.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void WriteSmall(Span<ulong> target, int targetSlot, ulong value, int count, bool merge)
+    {
+        int wordIndex = targetSlot >> 6;
+        int shift = targetSlot & 63;
+        int first = Math.Min(count, 64 - shift);
+        ulong firstMask = LowMask(first);
+        ulong destinationMask = firstMask << shift;
+        ulong placed = (value & firstMask) << shift;
+        target[wordIndex] = merge
+            ? target[wordIndex] | placed
+            : (target[wordIndex] & ~destinationMask) | placed;
+
+        int remaining = count - first;
+        if (remaining == 0)
+        {
+            return;
+        }
+
+        ulong mask = LowMask(remaining);
+        ulong upper = (value >> first) & mask;
+        target[wordIndex + 1] = merge
+            ? target[wordIndex + 1] | upper
+            : (target[wordIndex + 1] & ~mask) | upper;
+    }
+
+    // Only use directly if source and destination bit ranges do not overlap.
+    private static void WriteRange(
+        ReadOnlySpan<ulong> source, int sourceSlot,
+        Span<ulong> target, int targetSlot, int count, bool merge)
+    {
         int copied = 0;
         while (copied < count)
         {
-            int sourcePosition = sourceSlot + copied;
-            int targetPosition = targetSlot + copied;
-            int length = Math.Min(count - copied, Math.Min(64 - (sourcePosition & 63), 64 - (targetPosition & 63)));
-            ulong bits = (source[sourcePosition >> 6] >> (sourcePosition & 63)) & (ulong.MaxValue >> (64 - length));
-            moved[targetPosition >> 6] |= bits << (targetPosition & 63);
+            int destination = targetSlot + copied;
+            int offset = destination & 63;
+            int length = Math.Min(count - copied, 64 - offset);
+            ulong lowMask = LowMask(length);
+            ulong word = Read64(source, sourceSlot + copied);
+            ulong placed = (word & lowMask) << offset;
+            ref ulong targetWord = ref target[destination >> 6];
+            if (merge)
+            {
+                targetWord |= placed;
+            }
+            else
+            {
+                ulong destinationMask = lowMask << offset;
+                targetWord = (targetWord & ~destinationMask) | placed;
+            }
+
             copied += length;
         }
-        for (int index = 0; index < Chunk.WordCount; index++)
+    }
+
+    /// <summary>OR the original source bit range into the target, including overlaps.</summary>
+    internal static void MergeRange(
+        ReadOnlySpan<ulong> source, int sourceSlot,
+        Span<ulong> target, int targetSlot, int count)
+    {
+        if (count <= 0)
         {
-            Union(ref target[index], moved[index]);
+            return;
         }
+
+        if (count <= 64)
+        {
+            ulong bits = Read64(source, sourceSlot) & LowMask(count);
+            WriteSmall(target, targetSlot, bits, count, merge: true);
+            return;
+        }
+
+        bool overlaps = source.Overlaps(target, out int targetOffset);
+        if (overlaps)
+        {
+            long targetStart = (long)targetOffset * 64 + targetSlot;
+            if (targetStart == sourceSlot)
+            {
+                return;
+            }
+
+            overlaps = sourceSlot < targetStart + count
+                       && targetStart < (long)sourceSlot + count;
+        }
+
+        if (!overlaps)
+        {
+            WriteRange(source, sourceSlot, target, targetSlot, count, merge: true);
+            return;
+        }
+
+        int words = WordCount(count);
+        Span<ulong> scratch = stackalloc ulong[words];
+        for (int index = 0; index < words; index++)
+        {
+            int remaining = count - (index << 6);
+            scratch[index] = Read64(source, sourceSlot + (index << 6))
+                             & LowMask(Math.Min(64, remaining));
+        }
+
+        WriteRange(scratch, 0, target, targetSlot, count, merge: true);
     }
 
     internal static DirtyKind Classify(ReadOnlySpan<ulong> mask, int count)
     {
         bool any = false;
         bool all = count != 0;
-        for (int index = 0; index < WordCount(count); index++)
+        int words = WordCount(count);
+        for (int index = 0; index < words; index++)
         {
             ulong valid = GetValidWord(count, index);
-            ulong word = Intersect(mask[index], valid);
+            ulong word = mask[index] & valid;
             any |= word != 0;
             all &= word == valid;
+            if (any && !all)
+            {
+                return DirtyKind.Mask;
+            }
         }
+
         return all ? DirtyKind.All : any ? DirtyKind.Mask : DirtyKind.None;
     }
 
-    internal static DirtyKind SelectTagChanges(Chunk chunk, int tagIndex, DirtyKind kind, ReadOnlySpan<ulong> mask, Span<ulong> selected)
+    internal static DirtyKind SelectTagChanges(
+        Chunk chunk, int tagIndex, DirtyKind kind,
+        ReadOnlySpan<ulong> mask, Span<ulong> selected)
     {
+        int words = WordCount(chunk.Count);
+        if (kind == DirtyKind.None)
+        {
+            selected.Slice(0, words).Clear();
+            return DirtyKind.None;
+        }
+
         bool any = false;
         bool all = chunk.Count != 0;
-        for (int index = 0; index < WordCount(chunk.Count); index++)
+        if (kind == DirtyKind.All)
         {
-            ulong valid = GetValidWord(chunk.Count, index);
-            ulong writes = kind == DirtyKind.All ? valid : Intersect(mask[index], valid);
-            ulong word = Intersect(writes, chunk.GetTagWord(tagIndex, index));
-            selected[index] = word;
-            any |= word != 0;
-            all &= word == valid;
+            for (int index = 0; index < words; index++)
+            {
+                ulong valid = GetValidWord(chunk.Count, index);
+                ulong value = chunk.GetTagWord(tagIndex, index) & valid;
+                selected[index] = value;
+                any |= value != 0;
+                all &= value == valid;
+            }
         }
+        else
+        {
+            for (int index = 0; index < words; index++)
+            {
+                ulong valid = GetValidWord(chunk.Count, index);
+                ulong value = mask[index] & chunk.GetTagWord(tagIndex, index) & valid;
+                selected[index] = value;
+                any |= value != 0;
+                all &= value == valid;
+            }
+        }
+
         return all ? DirtyKind.All : any ? DirtyKind.Mask : DirtyKind.None;
     }
 
     internal static void Union(Span<ulong> target, ReadOnlySpan<ulong> source, int count)
     {
-        for (int index = 0; index < WordCount(count); index++)
+        for (int index = 0, end = WordCount(count); index < end; index++)
         {
             Union(ref target[index], source[index]);
         }
@@ -101,72 +232,117 @@ internal static class ComponentChangeMasks
     internal static ulong GetValidWord(int count, int wordIndex)
     {
         int remaining = count - (wordIndex << 6);
-        return remaining >= 64 ? ulong.MaxValue : (1UL << remaining) - 1;
+        return remaining >= 64 ? ulong.MaxValue : LowMask(remaining);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static bool GetSlot(ulong[] mask, int slotIndex)
-        => (mask[slotIndex >> 6] & (1UL << (slotIndex & 63))) != 0;
+    internal static bool GetSlot(ReadOnlySpan<ulong> mask, int slotIndex) =>
+        (mask[slotIndex >> 6] & (1UL << (slotIndex & 63))) != 0;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static void SetSlot(ulong[] mask, int slotIndex, bool value)
+    internal static void SetSlot(Span<ulong> mask, int slotIndex, bool value)
     {
         ulong bit = 1UL << (slotIndex & 63);
         ref ulong word = ref mask[slotIndex >> 6];
         word = value ? word | bit : word & ~bit;
     }
 
-    internal static void SetRange(ulong[] mask, int start, int count, bool value)
+    internal static void SetRange(Span<ulong> mask, int start, int count, bool value)
     {
-        while (count > 0)
+        if (count <= 0)
         {
-            int offset = start & 63;
-            int length = Math.Min(count, 64 - offset);
-            ulong bits = (ulong.MaxValue >> (64 - length)) << offset;
-            ref ulong word = ref mask[start >> 6];
-            word = value ? word | bits : word & ~bits;
-            start += length;
-            count -= length;
+            return;
+        }
+
+        int wordIndex = start >> 6;
+        int offset = start & 63;
+        if (offset != 0)
+        {
+            int first = Math.Min(count, 64 - offset);
+            ulong bits = LowMask(first) << offset;
+            mask[wordIndex] = value ? mask[wordIndex] | bits : mask[wordIndex] & ~bits;
+            count -= first;
+            wordIndex++;
+        }
+
+        int fullWords = count >> 6;
+        if (fullWords != 0)
+        {
+            Span<ulong> whole = mask.Slice(wordIndex, fullWords);
+            if (value)
+            {
+                whole.Fill(ulong.MaxValue);
+            }
+            else
+            {
+                whole.Clear();
+            }
+
+            count -= fullWords << 6;
+            wordIndex += fullWords;
+        }
+
+        if (count == 0)
+        {
+            return;
+        }
+
+        {
+            ulong bits = LowMask(count);
+            mask[wordIndex] = value ? mask[wordIndex] | bits : mask[wordIndex] & ~bits;
         }
     }
 
-    internal static void CopyBits(ulong[] source, int sourceSlot, ulong[] target, int targetSlot, int count)
+    /// <summary>Replace destination bits by source bits; overlapping spans are supported.</summary>
+    internal static void CopyBits(
+        ReadOnlySpan<ulong> source, int sourceSlot,
+        Span<ulong> target, int targetSlot, int count)
     {
-        // A chunk-sized scratch also makes overlapping moves safe.
-        Span<ulong> bits = stackalloc ulong[Chunk.WordCount];
-        int words = (count + 63) >> 6;
+        if (count <= 0)
+        {
+            return;
+        }
+
+        // CopyTo has memmove semantics for overlapping spans.
+        if (((sourceSlot | targetSlot | count) & 63) == 0)
+        {
+            source.Slice(sourceSlot >> 6, count >> 6)
+                .CopyTo(target.Slice(targetSlot >> 6, count >> 6));
+            return;
+        }
+
+        if (count <= 64)
+        {
+            ulong bits = Read64(source, sourceSlot) & LowMask(count);
+            WriteSmall(target, targetSlot, bits, count, merge: false);
+            return;
+        }
+
+        bool overlap = source.Overlaps(target, out int targetOffset);
+        if (overlap)
+        {
+            // targetOffset is measured in ulong elements relative to source.
+            long targetStart = (long)targetOffset * 64 + targetSlot;
+            overlap = sourceSlot < targetStart + count
+                      && targetStart < (long)sourceSlot + count;
+        }
+
+        if (!overlap)
+        {
+            WriteRange(source, sourceSlot, target, targetSlot, count, merge: false);
+            return;
+        }
+
+        int words = WordCount(count);
+        Span<ulong> scratch = stackalloc ulong[words];
         for (int index = 0; index < words; index++)
         {
-            int position = sourceSlot + (index << 6);
-            int word = position >> 6;
-            int shift = position & 63;
-            ulong value = source[word] >> shift;
-            if (shift != 0 && word + 1 < source.Length)
-            {
-                value |= source[word + 1] << (64 - shift);
-            }
-
-            bits[index] = value;
+            int remaining = count - (index << 6);
+            scratch[index] = Read64(source, sourceSlot + (index << 6))
+                             & LowMask(Math.Min(64, remaining));
         }
 
-        int copied = 0;
-        while (copied < count)
-        {
-            int offset = (targetSlot + copied) & 63;
-            int length = Math.Min(count - copied, 64 - offset);
-            int sourceWord = copied >> 6;
-            int shift = copied & 63;
-            ulong value = bits[sourceWord] >> shift;
-            if (shift != 0 && sourceWord + 1 < words)
-            {
-                value |= bits[sourceWord + 1] << (64 - shift);
-            }
-
-            ulong valid = ulong.MaxValue >> (64 - length);
-            ref ulong targetWord = ref target[(targetSlot + copied) >> 6];
-            targetWord = (targetWord & ~(valid << offset)) | ((value & valid) << offset);
-            copied += length;
-        }
+        WriteRange(scratch, 0, target, targetSlot, count, merge: false);
     }
 
 }

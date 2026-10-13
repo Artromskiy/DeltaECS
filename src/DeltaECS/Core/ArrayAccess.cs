@@ -7,6 +7,9 @@ using System.Runtime.InteropServices;
 internal static class ArrayAccess
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static Span<T> AsSpan<T>(T[] array) => array;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static unsafe Span<T> AsSpan<T>(nint address, int length) where T : unmanaged =>
         length == 0 ? Span<T>.Empty : new((void*)address, length);
 

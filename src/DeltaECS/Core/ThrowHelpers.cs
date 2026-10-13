@@ -353,6 +353,11 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowTagMaskTargetCapacityTooSmall(string parameterName)
+        => throw new ArgumentException("Target tag capacity is smaller than source tag capacity.", parameterName);
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowMissingComponentLayout(int component)
         => throw new InvalidOperationException($"Missing component layout for {component}.");
 

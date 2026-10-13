@@ -66,7 +66,7 @@ internal struct DirtyChunkState
 {
     internal Chunk? Chunk;
     internal DirtyKind Kind;
-    internal ulong[]? Mask;
+    internal ulong[] Mask;
     internal int ActiveIndex;
     internal bool HasMaskWrites;
 }
@@ -97,6 +97,7 @@ internal sealed class DirtyChunkSet
                 Remove(state.Chunk);
             }
 
+            state.Mask ??= Array.Empty<ulong>();
             state = new DirtyChunkState { Chunk = chunk, Mask = state.Mask, ActiveIndex = -1 };
         }
 
@@ -137,7 +138,11 @@ internal sealed class DirtyChunkSet
     internal void Prepare(Chunk chunk)
     {
         ref DirtyChunkState state = ref GetState(chunk);
-        state.Mask ??= new ulong[Chunk.WordCount];
+        if (state.Mask.Length == 0)
+        {
+            state.Mask = new ulong[Chunk.WordCount];
+        }
+
         if (_activeChunkIds.Length < _states.Length)
         {
             Array.Resize(ref _activeChunkIds, _states.Length);
@@ -162,9 +167,9 @@ internal sealed class DirtyChunkSet
         }
 
         _activeChunkIds[lastActiveIndex] = 0;
-        if (state.HasMaskWrites && state.Mask is { } mask)
+        if (state.HasMaskWrites)
         {
-            Array.Clear(mask, 0, mask.Length);
+            Array.Clear(state.Mask, 0, state.Mask.Length);
         }
 
         state = new DirtyChunkState { Mask = state.Mask, ActiveIndex = -1 };
@@ -175,9 +180,9 @@ internal sealed class DirtyChunkSet
         for (int index = 0; index < _activeCount; index++)
         {
             ref DirtyChunkState state = ref _states[_activeChunkIds[index]];
-            if (state.HasMaskWrites && state.Mask is { } mask)
+            if (state.HasMaskWrites)
             {
-                Array.Clear(mask, 0, mask.Length);
+                Array.Clear(state.Mask, 0, state.Mask.Length);
             }
 
             state.HasMaskWrites = false;
@@ -508,7 +513,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
         }
 
         EnsureMask(ref state);
-        Union(state.Mask!, mask, chunk.Count);
+        Union(ArrayAccess.AsSpan(state.Mask), mask, chunk.Count);
         state.Kind = DirtyKind.Mask;
     }
 
@@ -529,14 +534,14 @@ public sealed class ComponentChangeOperation<T> : IOperation
             }
 
             EnsureMask(ref state);
-            Array.Clear(state.Mask!, 0, state.Mask!.Length);
-            SetRange(state.Mask!, 0, slotIndex, true);
+            Array.Clear(state.Mask, 0, state.Mask.Length);
+            SetRange(ArrayAccess.AsSpan(state.Mask), 0, slotIndex, true);
             state.Kind = DirtyKind.Mask;
         }
 
         if (state.Kind == DirtyKind.Mask)
         {
-            SetRange(state.Mask!, slotIndex, count, false);
+            SetRange(ArrayAccess.AsSpan(state.Mask), slotIndex, count, false);
             RemoveEmpty(chunks, chunk);
         }
     }
@@ -564,12 +569,12 @@ public sealed class ComponentChangeOperation<T> : IOperation
         if (targetState.Kind != DirtyKind.All)
         {
             EnsureMask(ref targetState);
-            MergeRange(sourceState.Mask!, sourceSlot, targetState.Mask!, targetSlot, count);
+            MergeRange(ArrayAccess.AsSpan(sourceState.Mask), sourceSlot, ArrayAccess.AsSpan(targetState.Mask), targetSlot, count);
 
             targetState.Kind = DirtyKind.Mask;
         }
 
-        SetRange(sourceState.Mask!, sourceSlot, count, false);
+        SetRange(ArrayAccess.AsSpan(sourceState.Mask), sourceSlot, count, false);
         RemoveEmpty(chunks, source);
     }
 
@@ -586,7 +591,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
             return;
         }
 
-        CopyBits(state.Mask!, sourceSlot, state.Mask!, targetSlot, count);
+        CopyBits(ArrayAccess.AsSpan(state.Mask), sourceSlot, ArrayAccess.AsSpan(state.Mask), targetSlot, count);
     }
 
     private static void RemoveSwapBack(DirtyChunkSet chunks, Chunk chunk, int slotIndex, int lastSlotIndex)
@@ -612,8 +617,8 @@ public sealed class ComponentChangeOperation<T> : IOperation
             return;
         }
 
-        ComponentChangeMasks.SetSlot(state.Mask!, slotIndex, GetSlot(state.Mask!, lastSlotIndex));
-        ComponentChangeMasks.SetSlot(state.Mask!, lastSlotIndex, false);
+        ComponentChangeMasks.SetSlot(ArrayAccess.AsSpan(state.Mask), slotIndex, GetSlot(ArrayAccess.AsSpan(state.Mask), lastSlotIndex));
+        ComponentChangeMasks.SetSlot(ArrayAccess.AsSpan(state.Mask), lastSlotIndex, false);
         RemoveEmpty(chunks, chunk);
     }
 
@@ -637,7 +642,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
 
         if (state.Kind == DirtyKind.Mask)
         {
-            SetRange(state.Mask!, start, count, false);
+            SetRange(ArrayAccess.AsSpan(state.Mask), start, count, false);
             RemoveEmpty(chunks, chunk);
         }
     }
@@ -662,7 +667,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
         }
 
         EnsureMask(ref state);
-        SetRange(state.Mask!, slotIndex, count, true);
+        SetRange(ArrayAccess.AsSpan(state.Mask), slotIndex, count, true);
         state.Kind = DirtyKind.Mask;
     }
 
@@ -675,7 +680,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
         }
 
         EnsureMask(ref state);
-        ComponentChangeMasks.SetSlot(state.Mask!, slotIndex, true);
+        ComponentChangeMasks.SetSlot(ArrayAccess.AsSpan(state.Mask), slotIndex, true);
         state.Kind = DirtyKind.Mask;
     }
 
@@ -695,14 +700,18 @@ public sealed class ComponentChangeOperation<T> : IOperation
             }
             else if (state.Kind == DirtyKind.Mask)
             {
-                RecordMask(target, chunk, state.Mask!, DirtyKind.Mask);
+                RecordMask(target, chunk, state.Mask, DirtyKind.Mask);
             }
         }
     }
 
     private static void EnsureMask(ref DirtyChunkState state)
     {
-        state.Mask ??= new ulong[Chunk.WordCount];
+        if (state.Mask.Length == 0)
+        {
+            state.Mask = new ulong[Chunk.WordCount];
+        }
+
         state.HasMaskWrites = true;
     }
 
@@ -719,7 +728,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
             return;
         }
 
-        for (int index = 0; index < state.Mask!.Length; index++)
+        for (int index = 0; index < state.Mask.Length; index++)
         {
             if (state.Mask[index] != 0)
             {
@@ -815,7 +824,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
     private void VisitCurrentEntity(Entity entity, ref T component)
     {
         _currentEntities[entity.Index] = entity;
-        MarkEntity(_currentEntityPresence, entity.Index);
+        MarkEntity(_currentEntityPresence.AsSpan(), entity.Index);
         _action(entity, ChangeKind.Added, ref component);
     }
 
@@ -825,7 +834,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
         {
             ComponentMembershipChange change = _processingMembershipChanges[index];
             Entity entity = change.Entity;
-            bool existed = IsMarked(_entityPresence, entity.Index) && _entities[entity.Index] == entity;
+            bool existed = IsMarked(_entityPresence.AsSpan(), entity.Index) && _entities[entity.Index] == entity;
             if (!change.Present)
             {
                 if (existed)
@@ -861,11 +870,11 @@ public sealed class ComponentChangeOperation<T> : IOperation
             if (change.Present)
             {
                 _entities[entityIndex] = change.Entity;
-                MarkEntity(_entityPresence, entityIndex);
+                MarkEntity(_entityPresence.AsSpan(), entityIndex);
             }
             else if (_entities[entityIndex] == change.Entity)
             {
-                ComponentChangeMasks.SetSlot(_entityPresence, entityIndex, false);
+                ComponentChangeMasks.SetSlot(_entityPresence.AsSpan(), entityIndex, false);
             }
         }
     }
@@ -928,7 +937,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
             }
 
             int count = chunk.Count;
-            DirtyKind kind = state.Kind == DirtyKind.All ? DirtyKind.All : Classify(state.Mask!, count);
+            DirtyKind kind = state.Kind == DirtyKind.All ? DirtyKind.All : Classify(state.Mask, count);
             if (kind == DirtyKind.None)
             {
                 continue;
@@ -962,7 +971,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
             int wordCount = WordCount(count);
             for (int wordIndex = 0; wordIndex < wordCount; wordIndex++)
             {
-                ulong candidates = Intersect(state.Mask![wordIndex], GetValidWord(count, wordIndex));
+                ulong candidates = Intersect(state.Mask[wordIndex], GetValidWord(count, wordIndex));
                 if (IsFullWord(candidates, count, wordIndex))
                 {
                     int start = WordStart(wordIndex);
