@@ -61,7 +61,7 @@ internal sealed class MicroWorld
 
     public void ResetMoving(Entity[] entities)
     {
-        for (var i = 0; i < entities.Length; i++)
+        for (int i = 0; i < entities.Length; i++)
         {
             World.GetRef<Position>(entities[i], Position) = new Position { X = i, Y = i + 1 };
             World.GetRef<Velocity>(entities[i], Velocity) = new Velocity { X = 1, Y = 2 };
@@ -78,7 +78,7 @@ internal sealed class MicroWorld
 
     public void ResetMovement4(Entity[] entities)
     {
-        for (var i = 0; i < entities.Length; i++)
+        for (int i = 0; i < entities.Length; i++)
         {
             World.GetRef<Movement4A>(entities[i], Movement4A) = new Movement4A { Value = 1 };
             World.GetRef<Movement4B>(entities[i], Movement4B) = new Movement4B { Value = 2 };
@@ -94,7 +94,7 @@ internal static class MicroBenchmarkKernels
         MicroWorld fixture,
         in Query query)
     {
-        var checksum = 0;
+        int checksum = 0;
         iteration ??= fixture.World.ForEach(
             in query,
             ref checksum,
@@ -113,7 +113,7 @@ internal static class MicroBenchmarkKernels
         MicroWorld fixture,
         in Query query)
     {
-        var checksum = 0;
+        int checksum = 0;
         iteration ??= fixture.World.ForEach(
             in query,
             ref checksum,
@@ -243,7 +243,7 @@ internal static class MicroContractSmoke
         var movement2Description = QuerySpec.WhereAll(stackalloc ComponentId[] { fixture.Position, fixture.Velocity });
         var movement2Query = fixture.World.CreateQuery(in movement2Description);
         IOperation<int>? movement2Iteration = null;
-        var movement2Sum = MicroBenchmarkKernels.IterateMovement2Dense(
+        int movement2Sum = MicroBenchmarkKernels.IterateMovement2Dense(
             ref movement2Iteration,
             fixture,
             in movement2Query);
@@ -261,7 +261,7 @@ internal static class MicroContractSmoke
             fixture.Movement4D);
         var movement4Query = fixture.World.CreateQuery(in movement4Description);
         IOperation<int>? movement4Iteration = null;
-        var movement4Sum = MicroBenchmarkKernels.IterateMovement4Dense(
+        int movement4Sum = MicroBenchmarkKernels.IterateMovement4Dense(
             ref movement4Iteration,
             fixture,
             in movement4Query);
@@ -272,7 +272,7 @@ internal static class MicroContractSmoke
 
         var apiComparison = new Movement4ApiComparisonMicroBenchmarkImplementation { Amount = 8 };
         apiComparison.Setup();
-        var expectedApiComparison = apiComparison.Functor();
+        int expectedApiComparison = apiComparison.Functor();
         if (apiComparison.Delegate() != expectedApiComparison)
         {
             throw new InvalidOperationException("Delegate Movement4 checksum mismatch.");

@@ -432,7 +432,10 @@ internal sealed class FunctorForEachTests
     {
         private readonly ComponentId _healthId;
 
-        internal ResetHealthAction(ComponentId healthId) => _healthId = healthId;
+        internal ResetHealthAction(ComponentId healthId)
+        {
+            _healthId = healthId;
+        }
 
         public void Invoke(ref WhereActionState state, EntityRef entity, ref Health health)
         {

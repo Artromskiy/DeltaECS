@@ -83,7 +83,7 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
             return;
         }
 
-        var unique = new int[routes.Length];
+        int[] unique = new int[routes.Length];
         int count = 0;
         for (int index = 0; index < routes.Length; index++)
         {

@@ -48,20 +48,18 @@ internal static class GeneratedComponentVisitorGrammarProof
 
     private sealed class RecordingVisitor(ComponentId[] componentIds, Type[] expectedTypes) : IUnconstrainedVisitor
     {
-        private int _nextIndex;
-
-        internal int VisitCount => _nextIndex;
+        internal int VisitCount { get; private set; }
 
         public void Visit<TComponent>(ComponentId componentId)
         {
-            if (_nextIndex >= componentIds.Length
-                || componentIds[_nextIndex] != componentId
-                || expectedTypes[_nextIndex] != typeof(TComponent))
+            if (VisitCount >= componentIds.Length
+                || componentIds[VisitCount] != componentId
+                || expectedTypes[VisitCount] != typeof(TComponent))
             {
                 throw new InvalidOperationException("The generated visitor received an unexpected component route.");
             }
 
-            _nextIndex++;
+            VisitCount++;
         }
     }
 }

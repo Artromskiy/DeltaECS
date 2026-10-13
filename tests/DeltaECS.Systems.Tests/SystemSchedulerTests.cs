@@ -471,7 +471,10 @@ public sealed class SystemSchedulerTests
 
     private sealed class WorldAccessSystem : ISystem
     {
-        internal WorldAccessSystem(World world) => World = world;
+        internal WorldAccessSystem(World world)
+        {
+            World = world;
+        }
 
         public World World { get; init; }
 
@@ -598,11 +601,10 @@ public sealed class SystemSchedulerTests
 
     private sealed class ConcurrencyState : IDisposable
     {
-        private readonly ManualResetEventSlim _bothStarted = new();
         private int _started;
         private int _active;
 
-        internal ManualResetEventSlim BothStarted => _bothStarted;
+        internal ManualResetEventSlim BothStarted { get; } = new();
 
         private int _maximumConcurrency;
 
@@ -624,13 +626,13 @@ public sealed class SystemSchedulerTests
 
             if (Interlocked.Increment(ref _started) == 2)
             {
-                _bothStarted.Set();
+                BothStarted.Set();
             }
         }
 
         internal void Exit() => Interlocked.Decrement(ref _active);
 
-        public void Dispose() => _bothStarted.Dispose();
+        public void Dispose() => BothStarted.Dispose();
     }
 }
 

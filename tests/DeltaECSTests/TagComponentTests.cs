@@ -410,7 +410,10 @@ internal sealed class TagComponentTests
     {
         public readonly int Value;
 
-        public TagWithData(int value) => Value = value;
+        public TagWithData(int value)
+        {
+            Value = value;
+        }
     }
 
     internal struct CountPositionFunctor : IForEach
@@ -429,6 +432,9 @@ internal sealed class TagComponentTests
     {
         public int Value;
 
-        public ExtraData() => Value = 0;
+        public ExtraData()
+        {
+            Value = 0;
+        }
     }
 }

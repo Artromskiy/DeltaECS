@@ -10,7 +10,10 @@ internal sealed class ShapeRegistry<TShape>
     private readonly Func<TShape, string> _key;
     private readonly Dictionary<string, TShape> _items = new(StringComparer.Ordinal);
 
-    internal ShapeRegistry(Func<TShape, string> key) => _key = key;
+    internal ShapeRegistry(Func<TShape, string> key)
+    {
+        _key = key;
+    }
 
     internal TShape GetOrAdd(TShape candidate, Action<TShape, TShape>? merge = null)
     {

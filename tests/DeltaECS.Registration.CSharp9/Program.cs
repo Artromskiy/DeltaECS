@@ -263,35 +263,17 @@ namespace Delta.ECS.Registration.CSharp9
             public ComponentId ComponentId { get; private set; }
             public int VisitCount { get; private set; }
 
-            protected override void Visit<T>(ComponentId componentId)
-            {
-                Mark<T>(componentId, "unconstrained");
-            }
+            protected override void Visit<T>(ComponentId componentId) => Mark<T>(componentId, "unconstrained");
 
-            protected override void VisitUnmanaged<T>(ComponentId componentId)
-            {
-                Mark<T>(componentId, "unmanaged");
-            }
+            protected override void VisitUnmanaged<T>(ComponentId componentId) => Mark<T>(componentId, "unmanaged");
 
-            protected override void VisitStruct<T>(ComponentId componentId)
-            {
-                Mark<T>(componentId, "struct");
-            }
+            protected override void VisitStruct<T>(ComponentId componentId) => Mark<T>(componentId, "struct");
 
-            protected override void VisitClass<T>(ComponentId componentId)
-            {
-                Mark<T>(componentId, "class");
-            }
+            protected override void VisitClass<T>(ComponentId componentId) => Mark<T>(componentId, "class");
 
-            protected override void VisitConstructible<T>(ComponentId componentId)
-            {
-                Mark<T>(componentId, "new");
-            }
+            protected override void VisitConstructible<T>(ComponentId componentId) => Mark<T>(componentId, "new");
 
-            protected override void VisitClassConstructible<T>(ComponentId componentId)
-            {
-                Mark<T>(componentId, "class-new");
-            }
+            protected override void VisitClassConstructible<T>(ComponentId componentId) => Mark<T>(componentId, "class-new");
 
             private void Mark<T>(ComponentId componentId, string route)
             {

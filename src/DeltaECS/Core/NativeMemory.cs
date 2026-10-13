@@ -5,73 +5,70 @@ using System.Runtime.CompilerServices;
 /// <summary>Trusted native storage owned and disposed by its containing ECS object.</summary>
 internal struct NativeMemory<T> : IDisposable where T : unmanaged
 {
-    private nint _address;
-    private int _length;
-
     internal NativeMemory(int length)
     {
         ThrowHelper.ThrowIfNegative(length, nameof(length));
-        _length = length;
-        _address = Allocate(length);
+        Length = length;
+        Address = Allocate(length);
     }
 
     internal NativeMemory(ReadOnlySpan<T> source)
     {
-        _length = source.Length;
-        _address = Allocate(_length);
+        Length = source.Length;
+        Address = Allocate(Length);
         source.CopyTo(Span);
     }
 
-    internal int Length => _length;
+    internal int Length { get; private set; }
 
-    internal nint Address => _address;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ref T RefAt(int index) => ref ArrayAccess.RefAt<T>(_address, index);
+    internal nint Address { get; private set; }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ref T GetRefAtZero() => ref ArrayAccess.GetRefAtZero<T>(_address);
+    internal ref T RefAt(int index) => ref ArrayAccess.RefAt<T>(Address, index);
 
-    internal Span<T> Span => ArrayAccess.AsSpan<T>(_address, _length);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ref T GetRefAtZero() => ref ArrayAccess.GetRefAtZero<T>(Address);
+
+    internal Span<T> Span => ArrayAccess.AsSpan<T>(Address, Length);
 
     internal ReadOnlySpan<T> ReadOnlySpan => Span;
 
     internal void Resize(int length)
     {
         ThrowHelper.ThrowIfNegative(length, nameof(length));
-        if (length == _length)
+        if (length == Length)
         {
             return;
         }
 
         nint replacement = Allocate(length);
-        int copied = Math.Min(_length, length);
+        int copied = Math.Min(Length, length);
         if (copied != 0)
         {
             Span[..copied].CopyTo(ArrayAccess.AsSpan<T>(replacement, length));
         }
 
         ReleaseBuffer();
-        _address = replacement;
-        _length = length;
+        Address = replacement;
+        Length = length;
     }
 
     internal void Clear()
     {
-        if (_length != 0)
+        if (Length != 0)
         {
-            NativeMemoryCompat.Clear(_address, ByteLength(_length));
+            NativeMemoryCompat.Clear(Address, ByteLength(Length));
         }
     }
 
     internal void Dispose()
     {
-        if (_address != 0)
+        if (Address != 0)
         {
             ReleaseBuffer();
         }
 
-        _length = 0;
+        Length = 0;
     }
 
     void IDisposable.Dispose() => Dispose();
@@ -93,7 +90,7 @@ internal struct NativeMemory<T> : IDisposable where T : unmanaged
 
     private void ReleaseBuffer()
     {
-        NativeMemoryCompat.Free(_address);
-        _address = 0;
+        NativeMemoryCompat.Free(Address);
+        Address = 0;
     }
 }

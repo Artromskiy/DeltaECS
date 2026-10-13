@@ -6,9 +6,8 @@ using System.Runtime.CompilerServices;
 internal sealed class EntityRecordStorage
 {
     private EntityRecord[] _items = Array.Empty<EntityRecord>();
-    private int _count;
 
-    internal int Count => _count;
+    internal int Count { get; private set; }
 
     internal int Capacity
     {
@@ -27,7 +26,7 @@ internal sealed class EntityRecordStorage
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void Add(EntityRecord value)
     {
-        if (_count == _items.Length)
+        if (Count == _items.Length)
         {
             int capacity = _items.Length == 0
                 ? 4
@@ -35,15 +34,15 @@ internal sealed class EntityRecordStorage
             EnsureCapacity(capacity);
         }
 
-        _items[_count++] = value;
+        _items[Count++] = value;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal Span<EntityRecord> Append(int count)
     {
-        EnsureCapacity(checked(_count + count));
-        int start = _count;
-        _count += count;
+        EnsureCapacity(checked(Count + count));
+        int start = Count;
+        Count += count;
         return _items.AsSpan(start, count);
     }
 

@@ -444,14 +444,14 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             return Reject(Unsupported, invocation, invocation, out diagnostic);
         }
 
-        var typeArguments = genericName?.TypeArgumentList.Arguments
-                                .Select(argument => model.GetTypeInfo(argument).Type is { } type
-                                    ? GeneratorSupport.DisplayType(type)
-                                    : argument.ToString())
-                                .ToArray()
-                            ?? LambdaComponentTypes(model, lambda, prefixCount, hasEntity);
+        string[] typeArguments = genericName?.TypeArgumentList.Arguments
+                                     .Select(argument => model.GetTypeInfo(argument).Type is { } type
+                                         ? GeneratorSupport.DisplayType(type)
+                                         : argument.ToString())
+                                     .ToArray()
+                                 ?? LambdaComponentTypes(model, lambda, prefixCount, hasEntity);
         int componentStart = genericName is null ? 0 : prefixCount;
-        var components = typeArguments.Skip(componentStart).ToArray();
+        string[] components = typeArguments.Skip(componentStart).ToArray();
         if (components.Length != componentCount)
         {
             return Reject(Unsupported, invocation, invocation, out diagnostic);
@@ -959,7 +959,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         var parameters = CallbackReader.LambdaParameters(lambda);
         int start = (hasContext ? 1 : 0) + (hasEntity ? 1 : 0);
 
-        var result = new char[componentCount];
+        char[] result = new char[componentCount];
         for (int index = 0; index < componentCount; index++)
         {
             result[index] = parameters.Length > index + start

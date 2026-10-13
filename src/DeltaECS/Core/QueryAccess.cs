@@ -33,7 +33,6 @@ public readonly struct WriteAccess
 internal sealed class QueryPlan
 {
     private const int TagRouteOffset = -2;
-    private readonly World _owner;
     private IGeneratedDenseBinding? _lastDenseBinding;
     private Dictionary<RuntimeTypeHandle, IGeneratedDenseBinding>? _denseBindings;
 
@@ -58,23 +57,23 @@ internal sealed class QueryPlan
     private readonly ReadAccess[] _preparedReadAccessesByComponent;
     private readonly WriteAccess[] _preparedWriteAccessesByComponent;
     private int _matchingCount;
-    private int _matchingVersion;
-    private int _matchingArchetypeVersion;
     private bool _matchingChunkPlansDirty;
     private TagSlotCacheEntry?[] _tagSlotsByChunk = Array.Empty<TagSlotCacheEntry?>();
     private readonly object _tagSlotGate = new();
 
-    internal World Owner => _owner;
+    internal World Owner { get; }
+
     internal WeakReference<QueryPlan> WeakReference => _weakReference;
-    internal int MatchingVersion => _matchingVersion;
-    internal int MatchingArchetypeVersion => _matchingArchetypeVersion;
+    internal int MatchingVersion { get; private set; }
+
+    internal int MatchingArchetypeVersion { get; private set; }
 
     internal bool HasTagFilters
         => _allTagIndices.Length != 0 || _anyTagIndices.Length != 0 || _noneTagIndices.Length != 0;
 
     internal QueryPlan(World world, QuerySpec spec)
     {
-        _owner = world;
+        Owner = world;
         _description = spec;
         (_allDataMask, _allTagIndices) = PartitionQueryMask(world, spec.AllMask);
         (_anyDataMask, _anyTagIndices) = PartitionQueryMask(world, spec.AnyMask);
@@ -156,7 +155,7 @@ internal sealed class QueryPlan
     private bool TryGetTagSelection(Chunk chunk, out TagSlotCacheEntry? entry)
     {
         bool constrainByAnyTags = _anyTagIndices.Length != 0
-            && !_owner.Archetypes[chunk.ArchetypeId].Mask.Intersects(_anyDataMask);
+            && !Owner.Archetypes[chunk.ArchetypeId].Mask.Intersects(_anyDataMask);
         if (_allTagIndices.Length == 0 && _noneTagIndices.Length == 0 && !constrainByAnyTags)
         {
             entry = null;
@@ -164,7 +163,7 @@ internal sealed class QueryPlan
         }
 
         entry = GetTagSlotCacheEntry(chunk.GlobalId);
-        int version = _owner.TagVersion;
+        int version = Owner.TagVersion;
         if (entry.Version == version && ReferenceEquals(entry.Chunk, chunk))
         {
             return true;
@@ -194,7 +193,7 @@ internal sealed class QueryPlan
         }
 
         if (_anyTagIndices.Length != 0
-            && !_owner.Archetypes[chunk.ArchetypeId].Mask.Intersects(_anyDataMask))
+            && !Owner.Archetypes[chunk.ArchetypeId].Mask.Intersects(_anyDataMask))
         {
             bool matchesAny = false;
             for (int index = 0; index < _anyTagIndices.Length; index++)
@@ -402,7 +401,7 @@ internal sealed class QueryPlan
         _matchingPlans.RefAt(_matchingCount) = plan;
         _planIndicesByArchetype.RefAt(archetype.Id) = _matchingCount++;
         AppendMatchingChunkPlans(planIndex, plan);
-        _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
+        MatchingVersion = MatchingVersion == int.MaxValue ? 1 : MatchingVersion + 1;
         IncrementMatchingArchetypeVersion();
         archetype.Attach(this, planIndex);
     }
@@ -414,7 +413,7 @@ internal sealed class QueryPlan
         plan.OnChunkActivated(chunk, activePosition);
         plan.SetChunkTopologyVersion(plan.Archetype.ChunkTopologyVersion);
         SynchronizeMatchingChunkPlans(planIndex, previousChunkCount);
-        _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
+        MatchingVersion = MatchingVersion == int.MaxValue ? 1 : MatchingVersion + 1;
     }
 
     internal void OnChunkDeactivated(int planIndex, int activePosition, int lastPosition)
@@ -424,7 +423,7 @@ internal sealed class QueryPlan
         plan.OnChunkDeactivated(activePosition, lastPosition);
         plan.SetChunkTopologyVersion(plan.Archetype.ChunkTopologyVersion);
         SynchronizeMatchingChunkPlans(planIndex, previousChunkCount);
-        _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
+        MatchingVersion = MatchingVersion == int.MaxValue ? 1 : MatchingVersion + 1;
     }
 
     internal void RefreshArchetype(int planIndex, Archetype archetype, List<QueryPlan>? dirtyPlans = null)
@@ -479,8 +478,8 @@ internal sealed class QueryPlan
         _planIndicesByArchetype = Array.Empty<int>();
         _matchingCount = 0;
         _matchingChunkCount = 0;
-        _matchingVersion = 0;
-        _matchingArchetypeVersion = 0;
+        MatchingVersion = 0;
+        MatchingArchetypeVersion = 0;
         _matchingChunkPlansDirty = false;
         _primaryReadRoutesByType.Clear();
         _tagSlotsByChunk.AsSpan().Clear();
@@ -711,7 +710,7 @@ internal sealed class QueryPlan
 
     internal bool RequiresAll(ComponentId componentId)
         => _allDataMask.Contains(componentId)
-            || (_owner.Components.TryGetTagIndex(componentId, out int tagIndex)
+            || (Owner.Components.TryGetTagIndex(componentId, out int tagIndex)
                 && Array.IndexOf(_allTagIndices, tagIndex) >= 0);
 
     private static (ComponentMask DataMask, int[] TagIndices) PartitionQueryMask(World world, ComponentMask source)
@@ -722,7 +721,7 @@ internal sealed class QueryPlan
         }
 
         var dataIds = new ComponentId[source.Count];
-        var tagIndices = new int[source.Count];
+        int[] tagIndices = new int[source.Count];
         int dataCount = 0;
         int tagCount = 0;
         foreach (ComponentId component in source)
@@ -875,11 +874,11 @@ internal sealed class QueryPlan
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void IncrementMatchingVersion()
-        => _matchingVersion = _matchingVersion == int.MaxValue ? 1 : _matchingVersion + 1;
+        => MatchingVersion = MatchingVersion == int.MaxValue ? 1 : MatchingVersion + 1;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void IncrementMatchingArchetypeVersion()
-        => _matchingArchetypeVersion = _matchingArchetypeVersion == int.MaxValue ? 1 : _matchingArchetypeVersion + 1;
+        => MatchingArchetypeVersion = MatchingArchetypeVersion == int.MaxValue ? 1 : MatchingArchetypeVersion + 1;
 
     private sealed class TagSlotCacheEntry
     {
@@ -910,7 +909,7 @@ internal struct ArchetypePlan
     internal int[] ComponentRows { get; }
     internal int FindChunkIndex(Chunk chunk, int startIndex = 0, int endIndex = -1)
     {
-        int end = endIndex < 0 ? _chunkCount : Math.Min(endIndex, _chunkCount);
+        int end = endIndex < 0 ? ChunkCount : Math.Min(endIndex, ChunkCount);
         for (int index = startIndex; index < end; index++)
         {
             if (ReferenceEquals(_chunks.RefAt(index).Chunk, chunk))
@@ -922,32 +921,31 @@ internal struct ArchetypePlan
         return -1;
     }
     internal ChunkPlan[] ChunkArray => _chunks;
-    internal int ChunkCount => _chunkCount;
+    internal int ChunkCount { get; private set; }
 
     private ChunkPlan[] _chunks;
-    private int _chunkCount;
     private int _chunkTopologyVersion;
 
     internal void SetChunkTopologyVersion(int version) => _chunkTopologyVersion = version;
 
     internal void OnChunkActivated(Chunk chunk, int activePosition)
     {
-        if (activePosition != _chunkCount)
+        if (activePosition != ChunkCount)
         {
             ThrowHelper.ThrowPlanActivationOutOfSync();
         }
 
-        if (_chunkCount == _chunks.Length)
+        if (ChunkCount == _chunks.Length)
         {
             Array.Resize(ref _chunks, Math.Max(4, _chunks.Length * 2));
         }
 
-        _chunks.RefAt(_chunkCount++) = CreateChunkPlan(chunk);
+        _chunks.RefAt(ChunkCount++) = CreateChunkPlan(chunk);
     }
 
     internal void OnChunkDeactivated(int activePosition, int lastPosition)
     {
-        if ((uint)activePosition >= (uint)_chunkCount || lastPosition != _chunkCount - 1)
+        if ((uint)activePosition >= (uint)ChunkCount || lastPosition != ChunkCount - 1)
         {
             ThrowHelper.ThrowPlanDeactivationOutOfSync();
         }
@@ -957,7 +955,7 @@ internal struct ArchetypePlan
             _chunks.RefAt(activePosition) = _chunks.RefAt(lastPosition);
         }
 
-        _chunkCount--;
+        ChunkCount--;
     }
 
     internal bool RefreshChunks(Archetype archetype)
@@ -973,7 +971,7 @@ internal struct ArchetypePlan
             Array.Resize(ref _chunks, Math.Max(activeCount, _chunks.Length == 0 ? 4 : _chunks.Length * 2));
         }
 
-        int previousCount = _chunkCount;
+        int previousCount = ChunkCount;
         for (int chunkIndex = 0; chunkIndex < activeCount; chunkIndex++)
         {
             Chunk chunk = archetype.GetActiveChunk(chunkIndex);
@@ -996,7 +994,7 @@ internal struct ArchetypePlan
             }
         }
 
-        _chunkCount = activeCount;
+        ChunkCount = activeCount;
         for (int index = activeCount; index < previousCount; index++)
         {
             _chunks.RefAt(index) = default;

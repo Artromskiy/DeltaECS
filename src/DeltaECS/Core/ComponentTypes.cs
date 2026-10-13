@@ -346,8 +346,6 @@ internal readonly struct ComponentMask : IEquatable<ComponentMask>
 internal sealed class NativeComponentMaskStorage
 {
     private NativeMemory<uint> _words;
-    private int _count;
-    private int _hash;
 
     internal NativeComponentMaskStorage(int length)
     {
@@ -356,16 +354,13 @@ internal sealed class NativeComponentMaskStorage
 
     internal int Length => _words.Length;
 
-    internal int Count => _count;
+    internal int Count { get; private set; }
 
-    internal int Hash => _hash;
+    internal int Hash { get; private set; }
 
     internal ReadOnlySpan<uint> ReadOnlySpan => _words.ReadOnlySpan;
 
-    internal ref uint this[int index]
-    {
-        get => ref RefAt(index);
-    }
+    internal ref uint this[int index] => ref RefAt(index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref uint RefAt(int index) => ref _words.RefAt(index);
@@ -382,8 +377,8 @@ internal sealed class NativeComponentMaskStorage
             hash.Add(word);
         }
 
-        _count = count;
-        _hash = hash.ToHashCode();
+        Count = count;
+        Hash = hash.ToHashCode();
     }
 
     ~NativeComponentMaskStorage()

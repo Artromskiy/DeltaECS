@@ -70,7 +70,7 @@ internal static class BenchmarkConfiguration
             throw new ArgumentException("amounts must contain at least one value.", nameof(value));
         }
 
-        var result = new int[tokens.Length];
+        int[] result = new int[tokens.Length];
         for (int index = 0; index < tokens.Length; index++)
         {
             if (!int.TryParse(tokens[index], NumberStyles.None, CultureInfo.InvariantCulture, out int amount)

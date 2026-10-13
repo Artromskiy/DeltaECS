@@ -105,7 +105,7 @@ internal sealed class ComponentRowOperationTests
         Assert.That(world.Destroy(removed), Is.True);
         var archetype = world.Archetypes[0];
         var chunk = archetype.GetChunk(0);
-        var valueRow = (int[])chunk.GetRawComponentRow(0);
+        int[] valueRow = (int[])chunk.GetRawComponentRow(0);
         var referenceRow = (ReferencePayload[])chunk.GetRawComponentRow(1);
         Assert.Multiple(() =>
         {

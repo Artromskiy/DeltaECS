@@ -4,7 +4,7 @@ using System;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-internal readonly partial struct ComponentRowOperations
+internal readonly struct ComponentRowOperations
 {
     private readonly Func<int, Array>? _createArray;
 

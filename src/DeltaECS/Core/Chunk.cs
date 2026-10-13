@@ -10,17 +10,12 @@ internal sealed class Chunk
     internal const int WordCount = (Capacity + 63) >> 6;
     private readonly ComponentRowArrayPool _componentRowArrayPool;
     private readonly Archetype _archetype;
-    private Array[] _componentRows;
     private ComponentRowOperations[] _rowOperations;
     private NativeMemory<Entity> _entities;
     private ChunkTagMasks? _tagMasks;
-    private int _archetypeId;
-    private int _archetypeIndex;
-    private int _count;
     private int _highWaterMark;
     private int _freeRecordBlockCount;
     private int _freeRecordBlockNextSlot;
-    private int _freeRecordListIndex = -1;
 
     internal Chunk(
         Archetype archetype,
@@ -39,15 +34,15 @@ internal sealed class Chunk
         _componentRowArrayPool = componentRowArrayPool;
         _archetype = archetype;
         GlobalId = globalId;
-        _archetypeId = archetypeId;
-        _archetypeIndex = archetypeIndex;
+        ArchetypeId = archetypeId;
+        ArchetypeIndex = archetypeIndex;
         _entities = new NativeMemory<Entity>(Capacity);
-        _componentRows = new Array[layouts.Length];
+        RawComponentRows = new Array[layouts.Length];
         _rowOperations = rowOperations;
         for (int index = 0; index < layouts.Length; index++)
         {
             Type runtimeType = layouts.RefAt(index).RuntimeType;
-            _componentRows.RefAt(index) = _componentRowArrayPool.Rent(
+            RawComponentRows.RefAt(index) = _componentRowArrayPool.Rent(
                 runtimeType,
                 _rowOperations.RefAt(index),
                 Capacity);
@@ -56,13 +51,13 @@ internal sealed class Chunk
 
     internal int GlobalId { get; }
 
-    internal int ArchetypeId => _archetypeId;
+    internal int ArchetypeId { get; private set; }
 
-    internal int ArchetypeIndex => _archetypeIndex;
+    internal int ArchetypeIndex { get; private set; }
 
-    internal int Count => _count;
+    internal int Count { get; private set; }
 
-    internal int ComponentCount => _componentRows.Length;
+    internal int ComponentCount => RawComponentRows.Length;
 
     internal void EnsureTagCapacity(int tagCount)
     {
@@ -109,17 +104,17 @@ internal sealed class Chunk
 
     internal ulong GetTagWord(int tagIndex, int wordIndex) => _tagMasks?.Word(tagIndex, wordIndex) ?? 0;
 
-    internal bool IsFull => _count >= Capacity;
+    internal bool IsFull => Count >= Capacity;
 
-    internal bool IsEmpty => _count == 0;
+    internal bool IsEmpty => Count == 0;
 
     internal bool HasFreeRecordBlock => _freeRecordBlockCount != 0;
 
     internal int FreeRecordBlockCount => _freeRecordBlockCount;
 
-    internal int FreeRecordListIndex => _freeRecordListIndex;
+    internal int FreeRecordListIndex { get; private set; } = -1;
 
-    internal void SetFreeRecordListIndex(int index) => _freeRecordListIndex = index;
+    internal void SetFreeRecordListIndex(int index) => FreeRecordListIndex = index;
 
     internal int Add(Entity entity, out bool reusedSlot)
     {
@@ -128,11 +123,11 @@ internal sealed class Chunk
             ThrowHelper.ThrowChunkFull();
         }
 
-        int slotIndex = _count++;
+        int slotIndex = Count++;
         reusedSlot = slotIndex < _highWaterMark;
-        if (_count > _highWaterMark)
+        if (Count > _highWaterMark)
         {
-            _highWaterMark = _count;
+            _highWaterMark = Count;
         }
 
         _entities.RefAt(slotIndex) = entity;
@@ -141,17 +136,17 @@ internal sealed class Chunk
 
     internal int ReserveRange(int count, out int reusedCount)
     {
-        if (count < 0 || _count + count > Capacity)
+        if (count < 0 || Count + count > Capacity)
         {
             ThrowHelper.ThrowChunkCountOutOfRange(nameof(count));
         }
 
-        int start = _count;
+        int start = Count;
         reusedCount = Math.Max(0, Math.Min(count, _highWaterMark - start));
-        _count += count;
-        if (_count > _highWaterMark)
+        Count += count;
+        if (Count > _highWaterMark)
         {
-            _highWaterMark = _count;
+            _highWaterMark = Count;
         }
 
         return start;
@@ -159,12 +154,12 @@ internal sealed class Chunk
 
     internal Entity RemoveSwapBack(int slotIndex)
     {
-        if (slotIndex < 0 || slotIndex >= _count)
+        if (slotIndex < 0 || slotIndex >= Count)
         {
             ThrowHelper.ThrowChunkSlotOutOfRange(nameof(slotIndex));
         }
 
-        int lastSlotIndex = _count - 1;
+        int lastSlotIndex = Count - 1;
         var moved = _entities.RefAt(lastSlotIndex);
         if (slotIndex < lastSlotIndex)
         {
@@ -176,7 +171,7 @@ internal sealed class Chunk
         _entities.RefAt(lastSlotIndex) = default;
         ClearReferenceRows(lastSlotIndex);
         _tagMasks?.ClearRange(lastSlotIndex, 1);
-        _count = lastSlotIndex;
+        Count = lastSlotIndex;
         return slotIndex < lastSlotIndex ? moved : default;
     }
 
@@ -184,20 +179,20 @@ internal sealed class Chunk
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal Span<T> GetComponentRow<T>(int componentIndex)
     {
-        ref T first = ref Unsafe.As<T[]>(_componentRows.RefAt(componentIndex)).GetRefAtZero();
-        return MemoryMarshal.CreateSpan(ref first, _count);
+        ref T first = ref Unsafe.As<T[]>(RawComponentRows.RefAt(componentIndex)).GetRefAtZero();
+        return MemoryMarshal.CreateSpan(ref first, Count);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref T GetComponentRef<T>(int componentIndex, int slotIndex) =>
         ref Unsafe.Add(
-            ref Unsafe.As<T[]>(_componentRows.RefAt(componentIndex)).GetRefAtZero(),
+            ref Unsafe.As<T[]>(RawComponentRows.RefAt(componentIndex)).GetRefAtZero(),
             slotIndex);
 
-    internal Array GetRawComponentRow(int componentIndex) => _componentRows.RefAt(componentIndex);
+    internal Array GetRawComponentRow(int componentIndex) => RawComponentRows.RefAt(componentIndex);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Array GetRawComponentRowTrusted(int componentIndex) => _componentRows.RefAt(componentIndex);
+    internal Array GetRawComponentRowTrusted(int componentIndex) => RawComponentRows.RefAt(componentIndex);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool ComponentRowContainsReferences(int componentIndex)
@@ -207,12 +202,12 @@ internal sealed class Chunk
 
     internal nint EntityAddress => _entities.Address;
 
-    internal Array[] RawComponentRows => _componentRows;
+    internal Array[] RawComponentRows { get; private set; }
 
     internal void SetArchetypeLocation(int archetypeId, int archetypeIndex)
     {
-        _archetypeId = archetypeId;
-        _archetypeIndex = archetypeIndex;
+        ArchetypeId = archetypeId;
+        ArchetypeIndex = archetypeIndex;
     }
 
     internal void AdoptLayout(
@@ -220,12 +215,12 @@ internal sealed class Chunk
         ComponentRowOperations[] rowOperations,
         ReadOnlySpan<int> sourceToTarget)
     {
-        if (sourceToTarget.Length != _componentRows.Length)
+        if (sourceToTarget.Length != RawComponentRows.Length)
         {
             ThrowHelper.ThrowChunkRowOperationsMismatch(nameof(sourceToTarget));
         }
 
-        var sourceRows = _componentRows;
+        var sourceRows = RawComponentRows;
         var targetRows = new Array[layouts.Length];
         for (int sourceIndex = 0; sourceIndex < sourceToTarget.Length; sourceIndex++)
         {
@@ -253,7 +248,7 @@ internal sealed class Chunk
                 Capacity);
         }
 
-        _componentRows = targetRows;
+        RawComponentRows = targetRows;
         _rowOperations = rowOperations;
     }
 
@@ -264,35 +259,35 @@ internal sealed class Chunk
         ReadOnlySpan<int> sourceToTarget)
     {
         if (!donor.IsEmpty
-            || sourceToTarget.Length != _componentRows.Length
-            || donor._componentRows.Length != layouts.Length)
+            || sourceToTarget.Length != RawComponentRows.Length
+            || donor.RawComponentRows.Length != layouts.Length)
         {
             ThrowHelper.ThrowChunkRowOperationsMismatch(nameof(sourceToTarget));
         }
 
-        Array[] targetRows = donor._componentRows;
+        Array[] targetRows = donor.RawComponentRows;
         for (int sourceIndex = 0; sourceIndex < sourceToTarget.Length; sourceIndex++)
         {
             int targetIndex = sourceToTarget.RefAt(sourceIndex);
             if (targetIndex >= 0)
             {
                 _componentRowArrayPool.Return(targetRows[targetIndex]);
-                targetRows[targetIndex] = _componentRows.RefAt(sourceIndex);
+                targetRows[targetIndex] = RawComponentRows.RefAt(sourceIndex);
             }
             else
             {
-                _componentRowArrayPool.Return(_componentRows.RefAt(sourceIndex));
+                _componentRowArrayPool.Return(RawComponentRows.RefAt(sourceIndex));
             }
         }
 
-        donor._componentRows = Array.Empty<Array>();
-        _componentRows = targetRows;
+        donor.RawComponentRows = Array.Empty<Array>();
+        RawComponentRows = targetRows;
         _rowOperations = rowOperations;
     }
 
     internal void TrimTail(int count)
     {
-        if (count < 0 || count > _count)
+        if (count < 0 || count > Count)
         {
             ThrowHelper.ThrowChunkCountOutOfRange(nameof(count));
         }
@@ -302,15 +297,15 @@ internal sealed class Chunk
             return;
         }
 
-        int start = _count - count;
-        for (int slotIndex = start; slotIndex < _count; slotIndex++)
+        int start = Count - count;
+        for (int slotIndex = start; slotIndex < Count; slotIndex++)
         {
             ClearReferenceRows(slotIndex);
         }
 
         _tagMasks?.ClearRange(start, count);
         _entities.Span.Slice(start, count).Clear();
-        _count = start;
+        Count = start;
     }
 
     internal void CopySlotTo(Chunk target, int sourceSlotIndex, int targetSlotIndex, int sourceComponentIndex, int targetComponentIndex)
@@ -363,7 +358,7 @@ internal sealed class Chunk
 
     private void CopySlot(int sourceSlotIndex, int destinationSlotIndex)
     {
-        for (int componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
+        for (int componentIndex = 0; componentIndex < RawComponentRows.Length; componentIndex++)
         {
             CopySlot(sourceSlotIndex, destinationSlotIndex, componentIndex);
         }
@@ -371,12 +366,12 @@ internal sealed class Chunk
 
     private void ClearReferenceRows(int slotIndex)
     {
-        for (int componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
+        for (int componentIndex = 0; componentIndex < RawComponentRows.Length; componentIndex++)
         {
             ref readonly var operations = ref _rowOperations.RefAt(componentIndex);
             if (operations.ContainsReferences)
             {
-                Array.Clear(_componentRows.RefAt(componentIndex), slotIndex, 1);
+                Array.Clear(RawComponentRows.RefAt(componentIndex), slotIndex, 1);
             }
         }
     }
@@ -388,9 +383,9 @@ internal sealed class Chunk
             return;
         }
 
-        for (int componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
+        for (int componentIndex = 0; componentIndex < RawComponentRows.Length; componentIndex++)
         {
-            Array.Clear(_componentRows.RefAt(componentIndex), slotIndex, count);
+            Array.Clear(RawComponentRows.RefAt(componentIndex), slotIndex, count);
         }
     }
 
@@ -399,7 +394,7 @@ internal sealed class Chunk
         for (int index = 0; index < componentIndices.Length; index++)
         {
             int componentIndex = componentIndices.RefAt(index);
-            Array.Clear(_componentRows.RefAt(componentIndex), slotIndex, 1);
+            Array.Clear(RawComponentRows.RefAt(componentIndex), slotIndex, 1);
         }
     }
 
@@ -407,22 +402,22 @@ internal sealed class Chunk
     {
         for (int index = 0; index < componentIndices.Length; index++)
         {
-            Array.Clear(_componentRows.RefAt(componentIndices.RefAt(index)), slotIndex, count);
+            Array.Clear(RawComponentRows.RefAt(componentIndices.RefAt(index)), slotIndex, count);
         }
     }
 
     internal void ClearAll()
     {
-        for (int componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
+        for (int componentIndex = 0; componentIndex < RawComponentRows.Length; componentIndex++)
         {
             if (_rowOperations.RefAt(componentIndex).ContainsReferences)
             {
-                Array.Clear(_componentRows.RefAt(componentIndex), 0, _count);
+                Array.Clear(RawComponentRows.RefAt(componentIndex), 0, Count);
             }
         }
 
         _tagMasks?.ClearAll();
-        _count = 0;
+        Count = 0;
     }
 
     internal void BeginFreeRecordBlock(int count)
@@ -463,12 +458,12 @@ internal sealed class Chunk
 
     internal void Dispose()
     {
-        for (int componentIndex = 0; componentIndex < _componentRows.Length; componentIndex++)
+        for (int componentIndex = 0; componentIndex < RawComponentRows.Length; componentIndex++)
         {
-            _componentRowArrayPool.Return(_componentRows.RefAt(componentIndex));
+            _componentRowArrayPool.Return(RawComponentRows.RefAt(componentIndex));
         }
 
-        _componentRows = Array.Empty<Array>();
+        RawComponentRows = Array.Empty<Array>();
         _entities.Dispose();
     }
 }

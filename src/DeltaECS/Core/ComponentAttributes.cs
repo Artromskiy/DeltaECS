@@ -10,7 +10,10 @@ namespace Delta.ECS
         public ComponentSchemaAttribute() { }
 
         /// <summary>Marks a component with an explicitly assigned stable schema ID.</summary>
-        public ComponentSchemaAttribute(ulong schemaId) => SchemaId = schemaId;
+        public ComponentSchemaAttribute(ulong schemaId)
+        {
+            SchemaId = schemaId;
+        }
 
         /// <summary>An explicitly assigned stable schema ID, or zero when the ID is name-derived.</summary>
         public ulong SchemaId { get; }
@@ -21,7 +24,10 @@ namespace Delta.ECS
     public sealed class ComponentAliasAttribute : Attribute
     {
         /// <summary>Assigns one alias to a component.</summary>
-        public ComponentAliasAttribute(string alias) => Alias = alias;
+        public ComponentAliasAttribute(string alias)
+        {
+            Alias = alias;
+        }
 
         /// <summary>Gets the assigned alias.</summary>
         public string Alias { get; }
@@ -32,7 +38,10 @@ namespace Delta.ECS
     public sealed class ComponentGroupAttribute : Attribute
     {
         /// <summary>Assigns a component to enum values or arrays of enum values.</summary>
-        public ComponentGroupAttribute(params object[] groupIds) => GroupIds = groupIds;
+        public ComponentGroupAttribute(params object[] groupIds)
+        {
+            GroupIds = groupIds;
+        }
 
         /// <summary>Gets the enum values that identify the component groups.</summary>
         public object[] GroupIds { get; }

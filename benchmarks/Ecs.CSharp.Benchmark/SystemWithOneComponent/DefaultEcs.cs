@@ -33,10 +33,7 @@ namespace Ecs.CSharp.Benchmark
             private sealed partial class EntitySetSystem : AEntitySetSystem<int>
             {
                 [Update]
-                private static void Update(ref Component1 component)
-                {
-                    ++component.Value;
-                }
+                private static void Update(ref Component1 component) => ++component.Value;
             }
 
             public DefaultParallelRunner Runner { get; }

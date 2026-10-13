@@ -28,7 +28,7 @@ internal sealed class QueryStructuralOperationsTests
         world.Create(new[] { PositionId, HealthId }, second);
 
         var query = world.CreateQuery(QuerySpec.WhereAll(PositionId));
-        var added = world.Add(in query, new[] { VelocityId, extraA, extraB, extraC });
+        int added = world.Add(in query, new[] { VelocityId, extraA, extraB, extraC });
 
         Assert.That(added, Is.EqualTo(first.Length + second.Length));
         Assert.That(world.IsAlive(existingTarget), Is.True);
@@ -43,7 +43,7 @@ internal sealed class QueryStructuralOperationsTests
             Assert.That(world.TryGet<Health>(entity, HealthId, out _), Is.True);
         }
 
-        var removed = world.Remove(in query, new[] { VelocityId, extraA, extraB, extraC });
+        int removed = world.Remove(in query, new[] { VelocityId, extraA, extraB, extraC });
         Assert.That(removed, Is.EqualTo(first.Length + second.Length + 1));
         Assert.That(world.TryGet<Velocity>(existingTarget, VelocityId, out _), Is.False);
         foreach (var entity in first)
@@ -145,7 +145,7 @@ internal sealed class QueryStructuralOperationsTests
         using var world = new World(layouts);
         var entity = world.Create(new[] { PositionId });
         var query = world.CreateQuery(QuerySpec.WhereAll(VelocityId));
-        var aliveBefore = world.AliveEntityCount;
+        int aliveBefore = world.AliveEntityCount;
 
         Assert.That(world.Add(in query, new[] { HealthId }), Is.EqualTo(0));
         Assert.That(world.Remove(in query, new[] { PositionId }), Is.EqualTo(0));
@@ -220,11 +220,11 @@ internal sealed class QueryStructuralOperationsTests
         {
             Assert.That(world.TryGet<Position>(entity, PositionId, out var position), Is.True);
             Assert.That(position.X, Is.EqualTo(entity.Index - existingTarget.Length + 10));
-            Assert.That(world.TryGet<byte>(entity, markerId, out var marker), Is.True);
+            Assert.That(world.TryGet<byte>(entity, markerId, out byte marker), Is.True);
             Assert.That(marker, Is.EqualTo(0));
         }
 
-        var observed = targetQuery.Cached.MatchingChunkPlans().Length == 0
+        int observed = targetQuery.Cached.MatchingChunkPlans().Length == 0
             ? 0
             : CountMatchingEntities(targetQuery);
         Assert.That(observed, Is.EqualTo(existingTarget.Length + source.Length));
@@ -281,7 +281,7 @@ internal sealed class QueryStructuralOperationsTests
         world.Create(new[] { referenceId }, entities);
         var weakReferences = new List<WeakReference<ReferenceComponent>>();
         var values = new ReferenceComponent[entities.Length];
-        for (var i = 0; i < entities.Length; i++)
+        for (int i = 0; i < entities.Length; i++)
         {
             var value = new ReferenceComponent { Value = i + 10 };
             values[i] = value;
@@ -291,7 +291,7 @@ internal sealed class QueryStructuralOperationsTests
 
         var query = world.CreateQuery(QuerySpec.WhereAll(referenceId));
         Assert.That(world.Add(in query, new[] { markerId }), Is.EqualTo(entities.Length));
-        for (var i = 0; i < entities.Length; i++)
+        for (int i = 0; i < entities.Length; i++)
         {
             Assert.That(world.TryGet<ReferenceComponent>(entities[i], referenceId, out var actual), Is.True);
             Assert.That(actual, Is.SameAs(values[i]));
@@ -323,7 +323,7 @@ internal sealed class QueryStructuralOperationsTests
 
     private static int CountMatchingEntities(in Query query)
     {
-        var count = 0;
+        int count = 0;
         foreach (ref readonly ChunkPlan chunk in query.Cached.MatchingChunkPlans())
         {
             count += chunk.Chunk.Count;

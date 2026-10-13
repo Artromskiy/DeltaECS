@@ -13,15 +13,12 @@ using Delta.ECS;
 /// </summary>
 public sealed class SystemScheduler : IDisposable
 {
-    private readonly World _world;
     private readonly List<ISystem> _systems = new();
-    private readonly int _workerCount;
     private readonly bool _optimizeSchedule;
     private readonly SchedulerWorkers? _workers;
     private ScheduleBatch[] _batches = Array.Empty<ScheduleBatch>();
     private QueryPlanVersion[] _queryPlanVersions = Array.Empty<QueryPlanVersion>();
     private int _executing;
-    private bool _built;
     private bool _disposed;
 
     /// <summary>Creates a scheduler for one world with dependency-aware scheduling.</summary>
@@ -61,29 +58,29 @@ public sealed class SystemScheduler : IDisposable
         ThrowHelper.ThrowIfNull(world, nameof(world));
         ThrowHelper.ThrowIfNegative(workerCount, nameof(workerCount));
 
-        _world = world;
+        World = world;
         _optimizeSchedule = optimizeSchedule;
         int processorCount = Math.Max(1, Environment.ProcessorCount);
-        _workerCount = optimizeSchedule
+        WorkerCount = optimizeSchedule
             ? Math.Min(workerCount == 0 ? processorCount : workerCount, processorCount)
             : 1;
-        if (optimizeSchedule && _workerCount > 1)
+        if (optimizeSchedule && WorkerCount > 1)
         {
-            _workers = new SchedulerWorkers(_world, _workerCount);
+            _workers = new SchedulerWorkers(World, WorkerCount);
         }
     }
 
     /// <summary>Gets the world shared by the scheduler's systems.</summary>
-    public World World => _world;
+    public World World { get; }
 
     /// <summary>Gets the effective worker count; linear execution always returns one.</summary>
-    public int WorkerCount => _workerCount;
+    public int WorkerCount { get; }
 
     /// <summary>Gets the number of registered systems.</summary>
     public int Count => _systems.Count;
 
     /// <summary>Gets whether the current system list has a compiled schedule.</summary>
-    public bool IsBuilt => _built;
+    public bool IsBuilt { get; private set; }
 
     /// <summary>Gets a registered system by registration order.</summary>
     public ISystem this[int index] => _systems[index];
@@ -95,7 +92,7 @@ public sealed class SystemScheduler : IDisposable
         EnsureNotExecuting();
         ThrowHelper.ThrowIfNull(system, nameof(system));
 
-        if (!ReferenceEquals(system.World, _world))
+        if (!ReferenceEquals(system.World, World))
         {
             ThrowHelper.ThrowWorldMismatch();
         }
@@ -109,7 +106,7 @@ public sealed class SystemScheduler : IDisposable
         }
 
         _systems.Add(system);
-        _built = false;
+        IsBuilt = false;
     }
 
     /// <summary>Removes a registered system by reference.</summary>
@@ -130,7 +127,7 @@ public sealed class SystemScheduler : IDisposable
             }
 
             _systems.RemoveAt(index);
-            _built = false;
+            IsBuilt = false;
             return true;
         }
 
@@ -145,7 +142,7 @@ public sealed class SystemScheduler : IDisposable
         _systems.Clear();
         _batches = Array.Empty<ScheduleBatch>();
         _queryPlanVersions = Array.Empty<QueryPlanVersion>();
-        _built = false;
+        IsBuilt = false;
     }
 
     /// <summary>Compiles the current registration list into deterministic batches.</summary>
@@ -164,7 +161,7 @@ public sealed class SystemScheduler : IDisposable
             _batches = Array.Empty<ScheduleBatch>();
             _queryPlanVersions = Array.Empty<QueryPlanVersion>();
             _workers?.PrepareCapacity(0);
-            _built = true;
+            IsBuilt = true;
             return;
         }
 
@@ -173,7 +170,7 @@ public sealed class SystemScheduler : IDisposable
             ISystem[] systems = _systems.ToArray();
             for (int index = 0; index < systems.Length; index++)
             {
-                if (!ReferenceEquals(systems[index].World, _world))
+                if (!ReferenceEquals(systems[index].World, World))
                 {
                     ThrowHelper.ThrowSystemWorldChanged();
                 }
@@ -181,7 +178,7 @@ public sealed class SystemScheduler : IDisposable
 
             _batches = new[] { new ScheduleBatch(systems) };
             _queryPlanVersions = Array.Empty<QueryPlanVersion>();
-            _built = true;
+            IsBuilt = true;
             return;
         }
 
@@ -189,7 +186,7 @@ public sealed class SystemScheduler : IDisposable
         for (int index = 0; index < systemCount; index++)
         {
             ISystem system = _systems[index];
-            if (!ReferenceEquals(system.World, _world))
+            if (!ReferenceEquals(system.World, World))
             {
                 ThrowHelper.ThrowSystemWorldChanged();
             }
@@ -199,7 +196,7 @@ public sealed class SystemScheduler : IDisposable
             nodes[index] = new SystemNode(system, access);
         }
 
-        var levels = new int[systemCount];
+        int[] levels = new int[systemCount];
         int maximumLevel = 0;
         for (int current = 0; current < systemCount; current++)
         {
@@ -233,7 +230,7 @@ public sealed class SystemScheduler : IDisposable
 
         _workers?.PrepareCapacity(systemCount);
         CaptureQueryPlanVersions(nodes);
-        _built = true;
+        IsBuilt = true;
     }
 
     /// <summary>Executes every compiled batch once.</summary>
@@ -248,8 +245,8 @@ public sealed class SystemScheduler : IDisposable
         IDisposable? executionGate = null;
         try
         {
-            executionGate = _world.EnterSchedulerExecution();
-            if (!_built || QueryPlanArchetypesChanged())
+            executionGate = World.EnterSchedulerExecution();
+            if (!IsBuilt || QueryPlanArchetypesChanged())
             {
                 BuildCore();
             }
@@ -280,7 +277,7 @@ public sealed class SystemScheduler : IDisposable
 
                 if (QueryPlanArchetypesChanged())
                 {
-                    _built = false;
+                    IsBuilt = false;
                     ExecuteRemainingSystemsSerially(batchIndex + 1);
                     break;
                 }
@@ -433,7 +430,7 @@ public sealed class SystemScheduler : IDisposable
         ReadOnlySpan<SystemQueryAccess> queryAccesses = access.QueryAccesses;
         for (int index = 0; index < queryAccesses.Length; index++)
         {
-            if (!ReferenceEquals(queryAccesses[index].Query.Owner, _world))
+            if (!ReferenceEquals(queryAccesses[index].Query.Owner, World))
             {
                 ThrowHelper.ThrowSystemQueryWorldMismatch();
             }
@@ -539,7 +536,10 @@ public sealed class SystemScheduler : IDisposable
 
     private readonly struct ScheduleBatch
     {
-        internal ScheduleBatch(ISystem[] systems) => Systems = systems;
+        internal ScheduleBatch(ISystem[] systems)
+        {
+            Systems = systems;
+        }
 
         internal ISystem[] Systems { get; }
     }

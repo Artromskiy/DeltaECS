@@ -93,7 +93,10 @@ internal sealed class EcsOperationTests
     {
         private readonly Counter _counter;
 
-        internal IncrementInvoker(Counter counter) => _counter = counter;
+        internal IncrementInvoker(Counter counter)
+        {
+            _counter = counter;
+        }
 
         public void Invoke() => _counter.Value++;
     }
@@ -107,7 +110,10 @@ internal sealed class EcsOperationTests
     {
         private readonly StateProbe _probe;
 
-        internal StateInvoker(StateProbe probe) => _probe = probe;
+        internal StateInvoker(StateProbe probe)
+        {
+            _probe = probe;
+        }
 
         public void Invoke(ref int state)
         {

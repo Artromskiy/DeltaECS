@@ -128,7 +128,7 @@ internal sealed class ComponentRegistryTests
         var primary = layouts.Register<Position>(new SchemaId(70_041));
 
         int registrationCount = 256 + 64;
-        for (var index = 1; index < registrationCount; index++)
+        for (int index = 1; index < registrationCount; index++)
         {
             layouts.Register<int>(new SchemaId((ulong)(70_041 + index)));
         }

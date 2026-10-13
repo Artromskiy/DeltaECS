@@ -135,7 +135,6 @@ internal sealed class ForEachChangeComponentFixture : IDisposable
 {
     private readonly ComponentId _componentId;
     private readonly Entity[] _entities;
-    private long _notificationCount;
 
     internal ForEachChangeComponentFixture(int amount)
     {
@@ -153,9 +152,9 @@ internal sealed class ForEachChangeComponentFixture : IDisposable
 
     internal World World { get; }
     internal ComponentChangeOperation<ChangeWriteA> Operation { get; }
-    internal long NotificationCount => _notificationCount;
+    internal long NotificationCount { get; private set; }
 
-    private void Record(Entity entity, ChangeKind change, ref ChangeWriteA component) => _notificationCount++;
+    private void Record(Entity entity, ChangeKind change, ref ChangeWriteA component) => NotificationCount++;
 
     internal void MarkModified(int count)
     {
@@ -172,7 +171,6 @@ internal sealed class ForEachChangeTagFixture : IDisposable
 {
     private readonly ComponentId _tagId;
     private readonly Entity[] _entities;
-    private long _notificationCount;
 
     internal ForEachChangeTagFixture(int amount)
     {
@@ -190,9 +188,9 @@ internal sealed class ForEachChangeTagFixture : IDisposable
 
     internal World World { get; }
     internal ComponentChangeOperation<ChangeWriteTagA> Operation { get; }
-    internal long NotificationCount => _notificationCount;
+    internal long NotificationCount { get; private set; }
 
-    private void Record(Entity entity, ChangeKind change, ref ChangeWriteTagA component) => _notificationCount++;
+    private void Record(Entity entity, ChangeKind change, ref ChangeWriteTagA component) => NotificationCount++;
 
     internal void MarkModified(int count)
     {
@@ -239,8 +237,15 @@ public class ForEachWriteObserverMicroBenchmarkImplementation
     [GlobalCleanup]
     public void Cleanup()
     {
-        foreach (ComponentWriteFixture fixture in _componentFixtures) fixture.Dispose();
-        foreach (TagWriteFixture fixture in _tagFixtures) fixture.Dispose();
+        foreach (ComponentWriteFixture fixture in _componentFixtures)
+        {
+            fixture.Dispose();
+        }
+
+        foreach (TagWriteFixture fixture in _tagFixtures)
+        {
+            fixture.Dispose();
+        }
     }
 
     [Benchmark] public void ForEachOneComponentNoSubscribers() => _componentFixtures[0].Invoke();

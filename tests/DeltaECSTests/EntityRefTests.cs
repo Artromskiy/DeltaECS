@@ -124,7 +124,7 @@ internal sealed class EntityRefTests
         }
 
         Query allPositions = world.CreateQuery(QuerySpec.WhereAll(positionId));
-        var denseVisits = new int[entityCount];
+        int[] denseVisits = new int[entityCount];
         int denseVisitCount = 0;
         world.ForEachEntity(in allPositions, entity =>
         {
@@ -142,7 +142,7 @@ internal sealed class EntityRefTests
 
         Query taggedPositions = world.CreateQuery(
             QuerySpec.WhereAll(positionId).WithAny(stackalloc[] { tagId }));
-        var taggedVisits = new int[entityCount];
+        int[] taggedVisits = new int[entityCount];
         int taggedVisitCount = 0;
         world.ForEachEntity(in taggedPositions, entity =>
         {

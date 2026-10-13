@@ -15,9 +15,9 @@ internal sealed partial class ThrowHelperPlacementTests
     [Test]
     public void ExplicitThrowKeywordsAreOnlyInThrowHelpers()
     {
-        var repositoryRoot = FindRepositoryRoot();
-        var sourceRoot = Path.Combine(repositoryRoot, "src");
-        var offenders = Directory
+        string repositoryRoot = FindRepositoryRoot();
+        string sourceRoot = Path.Combine(repositoryRoot, "src");
+        string[] offenders = Directory
             .EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories)
             .Where(static path => !string.Equals(
                 Path.GetFileName(path),

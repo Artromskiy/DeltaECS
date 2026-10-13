@@ -26,10 +26,7 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowNull(string parameterName)
-    {
-        throw new ArgumentNullException(parameterName);
-    }
+    private static void ThrowNull(string parameterName) => throw new ArgumentNullException(parameterName);
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowNegative(int value, string parameterName)

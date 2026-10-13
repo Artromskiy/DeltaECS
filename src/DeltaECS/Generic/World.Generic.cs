@@ -103,7 +103,7 @@ public sealed partial class World
             return chunk.HasTag(tagIndex, slotIndex);
         }
 
-        Archetype archetype = _archetypes[chunk.ArchetypeId];
+        Archetype archetype = Archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
         {
             value = default!;
@@ -323,7 +323,7 @@ public sealed partial class World
             return ref GeneratedTagRows.GetReference<T>(0);
         }
 
-        var archetype = _archetypes[chunk.ArchetypeId];
+        var archetype = Archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
         {
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
@@ -355,7 +355,7 @@ public sealed partial class World
             return ref GeneratedTagRows.GetReference<T>(0);
         }
 
-        var archetype = _archetypes[chunk.ArchetypeId];
+        var archetype = Archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
         {
             ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
@@ -446,7 +446,7 @@ public sealed partial class World
             return ref GeneratedTagRows.GetReference<T>(0);
         }
 
-        var archetype = _archetypes[chunk.ArchetypeId];
+        var archetype = Archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
         {
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
@@ -469,7 +469,7 @@ public sealed partial class World
             return ref GeneratedTagRows.GetReference<T>(0);
         }
 
-        var archetype = _archetypes[chunk.ArchetypeId];
+        var archetype = Archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
         {
             ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
@@ -523,7 +523,7 @@ public sealed partial class World
                 continue;
             }
 
-            var sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
+            var sourceArchetype = Archetypes[sourceChunk.ArchetypeId];
             var edge = edgeGeneration == 0
                 ? GetTransitionEdge(sourceArchetype.Id, changeSet, true)
                 : GetBatchTransitionEdge(sourceArchetype.Id, changeSet, true, edgeGeneration);
@@ -533,7 +533,7 @@ public sealed partial class World
             }
 
             MoveEntity(recordIndex, edge, out Chunk targetChunk, out int targetSlotIndex);
-            var targetArchetype = _archetypes[targetChunk.ArchetypeId];
+            var targetArchetype = Archetypes[targetChunk.ArchetypeId];
             int targetComponentIndex = targetArchetype.Mask.Rank(componentId);
             if (pendingChunk is null
                 || !ReferenceEquals(pendingChunk, targetChunk)
@@ -567,7 +567,7 @@ public sealed partial class World
             return false;
         }
 
-        Archetype sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
+        Archetype sourceArchetype = Archetypes[sourceChunk.ArchetypeId];
         ComponentSet changeSet = GetOrCreateComponentSet(componentIds);
         TransitionEdge edge = GetTransitionEdge(sourceArchetype.Id, changeSet, true);
         bool archetypeChanged = !edge.IsNoOp;
@@ -586,10 +586,10 @@ public sealed partial class World
         bool tagsChanged = ApplyTags(targetChunk, targetSlotIndex, changeSet.TagIndices, isAdd: true);
         if (tagsChanged)
         {
-            _tagVersion++;
+            TagVersion++;
         }
 
-        Archetype targetArchetype = _archetypes[targetChunk.ArchetypeId];
+        Archetype targetArchetype = Archetypes[targetChunk.ArchetypeId];
         var writer = new GeneratedComponentValueWriter(
             _layouts,
             targetChunk,
@@ -635,7 +635,7 @@ public sealed partial class World
                 continue;
             }
 
-            Archetype sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
+            Archetype sourceArchetype = Archetypes[sourceChunk.ArchetypeId];
             TransitionEdge edge = edgeGeneration == 0
                 ? GetTransitionEdge(sourceArchetype.Id, changeSet, true)
                 : GetBatchTransitionEdge(sourceArchetype.Id, changeSet, true, edgeGeneration);
@@ -660,7 +660,7 @@ public sealed partial class World
                 continue;
             }
 
-            Archetype targetArchetype = _archetypes[targetChunk.ArchetypeId];
+            Archetype targetArchetype = Archetypes[targetChunk.ArchetypeId];
             if (!ReferenceEquals(pendingChunk, targetChunk)
                 || !ReferenceEquals(pendingArchetype, targetArchetype)
                 || !ReferenceEquals(pendingAddedRows, edge.AddedTargetRowIndices)
@@ -687,7 +687,7 @@ public sealed partial class World
 
         if (tagsChanged)
         {
-            _tagVersion++;
+            TagVersion++;
         }
 
         InitializeGeneratedComponentRange(
@@ -713,7 +713,7 @@ public sealed partial class World
             ThrowHelper.ThrowStructuralCreateFailed();
         }
 
-        Archetype archetype = _archetypes[chunk.ArchetypeId];
+        Archetype archetype = Archetypes[chunk.ArchetypeId];
         var writer = new GeneratedComponentValueWriter(_layouts, chunk, archetype, slotIndex);
         initializer.Initialize(ref writer);
         return entity;
@@ -775,7 +775,7 @@ public sealed partial class World
             ThrowHelper.ThrowStructuralCreateFailed();
         }
 
-        var archetype = _archetypes[chunk.ArchetypeId];
+        var archetype = Archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
         {
             ThrowHelper.ThrowStructuralComponentMissing();

@@ -1288,16 +1288,10 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
-    public void GeneratedConsumerProjectExecutesGeneratedApiGrammarWithoutThrowing()
-    {
-        Assert.DoesNotThrow(GeneratedApiGrammarProof.Run);
-    }
+    public void GeneratedConsumerProjectExecutesGeneratedApiGrammarWithoutThrowing() => Assert.DoesNotThrow(GeneratedApiGrammarProof.Run);
 
     [Test]
-    public void RuntimeOnlyConsumerProjectExecutesApiGrammarWithoutGenerator()
-    {
-        Assert.DoesNotThrow(RuntimeApiGrammarProof.Run);
-    }
+    public void RuntimeOnlyConsumerProjectExecutesApiGrammarWithoutGenerator() => Assert.DoesNotThrow(RuntimeApiGrammarProof.Run);
 
     [Test]
     public void StructuralGeneratorEmitsOnlyUsedGenericShapes()
@@ -1920,18 +1914,16 @@ public sealed class DemandDrivenForEachGeneratorTests
 
     private sealed class FixedAnalyzerConfigOptionsProvider : AnalyzerConfigOptionsProvider
     {
-        private readonly AnalyzerConfigOptions _options;
-
         public FixedAnalyzerConfigOptionsProvider(string interceptorsNamespace)
         {
-            _options = new FixedAnalyzerConfigOptions(interceptorsNamespace);
+            GlobalOptions = new FixedAnalyzerConfigOptions(interceptorsNamespace);
         }
 
-        public override AnalyzerConfigOptions GlobalOptions => _options;
+        public override AnalyzerConfigOptions GlobalOptions { get; }
 
-        public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => _options;
+        public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => GlobalOptions;
 
-        public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => _options;
+        public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => GlobalOptions;
     }
 
     private sealed class FixedAnalyzerConfigOptions : AnalyzerConfigOptions

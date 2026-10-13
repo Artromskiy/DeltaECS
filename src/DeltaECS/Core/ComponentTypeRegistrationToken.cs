@@ -30,7 +30,10 @@ internal sealed class ComponentRegistrationTypeToken : IComponentRegistrationTok
 {
     private readonly IComponentTypeRegistrationRoute _route;
 
-    internal ComponentRegistrationTypeToken(IComponentTypeRegistrationRoute route) => _route = route;
+    internal ComponentRegistrationTypeToken(IComponentTypeRegistrationRoute route)
+    {
+        _route = route;
+    }
 
     bool IComponentRegistrationToken.TryVisit(ComponentId componentId, IVisitor visitor)
     {
@@ -84,7 +87,10 @@ internal readonly struct ComponentTypeRegistrationRouteVisitor : IComponentTypeR
 {
     private readonly IVisitor _visitor;
 
-    internal ComponentTypeRegistrationRouteVisitor(IVisitor visitor) => _visitor = visitor;
+    internal ComponentTypeRegistrationRouteVisitor(IVisitor visitor)
+    {
+        _visitor = visitor;
+    }
 
     bool IComponentTypeRegistrationRouteVisitor.VisitUnconstrained<TComponent>(ComponentId componentId)
         => TryVisitUnconstrained<TComponent>(componentId);
@@ -268,7 +274,10 @@ internal readonly struct ComponentInterfaceRouteVisitor<TInterface> : IComponent
 {
     private readonly IVisitor _visitor;
 
-    internal ComponentInterfaceRouteVisitor(IVisitor visitor) => _visitor = visitor;
+    internal ComponentInterfaceRouteVisitor(IVisitor visitor)
+    {
+        _visitor = visitor;
+    }
 
     bool IComponentInterfaceRouteVisitor<TInterface>.VisitUnconstrained<TComponent>(ComponentId componentId)
         => _visitor switch

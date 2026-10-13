@@ -18,7 +18,7 @@ internal static class Program
 
         if (args.Length > 0 && string.Equals(args[0], "combined-report", StringComparison.OrdinalIgnoreCase))
         {
-            var directory = args.Length > 1 ? args[1] : "artifacts/comparative";
+            string directory = args.Length > 1 ? args[1] : "artifacts/comparative";
             ComparativeBenchmarkCatalog.Validate();
             ComparativeReportBuilder.WriteManifest(directory);
             Console.WriteLine($"Wrote iteration comparative report to {directory}.");
@@ -27,7 +27,7 @@ internal static class Program
 
         if (args.Length > 0 && string.Equals(args[0], "many-components", StringComparison.OrdinalIgnoreCase))
         {
-            var manyComponentArgs = BenchmarkConfiguration.SelectAmounts(
+            string[] manyComponentArgs = BenchmarkConfiguration.SelectAmounts(
                 args[1..],
                 BenchmarkConfiguration.DefaultAmounts,
                 out int[] manyComponentAmounts);
@@ -40,7 +40,7 @@ internal static class Program
 
         if (args.Length > 0 && string.Equals(args[0], "tag-filtering", StringComparison.OrdinalIgnoreCase))
         {
-            var tagFilteringArgs = BenchmarkConfiguration.SelectAmounts(
+            string[] tagFilteringArgs = BenchmarkConfiguration.SelectAmounts(
                 args[1..],
                 BenchmarkConfiguration.DefaultAmounts,
                 out int[] tagFilteringAmounts);
@@ -53,7 +53,7 @@ internal static class Program
 
         if (args.Length > 0 && string.Equals(args[0], "parallel", StringComparison.OrdinalIgnoreCase))
         {
-            var parallelArgs = ParallelBenchmarkArguments.Extract(args[1..]);
+            string[] parallelArgs = ParallelBenchmarkArguments.Extract(args[1..]);
             if (parallelArgs.Any(static arg => string.Equals(arg, "--help", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "-h", StringComparison.OrdinalIgnoreCase)))
             {
@@ -84,7 +84,7 @@ internal static class Program
                 nameof(args));
         }
 
-        var benchmarkArgs = BenchmarkConfiguration.SelectAmounts(
+        string[] benchmarkArgs = BenchmarkConfiguration.SelectAmounts(
             args.Length > 0 ? args[1..] : Array.Empty<string>(),
             BenchmarkConfiguration.DefaultAmounts,
             out int[] amounts);
@@ -206,7 +206,7 @@ internal static class ParallelBenchmarkArguments
             throw new ArgumentException($"{name} must contain at least one value.", nameof(value));
         }
 
-        var values = new int[tokens.Length];
+        int[] values = new int[tokens.Length];
         for (int index = 0; index < tokens.Length; index++)
         {
             if (!int.TryParse(tokens[index], NumberStyles.None, CultureInfo.InvariantCulture, out int parsed)

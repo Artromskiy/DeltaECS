@@ -60,7 +60,7 @@ internal sealed class ComponentChangeMasksSpanTests
 
     private static ulong[] CreateMask(int words)
     {
-        var mask = new ulong[words];
+        ulong[] mask = new ulong[words];
         for (int index = 0; index < words; index++)
         {
             mask[index] = 0x9E37_79B9_7F4A_7C15UL * (uint)(index + 1);
@@ -71,7 +71,7 @@ internal sealed class ComponentChangeMasksSpanTests
 
     private static void CopyExpected(ulong[] source, int sourceSlot, ulong[] target, int targetSlot, int count, bool merge)
     {
-        var copied = new bool[count];
+        bool[] copied = new bool[count];
         for (int index = 0; index < count; index++)
         {
             copied[index] = GetBit(source, sourceSlot + index);

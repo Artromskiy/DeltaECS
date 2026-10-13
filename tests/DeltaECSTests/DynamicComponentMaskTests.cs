@@ -27,7 +27,7 @@ internal sealed class DynamicComponentMaskTests
         Assert.That(mask.Rank(new ComponentId(256)), Is.EqualTo(2));
         Assert.That(mask.Rank(new ComponentId(1024)), Is.EqualTo(4));
 
-        var ids = new int[5];
+        int[] ids = new int[5];
         int index = 0;
         foreach (var componentId in mask)
         {

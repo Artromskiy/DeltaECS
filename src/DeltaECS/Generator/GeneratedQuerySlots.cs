@@ -15,10 +15,8 @@ public readonly ref struct GeneratedQuerySlots
     private readonly Span<Entity> _entities;
     private readonly Array[] _resolvedRowsByQuery;
     private readonly int[] _componentIndices;
-    private readonly int _count;
     private readonly int _offset;
     private readonly ReadOnlySpan<int> _tagSlots;
-    private readonly bool _hasTagFilters;
     private readonly bool _hasTagSlots;
     private readonly QueryPlan? _queryPlan;
 
@@ -52,11 +50,11 @@ public readonly ref struct GeneratedQuerySlots
         _entities = _chunk.RawEntities;
         _resolvedRowsByQuery = chunkPlan.ComponentRows;
         _componentIndices = chunkPlan.ComponentIndices;
-        _count = count;
+        PhysicalCount = count;
         _offset = offset;
         _queryPlan = queryPlan;
-        _hasTagFilters = !tagFiltersAlreadyMatched && queryPlan is not null && queryPlan.HasTagFilters;
-        _hasTagSlots = _hasTagFilters && offset == 0 && queryPlan is not null && queryPlan.TryGetTagSlots(_chunk, out _tagSlots);
+        HasTagFilters = !tagFiltersAlreadyMatched && queryPlan is not null && queryPlan.HasTagFilters;
+        _hasTagSlots = HasTagFilters && offset == 0 && queryPlan is not null && queryPlan.TryGetTagSlots(_chunk, out _tagSlots);
         if (!_hasTagSlots)
         {
             _tagSlots = default;
@@ -67,16 +65,16 @@ public readonly ref struct GeneratedQuerySlots
     public int Count
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _hasTagSlots ? _tagSlots.Length : _count;
+        get => _hasTagSlots ? _tagSlots.Length : PhysicalCount;
     }
 
     /// <summary>Gets the physical chunk population before any tag filter is applied.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public int PhysicalCount => _count;
+    public int PhysicalCount { get; }
 
     /// <summary>Reports whether the owning query applies tag filters.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public bool HasTagFilters => _hasTagFilters;
+    public bool HasTagFilters { get; }
 
     /// <summary>Tests whether a physical chunk slot satisfies the query's tag filters.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]

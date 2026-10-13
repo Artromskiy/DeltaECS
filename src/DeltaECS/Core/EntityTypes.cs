@@ -60,25 +60,23 @@ internal struct EntityRecord
 /// <summary>Cached selection of entities matching a set of component filters.</summary>
 public readonly struct Query
 {
-    private readonly World _owner;
-    private readonly QueryPlan _cached;
     private readonly QuerySpec _description;
 
     internal Query(World owner, QueryPlan cached, QuerySpec spec)
     {
-        _owner = owner;
-        _cached = cached;
+        Owner = owner;
+        Cached = cached;
         _description = spec;
     }
 
-    internal World Owner => _owner;
+    internal World Owner { get; }
 
-    internal QueryPlan Cached => _cached;
+    internal QueryPlan Cached { get; }
 
     internal QuerySpec Description => _description;
 
     /// <summary>Gets whether this query belongs to a live, undisposed world.</summary>
-    public bool IsValid => _owner is not null && _cached is not null && !_owner.IsDisposed;
+    public bool IsValid => Owner is not null && Cached is not null && !Owner.IsDisposed;
 
     /// <summary>Returns the first entity matching this query, or <see langword="default"/> if there is no match.</summary>
     public EcsResultOperation<Entity> First()
@@ -105,7 +103,7 @@ public readonly struct Query
     {
         EnsureValid();
         QuerySpec composed = _description.Compose(in additions);
-        return _owner.CreateQuery(in composed);
+        return Owner.CreateQuery(in composed);
     }
 
     private void EnsureValid()
@@ -119,7 +117,7 @@ public readonly struct Query
     private Entity FindFirst()
     {
         Query query = this;
-        using GeneratedReadDenseExecution execution = GeneratedForEachRuntime.OpenReadDense(_owner, in query);
+        using GeneratedReadDenseExecution execution = GeneratedForEachRuntime.OpenReadDense(Owner, in query);
         while (execution.MoveNextTrusted(out GeneratedReadQuerySlots slots))
         {
             if (slots.Count != 0)

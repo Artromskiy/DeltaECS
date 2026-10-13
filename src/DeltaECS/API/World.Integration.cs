@@ -92,7 +92,7 @@ public sealed partial class World : IEcsWorld
             return false;
         }
 
-        ReadOnlySpan<ComponentId> components = _archetypes[chunk.ArchetypeId].ComponentIds;
+        ReadOnlySpan<ComponentId> components = Archetypes[chunk.ArchetypeId].ComponentIds;
         totalCount = components.Length;
         components[..Math.Min(components.Length, destination.Length)].CopyTo(destination);
         return true;
@@ -133,7 +133,7 @@ public sealed partial class World : IEcsWorld
             return true;
         }
 
-        var archetype = _archetypes[chunk.ArchetypeId];
+        var archetype = Archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(component, out int componentIndex))
         {
             error = new EcsReadError(EcsReadErrorCode.ComponentMissing);
@@ -190,7 +190,7 @@ public sealed partial class World : IEcsWorld
             return true;
         }
 
-        var archetype = _archetypes[chunk.ArchetypeId];
+        var archetype = Archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(component, out int componentIndex))
         {
             error = new EcsWriteError(EcsWriteErrorCode.ComponentMissing);
@@ -294,10 +294,7 @@ public sealed partial class World : IEcsWorld
         }
     }
 
-    private void ThrowIfDisposed()
-    {
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
-    }
+    private void ThrowIfDisposed() => ThrowHelper.ThrowIfDisposed(IsDisposed, this);
 
     private static bool SupportsObjectAccess(ComponentLayout layout)
         => !layout.RuntimeType.IsByRefLike

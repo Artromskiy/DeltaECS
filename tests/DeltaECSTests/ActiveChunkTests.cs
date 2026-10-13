@@ -30,7 +30,7 @@ internal sealed class ActiveChunkTests
 
         var query = QuerySpec.WhereAll(PositionId);
         var queryHandle = world.CreateQuery(in query);
-        var queriedSlots = CountQueriedSlots(world, queryHandle);
+        int queriedSlots = CountQueriedSlots(world, queryHandle);
         Assert.That(queriedSlots, Is.EqualTo(chunkSize * 2));
 
         var replacement = new Entity[chunkSize];
@@ -47,7 +47,7 @@ internal sealed class ActiveChunkTests
 
     private static int CountQueriedSlots(World world, in Query query)
     {
-        var count = 0;
+        int count = 0;
         foreach (ref readonly ChunkPlan chunk in query.Cached.MatchingChunkPlans())
         {
             count += chunk.Chunk.Count;
@@ -66,7 +66,7 @@ internal sealed class ActiveChunkTests
 
     private static void AssertActiveChunks(Archetype archetype)
     {
-        for (var activeIndex = 0; activeIndex < archetype.ActiveChunkCount; activeIndex++)
+        for (int activeIndex = 0; activeIndex < archetype.ActiveChunkCount; activeIndex++)
         {
             var chunk = archetype.GetActiveChunk(activeIndex);
             Assert.That(chunk.IsEmpty, Is.False);

@@ -29,7 +29,7 @@ internal sealed class DeltaECSDeliveryTests
         Assert.That(e1.Generation, Is.GreaterThan(0));
         Assert.True(world.IsAlive(e1));
 
-        var destroyed = world.Destroy(e1);
+        bool destroyed = world.Destroy(e1);
         Assert.True(destroyed);
         Assert.False(world.IsAlive(e1));
 
@@ -45,7 +45,7 @@ internal sealed class DeltaECSDeliveryTests
         RegisterComponentLayouts(layouts);
         using var world = new World(layouts);
 
-        var requested = 2_000;
+        int requested = 2_000;
         var created = new Entity[requested];
         world.Create(new[] { PositionId, VelocityId }, created);
         Assert.AreEqual(requested, world.AliveEntityCount);
@@ -102,13 +102,13 @@ internal sealed class DeltaECSDeliveryTests
 
         var initial = new Entity[1];
         world.Create(new[] { PositionId }, initial);
-        var before = 0;
+        int before = 0;
         before = CountDenseQuery(world, query);
 
         var withVelocity = new Entity[2];
         world.Create(new[] { PositionId, VelocityId }, withVelocity);
 
-        var after = 0;
+        int after = 0;
         after = CountDenseQuery(world, query);
 
         Assert.AreEqual(before + 2, after, $"before={before}, after={after}, alive={world.AliveEntityCount}");
@@ -127,7 +127,7 @@ internal sealed class DeltaECSDeliveryTests
 
         world.Create(new[] { PositionId });
 
-        var count = CountDenseQuery(world, query);
+        int count = CountDenseQuery(world, query);
         Assert.AreEqual(1, count);
     }
 
@@ -149,8 +149,8 @@ internal sealed class DeltaECSDeliveryTests
         Assert.That(query.AnyMask.Contains(VelocityId), Is.True);
         Assert.That(query.NoneMask.Contains(HealthId), Is.True);
 
-        var expected = new[] { 0, 7, 65, 129, 193 };
-        var index = 0;
+        int[] expected = new[] { 0, 7, 65, 129, 193 };
+        int index = 0;
         foreach (var componentId in query.AllMask)
         {
             Assert.That(index, Is.LessThan(expected.Length));
@@ -322,7 +322,7 @@ internal sealed class DeltaECSDeliveryTests
 
         var baseline = CollectChunkIds(world);
 
-        for (var i = 0; i < 8; i++)
+        for (int i = 0; i < 8; i++)
         {
             world.Destroy(initial[i]);
         }
@@ -334,7 +334,7 @@ internal sealed class DeltaECSDeliveryTests
         world.Create(new[] { PositionId }, replacement);
         var afterRecycle = CollectChunkIds(world);
 
-        foreach (var id in afterRecycle)
+        foreach (int id in afterRecycle)
         {
             Assert.True(baseline.Contains(id), $"Unexpected new chunk id after recycle: {id}");
         }
@@ -397,16 +397,16 @@ internal sealed class DeltaECSDeliveryTests
         var model = new Dictionary<int, EntityState>();
 
         var allEntities = new List<Entity>();
-        for (var step = 0; step < 2_000; step++)
+        for (int step = 0; step < 2_000; step++)
         {
-            var action = random.Next(4);
+            int action = random.Next(4);
             if (action == 0 && allEntities.Count < 200)
             {
-                var count = random.Next(1, 8);
-                for (var i = 0; i < count; i++)
+                int count = random.Next(1, 8);
+                for (int i = 0; i < count; i++)
                 {
-                    var useVelocity = random.NextDouble() > 0.5;
-                    var useHealth = random.NextDouble() > 0.5;
+                    bool useVelocity = random.NextDouble() > 0.5;
+                    bool useHealth = random.NextDouble() > 0.5;
                     var list = new List<ComponentId> { PositionId };
                     if (useVelocity)
                     {
@@ -444,7 +444,7 @@ internal sealed class DeltaECSDeliveryTests
             }
             else if (action == 1 && allEntities.Count > 0)
             {
-                var index = random.Next(allEntities.Count);
+                int index = random.Next(allEntities.Count);
                 var entity = allEntities[index];
                 world.Destroy(entity);
                 model.Remove(entity.Index);
@@ -452,9 +452,9 @@ internal sealed class DeltaECSDeliveryTests
             }
             else if (action == 2 && allEntities.Count > 0)
             {
-                var index = random.Next(allEntities.Count);
+                int index = random.Next(allEntities.Count);
                 var entity = allEntities[index];
-                var addVelocity = random.NextDouble() > 0.5;
+                bool addVelocity = random.NextDouble() > 0.5;
                 var current = model[entity.Index];
 
                 if (addVelocity)
@@ -476,7 +476,7 @@ internal sealed class DeltaECSDeliveryTests
             }
             else if (action == 3 && allEntities.Count > 0)
             {
-                var index = random.Next(allEntities.Count);
+                int index = random.Next(allEntities.Count);
                 var entity = allEntities[index];
                 if (world.IsAlive(entity))
                 {
@@ -509,7 +509,10 @@ internal sealed class DeltaECSDeliveryTests
     {
         private uint _state;
 
-        internal TestRandom(uint seed) => _state = seed == 0 ? 0xA341316Cu : seed;
+        internal TestRandom(uint seed)
+        {
+            _state = seed == 0 ? 0xA341316Cu : seed;
+        }
 
         internal int Next(int maxValue)
             => (int)(((ulong)NextUInt32() * (uint)maxValue) >> 32);
@@ -537,7 +540,7 @@ internal sealed class DeltaECSDeliveryTests
     private static int CountDenseQuery(World world, in QuerySpec query)
     {
         var handle = world.CreateQuery(in query);
-        var count = 0;
+        int count = 0;
         foreach (ref readonly ChunkPlan chunk in handle.Cached.MatchingChunkPlans())
         {
             count += chunk.Chunk.Count;
@@ -553,7 +556,7 @@ internal sealed class DeltaECSDeliveryTests
             Assert.Fail($"Entity count mismatch: model={model.Count}, tracked={entities.Count}, worldAlive={world.AliveEntityCount}");
         }
 
-        for (var i = 0; i < entities.Count; i++)
+        for (int i = 0; i < entities.Count; i++)
         {
             var entity = entities[i];
             var expected = model[entity.Index];

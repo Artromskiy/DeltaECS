@@ -53,10 +53,7 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
-        private static void Update(ref Component1 c1, ref Component2 c2)
-        {
-            c1.Value += c2.Value;
-        }
+        private static void Update(ref Component1 c1, ref Component2 c2) => c1.Value += c2.Value;
 
         [BenchmarkCategory(Categories.FrifloEngineEcs, Categories.SIMD)]
         [Benchmark]

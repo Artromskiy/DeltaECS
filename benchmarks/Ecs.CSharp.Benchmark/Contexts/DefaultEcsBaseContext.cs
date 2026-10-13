@@ -27,9 +27,6 @@ namespace Ecs.CSharp.Benchmark.Contexts
             World = new World();
         }
 
-        public virtual void Dispose()
-        {
-            World.Dispose();
-        }
+        public virtual void Dispose() => World.Dispose();
     }
 }

@@ -77,7 +77,10 @@ namespace Ecs.CSharp.Benchmark.Contexts
     {
         private readonly DeltaComponentId _componentId;
 
-        internal DeltaEntityRefFunctor(DeltaComponentId componentId) => _componentId = componentId;
+        internal DeltaEntityRefFunctor(DeltaComponentId componentId)
+        {
+            _componentId = componentId;
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Invoke(EntityRef entity)

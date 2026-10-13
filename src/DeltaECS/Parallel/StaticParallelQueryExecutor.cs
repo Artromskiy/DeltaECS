@@ -610,7 +610,10 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
 
     private readonly struct ParallelChunk
     {
-        internal ParallelChunk(ChunkPlan chunk) => Chunk = chunk;
+        internal ParallelChunk(ChunkPlan chunk)
+        {
+            Chunk = chunk;
+        }
 
         internal ChunkPlan Chunk { get; }
     }

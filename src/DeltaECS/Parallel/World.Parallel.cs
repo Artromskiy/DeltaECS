@@ -17,7 +17,10 @@ public sealed partial class World
     {
         private readonly ForEachEntityAction _action;
 
-        internal EntityParallelInvoker(ForEachEntityAction action) => _action = action;
+        internal EntityParallelInvoker(ForEachEntityAction action)
+        {
+            _action = action;
+        }
 
         public bool RequiresSingleThread => false;
 
@@ -275,7 +278,7 @@ public sealed partial class World
 
     internal void EnterParallelExecution()
     {
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
+        ThrowHelper.ThrowIfDisposed(IsDisposed, this);
         if (Interlocked.CompareExchange(ref _parallelExecutionActive, 1, 0) != 0)
         {
             ThrowHelper.ThrowParallelExecutionActive();

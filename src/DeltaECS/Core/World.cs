@@ -24,9 +24,10 @@ public sealed partial class World : IDisposable
     private const int TransitionHashMultiplier = 397;
 
     private readonly ComponentRegistry _layouts;
+
     private readonly Dictionary<RuntimeTypeHandle, ComponentId> _primaryComponentIdsByType =
         new(RuntimeTypeHandleComparer.Instance);
-    private readonly List<Archetype> _archetypes = new();
+
     private readonly ComponentRowArrayPool _componentRowArrayPool = new();
     private readonly List<Chunk> _freeRecordChunks = new();
     private readonly Dictionary<ComponentMask, int> _archetypeByMask = new();
@@ -35,7 +36,9 @@ public sealed partial class World : IDisposable
     private int _freeCount;
     private readonly Dictionary<TransitionKey, TransitionEdge> _transitionCache = new();
     private readonly ComponentSetCache _componentSetCache = new();
+
     private readonly Dictionary<QuerySpec, WeakReference<QueryPlan>> _queryCache = new();
+
     // These snapshots change only outside query execution; parallel callbacks observe them after executor publication.
     private ComponentChangeObserverRoute?[]? _componentChangeObservers;
     private WeakReference<ComponentChangeObserver>[] _componentChangeObserverList = Array.Empty<WeakReference<ComponentChangeObserver>>();
@@ -61,15 +64,12 @@ public sealed partial class World : IDisposable
     private NativeMemory<int> _batchEdgeGenerations = new(0);
     private int _batchEdgeGeneration;
     private int _nextChunkId;
-    private int _tagVersion;
     private readonly List<int> _freeChunkIds = new();
     private Chunk?[] _chunksById = Array.Empty<Chunk?>();
     private int _activeChunkLeases;
-    private bool _disposed;
     private int _schedulerExecutionActive;
 
-    [ThreadStatic]
-    private static World? _schedulerExecutionWorld;
+    [ThreadStatic] private static World? _schedulerExecutionWorld;
 
     /// <summary>Creates a world using the supplied component layouts.</summary>
     /// <param name="layouts">The registered component layouts, or null to create an empty registry.</param>
@@ -125,15 +125,15 @@ public sealed partial class World : IDisposable
         return _layouts.GetGroup(groupId);
     }
 
-    internal bool IsDisposed => _disposed;
+    internal bool IsDisposed { get; private set; }
 
-    internal int TagVersion => _tagVersion;
+    internal int TagVersion { get; private set; }
 
 
-    internal List<Archetype> Archetypes => _archetypes;
+    internal List<Archetype> Archetypes { get; } = new();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ComponentId GetPrimaryComponentId<T>()
+    private ComponentId GetPrimaryComponentId<T>()
     {
         RuntimeTypeHandle type = typeof(T).TypeHandle;
         if (_primaryComponentIdsByType.TryGetValue(type, out ComponentId componentId))
@@ -147,7 +147,7 @@ public sealed partial class World : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool TryGetPrimaryComponentId<T>(out ComponentId componentId)
+    private bool TryGetPrimaryComponentId<T>(out ComponentId componentId)
     {
         RuntimeTypeHandle type = typeof(T).TypeHandle;
         if (_primaryComponentIdsByType.TryGetValue(type, out componentId))
@@ -172,14 +172,14 @@ public sealed partial class World : IDisposable
     public void Dispose()
     {
         EnsureExecutionAccess();
-        if (_disposed)
+        if (IsDisposed)
         {
             return;
         }
 
         EnsureNoActiveLease("dispose the world");
 
-        _disposed = true;
+        IsDisposed = true;
         foreach (var weakQueryPlan in _queryCache.Values)
         {
             if (weakQueryPlan.TryGetTarget(out QueryPlan? queryPlan))
@@ -195,7 +195,7 @@ public sealed partial class World : IDisposable
         _lastGenericFunctorEntry = null;
         DisposeGenericFunctorInputBlocks();
 
-        foreach (var archetype in _archetypes)
+        foreach (var archetype in Archetypes)
         {
             archetype.Dispose();
         }
@@ -314,7 +314,7 @@ public sealed partial class World : IDisposable
         }
     }
 
-    internal void PrepareComponentChangeAddRange(Chunk chunk, int slotIndex, int count)
+    private void PrepareComponentChangeAddRange(Chunk chunk, int slotIndex, int count)
     {
         WeakReference<ComponentChangeObserver>[] observers = _componentChangeObserverList;
         for (int index = 0; index < observers.Length; index++)
@@ -326,7 +326,7 @@ public sealed partial class World : IDisposable
         }
     }
 
-    internal void MoveComponentChangeRange(Chunk source, int sourceSlot, Chunk target, int targetSlot, int count)
+    private void MoveComponentChangeRange(Chunk source, int sourceSlot, Chunk target, int targetSlot, int count)
     {
         WeakReference<ComponentChangeObserver>[] observers = _componentChangeObserverList;
         for (int index = 0; index < observers.Length; index++)
@@ -338,7 +338,7 @@ public sealed partial class World : IDisposable
         }
     }
 
-    internal void CopyComponentChangeRangeWithin(Chunk chunk, int sourceSlot, int targetSlot, int count)
+    private void CopyComponentChangeRangeWithin(Chunk chunk, int sourceSlot, int targetSlot, int count)
     {
         WeakReference<ComponentChangeObserver>[] observers = _componentChangeObserverList;
         for (int index = 0; index < observers.Length; index++)
@@ -350,7 +350,7 @@ public sealed partial class World : IDisposable
         }
     }
 
-    internal void RemoveComponentChangeSwapBack(Chunk chunk, int slotIndex, int lastSlotIndex)
+    private void RemoveComponentChangeSwapBack(Chunk chunk, int slotIndex, int lastSlotIndex)
     {
         WeakReference<ComponentChangeObserver>[] observers = _componentChangeObserverList;
         for (int index = 0; index < observers.Length; index++)
@@ -362,7 +362,7 @@ public sealed partial class World : IDisposable
         }
     }
 
-    internal void TrimComponentChangeChunkTail(Chunk chunk, int count)
+    private void TrimComponentChangeChunkTail(Chunk chunk, int count)
     {
         WeakReference<ComponentChangeObserver>[] observers = _componentChangeObserverList;
         for (int index = 0; index < observers.Length; index++)
@@ -386,7 +386,7 @@ public sealed partial class World : IDisposable
         }
     }
 
-    internal void EnsureComponentChangeObserverCapacity(int capacity)
+    private void EnsureComponentChangeObserverCapacity(int capacity)
     {
         ComponentChangeObserverRoute?[]? routes = _componentChangeObservers;
         if (routes is null)
@@ -413,7 +413,7 @@ public sealed partial class World : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void RecordComponentChange(Chunk chunk, int slotIndex, ComponentId componentId)
+    private void RecordComponentChange(Chunk chunk, int slotIndex, ComponentId componentId)
     {
         ComponentChangeObserverRoute?[]? routes = _componentChangeObservers;
         if (routes is null || (uint)componentId.Value >= (uint)routes.Length)
@@ -436,7 +436,7 @@ public sealed partial class World : IDisposable
         }
     }
 
-    internal void MergeParallelComponentChanges()
+    private void MergeParallelComponentChanges()
     {
         foreach (WeakReference<ComponentChangeObserver> reference in _componentChangeObserverList)
         {
@@ -457,7 +457,7 @@ public sealed partial class World : IDisposable
             }
 
             bool tag = _layouts.TryGetTagIndex(observer.ComponentId, out int tagIndex);
-            if (!tag && !_archetypes[chunk.ArchetypeId].Mask.Contains(observer.ComponentId))
+            if (!tag && !Archetypes[chunk.ArchetypeId].Mask.Contains(observer.ComponentId))
             {
                 continue;
             }
@@ -481,7 +481,7 @@ public sealed partial class World : IDisposable
 
     private void RecordTransitionMembershipRange(Chunk chunk, int slot, int count, Archetype target)
     {
-        Archetype source = _archetypes[chunk.ArchetypeId];
+        Archetype source = Archetypes[chunk.ArchetypeId];
         foreach (WeakReference<ComponentChangeObserver> reference in _componentChangeObserverList)
         {
             if (!reference.TryGetTarget(out ComponentChangeObserver? observer)
@@ -528,7 +528,7 @@ public sealed partial class World : IDisposable
             return;
         }
 
-        Archetype archetype = _archetypes[chunk.ArchetypeId];
+        Archetype archetype = Archetypes[chunk.ArchetypeId];
         ReadOnlySpan<Entity> entities = chunk.RawEntities.Slice(slotIndex, count);
         foreach (ComponentId id in componentIds)
         {
@@ -678,6 +678,7 @@ public sealed partial class World : IDisposable
         {
             ThrowHelper.ThrowEntityDestinationTooSmall(nameof(output));
         }
+
         if (output.Length == 0)
         {
             EnsureNoActiveLease("create entities");
@@ -743,6 +744,7 @@ public sealed partial class World : IDisposable
             {
                 chunk.EnsureTagCapacity(_layouts.TagCount);
             }
+
             chunk.ApplyTags(tagIndices, slotIndex, reserved, isAdd: true);
             if (reusedCount != 0)
             {
@@ -803,7 +805,7 @@ public sealed partial class World : IDisposable
         AliveEntityCount += count;
         if (_layouts.TagCount != 0)
         {
-            _tagVersion++;
+            TagVersion++;
         }
 
         EndQueryPlanBatch();
@@ -841,6 +843,7 @@ public sealed partial class World : IDisposable
             {
                 chunk.EnsureTagCapacity(_layouts.TagCount);
             }
+
             chunk.ApplyTags(tagIndices, slotIndex, reserved, isAdd: true);
             if (reusedCount != 0)
             {
@@ -899,7 +902,7 @@ public sealed partial class World : IDisposable
         AliveEntityCount += count;
         if (_layouts.TagCount != 0)
         {
-            _tagVersion++;
+            TagVersion++;
         }
 
         EndQueryPlanBatch();
@@ -979,7 +982,7 @@ public sealed partial class World : IDisposable
                 }
 
                 int groupCount = groupEnd - groupStart;
-                var archetype = _archetypes[first.Archetype];
+                var archetype = Archetypes[first.Archetype];
                 var chunk = GetChunkById(first.ChunkId);
                 if (groupCount == chunk.Count && IsCompleteDestroyChunk(groupStart, groupCount))
                 {
@@ -1026,7 +1029,7 @@ public sealed partial class World : IDisposable
             }
 
             int groupCount = groupEnd - groupStart;
-            var archetype = _archetypes[last.Archetype];
+            var archetype = Archetypes[last.Archetype];
             var chunk = GetChunkById(last.ChunkId);
             if (groupCount == chunk.Count && IsCompleteAscendingDestroyChunk(groupStart, groupCount))
             {
@@ -1072,16 +1075,16 @@ public sealed partial class World : IDisposable
             return chunk.HasTag(tagIndex, slotIndex);
         }
 
-        return _archetypes[chunk.ArchetypeId].Contains(componentId);
+        return Archetypes[chunk.ArchetypeId].Contains(componentId);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool HasTrusted(Entity entity, ComponentId componentId)
+    private bool HasTrusted(Entity entity, ComponentId componentId)
     {
         Chunk chunk = GetEntityRefLocationTrusted(entity, out int slotIndex);
         return _layouts.TryGetTagIndex(componentId, out int tagIndex)
             ? chunk.HasTag(tagIndex, slotIndex)
-            : _archetypes[chunk.ArchetypeId].Contains(componentId);
+            : Archetypes[chunk.ArchetypeId].Contains(componentId);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1095,38 +1098,31 @@ public sealed partial class World : IDisposable
         Chunk chunk = view.Chunk!;
         return _layouts.TryGetTagIndex(componentId, out int tagIndex)
             ? chunk.HasTag(tagIndex, view.SlotIndex)
-            : _archetypes[chunk.ArchetypeId].Contains(componentId);
+            : Archetypes[chunk.ArchetypeId].Contains(componentId);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryGetCore<T>(Entity entity, ComponentId componentId, out T value)
     {
-        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
+        if (TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
-            value = default!;
-            return false;
+            return TryGetCore(chunk, slotIndex, componentId, out value);
         }
 
-        return TryGetCore<T>(chunk, slotIndex, componentId, out value);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool TryGetTrusted<T>(Entity entity, ComponentId componentId, out T value)
-    {
-        Chunk chunk = GetEntityRefLocationTrusted(entity, out int slotIndex);
-        return TryGetCore<T>(chunk, slotIndex, componentId, out value);
+        value = default!;
+        return false;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetTrusted<T>(ref GeneratedEntityRefView view, ComponentId componentId, out T value)
     {
-        if (view.TryBindPreparedComponent(componentId, typeof(T), out bool isTag))
+        if (!view.TryBindPreparedComponent(componentId, typeof(T), out bool isTag))
         {
-            value = isTag ? default! : view.GetPreparedComponentRef<T>();
-            return true;
+            return TryGetCore(view.Chunk!, view.SlotIndex, componentId, out value);
         }
 
-        return TryGetCore<T>(view.Chunk!, view.SlotIndex, componentId, out value);
+        value = isTag ? default! : view.GetPreparedComponentRef<T>();
+        return true;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1144,7 +1140,7 @@ public sealed partial class World : IDisposable
             return chunk.HasTag(tagIndex, slotIndex);
         }
 
-        var archetype = _archetypes[chunk.ArchetypeId];
+        var archetype = Archetypes[chunk.ArchetypeId];
         if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
         {
             value = default!;
@@ -1268,7 +1264,7 @@ public sealed partial class World : IDisposable
         BeginQueryPlanBatch();
         for (int archetypeIndex = 0; archetypeIndex < archetypes.Length; archetypeIndex++)
         {
-            var archetype = _archetypes[archetypes.RefAt(archetypeIndex)];
+            var archetype = Archetypes[archetypes.RefAt(archetypeIndex)];
             DeferQueryPlanUpdates(archetype);
             for (int chunkIndex = archetype.ChunkCount - 1; chunkIndex >= 0; chunkIndex--)
             {
@@ -1341,7 +1337,7 @@ public sealed partial class World : IDisposable
 
         if (tagsChanged)
         {
-            _tagVersion++;
+            TagVersion++;
         }
 
         if (batch)
@@ -1391,7 +1387,7 @@ public sealed partial class World : IDisposable
         BeginQueryPlanBatch();
         for (int matchingIndex = 0; matchingIndex < matchingArchetypes.Length; matchingIndex++)
         {
-            var sourceArchetype = _archetypes[matchingArchetypes.RefAt(matchingIndex)];
+            var sourceArchetype = Archetypes[matchingArchetypes.RefAt(matchingIndex)];
             if (sourceArchetype.ActiveChunkCount == 0)
             {
                 continue;
@@ -1466,7 +1462,7 @@ public sealed partial class World : IDisposable
 
         if (tagsChanged)
         {
-            _tagVersion++;
+            TagVersion++;
         }
 
         EndQueryPlanBatch();
@@ -1484,7 +1480,9 @@ public sealed partial class World : IDisposable
         EnsureExecutionAccess();
         EnsureNoActiveLease(isDestroy
             ? "destroy entities"
-            : isAdd ? "add components" : "remove components");
+            : isAdd
+                ? "add components"
+                : "remove components");
         ValidateQuery(in query);
 
         ComponentSet changeSet;
@@ -1544,7 +1542,7 @@ public sealed partial class World : IDisposable
                     isAdd);
                 if (!edge.IsNoOp)
                 {
-                    targetArchetype = _archetypes[edge.TargetArchetypeId];
+                    targetArchetype = Archetypes[edge.TargetArchetypeId];
                     sourceToTargetRows = edge.SourceToTargetRowIndices;
                     addedTargetRows = edge.AddedTargetRowIndices;
                     targetCursor = GetGeneratedWhereTargetCursor(targetArchetype.Id);
@@ -1623,7 +1621,7 @@ public sealed partial class World : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void MarkGeneratedWhereTagsChanged() => _tagVersion++;
+    internal void MarkGeneratedWhereTagsChanged() => TagVersion++;
 
     internal GeneratedWhereStructuralContext BeginGeneratedWhereChunk(int chunkId, int sourceCount)
     {
@@ -1670,7 +1668,7 @@ public sealed partial class World : IDisposable
         _deferredQueryPlanArchetypes.Clear();
         _deferredQueryPlans.Clear();
         _deferredQueryPlanArchetypeGeneration = NextGeneratedWhereGeneration(_deferredQueryPlanArchetypeGeneration);
-        EnsureGeneratedWhereArchetypeCapacity(_archetypes.Count);
+        EnsureGeneratedWhereArchetypeCapacity(Archetypes.Count);
         _queryPlanBatchActive = true;
     }
 
@@ -1697,7 +1695,7 @@ public sealed partial class World : IDisposable
     private void BeginGeneratedWherePlanCache()
     {
         _generatedWherePlanGeneration = NextGeneratedWhereGeneration(_generatedWherePlanGeneration);
-        EnsureGeneratedWhereArchetypeCapacity(_archetypes.Count);
+        EnsureGeneratedWhereArchetypeCapacity(Archetypes.Count);
     }
 
     private GeneratedWhereTargetCursor GetGeneratedWhereTargetCursor(int archetypeId)
@@ -1868,7 +1866,7 @@ public sealed partial class World : IDisposable
         AliveEntityCount -= count;
         if (count != 0 && _layouts.TagCount != 0)
         {
-            _tagVersion++;
+            TagVersion++;
         }
     }
 
@@ -1894,7 +1892,7 @@ public sealed partial class World : IDisposable
 
         if (_layouts.TagCount != 0)
         {
-            _tagVersion++;
+            TagVersion++;
         }
     }
 
@@ -1936,7 +1934,7 @@ public sealed partial class World : IDisposable
     private int MoveArchetypeBlocks(Archetype sourceArchetype, TransitionEdge edge)
     {
         int movedCount = 0;
-        var targetArchetype = _archetypes[edge.TargetArchetypeId];
+        var targetArchetype = Archetypes[edge.TargetArchetypeId];
         DeferQueryPlanUpdates(sourceArchetype);
         DeferQueryPlanUpdates(targetArchetype);
         int initialTargetChunkCount = targetArchetype.ChunkCount;
@@ -1945,7 +1943,7 @@ public sealed partial class World : IDisposable
         {
             RecordTransitionMembershipRange(sourceChunk, 0, sourceChunk.Count, targetArchetype);
             while (sourceChunk.Count != 0
-                && targetArchetype.TryTakeBlockPartialChunk(out Chunk targetChunk))
+                   && targetArchetype.TryTakeBlockPartialChunk(out Chunk targetChunk))
             {
                 int copied = Math.Min(sourceChunk.Count, Chunk.Capacity - targetChunk.Count);
                 int sourceSlot = sourceChunk.Count - copied;
@@ -1996,6 +1994,7 @@ public sealed partial class World : IDisposable
             {
                 targetArchetype.AttachAdoptedChunk(adopted);
             }
+
             movedCount += adopted.Count;
         }
 
@@ -2045,7 +2044,7 @@ public sealed partial class World : IDisposable
         UpdateChunkRecordLocations(target, targetSlot, count);
         if (_layouts.TagCount != 0)
         {
-            _tagVersion++;
+            TagVersion++;
         }
     }
 
@@ -2073,8 +2072,9 @@ public sealed partial class World : IDisposable
         AliveEntityCount -= count;
         if (_layouts.TagCount != 0)
         {
-            _tagVersion++;
+            TagVersion++;
         }
+
         return count;
     }
 
@@ -2130,8 +2130,8 @@ public sealed partial class World : IDisposable
     {
         ref readonly var record = ref RecordAt(entry.RecordIndex);
         return record.Generation == entry.Entity.Generation
-            && record.ChunkId == entry.ChunkId
-            && record.SlotIndex == entry.SlotIndex;
+               && record.ChunkId == entry.ChunkId
+               && record.SlotIndex == entry.SlotIndex;
     }
 
     private void DestroyResolved(int recordIndex)
@@ -2144,7 +2144,7 @@ public sealed partial class World : IDisposable
     private void DestroyResolved(int recordIndex, Chunk chunk)
     {
         ref var record = ref RecordAt(recordIndex);
-        var archetype = _archetypes[chunk.ArchetypeId];
+        var archetype = Archetypes[chunk.ArchetypeId];
         if (_queryPlanBatchActive)
         {
             DeferQueryPlanUpdates(archetype);
@@ -2168,21 +2168,18 @@ public sealed partial class World : IDisposable
         AliveEntityCount--;
         if (_layouts.TagCount != 0)
         {
-            _tagVersion++;
+            TagVersion++;
         }
     }
 
-    private void MoveEntity(int recordIndex, TransitionEdge edge)
-    {
-        MoveEntity(recordIndex, edge, out _, out _);
-    }
+    private void MoveEntity(int recordIndex, TransitionEdge edge) => MoveEntity(recordIndex, edge, out _, out _);
 
     private void MoveEntity(int recordIndex, TransitionEdge edge, out Chunk targetChunk, out int targetSlotIndex)
     {
         ref var sourceRecord = ref RecordAt(recordIndex);
         Chunk sourceChunk = GetRecordChunk(sourceRecord);
-        var sourceArchetype = _archetypes[sourceChunk.ArchetypeId];
-        var targetArchetype = _archetypes[edge.TargetArchetypeId];
+        var sourceArchetype = Archetypes[sourceChunk.ArchetypeId];
+        var targetArchetype = Archetypes[edge.TargetArchetypeId];
         if (_queryPlanBatchActive)
         {
             DeferQueryPlanUpdates(sourceArchetype);
@@ -2217,6 +2214,7 @@ public sealed partial class World : IDisposable
         {
             targetChunk.InitializeRows(targetSlotIndex, edge.AddedTargetRowIndices);
         }
+
         MoveComponentChangeRange(sourceChunk, sourceSlotIndex, targetChunk, targetSlotIndex, 1);
         int sourceLastSlotIndex = sourceChunk.Count - 1;
         var moved = sourceArchetype.RemoveEntity(sourceChunkIndex, sourceSlotIndex);
@@ -2232,9 +2230,8 @@ public sealed partial class World : IDisposable
 
         if (_layouts.TagCount != 0)
         {
-            _tagVersion++;
+            TagVersion++;
         }
-
     }
 
     private TransitionEdge GetTransitionEdge(int sourceArchetypeId, ComponentSet changeSet, bool isAdd)
@@ -2245,7 +2242,7 @@ public sealed partial class World : IDisposable
             return edge;
         }
 
-        var source = _archetypes[sourceArchetypeId];
+        var source = Archetypes[sourceArchetypeId];
         bool noOp = isAdd
             ? source.Mask.ContainsAll(changeSet.Mask)
             : !source.Mask.Intersects(changeSet.Mask);
@@ -2295,7 +2292,7 @@ public sealed partial class World : IDisposable
     {
         if (_archetypeByMask.TryGetValue(mask, out int existing))
         {
-            return _archetypes[existing];
+            return Archetypes[existing];
         }
 
         var componentIds = new ComponentId[mask.Count];
@@ -2314,14 +2311,14 @@ public sealed partial class World : IDisposable
         }
 
         var archetype = new Archetype(
-            _archetypes.Count,
+            Archetypes.Count,
             mask,
             layouts,
             rowOperations,
             componentIds,
             _componentRowArrayPool);
         _archetypeByMask.Add(mask, archetype.Id);
-        _archetypes.Add(archetype);
+        Archetypes.Add(archetype);
         List<QuerySpec>? deadQueries = null;
         foreach (var entry in _queryCache)
         {
@@ -2427,7 +2424,7 @@ public sealed partial class World : IDisposable
     {
         ValidateComponentIds(componentIds);
         var dataIds = new ComponentId[componentIds.Length];
-        var tagIndices = new int[componentIds.Length];
+        int[] tagIndices = new int[componentIds.Length];
         int dataCount = 0;
         int tagCount = 0;
         for (int index = 0; index < componentIds.Length; index++)
@@ -2528,7 +2525,7 @@ public sealed partial class World : IDisposable
         chunk.SetFreeRecordListIndex(-1);
         if (chunk.ArchetypeId >= 0)
         {
-            _archetypes[chunk.ArchetypeId].RequeueFreedRecordChunk(chunk);
+            Archetypes[chunk.ArchetypeId].RequeueFreedRecordChunk(chunk);
         }
     }
 
@@ -2565,7 +2562,7 @@ public sealed partial class World : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Chunk GetChunkById(int chunkId)
+    private Chunk GetChunkById(int chunkId)
     {
         if ((uint)chunkId >= (uint)_chunksById.Length || _chunksById[chunkId] is null)
         {
@@ -2652,7 +2649,7 @@ public sealed partial class World : IDisposable
 
     internal IDisposable EnterSchedulerExecution()
     {
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
+        ThrowHelper.ThrowIfDisposed(IsDisposed, this);
         if (_schedulerExecutionWorld is not null
             || Interlocked.CompareExchange(ref _schedulerExecutionActive, 1, 0) != 0)
         {
@@ -2716,7 +2713,10 @@ public sealed partial class World : IDisposable
     {
         private World? _world;
 
-        internal SchedulerExecutionLease(World world) => _world = world;
+        internal SchedulerExecutionLease(World world)
+        {
+            _world = world;
+        }
 
         public void Dispose()
         {
@@ -2769,7 +2769,7 @@ public sealed partial class World : IDisposable
 
     private int BeginBatchEdgeCache()
     {
-        EnsureBatchEdgeCapacity(_archetypes.Count);
+        EnsureBatchEdgeCapacity(Archetypes.Count);
         if (_batchEdgeGeneration == int.MaxValue)
         {
             _batchEdgeGenerations.Clear();
@@ -2834,9 +2834,10 @@ public sealed partial class World : IDisposable
         public bool IsAdd { get; }
 
         public bool Equals(TransitionKey other) => SourceArchetypeId == other.SourceArchetypeId
-            && ChangeSetId == other.ChangeSetId && IsAdd == other.IsAdd;
+                                                   && ChangeSetId == other.ChangeSetId && IsAdd == other.IsAdd;
 
         public override bool Equals(object? obj) => obj is TransitionKey other && Equals(other);
+
         public override int GetHashCode()
         {
             int hash = (SourceArchetypeId * TransitionHashMultiplier) ^ ChangeSetId.Value;
@@ -2901,5 +2902,4 @@ public sealed partial class World : IDisposable
             return result != 0 ? result : y.SlotIndex.CompareTo(x.SlotIndex);
         }
     }
-
 }

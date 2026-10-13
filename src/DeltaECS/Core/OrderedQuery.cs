@@ -8,7 +8,10 @@ public readonly struct OrderedQuery
 {
     private readonly OrderedQueryState? _state;
 
-    internal OrderedQuery(OrderedQueryState state) => _state = state;
+    internal OrderedQuery(OrderedQueryState state)
+    {
+        _state = state;
+    }
 
     /// <summary>Returns the first entity in ordering order, or <see langword="default"/> if the query has no result.</summary>
     public EcsResultOperation<Entity> First()

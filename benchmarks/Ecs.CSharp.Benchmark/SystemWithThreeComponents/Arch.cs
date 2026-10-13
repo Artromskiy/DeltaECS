@@ -14,17 +14,11 @@ namespace Ecs.CSharp.Benchmark
         private struct ForEach3 : IForEach<Component1, Component2, Component3>
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void Update(ref Component1 t0, ref Component2 t1, ref Component3 t2)
-            {
-                t0.Value += t1.Value + t2.Value;
-            }
+            public void Update(ref Component1 t0, ref Component2 t1, ref Component3 t2) => t0.Value += t1.Value + t2.Value;
         }
 
         [Query]
-        private static void ForEach(ref Component1 t0, Component2 t1, Component3 t2)
-        {
-            t0.Value += t1.Value + t2.Value;
-        }
+        private static void ForEach(ref Component1 t0, Component2 t1, Component3 t2) => t0.Value += t1.Value + t2.Value;
 
         private sealed class ArchContext : ArchBaseContext
         {

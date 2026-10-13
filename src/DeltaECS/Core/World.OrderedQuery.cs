@@ -40,7 +40,7 @@ public sealed partial class World
     internal void BeginOrderedQueryOperation()
     {
         EnsureExecutionAccess();
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
+        ThrowHelper.ThrowIfDisposed(IsDisposed, this);
         if (_orderedQueryOperationActive)
         {
             ThrowHelper.ThrowOrderedQueryAlreadyActive();

@@ -21,13 +21,9 @@ public sealed partial class ComponentRegistry
     private readonly List<bool> _isTag = new();
     private readonly List<int> _tagIndices = new();
     private readonly Dictionary<Type, List<GenericRegistration>> _genericRegistrations = new();
-    private int _tagCount;
 
     /// <summary>Visits a compatible registered component type and does nothing for an invalid ID or unsupported visitor.</summary>
-    public void Visit(ComponentId componentId, IVisitor? visitor)
-    {
-        _ = TryVisit(componentId, visitor);
-    }
+    public void Visit(ComponentId componentId, IVisitor? visitor) => _ = TryVisit(componentId, visitor);
 
     /// <summary>Visits a compatible component type; returns false for an invalid ID, null visitor, or unsupported route.</summary>
     public bool TryVisit(ComponentId componentId, IVisitor? visitor)
@@ -37,14 +33,16 @@ public sealed partial class ComponentRegistry
             return false;
         }
 
-        if (visitor is IComponentVisitor constrainedVisitor)
+        if (visitor is not IComponentVisitor constrainedVisitor)
         {
-            RuntimeTypeHandle componentType = _componentTypeTokens[componentId.Value].ComponentType.TypeHandle;
-            var key = (componentType, constrainedVisitor.ConstraintType);
-            if (_interfaceVisitorRoutes.TryGetValue(key, out IComponentInterfaceVisitorRoute? route))
-            {
-                return route.TryVisit(componentId, visitor);
-            }
+            return _componentVisitorTokens[componentId.Value].TryVisit(componentId, visitor);
+        }
+
+        RuntimeTypeHandle componentType = _componentTypeTokens[componentId.Value].ComponentType.TypeHandle;
+        var key = (componentType, constrainedVisitor.ConstraintType);
+        if (_interfaceVisitorRoutes.TryGetValue(key, out IComponentInterfaceVisitorRoute? route))
+        {
+            return route.TryVisit(componentId, visitor);
         }
 
         return _componentVisitorTokens[componentId.Value].TryVisit(componentId, visitor);
@@ -209,7 +207,7 @@ public sealed partial class ComponentRegistry
 
     internal int Count => _layouts.Count;
 
-    internal int TagCount => _tagCount;
+    internal int TagCount { get; private set; }
 
     /// <summary>
     /// Closes a generic component definition with the CLR types selected by
@@ -360,7 +358,7 @@ public sealed partial class ComponentRegistry
         _componentTypeTokens.Add(typeToken);
         _componentVisitorTokens.Add(componentRegistrationToken);
         _isTag.Add(isTag);
-        _tagIndices.Add(isTag ? _tagCount++ : -1);
+        _tagIndices.Add(isTag ? TagCount++ : -1);
         _idsBySchema.Add(layout.SchemaId, id.Value);
         _primaryIdsByType.TryAdd(layout.RuntimeType, id);
 

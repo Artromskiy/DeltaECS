@@ -226,7 +226,7 @@ public sealed class ComponentComparerDelegateGenerator : IIncrementalGenerator
         }
 
         bool preferEntityForm = matches.Any(static match => match.Model.HasEntity);
-        var selectedIndices = Enumerable.Range(0, matches.Count)
+        int[] selectedIndices = Enumerable.Range(0, matches.Count)
             .Where(index => !preferEntityForm || matches[index].Model.HasEntity)
             .ToArray();
         if (selectedIndices.Length != 1)

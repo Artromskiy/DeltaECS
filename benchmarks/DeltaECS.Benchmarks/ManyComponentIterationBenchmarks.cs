@@ -86,7 +86,7 @@ public class ManyComponentIterationBenchmarks
     [Benchmark(Baseline = true)]
     public int DeltaECSManyComponents()
     {
-        var checksum = 0;
+        int checksum = 0;
         _iteration ??= _world.ForEach(
             in _query,
             ref checksum,

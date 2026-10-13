@@ -21,7 +21,7 @@ internal sealed class StructuralAlgorithmTests
         using var world = new World(layouts);
         var entities = new Entity[96];
         world.Create(new[] { valueId }, entities);
-        for (var i = 0; i < entities.Length; i++)
+        for (int i = 0; i < entities.Length; i++)
         {
             world.GetRef<DestroyValue>(entities[i], valueId) = new DestroyValue { Value = 100_000 + i };
         }
@@ -31,16 +31,16 @@ internal sealed class StructuralAlgorithmTests
 
         var requested = new List<Entity>();
         var expectedDestroyed = new HashSet<Entity>();
-        for (var i = 20; i < 42; i++)
+        for (int i = 20; i < 42; i++)
         {
             requested.Add(entities[i]);
             expectedDestroyed.Add(entities[i]);
         }
 
         var random = new DeterministicRandom(0xD35_701);
-        for (var i = 0; i < 23; i++)
+        for (int i = 0; i < 23; i++)
         {
-            var index = random.Next(42, entities.Length);
+            int index = random.Next(42, entities.Length);
             requested.Add(entities[index]);
             expectedDestroyed.Add(entities[index]);
             if ((i & 3) == 0)
@@ -52,7 +52,7 @@ internal sealed class StructuralAlgorithmTests
         // A stale handle and a duplicate must not affect the exact count.
         requested.Add(stale);
         requested.Add(stale);
-        var destroyed = world.Destroy(CollectionsMarshalCompat.AsSpan(requested));
+        int destroyed = world.Destroy(CollectionsMarshalCompat.AsSpan(requested));
 
         Assert.That(destroyed, Is.EqualTo(expectedDestroyed.Count));
         Assert.That(world.AliveEntityCount, Is.EqualTo(entities.Length - 1 - expectedDestroyed.Count));
@@ -110,7 +110,7 @@ internal sealed class StructuralAlgorithmTests
 
         var requested = new List<Entity>(5_500);
         var expected = new HashSet<Entity>();
-        for (var i = 0; i < entities.Length; i += 2)
+        for (int i = 0; i < entities.Length; i += 2)
         {
             requested.Add(entities[i]);
             expected.Add(entities[i]);
@@ -140,7 +140,7 @@ internal sealed class StructuralAlgorithmTests
         var model = new Dictionary<Entity, TransitionState>();
         var entities = new List<Entity>();
 
-        for (var i = 0; i < 180; i++)
+        for (int i = 0; i < 180; i++)
         {
             var entity = world.Create(new[] { positionId, velocityId, healthId });
             var state = new TransitionState
@@ -159,11 +159,11 @@ internal sealed class StructuralAlgorithmTests
             entities.Add(entity);
         }
 
-        for (var step = 0; step < 360; step++)
+        for (int step = 0; step < 360; step++)
         {
             if (entities.Count > 40 && (step % 19) == 0)
             {
-                var destroyIndex = random.Next(entities.Count);
+                int destroyIndex = random.Next(entities.Count);
                 var removed = entities[destroyIndex];
                 Assert.That(world.Destroy(removed), Is.True);
                 entities.RemoveAt(destroyIndex);
@@ -186,7 +186,7 @@ internal sealed class StructuralAlgorithmTests
             }
 
             var selected = SelectUnique(entities, random, random.Next(1, Math.Min(28, entities.Count) + 1));
-            var addVelocity = (step & 1) == 0;
+            bool addVelocity = (step & 1) == 0;
             world.Add(CollectionsMarshalCompat.AsSpan(selected), addVelocity ? new[] { velocityId } : new[] { healthId });
             foreach (var entity in selected)
             {
@@ -212,7 +212,7 @@ internal sealed class StructuralAlgorithmTests
             if ((step % 3) == 0)
             {
                 var second = SelectUnique(entities, random, random.Next(1, Math.Min(19, entities.Count) + 1));
-                var removeVelocity = (step % 4) == 0;
+                bool removeVelocity = (step % 4) == 0;
                 world.Remove(CollectionsMarshalCompat.AsSpan(second), removeVelocity ? new[] { velocityId } : new[] { healthId });
                 foreach (var entity in second)
                 {
@@ -275,7 +275,7 @@ internal sealed class StructuralAlgorithmTests
         }
 
         var selected = new List<Entity>(requested);
-        foreach (var index in indexes)
+        foreach (int index in indexes)
         {
             selected.Add(entities[index]);
         }

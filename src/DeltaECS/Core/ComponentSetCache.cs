@@ -46,19 +46,17 @@ internal sealed class ComponentSet
     internal static readonly ComponentSet Empty =
         new(Array.Empty<ComponentId>(), default, Array.Empty<int>());
 
-    private readonly ComponentId[] _componentIds;
-
     internal ComponentSet(ComponentId[] componentIds, ComponentMask mask, int[] tagIndices)
     {
-        _componentIds = componentIds;
+        ComponentIdArray = componentIds;
         Mask = mask;
         TagIndices = tagIndices;
         Hash = ComputeHash(componentIds);
     }
 
-    internal ReadOnlySpan<ComponentId> ComponentIds => _componentIds;
+    internal ReadOnlySpan<ComponentId> ComponentIds => ComponentIdArray;
 
-    internal ComponentId[] ComponentIdArray => _componentIds;
+    internal ComponentId[] ComponentIdArray { get; }
 
     internal ComponentMask Mask { get; }
 
@@ -68,7 +66,7 @@ internal sealed class ComponentSet
 
     internal ComponentSetId Id { get; private set; }
 
-    internal bool Matches(ReadOnlySpan<ComponentId> componentIds) => _componentIds.AsSpan().SequenceEqual(componentIds);
+    internal bool Matches(ReadOnlySpan<ComponentId> componentIds) => ComponentIdArray.AsSpan().SequenceEqual(componentIds);
 
     internal void AssignId(ComponentSetId id) => Id = id;
 

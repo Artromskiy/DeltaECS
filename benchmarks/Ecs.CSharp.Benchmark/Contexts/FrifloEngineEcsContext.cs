@@ -75,9 +75,6 @@ namespace Ecs.CSharp.Benchmark.Contexts
             }
         }
 
-        public virtual void Dispose()
-        {
-            EntityStore.JobRunner?.Dispose();
-        }
+        public virtual void Dispose() => EntityStore.JobRunner?.Dispose();
     }
 }

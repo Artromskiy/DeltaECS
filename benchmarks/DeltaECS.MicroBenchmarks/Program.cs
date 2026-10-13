@@ -19,7 +19,7 @@ internal static class Program
             return;
         }
 
-        var benchmarkArgs = MicroBenchmarkConfiguration.Extract(workloadArgs, out int[]? requestedAmounts);
+        string[] benchmarkArgs = MicroBenchmarkConfiguration.Extract(workloadArgs, out int[]? requestedAmounts);
         foreach (Type benchmarkType in benchmarkTypes)
         {
             int[] amounts = requestedAmounts ?? MicroBenchmarkConfiguration.DefaultAmounts(benchmarkType);

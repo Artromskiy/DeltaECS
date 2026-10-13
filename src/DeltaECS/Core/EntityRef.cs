@@ -81,7 +81,6 @@ public struct GeneratedEntityRefView
     private ComponentId _cachedComponentId;
     private Type? _cachedComponentType;
     private int _cachedReadRoute;
-    private int _cachedComponentIndex;
     private Array? _cachedComponentRow;
     private bool _hasCachedComponent;
 
@@ -146,7 +145,7 @@ public struct GeneratedEntityRefView
         _cachedComponentId = componentId;
         _cachedComponentType = componentType;
         _cachedReadRoute = -1;
-        _cachedComponentIndex = -1;
+        PreparedComponentIndex = -1;
         _cachedComponentRow = null;
         _hasCachedComponent = true;
         if (_queryPlan is null || !_queryPlan.TryGetEntityRefReadRoute(componentId, componentType, out int route))
@@ -159,14 +158,14 @@ public struct GeneratedEntityRefView
         isTag = QueryPlan.IsTagRoute(route);
         if (!isTag)
         {
-            _cachedComponentIndex = _componentIndices!.RefAt(route);
+            PreparedComponentIndex = _componentIndices!.RefAt(route);
             _cachedComponentRow = _componentRows!.RefAt(route);
         }
 
         return true;
     }
 
-    internal readonly int PreparedComponentIndex => _cachedComponentIndex;
+    internal int PreparedComponentIndex { get; private set; }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref T GetPreparedComponentRef<T>()

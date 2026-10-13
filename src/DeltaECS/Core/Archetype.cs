@@ -6,11 +6,8 @@ using System.Runtime.CompilerServices;
 
 internal sealed class Archetype
 {
-    private readonly int _id;
     private readonly ComponentRowArrayPool _componentRowArrayPool;
     private NativeMemory<ComponentId> _componentIds;
-    private readonly ComponentLayout[] _layouts;
-    private readonly ComponentRowOperations[] _rowOperations;
     private readonly List<Chunk> _chunks = new();
     private readonly List<int> _availableChunkStack = new();
     private readonly List<int> _blockPartialChunkCandidates = new();
@@ -21,8 +18,6 @@ internal sealed class Archetype
     private Chunk[] _activeChunks = Array.Empty<Chunk>();
     private NativeMemory<int> _activeChunkPositions = new(0);
     private readonly List<QueryPlanLink> _queryPlans = new();
-    private int _activeChunkCount;
-    private int _chunkTopologyVersion;
     private bool _deferQueryPlanUpdates;
     private int _blockPartialCandidateCount;
     private int _blockEmptyCandidateCount;
@@ -41,15 +36,15 @@ internal sealed class Archetype
             ThrowHelper.ThrowArchetypeLayoutMismatch();
         }
 
-        _id = id;
+        Id = id;
         Mask = mask;
         _componentRowArrayPool = componentRowArrayPool;
         _componentIds = new NativeMemory<ComponentId>(componentIds);
-        _layouts = layouts;
-        _rowOperations = rowOperations;
+        Layouts = layouts;
+        RowOperations = rowOperations;
     }
 
-    internal int Id => _id;
+    internal int Id { get; }
 
     internal ComponentMask Mask { get; }
 
@@ -59,9 +54,9 @@ internal sealed class Archetype
 
     internal int ChunkCount => _chunks.Count;
 
-    internal int ActiveChunkCount => _activeChunkCount;
+    internal int ActiveChunkCount { get; private set; }
 
-    internal int ChunkTopologyVersion => _chunkTopologyVersion;
+    internal int ChunkTopologyVersion { get; private set; }
 
     internal void Attach(QueryPlan query, int planIndex)
     {
@@ -101,9 +96,9 @@ internal sealed class Archetype
         return index >= 0;
     }
 
-    internal ComponentLayout[] Layouts => _layouts;
+    internal ComponentLayout[] Layouts { get; }
 
-    internal ComponentRowOperations[] RowOperations => _rowOperations;
+    internal ComponentRowOperations[] RowOperations { get; }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool HasAvailableChunk(int requestedCount, bool allowFreeRecordBlocks = true)
@@ -146,10 +141,10 @@ internal sealed class Archetype
         chunkIndex = _chunks.Count;
         _chunks.Add(new Chunk(
             this,
-            _layouts,
-            _rowOperations,
+            Layouts,
+            RowOperations,
             chunkId,
-            _id,
+            Id,
             chunkIndex,
             _componentRowArrayPool));
         EnsureAvailableChunkCapacity(chunkIndex);
@@ -184,10 +179,10 @@ internal sealed class Archetype
             chunkIndex = _chunks.Count;
             chunk = new Chunk(
                 this,
-                _layouts,
-                _rowOperations,
+                Layouts,
+                RowOperations,
                 chunkId,
-                _id,
+                Id,
                 chunkIndex,
                 _componentRowArrayPool);
             _chunks.Add(chunk);
@@ -227,14 +222,14 @@ internal sealed class Archetype
 
     internal bool TryGetLastActiveChunk(out int chunkIndex, out Chunk chunk)
     {
-        if (_activeChunkCount == 0)
+        if (ActiveChunkCount == 0)
         {
             chunkIndex = -1;
             chunk = null!;
             return false;
         }
 
-        int activePosition = _activeChunkCount - 1;
+        int activePosition = ActiveChunkCount - 1;
         chunkIndex = _activeChunkIndices.RefAt(activePosition);
         chunk = _activeChunks.RefAt(activePosition);
         return true;
@@ -355,7 +350,7 @@ internal sealed class Archetype
         _activeChunkPositions.RefAt(chunkIndex) = -1;
         _availableChunkPositions.RefAt(chunkIndex) = -1;
         _availableChunkFlags.RefAt(chunkIndex) = false;
-        chunk.SetArchetypeLocation(_id, chunkIndex);
+        chunk.SetArchetypeLocation(Id, chunkIndex);
         if (!chunk.IsEmpty)
         {
             ActivateChunk(chunkIndex);
@@ -385,7 +380,7 @@ internal sealed class Archetype
         RemoveAvailableChunk(chunkIndex);
         _activeChunkPositions.RefAt(chunkIndex) = -1;
         _chunks[chunkIndex] = adopted;
-        adopted.SetArchetypeLocation(_id, chunkIndex);
+        adopted.SetArchetypeLocation(Id, chunkIndex);
         ActivateChunk(chunkIndex);
         if (!adopted.IsFull)
         {
@@ -419,7 +414,7 @@ internal sealed class Archetype
             RemoveAvailableChunk(lastIndex);
 
             _chunks[chunkIndex] = replacement;
-            replacement.SetArchetypeLocation(_id, chunkIndex);
+            replacement.SetArchetypeLocation(Id, chunkIndex);
             _availableChunkFlags.RefAt(lastIndex) = false;
             _availableChunkPositions.RefAt(lastIndex) = -1;
             _activeChunkPositions.RefAt(lastIndex) = -1;
@@ -557,18 +552,18 @@ internal sealed class Archetype
             return;
         }
 
-        if (_activeChunkCount == _activeChunkIndices.Length)
+        if (ActiveChunkCount == _activeChunkIndices.Length)
         {
             int capacity = Math.Max(4, _activeChunkIndices.Length * 2);
             _activeChunkIndices.Resize(capacity);
             Array.Resize(ref _activeChunks, capacity);
         }
 
-        _activeChunkPositions.RefAt(chunkIndex) = _activeChunkCount;
-        _activeChunkIndices.RefAt(_activeChunkCount) = chunkIndex;
-        int activePosition = _activeChunkCount;
+        _activeChunkPositions.RefAt(chunkIndex) = ActiveChunkCount;
+        _activeChunkIndices.RefAt(ActiveChunkCount) = chunkIndex;
+        int activePosition = ActiveChunkCount;
         var chunk = _chunks[chunkIndex];
-        _activeChunks.RefAt(_activeChunkCount++) = chunk;
+        _activeChunks.RefAt(ActiveChunkCount++) = chunk;
         IncrementChunkTopologyVersion();
         if (_deferQueryPlanUpdates)
         {
@@ -597,7 +592,7 @@ internal sealed class Archetype
             return;
         }
 
-        int lastPosition = --_activeChunkCount;
+        int lastPosition = --ActiveChunkCount;
         int movedChunkIndex = _activeChunkIndices.RefAt(lastPosition);
         if (position != lastPosition)
         {
@@ -657,7 +652,7 @@ internal sealed class Archetype
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void IncrementChunkTopologyVersion()
-        => _chunkTopologyVersion = _chunkTopologyVersion == int.MaxValue ? 1 : _chunkTopologyVersion + 1;
+        => ChunkTopologyVersion = ChunkTopologyVersion == int.MaxValue ? 1 : ChunkTopologyVersion + 1;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal Chunk GetChunk(int chunkIndex) => _chunks[chunkIndex];

@@ -73,7 +73,7 @@ public class WidePayloadPartialReadIterationBenchmarks
     [Benchmark(Baseline = true)]
     public int DeltaECSWidePayloadPartialRead()
     {
-        var checksum = 0;
+        int checksum = 0;
         _iteration ??= _world.ForEach(
             in _query,
             ref checksum,
@@ -246,7 +246,10 @@ internal readonly struct WidePayloadSingleThreadFunctor : IForEach
 {
     private readonly WidePayloadChecksum _checksum;
 
-    internal WidePayloadSingleThreadFunctor(WidePayloadChecksum checksum) => _checksum = checksum;
+    internal WidePayloadSingleThreadFunctor(WidePayloadChecksum checksum)
+    {
+        _checksum = checksum;
+    }
 
     public void Invoke(
         ref readonly WidePayload0 payload0,
@@ -272,7 +275,10 @@ internal readonly struct WidePayloadParallelFunctor : IForEach
 {
     private readonly WidePayloadChecksum _checksum;
 
-    internal WidePayloadParallelFunctor(WidePayloadChecksum checksum) => _checksum = checksum;
+    internal WidePayloadParallelFunctor(WidePayloadChecksum checksum)
+    {
+        _checksum = checksum;
+    }
 
     public void Invoke(
         ref readonly WidePayload0 payload0,
@@ -298,7 +304,10 @@ internal readonly struct WidePayloadEntityRefFunctor : IForEachEntity
 {
     private readonly WidePayloadChecksum _checksum;
 
-    internal WidePayloadEntityRefFunctor(WidePayloadChecksum checksum) => _checksum = checksum;
+    internal WidePayloadEntityRefFunctor(WidePayloadChecksum checksum)
+    {
+        _checksum = checksum;
+    }
 
     public void Invoke(EntityRef entity)
     {
@@ -312,7 +321,10 @@ internal readonly struct WidePayloadEntityRefSingleThreadFunctor : IForEachEntit
 {
     private readonly WidePayloadChecksum _checksum;
 
-    internal WidePayloadEntityRefSingleThreadFunctor(WidePayloadChecksum checksum) => _checksum = checksum;
+    internal WidePayloadEntityRefSingleThreadFunctor(WidePayloadChecksum checksum)
+    {
+        _checksum = checksum;
+    }
 
     public void Invoke(EntityRef entity)
     {

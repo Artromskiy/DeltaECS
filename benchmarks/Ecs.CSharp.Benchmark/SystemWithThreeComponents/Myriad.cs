@@ -15,10 +15,7 @@ namespace Ecs.CSharp.Benchmark
         private struct MyriadForEach3
             : IQuery<Component1, Component2, Component3>, IChunkQuery<Component1, Component2, Component3>
         {
-            public void Execute(Entity entity, ref Component1 t0, ref Component2 t1, ref Component3 t2)
-            {
-                t0.Value += t1.Value + t2.Value;
-            }
+            public void Execute(Entity entity, ref Component1 t0, ref Component2 t1, ref Component3 t2) => t0.Value += t1.Value + t2.Value;
 
             public void Execute(ChunkHandle chunk, Span<Component1> t0, Span<Component2> t1, Span<Component3> t2)
             {

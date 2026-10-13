@@ -22,7 +22,10 @@ public delegate void ComponentChangeAction<T>(Entity entity, ChangeKind change, 
 
 internal abstract class ComponentChangeObserver
 {
-    internal ComponentChangeObserver(ComponentId componentId) => ComponentId = componentId;
+    internal ComponentChangeObserver(ComponentId componentId)
+    {
+        ComponentId = componentId;
+    }
 
     internal ComponentId ComponentId { get; }
 
@@ -75,11 +78,10 @@ internal sealed class DirtyChunkSet
 {
     private DirtyChunkState[] _states = Array.Empty<DirtyChunkState>();
     private int[] _activeChunkIds = Array.Empty<int>();
-    private int _activeCount;
 
-    internal int ActiveCount => _activeCount;
+    internal int ActiveCount { get; private set; }
 
-    internal bool HasDirty => _activeCount != 0;
+    internal bool HasDirty => ActiveCount != 0;
 
     private ref DirtyChunkState GetState(Chunk chunk)
     {
@@ -110,13 +112,13 @@ internal sealed class DirtyChunkSet
         ref DirtyChunkState state = ref GetState(chunk);
         if (state.ActiveIndex < 0)
         {
-            if (_activeCount == _activeChunkIds.Length)
+            if (ActiveCount == _activeChunkIds.Length)
             {
                 Array.Resize(ref _activeChunkIds, Math.Max(4, _activeChunkIds.Length * 2));
             }
 
-            state.ActiveIndex = _activeCount;
-            _activeChunkIds[_activeCount++] = chunkId;
+            state.ActiveIndex = ActiveCount;
+            _activeChunkIds[ActiveCount++] = chunkId;
         }
 
         return ref state;
@@ -158,7 +160,7 @@ internal sealed class DirtyChunkSet
 
         ref DirtyChunkState state = ref _states[chunkId];
         int activeIndex = state.ActiveIndex;
-        int lastActiveIndex = --_activeCount;
+        int lastActiveIndex = --ActiveCount;
         if (activeIndex != lastActiveIndex)
         {
             int movedChunkId = _activeChunkIds[lastActiveIndex];
@@ -177,7 +179,7 @@ internal sealed class DirtyChunkSet
 
     internal void Clear()
     {
-        for (int index = 0; index < _activeCount; index++)
+        for (int index = 0; index < ActiveCount; index++)
         {
             ref DirtyChunkState state = ref _states[_activeChunkIds[index]];
             if (state.HasMaskWrites)
@@ -190,7 +192,7 @@ internal sealed class DirtyChunkSet
             state.ActiveIndex = -1;
         }
 
-        _activeCount = 0;
+        ActiveCount = 0;
     }
 
 
@@ -297,7 +299,10 @@ internal sealed class ComponentChangeObserverRoute
 {
     internal readonly WeakReference<ComponentChangeObserver>[] Observers;
 
-    internal ComponentChangeObserverRoute(WeakReference<ComponentChangeObserver>[] observers) => Observers = observers;
+    internal ComponentChangeObserverRoute(WeakReference<ComponentChangeObserver>[] observers)
+    {
+        Observers = observers;
+    }
 }
 
 /// <summary>Reports changes to one component registration across the world.</summary>
@@ -465,15 +470,9 @@ public sealed class ComponentChangeOperation<T> : IOperation
         RecordMask(_dirtyChunks, chunk, mask, kind);
     }
 
-    private void PrepareAddRange(Chunk chunk, int slotIndex, int count)
-    {
-        PrepareAddRange(_dirtyChunks, chunk, slotIndex, count);
-    }
+    private void PrepareAddRange(Chunk chunk, int slotIndex, int count) => PrepareAddRange(_dirtyChunks, chunk, slotIndex, count);
 
-    private void MoveRange(Chunk source, int sourceSlot, Chunk target, int targetSlot, int count)
-    {
-        MoveRange(_dirtyChunks, source, sourceSlot, target, targetSlot, count);
-    }
+    private void MoveRange(Chunk source, int sourceSlot, Chunk target, int targetSlot, int count) => MoveRange(_dirtyChunks, source, sourceSlot, target, targetSlot, count);
 
     private void CopyRangeWithin(Chunk chunk, int sourceSlot, int targetSlot, int count)
         => CopyRangeWithin(_dirtyChunks, chunk, sourceSlot, targetSlot, count);
@@ -894,7 +893,10 @@ public sealed class ComponentChangeOperation<T> : IOperation
     {
         private readonly ComponentMembershipChanges _changes;
 
-        internal ExcludeMembershipChanges(ComponentMembershipChanges changes) => _changes = changes;
+        internal ExcludeMembershipChanges(ComponentMembershipChanges changes)
+        {
+            _changes = changes;
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool IChangeFilter.Accept(Entity entity) => !_changes.Contains(entity);
@@ -1082,7 +1084,10 @@ public sealed class ComponentChangeOperation<T> : IOperation
         private readonly ComponentChangeOperation<T> _operation;
 
         internal Observer(ComponentChangeOperation<T> operation, ComponentId componentId)
-            : base(componentId) => _operation = operation;
+            : base(componentId)
+        {
+            _operation = operation;
+        }
 
         internal override void RecordMembership(Entity entity, bool present) => _operation.RecordMembership(entity, present);
 

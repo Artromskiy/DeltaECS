@@ -14,10 +14,7 @@ namespace Ecs.CSharp.Benchmark
             private sealed partial class EntitySetSystem : AEntitySetSystem<int>
             {
                 [Update]
-                private static void Update(ref Component1 c1, in Component2 c2)
-                {
-                    c1.Value += c2.Value;
-                }
+                private static void Update(ref Component1 c1, in Component2 c2) => c1.Value += c2.Value;
             }
 
             public DefaultParallelRunner Runner { get; }

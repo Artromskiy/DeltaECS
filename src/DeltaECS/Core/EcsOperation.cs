@@ -65,7 +65,10 @@ public struct EcsOperation<TInvoker> : IOperation
 
     /// <summary>Creates a deferred operation from its concrete executor.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public EcsOperation(TInvoker invoker) => _invoker = invoker;
+    public EcsOperation(TInvoker invoker)
+    {
+        _invoker = invoker;
+    }
 
     /// <summary>Executes this operation.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

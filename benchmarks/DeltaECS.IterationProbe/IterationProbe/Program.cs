@@ -7,10 +7,7 @@ namespace Delta.ECS.IterationProbe;
 
 internal static class Program
 {
-    public static void Main(string[] args)
-    {
-        BenchmarkRunner.Run<IterationBenchmarks>(args: args);
-    }
+    public static void Main(string[] args) => BenchmarkRunner.Run<IterationBenchmarks>(args: args);
 }
 
 [MemoryDiagnoser]

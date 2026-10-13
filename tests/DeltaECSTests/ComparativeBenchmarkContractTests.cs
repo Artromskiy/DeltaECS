@@ -12,8 +12,8 @@ internal sealed partial class ComparativeBenchmarkContractTests
     public void ManifestHasAllFiveEcsForEachIterationWorkload()
     {
         ComparativeBenchmarkCatalog.Validate();
-        var expected = Enum.GetValues<ComparativeEcs>().Length;
-        foreach (var workload in new[] { "Iteration.Dense", "Iteration.Movement2Components", "Iteration.Movement4Components", "Iteration.WideArchetypeNarrowQuery", "Iteration.SparseWorldQueryPlan", "Iteration.QueryPlanConstruction" })
+        int expected = Enum.GetValues<ComparativeEcs>().Length;
+        foreach (string workload in new[] { "Iteration.Dense", "Iteration.Movement2Components", "Iteration.Movement4Components", "Iteration.WideArchetypeNarrowQuery", "Iteration.SparseWorldQueryPlan", "Iteration.QueryPlanConstruction" })
         {
             Assert.That(ComparativeCapabilityManifest.Rows.Count(row => row.Workload == workload), Is.EqualTo(expected), workload);
         }
@@ -27,18 +27,15 @@ internal sealed partial class ComparativeBenchmarkContractTests
     }
 
     [Test]
-    public void Amount100ContractSmokeExecutesSupportedMethods()
-    {
-        Assert.DoesNotThrow(ComparativeBenchmarkExecutionSmoke.RunAmount100);
-    }
+    public void Amount100ContractSmokeExecutesSupportedMethods() => Assert.DoesNotThrow(ComparativeBenchmarkExecutionSmoke.RunAmount100);
 
     [Test]
     public void BenchmarkSourcesUseGeneratedAccess()
     {
-        var benchmarkRoot = FindBenchmarkRoot();
+        string benchmarkRoot = FindBenchmarkRoot();
         Regex ordinalAccess = OrdinalAccess();
-        var benchmarkRoots = new[] { benchmarkRoot, Path.Combine(Path.GetDirectoryName(benchmarkRoot)!, "DeltaECS.VersionBenchmarks") };
-        foreach (var source in benchmarkRoots.SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
+        string[] benchmarkRoots = new[] { benchmarkRoot, Path.Combine(Path.GetDirectoryName(benchmarkRoot)!, "DeltaECS.VersionBenchmarks") };
+        foreach (string source in benchmarkRoots.SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
                      .Where(path => !path.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar, StringComparison.Ordinal)
                                  && !path.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar, StringComparison.Ordinal)))
         {
@@ -52,7 +49,7 @@ internal sealed partial class ComparativeBenchmarkContractTests
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
-            var candidate = Path.Combine(directory.FullName, "benchmarks", "DeltaECS.Benchmarks");
+            string candidate = Path.Combine(directory.FullName, "benchmarks", "DeltaECS.Benchmarks");
             if (Directory.Exists(candidate))
             {
                 return candidate;
@@ -68,7 +65,7 @@ internal sealed partial class ComparativeBenchmarkContractTests
     [Test]
     public void CombinedReportRejectsNaMeasuredRows()
     {
-        var directory = Path.Combine(Path.GetTempPath(), "deltaecs-report-test-" + Guid.NewGuid().ToString("N"));
+        string directory = Path.Combine(Path.GetTempPath(), "deltaecs-report-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         try
         {
@@ -84,7 +81,7 @@ internal sealed partial class ComparativeBenchmarkContractTests
     [Test]
     public void CombinedReportReadsCommaDelimitedLinuxCsv()
     {
-        var directory = Path.Combine(Path.GetTempPath(), "deltaecs-linux-report-test-" + Guid.NewGuid().ToString("N"));
+        string directory = Path.Combine(Path.GetTempPath(), "deltaecs-linux-report-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         try
         {
@@ -97,8 +94,8 @@ internal sealed partial class ComparativeBenchmarkContractTests
                 "LeoEcsLiteDense,500 ns,0 B,100\n");
 
             ComparativeReportBuilder.WriteManifest(directory);
-            var report = File.ReadAllText(Path.Combine(directory, "comparative-report.md"));
-            var summary = File.ReadAllText(Path.Combine(directory, "comparative-summary.md"));
+            string report = File.ReadAllText(Path.Combine(directory, "comparative-report.md"));
+            string summary = File.ReadAllText(Path.Combine(directory, "comparative-summary.md"));
             Assert.That(report, Does.Contain("|Iteration.Dense|Amount=100|DeltaECS|100|1|"));
             Assert.That(report, Does.Contain("|Iteration.Dense|Amount=100|Arch|200|2|1,024 B|"));
             Assert.That(report, Does.Not.Contain("|Iteration.Dense|manifest|"));
@@ -120,7 +117,7 @@ internal sealed partial class ComparativeBenchmarkContractTests
             new ComparativeReportRow("Iteration.Dense", "Amount=100", ComparativeEcs.Arch, 312.62, 4.7800000000000002, "88 B", true, "direct public API")
         };
 
-        var markdown = ComparativeReportBuilder.ToMarkdown(rows);
+        string markdown = ComparativeReportBuilder.ToMarkdown(rows);
 
         Assert.That(markdown, Does.Contain("|65.38|1|"));
         Assert.That(markdown, Does.Contain("|312.62|4.78|"));
@@ -139,7 +136,7 @@ internal sealed partial class ComparativeBenchmarkContractTests
             Row("Iteration.Dense", "Amount=1000", ComparativeEcs.Arch, 100)
         };
 
-        var summary = ComparativeReportBuilder.ToSummaryMarkdown(rows);
+        string summary = ComparativeReportBuilder.ToSummaryMarkdown(rows);
 
         Assert.That(summary, Does.Contain("| Итерация | 1/2 |"));
         Assert.That(summary, Does.Contain("|Dense|1/2|Arch быстрее Delta в 2× (`Amount=1000`)|"));

@@ -284,7 +284,7 @@ public sealed partial class World
     private void ValidateGenericFunctorOperation(in Query query, bool hasQuery, Type functorType)
     {
         EnsureExecutionAccess();
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
+        ThrowHelper.ThrowIfDisposed(IsDisposed, this);
         ThrowHelper.ThrowIfNull(functorType, nameof(functorType));
         if (hasQuery && (!query.IsValid || query.Owner != this))
         {
@@ -297,7 +297,7 @@ public sealed partial class World
         ReadOnlySpan<ComponentId> arguments)
     {
         EnsureExecutionAccess();
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
+        ThrowHelper.ThrowIfDisposed(IsDisposed, this);
         if (entities.IsEmpty && arguments.IsEmpty)
         {
             return default;

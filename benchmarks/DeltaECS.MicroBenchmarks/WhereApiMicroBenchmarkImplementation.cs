@@ -27,7 +27,6 @@ public class WhereApiMicroBenchmarkImplementation
     private Query _query;
     private Query _deadQuery;
     private ComponentId _valueId;
-    private int _targetCount;
     private IOperation? _directIteration;
     private IOperation? _whereIteration;
 
@@ -41,7 +40,7 @@ public class WhereApiMicroBenchmarkImplementation
         _world = new World(layouts, initialEntityCapacity: Amount);
         _entities = new Entity[Amount];
         _world.Create(stackalloc[] { _valueId, accumulatorId }, Amount, _entities);
-        _targetCount = (Amount + 1) / 2;
+        ExpectedIterationCount = (Amount + 1) / 2;
 
         for (int index = 0; index < _entities.Length; index++)
         {
@@ -70,7 +69,7 @@ public class WhereApiMicroBenchmarkImplementation
                 }
             });
         _directIteration.Invoke();
-        return _targetCount;
+        return ExpectedIterationCount;
     }
 
     [Benchmark]
@@ -81,7 +80,7 @@ public class WhereApiMicroBenchmarkImplementation
                 static (ref readonly WhereApiValue value) => value.Value <= 0)
             .ForEach(static (ref WhereApiAccumulator accumulator) => accumulator.Value++);
         _whereIteration.Invoke();
-        return _targetCount;
+        return ExpectedIterationCount;
     }
 
     [Benchmark]
@@ -98,7 +97,7 @@ public class WhereApiMicroBenchmarkImplementation
         return added + removed;
     }
 
-    internal int ExpectedIterationCount => _targetCount;
+    internal int ExpectedIterationCount { get; private set; }
 
-    internal int ExpectedStructuralCount => _targetCount * 2;
+    internal int ExpectedStructuralCount => ExpectedIterationCount * 2;
 }
