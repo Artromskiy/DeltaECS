@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.Linq;
+
 using BenchmarkDotNet.Columns;
 using BenchmarkDotNet.Reports;
 using BenchmarkDotNet.Running;

@@ -1,13 +1,65 @@
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
+
 using HypEcs;
 
 namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithTwoComponentsMultipleComposition
     {
+
+        [Context] private readonly HypEcsContext _hypEcs;
+
+        [BenchmarkCategory(Categories.HypEcs, Categories.SingleThread)]
+        [Benchmark]
+        public int HypEcsMonoThread()
+        {
+            _hypEcs.MonoThreadSystem.Run(_hypEcs.World);
+            return EntityCount;
+        }
+
+        [BenchmarkCategory(Categories.HypEcs, Categories.MultiThread)]
+        [Benchmark]
+        public int HypEcsMultiThread()
+        {
+            _hypEcs.MultiThreadSystem.Run(_hypEcs.World);
+            return EntityCount;
+        }
         private sealed class HypEcsContext : HypEcsBaseContext
         {
+
+            public ISystem MonoThreadSystem { get; } = new MonoThreadRunSystem();
+            public ISystem MultiThreadSystem { get; } = new MultiThreadRunSystem();
+
+            public HypEcsContext(int entityCount)
+            {
+                for (int i = 0; i < entityCount; ++i)
+                {
+                    EntityBuilder entity = World.Spawn()
+                        .Add(new Component1())
+                        .Add(new Component2 { Value = 1 });
+
+                    switch (i % 4)
+                    {
+                        case 0:
+                            entity.Add<Padding1>();
+                            break;
+
+                        case 1:
+                            entity.Add<Padding2>();
+                            break;
+
+                        case 2:
+                            entity.Add<Padding3>();
+                            break;
+
+                        case 3:
+                            entity.Add<Padding4>();
+                            break;
+                    }
+                }
+            }
             private struct Padding1
             {
             }
@@ -53,56 +105,6 @@ namespace Ecs.CSharp.Benchmark
                     });
                 }
             }
-
-            public ISystem MonoThreadSystem { get; } = new MonoThreadRunSystem();
-            public ISystem MultiThreadSystem { get; } = new MultiThreadRunSystem();
-
-            public HypEcsContext(int entityCount)
-            {
-                for (int i = 0; i < entityCount; ++i)
-                {
-                    EntityBuilder entity = World.Spawn()
-                        .Add(new Component1())
-                        .Add(new Component2 { Value = 1 });
-
-                    switch (i % 4)
-                    {
-                        case 0:
-                            entity.Add<Padding1>();
-                            break;
-
-                        case 1:
-                            entity.Add<Padding2>();
-                            break;
-
-                        case 2:
-                            entity.Add<Padding3>();
-                            break;
-
-                        case 3:
-                            entity.Add<Padding4>();
-                            break;
-                    }
-                }
-            }
-        }
-
-        [Context] private readonly HypEcsContext _hypEcs;
-
-        [BenchmarkCategory(Categories.HypEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int HypEcsMonoThread()
-        {
-            _hypEcs.MonoThreadSystem.Run(_hypEcs.World);
-            return EntityCount;
-        }
-
-        [BenchmarkCategory(Categories.HypEcs, Categories.MultiThread)]
-        [Benchmark]
-        public int HypEcsMultiThread()
-        {
-            _hypEcs.MultiThreadSystem.Run(_hypEcs.World);
-            return EntityCount;
         }
     }
 }

@@ -1,6 +1,7 @@
 namespace Delta.ECS.HistoryBenchmarks;
 
 using System.Globalization;
+
 using BenchmarkDotNet.Running;
 
 internal static class Program

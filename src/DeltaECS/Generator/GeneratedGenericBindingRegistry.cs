@@ -4,19 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 
-/// <summary>Creates a closed generic component using generated type-token dispatch.</summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
-public delegate ComponentId GeneratedGenericComponentDispatcher(
-    ComponentRegistry layouts,
-    SchemaId schemaId,
-    ReadOnlySpan<ComponentId> componentArguments,
-    ReadOnlySpan<IGeneratedComponentTypeToken> typeArguments);
-
-/// <summary>Creates a closed generic functor using generated type-token dispatch.</summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
-public delegate IGeneratedGenericFunctor GeneratedGenericFunctorDispatcher(
-    ReadOnlySpan<IGeneratedComponentTypeToken> typeArguments);
-
 /// <summary>Receives generated generic dispatchers.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static class GeneratedGenericBindingRegistry
@@ -24,18 +11,6 @@ public static class GeneratedGenericBindingRegistry
     private static readonly object Gate = new();
     private static readonly Dictionary<Type, ComponentDispatcherEntry> ComponentDispatchers = new();
     private static readonly Dictionary<Type, FunctorDispatcherEntry> FunctorDispatchers = new();
-
-    private sealed class ComponentDispatcherEntry(int arity, GeneratedGenericComponentDispatcher dispatcher)
-    {
-        internal readonly int Arity = arity;
-        internal readonly GeneratedGenericComponentDispatcher Dispatcher = dispatcher;
-    }
-
-    private sealed class FunctorDispatcherEntry(int arity, GeneratedGenericFunctorDispatcher dispatcher)
-    {
-        internal readonly int Arity = arity;
-        internal readonly GeneratedGenericFunctorDispatcher Dispatcher = dispatcher;
-    }
 
     /// <summary>Registers a generated dispatcher for a generic component definition.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -87,6 +62,40 @@ public static class GeneratedGenericBindingRegistry
         }
     }
 
+    /// <summary>Registers a closed generic component from generated code.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static ComponentId RegisterComponent<T>(ComponentRegistry layouts, SchemaId schemaId, ReadOnlySpan<ComponentId> componentArguments)
+    {
+        ThrowHelper.ThrowIfNull(layouts, nameof(layouts));
+        return layouts.RegisterGeneratedGenericComponent<T>(schemaId, componentArguments, GeneratedComponentTypeTokenRegistry.Get<T>());
+    }
+
+    /// <summary>Registers a closed generic component with its generated constraint-capability token.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static ComponentId RegisterComponent<T>(
+        ComponentRegistry layouts,
+        SchemaId schemaId,
+        ReadOnlySpan<ComponentId> componentArguments,
+        IGeneratedComponentTypeToken typeToken)
+    {
+        ThrowHelper.ThrowIfNull(layouts, nameof(layouts));
+        ThrowHelper.ThrowIfNull(typeToken, nameof(typeToken));
+        return layouts.RegisterGeneratedGenericComponent<T>(schemaId, componentArguments, typeToken);
+    }
+
+    /// <summary>Registers an open generic component from generated code using positional component IDs.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static ComponentId RegisterComponentDefinition(
+        ComponentRegistry layouts,
+        Type genericDefinition,
+        SchemaId schemaId,
+        ReadOnlySpan<ComponentId> componentArguments)
+    {
+        ThrowHelper.ThrowIfNull(layouts, nameof(layouts));
+        ThrowHelper.ThrowIfNull(genericDefinition, nameof(genericDefinition));
+        return layouts.RegisterGeneratedGenericDefinition(genericDefinition, schemaId, componentArguments);
+    }
+
     /// <summary>Finds a generated component dispatcher for an open generic definition.</summary>
     internal static bool TryGetComponentDispatcher(
         Type genericDefinition,
@@ -129,38 +138,29 @@ public static class GeneratedGenericBindingRegistry
         return false;
     }
 
-    /// <summary>Registers a closed generic component from generated code.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public static ComponentId RegisterComponent<T>(ComponentRegistry layouts, SchemaId schemaId, ReadOnlySpan<ComponentId> componentArguments)
+    private sealed class ComponentDispatcherEntry(int arity, GeneratedGenericComponentDispatcher dispatcher)
     {
-        ThrowHelper.ThrowIfNull(layouts, nameof(layouts));
-        return layouts.RegisterGeneratedGenericComponent<T>(schemaId, componentArguments, GeneratedComponentTypeTokenRegistry.Get<T>());
+        internal readonly int Arity = arity;
+        internal readonly GeneratedGenericComponentDispatcher Dispatcher = dispatcher;
     }
 
-    /// <summary>Registers a closed generic component with its generated constraint-capability token.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public static ComponentId RegisterComponent<T>(
-        ComponentRegistry layouts,
-        SchemaId schemaId,
-        ReadOnlySpan<ComponentId> componentArguments,
-        IGeneratedComponentTypeToken typeToken)
+    private sealed class FunctorDispatcherEntry(int arity, GeneratedGenericFunctorDispatcher dispatcher)
     {
-        ThrowHelper.ThrowIfNull(layouts, nameof(layouts));
-        ThrowHelper.ThrowIfNull(typeToken, nameof(typeToken));
-        return layouts.RegisterGeneratedGenericComponent<T>(schemaId, componentArguments, typeToken);
-    }
-
-    /// <summary>Registers an open generic component from generated code using positional component IDs.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public static ComponentId RegisterComponentDefinition(
-        ComponentRegistry layouts,
-        Type genericDefinition,
-        SchemaId schemaId,
-        ReadOnlySpan<ComponentId> componentArguments)
-    {
-        ThrowHelper.ThrowIfNull(layouts, nameof(layouts));
-        ThrowHelper.ThrowIfNull(genericDefinition, nameof(genericDefinition));
-        return layouts.RegisterGeneratedGenericDefinition(genericDefinition, schemaId, componentArguments);
+        internal readonly int Arity = arity;
+        internal readonly GeneratedGenericFunctorDispatcher Dispatcher = dispatcher;
     }
 
 }
+
+/// <summary>Creates a closed generic component using generated type-token dispatch.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public delegate ComponentId GeneratedGenericComponentDispatcher(
+    ComponentRegistry layouts,
+    SchemaId schemaId,
+    ReadOnlySpan<ComponentId> componentArguments,
+    ReadOnlySpan<IGeneratedComponentTypeToken> typeArguments);
+
+/// <summary>Creates a closed generic functor using generated type-token dispatch.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public delegate IGeneratedGenericFunctor GeneratedGenericFunctorDispatcher(
+    ReadOnlySpan<IGeneratedComponentTypeToken> typeArguments);

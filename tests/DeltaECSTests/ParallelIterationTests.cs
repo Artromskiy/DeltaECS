@@ -2,36 +2,14 @@ namespace Delta.ECS.Tests;
 
 using System;
 using System.Threading;
+
 using NUnit.Framework;
-
-internal struct ParallelState
-{
-    public float Delta;
-}
-
-internal struct ParallelIncrementFunctor : IForEach
-{
-    public int Count;
-
-    public void Invoke(ref Position position, in Velocity velocity)
-    {
-        position.X += velocity.X;
-        Count++;
-    }
-}
-
-internal struct ParallelContextFunctor : IForEachContext<ParallelState>
-{
-    public void Invoke(in ParallelState state, ref Position position, in Velocity velocity) => position.X += state.Delta + velocity.X;
-}
-
-internal readonly struct ParallelFilterTag;
 
 [TestFixture]
 internal sealed class ParallelIterationTests
 {
-    private static readonly ForEachAction_WI<Position, Velocity> s_incrementAction = Increment;
     internal static int s_generatedCallbackThreadId;
+    private static readonly ForEachAction_WI<Position, Velocity> s_incrementAction = Increment;
 
     [TestCase(1, false)]
     [TestCase(4, false)]
@@ -72,28 +50,6 @@ internal sealed class ParallelIterationTests
         Assert.That(state.Visited, Is.EqualTo(entities.Length / 2));
         Invoke();
         Assert.That(state.Visited, Is.EqualTo(entities.Length));
-    }
-
-    private sealed class ParallelFailureState
-    {
-        internal readonly Exception Failure = new InvalidOperationException("callback failure");
-        internal bool ShouldThrow = true;
-        internal int Visited;
-    }
-
-    private readonly struct FailingParallelInvoker(ParallelFailureState state) : IGeneratedParallelInvoker
-    {
-        public bool RequiresSingleThread => false;
-
-        public void Invoke(ref GeneratedQuerySlots slots)
-        {
-            if (state.ShouldThrow)
-            {
-                throw state.Failure;
-            }
-
-            Interlocked.Add(ref state.Visited, slots.Count);
-        }
     }
 
     [Test]
@@ -458,4 +414,49 @@ internal sealed class ParallelIterationTests
         position.X += 1;
         position.Y += 1;
     }
+
+    private sealed class ParallelFailureState
+    {
+        internal readonly Exception Failure = new InvalidOperationException("callback failure");
+        internal bool ShouldThrow = true;
+        internal int Visited;
+    }
+
+    private readonly struct FailingParallelInvoker(ParallelFailureState state) : IGeneratedParallelInvoker
+    {
+        public bool RequiresSingleThread => false;
+
+        public void Invoke(ref GeneratedQuerySlots slots)
+        {
+            if (state.ShouldThrow)
+            {
+                throw state.Failure;
+            }
+
+            Interlocked.Add(ref state.Visited, slots.Count);
+        }
+    }
 }
+
+internal struct ParallelState
+{
+    public float Delta;
+}
+
+internal struct ParallelIncrementFunctor : IForEach
+{
+    public int Count;
+
+    public void Invoke(ref Position position, in Velocity velocity)
+    {
+        position.X += velocity.X;
+        Count++;
+    }
+}
+
+internal struct ParallelContextFunctor : IForEachContext<ParallelState>
+{
+    public void Invoke(in ParallelState state, ref Position position, in Velocity velocity) => position.X += state.Delta + velocity.X;
+}
+
+internal readonly struct ParallelFilterTag;

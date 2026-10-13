@@ -2,14 +2,6 @@ using System.Globalization;
 
 namespace DeltaECS.Profiling;
 
-internal enum ProfileOutputDestination : byte
-{
-    Automatic,
-    Console,
-    File,
-    Both
-}
-
 internal sealed class ProfileCommandLine
 {
     internal int Depth { get; private set; } = 16;
@@ -113,26 +105,6 @@ internal sealed class ProfileCommandLine
             $"Output: {ProfileArgumentNames.Destination} console|file|both {ProfileArgumentNames.Output} FILE");
     }
 
-    private void Validate()
-    {
-        if (Report.Sections == ProfileReportSections.None)
-        {
-            throw new ArgumentException($"{ProfileArgumentNames.Sections} must include at least one section.");
-        }
-
-        ProfileOutputDestination effectiveDestination = Destination == ProfileOutputDestination.Automatic
-            ? Output is null ? ProfileOutputDestination.Console : ProfileOutputDestination.File
-            : Destination;
-        if (effectiveDestination is ProfileOutputDestination.File or ProfileOutputDestination.Both
-            && string.IsNullOrWhiteSpace(Output))
-        {
-            throw new ArgumentException(
-                $"{ProfileArgumentNames.Output} is required for destination '{effectiveDestination}'.");
-        }
-
-        Destination = effectiveDestination;
-    }
-
     private static int ParsePositive(string value)
         => int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int result) && result > 0
             ? result
@@ -186,4 +158,32 @@ internal sealed class ProfileCommandLine
             "BOTH" => ProfileOutputDestination.Both,
             _ => throw new ArgumentException($"Unknown output destination '{value}'.")
         };
+
+    private void Validate()
+    {
+        if (Report.Sections == ProfileReportSections.None)
+        {
+            throw new ArgumentException($"{ProfileArgumentNames.Sections} must include at least one section.");
+        }
+
+        ProfileOutputDestination effectiveDestination = Destination == ProfileOutputDestination.Automatic
+            ? Output is null ? ProfileOutputDestination.Console : ProfileOutputDestination.File
+            : Destination;
+        if (effectiveDestination is ProfileOutputDestination.File or ProfileOutputDestination.Both
+            && string.IsNullOrWhiteSpace(Output))
+        {
+            throw new ArgumentException(
+                $"{ProfileArgumentNames.Output} is required for destination '{effectiveDestination}'.");
+        }
+
+        Destination = effectiveDestination;
+    }
+}
+
+internal enum ProfileOutputDestination : byte
+{
+    Automatic,
+    Console,
+    File,
+    Both
 }

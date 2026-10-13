@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -32,11 +33,6 @@ public sealed class GenericFunctorGenerator : IIncrementalGenerator
             discovered, output, "GenericFunctor_", static model => model.TypeName,
             static model => GenericFunctorTemplates.Render(model)));
     }
-
-    private static GenericFunctorModel? ReadModel(GeneratorSyntaxContext syntax)
-        => syntax.SemanticModel.GetDeclaredSymbol(syntax.Node) is INamedTypeSymbol functor
-            ? CreateModel(functor)
-            : null;
 
     internal static GenericFunctorModel? CreateModel(INamedTypeSymbol functor)
     {
@@ -97,6 +93,11 @@ public sealed class GenericFunctorGenerator : IIncrementalGenerator
             dispatchTypeParameters,
             rows);
     }
+
+    private static GenericFunctorModel? ReadModel(GeneratorSyntaxContext syntax)
+        => syntax.SemanticModel.GetDeclaredSymbol(syntax.Node) is INamedTypeSymbol functor
+            ? CreateModel(functor)
+            : null;
 
     private static IEnumerable<ITypeParameterSymbol> TypeParameters(INamedTypeSymbol type)
         => (type.ContainingType is null ? Enumerable.Empty<ITypeParameterSymbol>() : TypeParameters(type.ContainingType))

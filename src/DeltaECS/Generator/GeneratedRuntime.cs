@@ -27,57 +27,6 @@ public interface IGeneratedWhereStructuralInvoker
         ref GeneratedWhereStructuralContext context);
 }
 
-internal sealed class GeneratedWhereTargetCursor
-{
-    internal Chunk? Chunk;
-    internal int Slot;
-    internal int Remaining;
-
-    internal void Reset()
-    {
-        Chunk = null;
-        Slot = 0;
-        Remaining = 0;
-    }
-}
-
-internal readonly struct GeneratedWhereStructuralPlan
-{
-    internal GeneratedWhereStructuralPlan(
-        Archetype sourceArchetype,
-        Archetype? targetArchetype,
-        int[] sourceToTargetRows,
-        int[] addedTargetRows,
-        GeneratedWhereTargetCursor? targetCursor,
-        ComponentId[] componentIds,
-        int[] tagIndices,
-        bool isAdd,
-        bool isDestroy)
-    {
-        SourceArchetype = sourceArchetype;
-        TargetArchetype = targetArchetype;
-        SourceToTargetRows = sourceToTargetRows;
-        AddedTargetRows = addedTargetRows;
-        TargetCursor = targetCursor;
-        ComponentIds = componentIds;
-        TagIndices = tagIndices;
-        IsAdd = isAdd;
-        IsDestroy = isDestroy;
-    }
-
-    internal Archetype SourceArchetype { get; }
-    internal Archetype? TargetArchetype { get; }
-    internal int[] SourceToTargetRows { get; }
-    internal int[] AddedTargetRows { get; }
-    internal GeneratedWhereTargetCursor? TargetCursor { get; }
-    internal ComponentId[] ComponentIds { get; }
-    internal int[] TagIndices { get; }
-    internal bool IsAdd { get; }
-    internal bool IsDestroy { get; }
-
-    internal bool IsNoOp => !IsDestroy && TargetArchetype is null && TagIndices.Length == 0;
-}
-
 /// <summary>Compiler-support state for one immediate structural Where chunk.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public struct GeneratedWhereStructuralContext
@@ -199,11 +148,6 @@ public struct GeneratedWhereStructuralContext
         _writeSlot += count;
     }
 
-    private readonly struct GeneratedWhereNoopInitializer : IGeneratedComponentValueInitializer
-    {
-        public void Initialize(ref GeneratedComponentValueWriter writer) { }
-    }
-
     /// <summary>Finishes source compaction and returns the changed row count.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int Complete()
@@ -254,6 +198,11 @@ public struct GeneratedWhereStructuralContext
         }
 
         return _changedCount;
+    }
+
+    private readonly struct GeneratedWhereNoopInitializer : IGeneratedComponentValueInitializer
+    {
+        public void Initialize(ref GeneratedComponentValueWriter writer) { }
     }
 }
 
@@ -359,6 +308,10 @@ public ref struct GeneratedDenseExecution
     private readonly bool _ownsLease;
     private int _chunkIndex;
 
+    /// <summary>Reports whether this execution applies tag filters.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public bool HasTagFilters => _queryPlan?.HasTagFilters ?? false;
+
     internal GeneratedDenseExecution(
         World owner,
         ReadOnlySpan<ArchetypePlan> plans,
@@ -389,10 +342,6 @@ public ref struct GeneratedDenseExecution
         slots = default;
         return false;
     }
-
-    /// <summary>Reports whether this execution applies tag filters.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public bool HasTagFilters => _queryPlan?.HasTagFilters ?? false;
 
     /// <summary>Reports one generated component write before the chunk loop starts.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -483,6 +432,10 @@ public ref struct GeneratedReadDenseExecution
     private readonly QueryPlan? _queryPlan;
     private int _chunkIndex;
 
+    /// <summary>Reports whether this execution applies tag filters.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public bool HasTagFilters => _queryPlan?.HasTagFilters ?? false;
+
     internal GeneratedReadDenseExecution(World owner, ReadOnlySpan<ChunkPlan> chunkPlans, QueryPlan? queryPlan = null)
     {
         _owner = owner;
@@ -504,10 +457,6 @@ public ref struct GeneratedReadDenseExecution
         slots = default;
         return false;
     }
-
-    /// <summary>Reports whether this execution applies tag filters.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public bool HasTagFilters => _queryPlan?.HasTagFilters ?? false;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNextTrusted(out GeneratedReadQuerySlots slots)
@@ -563,12 +512,6 @@ public ref struct GeneratedReadDenseExecution
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static partial class GeneratedForEachRuntime
 {
-    private struct ComponentChangeWriteRoute
-    {
-        internal ComponentChangeObserver[]? Observers;
-        internal int ObserverCount;
-        internal int TagIndex;
-    }
 
     /// <summary>Gets the first entity reference for generated iteration.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -685,131 +628,6 @@ public static partial class GeneratedForEachRuntime
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ThrowIfNull([NotNull] object? value, string parameterName)
         => ThrowHelper.ThrowIfNull(value, parameterName);
-
-    internal static void RecordComponentWrites(QueryPlan plan, scoped ReadOnlySpan<int> routes)
-    {
-        if (routes.IsEmpty || !plan.Owner.HasComponentChangeObserverRoutes)
-        {
-            return;
-        }
-
-        ComponentChangeWriteRoute[] writeRoutes = ArrayPool<ComponentChangeWriteRoute>.Shared.Rent(routes.Length);
-        int writeRouteCount = 0;
-        World world = plan.Owner;
-        for (int routeIndex = 0; routeIndex < routes.Length; routeIndex++)
-        {
-            int route = routes.RefAt(routeIndex);
-            bool isTag = QueryPlan.IsTagRoute(route);
-            ComponentId componentId = isTag ? QueryPlan.GetTagComponentId(route) : plan.GetDataComponentId(route);
-            int tagIndex = isTag ? world.Components.GetTagIndex(componentId) : -1;
-            ComponentChangeObserver[]? observers = world.ResolveComponentChangeObservers(componentId, out int observerCount);
-            if (observers is null)
-            {
-                continue;
-            }
-
-            writeRoutes[writeRouteCount++] = new ComponentChangeWriteRoute
-            {
-                Observers = observers,
-                ObserverCount = observerCount,
-                TagIndex = tagIndex
-            };
-        }
-
-        if (writeRouteCount != 0)
-        {
-            ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
-            Span<ulong> writeMask = stackalloc ulong[Chunk.WordCount];
-            for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
-            {
-                Chunk chunk = chunks.RefAt(chunkIndex).Chunk;
-                bool hasSelection = plan.TryGetTagMask(chunk, out ReadOnlySpan<ulong> selectionMask);
-                for (int routeIndex = 0; routeIndex < writeRouteCount; routeIndex++)
-                {
-                    ref ComponentChangeWriteRoute writeRoute = ref writeRoutes[routeIndex];
-                    RecordComponentWriteChunk(
-                        chunk,
-                        writeRoute.Observers!,
-                        writeRoute.ObserverCount,
-                        writeRoute.TagIndex,
-                        hasSelection,
-                        selectionMask,
-                        writeMask);
-                }
-            }
-        }
-
-        for (int routeIndex = 0; routeIndex < writeRouteCount; routeIndex++)
-        {
-            ref ComponentChangeWriteRoute writeRoute = ref writeRoutes[routeIndex];
-            World.ReturnComponentChangeObservers(writeRoute.Observers!, writeRoute.ObserverCount);
-        }
-
-        Array.Clear(writeRoutes, 0, writeRouteCount);
-        ArrayPool<ComponentChangeWriteRoute>.Shared.Return(writeRoutes);
-    }
-
-    internal static void RecordComponentWrite(QueryPlan plan, int route)
-    {
-        Span<int> singleRoute = stackalloc int[1] { route };
-        RecordComponentWrites(plan, singleRoute);
-    }
-
-    internal static void RecordComponentWriteChunk(
-        QueryPlan plan,
-        Chunk chunk,
-        ComponentChangeObserver[] observers,
-        int observerCount,
-        int tagIndex,
-        Span<ulong> writeMask)
-    {
-        bool hasSelection = plan.TryGetTagMask(chunk, out ReadOnlySpan<ulong> selectionMask);
-        RecordComponentWriteChunk(chunk, observers, observerCount, tagIndex, hasSelection, selectionMask, writeMask);
-    }
-
-    private static void RecordComponentWriteChunk(
-        Chunk chunk,
-        ComponentChangeObserver[] observers,
-        int observerCount,
-        int tagIndex,
-        bool hasSelection,
-        ReadOnlySpan<ulong> selectionMask,
-        Span<ulong> writeMask)
-    {
-        if (tagIndex < 0 && !hasSelection)
-        {
-            for (int observerIndex = 0; observerIndex < observerCount; observerIndex++)
-            {
-                observers[observerIndex].RecordChunk(chunk);
-            }
-
-            return;
-        }
-
-        int wordCount = ComponentChangeMasks.WordCount(chunk.Count);
-        ReadOnlySpan<ulong> mask = selectionMask;
-        DirtyKind kind;
-        if (tagIndex < 0)
-        {
-            kind = ComponentChangeMasks.Classify(mask, chunk.Count);
-        }
-        else
-        {
-            kind = ComponentChangeMasks.SelectTagChanges(chunk, tagIndex,
-                hasSelection ? DirtyKind.Mask : DirtyKind.All, selectionMask, writeMask);
-            mask = writeMask.Slice(0, wordCount);
-        }
-
-        if (kind == DirtyKind.None)
-        {
-            return;
-        }
-
-        for (int observerIndex = 0; observerIndex < observerCount; observerIndex++)
-        {
-            observers[observerIndex].RecordChunkMask(chunk, mask, kind);
-        }
-    }
 
     /// <summary>Gets the first element of a validated generated component row.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -951,37 +769,6 @@ public static partial class GeneratedForEachRuntime
         ExecuteGeneratedWhereForEach(world, plan, ref invoker, writeComponentIndices);
     }
 
-    private static void ExecuteGeneratedWhereForEach<TInvoker>(
-        World world,
-        QueryPlan plan,
-        ref TInvoker invoker,
-        scoped ReadOnlySpan<int> writeComponentIndices)
-        where TInvoker : struct, IGeneratedWhereInvoker
-    {
-        world.BeginQueryLease();
-        var execution = new GeneratedDenseExecution(
-            world,
-            plan.MatchingPlans(),
-            plan.MatchingChunkPlans(),
-            ownsLease: true,
-            queryPlan: plan);
-        try
-        {
-            execution.RecordComponentWrites(writeComponentIndices);
-            TInvoker invocation = invoker;
-            while (execution.MoveNextTrusted(out var slots))
-            {
-                invocation.Invoke(ref slots);
-            }
-
-            invoker = invocation;
-        }
-        finally
-        {
-            execution.Dispose();
-        }
-    }
-
     /// <summary>Executes a generated callback for the alive entities selected by a caller-owned list.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -995,41 +782,6 @@ public static partial class GeneratedForEachRuntime
     {
         QueryPlan plan = ValidateQuery(world, in query);
         ExecuteEntityList(world, plan, entities, ref invoker, writeComponentIndices);
-    }
-
-    private static void ExecuteEntityList<TInvoker>(
-        World world,
-        QueryPlan plan,
-        ReadOnlySpan<Entity> entities,
-        ref TInvoker invoker,
-        scoped ReadOnlySpan<int> writeComponentIndices)
-        where TInvoker : struct, IGeneratedParallelInvoker
-    {
-        RecordEntityListWrites(world, plan, entities, writeComponentIndices);
-        TInvoker invocation = invoker;
-        world.BeginQueryLease();
-        try
-        {
-            for (int index = 0; index < entities.Length; index++)
-            {
-                Entity entity = entities.RefAt(index);
-                if (!world.TryResolveEntityLocation(entity, out Chunk chunk, out int slot)
-                    || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk, out ChunkPlan chunkPlan)
-                    || !plan.MatchesTagSlot(chunk, slot))
-                {
-                    continue;
-                }
-
-                var slots = new GeneratedQuerySlots(world, in chunkPlan, 1, slot, plan, tagFiltersAlreadyMatched: true);
-                invocation.Invoke(ref slots);
-            }
-
-            invoker = invocation;
-        }
-        finally
-        {
-            world.EndQueryLease();
-        }
     }
 
     /// <summary>Executes a generated callback for a caller-owned entity list in parallel.</summary>
@@ -1075,52 +827,6 @@ public static partial class GeneratedForEachRuntime
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int ExecuteGeneratedWhereStructural<TInvoker>(
-        World world,
-        in Query query,
-        ref TInvoker invoker,
-        scoped ReadOnlySpan<int> writeComponentIndices,
-        bool isDestroy,
-        bool isAdd,
-        scoped ReadOnlySpan<ComponentId> componentIds)
-        where TInvoker : struct, IGeneratedWhereStructuralInvoker
-    {
-        if (!world.BeginGeneratedWhereStructural(
-                in query,
-                isDestroy,
-                isAdd,
-                componentIds,
-                out GeneratedDenseExecution execution))
-        {
-            return 0;
-        }
-
-        int changed = 0;
-        TInvoker invocation = invoker;
-        try
-        {
-            execution.RecordComponentWrites(writeComponentIndices);
-            while (execution.MoveNextTrusted(out var slots))
-            {
-                GeneratedWhereStructuralContext context = world.BeginGeneratedWhereChunk(
-                    slots.ChunkId,
-                    slots.PhysicalCount);
-                invocation.Execute(ref slots, ref context);
-                changed += context.Complete();
-            }
-
-            invoker = invocation;
-        }
-        finally
-        {
-            execution.Dispose();
-            world.EndGeneratedWhereStructural();
-        }
-
-        return changed;
-    }
-
     /// <summary>
     /// Executes a generated invoker over disjoint chunks. The query and access
     /// routes have already been resolved by the generated call site.
@@ -1161,47 +867,6 @@ public static partial class GeneratedForEachRuntime
         {
             world.ExitParallelExecution();
             world.EndQueryLease();
-        }
-    }
-
-    private static void RecordEntityListWrites(
-        World world,
-        QueryPlan plan,
-        ReadOnlySpan<Entity> entities,
-        ReadOnlySpan<int> routes)
-    {
-        if (entities.Length == 0 || routes.Length == 0 || !world.HasComponentChangeObserverRoutes)
-        {
-            return;
-        }
-
-        for (int routeIndex = 0; routeIndex < routes.Length; routeIndex++)
-        {
-            int route = routes.RefAt(routeIndex);
-            bool isTag = QueryPlan.IsTagRoute(route);
-            ComponentId componentId = isTag ? QueryPlan.GetTagComponentId(route) : plan.GetDataComponentId(route);
-            int tagIndex = isTag ? world.Components.GetTagIndex(componentId) : -1;
-            ComponentChangeObserver[]? observers = world.ResolveComponentChangeObservers(componentId, out int observerCount);
-            if (observers is null)
-            {
-                continue;
-            }
-
-            for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
-            {
-                Entity entity = entities.RefAt(entityIndex);
-                if (!world.TryResolveEntityLocation(entity, out Chunk chunk, out int slotIndex)
-                    || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk, out _)
-                    || !plan.MatchesTagSlot(chunk, slotIndex)
-                    || (isTag && !chunk.HasTag(tagIndex, slotIndex)))
-                {
-                    continue;
-                }
-
-                World.RecordComponentChangeObservers(observers, observerCount, chunk, slotIndex);
-            }
-
-            World.ReturnComponentChangeObservers(observers, observerCount);
         }
     }
 
@@ -1302,6 +967,284 @@ public static partial class GeneratedForEachRuntime
     public static WriteAccess GetPreparedWriteAccess(in Query query, ComponentId component, Type runtimeType)
         => query.Cached.GetPreparedWriteAccess(component, runtimeType);
 
+    internal static void RecordComponentWrites(QueryPlan plan, scoped ReadOnlySpan<int> routes)
+    {
+        if (routes.IsEmpty || !plan.Owner.HasComponentChangeObserverRoutes)
+        {
+            return;
+        }
+
+        ComponentChangeWriteRoute[] writeRoutes = ArrayPool<ComponentChangeWriteRoute>.Shared.Rent(routes.Length);
+        int writeRouteCount = 0;
+        World world = plan.Owner;
+        for (int routeIndex = 0; routeIndex < routes.Length; routeIndex++)
+        {
+            int route = routes.RefAt(routeIndex);
+            bool isTag = QueryPlan.IsTagRoute(route);
+            ComponentId componentId = isTag ? QueryPlan.GetTagComponentId(route) : plan.GetDataComponentId(route);
+            int tagIndex = isTag ? world.Components.GetTagIndex(componentId) : -1;
+            ComponentChangeObserver[]? observers = world.ResolveComponentChangeObservers(componentId, out int observerCount);
+            if (observers is null)
+            {
+                continue;
+            }
+
+            writeRoutes[writeRouteCount++] = new ComponentChangeWriteRoute
+            {
+                Observers = observers,
+                ObserverCount = observerCount,
+                TagIndex = tagIndex
+            };
+        }
+
+        if (writeRouteCount != 0)
+        {
+            ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
+            Span<ulong> writeMask = stackalloc ulong[Chunk.WordCount];
+            for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
+            {
+                Chunk chunk = chunks.RefAt(chunkIndex).Chunk;
+                bool hasSelection = plan.TryGetTagMask(chunk, out ReadOnlySpan<ulong> selectionMask);
+                for (int routeIndex = 0; routeIndex < writeRouteCount; routeIndex++)
+                {
+                    ref ComponentChangeWriteRoute writeRoute = ref writeRoutes[routeIndex];
+                    RecordComponentWriteChunk(
+                        chunk,
+                        writeRoute.Observers!,
+                        writeRoute.ObserverCount,
+                        writeRoute.TagIndex,
+                        hasSelection,
+                        selectionMask,
+                        writeMask);
+                }
+            }
+        }
+
+        for (int routeIndex = 0; routeIndex < writeRouteCount; routeIndex++)
+        {
+            ref ComponentChangeWriteRoute writeRoute = ref writeRoutes[routeIndex];
+            World.ReturnComponentChangeObservers(writeRoute.Observers!, writeRoute.ObserverCount);
+        }
+
+        Array.Clear(writeRoutes, 0, writeRouteCount);
+        ArrayPool<ComponentChangeWriteRoute>.Shared.Return(writeRoutes);
+    }
+
+    internal static void RecordComponentWrite(QueryPlan plan, int route)
+    {
+        Span<int> singleRoute = stackalloc int[1] { route };
+        RecordComponentWrites(plan, singleRoute);
+    }
+
+    internal static void RecordComponentWriteChunk(
+        QueryPlan plan,
+        Chunk chunk,
+        ComponentChangeObserver[] observers,
+        int observerCount,
+        int tagIndex,
+        Span<ulong> writeMask)
+    {
+        bool hasSelection = plan.TryGetTagMask(chunk, out ReadOnlySpan<ulong> selectionMask);
+        RecordComponentWriteChunk(chunk, observers, observerCount, tagIndex, hasSelection, selectionMask, writeMask);
+    }
+
+    private static void RecordComponentWriteChunk(
+        Chunk chunk,
+        ComponentChangeObserver[] observers,
+        int observerCount,
+        int tagIndex,
+        bool hasSelection,
+        ReadOnlySpan<ulong> selectionMask,
+        Span<ulong> writeMask)
+    {
+        if (tagIndex < 0 && !hasSelection)
+        {
+            for (int observerIndex = 0; observerIndex < observerCount; observerIndex++)
+            {
+                observers[observerIndex].RecordChunk(chunk);
+            }
+
+            return;
+        }
+
+        int wordCount = ComponentChangeMasks.WordCount(chunk.Count);
+        ReadOnlySpan<ulong> mask = selectionMask;
+        DirtyKind kind;
+        if (tagIndex < 0)
+        {
+            kind = ComponentChangeMasks.Classify(mask, chunk.Count);
+        }
+        else
+        {
+            kind = ComponentChangeMasks.SelectTagChanges(chunk, tagIndex,
+                hasSelection ? DirtyKind.Mask : DirtyKind.All, selectionMask, writeMask);
+            mask = writeMask.Slice(0, wordCount);
+        }
+
+        if (kind == DirtyKind.None)
+        {
+            return;
+        }
+
+        for (int observerIndex = 0; observerIndex < observerCount; observerIndex++)
+        {
+            observers[observerIndex].RecordChunkMask(chunk, mask, kind);
+        }
+    }
+
+    private static void ExecuteGeneratedWhereForEach<TInvoker>(
+        World world,
+        QueryPlan plan,
+        ref TInvoker invoker,
+        scoped ReadOnlySpan<int> writeComponentIndices)
+        where TInvoker : struct, IGeneratedWhereInvoker
+    {
+        world.BeginQueryLease();
+        var execution = new GeneratedDenseExecution(
+            world,
+            plan.MatchingPlans(),
+            plan.MatchingChunkPlans(),
+            ownsLease: true,
+            queryPlan: plan);
+        try
+        {
+            execution.RecordComponentWrites(writeComponentIndices);
+            TInvoker invocation = invoker;
+            while (execution.MoveNextTrusted(out var slots))
+            {
+                invocation.Invoke(ref slots);
+            }
+
+            invoker = invocation;
+        }
+        finally
+        {
+            execution.Dispose();
+        }
+    }
+
+    private static void ExecuteEntityList<TInvoker>(
+        World world,
+        QueryPlan plan,
+        ReadOnlySpan<Entity> entities,
+        ref TInvoker invoker,
+        scoped ReadOnlySpan<int> writeComponentIndices)
+        where TInvoker : struct, IGeneratedParallelInvoker
+    {
+        RecordEntityListWrites(world, plan, entities, writeComponentIndices);
+        TInvoker invocation = invoker;
+        world.BeginQueryLease();
+        try
+        {
+            for (int index = 0; index < entities.Length; index++)
+            {
+                Entity entity = entities.RefAt(index);
+                if (!world.TryResolveEntityLocation(entity, out Chunk chunk, out int slot)
+                    || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk, out ChunkPlan chunkPlan)
+                    || !plan.MatchesTagSlot(chunk, slot))
+                {
+                    continue;
+                }
+
+                var slots = new GeneratedQuerySlots(world, in chunkPlan, 1, slot, plan, tagFiltersAlreadyMatched: true);
+                invocation.Invoke(ref slots);
+            }
+
+            invoker = invocation;
+        }
+        finally
+        {
+            world.EndQueryLease();
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int ExecuteGeneratedWhereStructural<TInvoker>(
+        World world,
+        in Query query,
+        ref TInvoker invoker,
+        scoped ReadOnlySpan<int> writeComponentIndices,
+        bool isDestroy,
+        bool isAdd,
+        scoped ReadOnlySpan<ComponentId> componentIds)
+        where TInvoker : struct, IGeneratedWhereStructuralInvoker
+    {
+        if (!world.BeginGeneratedWhereStructural(
+                in query,
+                isDestroy,
+                isAdd,
+                componentIds,
+                out GeneratedDenseExecution execution))
+        {
+            return 0;
+        }
+
+        int changed = 0;
+        TInvoker invocation = invoker;
+        try
+        {
+            execution.RecordComponentWrites(writeComponentIndices);
+            while (execution.MoveNextTrusted(out var slots))
+            {
+                GeneratedWhereStructuralContext context = world.BeginGeneratedWhereChunk(
+                    slots.ChunkId,
+                    slots.PhysicalCount);
+                invocation.Execute(ref slots, ref context);
+                changed += context.Complete();
+            }
+
+            invoker = invocation;
+        }
+        finally
+        {
+            execution.Dispose();
+            world.EndGeneratedWhereStructural();
+        }
+
+        return changed;
+    }
+
+    private static void RecordEntityListWrites(
+        World world,
+        QueryPlan plan,
+        ReadOnlySpan<Entity> entities,
+        ReadOnlySpan<int> routes)
+    {
+        if (entities.Length == 0 || routes.Length == 0 || !world.HasComponentChangeObserverRoutes)
+        {
+            return;
+        }
+
+        for (int routeIndex = 0; routeIndex < routes.Length; routeIndex++)
+        {
+            int route = routes.RefAt(routeIndex);
+            bool isTag = QueryPlan.IsTagRoute(route);
+            ComponentId componentId = isTag ? QueryPlan.GetTagComponentId(route) : plan.GetDataComponentId(route);
+            int tagIndex = isTag ? world.Components.GetTagIndex(componentId) : -1;
+            ComponentChangeObserver[]? observers = world.ResolveComponentChangeObservers(componentId, out int observerCount);
+            if (observers is null)
+            {
+                continue;
+            }
+
+            for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
+            {
+                Entity entity = entities.RefAt(entityIndex);
+                if (!world.TryResolveEntityLocation(entity, out Chunk chunk, out int slotIndex)
+                    || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk, out _)
+                    || !plan.MatchesTagSlot(chunk, slotIndex)
+                    || (isTag && !chunk.HasTag(tagIndex, slotIndex)))
+                {
+                    continue;
+                }
+
+                World.RecordComponentChangeObservers(observers, observerCount, chunk, slotIndex);
+            }
+
+            World.ReturnComponentChangeObservers(observers, observerCount);
+        }
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static QueryPlan ValidateQuery(World world, in Query query)
     {
@@ -1314,5 +1257,62 @@ public static partial class GeneratedForEachRuntime
 
         return query.Cached;
     }
+    private struct ComponentChangeWriteRoute
+    {
+        internal ComponentChangeObserver[]? Observers;
+        internal int ObserverCount;
+        internal int TagIndex;
+    }
 
+}
+
+internal sealed class GeneratedWhereTargetCursor
+{
+    internal Chunk? Chunk;
+    internal int Slot;
+    internal int Remaining;
+
+    internal void Reset()
+    {
+        Chunk = null;
+        Slot = 0;
+        Remaining = 0;
+    }
+}
+
+internal readonly struct GeneratedWhereStructuralPlan
+{
+
+    internal Archetype SourceArchetype { get; }
+    internal Archetype? TargetArchetype { get; }
+    internal int[] SourceToTargetRows { get; }
+    internal int[] AddedTargetRows { get; }
+    internal GeneratedWhereTargetCursor? TargetCursor { get; }
+    internal ComponentId[] ComponentIds { get; }
+    internal int[] TagIndices { get; }
+    internal bool IsAdd { get; }
+    internal bool IsDestroy { get; }
+
+    internal bool IsNoOp => !IsDestroy && TargetArchetype is null && TagIndices.Length == 0;
+    internal GeneratedWhereStructuralPlan(
+        Archetype sourceArchetype,
+        Archetype? targetArchetype,
+        int[] sourceToTargetRows,
+        int[] addedTargetRows,
+        GeneratedWhereTargetCursor? targetCursor,
+        ComponentId[] componentIds,
+        int[] tagIndices,
+        bool isAdd,
+        bool isDestroy)
+    {
+        SourceArchetype = sourceArchetype;
+        TargetArchetype = targetArchetype;
+        SourceToTargetRows = sourceToTargetRows;
+        AddedTargetRows = addedTargetRows;
+        TargetCursor = targetCursor;
+        ComponentIds = componentIds;
+        TagIndices = tagIndices;
+        IsAdd = isAdd;
+        IsDestroy = isDestroy;
+    }
 }

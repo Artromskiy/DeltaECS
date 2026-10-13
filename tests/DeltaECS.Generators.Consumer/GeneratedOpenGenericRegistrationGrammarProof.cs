@@ -1,4 +1,5 @@
 using System;
+
 using Delta.ECS;
 
 namespace Delta.ECS.Generators.Consumer;
@@ -138,6 +139,36 @@ internal static class GeneratedOpenGenericRegistrationGrammarProof
 
 }
 
+public struct GenericConstraintContext
+{
+    public int Count;
+}
+
+public struct StructConstraintFunctor<T> : IForEachContext<GenericConstraintContext> where T : struct
+{
+    public void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
+}
+
+public struct UnmanagedConstraintFunctor<T> : IForEachContext<GenericConstraintContext> where T : unmanaged
+{
+    public void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
+}
+
+public struct ClassConstraintFunctor<T> : IForEachContext<GenericConstraintContext> where T : class
+{
+    public void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
+}
+
+public struct NewConstraintFunctor<T> : IForEachContext<GenericConstraintContext> where T : new()
+{
+    public void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
+}
+
+public struct ClassNewConstraintFunctor<T> : IForEachContext<GenericConstraintContext> where T : class, new()
+{
+    public void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
+}
+
 internal struct GenericPair<TFirst, TSecond>
 {
     internal TFirst First;
@@ -212,34 +243,4 @@ internal struct NewBox<T> where T : new()
 internal sealed class ConstructibleGenericComponent
 {
     public ConstructibleGenericComponent() { }
-}
-
-public struct GenericConstraintContext
-{
-    public int Count;
-}
-
-public struct StructConstraintFunctor<T> : IForEachContext<GenericConstraintContext> where T : struct
-{
-    public void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
-}
-
-public struct UnmanagedConstraintFunctor<T> : IForEachContext<GenericConstraintContext> where T : unmanaged
-{
-    public void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
-}
-
-public struct ClassConstraintFunctor<T> : IForEachContext<GenericConstraintContext> where T : class
-{
-    public void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
-}
-
-public struct NewConstraintFunctor<T> : IForEachContext<GenericConstraintContext> where T : new()
-{
-    public void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
-}
-
-public struct ClassNewConstraintFunctor<T> : IForEachContext<GenericConstraintContext> where T : class, new()
-{
-    public void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
 }

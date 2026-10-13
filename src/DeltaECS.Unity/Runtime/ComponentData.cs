@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+
 using Delta.ECS;
 using Delta.ECS.Integration;
+
 using UnityEngine;
 
 namespace Delta.ECS.Unity
@@ -17,10 +19,24 @@ namespace Delta.ECS.Unity
         public string Json => _json;
         public IReadOnlyList<EntityReference> EntityReferences => _entityReferences ??= new List<EntityReference>();
 
+        private List<EntityReference> EntityReferenceList =>
+            _entityReferences ??= new List<EntityReference>();
+
         public ComponentData(ulong schemaId, string json)
         {
             _schemaId = schemaId.ToString("X16");
             _json = json;
+        }
+
+        public static ComponentData CreateDefault(ComponentDescriptor descriptor)
+        {
+            if (descriptor.IsTag)
+            {
+                return new ComponentData(descriptor.Schema.Value, "{}");
+            }
+
+            object value = Activator.CreateInstance(descriptor.ValueType);
+            return new ComponentData(descriptor.Schema.Value, JsonUtility.ToJson(value));
         }
 
         public bool TryGetSchemaId(out SchemaId schemaId)
@@ -92,20 +108,6 @@ namespace Delta.ECS.Unity
             }
 
             return string.Empty;
-        }
-
-        private List<EntityReference> EntityReferenceList =>
-            _entityReferences ??= new List<EntityReference>();
-
-        public static ComponentData CreateDefault(ComponentDescriptor descriptor)
-        {
-            if (descriptor.IsTag)
-            {
-                return new ComponentData(descriptor.Schema.Value, "{}");
-            }
-
-            object value = Activator.CreateInstance(descriptor.ValueType);
-            return new ComponentData(descriptor.Schema.Value, JsonUtility.ToJson(value));
         }
     }
 }

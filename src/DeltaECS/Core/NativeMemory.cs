@@ -5,6 +5,14 @@ using System.Runtime.CompilerServices;
 /// <summary>Trusted native storage owned and disposed by its containing ECS object.</summary>
 internal struct NativeMemory<T> : IDisposable where T : unmanaged
 {
+
+    internal int Length { get; private set; }
+
+    internal nint Address { get; private set; }
+
+    internal Span<T> Span => ArrayAccess.AsSpan<T>(Address, Length);
+
+    internal ReadOnlySpan<T> ReadOnlySpan => Span;
     internal NativeMemory(int length)
     {
         ThrowHelper.ThrowIfNegative(length, nameof(length));
@@ -19,19 +27,11 @@ internal struct NativeMemory<T> : IDisposable where T : unmanaged
         source.CopyTo(Span);
     }
 
-    internal int Length { get; private set; }
-
-    internal nint Address { get; private set; }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref T RefAt(int index) => ref ArrayAccess.RefAt<T>(Address, index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref T GetRefAtZero() => ref ArrayAccess.GetRefAtZero<T>(Address);
-
-    internal Span<T> Span => ArrayAccess.AsSpan<T>(Address, Length);
-
-    internal ReadOnlySpan<T> ReadOnlySpan => Span;
 
     internal void Resize(int length)
     {
@@ -71,8 +71,6 @@ internal struct NativeMemory<T> : IDisposable where T : unmanaged
         Length = 0;
     }
 
-    void IDisposable.Dispose() => Dispose();
-
     private static nint Allocate(int length)
     {
         if (length == 0)
@@ -87,6 +85,8 @@ internal struct NativeMemory<T> : IDisposable where T : unmanaged
     }
 
     private static nuint ByteLength(int length) => checked((nuint)length * (nuint)Unsafe.SizeOf<T>());
+
+    void IDisposable.Dispose() => Dispose();
 
     private void ReleaseBuffer()
     {

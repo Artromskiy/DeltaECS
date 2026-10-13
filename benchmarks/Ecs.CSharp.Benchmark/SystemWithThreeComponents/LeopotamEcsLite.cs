@@ -1,39 +1,26 @@
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
+
 using Leopotam.EcsLite;
 
 namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithThreeComponents
     {
+
+        [Context]
+        private readonly LeopotamEcsLiteContext _leopotamEcsLite;
+
+        [BenchmarkCategory(Categories.LeopotamEcsLite, Categories.SingleThread)]
+        [Benchmark]
+        public int LeopotamEcsLite()
+        {
+            _leopotamEcsLite.MonoThreadSystem.Run();
+            return EntityCount;
+        }
         private sealed class LeopotamEcsLiteContext : LeopotamEcsLiteBaseContext
         {
-            private sealed class MonoThreadRunSystem : IEcsInitSystem, IEcsRunSystem
-            {
-                private EcsFilter _filter;
-                private EcsPool<Component1> _c1;
-                private EcsPool<Component2> _c2;
-                private EcsPool<Component3> _c3;
-
-                public void Init(IEcsSystems systems)
-                {
-                    EcsWorld world = systems.GetWorld();
-
-                    _filter = world.Filter<Component1>().Inc<Component2>().Inc<Component3>().End();
-                    _c1 = world.GetPool<Component1>();
-                    _c2 = world.GetPool<Component2>();
-                    _c3 = world.GetPool<Component3>();
-                }
-
-                public void Run(IEcsSystems systems)
-                {
-                    int[] entities = _filter.GetRawEntities();
-                    for (int i = 0, iMax = _filter.GetEntitiesCount(); i < iMax; i++)
-                    {
-                        _c1.Get(entities[i]).Value += _c2.Get(entities[i]).Value + _c3.Get(entities[i]).Value;
-                    }
-                }
-            }
 
             public IEcsSystems MonoThreadSystem { get; }
 
@@ -74,17 +61,32 @@ namespace Ecs.CSharp.Benchmark
                     c3.Add(entity) = new Component3 { Value = 1 };
                 }
             }
-        }
+            private sealed class MonoThreadRunSystem : IEcsInitSystem, IEcsRunSystem
+            {
+                private EcsFilter _filter;
+                private EcsPool<Component1> _c1;
+                private EcsPool<Component2> _c2;
+                private EcsPool<Component3> _c3;
 
-        [Context]
-        private readonly LeopotamEcsLiteContext _leopotamEcsLite;
+                public void Init(IEcsSystems systems)
+                {
+                    EcsWorld world = systems.GetWorld();
 
-        [BenchmarkCategory(Categories.LeopotamEcsLite, Categories.SingleThread)]
-        [Benchmark]
-        public int LeopotamEcsLite()
-        {
-            _leopotamEcsLite.MonoThreadSystem.Run();
-            return EntityCount;
+                    _filter = world.Filter<Component1>().Inc<Component2>().Inc<Component3>().End();
+                    _c1 = world.GetPool<Component1>();
+                    _c2 = world.GetPool<Component2>();
+                    _c3 = world.GetPool<Component3>();
+                }
+
+                public void Run(IEcsSystems systems)
+                {
+                    int[] entities = _filter.GetRawEntities();
+                    for (int i = 0, iMax = _filter.GetEntitiesCount(); i < iMax; i++)
+                    {
+                        _c1.Get(entities[i]).Value += _c2.Get(entities[i]).Value + _c3.Get(entities[i]).Value;
+                    }
+                }
+            }
         }
     }
 }

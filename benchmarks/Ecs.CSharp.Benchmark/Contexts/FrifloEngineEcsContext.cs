@@ -1,5 +1,7 @@
 using System;
+
 using Ecs.CSharp.Benchmark.Contexts.FrifloEngineComponents;
+
 using Friflo.Engine.ECS;
 
 namespace Ecs.CSharp.Benchmark.Contexts
@@ -24,7 +26,6 @@ namespace Ecs.CSharp.Benchmark.Contexts
 
     internal class FrifloEngineEcsBaseContext : IDisposable
     {
-        protected EntityStore EntityStore { get; }
         public readonly ArchetypeQuery<Component1> queryOne;
         public readonly ArchetypeQuery<Component1, Component2> queryTwo;
         public readonly ArchetypeQuery<Component1, Component2, Component3> queryThree;
@@ -33,6 +34,7 @@ namespace Ecs.CSharp.Benchmark.Contexts
         public readonly QueryJob<Component1, Component2> jobTwo;
         public readonly QueryJob<Component1, Component2, Component3> jobThree;
         public readonly QueryJob<Component1, Component2> jobTwoWithComposition;
+        protected EntityStore EntityStore { get; }
 
 
         protected FrifloEngineEcsBaseContext()

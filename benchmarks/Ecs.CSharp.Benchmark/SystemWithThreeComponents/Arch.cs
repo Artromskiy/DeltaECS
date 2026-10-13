@@ -1,9 +1,12 @@
 using System;
 using System.Runtime.CompilerServices;
+
 using Arch.Core;
 using Arch.Core.Utils;
 using Arch.System;
+
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.ArchComponents;
 
@@ -11,21 +14,6 @@ namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithThreeComponents
     {
-        private struct ForEach3 : IForEach<Component1, Component2, Component3>
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void Update(ref Component1 t0, ref Component2 t1, ref Component3 t2) => t0.Value += t1.Value + t2.Value;
-        }
-
-        [Query]
-        private static void ForEach(ref Component1 t0, Component2 t1, Component3 t2) => t0.Value += t1.Value + t2.Value;
-
-        private sealed class ArchContext : ArchBaseContext
-        {
-            public ArchContext(int entityCount, int _)
-                : base(_filter, entityCount)
-            { }
-        }
 
         private static readonly ComponentType[] _filter = [typeof(Component1), typeof(Component2), typeof(Component3)];
         private static readonly QueryDescription _queryDescription = new(new Signature(_filter), null, null, null);
@@ -58,6 +46,21 @@ namespace Ecs.CSharp.Benchmark
             World world = _arch.World;
             world.InlineParallelQuery<ForEach3, Component1, Component2, Component3>(_queryDescription, ref _forEach3);
             return EntityCount;
+        }
+
+        [Query]
+        private static void ForEach(ref Component1 t0, Component2 t1, Component3 t2) => t0.Value += t1.Value + t2.Value;
+        private struct ForEach3 : IForEach<Component1, Component2, Component3>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Update(ref Component1 t0, ref Component2 t1, ref Component3 t2) => t0.Value += t1.Value + t2.Value;
+        }
+
+        private sealed class ArchContext : ArchBaseContext
+        {
+            public ArchContext(int entityCount, int _)
+                : base(_filter, entityCount)
+            { }
         }
     }
 }

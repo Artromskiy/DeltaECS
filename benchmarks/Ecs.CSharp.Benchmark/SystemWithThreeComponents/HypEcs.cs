@@ -1,44 +1,33 @@
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
+
 using HypEcs;
 
 namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithThreeComponents
     {
+
+        [Context] private readonly HypEcsContext _hypEcs;
+
+        [BenchmarkCategory(Categories.HypEcs, Categories.SingleThread)]
+        [Benchmark]
+        public int HypEcsMonoThread()
+        {
+            _hypEcs.MonoThreadSystem.Run(_hypEcs.World);
+            return EntityCount;
+        }
+
+        [BenchmarkCategory(Categories.HypEcs, Categories.MultiThread)]
+        [Benchmark]
+        public int HypEcsMultiThread()
+        {
+            _hypEcs.MultiThreadSystem.Run(_hypEcs.World);
+            return EntityCount;
+        }
         private sealed class HypEcsContext : HypEcsBaseContext
         {
-            private sealed class MonoThreadRunSystem : ISystem
-            {
-                public void Run(World world)
-                {
-                    Query<Component1, Component2, Component3> query = world.Query<Component1, Component2, Component3>()
-                        .Build();
-                    query.Run((count, s1, s2, s3) =>
-                    {
-                        for (int i = 0; i < count; i++)
-                        {
-                            s1[i].Value += s2[i].Value + s3[i].Value;
-                        }
-                    });
-                }
-            }
-
-            private sealed class MultiThreadRunSystem : ISystem
-            {
-                public void Run(World world)
-                {
-                    Query<Component1, Component2, Component3> query = world.Query<Component1, Component2, Component3>()
-                        .Build();
-                    query.RunParallel((count, s1, s2, s3) =>
-                    {
-                        for (int i = 0; i < count; i++)
-                        {
-                            s1[i].Value += s2[i].Value + s3[i].Value;
-                        }
-                    });
-                }
-            }
 
             public ISystem MonoThreadSystem { get; } = new MonoThreadRunSystem();
             public ISystem MultiThreadSystem { get; } = new MultiThreadRunSystem();
@@ -72,24 +61,37 @@ namespace Ecs.CSharp.Benchmark
                         .Add(new Component3 { Value = 1 });
                 }
             }
-        }
+            private sealed class MonoThreadRunSystem : ISystem
+            {
+                public void Run(World world)
+                {
+                    Query<Component1, Component2, Component3> query = world.Query<Component1, Component2, Component3>()
+                        .Build();
+                    query.Run((count, s1, s2, s3) =>
+                    {
+                        for (int i = 0; i < count; i++)
+                        {
+                            s1[i].Value += s2[i].Value + s3[i].Value;
+                        }
+                    });
+                }
+            }
 
-        [Context] private readonly HypEcsContext _hypEcs;
-
-        [BenchmarkCategory(Categories.HypEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int HypEcsMonoThread()
-        {
-            _hypEcs.MonoThreadSystem.Run(_hypEcs.World);
-            return EntityCount;
-        }
-
-        [BenchmarkCategory(Categories.HypEcs, Categories.MultiThread)]
-        [Benchmark]
-        public int HypEcsMultiThread()
-        {
-            _hypEcs.MultiThreadSystem.Run(_hypEcs.World);
-            return EntityCount;
+            private sealed class MultiThreadRunSystem : ISystem
+            {
+                public void Run(World world)
+                {
+                    Query<Component1, Component2, Component3> query = world.Query<Component1, Component2, Component3>()
+                        .Build();
+                    query.RunParallel((count, s1, s2, s3) =>
+                    {
+                        for (int i = 0; i < count; i++)
+                        {
+                            s1[i].Value += s2[i].Value + s3[i].Value;
+                        }
+                    });
+                }
+            }
         }
     }
 }

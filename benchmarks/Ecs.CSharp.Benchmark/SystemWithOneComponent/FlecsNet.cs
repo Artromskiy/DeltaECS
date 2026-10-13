@@ -1,6 +1,8 @@
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.ArchComponents;
+
 using Flecs.NET.Core;
 
 namespace Ecs.CSharp.Benchmark
@@ -9,26 +11,6 @@ namespace Ecs.CSharp.Benchmark
     {
         [Context]
         private readonly FlecsContext _flecs;
-
-        private sealed class FlecsContext : FlecsNetBaseContext
-        {
-            public Query query;
-
-            public FlecsContext(int entityCount, int entityPadding)
-            {
-                for (int i = 0; i < entityCount; ++i)
-                {
-                    for (int j = 0; j < entityPadding; ++j)
-                    {
-                        World.Entity();
-                    }
-
-                    World.Entity().Add<Component1>();
-
-                }
-                query = World.QueryBuilder().With<Component1>().Build();
-            }
-        }
 
         [BenchmarkCategory(Categories.FlecsNet, Categories.SingleThread)]
         [Benchmark]
@@ -55,6 +37,26 @@ namespace Ecs.CSharp.Benchmark
                 }
             });
             return EntityCount;
+        }
+
+        private sealed class FlecsContext : FlecsNetBaseContext
+        {
+            public Query query;
+
+            public FlecsContext(int entityCount, int entityPadding)
+            {
+                for (int i = 0; i < entityCount; ++i)
+                {
+                    for (int j = 0; j < entityPadding; ++j)
+                    {
+                        World.Entity();
+                    }
+
+                    World.Entity().Add<Component1>();
+
+                }
+                query = World.QueryBuilder().With<Component1>().Build();
+            }
         }
     }
 }

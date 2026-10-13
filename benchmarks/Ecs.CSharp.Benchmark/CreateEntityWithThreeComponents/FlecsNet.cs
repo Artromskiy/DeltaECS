@@ -1,6 +1,8 @@
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.ArchComponents;
+
 using Flecs.NET.Core;
 
 namespace Ecs.CSharp.Benchmark

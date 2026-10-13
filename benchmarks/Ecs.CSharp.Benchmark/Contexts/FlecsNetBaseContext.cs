@@ -1,4 +1,5 @@
 using System;
+
 using Flecs.NET.Core;
 
 namespace Ecs.CSharp.Benchmark.Contexts

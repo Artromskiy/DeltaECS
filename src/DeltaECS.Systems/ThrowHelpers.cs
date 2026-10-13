@@ -24,20 +24,6 @@ internal static class ThrowHelper
         }
     }
 
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowNull(string parameterName) => throw new ArgumentNullException(parameterName);
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowNegative(int value, string parameterName)
-    {
-#if NETSTANDARD2_1
-        throw new ArgumentOutOfRangeException(parameterName);
-#else
-        ArgumentOutOfRangeException.ThrowIfNegative(value, parameterName);
-#endif
-    }
-
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowInvalidComponentIds(string parameterName)
         => throw new ArgumentException("Component ids must be valid.", parameterName);
@@ -91,6 +77,20 @@ internal static class ThrowHelper
         throw new ObjectDisposedException("SchedulerWorkers");
 #else
         ObjectDisposedException.ThrowIf(true, "SchedulerWorkers");
+#endif
+    }
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowNull(string parameterName) => throw new ArgumentNullException(parameterName);
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowNegative(int value, string parameterName)
+    {
+#if NETSTANDARD2_1
+        throw new ArgumentOutOfRangeException(parameterName);
+#else
+        ArgumentOutOfRangeException.ThrowIfNegative(value, parameterName);
 #endif
     }
 }

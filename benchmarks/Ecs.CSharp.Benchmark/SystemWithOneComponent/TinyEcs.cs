@@ -1,6 +1,8 @@
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.TinyEcsComponents;
+
 using TinyEcs;
 
 namespace Ecs.CSharp.Benchmark
@@ -8,25 +10,6 @@ namespace Ecs.CSharp.Benchmark
     public partial class SystemWithOneComponent
     {
         [Context] private readonly TinyEcsContext _tinyEcs;
-
-        private sealed class TinyEcsContext : TinyEcsBaseContext
-        {
-            public Query Query { get; }
-            public TinyEcsContext(int entityCount, int entityPadding) : base()
-            {
-                for (int i = 0; i < entityCount; ++i)
-                {
-                    for (int j = 0; j < entityPadding; ++j)
-                    {
-                        World.Entity();
-                    }
-
-                    World.Entity().Set(new Component1());
-                }
-
-                Query = World.QueryBuilder().Data<Component1>().Build();
-            }
-        }
 
         [BenchmarkCategory(Categories.TinyEcs, Categories.SingleThread)]
         [Benchmark]
@@ -52,6 +35,25 @@ namespace Ecs.CSharp.Benchmark
                 c1.Ref.Value++;
             }
             return EntityCount;
+        }
+
+        private sealed class TinyEcsContext : TinyEcsBaseContext
+        {
+            public Query Query { get; }
+            public TinyEcsContext(int entityCount, int entityPadding) : base()
+            {
+                for (int i = 0; i < entityCount; ++i)
+                {
+                    for (int j = 0; j < entityPadding; ++j)
+                    {
+                        World.Entity();
+                    }
+
+                    World.Entity().Set(new Component1());
+                }
+
+                Query = World.QueryBuilder().Data<Component1>().Build();
+            }
         }
     }
 }

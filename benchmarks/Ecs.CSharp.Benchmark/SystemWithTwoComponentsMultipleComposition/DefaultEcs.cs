@@ -1,29 +1,38 @@
 using System;
+
 using BenchmarkDotNet.Attributes;
+
 using DefaultEcs;
 using DefaultEcs.System;
 using DefaultEcs.Threading;
+
 using Ecs.CSharp.Benchmark.Contexts;
 
 namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithTwoComponentsMultipleComposition
     {
+
+        [Context]
+        private readonly DefaultEcsContext _defaultEcs;
+
+        [BenchmarkCategory(Categories.DefaultEcs, Categories.SingleThread)]
+        [Benchmark]
+        public int DefaultEcsMonoThread()
+        {
+            _defaultEcs.MonoThreadEntitySetSystem.Update(0);
+            return EntityCount;
+        }
+
+        [BenchmarkCategory(Categories.DefaultEcs, Categories.MultiThread)]
+        [Benchmark]
+        public int DefaultEcsMultiThread()
+        {
+            _defaultEcs.MultiThreadEntitySetSystem.Update(0);
+            return EntityCount;
+        }
         private sealed partial class DefaultEcsContext : DefaultEcsBaseContext
         {
-            private record struct Padding1();
-
-            private record struct Padding2();
-
-            private record struct Padding3();
-
-            private record struct Padding4();
-
-            private sealed partial class EntitySetSystem : AEntitySetSystem<int>
-            {
-                [Update]
-                private static void Update(ref Component1 c1, in Component2 c2) => c1.Value += c2.Value;
-            }
 
             public DefaultParallelRunner Runner { get; }
 
@@ -70,25 +79,19 @@ namespace Ecs.CSharp.Benchmark
 
                 Runner.Dispose();
             }
-        }
+            private record struct Padding1();
 
-        [Context]
-        private readonly DefaultEcsContext _defaultEcs;
+            private record struct Padding2();
 
-        [BenchmarkCategory(Categories.DefaultEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int DefaultEcsMonoThread()
-        {
-            _defaultEcs.MonoThreadEntitySetSystem.Update(0);
-            return EntityCount;
-        }
+            private record struct Padding3();
 
-        [BenchmarkCategory(Categories.DefaultEcs, Categories.MultiThread)]
-        [Benchmark]
-        public int DefaultEcsMultiThread()
-        {
-            _defaultEcs.MultiThreadEntitySetSystem.Update(0);
-            return EntityCount;
+            private record struct Padding4();
+
+            private sealed partial class EntitySetSystem : AEntitySetSystem<int>
+            {
+                [Update]
+                private static void Update(ref Component1 c1, in Component2 c2) => c1.Value += c2.Value;
+            }
         }
     }
 }

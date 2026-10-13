@@ -22,6 +22,10 @@ public sealed partial class ComponentRegistry
     private readonly List<int> _tagIndices = new();
     private readonly Dictionary<Type, List<GenericRegistration>> _genericRegistrations = new();
 
+    internal int Count => _layouts.Count;
+
+    internal int TagCount { get; private set; }
+
     /// <summary>Visits a compatible registered component type and does nothing for an invalid ID or unsupported visitor.</summary>
     public void Visit(ComponentId componentId, IVisitor? visitor) => _ = TryVisit(componentId, visitor);
 
@@ -128,87 +132,6 @@ public sealed partial class ComponentRegistry
         members.Add(componentId);
     }
 
-    private static ulong GetGroupValue<TEnum>(TEnum groupId) where TEnum : struct, Enum
-    {
-        object boxedValue = groupId;
-        IFormatProvider invariant = CultureInfo.InvariantCulture;
-        return Type.GetTypeCode(Enum.GetUnderlyingType(typeof(TEnum))) switch
-        {
-            TypeCode.SByte => (byte)Convert.ToSByte(boxedValue, invariant),
-            TypeCode.Byte => Convert.ToByte(boxedValue, invariant),
-            TypeCode.Int16 => (ushort)Convert.ToInt16(boxedValue, invariant),
-            TypeCode.UInt16 => Convert.ToUInt16(boxedValue, invariant),
-            TypeCode.Int32 => (uint)Convert.ToInt32(boxedValue, invariant),
-            TypeCode.UInt32 => Convert.ToUInt32(boxedValue, invariant),
-            TypeCode.Int64 => (ulong)Convert.ToInt64(boxedValue, invariant),
-            TypeCode.UInt64 => Convert.ToUInt64(boxedValue, invariant),
-            _ => ThrowHelper.ThrowUnsupportedEnumUnderlyingType(typeof(TEnum)),
-        };
-    }
-
-    private sealed class ComponentGroupMembers
-    {
-        private readonly List<ComponentId> _componentIds = new();
-        private ComponentId[]? _cached;
-
-        internal void Add(ComponentId componentId)
-        {
-            if (_componentIds.Contains(componentId))
-            {
-                return;
-            }
-
-            _componentIds.Add(componentId);
-            _cached = null;
-        }
-
-        internal ReadOnlySpan<ComponentId> GetComponents() => _cached ??= _componentIds.ToArray();
-    }
-
-    private static ComponentRegistrationTypeToken CreateComponentRegistrationTypeToken(IGeneratedComponentTypeToken typeToken)
-    {
-        var visitor = new GeneratedComponentTypeRegistrationTokenFactory();
-        typeToken.DispatchRegistrationRoute(ref visitor);
-        return visitor.RegistrationToken;
-    }
-
-    private struct GeneratedComponentTypeRegistrationTokenFactory :
-        IGeneratedComponentRegistrationRouteVisitor
-    {
-        private ComponentRegistrationTypeToken? _registrationToken;
-
-        internal readonly ComponentRegistrationTypeToken RegistrationToken => _registrationToken
-            ?? ThrowHelper.ThrowGeneratedComponentVisitorTokenMissing();
-
-        void IGeneratedComponentRegistrationRouteVisitor.VisitUnconstrained<T>()
-            => _registrationToken = new ComponentRegistrationTypeToken(new UnconstrainedComponentTypeRegistrationRoute<T>());
-
-        void IGeneratedComponentRegistrationRouteVisitor.VisitStruct<T>()
-            => _registrationToken = new ComponentRegistrationTypeToken(new StructComponentTypeRegistrationRoute<T>());
-
-        void IGeneratedComponentRegistrationRouteVisitor.VisitUnmanaged<T>()
-            => _registrationToken = new ComponentRegistrationTypeToken(new UnmanagedComponentTypeRegistrationRoute<T>());
-
-        void IGeneratedComponentRegistrationRouteVisitor.VisitClass<T>()
-            => _registrationToken = new ComponentRegistrationTypeToken(new ClassComponentTypeRegistrationRoute<T>());
-
-        void IGeneratedComponentRegistrationRouteVisitor.VisitConstructible<T>()
-            => _registrationToken = new ComponentRegistrationTypeToken(new NewComponentTypeRegistrationRoute<T>());
-
-        void IGeneratedComponentRegistrationRouteVisitor.VisitClassConstructible<T>()
-            => _registrationToken = new ComponentRegistrationTypeToken(new ClassNewComponentTypeRegistrationRoute<T>());
-    }
-
-    private sealed class GenericRegistration(ComponentId[] arguments, ComponentId componentId)
-    {
-        internal readonly ComponentId[] Arguments = arguments;
-        internal readonly ComponentId ComponentId = componentId;
-    }
-
-    internal int Count => _layouts.Count;
-
-    internal int TagCount { get; private set; }
-
     /// <summary>
     /// Closes a generic component definition with the CLR types selected by
     /// <paramref name="componentArgument"/> and registers the resulting type.
@@ -231,46 +154,61 @@ public sealed partial class ComponentRegistry
         SchemaId schemaId)
         => RegisterGeneric(genericTypeDefinition, schemaId, componentArguments);
 
+    /// <summary>Gets the CLR type of a registered component.</summary>
+    public Type GetComponentType(ComponentId componentId) => Get(componentId).RuntimeType;
+
     /// <summary>
-    /// Closes a generic component definition with the CLR types selected by
-    /// <paramref name="componentArguments"/> and registers the resulting type.
+    /// Tries to resolve the primary component registration for a CLR type.
+    /// Later registrations of the same type remain addressable by their explicit ids.
     /// </summary>
-    private ComponentId RegisterGeneric(
-        Type genericTypeDefinition,
-        SchemaId schemaId,
-        ReadOnlySpan<ComponentId> componentArguments)
+    public bool TryGetPrimary(Type runtimeType, out ComponentId componentId)
     {
-        ThrowHelper.ThrowIfNull(genericTypeDefinition, nameof(genericTypeDefinition));
-        if (!genericTypeDefinition.IsGenericTypeDefinition)
+        ThrowHelper.ThrowIfNull(runtimeType, nameof(runtimeType));
+        if (_primaryIdsByType.TryGetValue(runtimeType, out componentId))
         {
-            ThrowHelper.ThrowNotGenericTypeDefinition(genericTypeDefinition);
+            return true;
         }
 
-        if (GeneratedGenericBindingRegistry.TryGetComponentDispatcher(
-            genericTypeDefinition,
-            out int dispatcherArity,
-            out GeneratedGenericComponentDispatcher dispatcher))
-        {
-            if (dispatcherArity != componentArguments.Length)
-            {
-                ThrowHelper.ThrowGenericTypeArgumentCountMismatch(genericTypeDefinition, dispatcherArity, componentArguments.Length);
-            }
-
-            IGeneratedComponentTypeToken[] typeTokens = GetComponentTypeTokens(componentArguments);
-            return dispatcher(this, schemaId, componentArguments, typeTokens);
-        }
-
-        return ThrowHelper.ThrowMissingGeneratedGenericComponent(genericTypeDefinition);
+        componentId = ComponentId.Invalid;
+        return false;
     }
+
+    /// <summary>Tries to resolve a component registration from its stable schema identity.</summary>
+    public bool TryGetComponentId(SchemaId schemaId, out ComponentId componentId)
+    {
+        if (_idsBySchema.TryGetValue(schemaId, out int value))
+        {
+            componentId = new ComponentId(value);
+            return true;
+        }
+
+        componentId = ComponentId.Invalid;
+        return false;
+    }
+
+    /// <summary>Gets the primary component registration for a CLR type.</summary>
+    public ComponentId GetPrimary(Type runtimeType)
+    {
+        if (TryGetPrimary(runtimeType, out ComponentId componentId))
+        {
+            return componentId;
+        }
+
+        return ThrowHelper.ThrowComponentTypeNotRegistered(runtimeType);
+    }
+
+    internal static bool IsTagType([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType)
+        => runtimeType.IsValueType
+            && !runtimeType.IsPrimitive
+            && !runtimeType.IsEnum
+            && runtimeType.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).Length == 0
+            && (runtimeType.StructLayoutAttribute?.Size ?? 0) <= 1;
 
     internal ComponentId RegisterGeneratedGenericDefinition(
         Type genericTypeDefinition,
         SchemaId schemaId,
         ReadOnlySpan<ComponentId> componentArguments)
         => RegisterGeneric(genericTypeDefinition, schemaId, componentArguments);
-
-    /// <summary>Gets the CLR type of a registered component.</summary>
-    public Type GetComponentType(ComponentId componentId) => Get(componentId).RuntimeType;
 
     internal ComponentId GetGenericComponent(Type componentType, ReadOnlySpan<ComponentId> componentArguments)
     {
@@ -286,83 +224,6 @@ public sealed partial class ComponentRegistry
         }
 
         return ThrowHelper.ThrowComponentTypeNotRegistered(componentType);
-    }
-
-    private void EnsureGenericMappingAvailable(Type componentType, SchemaId schemaId, ReadOnlySpan<ComponentId> componentArguments)
-    {
-        if (_genericRegistrations.TryGetValue(componentType, out List<GenericRegistration>? registrations))
-        {
-            foreach (GenericRegistration registration in registrations)
-            {
-                if (componentArguments.SequenceEqual(registration.Arguments)
-                    && _layouts[registration.ComponentId.Value].SchemaId != schemaId)
-                {
-                    ThrowHelper.ThrowGenericRegistrationConflict(componentType);
-                }
-            }
-        }
-    }
-
-    private void RegisterGenericMapping(Type componentType, ComponentId componentId, ReadOnlySpan<ComponentId> componentArguments)
-    {
-        if (!_genericRegistrations.TryGetValue(componentType, out List<GenericRegistration>? registrations))
-        {
-            registrations = new List<GenericRegistration>();
-            _genericRegistrations.Add(componentType, registrations);
-        }
-
-        foreach (GenericRegistration registration in registrations)
-        {
-            if (componentArguments.SequenceEqual(registration.Arguments))
-            {
-                if (registration.ComponentId != componentId)
-                {
-                    ThrowHelper.ThrowGenericRegistrationConflict(componentType);
-                }
-
-                return;
-            }
-        }
-
-        registrations.Add(new GenericRegistration(componentArguments.ToArray(), componentId));
-    }
-
-    internal static bool IsTagType([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType)
-        => runtimeType.IsValueType
-            && !runtimeType.IsPrimitive
-            && !runtimeType.IsEnum
-            && runtimeType.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).Length == 0
-            && (runtimeType.StructLayoutAttribute?.Size ?? 0) <= 1;
-
-    private ComponentId Register(
-        ComponentLayout layout,
-        ComponentRowOperations rowOperations,
-        IGeneratedComponentTypeToken typeToken,
-        IComponentRegistrationToken componentRegistrationToken,
-        bool isTag = false)
-    {
-        if (_idsBySchema.TryGetValue(layout.SchemaId, out int existingId))
-        {
-            var existingLayout = _layouts[existingId];
-            if (!existingLayout.Equals(layout) || _isTag[existingId] != isTag)
-            {
-                ThrowHelper.ThrowSchemaConflict(layout.SchemaId);
-            }
-
-            return new ComponentId(existingId);
-        }
-
-        var id = new ComponentId(_layouts.Count);
-        _layouts.Add(layout);
-        _rowOperations.Add(rowOperations);
-        _componentTypeTokens.Add(typeToken);
-        _componentVisitorTokens.Add(componentRegistrationToken);
-        _isTag.Add(isTag);
-        _tagIndices.Add(isTag ? TagCount++ : -1);
-        _idsBySchema.Add(layout.SchemaId, id.Value);
-        _primaryIdsByType.TryAdd(layout.RuntimeType, id);
-
-        return id;
     }
 
     internal IGeneratedComponentTypeToken[] GetComponentTypeTokens(ReadOnlySpan<ComponentId> componentIds)
@@ -413,46 +274,6 @@ public sealed partial class ComponentRegistry
     internal int GetTagIndex(ComponentId id)
         => TryGetTagIndex(id, out int tagIndex) ? tagIndex : ThrowHelper.ThrowComponentIsNotTag(id);
 
-    /// <summary>
-    /// Tries to resolve the primary component registration for a CLR type.
-    /// Later registrations of the same type remain addressable by their explicit ids.
-    /// </summary>
-    public bool TryGetPrimary(Type runtimeType, out ComponentId componentId)
-    {
-        ThrowHelper.ThrowIfNull(runtimeType, nameof(runtimeType));
-        if (_primaryIdsByType.TryGetValue(runtimeType, out componentId))
-        {
-            return true;
-        }
-
-        componentId = ComponentId.Invalid;
-        return false;
-    }
-
-    /// <summary>Tries to resolve a component registration from its stable schema identity.</summary>
-    public bool TryGetComponentId(SchemaId schemaId, out ComponentId componentId)
-    {
-        if (_idsBySchema.TryGetValue(schemaId, out int value))
-        {
-            componentId = new ComponentId(value);
-            return true;
-        }
-
-        componentId = ComponentId.Invalid;
-        return false;
-    }
-
-    /// <summary>Gets the primary component registration for a CLR type.</summary>
-    public ComponentId GetPrimary(Type runtimeType)
-    {
-        if (TryGetPrimary(runtimeType, out ComponentId componentId))
-        {
-            return componentId;
-        }
-
-        return ThrowHelper.ThrowComponentTypeNotRegistered(runtimeType);
-    }
-
     internal ComponentLayout Get(ComponentId id)
     {
         if (!id.IsValid || id.Value >= _layouts.Count)
@@ -489,5 +310,184 @@ public sealed partial class ComponentRegistry
         }
 
         return _rowOperations[id.Value];
+    }
+
+    private static ulong GetGroupValue<TEnum>(TEnum groupId) where TEnum : struct, Enum
+    {
+        object boxedValue = groupId;
+        IFormatProvider invariant = CultureInfo.InvariantCulture;
+        return Type.GetTypeCode(Enum.GetUnderlyingType(typeof(TEnum))) switch
+        {
+            TypeCode.SByte => (byte)Convert.ToSByte(boxedValue, invariant),
+            TypeCode.Byte => Convert.ToByte(boxedValue, invariant),
+            TypeCode.Int16 => (ushort)Convert.ToInt16(boxedValue, invariant),
+            TypeCode.UInt16 => Convert.ToUInt16(boxedValue, invariant),
+            TypeCode.Int32 => (uint)Convert.ToInt32(boxedValue, invariant),
+            TypeCode.UInt32 => Convert.ToUInt32(boxedValue, invariant),
+            TypeCode.Int64 => (ulong)Convert.ToInt64(boxedValue, invariant),
+            TypeCode.UInt64 => Convert.ToUInt64(boxedValue, invariant),
+            _ => ThrowHelper.ThrowUnsupportedEnumUnderlyingType(typeof(TEnum)),
+        };
+    }
+
+    private static ComponentRegistrationTypeToken CreateComponentRegistrationTypeToken(IGeneratedComponentTypeToken typeToken)
+    {
+        var visitor = new GeneratedComponentTypeRegistrationTokenFactory();
+        typeToken.DispatchRegistrationRoute(ref visitor);
+        return visitor.RegistrationToken;
+    }
+
+    /// <summary>
+    /// Closes a generic component definition with the CLR types selected by
+    /// <paramref name="componentArguments"/> and registers the resulting type.
+    /// </summary>
+    private ComponentId RegisterGeneric(
+        Type genericTypeDefinition,
+        SchemaId schemaId,
+        ReadOnlySpan<ComponentId> componentArguments)
+    {
+        ThrowHelper.ThrowIfNull(genericTypeDefinition, nameof(genericTypeDefinition));
+        if (!genericTypeDefinition.IsGenericTypeDefinition)
+        {
+            ThrowHelper.ThrowNotGenericTypeDefinition(genericTypeDefinition);
+        }
+
+        if (GeneratedGenericBindingRegistry.TryGetComponentDispatcher(
+            genericTypeDefinition,
+            out int dispatcherArity,
+            out GeneratedGenericComponentDispatcher dispatcher))
+        {
+            if (dispatcherArity != componentArguments.Length)
+            {
+                ThrowHelper.ThrowGenericTypeArgumentCountMismatch(genericTypeDefinition, dispatcherArity, componentArguments.Length);
+            }
+
+            IGeneratedComponentTypeToken[] typeTokens = GetComponentTypeTokens(componentArguments);
+            return dispatcher(this, schemaId, componentArguments, typeTokens);
+        }
+
+        return ThrowHelper.ThrowMissingGeneratedGenericComponent(genericTypeDefinition);
+    }
+
+    private void EnsureGenericMappingAvailable(Type componentType, SchemaId schemaId, ReadOnlySpan<ComponentId> componentArguments)
+    {
+        if (_genericRegistrations.TryGetValue(componentType, out List<GenericRegistration>? registrations))
+        {
+            foreach (GenericRegistration registration in registrations)
+            {
+                if (componentArguments.SequenceEqual(registration.Arguments)
+                    && _layouts[registration.ComponentId.Value].SchemaId != schemaId)
+                {
+                    ThrowHelper.ThrowGenericRegistrationConflict(componentType);
+                }
+            }
+        }
+    }
+
+    private void RegisterGenericMapping(Type componentType, ComponentId componentId, ReadOnlySpan<ComponentId> componentArguments)
+    {
+        if (!_genericRegistrations.TryGetValue(componentType, out List<GenericRegistration>? registrations))
+        {
+            registrations = new List<GenericRegistration>();
+            _genericRegistrations.Add(componentType, registrations);
+        }
+
+        foreach (GenericRegistration registration in registrations)
+        {
+            if (componentArguments.SequenceEqual(registration.Arguments))
+            {
+                if (registration.ComponentId != componentId)
+                {
+                    ThrowHelper.ThrowGenericRegistrationConflict(componentType);
+                }
+
+                return;
+            }
+        }
+
+        registrations.Add(new GenericRegistration(componentArguments.ToArray(), componentId));
+    }
+
+    private ComponentId Register(
+        ComponentLayout layout,
+        ComponentRowOperations rowOperations,
+        IGeneratedComponentTypeToken typeToken,
+        IComponentRegistrationToken componentRegistrationToken,
+        bool isTag = false)
+    {
+        if (_idsBySchema.TryGetValue(layout.SchemaId, out int existingId))
+        {
+            var existingLayout = _layouts[existingId];
+            if (!existingLayout.Equals(layout) || _isTag[existingId] != isTag)
+            {
+                ThrowHelper.ThrowSchemaConflict(layout.SchemaId);
+            }
+
+            return new ComponentId(existingId);
+        }
+
+        var id = new ComponentId(_layouts.Count);
+        _layouts.Add(layout);
+        _rowOperations.Add(rowOperations);
+        _componentTypeTokens.Add(typeToken);
+        _componentVisitorTokens.Add(componentRegistrationToken);
+        _isTag.Add(isTag);
+        _tagIndices.Add(isTag ? TagCount++ : -1);
+        _idsBySchema.Add(layout.SchemaId, id.Value);
+        _primaryIdsByType.TryAdd(layout.RuntimeType, id);
+
+        return id;
+    }
+
+    private sealed class ComponentGroupMembers
+    {
+        private readonly List<ComponentId> _componentIds = new();
+        private ComponentId[]? _cached;
+
+        internal void Add(ComponentId componentId)
+        {
+            if (_componentIds.Contains(componentId))
+            {
+                return;
+            }
+
+            _componentIds.Add(componentId);
+            _cached = null;
+        }
+
+        internal ReadOnlySpan<ComponentId> GetComponents() => _cached ??= _componentIds.ToArray();
+    }
+
+    private struct GeneratedComponentTypeRegistrationTokenFactory :
+        IGeneratedComponentRegistrationRouteVisitor
+    {
+        private ComponentRegistrationTypeToken? _registrationToken;
+
+        internal readonly ComponentRegistrationTypeToken RegistrationToken => _registrationToken
+            ?? ThrowHelper.ThrowGeneratedComponentVisitorTokenMissing();
+
+        void IGeneratedComponentRegistrationRouteVisitor.VisitUnconstrained<T>()
+            => _registrationToken = new ComponentRegistrationTypeToken(new UnconstrainedComponentTypeRegistrationRoute<T>());
+
+        void IGeneratedComponentRegistrationRouteVisitor.VisitStruct<T>()
+            => _registrationToken = new ComponentRegistrationTypeToken(new StructComponentTypeRegistrationRoute<T>());
+
+        void IGeneratedComponentRegistrationRouteVisitor.VisitUnmanaged<T>()
+            => _registrationToken = new ComponentRegistrationTypeToken(new UnmanagedComponentTypeRegistrationRoute<T>());
+
+        void IGeneratedComponentRegistrationRouteVisitor.VisitClass<T>()
+            => _registrationToken = new ComponentRegistrationTypeToken(new ClassComponentTypeRegistrationRoute<T>());
+
+        void IGeneratedComponentRegistrationRouteVisitor.VisitConstructible<T>()
+            => _registrationToken = new ComponentRegistrationTypeToken(new NewComponentTypeRegistrationRoute<T>());
+
+        void IGeneratedComponentRegistrationRouteVisitor.VisitClassConstructible<T>()
+            => _registrationToken = new ComponentRegistrationTypeToken(new ClassNewComponentTypeRegistrationRoute<T>());
+    }
+
+    private sealed class GenericRegistration(ComponentId[] arguments, ComponentId componentId)
+    {
+        internal readonly ComponentId[] Arguments = arguments;
+        internal readonly ComponentId ComponentId = componentId;
     }
 }

@@ -2,6 +2,7 @@ namespace Delta.ECS.Registration.CSharp9
 {
     using System;
     using System.Diagnostics.CodeAnalysis;
+
     using Delta.ECS;
 
     internal static class Program
@@ -185,13 +186,6 @@ namespace Delta.ECS.Registration.CSharp9
             }
         }
 
-        private sealed class ClassOnlyComponent : IGameComponent
-        {
-            private ClassOnlyComponent()
-            {
-            }
-        }
-
         private static void AssertVisited<T>(ComponentRegistry layouts, ComponentId componentId, ProbeVisitor visitor)
         {
             if (!layouts.TryVisit(componentId, visitor)
@@ -208,6 +202,13 @@ namespace Delta.ECS.Registration.CSharp9
             if (layouts.TryVisit(componentId, visitor) || visitor.VisitCount != 0)
             {
                 throw new InvalidOperationException("The visitor route accepted an incompatible component.");
+            }
+        }
+
+        private sealed class ClassOnlyComponent : IGameComponent
+        {
+            private ClassOnlyComponent()
+            {
             }
         }
 

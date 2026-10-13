@@ -1,12 +1,8 @@
-using BenchmarkDotNet.Attributes;
 using System.Diagnostics.CodeAnalysis;
 
-namespace Delta.ECS.ArrayRefBenchmarks;
+using BenchmarkDotNet.Attributes;
 
-internal struct ArrayReferenceValue
-{
-    internal int Value;
-}
+namespace Delta.ECS.ArrayRefBenchmarks;
 
 /// <summary>Measures generated component iteration over an array-backed world.</summary>
 [InProcess]
@@ -58,16 +54,6 @@ public class ForEachArrayReferenceBenchmarks : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>Releases resources owned by the benchmark.</summary>
-    /// <param name="disposing">Whether managed resources should be disposed.</param>
-    protected virtual void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _world.Dispose();
-        }
-    }
-
     /// <summary>Iterates all values and returns their checksum.</summary>
     [Benchmark]
     public long ForEachT()
@@ -80,4 +66,19 @@ public class ForEachArrayReferenceBenchmarks : IDisposable
         _iteration.Invoke(ref checksum);
         return checksum;
     }
+
+    /// <summary>Releases resources owned by the benchmark.</summary>
+    /// <param name="disposing">Whether managed resources should be disposed.</param>
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _world.Dispose();
+        }
+    }
+}
+
+internal struct ArrayReferenceValue
+{
+    internal int Value;
 }

@@ -96,6 +96,20 @@ internal static class GenericTypeDispatchTemplates
         return source;
     }
 
+    internal static string RenderRegisteredComponentTypeToken(GeneratedTypeTokenBinding binding)
+    {
+        string interfaces = TokenInterfaces(binding.IsValueType, binding.IsUnmanaged, binding.IsClass, binding.HasPublicParameterlessConstructor);
+        string methods = RenderTokenMethods(binding.ComponentTypeName, binding.IsValueType, binding.IsUnmanaged, binding.IsClass, binding.HasPublicParameterlessConstructor);
+        return $$"""
+            internal sealed class {{binding.TokenName}} : global::Delta.ECS.IGeneratedComponentTypeToken{{interfaces}}
+            {
+                public global::System.Type ComponentType => typeof({{binding.ComponentTypeName}});
+
+            {{GeneratorTemplates.Indent(methods, "    ")}}
+            }
+            """;
+    }
+
     private static string RenderComponentStages(GenericComponentDispatcherBinding binding, string[] typeParameters)
         => RenderStages(
             binding.TypeParameters,
@@ -169,20 +183,6 @@ internal static class GenericTypeDispatchTemplates
     {
         int genericArgumentsStart = openTypeName.LastIndexOf('<');
         return openTypeName.Substring(0, genericArgumentsStart) + "<" + string.Join(", ", typeParameters) + ">";
-    }
-
-    internal static string RenderRegisteredComponentTypeToken(GeneratedTypeTokenBinding binding)
-    {
-        string interfaces = TokenInterfaces(binding.IsValueType, binding.IsUnmanaged, binding.IsClass, binding.HasPublicParameterlessConstructor);
-        string methods = RenderTokenMethods(binding.ComponentTypeName, binding.IsValueType, binding.IsUnmanaged, binding.IsClass, binding.HasPublicParameterlessConstructor);
-        return $$"""
-            internal sealed class {{binding.TokenName}} : global::Delta.ECS.IGeneratedComponentTypeToken{{interfaces}}
-            {
-                public global::System.Type ComponentType => typeof({{binding.ComponentTypeName}});
-
-            {{GeneratorTemplates.Indent(methods, "    ")}}
-            }
-            """;
     }
 
     private static string RenderTokenMethods(string componentType, bool isValueType, bool isUnmanaged, bool isClass, bool hasNew)

@@ -2,6 +2,12 @@ namespace Delta.ECS;
 
 public sealed partial class ComponentRegistry
 {
+
+    /// <summary>Tries to resolve the primary component registration for <typeparamref name="T"/>.</summary>
+    public bool TryGetPrimary<T>(out ComponentId componentId) => TryGetPrimary(typeof(T), out componentId);
+
+    /// <summary>Gets the primary component registration for <typeparamref name="T"/>.</summary>
+    public ComponentId GetPrimary<T>() => GetPrimary(typeof(T));
     internal ComponentId RegisterGeneratedComponent<T>(
         SchemaId schemaId,
         IGeneratedComponentTypeToken typeToken,
@@ -18,10 +24,4 @@ public sealed partial class ComponentRegistry
             ? Register(layout, default, typeToken, registrationToken, isTag: true)
             : Register(layout, ComponentRowOperations.ForType<T>(), typeToken, registrationToken);
     }
-
-    /// <summary>Tries to resolve the primary component registration for <typeparamref name="T"/>.</summary>
-    public bool TryGetPrimary<T>(out ComponentId componentId) => TryGetPrimary(typeof(T), out componentId);
-
-    /// <summary>Gets the primary component registration for <typeparamref name="T"/>.</summary>
-    public ComponentId GetPrimary<T>() => GetPrimary(typeof(T));
 }

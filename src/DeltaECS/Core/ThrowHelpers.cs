@@ -71,41 +71,6 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowNull(string parameterName) => throw new ArgumentNullException(parameterName);
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowNegative(int value, string parameterName)
-    {
-#if NETSTANDARD2_1
-        throw new ArgumentOutOfRangeException(parameterName);
-#else
-        ArgumentOutOfRangeException.ThrowIfNegative(value, parameterName);
-#endif
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowNegativeOrZero(int value, string parameterName)
-    {
-#if NETSTANDARD2_1
-        throw new ArgumentOutOfRangeException(parameterName);
-#else
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value, parameterName);
-#endif
-    }
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowDisposed(object instance)
-    {
-#if NETSTANDARD2_1
-        throw new ObjectDisposedException(instance.GetType().Name);
-#else
-        ObjectDisposedException.ThrowIf(true, instance);
-#endif
-    }
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static int ThrowInvalidReadRoute(ComponentId component)
         => throw new ArgumentException(
             "A row access must target a registered component guaranteed by the query All mask.",
@@ -502,4 +467,39 @@ internal static class ThrowHelper
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal static T ThrowInvalidComponentLayoutId<T>() => throw new ArgumentOutOfRangeException("id");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowNull(string parameterName) => throw new ArgumentNullException(parameterName);
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowNegative(int value, string parameterName)
+    {
+#if NETSTANDARD2_1
+        throw new ArgumentOutOfRangeException(parameterName);
+#else
+        ArgumentOutOfRangeException.ThrowIfNegative(value, parameterName);
+#endif
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowNegativeOrZero(int value, string parameterName)
+    {
+#if NETSTANDARD2_1
+        throw new ArgumentOutOfRangeException(parameterName);
+#else
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value, parameterName);
+#endif
+    }
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowDisposed(object instance)
+    {
+#if NETSTANDARD2_1
+        throw new ObjectDisposedException(instance.GetType().Name);
+#else
+        ObjectDisposedException.ThrowIf(true, instance);
+#endif
+    }
 }

@@ -1,5 +1,7 @@
 using BenchmarkDotNet.Attributes;
+
 using Delta.ECS;
+
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.DeltaEcsComponents;
 

@@ -8,21 +8,21 @@ public readonly ref struct EntityRef
 {
     private readonly Span<GeneratedEntityRefView> _view;
 
-    internal EntityRef(ref GeneratedEntityRefView view)
-    {
-        _view = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(ref view, 1);
-    }
-
-    private ref GeneratedEntityRefView View => ref System.Runtime.InteropServices.MemoryMarshal.GetReference(_view);
-
-    /// <summary>Converts this scoped view to its stable entity handle.</summary>
-    public static implicit operator Entity(EntityRef entity) => entity.View.CurrentEntity;
-
     /// <summary>Gets the current entity's index.</summary>
     public int Index => View.CurrentEntity.Index;
 
     /// <summary>Gets the current entity's lifetime generation.</summary>
     public int Generation => View.CurrentEntity.Generation;
+
+    private ref GeneratedEntityRefView View => ref System.Runtime.InteropServices.MemoryMarshal.GetReference(_view);
+
+    internal EntityRef(ref GeneratedEntityRefView view)
+    {
+        _view = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(ref view, 1);
+    }
+
+    /// <summary>Converts this scoped view to its stable entity handle.</summary>
+    public static implicit operator Entity(EntityRef entity) => entity.View.CurrentEntity;
 
     /// <summary>Reports whether the current entity has the specified component registration.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -73,8 +73,8 @@ public struct GeneratedEntityRefView
 {
     internal World? World;
     internal Chunk? Chunk;
-    private nint _entityAddress;
     internal int SlotIndex;
+    private nint _entityAddress;
     private QueryPlan? _queryPlan;
     private Array[]? _componentRows;
     private int[]? _componentIndices;
@@ -85,6 +85,8 @@ public struct GeneratedEntityRefView
     private bool _hasCachedComponent;
 
     internal readonly Entity CurrentEntity => ArrayAccess.RefAt<Entity>(_entityAddress, SlotIndex);
+
+    internal int PreparedComponentIndex { get; private set; }
 
     internal void SetWorld(World world)
     {
@@ -164,8 +166,6 @@ public struct GeneratedEntityRefView
 
         return true;
     }
-
-    internal int PreparedComponentIndex { get; private set; }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref T GetPreparedComponentRef<T>()

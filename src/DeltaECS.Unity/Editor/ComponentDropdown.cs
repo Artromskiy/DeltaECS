@@ -2,8 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+
 using Delta.ECS.Integration;
+
 using UnityEditor.IMGUI.Controls;
+
 using UnityEngine;
 
 namespace Delta.ECS.Unity.Editor

@@ -1,6 +1,7 @@
 namespace Delta.ECS.Tests;
 
 using System.Collections.Generic;
+
 using NUnit.Framework;
 
 [TestFixture]

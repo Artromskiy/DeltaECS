@@ -1,6 +1,9 @@
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
+
 using Microsoft.Xna.Framework;
+
 using MonoGame.Extended.Entities;
 using MonoGame.Extended.Entities.Systems;
 
@@ -8,33 +11,19 @@ namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithThreeComponents
     {
+
+        [Context]
+        private readonly MonoGameExtendedContext _monoGameExtended;
+
+        [BenchmarkCategory(Categories.MonoGameExtended, Categories.SingleThread)]
+        [Benchmark]
+        public int MonoGameExtended()
+        {
+            _monoGameExtended.World.Update(_monoGameExtended.Time);
+            return EntityCount;
+        }
         private sealed class MonoGameExtendedContext : MonoGameExtendedBaseContext
         {
-            public sealed class UpdateSystem : EntityUpdateSystem
-            {
-                private ComponentMapper<Component1> _c1;
-                private ComponentMapper<Component2> _c2;
-                private ComponentMapper<Component3> _c3;
-
-                public UpdateSystem()
-                    : base(Aspect.All(typeof(Component1), typeof(Component2), typeof(Component3)))
-                { }
-
-                public override void Initialize(IComponentMapperService mapperService)
-                {
-                    _c1 = mapperService.GetMapper<Component1>();
-                    _c2 = mapperService.GetMapper<Component2>();
-                    _c3 = mapperService.GetMapper<Component3>();
-                }
-
-                public override void Update(GameTime gameTime)
-                {
-                    foreach (int entityId in ActiveEntities)
-                    {
-                        _c1.Get(entityId).Value += _c2.Get(entityId).Value + _c3.Get(entityId).Value;
-                    }
-                }
-            }
 
             private readonly UpdateSystem _system;
 
@@ -83,17 +72,31 @@ namespace Ecs.CSharp.Benchmark
 
                 base.Dispose();
             }
-        }
+            public sealed class UpdateSystem : EntityUpdateSystem
+            {
+                private ComponentMapper<Component1> _c1;
+                private ComponentMapper<Component2> _c2;
+                private ComponentMapper<Component3> _c3;
 
-        [Context]
-        private readonly MonoGameExtendedContext _monoGameExtended;
+                public UpdateSystem()
+                    : base(Aspect.All(typeof(Component1), typeof(Component2), typeof(Component3)))
+                { }
 
-        [BenchmarkCategory(Categories.MonoGameExtended, Categories.SingleThread)]
-        [Benchmark]
-        public int MonoGameExtended()
-        {
-            _monoGameExtended.World.Update(_monoGameExtended.Time);
-            return EntityCount;
+                public override void Initialize(IComponentMapperService mapperService)
+                {
+                    _c1 = mapperService.GetMapper<Component1>();
+                    _c2 = mapperService.GetMapper<Component2>();
+                    _c3 = mapperService.GetMapper<Component3>();
+                }
+
+                public override void Update(GameTime gameTime)
+                {
+                    foreach (int entityId in ActiveEntities)
+                    {
+                        _c1.Get(entityId).Value += _c2.Get(entityId).Value + _c3.Get(entityId).Value;
+                    }
+                }
+            }
         }
     }
 }

@@ -1,52 +1,10 @@
 using System.Collections.Immutable;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Delta.ECS.Generators;
-
-/// <summary>Syntax-free callback data consumed by raw-string interception templates.</summary>
-internal sealed class CallSiteBinding(
-    LambdaExpressionSyntax? lambda,
-    IMethodSymbol? method,
-    bool preserveValueSemantics,
-    string[]? parameterNames = null)
-{
-    internal string[] LambdaParameterNames { get; } = lambda is null
-        ? parameterNames ?? Array.Empty<string>()
-        : CallbackReader.LambdaParameters(lambda).Select(static parameter => parameter.Identifier.ValueText).ToArray();
-    internal string? LambdaBody { get; } = lambda?.Body switch
-    {
-        BlockSyntax block => block.ToString(),
-        ExpressionSyntax expression => expression.ToString(),
-        _ => null
-    };
-    internal bool LambdaBodyIsBlock { get; } = lambda?.Body is BlockSyntax;
-    internal bool CanInline { get; } = lambda is not null
-        && !preserveValueSemantics
-        && !lambda.Body.DescendantNodesAndSelf().OfType<ReturnStatementSyntax>().Any();
-    internal string? MethodGroupTarget { get; } = method is null ? null : CallbackReader.MethodGroupTarget(method);
-    internal ImmutableHashSet<string> LambdaIdentifiers { get; } = lambda is null
-        ? ImmutableHashSet<string>.Empty
-        : lambda.DescendantTokens()
-            .Where(static token => token.IsKind(SyntaxKind.IdentifierToken))
-            .Select(static token => token.ValueText)
-            .ToImmutableHashSet(StringComparer.Ordinal);
-
-    internal CallSiteBinding(
-        string[] parameterNames,
-        string? body,
-        bool bodyIsBlock,
-        bool canInline,
-        string? methodGroupTarget)
-        : this(null, null, preserveValueSemantics: false, parameterNames)
-    {
-        LambdaBody = body;
-        LambdaBodyIsBlock = bodyIsBlock;
-        CanInline = canInline;
-        MethodGroupTarget = methodGroupTarget;
-    }
-}
 
 /// <summary>Shared semantic rules for generated callback arguments.</summary>
 internal static class CallbackReader
@@ -208,59 +166,6 @@ internal static class CallbackReader
         return method is not null;
     }
 
-    private static ExpressionSyntax UnwrapMethodGroupExpression(ExpressionSyntax expression)
-    {
-        while (expression is ParenthesizedExpressionSyntax or CastExpressionSyntax)
-        {
-            expression = expression switch
-            {
-                ParenthesizedExpressionSyntax parenthesized => parenthesized.Expression,
-                CastExpressionSyntax cast => cast.Expression,
-                _ => expression
-            };
-        }
-
-        return expression;
-    }
-
-    private static bool MatchesGenericCallbackTypes(
-        IMethodSymbol method,
-        ImmutableArray<ITypeSymbol?> expectedTypes,
-        bool hasEntity,
-        bool entityRef)
-    {
-        if (expectedTypes.Any(static type => type is null))
-        {
-            return false;
-        }
-        IParameterSymbol[] parameters = method.Parameters.ToArray();
-        int entityOffset = hasEntity ? 1 : 0;
-        return Enumerable.Range(0, 2).Any(contextOffset =>
-        {
-            int componentStart = contextOffset + entityOffset;
-            return expectedTypes.Length >= contextOffset
-                && parameters.Length == expectedTypes.Length + entityOffset
-                && (!hasEntity || parameters[contextOffset].RefKind == RefKind.None
-                    && (entityRef
-                        ? GeneratorSupport.IsEntityRefType(parameters[contextOffset].Type)
-                        : GeneratorSupport.IsEntityType(parameters[contextOffset].Type)))
-                && (contextOffset == 0 || parameters[0].RefKind is RefKind.Ref or RefKind.In
-                    && SymbolEqualityComparer.Default.Equals(parameters[0].Type, expectedTypes[0]))
-                && parameters.Skip(componentStart)
-                    .Zip(expectedTypes.Skip(contextOffset), static (parameter, expected) =>
-                        SymbolEqualityComparer.Default.Equals(parameter.Type, expected))
-                    .All(static match => match);
-        });
-    }
-
-    private static bool SameCallbackSignature(IMethodSymbol method, IMethodSymbol callback)
-        => SymbolEqualityComparer.Default.Equals(method.ReturnType, callback.ReturnType)
-            && method.Parameters.Length == callback.Parameters.Length
-            && method.Parameters.Zip(callback.Parameters, static (candidate, expected) =>
-                candidate.RefKind == expected.RefKind
-                && SymbolEqualityComparer.Default.Equals(candidate.Type, expected.Type))
-                .All(static match => match);
-
     internal static bool TryGetStaticMethodGroupTarget(
         SemanticModel model,
         ExpressionSyntax expression,
@@ -407,5 +312,101 @@ internal static class CallbackReader
             && (!parameter.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.InKeyword))
                 || !parameter.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.RefKeyword)
                     || modifier.IsKind(SyntaxKind.ReadOnlyKeyword)));
+    }
+
+    private static ExpressionSyntax UnwrapMethodGroupExpression(ExpressionSyntax expression)
+    {
+        while (expression is ParenthesizedExpressionSyntax or CastExpressionSyntax)
+        {
+            expression = expression switch
+            {
+                ParenthesizedExpressionSyntax parenthesized => parenthesized.Expression,
+                CastExpressionSyntax cast => cast.Expression,
+                _ => expression
+            };
+        }
+
+        return expression;
+    }
+
+    private static bool MatchesGenericCallbackTypes(
+        IMethodSymbol method,
+        ImmutableArray<ITypeSymbol?> expectedTypes,
+        bool hasEntity,
+        bool entityRef)
+    {
+        if (expectedTypes.Any(static type => type is null))
+        {
+            return false;
+        }
+        IParameterSymbol[] parameters = method.Parameters.ToArray();
+        int entityOffset = hasEntity ? 1 : 0;
+        return Enumerable.Range(0, 2).Any(contextOffset =>
+        {
+            int componentStart = contextOffset + entityOffset;
+            return expectedTypes.Length >= contextOffset
+                && parameters.Length == expectedTypes.Length + entityOffset
+                && (!hasEntity || parameters[contextOffset].RefKind == RefKind.None
+                    && (entityRef
+                        ? GeneratorSupport.IsEntityRefType(parameters[contextOffset].Type)
+                        : GeneratorSupport.IsEntityType(parameters[contextOffset].Type)))
+                && (contextOffset == 0 || parameters[0].RefKind is RefKind.Ref or RefKind.In
+                    && SymbolEqualityComparer.Default.Equals(parameters[0].Type, expectedTypes[0]))
+                && parameters.Skip(componentStart)
+                    .Zip(expectedTypes.Skip(contextOffset), static (parameter, expected) =>
+                        SymbolEqualityComparer.Default.Equals(parameter.Type, expected))
+                    .All(static match => match);
+        });
+    }
+
+    private static bool SameCallbackSignature(IMethodSymbol method, IMethodSymbol callback)
+        => SymbolEqualityComparer.Default.Equals(method.ReturnType, callback.ReturnType)
+            && method.Parameters.Length == callback.Parameters.Length
+            && method.Parameters.Zip(callback.Parameters, static (candidate, expected) =>
+                candidate.RefKind == expected.RefKind
+                && SymbolEqualityComparer.Default.Equals(candidate.Type, expected.Type))
+                .All(static match => match);
+}
+
+/// <summary>Syntax-free callback data consumed by raw-string interception templates.</summary>
+internal sealed class CallSiteBinding(
+    LambdaExpressionSyntax? lambda,
+    IMethodSymbol? method,
+    bool preserveValueSemantics,
+    string[]? parameterNames = null)
+{
+    internal string[] LambdaParameterNames { get; } = lambda is null
+        ? parameterNames ?? Array.Empty<string>()
+        : CallbackReader.LambdaParameters(lambda).Select(static parameter => parameter.Identifier.ValueText).ToArray();
+    internal string? LambdaBody { get; } = lambda?.Body switch
+    {
+        BlockSyntax block => block.ToString(),
+        ExpressionSyntax expression => expression.ToString(),
+        _ => null
+    };
+    internal bool LambdaBodyIsBlock { get; } = lambda?.Body is BlockSyntax;
+    internal bool CanInline { get; } = lambda is not null
+        && !preserveValueSemantics
+        && !lambda.Body.DescendantNodesAndSelf().OfType<ReturnStatementSyntax>().Any();
+    internal string? MethodGroupTarget { get; } = method is null ? null : CallbackReader.MethodGroupTarget(method);
+    internal ImmutableHashSet<string> LambdaIdentifiers { get; } = lambda is null
+        ? ImmutableHashSet<string>.Empty
+        : lambda.DescendantTokens()
+            .Where(static token => token.IsKind(SyntaxKind.IdentifierToken))
+            .Select(static token => token.ValueText)
+            .ToImmutableHashSet(StringComparer.Ordinal);
+
+    internal CallSiteBinding(
+        string[] parameterNames,
+        string? body,
+        bool bodyIsBlock,
+        bool canInline,
+        string? methodGroupTarget)
+        : this(null, null, preserveValueSemantics: false, parameterNames)
+    {
+        LambdaBody = body;
+        LambdaBodyIsBlock = bodyIsBlock;
+        CanInline = canInline;
+        MethodGroupTarget = methodGroupTarget;
     }
 }

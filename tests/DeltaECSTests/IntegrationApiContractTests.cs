@@ -2,7 +2,9 @@ namespace Delta.ECS.Tests;
 
 using System;
 using System.Linq;
+
 using Delta.ECS.Integration;
+
 using NUnit.Framework;
 
 [TestFixture]

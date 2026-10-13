@@ -1,5 +1,5 @@
-using BenchmarkDotNet.Attributes;
 using ArchComponentType = Arch.Core.Utils.ComponentType;
+using BenchmarkDotNet.Attributes;
 using DeltaWorld = Delta.ECS.World;
 
 namespace Delta.ECS.MicroBenchmarks;
@@ -11,7 +11,6 @@ namespace Delta.ECS.MicroBenchmarks;
 /// </summary>
 public class QueryBatchStructuralOperationsMicroBenchmarkImplementation
 {
-    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
 
     private MicroWorld _deltaFixture = null!;
     private DeltaWorld _deltaWorld = null!;
@@ -35,6 +34,9 @@ public class QueryBatchStructuralOperationsMicroBenchmarkImplementation
     private Auxiliary _archMarker;
     private bool _archDestroyed;
     private bool _archCreatedAlive;
+    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
+
+    internal int ExpectedCount => Amount;
 
     [GlobalSetup]
     public void Setup()
@@ -161,8 +163,6 @@ public class QueryBatchStructuralOperationsMicroBenchmarkImplementation
         _archCreatedAlive = true;
         return Amount;
     }
-
-    internal int ExpectedCount => Amount;
 
     internal void PrepareDeltaAdd() => PrepareDeltaQueryAdd();
 

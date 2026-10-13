@@ -1,6 +1,8 @@
 using System.Text.RegularExpressions;
+
 using Delta.ECS;
 using Delta.ECS.Benchmarks;
+
 using NUnit.Framework;
 
 namespace Delta.ECS.Tests;
@@ -44,23 +46,6 @@ internal sealed partial class ComparativeBenchmarkContractTests
 
         Assert.That(typeof(World).Assembly.GetType("Delta.ECS.QueryChunkCursor"), Is.Null);
     }
-
-    private static string FindBenchmarkRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            string candidate = Path.Combine(directory.FullName, "benchmarks", "DeltaECS.Benchmarks");
-            if (Directory.Exists(candidate))
-            {
-                return candidate;
-            }
-        }
-
-        throw new DirectoryNotFoundException("Could not locate benchmarks/Delta.ECS.Benchmarks from the test output directory.");
-    }
-
-    [GeneratedRegex(@"GetComponentRow<[^>]+>\(\s*\d+\s*\)", RegexOptions.CultureInvariant)]
-    private static partial Regex OrdinalAccess();
 
     [Test]
     public void CombinedReportRejectsNaMeasuredRows()
@@ -141,6 +126,23 @@ internal sealed partial class ComparativeBenchmarkContractTests
         Assert.That(summary, Does.Contain("| Итерация | 1/2 |"));
         Assert.That(summary, Does.Contain("|Dense|1/2|Arch быстрее Delta в 2× (`Amount=1000`)|"));
     }
+
+    private static string FindBenchmarkRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            string candidate = Path.Combine(directory.FullName, "benchmarks", "DeltaECS.Benchmarks");
+            if (Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        throw new DirectoryNotFoundException("Could not locate benchmarks/Delta.ECS.Benchmarks from the test output directory.");
+    }
+
+    [GeneratedRegex(@"GetComponentRow<[^>]+>\(\s*\d+\s*\)", RegexOptions.CultureInvariant)]
+    private static partial Regex OrdinalAccess();
 
     private static ComparativeReportRow Row(
         string workload,

@@ -1,5 +1,7 @@
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
+
 using Leopotam.EcsLite;
 
 namespace Ecs.CSharp.Benchmark

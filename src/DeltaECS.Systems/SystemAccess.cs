@@ -1,6 +1,7 @@
 namespace Delta.ECS.Systems;
 
 using System;
+
 using Delta.ECS;
 
 /// <summary>
@@ -18,43 +19,8 @@ public readonly struct SystemAccess
     private readonly ComponentId[]? _removes;
     private readonly SystemQueryAccess[]? _queryAccesses;
 
-    /// <summary>Creates access metadata from world-local component ids.</summary>
-    /// <param name="reads">Components read by the system.</param>
-    /// <param name="writes">Components written by the system.</param>
-    /// <param name="adds">Components added by structural operations.</param>
-    /// <param name="removes">Components removed by structural operations.</param>
-    /// <param name="readsTopology">Whether the system observes entity topology.</param>
-    /// <param name="writesTopology">Whether the system changes entity topology.</param>
-    /// <param name="createsEntities">Whether the system creates entities.</param>
-    /// <param name="destroysEntities">Whether the system destroys entities.</param>
-    /// <param name="unknownWorldAccess">Whether an access could not be analyzed.</param>
-    /// <param name="usesParallelExecutor">Whether the system owns a parallel executor.</param>
-    /// <param name="queryAccesses">Component accesses restricted to matching queries.</param>
-    public SystemAccess(
-        ReadOnlySpan<ComponentId> reads = default,
-        ReadOnlySpan<ComponentId> writes = default,
-        ReadOnlySpan<ComponentId> adds = default,
-        ReadOnlySpan<ComponentId> removes = default,
-        bool readsTopology = false,
-        bool writesTopology = false,
-        bool createsEntities = false,
-        bool destroysEntities = false,
-        bool unknownWorldAccess = false,
-        bool usesParallelExecutor = false,
-        ReadOnlySpan<SystemQueryAccess> queryAccesses = default)
-    {
-        _reads = Copy(reads, nameof(reads));
-        _writes = Copy(writes, nameof(writes));
-        _adds = Copy(adds, nameof(adds));
-        _removes = Copy(removes, nameof(removes));
-        _queryAccesses = CopyQueryAccesses(queryAccesses);
-        ReadsTopology = readsTopology;
-        WritesTopology = writesTopology;
-        CreatesEntities = createsEntities;
-        DestroysEntities = destroysEntities;
-        UnknownWorldAccess = unknownWorldAccess;
-        UsesParallelExecutor = usesParallelExecutor;
-    }
+    /// <summary>Gets metadata with no component or world access.</summary>
+    public static SystemAccess None => default;
 
     /// <summary>Gets components whose data may be read.</summary>
     public ReadOnlySpan<ComponentId> Reads => _reads ?? Empty;
@@ -103,8 +69,43 @@ public readonly struct SystemAccess
     public bool HasStructuralEffects
         => CreatesEntities || DestroysEntities || !Adds.IsEmpty || !Removes.IsEmpty;
 
-    /// <summary>Gets metadata with no component or world access.</summary>
-    public static SystemAccess None => default;
+    /// <summary>Creates access metadata from world-local component ids.</summary>
+    /// <param name="reads">Components read by the system.</param>
+    /// <param name="writes">Components written by the system.</param>
+    /// <param name="adds">Components added by structural operations.</param>
+    /// <param name="removes">Components removed by structural operations.</param>
+    /// <param name="readsTopology">Whether the system observes entity topology.</param>
+    /// <param name="writesTopology">Whether the system changes entity topology.</param>
+    /// <param name="createsEntities">Whether the system creates entities.</param>
+    /// <param name="destroysEntities">Whether the system destroys entities.</param>
+    /// <param name="unknownWorldAccess">Whether an access could not be analyzed.</param>
+    /// <param name="usesParallelExecutor">Whether the system owns a parallel executor.</param>
+    /// <param name="queryAccesses">Component accesses restricted to matching queries.</param>
+    public SystemAccess(
+        ReadOnlySpan<ComponentId> reads = default,
+        ReadOnlySpan<ComponentId> writes = default,
+        ReadOnlySpan<ComponentId> adds = default,
+        ReadOnlySpan<ComponentId> removes = default,
+        bool readsTopology = false,
+        bool writesTopology = false,
+        bool createsEntities = false,
+        bool destroysEntities = false,
+        bool unknownWorldAccess = false,
+        bool usesParallelExecutor = false,
+        ReadOnlySpan<SystemQueryAccess> queryAccesses = default)
+    {
+        _reads = Copy(reads, nameof(reads));
+        _writes = Copy(writes, nameof(writes));
+        _adds = Copy(adds, nameof(adds));
+        _removes = Copy(removes, nameof(removes));
+        _queryAccesses = CopyQueryAccesses(queryAccesses);
+        ReadsTopology = readsTopology;
+        WritesTopology = writesTopology;
+        CreatesEntities = createsEntities;
+        DestroysEntities = destroysEntities;
+        UnknownWorldAccess = unknownWorldAccess;
+        UsesParallelExecutor = usesParallelExecutor;
+    }
 
     internal static ComponentId[]? Copy(ReadOnlySpan<ComponentId> values, string parameterName)
     {

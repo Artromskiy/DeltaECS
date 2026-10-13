@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+
 using NUnit.Framework;
 
 namespace Delta.ECS.Generators.Tests;

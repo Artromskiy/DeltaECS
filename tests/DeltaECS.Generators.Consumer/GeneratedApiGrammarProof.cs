@@ -1,4 +1,5 @@
 using System;
+
 using Delta.ECS;
 
 namespace Delta.ECS.Generators.Consumer;
@@ -10,20 +11,6 @@ namespace Delta.ECS.Generators.Consumer;
 public static class GeneratedApiGrammarProof
 {
     public const int Compiled = 1;
-
-    /// <summary>Registers concrete fixture rows so the generic-binding generator discovers them.</summary>
-    private static ComponentRegistry RegisterComponents()
-    {
-        var layouts = new ComponentRegistry();
-        layouts.Register<Cmp1>(new SchemaId(920001));
-        layouts.Register<Cmp2>(new SchemaId(920002));
-        layouts.Register<Cmp3>(new SchemaId(920003));
-        layouts.Register<Cmp4>(new SchemaId(920004));
-        layouts.Register<Dead>(new SchemaId(920005));
-        layouts.Register<Alive>(new SchemaId(920006));
-        layouts.Register<NeedsRespawn>(new SchemaId(920007));
-        return layouts;
-    }
 
     /// <summary>Executes the generated grammar sections against a small, valid world.</summary>
     public static void Run()
@@ -80,5 +67,19 @@ public static class GeneratedApiGrammarProof
 
         // Structural mutations consume and destroy the fixture entities, so run last.
         GeneratedStructuralGrammarProof.Run(world, in query, entities, entity, cmp1Id, cmp2Id, componentIds);
+    }
+
+    /// <summary>Registers concrete fixture rows so the generic-binding generator discovers them.</summary>
+    private static ComponentRegistry RegisterComponents()
+    {
+        var layouts = new ComponentRegistry();
+        layouts.Register<Cmp1>(new SchemaId(920001));
+        layouts.Register<Cmp2>(new SchemaId(920002));
+        layouts.Register<Cmp3>(new SchemaId(920003));
+        layouts.Register<Cmp4>(new SchemaId(920004));
+        layouts.Register<Dead>(new SchemaId(920005));
+        layouts.Register<Alive>(new SchemaId(920006));
+        layouts.Register<NeedsRespawn>(new SchemaId(920007));
+        return layouts;
     }
 }

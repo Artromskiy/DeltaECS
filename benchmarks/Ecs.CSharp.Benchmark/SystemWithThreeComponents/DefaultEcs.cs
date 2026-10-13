@@ -1,21 +1,38 @@
 using System;
+
 using BenchmarkDotNet.Attributes;
+
 using DefaultEcs;
 using DefaultEcs.System;
 using DefaultEcs.Threading;
+
 using Ecs.CSharp.Benchmark.Contexts;
 
 namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithThreeComponents
     {
+
+        [Context]
+        private readonly DefaultEcsContext _defaultEcs;
+
+        [BenchmarkCategory(Categories.DefaultEcs, Categories.SingleThread)]
+        [Benchmark]
+        public int DefaultEcsMonoThread()
+        {
+            _defaultEcs.MonoThreadEntitySetSystem.Update(0);
+            return EntityCount;
+        }
+
+        [BenchmarkCategory(Categories.DefaultEcs, Categories.MultiThread)]
+        [Benchmark]
+        public int DefaultEcsMultiThread()
+        {
+            _defaultEcs.MultiThreadEntitySetSystem.Update(0);
+            return EntityCount;
+        }
         private sealed partial class DefaultEcsContext : DefaultEcsBaseContext
         {
-            private sealed partial class EntitySetSystem : AEntitySetSystem<int>
-            {
-                [Update]
-                private static void Update(ref Component1 c1, in Component2 c2, in Component3 c3) => c1.Value += c2.Value + c3.Value;
-            }
 
             public DefaultParallelRunner Runner { get; }
 
@@ -63,25 +80,11 @@ namespace Ecs.CSharp.Benchmark
 
                 Runner.Dispose();
             }
-        }
-
-        [Context]
-        private readonly DefaultEcsContext _defaultEcs;
-
-        [BenchmarkCategory(Categories.DefaultEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int DefaultEcsMonoThread()
-        {
-            _defaultEcs.MonoThreadEntitySetSystem.Update(0);
-            return EntityCount;
-        }
-
-        [BenchmarkCategory(Categories.DefaultEcs, Categories.MultiThread)]
-        [Benchmark]
-        public int DefaultEcsMultiThread()
-        {
-            _defaultEcs.MultiThreadEntitySetSystem.Update(0);
-            return EntityCount;
+            private sealed partial class EntitySetSystem : AEntitySetSystem<int>
+            {
+                [Update]
+                private static void Update(ref Component1 c1, in Component2 c2, in Component3 c3) => c1.Value += c2.Value + c3.Value;
+            }
         }
     }
 }

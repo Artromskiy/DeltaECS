@@ -7,8 +7,14 @@ using System.Runtime.CompilerServices;
 /// <summary>Identifies one component registration within a layout registry.</summary>
 public readonly struct ComponentId : IEquatable<ComponentId>, IComparable<ComponentId>
 {
+
+    /// <summary>Gets the invalid component identifier.</summary>
+    public static ComponentId Invalid => new(-1);
     /// <summary>Gets the registry-local numeric value of this identifier.</summary>
     public int Value { get; }
+
+    /// <summary>Gets whether this identifier represents a registered component.</summary>
+    public bool IsValid => Value >= 0;
 
     /// <summary>Creates a component identifier from its registry-local numeric value.</summary>
     /// <param name="value">The numeric identifier; negative values are invalid.</param>
@@ -16,24 +22,6 @@ public readonly struct ComponentId : IEquatable<ComponentId>, IComparable<Compon
     {
         Value = value;
     }
-
-    /// <summary>Gets whether this identifier represents a registered component.</summary>
-    public bool IsValid => Value >= 0;
-
-    /// <summary>Gets the invalid component identifier.</summary>
-    public static ComponentId Invalid => new(-1);
-
-    /// <summary>Compares this identifier with another identifier.</summary>
-    public int CompareTo(ComponentId other) => Value.CompareTo(other.Value);
-
-    /// <summary>Determines whether this identifier equals another identifier.</summary>
-    public bool Equals(ComponentId other) => Value == other.Value;
-
-    /// <summary>Determines whether this identifier equals the specified object.</summary>
-    public override bool Equals(object? obj) => obj is ComponentId other && Equals(other);
-
-    /// <summary>Returns a hash code for this identifier.</summary>
-    public override int GetHashCode() => Value.GetHashCode();
 
     /// <summary>Determines whether two component identifiers are equal.</summary>
     public static bool operator ==(ComponentId left, ComponentId right) => left.Equals(right);
@@ -53,7 +41,51 @@ public readonly struct ComponentId : IEquatable<ComponentId>, IComparable<Compon
     /// <summary>Determines whether the first identifier sorts after or equals the second.</summary>
     public static bool operator >=(ComponentId left, ComponentId right) => left.CompareTo(right) >= 0;
 
+    /// <summary>Compares this identifier with another identifier.</summary>
+    public int CompareTo(ComponentId other) => Value.CompareTo(other.Value);
+
+    /// <summary>Determines whether this identifier equals another identifier.</summary>
+    public bool Equals(ComponentId other) => Value == other.Value;
+
+    /// <summary>Determines whether this identifier equals the specified object.</summary>
+    public override bool Equals(object? obj) => obj is ComponentId other && Equals(other);
+
+    /// <summary>Returns a hash code for this identifier.</summary>
+    public override int GetHashCode() => Value.GetHashCode();
+
     /// <summary>Returns the numeric identifier as text.</summary>
+    public override string ToString() => Value.ToString();
+}
+
+/// <summary>Stable application-defined identity for a component registration.</summary>
+public readonly struct SchemaId : IEquatable<SchemaId>
+{
+    /// <summary>Gets the stable numeric schema value.</summary>
+    public ulong Value { get; }
+
+    /// <summary>Creates a schema identifier from an application-defined value.</summary>
+    /// <param name="value">A nonzero identity that remains stable across runs.</param>
+    public SchemaId(ulong value)
+    {
+        Value = value;
+    }
+
+    /// <summary>Determines whether two schema identifiers are equal.</summary>
+    public static bool operator ==(SchemaId left, SchemaId right) => left.Equals(right);
+
+    /// <summary>Determines whether two schema identifiers are different.</summary>
+    public static bool operator !=(SchemaId left, SchemaId right) => !left.Equals(right);
+
+    /// <summary>Determines whether this schema identifier equals another identifier.</summary>
+    public bool Equals(SchemaId other) => Value == other.Value;
+
+    /// <summary>Determines whether this schema identifier equals the specified object.</summary>
+    public override bool Equals(object? obj) => obj is SchemaId other && Equals(other);
+
+    /// <summary>Returns a hash code for this schema identifier.</summary>
+    public override int GetHashCode() => Value.GetHashCode();
+
+    /// <summary>Returns the numeric schema value as text.</summary>
     public override string ToString() => Value.ToString();
 }
 
@@ -67,14 +99,20 @@ internal readonly struct ComponentMask : IEquatable<ComponentMask>
     private const int BitIndexMask = BitsPerWord - 1;
     private readonly NativeComponentMaskStorage? _storage;
 
+    public bool IsEmpty => _storage is null;
+
+    public int Count => _storage?.Count ?? 0;
+
     private ComponentMask(NativeComponentMaskStorage storage)
     {
         _storage = storage;
     }
 
-    public bool IsEmpty => _storage is null;
-
     public static ComponentMask From(ReadOnlySpan<ComponentId> componentIds) => FromCore(componentIds);
+
+    public static bool operator ==(ComponentMask left, ComponentMask right) => left.Equals(right);
+
+    public static bool operator !=(ComponentMask left, ComponentMask right) => !left.Equals(right);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Contains(ComponentId componentId)
@@ -200,68 +238,10 @@ internal readonly struct ComponentMask : IEquatable<ComponentMask>
         return rank + BitOperationsCompat.PopCount(lowerBits);
     }
 
-    public int Count => _storage?.Count ?? 0;
-
     /// <summary>
     /// Enumerates the set component ids in ascending numeric order without allocating.
     /// </summary>
     public Enumerator GetEnumerator() => new(_storage);
-
-    public ref struct Enumerator
-    {
-        private readonly NativeComponentMaskStorage? _storage;
-        private int _wordIndex;
-        private uint _remaining;
-
-        internal Enumerator(NativeComponentMaskStorage? storage)
-        {
-            _storage = storage;
-            _wordIndex = 0;
-            _remaining = 0;
-            Current = default;
-        }
-
-        public ComponentId Current { get; private set; }
-
-        public bool MoveNext()
-        {
-            if (_storage is null)
-            {
-                return false;
-            }
-
-            while (_remaining == 0 && _wordIndex < _storage.Length)
-            {
-                _remaining = _storage.RefAt(_wordIndex++);
-            }
-
-            if (_remaining == 0)
-            {
-                return false;
-            }
-
-            int bit = BitOperationsCompat.TrailingZeroCount(_remaining);
-            _remaining &= _remaining - 1;
-            Current = new ComponentId(((_wordIndex - 1) * BitsPerWord) + bit);
-            return true;
-        }
-    }
-
-    internal void CopyComponentIds(Span<ComponentId> destination)
-    {
-        int count = Count;
-        if (destination.Length < count)
-        {
-            ThrowHelper.ThrowComponentDestinationTooSmall(nameof(destination));
-        }
-
-        int offset = 0;
-        var enumerator = GetEnumerator();
-        while (enumerator.MoveNext())
-        {
-            destination.RefAt(offset++) = enumerator.Current;
-        }
-    }
 
     public bool Equals(ComponentMask other)
     {
@@ -287,10 +267,21 @@ internal readonly struct ComponentMask : IEquatable<ComponentMask>
 
     public override int GetHashCode() => _storage?.Hash ?? 0;
 
-    private uint GetWord(int index)
-        => _storage is not null && (uint)index < (uint)_storage.Length
-            ? _storage.RefAt(index)
-            : 0;
+    internal void CopyComponentIds(Span<ComponentId> destination)
+    {
+        int count = Count;
+        if (destination.Length < count)
+        {
+            ThrowHelper.ThrowComponentDestinationTooSmall(nameof(destination));
+        }
+
+        int offset = 0;
+        var enumerator = GetEnumerator();
+        while (enumerator.MoveNext())
+        {
+            destination.RefAt(offset++) = enumerator.Current;
+        }
+    }
 
     private static ComponentMask FromCore(ReadOnlySpan<ComponentId> componentIds)
     {
@@ -337,20 +328,56 @@ internal readonly struct ComponentMask : IEquatable<ComponentMask>
         return componentId.Value;
     }
 
-    public static bool operator ==(ComponentMask left, ComponentMask right) => left.Equals(right);
+    private uint GetWord(int index)
+        => _storage is not null && (uint)index < (uint)_storage.Length
+            ? _storage.RefAt(index)
+            : 0;
 
-    public static bool operator !=(ComponentMask left, ComponentMask right) => !left.Equals(right);
+    public ref struct Enumerator
+    {
+        private readonly NativeComponentMaskStorage? _storage;
+        private int _wordIndex;
+        private uint _remaining;
+
+        public ComponentId Current { get; private set; }
+
+        internal Enumerator(NativeComponentMaskStorage? storage)
+        {
+            _storage = storage;
+            _wordIndex = 0;
+            _remaining = 0;
+            Current = default;
+        }
+
+        public bool MoveNext()
+        {
+            if (_storage is null)
+            {
+                return false;
+            }
+
+            while (_remaining == 0 && _wordIndex < _storage.Length)
+            {
+                _remaining = _storage.RefAt(_wordIndex++);
+            }
+
+            if (_remaining == 0)
+            {
+                return false;
+            }
+
+            int bit = BitOperationsCompat.TrailingZeroCount(_remaining);
+            _remaining &= _remaining - 1;
+            Current = new ComponentId(((_wordIndex - 1) * BitsPerWord) + bit);
+            return true;
+        }
+    }
 }
 
 /// <summary>Immutable native word storage owned by a component mask.</summary>
 internal sealed class NativeComponentMaskStorage
 {
     private NativeMemory<uint> _words;
-
-    internal NativeComponentMaskStorage(int length)
-    {
-        _words = new NativeMemory<uint>(length);
-    }
 
     internal int Length => _words.Length;
 
@@ -361,6 +388,11 @@ internal sealed class NativeComponentMaskStorage
     internal ReadOnlySpan<uint> ReadOnlySpan => _words.ReadOnlySpan;
 
     internal ref uint this[int index] => ref RefAt(index);
+
+    internal NativeComponentMaskStorage(int length)
+    {
+        _words = new NativeMemory<uint>(length);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref uint RefAt(int index) => ref _words.RefAt(index);
@@ -387,40 +419,13 @@ internal sealed class NativeComponentMaskStorage
     }
 }
 
-/// <summary>Stable application-defined identity for a component registration.</summary>
-public readonly struct SchemaId : IEquatable<SchemaId>
-{
-    /// <summary>Gets the stable numeric schema value.</summary>
-    public ulong Value { get; }
-
-    /// <summary>Creates a schema identifier from an application-defined value.</summary>
-    /// <param name="value">A nonzero identity that remains stable across runs.</param>
-    public SchemaId(ulong value)
-    {
-        Value = value;
-    }
-
-    /// <summary>Determines whether this schema identifier equals another identifier.</summary>
-    public bool Equals(SchemaId other) => Value == other.Value;
-
-    /// <summary>Determines whether this schema identifier equals the specified object.</summary>
-    public override bool Equals(object? obj) => obj is SchemaId other && Equals(other);
-
-    /// <summary>Returns a hash code for this schema identifier.</summary>
-    public override int GetHashCode() => Value.GetHashCode();
-
-    /// <summary>Returns the numeric schema value as text.</summary>
-    public override string ToString() => Value.ToString();
-
-    /// <summary>Determines whether two schema identifiers are equal.</summary>
-    public static bool operator ==(SchemaId left, SchemaId right) => left.Equals(right);
-
-    /// <summary>Determines whether two schema identifiers are different.</summary>
-    public static bool operator !=(SchemaId left, SchemaId right) => !left.Equals(right);
-}
-
 internal readonly struct ComponentLayout : IEquatable<ComponentLayout>
 {
+
+    internal SchemaId SchemaId { get; }
+
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
+    internal Type RuntimeType { get; }
     internal ComponentLayout(
         SchemaId schemaId,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type runtimeType)
@@ -430,11 +435,6 @@ internal readonly struct ComponentLayout : IEquatable<ComponentLayout>
         SchemaId = schemaId;
         RuntimeType = runtimeType;
     }
-
-    internal SchemaId SchemaId { get; }
-
-    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
-    internal Type RuntimeType { get; }
 
     public bool Equals(ComponentLayout other) => SchemaId == other.SchemaId && RuntimeType == other.RuntimeType;
 

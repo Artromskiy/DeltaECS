@@ -1,5 +1,7 @@
 using BenchmarkDotNet.Attributes;
+
 using Delta.ECS;
+
 using DeltaEntity = Delta.ECS.Entity;
 using DeltaWorld = Delta.ECS.World;
 
@@ -15,13 +17,13 @@ namespace Delta.ECS.Benchmarks;
 // before and after an internal generated-loop change.
 public class ManyComponentIterationBenchmarks
 {
-    public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
 
     private DeltaWorld _world = null!;
     private Query _query;
     private ComponentId[] _components = null!;
     private DeltaEntity[] _entities = null!;
     private IOperation<int>? _iteration;
+    public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
 
     [GlobalSetup]
     public void Setup()

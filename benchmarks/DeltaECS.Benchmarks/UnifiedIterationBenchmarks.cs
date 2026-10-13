@@ -1,16 +1,17 @@
 using System.Runtime.CompilerServices;
+
 using Arch.Core;
 using Arch.Core.Utils;
+using ArchComponentType = Arch.Core.Utils.ComponentType;
 using BenchmarkDotNet.Attributes;
 using DefaultEcs;
-using Delta.ECS;
-using Friflo.Engine.ECS;
-using Leopotam.EcsLite;
-using ArchComponentType = Arch.Core.Utils.ComponentType;
 using DefaultWorld = DefaultEcs.World;
+using Delta.ECS;
 using DeltaEntity = Delta.ECS.Entity;
 using DeltaWorld = Delta.ECS.World;
+using Friflo.Engine.ECS;
 using FrifloEntity = Friflo.Engine.ECS.Entity;
+using Leopotam.EcsLite;
 
 namespace Delta.ECS.Benchmarks;
 
@@ -22,7 +23,6 @@ namespace Delta.ECS.Benchmarks;
 // only the traversal/callback mechanism differs.
 public class ComparativeDenseIterationBenchmarks
 {
-    public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
     private DeltaWorld _delta = null!;
     private Query _deltaQuery;
     private IOperation<long>? _deltaIteration;
@@ -39,6 +39,7 @@ public class ComparativeDenseIterationBenchmarks
     private EcsPool<DenseValue> _leoPool = null!;
     private int[] _leoEntities = null!;
     private EcsFilter _leoQuery = null!;
+    public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
 
     [GlobalSetup]
     public void Setup()
@@ -126,7 +127,6 @@ public class ComparativeDenseIterationBenchmarks
 // invocations intentionally preserve the same traversal and arithmetic path.
 public class ComparativeMovement2ComponentsBenchmarks
 {
-    public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
     private DeltaWorld _delta = null!;
     private Query _deltaQuery;
     private IOperation<double>? _deltaIteration;
@@ -147,6 +147,7 @@ public class ComparativeMovement2ComponentsBenchmarks
     private EcsPool<Movement2Velocity> _leoVelocity = null!;
     private int[] _leoEntities = null!;
     private EcsFilter _leoQuery = null!;
+    public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
 
     [GlobalSetup]
     public void Setup()
@@ -306,13 +307,13 @@ public class ComparativeMovement2ComponentsBenchmarks
 // invocations intentionally preserve the same traversal and arithmetic path.
 public class ComparativeMovement4ComponentsBenchmarks
 {
-    public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
     private DeltaWorld _delta = null!; private Query _deltaQuery; private ComponentId[] _deltaIds = null!; private DeltaEntity[] _deltaEntities = null!;
     private IOperation<int>? _deltaIteration;
     private Arch.Core.World _arch = null!; private ArchComponentType[] _archTypes = null!; private Arch.Core.QueryDescription _archQuery; private Arch.Core.Entity[] _archEntities = null!;
     private EntityStore _friflo = null!; private ArchetypeQuery<Movement4A, Movement4B, Movement4C, Movement4D> _frifloQuery = null!; private FrifloEntity[] _frifloEntities = null!;
     private DefaultWorld _default = null!; private DefaultEcs.Entity[] _defaultEntities = null!; private DefaultEcs.EntitySet _defaultQuery = null!;
     private EcsWorld _leo = null!; private EcsPool<Movement4A> _leo0 = null!; private EcsPool<Movement4B> _leo1 = null!; private EcsPool<Movement4C> _leo2 = null!; private EcsPool<Movement4D> _leo3 = null!; private int[] _leoEntities = null!; private EcsFilter _leoQuery = null!;
+    public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
 
     [GlobalSetup]
     public void Setup()
@@ -411,8 +412,6 @@ public class ComparativeMovement4ComponentsBenchmarks
     [Benchmark] public int DefaultEcsMovement4Components() { int sum = 0; var entities = _defaultQuery.GetEntities(); for (int i = entities.Length - 1; i >= 0; i--) { ref var rowA = ref entities[i].Get<Movement4A>(); ref var rowB = ref entities[i].Get<Movement4B>(); ref var rowC = ref entities[i].Get<Movement4C>(); var rowD = entities[i].Get<Movement4D>(); ApplyMovement4(ref rowA, ref rowB, ref rowC, in rowD, ref sum); } return sum; }
     [Benchmark] public int LeoEcsLiteMovement4Components() { int sum = 0; foreach (int e in _leoQuery) { ref var rowA = ref _leo0.Get(e); ref var rowB = ref _leo1.Get(e); ref var rowC = ref _leo2.Get(e); var rowD = _leo3.Get(e); ApplyMovement4(ref rowA, ref rowB, ref rowC, in rowD, ref sum); } return sum; }
 
-    private static void SetDefault(DefaultEcs.Entity e) { e.Set(new Movement4A { Value = 1 }); e.Set(new Movement4B { Value = 2 }); e.Set(new Movement4C { Value = 3 }); e.Set(new Movement4D { Value = 4 }); }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void ApplyMovement4(ref Movement4A rowA, ref Movement4B rowB, ref Movement4C rowC, ref readonly Movement4D rowD, ref int checksum)
     {
@@ -423,6 +422,8 @@ public class ComparativeMovement4ComponentsBenchmarks
         rowC.Value = (updatedA + updatedB) / 2;
         checksum += rowA.Value + rowB.Value + rowC.Value + rowD.Value;
     }
+
+    private static void SetDefault(DefaultEcs.Entity e) { e.Set(new Movement4A { Value = 1 }); e.Set(new Movement4B { Value = 2 }); e.Set(new Movement4C { Value = 3 }); e.Set(new Movement4D { Value = 4 }); }
 }
 
 [MemoryDiagnoser]
@@ -433,13 +434,13 @@ public class ComparativeMovement4ComponentsBenchmarks
 // and Wide7; ApplyWide owns the identical terminal checksum operation.
 public class ComparativeWideArchetypeNarrowQueryBenchmarks
 {
-    public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
     private DeltaWorld _delta = null!; private Query _deltaQuery; private ComponentId[] _deltaIds = null!;
     private IOperation<int>? _deltaIteration;
     private Arch.Core.World _arch = null!; private ArchComponentType[] _archTypes = null!; private Arch.Core.QueryDescription _archQuery;
     private EntityStore _friflo = null!; private ArchetypeQuery<Wide0, Wide7> _frifloQuery = null!;
     private DefaultWorld _default = null!; private DefaultEcs.Entity[] _defaultEntities = null!; private DefaultEcs.EntitySet _defaultQuery = null!;
     private EcsWorld _leo = null!; private EcsPool<Wide0> _leo0 = null!; private EcsPool<Wide7> _leo7 = null!; private int[] _leoEntities = null!; private EcsFilter _leoQuery = null!;
+    public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
     [GlobalSetup]
     public void Setup()
     {
@@ -472,9 +473,9 @@ public class ComparativeWideArchetypeNarrowQueryBenchmarks
     [Benchmark] public int FrifloEngineECSWideArchetypeNarrowQuery() { int sum = 0; _frifloQuery.ForEachEntity((ref Wide0 a, ref Wide7 z, FrifloEntity _) => ApplyWide(in a, in z, ref sum)); return Check(sum, Amount * 9); }
     [Benchmark] public int DefaultEcsWideArchetypeNarrowQuery() { int sum = 0; var entities = _defaultQuery.GetEntities(); for (int i = entities.Length - 1; i >= 0; i--) { var a = entities[i].Get<Wide0>(); var z = entities[i].Get<Wide7>(); ApplyWide(in a, in z, ref sum); } return Check(sum, Amount * 9); }
     [Benchmark] public int LeoEcsLiteWideArchetypeNarrowQuery() { int sum = 0; foreach (int e in _leoQuery) { var a = _leo0.Get(e); var z = _leo7.Get(e); ApplyWide(in a, in z, ref sum); } return Check(sum, Amount * 9); }
-    private static int Check(int actual, int expected) => actual == expected ? actual : throw new InvalidOperationException($"wide checksum mismatch: {actual} != {expected}");
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void ApplyWide(ref readonly Wide0 a, ref readonly Wide7 z, ref int checksum) => checksum += a.Value + z.Value;
+    private static int Check(int actual, int expected) => actual == expected ? actual : throw new InvalidOperationException($"wide checksum mismatch: {actual} != {expected}");
 }
 
 [MemoryDiagnoser]
@@ -484,13 +485,13 @@ public class ComparativeWideArchetypeNarrowQueryBenchmarks
 // count matches through the same ApplySparse terminal operation.
 public class ComparativeSparseQueryBenchmarks
 {
-    public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
     private DeltaWorld _delta = null!; private Query _deltaQuery; private ComponentId _deltaA, _deltaB, _deltaC; private DeltaEntity[] _deltaEntities = null!;
     private IOperation<int>? _deltaQueryIteration;
     private Arch.Core.World _arch = null!; private ArchComponentType[] _archMatchTypes = null!; private ArchComponentType[] _archNonMatchTypes = null!; private ArchComponentType _archCType; private Arch.Core.QueryDescription _archQuery;
     private EntityStore _friflo = null!; private ArchetypeQuery<SparseA, SparseB> _frifloQuery = null!;
     private DefaultWorld _default = null!; private DefaultEcs.EntitySet _defaultQuery = null!;
     private EcsWorld _leo = null!; private EcsPool<SparseA> _leoA = null!; private EcsPool<SparseB> _leoB = null!; private EcsFilter _leoQuery = null!; private int[] _leoEntities = null!;
+    public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
     private int ExpectedChecksum => ((Amount + ComparativeBenchmarkParameters.SparseMatchStride - 1) / ComparativeBenchmarkParameters.SparseMatchStride) * 3;
 
     [GlobalSetup]
@@ -552,6 +553,11 @@ public class ComparativeSparseQueryBenchmarks
     [Benchmark, BenchmarkCategory("Iteration.QueryPlanConstruction")] public int FrifloEngineECSQueryPlanConstruction() => FrifloQuery(CreateFrifloQuery());
     [Benchmark, BenchmarkCategory("Iteration.QueryPlanConstruction")] public int DefaultEcsQueryPlanConstruction() { using var q = CreateDefaultQuery(); return DefaultQuery(q.GetEntities()); }
     [Benchmark, BenchmarkCategory("Iteration.QueryPlanConstruction")] public int LeoEcsLiteQueryPlanConstruction() => LeoQuery(_leo.Filter<SparseA>().Inc<SparseB>().Exc<SparseC>().End());
+    // Keep the shared terminal accessible to the source generator. A private
+    // helper is not legally callable from generated interception code and
+    // silently forces this benchmark onto the per-entity delegate fallback.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void ApplySparse(ref int count, ref readonly SparseA a, ref readonly SparseB b) => count += a.Value + b.Value;
 
     private int DeltaQuery(Query query)
     {
@@ -568,11 +574,6 @@ public class ComparativeSparseQueryBenchmarks
     private int Check(int actual) => actual == ExpectedChecksum ? actual : throw new InvalidOperationException($"sparse checksum mismatch: {actual} != {ExpectedChecksum}");
     private ArchetypeQuery<SparseA, SparseB> CreateFrifloQuery() { var f = new QueryFilter(); f.WithoutAllComponents(ComponentTypes.Get<SparseC>()); return _friflo.Query<SparseA, SparseB>(f); }
     private DefaultEcs.EntitySet CreateDefaultQuery() => _default.GetEntities().With<SparseA>().With<SparseB>().Without<SparseC>().AsSet();
-    // Keep the shared terminal accessible to the source generator. A private
-    // helper is not legally callable from generated interception code and
-    // silently forces this benchmark onto the per-entity delegate fallback.
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static void ApplySparse(ref int count, ref readonly SparseA a, ref readonly SparseB b) => count += a.Value + b.Value;
 }
 
 internal struct DenseValue : IComponent { public int Value; }

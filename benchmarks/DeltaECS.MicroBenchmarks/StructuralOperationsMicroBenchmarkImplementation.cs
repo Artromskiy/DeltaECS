@@ -1,4 +1,5 @@
 using BenchmarkDotNet.Attributes;
+
 using Delta.ECS;
 
 namespace Delta.ECS.MicroBenchmarks;
@@ -6,7 +7,6 @@ namespace Delta.ECS.MicroBenchmarks;
 /// <summary>Compares caller-owned batch structural operations with one-entity calls.</summary>
 public class StructuralOperationsMicroBenchmarkImplementation
 {
-    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
 
     private MicroWorld _fixture = null!;
     private Entity[] _entities = null!;
@@ -15,6 +15,9 @@ public class StructuralOperationsMicroBenchmarkImplementation
     private ComponentId[] _markerComponents = null!;
     private bool _destroyed;
     private bool _createdAlive;
+    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
+
+    internal int ExpectedCount => Amount;
 
     [GlobalSetup]
     public void Setup()
@@ -135,8 +138,6 @@ public class StructuralOperationsMicroBenchmarkImplementation
         _createdAlive = true;
         return created;
     }
-
-    internal int ExpectedCount => Amount;
 
     internal void PrepareAdd() => PrepareWithoutMarker();
 

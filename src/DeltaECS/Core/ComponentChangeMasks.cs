@@ -20,9 +20,6 @@ internal static class ComponentChangeMasks
     internal static ulong Intersect(ulong left, ulong right) => left & right;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void Union(ref ulong target, ulong source) => target |= source;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static bool IsFullWord(ulong word, int count, int wordIndex) => word == GetValidWord(count, wordIndex);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -38,80 +35,6 @@ internal static class ComponentChangeMasks
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void MarkEntity(Span<ulong> mask, int index) => SetSlot(mask, index, true);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ulong LowMask(int count) => count == 64 ? ulong.MaxValue : (1UL << count) - 1;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ulong Read64(ReadOnlySpan<ulong> words, int bitIndex)
-    {
-        int wordIndex = bitIndex >> 6;
-        int shift = bitIndex & 63;
-        ulong result = words[wordIndex] >> shift;
-        if (shift != 0 && wordIndex + 1 < words.Length)
-        {
-            result |= words[wordIndex + 1] << (64 - shift);
-        }
-
-        return result;
-    }
-
-    // Copy/OR at most 64 bits. Capture the complete source before touching the target;
-    // this also handles overlapping short moves.
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void WriteSmall(Span<ulong> target, int targetSlot, ulong value, int count, bool merge)
-    {
-        int wordIndex = targetSlot >> 6;
-        int shift = targetSlot & 63;
-        int first = Math.Min(count, 64 - shift);
-        ulong firstMask = LowMask(first);
-        ulong destinationMask = firstMask << shift;
-        ulong placed = (value & firstMask) << shift;
-        target[wordIndex] = merge
-            ? target[wordIndex] | placed
-            : (target[wordIndex] & ~destinationMask) | placed;
-
-        int remaining = count - first;
-        if (remaining == 0)
-        {
-            return;
-        }
-
-        ulong mask = LowMask(remaining);
-        ulong upper = (value >> first) & mask;
-        target[wordIndex + 1] = merge
-            ? target[wordIndex + 1] | upper
-            : (target[wordIndex + 1] & ~mask) | upper;
-    }
-
-    // Only use directly if source and destination bit ranges do not overlap.
-    private static void WriteRange(
-        ReadOnlySpan<ulong> source, int sourceSlot,
-        Span<ulong> target, int targetSlot, int count, bool merge)
-    {
-        int copied = 0;
-        while (copied < count)
-        {
-            int destination = targetSlot + copied;
-            int offset = destination & 63;
-            int length = Math.Min(count - copied, 64 - offset);
-            ulong lowMask = LowMask(length);
-            ulong word = Read64(source, sourceSlot + copied);
-            ulong placed = (word & lowMask) << offset;
-            ref ulong targetWord = ref target[destination >> 6];
-            if (merge)
-            {
-                targetWord |= placed;
-            }
-            else
-            {
-                ulong destinationMask = lowMask << offset;
-                targetWord = (targetWord & ~destinationMask) | placed;
-            }
-
-            copied += length;
-        }
-    }
 
     /// <summary>OR the original source bit range into the target, including overlaps.</summary>
     internal static void MergeRange(
@@ -343,6 +266,83 @@ internal static class ComponentChangeMasks
         }
 
         WriteRange(scratch, 0, target, targetSlot, count, merge: false);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void Union(ref ulong target, ulong source) => target |= source;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ulong LowMask(int count) => count == 64 ? ulong.MaxValue : (1UL << count) - 1;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ulong Read64(ReadOnlySpan<ulong> words, int bitIndex)
+    {
+        int wordIndex = bitIndex >> 6;
+        int shift = bitIndex & 63;
+        ulong result = words[wordIndex] >> shift;
+        if (shift != 0 && wordIndex + 1 < words.Length)
+        {
+            result |= words[wordIndex + 1] << (64 - shift);
+        }
+
+        return result;
+    }
+
+    // Copy/OR at most 64 bits. Capture the complete source before touching the target;
+    // this also handles overlapping short moves.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void WriteSmall(Span<ulong> target, int targetSlot, ulong value, int count, bool merge)
+    {
+        int wordIndex = targetSlot >> 6;
+        int shift = targetSlot & 63;
+        int first = Math.Min(count, 64 - shift);
+        ulong firstMask = LowMask(first);
+        ulong destinationMask = firstMask << shift;
+        ulong placed = (value & firstMask) << shift;
+        target[wordIndex] = merge
+            ? target[wordIndex] | placed
+            : (target[wordIndex] & ~destinationMask) | placed;
+
+        int remaining = count - first;
+        if (remaining == 0)
+        {
+            return;
+        }
+
+        ulong mask = LowMask(remaining);
+        ulong upper = (value >> first) & mask;
+        target[wordIndex + 1] = merge
+            ? target[wordIndex + 1] | upper
+            : (target[wordIndex + 1] & ~mask) | upper;
+    }
+
+    // Only use directly if source and destination bit ranges do not overlap.
+    private static void WriteRange(
+        ReadOnlySpan<ulong> source, int sourceSlot,
+        Span<ulong> target, int targetSlot, int count, bool merge)
+    {
+        int copied = 0;
+        while (copied < count)
+        {
+            int destination = targetSlot + copied;
+            int offset = destination & 63;
+            int length = Math.Min(count - copied, 64 - offset);
+            ulong lowMask = LowMask(length);
+            ulong word = Read64(source, sourceSlot + copied);
+            ulong placed = (word & lowMask) << offset;
+            ref ulong targetWord = ref target[destination >> 6];
+            if (merge)
+            {
+                targetWord |= placed;
+            }
+            else
+            {
+                ulong destinationMask = lowMask << offset;
+                targetWord = (targetWord & ~destinationMask) | placed;
+            }
+
+            copied += length;
+        }
     }
 
 }

@@ -1,6 +1,7 @@
 namespace Delta.ECS.Tests;
 
 using System;
+
 using NUnit.Framework;
 
 [TestFixture]
@@ -354,6 +355,9 @@ internal sealed class EntityRefTests
         state.Visited++;
     }
 
+    private static void IncrementPosition(ref ComponentId componentId, scoped EntityRef entity)
+        => entity.GetRef<Position>(componentId).X++;
+
     internal struct ProbeState
     {
         internal Entity[] Entities;
@@ -378,9 +382,6 @@ internal sealed class EntityRefTests
         internal int HealthValue;
         internal float VelocityValue;
     }
-
-    private static void IncrementPosition(ref ComponentId componentId, scoped EntityRef entity)
-        => entity.GetRef<Position>(componentId).X++;
 
     private readonly struct FirstTag;
 

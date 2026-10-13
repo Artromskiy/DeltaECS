@@ -1,8 +1,11 @@
 using System;
 using System.Runtime.CompilerServices;
+
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.FennecsComponents;
+
 using fennecs;
 
 namespace Ecs.CSharp.Benchmark
@@ -10,25 +13,6 @@ namespace Ecs.CSharp.Benchmark
     public partial class SystemWithOneComponent
     {
         [Context] private readonly FennecsContext _fennecs;
-
-        private sealed class FennecsContext : FennecsBaseContext
-        {
-            public Stream<Component1> query;
-
-            public FennecsContext(int entityCount, int entityPadding)
-            {
-                query = World.Query<Component1>().Stream();
-                for (int i = 0; i < entityCount; ++i)
-                {
-                    for (int j = 0; j < entityPadding; ++j)
-                    {
-                        World.Spawn();
-                    }
-
-                    World.Spawn().Add<Component1>();
-                }
-            }
-        }
 
         [BenchmarkCategory(Categories.Fennecs, Categories.SingleThread)]
         [Benchmark]
@@ -58,6 +42,25 @@ namespace Ecs.CSharp.Benchmark
                 }
             });
             return EntityCount;
+        }
+
+        private sealed class FennecsContext : FennecsBaseContext
+        {
+            public Stream<Component1> query;
+
+            public FennecsContext(int entityCount, int entityPadding)
+            {
+                query = World.Query<Component1>().Stream();
+                for (int i = 0; i < entityCount; ++i)
+                {
+                    for (int j = 0; j < entityPadding; ++j)
+                    {
+                        World.Spawn();
+                    }
+
+                    World.Spawn().Add<Component1>();
+                }
+            }
         }
     }
 }

@@ -20,6 +20,25 @@ public readonly ref struct GeneratedQuerySlots
     private readonly bool _hasTagSlots;
     private readonly QueryPlan? _queryPlan;
 
+    /// <summary>Gets the number of entities in the validated chunk.</summary>
+    public int Count
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _hasTagSlots ? _tagSlots.Length : PhysicalCount;
+    }
+
+    /// <summary>Gets the physical chunk population before any tag filter is applied.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public int PhysicalCount { get; }
+
+    /// <summary>Reports whether the owning query applies tag filters.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public bool HasTagFilters { get; }
+
+    /// <summary>Gets the stable identity of the current chunk.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public int ChunkId => _chunk.GlobalId;
+
     internal GeneratedQuerySlots(
         World world,
         in ChunkPlan chunkPlan,
@@ -61,30 +80,11 @@ public readonly ref struct GeneratedQuerySlots
         }
     }
 
-    /// <summary>Gets the number of entities in the validated chunk.</summary>
-    public int Count
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _hasTagSlots ? _tagSlots.Length : PhysicalCount;
-    }
-
-    /// <summary>Gets the physical chunk population before any tag filter is applied.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public int PhysicalCount { get; }
-
-    /// <summary>Reports whether the owning query applies tag filters.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public bool HasTagFilters { get; }
-
     /// <summary>Tests whether a physical chunk slot satisfies the query's tag filters.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool IsTagSelected(int slotIndex)
         => _queryPlan is null || !_queryPlan.HasTagFilters || _queryPlan.MatchesTagSlot(_chunk, slotIndex);
-
-    /// <summary>Gets the stable identity of the current chunk.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public int ChunkId => _chunk.GlobalId;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -224,6 +224,12 @@ public readonly ref struct GeneratedReadQuerySlots
     private readonly ReadOnlySpan<int> _tagSlots;
     private readonly bool _hasTagSlots;
 
+    public int Count
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _count;
+    }
+
     internal GeneratedReadQuerySlots(World world, in ChunkPlan chunkPlan, QueryPlan? queryPlan = null)
     {
         _world = world;
@@ -239,12 +245,6 @@ public readonly ref struct GeneratedReadQuerySlots
         }
 
         _count = _hasTagSlots ? _tagSlots.Length : chunkPlan.Chunk.Count;
-    }
-
-    public int Count
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _count;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

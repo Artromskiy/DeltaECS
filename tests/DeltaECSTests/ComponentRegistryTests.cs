@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+
 using Delta.ECS;
+
 using NUnit.Framework;
 
 namespace Delta.ECS.Tests;
@@ -160,6 +162,15 @@ internal sealed class ComponentRegistryTests
         Assert.That(firstVelocity, Is.Not.EqualTo(secondVelocity));
     }
 
+    private static bool TryGetPrimaryByType(
+        ComponentRegistry layouts,
+        Type runtimeType,
+        out ComponentId componentId)
+        => layouts.TryGetPrimary(runtimeType, out componentId);
+
+    private static ComponentId GetPrimaryByType(ComponentRegistry layouts, Type runtimeType)
+        => layouts.GetPrimary(runtimeType);
+
     private readonly struct MissingComponent
     {
     }
@@ -188,14 +199,5 @@ internal sealed class ComponentRegistryTests
     {
         History,
     }
-
-    private static bool TryGetPrimaryByType(
-        ComponentRegistry layouts,
-        Type runtimeType,
-        out ComponentId componentId)
-        => layouts.TryGetPrimary(runtimeType, out componentId);
-
-    private static ComponentId GetPrimaryByType(ComponentRegistry layouts, Type runtimeType)
-        => layouts.GetPrimary(runtimeType);
 
 }

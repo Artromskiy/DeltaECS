@@ -1,4 +1,5 @@
 using Ecs.CSharp.Benchmark.Contexts.StaticEcsComponents;
+
 using FFS.Libraries.StaticEcs;
 
 namespace Ecs.CSharp.Benchmark.Contexts

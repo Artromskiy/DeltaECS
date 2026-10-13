@@ -1,7 +1,10 @@
 using System.Runtime.InteropServices;
 using System.Threading;
+
 using BenchmarkDotNet.Attributes;
+
 using Delta.ECS;
+
 using DeltaEntity = Delta.ECS.Entity;
 using DeltaWorld = Delta.ECS.World;
 
@@ -15,9 +18,6 @@ namespace Delta.ECS.Benchmarks;
 // the first and last row. This isolates wide storage from the actual read set.
 public class WidePayloadPartialReadIterationBenchmarks
 {
-    public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
-
-    public int WorkerCount { get; set; } = ParallelBenchmarkConfiguration.GetWorkerCount();
 
     private DeltaWorld _world = null!;
     private Query _query;
@@ -32,6 +32,9 @@ public class WidePayloadPartialReadIterationBenchmarks
     private IOperation? _entityRefParallelIteration;
     private IOperation<WidePayloadEntityRefFunctor>? _entityRefFunctorParallelIteration;
     private WidePayloadChecksum _entityRefChecksum = new();
+    public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
+
+    public int WorkerCount { get; set; } = ParallelBenchmarkConfiguration.GetWorkerCount();
 
     [GlobalSetup]
     public void Setup()

@@ -1,4 +1,5 @@
 using Delta.ECS;
+
 using NUnit.Framework;
 
 namespace Delta.ECS.Tests;
@@ -147,21 +148,21 @@ internal sealed class ComponentRowOperationTests
 
     private readonly struct ManagedPayload
     {
+
+        public string? Text { get; }
         public ManagedPayload(string text)
         {
             Text = text;
         }
-
-        public string? Text { get; }
     }
 
     private sealed class ReferencePayload
     {
+
+        public string Name { get; }
         public ReferencePayload(string name)
         {
             Name = name;
         }
-
-        public string Name { get; }
     }
 }

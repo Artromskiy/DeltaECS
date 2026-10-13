@@ -1,22 +1,12 @@
 using BenchmarkDotNet.Attributes;
+
 using Delta.ECS;
 
 namespace Delta.ECS.MicroBenchmarks;
 
-internal struct WhereIterationValue
-{
-    public int Value;
-}
-
-internal struct WhereIterationAccumulator
-{
-    public int Value;
-}
-
 /// <summary>Compares direct iteration with always-true Where pipelines.</summary>
 public class WhereIterationMicroBenchmarkImplementation
 {
-    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
 
     private World _world = null!;
     private Entity[] _entities = null!;
@@ -26,6 +16,9 @@ public class WhereIterationMicroBenchmarkImplementation
     private IOperation? _directIteration;
     private IOperation? _whereIteration;
     private IOperation? _whereEntityIteration;
+    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
+
+    internal int ExpectedIterationCount => Amount;
 
     [GlobalSetup]
     public void Setup()
@@ -82,8 +75,6 @@ public class WhereIterationMicroBenchmarkImplementation
         return Amount;
     }
 
-    internal int ExpectedIterationCount => Amount;
-
     internal int SumAccumulators()
     {
         int sum = 0;
@@ -94,4 +85,14 @@ public class WhereIterationMicroBenchmarkImplementation
 
         return sum;
     }
+}
+
+internal struct WhereIterationValue
+{
+    public int Value;
+}
+
+internal struct WhereIterationAccumulator
+{
+    public int Value;
 }

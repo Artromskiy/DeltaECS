@@ -1,28 +1,17 @@
 using System;
 using System.Runtime.Intrinsics;
+
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.FrifloEngineComponents;
+
 using Friflo.Engine.ECS;
 
 namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithOneComponent
     {
-        internal sealed class FrifloEngineEcsContext : FrifloEngineEcsBaseContext
-        {
-            public FrifloEngineEcsContext(int entityCount, int padding)
-                : base(entityCount, padding, ComponentTypes.Get<Component1>())
-            { }
-
-            internal static void ForEach(Chunk<Component1> component1, ChunkEntities entities)
-            {
-                foreach (ref Component1 component in component1.Span)
-                {
-                    ++component.Value;
-                }
-            }
-        }
 
         [Context]
         private readonly FrifloEngineEcsContext _frifloEngineEcs;
@@ -68,6 +57,20 @@ namespace Ecs.CSharp.Benchmark
                 }
             }
             return EntityCount;
+        }
+        internal sealed class FrifloEngineEcsContext : FrifloEngineEcsBaseContext
+        {
+            public FrifloEngineEcsContext(int entityCount, int padding)
+                : base(entityCount, padding, ComponentTypes.Get<Component1>())
+            { }
+
+            internal static void ForEach(Chunk<Component1> component1, ChunkEntities entities)
+            {
+                foreach (ref Component1 component in component1.Span)
+                {
+                    ++component.Value;
+                }
+            }
         }
     }
 }

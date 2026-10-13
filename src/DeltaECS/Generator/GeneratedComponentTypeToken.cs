@@ -4,6 +4,23 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 
+internal sealed class GeneratedComponentTypeToken<T> : IGeneratedComponentTypeToken
+{
+    internal static readonly GeneratedComponentTypeToken<T> Instance = new();
+
+    public Type ComponentType => typeof(T);
+
+    private GeneratedComponentTypeToken() { }
+
+    public void DispatchRegistrationRoute<TVisitor>(ref TVisitor visitor)
+        where TVisitor : struct, IGeneratedComponentRegistrationRouteVisitor
+        => visitor.VisitUnconstrained<T>();
+
+    public void Dispatch<TVisitor>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining, ref TVisitor visitor)
+        where TVisitor : struct, IGeneratedComponentTypeVisitor
+        => visitor.Visit<T>(remaining);
+}
+
 /// <summary>Compiler-support contract for dispatching a registered CLR type without reflection.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public interface IGeneratedComponentTypeToken
@@ -316,21 +333,4 @@ public static class GeneratedComponentTypeDispatch
 
     private static void ThrowConstraintMismatch(IGeneratedComponentTypeToken token, string constraint)
         => ThrowHelper.ThrowGeneratedComponentConstraintMismatch(token, constraint);
-}
-
-internal sealed class GeneratedComponentTypeToken<T> : IGeneratedComponentTypeToken
-{
-    internal static readonly GeneratedComponentTypeToken<T> Instance = new();
-
-    private GeneratedComponentTypeToken() { }
-
-    public Type ComponentType => typeof(T);
-
-    public void DispatchRegistrationRoute<TVisitor>(ref TVisitor visitor)
-        where TVisitor : struct, IGeneratedComponentRegistrationRouteVisitor
-        => visitor.VisitUnconstrained<T>();
-
-    public void Dispatch<TVisitor>(ReadOnlySpan<IGeneratedComponentTypeToken> remaining, ref TVisitor visitor)
-        where TVisitor : struct, IGeneratedComponentTypeVisitor
-        => visitor.Visit<T>(remaining);
 }

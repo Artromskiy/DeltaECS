@@ -4,13 +4,12 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+
 using NUnit.Framework;
 
 [TestFixture]
 internal sealed partial class ThrowHelperPlacementTests
 {
-    [GeneratedRegex(@"\bthrow\b", RegexOptions.CultureInvariant)]
-    private static partial Regex ExplicitThrowKeywordRegex();
 
     [Test]
     public void ExplicitThrowKeywordsAreOnlyInThrowHelpers()
@@ -44,6 +43,8 @@ internal sealed partial class ThrowHelperPlacementTests
             "Explicit throw keywords must stay in ThrowHelpers.cs: "
                 + string.Join(", ", offenders.Select(Path.GetFileName)));
     }
+    [GeneratedRegex(@"\bthrow\b", RegexOptions.CultureInvariant)]
+    private static partial Regex ExplicitThrowKeywordRegex();
 
     private static string FindRepositoryRoot()
     {

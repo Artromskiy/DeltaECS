@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+
 using Delta.ECS;
+
 using NUnit.Framework;
 
 namespace Delta.ECS.Tests;
@@ -505,38 +507,6 @@ internal sealed class DeltaECSDeliveryTests
         layouts.Register<Health>(new SchemaId(3));
     }
 
-    private struct TestRandom
-    {
-        private uint _state;
-
-        internal TestRandom(uint seed)
-        {
-            _state = seed == 0 ? 0xA341316Cu : seed;
-        }
-
-        internal int Next(int maxValue)
-            => (int)(((ulong)NextUInt32() * (uint)maxValue) >> 32);
-
-        internal int Next(int minValue, int maxValue)
-            => minValue + Next(maxValue - minValue);
-
-        internal double NextDouble()
-            => NextUInt32() / ((double)uint.MaxValue + 1d);
-
-        internal float NextSingle()
-            => (NextUInt32() >> 8) * (1f / (1u << 24));
-
-        private uint NextUInt32()
-        {
-            uint value = _state;
-            value ^= value << 13;
-            value ^= value >> 17;
-            value ^= value << 5;
-            _state = value;
-            return value;
-        }
-    }
-
     private static int CountDenseQuery(World world, in QuerySpec query)
     {
         var handle = world.CreateQuery(in query);
@@ -596,6 +566,38 @@ internal sealed class DeltaECSDeliveryTests
         }
 
         return chunkIds;
+    }
+
+    private struct TestRandom
+    {
+        private uint _state;
+
+        internal TestRandom(uint seed)
+        {
+            _state = seed == 0 ? 0xA341316Cu : seed;
+        }
+
+        internal int Next(int maxValue)
+            => (int)(((ulong)NextUInt32() * (uint)maxValue) >> 32);
+
+        internal int Next(int minValue, int maxValue)
+            => minValue + Next(maxValue - minValue);
+
+        internal double NextDouble()
+            => NextUInt32() / ((double)uint.MaxValue + 1d);
+
+        internal float NextSingle()
+            => (NextUInt32() >> 8) * (1f / (1u << 24));
+
+        private uint NextUInt32()
+        {
+            uint value = _state;
+            value ^= value << 13;
+            value ^= value >> 17;
+            value ^= value << 5;
+            _state = value;
+            return value;
+        }
     }
 
     private struct EntityState

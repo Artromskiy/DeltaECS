@@ -1,4 +1,5 @@
 using BenchmarkDotNet.Attributes;
+
 using Delta.ECS;
 
 namespace Delta.ECS.Benchmarks;
@@ -8,7 +9,6 @@ namespace Delta.ECS.Benchmarks;
 [CategoriesColumn]
 public class TagFilteringBenchmarks
 {
-    public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
 
     private World _tagWorld = null!;
     private World _componentWorld = null!;
@@ -21,6 +21,7 @@ public class TagFilteringBenchmarks
     private IOperation<long>? _tagValueIteration;
     private IOperation<long>? _componentEntityIteration;
     private IOperation<long>? _tagEntityIteration;
+    public int Amount { get; set; } = BenchmarkConfiguration.GetAmount();
 
     [GlobalSetup]
     public void Setup()

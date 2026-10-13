@@ -8,13 +8,13 @@ internal readonly struct ComponentRowOperations
 {
     private readonly Func<int, Array>? _createArray;
 
+    internal bool ContainsReferences { get; }
+
     private ComponentRowOperations(bool containsReferences, Func<int, Array>? createArray)
     {
         ContainsReferences = containsReferences;
         _createArray = createArray;
     }
-
-    internal bool ContainsReferences { get; }
 
     internal static ComponentRowOperations ForType<T>()
         => new(
@@ -25,6 +25,8 @@ internal readonly struct ComponentRowOperations
         => new(
             TypeContainsReferences(componentType),
             capacity => Array.CreateInstance(componentType, capacity));
+
+    internal Array CreateArray(int capacity) => _createArray!(capacity);
 
     private static bool TypeContainsReferences(Type componentType)
     {
@@ -48,6 +50,4 @@ internal readonly struct ComponentRowOperations
 
         return false;
     }
-
-    internal Array CreateArray(int capacity) => _createArray!(capacity);
 }

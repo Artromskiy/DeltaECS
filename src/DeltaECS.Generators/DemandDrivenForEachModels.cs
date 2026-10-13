@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -12,11 +13,6 @@ internal sealed record InterceptionSite(
     string Attribute,
     string[] Usings)
 {
-    private static string[] DefaultParameterNames(IterationModel shape)
-        => (shape.HasContext ? new[] { "context" } : Array.Empty<string>())
-            .Concat(shape.HasEntity ? new[] { "entity" } : Array.Empty<string>())
-            .Concat(Enumerable.Range(0, shape.Pattern.Length).Select(static index => "component" + index))
-            .ToArray();
 
     internal CallSiteBinding Binding { get; } = new(
         Lambda,
@@ -25,6 +21,11 @@ internal sealed record InterceptionSite(
         DefaultParameterNames(Shape));
 
     internal IterationModel IterationModel => Shape;
+    private static string[] DefaultParameterNames(IterationModel shape)
+        => (shape.HasContext ? new[] { "context" } : Array.Empty<string>())
+            .Concat(shape.HasEntity ? new[] { "entity" } : Array.Empty<string>())
+            .Concat(Enumerable.Range(0, shape.Pattern.Length).Select(static index => "component" + index))
+            .ToArray();
 }
 
 internal sealed class IterationModel(
@@ -73,6 +74,9 @@ internal sealed class IterationModel(
     public string Namespace { get; } = namespaceName;
     public bool OrderedQueryReceiver { get; } = orderedQueryReceiver;
     public PredicateModel? OrderedWhereSource { get; } = orderedWhereSource;
+    public string Key => Namespace + "|" + Api.SignatureKey
+        + (OrderedQueryReceiver ? "|OrderedQuery" : string.Empty)
+        + (OrderedWhereSource is null ? string.Empty : "|" + OrderedWhereSource.Key);
     internal ApiModel Api { get; } = GeneratorSupport.CreateIterationShape(
         parallel,
         hasEntity,
@@ -89,9 +93,6 @@ internal sealed class IterationModel(
         contextType,
         methodName,
         functorPassMode);
-    public string Key => Namespace + "|" + Api.SignatureKey
-        + (OrderedQueryReceiver ? "|OrderedQuery" : string.Empty)
-        + (OrderedWhereSource is null ? string.Empty : "|" + OrderedWhereSource.Key);
 }
 
 internal sealed record IterationRenderModel(

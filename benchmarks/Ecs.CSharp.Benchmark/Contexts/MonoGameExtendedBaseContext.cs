@@ -1,10 +1,23 @@
 using System;
+
 using MonoGame.Extended.Entities;
 
 namespace Ecs.CSharp.Benchmark.Contexts
 {
     internal class MonoGameExtendedBaseContext : IDisposable
     {
+
+        public World World { get; }
+
+        public MonoGameExtendedBaseContext()
+        {
+            World = new WorldBuilder().Build();
+        }
+
+        public virtual void Dispose()
+        {
+            World.Dispose();
+        }
         public sealed class Component1
         {
             public int Value;
@@ -18,18 +31,6 @@ namespace Ecs.CSharp.Benchmark.Contexts
         public sealed class Component3
         {
             public int Value;
-        }
-
-        public World World { get; }
-
-        public MonoGameExtendedBaseContext()
-        {
-            World = new WorldBuilder().Build();
-        }
-
-        public virtual void Dispose()
-        {
-            World.Dispose();
         }
     }
 }

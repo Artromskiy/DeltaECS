@@ -1,6 +1,7 @@
 namespace Delta.ECS.Tests;
 
 using System;
+
 using NUnit.Framework;
 
 public sealed class GenericFunctorOperationInputTests

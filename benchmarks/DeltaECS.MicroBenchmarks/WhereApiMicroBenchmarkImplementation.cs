@@ -1,26 +1,12 @@
 using BenchmarkDotNet.Attributes;
+
 using Delta.ECS;
 
 namespace Delta.ECS.MicroBenchmarks;
 
-internal struct WhereApiValue
-{
-    public int Value;
-}
-
-internal struct WhereApiAccumulator
-{
-    public int Value;
-}
-
-internal struct WhereApiDead
-{
-}
-
 /// <summary>Measures query-wide read-only predicates and stable structural mutation rounds.</summary>
 public class WhereApiMicroBenchmarkImplementation
 {
-    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
 
     private World _world = null!;
     private Entity[] _entities = null!;
@@ -29,6 +15,11 @@ public class WhereApiMicroBenchmarkImplementation
     private ComponentId _valueId;
     private IOperation? _directIteration;
     private IOperation? _whereIteration;
+    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
+
+    internal int ExpectedIterationCount { get; private set; }
+
+    internal int ExpectedStructuralCount => ExpectedIterationCount * 2;
 
     [GlobalSetup]
     public void Setup()
@@ -96,8 +87,18 @@ public class WhereApiMicroBenchmarkImplementation
             .Remove<WhereApiDead>().Invoke();
         return added + removed;
     }
+}
 
-    internal int ExpectedIterationCount { get; private set; }
+internal struct WhereApiValue
+{
+    public int Value;
+}
 
-    internal int ExpectedStructuralCount => ExpectedIterationCount * 2;
+internal struct WhereApiAccumulator
+{
+    public int Value;
+}
+
+internal struct WhereApiDead
+{
 }

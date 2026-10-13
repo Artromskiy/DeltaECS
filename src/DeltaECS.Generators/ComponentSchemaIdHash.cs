@@ -1,7 +1,8 @@
 namespace Delta.ECS.Generators;
 
-using Microsoft.CodeAnalysis;
 using System.Text;
+
+using Microsoft.CodeAnalysis;
 
 internal static class ComponentSchemaIdHash
 {

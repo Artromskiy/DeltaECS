@@ -1,6 +1,7 @@
 #nullable enable
 
 using System;
+
 using Delta.ECS;
 
 namespace Delta.ECS.Unity
@@ -16,6 +17,12 @@ namespace Delta.ECS.Unity
 
         /// <summary>Gets whether this context refers to a live entity.</summary>
         public bool IsAlive => World != null && World.IsAlive(Entity);
+
+        internal EntityContext(World world, Entity entity)
+        {
+            World = world;
+            Entity = entity;
+        }
 
         /// <summary>Reports whether the entity owns the specified component registration.</summary>
         public bool Has(ComponentId componentId) => World?.Has(Entity, componentId) ?? false;
@@ -66,12 +73,6 @@ namespace Delta.ECS.Unity
 
         /// <summary>Gets a read-only reference to the specified registration of <typeparamref name="T"/>.</summary>
         public ref readonly T GetReadRef<T>(ComponentId componentId) => ref GetWorld().GetReadRef<T>(Entity, componentId);
-
-        internal EntityContext(World world, Entity entity)
-        {
-            World = world;
-            Entity = entity;
-        }
 
         private World GetWorld()
             => World ?? UnityThrowHelpers.ThrowMissingEntityContextWorld();

@@ -92,6 +92,47 @@ internal readonly struct ComponentTypeRegistrationRouteVisitor : IComponentTypeR
         _visitor = visitor;
     }
 
+    private static bool TrueVisit<TComponent>(IUnconstrainedVisitor visitor, ComponentId componentId)
+    {
+        visitor.Visit<TComponent>(componentId);
+        return true;
+    }
+
+    private static bool TrueVisit<TComponent>(IStructVisitor visitor, ComponentId componentId)
+        where TComponent : struct
+    {
+        visitor.Visit<TComponent>(componentId);
+        return true;
+    }
+
+    private static bool TrueVisit<TComponent>(IClassVisitor visitor, ComponentId componentId)
+        where TComponent : class
+    {
+        visitor.Visit<TComponent>(componentId);
+        return true;
+    }
+
+    private static bool TrueVisit<TComponent>(IUnmanagedVisitor visitor, ComponentId componentId)
+        where TComponent : unmanaged
+    {
+        visitor.Visit<TComponent>(componentId);
+        return true;
+    }
+
+    private static bool TrueVisit<TComponent>(INewVisitor visitor, ComponentId componentId)
+        where TComponent : new()
+    {
+        visitor.Visit<TComponent>(componentId);
+        return true;
+    }
+
+    private static bool TrueVisit<TComponent>(IClassNewVisitor visitor, ComponentId componentId)
+        where TComponent : class, new()
+    {
+        visitor.Visit<TComponent>(componentId);
+        return true;
+    }
+
     bool IComponentTypeRegistrationRouteVisitor.VisitUnconstrained<TComponent>(ComponentId componentId)
         => TryVisitUnconstrained<TComponent>(componentId);
 
@@ -135,47 +176,6 @@ internal readonly struct ComponentTypeRegistrationRouteVisitor : IComponentTypeR
         IUnconstrainedVisitor visitor => TrueVisit<TComponent>(visitor, componentId),
         _ => false
     };
-
-    private static bool TrueVisit<TComponent>(IUnconstrainedVisitor visitor, ComponentId componentId)
-    {
-        visitor.Visit<TComponent>(componentId);
-        return true;
-    }
-
-    private static bool TrueVisit<TComponent>(IStructVisitor visitor, ComponentId componentId)
-        where TComponent : struct
-    {
-        visitor.Visit<TComponent>(componentId);
-        return true;
-    }
-
-    private static bool TrueVisit<TComponent>(IClassVisitor visitor, ComponentId componentId)
-        where TComponent : class
-    {
-        visitor.Visit<TComponent>(componentId);
-        return true;
-    }
-
-    private static bool TrueVisit<TComponent>(IUnmanagedVisitor visitor, ComponentId componentId)
-        where TComponent : unmanaged
-    {
-        visitor.Visit<TComponent>(componentId);
-        return true;
-    }
-
-    private static bool TrueVisit<TComponent>(INewVisitor visitor, ComponentId componentId)
-        where TComponent : new()
-    {
-        visitor.Visit<TComponent>(componentId);
-        return true;
-    }
-
-    private static bool TrueVisit<TComponent>(IClassNewVisitor visitor, ComponentId componentId)
-        where TComponent : class, new()
-    {
-        visitor.Visit<TComponent>(componentId);
-        return true;
-    }
 }
 
 internal interface IComponentInterfaceRouteVisitor<TInterface>
@@ -207,6 +207,9 @@ internal interface IComponentInterfaceVisitorRoute
 internal abstract class ComponentInterfaceVisitorRoute<TComponent, TInterface> : IComponentInterfaceVisitorRoute
     where TComponent : TInterface
 {
+
+    internal abstract bool Accept<TVisitor>(ComponentId componentId, ref TVisitor visitor)
+        where TVisitor : struct, IComponentInterfaceRouteVisitor<TInterface>;
     bool IComponentInterfaceVisitorRoute.TryVisit(ComponentId componentId, IVisitor visitor)
     {
         if (visitor is not IComponentVisitor)
@@ -217,9 +220,6 @@ internal abstract class ComponentInterfaceVisitorRoute<TComponent, TInterface> :
         var routeVisitor = new ComponentInterfaceRouteVisitor<TInterface>(visitor);
         return Accept(componentId, ref routeVisitor);
     }
-
-    internal abstract bool Accept<TVisitor>(ComponentId componentId, ref TVisitor visitor)
-        where TVisitor : struct, IComponentInterfaceRouteVisitor<TInterface>;
 }
 
 internal sealed class UnconstrainedComponentInterfaceVisitorRoute<TComponent, TInterface> :

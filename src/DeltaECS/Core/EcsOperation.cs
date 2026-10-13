@@ -5,57 +5,6 @@ namespace Delta.ECS;
 using System;
 using System.ComponentModel;
 
-/// <summary>A deferred operation that can be executed without boxing its concrete value.</summary>
-public interface IOperation
-{
-    /// <summary>Executes this operation.</summary>
-    void Invoke();
-}
-
-/// <summary>A deferred operation that can also use caller-owned mutable state.</summary>
-public interface IOperation<TState> : IOperation
-{
-    /// <summary>Executes this operation using and updating caller-owned state.</summary>
-    void Invoke(ref TState state);
-}
-
-/// <summary>A deferred operation that can use caller-owned context and functor state.</summary>
-public interface IOperation<TContext, TFunctor> : IOperation
-{
-    /// <summary>Executes the operation using caller-owned functor state and its owned context.</summary>
-    void Invoke(ref TFunctor functor);
-
-    /// <summary>Executes the operation using its owned functor and caller-owned context.</summary>
-    void InvokeWithContext(ref TContext context);
-
-    /// <summary>Executes the operation using and updating caller-owned context and functor state.</summary>
-    void Invoke(ref TContext context, ref TFunctor functor);
-}
-
-/// <summary>Execution contract for an operation with no mutable caller-owned state.</summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
-public interface IEcsOperationInvoker
-{
-    /// <summary>Executes the operation.</summary>
-    void Invoke();
-}
-
-/// <summary>Execution contract for an operation with one mutable state value.</summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
-public interface IEcsOperationInvoker<TState>
-{
-    /// <summary>Executes the operation using and updating caller-owned state.</summary>
-    void Invoke(ref TState state);
-}
-
-/// <summary>Execution contract for an operation with mutable context and functor state.</summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
-public interface IEcsOperationInvoker<TContext, TFunctor>
-{
-    /// <summary>Executes the operation using caller-owned context and functor state.</summary>
-    void Invoke(ref TContext context, ref TFunctor functor);
-}
-
 /// <summary>A reusable deferred operation with a concrete value-type executor.</summary>
 /// <remarks>Use <see cref="IOperation"/> to store different operation shapes behind one reference.</remarks>
 public struct EcsOperation<TInvoker> : IOperation
@@ -133,6 +82,57 @@ public struct EcsOperation<TContext, TFunctor, TInvoker> : IOperation<TContext, 
     /// <summary>Executes the operation using and updating caller-owned context and functor.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Invoke(ref TContext context, ref TFunctor functor) => _invoker.Invoke(ref context, ref functor);
+}
+
+/// <summary>A deferred operation that can be executed without boxing its concrete value.</summary>
+public interface IOperation
+{
+    /// <summary>Executes this operation.</summary>
+    void Invoke();
+}
+
+/// <summary>A deferred operation that can also use caller-owned mutable state.</summary>
+public interface IOperation<TState> : IOperation
+{
+    /// <summary>Executes this operation using and updating caller-owned state.</summary>
+    void Invoke(ref TState state);
+}
+
+/// <summary>A deferred operation that can use caller-owned context and functor state.</summary>
+public interface IOperation<TContext, TFunctor> : IOperation
+{
+    /// <summary>Executes the operation using caller-owned functor state and its owned context.</summary>
+    void Invoke(ref TFunctor functor);
+
+    /// <summary>Executes the operation using its owned functor and caller-owned context.</summary>
+    void InvokeWithContext(ref TContext context);
+
+    /// <summary>Executes the operation using and updating caller-owned context and functor state.</summary>
+    void Invoke(ref TContext context, ref TFunctor functor);
+}
+
+/// <summary>Execution contract for an operation with no mutable caller-owned state.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public interface IEcsOperationInvoker
+{
+    /// <summary>Executes the operation.</summary>
+    void Invoke();
+}
+
+/// <summary>Execution contract for an operation with one mutable state value.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public interface IEcsOperationInvoker<TState>
+{
+    /// <summary>Executes the operation using and updating caller-owned state.</summary>
+    void Invoke(ref TState state);
+}
+
+/// <summary>Execution contract for an operation with mutable context and functor state.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public interface IEcsOperationInvoker<TContext, TFunctor>
+{
+    /// <summary>Executes the operation using caller-owned context and functor state.</summary>
+    void Invoke(ref TContext context, ref TFunctor functor);
 }
 
 /// <summary>A reusable, deferred ECS operation that produces a result when invoked.</summary>

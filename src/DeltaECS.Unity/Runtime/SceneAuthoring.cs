@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -24,6 +25,46 @@ namespace Delta.ECS.Unity
         [NonSerialized] private Dictionary<UnityEngine.EntityId, string> _stableIdsByView;
 
         internal SceneData SceneData => _sceneData ??= new SceneData();
+
+        internal static SceneAuthoring FindForScene(Scene scene)
+        {
+            if (!scene.IsValid())
+            {
+                return null;
+            }
+
+            SceneAuthoring[] authorings = Resources.FindObjectsOfTypeAll<SceneAuthoring>();
+            for (int i = 0; i < authorings.Length; i++)
+            {
+                SceneAuthoring authoring = authorings[i];
+                if (authoring != null && authoring.gameObject.scene == scene)
+                {
+                    return authoring;
+                }
+            }
+
+            return null;
+        }
+
+        internal static SceneAuthoring GetOrCreateForScene(Scene scene)
+        {
+            if (!scene.IsValid() || !scene.isLoaded)
+            {
+                UnityThrowHelpers.ThrowArgument("Scene authoring requires a valid, loaded scene.", nameof(scene));
+            }
+
+            SceneAuthoring existing = FindForScene(scene);
+            if (existing != null)
+            {
+                return existing;
+            }
+
+            var authoringObject = new GameObject(AuthoringObjectName);
+            SceneManager.MoveGameObjectToScene(authoringObject, scene);
+            SceneAuthoring authoring = authoringObject.AddComponent<SceneAuthoring>();
+            authoringObject.hideFlags |= HideFlags.HideInHierarchy;
+            return authoring;
+        }
 
         internal bool TryGetView(string stableId, out GameObject view)
         {
@@ -83,46 +124,6 @@ namespace Delta.ECS.Unity
         }
 
         internal bool RemoveView(string stableId) => SetView(stableId, null);
-
-        internal static SceneAuthoring FindForScene(Scene scene)
-        {
-            if (!scene.IsValid())
-            {
-                return null;
-            }
-
-            SceneAuthoring[] authorings = Resources.FindObjectsOfTypeAll<SceneAuthoring>();
-            for (int i = 0; i < authorings.Length; i++)
-            {
-                SceneAuthoring authoring = authorings[i];
-                if (authoring != null && authoring.gameObject.scene == scene)
-                {
-                    return authoring;
-                }
-            }
-
-            return null;
-        }
-
-        internal static SceneAuthoring GetOrCreateForScene(Scene scene)
-        {
-            if (!scene.IsValid() || !scene.isLoaded)
-            {
-                UnityThrowHelpers.ThrowArgument("Scene authoring requires a valid, loaded scene.", nameof(scene));
-            }
-
-            SceneAuthoring existing = FindForScene(scene);
-            if (existing != null)
-            {
-                return existing;
-            }
-
-            var authoringObject = new GameObject(AuthoringObjectName);
-            SceneManager.MoveGameObjectToScene(authoringObject, scene);
-            SceneAuthoring authoring = authoringObject.AddComponent<SceneAuthoring>();
-            authoringObject.hideFlags |= HideFlags.HideInHierarchy;
-            return authoring;
-        }
 
         private void OnValidate()
         {

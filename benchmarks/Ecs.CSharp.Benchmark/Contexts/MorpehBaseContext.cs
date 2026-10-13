@@ -1,10 +1,23 @@
 using System;
+
 using Scellecs.Morpeh;
 
 namespace Ecs.CSharp.Benchmark.Contexts
 {
     internal class MorpehBaseContext : IDisposable
     {
+
+        public World World { get; }
+
+        public MorpehBaseContext()
+        {
+            World = World.Create();
+        }
+
+        public virtual void Dispose()
+        {
+            World.Dispose();
+        }
         public struct Component1 : IComponent
         {
             public int Value;
@@ -18,18 +31,6 @@ namespace Ecs.CSharp.Benchmark.Contexts
         public struct Component3 : IComponent
         {
             public int Value;
-        }
-
-        public World World { get; }
-
-        public MorpehBaseContext()
-        {
-            World = World.Create();
-        }
-
-        public virtual void Dispose()
-        {
-            World.Dispose();
         }
     }
 }

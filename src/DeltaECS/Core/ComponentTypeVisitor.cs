@@ -156,12 +156,6 @@ public interface IClassNewVisitor<in TConstraint> : IComponentVisitor
     }
 }
 
-internal static class ComponentVisitorConstraints
-{
-    internal static bool HasMatchingConstraint<TConstraint>(IComponentVisitor visitor)
-        => visitor.ConstraintType.Equals(typeof(TConstraint).TypeHandle);
-}
-
 
 /// <summary>Provides virtual visits selected by component type constraints for types that implement <typeparamref name="TConstraint"/>.</summary>
 /// <typeparam name="TConstraint">The interface implemented by visitable component types.</typeparam>
@@ -224,4 +218,10 @@ public abstract class GeneralComponentTypeVisitor<TConstraint> :
         VisitClassConstructible<TComponent>(componentId);
         return true;
     }
+}
+
+internal static class ComponentVisitorConstraints
+{
+    internal static bool HasMatchingConstraint<TConstraint>(IComponentVisitor visitor)
+        => visitor.ConstraintType.Equals(typeof(TConstraint).TypeHandle);
 }

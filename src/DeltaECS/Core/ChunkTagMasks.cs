@@ -196,26 +196,6 @@ internal sealed class ChunkTagMasks
         }
     }
 
-    private void RefreshSummaryWords(int tagIndex, int firstWord, int lastWord)
-    {
-        int baseIndex = tagIndex * WordsPerTag;
-        ulong summary = _summaries[tagIndex];
-        for (int word = firstWord; word <= lastWord; word++)
-        {
-            ulong bit = 1UL << word;
-            if (_words[baseIndex + word] == 0)
-            {
-                summary &= ~bit;
-            }
-            else
-            {
-                summary |= bit;
-            }
-        }
-
-        _summaries[tagIndex] = summary;
-    }
-
     internal void ClearRange(int slotIndex, int count)
     {
         if (count <= 0)
@@ -278,5 +258,25 @@ internal sealed class ChunkTagMasks
     {
         Array.Clear(_summaries, 0, _summaries.Length);
         Array.Clear(_words, 0, _words.Length);
+    }
+
+    private void RefreshSummaryWords(int tagIndex, int firstWord, int lastWord)
+    {
+        int baseIndex = tagIndex * WordsPerTag;
+        ulong summary = _summaries[tagIndex];
+        for (int word = firstWord; word <= lastWord; word++)
+        {
+            ulong bit = 1UL << word;
+            if (_words[baseIndex + word] == 0)
+            {
+                summary &= ~bit;
+            }
+            else
+            {
+                summary |= bit;
+            }
+        }
+
+        _summaries[tagIndex] = summary;
     }
 }

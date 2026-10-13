@@ -49,12 +49,6 @@ internal static class OrderedQueryInvocationGrammar
         return true;
     }
 
-    private static bool IsOrderedQueryExpression(ExpressionSyntax expression, SemanticModel model)
-        => GeneratorSupport.IsEcsType(model.GetTypeInfo(expression).Type, "OrderedQuery")
-            || expression is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax member }
-                && member.Name.Identifier.ValueText == "OrderBy"
-                && GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "Query");
-
     internal static bool TryReadWhereSource(ExpressionSyntax expression, SemanticModel model, out PredicateModel? shape)
     {
         shape = null;
@@ -109,4 +103,10 @@ internal static class OrderedQueryInvocationGrammar
         registrationBinding = result.RegistrationBinding;
         return result.HasComponentIdSpan || result.ComponentIdCount is 0 || result.ComponentIdCount == componentArity;
     }
+
+    private static bool IsOrderedQueryExpression(ExpressionSyntax expression, SemanticModel model)
+        => GeneratorSupport.IsEcsType(model.GetTypeInfo(expression).Type, "OrderedQuery")
+            || expression is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax member }
+                && member.Name.Identifier.ValueText == "OrderBy"
+                && GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "Query");
 }

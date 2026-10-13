@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Generic;
+
 using Delta.ECS;
-using UnityEditor;
-using UnityEditor.SceneManagement;
+
 using Unity.Hierarchy;
 using Unity.Hierarchy.Editor;
+
+using UnityEditor;
+using UnityEditor.SceneManagement;
+
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
@@ -14,10 +18,11 @@ namespace Delta.ECS.Unity.Editor
     [InitializeOnLoad]
     internal sealed class HierarchyNodeHandler : HierarchyNodeTypeHandler
     {
-        private static readonly ComponentId[] NoRequiredComponents = Array.Empty<ComponentId>();
         private const double RuntimeHierarchyRefreshInterval = 0.5d;
+        private static readonly ComponentId[] NoRequiredComponents = Array.Empty<ComponentId>();
         private static double _nextRuntimeHierarchyRefresh;
         private static bool _wasPlaying;
+        private static readonly HashSet<HierarchyNodeHandler> Instances = new();
 
         private readonly Dictionary<EntityKey, EntityNode> _entityNodes = new();
         private readonly HashSet<EntityKey> _activeEntityKeys = new();
@@ -26,60 +31,12 @@ namespace Delta.ECS.Unity.Editor
         private readonly HashSet<HierarchyView> _boundViews = new();
         private readonly Dictionary<HierarchyView, BlockedDrag> _blockedDrags = new();
         private readonly Dictionary<SceneAuthoring, Action<SceneDataChange>> _sceneDataSubscriptions = new();
-        private static readonly HashSet<HierarchyNodeHandler> Instances = new();
 
         static HierarchyNodeHandler()
         {
             HierarchyWindow.BindView += BindHierarchyView;
             EditorApplication.delayCall += BindExistingHierarchyViews;
             EditorApplication.update += UpdateRuntimeHierarchy;
-        }
-
-        private static void UpdateRuntimeHierarchy()
-        {
-            if (EditorApplication.isPlaying)
-            {
-                _wasPlaying = true;
-                if (EditorApplication.timeSinceStartup < _nextRuntimeHierarchyRefresh)
-                {
-                    return;
-                }
-
-                _nextRuntimeHierarchyRefresh = EditorApplication.timeSinceStartup + RuntimeHierarchyRefreshInterval;
-                RefreshAll();
-                return;
-            }
-
-            if (_wasPlaying && !EditorApplication.isPlayingOrWillChangePlaymode)
-            {
-                _wasPlaying = false;
-                RefreshAll();
-            }
-        }
-
-        private static void BindHierarchyView(HierarchyWindow window, HierarchyView view)
-        {
-            if (view == null)
-            {
-                return;
-            }
-
-            var handler =
-                view.Source.GetOrCreateNodeTypeHandler<HierarchyNodeHandler>();
-            handler.BindToView(view);
-        }
-
-        private static void BindExistingHierarchyViews()
-        {
-            var windows = Resources.FindObjectsOfTypeAll<HierarchyWindow>();
-            for (var i = 0; i < windows.Length; i++)
-            {
-                var window = windows[i];
-                if (window != null)
-                {
-                    BindHierarchyView(window, window.View);
-                }
-            }
         }
 
         public override string GetNodeTypeName() => nameof(HierarchyNodeHandler);
@@ -178,6 +135,140 @@ namespace Delta.ECS.Unity.Editor
             item.Name.UnregisterValueChangedCallback(OnEntityNameChanged);
         }
 
+        protected override void OnUnbindView(HierarchyView view)
+        {
+            UnbindDragGuard(view);
+            view.FlagsChanged -= OnHierarchyFlagsChanged;
+            view.PopulateContextMenu -= PopulateContextMenu;
+            _boundViews.Remove(view);
+            HierarchySelection.Clear(view);
+        }
+
+        internal static void RefreshAll()
+        {
+            var changed = false;
+            foreach (var instance in Instances)
+            {
+                changed |= instance.Reconcile();
+            }
+
+            if (changed)
+            {
+                EditorApplication.RepaintHierarchyWindow();
+            }
+        }
+
+        internal static SceneAuthoring FindAuthoringForScene(Scene scene)
+            => SceneAuthoring.FindForScene(scene);
+
+        internal static void SelectEntity(HierarchyView view, SceneAuthoring authoring, string stableId)
+        {
+            var key = new EntityKey(authoring.GetEntityId(), stableId);
+            foreach (var instance in Instances)
+            {
+                if (instance._entityNodes.ContainsKey(key))
+                {
+                    if (view != null)
+                    {
+                        if (instance._boundViews.Contains(view))
+                        {
+                            TrySelectEntity(instance, view, key);
+                        }
+                    }
+                    else
+                    {
+                        foreach (var boundView in instance._boundViews)
+                        {
+                            if (TrySelectEntity(instance, boundView, key))
+                            {
+                                break;
+                            }
+                        }
+                    }
+
+                    return;
+                }
+            }
+        }
+
+        private static void UpdateRuntimeHierarchy()
+        {
+            if (EditorApplication.isPlaying)
+            {
+                _wasPlaying = true;
+                if (EditorApplication.timeSinceStartup < _nextRuntimeHierarchyRefresh)
+                {
+                    return;
+                }
+
+                _nextRuntimeHierarchyRefresh = EditorApplication.timeSinceStartup + RuntimeHierarchyRefreshInterval;
+                RefreshAll();
+                return;
+            }
+
+            if (_wasPlaying && !EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                _wasPlaying = false;
+                RefreshAll();
+            }
+        }
+
+        private static void BindHierarchyView(HierarchyWindow window, HierarchyView view)
+        {
+            if (view == null)
+            {
+                return;
+            }
+
+            var handler =
+                view.Source.GetOrCreateNodeTypeHandler<HierarchyNodeHandler>();
+            handler.BindToView(view);
+        }
+
+        private static void BindExistingHierarchyViews()
+        {
+            var windows = Resources.FindObjectsOfTypeAll<HierarchyWindow>();
+            for (var i = 0; i < windows.Length; i++)
+            {
+                var window = windows[i];
+                if (window != null)
+                {
+                    BindHierarchyView(window, window.View);
+                }
+            }
+        }
+
+        private static bool IsHierarchyScene(Scene scene) =>
+            scene.IsValid() && scene.isLoaded && !EditorSceneManager.IsPreviewScene(scene);
+
+        private static bool TrySelectEntity(
+            HierarchyNodeHandler handler,
+            HierarchyView view,
+            EntityKey key)
+        {
+            if (view == null || !handler._boundViews.Contains(view)
+                || !handler._entityNodes.TryGetValue(key, out var entityNode)
+                || !handler.Hierarchy.Exists(entityNode.Node))
+            {
+                return false;
+            }
+
+            if (view.UpdateNeeded)
+            {
+                view.Update();
+            }
+
+            var viewModel = view.ViewModel;
+            if (!viewModel.Contains(in entityNode.Node))
+            {
+                return false;
+            }
+
+            var node = entityNode.Node;
+            view.SetSelection(in node);
+            return true;
+        }
+
         private void BindToView(HierarchyView view) => OnBindView(view);
 
         private void OnEntityNameChanged(ChangeEvent<string> evt)
@@ -208,15 +299,6 @@ namespace Delta.ECS.Unity.Editor
             {
                 HierarchyMenu.MarkSceneDirty(reference.Authoring);
             }
-        }
-
-        protected override void OnUnbindView(HierarchyView view)
-        {
-            UnbindDragGuard(view);
-            view.FlagsChanged -= OnHierarchyFlagsChanged;
-            view.PopulateContextMenu -= PopulateContextMenu;
-            _boundViews.Remove(view);
-            HierarchySelection.Clear(view);
         }
 
         private void BindDragGuard(HierarchyView view)
@@ -321,40 +403,6 @@ namespace Delta.ECS.Unity.Editor
                 _blockedDrags.Remove(view);
             }
         }
-
-        private struct BlockedDrag
-        {
-            public readonly int PointerId;
-            public readonly Vector2 StartPosition;
-            public bool ThresholdReached;
-
-            public BlockedDrag(int pointerId, Vector2 startPosition)
-            {
-                PointerId = pointerId;
-                StartPosition = startPosition;
-                ThresholdReached = false;
-            }
-        }
-
-        internal static void RefreshAll()
-        {
-            var changed = false;
-            foreach (var instance in Instances)
-            {
-                changed |= instance.Reconcile();
-            }
-
-            if (changed)
-            {
-                EditorApplication.RepaintHierarchyWindow();
-            }
-        }
-
-        internal static SceneAuthoring FindAuthoringForScene(Scene scene)
-            => SceneAuthoring.FindForScene(scene);
-
-        private static bool IsHierarchyScene(Scene scene) =>
-            scene.IsValid() && scene.isLoaded && !EditorSceneManager.IsPreviewScene(scene);
 
         private bool Reconcile()
         {
@@ -715,64 +763,6 @@ namespace Delta.ECS.Unity.Editor
             return true;
         }
 
-        internal static void SelectEntity(HierarchyView view, SceneAuthoring authoring, string stableId)
-        {
-            var key = new EntityKey(authoring.GetEntityId(), stableId);
-            foreach (var instance in Instances)
-            {
-                if (instance._entityNodes.ContainsKey(key))
-                {
-                    if (view != null)
-                    {
-                        if (instance._boundViews.Contains(view))
-                        {
-                            TrySelectEntity(instance, view, key);
-                        }
-                    }
-                    else
-                    {
-                        foreach (var boundView in instance._boundViews)
-                        {
-                            if (TrySelectEntity(instance, boundView, key))
-                            {
-                                break;
-                            }
-                        }
-                    }
-
-                    return;
-                }
-            }
-        }
-
-        private static bool TrySelectEntity(
-            HierarchyNodeHandler handler,
-            HierarchyView view,
-            EntityKey key)
-        {
-            if (view == null || !handler._boundViews.Contains(view)
-                || !handler._entityNodes.TryGetValue(key, out var entityNode)
-                || !handler.Hierarchy.Exists(entityNode.Node))
-            {
-                return false;
-            }
-
-            if (view.UpdateNeeded)
-            {
-                view.Update();
-            }
-
-            var viewModel = view.ViewModel;
-            if (!viewModel.Contains(in entityNode.Node))
-            {
-                return false;
-            }
-
-            var node = entityNode.Node;
-            view.SetSelection(in node);
-            return true;
-        }
-
         private void PopulateContextMenu(HierarchyView view, HierarchyViewItem item, DropdownMenu menu)
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode)
@@ -861,6 +851,20 @@ namespace Delta.ECS.Unity.Editor
             else
             {
                 HierarchySelection.DeferClear(view);
+            }
+        }
+
+        private struct BlockedDrag
+        {
+            public readonly int PointerId;
+            public readonly Vector2 StartPosition;
+            public bool ThresholdReached;
+
+            public BlockedDrag(int pointerId, Vector2 startPosition)
+            {
+                PointerId = pointerId;
+                StartPosition = startPosition;
+                ThresholdReached = false;
             }
         }
 

@@ -1,10 +1,20 @@
 using System;
+
 using Leopotam.Ecs;
 
 namespace Ecs.CSharp.Benchmark.Contexts
 {
     internal class LeopotamEcsBaseContext : IDisposable
     {
+
+        public EcsWorld World { get; }
+
+        public LeopotamEcsBaseContext()
+        {
+            World = new EcsWorld();
+        }
+
+        public virtual void Dispose() => World.Destroy();
         public struct Component1
         {
             public int Value;
@@ -19,14 +29,5 @@ namespace Ecs.CSharp.Benchmark.Contexts
         {
             public int Value;
         }
-
-        public EcsWorld World { get; }
-
-        public LeopotamEcsBaseContext()
-        {
-            World = new EcsWorld();
-        }
-
-        public virtual void Dispose() => World.Destroy();
     }
 }

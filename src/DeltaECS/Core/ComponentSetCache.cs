@@ -4,85 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 
-internal sealed class RuntimeTypeHandleComparer : IEqualityComparer<RuntimeTypeHandle>
-{
-    internal static readonly RuntimeTypeHandleComparer Instance = new();
-
-    bool IEqualityComparer<RuntimeTypeHandle>.Equals(RuntimeTypeHandle x, RuntimeTypeHandle y)
-        => x.Value == y.Value;
-
-    int IEqualityComparer<RuntimeTypeHandle>.GetHashCode(RuntimeTypeHandle obj)
-        => obj.Value.GetHashCode();
-}
-
-internal readonly struct ComponentSetId : IEquatable<ComponentSetId>
-{
-    internal ComponentSetId(int value)
-    {
-        Value = value;
-    }
-
-    internal int Value { get; }
-
-    internal bool IsValid => Value > 0;
-
-    public bool Equals(ComponentSetId other) => Value == other.Value;
-
-    public override bool Equals(object? obj) => obj is ComponentSetId other && Equals(other);
-
-    public override int GetHashCode() => Value;
-
-    public static bool operator ==(ComponentSetId left, ComponentSetId right) => left.Equals(right);
-
-    public static bool operator !=(ComponentSetId left, ComponentSetId right) => !left.Equals(right);
-}
-
-/// <summary>Immutable component registrations and their matching mask.</summary>
-internal sealed class ComponentSet
-{
-    private const uint FnvOffsetBasis = 2_166_136_261u;
-    private const uint FnvPrime = 16_777_619u;
-
-    internal static readonly ComponentSet Empty =
-        new(Array.Empty<ComponentId>(), default, Array.Empty<int>());
-
-    internal ComponentSet(ComponentId[] componentIds, ComponentMask mask, int[] tagIndices)
-    {
-        ComponentIdArray = componentIds;
-        Mask = mask;
-        TagIndices = tagIndices;
-        Hash = ComputeHash(componentIds);
-    }
-
-    internal ReadOnlySpan<ComponentId> ComponentIds => ComponentIdArray;
-
-    internal ComponentId[] ComponentIdArray { get; }
-
-    internal ComponentMask Mask { get; }
-
-    internal int[] TagIndices { get; }
-
-    internal int Hash { get; }
-
-    internal ComponentSetId Id { get; private set; }
-
-    internal bool Matches(ReadOnlySpan<ComponentId> componentIds) => ComponentIdArray.AsSpan().SequenceEqual(componentIds);
-
-    internal void AssignId(ComponentSetId id) => Id = id;
-
-    internal static int ComputeHash(ReadOnlySpan<ComponentId> componentIds)
-    {
-        uint hash = FnvOffsetBasis;
-        hash = (hash ^ (uint)componentIds.Length) * FnvPrime;
-        for (int index = 0; index < componentIds.Length; index++)
-        {
-            hash = (hash ^ (uint)componentIds[index].Value) * FnvPrime;
-        }
-
-        return (int)hash;
-    }
-}
-
 /// <summary>World-owned cache for immutable component sets.</summary>
 internal sealed class ComponentSetCache
 {
@@ -179,4 +100,83 @@ internal sealed class ComponentSetCache
         _idsByMask.Add(set.Mask, id);
         _setsById[value] = set;
     }
+}
+
+internal sealed class RuntimeTypeHandleComparer : IEqualityComparer<RuntimeTypeHandle>
+{
+    internal static readonly RuntimeTypeHandleComparer Instance = new();
+
+    bool IEqualityComparer<RuntimeTypeHandle>.Equals(RuntimeTypeHandle x, RuntimeTypeHandle y)
+        => x.Value == y.Value;
+
+    int IEqualityComparer<RuntimeTypeHandle>.GetHashCode(RuntimeTypeHandle obj)
+        => obj.Value.GetHashCode();
+}
+
+internal readonly struct ComponentSetId : IEquatable<ComponentSetId>
+{
+
+    internal int Value { get; }
+
+    internal bool IsValid => Value > 0;
+    internal ComponentSetId(int value)
+    {
+        Value = value;
+    }
+
+    public static bool operator ==(ComponentSetId left, ComponentSetId right) => left.Equals(right);
+
+    public static bool operator !=(ComponentSetId left, ComponentSetId right) => !left.Equals(right);
+
+    public bool Equals(ComponentSetId other) => Value == other.Value;
+
+    public override bool Equals(object? obj) => obj is ComponentSetId other && Equals(other);
+
+    public override int GetHashCode() => Value;
+}
+
+/// <summary>Immutable component registrations and their matching mask.</summary>
+internal sealed class ComponentSet
+{
+    private const uint FnvOffsetBasis = 2_166_136_261u;
+    private const uint FnvPrime = 16_777_619u;
+
+    internal static readonly ComponentSet Empty =
+        new(Array.Empty<ComponentId>(), default, Array.Empty<int>());
+
+    internal ReadOnlySpan<ComponentId> ComponentIds => ComponentIdArray;
+
+    internal ComponentId[] ComponentIdArray { get; }
+
+    internal ComponentMask Mask { get; }
+
+    internal int[] TagIndices { get; }
+
+    internal int Hash { get; }
+
+    internal ComponentSetId Id { get; private set; }
+
+    internal ComponentSet(ComponentId[] componentIds, ComponentMask mask, int[] tagIndices)
+    {
+        ComponentIdArray = componentIds;
+        Mask = mask;
+        TagIndices = tagIndices;
+        Hash = ComputeHash(componentIds);
+    }
+
+    internal static int ComputeHash(ReadOnlySpan<ComponentId> componentIds)
+    {
+        uint hash = FnvOffsetBasis;
+        hash = (hash ^ (uint)componentIds.Length) * FnvPrime;
+        for (int index = 0; index < componentIds.Length; index++)
+        {
+            hash = (hash ^ (uint)componentIds[index].Value) * FnvPrime;
+        }
+
+        return (int)hash;
+    }
+
+    internal bool Matches(ReadOnlySpan<ComponentId> componentIds) => ComponentIdArray.AsSpan().SequenceEqual(componentIds);
+
+    internal void AssignId(ComponentSetId id) => Id = id;
 }

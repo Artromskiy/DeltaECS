@@ -2,7 +2,9 @@
 
 using System;
 using System.Diagnostics.CodeAnalysis;
+
 using Delta.ECS;
+
 using UnityEngine;
 
 namespace Delta.ECS.Unity

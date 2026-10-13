@@ -9,6 +9,20 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
     private readonly ComponentMask _anyMask;
     private readonly ComponentMask _noneMask;
 
+    /// <summary>Gets an empty query specification that can be extended with generated filters.</summary>
+    public static QuerySpec Empty => new(
+        default(ComponentMask),
+        default(ComponentMask),
+        default(ComponentMask));
+
+    internal ComponentMask AllMask => _allMask;
+
+    internal ComponentMask AnyMask => _anyMask;
+
+    internal ComponentMask NoneMask => _noneMask;
+
+    internal int Hash { get; }
+
     internal QuerySpec(
         ReadOnlySpan<ComponentId> allComponents,
         ReadOnlySpan<ComponentId> anyComponents,
@@ -20,37 +34,6 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
         Hash = ComputeHash();
     }
 
-    internal ComponentMask AllMask => _allMask;
-
-    internal ComponentMask AnyMask => _anyMask;
-
-    internal ComponentMask NoneMask => _noneMask;
-
-    internal int Hash { get; }
-
-    private int ComputeHash()
-    {
-        var hash = new HashCode();
-        hash.Add(AllMask);
-        hash.Add(AnyMask);
-        hash.Add(NoneMask);
-        return hash.ToHashCode();
-    }
-
-    private static ComponentMask BuildMask(ReadOnlySpan<ComponentId> ids) => ComponentMask.From(ids);
-
-    /// <summary>Determines whether this filter has the same requirements as another filter.</summary>
-    public bool Equals(QuerySpec other) => Hash == other.Hash
-        && _allMask == other._allMask
-        && _anyMask == other._anyMask
-        && _noneMask == other._noneMask;
-
-    /// <summary>Determines whether this filter equals the specified object.</summary>
-    public override bool Equals(object? obj) => obj is QuerySpec other && Equals(other);
-
-    /// <summary>Returns a hash code for this filter.</summary>
-    public override int GetHashCode() => Hash;
-
     private QuerySpec(ComponentMask allMask, ComponentMask anyMask, ComponentMask noneMask)
     {
         _allMask = allMask;
@@ -58,12 +41,6 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
         _noneMask = noneMask;
         Hash = ComputeHash();
     }
-
-    internal QuerySpec Compose(in QuerySpec additions)
-        => new(
-            _allMask.Or(additions._allMask),
-            _anyMask.Or(additions._anyMask),
-            _noneMask.Or(additions._noneMask));
 
     /// <summary>Creates a filter requiring every listed component registration.</summary>
     public static QuerySpec WhereAll(ReadOnlySpan<ComponentId> components)
@@ -86,11 +63,17 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
     /// <summary>Creates a filter excluding entities with the specified component registration.</summary>
     public static QuerySpec WhereNone(ComponentId component0) => WhereNone(stackalloc ComponentId[1] { component0 });
 
-    /// <summary>Gets an empty query specification that can be extended with generated filters.</summary>
-    public static QuerySpec Empty => new(
-        default(ComponentMask),
-        default(ComponentMask),
-        default(ComponentMask));
+    /// <summary>Determines whether this filter has the same requirements as another filter.</summary>
+    public bool Equals(QuerySpec other) => Hash == other.Hash
+        && _allMask == other._allMask
+        && _anyMask == other._anyMask
+        && _noneMask == other._noneMask;
+
+    /// <summary>Determines whether this filter equals the specified object.</summary>
+    public override bool Equals(object? obj) => obj is QuerySpec other && Equals(other);
+
+    /// <summary>Returns a hash code for this filter.</summary>
+    public override int GetHashCode() => Hash;
 
     /// <summary>Adds an all-components filter to this specification.</summary>
     public QuerySpec WithAll(ReadOnlySpan<ComponentId> components) => Compose(WhereAll(components));
@@ -100,5 +83,22 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
 
     /// <summary>Adds a none-components filter to this specification.</summary>
     public QuerySpec WithNone(ReadOnlySpan<ComponentId> components) => Compose(WhereNone(components));
+
+    internal QuerySpec Compose(in QuerySpec additions)
+        => new(
+            _allMask.Or(additions._allMask),
+            _anyMask.Or(additions._anyMask),
+            _noneMask.Or(additions._noneMask));
+
+    private static ComponentMask BuildMask(ReadOnlySpan<ComponentId> ids) => ComponentMask.From(ids);
+
+    private int ComputeHash()
+    {
+        var hash = new HashCode();
+        hash.Add(AllMask);
+        hash.Add(AnyMask);
+        hash.Add(NoneMask);
+        return hash.ToHashCode();
+    }
 
 }

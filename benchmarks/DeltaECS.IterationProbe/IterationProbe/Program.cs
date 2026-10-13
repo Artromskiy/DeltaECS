@@ -1,6 +1,8 @@
 using System.Runtime.CompilerServices;
+
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
+
 using Delta.ECS;
 
 namespace Delta.ECS.IterationProbe;

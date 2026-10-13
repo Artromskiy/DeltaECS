@@ -8,9 +8,34 @@ public readonly struct OrderedQuery
 {
     private readonly OrderedQueryState? _state;
 
+    /// <summary>Gets the source query used to create this ordered view.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public Query SourceQuery => GetState().Query;
+
+    /// <summary>Gets the owning world for generated ordered iteration extensions.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public World World => GetState().World;
+
     internal OrderedQuery(OrderedQueryState state)
     {
         _state = state;
+    }
+
+    /// <summary>Creates an ordered view using a generated component comparer.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static OrderedQuery CreateGenerated(Query query, IGeneratedComponentComparer comparer)
+    {
+        ThrowHelper.ThrowIfNull(comparer, nameof(comparer));
+        if (!query.IsValid)
+        {
+            ThrowHelper.ThrowInvalidEntityQueryHandle();
+        }
+
+        World world = query.Owner;
+        comparer.Validate(world, in query);
+        return new OrderedQuery(new OrderedQueryState(
+            query,
+            new[] { comparer }));
     }
 
     /// <summary>Returns the first entity in ordering order, or <see langword="default"/> if the query has no result.</summary>
@@ -37,14 +62,6 @@ public readonly struct OrderedQuery
     /// <summary>Returns the first entity accepted by <paramref name="predicate"/> in ordering order, or <see langword="default"/>.</summary>
     public EcsResultOperation<Entity> FirstEntity(Func<Entity, bool> predicate) => First(predicate);
 
-    /// <summary>Gets the source query used to create this ordered view.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public Query SourceQuery => GetState().Query;
-
-    /// <summary>Gets the owning world for generated ordered iteration extensions.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public World World => GetState().World;
-
     /// <summary>Collects and sorts the source query into reusable world-owned storage for generated iteration.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public ReadOnlySpan<Entity> BeginForEach() => GetState().BeginForEach();
@@ -52,23 +69,6 @@ public readonly struct OrderedQuery
     /// <summary>Releases the ordered-query execution guard after generated iteration.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public void EndForEach() => GetState().World.EndOrderedQueryOperation();
-
-    /// <summary>Creates an ordered view using a generated component comparer.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public static OrderedQuery CreateGenerated(Query query, IGeneratedComponentComparer comparer)
-    {
-        ThrowHelper.ThrowIfNull(comparer, nameof(comparer));
-        if (!query.IsValid)
-        {
-            ThrowHelper.ThrowInvalidEntityQueryHandle();
-        }
-
-        World world = query.Owner;
-        comparer.Validate(world, in query);
-        return new OrderedQuery(new OrderedQueryState(
-            query,
-            new[] { comparer }));
-    }
 
     /// <summary>Adds a generated component comparer as a lexicographic key.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -106,15 +106,15 @@ internal sealed class OrderedQueryState
 {
     private readonly IGeneratedComponentComparer[] _keys;
 
+    internal Query Query { get; }
+
+    internal World World => Query.Owner;
+
     internal OrderedQueryState(Query query, IGeneratedComponentComparer[] keys)
     {
         Query = query;
         _keys = keys;
     }
-
-    internal Query Query { get; }
-
-    internal World World => Query.Owner;
 
     internal OrderedQueryState Append(IGeneratedComponentComparer comparer)
     {

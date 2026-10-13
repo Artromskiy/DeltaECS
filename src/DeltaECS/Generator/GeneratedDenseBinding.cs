@@ -4,61 +4,6 @@ using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-internal interface IGeneratedDenseBinding
-{
-    void Clear();
-}
-
-internal static class GeneratedTagRows
-{
-    // Registered tag structs have no instance fields and at most a one-byte layout.
-    private static readonly byte[] Row = new byte[Chunk.Capacity];
-
-    internal static T[] GetRows<T>()
-    {
-        byte[] row = Row;
-        return Unsafe.As<byte[], T[]>(ref row);
-    }
-
-    internal static ref T GetReference<T>(int index) => ref Unsafe.As<byte, T>(ref Row[index]);
-}
-
-/// <summary>Compiler-support reference to a bound chunk with a live entity count.</summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
-public readonly struct GeneratedBoundChunk
-{
-    private readonly Chunk _chunk;
-    private readonly QueryPlan _query;
-
-    internal GeneratedBoundChunk(Chunk chunk, QueryPlan query)
-    {
-        _chunk = chunk;
-        _query = query;
-    }
-
-    /// <summary>Reads the current population, including changes that do not alter chunk topology.</summary>
-    public int Count
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _chunk.Count;
-    }
-
-    /// <summary>Returns the live entity row inside a validated execution lease.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref Entity GetEntityReference() => ref _chunk.RawEntities.GetRefAtZero();
-
-    /// <summary>Reports whether the owning query contains tag filters.</summary>
-    public bool HasTagFilters
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _query.HasTagFilters;
-    }
-
-    /// <summary>Returns selected physical slots when this chunk is sparse for the query's tag filters.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetTagSlots(out ReadOnlySpan<int> slots) => _query.TryGetTagSlots(_chunk, out slots);
-}
-
 /// <summary>Query-owned compiler-support cache for a generated, typed row signature.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
@@ -113,6 +58,15 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
         return _rows.AsSpan(0, _count);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void RecordWrites()
+    {
+        if (_writes.Length != 0 && _queryPlan is not null)
+        {
+            GeneratedForEachRuntime.RecordComponentWrites(_queryPlan, _writes);
+        }
+    }
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private void Refresh(QueryPlan plan)
     {
@@ -134,15 +88,6 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
         _version = plan.MatchingVersion;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void RecordWrites()
-    {
-        if (_writes.Length != 0 && _queryPlan is not null)
-        {
-            GeneratedForEachRuntime.RecordComponentWrites(_queryPlan, _writes);
-        }
-    }
-
     void IGeneratedDenseBinding.Clear()
     {
         // Clear the existing arrays as well: an escaped compiler-support binding must not retain rows.
@@ -152,6 +97,42 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
         _version = -1;
         _queryPlan = null;
     }
+}
+
+/// <summary>Compiler-support reference to a bound chunk with a live entity count.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public readonly struct GeneratedBoundChunk
+{
+    private readonly Chunk _chunk;
+    private readonly QueryPlan _query;
+
+    /// <summary>Reads the current population, including changes that do not alter chunk topology.</summary>
+    public int Count
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _chunk.Count;
+    }
+
+    /// <summary>Reports whether the owning query contains tag filters.</summary>
+    public bool HasTagFilters
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _query.HasTagFilters;
+    }
+
+    internal GeneratedBoundChunk(Chunk chunk, QueryPlan query)
+    {
+        _chunk = chunk;
+        _query = query;
+    }
+
+    /// <summary>Returns the live entity row inside a validated execution lease.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref Entity GetEntityReference() => ref _chunk.RawEntities.GetRefAtZero();
+
+    /// <summary>Returns selected physical slots when this chunk is sparse for the query's tag filters.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetTagSlots(out ReadOnlySpan<int> slots) => _query.TryGetTagSlots(_chunk, out slots);
 }
 
 /// <summary>Borrowed typed rows, valid only while this compiler-support execution is alive.</summary>
@@ -229,4 +210,23 @@ public static partial class GeneratedForEachRuntime
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ref T GetGeneratedArrayReference<T>(T[] row) => ref row.GetRefAtZero();
+}
+
+internal interface IGeneratedDenseBinding
+{
+    void Clear();
+}
+
+internal static class GeneratedTagRows
+{
+    // Registered tag structs have no instance fields and at most a one-byte layout.
+    private static readonly byte[] Row = new byte[Chunk.Capacity];
+
+    internal static T[] GetRows<T>()
+    {
+        byte[] row = Row;
+        return Unsafe.As<byte[], T[]>(ref row);
+    }
+
+    internal static ref T GetReference<T>(int index) => ref Unsafe.As<byte, T>(ref Row[index]);
 }

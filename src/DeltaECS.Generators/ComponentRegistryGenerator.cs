@@ -1,6 +1,7 @@
 namespace Delta.ECS.Generators;
 
 using System.Collections.Immutable;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 

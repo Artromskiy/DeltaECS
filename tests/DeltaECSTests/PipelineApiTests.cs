@@ -1,4 +1,5 @@
 using Delta.ECS;
+
 using NUnit.Framework;
 
 namespace Delta.ECS.Tests;
@@ -6,6 +7,8 @@ namespace Delta.ECS.Tests;
 [TestFixture]
 internal sealed class PipelineApiTests
 {
+
+    private static int s_methodGroupCalls;
     [Test]
     public void ZeroArityEntityCallbacksIterateWithoutComponentRows()
     {
@@ -283,6 +286,12 @@ internal sealed class PipelineApiTests
         Assert.That(world.Get<PipelinePosition>(entity, positionId).Value, Is.EqualTo(4));
     }
 
+    private static void ApplyMethodGroup(ref PipelinePosition position)
+    {
+        s_methodGroupCalls++;
+        position.Value++;
+    }
+
     internal struct PipelinePosition
     {
         public int Value;
@@ -300,13 +309,5 @@ internal sealed class PipelineApiTests
     internal struct WhereContext
     {
         public int Minimum;
-    }
-
-    private static int s_methodGroupCalls;
-
-    private static void ApplyMethodGroup(ref PipelinePosition position)
-    {
-        s_methodGroupCalls++;
-        position.Value++;
     }
 }

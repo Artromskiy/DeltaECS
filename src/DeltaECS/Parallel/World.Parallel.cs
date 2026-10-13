@@ -4,175 +4,14 @@ using System.Threading;
 
 public sealed partial class World
 {
+
+    [ThreadStatic]
+    internal static int ChangeTrackingWorkerIndex;
     // Access is exclusive while _parallelExecutionActive is held by the caller.
     private Dictionary<Type, IDisposable>? _generatedParallelExecutors;
     private int _parallelExecutionActive;
 
-    [ThreadStatic]
-    internal static int ChangeTrackingWorkerIndex;
-
     internal bool IsParallelExecutionActive => _parallelExecutionActive != 0;
-
-    private readonly struct EntityParallelInvoker : IGeneratedParallelInvoker
-    {
-        private readonly ForEachEntityAction _action;
-
-        internal EntityParallelInvoker(ForEachEntityAction action)
-        {
-            _action = action;
-        }
-
-        public bool RequiresSingleThread => false;
-
-        public void Invoke(ref GeneratedQuerySlots slots)
-        {
-            int count = slots.Count;
-            GeneratedEntityRefView view = default;
-            EntityRef entityRef = slots.CreateEntityRef(ref view);
-            slots.BindEntityRef(ref view);
-            for (int index = 0; index < count; index++)
-            {
-                slots.SetEntityRefSlot(ref view, slots.GetGeneratedSlotIndex(index));
-                _action(entityRef);
-            }
-        }
-    }
-
-    private readonly struct EntityParallelContextInvoker<TContext> : IGeneratedParallelInvoker
-    {
-        private readonly TContext _context;
-        private readonly ForEachContextEntityActionIn<TContext> _action;
-
-        internal EntityParallelContextInvoker(in TContext context, ForEachContextEntityActionIn<TContext> action)
-        {
-            _context = context;
-            _action = action;
-        }
-
-        public bool RequiresSingleThread => false;
-
-        public void Invoke(ref GeneratedQuerySlots slots)
-        {
-            int count = slots.Count;
-            GeneratedEntityRefView view = default;
-            EntityRef entityRef = slots.CreateEntityRef(ref view);
-            slots.BindEntityRef(ref view);
-            for (int index = 0; index < count; index++)
-            {
-                slots.SetEntityRefSlot(ref view, slots.GetGeneratedSlotIndex(index));
-                _action(in _context, entityRef);
-            }
-        }
-    }
-
-    private readonly struct EntityParallelValueContextInvoker<TContext> : IGeneratedParallelInvoker
-    {
-        private readonly TContext _context;
-        private readonly ForEachContextEntityActionValue<TContext> _action;
-
-        internal EntityParallelValueContextInvoker(TContext context, ForEachContextEntityActionValue<TContext> action)
-        {
-            _context = context;
-            _action = action;
-        }
-
-        public bool RequiresSingleThread => false;
-
-        public void Invoke(ref GeneratedQuerySlots slots)
-        {
-            int count = slots.Count;
-            GeneratedEntityRefView view = default;
-            EntityRef entityRef = slots.CreateEntityRef(ref view);
-            slots.BindEntityRef(ref view);
-            for (int index = 0; index < count; index++)
-            {
-                slots.SetEntityRefSlot(ref view, slots.GetGeneratedSlotIndex(index));
-                _action(_context, entityRef);
-            }
-        }
-    }
-
-    /// <summary>Direct executor for a zero-component entity parallel operation.</summary>
-    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-    public readonly struct EntityParallelOperation : IEcsOperationInvoker
-    {
-        private readonly World _world;
-        private readonly Query _query;
-        private readonly ForEachEntityAction _action;
-        private readonly int _workerCount;
-
-        internal EntityParallelOperation(World world, in Query query, ForEachEntityAction action, int workerCount)
-        {
-            _world = world;
-            _query = query;
-            _action = action;
-            _workerCount = workerCount;
-        }
-
-        /// <summary>Executes the stored entity callback in parallel.</summary>
-        public void Invoke()
-        {
-            ThrowHelper.ThrowIfNull(_action, nameof(_action));
-            var invoker = new EntityParallelInvoker(_action);
-            GeneratedForEachRuntime.ExecuteParallelDense(_world, in _query, ref invoker, ReadOnlySpan<int>.Empty, _workerCount);
-        }
-    }
-
-    /// <summary>Direct executor for a zero-component entity parallel operation with read-only context.</summary>
-    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-    public readonly struct EntityParallelInContextOperation<TContext> : IEcsOperationInvoker
-    {
-        private readonly World _world;
-        private readonly Query _query;
-        private readonly TContext _context;
-        private readonly ForEachContextEntityActionIn<TContext> _action;
-        private readonly int _workerCount;
-
-        internal EntityParallelInContextOperation(World world, in Query query, in TContext context, ForEachContextEntityActionIn<TContext> action, int workerCount)
-        {
-            _world = world;
-            _query = query;
-            _context = context;
-            _action = action;
-            _workerCount = workerCount;
-        }
-
-        /// <summary>Executes the stored entity callback in parallel.</summary>
-        public void Invoke()
-        {
-            ThrowHelper.ThrowIfNull(_action, nameof(_action));
-            var invoker = new EntityParallelContextInvoker<TContext>(in _context, _action);
-            GeneratedForEachRuntime.ExecuteParallelDense(_world, in _query, ref invoker, ReadOnlySpan<int>.Empty, _workerCount);
-        }
-    }
-
-    /// <summary>Direct executor for a zero-component entity parallel operation with value context.</summary>
-    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-    public readonly struct EntityParallelValueContextOperation<TContext> : IEcsOperationInvoker
-    {
-        private readonly World _world;
-        private readonly Query _query;
-        private readonly TContext _context;
-        private readonly ForEachContextEntityActionValue<TContext> _action;
-        private readonly int _workerCount;
-
-        internal EntityParallelValueContextOperation(World world, in Query query, TContext context, ForEachContextEntityActionValue<TContext> action, int workerCount)
-        {
-            _world = world;
-            _query = query;
-            _context = context;
-            _action = action;
-            _workerCount = workerCount;
-        }
-
-        /// <summary>Executes the stored entity callback in parallel.</summary>
-        public void Invoke()
-        {
-            ThrowHelper.ThrowIfNull(_action, nameof(_action));
-            var invoker = new EntityParallelValueContextInvoker<TContext>(_context, _action);
-            GeneratedForEachRuntime.ExecuteParallelDense(_world, in _query, ref invoker, ReadOnlySpan<int>.Empty, _workerCount);
-        }
-    }
 
     /// <summary>
     /// Zero-component parallel callback overload.
@@ -304,6 +143,167 @@ public sealed partial class World
         }
 
         executors.Clear();
+    }
+
+    /// <summary>Direct executor for a zero-component entity parallel operation.</summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public readonly struct EntityParallelOperation : IEcsOperationInvoker
+    {
+        private readonly World _world;
+        private readonly Query _query;
+        private readonly ForEachEntityAction _action;
+        private readonly int _workerCount;
+
+        internal EntityParallelOperation(World world, in Query query, ForEachEntityAction action, int workerCount)
+        {
+            _world = world;
+            _query = query;
+            _action = action;
+            _workerCount = workerCount;
+        }
+
+        /// <summary>Executes the stored entity callback in parallel.</summary>
+        public void Invoke()
+        {
+            ThrowHelper.ThrowIfNull(_action, nameof(_action));
+            var invoker = new EntityParallelInvoker(_action);
+            GeneratedForEachRuntime.ExecuteParallelDense(_world, in _query, ref invoker, ReadOnlySpan<int>.Empty, _workerCount);
+        }
+    }
+
+    /// <summary>Direct executor for a zero-component entity parallel operation with read-only context.</summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public readonly struct EntityParallelInContextOperation<TContext> : IEcsOperationInvoker
+    {
+        private readonly World _world;
+        private readonly Query _query;
+        private readonly TContext _context;
+        private readonly ForEachContextEntityActionIn<TContext> _action;
+        private readonly int _workerCount;
+
+        internal EntityParallelInContextOperation(World world, in Query query, in TContext context, ForEachContextEntityActionIn<TContext> action, int workerCount)
+        {
+            _world = world;
+            _query = query;
+            _context = context;
+            _action = action;
+            _workerCount = workerCount;
+        }
+
+        /// <summary>Executes the stored entity callback in parallel.</summary>
+        public void Invoke()
+        {
+            ThrowHelper.ThrowIfNull(_action, nameof(_action));
+            var invoker = new EntityParallelContextInvoker<TContext>(in _context, _action);
+            GeneratedForEachRuntime.ExecuteParallelDense(_world, in _query, ref invoker, ReadOnlySpan<int>.Empty, _workerCount);
+        }
+    }
+
+    /// <summary>Direct executor for a zero-component entity parallel operation with value context.</summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public readonly struct EntityParallelValueContextOperation<TContext> : IEcsOperationInvoker
+    {
+        private readonly World _world;
+        private readonly Query _query;
+        private readonly TContext _context;
+        private readonly ForEachContextEntityActionValue<TContext> _action;
+        private readonly int _workerCount;
+
+        internal EntityParallelValueContextOperation(World world, in Query query, TContext context, ForEachContextEntityActionValue<TContext> action, int workerCount)
+        {
+            _world = world;
+            _query = query;
+            _context = context;
+            _action = action;
+            _workerCount = workerCount;
+        }
+
+        /// <summary>Executes the stored entity callback in parallel.</summary>
+        public void Invoke()
+        {
+            ThrowHelper.ThrowIfNull(_action, nameof(_action));
+            var invoker = new EntityParallelValueContextInvoker<TContext>(_context, _action);
+            GeneratedForEachRuntime.ExecuteParallelDense(_world, in _query, ref invoker, ReadOnlySpan<int>.Empty, _workerCount);
+        }
+    }
+
+    private readonly struct EntityParallelInvoker : IGeneratedParallelInvoker
+    {
+        private readonly ForEachEntityAction _action;
+
+        public bool RequiresSingleThread => false;
+
+        internal EntityParallelInvoker(ForEachEntityAction action)
+        {
+            _action = action;
+        }
+
+        public void Invoke(ref GeneratedQuerySlots slots)
+        {
+            int count = slots.Count;
+            GeneratedEntityRefView view = default;
+            EntityRef entityRef = slots.CreateEntityRef(ref view);
+            slots.BindEntityRef(ref view);
+            for (int index = 0; index < count; index++)
+            {
+                slots.SetEntityRefSlot(ref view, slots.GetGeneratedSlotIndex(index));
+                _action(entityRef);
+            }
+        }
+    }
+
+    private readonly struct EntityParallelContextInvoker<TContext> : IGeneratedParallelInvoker
+    {
+        private readonly TContext _context;
+        private readonly ForEachContextEntityActionIn<TContext> _action;
+
+        public bool RequiresSingleThread => false;
+
+        internal EntityParallelContextInvoker(in TContext context, ForEachContextEntityActionIn<TContext> action)
+        {
+            _context = context;
+            _action = action;
+        }
+
+        public void Invoke(ref GeneratedQuerySlots slots)
+        {
+            int count = slots.Count;
+            GeneratedEntityRefView view = default;
+            EntityRef entityRef = slots.CreateEntityRef(ref view);
+            slots.BindEntityRef(ref view);
+            for (int index = 0; index < count; index++)
+            {
+                slots.SetEntityRefSlot(ref view, slots.GetGeneratedSlotIndex(index));
+                _action(in _context, entityRef);
+            }
+        }
+    }
+
+    private readonly struct EntityParallelValueContextInvoker<TContext> : IGeneratedParallelInvoker
+    {
+        private readonly TContext _context;
+        private readonly ForEachContextEntityActionValue<TContext> _action;
+
+        public bool RequiresSingleThread => false;
+
+        internal EntityParallelValueContextInvoker(TContext context, ForEachContextEntityActionValue<TContext> action)
+        {
+            _context = context;
+            _action = action;
+        }
+
+        public void Invoke(ref GeneratedQuerySlots slots)
+        {
+            int count = slots.Count;
+            GeneratedEntityRefView view = default;
+            EntityRef entityRef = slots.CreateEntityRef(ref view);
+            slots.BindEntityRef(ref view);
+            for (int index = 0; index < count; index++)
+            {
+                slots.SetEntityRefSlot(ref view, slots.GetGeneratedSlotIndex(index));
+                _action(_context, entityRef);
+            }
+        }
     }
 
 }

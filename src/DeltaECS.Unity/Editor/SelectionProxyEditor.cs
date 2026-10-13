@@ -1,4 +1,5 @@
 using UnityEditor;
+
 using UnityEngine.UIElements;
 
 namespace Delta.ECS.Unity.Editor
@@ -11,6 +12,8 @@ namespace Delta.ECS.Unity.Editor
         public override bool UseDefaultMargins() => false;
 
         public override bool RequiresConstantRepaint() => EditorApplication.isPlaying;
+
+        public override VisualElement CreateInspectorGUI() => _view.CreateGUI();
 
         private void OnEnable()
         {
@@ -27,7 +30,5 @@ namespace Delta.ECS.Unity.Editor
             _view?.Dispose();
             _view = null;
         }
-
-        public override VisualElement CreateInspectorGUI() => _view.CreateGUI();
     }
 }

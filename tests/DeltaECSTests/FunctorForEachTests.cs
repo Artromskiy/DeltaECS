@@ -1,6 +1,7 @@
 namespace Delta.ECS.Tests;
 
 using Delta.ECS;
+
 using NUnit.Framework;
 
 [TestFixture]
@@ -303,6 +304,12 @@ internal sealed class FunctorForEachTests
         Assert.That(world.GetRef<Health>(entity, healthId).Value, Is.EqualTo(2));
     }
 
+    private static void CountZeroArityWhereEntity(EntityRef entity)
+    {
+        Assert.That(entity.Get<Health>().Value, Is.EqualTo(-1));
+        s_zeroArityWhereVisits++;
+    }
+
     internal struct ZeroArityFunctor : IForEach
     {
         public int Count;
@@ -364,12 +371,6 @@ internal sealed class FunctorForEachTests
             Assert.That(entity.Get<Health>().Value, Is.EqualTo(-1));
             Count++;
         }
-    }
-
-    private static void CountZeroArityWhereEntity(EntityRef entity)
-    {
-        Assert.That(entity.Get<Health>().Value, Is.EqualTo(-1));
-        s_zeroArityWhereVisits++;
     }
 
     internal struct WherePredicateState

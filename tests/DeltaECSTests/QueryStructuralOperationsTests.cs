@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+
 using Delta.ECS;
+
 using NUnit.Framework;
 
 namespace Delta.ECS.Tests;

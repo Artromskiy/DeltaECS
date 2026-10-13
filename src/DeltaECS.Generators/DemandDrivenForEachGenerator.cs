@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -47,6 +48,22 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         "ForEach");
 
     public void Initialize(IncrementalGeneratorInitializationContext context) => GeneratorPipeline.RegisterInterceptorInput(context, Execute);
+
+    internal static bool TryReadPrefix(
+        SemanticModel model,
+        InvocationExpressionSyntax invocation,
+        ApiDescriptor descriptor,
+        bool orderedQueryReceiver,
+        int callbackArgumentIndex,
+        out InvocationCursorResult prefix)
+    {
+        SeparatedSyntaxList<ArgumentSyntax> arguments = invocation.ArgumentList.Arguments;
+        bool queryRequired = !orderedQueryReceiver
+            && (arguments.Count == 0
+                || !GeneratorSupport.IsEntityBatch(model.GetTypeInfo(arguments[0].Expression).Type));
+        return new InvocationCursor(model, arguments, descriptor)
+            .TryRead(callbackArgumentIndex, out prefix, queryRequired);
+    }
 
     private static void Execute(
         Compilation compilation,
@@ -890,22 +907,6 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             namespaceName: GeneratorSupport.ContainingNamespace(model, invocation),
             orderedQueryReceiver: orderedQueryReceiver,
             orderedWhereSource: orderedWhereSource);
-
-    internal static bool TryReadPrefix(
-        SemanticModel model,
-        InvocationExpressionSyntax invocation,
-        ApiDescriptor descriptor,
-        bool orderedQueryReceiver,
-        int callbackArgumentIndex,
-        out InvocationCursorResult prefix)
-    {
-        SeparatedSyntaxList<ArgumentSyntax> arguments = invocation.ArgumentList.Arguments;
-        bool queryRequired = !orderedQueryReceiver
-            && (arguments.Count == 0
-                || !GeneratorSupport.IsEntityBatch(model.GetTypeInfo(arguments[0].Expression).Type));
-        return new InvocationCursor(model, arguments, descriptor)
-            .TryRead(callbackArgumentIndex, out prefix, queryRequired);
-    }
 
     private static bool Reject(
         DiagnosticDescriptor descriptor,

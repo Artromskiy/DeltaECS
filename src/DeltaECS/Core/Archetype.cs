@@ -22,6 +22,24 @@ internal sealed class Archetype
     private int _blockPartialCandidateCount;
     private int _blockEmptyCandidateCount;
 
+    internal int Id { get; }
+
+    internal ComponentMask Mask { get; }
+
+    internal ReadOnlySpan<ComponentId> ComponentIds => _componentIds.ReadOnlySpan;
+
+    internal int ComponentCount => _componentIds.Length;
+
+    internal int ChunkCount => _chunks.Count;
+
+    internal int ActiveChunkCount { get; private set; }
+
+    internal int ChunkTopologyVersion { get; private set; }
+
+    internal ComponentLayout[] Layouts { get; }
+
+    internal ComponentRowOperations[] RowOperations { get; }
+
     internal Archetype(
         int id,
         ComponentMask mask,
@@ -43,20 +61,6 @@ internal sealed class Archetype
         Layouts = layouts;
         RowOperations = rowOperations;
     }
-
-    internal int Id { get; }
-
-    internal ComponentMask Mask { get; }
-
-    internal ReadOnlySpan<ComponentId> ComponentIds => _componentIds.ReadOnlySpan;
-
-    internal int ComponentCount => _componentIds.Length;
-
-    internal int ChunkCount => _chunks.Count;
-
-    internal int ActiveChunkCount { get; private set; }
-
-    internal int ChunkTopologyVersion { get; private set; }
 
     internal void Attach(QueryPlan query, int planIndex)
     {
@@ -95,10 +99,6 @@ internal sealed class Archetype
         index = Mask.Rank(componentId);
         return index >= 0;
     }
-
-    internal ComponentLayout[] Layouts { get; }
-
-    internal ComponentRowOperations[] RowOperations { get; }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool HasAvailableChunk(int requestedCount, bool allowFreeRecordBlocks = true)
@@ -465,6 +465,27 @@ internal sealed class Archetype
         PushAvailableChunk(chunkIndex);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Chunk GetChunk(int chunkIndex) => _chunks[chunkIndex];
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Chunk GetActiveChunk(int activeIndex) => _activeChunks.RefAt(activeIndex);
+
+    internal void Dispose()
+    {
+        for (int index = 0; index < _chunks.Count; index++)
+        {
+            _chunks[index].Dispose();
+        }
+
+        _componentIds.Dispose();
+        _availableChunkFlags.Dispose();
+        _availableChunkPositions.Dispose();
+        _activeChunkIndices.Dispose();
+        _activeChunkPositions.Dispose();
+        _queryPlans.Clear();
+    }
+
     private bool TryTakeAvailableChunk(
         int requestedCount,
         bool allowFreeRecordBlocks,
@@ -653,25 +674,4 @@ internal sealed class Archetype
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void IncrementChunkTopologyVersion()
         => ChunkTopologyVersion = ChunkTopologyVersion == int.MaxValue ? 1 : ChunkTopologyVersion + 1;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Chunk GetChunk(int chunkIndex) => _chunks[chunkIndex];
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Chunk GetActiveChunk(int activeIndex) => _activeChunks.RefAt(activeIndex);
-
-    internal void Dispose()
-    {
-        for (int index = 0; index < _chunks.Count; index++)
-        {
-            _chunks[index].Dispose();
-        }
-
-        _componentIds.Dispose();
-        _availableChunkFlags.Dispose();
-        _availableChunkPositions.Dispose();
-        _activeChunkIndices.Dispose();
-        _activeChunkPositions.Dispose();
-        _queryPlans.Clear();
-    }
 }

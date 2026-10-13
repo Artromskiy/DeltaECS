@@ -1,6 +1,8 @@
 using System;
+
 using Arch.Core;
 using Arch.Core.Utils;
+
 using Schedulers;
 
 namespace Ecs.CSharp.Benchmark.Contexts

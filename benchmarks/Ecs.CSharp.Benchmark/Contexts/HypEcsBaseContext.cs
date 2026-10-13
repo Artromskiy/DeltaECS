@@ -1,10 +1,23 @@
 using System;
+
 using HypEcs;
 
 namespace Ecs.CSharp.Benchmark.Contexts
 {
     internal class HypEcsBaseContext : IDisposable
     {
+
+        public World World { get; }
+
+        public HypEcsBaseContext()
+        {
+            World = new World();
+        }
+
+        public virtual void Dispose()
+        {
+            // World.Destroy();
+        }
         public struct Component1
         {
             public int Value;
@@ -18,18 +31,6 @@ namespace Ecs.CSharp.Benchmark.Contexts
         public struct Component3
         {
             public int Value;
-        }
-
-        public World World { get; }
-
-        public HypEcsBaseContext()
-        {
-            World = new World();
-        }
-
-        public virtual void Dispose()
-        {
-            // World.Destroy();
         }
     }
 }

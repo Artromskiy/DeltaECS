@@ -1,30 +1,17 @@
 using System;
 using System.Runtime.Intrinsics;
+
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.FrifloEngineComponents;
+
 using Friflo.Engine.ECS;
 
 namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithTwoComponents
     {
-        internal sealed class FrifloEngineEcsContext : FrifloEngineEcsBaseContext
-        {
-            public FrifloEngineEcsContext(int entityCount, int padding)
-                : base(entityCount, padding, ComponentTypes.Get<Component1, Component2>())
-            { }
-
-            internal static void ForEach(Chunk<Component1> component1, Chunk<Component2> component2, ChunkEntities entities)
-            {
-                Span<Component1> component1Span = component1.Span;
-                Span<Component2> component2Span = component2.Span;
-                for (int n = 0; n < component1Span.Length; n++)
-                {
-                    Update(ref component1Span[n], ref component2Span[n]);
-                }
-            }
-        }
 
         [Context]
         private readonly FrifloEngineEcsContext _frifloEngineEcs;
@@ -53,8 +40,6 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
-        private static void Update(ref Component1 c1, ref Component2 c2) => c1.Value += c2.Value;
-
         [BenchmarkCategory(Categories.FrifloEngineEcs, Categories.SIMD)]
         [Benchmark]
         public int FrifloEngineEcsSIMDMonoThread()
@@ -75,6 +60,24 @@ namespace Ecs.CSharp.Benchmark
                 }
             }
             return EntityCount;
+        }
+
+        private static void Update(ref Component1 c1, ref Component2 c2) => c1.Value += c2.Value;
+        internal sealed class FrifloEngineEcsContext : FrifloEngineEcsBaseContext
+        {
+            public FrifloEngineEcsContext(int entityCount, int padding)
+                : base(entityCount, padding, ComponentTypes.Get<Component1, Component2>())
+            { }
+
+            internal static void ForEach(Chunk<Component1> component1, Chunk<Component2> component2, ChunkEntities entities)
+            {
+                Span<Component1> component1Span = component1.Span;
+                Span<Component2> component2Span = component2.Span;
+                for (int n = 0; n < component1Span.Length; n++)
+                {
+                    Update(ref component1Span[n], ref component2Span[n]);
+                }
+            }
         }
     }
 }

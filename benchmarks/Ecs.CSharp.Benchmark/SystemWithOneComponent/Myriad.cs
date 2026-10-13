@@ -1,8 +1,11 @@
 using System;
 using System.Numerics;
+
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.MyriadComponents;
+
 using Myriad.ECS;
 using Myriad.ECS.Collections;
 using Myriad.ECS.Command;
@@ -13,6 +16,26 @@ namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithOneComponent
     {
+
+        [Context] private readonly MyriadContext _myriad;
+
+        [BenchmarkCategory(Categories.Myriad, Categories.SingleThread)]
+        [Benchmark]
+        public int MyriadSingleThread()
+        {
+            World world = _myriad.World;
+            world.Execute<MyriadForEach1, Component1>();
+            return EntityCount;
+        }
+
+        [BenchmarkCategory(Categories.Myriad, Categories.SingleThread)]
+        [Benchmark]
+        public int MyriadSingleThreadChunk()
+        {
+            World world = _myriad.World;
+            world.ExecuteChunk<MyriadForEach1, Component1>();
+            return EntityCount;
+        }
         private struct MyriadForEach1
             : IQuery<Component1>, IChunkQuery<Component1>
         {
@@ -56,26 +79,6 @@ namespace Ecs.CSharp.Benchmark
 
                 cmd.Playback().Dispose();
             }
-        }
-
-        [Context] private readonly MyriadContext _myriad;
-
-        [BenchmarkCategory(Categories.Myriad, Categories.SingleThread)]
-        [Benchmark]
-        public int MyriadSingleThread()
-        {
-            World world = _myriad.World;
-            world.Execute<MyriadForEach1, Component1>();
-            return EntityCount;
-        }
-
-        [BenchmarkCategory(Categories.Myriad, Categories.SingleThread)]
-        [Benchmark]
-        public int MyriadSingleThreadChunk()
-        {
-            World world = _myriad.World;
-            world.ExecuteChunk<MyriadForEach1, Component1>();
-            return EntityCount;
         }
 
 #if INCLUDE_SLOW_BENCHMARKS

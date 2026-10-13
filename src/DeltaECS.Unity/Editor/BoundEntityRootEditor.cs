@@ -1,66 +1,16 @@
 using System;
 using System.Collections.Generic;
+
 using Delta.ECS;
+
 using UnityEditor;
 using UnityEditor.UIElements;
+
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Delta.ECS.Unity.Editor
 {
-    internal static class BoundEntityRootEditorSelector
-    {
-        private static bool _creatingDefaultGameObjectEditor;
-
-        [RootEditor(supportsAddComponent: true)]
-        private static Type SelectRootEditor(UnityEngine.Object[] objects)
-        {
-            if (_creatingDefaultGameObjectEditor)
-            {
-                return null;
-            }
-
-            if (objects == null || objects.Length != 1
-                || objects[0] is not GameObject gameObject
-                || gameObject == null)
-            {
-                return null;
-            }
-
-            if (SceneWorld.TryFindLiveWorld(gameObject, out _, out _))
-            {
-                return typeof(BoundEntityRootEditor);
-            }
-
-            if (EditorApplication.isPlayingOrWillChangePlaymode)
-            {
-                return null;
-            }
-
-            SceneAuthoring authoring = SceneAuthoring.FindForScene(gameObject.scene);
-            return authoring != null && authoring.TryGetStableId(gameObject, out _)
-                ? typeof(BoundEntityRootEditor)
-                : null;
-        }
-
-        internal static UnityEditor.Editor CreateDefaultGameObjectEditor(GameObject gameObject)
-        {
-            if (gameObject == null)
-            {
-                return null;
-            }
-
-            _creatingDefaultGameObjectEditor = true;
-            try
-            {
-                return UnityEditor.Editor.CreateEditor(gameObject);
-            }
-            finally
-            {
-                _creatingDefaultGameObjectEditor = false;
-            }
-        }
-    }
 
     internal sealed class BoundEntityRootEditor : UnityEditor.Editor
     {
@@ -72,54 +22,6 @@ namespace Delta.ECS.Unity.Editor
         private UnityEditor.Editor _gameObjectEditor;
         private SceneEntityInspectorView _view;
         private VisualElement _componentInspectorRoot;
-
-        private void OnEnable()
-        {
-            if (target is GameObject gameObject && gameObject != null)
-            {
-                _gameObjectEditor = BoundEntityRootEditorSelector.CreateDefaultGameObjectEditor(gameObject);
-            }
-
-            _view = new SceneEntityInspectorView(ResolveTarget, embedded: true);
-            EditorApplication.hierarchyChanged += RefreshComponentInspectors;
-            Undo.undoRedoPerformed += RefreshComponentInspectors;
-        }
-
-        private void OnDisable()
-        {
-            _view?.Dispose();
-            _view = null;
-            if (_gameObjectEditor != null)
-            {
-                DestroyImmediate(_gameObjectEditor);
-                _gameObjectEditor = null;
-            }
-
-            EditorApplication.hierarchyChanged -= RefreshComponentInspectors;
-            Undo.undoRedoPerformed -= RefreshComponentInspectors;
-            _componentInspectorRoot = null;
-            DisposeComponentEditors();
-        }
-
-        protected override void OnHeaderGUI()
-        {
-            // The root editor's generic object header is replaced by the native
-            // GameObjectInspector header embedded at the top of CreateInspectorGUI.
-        }
-
-        private void DisposeComponentEditors()
-        {
-            foreach (UnityEditor.Editor componentEditor in _componentEditors)
-            {
-                if (componentEditor != null)
-                {
-                    DestroyImmediate(componentEditor);
-                }
-            }
-
-            _componentEditors.Clear();
-            _componentTargets.Clear();
-        }
 
         public override bool UseDefaultMargins() => false;
 
@@ -184,6 +86,57 @@ namespace Delta.ECS.Unity.Editor
             root.Add(_componentInspectorRoot);
             RebuildComponentInspectors();
             return root;
+        }
+
+        protected override void OnHeaderGUI()
+        {
+            // The root editor's generic object header is replaced by the native
+            // GameObjectInspector header embedded at the top of CreateInspectorGUI.
+        }
+
+        private static bool ShouldDrawComponent(Component component) => component != null
+            && (component.hideFlags & HideFlags.HideInInspector) == 0;
+
+        private void OnEnable()
+        {
+            if (target is GameObject gameObject && gameObject != null)
+            {
+                _gameObjectEditor = BoundEntityRootEditorSelector.CreateDefaultGameObjectEditor(gameObject);
+            }
+
+            _view = new SceneEntityInspectorView(ResolveTarget, embedded: true);
+            EditorApplication.hierarchyChanged += RefreshComponentInspectors;
+            Undo.undoRedoPerformed += RefreshComponentInspectors;
+        }
+
+        private void OnDisable()
+        {
+            _view?.Dispose();
+            _view = null;
+            if (_gameObjectEditor != null)
+            {
+                DestroyImmediate(_gameObjectEditor);
+                _gameObjectEditor = null;
+            }
+
+            EditorApplication.hierarchyChanged -= RefreshComponentInspectors;
+            Undo.undoRedoPerformed -= RefreshComponentInspectors;
+            _componentInspectorRoot = null;
+            DisposeComponentEditors();
+        }
+
+        private void DisposeComponentEditors()
+        {
+            foreach (UnityEditor.Editor componentEditor in _componentEditors)
+            {
+                if (componentEditor != null)
+                {
+                    DestroyImmediate(componentEditor);
+                }
+            }
+
+            _componentEditors.Clear();
+            _componentTargets.Clear();
         }
 
         private void DrawGameObjectHeader(UnityEditor.Editor gameObjectEditor)
@@ -274,9 +227,6 @@ namespace Delta.ECS.Unity.Editor
             }
         }
 
-        private static bool ShouldDrawComponent(Component component) => component != null
-            && (component.hideFlags & HideFlags.HideInInspector) == 0;
-
         private EntityInspectorTarget ResolveTarget()
         {
             if (target is not GameObject gameObject || gameObject == null)
@@ -300,6 +250,59 @@ namespace Delta.ECS.Unity.Editor
             }
 
             return default;
+        }
+    }
+    internal static class BoundEntityRootEditorSelector
+    {
+        private static bool _creatingDefaultGameObjectEditor;
+
+        internal static UnityEditor.Editor CreateDefaultGameObjectEditor(GameObject gameObject)
+        {
+            if (gameObject == null)
+            {
+                return null;
+            }
+
+            _creatingDefaultGameObjectEditor = true;
+            try
+            {
+                return UnityEditor.Editor.CreateEditor(gameObject);
+            }
+            finally
+            {
+                _creatingDefaultGameObjectEditor = false;
+            }
+        }
+
+        [RootEditor(supportsAddComponent: true)]
+        private static Type SelectRootEditor(UnityEngine.Object[] objects)
+        {
+            if (_creatingDefaultGameObjectEditor)
+            {
+                return null;
+            }
+
+            if (objects == null || objects.Length != 1
+                || objects[0] is not GameObject gameObject
+                || gameObject == null)
+            {
+                return null;
+            }
+
+            if (SceneWorld.TryFindLiveWorld(gameObject, out _, out _))
+            {
+                return typeof(BoundEntityRootEditor);
+            }
+
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                return null;
+            }
+
+            SceneAuthoring authoring = SceneAuthoring.FindForScene(gameObject.scene);
+            return authoring != null && authoring.TryGetStableId(gameObject, out _)
+                ? typeof(BoundEntityRootEditor)
+                : null;
         }
     }
 }

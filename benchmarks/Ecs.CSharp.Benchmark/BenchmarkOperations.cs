@@ -9,8 +9,6 @@ namespace Ecs.CSharp.Benchmark
     {
         private static readonly MethodInfo _disposeMethod = typeof(IDisposable).GetMethod(nameof(IDisposable.Dispose));
 
-        private static IEnumerable<FieldInfo> GetContextFields<T>() => typeof(T).GetFields(BindingFlags.NonPublic | BindingFlags.Instance).Where(f => f.GetCustomAttribute<ContextAttribute>() != null);
-
         public static void SetupContexts<T>(T benchmark, params object[] args)
         {
             foreach (FieldInfo field in GetContextFields<T>())
@@ -33,5 +31,7 @@ namespace Ecs.CSharp.Benchmark
                 _disposeMethod.Invoke(field.GetValue(benchmark), null);
             }
         }
+
+        private static IEnumerable<FieldInfo> GetContextFields<T>() => typeof(T).GetFields(BindingFlags.NonPublic | BindingFlags.Instance).Where(f => f.GetCustomAttribute<ContextAttribute>() != null);
     }
 }

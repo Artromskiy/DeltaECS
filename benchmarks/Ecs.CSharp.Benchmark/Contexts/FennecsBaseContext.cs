@@ -1,4 +1,5 @@
 using System;
+
 using fennecs;
 
 namespace Ecs.CSharp.Benchmark.Contexts

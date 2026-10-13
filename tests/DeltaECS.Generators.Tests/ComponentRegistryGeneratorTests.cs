@@ -2,10 +2,12 @@ using System.Collections.Immutable;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Emit;
+
 using NUnit.Framework;
 
 namespace Delta.ECS.Generators.Tests;

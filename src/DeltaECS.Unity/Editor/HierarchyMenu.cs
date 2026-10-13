@@ -1,7 +1,10 @@
 using System;
+
 using Unity.Hierarchy;
+
 using UnityEditor;
 using UnityEditor.SceneManagement;
+
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -10,33 +13,6 @@ namespace Delta.ECS.Unity.Editor
     internal static class HierarchyMenu
     {
         internal static event Action<SceneAuthoring> AuthoringChanged;
-
-        [MenuItem("GameObject/Delta ECS Entity", false, 10)]
-        private static void CreateEntityFromHierarchyMenu(MenuCommand command)
-        {
-            GameObject contextObject = command.context as GameObject;
-            Scene scene = contextObject != null
-                ? contextObject.scene
-                : SceneManager.GetActiveScene();
-
-            SceneAuthoring authoring = SceneAuthoring.GetOrCreateForScene(scene);
-            CreateEntity(authoring);
-        }
-
-        [MenuItem("GameObject/Delta ECS Entity", true)]
-        private static bool ValidateCreateEntityFromHierarchyMenu() =>
-            !EditorApplication.isPlayingOrWillChangePlaymode;
-
-        [MenuItem("Tools/Delta ECS/Create Entity", false, 31)]
-        private static void CreateEntityMenu()
-        {
-            Scene scene = SceneManager.GetActiveScene();
-            SceneAuthoring authoring = SceneAuthoring.GetOrCreateForScene(scene);
-            CreateEntity(authoring);
-        }
-
-        [MenuItem("Tools/Delta ECS/Create Entity", true)]
-        private static bool ValidateCreateEntityMenu() => !EditorApplication.isPlayingOrWillChangePlaymode;
 
         internal static EntityAuthoring CreateEntity(
             SceneAuthoring authoring,
@@ -81,5 +57,32 @@ namespace Delta.ECS.Unity.Editor
             EditorUtility.SetDirty(authoring);
             EditorSceneManager.MarkSceneDirty(authoring.gameObject.scene);
         }
+
+        [MenuItem("GameObject/Delta ECS Entity", false, 10)]
+        private static void CreateEntityFromHierarchyMenu(MenuCommand command)
+        {
+            GameObject contextObject = command.context as GameObject;
+            Scene scene = contextObject != null
+                ? contextObject.scene
+                : SceneManager.GetActiveScene();
+
+            SceneAuthoring authoring = SceneAuthoring.GetOrCreateForScene(scene);
+            CreateEntity(authoring);
+        }
+
+        [MenuItem("GameObject/Delta ECS Entity", true)]
+        private static bool ValidateCreateEntityFromHierarchyMenu() =>
+            !EditorApplication.isPlayingOrWillChangePlaymode;
+
+        [MenuItem("Tools/Delta ECS/Create Entity", false, 31)]
+        private static void CreateEntityMenu()
+        {
+            Scene scene = SceneManager.GetActiveScene();
+            SceneAuthoring authoring = SceneAuthoring.GetOrCreateForScene(scene);
+            CreateEntity(authoring);
+        }
+
+        [MenuItem("Tools/Delta ECS/Create Entity", true)]
+        private static bool ValidateCreateEntityMenu() => !EditorApplication.isPlayingOrWillChangePlaymode;
     }
 }

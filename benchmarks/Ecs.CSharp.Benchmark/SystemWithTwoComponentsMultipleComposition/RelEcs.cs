@@ -1,32 +1,25 @@
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
+
 using RelEcs;
 
 namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithTwoComponentsMultipleComposition
     {
+
+        [Context] private readonly RelEcsContext _relEcs;
+
+        [BenchmarkCategory(Categories.RelEcs, Categories.SingleThread)]
+        [Benchmark]
+        public int RelEcs()
+        {
+            _relEcs.MonoThreadSystem.Run(_relEcs.World);
+            return EntityCount;
+        }
         private sealed class RelEcsContext : RelEcsBaseContext
         {
-            private sealed record Padding1();
-
-            private sealed record Padding2();
-
-            private sealed record Padding3();
-
-            private sealed record Padding4();
-
-            private sealed class MonoThreadRunSystem : ISystem
-            {
-                public void Run(World world)
-                {
-                    Query<Component1, Component2> query = world.Query<Component1, Component2>().Build();
-                    foreach ((Component1 c1, Component2 c2) in query)
-                    {
-                        c1.Value += c2.Value;
-                    }
-                }
-            }
 
             public ISystem MonoThreadSystem { get; } = new MonoThreadRunSystem();
 
@@ -58,16 +51,25 @@ namespace Ecs.CSharp.Benchmark
                     }
                 }
             }
-        }
+            private sealed record Padding1();
 
-        [Context] private readonly RelEcsContext _relEcs;
+            private sealed record Padding2();
 
-        [BenchmarkCategory(Categories.RelEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int RelEcs()
-        {
-            _relEcs.MonoThreadSystem.Run(_relEcs.World);
-            return EntityCount;
+            private sealed record Padding3();
+
+            private sealed record Padding4();
+
+            private sealed class MonoThreadRunSystem : ISystem
+            {
+                public void Run(World world)
+                {
+                    Query<Component1, Component2> query = world.Query<Component1, Component2>().Build();
+                    foreach ((Component1 c1, Component2 c2) in query)
+                    {
+                        c1.Value += c2.Value;
+                    }
+                }
+            }
         }
     }
 }

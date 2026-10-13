@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+
 using BenchmarkDotNet.Running;
 
 namespace Delta.ECS.Benchmarks;

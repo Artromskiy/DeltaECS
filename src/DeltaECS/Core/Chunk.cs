@@ -17,6 +17,32 @@ internal sealed class Chunk
     private int _freeRecordBlockCount;
     private int _freeRecordBlockNextSlot;
 
+    internal int GlobalId { get; }
+
+    internal int ArchetypeId { get; private set; }
+
+    internal int ArchetypeIndex { get; private set; }
+
+    internal int Count { get; private set; }
+
+    internal int ComponentCount => RawComponentRows.Length;
+
+    internal bool IsFull => Count >= Capacity;
+
+    internal bool IsEmpty => Count == 0;
+
+    internal bool HasFreeRecordBlock => _freeRecordBlockCount != 0;
+
+    internal int FreeRecordBlockCount => _freeRecordBlockCount;
+
+    internal int FreeRecordListIndex { get; private set; } = -1;
+
+    internal Span<Entity> RawEntities => _entities.Span;
+
+    internal nint EntityAddress => _entities.Address;
+
+    internal Array[] RawComponentRows { get; private set; }
+
     internal Chunk(
         Archetype archetype,
         ComponentLayout[] layouts,
@@ -48,16 +74,6 @@ internal sealed class Chunk
                 Capacity);
         }
     }
-
-    internal int GlobalId { get; }
-
-    internal int ArchetypeId { get; private set; }
-
-    internal int ArchetypeIndex { get; private set; }
-
-    internal int Count { get; private set; }
-
-    internal int ComponentCount => RawComponentRows.Length;
 
     internal void EnsureTagCapacity(int tagCount)
     {
@@ -103,16 +119,6 @@ internal sealed class Chunk
     internal ulong GetTagSummary(int tagIndex) => _tagMasks?.Summary(tagIndex) ?? 0;
 
     internal ulong GetTagWord(int tagIndex, int wordIndex) => _tagMasks?.Word(tagIndex, wordIndex) ?? 0;
-
-    internal bool IsFull => Count >= Capacity;
-
-    internal bool IsEmpty => Count == 0;
-
-    internal bool HasFreeRecordBlock => _freeRecordBlockCount != 0;
-
-    internal int FreeRecordBlockCount => _freeRecordBlockCount;
-
-    internal int FreeRecordListIndex { get; private set; } = -1;
 
     internal void SetFreeRecordListIndex(int index) => FreeRecordListIndex = index;
 
@@ -197,12 +203,6 @@ internal sealed class Chunk
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool ComponentRowContainsReferences(int componentIndex)
         => _rowOperations.RefAt(componentIndex).ContainsReferences;
-
-    internal Span<Entity> RawEntities => _entities.Span;
-
-    internal nint EntityAddress => _entities.Address;
-
-    internal Array[] RawComponentRows { get; private set; }
 
     internal void SetArchetypeLocation(int archetypeId, int archetypeIndex)
     {
@@ -356,26 +356,6 @@ internal sealed class Chunk
         }
     }
 
-    private void CopySlot(int sourceSlotIndex, int destinationSlotIndex)
-    {
-        for (int componentIndex = 0; componentIndex < RawComponentRows.Length; componentIndex++)
-        {
-            CopySlot(sourceSlotIndex, destinationSlotIndex, componentIndex);
-        }
-    }
-
-    private void ClearReferenceRows(int slotIndex)
-    {
-        for (int componentIndex = 0; componentIndex < RawComponentRows.Length; componentIndex++)
-        {
-            ref readonly var operations = ref _rowOperations.RefAt(componentIndex);
-            if (operations.ContainsReferences)
-            {
-                Array.Clear(RawComponentRows.RefAt(componentIndex), slotIndex, 1);
-            }
-        }
-    }
-
     internal void InitializeSlotRange(int slotIndex, int count)
     {
         if (count == 0)
@@ -465,5 +445,25 @@ internal sealed class Chunk
 
         RawComponentRows = Array.Empty<Array>();
         _entities.Dispose();
+    }
+
+    private void CopySlot(int sourceSlotIndex, int destinationSlotIndex)
+    {
+        for (int componentIndex = 0; componentIndex < RawComponentRows.Length; componentIndex++)
+        {
+            CopySlot(sourceSlotIndex, destinationSlotIndex, componentIndex);
+        }
+    }
+
+    private void ClearReferenceRows(int slotIndex)
+    {
+        for (int componentIndex = 0; componentIndex < RawComponentRows.Length; componentIndex++)
+        {
+            ref readonly var operations = ref _rowOperations.RefAt(componentIndex);
+            if (operations.ContainsReferences)
+            {
+                Array.Clear(RawComponentRows.RefAt(componentIndex), slotIndex, 1);
+            }
+        }
     }
 }

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+
 using Delta.ECS;
+
 using Unity.Properties;
 
 namespace Delta.ECS.Unity
@@ -75,11 +77,11 @@ namespace Delta.ECS.Unity
 
         private sealed class ReadPathVisitor : IPropertyBagVisitor
         {
-            private readonly string[] _path;
-            private readonly int _pathIndex;
 
             internal object Value;
             internal bool Found;
+            private readonly string[] _path;
+            private readonly int _pathIndex;
 
             internal ReadPathVisitor(string[] path, int pathIndex)
             {
@@ -121,11 +123,11 @@ namespace Delta.ECS.Unity
 
         private sealed class WritePathVisitor : IPropertyBagVisitor
         {
+
+            internal bool Succeeded;
             private readonly string[] _path;
             private readonly int _pathIndex;
             private readonly object _value;
-
-            internal bool Succeeded;
 
             internal WritePathVisitor(string[] path, int pathIndex, object value)
             {

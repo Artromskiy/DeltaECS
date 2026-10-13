@@ -1,6 +1,7 @@
 namespace DeltaECS.VersionBenchmarks;
 
 using System.Reflection;
+
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;

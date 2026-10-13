@@ -1,9 +1,12 @@
 using System.Globalization;
+
 using Delta.ECS.Generators.Consumer;
 using Delta.ECS.Runtime.Consumer;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
+
 using NUnit.Framework;
 
 namespace Delta.ECS.Generators.Tests;
@@ -11,6 +14,1240 @@ namespace Delta.ECS.Generators.Tests;
 [TestFixture]
 public sealed class DemandDrivenForEachGeneratorTests
 {
+
+    private const string RuntimeStubSource = """
+        namespace Delta.ECS
+        {
+        using System;
+        public readonly struct Entity { public int Index { get; } }
+        public struct GeneratedEntityRefView { }
+        public ref struct EntityRef { public int Index { get; } }
+        public readonly struct ComponentId { }
+        public interface IComponentComparer { }
+        public interface IComponentComparerEntity { }
+        public interface IGeneratedWhereEntityConsumer { void Invoke(Entity entity); }
+        public interface IGeneratedComponentComparer
+        {
+            void Validate(World world, in Query query);
+            int Compare(World world, Entity left, Entity right);
+        }
+        public readonly struct OrderedQuery
+        {
+            public Query SourceQuery => default;
+            public static OrderedQuery CreateGenerated(Query query, IGeneratedComponentComparer comparer) => default;
+            public OrderedQuery AppendGenerated(IGeneratedComponentComparer comparer) => default;
+            public void BeginGeneratedOperation() { }
+            public void EndForEach() { }
+            public void AppendGeneratedEntity(Entity entity) { }
+            public ReadOnlySpan<Entity> SortGeneratedEntities() => default;
+            public int CompareGeneratedEntities(Entity left, Entity right) => 0;
+        }
+        public readonly struct QuerySpec
+        {
+            public static QuerySpec WhereAll(ReadOnlySpan<ComponentId> components) => default;
+            public static QuerySpec WhereAny(ReadOnlySpan<ComponentId> components) => default;
+            public static QuerySpec WhereNone(ReadOnlySpan<ComponentId> components) => default;
+            public static QuerySpec WhereAll(ComponentId component) => default;
+            public static QuerySpec WhereAny(ComponentId component) => default;
+            public static QuerySpec WhereNone(ComponentId component) => default;
+            public QuerySpec WithAll(ReadOnlySpan<ComponentId> components) => default;
+            public QuerySpec WithAny(ReadOnlySpan<ComponentId> components) => default;
+            public QuerySpec WithNone(ReadOnlySpan<ComponentId> components) => default;
+            public static QuerySpec Empty => default;
+        }
+        public readonly struct Query
+        {
+            public Query WhereAll(ReadOnlySpan<ComponentId> components) => default;
+            public Query WhereAny(ReadOnlySpan<ComponentId> components) => default;
+            public Query WhereNone(ReadOnlySpan<ComponentId> components) => default;
+            public Query WhereAll(ComponentId component) => default;
+            public Query WhereAny(ComponentId component) => default;
+            public Query WhereNone(ComponentId component) => default;
+        }
+        public readonly struct ReadAccess { }
+        public readonly struct WriteAccess { }
+        public delegate void ForEachAction();
+        public delegate void ForEachEntityAction(EntityRef entity);
+        public delegate void ForEachContextAction<TContext>(ref TContext context);
+        public delegate void ForEachContextEntityAction<TContext>(ref TContext context, EntityRef entity);
+        public delegate void ForEachContextActionIn<TContext>(in TContext context);
+        public delegate void ForEachContextEntityActionIn<TContext>(in TContext context, EntityRef entity);
+        public delegate void ForEachContextActionValue<TContext>(TContext context);
+        public delegate void ForEachContextEntityActionValue<TContext>(TContext context, EntityRef entity);
+        public interface IForEach { }
+        public interface IForEachEntity { }
+        public interface IForEachContext<TContext> { }
+        public interface IForEachContextEntity<TContext> { }
+        public interface IWherePredicate { }
+        public struct GeneratedWhereStructuralContext
+        {
+            public void ProcessRun(int sourceSlot, int count, bool selected) { }
+            public void ProcessRun<TInitializer>(int sourceSlot, int count, bool selected, ref TInitializer initializer)
+                where TInitializer : struct, IGeneratedComponentValueInitializer { }
+        }
+        public interface IGeneratedWhereInvoker
+        {
+            void Invoke(ref GeneratedQuerySlots slots);
+        }
+        public interface IGeneratedWhereStructuralInvoker
+        {
+            void Execute(ref GeneratedQuerySlots slots, ref GeneratedWhereStructuralContext context);
+        }
+        public interface IGeneratedParallelInvoker
+        {
+            bool RequiresSingleThread { get; }
+            void Invoke(ref GeneratedQuerySlots slots);
+        }
+        public sealed class ComponentRegistry
+        {
+            public ComponentId GetPrimary(Type type) => default;
+            public ComponentId GetPrimary<T>() => default;
+        }
+        public ref struct GeneratedQuerySlots
+        {
+            public int ChunkId => 0;
+            public int Count => 0;
+            public int PhysicalCount => 0;
+            public bool HasTagFilters => false;
+            public bool TryGetTagSlots(out ReadOnlySpan<int> slots) { slots = default; return false; }
+            public Entity EntityAt(int index) => default;
+            public EntityRef GetEntityRef(ref GeneratedEntityRefView view, int index) => default;
+            public EntityRef GetEntityRefAtSlot(ref GeneratedEntityRefView view, int slotIndex) => default;
+            public EntityRef CreateEntityRef(ref GeneratedEntityRefView view) => default;
+            public void BindEntityRef(ref GeneratedEntityRefView view, int slotIndex) { }
+            public void BindEntityRef(ref GeneratedEntityRefView view) { }
+            public void SetEntityRefSlot(ref GeneratedEntityRefView view, int slotIndex) { }
+            public int GetGeneratedRowOffset(int index) => index;
+            public int GetGeneratedSlotIndex(int index) => index;
+            public ref Entity GetGeneratedEntityReference() => throw new NotImplementedException();
+            public T[] GetGeneratedArray<T>(int queryComponentIndex) => Array.Empty<T>();
+            public T[] GetGeneratedArray<T>(ReadAccess access) => Array.Empty<T>();
+            public T[] GetGeneratedArray<T>(WriteAccess access) => Array.Empty<T>();
+            public ref T GetGeneratedReadReference<T>(int queryComponentIndex) => throw new NotImplementedException();
+            public ref T GetGeneratedReadReference<T>(ReadAccess access) => throw new NotImplementedException();
+            public ref T GetGeneratedWriteReference<T>(int queryComponentIndex) => throw new NotImplementedException();
+            public ref T GetGeneratedWriteReference<T>(WriteAccess access) => throw new NotImplementedException();
+        }
+        public ref struct GeneratedReadQuerySlots
+        {
+            public int Count => 0;
+            public Entity EntityAt(int index) => default;
+            public EntityRef GetEntityRef(ref GeneratedEntityRefView view, int index) => default;
+            public EntityRef GetEntityRefAtSlot(ref GeneratedEntityRefView view, int slotIndex) => default;
+            public void BindEntityRef(ref GeneratedEntityRefView view, int slotIndex) { }
+            public void BindEntityRef(ref GeneratedEntityRefView view) { }
+            public void SetEntityRefSlot(ref GeneratedEntityRefView view, int slotIndex) { }
+            public int GetGeneratedRowOffset(int index) => index;
+            public int GetGeneratedSlotIndex(int index) => index;
+            public ref readonly Entity GetGeneratedEntityReference() => throw new NotImplementedException();
+            public ref T GetGeneratedReadReference<T>(int queryComponentIndex) => throw new NotImplementedException();
+            public ref T GetGeneratedReadReference<T>(ReadAccess access) => throw new NotImplementedException();
+        }
+        public readonly struct GeneratedBoundChunk
+        {
+            public int Count => 0;
+            public bool HasTagFilters => false;
+            public bool TryGetTagSlots(out ReadOnlySpan<int> slots) { slots = default; return false; }
+            public ref Entity GetEntityReference() => throw new NotImplementedException();
+        }
+        public abstract class GeneratedDenseBinding<TRows> where TRows : struct
+        {
+            protected abstract void Prepare(in Query query);
+            protected abstract TRows BindRows(Array[] rows, GeneratedBoundChunk chunk);
+            protected void SetWriteRoutes(ReadOnlySpan<int> routes) { }
+        }
+        public ref struct GeneratedBoundExecution<TRows> where TRows : struct
+        {
+            public ReadOnlySpan<TRows> Rows => default;
+            public bool HasTagFilters => false;
+            public bool TryGetTagSlots(out ReadOnlySpan<int> slots) { slots = default; return false; }
+            public void Dispose() { }
+        }
+        public ref struct GeneratedDenseExecution
+        {
+            public bool HasTagFilters => false;
+            public bool TryGetTagSlots(out ReadOnlySpan<int> slots) { slots = default; return false; }
+            public bool MoveNextTrusted(out GeneratedQuerySlots slots) { slots = default; return false; }
+            public bool MoveNextTrusted(out Array[] componentRows, out int count)
+            {
+                componentRows = Array.Empty<Array>();
+                count = 0;
+                return false;
+            }
+            public void MarkArchetypeWrite(int queryComponentIndex) { }
+            public void MarkArchetypeWrites(scoped ReadOnlySpan<int> queryComponentIndices) { }
+            public void RecordComponentWrites(scoped ReadOnlySpan<int> queryComponentIndices) { }
+            public void Dispose() { }
+        }
+        public ref struct GeneratedReadDenseExecution
+        {
+            public bool HasTagFilters => false;
+            public bool TryGetTagSlots(out ReadOnlySpan<int> slots) { slots = default; return false; }
+            public bool MoveNextTrusted(out GeneratedReadQuerySlots slots) { slots = default; return false; }
+            public bool MoveNextTrusted(out Array[] componentRows, out int count)
+            {
+                componentRows = Array.Empty<Array>();
+                count = 0;
+                return false;
+            }
+            public void Dispose() { }
+        }
+        public interface IGeneratedComponentValueInitializer
+        {
+            void Initialize(ref GeneratedComponentValueWriter writer);
+        }
+        public ref struct GeneratedComponentValueWriter
+        {
+            public void InitializeAdded<T>(ComponentId component, in T value) { }
+            public void InitializeCreated<T>(ComponentId component, in T value) { }
+        }
+        public static class GeneratedForEachRuntime
+        {
+            public static ref Entity GetGeneratedEntityReference(ref GeneratedQuerySlots slots) => ref slots.GetGeneratedEntityReference();
+            public static ref Entity GetGeneratedEntityReference(ref GeneratedReadQuerySlots slots) => throw new NotImplementedException();
+            public static ref int GetGeneratedTagSlotReference(ReadOnlySpan<int> slots) => throw new NotImplementedException();
+            public static EntityRef CreateEntityRef(World world, ref GeneratedEntityRefView view) => default;
+            public static GeneratedBoundExecution<TRows> OpenBoundDense<TBinding, TRows>(World world, in Query query)
+                where TBinding : GeneratedDenseBinding<TRows>, new() where TRows : struct => default;
+            public static GeneratedBoundExecution<TRows> OpenBoundDenseRead<TBinding, TRows>(World world, in Query query)
+                where TBinding : GeneratedDenseBinding<TRows>, new() where TRows : struct => default;
+            public static T[] GetGeneratedArray<T>(Array[] rows, int route) => throw new NotImplementedException();
+            public static ref T GetGeneratedArrayReference<T>(T[] row) => throw new NotImplementedException();
+            public static void ThrowIfNull(object? value, string parameterName) { }
+            public static void ValidateComponentType<T>(World world, ComponentId component) { }
+            public static void ValidateComponentType<T>(in Query query, ComponentId component) { }
+            public static bool IsComponentType<T>(World world, ComponentId component) => true;
+            public static void ValidateComponentIdCount(ReadOnlySpan<ComponentId> components, int expected) { }
+            public static bool ExecuteGeneratedAdd<TInitializer>(World world, Entity entity, ReadOnlySpan<ComponentId> components, ref TInitializer initializer)
+                where TInitializer : struct, IGeneratedComponentValueInitializer => true;
+            public static Entity ExecuteGeneratedCreate<TInitializer>(World world, ReadOnlySpan<ComponentId> components, ref TInitializer initializer)
+                where TInitializer : struct, IGeneratedComponentValueInitializer => default;
+            public static ref T GetGeneratedRow<T>(Array[] componentRows, int queryComponentIndex) => throw new NotImplementedException();
+            public static GeneratedDenseExecution OpenDense(World world, in Query query) => default;
+            public static GeneratedDenseExecution OpenWriteDense(World world, in Query query) => default;
+            public static GeneratedReadDenseExecution OpenReadDense(World world, in Query query) => default;
+            public static ReadAccess GetPreparedReadAccess<T>(in Query query) => default;
+            public static int GetPreparedReadRoute<T>(in Query query) => default;
+            public static int GetPreparedReadRoute<T>(in Query query, ComponentId component) => default;
+            public static WriteAccess GetPreparedWriteAccess<T>(in Query query) => default;
+            public static int GetPreparedWriteRoute<T>(in Query query) => default;
+            public static int GetPreparedWriteRoute<T>(in Query query, ComponentId component) => default;
+            public static void ValidateGeneratedWhere(World world, in Query query) { }
+            public static Query ComposeGeneratedQuery(in Query query, QuerySpec additions) => default;
+            public static ReadOnlySpan<ComponentId> GetGeneratedPrimaryComponentIds<TKey>(World world, Func<World, ComponentId[]> resolver) => resolver(world);
+            public static ReadOnlySpan<ComponentId> GetGeneratedPrimaryComponentIds<TKey>(in Query query, Func<World, ComponentId[]> resolver) => default;
+            public static int ExecuteGeneratedWhereDestroy<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices)
+                where TInvoker : struct, IGeneratedWhereStructuralInvoker => 0;
+            public static int ExecuteGeneratedWhereAdd<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, ReadOnlySpan<ComponentId> componentIds)
+                where TInvoker : struct, IGeneratedWhereStructuralInvoker => 0;
+            public static int ExecuteGeneratedWhereRemove<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, ReadOnlySpan<ComponentId> componentIds)
+                where TInvoker : struct, IGeneratedWhereStructuralInvoker => 0;
+            public static void ExecuteGeneratedWhereForEach<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices)
+                where TInvoker : struct, IGeneratedWhereInvoker { }
+            public static void ExecuteParallelDense<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, int workerCount = 0)
+                where TInvoker : struct, IGeneratedParallelInvoker { }
+            public static void ExecuteEntityList<TInvoker>(World world, in Query query, ReadOnlySpan<Entity> entities, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices)
+                where TInvoker : struct, IGeneratedParallelInvoker { }
+            public static void ExecuteEntityListParallel<TInvoker>(World world, in Query query, ReadOnlySpan<Entity> entities, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, int workerCount = 0)
+                where TInvoker : struct, IGeneratedParallelInvoker { }
+            public static ReadAccess GetPreparedReadAccess(in Query query, ComponentId component, Type runtimeType) => default;
+            public static WriteAccess GetPreparedWriteAccess(in Query query, ComponentId component, Type runtimeType) => default;
+            public static int GetWriteQueryComponentIndex(WriteAccess access) => default;
+            public static int GetReadQueryComponentIndex(ReadAccess access) => default;
+        }
+        public sealed partial class World
+        {
+            public ComponentRegistry Components { get; } = new();
+            public void ValidateGeneratedOrderedQueryKey<T>(in Query query, ComponentId componentId) { }
+            public ref readonly T GetGeneratedOrderedQueryKey<T>(Entity entity, ComponentId componentId) => throw new NotImplementedException();
+            public Query WhereAll(ReadOnlySpan<ComponentId> components) => default;
+            public Query WhereAll(ComponentId component0, ComponentId component1) => default;
+            public Entity Create(ReadOnlySpan<ComponentId> components) => default;
+            public int Create(ReadOnlySpan<ComponentId> components, int count) => count;
+            public int Create(ReadOnlySpan<ComponentId> components, int count, Span<Entity> output) => count;
+            public Query CreateQuery(in QuerySpec spec) => default;
+            public bool Add(Entity entity, ReadOnlySpan<ComponentId> components) => true;
+            public int Add(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> components) => 0;
+            public bool Remove(Entity entity, ReadOnlySpan<ComponentId> components) => true;
+            public int Remove(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> components) => 0;
+            public int Add(in Query query, ReadOnlySpan<ComponentId> components) => 0;
+            public int Remove(in Query query, ReadOnlySpan<ComponentId> components) => 0;
+            public void ForEach(in Query query, ForEachAction action) { }
+            public void ForEachEntity(in Query query, ForEachEntityAction action) { }
+            public void ForEach<TContext>(in Query query, ref TContext context, ForEachContextAction<TContext> action) { }
+            public void ForEachEntity<TContext>(in Query query, ref TContext context, ForEachContextEntityAction<TContext> action) { }
+        }
+        }
+        """;
+
+    private const string StructuralSource = """
+        namespace Delta.ECS;
+        using System;
+        struct Position { }
+        struct Velocity { }
+        static class StructuralConsumer
+        {
+            public static void Use(
+                World world,
+                Query query,
+                ReadOnlySpan<Entity> entities,
+                ReadOnlySpan<ComponentId> selectedComponents,
+                ComponentId position,
+                ComponentId velocity)
+            {
+                world.Create<Position, Velocity>(2);
+                Span<Entity> output = stackalloc Entity[2];
+                world.Create<Position, Velocity>(2, output);
+                world.Create(position, velocity, 2);
+                world.Create(position, velocity, 2, output);
+                world.Create(selectedComponents, 2, output);
+                Entity entity = default;
+                world.Add<Position, Velocity>(entity);
+                world.Add(entity, position, velocity);
+                world.Add(entity, selectedComponents);
+                world.Add<Position, Velocity>(entities);
+                world.Add(entities, position, velocity);
+                world.Add(entities, selectedComponents);
+                world.Remove<Position, Velocity>(entity);
+                world.Remove(entity, position, velocity);
+                world.Remove(entity, selectedComponents);
+                world.Remove<Position, Velocity>(entities);
+                world.Remove(entities, position, velocity);
+                world.Remove(entities, selectedComponents);
+                world.Add<Position, Velocity>(in query);
+                world.Add(in query, position, velocity);
+                world.Add(in query, selectedComponents);
+                world.Remove<Position, Velocity>(in query);
+                world.Remove(in query, position, velocity);
+                world.Remove(in query, selectedComponents);
+                world.Add(entity, new Position(), new Velocity());
+                world.Add<Position, Velocity>(entity, new Position(), new Velocity());
+            }
+        }
+        """;
+
+    private const string ExplicitCreateSource = """
+        namespace Delta.ECS;
+        using System;
+        static class ExplicitStructuralConsumer
+        {
+            public static void Use(World world, ComponentId position, ComponentId velocity, Span<Entity> output)
+            {
+                _ = world.Create(position, velocity, 2);
+                _ = world.Create(position, 2, output);
+                _ = world.Add(default(Entity), position, velocity);
+                _ = world.Remove(default(Entity), position, velocity);
+            }
+        }
+        """;
+
+    private const string GenericQuerySource = """
+        namespace Delta.ECS;
+        struct Position { }
+        struct Velocity { }
+        struct Acceleration { }
+        static class QueryConsumer
+        {
+            public static void Use(World world, Query query, global::System.ReadOnlySpan<ComponentId> components)
+            {
+                Query all = world.WhereAll<Position, Velocity>();
+                Query any = world.WhereAny<Position, Velocity, Acceleration>();
+                Query none = world.WhereNone<Acceleration>();
+                Query bySpan = world.WhereAll(components);
+                Query chained = query.WhereNone(components);
+                _ = all;
+                _ = any;
+                _ = none;
+                _ = bySpan;
+                _ = chained;
+            }
+        }
+        """;
+
+    private const string PrivateNestedQueryComponentSource = """
+        namespace Delta.ECS;
+        static class PrivateQueryConsumer
+        {
+            private struct Position { }
+
+            public static Query Build(World world)
+                => world.WhereAll<Position>();
+        }
+        """;
+
+    private const string GenericQueryChainSource = """
+        namespace Delta.ECS;
+        struct Position { }
+        struct Health { }
+        struct Human { }
+        struct Dead { }
+        struct Escaped { }
+        struct Armed { }
+        struct Berserk { }
+        static class QueryConsumer
+        {
+            public static Query Build(World world)
+                => world
+                    .WhereAll<Position, Health, Human>()
+                    .WhereNone<Dead, Escaped>()
+                    .WhereAny<Armed, Berserk>();
+
+            public static Query BuildWithLocal(World world)
+            {
+                Query query = world.WhereAll<Position, Health, Human>();
+                return query.WhereNone<Dead, Escaped>().WhereAny<Armed, Berserk>();
+            }
+
+            public static Query BuildWithVar(World world)
+            {
+                var query = world.WhereAll<Position, Health>();
+                return query.WhereNone<Dead, Escaped, Human>().WhereAny<Armed>();
+            }
+        }
+        """;
+
+    private const string QuerySpecPositionalFactoriesSource = """
+        namespace Consumer;
+        using Delta.ECS;
+        static class QuerySpecConsumer
+        {
+            public static QuerySpec Build(ComponentId id)
+                => QuerySpec.Empty
+                    .WhereAny(id)
+                    .WhereAll(id, id)
+                    .WhereAll(
+                        id, id, id, id, id, id, id, id, id, id,
+                        id, id, id, id, id, id, id, id, id, id)
+                    .WhereNone(id, id);
+        }
+        """;
+
+    private const string ExplicitSelectorSource = """
+        namespace Delta.ECS;
+        struct Position { public int Value; }
+        struct Velocity { public int Value; }
+        static class ExplicitSelectorConsumer
+        {
+            public static void Use(World world, Query query, ComponentId position, ComponentId velocity)
+            {
+                world.ForEach(in query, position, velocity,
+                    static (ref Position value, in Velocity source) => value.Value += source.Value);
+            }
+        }
+        """;
+
+    private const string GrammarMatrixSource = """
+        namespace Delta.ECS;
+        using System;
+        struct T1 { public int Value; }
+        struct T2 { public int Value; }
+        struct Context { public int Value; }
+        static class GrammarMatrixConsumer
+        {
+            public static void ApplyEntity(EntityRef entity, ref T1 first, in T2 second) => first.Value += entity.Index + second.Value;
+
+            public static void Use(
+                World world,
+                in Query query,
+                ReadOnlySpan<Entity> entities,
+                ComponentId first,
+                ComponentId second,
+                ref Context context)
+            {
+                world.ForEach<T1, T2>(in query, first, second, static (ref T1 a, in T2 b) => a.Value += b.Value);
+                world.ForEachEntity<T1, T2>(entities, first, second, ApplyEntity);
+                world.ForEachParallel<T1, T2>(in query, first, second, static (ref T1 a, in T2 b) => a.Value += b.Value, workerCount: 2);
+                world.ForEachEntityParallel<T1, T2>(entities, in query, first, second, ApplyEntity, workerCount: 2);
+
+                world.ForEach<Context, T1, T2>(in query, first, second, ref context,
+                    static (ref Context state, ref T1 a, in T2 b) =>
+                    {
+                        state.Value++;
+                        a.Value += b.Value;
+                    });
+
+                Entity entity = default;
+                world.Add(entity, first, second);
+                world.Remove(entity, first, second);
+                world.Add(entities, first, second);
+                world.Remove(entities, first, second);
+                world.Add(in query, first, second);
+                world.Remove(in query, first, second);
+                world.Create(first, second, 2);
+            }
+        }
+        """;
+
+    private const string QueryFactoriesWithDuplicateSignaturesSource = """
+        namespace Delta.ECS;
+        struct Position { }
+        struct Velocity { }
+        struct Acceleration { }
+        struct Lifetime { }
+        static class MovementSystem
+        {
+            public static Query Build(World world) => world.WhereAll<Position, Velocity>();
+        }
+        static class LifetimeSystem
+        {
+            public static Query Build(World world) => world.WhereAll<Acceleration, Lifetime>();
+        }
+        """;
+
+    private const string TupleContextElementNamesSource = """
+        namespace Delta.ECS;
+        struct SquadMember { public Entity Squad; }
+        static class EcsEntryPoint
+        {
+            public static void Use(World world, Query query, Entity squad)
+            {
+                var state = (Squad: squad, AliveMembers: 0);
+                world.ForEach(
+                    in query,
+                    ref state,
+                    static (ref (Entity Squad, int AliveMembers) state, in SquadMember member) =>
+                    {
+                        if (member.Squad.Index == state.Squad.Index)
+                        {
+                            state.AliveMembers++;
+                        }
+                    });
+            }
+        }
+        static class SurvivorJoinSystem
+        {
+            public static void Tick(World world, Query query, Entity squad)
+            {
+                var memberState = (Squad: squad, Count: 0);
+                world.ForEach(
+                    in query,
+                    ref memberState,
+                    static (ref (Entity Squad, int Count) state, in SquadMember member) =>
+                    {
+                        if (member.Squad.Index == state.Squad.Index)
+                        {
+                            state.Count++;
+                        }
+                    });
+            }
+        }
+        """;
+
+    private const string WhereMutationSource = """
+        namespace Delta.ECS
+        {
+        struct Health { public int Value; }
+        struct Team { public int Id; public int DefaultHealth; }
+        struct Dead { }
+        struct Alive { }
+        static class MutationSystems
+        {
+            public static void Run(World world, in Query query, ComponentId deadId, ComponentId aliveId)
+            {
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Destroy();
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Add<Dead>();
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Add(deadId);
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
+                    .Add<Dead>(new Dead());
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
+                    .Add<Dead>(world.Components.GetPrimary<Dead>(), new Dead());
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Remove<Alive>();
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Remove(aliveId);
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
+                    .ForEach(static (ref Health health) => health.Value = 0);
+                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
+                    health.Value <= 0 && team.Id == 1)
+                    .Destroy();
+                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
+                    health.Value <= 0 && team.Id == 1)
+                    .Add<Dead>();
+                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
+                    health.Value <= 0 && team.Id == 1)
+                    .Remove<Alive>();
+                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
+                    health.Value <= 0 && team.Id == 1)
+                    .ForEachEntity(static (EntityRef current, ref Health health, in Team team) => _ = current.Index + team.Id);
+                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
+                    health.Value <= 0 && team.Id == 1)
+                    .ForEach(static (ref Health health, in Team team) => health.Value = team.DefaultHealth);
+                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
+                    health.Value <= 0 && team.Id == 1)
+                    .Add<Dead, Alive>(new Dead(), new Alive());
+                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
+                    health.Value <= 0 && team.Id == 1)
+                    .Add<Dead, Alive>(deadId, aliveId, new Dead(), new Alive());
+                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
+                    health.Value <= 0 && team.Id == 1)
+                    .Remove(deadId, aliveId);
+            }
+        }
+        }
+        """;
+
+    private const string WhereZeroArityTerminalSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        struct Dead { }
+        static class ZeroArityWhereSystem
+        {
+            public static void Run(World world, in Query query)
+            {
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= entity.Index)
+                    .ForEachEntity(static (EntityRef entity) => _ = entity);
+            }
+        }
+        """;
+
+    private const string WhereDuplicateMutationSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        struct Position { public int Value; }
+        struct Dead { }
+        struct Selected { }
+        static class DuplicateMutationSystem
+        {
+            public static void Run(World world, in Query query)
+            {
+                world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>();
+                world.Where(in query, static (in Position position) => position.Value < 0).Add<Selected>();
+            }
+        }
+        """;
+
+    private const string GenericCallSitesSource = """
+        namespace Delta.ECS;
+        struct Position { public int Value; }
+        struct Velocity { public int Value; }
+        struct PositionContext { public int Value; }
+        struct VelocityContext { public int Value; }
+        struct Health { public int Value; }
+        static class GenericCallSites
+        {
+            public static void Use(
+                World world,
+                in Query query,
+                ref PositionContext positionContext,
+                ref VelocityContext velocityContext)
+            {
+                world.ForEach<PositionContext, Position>(in query, ref positionContext,
+                    static (ref PositionContext context, ref Position position) =>
+                    {
+                        context.Value += position.Value;
+                    });
+                world.ForEach<VelocityContext, Velocity>(in query, ref velocityContext,
+                    static (ref VelocityContext context, ref Velocity velocity) =>
+                    {
+                        context.Value += velocity.Value;
+                    });
+                world.Where(in query, ref positionContext,
+                    static (ref PositionContext context, in Health health) =>
+                    {
+                        context.Value += health.Value;
+                        return health.Value >= 0;
+                    });
+                world.Where(in query, ref velocityContext,
+                    static (ref VelocityContext context, in Health health) =>
+                    {
+                        context.Value += health.Value;
+                        return health.Value >= 0;
+                    });
+            }
+        }
+        """;
+
+    private const string WhereStructuralParameterMatrixSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        struct Dead { }
+        struct Alive { }
+        static class WhereStructuralParameterMatrix
+        {
+            public static void Use(
+                World world,
+                in Query query,
+                ComponentId deadId,
+                ComponentId aliveId,
+                global::System.ReadOnlySpan<ComponentId> componentIds)
+            {
+                world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>();
+                world.Where(in query, static (in Health health) => health.Value <= 0).Add(deadId);
+                world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>(new Dead());
+                world.Where(in query, static (in Health health) => health.Value <= 0).Add(new Dead());
+                world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>(deadId, new Dead());
+                world.Where(in query, static (in Health health) => health.Value <= 0).Add(componentIds);
+                world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>(componentIds, new Dead());
+                world.Where(in query, static (in Health health) => health.Value <= 0).Remove<Dead>();
+                world.Where(in query, static (in Health health) => health.Value <= 0).Remove(deadId);
+                world.Where(in query, static (in Health health) => health.Value <= 0).Remove<Dead, Alive>();
+                world.Where(in query, static (in Health health) => health.Value <= 0).Remove(deadId, aliveId);
+                world.Where(in query, static (in Health health) => health.Value <= 0).Remove(componentIds);
+            }
+        }
+        """;
+
+    private const string WhereEntityParameterSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        static class InvalidWhereSystem
+        {
+            public static void Run(World world, in Query query)
+            {
+                world.Where(in query, static (Entity entity, in Health health) => health.Value <= entity.Index);
+            }
+        }
+        """;
+
+    private const string WhereReadonlyPredicateSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        struct Team { public int Id; }
+        struct Dead { }
+        static class ReadonlyPredicateSystem
+        {
+            public static void Run(World world, in Query query)
+            {
+                world.WhereEntity(
+                        in query,
+                        static (Entity entity, in Health health) => health.Value <= 0)
+                    .Destroy();
+                world.WhereEntity(
+                        in query,
+                        static (Entity entity, ref readonly Health health, in Team team) =>
+                            health.Value <= 0 && team.Id == 1)
+                    .Add<Dead>();
+            }
+        }
+        """;
+
+    private const string WhereWithoutEntitySource = """
+        namespace Delta.ECS
+        {
+        struct Health { public int Value; }
+        struct Dead { }
+        struct PredicateState { public int Seen; }
+        struct HealthPredicate : IWherePredicate
+        {
+            public bool Invoke(in Health health) => health.Value <= 0;
+        }
+        struct ContextPredicate : IWherePredicate
+        {
+            public bool Invoke(ref PredicateState state, in Health health)
+            {
+                state.Seen++;
+                return health.Value <= 0;
+            }
+        }
+        static class ReadonlyPredicateSystem
+        {
+            public static void Run(World world, in Query query)
+            {
+                world.Where(in query, static (in Health health) => health.Value <= 0).Destroy();
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= entity.Index).Destroy();
+                var state = new PredicateState();
+                world.Where(
+                        in query,
+                        ref state,
+                        static (ref PredicateState state, in Health health) =>
+                        {
+                            state.Seen++;
+                            return health.Value <= 0;
+                        })
+                    .Add<Dead>();
+                var predicate = new HealthPredicate();
+                world.Where(in query, ref predicate).Remove<Dead>();
+                var contextPredicate = new ContextPredicate();
+                world.Where(in query, ref state, ref contextPredicate).Destroy();
+            }
+        }
+        }
+        """;
+
+    private const string WhereWritablePredicateSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        static class WritablePredicateSystem
+        {
+            public static void Run(World world, in Query query)
+            {
+                world.WhereEntity(
+                        in query,
+                        static (Entity entity, ref Health health) => health.Value <= 0)
+                    .Destroy();
+            }
+        }
+        """;
+
+    private const string ConsumerSource = """
+        namespace Delta.ECS;
+        using System;
+        struct T1 { public int Value; }
+        struct T2 { public int Value; }
+        struct T3 { public int Value; }
+        struct T4 { public int Value; }
+        struct T5 { public int Value; }
+        struct T6 { public int Value; }
+        struct T7 { public int Value; }
+        struct T8 { public int Value; }
+        struct Context { public int Value; }
+        struct Functor : IForEachContextEntity<Context>
+        {
+            public void Invoke(ref Context context, EntityRef entity, in T1 a, ref T2 b, in T3 c, ref T4 d) { context.Value += entity.Index + a.Value + c.Value; b.Value++; d.Value++; }
+        }
+        struct AllModesFunctor : IForEach
+        {
+            public void Invoke(ref readonly T1 a, ref T2 b, in T3 c, T4 d) { b.Value += a.Value + c.Value + d.Value; }
+        }
+        struct EntityOnlyFunctor : IForEachEntity
+        {
+            public void Invoke(EntityRef entity) { _ = entity; }
+        }
+        static class Consumer
+        {
+            public static void Use(World world, Query query, ComponentId c1, ComponentId c2, ComponentId c3, ComponentId c4, ComponentId c5, ComponentId c6, ComponentId c7, ComponentId c8)
+            {
+                world.ForEach(in query, static () => { });
+                world.ForEachEntity(in query, static (EntityRef entity) => _ = entity.Index);
+                ReadOnlySpan<Entity> entities = default;
+                world.ForEachEntity(entities, in query, static (EntityRef entity) => _ = entity.Index);
+                world.ForEachEntity(entities, static (EntityRef entity) => _ = entity.Index);
+                world.ForEachEntityParallel(in query, static (EntityRef entity) => _ = entity.Index, workerCount: 2);
+                world.ForEachEntityParallel(entities, in query, static (EntityRef entity) => _ = entity.Index, workerCount: 2);
+                world.ForEachEntityParallel(entities, static (EntityRef entity) => _ = entity.Index, workerCount: 2);
+                var entityOnlyFunctor = new EntityOnlyFunctor();
+                world.ForEachEntity(in query, ref entityOnlyFunctor);
+                world.ForEachEntity(entities, in query, ref entityOnlyFunctor);
+                world.ForEachEntity(entities, ref entityOnlyFunctor);
+                world.ForEachEntityParallel(in query, ref entityOnlyFunctor, workerCount: 2);
+                world.ForEachEntityParallel(entities, in query, ref entityOnlyFunctor, workerCount: 2);
+                world.ForEachEntityParallel(entities, ref entityOnlyFunctor, workerCount: 2);
+                var context = new Context();
+                world.ForEachEntity(
+                    in query,
+                    ref context,
+                    static (ref Context state, EntityRef entity) => state.Value += entity.Index);
+                world.ForEachEntityParallel(
+                    in query,
+                    context,
+                    static (Context state, EntityRef entity) => _ = state.Value + entity.Index,
+                    workerCount: 2);
+                world.ForEachEntity(
+                    entities,
+                    in query,
+                    ref context,
+                    static (ref Context state, EntityRef entity) => state.Value += entity.Index);
+                world.ForEachEntityParallel(
+                    entities,
+                    in query,
+                    context,
+                    static (Context state, EntityRef entity) => _ = state.Value + entity.Index,
+                    workerCount: 2);
+                world.ForEach<Context>(in query, ref context, static (ref Context value) => value.Value++);
+                var allModesFunctor = new AllModesFunctor();
+                world.ForEach(in query, ref allModesFunctor);
+                world.ForEach<T1>(in query, static (ref T1 value) => value.Value++);
+                world.ForEach<T1, T2, T3, T4>(in query, static (in T1 a, ref T2 b, in T3 c, ref T4 d) => { b.Value += a.Value; d.Value += c.Value; });
+                world.ForEach<T1, T2, T3, T4, T5>(in query, c1, c2, c3, c4, c5, static (in T1 a, ref T2 b, in T3 c, ref T4 d, ref T5 e) => { b.Value += a.Value; d.Value += c.Value; e.Value++; });
+                world.ForEach<T1, T2, T3, T4, T5, T6, T7, T8>(in query, static (ref T1 a, in T2 b, ref T3 c, in T4 d, ref T5 e, in T6 f, ref T7 g, in T8 h) => { a.Value += b.Value; c.Value += d.Value; e.Value += f.Value; g.Value += h.Value; });
+                var functor = new Functor();
+                world.ForEachEntity(in query, ref context, ref functor);
+            }
+        }
+        """;
+
+    private const string AmbiguousFunctorSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        struct AmbiguousFunctor : IForEachEntity
+        {
+            public void Invoke(EntityRef entity, in T1 value) { }
+            public void Invoke(EntityRef entity, ref T1 value) { }
+        }
+        static class Consumer
+        {
+            public static void Use(World world, Query query)
+            {
+                var functor = new AmbiguousFunctor();
+                world.ForEachEntity(in query, ref functor);
+            }
+        }
+        """;
+
+    private const string SingleFunctorSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        struct SimpleFunctor : IForEachEntity
+        {
+            public void Invoke(EntityRef entity, ref T1 first) { }
+        }
+        static class Consumer
+        {
+            public static void Use(World world, Query query)
+            {
+                var functor = new SimpleFunctor();
+                world.ForEachEntity(in query, ref functor);
+            }
+        }
+        """;
+
+    private const string PrivateFunctorSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        static class Consumer
+        {
+            private struct PrivateFunctor : IForEach
+            {
+                public void Invoke(ref T1 value) { }
+            }
+
+            public static void Use(World world, Query query)
+            {
+                var functor = new PrivateFunctor();
+                world.ForEach(in query, ref functor);
+            }
+        }
+        """;
+
+    private const string InterceptionSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        static class Consumer
+        {
+            public static void Use(World world, Query query)
+            {
+                world.ForEach<T1>(in query, static (ref T1 value) => value.Value++);
+            }
+        }
+        """;
+
+    private const string EntityListInterceptionSource = """
+        namespace Delta.ECS;
+        using System;
+        struct T1 { public int Value; }
+        static class Consumer
+        {
+            public static void Update(ref T1 value) => value.Value++;
+            public static void UpdateEntity(EntityRef entity, ref T1 value) => value.Value += entity.Index;
+
+            public static void Use(World world, Query query, ReadOnlySpan<Entity> entities)
+            {
+                world.ForEach<T1>(entities, in query, static (ref T1 value) => value.Value++);
+                world.ForEachEntity<T1>(entities, in query, static (EntityRef entity, ref T1 value) => value.Value += entity.Index);
+                world.ForEachParallel<T1>(entities, in query, static (ref T1 value) => value.Value++, workerCount: 2);
+                world.ForEachEntityParallel<T1>(entities, in query, UpdateEntity, workerCount: 2);
+                world.ForEach<T1>(entities, Update);
+            }
+        }
+        """;
+
+    private const string ReturningInterceptionSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        static class Consumer
+        {
+            public static void Use(World world, Query query)
+            {
+                world.ForEach<T1>(in query, static (ref T1 value) =>
+                {
+                    if (value.Value > 0)
+                    {
+                        return;
+                    }
+
+                    value.Value++;
+                });
+            }
+        }
+        """;
+
+    private const string InterceptionAliasSharedSource = """
+        namespace Delta.ECS;
+        struct AliasComponent { public int Value; }
+        """;
+
+    private const string InterceptionAliasFirstSource = """
+        using Callback = Delta.ECS.FirstCallback;
+        namespace Delta.ECS;
+        static class FirstCallback
+        {
+            internal static void Apply(ref AliasComponent value) => value.Value++;
+        }
+        static class FirstAliasConsumer
+        {
+            internal static void Use(World world, Query query)
+                => world.ForEach(in query, static (ref AliasComponent value) => Callback.Apply(ref value));
+        }
+        """;
+
+    private const string InterceptionAliasSecondSource = """
+        using Callback = Delta.ECS.SecondCallback;
+        namespace Delta.ECS;
+        static class SecondCallback
+        {
+            internal static void Apply(ref AliasComponent value) => value.Value--;
+        }
+        static class SecondAliasConsumer
+        {
+            internal static void Use(World world, Query query)
+                => world.ForEach(in query, static (ref AliasComponent value) => Callback.Apply(ref value));
+        }
+        """;
+
+    private const string StaticMethodGroupInterceptionSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        struct T2 { public int Value; }
+        struct Context { public int Value; }
+        static class Callbacks
+        {
+            public static void Update(ref T1 value) => value.Value++;
+        }
+        static class Consumer
+        {
+            public static void Update(ref T1 value) => value.Value++;
+            public static void Update(ref T2 value) => value.Value += 2;
+            public static void UpdateWithContext(ref Context context, in T1 value) => context.Value += value.Value;
+            public static void UpdateParallel(in Context context, ref T1 value) => value.Value += context.Value;
+            public static void UpdateEntity(EntityRef entity, ref T1 value) => value.Value += entity.Index;
+            public static void UpdateEntityParallel(in Context context, EntityRef entity, ref T1 value) => value.Value += context.Value + entity.Index;
+
+            public static void Use(World world, Query query)
+            {
+                var context = new Context();
+                world.ForEach<T1>(in query, Update);
+                world.ForEach<T2>(in query, Update);
+                world.ForEach<T1>(in query, Callbacks.Update);
+                world.ForEach<Context, T1>(in query, ref context, UpdateWithContext);
+                world.ForEachParallel<Context, T1>(in query, in context, UpdateParallel, workerCount: 2);
+                world.ForEachEntity<T1>(in query, UpdateEntity);
+                world.ForEachEntityParallel<Context, T1>(in query, in context, UpdateEntityParallel, workerCount: 2);
+            }
+        }
+        """;
+
+    private const string InstanceMethodGroupInterceptionSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        class Consumer
+        {
+            private void Update(ref T1 value) => value.Value++;
+
+            public void Use(World world, Query query)
+            {
+                world.ForEach<T1>(in query, Update);
+            }
+        }
+        """;
+
+    private const string ImplicitStaticMethodGroupInterceptionSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        static class Consumer
+        {
+            public static void Update(ref T1 value) => value.Value++;
+
+            public static void Use(World world, Query query)
+            {
+                world.ForEach(in query, Update);
+            }
+        }
+        """;
+
+    private const string UnsupportedInterceptionSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        static class Consumer
+        {
+            public static void Use(World world, Query query, int delta)
+            {
+                world.ForEach<T1>(in query, (ref T1 value) => value.Value += delta);
+            }
+        }
+        """;
+
+    private const string PrivateReferenceInterceptionSource = """
+        namespace Delta.ECS;
+        struct T1 { public int Value; }
+        static class Consumer
+        {
+            private static int Delta => 1;
+
+            public static void Use(World world, Query query)
+            {
+                world.ForEach<T1>(in query, static (ref T1 value) => value.Value += Delta);
+            }
+        }
+        """;
+
+    private const string WhereFunctorSource = """
+        namespace Delta.ECS
+        {
+        struct Health { public int Value; }
+        struct Dead { }
+        struct PredicateState { public int Seen; }
+        struct ActionState { public int Count; }
+        struct HealthPredicate : IWherePredicate
+        {
+            public bool Invoke(ref PredicateState state, Entity entity, in Health health)
+            {
+                state.Seen += entity.Index;
+                return health.Value <= 0;
+            }
+        }
+        struct HealthAction : IForEachContextEntity<ActionState>
+        {
+            public void Invoke(ref ActionState state, EntityRef entity, ref Health health)
+            {
+                state.Count += entity.Index;
+                health.Value = 0;
+            }
+        }
+        static class FunctorWhereSystem
+        {
+            public static void Run(World world, in Query query)
+            {
+                var predicateState = new PredicateState();
+                var predicate = new HealthPredicate();
+                var actionState = new ActionState();
+                var action = new HealthAction();
+                world.WhereEntity(in query, ref predicateState, ref predicate)
+                    .ForEachEntity(ref actionState, ref action);
+            }
+        }
+        }
+        """;
+
+    private const string WhereInterceptionSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        struct Dead { }
+        static class InterceptedWhereSystem
+        {
+            internal struct Mutation : IForEach
+            {
+                public void Invoke(ref Health health) => health.Value++;
+            }
+
+            internal struct Context
+            {
+                public int Count;
+            }
+
+            internal struct EntityMutation : IForEachContextEntity<Context>
+            {
+                public void Invoke(ref Context context, EntityRef entity, ref Health health)
+                {
+                    context.Count += entity.Index;
+                    health.Value++;
+                }
+            }
+
+            public static void Run(World world, in Query query)
+            {
+                world.WhereEntity(
+                        in query,
+                        static (Entity entity, in Health health) => health.Value <= entity.Index)
+                    .ForEach(static (ref Health health) =>
+                    {
+                        health.Value = 0;
+                    });
+                world.Where(
+                        in query,
+                        static (in Health health) => health.Value > 0)
+                    .ForEach(static (ref Health health) => health.Value++);
+                world.WhereEntity(
+                        in query,
+                        static (Entity entity, in Health health) => health.Value <= entity.Index)
+                    .Destroy();
+                world.Where(
+                        in query,
+                        static (in Health health) => health.Value > 0)
+                    .Add<Dead>();
+                var action = new Mutation();
+                world.WhereEntity(
+                        in query,
+                        static (Entity entity, in Health health) => health.Value <= entity.Index)
+                    .ForEach(ref action);
+                var context = new Context();
+                var entityAction = new EntityMutation();
+                world.WhereEntity(
+                        in query,
+                        static (Entity entity, in Health health) => health.Value <= entity.Index)
+                    .ForEachEntity(ref context, ref entityAction);
+            }
+        }
+        """;
+
+    private const string WhereMethodGroupInterceptionSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        static class InterceptedWhereSystem
+        {
+            public static bool IsDead(in Health health) => health.Value <= 0;
+            public static bool IsDeadEntity(Entity entity, in Health health) => health.Value <= entity.Index;
+            public static void Reset(ref Health health) => health.Value = 0;
+            public static void ResetEntity(EntityRef entity, ref Health health) => health.Value += entity.Index;
+
+            public static void Run(World world, in Query query)
+            {
+                world.Where(in query, IsDead).ForEach(Reset);
+                world.WhereEntity(in query, IsDeadEntity).ForEachEntity(ResetEntity);
+            }
+        }
+        """;
+
+    private const string WhereContextBindingSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        struct FirstContext { public int Value; }
+        struct SecondContext { public int Value; }
+        static class ContextBindingSystem
+        {
+            public static bool IsFirstDead(ref FirstContext context, in Health health)
+            {
+                context.Value++;
+                return health.Value <= 0;
+            }
+
+            public static bool IsSecondDead(ref SecondContext context, in Health health)
+            {
+                context.Value++;
+                return health.Value <= 0;
+            }
+
+            public static void Run(World world, in Query query, ref FirstContext first, ref SecondContext second)
+            {
+                world.Where(in query, ref first, IsFirstDead).Destroy();
+                world.Where(in query, ref second, IsSecondDead).Destroy();
+            }
+        }
+        """;
+
+    private const string WhereContextBindingReversedSource = """
+        namespace Delta.ECS;
+        struct Health { public int Value; }
+        struct FirstContext { public int Value; }
+        struct SecondContext { public int Value; }
+        static class ContextBindingSystem
+        {
+            public static bool IsFirstDead(ref FirstContext context, in Health health)
+            {
+                context.Value++;
+                return health.Value <= 0;
+            }
+
+            public static bool IsSecondDead(ref SecondContext context, in Health health)
+            {
+                context.Value++;
+                return health.Value <= 0;
+            }
+
+            public static void Run(World world, in Query query, ref FirstContext first, ref SecondContext second)
+            {
+                world.Where(in query, ref second, IsSecondDead).Destroy();
+                world.Where(in query, ref first, IsFirstDead).Destroy();
+            }
+        }
+        """;
     [Test]
     public void ComponentComparerGeneratesTypedOrderedQueryAdapters()
     {
@@ -1912,14 +3149,20 @@ public sealed class DemandDrivenForEachGeneratorTests
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
     }
 
+    private static string RuntimeStubFor(LanguageVersion languageVersion)
+        => languageVersion < LanguageVersion.CSharp11
+            ? RuntimeStubSource
+                .Replace("scoped ReadOnlySpan<int>", "ReadOnlySpan<int>", StringComparison.Ordinal)
+            : RuntimeStubSource;
+
     private sealed class FixedAnalyzerConfigOptionsProvider : AnalyzerConfigOptionsProvider
     {
+
+        public override AnalyzerConfigOptions GlobalOptions { get; }
         public FixedAnalyzerConfigOptionsProvider(string interceptorsNamespace)
         {
             GlobalOptions = new FixedAnalyzerConfigOptions(interceptorsNamespace);
         }
-
-        public override AnalyzerConfigOptions GlobalOptions { get; }
 
         public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => GlobalOptions;
 
@@ -1947,1244 +3190,4 @@ public sealed class DemandDrivenForEachGeneratorTests
             return false;
         }
     }
-
-    private static string RuntimeStubFor(LanguageVersion languageVersion)
-        => languageVersion < LanguageVersion.CSharp11
-            ? RuntimeStubSource
-                .Replace("scoped ReadOnlySpan<int>", "ReadOnlySpan<int>", StringComparison.Ordinal)
-            : RuntimeStubSource;
-
-    private const string RuntimeStubSource = """
-        namespace Delta.ECS
-        {
-        using System;
-        public readonly struct Entity { public int Index { get; } }
-        public struct GeneratedEntityRefView { }
-        public ref struct EntityRef { public int Index { get; } }
-        public readonly struct ComponentId { }
-        public interface IComponentComparer { }
-        public interface IComponentComparerEntity { }
-        public interface IGeneratedWhereEntityConsumer { void Invoke(Entity entity); }
-        public interface IGeneratedComponentComparer
-        {
-            void Validate(World world, in Query query);
-            int Compare(World world, Entity left, Entity right);
-        }
-        public readonly struct OrderedQuery
-        {
-            public Query SourceQuery => default;
-            public static OrderedQuery CreateGenerated(Query query, IGeneratedComponentComparer comparer) => default;
-            public OrderedQuery AppendGenerated(IGeneratedComponentComparer comparer) => default;
-            public void BeginGeneratedOperation() { }
-            public void EndForEach() { }
-            public void AppendGeneratedEntity(Entity entity) { }
-            public ReadOnlySpan<Entity> SortGeneratedEntities() => default;
-            public int CompareGeneratedEntities(Entity left, Entity right) => 0;
-        }
-        public readonly struct QuerySpec
-        {
-            public static QuerySpec WhereAll(ReadOnlySpan<ComponentId> components) => default;
-            public static QuerySpec WhereAny(ReadOnlySpan<ComponentId> components) => default;
-            public static QuerySpec WhereNone(ReadOnlySpan<ComponentId> components) => default;
-            public static QuerySpec WhereAll(ComponentId component) => default;
-            public static QuerySpec WhereAny(ComponentId component) => default;
-            public static QuerySpec WhereNone(ComponentId component) => default;
-            public QuerySpec WithAll(ReadOnlySpan<ComponentId> components) => default;
-            public QuerySpec WithAny(ReadOnlySpan<ComponentId> components) => default;
-            public QuerySpec WithNone(ReadOnlySpan<ComponentId> components) => default;
-            public static QuerySpec Empty => default;
-        }
-        public readonly struct Query
-        {
-            public Query WhereAll(ReadOnlySpan<ComponentId> components) => default;
-            public Query WhereAny(ReadOnlySpan<ComponentId> components) => default;
-            public Query WhereNone(ReadOnlySpan<ComponentId> components) => default;
-            public Query WhereAll(ComponentId component) => default;
-            public Query WhereAny(ComponentId component) => default;
-            public Query WhereNone(ComponentId component) => default;
-        }
-        public readonly struct ReadAccess { }
-        public readonly struct WriteAccess { }
-        public delegate void ForEachAction();
-        public delegate void ForEachEntityAction(EntityRef entity);
-        public delegate void ForEachContextAction<TContext>(ref TContext context);
-        public delegate void ForEachContextEntityAction<TContext>(ref TContext context, EntityRef entity);
-        public delegate void ForEachContextActionIn<TContext>(in TContext context);
-        public delegate void ForEachContextEntityActionIn<TContext>(in TContext context, EntityRef entity);
-        public delegate void ForEachContextActionValue<TContext>(TContext context);
-        public delegate void ForEachContextEntityActionValue<TContext>(TContext context, EntityRef entity);
-        public interface IForEach { }
-        public interface IForEachEntity { }
-        public interface IForEachContext<TContext> { }
-        public interface IForEachContextEntity<TContext> { }
-        public interface IWherePredicate { }
-        public struct GeneratedWhereStructuralContext
-        {
-            public void ProcessRun(int sourceSlot, int count, bool selected) { }
-            public void ProcessRun<TInitializer>(int sourceSlot, int count, bool selected, ref TInitializer initializer)
-                where TInitializer : struct, IGeneratedComponentValueInitializer { }
-        }
-        public interface IGeneratedWhereInvoker
-        {
-            void Invoke(ref GeneratedQuerySlots slots);
-        }
-        public interface IGeneratedWhereStructuralInvoker
-        {
-            void Execute(ref GeneratedQuerySlots slots, ref GeneratedWhereStructuralContext context);
-        }
-        public interface IGeneratedParallelInvoker
-        {
-            bool RequiresSingleThread { get; }
-            void Invoke(ref GeneratedQuerySlots slots);
-        }
-        public sealed class ComponentRegistry
-        {
-            public ComponentId GetPrimary(Type type) => default;
-            public ComponentId GetPrimary<T>() => default;
-        }
-        public ref struct GeneratedQuerySlots
-        {
-            public int ChunkId => 0;
-            public int Count => 0;
-            public int PhysicalCount => 0;
-            public bool HasTagFilters => false;
-            public bool TryGetTagSlots(out ReadOnlySpan<int> slots) { slots = default; return false; }
-            public Entity EntityAt(int index) => default;
-            public EntityRef GetEntityRef(ref GeneratedEntityRefView view, int index) => default;
-            public EntityRef GetEntityRefAtSlot(ref GeneratedEntityRefView view, int slotIndex) => default;
-            public EntityRef CreateEntityRef(ref GeneratedEntityRefView view) => default;
-            public void BindEntityRef(ref GeneratedEntityRefView view, int slotIndex) { }
-            public void BindEntityRef(ref GeneratedEntityRefView view) { }
-            public void SetEntityRefSlot(ref GeneratedEntityRefView view, int slotIndex) { }
-            public int GetGeneratedRowOffset(int index) => index;
-            public int GetGeneratedSlotIndex(int index) => index;
-            public ref Entity GetGeneratedEntityReference() => throw new NotImplementedException();
-            public T[] GetGeneratedArray<T>(int queryComponentIndex) => Array.Empty<T>();
-            public T[] GetGeneratedArray<T>(ReadAccess access) => Array.Empty<T>();
-            public T[] GetGeneratedArray<T>(WriteAccess access) => Array.Empty<T>();
-            public ref T GetGeneratedReadReference<T>(int queryComponentIndex) => throw new NotImplementedException();
-            public ref T GetGeneratedReadReference<T>(ReadAccess access) => throw new NotImplementedException();
-            public ref T GetGeneratedWriteReference<T>(int queryComponentIndex) => throw new NotImplementedException();
-            public ref T GetGeneratedWriteReference<T>(WriteAccess access) => throw new NotImplementedException();
-        }
-        public ref struct GeneratedReadQuerySlots
-        {
-            public int Count => 0;
-            public Entity EntityAt(int index) => default;
-            public EntityRef GetEntityRef(ref GeneratedEntityRefView view, int index) => default;
-            public EntityRef GetEntityRefAtSlot(ref GeneratedEntityRefView view, int slotIndex) => default;
-            public void BindEntityRef(ref GeneratedEntityRefView view, int slotIndex) { }
-            public void BindEntityRef(ref GeneratedEntityRefView view) { }
-            public void SetEntityRefSlot(ref GeneratedEntityRefView view, int slotIndex) { }
-            public int GetGeneratedRowOffset(int index) => index;
-            public int GetGeneratedSlotIndex(int index) => index;
-            public ref readonly Entity GetGeneratedEntityReference() => throw new NotImplementedException();
-            public ref T GetGeneratedReadReference<T>(int queryComponentIndex) => throw new NotImplementedException();
-            public ref T GetGeneratedReadReference<T>(ReadAccess access) => throw new NotImplementedException();
-        }
-        public readonly struct GeneratedBoundChunk
-        {
-            public int Count => 0;
-            public bool HasTagFilters => false;
-            public bool TryGetTagSlots(out ReadOnlySpan<int> slots) { slots = default; return false; }
-            public ref Entity GetEntityReference() => throw new NotImplementedException();
-        }
-        public abstract class GeneratedDenseBinding<TRows> where TRows : struct
-        {
-            protected abstract void Prepare(in Query query);
-            protected abstract TRows BindRows(Array[] rows, GeneratedBoundChunk chunk);
-            protected void SetWriteRoutes(ReadOnlySpan<int> routes) { }
-        }
-        public ref struct GeneratedBoundExecution<TRows> where TRows : struct
-        {
-            public ReadOnlySpan<TRows> Rows => default;
-            public bool HasTagFilters => false;
-            public bool TryGetTagSlots(out ReadOnlySpan<int> slots) { slots = default; return false; }
-            public void Dispose() { }
-        }
-        public ref struct GeneratedDenseExecution
-        {
-            public bool HasTagFilters => false;
-            public bool TryGetTagSlots(out ReadOnlySpan<int> slots) { slots = default; return false; }
-            public bool MoveNextTrusted(out GeneratedQuerySlots slots) { slots = default; return false; }
-            public bool MoveNextTrusted(out Array[] componentRows, out int count)
-            {
-                componentRows = Array.Empty<Array>();
-                count = 0;
-                return false;
-            }
-            public void MarkArchetypeWrite(int queryComponentIndex) { }
-            public void MarkArchetypeWrites(scoped ReadOnlySpan<int> queryComponentIndices) { }
-            public void RecordComponentWrites(scoped ReadOnlySpan<int> queryComponentIndices) { }
-            public void Dispose() { }
-        }
-        public ref struct GeneratedReadDenseExecution
-        {
-            public bool HasTagFilters => false;
-            public bool TryGetTagSlots(out ReadOnlySpan<int> slots) { slots = default; return false; }
-            public bool MoveNextTrusted(out GeneratedReadQuerySlots slots) { slots = default; return false; }
-            public bool MoveNextTrusted(out Array[] componentRows, out int count)
-            {
-                componentRows = Array.Empty<Array>();
-                count = 0;
-                return false;
-            }
-            public void Dispose() { }
-        }
-        public interface IGeneratedComponentValueInitializer
-        {
-            void Initialize(ref GeneratedComponentValueWriter writer);
-        }
-        public ref struct GeneratedComponentValueWriter
-        {
-            public void InitializeAdded<T>(ComponentId component, in T value) { }
-            public void InitializeCreated<T>(ComponentId component, in T value) { }
-        }
-        public static class GeneratedForEachRuntime
-        {
-            public static ref Entity GetGeneratedEntityReference(ref GeneratedQuerySlots slots) => ref slots.GetGeneratedEntityReference();
-            public static ref Entity GetGeneratedEntityReference(ref GeneratedReadQuerySlots slots) => throw new NotImplementedException();
-            public static ref int GetGeneratedTagSlotReference(ReadOnlySpan<int> slots) => throw new NotImplementedException();
-            public static EntityRef CreateEntityRef(World world, ref GeneratedEntityRefView view) => default;
-            public static GeneratedBoundExecution<TRows> OpenBoundDense<TBinding, TRows>(World world, in Query query)
-                where TBinding : GeneratedDenseBinding<TRows>, new() where TRows : struct => default;
-            public static GeneratedBoundExecution<TRows> OpenBoundDenseRead<TBinding, TRows>(World world, in Query query)
-                where TBinding : GeneratedDenseBinding<TRows>, new() where TRows : struct => default;
-            public static T[] GetGeneratedArray<T>(Array[] rows, int route) => throw new NotImplementedException();
-            public static ref T GetGeneratedArrayReference<T>(T[] row) => throw new NotImplementedException();
-            public static void ThrowIfNull(object? value, string parameterName) { }
-            public static void ValidateComponentType<T>(World world, ComponentId component) { }
-            public static void ValidateComponentType<T>(in Query query, ComponentId component) { }
-            public static bool IsComponentType<T>(World world, ComponentId component) => true;
-            public static void ValidateComponentIdCount(ReadOnlySpan<ComponentId> components, int expected) { }
-            public static bool ExecuteGeneratedAdd<TInitializer>(World world, Entity entity, ReadOnlySpan<ComponentId> components, ref TInitializer initializer)
-                where TInitializer : struct, IGeneratedComponentValueInitializer => true;
-            public static Entity ExecuteGeneratedCreate<TInitializer>(World world, ReadOnlySpan<ComponentId> components, ref TInitializer initializer)
-                where TInitializer : struct, IGeneratedComponentValueInitializer => default;
-            public static ref T GetGeneratedRow<T>(Array[] componentRows, int queryComponentIndex) => throw new NotImplementedException();
-            public static GeneratedDenseExecution OpenDense(World world, in Query query) => default;
-            public static GeneratedDenseExecution OpenWriteDense(World world, in Query query) => default;
-            public static GeneratedReadDenseExecution OpenReadDense(World world, in Query query) => default;
-            public static ReadAccess GetPreparedReadAccess<T>(in Query query) => default;
-            public static int GetPreparedReadRoute<T>(in Query query) => default;
-            public static int GetPreparedReadRoute<T>(in Query query, ComponentId component) => default;
-            public static WriteAccess GetPreparedWriteAccess<T>(in Query query) => default;
-            public static int GetPreparedWriteRoute<T>(in Query query) => default;
-            public static int GetPreparedWriteRoute<T>(in Query query, ComponentId component) => default;
-            public static void ValidateGeneratedWhere(World world, in Query query) { }
-            public static Query ComposeGeneratedQuery(in Query query, QuerySpec additions) => default;
-            public static ReadOnlySpan<ComponentId> GetGeneratedPrimaryComponentIds<TKey>(World world, Func<World, ComponentId[]> resolver) => resolver(world);
-            public static ReadOnlySpan<ComponentId> GetGeneratedPrimaryComponentIds<TKey>(in Query query, Func<World, ComponentId[]> resolver) => default;
-            public static int ExecuteGeneratedWhereDestroy<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices)
-                where TInvoker : struct, IGeneratedWhereStructuralInvoker => 0;
-            public static int ExecuteGeneratedWhereAdd<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, ReadOnlySpan<ComponentId> componentIds)
-                where TInvoker : struct, IGeneratedWhereStructuralInvoker => 0;
-            public static int ExecuteGeneratedWhereRemove<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, ReadOnlySpan<ComponentId> componentIds)
-                where TInvoker : struct, IGeneratedWhereStructuralInvoker => 0;
-            public static void ExecuteGeneratedWhereForEach<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices)
-                where TInvoker : struct, IGeneratedWhereInvoker { }
-            public static void ExecuteParallelDense<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, int workerCount = 0)
-                where TInvoker : struct, IGeneratedParallelInvoker { }
-            public static void ExecuteEntityList<TInvoker>(World world, in Query query, ReadOnlySpan<Entity> entities, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices)
-                where TInvoker : struct, IGeneratedParallelInvoker { }
-            public static void ExecuteEntityListParallel<TInvoker>(World world, in Query query, ReadOnlySpan<Entity> entities, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, int workerCount = 0)
-                where TInvoker : struct, IGeneratedParallelInvoker { }
-            public static ReadAccess GetPreparedReadAccess(in Query query, ComponentId component, Type runtimeType) => default;
-            public static WriteAccess GetPreparedWriteAccess(in Query query, ComponentId component, Type runtimeType) => default;
-            public static int GetWriteQueryComponentIndex(WriteAccess access) => default;
-            public static int GetReadQueryComponentIndex(ReadAccess access) => default;
-        }
-        public sealed partial class World
-        {
-            public ComponentRegistry Components { get; } = new();
-            public void ValidateGeneratedOrderedQueryKey<T>(in Query query, ComponentId componentId) { }
-            public ref readonly T GetGeneratedOrderedQueryKey<T>(Entity entity, ComponentId componentId) => throw new NotImplementedException();
-            public Query WhereAll(ReadOnlySpan<ComponentId> components) => default;
-            public Query WhereAll(ComponentId component0, ComponentId component1) => default;
-            public Entity Create(ReadOnlySpan<ComponentId> components) => default;
-            public int Create(ReadOnlySpan<ComponentId> components, int count) => count;
-            public int Create(ReadOnlySpan<ComponentId> components, int count, Span<Entity> output) => count;
-            public Query CreateQuery(in QuerySpec spec) => default;
-            public bool Add(Entity entity, ReadOnlySpan<ComponentId> components) => true;
-            public int Add(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> components) => 0;
-            public bool Remove(Entity entity, ReadOnlySpan<ComponentId> components) => true;
-            public int Remove(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> components) => 0;
-            public int Add(in Query query, ReadOnlySpan<ComponentId> components) => 0;
-            public int Remove(in Query query, ReadOnlySpan<ComponentId> components) => 0;
-            public void ForEach(in Query query, ForEachAction action) { }
-            public void ForEachEntity(in Query query, ForEachEntityAction action) { }
-            public void ForEach<TContext>(in Query query, ref TContext context, ForEachContextAction<TContext> action) { }
-            public void ForEachEntity<TContext>(in Query query, ref TContext context, ForEachContextEntityAction<TContext> action) { }
-        }
-        }
-        """;
-
-    private const string StructuralSource = """
-        namespace Delta.ECS;
-        using System;
-        struct Position { }
-        struct Velocity { }
-        static class StructuralConsumer
-        {
-            public static void Use(
-                World world,
-                Query query,
-                ReadOnlySpan<Entity> entities,
-                ReadOnlySpan<ComponentId> selectedComponents,
-                ComponentId position,
-                ComponentId velocity)
-            {
-                world.Create<Position, Velocity>(2);
-                Span<Entity> output = stackalloc Entity[2];
-                world.Create<Position, Velocity>(2, output);
-                world.Create(position, velocity, 2);
-                world.Create(position, velocity, 2, output);
-                world.Create(selectedComponents, 2, output);
-                Entity entity = default;
-                world.Add<Position, Velocity>(entity);
-                world.Add(entity, position, velocity);
-                world.Add(entity, selectedComponents);
-                world.Add<Position, Velocity>(entities);
-                world.Add(entities, position, velocity);
-                world.Add(entities, selectedComponents);
-                world.Remove<Position, Velocity>(entity);
-                world.Remove(entity, position, velocity);
-                world.Remove(entity, selectedComponents);
-                world.Remove<Position, Velocity>(entities);
-                world.Remove(entities, position, velocity);
-                world.Remove(entities, selectedComponents);
-                world.Add<Position, Velocity>(in query);
-                world.Add(in query, position, velocity);
-                world.Add(in query, selectedComponents);
-                world.Remove<Position, Velocity>(in query);
-                world.Remove(in query, position, velocity);
-                world.Remove(in query, selectedComponents);
-                world.Add(entity, new Position(), new Velocity());
-                world.Add<Position, Velocity>(entity, new Position(), new Velocity());
-            }
-        }
-        """;
-
-    private const string ExplicitCreateSource = """
-        namespace Delta.ECS;
-        using System;
-        static class ExplicitStructuralConsumer
-        {
-            public static void Use(World world, ComponentId position, ComponentId velocity, Span<Entity> output)
-            {
-                _ = world.Create(position, velocity, 2);
-                _ = world.Create(position, 2, output);
-                _ = world.Add(default(Entity), position, velocity);
-                _ = world.Remove(default(Entity), position, velocity);
-            }
-        }
-        """;
-
-    private const string GenericQuerySource = """
-        namespace Delta.ECS;
-        struct Position { }
-        struct Velocity { }
-        struct Acceleration { }
-        static class QueryConsumer
-        {
-            public static void Use(World world, Query query, global::System.ReadOnlySpan<ComponentId> components)
-            {
-                Query all = world.WhereAll<Position, Velocity>();
-                Query any = world.WhereAny<Position, Velocity, Acceleration>();
-                Query none = world.WhereNone<Acceleration>();
-                Query bySpan = world.WhereAll(components);
-                Query chained = query.WhereNone(components);
-                _ = all;
-                _ = any;
-                _ = none;
-                _ = bySpan;
-                _ = chained;
-            }
-        }
-        """;
-
-    private const string PrivateNestedQueryComponentSource = """
-        namespace Delta.ECS;
-        static class PrivateQueryConsumer
-        {
-            private struct Position { }
-
-            public static Query Build(World world)
-                => world.WhereAll<Position>();
-        }
-        """;
-
-    private const string GenericQueryChainSource = """
-        namespace Delta.ECS;
-        struct Position { }
-        struct Health { }
-        struct Human { }
-        struct Dead { }
-        struct Escaped { }
-        struct Armed { }
-        struct Berserk { }
-        static class QueryConsumer
-        {
-            public static Query Build(World world)
-                => world
-                    .WhereAll<Position, Health, Human>()
-                    .WhereNone<Dead, Escaped>()
-                    .WhereAny<Armed, Berserk>();
-
-            public static Query BuildWithLocal(World world)
-            {
-                Query query = world.WhereAll<Position, Health, Human>();
-                return query.WhereNone<Dead, Escaped>().WhereAny<Armed, Berserk>();
-            }
-
-            public static Query BuildWithVar(World world)
-            {
-                var query = world.WhereAll<Position, Health>();
-                return query.WhereNone<Dead, Escaped, Human>().WhereAny<Armed>();
-            }
-        }
-        """;
-
-    private const string QuerySpecPositionalFactoriesSource = """
-        namespace Consumer;
-        using Delta.ECS;
-        static class QuerySpecConsumer
-        {
-            public static QuerySpec Build(ComponentId id)
-                => QuerySpec.Empty
-                    .WhereAny(id)
-                    .WhereAll(id, id)
-                    .WhereAll(
-                        id, id, id, id, id, id, id, id, id, id,
-                        id, id, id, id, id, id, id, id, id, id)
-                    .WhereNone(id, id);
-        }
-        """;
-
-    private const string ExplicitSelectorSource = """
-        namespace Delta.ECS;
-        struct Position { public int Value; }
-        struct Velocity { public int Value; }
-        static class ExplicitSelectorConsumer
-        {
-            public static void Use(World world, Query query, ComponentId position, ComponentId velocity)
-            {
-                world.ForEach(in query, position, velocity,
-                    static (ref Position value, in Velocity source) => value.Value += source.Value);
-            }
-        }
-        """;
-
-    private const string GrammarMatrixSource = """
-        namespace Delta.ECS;
-        using System;
-        struct T1 { public int Value; }
-        struct T2 { public int Value; }
-        struct Context { public int Value; }
-        static class GrammarMatrixConsumer
-        {
-            public static void ApplyEntity(EntityRef entity, ref T1 first, in T2 second) => first.Value += entity.Index + second.Value;
-
-            public static void Use(
-                World world,
-                in Query query,
-                ReadOnlySpan<Entity> entities,
-                ComponentId first,
-                ComponentId second,
-                ref Context context)
-            {
-                world.ForEach<T1, T2>(in query, first, second, static (ref T1 a, in T2 b) => a.Value += b.Value);
-                world.ForEachEntity<T1, T2>(entities, first, second, ApplyEntity);
-                world.ForEachParallel<T1, T2>(in query, first, second, static (ref T1 a, in T2 b) => a.Value += b.Value, workerCount: 2);
-                world.ForEachEntityParallel<T1, T2>(entities, in query, first, second, ApplyEntity, workerCount: 2);
-
-                world.ForEach<Context, T1, T2>(in query, first, second, ref context,
-                    static (ref Context state, ref T1 a, in T2 b) =>
-                    {
-                        state.Value++;
-                        a.Value += b.Value;
-                    });
-
-                Entity entity = default;
-                world.Add(entity, first, second);
-                world.Remove(entity, first, second);
-                world.Add(entities, first, second);
-                world.Remove(entities, first, second);
-                world.Add(in query, first, second);
-                world.Remove(in query, first, second);
-                world.Create(first, second, 2);
-            }
-        }
-        """;
-
-    private const string QueryFactoriesWithDuplicateSignaturesSource = """
-        namespace Delta.ECS;
-        struct Position { }
-        struct Velocity { }
-        struct Acceleration { }
-        struct Lifetime { }
-        static class MovementSystem
-        {
-            public static Query Build(World world) => world.WhereAll<Position, Velocity>();
-        }
-        static class LifetimeSystem
-        {
-            public static Query Build(World world) => world.WhereAll<Acceleration, Lifetime>();
-        }
-        """;
-
-    private const string TupleContextElementNamesSource = """
-        namespace Delta.ECS;
-        struct SquadMember { public Entity Squad; }
-        static class EcsEntryPoint
-        {
-            public static void Use(World world, Query query, Entity squad)
-            {
-                var state = (Squad: squad, AliveMembers: 0);
-                world.ForEach(
-                    in query,
-                    ref state,
-                    static (ref (Entity Squad, int AliveMembers) state, in SquadMember member) =>
-                    {
-                        if (member.Squad.Index == state.Squad.Index)
-                        {
-                            state.AliveMembers++;
-                        }
-                    });
-            }
-        }
-        static class SurvivorJoinSystem
-        {
-            public static void Tick(World world, Query query, Entity squad)
-            {
-                var memberState = (Squad: squad, Count: 0);
-                world.ForEach(
-                    in query,
-                    ref memberState,
-                    static (ref (Entity Squad, int Count) state, in SquadMember member) =>
-                    {
-                        if (member.Squad.Index == state.Squad.Index)
-                        {
-                            state.Count++;
-                        }
-                    });
-            }
-        }
-        """;
-
-    private const string WhereMutationSource = """
-        namespace Delta.ECS
-        {
-        struct Health { public int Value; }
-        struct Team { public int Id; public int DefaultHealth; }
-        struct Dead { }
-        struct Alive { }
-        static class MutationSystems
-        {
-            public static void Run(World world, in Query query, ComponentId deadId, ComponentId aliveId)
-            {
-                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Destroy();
-                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Add<Dead>();
-                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Add(deadId);
-                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
-                    .Add<Dead>(new Dead());
-                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
-                    .Add<Dead>(world.Components.GetPrimary<Dead>(), new Dead());
-                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Remove<Alive>();
-                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Remove(aliveId);
-                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
-                    .ForEach(static (ref Health health) => health.Value = 0);
-                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
-                    health.Value <= 0 && team.Id == 1)
-                    .Destroy();
-                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
-                    health.Value <= 0 && team.Id == 1)
-                    .Add<Dead>();
-                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
-                    health.Value <= 0 && team.Id == 1)
-                    .Remove<Alive>();
-                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
-                    health.Value <= 0 && team.Id == 1)
-                    .ForEachEntity(static (EntityRef current, ref Health health, in Team team) => _ = current.Index + team.Id);
-                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
-                    health.Value <= 0 && team.Id == 1)
-                    .ForEach(static (ref Health health, in Team team) => health.Value = team.DefaultHealth);
-                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
-                    health.Value <= 0 && team.Id == 1)
-                    .Add<Dead, Alive>(new Dead(), new Alive());
-                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
-                    health.Value <= 0 && team.Id == 1)
-                    .Add<Dead, Alive>(deadId, aliveId, new Dead(), new Alive());
-                world.WhereEntity(in query, static (Entity entity, in Health health, in Team team) =>
-                    health.Value <= 0 && team.Id == 1)
-                    .Remove(deadId, aliveId);
-            }
-        }
-        }
-        """;
-
-    private const string WhereZeroArityTerminalSource = """
-        namespace Delta.ECS;
-        struct Health { public int Value; }
-        struct Dead { }
-        static class ZeroArityWhereSystem
-        {
-            public static void Run(World world, in Query query)
-            {
-                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= entity.Index)
-                    .ForEachEntity(static (EntityRef entity) => _ = entity);
-            }
-        }
-        """;
-
-    private const string WhereDuplicateMutationSource = """
-        namespace Delta.ECS;
-        struct Health { public int Value; }
-        struct Position { public int Value; }
-        struct Dead { }
-        struct Selected { }
-        static class DuplicateMutationSystem
-        {
-            public static void Run(World world, in Query query)
-            {
-                world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>();
-                world.Where(in query, static (in Position position) => position.Value < 0).Add<Selected>();
-            }
-        }
-        """;
-
-    private const string GenericCallSitesSource = """
-        namespace Delta.ECS;
-        struct Position { public int Value; }
-        struct Velocity { public int Value; }
-        struct PositionContext { public int Value; }
-        struct VelocityContext { public int Value; }
-        struct Health { public int Value; }
-        static class GenericCallSites
-        {
-            public static void Use(
-                World world,
-                in Query query,
-                ref PositionContext positionContext,
-                ref VelocityContext velocityContext)
-            {
-                world.ForEach<PositionContext, Position>(in query, ref positionContext,
-                    static (ref PositionContext context, ref Position position) =>
-                    {
-                        context.Value += position.Value;
-                    });
-                world.ForEach<VelocityContext, Velocity>(in query, ref velocityContext,
-                    static (ref VelocityContext context, ref Velocity velocity) =>
-                    {
-                        context.Value += velocity.Value;
-                    });
-                world.Where(in query, ref positionContext,
-                    static (ref PositionContext context, in Health health) =>
-                    {
-                        context.Value += health.Value;
-                        return health.Value >= 0;
-                    });
-                world.Where(in query, ref velocityContext,
-                    static (ref VelocityContext context, in Health health) =>
-                    {
-                        context.Value += health.Value;
-                        return health.Value >= 0;
-                    });
-            }
-        }
-        """;
-
-    private const string WhereStructuralParameterMatrixSource = """
-        namespace Delta.ECS;
-        struct Health { public int Value; }
-        struct Dead { }
-        struct Alive { }
-        static class WhereStructuralParameterMatrix
-        {
-            public static void Use(
-                World world,
-                in Query query,
-                ComponentId deadId,
-                ComponentId aliveId,
-                global::System.ReadOnlySpan<ComponentId> componentIds)
-            {
-                world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>();
-                world.Where(in query, static (in Health health) => health.Value <= 0).Add(deadId);
-                world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>(new Dead());
-                world.Where(in query, static (in Health health) => health.Value <= 0).Add(new Dead());
-                world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>(deadId, new Dead());
-                world.Where(in query, static (in Health health) => health.Value <= 0).Add(componentIds);
-                world.Where(in query, static (in Health health) => health.Value <= 0).Add<Dead>(componentIds, new Dead());
-                world.Where(in query, static (in Health health) => health.Value <= 0).Remove<Dead>();
-                world.Where(in query, static (in Health health) => health.Value <= 0).Remove(deadId);
-                world.Where(in query, static (in Health health) => health.Value <= 0).Remove<Dead, Alive>();
-                world.Where(in query, static (in Health health) => health.Value <= 0).Remove(deadId, aliveId);
-                world.Where(in query, static (in Health health) => health.Value <= 0).Remove(componentIds);
-            }
-        }
-        """;
-
-    private const string WhereEntityParameterSource = """
-        namespace Delta.ECS;
-        struct Health { public int Value; }
-        static class InvalidWhereSystem
-        {
-            public static void Run(World world, in Query query)
-            {
-                world.Where(in query, static (Entity entity, in Health health) => health.Value <= entity.Index);
-            }
-        }
-        """;
-
-    private const string WhereReadonlyPredicateSource = """
-        namespace Delta.ECS;
-        struct Health { public int Value; }
-        struct Team { public int Id; }
-        struct Dead { }
-        static class ReadonlyPredicateSystem
-        {
-            public static void Run(World world, in Query query)
-            {
-                world.WhereEntity(
-                        in query,
-                        static (Entity entity, in Health health) => health.Value <= 0)
-                    .Destroy();
-                world.WhereEntity(
-                        in query,
-                        static (Entity entity, ref readonly Health health, in Team team) =>
-                            health.Value <= 0 && team.Id == 1)
-                    .Add<Dead>();
-            }
-        }
-        """;
-
-    private const string WhereWithoutEntitySource = """
-        namespace Delta.ECS
-        {
-        struct Health { public int Value; }
-        struct Dead { }
-        struct PredicateState { public int Seen; }
-        struct HealthPredicate : IWherePredicate
-        {
-            public bool Invoke(in Health health) => health.Value <= 0;
-        }
-        struct ContextPredicate : IWherePredicate
-        {
-            public bool Invoke(ref PredicateState state, in Health health)
-            {
-                state.Seen++;
-                return health.Value <= 0;
-            }
-        }
-        static class ReadonlyPredicateSystem
-        {
-            public static void Run(World world, in Query query)
-            {
-                world.Where(in query, static (in Health health) => health.Value <= 0).Destroy();
-                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= entity.Index).Destroy();
-                var state = new PredicateState();
-                world.Where(
-                        in query,
-                        ref state,
-                        static (ref PredicateState state, in Health health) =>
-                        {
-                            state.Seen++;
-                            return health.Value <= 0;
-                        })
-                    .Add<Dead>();
-                var predicate = new HealthPredicate();
-                world.Where(in query, ref predicate).Remove<Dead>();
-                var contextPredicate = new ContextPredicate();
-                world.Where(in query, ref state, ref contextPredicate).Destroy();
-            }
-        }
-        }
-        """;
-
-    private const string WhereWritablePredicateSource = """
-        namespace Delta.ECS;
-        struct Health { public int Value; }
-        static class WritablePredicateSystem
-        {
-            public static void Run(World world, in Query query)
-            {
-                world.WhereEntity(
-                        in query,
-                        static (Entity entity, ref Health health) => health.Value <= 0)
-                    .Destroy();
-            }
-        }
-        """;
-
-    private const string ConsumerSource = """
-        namespace Delta.ECS;
-        using System;
-        struct T1 { public int Value; }
-        struct T2 { public int Value; }
-        struct T3 { public int Value; }
-        struct T4 { public int Value; }
-        struct T5 { public int Value; }
-        struct T6 { public int Value; }
-        struct T7 { public int Value; }
-        struct T8 { public int Value; }
-        struct Context { public int Value; }
-        struct Functor : IForEachContextEntity<Context>
-        {
-            public void Invoke(ref Context context, EntityRef entity, in T1 a, ref T2 b, in T3 c, ref T4 d) { context.Value += entity.Index + a.Value + c.Value; b.Value++; d.Value++; }
-        }
-        struct AllModesFunctor : IForEach
-        {
-            public void Invoke(ref readonly T1 a, ref T2 b, in T3 c, T4 d) { b.Value += a.Value + c.Value + d.Value; }
-        }
-        struct EntityOnlyFunctor : IForEachEntity
-        {
-            public void Invoke(EntityRef entity) { _ = entity; }
-        }
-        static class Consumer
-        {
-            public static void Use(World world, Query query, ComponentId c1, ComponentId c2, ComponentId c3, ComponentId c4, ComponentId c5, ComponentId c6, ComponentId c7, ComponentId c8)
-            {
-                world.ForEach(in query, static () => { });
-                world.ForEachEntity(in query, static (EntityRef entity) => _ = entity.Index);
-                ReadOnlySpan<Entity> entities = default;
-                world.ForEachEntity(entities, in query, static (EntityRef entity) => _ = entity.Index);
-                world.ForEachEntity(entities, static (EntityRef entity) => _ = entity.Index);
-                world.ForEachEntityParallel(in query, static (EntityRef entity) => _ = entity.Index, workerCount: 2);
-                world.ForEachEntityParallel(entities, in query, static (EntityRef entity) => _ = entity.Index, workerCount: 2);
-                world.ForEachEntityParallel(entities, static (EntityRef entity) => _ = entity.Index, workerCount: 2);
-                var entityOnlyFunctor = new EntityOnlyFunctor();
-                world.ForEachEntity(in query, ref entityOnlyFunctor);
-                world.ForEachEntity(entities, in query, ref entityOnlyFunctor);
-                world.ForEachEntity(entities, ref entityOnlyFunctor);
-                world.ForEachEntityParallel(in query, ref entityOnlyFunctor, workerCount: 2);
-                world.ForEachEntityParallel(entities, in query, ref entityOnlyFunctor, workerCount: 2);
-                world.ForEachEntityParallel(entities, ref entityOnlyFunctor, workerCount: 2);
-                var context = new Context();
-                world.ForEachEntity(
-                    in query,
-                    ref context,
-                    static (ref Context state, EntityRef entity) => state.Value += entity.Index);
-                world.ForEachEntityParallel(
-                    in query,
-                    context,
-                    static (Context state, EntityRef entity) => _ = state.Value + entity.Index,
-                    workerCount: 2);
-                world.ForEachEntity(
-                    entities,
-                    in query,
-                    ref context,
-                    static (ref Context state, EntityRef entity) => state.Value += entity.Index);
-                world.ForEachEntityParallel(
-                    entities,
-                    in query,
-                    context,
-                    static (Context state, EntityRef entity) => _ = state.Value + entity.Index,
-                    workerCount: 2);
-                world.ForEach<Context>(in query, ref context, static (ref Context value) => value.Value++);
-                var allModesFunctor = new AllModesFunctor();
-                world.ForEach(in query, ref allModesFunctor);
-                world.ForEach<T1>(in query, static (ref T1 value) => value.Value++);
-                world.ForEach<T1, T2, T3, T4>(in query, static (in T1 a, ref T2 b, in T3 c, ref T4 d) => { b.Value += a.Value; d.Value += c.Value; });
-                world.ForEach<T1, T2, T3, T4, T5>(in query, c1, c2, c3, c4, c5, static (in T1 a, ref T2 b, in T3 c, ref T4 d, ref T5 e) => { b.Value += a.Value; d.Value += c.Value; e.Value++; });
-                world.ForEach<T1, T2, T3, T4, T5, T6, T7, T8>(in query, static (ref T1 a, in T2 b, ref T3 c, in T4 d, ref T5 e, in T6 f, ref T7 g, in T8 h) => { a.Value += b.Value; c.Value += d.Value; e.Value += f.Value; g.Value += h.Value; });
-                var functor = new Functor();
-                world.ForEachEntity(in query, ref context, ref functor);
-            }
-        }
-        """;
-
-    private const string AmbiguousFunctorSource = """
-        namespace Delta.ECS;
-        struct T1 { public int Value; }
-        struct AmbiguousFunctor : IForEachEntity
-        {
-            public void Invoke(EntityRef entity, in T1 value) { }
-            public void Invoke(EntityRef entity, ref T1 value) { }
-        }
-        static class Consumer
-        {
-            public static void Use(World world, Query query)
-            {
-                var functor = new AmbiguousFunctor();
-                world.ForEachEntity(in query, ref functor);
-            }
-        }
-        """;
-
-    private const string SingleFunctorSource = """
-        namespace Delta.ECS;
-        struct T1 { public int Value; }
-        struct SimpleFunctor : IForEachEntity
-        {
-            public void Invoke(EntityRef entity, ref T1 first) { }
-        }
-        static class Consumer
-        {
-            public static void Use(World world, Query query)
-            {
-                var functor = new SimpleFunctor();
-                world.ForEachEntity(in query, ref functor);
-            }
-        }
-        """;
-
-    private const string PrivateFunctorSource = """
-        namespace Delta.ECS;
-        struct T1 { public int Value; }
-        static class Consumer
-        {
-            private struct PrivateFunctor : IForEach
-            {
-                public void Invoke(ref T1 value) { }
-            }
-
-            public static void Use(World world, Query query)
-            {
-                var functor = new PrivateFunctor();
-                world.ForEach(in query, ref functor);
-            }
-        }
-        """;
-
-    private const string InterceptionSource = """
-        namespace Delta.ECS;
-        struct T1 { public int Value; }
-        static class Consumer
-        {
-            public static void Use(World world, Query query)
-            {
-                world.ForEach<T1>(in query, static (ref T1 value) => value.Value++);
-            }
-        }
-        """;
-
-    private const string EntityListInterceptionSource = """
-        namespace Delta.ECS;
-        using System;
-        struct T1 { public int Value; }
-        static class Consumer
-        {
-            public static void Update(ref T1 value) => value.Value++;
-            public static void UpdateEntity(EntityRef entity, ref T1 value) => value.Value += entity.Index;
-
-            public static void Use(World world, Query query, ReadOnlySpan<Entity> entities)
-            {
-                world.ForEach<T1>(entities, in query, static (ref T1 value) => value.Value++);
-                world.ForEachEntity<T1>(entities, in query, static (EntityRef entity, ref T1 value) => value.Value += entity.Index);
-                world.ForEachParallel<T1>(entities, in query, static (ref T1 value) => value.Value++, workerCount: 2);
-                world.ForEachEntityParallel<T1>(entities, in query, UpdateEntity, workerCount: 2);
-                world.ForEach<T1>(entities, Update);
-            }
-        }
-        """;
-
-    private const string ReturningInterceptionSource = """
-        namespace Delta.ECS;
-        struct T1 { public int Value; }
-        static class Consumer
-        {
-            public static void Use(World world, Query query)
-            {
-                world.ForEach<T1>(in query, static (ref T1 value) =>
-                {
-                    if (value.Value > 0)
-                    {
-                        return;
-                    }
-
-                    value.Value++;
-                });
-            }
-        }
-        """;
-
-    private const string InterceptionAliasSharedSource = """
-        namespace Delta.ECS;
-        struct AliasComponent { public int Value; }
-        """;
-
-    private const string InterceptionAliasFirstSource = """
-        using Callback = Delta.ECS.FirstCallback;
-        namespace Delta.ECS;
-        static class FirstCallback
-        {
-            internal static void Apply(ref AliasComponent value) => value.Value++;
-        }
-        static class FirstAliasConsumer
-        {
-            internal static void Use(World world, Query query)
-                => world.ForEach(in query, static (ref AliasComponent value) => Callback.Apply(ref value));
-        }
-        """;
-
-    private const string InterceptionAliasSecondSource = """
-        using Callback = Delta.ECS.SecondCallback;
-        namespace Delta.ECS;
-        static class SecondCallback
-        {
-            internal static void Apply(ref AliasComponent value) => value.Value--;
-        }
-        static class SecondAliasConsumer
-        {
-            internal static void Use(World world, Query query)
-                => world.ForEach(in query, static (ref AliasComponent value) => Callback.Apply(ref value));
-        }
-        """;
-
-    private const string StaticMethodGroupInterceptionSource = """
-        namespace Delta.ECS;
-        struct T1 { public int Value; }
-        struct T2 { public int Value; }
-        struct Context { public int Value; }
-        static class Callbacks
-        {
-            public static void Update(ref T1 value) => value.Value++;
-        }
-        static class Consumer
-        {
-            public static void Update(ref T1 value) => value.Value++;
-            public static void Update(ref T2 value) => value.Value += 2;
-            public static void UpdateWithContext(ref Context context, in T1 value) => context.Value += value.Value;
-            public static void UpdateParallel(in Context context, ref T1 value) => value.Value += context.Value;
-            public static void UpdateEntity(EntityRef entity, ref T1 value) => value.Value += entity.Index;
-            public static void UpdateEntityParallel(in Context context, EntityRef entity, ref T1 value) => value.Value += context.Value + entity.Index;
-
-            public static void Use(World world, Query query)
-            {
-                var context = new Context();
-                world.ForEach<T1>(in query, Update);
-                world.ForEach<T2>(in query, Update);
-                world.ForEach<T1>(in query, Callbacks.Update);
-                world.ForEach<Context, T1>(in query, ref context, UpdateWithContext);
-                world.ForEachParallel<Context, T1>(in query, in context, UpdateParallel, workerCount: 2);
-                world.ForEachEntity<T1>(in query, UpdateEntity);
-                world.ForEachEntityParallel<Context, T1>(in query, in context, UpdateEntityParallel, workerCount: 2);
-            }
-        }
-        """;
-
-    private const string InstanceMethodGroupInterceptionSource = """
-        namespace Delta.ECS;
-        struct T1 { public int Value; }
-        class Consumer
-        {
-            private void Update(ref T1 value) => value.Value++;
-
-            public void Use(World world, Query query)
-            {
-                world.ForEach<T1>(in query, Update);
-            }
-        }
-        """;
-
-    private const string ImplicitStaticMethodGroupInterceptionSource = """
-        namespace Delta.ECS;
-        struct T1 { public int Value; }
-        static class Consumer
-        {
-            public static void Update(ref T1 value) => value.Value++;
-
-            public static void Use(World world, Query query)
-            {
-                world.ForEach(in query, Update);
-            }
-        }
-        """;
-
-    private const string UnsupportedInterceptionSource = """
-        namespace Delta.ECS;
-        struct T1 { public int Value; }
-        static class Consumer
-        {
-            public static void Use(World world, Query query, int delta)
-            {
-                world.ForEach<T1>(in query, (ref T1 value) => value.Value += delta);
-            }
-        }
-        """;
-
-    private const string PrivateReferenceInterceptionSource = """
-        namespace Delta.ECS;
-        struct T1 { public int Value; }
-        static class Consumer
-        {
-            private static int Delta => 1;
-
-            public static void Use(World world, Query query)
-            {
-                world.ForEach<T1>(in query, static (ref T1 value) => value.Value += Delta);
-            }
-        }
-        """;
-
-    private const string WhereFunctorSource = """
-        namespace Delta.ECS
-        {
-        struct Health { public int Value; }
-        struct Dead { }
-        struct PredicateState { public int Seen; }
-        struct ActionState { public int Count; }
-        struct HealthPredicate : IWherePredicate
-        {
-            public bool Invoke(ref PredicateState state, Entity entity, in Health health)
-            {
-                state.Seen += entity.Index;
-                return health.Value <= 0;
-            }
-        }
-        struct HealthAction : IForEachContextEntity<ActionState>
-        {
-            public void Invoke(ref ActionState state, EntityRef entity, ref Health health)
-            {
-                state.Count += entity.Index;
-                health.Value = 0;
-            }
-        }
-        static class FunctorWhereSystem
-        {
-            public static void Run(World world, in Query query)
-            {
-                var predicateState = new PredicateState();
-                var predicate = new HealthPredicate();
-                var actionState = new ActionState();
-                var action = new HealthAction();
-                world.WhereEntity(in query, ref predicateState, ref predicate)
-                    .ForEachEntity(ref actionState, ref action);
-            }
-        }
-        }
-        """;
-
-    private const string WhereInterceptionSource = """
-        namespace Delta.ECS;
-        struct Health { public int Value; }
-        struct Dead { }
-        static class InterceptedWhereSystem
-        {
-            internal struct Mutation : IForEach
-            {
-                public void Invoke(ref Health health) => health.Value++;
-            }
-
-            internal struct Context
-            {
-                public int Count;
-            }
-
-            internal struct EntityMutation : IForEachContextEntity<Context>
-            {
-                public void Invoke(ref Context context, EntityRef entity, ref Health health)
-                {
-                    context.Count += entity.Index;
-                    health.Value++;
-                }
-            }
-
-            public static void Run(World world, in Query query)
-            {
-                world.WhereEntity(
-                        in query,
-                        static (Entity entity, in Health health) => health.Value <= entity.Index)
-                    .ForEach(static (ref Health health) =>
-                    {
-                        health.Value = 0;
-                    });
-                world.Where(
-                        in query,
-                        static (in Health health) => health.Value > 0)
-                    .ForEach(static (ref Health health) => health.Value++);
-                world.WhereEntity(
-                        in query,
-                        static (Entity entity, in Health health) => health.Value <= entity.Index)
-                    .Destroy();
-                world.Where(
-                        in query,
-                        static (in Health health) => health.Value > 0)
-                    .Add<Dead>();
-                var action = new Mutation();
-                world.WhereEntity(
-                        in query,
-                        static (Entity entity, in Health health) => health.Value <= entity.Index)
-                    .ForEach(ref action);
-                var context = new Context();
-                var entityAction = new EntityMutation();
-                world.WhereEntity(
-                        in query,
-                        static (Entity entity, in Health health) => health.Value <= entity.Index)
-                    .ForEachEntity(ref context, ref entityAction);
-            }
-        }
-        """;
-
-    private const string WhereMethodGroupInterceptionSource = """
-        namespace Delta.ECS;
-        struct Health { public int Value; }
-        static class InterceptedWhereSystem
-        {
-            public static bool IsDead(in Health health) => health.Value <= 0;
-            public static bool IsDeadEntity(Entity entity, in Health health) => health.Value <= entity.Index;
-            public static void Reset(ref Health health) => health.Value = 0;
-            public static void ResetEntity(EntityRef entity, ref Health health) => health.Value += entity.Index;
-
-            public static void Run(World world, in Query query)
-            {
-                world.Where(in query, IsDead).ForEach(Reset);
-                world.WhereEntity(in query, IsDeadEntity).ForEachEntity(ResetEntity);
-            }
-        }
-        """;
-
-    private const string WhereContextBindingSource = """
-        namespace Delta.ECS;
-        struct Health { public int Value; }
-        struct FirstContext { public int Value; }
-        struct SecondContext { public int Value; }
-        static class ContextBindingSystem
-        {
-            public static bool IsFirstDead(ref FirstContext context, in Health health)
-            {
-                context.Value++;
-                return health.Value <= 0;
-            }
-
-            public static bool IsSecondDead(ref SecondContext context, in Health health)
-            {
-                context.Value++;
-                return health.Value <= 0;
-            }
-
-            public static void Run(World world, in Query query, ref FirstContext first, ref SecondContext second)
-            {
-                world.Where(in query, ref first, IsFirstDead).Destroy();
-                world.Where(in query, ref second, IsSecondDead).Destroy();
-            }
-        }
-        """;
-
-    private const string WhereContextBindingReversedSource = """
-        namespace Delta.ECS;
-        struct Health { public int Value; }
-        struct FirstContext { public int Value; }
-        struct SecondContext { public int Value; }
-        static class ContextBindingSystem
-        {
-            public static bool IsFirstDead(ref FirstContext context, in Health health)
-            {
-                context.Value++;
-                return health.Value <= 0;
-            }
-
-            public static bool IsSecondDead(ref SecondContext context, in Health health)
-            {
-                context.Value++;
-                return health.Value <= 0;
-            }
-
-            public static void Run(World world, in Query query, ref FirstContext first, ref SecondContext second)
-            {
-                world.Where(in query, ref second, IsSecondDead).Destroy();
-                world.Where(in query, ref first, IsFirstDead).Destroy();
-            }
-        }
-        """;
 }

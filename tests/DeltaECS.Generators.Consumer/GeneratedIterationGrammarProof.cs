@@ -1,12 +1,11 @@
 using System;
+
 using Delta.ECS;
 
 namespace Delta.ECS.Generators.Consumer;
 
 internal static class GeneratedIterationGrammarProof
 {
-    private static void AddContextFromCmp1(ref Context context, ref Cmp1 cmp1)
-        => context.Value += cmp1.Value;
 
     internal static void Run(
         World world,
@@ -224,4 +223,6 @@ internal static class GeneratedIterationGrammarProof
         world.ForEachEntityParallel(entities, in query, componentIds, ref functorEntityRW, workerCount: 2).Invoke(ref functorEntityRW);
         world.ForEachEntityParallel(entityArray, componentIds, ref functorEntityRW, workerCount: 2).Invoke(ref functorEntityRW);
     }
+    private static void AddContextFromCmp1(ref Context context, ref Cmp1 cmp1)
+        => context.Value += cmp1.Value;
 }

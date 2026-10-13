@@ -1,4 +1,5 @@
 using System;
+
 using TinyEcs;
 
 namespace Ecs.CSharp.Benchmark.Contexts

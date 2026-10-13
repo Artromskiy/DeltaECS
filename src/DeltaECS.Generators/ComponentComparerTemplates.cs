@@ -119,6 +119,87 @@ internal static class ComponentComparerTemplateSupport
             createAdapter)));
     }
 
+    internal static string OrderedReceiverType(PredicateModel? source, bool thenBy, string whereTypeArguments)
+    {
+        if (source is null)
+        {
+            return "global::Delta.ECS." + (thenBy ? "OrderedQuery" : "Query");
+        }
+
+        return (thenBy
+            ? GeneratedWhereTemplates.OrderedViewTypeName(source)
+            : GeneratedWhereTemplates.ViewTypeName(source)) + whereTypeArguments;
+    }
+
+    internal static string OrderedReturnType(PredicateModel? source, string whereTypeArguments) => source is null
+            ? "global::Delta.ECS.OrderedQuery"
+            : GeneratedWhereTemplates.OrderedViewTypeName(source)
+                + whereTypeArguments;
+
+    internal static string SourceQueryDeclaration(PredicateModel? source, bool thenBy, RegistrationBindingKind registration)
+    {
+        bool needsSourceQuery = source is null
+            ? thenBy && registration == RegistrationBindingKind.Primary
+            : !thenBy || registration == RegistrationBindingKind.Primary;
+        if (!needsSourceQuery)
+        {
+            return string.Empty;
+        }
+
+        string sourceProperty = source is null || thenBy ? "SourceQuery" : "Query";
+        return $"global::Delta.ECS.Query sourceQuery = query.{sourceProperty};\n";
+    }
+
+    internal static string GeneratedOrderingFactory(
+        PredicateModel? source,
+        bool thenBy,
+        string adapter,
+        string whereTypeArguments)
+    {
+        if (source is null)
+        {
+            return thenBy
+                ? $"query.AppendGenerated({adapter})"
+                : $"global::Delta.ECS.OrderedQuery.CreateGenerated(query, {adapter})";
+        }
+
+        string orderedQuery = thenBy
+            ? $"query.Ordering.AppendGenerated({adapter})"
+            : $"global::Delta.ECS.OrderedQuery.CreateGenerated(sourceQuery, {adapter})";
+        string sourceView = thenBy ? "query.Source" : "query";
+        return $"new {GeneratedWhereTemplates.OrderedViewTypeName(source)}{whereTypeArguments}({sourceView}, {orderedQuery})";
+    }
+
+    internal static string Arguments(
+        bool hasContext,
+        ContextModeKind contextMode,
+        bool hasEntity,
+        int arity,
+        string contextName,
+        Func<int, string> left,
+        Func<int, string> right)
+    {
+        var arguments = new List<string>();
+        if (hasContext)
+        {
+            arguments.Add(SignatureProjection.ContextArgument(contextMode, contextName));
+        }
+
+        if (hasEntity)
+        {
+            arguments.Add("leftEntity");
+        }
+
+        arguments.AddRange(Enumerable.Range(0, arity).Select(left));
+        if (hasEntity)
+        {
+            arguments.Add("rightEntity");
+        }
+
+        arguments.AddRange(Enumerable.Range(0, arity).Select(right));
+        return string.Join(", ", arguments);
+    }
+
     private static IEnumerable<string> RenderOrderedMethodSet(
         PredicateModel? source,
         int arity,
@@ -180,37 +261,6 @@ internal static class ComponentComparerTemplateSupport
         }
     }
 
-    internal static string OrderedReceiverType(PredicateModel? source, bool thenBy, string whereTypeArguments)
-    {
-        if (source is null)
-        {
-            return "global::Delta.ECS." + (thenBy ? "OrderedQuery" : "Query");
-        }
-
-        return (thenBy
-            ? GeneratedWhereTemplates.OrderedViewTypeName(source)
-            : GeneratedWhereTemplates.ViewTypeName(source)) + whereTypeArguments;
-    }
-
-    internal static string OrderedReturnType(PredicateModel? source, string whereTypeArguments) => source is null
-            ? "global::Delta.ECS.OrderedQuery"
-            : GeneratedWhereTemplates.OrderedViewTypeName(source)
-                + whereTypeArguments;
-
-    internal static string SourceQueryDeclaration(PredicateModel? source, bool thenBy, RegistrationBindingKind registration)
-    {
-        bool needsSourceQuery = source is null
-            ? thenBy && registration == RegistrationBindingKind.Primary
-            : !thenBy || registration == RegistrationBindingKind.Primary;
-        if (!needsSourceQuery)
-        {
-            return string.Empty;
-        }
-
-        string sourceProperty = source is null || thenBy ? "SourceQuery" : "Query";
-        return $"global::Delta.ECS.Query sourceQuery = query.{sourceProperty};\n";
-    }
-
     private static string ComponentIdsDeclaration(int arity, RegistrationBindingKind registration, string primaryIds)
     {
         return registration switch
@@ -228,55 +278,5 @@ internal static class ComponentComparerTemplateSupport
                     {{primaryIds}};
                 """
         };
-    }
-
-    internal static string GeneratedOrderingFactory(
-        PredicateModel? source,
-        bool thenBy,
-        string adapter,
-        string whereTypeArguments)
-    {
-        if (source is null)
-        {
-            return thenBy
-                ? $"query.AppendGenerated({adapter})"
-                : $"global::Delta.ECS.OrderedQuery.CreateGenerated(query, {adapter})";
-        }
-
-        string orderedQuery = thenBy
-            ? $"query.Ordering.AppendGenerated({adapter})"
-            : $"global::Delta.ECS.OrderedQuery.CreateGenerated(sourceQuery, {adapter})";
-        string sourceView = thenBy ? "query.Source" : "query";
-        return $"new {GeneratedWhereTemplates.OrderedViewTypeName(source)}{whereTypeArguments}({sourceView}, {orderedQuery})";
-    }
-
-    internal static string Arguments(
-        bool hasContext,
-        ContextModeKind contextMode,
-        bool hasEntity,
-        int arity,
-        string contextName,
-        Func<int, string> left,
-        Func<int, string> right)
-    {
-        var arguments = new List<string>();
-        if (hasContext)
-        {
-            arguments.Add(SignatureProjection.ContextArgument(contextMode, contextName));
-        }
-
-        if (hasEntity)
-        {
-            arguments.Add("leftEntity");
-        }
-
-        arguments.AddRange(Enumerable.Range(0, arity).Select(left));
-        if (hasEntity)
-        {
-            arguments.Add("rightEntity");
-        }
-
-        arguments.AddRange(Enumerable.Range(0, arity).Select(right));
-        return string.Join(", ", arguments);
     }
 }

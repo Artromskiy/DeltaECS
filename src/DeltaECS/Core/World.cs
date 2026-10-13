@@ -23,6 +23,8 @@ public sealed partial class World : IDisposable
     private const int InitialBatchEdgeCapacity = 4;
     private const int TransitionHashMultiplier = 397;
 
+    [ThreadStatic] private static World? _schedulerExecutionWorld;
+
     private readonly ComponentRegistry _layouts;
 
     private readonly Dictionary<RuntimeTypeHandle, ComponentId> _primaryComponentIdsByType =
@@ -69,19 +71,6 @@ public sealed partial class World : IDisposable
     private int _activeChunkLeases;
     private int _schedulerExecutionActive;
 
-    [ThreadStatic] private static World? _schedulerExecutionWorld;
-
-    /// <summary>Creates a world using the supplied component layouts.</summary>
-    /// <param name="layouts">The registered component layouts, or null to create an empty registry.</param>
-    /// <param name="initialEntityCapacity">The initial capacity for entity records.</param>
-    public World(ComponentRegistry? layouts = null, int initialEntityCapacity = DefaultInitialCapacity)
-    {
-        ThrowHelper.ThrowIfNegative(initialEntityCapacity, nameof(initialEntityCapacity));
-
-        _layouts = layouts ?? new ComponentRegistry();
-        _records.Capacity = initialEntityCapacity;
-    }
-
     private int _aliveEntityCount;
 
     /// <summary>Gets the number of entities currently alive in this world.</summary>
@@ -105,6 +94,26 @@ public sealed partial class World : IDisposable
         }
     }
 
+    internal bool IsDisposed { get; private set; }
+
+    internal int TagVersion { get; private set; }
+
+
+    internal List<Archetype> Archetypes { get; } = new();
+
+    internal bool HasComponentChangeObserverRoutes => _componentChangeObservers is not null;
+
+    /// <summary>Creates a world using the supplied component layouts.</summary>
+    /// <param name="layouts">The registered component layouts, or null to create an empty registry.</param>
+    /// <param name="initialEntityCapacity">The initial capacity for entity records.</param>
+    public World(ComponentRegistry? layouts = null, int initialEntityCapacity = DefaultInitialCapacity)
+    {
+        ThrowHelper.ThrowIfNegative(initialEntityCapacity, nameof(initialEntityCapacity));
+
+        _layouts = layouts ?? new ComponentRegistry();
+        _records.Capacity = initialEntityCapacity;
+    }
+
     /// <summary>Tries to get the component registered under an alias in this world's catalog.</summary>
     public bool TryGetAlias(string alias, out ComponentId componentId)
     {
@@ -123,45 +132,6 @@ public sealed partial class World : IDisposable
     {
         EnsureExecutionAccess();
         return _layouts.GetGroup(groupId);
-    }
-
-    internal bool IsDisposed { get; private set; }
-
-    internal int TagVersion { get; private set; }
-
-
-    internal List<Archetype> Archetypes { get; } = new();
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ComponentId GetPrimaryComponentId<T>()
-    {
-        RuntimeTypeHandle type = typeof(T).TypeHandle;
-        if (_primaryComponentIdsByType.TryGetValue(type, out ComponentId componentId))
-        {
-            return componentId;
-        }
-
-        componentId = _layouts.GetPrimary<T>();
-        _primaryComponentIdsByType.Add(type, componentId);
-        return componentId;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TryGetPrimaryComponentId<T>(out ComponentId componentId)
-    {
-        RuntimeTypeHandle type = typeof(T).TypeHandle;
-        if (_primaryComponentIdsByType.TryGetValue(type, out componentId))
-        {
-            return true;
-        }
-
-        if (!_layouts.TryGetPrimary<T>(out componentId))
-        {
-            return false;
-        }
-
-        _primaryComponentIdsByType.Add(type, componentId);
-        return true;
     }
 
     /// <summary>
@@ -253,6 +223,347 @@ public sealed partial class World : IDisposable
     public ComponentChangeOperation<T> ForEachChange<T>(ComponentId componentId, ComponentChangeAction<T> action)
         => new(this, componentId, action);
 
+    /// <summary>Creates one entity with the supplied component registrations.</summary>
+    public Entity Create(ReadOnlySpan<ComponentId> componentIds)
+    {
+        Span<Entity> entities = stackalloc Entity[1];
+        return Create(componentIds, entities) == 0 ? default : entities.GetRefAtZero();
+    }
+
+    /// <summary>Creates one entity with the supplied component registration.</summary>
+    public Entity Create(ComponentId componentId) => Create(stackalloc ComponentId[1] { componentId });
+
+    /// <summary>Creates entities with the supplied component registration and caller-owned output storage.</summary>
+    public int Create(ComponentId componentId, int count, Span<Entity> output)
+        => Create(stackalloc ComponentId[1] { componentId }, count, output);
+
+    /// <summary>Creates entities with the supplied component registration without retaining handles.</summary>
+    public int Create(ComponentId componentId, int count)
+        => Create(stackalloc ComponentId[1] { componentId }, count);
+
+    /// <summary>Creates one entity for each output slot and stores its handle.</summary>
+    public int Create(ReadOnlySpan<ComponentId> componentIds, Span<Entity> output)
+    {
+        EnsureNoActiveLease("create entities");
+        if (output.Length == 0)
+        {
+            return 0;
+        }
+
+        if (!TryGetComponentSet(componentIds, out ComponentSet? componentSet))
+        {
+            ThrowHelper.ThrowInvalidComponentList();
+        }
+
+        var archetype = GetOrCreateArchetype(componentSet.Mask);
+        return CreateBatch(archetype, output, componentSet.TagIndices);
+    }
+
+    /// <summary>Creates a requested number of entities into caller-owned storage.</summary>
+    /// <remarks>When <paramref name="output"/> is empty, handles are not retained.</remarks>
+    public int Create(ReadOnlySpan<ComponentId> componentIds, int count, Span<Entity> output)
+    {
+        ThrowHelper.ThrowIfNegative(count, nameof(count));
+        if (output.Length != 0 && output.Length < count)
+        {
+            ThrowHelper.ThrowEntityDestinationTooSmall(nameof(output));
+        }
+
+        if (output.Length == 0)
+        {
+            EnsureNoActiveLease("create entities");
+            if (count == 0)
+            {
+                return 0;
+            }
+
+            if (!TryGetComponentSet(componentIds, out ComponentSet? componentSet))
+            {
+                ThrowHelper.ThrowInvalidComponentList();
+            }
+
+            return CreateBatch(GetOrCreateArchetype(componentSet.Mask), count, componentSet.TagIndices);
+        }
+
+        return Create(componentIds, output[..count]);
+    }
+
+    /// <summary>Creates entities with the supplied component set without retaining entity handles.</summary>
+    public int Create(ReadOnlySpan<ComponentId> componentIds, int count)
+        => Create(componentIds, count, Span<Entity>.Empty);
+
+    /// <summary>Destroys one entity and reports whether the handle was alive.</summary>
+    public bool Destroy(Entity entity)
+    {
+        EnsureNoActiveLease("destroy entities");
+        if (!TryResolve(entity, out int recordIndex, out Chunk chunk, out _))
+        {
+            return false;
+        }
+
+        DestroyResolved(recordIndex, chunk);
+        return true;
+    }
+
+    /// <summary>Destroys the alive entities in a caller-provided span.</summary>
+    public int Destroy(ReadOnlySpan<Entity> entities)
+    {
+        EnsureNoActiveLease("destroy entities");
+        EnsureDestroyScratch(entities.Length);
+        int count = 0;
+        for (int i = 0; i < entities.Length; i++)
+        {
+            if (TryResolve(entities.RefAt(i), out int recordIndex, out Chunk chunk, out int slotIndex))
+            {
+                _destroyScratch.RefAt(count++) = new DestroyEntry(
+                    entities.RefAt(i),
+                    recordIndex,
+                    chunk.ArchetypeId,
+                    chunk.GlobalId,
+                    slotIndex);
+            }
+        }
+
+        if (count == 0)
+        {
+            return 0;
+        }
+
+        BeginQueryPlanBatch();
+        int destroyed;
+        if (count == 1)
+        {
+            // A single valid handle needs neither sorting nor a second
+            // record/lifetime validation: no mutation has happened yet.
+            DestroyResolved(_destroyScratch.GetRefAtZero().RecordIndex);
+            destroyed = 1;
+        }
+        else if (IsAscendingDestroyOrder(count))
+        {
+            EnsureFreeRecordCapacity(_freeCount + count);
+            destroyed = DestroyAscendingBatch(count);
+        }
+        else
+        {
+            SpanSortCompat.Sort(_destroyScratch.Span[..count], DestroyEntryComparer.Instance);
+            EnsureFreeRecordCapacity(_freeCount + count);
+            destroyed = 0;
+            int groupStart = 0;
+            while (groupStart < count)
+            {
+                var first = _destroyScratch.RefAt(groupStart);
+                int groupEnd = groupStart + 1;
+                while (groupEnd < count)
+                {
+                    var next = _destroyScratch.RefAt(groupEnd);
+                    if (next.Archetype != first.Archetype || next.ChunkId != first.ChunkId)
+                    {
+                        break;
+                    }
+
+                    groupEnd++;
+                }
+
+                int groupCount = groupEnd - groupStart;
+                var archetype = Archetypes[first.Archetype];
+                var chunk = GetChunkById(first.ChunkId);
+                if (groupCount == chunk.Count && IsCompleteDestroyChunk(groupStart, groupCount))
+                {
+                    destroyed += DestroyChunk(archetype, chunk.ArchetypeIndex);
+                }
+                else
+                {
+                    for (int index = groupStart; index < groupEnd; index++)
+                    {
+                        var entry = _destroyScratch.RefAt(index);
+                        if (IsCurrentDestroyEntry(entry))
+                        {
+                            DestroyResolved(entry.RecordIndex);
+                            destroyed++;
+                        }
+                    }
+                }
+
+                groupStart = groupEnd;
+            }
+        }
+
+        EndQueryPlanBatch();
+        return destroyed;
+    }
+
+    /// <summary>Determines whether an entity handle is alive in this world.</summary>
+    public bool IsAlive(Entity entity)
+    {
+        EnsureExecutionAccess();
+        return TryResolve(entity, out _, out _, out _);
+    }
+
+    /// <summary>Reports whether an alive entity owns the specified component.</summary>
+    public bool Has(Entity entity, ComponentId componentId)
+    {
+        EnsureExecutionAccess();
+        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
+        {
+            return false;
+        }
+
+        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
+        {
+            return chunk.HasTag(tagIndex, slotIndex);
+        }
+
+        return Archetypes[chunk.ArchetypeId].Contains(componentId);
+    }
+
+    /// <summary>Adds the component set to one entity and reports whether it changed.</summary>
+    public bool Add(Entity entity, ReadOnlySpan<ComponentId> componentIds)
+    {
+        Span<Entity> entities = stackalloc Entity[1];
+        entities.GetRefAtZero() = entity;
+        return ApplyComponents(true, componentIds, entities) == 1;
+    }
+
+    /// <summary>Adds the registrations supplied by an array to one entity.</summary>
+    public bool Add(Entity entity, ComponentId[] componentIds) => Add(entity, (ReadOnlySpan<ComponentId>)componentIds);
+
+    /// <summary>Adds one component registration to one entity.</summary>
+    public bool Add(Entity entity, ComponentId componentId) => Add(entity, stackalloc ComponentId[1] { componentId });
+
+    /// <summary>Adds the component set to every entity in a caller-owned batch.</summary>
+    public int Add(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> componentIds)
+        => ApplyComponents(true, componentIds, entities);
+
+    /// <summary>Adds the registrations supplied by an array to each entity in a caller-owned batch.</summary>
+    public int Add(ReadOnlySpan<Entity> entities, ComponentId[] componentIds)
+        => Add(entities, (ReadOnlySpan<ComponentId>)componentIds);
+
+    /// <summary>Adds one component registration to each entity in a caller-owned batch.</summary>
+    public int Add(ReadOnlySpan<Entity> entities, ComponentId componentId)
+        => Add(entities, stackalloc ComponentId[1] { componentId });
+
+    /// <summary>Removes the component set from one entity and reports whether it changed.</summary>
+    public bool Remove(Entity entity, ReadOnlySpan<ComponentId> componentIds)
+    {
+        Span<Entity> entities = stackalloc Entity[1];
+        entities.GetRefAtZero() = entity;
+        return ApplyComponents(false, componentIds, entities) == 1;
+    }
+
+    /// <summary>Removes one component registration from one entity.</summary>
+    public bool Remove(Entity entity, ComponentId componentId)
+        => Remove(entity, stackalloc ComponentId[] { componentId });
+
+    /// <summary>Removes the component set from every entity in a caller-owned batch.</summary>
+    public int Remove(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> componentIds)
+        => ApplyComponents(false, componentIds, entities);
+
+    /// <summary>Removes one component registration from each entity in a caller-owned batch.</summary>
+    public int Remove(ReadOnlySpan<Entity> entities, ComponentId componentId)
+        => Remove(entities, stackalloc ComponentId[] { componentId });
+
+    /// <summary>Adds a component set to every entity matched by a query.</summary>
+    public int Add(in Query query, ReadOnlySpan<ComponentId> componentIds)
+        => ApplyQueryComponents(query, true, componentIds);
+
+    /// <summary>Adds one component registration to every entity matched by a query.</summary>
+    public int Add(in Query query, ComponentId componentId) => Add(in query, stackalloc ComponentId[] { componentId });
+
+    /// <summary>Removes a component set from every entity matched by a query.</summary>
+    public int Remove(in Query query, ReadOnlySpan<ComponentId> componentIds)
+        => ApplyQueryComponents(query, false, componentIds);
+
+    /// <summary>Removes one component registration from every entity matched by a query.</summary>
+    public int Remove(in Query query, ComponentId componentId)
+        => Remove(in query, stackalloc ComponentId[] { componentId });
+
+    /// <summary>Destroys every entity selected by a query and returns the number destroyed.</summary>
+    public int Destroy(in Query query)
+    {
+        EnsureExecutionAccess();
+        ValidateQuery(query);
+        EnsureNoActiveLease("destroy entities");
+
+        var cached = query.Cached;
+        if (cached.HasTagFilters)
+        {
+            _queryEntityScratch.Clear();
+            ReadOnlySpan<ChunkPlan> chunks = cached.MatchingChunkPlans();
+            for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
+            {
+                Chunk chunk = chunks.RefAt(chunkIndex).Chunk;
+                if (cached.TryGetTagSlots(chunk, out ReadOnlySpan<int> slots))
+                {
+                    for (int index = 0; index < slots.Length; index++)
+                    {
+                        _queryEntityScratch.Add(chunk.RawEntities.RefAt(slots.RefAt(index)));
+                    }
+                }
+                else
+                {
+                    Span<Entity> entities = chunk.RawEntities;
+                    for (int slotIndex = 0; slotIndex < chunk.Count; slotIndex++)
+                    {
+                        _queryEntityScratch.Add(entities.RefAt(slotIndex));
+                    }
+                }
+            }
+
+            int taggedDestroyed = 0;
+            BeginQueryPlanBatch();
+            for (int index = 0; index < _queryEntityScratch.Count; index++)
+            {
+                if (Destroy(_queryEntityScratch[index]))
+                {
+                    taggedDestroyed++;
+                }
+            }
+
+            EndQueryPlanBatch();
+            _queryEntityScratch.Clear();
+            return taggedDestroyed;
+        }
+
+        ReadOnlySpan<int> archetypes = cached.MatchingArchetypes();
+        int destroyed = 0;
+        BeginQueryPlanBatch();
+        for (int archetypeIndex = 0; archetypeIndex < archetypes.Length; archetypeIndex++)
+        {
+            var archetype = Archetypes[archetypes.RefAt(archetypeIndex)];
+            DeferQueryPlanUpdates(archetype);
+            for (int chunkIndex = archetype.ChunkCount - 1; chunkIndex >= 0; chunkIndex--)
+            {
+                if (archetype.GetChunk(chunkIndex).Count == 0)
+                {
+                    continue;
+                }
+
+                destroyed += DestroyChunk(archetype, chunkIndex);
+            }
+        }
+
+        EndQueryPlanBatch();
+        return destroyed;
+    }
+
+    internal static void ReturnComponentChangeObservers(ComponentChangeObserver[] observers, int count)
+    {
+        Array.Clear(observers, 0, count);
+        ArrayPool<ComponentChangeObserver>.Shared.Return(observers);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void RecordComponentChangeObservers(ComponentChangeObserver[] observers, int count, Chunk chunk, int slotIndex)
+    {
+        ref ComponentChangeObserver observer = ref observers.GetRefAtZero();
+        while (count != 0)
+        {
+            observer.RecordChunkSlot(chunk, slotIndex);
+            observer = ref Unsafe.Add(ref observer, 1);
+            count--;
+        }
+    }
+
     internal void RegisterComponentChangeObserver(ComponentChangeObserver observer)
     {
         EnsureNoActiveLease("register a component change observer");
@@ -312,6 +623,596 @@ public sealed partial class World : IDisposable
                 observer.PrepareChunk(chunks.RefAt(chunkIndex).Chunk);
             }
         }
+    }
+
+    internal void RecordComponentMembershipChanges(Chunk chunk, int slotIndex, int count, ReadOnlySpan<ComponentId> componentIds, bool isAdd)
+    {
+        if (_componentChangeObservers is not { } routes)
+        {
+            return;
+        }
+
+        Archetype archetype = Archetypes[chunk.ArchetypeId];
+        ReadOnlySpan<Entity> entities = chunk.RawEntities.Slice(slotIndex, count);
+        foreach (ComponentId id in componentIds)
+        {
+            if ((uint)id.Value >= (uint)routes.Length || routes[id.Value] is not { } route)
+            {
+                continue;
+            }
+
+            bool tag = _layouts.TryGetTagIndex(id, out int tagIndex);
+            if (!tag && archetype.Mask.Contains(id) == isAdd)
+            {
+                continue;
+            }
+
+            foreach (WeakReference<ComponentChangeObserver> reference in route.Observers)
+            {
+                if (!reference.TryGetTarget(out ComponentChangeObserver? observer))
+                {
+                    continue;
+                }
+
+                if (!tag)
+                {
+                    observer.RecordMembershipRange(entities, isAdd);
+                    continue;
+                }
+
+                for (int index = 0; index < count; index++)
+                {
+                    if (chunk.HasTag(tagIndex, slotIndex + index) != isAdd)
+                    {
+                        observer.RecordMembership(entities[index], isAdd);
+                    }
+                }
+            }
+        }
+    }
+
+    internal ComponentChangeObserver[]? ResolveComponentChangeObservers(ComponentId componentId, out int count)
+    {
+        ComponentChangeObserverRoute?[]? routes = _componentChangeObservers;
+        if (routes is null || (uint)componentId.Value >= (uint)routes.Length)
+        {
+            count = 0;
+            return null;
+        }
+
+        WeakReference<ComponentChangeObserver>[]? observers = routes[componentId.Value]?.Observers;
+        if (observers is null)
+        {
+            count = 0;
+            return null;
+        }
+
+        ComponentChangeObserver? firstObserver = null;
+        int firstObserverIndex = 0;
+        for (; firstObserverIndex < observers.Length; firstObserverIndex++)
+        {
+            if (observers[firstObserverIndex].TryGetTarget(out firstObserver))
+            {
+                break;
+            }
+        }
+
+        if (firstObserver is null)
+        {
+            count = 0;
+            return null;
+        }
+
+        ComponentChangeObserver[] resolved = ArrayPool<ComponentChangeObserver>.Shared.Rent(observers.Length);
+        resolved[0] = firstObserver;
+        count = 1;
+        for (int index = firstObserverIndex + 1; index < observers.Length; index++)
+        {
+            if (observers[index].TryGetTarget(out ComponentChangeObserver? observer))
+            {
+                resolved[count++] = observer;
+            }
+        }
+
+        return resolved;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool HasTrusted(ref GeneratedEntityRefView view, ComponentId componentId)
+    {
+        if (view.TryBindPreparedComponent(componentId, null, out _))
+        {
+            return true;
+        }
+
+        Chunk chunk = view.Chunk!;
+        return _layouts.TryGetTagIndex(componentId, out int tagIndex)
+            ? chunk.HasTag(tagIndex, view.SlotIndex)
+            : Archetypes[chunk.ArchetypeId].Contains(componentId);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetTrusted<T>(ref GeneratedEntityRefView view, ComponentId componentId, out T value)
+    {
+        if (!view.TryBindPreparedComponent(componentId, typeof(T), out bool isTag))
+        {
+            return TryGetCore(view.Chunk!, view.SlotIndex, componentId, out value);
+        }
+
+        value = isTag ? default! : view.GetPreparedComponentRef<T>();
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void BeginQueryLease() => _activeChunkLeases++;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void EndQueryLease() => _activeChunkLeases--;
+
+    internal bool BeginGeneratedWhereStructural(
+        in Query query,
+        bool isDestroy,
+        bool isAdd,
+        ReadOnlySpan<ComponentId> componentIds,
+        out GeneratedDenseExecution execution)
+    {
+        EnsureExecutionAccess();
+        EnsureNoActiveLease(isDestroy
+            ? "destroy entities"
+            : isAdd
+                ? "add components"
+                : "remove components");
+        ValidateQuery(in query);
+
+        ComponentSet changeSet;
+        if (isDestroy)
+        {
+            changeSet = ComponentSet.Empty;
+        }
+        else if (!TryGetComponentSet(componentIds, out ComponentSet? resolvedChangeSet))
+        {
+            execution = default;
+            return false;
+        }
+        else
+        {
+            changeSet = resolvedChangeSet;
+        }
+
+        QueryPlan plan = query.Cached;
+        ReadOnlySpan<ArchetypePlan> matchingPlans = plan.MatchingPlans();
+        EnsureGeneratedWhereSourceArchetypeCapacity(matchingPlans.Length);
+        _generatedWhereSourceArchetypeCount = matchingPlans.Length;
+        for (int index = 0; index < matchingPlans.Length; index++)
+        {
+            _generatedWhereSourceArchetypes[index] = matchingPlans.RefAt(index).Archetype;
+        }
+
+        BeginGeneratedWherePlanCache();
+        for (int index = 0; index < _generatedWhereSourceArchetypeCount; index++)
+        {
+            Archetype sourceArchetype = _generatedWhereSourceArchetypes[index];
+            Archetype? targetArchetype = null;
+            int[] sourceToTargetRows = Array.Empty<int>();
+            int[] addedTargetRows = Array.Empty<int>();
+            GeneratedWhereTargetCursor? targetCursor = null;
+
+            if (sourceArchetype.ActiveChunkCount == 0)
+            {
+                _generatedWhereArchetypePlans.RefAt(sourceArchetype.Id) =
+                    new GeneratedWhereStructuralPlan(
+                        sourceArchetype,
+                        targetArchetype,
+                        sourceToTargetRows,
+                        addedTargetRows,
+                        targetCursor,
+                        changeSet.ComponentIdArray,
+                        changeSet.TagIndices,
+                        isAdd,
+                        isDestroy);
+                continue;
+            }
+
+            if (!isDestroy)
+            {
+                TransitionEdge edge = GetTransitionEdge(
+                    sourceArchetype.Id,
+                    changeSet,
+                    isAdd);
+                if (!edge.IsNoOp)
+                {
+                    targetArchetype = Archetypes[edge.TargetArchetypeId];
+                    sourceToTargetRows = edge.SourceToTargetRowIndices;
+                    addedTargetRows = edge.AddedTargetRowIndices;
+                    targetCursor = GetGeneratedWhereTargetCursor(targetArchetype.Id);
+                }
+            }
+
+            _generatedWhereArchetypePlans.RefAt(sourceArchetype.Id) =
+                new GeneratedWhereStructuralPlan(
+                    sourceArchetype,
+                    targetArchetype,
+                    sourceToTargetRows,
+                    addedTargetRows,
+                    targetCursor,
+                    changeSet.ComponentIdArray,
+                    changeSet.TagIndices,
+                    isAdd,
+                    isDestroy);
+        }
+
+        ReadOnlySpan<ChunkPlan> matchingChunks = plan.MatchingChunkPlans();
+        EnsureGeneratedWhereSourceCountCapacity(matchingChunks.Length);
+        _generatedWhereDestroyCapacity = 0;
+        _generatedWhereDestroyCapacityReserved = false;
+        for (int index = 0; index < matchingChunks.Length; index++)
+        {
+            int count = matchingChunks.RefAt(index).Chunk.Count;
+            _generatedWhereSourceCounts.RefAt(index) = count;
+            if (isDestroy)
+            {
+                _generatedWhereDestroyCapacity = checked(_generatedWhereDestroyCapacity + count);
+            }
+        }
+
+        _generatedWhereStructuralActive = true;
+        execution = new GeneratedDenseExecution(
+            this,
+            plan.MatchingPlans(),
+            matchingChunks,
+            _generatedWhereSourceCounts.ReadOnlySpan[..matchingChunks.Length],
+            ownsLease: false,
+            queryPlan: plan);
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void BeginGeneratedWhereMutation(Archetype sourceArchetype, Archetype? targetArchetype)
+    {
+        // Keep query plans live until a predicate actually selects a run.
+        if (!_queryPlanBatchActive)
+        {
+            BeginQueryPlanBatch();
+        }
+
+        DeferQueryPlanUpdates(sourceArchetype);
+        if (targetArchetype is { } target)
+        {
+            DeferQueryPlanUpdates(target);
+        }
+    }
+
+    internal int ApplyGeneratedWhereTags(
+        Chunk chunk,
+        int slotIndex,
+        int count,
+        ReadOnlySpan<int> tagIndices,
+        bool isAdd)
+    {
+        if (tagIndices.IsEmpty)
+        {
+            return 0;
+        }
+
+        chunk.EnsureTagCapacity(_layouts.TagCount);
+        RecordTagMembershipRange(chunk, slotIndex, count, tagIndices, isAdd);
+        return chunk.ApplyTags(tagIndices, slotIndex, count, isAdd);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void MarkGeneratedWhereTagsChanged() => TagVersion++;
+
+    internal GeneratedWhereStructuralContext BeginGeneratedWhereChunk(int chunkId, int sourceCount)
+    {
+        Chunk sourceChunk = GetChunkById(chunkId);
+        ref readonly GeneratedWhereStructuralPlan plan =
+            ref _generatedWhereArchetypePlans.RefAt(sourceChunk.ArchetypeId);
+        return new GeneratedWhereStructuralContext(
+            this,
+            sourceChunk,
+            in plan,
+            sourceCount);
+    }
+
+    internal void EndGeneratedWhereStructural()
+    {
+        if (_queryPlanBatchActive)
+        {
+            EndQueryPlanBatch();
+        }
+
+        _generatedWhereStructuralActive = false;
+        _generatedWhereSourceArchetypeCount = 0;
+        _generatedWhereDestroyCapacity = 0;
+        _generatedWhereDestroyCapacityReserved = false;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void MarkGeneratedWhereAffected(Archetype archetype) => DeferQueryPlanUpdates(archetype);
+
+    internal bool CopyGeneratedWhereRun<TInitializer>(
+        Chunk sourceChunk,
+        int sourceSlot,
+        int count,
+        Archetype targetArchetype,
+        int[] sourceToTargetRows,
+        int[] addedTargetRows,
+        GeneratedWhereTargetCursor targetCursor,
+        ReadOnlySpan<int> tagIndices,
+        bool isAdd,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
+    {
+        bool tagsChanged = false;
+        TransitionEdge edge = new(targetArchetype.Id, sourceToTargetRows, addedTargetRows);
+        while (count != 0)
+        {
+            if (targetCursor.Remaining == 0)
+            {
+                int chunkId = targetArchetype.HasAvailableChunk(count, allowFreeRecordBlocks: false)
+                    ? -1
+                    : AllocateChunkId();
+                int reserved = targetArchetype.ReserveRange(
+                    count,
+                    chunkId,
+                    out _,
+                    out Chunk targetChunk,
+                    out _,
+                    allowFreeRecordBlocks: false);
+                RegisterChunk(targetChunk);
+                targetCursor.Chunk = targetChunk;
+                targetCursor.Slot = targetChunk.Count - reserved;
+                targetCursor.Remaining = reserved;
+            }
+
+            int copied = Math.Min(count, targetCursor.Remaining);
+            Chunk target = targetCursor.Chunk!;
+            int targetSlot = targetCursor.Slot;
+            PrepareComponentChangeAddRange(target, targetSlot, copied);
+            CopyChunkRange(
+                sourceChunk,
+                target,
+                sourceSlot,
+                targetSlot,
+                copied,
+                edge);
+            MoveComponentChangeRange(sourceChunk, sourceSlot, target, targetSlot, copied);
+            if (!tagIndices.IsEmpty)
+            {
+                target.EnsureTagCapacity(_layouts.TagCount);
+                RecordTagMembershipRange(target, targetSlot, copied, tagIndices, isAdd);
+                tagsChanged |= target.ApplyTags(tagIndices, targetSlot, copied, isAdd) != 0;
+            }
+
+            var writer = new GeneratedComponentValueWriter(
+                _layouts,
+                target,
+                targetArchetype,
+                targetSlot,
+                edge.AddedTargetRowIndices,
+                copied);
+            initializer.Initialize(ref writer);
+            sourceSlot += copied;
+            targetCursor.Slot += copied;
+            targetCursor.Remaining -= copied;
+            count -= copied;
+        }
+
+        return tagsChanged;
+    }
+
+    internal void FreeGeneratedWhereRun(Chunk sourceChunk, int sourceSlot, int count)
+    {
+        if (!_generatedWhereDestroyCapacityReserved)
+        {
+            EnsureFreeRecordCapacity(_freeCount + _generatedWhereDestroyCapacity);
+            _generatedWhereDestroyCapacityReserved = true;
+        }
+
+        RecordEntityMembershipRange(sourceChunk, sourceSlot, count, present: false);
+        Span<int> freeRecords = _freeRecords.Span.Slice(_freeCount, count);
+        Span<Entity> entities = sourceChunk.RawEntities.Slice(sourceSlot, count);
+        for (int index = 0; index < count; index++)
+        {
+            Entity entity = entities.RefAt(index);
+            ref var record = ref RecordAt(entity.Index);
+            record.ChunkId = -1;
+            record.SlotIndex = -1;
+            freeRecords.RefAt(index) = entity.Index;
+        }
+
+        _freeCount += count;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void CommitGeneratedWhereDestroy(int count)
+    {
+        AliveEntityCount -= count;
+        if (count != 0 && _layouts.TagCount != 0)
+        {
+            TagVersion++;
+        }
+    }
+
+    internal void CopyChunkRangeWithin(Chunk chunk, int sourceSlot, int targetSlot, int count)
+    {
+        if (sourceSlot == targetSlot || count == 0)
+        {
+            return;
+        }
+
+        CopyComponentChangeRangeWithin(chunk, sourceSlot, targetSlot, count);
+        chunk.RawEntities.Slice(sourceSlot, count).CopyTo(chunk.RawEntities.Slice(targetSlot, count));
+        chunk.CopyTagsWithin(sourceSlot, targetSlot, count);
+        for (int componentIndex = 0; componentIndex < chunk.ComponentCount; componentIndex++)
+        {
+            Array.Copy(
+                chunk.GetRawComponentRowTrusted(componentIndex),
+                sourceSlot,
+                chunk.GetRawComponentRowTrusted(componentIndex),
+                targetSlot,
+                count);
+        }
+
+        if (_layouts.TagCount != 0)
+        {
+            TagVersion++;
+        }
+    }
+
+    internal void TrimChunkTail(Chunk chunk, int count)
+    {
+        if (count == 0)
+        {
+            return;
+        }
+
+        TrimComponentChangeChunkTail(chunk, count);
+        chunk.TrimTail(count);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void UpdateChunkRecordSlotsSameChunk(Chunk chunk, int slotIndex, int count)
+    {
+        Span<Entity> entities = chunk.RawEntities.Slice(slotIndex, count);
+        for (int index = 0; index < count; index++)
+        {
+            ref var record = ref RecordAt(entities.RefAt(index).Index);
+            record.SlotIndex = slotIndex + index;
+        }
+    }
+
+    internal ComponentSet GetOrCreateComponentSet(ReadOnlySpan<ComponentId> componentIds)
+    {
+        EnsureExecutionAccess();
+        if (componentIds.Length == 0)
+        {
+            return ComponentSet.Empty;
+        }
+
+        if (_componentSetCache.TryGet(componentIds, out ComponentSet? cached))
+        {
+            return cached;
+        }
+
+        ComponentSet set = CreateComponentSet(componentIds);
+        _componentSetCache.Add(set);
+        return set;
+    }
+
+    internal bool TryGetComponentSet(ComponentSetId id, out ComponentSet? set)
+        => _componentSetCache.TryGet(id, out set);
+
+    internal ComponentSet GetOrCreateComponentSet(RuntimeTypeHandle key, Func<World, ComponentId[]> resolver)
+    {
+        EnsureExecutionAccess();
+        if (_componentSetCache.TryGet(key, out ComponentSet? cached))
+        {
+            return cached;
+        }
+
+        ComponentId[] componentIds = resolver(this);
+        if (componentIds.Length == 0)
+        {
+            return ComponentSet.Empty;
+        }
+
+        ComponentSet set = GetOrCreateComponentSet(componentIds);
+        _componentSetCache.Add(key, set);
+        return set;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryResolveEntityLocation(Entity entity, out Chunk chunk, out int slotIndex)
+        => TryResolve(entity, out _, out chunk, out slotIndex);
+
+    internal IDisposable EnterSchedulerExecution()
+    {
+        ThrowHelper.ThrowIfDisposed(IsDisposed, this);
+        if (_schedulerExecutionWorld is not null
+            || Interlocked.CompareExchange(ref _schedulerExecutionActive, 1, 0) != 0)
+        {
+            ThrowHelper.ThrowWorldSchedulerAlreadyExecuting();
+        }
+
+        _schedulerExecutionWorld = this;
+        return new SchedulerExecutionLease(this);
+    }
+
+    internal void EnterSchedulerWorker()
+    {
+        if (_schedulerExecutionActive == 0
+            || _schedulerExecutionWorld is not null)
+        {
+            ThrowHelper.ThrowUnauthorizedSchedulerWorker();
+        }
+
+        _schedulerExecutionWorld = this;
+    }
+
+    internal bool TryEnterSchedulerWorker()
+    {
+        if (_schedulerExecutionActive == 0)
+        {
+            return false;
+        }
+
+        EnterSchedulerWorker();
+        return true;
+    }
+
+    internal void ExitSchedulerWorker()
+    {
+        if (ReferenceEquals(_schedulerExecutionWorld, this))
+        {
+            _schedulerExecutionWorld = null;
+        }
+    }
+
+    internal void EnsureExecutionAccess()
+    {
+        if (_schedulerExecutionActive != 0
+            && !ReferenceEquals(_schedulerExecutionWorld, this))
+        {
+            ThrowHelper.ThrowWorldSchedulerExecutionActive();
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int NextGeneration(int generation) => generation == int.MaxValue ? 1 : generation + 1;
+
+    private static bool IsCompatibleComponentType<T>(ComponentLayout layout) => layout.RuntimeType == typeof(T);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ComponentId GetPrimaryComponentId<T>()
+    {
+        RuntimeTypeHandle type = typeof(T).TypeHandle;
+        if (_primaryComponentIdsByType.TryGetValue(type, out ComponentId componentId))
+        {
+            return componentId;
+        }
+
+        componentId = _layouts.GetPrimary<T>();
+        _primaryComponentIdsByType.Add(type, componentId);
+        return componentId;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryGetPrimaryComponentId<T>(out ComponentId componentId)
+    {
+        RuntimeTypeHandle type = typeof(T).TypeHandle;
+        if (_primaryComponentIdsByType.TryGetValue(type, out componentId))
+        {
+            return true;
+        }
+
+        if (!_layouts.TryGetPrimary<T>(out componentId))
+        {
+            return false;
+        }
+
+        _primaryComponentIdsByType.Add(type, componentId);
+        return true;
     }
 
     private void PrepareComponentChangeAddRange(Chunk chunk, int slotIndex, int count)
@@ -521,187 +1422,6 @@ public sealed partial class World : IDisposable
         }
     }
 
-    internal void RecordComponentMembershipChanges(Chunk chunk, int slotIndex, int count, ReadOnlySpan<ComponentId> componentIds, bool isAdd)
-    {
-        if (_componentChangeObservers is not { } routes)
-        {
-            return;
-        }
-
-        Archetype archetype = Archetypes[chunk.ArchetypeId];
-        ReadOnlySpan<Entity> entities = chunk.RawEntities.Slice(slotIndex, count);
-        foreach (ComponentId id in componentIds)
-        {
-            if ((uint)id.Value >= (uint)routes.Length || routes[id.Value] is not { } route)
-            {
-                continue;
-            }
-
-            bool tag = _layouts.TryGetTagIndex(id, out int tagIndex);
-            if (!tag && archetype.Mask.Contains(id) == isAdd)
-            {
-                continue;
-            }
-
-            foreach (WeakReference<ComponentChangeObserver> reference in route.Observers)
-            {
-                if (!reference.TryGetTarget(out ComponentChangeObserver? observer))
-                {
-                    continue;
-                }
-
-                if (!tag)
-                {
-                    observer.RecordMembershipRange(entities, isAdd);
-                    continue;
-                }
-
-                for (int index = 0; index < count; index++)
-                {
-                    if (chunk.HasTag(tagIndex, slotIndex + index) != isAdd)
-                    {
-                        observer.RecordMembership(entities[index], isAdd);
-                    }
-                }
-            }
-        }
-    }
-
-    internal ComponentChangeObserver[]? ResolveComponentChangeObservers(ComponentId componentId, out int count)
-    {
-        ComponentChangeObserverRoute?[]? routes = _componentChangeObservers;
-        if (routes is null || (uint)componentId.Value >= (uint)routes.Length)
-        {
-            count = 0;
-            return null;
-        }
-
-        WeakReference<ComponentChangeObserver>[]? observers = routes[componentId.Value]?.Observers;
-        if (observers is null)
-        {
-            count = 0;
-            return null;
-        }
-
-        ComponentChangeObserver? firstObserver = null;
-        int firstObserverIndex = 0;
-        for (; firstObserverIndex < observers.Length; firstObserverIndex++)
-        {
-            if (observers[firstObserverIndex].TryGetTarget(out firstObserver))
-            {
-                break;
-            }
-        }
-
-        if (firstObserver is null)
-        {
-            count = 0;
-            return null;
-        }
-
-        ComponentChangeObserver[] resolved = ArrayPool<ComponentChangeObserver>.Shared.Rent(observers.Length);
-        resolved[0] = firstObserver;
-        count = 1;
-        for (int index = firstObserverIndex + 1; index < observers.Length; index++)
-        {
-            if (observers[index].TryGetTarget(out ComponentChangeObserver? observer))
-            {
-                resolved[count++] = observer;
-            }
-        }
-
-        return resolved;
-    }
-
-    internal bool HasComponentChangeObserverRoutes => _componentChangeObservers is not null;
-
-    internal static void ReturnComponentChangeObservers(ComponentChangeObserver[] observers, int count)
-    {
-        Array.Clear(observers, 0, count);
-        ArrayPool<ComponentChangeObserver>.Shared.Return(observers);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static void RecordComponentChangeObservers(ComponentChangeObserver[] observers, int count, Chunk chunk, int slotIndex)
-    {
-        ref ComponentChangeObserver observer = ref observers.GetRefAtZero();
-        while (count != 0)
-        {
-            observer.RecordChunkSlot(chunk, slotIndex);
-            observer = ref Unsafe.Add(ref observer, 1);
-            count--;
-        }
-    }
-
-    /// <summary>Creates one entity with the supplied component registrations.</summary>
-    public Entity Create(ReadOnlySpan<ComponentId> componentIds)
-    {
-        Span<Entity> entities = stackalloc Entity[1];
-        return Create(componentIds, entities) == 0 ? default : entities.GetRefAtZero();
-    }
-
-    /// <summary>Creates one entity with the supplied component registration.</summary>
-    public Entity Create(ComponentId componentId) => Create(stackalloc ComponentId[1] { componentId });
-
-    /// <summary>Creates entities with the supplied component registration and caller-owned output storage.</summary>
-    public int Create(ComponentId componentId, int count, Span<Entity> output)
-        => Create(stackalloc ComponentId[1] { componentId }, count, output);
-
-    /// <summary>Creates entities with the supplied component registration without retaining handles.</summary>
-    public int Create(ComponentId componentId, int count)
-        => Create(stackalloc ComponentId[1] { componentId }, count);
-
-    /// <summary>Creates one entity for each output slot and stores its handle.</summary>
-    public int Create(ReadOnlySpan<ComponentId> componentIds, Span<Entity> output)
-    {
-        EnsureNoActiveLease("create entities");
-        if (output.Length == 0)
-        {
-            return 0;
-        }
-
-        if (!TryGetComponentSet(componentIds, out ComponentSet? componentSet))
-        {
-            ThrowHelper.ThrowInvalidComponentList();
-        }
-
-        var archetype = GetOrCreateArchetype(componentSet.Mask);
-        return CreateBatch(archetype, output, componentSet.TagIndices);
-    }
-
-    /// <summary>Creates a requested number of entities into caller-owned storage.</summary>
-    /// <remarks>When <paramref name="output"/> is empty, handles are not retained.</remarks>
-    public int Create(ReadOnlySpan<ComponentId> componentIds, int count, Span<Entity> output)
-    {
-        ThrowHelper.ThrowIfNegative(count, nameof(count));
-        if (output.Length != 0 && output.Length < count)
-        {
-            ThrowHelper.ThrowEntityDestinationTooSmall(nameof(output));
-        }
-
-        if (output.Length == 0)
-        {
-            EnsureNoActiveLease("create entities");
-            if (count == 0)
-            {
-                return 0;
-            }
-
-            if (!TryGetComponentSet(componentIds, out ComponentSet? componentSet))
-            {
-                ThrowHelper.ThrowInvalidComponentList();
-            }
-
-            return CreateBatch(GetOrCreateArchetype(componentSet.Mask), count, componentSet.TagIndices);
-        }
-
-        return Create(componentIds, output[..count]);
-    }
-
-    /// <summary>Creates entities with the supplied component set without retaining entity handles.</summary>
-    public int Create(ReadOnlySpan<ComponentId> componentIds, int count)
-        => Create(componentIds, count, Span<Entity>.Empty);
-
     private int CreateBatch(Archetype archetype, Span<Entity> output, ReadOnlySpan<int> tagIndices)
         => CreateBatch(archetype, output.Length, output, tagIndices);
 
@@ -909,106 +1629,6 @@ public sealed partial class World : IDisposable
         return count;
     }
 
-    /// <summary>Destroys one entity and reports whether the handle was alive.</summary>
-    public bool Destroy(Entity entity)
-    {
-        EnsureNoActiveLease("destroy entities");
-        if (!TryResolve(entity, out int recordIndex, out Chunk chunk, out _))
-        {
-            return false;
-        }
-
-        DestroyResolved(recordIndex, chunk);
-        return true;
-    }
-
-    /// <summary>Destroys the alive entities in a caller-provided span.</summary>
-    public int Destroy(ReadOnlySpan<Entity> entities)
-    {
-        EnsureNoActiveLease("destroy entities");
-        EnsureDestroyScratch(entities.Length);
-        int count = 0;
-        for (int i = 0; i < entities.Length; i++)
-        {
-            if (TryResolve(entities.RefAt(i), out int recordIndex, out Chunk chunk, out int slotIndex))
-            {
-                _destroyScratch.RefAt(count++) = new DestroyEntry(
-                    entities.RefAt(i),
-                    recordIndex,
-                    chunk.ArchetypeId,
-                    chunk.GlobalId,
-                    slotIndex);
-            }
-        }
-
-        if (count == 0)
-        {
-            return 0;
-        }
-
-        BeginQueryPlanBatch();
-        int destroyed;
-        if (count == 1)
-        {
-            // A single valid handle needs neither sorting nor a second
-            // record/lifetime validation: no mutation has happened yet.
-            DestroyResolved(_destroyScratch.GetRefAtZero().RecordIndex);
-            destroyed = 1;
-        }
-        else if (IsAscendingDestroyOrder(count))
-        {
-            EnsureFreeRecordCapacity(_freeCount + count);
-            destroyed = DestroyAscendingBatch(count);
-        }
-        else
-        {
-            SpanSortCompat.Sort(_destroyScratch.Span[..count], DestroyEntryComparer.Instance);
-            EnsureFreeRecordCapacity(_freeCount + count);
-            destroyed = 0;
-            int groupStart = 0;
-            while (groupStart < count)
-            {
-                var first = _destroyScratch.RefAt(groupStart);
-                int groupEnd = groupStart + 1;
-                while (groupEnd < count)
-                {
-                    var next = _destroyScratch.RefAt(groupEnd);
-                    if (next.Archetype != first.Archetype || next.ChunkId != first.ChunkId)
-                    {
-                        break;
-                    }
-
-                    groupEnd++;
-                }
-
-                int groupCount = groupEnd - groupStart;
-                var archetype = Archetypes[first.Archetype];
-                var chunk = GetChunkById(first.ChunkId);
-                if (groupCount == chunk.Count && IsCompleteDestroyChunk(groupStart, groupCount))
-                {
-                    destroyed += DestroyChunk(archetype, chunk.ArchetypeIndex);
-                }
-                else
-                {
-                    for (int index = groupStart; index < groupEnd; index++)
-                    {
-                        var entry = _destroyScratch.RefAt(index);
-                        if (IsCurrentDestroyEntry(entry))
-                        {
-                            DestroyResolved(entry.RecordIndex);
-                            destroyed++;
-                        }
-                    }
-                }
-
-                groupStart = groupEnd;
-            }
-        }
-
-        EndQueryPlanBatch();
-        return destroyed;
-    }
-
     private int DestroyAscendingBatch(int count)
     {
         int destroyed = 0;
@@ -1054,50 +1674,12 @@ public sealed partial class World : IDisposable
         return destroyed;
     }
 
-    /// <summary>Determines whether an entity handle is alive in this world.</summary>
-    public bool IsAlive(Entity entity)
-    {
-        EnsureExecutionAccess();
-        return TryResolve(entity, out _, out _, out _);
-    }
-
-    /// <summary>Reports whether an alive entity owns the specified component.</summary>
-    public bool Has(Entity entity, ComponentId componentId)
-    {
-        EnsureExecutionAccess();
-        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
-        {
-            return false;
-        }
-
-        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
-        {
-            return chunk.HasTag(tagIndex, slotIndex);
-        }
-
-        return Archetypes[chunk.ArchetypeId].Contains(componentId);
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool HasTrusted(Entity entity, ComponentId componentId)
     {
         Chunk chunk = GetEntityRefLocationTrusted(entity, out int slotIndex);
         return _layouts.TryGetTagIndex(componentId, out int tagIndex)
             ? chunk.HasTag(tagIndex, slotIndex)
-            : Archetypes[chunk.ArchetypeId].Contains(componentId);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool HasTrusted(ref GeneratedEntityRefView view, ComponentId componentId)
-    {
-        if (view.TryBindPreparedComponent(componentId, null, out _))
-        {
-            return true;
-        }
-
-        Chunk chunk = view.Chunk!;
-        return _layouts.TryGetTagIndex(componentId, out int tagIndex)
-            ? chunk.HasTag(tagIndex, view.SlotIndex)
             : Archetypes[chunk.ArchetypeId].Contains(componentId);
     }
 
@@ -1111,18 +1693,6 @@ public sealed partial class World : IDisposable
 
         value = default!;
         return false;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool TryGetTrusted<T>(ref GeneratedEntityRefView view, ComponentId componentId, out T value)
-    {
-        if (!view.TryBindPreparedComponent(componentId, typeof(T), out bool isTag))
-        {
-            return TryGetCore(view.Chunk!, view.SlotIndex, componentId, out value);
-        }
-
-        value = isTag ? default! : view.GetPreparedComponentRef<T>();
-        return true;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1150,142 +1720,6 @@ public sealed partial class World : IDisposable
         value = chunk.GetComponentRef<T>(componentIndex, slotIndex);
         return true;
     }
-
-    /// <summary>Adds the component set to one entity and reports whether it changed.</summary>
-    public bool Add(Entity entity, ReadOnlySpan<ComponentId> componentIds)
-    {
-        Span<Entity> entities = stackalloc Entity[1];
-        entities.GetRefAtZero() = entity;
-        return ApplyComponents(true, componentIds, entities) == 1;
-    }
-
-    /// <summary>Adds the registrations supplied by an array to one entity.</summary>
-    public bool Add(Entity entity, ComponentId[] componentIds) => Add(entity, (ReadOnlySpan<ComponentId>)componentIds);
-
-    /// <summary>Adds one component registration to one entity.</summary>
-    public bool Add(Entity entity, ComponentId componentId) => Add(entity, stackalloc ComponentId[1] { componentId });
-
-    /// <summary>Adds the component set to every entity in a caller-owned batch.</summary>
-    public int Add(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> componentIds)
-        => ApplyComponents(true, componentIds, entities);
-
-    /// <summary>Adds the registrations supplied by an array to each entity in a caller-owned batch.</summary>
-    public int Add(ReadOnlySpan<Entity> entities, ComponentId[] componentIds)
-        => Add(entities, (ReadOnlySpan<ComponentId>)componentIds);
-
-    /// <summary>Adds one component registration to each entity in a caller-owned batch.</summary>
-    public int Add(ReadOnlySpan<Entity> entities, ComponentId componentId)
-        => Add(entities, stackalloc ComponentId[1] { componentId });
-
-    /// <summary>Removes the component set from one entity and reports whether it changed.</summary>
-    public bool Remove(Entity entity, ReadOnlySpan<ComponentId> componentIds)
-    {
-        Span<Entity> entities = stackalloc Entity[1];
-        entities.GetRefAtZero() = entity;
-        return ApplyComponents(false, componentIds, entities) == 1;
-    }
-
-    /// <summary>Removes one component registration from one entity.</summary>
-    public bool Remove(Entity entity, ComponentId componentId)
-        => Remove(entity, stackalloc ComponentId[] { componentId });
-
-    /// <summary>Removes the component set from every entity in a caller-owned batch.</summary>
-    public int Remove(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> componentIds)
-        => ApplyComponents(false, componentIds, entities);
-
-    /// <summary>Removes one component registration from each entity in a caller-owned batch.</summary>
-    public int Remove(ReadOnlySpan<Entity> entities, ComponentId componentId)
-        => Remove(entities, stackalloc ComponentId[] { componentId });
-
-    /// <summary>Adds a component set to every entity matched by a query.</summary>
-    public int Add(in Query query, ReadOnlySpan<ComponentId> componentIds)
-        => ApplyQueryComponents(query, true, componentIds);
-
-    /// <summary>Adds one component registration to every entity matched by a query.</summary>
-    public int Add(in Query query, ComponentId componentId) => Add(in query, stackalloc ComponentId[] { componentId });
-
-    /// <summary>Removes a component set from every entity matched by a query.</summary>
-    public int Remove(in Query query, ReadOnlySpan<ComponentId> componentIds)
-        => ApplyQueryComponents(query, false, componentIds);
-
-    /// <summary>Removes one component registration from every entity matched by a query.</summary>
-    public int Remove(in Query query, ComponentId componentId)
-        => Remove(in query, stackalloc ComponentId[] { componentId });
-
-    /// <summary>Destroys every entity selected by a query and returns the number destroyed.</summary>
-    public int Destroy(in Query query)
-    {
-        EnsureExecutionAccess();
-        ValidateQuery(query);
-        EnsureNoActiveLease("destroy entities");
-
-        var cached = query.Cached;
-        if (cached.HasTagFilters)
-        {
-            _queryEntityScratch.Clear();
-            ReadOnlySpan<ChunkPlan> chunks = cached.MatchingChunkPlans();
-            for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
-            {
-                Chunk chunk = chunks.RefAt(chunkIndex).Chunk;
-                if (cached.TryGetTagSlots(chunk, out ReadOnlySpan<int> slots))
-                {
-                    for (int index = 0; index < slots.Length; index++)
-                    {
-                        _queryEntityScratch.Add(chunk.RawEntities.RefAt(slots.RefAt(index)));
-                    }
-                }
-                else
-                {
-                    Span<Entity> entities = chunk.RawEntities;
-                    for (int slotIndex = 0; slotIndex < chunk.Count; slotIndex++)
-                    {
-                        _queryEntityScratch.Add(entities.RefAt(slotIndex));
-                    }
-                }
-            }
-
-            int taggedDestroyed = 0;
-            BeginQueryPlanBatch();
-            for (int index = 0; index < _queryEntityScratch.Count; index++)
-            {
-                if (Destroy(_queryEntityScratch[index]))
-                {
-                    taggedDestroyed++;
-                }
-            }
-
-            EndQueryPlanBatch();
-            _queryEntityScratch.Clear();
-            return taggedDestroyed;
-        }
-
-        ReadOnlySpan<int> archetypes = cached.MatchingArchetypes();
-        int destroyed = 0;
-        BeginQueryPlanBatch();
-        for (int archetypeIndex = 0; archetypeIndex < archetypes.Length; archetypeIndex++)
-        {
-            var archetype = Archetypes[archetypes.RefAt(archetypeIndex)];
-            DeferQueryPlanUpdates(archetype);
-            for (int chunkIndex = archetype.ChunkCount - 1; chunkIndex >= 0; chunkIndex--)
-            {
-                if (archetype.GetChunk(chunkIndex).Count == 0)
-                {
-                    continue;
-                }
-
-                destroyed += DestroyChunk(archetype, chunkIndex);
-            }
-        }
-
-        EndQueryPlanBatch();
-        return destroyed;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void BeginQueryLease() => _activeChunkLeases++;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void EndQueryLease() => _activeChunkLeases--;
 
     private int ApplyComponents(bool isAdd, ReadOnlySpan<ComponentId> componentIds, ReadOnlySpan<Entity> entities)
     {
@@ -1470,184 +1904,6 @@ public sealed partial class World : IDisposable
         return changed;
     }
 
-    internal bool BeginGeneratedWhereStructural(
-        in Query query,
-        bool isDestroy,
-        bool isAdd,
-        ReadOnlySpan<ComponentId> componentIds,
-        out GeneratedDenseExecution execution)
-    {
-        EnsureExecutionAccess();
-        EnsureNoActiveLease(isDestroy
-            ? "destroy entities"
-            : isAdd
-                ? "add components"
-                : "remove components");
-        ValidateQuery(in query);
-
-        ComponentSet changeSet;
-        if (isDestroy)
-        {
-            changeSet = ComponentSet.Empty;
-        }
-        else if (!TryGetComponentSet(componentIds, out ComponentSet? resolvedChangeSet))
-        {
-            execution = default;
-            return false;
-        }
-        else
-        {
-            changeSet = resolvedChangeSet;
-        }
-
-        QueryPlan plan = query.Cached;
-        ReadOnlySpan<ArchetypePlan> matchingPlans = plan.MatchingPlans();
-        EnsureGeneratedWhereSourceArchetypeCapacity(matchingPlans.Length);
-        _generatedWhereSourceArchetypeCount = matchingPlans.Length;
-        for (int index = 0; index < matchingPlans.Length; index++)
-        {
-            _generatedWhereSourceArchetypes[index] = matchingPlans.RefAt(index).Archetype;
-        }
-
-        BeginGeneratedWherePlanCache();
-        for (int index = 0; index < _generatedWhereSourceArchetypeCount; index++)
-        {
-            Archetype sourceArchetype = _generatedWhereSourceArchetypes[index];
-            Archetype? targetArchetype = null;
-            int[] sourceToTargetRows = Array.Empty<int>();
-            int[] addedTargetRows = Array.Empty<int>();
-            GeneratedWhereTargetCursor? targetCursor = null;
-
-            if (sourceArchetype.ActiveChunkCount == 0)
-            {
-                _generatedWhereArchetypePlans.RefAt(sourceArchetype.Id) =
-                    new GeneratedWhereStructuralPlan(
-                        sourceArchetype,
-                        targetArchetype,
-                        sourceToTargetRows,
-                        addedTargetRows,
-                        targetCursor,
-                        changeSet.ComponentIdArray,
-                        changeSet.TagIndices,
-                        isAdd,
-                        isDestroy);
-                continue;
-            }
-
-            if (!isDestroy)
-            {
-                TransitionEdge edge = GetTransitionEdge(
-                    sourceArchetype.Id,
-                    changeSet,
-                    isAdd);
-                if (!edge.IsNoOp)
-                {
-                    targetArchetype = Archetypes[edge.TargetArchetypeId];
-                    sourceToTargetRows = edge.SourceToTargetRowIndices;
-                    addedTargetRows = edge.AddedTargetRowIndices;
-                    targetCursor = GetGeneratedWhereTargetCursor(targetArchetype.Id);
-                }
-            }
-
-            _generatedWhereArchetypePlans.RefAt(sourceArchetype.Id) =
-                new GeneratedWhereStructuralPlan(
-                    sourceArchetype,
-                    targetArchetype,
-                    sourceToTargetRows,
-                    addedTargetRows,
-                    targetCursor,
-                    changeSet.ComponentIdArray,
-                    changeSet.TagIndices,
-                    isAdd,
-                    isDestroy);
-        }
-
-        ReadOnlySpan<ChunkPlan> matchingChunks = plan.MatchingChunkPlans();
-        EnsureGeneratedWhereSourceCountCapacity(matchingChunks.Length);
-        _generatedWhereDestroyCapacity = 0;
-        _generatedWhereDestroyCapacityReserved = false;
-        for (int index = 0; index < matchingChunks.Length; index++)
-        {
-            int count = matchingChunks.RefAt(index).Chunk.Count;
-            _generatedWhereSourceCounts.RefAt(index) = count;
-            if (isDestroy)
-            {
-                _generatedWhereDestroyCapacity = checked(_generatedWhereDestroyCapacity + count);
-            }
-        }
-
-        _generatedWhereStructuralActive = true;
-        execution = new GeneratedDenseExecution(
-            this,
-            plan.MatchingPlans(),
-            matchingChunks,
-            _generatedWhereSourceCounts.ReadOnlySpan[..matchingChunks.Length],
-            ownsLease: false,
-            queryPlan: plan);
-        return true;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void BeginGeneratedWhereMutation(Archetype sourceArchetype, Archetype? targetArchetype)
-    {
-        // Keep query plans live until a predicate actually selects a run.
-        if (!_queryPlanBatchActive)
-        {
-            BeginQueryPlanBatch();
-        }
-
-        DeferQueryPlanUpdates(sourceArchetype);
-        if (targetArchetype is { } target)
-        {
-            DeferQueryPlanUpdates(target);
-        }
-    }
-
-    internal int ApplyGeneratedWhereTags(
-        Chunk chunk,
-        int slotIndex,
-        int count,
-        ReadOnlySpan<int> tagIndices,
-        bool isAdd)
-    {
-        if (tagIndices.IsEmpty)
-        {
-            return 0;
-        }
-
-        chunk.EnsureTagCapacity(_layouts.TagCount);
-        RecordTagMembershipRange(chunk, slotIndex, count, tagIndices, isAdd);
-        return chunk.ApplyTags(tagIndices, slotIndex, count, isAdd);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void MarkGeneratedWhereTagsChanged() => TagVersion++;
-
-    internal GeneratedWhereStructuralContext BeginGeneratedWhereChunk(int chunkId, int sourceCount)
-    {
-        Chunk sourceChunk = GetChunkById(chunkId);
-        ref readonly GeneratedWhereStructuralPlan plan =
-            ref _generatedWhereArchetypePlans.RefAt(sourceChunk.ArchetypeId);
-        return new GeneratedWhereStructuralContext(
-            this,
-            sourceChunk,
-            in plan,
-            sourceCount);
-    }
-
-    internal void EndGeneratedWhereStructural()
-    {
-        if (_queryPlanBatchActive)
-        {
-            EndQueryPlanBatch();
-        }
-
-        _generatedWhereStructuralActive = false;
-        _generatedWhereSourceArchetypeCount = 0;
-        _generatedWhereDestroyCapacity = 0;
-        _generatedWhereDestroyCapacityReserved = false;
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void DeferQueryPlanUpdates(Archetype archetype)
     {
@@ -1688,9 +1944,6 @@ public sealed partial class World : IDisposable
         _deferredQueryPlans.Clear();
         _queryPlanBatchActive = false;
     }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void MarkGeneratedWhereAffected(Archetype archetype) => DeferQueryPlanUpdates(archetype);
 
     private void BeginGeneratedWherePlanCache()
     {
@@ -1764,158 +2017,6 @@ public sealed partial class World : IDisposable
         }
 
         return generation + 1;
-    }
-
-    internal bool CopyGeneratedWhereRun<TInitializer>(
-        Chunk sourceChunk,
-        int sourceSlot,
-        int count,
-        Archetype targetArchetype,
-        int[] sourceToTargetRows,
-        int[] addedTargetRows,
-        GeneratedWhereTargetCursor targetCursor,
-        ReadOnlySpan<int> tagIndices,
-        bool isAdd,
-        ref TInitializer initializer)
-        where TInitializer : struct, IGeneratedComponentValueInitializer
-    {
-        bool tagsChanged = false;
-        TransitionEdge edge = new(targetArchetype.Id, sourceToTargetRows, addedTargetRows);
-        while (count != 0)
-        {
-            if (targetCursor.Remaining == 0)
-            {
-                int chunkId = targetArchetype.HasAvailableChunk(count, allowFreeRecordBlocks: false)
-                    ? -1
-                    : AllocateChunkId();
-                int reserved = targetArchetype.ReserveRange(
-                    count,
-                    chunkId,
-                    out _,
-                    out Chunk targetChunk,
-                    out _,
-                    allowFreeRecordBlocks: false);
-                RegisterChunk(targetChunk);
-                targetCursor.Chunk = targetChunk;
-                targetCursor.Slot = targetChunk.Count - reserved;
-                targetCursor.Remaining = reserved;
-            }
-
-            int copied = Math.Min(count, targetCursor.Remaining);
-            Chunk target = targetCursor.Chunk!;
-            int targetSlot = targetCursor.Slot;
-            PrepareComponentChangeAddRange(target, targetSlot, copied);
-            CopyChunkRange(
-                sourceChunk,
-                target,
-                sourceSlot,
-                targetSlot,
-                copied,
-                edge);
-            MoveComponentChangeRange(sourceChunk, sourceSlot, target, targetSlot, copied);
-            if (!tagIndices.IsEmpty)
-            {
-                target.EnsureTagCapacity(_layouts.TagCount);
-                RecordTagMembershipRange(target, targetSlot, copied, tagIndices, isAdd);
-                tagsChanged |= target.ApplyTags(tagIndices, targetSlot, copied, isAdd) != 0;
-            }
-
-            var writer = new GeneratedComponentValueWriter(
-                _layouts,
-                target,
-                targetArchetype,
-                targetSlot,
-                edge.AddedTargetRowIndices,
-                copied);
-            initializer.Initialize(ref writer);
-            sourceSlot += copied;
-            targetCursor.Slot += copied;
-            targetCursor.Remaining -= copied;
-            count -= copied;
-        }
-
-        return tagsChanged;
-    }
-
-    internal void FreeGeneratedWhereRun(Chunk sourceChunk, int sourceSlot, int count)
-    {
-        if (!_generatedWhereDestroyCapacityReserved)
-        {
-            EnsureFreeRecordCapacity(_freeCount + _generatedWhereDestroyCapacity);
-            _generatedWhereDestroyCapacityReserved = true;
-        }
-
-        RecordEntityMembershipRange(sourceChunk, sourceSlot, count, present: false);
-        Span<int> freeRecords = _freeRecords.Span.Slice(_freeCount, count);
-        Span<Entity> entities = sourceChunk.RawEntities.Slice(sourceSlot, count);
-        for (int index = 0; index < count; index++)
-        {
-            Entity entity = entities.RefAt(index);
-            ref var record = ref RecordAt(entity.Index);
-            record.ChunkId = -1;
-            record.SlotIndex = -1;
-            freeRecords.RefAt(index) = entity.Index;
-        }
-
-        _freeCount += count;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void CommitGeneratedWhereDestroy(int count)
-    {
-        AliveEntityCount -= count;
-        if (count != 0 && _layouts.TagCount != 0)
-        {
-            TagVersion++;
-        }
-    }
-
-    internal void CopyChunkRangeWithin(Chunk chunk, int sourceSlot, int targetSlot, int count)
-    {
-        if (sourceSlot == targetSlot || count == 0)
-        {
-            return;
-        }
-
-        CopyComponentChangeRangeWithin(chunk, sourceSlot, targetSlot, count);
-        chunk.RawEntities.Slice(sourceSlot, count).CopyTo(chunk.RawEntities.Slice(targetSlot, count));
-        chunk.CopyTagsWithin(sourceSlot, targetSlot, count);
-        for (int componentIndex = 0; componentIndex < chunk.ComponentCount; componentIndex++)
-        {
-            Array.Copy(
-                chunk.GetRawComponentRowTrusted(componentIndex),
-                sourceSlot,
-                chunk.GetRawComponentRowTrusted(componentIndex),
-                targetSlot,
-                count);
-        }
-
-        if (_layouts.TagCount != 0)
-        {
-            TagVersion++;
-        }
-    }
-
-    internal void TrimChunkTail(Chunk chunk, int count)
-    {
-        if (count == 0)
-        {
-            return;
-        }
-
-        TrimComponentChangeChunkTail(chunk, count);
-        chunk.TrimTail(count);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void UpdateChunkRecordSlotsSameChunk(Chunk chunk, int slotIndex, int count)
-    {
-        Span<Entity> entities = chunk.RawEntities.Slice(slotIndex, count);
-        for (int index = 0; index < count; index++)
-        {
-            ref var record = ref RecordAt(entities.RefAt(index).Index);
-            record.SlotIndex = slotIndex + index;
-        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -2373,46 +2474,6 @@ public sealed partial class World : IDisposable
         return true;
     }
 
-    internal ComponentSet GetOrCreateComponentSet(ReadOnlySpan<ComponentId> componentIds)
-    {
-        EnsureExecutionAccess();
-        if (componentIds.Length == 0)
-        {
-            return ComponentSet.Empty;
-        }
-
-        if (_componentSetCache.TryGet(componentIds, out ComponentSet? cached))
-        {
-            return cached;
-        }
-
-        ComponentSet set = CreateComponentSet(componentIds);
-        _componentSetCache.Add(set);
-        return set;
-    }
-
-    internal bool TryGetComponentSet(ComponentSetId id, out ComponentSet? set)
-        => _componentSetCache.TryGet(id, out set);
-
-    internal ComponentSet GetOrCreateComponentSet(RuntimeTypeHandle key, Func<World, ComponentId[]> resolver)
-    {
-        EnsureExecutionAccess();
-        if (_componentSetCache.TryGet(key, out ComponentSet? cached))
-        {
-            return cached;
-        }
-
-        ComponentId[] componentIds = resolver(this);
-        if (componentIds.Length == 0)
-        {
-            return ComponentSet.Empty;
-        }
-
-        ComponentSet set = GetOrCreateComponentSet(componentIds);
-        _componentSetCache.Add(key, set);
-        return set;
-    }
-
     private ComponentSet CreateComponentSet(ReadOnlySpan<ComponentId> componentIds)
     {
         var ownedIds = new ComponentId[componentIds.Length];
@@ -2529,9 +2590,6 @@ public sealed partial class World : IDisposable
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int NextGeneration(int generation) => generation == int.MaxValue ? 1 : generation + 1;
-
     private void PushFree(int recordIndex)
     {
         EnsureFreeRecordCapacity(_freeCount + 1);
@@ -2616,10 +2674,6 @@ public sealed partial class World : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool TryResolveEntityLocation(Entity entity, out Chunk chunk, out int slotIndex)
-        => TryResolve(entity, out _, out chunk, out slotIndex);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private Chunk GetEntityRefLocationTrusted(Entity entity, out int slotIndex)
     {
         ref readonly EntityRecord record = ref RecordAt(entity.Index);
@@ -2647,58 +2701,6 @@ public sealed partial class World : IDisposable
         return cached;
     }
 
-    internal IDisposable EnterSchedulerExecution()
-    {
-        ThrowHelper.ThrowIfDisposed(IsDisposed, this);
-        if (_schedulerExecutionWorld is not null
-            || Interlocked.CompareExchange(ref _schedulerExecutionActive, 1, 0) != 0)
-        {
-            ThrowHelper.ThrowWorldSchedulerAlreadyExecuting();
-        }
-
-        _schedulerExecutionWorld = this;
-        return new SchedulerExecutionLease(this);
-    }
-
-    internal void EnterSchedulerWorker()
-    {
-        if (_schedulerExecutionActive == 0
-            || _schedulerExecutionWorld is not null)
-        {
-            ThrowHelper.ThrowUnauthorizedSchedulerWorker();
-        }
-
-        _schedulerExecutionWorld = this;
-    }
-
-    internal bool TryEnterSchedulerWorker()
-    {
-        if (_schedulerExecutionActive == 0)
-        {
-            return false;
-        }
-
-        EnterSchedulerWorker();
-        return true;
-    }
-
-    internal void ExitSchedulerWorker()
-    {
-        if (ReferenceEquals(_schedulerExecutionWorld, this))
-        {
-            _schedulerExecutionWorld = null;
-        }
-    }
-
-    internal void EnsureExecutionAccess()
-    {
-        if (_schedulerExecutionActive != 0
-            && !ReferenceEquals(_schedulerExecutionWorld, this))
-        {
-            ThrowHelper.ThrowWorldSchedulerExecutionActive();
-        }
-    }
-
     private void ExitSchedulerExecution()
     {
         if (ReferenceEquals(_schedulerExecutionWorld, this))
@@ -2707,25 +2709,6 @@ public sealed partial class World : IDisposable
         }
 
         _schedulerExecutionActive = 0;
-    }
-
-    private sealed class SchedulerExecutionLease : IDisposable
-    {
-        private World? _world;
-
-        internal SchedulerExecutionLease(World world)
-        {
-            _world = world;
-        }
-
-        public void Dispose()
-        {
-            if (_world is { } world)
-            {
-                _world = null;
-                world.ExitSchedulerExecution();
-            }
-        }
     }
 
     private void SweepDeadQueryPlans()
@@ -2818,20 +2801,37 @@ public sealed partial class World : IDisposable
         }
     }
 
-    private static bool IsCompatibleComponentType<T>(ComponentLayout layout) => layout.RuntimeType == typeof(T);
+    private sealed class SchedulerExecutionLease : IDisposable
+    {
+        private World? _world;
+
+        internal SchedulerExecutionLease(World world)
+        {
+            _world = world;
+        }
+
+        public void Dispose()
+        {
+            if (_world is { } world)
+            {
+                _world = null;
+                world.ExitSchedulerExecution();
+            }
+        }
+    }
 
     private readonly struct TransitionKey : IEquatable<TransitionKey>
     {
+
+        public int SourceArchetypeId { get; }
+        public ComponentSetId ChangeSetId { get; }
+        public bool IsAdd { get; }
         public TransitionKey(int sourceArchetypeId, ComponentSetId changeSetId, bool isAdd)
         {
             SourceArchetypeId = sourceArchetypeId;
             ChangeSetId = changeSetId;
             IsAdd = isAdd;
         }
-
-        public int SourceArchetypeId { get; }
-        public ComponentSetId ChangeSetId { get; }
-        public bool IsAdd { get; }
 
         public bool Equals(TransitionKey other) => SourceArchetypeId == other.SourceArchetypeId
                                                    && ChangeSetId == other.ChangeSetId && IsAdd == other.IsAdd;
@@ -2847,6 +2847,11 @@ public sealed partial class World : IDisposable
 
     private readonly struct TransitionEdge
     {
+
+        public int TargetArchetypeId { get; }
+        public int[] SourceToTargetRowIndices { get; }
+        public int[] AddedTargetRowIndices { get; }
+        public bool IsNoOp { get; }
         public TransitionEdge(
             int targetArchetypeId,
             int[] sourceToTargetRowIndices,
@@ -2859,17 +2864,18 @@ public sealed partial class World : IDisposable
             IsNoOp = isNoOp;
         }
 
-        public int TargetArchetypeId { get; }
-        public int[] SourceToTargetRowIndices { get; }
-        public int[] AddedTargetRowIndices { get; }
-        public bool IsNoOp { get; }
-
         public static TransitionEdge NoOp(int sourceArchetypeId)
             => new(sourceArchetypeId, Array.Empty<int>(), Array.Empty<int>(), isNoOp: true);
     }
 
     private readonly struct DestroyEntry
     {
+
+        public Entity Entity { get; }
+        public int RecordIndex { get; }
+        public int Archetype { get; }
+        public int ChunkId { get; }
+        public int SlotIndex { get; }
         public DestroyEntry(Entity entity, int recordIndex, int archetype, int chunkId, int slotIndex)
         {
             Entity = entity;
@@ -2878,12 +2884,6 @@ public sealed partial class World : IDisposable
             ChunkId = chunkId;
             SlotIndex = slotIndex;
         }
-
-        public Entity Entity { get; }
-        public int RecordIndex { get; }
-        public int Archetype { get; }
-        public int ChunkId { get; }
-        public int SlotIndex { get; }
     }
 
     private sealed class DestroyEntryComparer : IComparer<DestroyEntry>

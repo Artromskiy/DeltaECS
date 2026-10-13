@@ -1,314 +1,15 @@
 namespace Delta.ECS;
 
 using System.Runtime.CompilerServices;
+
 using static ComponentChangeMasks;
-
-/// <summary>Describes a component addition, modification, or removal.</summary>
-public enum ChangeKind : byte
-{
-    /// <summary>The component is present but was absent at the previous invocation.</summary>
-    Added,
-
-    /// <summary>The component was opened for writing since the previous invocation.</summary>
-    Modified,
-
-    /// <summary>The component or its entity is no longer present.</summary>
-    Removed
-}
-
-/// <summary>Handles a change to one component registration.</summary>
-/// <remarks>For <see cref="ChangeKind.Removed"/>, <paramref name="component"/> is a null reference and must not be dereferenced.</remarks>
-public delegate void ComponentChangeAction<T>(Entity entity, ChangeKind change, ref T component);
-
-internal abstract class ComponentChangeObserver
-{
-    internal ComponentChangeObserver(ComponentId componentId)
-    {
-        ComponentId = componentId;
-    }
-
-    internal ComponentId ComponentId { get; }
-
-    internal abstract void RecordMembership(Entity entity, bool present);
-
-    internal abstract void RecordMembershipRange(ReadOnlySpan<Entity> entities, bool present);
-
-    internal abstract void MergeParallel();
-
-    internal abstract void RecordChunkSlot(Chunk chunk, int slotIndex);
-
-    internal abstract void RecordChunk(Chunk chunk);
-
-    internal abstract void PrepareChunk(Chunk chunk);
-
-    internal abstract void RecordChunkMask(Chunk chunk, ReadOnlySpan<ulong> mask, DirtyKind kind);
-
-    internal abstract void EnsureCapacity(int capacity);
-
-    internal abstract void PrepareAddRange(Chunk chunk, int slotIndex, int count);
-
-    internal abstract void MoveRange(Chunk source, int sourceSlot, Chunk target, int targetSlot, int count);
-
-    internal abstract void CopyRangeWithin(Chunk chunk, int sourceSlot, int targetSlot, int count);
-
-    internal abstract void RemoveSwapBack(Chunk chunk, int slotIndex, int lastSlotIndex);
-
-    internal abstract void TrimTail(Chunk chunk, int count);
-
-    internal abstract void ClearChunk(Chunk chunk);
-}
-
-internal enum DirtyKind : byte
-{
-    None,
-    All,
-    Mask
-}
-
-internal struct DirtyChunkState
-{
-    internal Chunk? Chunk;
-    internal DirtyKind Kind;
-    internal ulong[] Mask;
-    internal int ActiveIndex;
-    internal bool HasMaskWrites;
-}
-
-internal sealed class DirtyChunkSet
-{
-    private DirtyChunkState[] _states = Array.Empty<DirtyChunkState>();
-    private int[] _activeChunkIds = Array.Empty<int>();
-
-    internal int ActiveCount { get; private set; }
-
-    internal bool HasDirty => ActiveCount != 0;
-
-    private ref DirtyChunkState GetState(Chunk chunk)
-    {
-        int chunkId = chunk.GlobalId;
-        if ((uint)chunkId >= (uint)_states.Length)
-        {
-            Array.Resize(ref _states, Math.Max(chunkId + 1, Math.Max(4, _states.Length * 2)));
-        }
-
-        ref DirtyChunkState state = ref _states[chunkId];
-        if (!ReferenceEquals(state.Chunk, chunk))
-        {
-            if (state.Chunk is not null && state.ActiveIndex >= 0)
-            {
-                Remove(state.Chunk);
-            }
-
-            state.Mask ??= Array.Empty<ulong>();
-            state = new DirtyChunkState { Chunk = chunk, Mask = state.Mask, ActiveIndex = -1 };
-        }
-
-        return ref state;
-    }
-
-    internal ref DirtyChunkState GetOrAdd(Chunk chunk)
-    {
-        int chunkId = chunk.GlobalId;
-        ref DirtyChunkState state = ref GetState(chunk);
-        if (state.ActiveIndex < 0)
-        {
-            if (ActiveCount == _activeChunkIds.Length)
-            {
-                Array.Resize(ref _activeChunkIds, Math.Max(4, _activeChunkIds.Length * 2));
-            }
-
-            state.ActiveIndex = ActiveCount;
-            _activeChunkIds[ActiveCount++] = chunkId;
-        }
-
-        return ref state;
-    }
-
-    internal bool TryGet(Chunk chunk, out int chunkId)
-    {
-        chunkId = chunk.GlobalId;
-        return (uint)chunkId < (uint)_states.Length
-            && ReferenceEquals(_states[chunkId].Chunk, chunk)
-            && _states[chunkId].ActiveIndex >= 0;
-    }
-
-    internal ref DirtyChunkState GetAt(int activeIndex)
-        => ref _states[_activeChunkIds[activeIndex]];
-
-    internal ref DirtyChunkState GetById(int chunkId) => ref _states[chunkId];
-
-    internal void Prepare(Chunk chunk)
-    {
-        ref DirtyChunkState state = ref GetState(chunk);
-        if (state.Mask.Length == 0)
-        {
-            state.Mask = new ulong[Chunk.WordCount];
-        }
-
-        if (_activeChunkIds.Length < _states.Length)
-        {
-            Array.Resize(ref _activeChunkIds, _states.Length);
-        }
-    }
-
-    internal void Remove(Chunk chunk)
-    {
-        if (!TryGet(chunk, out int chunkId))
-        {
-            return;
-        }
-
-        ref DirtyChunkState state = ref _states[chunkId];
-        int activeIndex = state.ActiveIndex;
-        int lastActiveIndex = --ActiveCount;
-        if (activeIndex != lastActiveIndex)
-        {
-            int movedChunkId = _activeChunkIds[lastActiveIndex];
-            _activeChunkIds[activeIndex] = movedChunkId;
-            _states[movedChunkId].ActiveIndex = activeIndex;
-        }
-
-        _activeChunkIds[lastActiveIndex] = 0;
-        if (state.HasMaskWrites)
-        {
-            Array.Clear(state.Mask, 0, state.Mask.Length);
-        }
-
-        state = new DirtyChunkState { Mask = state.Mask, ActiveIndex = -1 };
-    }
-
-    internal void Clear()
-    {
-        for (int index = 0; index < ActiveCount; index++)
-        {
-            ref DirtyChunkState state = ref _states[_activeChunkIds[index]];
-            if (state.HasMaskWrites)
-            {
-                Array.Clear(state.Mask, 0, state.Mask.Length);
-            }
-
-            state.HasMaskWrites = false;
-            state.Kind = DirtyKind.None;
-            state.ActiveIndex = -1;
-        }
-
-        ActiveCount = 0;
-    }
-
-
-}
-
-internal struct ComponentMembershipChange
-{
-    internal Entity Entity;
-    internal bool Present;
-}
-
-internal sealed class ComponentMembershipChanges
-{
-    private Entity[] _entities = Array.Empty<Entity>();
-    private bool[] _present = Array.Empty<bool>();
-    private int[] _indices = Array.Empty<int>();
-    internal int Count { get; private set; }
-    internal ComponentMembershipChange this[int index] => new() { Entity = _entities[index], Present = _present[index] };
-
-    internal void Record(Entity entity, bool present)
-    {
-        EnsureIndexCapacity(entity.Index + 1);
-        int index = Find(entity);
-        if (index < 0)
-        {
-            EnsureChangeCapacity(Count + 1);
-            index = Count++;
-            _indices[entity.Index] = index + 1;
-            _entities[index] = entity;
-        }
-
-        _present[index] = present;
-    }
-
-    internal void RecordRange(ReadOnlySpan<Entity> entities, bool present)
-    {
-        int requiredIndices = _indices.Length;
-        for (int index = 0; index < entities.Length; index++)
-        {
-            Entity entity = entities[index];
-            if (Find(entity) >= 0)
-            {
-                for (int item = 0; item < entities.Length; item++)
-                {
-                    Record(entities[item], present);
-                }
-
-                return;
-            }
-
-            requiredIndices = Math.Max(requiredIndices, entity.Index + 1);
-        }
-
-        EnsureIndexCapacity(requiredIndices);
-        EnsureChangeCapacity(Count + entities.Length);
-        entities.CopyTo(_entities.AsSpan(Count));
-        _present.AsSpan(Count, entities.Length).Fill(present);
-        for (int index = 0; index < entities.Length; index++)
-        {
-            _indices[entities[index].Index] = Count + index + 1;
-        }
-
-        Count += entities.Length;
-    }
-
-    internal bool Contains(Entity entity) => Find(entity) >= 0;
-
-    internal void Clear()
-    {
-        for (int index = 0; index < Count; index++)
-        {
-            _indices[_entities[index].Index] = 0;
-        }
-
-        Count = 0;
-    }
-
-    private int Find(Entity entity)
-    {
-        int index = entity.Index < _indices.Length ? _indices[entity.Index] - 1 : -1;
-        return index >= 0 && index < Count && _entities[index] == entity ? index : -1;
-    }
-
-    private void EnsureIndexCapacity(int capacity)
-    {
-        if (capacity > _indices.Length)
-        {
-            Array.Resize(ref _indices, Math.Max(capacity, Math.Max(4, _indices.Length * 2)));
-        }
-    }
-
-    private void EnsureChangeCapacity(int capacity)
-    {
-        if (capacity > _entities.Length)
-        {
-            capacity = Math.Max(capacity, Math.Max(4, _entities.Length * 2));
-            Array.Resize(ref _entities, capacity);
-            Array.Resize(ref _present, capacity);
-        }
-    }
-}
-
-internal sealed class ComponentChangeObserverRoute
-{
-    internal readonly WeakReference<ComponentChangeObserver>[] Observers;
-
-    internal ComponentChangeObserverRoute(WeakReference<ComponentChangeObserver>[] observers)
-    {
-        Observers = observers;
-    }
-}
 
 /// <summary>Reports changes to one component registration across the world.</summary>
 /// <remarks>The first invocation reports every existing component as <see cref="ChangeKind.Added"/>. Later invocations report current state changes.</remarks>
 public sealed class ComponentChangeOperation<T> : IOperation
 {
+    [ThreadStatic]
+    private static ComponentChangeOperation<T>? s_invoking;
     private readonly World _world;
     private readonly ComponentChangeAction<T> _action;
     private Entity[] _entities = Array.Empty<Entity>();
@@ -323,8 +24,6 @@ public sealed class ComponentChangeOperation<T> : IOperation
     private readonly Observer _observer;
     private bool _invoking;
     private bool _hasSnapshot;
-    [ThreadStatic]
-    private static ComponentChangeOperation<T>? s_invoking;
 
     internal ComponentChangeOperation(World world, ComponentId componentId, ComponentChangeAction<T> action)
     {
@@ -405,88 +104,6 @@ public sealed class ComponentChangeOperation<T> : IOperation
             s_invoking = previousInvoking;
             _invoking = false;
         }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool ShouldRecord() => !ReferenceEquals(s_invoking, this);
-
-    private void RecordMembership(Entity entity, bool present) => _membershipChanges.Record(entity, present);
-
-    private void MergeParallel()
-    {
-        for (int index = 0; index < _workerDirtyChunks.Length; index++)
-        {
-            if (_workerDirtyChunks[index] is { } worker)
-            {
-                MergeDirtyChunks(worker, _dirtyChunks);
-                worker.Clear();
-            }
-        }
-    }
-
-    private void RecordChunk(Chunk chunk)
-    {
-        if (!ShouldRecord())
-        {
-            return;
-        }
-
-        if (chunk.Count != 0)
-        {
-            SetAll(_dirtyChunks, chunk);
-        }
-    }
-
-    private void PrepareChunk(Chunk chunk)
-    {
-        if (ShouldRecord())
-        {
-            _dirtyChunks.Prepare(chunk);
-            for (int index = 0; index < _workerDirtyChunks.Length; index++)
-            {
-                (_workerDirtyChunks[index] ??= new DirtyChunkSet()).Prepare(chunk);
-            }
-        }
-    }
-
-    private void RecordChunkSlot(Chunk chunk, int slotIndex)
-    {
-        if (ShouldRecord())
-        {
-            DirtyChunkSet chunks = _world.IsParallelExecutionActive
-                ? _workerDirtyChunks[World.ChangeTrackingWorkerIndex]
-                : _dirtyChunks;
-            SetSlot(chunks, chunk, slotIndex);
-        }
-    }
-
-    private void RecordChunkMask(Chunk chunk, ReadOnlySpan<ulong> mask, DirtyKind kind)
-    {
-        if (!ShouldRecord())
-        {
-            return;
-        }
-
-        RecordMask(_dirtyChunks, chunk, mask, kind);
-    }
-
-    private void PrepareAddRange(Chunk chunk, int slotIndex, int count) => PrepareAddRange(_dirtyChunks, chunk, slotIndex, count);
-
-    private void MoveRange(Chunk source, int sourceSlot, Chunk target, int targetSlot, int count) => MoveRange(_dirtyChunks, source, sourceSlot, target, targetSlot, count);
-
-    private void CopyRangeWithin(Chunk chunk, int sourceSlot, int targetSlot, int count)
-        => CopyRangeWithin(_dirtyChunks, chunk, sourceSlot, targetSlot, count);
-
-    private void RemoveSwapBack(Chunk chunk, int slotIndex, int lastSlotIndex)
-        => RemoveSwapBack(_dirtyChunks, chunk, slotIndex, lastSlotIndex);
-
-    private void TrimTail(Chunk chunk, int count)
-        => TrimTail(_dirtyChunks, chunk, chunk.Count - count, count);
-
-    private void ClearChunk(Chunk chunk)
-    {
-        _dirtyChunks.Remove(chunk);
-        _processingDirtyChunks.Remove(chunk);
     }
 
     private static void SetAll(DirtyChunkSet chunks, Chunk chunk)
@@ -738,6 +355,88 @@ public sealed class ComponentChangeOperation<T> : IOperation
         chunks.Remove(chunk);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool ShouldRecord() => !ReferenceEquals(s_invoking, this);
+
+    private void RecordMembership(Entity entity, bool present) => _membershipChanges.Record(entity, present);
+
+    private void MergeParallel()
+    {
+        for (int index = 0; index < _workerDirtyChunks.Length; index++)
+        {
+            if (_workerDirtyChunks[index] is { } worker)
+            {
+                MergeDirtyChunks(worker, _dirtyChunks);
+                worker.Clear();
+            }
+        }
+    }
+
+    private void RecordChunk(Chunk chunk)
+    {
+        if (!ShouldRecord())
+        {
+            return;
+        }
+
+        if (chunk.Count != 0)
+        {
+            SetAll(_dirtyChunks, chunk);
+        }
+    }
+
+    private void PrepareChunk(Chunk chunk)
+    {
+        if (ShouldRecord())
+        {
+            _dirtyChunks.Prepare(chunk);
+            for (int index = 0; index < _workerDirtyChunks.Length; index++)
+            {
+                (_workerDirtyChunks[index] ??= new DirtyChunkSet()).Prepare(chunk);
+            }
+        }
+    }
+
+    private void RecordChunkSlot(Chunk chunk, int slotIndex)
+    {
+        if (ShouldRecord())
+        {
+            DirtyChunkSet chunks = _world.IsParallelExecutionActive
+                ? _workerDirtyChunks[World.ChangeTrackingWorkerIndex]
+                : _dirtyChunks;
+            SetSlot(chunks, chunk, slotIndex);
+        }
+    }
+
+    private void RecordChunkMask(Chunk chunk, ReadOnlySpan<ulong> mask, DirtyKind kind)
+    {
+        if (!ShouldRecord())
+        {
+            return;
+        }
+
+        RecordMask(_dirtyChunks, chunk, mask, kind);
+    }
+
+    private void PrepareAddRange(Chunk chunk, int slotIndex, int count) => PrepareAddRange(_dirtyChunks, chunk, slotIndex, count);
+
+    private void MoveRange(Chunk source, int sourceSlot, Chunk target, int targetSlot, int count) => MoveRange(_dirtyChunks, source, sourceSlot, target, targetSlot, count);
+
+    private void CopyRangeWithin(Chunk chunk, int sourceSlot, int targetSlot, int count)
+        => CopyRangeWithin(_dirtyChunks, chunk, sourceSlot, targetSlot, count);
+
+    private void RemoveSwapBack(Chunk chunk, int slotIndex, int lastSlotIndex)
+        => RemoveSwapBack(_dirtyChunks, chunk, slotIndex, lastSlotIndex);
+
+    private void TrimTail(Chunk chunk, int count)
+        => TrimTail(_dirtyChunks, chunk, chunk.Count - count, count);
+
+    private void ClearChunk(Chunk chunk)
+    {
+        _dirtyChunks.Remove(chunk);
+        _processingDirtyChunks.Remove(chunk);
+    }
+
     private void EnsureCapacity(int capacity)
     {
         if (capacity > _entities.Length)
@@ -876,30 +575,6 @@ public sealed class ComponentChangeOperation<T> : IOperation
                 ComponentChangeMasks.SetSlot(_entityPresence.AsSpan(), entityIndex, false);
             }
         }
-    }
-
-    private interface IChangeFilter
-    {
-        bool Accept(Entity entity);
-    }
-
-    private readonly struct ModifiedOnly : IChangeFilter
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        bool IChangeFilter.Accept(Entity entity) => true;
-    }
-
-    private readonly struct ExcludeMembershipChanges : IChangeFilter
-    {
-        private readonly ComponentMembershipChanges _changes;
-
-        internal ExcludeMembershipChanges(ComponentMembershipChanges changes)
-        {
-            _changes = changes;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        bool IChangeFilter.Accept(Entity entity) => !_changes.Contains(entity);
     }
 
     private void VisitDirtyChunks()
@@ -1079,6 +754,30 @@ public sealed class ComponentChangeOperation<T> : IOperation
         _action(entity, ChangeKind.Removed, ref component);
     }
 
+    private interface IChangeFilter
+    {
+        bool Accept(Entity entity);
+    }
+
+    private readonly struct ModifiedOnly : IChangeFilter
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        bool IChangeFilter.Accept(Entity entity) => true;
+    }
+
+    private readonly struct ExcludeMembershipChanges : IChangeFilter
+    {
+        private readonly ComponentMembershipChanges _changes;
+
+        internal ExcludeMembershipChanges(ComponentMembershipChanges changes)
+        {
+            _changes = changes;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        bool IChangeFilter.Accept(Entity entity) => !_changes.Contains(entity);
+    }
+
     private sealed class Observer : ComponentChangeObserver
     {
         private readonly ComponentChangeOperation<T> _operation;
@@ -1122,5 +821,307 @@ public sealed class ComponentChangeOperation<T> : IOperation
         internal override void TrimTail(Chunk chunk, int count) => _operation.TrimTail(chunk, count);
 
         internal override void ClearChunk(Chunk chunk) => _operation.ClearChunk(chunk);
+    }
+}
+
+/// <summary>Describes a component addition, modification, or removal.</summary>
+public enum ChangeKind : byte
+{
+    /// <summary>The component is present but was absent at the previous invocation.</summary>
+    Added,
+
+    /// <summary>The component was opened for writing since the previous invocation.</summary>
+    Modified,
+
+    /// <summary>The component or its entity is no longer present.</summary>
+    Removed
+}
+
+/// <summary>Handles a change to one component registration.</summary>
+/// <remarks>For <see cref="ChangeKind.Removed"/>, <paramref name="component"/> is a null reference and must not be dereferenced.</remarks>
+public delegate void ComponentChangeAction<T>(Entity entity, ChangeKind change, ref T component);
+
+internal abstract class ComponentChangeObserver
+{
+
+    internal ComponentId ComponentId { get; }
+    internal ComponentChangeObserver(ComponentId componentId)
+    {
+        ComponentId = componentId;
+    }
+
+    internal abstract void RecordMembership(Entity entity, bool present);
+
+    internal abstract void RecordMembershipRange(ReadOnlySpan<Entity> entities, bool present);
+
+    internal abstract void MergeParallel();
+
+    internal abstract void RecordChunkSlot(Chunk chunk, int slotIndex);
+
+    internal abstract void RecordChunk(Chunk chunk);
+
+    internal abstract void PrepareChunk(Chunk chunk);
+
+    internal abstract void RecordChunkMask(Chunk chunk, ReadOnlySpan<ulong> mask, DirtyKind kind);
+
+    internal abstract void EnsureCapacity(int capacity);
+
+    internal abstract void PrepareAddRange(Chunk chunk, int slotIndex, int count);
+
+    internal abstract void MoveRange(Chunk source, int sourceSlot, Chunk target, int targetSlot, int count);
+
+    internal abstract void CopyRangeWithin(Chunk chunk, int sourceSlot, int targetSlot, int count);
+
+    internal abstract void RemoveSwapBack(Chunk chunk, int slotIndex, int lastSlotIndex);
+
+    internal abstract void TrimTail(Chunk chunk, int count);
+
+    internal abstract void ClearChunk(Chunk chunk);
+}
+
+internal enum DirtyKind : byte
+{
+    None,
+    All,
+    Mask
+}
+
+internal struct DirtyChunkState
+{
+    internal Chunk? Chunk;
+    internal DirtyKind Kind;
+    internal ulong[] Mask;
+    internal int ActiveIndex;
+    internal bool HasMaskWrites;
+}
+
+internal sealed class DirtyChunkSet
+{
+    private DirtyChunkState[] _states = Array.Empty<DirtyChunkState>();
+    private int[] _activeChunkIds = Array.Empty<int>();
+
+    internal int ActiveCount { get; private set; }
+
+    internal bool HasDirty => ActiveCount != 0;
+
+    internal ref DirtyChunkState GetOrAdd(Chunk chunk)
+    {
+        int chunkId = chunk.GlobalId;
+        ref DirtyChunkState state = ref GetState(chunk);
+        if (state.ActiveIndex < 0)
+        {
+            if (ActiveCount == _activeChunkIds.Length)
+            {
+                Array.Resize(ref _activeChunkIds, Math.Max(4, _activeChunkIds.Length * 2));
+            }
+
+            state.ActiveIndex = ActiveCount;
+            _activeChunkIds[ActiveCount++] = chunkId;
+        }
+
+        return ref state;
+    }
+
+    internal bool TryGet(Chunk chunk, out int chunkId)
+    {
+        chunkId = chunk.GlobalId;
+        return (uint)chunkId < (uint)_states.Length
+            && ReferenceEquals(_states[chunkId].Chunk, chunk)
+            && _states[chunkId].ActiveIndex >= 0;
+    }
+
+    internal ref DirtyChunkState GetAt(int activeIndex)
+        => ref _states[_activeChunkIds[activeIndex]];
+
+    internal ref DirtyChunkState GetById(int chunkId) => ref _states[chunkId];
+
+    internal void Prepare(Chunk chunk)
+    {
+        ref DirtyChunkState state = ref GetState(chunk);
+        if (state.Mask.Length == 0)
+        {
+            state.Mask = new ulong[Chunk.WordCount];
+        }
+
+        if (_activeChunkIds.Length < _states.Length)
+        {
+            Array.Resize(ref _activeChunkIds, _states.Length);
+        }
+    }
+
+    internal void Remove(Chunk chunk)
+    {
+        if (!TryGet(chunk, out int chunkId))
+        {
+            return;
+        }
+
+        ref DirtyChunkState state = ref _states[chunkId];
+        int activeIndex = state.ActiveIndex;
+        int lastActiveIndex = --ActiveCount;
+        if (activeIndex != lastActiveIndex)
+        {
+            int movedChunkId = _activeChunkIds[lastActiveIndex];
+            _activeChunkIds[activeIndex] = movedChunkId;
+            _states[movedChunkId].ActiveIndex = activeIndex;
+        }
+
+        _activeChunkIds[lastActiveIndex] = 0;
+        if (state.HasMaskWrites)
+        {
+            Array.Clear(state.Mask, 0, state.Mask.Length);
+        }
+
+        state = new DirtyChunkState { Mask = state.Mask, ActiveIndex = -1 };
+    }
+
+    internal void Clear()
+    {
+        for (int index = 0; index < ActiveCount; index++)
+        {
+            ref DirtyChunkState state = ref _states[_activeChunkIds[index]];
+            if (state.HasMaskWrites)
+            {
+                Array.Clear(state.Mask, 0, state.Mask.Length);
+            }
+
+            state.HasMaskWrites = false;
+            state.Kind = DirtyKind.None;
+            state.ActiveIndex = -1;
+        }
+
+        ActiveCount = 0;
+    }
+
+    private ref DirtyChunkState GetState(Chunk chunk)
+    {
+        int chunkId = chunk.GlobalId;
+        if ((uint)chunkId >= (uint)_states.Length)
+        {
+            Array.Resize(ref _states, Math.Max(chunkId + 1, Math.Max(4, _states.Length * 2)));
+        }
+
+        ref DirtyChunkState state = ref _states[chunkId];
+        if (!ReferenceEquals(state.Chunk, chunk))
+        {
+            if (state.Chunk is not null && state.ActiveIndex >= 0)
+            {
+                Remove(state.Chunk);
+            }
+
+            state.Mask ??= Array.Empty<ulong>();
+            state = new DirtyChunkState { Chunk = chunk, Mask = state.Mask, ActiveIndex = -1 };
+        }
+
+        return ref state;
+    }
+
+
+}
+
+internal struct ComponentMembershipChange
+{
+    internal Entity Entity;
+    internal bool Present;
+}
+
+internal sealed class ComponentMembershipChanges
+{
+    private Entity[] _entities = Array.Empty<Entity>();
+    private bool[] _present = Array.Empty<bool>();
+    private int[] _indices = Array.Empty<int>();
+    internal int Count { get; private set; }
+    internal ComponentMembershipChange this[int index] => new() { Entity = _entities[index], Present = _present[index] };
+
+    internal void Record(Entity entity, bool present)
+    {
+        EnsureIndexCapacity(entity.Index + 1);
+        int index = Find(entity);
+        if (index < 0)
+        {
+            EnsureChangeCapacity(Count + 1);
+            index = Count++;
+            _indices[entity.Index] = index + 1;
+            _entities[index] = entity;
+        }
+
+        _present[index] = present;
+    }
+
+    internal void RecordRange(ReadOnlySpan<Entity> entities, bool present)
+    {
+        int requiredIndices = _indices.Length;
+        for (int index = 0; index < entities.Length; index++)
+        {
+            Entity entity = entities[index];
+            if (Find(entity) >= 0)
+            {
+                for (int item = 0; item < entities.Length; item++)
+                {
+                    Record(entities[item], present);
+                }
+
+                return;
+            }
+
+            requiredIndices = Math.Max(requiredIndices, entity.Index + 1);
+        }
+
+        EnsureIndexCapacity(requiredIndices);
+        EnsureChangeCapacity(Count + entities.Length);
+        entities.CopyTo(_entities.AsSpan(Count));
+        _present.AsSpan(Count, entities.Length).Fill(present);
+        for (int index = 0; index < entities.Length; index++)
+        {
+            _indices[entities[index].Index] = Count + index + 1;
+        }
+
+        Count += entities.Length;
+    }
+
+    internal bool Contains(Entity entity) => Find(entity) >= 0;
+
+    internal void Clear()
+    {
+        for (int index = 0; index < Count; index++)
+        {
+            _indices[_entities[index].Index] = 0;
+        }
+
+        Count = 0;
+    }
+
+    private int Find(Entity entity)
+    {
+        int index = entity.Index < _indices.Length ? _indices[entity.Index] - 1 : -1;
+        return index >= 0 && index < Count && _entities[index] == entity ? index : -1;
+    }
+
+    private void EnsureIndexCapacity(int capacity)
+    {
+        if (capacity > _indices.Length)
+        {
+            Array.Resize(ref _indices, Math.Max(capacity, Math.Max(4, _indices.Length * 2)));
+        }
+    }
+
+    private void EnsureChangeCapacity(int capacity)
+    {
+        if (capacity > _entities.Length)
+        {
+            capacity = Math.Max(capacity, Math.Max(4, _entities.Length * 2));
+            Array.Resize(ref _entities, capacity);
+            Array.Resize(ref _present, capacity);
+        }
+    }
+}
+
+internal sealed class ComponentChangeObserverRoute
+{
+    internal readonly WeakReference<ComponentChangeObserver>[] Observers;
+
+    internal ComponentChangeObserverRoute(WeakReference<ComponentChangeObserver>[] observers)
+    {
+        Observers = observers;
     }
 }

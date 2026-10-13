@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+
 using Delta.ECS;
 using Delta.ECS.Integration;
+
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -30,13 +32,137 @@ namespace Delta.ECS.Unity
         private bool _disposed;
 
         public World World => _world;
+
+        public Entity[] AuthoredEntities
+        {
+            get
+            {
+                var entities = new Entity[_entitiesByStableId.Count];
+                _entitiesByStableId.Values.CopyTo(entities, 0);
+                return entities;
+            }
+        }
         internal IEcsWorld Integration => _integration;
         internal SceneData SceneData => _sceneData;
         internal Scene UnityScene => _authoring != null ? _authoring.gameObject.scene : default;
         internal bool IsBound => !_disposed;
 
+        internal SceneWorld(World world, SceneData sceneData)
+            : this(world, sceneData, null, ownsWorld: false, registerLiveWorld: true)
+        {
+        }
+
+        private SceneWorld(World world, SceneData sceneData,
+            SceneAuthoring authoring, bool ownsWorld, bool registerLiveWorld)
+        {
+            _world = world ?? UnityThrowHelpers.ThrowArgumentNull<World>(nameof(world));
+            _sceneData = sceneData ?? UnityThrowHelpers.ThrowArgumentNull<SceneData>(nameof(sceneData));
+            _authoring = authoring;
+            _integration = world;
+            _ownsWorld = ownsWorld;
+
+            _sceneData.EnsureStableIds();
+            _integration.Initialize();
+            RebuildAuthoringEntities();
+            if (registerLiveWorld)
+            {
+                LiveWorlds.Add(this);
+            }
+        }
+
         /// <summary>Returns the integration-owned runtime context for a loaded Unity scene.</summary>
         public static SceneWorld GetForScene(Scene scene) => SceneWorldRuntime.GetForScene(scene);
+
+        /// <summary>Resolves the live ECS world and entity currently associated with a Unity view.</summary>
+        public static bool TryGetBoundEntity(GameObject view, [NotNullWhen(true)] out World world, out Entity entity)
+        {
+            if (view != null && TryFindLiveWorld(view, out SceneWorld sceneWorld, out entity))
+            {
+                world = sceneWorld.World;
+                return true;
+            }
+
+            world = null;
+            entity = default;
+            return false;
+        }
+
+        /// <summary>Registers a transient runtime association; it is not written into scene data.</summary>
+        public bool BindView(Entity entity, GameObject view)
+        {
+            if (view == null || !_integration.IsAlive(entity))
+            {
+                return false;
+            }
+
+            UnityEngine.EntityId viewId = view.GetEntityId();
+            if (_entitiesByView.TryGetValue(viewId, out Entity previousEntity))
+            {
+                _viewsByEntity.Remove(previousEntity);
+            }
+
+            if (_viewsByEntity.TryGetValue(entity, out GameObject previousView) && previousView != null)
+            {
+                _entitiesByView.Remove(previousView.GetEntityId());
+            }
+
+            _viewsByEntity[entity] = view;
+            _entitiesByView[viewId] = entity;
+            return true;
+        }
+
+        public void UnbindView(Entity entity)
+        {
+            if (_viewsByEntity.Remove(entity, out GameObject view) && view != null)
+            {
+                _entitiesByView.Remove(view.GetEntityId());
+            }
+        }
+
+        public bool TryFindFirstEntity<T>(out Entity entity) where T : struct
+        {
+            if (_world.Components.TryGetPrimary(typeof(T), out ComponentId componentId))
+            {
+                foreach (Entity candidate in _entitiesByStableId.Values)
+                {
+                    if (_integration.IsAlive(candidate) && _world.Has(candidate, componentId))
+                    {
+                        entity = candidate;
+                        return true;
+                    }
+                }
+            }
+
+            entity = default;
+            return false;
+        }
+
+        public bool HasComponent<T>(Entity entity) where T : struct =>
+            _world.IsAlive(entity)
+            && _world.Components.TryGetPrimary(typeof(T), out ComponentId componentId)
+            && _world.Has(entity, componentId);
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            LiveWorlds.Remove(this);
+            DestroyCurrentAuthoringEntities();
+            _entitiesByStableId.Clear();
+            _stableIdsByEntity.Clear();
+            _viewsByEntity.Clear();
+            _entitiesByView.Clear();
+            _integration.Shutdown();
+
+            if (_ownsWorld)
+            {
+                _world.Dispose();
+            }
+        }
 
         internal static bool TryFindLiveWorld(SceneData sceneData, out SceneWorld sceneWorld)
         {
@@ -69,53 +195,6 @@ namespace Delta.ECS.Unity
             sceneWorld = null;
             entity = default;
             return false;
-        }
-
-        /// <summary>Resolves the live ECS world and entity currently associated with a Unity view.</summary>
-        public static bool TryGetBoundEntity(GameObject view, [NotNullWhen(true)] out World world, out Entity entity)
-        {
-            if (view != null && TryFindLiveWorld(view, out SceneWorld sceneWorld, out entity))
-            {
-                world = sceneWorld.World;
-                return true;
-            }
-
-            world = null;
-            entity = default;
-            return false;
-        }
-
-        public Entity[] AuthoredEntities
-        {
-            get
-            {
-                var entities = new Entity[_entitiesByStableId.Count];
-                _entitiesByStableId.Values.CopyTo(entities, 0);
-                return entities;
-            }
-        }
-
-        internal SceneWorld(World world, SceneData sceneData)
-            : this(world, sceneData, null, ownsWorld: false, registerLiveWorld: true)
-        {
-        }
-
-        private SceneWorld(World world, SceneData sceneData,
-            SceneAuthoring authoring, bool ownsWorld, bool registerLiveWorld)
-        {
-            _world = world ?? UnityThrowHelpers.ThrowArgumentNull<World>(nameof(world));
-            _sceneData = sceneData ?? UnityThrowHelpers.ThrowArgumentNull<SceneData>(nameof(sceneData));
-            _authoring = authoring;
-            _integration = world;
-            _ownsWorld = ownsWorld;
-
-            _sceneData.EnsureStableIds();
-            _integration.Initialize();
-            RebuildAuthoringEntities();
-            if (registerLiveWorld)
-            {
-                LiveWorlds.Add(this);
-            }
         }
 
         internal static SceneWorld CreatePreview(SceneData sceneData)
@@ -171,17 +250,6 @@ namespace Delta.ECS.Unity
                 world.Dispose();
                 return UnityThrowHelpers.Rethrow<SceneWorld>(exception);
             }
-        }
-
-        private static World CreateWorld(int initialEntityCapacity)
-        {
-            var layouts = new ComponentRegistry();
-            foreach (IGeneratedComponentRegistration registration in GeneratedComponentCatalog.GetRegistrations())
-            {
-                layouts.Register(registration);
-            }
-
-            return new World(layouts, initialEntityCapacity);
         }
 
         internal void RebuildAuthoringEntities()
@@ -313,38 +381,6 @@ namespace Delta.ECS.Unity
 
             entity = default;
             return false;
-        }
-
-        /// <summary>Registers a transient runtime association; it is not written into scene data.</summary>
-        public bool BindView(Entity entity, GameObject view)
-        {
-            if (view == null || !_integration.IsAlive(entity))
-            {
-                return false;
-            }
-
-            UnityEngine.EntityId viewId = view.GetEntityId();
-            if (_entitiesByView.TryGetValue(viewId, out Entity previousEntity))
-            {
-                _viewsByEntity.Remove(previousEntity);
-            }
-
-            if (_viewsByEntity.TryGetValue(entity, out GameObject previousView) && previousView != null)
-            {
-                _entitiesByView.Remove(previousView.GetEntityId());
-            }
-
-            _viewsByEntity[entity] = view;
-            _entitiesByView[viewId] = entity;
-            return true;
-        }
-
-        public void UnbindView(Entity entity)
-        {
-            if (_viewsByEntity.Remove(entity, out GameObject view) && view != null)
-            {
-                _entitiesByView.Remove(view.GetEntityId());
-            }
         }
 
         internal bool TryGetDescriptor(ComponentData data, out ComponentDescriptor descriptor)
@@ -514,29 +550,6 @@ namespace Delta.ECS.Unity
                 && _integration.Remove(entity, new[] { descriptor.Id });
         }
 
-        public bool TryFindFirstEntity<T>(out Entity entity) where T : struct
-        {
-            if (_world.Components.TryGetPrimary(typeof(T), out ComponentId componentId))
-            {
-                foreach (Entity candidate in _entitiesByStableId.Values)
-                {
-                    if (_integration.IsAlive(candidate) && _world.Has(candidate, componentId))
-                    {
-                        entity = candidate;
-                        return true;
-                    }
-                }
-            }
-
-            entity = default;
-            return false;
-        }
-
-        public bool HasComponent<T>(Entity entity) where T : struct =>
-            _world.IsAlive(entity)
-            && _world.Components.TryGetPrimary(typeof(T), out ComponentId componentId)
-            && _world.Has(entity, componentId);
-
         internal bool TryGetAuthoring(string stableId, out EntityAuthoring authoring)
         {
             IList<EntityAuthoring> entities = _sceneData.Entities;
@@ -554,26 +567,15 @@ namespace Delta.ECS.Unity
             return false;
         }
 
-        public void Dispose()
+        private static World CreateWorld(int initialEntityCapacity)
         {
-            if (_disposed)
+            var layouts = new ComponentRegistry();
+            foreach (IGeneratedComponentRegistration registration in GeneratedComponentCatalog.GetRegistrations())
             {
-                return;
+                layouts.Register(registration);
             }
 
-            _disposed = true;
-            LiveWorlds.Remove(this);
-            DestroyCurrentAuthoringEntities();
-            _entitiesByStableId.Clear();
-            _stableIdsByEntity.Clear();
-            _viewsByEntity.Clear();
-            _entitiesByView.Clear();
-            _integration.Shutdown();
-
-            if (_ownsWorld)
-            {
-                _world.Dispose();
-            }
+            return new World(layouts, initialEntityCapacity);
         }
 
         private void DestroyCurrentAuthoringEntities()
@@ -605,6 +607,17 @@ namespace Delta.ECS.Unity
         private static readonly Dictionary<Scene, SceneWorld> WorldsByScene = new();
         private static bool _initialized;
 
+        internal static SceneWorld GetForScene(Scene scene)
+        {
+            if (!Application.isPlaying)
+            {
+                UnityThrowHelpers.ThrowInvalidOperation("Runtime scene worlds are only available in Play Mode.");
+            }
+
+            EnsureInitialized();
+            return EnsureForScene(scene);
+        }
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetForPlaySession()
         {
@@ -619,17 +632,6 @@ namespace Delta.ECS.Unity
             {
                 EnsureForScene(SceneManager.GetSceneAt(i));
             }
-        }
-
-        internal static SceneWorld GetForScene(Scene scene)
-        {
-            if (!Application.isPlaying)
-            {
-                UnityThrowHelpers.ThrowInvalidOperation("Runtime scene worlds are only available in Play Mode.");
-            }
-
-            EnsureInitialized();
-            return EnsureForScene(scene);
         }
 
         private static void EnsureInitialized()

@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Reflection;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -10,12 +11,8 @@ namespace Delta.ECS.Generators;
 
 internal static class GeneratorSupport
 {
-    internal static ITypeSymbol[] GenericArgumentTypes(SemanticModel model, GenericNameSyntax? genericName)
-        => genericName?.TypeArgumentList.Arguments
-            .Select(argument => model.GetTypeInfo(argument).Type)
-            .OfType<ITypeSymbol>()
-            .ToArray()
-            ?? Array.Empty<ITypeSymbol>();
+    internal const string EcsNamespace = "Delta.ECS";
+    internal const string SystemNamespace = "System";
 
     private const int FirstInterceptorLanguageVersion = 1100;
     private const int FirstScopedLanguageVersion = 1100;
@@ -23,8 +20,12 @@ internal static class GeneratorSupport
     // RefKind.RefReadOnlyParameter is not available in the oldest Roslyn API
     // referenced by the generator, so keep the host enum value here.
     private const int RefReadOnlyParameterValue = 4;
-    internal const string EcsNamespace = "Delta.ECS";
-    internal const string SystemNamespace = "System";
+    internal static ITypeSymbol[] GenericArgumentTypes(SemanticModel model, GenericNameSyntax? genericName)
+        => genericName?.TypeArgumentList.Arguments
+            .Select(argument => model.GetTypeInfo(argument).Type)
+            .OfType<ITypeSymbol>()
+            .ToArray()
+            ?? Array.Empty<ITypeSymbol>();
 
     internal static string ContainingNamespace(SemanticModel model, SyntaxNode node)
         => model.GetEnclosingSymbol(node.SpanStart)?.ContainingNamespace is { IsGlobalNamespace: false } containingNamespace
@@ -94,11 +95,6 @@ internal static class GeneratorSupport
         return attributeSyntax.Length > 0;
     }
 
-    private static MethodInfo? FindExtensionMethod(string name, Func<ParameterInfo[], bool> matches)
-        => typeof(Microsoft.CodeAnalysis.CSharp.CSharpExtensions)
-            .GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .FirstOrDefault(method => method.Name == name && matches(method.GetParameters()));
-
     internal static IncrementalValuesProvider<InvocationCandidate> InvocationProvider(
         IncrementalGeneratorInitializationContext context,
         Func<SyntaxNode, bool>? candidateFilter = null)
@@ -154,32 +150,6 @@ internal static class GeneratorSupport
 
     internal static bool IsQuerySpecReceiver(SemanticModel model, ExpressionSyntax expression) => IsReceiver(model, expression, "QuerySpec");
 
-    private static bool IsReceiver(SemanticModel model, ExpressionSyntax expression, string typeName, bool allowWorld = false)
-    {
-        if (IsNamedType(model.GetTypeInfo(expression).Type, typeName))
-        {
-            return true;
-        }
-
-        if (expression is InvocationExpressionSyntax invocation
-            && invocation.Expression is MemberAccessExpressionSyntax member
-            && member.Name.Identifier.ValueText is "WhereAll" or "WhereAny" or "WhereNone")
-        {
-            return allowWorld && IsWorldReceiver(model, member.Expression)
-                || IsReceiver(model, member.Expression, typeName, allowWorld);
-        }
-
-        if (expression is IdentifierNameSyntax identifier
-            && model.GetSymbolInfo(identifier).Symbol is ILocalSymbol local
-            && local.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is VariableDeclaratorSyntax declarator
-            && declarator.Initializer?.Value is ExpressionSyntax initializer)
-        {
-            return IsReceiver(model, initializer, typeName, allowWorld);
-        }
-
-        return false;
-    }
-
     internal static bool IsEcsType(ITypeSymbol? type, string name) => IsNamedType(type, name);
 
     internal static bool IsEntityType(ITypeSymbol? type) => IsNamedType(type, "Entity");
@@ -210,20 +180,6 @@ internal static class GeneratorSupport
     internal static bool IsEntityOutput(ITypeSymbol? type) => IsBatch(type, "Entity", allowArray: false, allowReadOnlySpan: false);
 
     internal static bool IsComponentIdBatch(ITypeSymbol? type) => IsBatch(type, "ComponentId", allowArray: true, allowReadOnlySpan: true);
-
-    private static bool IsBatch(ITypeSymbol? type, string elementName, bool allowArray, bool allowReadOnlySpan)
-    {
-        if (allowArray && type is IArrayTypeSymbol array)
-        {
-            return IsEcsType(array.ElementType, elementName);
-        }
-
-        return type is INamedTypeSymbol named
-            && named.TypeArguments.Length == 1
-            && IsEcsType(named.TypeArguments[0], elementName)
-            && (named.Name == "Span" || allowReadOnlySpan && named.Name == "ReadOnlySpan")
-            && named.ContainingNamespace.ToDisplayString() == SystemNamespace;
-    }
 
     internal static string DisplayType(ITypeSymbol type)
     {
@@ -453,5 +409,50 @@ internal static class GeneratorSupport
         }
 
         return hash.ToString("X16", CultureInfo.InvariantCulture);
+    }
+
+    private static MethodInfo? FindExtensionMethod(string name, Func<ParameterInfo[], bool> matches)
+        => typeof(Microsoft.CodeAnalysis.CSharp.CSharpExtensions)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .FirstOrDefault(method => method.Name == name && matches(method.GetParameters()));
+
+    private static bool IsReceiver(SemanticModel model, ExpressionSyntax expression, string typeName, bool allowWorld = false)
+    {
+        if (IsNamedType(model.GetTypeInfo(expression).Type, typeName))
+        {
+            return true;
+        }
+
+        if (expression is InvocationExpressionSyntax invocation
+            && invocation.Expression is MemberAccessExpressionSyntax member
+            && member.Name.Identifier.ValueText is "WhereAll" or "WhereAny" or "WhereNone")
+        {
+            return allowWorld && IsWorldReceiver(model, member.Expression)
+                || IsReceiver(model, member.Expression, typeName, allowWorld);
+        }
+
+        if (expression is IdentifierNameSyntax identifier
+            && model.GetSymbolInfo(identifier).Symbol is ILocalSymbol local
+            && local.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is VariableDeclaratorSyntax declarator
+            && declarator.Initializer?.Value is ExpressionSyntax initializer)
+        {
+            return IsReceiver(model, initializer, typeName, allowWorld);
+        }
+
+        return false;
+    }
+
+    private static bool IsBatch(ITypeSymbol? type, string elementName, bool allowArray, bool allowReadOnlySpan)
+    {
+        if (allowArray && type is IArrayTypeSymbol array)
+        {
+            return IsEcsType(array.ElementType, elementName);
+        }
+
+        return type is INamedTypeSymbol named
+            && named.TypeArguments.Length == 1
+            && IsEcsType(named.TypeArguments[0], elementName)
+            && (named.Name == "Span" || allowReadOnlySpan && named.Name == "ReadOnlySpan")
+            && named.ContainingNamespace.ToDisplayString() == SystemNamespace;
     }
 }

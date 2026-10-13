@@ -1,7 +1,10 @@
 using System;
+
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.MyriadComponents;
+
 using Myriad.ECS;
 using Myriad.ECS.Collections;
 using Myriad.ECS.Command;
@@ -12,6 +15,27 @@ namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithThreeComponents
     {
+
+        [Context]
+        private readonly MyriadContext _myriad;
+
+        [BenchmarkCategory(Categories.Myriad, Categories.SingleThread)]
+        [Benchmark]
+        public int MyriadSingleThread()
+        {
+            World world = _myriad.World;
+            world.Execute<MyriadForEach3, Component1, Component2, Component3>();
+            return EntityCount;
+        }
+
+        [BenchmarkCategory(Categories.Myriad, Categories.SingleThread)]
+        [Benchmark]
+        public int MyriadSingleThreadChunk()
+        {
+            World world = _myriad.World;
+            world.ExecuteChunk<MyriadForEach3, Component1, Component2, Component3>();
+            return EntityCount;
+        }
         private struct MyriadForEach3
             : IQuery<Component1, Component2, Component3>, IChunkQuery<Component1, Component2, Component3>
         {
@@ -40,27 +64,6 @@ namespace Ecs.CSharp.Benchmark
                 }
                 cmd.Playback().Dispose();
             }
-        }
-
-        [Context]
-        private readonly MyriadContext _myriad;
-
-        [BenchmarkCategory(Categories.Myriad, Categories.SingleThread)]
-        [Benchmark]
-        public int MyriadSingleThread()
-        {
-            World world = _myriad.World;
-            world.Execute<MyriadForEach3, Component1, Component2, Component3>();
-            return EntityCount;
-        }
-
-        [BenchmarkCategory(Categories.Myriad, Categories.SingleThread)]
-        [Benchmark]
-        public int MyriadSingleThreadChunk()
-        {
-            World world = _myriad.World;
-            world.ExecuteChunk<MyriadForEach3, Component1, Component2, Component3>();
-            return EntityCount;
         }
 
 #if INCLUDE_SLOW_BENCHMARKS

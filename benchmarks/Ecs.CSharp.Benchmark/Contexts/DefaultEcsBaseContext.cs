@@ -1,10 +1,20 @@
 using System;
+
 using DefaultEcs;
 
 namespace Ecs.CSharp.Benchmark.Contexts
 {
     internal class DefaultEcsBaseContext : IDisposable
     {
+
+        public World World { get; }
+
+        public DefaultEcsBaseContext()
+        {
+            World = new World();
+        }
+
+        public virtual void Dispose() => World.Dispose();
         public struct Component1
         {
             public int Value;
@@ -19,14 +29,5 @@ namespace Ecs.CSharp.Benchmark.Contexts
         {
             public int Value;
         }
-
-        public World World { get; }
-
-        public DefaultEcsBaseContext()
-        {
-            World = new World();
-        }
-
-        public virtual void Dispose() => World.Dispose();
     }
 }

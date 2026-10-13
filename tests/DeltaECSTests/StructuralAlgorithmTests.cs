@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+
 using Delta.ECS;
+
 using NUnit.Framework;
 
 namespace Delta.ECS.Tests;
@@ -283,6 +285,14 @@ internal sealed class StructuralAlgorithmTests
         return selected;
     }
 
+    // Span<T> cannot be obtained from List<T> on all target SDKs.  Keep the
+    // conversion in one test-only helper so tests remain compatible with the
+    // net10 SDK used by CI.
+    private static class CollectionsMarshalCompat
+    {
+        public static Entity[] AsSpan(List<Entity> values) => values.ToArray();
+    }
+
     private readonly struct DestroyValue
     {
         public int Value { get; init; }
@@ -311,14 +321,6 @@ internal sealed class StructuralAlgorithmTests
         public TransitionHealth Health;
         public bool HasVelocity;
         public bool HasHealth;
-    }
-
-    // Span<T> cannot be obtained from List<T> on all target SDKs.  Keep the
-    // conversion in one test-only helper so tests remain compatible with the
-    // net10 SDK used by CI.
-    private static class CollectionsMarshalCompat
-    {
-        public static Entity[] AsSpan(List<Entity> values) => values.ToArray();
     }
 
     private sealed class DeterministicRandom(int seed)

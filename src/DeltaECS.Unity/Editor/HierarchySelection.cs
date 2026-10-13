@@ -1,23 +1,26 @@
 using System;
+
 using Delta.ECS;
+
 using Unity.Hierarchy;
+
 using UnityEditor;
 
 namespace Delta.ECS.Unity.Editor
 {
     internal static class HierarchySelection
     {
+
+        private static HierarchyNodeHandler _handler;
+        private static HierarchyNode _node;
+        private static HierarchyView _view;
+        private static bool _selectionCheckScheduled;
         internal static EntityInspectorTarget Current { get; private set; }
         internal static SceneAuthoring Authoring => Current.Authoring;
         internal static string StableId => Current.StableId;
         internal static SceneWorld RuntimeWorld => Current.RuntimeWorld;
         internal static Entity RuntimeEntity => Current.RuntimeEntity;
         internal static event Action Changed;
-
-        private static HierarchyNodeHandler _handler;
-        private static HierarchyNode _node;
-        private static HierarchyView _view;
-        private static bool _selectionCheckScheduled;
 
         internal static void SetFromHierarchy(
             HierarchyNodeHandler handler,

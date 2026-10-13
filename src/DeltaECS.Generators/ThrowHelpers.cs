@@ -2,6 +2,7 @@ namespace Delta.ECS.Generators;
 
 using System;
 using System.Runtime.CompilerServices;
+
 using Microsoft.CodeAnalysis;
 
 internal static class ThrowHelper

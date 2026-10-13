@@ -1,25 +1,26 @@
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
+
 using Leopotam.Ecs;
 
 namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithTwoComponents
     {
+
+        [Context]
+        private readonly LeopotamEcsContext _leopotamEcs;
+
+        [BenchmarkCategory(Categories.LeopotamEcs, Categories.SingleThread)]
+        [Benchmark]
+        public int LeopotamEcs()
+        {
+            _leopotamEcs.MonoThreadSystem.Run();
+            return EntityCount;
+        }
         private sealed class LeopotamEcsContext : LeopotamEcsBaseContext
         {
-            private sealed class MonoThreadRunSystem : IEcsRunSystem
-            {
-                private readonly EcsFilter<Component1, Component2> _filter;
-
-                public void Run()
-                {
-                    for (int i = 0, iMax = _filter.GetEntitiesCount(); i < iMax; i++)
-                    {
-                        _filter.Get1(i).Value += _filter.Get2(i).Value;
-                    }
-                }
-            }
 
             public EcsSystems MonoThreadSystem { get; }
 
@@ -51,17 +52,18 @@ namespace Ecs.CSharp.Benchmark
                         .Replace(new Component2 { Value = 1 });
                 }
             }
-        }
+            private sealed class MonoThreadRunSystem : IEcsRunSystem
+            {
+                private readonly EcsFilter<Component1, Component2> _filter;
 
-        [Context]
-        private readonly LeopotamEcsContext _leopotamEcs;
-
-        [BenchmarkCategory(Categories.LeopotamEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int LeopotamEcs()
-        {
-            _leopotamEcs.MonoThreadSystem.Run();
-            return EntityCount;
+                public void Run()
+                {
+                    for (int i = 0, iMax = _filter.GetEntitiesCount(); i < iMax; i++)
+                    {
+                        _filter.Get1(i).Value += _filter.Get2(i).Value;
+                    }
+                }
+            }
         }
     }
 }

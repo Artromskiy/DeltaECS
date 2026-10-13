@@ -4,6 +4,85 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Delta.ECS.Generators;
 
+internal static class InvocationGrammar
+{
+    internal static bool IsWhereInvocation(ExpressionSyntax expression, out InvocationExpressionSyntax? whereInvocation)
+    {
+        whereInvocation = expression as InvocationExpressionSyntax;
+        return whereInvocation?.Expression is MemberAccessExpressionSyntax member
+            && member.Name.Identifier.ValueText is "Where" or "WhereEntity";
+    }
+
+    internal static bool TryGetWhereReceiver(
+        InvocationExpressionSyntax invocation,
+        out InvocationExpressionSyntax? whereInvocation)
+    {
+        if (invocation.Expression is MemberAccessExpressionSyntax
+            {
+                Expression: InvocationExpressionSyntax candidate
+            }
+            && candidate.Expression is MemberAccessExpressionSyntax
+            {
+                Name: IdentifierNameSyntax
+                {
+                    Identifier.ValueText: "Where" or "WhereEntity"
+                }
+            })
+        {
+            whereInvocation = candidate;
+            return true;
+        }
+
+        whereInvocation = null;
+        return false;
+    }
+
+    internal static bool TryReadStructuralMutation(
+        SemanticModel model,
+        SeparatedSyntaxList<ArgumentSyntax> arguments,
+        ApiDescriptor descriptor,
+        int? genericArity,
+        bool valuesAllowed,
+        out InvocationCursorResult result,
+        out int arity,
+        out bool hasValues,
+        out RegistrationBindingKind registrationBinding)
+    {
+        result = default;
+        arity = 0;
+        hasValues = false;
+        registrationBinding = RegistrationBindingKind.Primary;
+        var cursor = new InvocationCursor(model, arguments, descriptor);
+        if (!cursor.TryRead(-1, out result))
+        {
+            return false;
+        }
+
+        hasValues = result.TailCount != 0;
+        if (hasValues && !valuesAllowed)
+        {
+            return false;
+        }
+
+        int? componentIdArity = result.ComponentIdCount == 0
+            ? !hasValues && genericArity is null && result.HasComponentIdSpan ? descriptor.MinimumArity : null
+            : result.ComponentIdCount;
+        if (!ArityEvidence.TryBind(
+                descriptor.MinimumArity,
+                out arity,
+                genericArity,
+                componentIdArity,
+                hasValues ? result.TailCount : null))
+        {
+            return false;
+        }
+
+        registrationBinding = result.RegistrationBinding;
+        return true;
+    }
+
+}
+
 /// <summary>Declarative signature facts shared by the generator readers.</summary>
 internal readonly record struct ApiDescriptor(
     GeneratedApiKind Family,
@@ -18,9 +97,6 @@ internal readonly record struct ApiDescriptor(
     InvocationTailRule Tail,
     int MinimumArity)
 {
-    internal ApiDescriptor WithTarget(InvocationTargetRule target) => this with { Target = target };
-
-    internal ApiDescriptor WithTail(InvocationTailRule tail) => this with { Tail = tail };
 
     internal static bool TryGet(string name, out ApiDescriptor descriptor)
     {
@@ -36,6 +112,9 @@ internal readonly record struct ApiDescriptor(
         };
         return descriptor.Family != GeneratedApiKind.Unknown;
     }
+    internal ApiDescriptor WithTarget(InvocationTargetRule target) => this with { Target = target };
+
+    internal ApiDescriptor WithTail(InvocationTailRule tail) => this with { Tail = tail };
 
     private static ApiDescriptor Iteration(string name)
     {
@@ -116,85 +195,6 @@ internal enum InvocationTailRule
     Values,
     WorkerCount,
     CountOutput
-}
-
-internal static class InvocationGrammar
-{
-    internal static bool IsWhereInvocation(ExpressionSyntax expression, out InvocationExpressionSyntax? whereInvocation)
-    {
-        whereInvocation = expression as InvocationExpressionSyntax;
-        return whereInvocation?.Expression is MemberAccessExpressionSyntax member
-            && member.Name.Identifier.ValueText is "Where" or "WhereEntity";
-    }
-
-    internal static bool TryGetWhereReceiver(
-        InvocationExpressionSyntax invocation,
-        out InvocationExpressionSyntax? whereInvocation)
-    {
-        if (invocation.Expression is MemberAccessExpressionSyntax
-            {
-                Expression: InvocationExpressionSyntax candidate
-            }
-            && candidate.Expression is MemberAccessExpressionSyntax
-            {
-                Name: IdentifierNameSyntax
-                {
-                    Identifier.ValueText: "Where" or "WhereEntity"
-                }
-            })
-        {
-            whereInvocation = candidate;
-            return true;
-        }
-
-        whereInvocation = null;
-        return false;
-    }
-
-    internal static bool TryReadStructuralMutation(
-        SemanticModel model,
-        SeparatedSyntaxList<ArgumentSyntax> arguments,
-        ApiDescriptor descriptor,
-        int? genericArity,
-        bool valuesAllowed,
-        out InvocationCursorResult result,
-        out int arity,
-        out bool hasValues,
-        out RegistrationBindingKind registrationBinding)
-    {
-        result = default;
-        arity = 0;
-        hasValues = false;
-        registrationBinding = RegistrationBindingKind.Primary;
-        var cursor = new InvocationCursor(model, arguments, descriptor);
-        if (!cursor.TryRead(-1, out result))
-        {
-            return false;
-        }
-
-        hasValues = result.TailCount != 0;
-        if (hasValues && !valuesAllowed)
-        {
-            return false;
-        }
-
-        int? componentIdArity = result.ComponentIdCount == 0
-            ? !hasValues && genericArity is null && result.HasComponentIdSpan ? descriptor.MinimumArity : null
-            : result.ComponentIdCount;
-        if (!ArityEvidence.TryBind(
-                descriptor.MinimumArity,
-                out arity,
-                genericArity,
-                componentIdArity,
-                hasValues ? result.TailCount : null))
-        {
-            return false;
-        }
-
-        registrationBinding = result.RegistrationBinding;
-        return true;
-    }
-
 }
 
 /// <summary>Semantic argument cursor in the canonical target/query/ids/context/callback order.</summary>

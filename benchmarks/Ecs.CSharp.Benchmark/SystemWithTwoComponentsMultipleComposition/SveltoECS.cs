@@ -1,6 +1,9 @@
 using System;
+
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
+
 using Svelto.DataStructures;
 using Svelto.ECS;
 
@@ -8,48 +11,19 @@ namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithTwoComponentsMultipleComposition
     {
+
+        [Context]
+        private readonly SveltoECSContext _sveltoECS;
+
+        [BenchmarkCategory(Categories.SveltoECS, Categories.SingleThread)]
+        [Benchmark]
+        public int SveltoECS()
+        {
+            _sveltoECS.Engine.Update();
+            return EntityCount;
+        }
         private sealed class SveltoECSContext : SveltoECSBaseContext
         {
-            private record struct Padding1() : IEntityComponent;
-
-            private record struct Padding2() : IEntityComponent;
-
-            private record struct Padding3() : IEntityComponent;
-
-            private record struct Padding4() : IEntityComponent;
-
-            public sealed class SveltoEngine : IQueryingEntitiesEngine
-            {
-                public EntitiesDB entitiesDB { get; set; }
-
-                public void Ready()
-                { }
-
-                public void Update()
-                {
-                    (NB<Component1> c1, NB<Component2> c2, int count) = entitiesDB.QueryEntities<Component1, Component2>(Group);
-
-                    for (int i = 0; i < count; i++)
-                    {
-                        c1[i].Value += c2[i].Value;
-                    }
-                }
-            }
-
-            private sealed class Entity1 : GenericEntityDescriptor<Component1, Component2, Padding1>
-            { }
-
-            private sealed class Entity2 : GenericEntityDescriptor<Component1, Component2, Padding2>
-            { }
-
-            private sealed class Entity3 : GenericEntityDescriptor<Component1, Component2, Padding3>
-            { }
-
-            private sealed class Entity4 : GenericEntityDescriptor<Component1, Component2, Padding4>
-            { }
-
-            private sealed class Entity : GenericEntityDescriptor<Component1, Component2>
-            { }
 
             public SveltoEngine Engine { get; }
 
@@ -74,17 +48,46 @@ namespace Ecs.CSharp.Benchmark
 
                 Scheduler.SubmitEntities();
             }
-        }
 
-        [Context]
-        private readonly SveltoECSContext _sveltoECS;
+            public sealed class SveltoEngine : IQueryingEntitiesEngine
+            {
+                public EntitiesDB entitiesDB { get; set; }
 
-        [BenchmarkCategory(Categories.SveltoECS, Categories.SingleThread)]
-        [Benchmark]
-        public int SveltoECS()
-        {
-            _sveltoECS.Engine.Update();
-            return EntityCount;
+                public void Ready()
+                { }
+
+                public void Update()
+                {
+                    (NB<Component1> c1, NB<Component2> c2, int count) = entitiesDB.QueryEntities<Component1, Component2>(Group);
+
+                    for (int i = 0; i < count; i++)
+                    {
+                        c1[i].Value += c2[i].Value;
+                    }
+                }
+            }
+            private record struct Padding1() : IEntityComponent;
+
+            private record struct Padding2() : IEntityComponent;
+
+            private record struct Padding3() : IEntityComponent;
+
+            private record struct Padding4() : IEntityComponent;
+
+            private sealed class Entity1 : GenericEntityDescriptor<Component1, Component2, Padding1>
+            { }
+
+            private sealed class Entity2 : GenericEntityDescriptor<Component1, Component2, Padding2>
+            { }
+
+            private sealed class Entity3 : GenericEntityDescriptor<Component1, Component2, Padding3>
+            { }
+
+            private sealed class Entity4 : GenericEntityDescriptor<Component1, Component2, Padding4>
+            { }
+
+            private sealed class Entity : GenericEntityDescriptor<Component1, Component2>
+            { }
         }
     }
 }

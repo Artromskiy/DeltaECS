@@ -1,6 +1,8 @@
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.TinyEcsComponents;
+
 using TinyEcs;
 
 namespace Ecs.CSharp.Benchmark
@@ -8,6 +10,32 @@ namespace Ecs.CSharp.Benchmark
     public partial class SystemWithThreeComponents
     {
         [Context] private readonly TinyEcsContext _tinyEcs;
+
+        [BenchmarkCategory(Categories.TinyEcs, Categories.SingleThread)]
+        [Benchmark]
+        public int TinyEcsEach()
+        {
+            var data = Data<Component1, Component2, Component3>.CreateIterator(_tinyEcs.Query.Iter());
+            while (data.MoveNext())
+            {
+                data.Deconstruct(out Ptr<Component1> c1, out Ptr<Component2> c2, out Ptr<Component3> c3);
+                c1.Ref.Value += c2.Ref.Value + c3.Ref.Value;
+            }
+            return EntityCount;
+        }
+
+        [BenchmarkCategory(Categories.TinyEcs, Categories.SingleThread)]
+        [Benchmark]
+        public int TinyEcsEachJob()
+        {
+            var data = Data<Component1, Component2, Component3>.CreateIterator(_tinyEcs.Query.Iter());
+            while (data.MoveNext())
+            {
+                data.Deconstruct(out Ptr<Component1> c1, out Ptr<Component2> c2, out Ptr<Component3> c3);
+                c1.Ref.Value += c2.Ref.Value + c3.Ref.Value;
+            }
+            return EntityCount;
+        }
 
         private sealed class TinyEcsContext : TinyEcsBaseContext
         {
@@ -44,32 +72,6 @@ namespace Ecs.CSharp.Benchmark
                     Query = World.QueryBuilder().Data<Component1>().Data<Component2>().Data<Component3>().Build();
                 }
             }
-        }
-
-        [BenchmarkCategory(Categories.TinyEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int TinyEcsEach()
-        {
-            var data = Data<Component1, Component2, Component3>.CreateIterator(_tinyEcs.Query.Iter());
-            while (data.MoveNext())
-            {
-                data.Deconstruct(out Ptr<Component1> c1, out Ptr<Component2> c2, out Ptr<Component3> c3);
-                c1.Ref.Value += c2.Ref.Value + c3.Ref.Value;
-            }
-            return EntityCount;
-        }
-
-        [BenchmarkCategory(Categories.TinyEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int TinyEcsEachJob()
-        {
-            var data = Data<Component1, Component2, Component3>.CreateIterator(_tinyEcs.Query.Iter());
-            while (data.MoveNext())
-            {
-                data.Deconstruct(out Ptr<Component1> c1, out Ptr<Component2> c2, out Ptr<Component3> c3);
-                c1.Ref.Value += c2.Ref.Value + c3.Ref.Value;
-            }
-            return EntityCount;
         }
     }
 }

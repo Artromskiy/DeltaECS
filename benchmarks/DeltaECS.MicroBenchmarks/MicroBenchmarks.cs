@@ -2,23 +2,6 @@ using BenchmarkDotNet.Attributes;
 
 namespace Delta.ECS.MicroBenchmarks;
 
-/// <summary>Short BDN surface; fixture and kernel code lives in the implementation file.</summary>
-internal static class MicroBenchmarkCatalog
-{
-    public static readonly Type[] Types =
-    [
-        typeof(DenseIterationMicroBenchmarks),
-        typeof(GeneratedFunctorMovement4MicroBenchmarks),
-        typeof(Movement4ApiComparisonMicroBenchmarks),
-        typeof(WhereIterationMicroBenchmarks),
-        typeof(WhereApiMicroBenchmarks),
-        typeof(StructuralOperationsMicroBenchmarks),
-        typeof(QueryBatchStructuralOperationsMicroBenchmarks),
-        typeof(ForEachWriteObserverMicroBenchmarks),
-        typeof(ForEachChangeMicroBenchmarks)
-    ];
-}
-
 [MemoryDiagnoser]
 public class DenseIterationMicroBenchmarks : DenseIterationMicroBenchmarkImplementation
 {
@@ -62,4 +45,21 @@ public class ForEachWriteObserverMicroBenchmarks : ForEachWriteObserverMicroBenc
 [MemoryDiagnoser]
 public class ForEachChangeMicroBenchmarks : ForEachChangeMicroBenchmarkImplementation
 {
+}
+
+/// <summary>Short BDN surface; fixture and kernel code lives in the implementation file.</summary>
+internal static class MicroBenchmarkCatalog
+{
+    public static readonly Type[] Types =
+    [
+        typeof(DenseIterationMicroBenchmarks),
+        typeof(GeneratedFunctorMovement4MicroBenchmarks),
+        typeof(Movement4ApiComparisonMicroBenchmarks),
+        typeof(WhereIterationMicroBenchmarks),
+        typeof(WhereApiMicroBenchmarks),
+        typeof(StructuralOperationsMicroBenchmarks),
+        typeof(QueryBatchStructuralOperationsMicroBenchmarks),
+        typeof(ForEachWriteObserverMicroBenchmarks),
+        typeof(ForEachChangeMicroBenchmarks)
+    ];
 }

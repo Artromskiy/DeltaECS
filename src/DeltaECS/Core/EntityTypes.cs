@@ -12,15 +12,6 @@ public readonly struct Entity : IEquatable<Entity>
     /// <summary>Gets the generation that distinguishes this lifetime from reused slots.</summary>
     public int Generation { get; }
 
-    /// <summary>Creates an entity handle from its slot index and generation.</summary>
-    /// <param name="index">The entity slot index.</param>
-    /// <param name="generation">The lifetime generation.</param>
-    public Entity(int index, int generation)
-    {
-        Index = index;
-        Generation = generation;
-    }
-
     /// <summary>
     /// Gets whether this handle has a non-negative index and a positive generation.
     /// </summary>
@@ -31,6 +22,21 @@ public readonly struct Entity : IEquatable<Entity>
     /// </remarks>
     public bool IsValid => Index >= 0 && Generation > 0;
 
+    /// <summary>Creates an entity handle from its slot index and generation.</summary>
+    /// <param name="index">The entity slot index.</param>
+    /// <param name="generation">The lifetime generation.</param>
+    public Entity(int index, int generation)
+    {
+        Index = index;
+        Generation = generation;
+    }
+
+    /// <summary>Determines whether two entity handles are equal.</summary>
+    public static bool operator ==(Entity left, Entity right) => left.Equals(right);
+
+    /// <summary>Determines whether two entity handles are different.</summary>
+    public static bool operator !=(Entity left, Entity right) => !left.Equals(right);
+
     /// <summary>Determines whether this handle equals another entity handle.</summary>
     public bool Equals(Entity other) => Index == other.Index && Generation == other.Generation;
 
@@ -40,21 +46,8 @@ public readonly struct Entity : IEquatable<Entity>
     /// <summary>Returns a hash code for this entity handle.</summary>
     public override int GetHashCode() => HashCode.Combine(Index, Generation);
 
-    /// <summary>Determines whether two entity handles are equal.</summary>
-    public static bool operator ==(Entity left, Entity right) => left.Equals(right);
-
-    /// <summary>Determines whether two entity handles are different.</summary>
-    public static bool operator !=(Entity left, Entity right) => !left.Equals(right);
-
     /// <summary>Returns the index and generation as text.</summary>
     public override string ToString() => $"[{Index}:{Generation}]";
-}
-
-internal struct EntityRecord
-{
-    internal int Generation;
-    internal int ChunkId;
-    internal int SlotIndex;
 }
 
 /// <summary>Cached selection of entities matching a set of component filters.</summary>
@@ -62,12 +55,8 @@ public readonly struct Query
 {
     private readonly QuerySpec _description;
 
-    internal Query(World owner, QueryPlan cached, QuerySpec spec)
-    {
-        Owner = owner;
-        Cached = cached;
-        _description = spec;
-    }
+    /// <summary>Gets whether this query belongs to a live, undisposed world.</summary>
+    public bool IsValid => Owner is not null && Cached is not null && !Owner.IsDisposed;
 
     internal World Owner { get; }
 
@@ -75,8 +64,12 @@ public readonly struct Query
 
     internal QuerySpec Description => _description;
 
-    /// <summary>Gets whether this query belongs to a live, undisposed world.</summary>
-    public bool IsValid => Owner is not null && Cached is not null && !Owner.IsDisposed;
+    internal Query(World owner, QueryPlan cached, QuerySpec spec)
+    {
+        Owner = owner;
+        Cached = cached;
+        _description = spec;
+    }
 
     /// <summary>Returns the first entity matching this query, or <see langword="default"/> if there is no match.</summary>
     public EcsResultOperation<Entity> First()
@@ -129,4 +122,11 @@ public readonly struct Query
         return default;
     }
 
+}
+
+internal struct EntityRecord
+{
+    internal int Generation;
+    internal int ChunkId;
+    internal int SlotIndex;
 }

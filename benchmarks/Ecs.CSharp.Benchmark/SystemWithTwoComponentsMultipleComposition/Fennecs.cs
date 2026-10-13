@@ -1,7 +1,10 @@
 using System;
+
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.FennecsComponents;
+
 using fennecs;
 
 namespace Ecs.CSharp.Benchmark
@@ -9,43 +12,6 @@ namespace Ecs.CSharp.Benchmark
     public partial class SystemWithTwoComponentsMultipleComposition
     {
         [Context] private readonly FennecsContext _fennecs;
-
-        private sealed class FennecsContext : FennecsBaseContext
-        {
-            private record struct Padding1();
-
-            private record struct Padding2();
-
-            private record struct Padding3();
-
-            private record struct Padding4();
-
-            public Stream<Component1, Component2> query;
-
-            public FennecsContext(int entityCount)
-            {
-                query = World.Query<Component1, Component2>().Stream();
-                for (int i = 0; i < entityCount; ++i)
-                {
-                    Entity entity = World.Spawn().Add<Component1>().Add(new Component2 { Value = 1 });
-                    switch (i % 4)
-                    {
-                        case 0:
-                            entity.Add<Padding1>();
-                            break;
-                        case 1:
-                            entity.Add<Padding2>();
-                            break;
-                        case 2:
-                            entity.Add<Padding3>();
-                            break;
-                        case 3:
-                            entity.Add<Padding4>();
-                            break;
-                    }
-                }
-            }
-        }
 
         [BenchmarkCategory(Categories.Fennecs, Categories.SingleThread)]
         [Benchmark]
@@ -78,6 +44,43 @@ namespace Ecs.CSharp.Benchmark
                 }
             });
             return EntityCount;
+        }
+
+        private sealed class FennecsContext : FennecsBaseContext
+        {
+
+            public Stream<Component1, Component2> query;
+
+            public FennecsContext(int entityCount)
+            {
+                query = World.Query<Component1, Component2>().Stream();
+                for (int i = 0; i < entityCount; ++i)
+                {
+                    Entity entity = World.Spawn().Add<Component1>().Add(new Component2 { Value = 1 });
+                    switch (i % 4)
+                    {
+                        case 0:
+                            entity.Add<Padding1>();
+                            break;
+                        case 1:
+                            entity.Add<Padding2>();
+                            break;
+                        case 2:
+                            entity.Add<Padding3>();
+                            break;
+                        case 3:
+                            entity.Add<Padding4>();
+                            break;
+                    }
+                }
+            }
+            private record struct Padding1();
+
+            private record struct Padding2();
+
+            private record struct Padding3();
+
+            private record struct Padding4();
         }
     }
 }

@@ -1,6 +1,9 @@
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
+
 using Microsoft.Xna.Framework;
+
 using MonoGame.Extended.Entities;
 using MonoGame.Extended.Entities.Systems;
 
@@ -8,29 +11,19 @@ namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithOneComponent
     {
+
+        [Context]
+        private readonly MonoGameExtendedContext _monoGameExtended;
+
+        [BenchmarkCategory(Categories.MonoGameExtended, Categories.SingleThread)]
+        [Benchmark]
+        public int MonoGameExtended()
+        {
+            _monoGameExtended.World.Update(_monoGameExtended.Time);
+            return EntityCount;
+        }
         private sealed class MonoGameExtendedContext : MonoGameExtendedBaseContext
         {
-            public sealed class UpdateSystem : EntityUpdateSystem
-            {
-                private ComponentMapper<Component1> _components;
-
-                public UpdateSystem()
-                    : base(Aspect.All(typeof(Component1)))
-                { }
-
-                public override void Initialize(IComponentMapperService mapperService)
-                {
-                    _components = mapperService.GetMapper<Component1>();
-                }
-
-                public override void Update(GameTime gameTime)
-                {
-                    foreach (int entityId in ActiveEntities)
-                    {
-                        ++_components.Get(entityId).Value;
-                    }
-                }
-            }
 
             private readonly UpdateSystem _system;
 
@@ -63,17 +56,27 @@ namespace Ecs.CSharp.Benchmark
 
                 base.Dispose();
             }
-        }
+            public sealed class UpdateSystem : EntityUpdateSystem
+            {
+                private ComponentMapper<Component1> _components;
 
-        [Context]
-        private readonly MonoGameExtendedContext _monoGameExtended;
+                public UpdateSystem()
+                    : base(Aspect.All(typeof(Component1)))
+                { }
 
-        [BenchmarkCategory(Categories.MonoGameExtended, Categories.SingleThread)]
-        [Benchmark]
-        public int MonoGameExtended()
-        {
-            _monoGameExtended.World.Update(_monoGameExtended.Time);
-            return EntityCount;
+                public override void Initialize(IComponentMapperService mapperService)
+                {
+                    _components = mapperService.GetMapper<Component1>();
+                }
+
+                public override void Update(GameTime gameTime)
+                {
+                    foreach (int entityId in ActiveEntities)
+                    {
+                        ++_components.Get(entityId).Value;
+                    }
+                }
+            }
         }
     }
 }

@@ -1,60 +1,36 @@
 using System;
+
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
+
 using Scellecs.Morpeh;
 
 namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithOneComponent
     {
+
+        [Context]
+        private readonly MorpehContext _context;
+
+        [BenchmarkCategory(Categories.Morpeh, Categories.SingleThread)]
+        [Benchmark]
+        public int Morpeh_Direct()
+        {
+            _context.MonoThreadDirectSystem.OnUpdate(0f);
+            return EntityCount;
+        }
+
+        [BenchmarkCategory(Categories.Morpeh, Categories.SingleThread)]
+        [Benchmark]
+        public int Morpeh_Stash()
+        {
+            _context.MonoThreadStashSystem.OnUpdate(0f);
+            return EntityCount;
+        }
         private sealed class MorpehContext : MorpehBaseContext
         {
-            private sealed class DirectSystem : ISystem
-            {
-                public World World { get; set; }
-                private Filter _filter;
-
-                public void OnAwake()
-                {
-                    _filter = World.Filter.With<Component1>().Build();
-                }
-
-                public void OnUpdate(float deltaTime)
-                {
-                    foreach (Entity entity in _filter)
-                    {
-                        ++entity.GetComponent<Component1>().Value;
-                    }
-                }
-
-                void IDisposable.Dispose() { }
-            }
-
-            private sealed class StashSystem : ISystem
-            {
-                public World World { get; set; }
-                private Stash<Component1> _stash1;
-                private Filter _filter;
-
-                public void OnAwake()
-                {
-                    _stash1 = World.GetStash<Component1>();
-                    _filter = World.Filter.With<Component1>().Build();
-                }
-
-                public void OnUpdate(float deltaTime)
-                {
-                    foreach (Entity entity in _filter)
-                    {
-                        ++_stash1.Get(entity).Value;
-                    }
-                }
-
-                public void Dispose()
-                {
-                    _stash1.Dispose();
-                }
-            }
 
             public ISystem MonoThreadDirectSystem { get; }
             public ISystem MonoThreadStashSystem { get; }
@@ -79,25 +55,52 @@ namespace Ecs.CSharp.Benchmark
 
                 World.Commit();
             }
-        }
+            private sealed class DirectSystem : ISystem
+            {
+                private Filter _filter;
+                public World World { get; set; }
 
-        [Context]
-        private readonly MorpehContext _context;
+                public void OnAwake()
+                {
+                    _filter = World.Filter.With<Component1>().Build();
+                }
 
-        [BenchmarkCategory(Categories.Morpeh, Categories.SingleThread)]
-        [Benchmark]
-        public int Morpeh_Direct()
-        {
-            _context.MonoThreadDirectSystem.OnUpdate(0f);
-            return EntityCount;
-        }
+                public void OnUpdate(float deltaTime)
+                {
+                    foreach (Entity entity in _filter)
+                    {
+                        ++entity.GetComponent<Component1>().Value;
+                    }
+                }
 
-        [BenchmarkCategory(Categories.Morpeh, Categories.SingleThread)]
-        [Benchmark]
-        public int Morpeh_Stash()
-        {
-            _context.MonoThreadStashSystem.OnUpdate(0f);
-            return EntityCount;
+                void IDisposable.Dispose() { }
+            }
+
+            private sealed class StashSystem : ISystem
+            {
+                private Stash<Component1> _stash1;
+                private Filter _filter;
+                public World World { get; set; }
+
+                public void OnAwake()
+                {
+                    _stash1 = World.GetStash<Component1>();
+                    _filter = World.Filter.With<Component1>().Build();
+                }
+
+                public void OnUpdate(float deltaTime)
+                {
+                    foreach (Entity entity in _filter)
+                    {
+                        ++_stash1.Get(entity).Value;
+                    }
+                }
+
+                public void Dispose()
+                {
+                    _stash1.Dispose();
+                }
+            }
         }
     }
 }

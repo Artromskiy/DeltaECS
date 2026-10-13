@@ -9,6 +9,8 @@ namespace Delta.ECS.Unity.Editor
         internal readonly SceneWorld RuntimeWorld;
         internal readonly Entity RuntimeEntity;
 
+        internal bool IsRuntime => RuntimeWorld != null && RuntimeEntity.IsValid;
+
         internal EntityInspectorTarget(
             SceneAuthoring authoring,
             string stableId,
@@ -20,7 +22,5 @@ namespace Delta.ECS.Unity.Editor
             RuntimeWorld = runtimeWorld;
             RuntimeEntity = runtimeEntity;
         }
-
-        internal bool IsRuntime => RuntimeWorld != null && RuntimeEntity.IsValid;
     }
 }

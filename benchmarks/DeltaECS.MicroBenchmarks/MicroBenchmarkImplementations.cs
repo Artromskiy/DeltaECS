@@ -1,8 +1,105 @@
 using System.Runtime.CompilerServices;
+
 using BenchmarkDotNet.Attributes;
+
 using Delta.ECS;
 
 namespace Delta.ECS.MicroBenchmarks;
+
+public struct Position { public int X; public int Y; }
+public struct Velocity { public int X; public int Y; }
+public struct Auxiliary { public int Value; }
+public sealed class ReferenceValue { public int Value; }
+public struct Movement4A { public int Value; }
+public struct Movement4B { public int Value; }
+public struct Movement4C { public int Value; }
+public struct Movement4D { public int Value; }
+
+public class DenseIterationMicroBenchmarkImplementation
+{
+
+    private MicroWorld _fixture = null!;
+    private Entity[] _movement2Entities = null!;
+    private Entity[] _movement4Entities = null!;
+    private Query _movement2Query;
+    private Query _movement4Query;
+    private IOperation<int>? _movement2Iteration;
+    private IOperation<int>? _movement4Iteration;
+    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _fixture = new MicroWorld();
+        _movement2Entities = _fixture.CreateMoving(Amount);
+        _movement4Entities = _fixture.CreateMovement4(Amount);
+
+        var movement2 = QuerySpec.WhereAll(stackalloc ComponentId[] { _fixture.Position, _fixture.Velocity });
+        _movement2Query = _fixture.World.CreateQuery(in movement2);
+
+        var movement4 = QuerySpec.Empty.WhereAll(
+            _fixture.Movement4A,
+            _fixture.Movement4B,
+            _fixture.Movement4C,
+            _fixture.Movement4D);
+        _movement4Query = _fixture.World.CreateQuery(in movement4);
+    }
+
+    [IterationSetup(Target = nameof(Movement2Components))]
+    public void ResetMovement2() => _fixture.ResetMoving(_movement2Entities);
+
+    [IterationSetup(Target = nameof(Movement4Components))]
+    public void ResetMovement4() => _fixture.ResetMovement4(_movement4Entities);
+
+    [Benchmark]
+    public int Movement2Components() =>
+        MicroBenchmarkKernels.IterateMovement2Dense(
+            ref _movement2Iteration,
+            _fixture,
+            in _movement2Query);
+
+    [Benchmark]
+    public int Movement4Components() =>
+        MicroBenchmarkKernels.IterateMovement4Dense(
+            ref _movement4Iteration,
+            _fixture,
+            in _movement4Query);
+}
+
+public class GeneratedFunctorMovement4MicroBenchmarkImplementation
+{
+
+    private MicroWorld _fixture = null!;
+    private Entity[] _entities = null!;
+    private Query _query;
+    private IOperation<GeneratedMovement4Functor>? _iteration;
+    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _fixture = new MicroWorld(initialEntityCapacity: Amount);
+        _entities = _fixture.CreateMovement4(Amount);
+        var description = QuerySpec.Empty.WhereAll(
+            _fixture.Movement4A,
+            _fixture.Movement4B,
+            _fixture.Movement4C,
+            _fixture.Movement4D);
+        _query = _fixture.World.CreateQuery(in description);
+    }
+
+    [IterationSetup]
+    public void Reset() => _fixture.ResetMovement4(_entities);
+
+    [Benchmark]
+    public int Movement4GeneratedFunctor()
+    {
+        var functor = new GeneratedMovement4Functor();
+        _iteration ??= _fixture.World.ForEach(in _query, ref functor);
+        _iteration.Invoke(ref functor);
+        return functor.Checksum;
+    }
+}
 
 internal static class MicroIds
 {
@@ -18,15 +115,6 @@ internal static class MicroIds
             layouts.Register<Movement4D>(new SchemaId(30_008)));
 }
 
-public struct Position { public int X; public int Y; }
-public struct Velocity { public int X; public int Y; }
-public struct Auxiliary { public int Value; }
-public sealed class ReferenceValue { public int Value; }
-public struct Movement4A { public int Value; }
-public struct Movement4B { public int Value; }
-public struct Movement4C { public int Value; }
-public struct Movement4D { public int Value; }
-
 internal sealed class MicroWorld
 {
     public readonly ComponentRegistry Layouts = new();
@@ -39,17 +127,17 @@ internal sealed class MicroWorld
     public readonly ComponentId Movement4C;
     public readonly ComponentId Movement4D;
 
-    public MicroWorld(int initialEntityCapacity = 100_000)
-    {
-        (Position, Velocity, Auxiliary, Reference, Movement4A, Movement4B, Movement4C, Movement4D) = MicroIds.Register(Layouts);
-        World = new World(Layouts, initialEntityCapacity: initialEntityCapacity);
-    }
-
     public World World { get; }
 
     public ComponentId[] Moving => [Position, Velocity];
 
     public ComponentId[] Movement4 => [Movement4A, Movement4B, Movement4C, Movement4D];
+
+    public MicroWorld(int initialEntityCapacity = 100_000)
+    {
+        (Position, Velocity, Auxiliary, Reference, Movement4A, Movement4B, Movement4C, Movement4D) = MicroIds.Register(Layouts);
+        World = new World(Layouts, initialEntityCapacity: initialEntityCapacity);
+    }
 
     public Entity[] CreateMoving(int amount)
     {
@@ -130,57 +218,6 @@ internal static class MicroBenchmarkKernels
 
 }
 
-public class DenseIterationMicroBenchmarkImplementation
-{
-    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
-
-    private MicroWorld _fixture = null!;
-    private Entity[] _movement2Entities = null!;
-    private Entity[] _movement4Entities = null!;
-    private Query _movement2Query;
-    private Query _movement4Query;
-    private IOperation<int>? _movement2Iteration;
-    private IOperation<int>? _movement4Iteration;
-
-    [GlobalSetup]
-    public void Setup()
-    {
-        _fixture = new MicroWorld();
-        _movement2Entities = _fixture.CreateMoving(Amount);
-        _movement4Entities = _fixture.CreateMovement4(Amount);
-
-        var movement2 = QuerySpec.WhereAll(stackalloc ComponentId[] { _fixture.Position, _fixture.Velocity });
-        _movement2Query = _fixture.World.CreateQuery(in movement2);
-
-        var movement4 = QuerySpec.Empty.WhereAll(
-            _fixture.Movement4A,
-            _fixture.Movement4B,
-            _fixture.Movement4C,
-            _fixture.Movement4D);
-        _movement4Query = _fixture.World.CreateQuery(in movement4);
-    }
-
-    [IterationSetup(Target = nameof(Movement2Components))]
-    public void ResetMovement2() => _fixture.ResetMoving(_movement2Entities);
-
-    [IterationSetup(Target = nameof(Movement4Components))]
-    public void ResetMovement4() => _fixture.ResetMovement4(_movement4Entities);
-
-    [Benchmark]
-    public int Movement2Components() =>
-        MicroBenchmarkKernels.IterateMovement2Dense(
-            ref _movement2Iteration,
-            _fixture,
-            in _movement2Query);
-
-    [Benchmark]
-    public int Movement4Components() =>
-        MicroBenchmarkKernels.IterateMovement4Dense(
-            ref _movement4Iteration,
-            _fixture,
-            in _movement4Query);
-}
-
 internal record struct GeneratedMovement4Functor : IForEach
 {
     public int Checksum { get; set; }
@@ -196,41 +233,6 @@ internal record struct GeneratedMovement4Functor : IForEach
         b.Value += a.Value;
         c.Value += b.Value;
         Checksum += a.Value + b.Value + c.Value + d.Value;
-    }
-}
-
-public class GeneratedFunctorMovement4MicroBenchmarkImplementation
-{
-    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
-
-    private MicroWorld _fixture = null!;
-    private Entity[] _entities = null!;
-    private Query _query;
-    private IOperation<GeneratedMovement4Functor>? _iteration;
-
-    [GlobalSetup]
-    public void Setup()
-    {
-        _fixture = new MicroWorld(initialEntityCapacity: Amount);
-        _entities = _fixture.CreateMovement4(Amount);
-        var description = QuerySpec.Empty.WhereAll(
-            _fixture.Movement4A,
-            _fixture.Movement4B,
-            _fixture.Movement4C,
-            _fixture.Movement4D);
-        _query = _fixture.World.CreateQuery(in description);
-    }
-
-    [IterationSetup]
-    public void Reset() => _fixture.ResetMovement4(_entities);
-
-    [Benchmark]
-    public int Movement4GeneratedFunctor()
-    {
-        var functor = new GeneratedMovement4Functor();
-        _iteration ??= _fixture.World.ForEach(in _query, ref functor);
-        _iteration.Invoke(ref functor);
-        return functor.Checksum;
     }
 }
 

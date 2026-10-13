@@ -1,33 +1,26 @@
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
+
 using Leopotam.Ecs;
 
 namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithTwoComponentsMultipleComposition
     {
+
+        [Context]
+        private readonly LeopotamEcsContext _leopotamEcs;
+
+        [BenchmarkCategory(Categories.LeopotamEcs, Categories.SingleThread)]
+        [Benchmark]
+        public int LeopotamEcs()
+        {
+            _leopotamEcs.MonoThreadSystem.Run();
+            return EntityCount;
+        }
         private sealed class LeopotamEcsContext : LeopotamEcsBaseContext
         {
-            private record struct Padding1();
-
-            private record struct Padding2();
-
-            private record struct Padding3();
-
-            private record struct Padding4();
-
-            private sealed class MonoThreadRunSystem : IEcsRunSystem
-            {
-                private readonly EcsFilter<Component1, Component2> _filter;
-
-                public void Run()
-                {
-                    for (int i = 0, iMax = _filter.GetEntitiesCount(); i < iMax; i++)
-                    {
-                        _filter.Get1(i).Value += _filter.Get2(i).Value;
-                    }
-                }
-            }
 
             public EcsSystems MonoThreadSystem { get; }
 
@@ -64,17 +57,26 @@ namespace Ecs.CSharp.Benchmark
                     }
                 }
             }
-        }
+            private record struct Padding1();
 
-        [Context]
-        private readonly LeopotamEcsContext _leopotamEcs;
+            private record struct Padding2();
 
-        [BenchmarkCategory(Categories.LeopotamEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int LeopotamEcs()
-        {
-            _leopotamEcs.MonoThreadSystem.Run();
-            return EntityCount;
+            private record struct Padding3();
+
+            private record struct Padding4();
+
+            private sealed class MonoThreadRunSystem : IEcsRunSystem
+            {
+                private readonly EcsFilter<Component1, Component2> _filter;
+
+                public void Run()
+                {
+                    for (int i = 0, iMax = _filter.GetEntitiesCount(); i < iMax; i++)
+                    {
+                        _filter.Get1(i).Value += _filter.Get2(i).Value;
+                    }
+                }
+            }
         }
     }
 }

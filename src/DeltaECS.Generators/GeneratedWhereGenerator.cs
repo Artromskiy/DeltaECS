@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Globalization;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -22,6 +23,104 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         "Where");
 
     public void Initialize(IncrementalGeneratorInitializationContext context) => GeneratorPipeline.RegisterInterceptorInput(context, Execute);
+
+
+    internal static bool TryReadPredicate(SemanticModel model, InvocationExpressionSyntax invocation, out PredicateModel? shape)
+    {
+        shape = null;
+        if (!TryGetWherePredicateCall(
+                model,
+                invocation,
+                out string name,
+                out ArgumentSyntax predicateArgument)
+            || !ApiDescriptor.TryGet(name, out ApiDescriptor descriptor)
+            || descriptor.Family != GeneratedApiKind.Where
+           )
+        {
+            return false;
+        }
+
+        var cursor = new InvocationCursor(model, invocation.ArgumentList.Arguments, descriptor);
+        if (!cursor.TryRead(invocation.ArgumentList.Arguments.Count - 1, out _))
+        {
+            return false;
+        }
+
+        bool hasEntity = name == "WhereEntity";
+        string namespaceName = GeneratorSupport.ContainingNamespace(model, invocation);
+
+        if (predicateArgument.Expression is not LambdaExpressionSyntax lambda)
+        {
+            if (TryReadStaticPredicateMethodGroup(model, invocation, predicateArgument.Expression, hasEntity, namespaceName, out shape))
+            {
+                return true;
+            }
+
+            ArgumentSyntax? contextArgument = invocation.ArgumentList.Arguments.Count == 3
+                ? invocation.ArgumentList.Arguments[1]
+                : null;
+            return TryReadFunctorPredicate(model, predicateArgument, contextArgument, hasEntity, namespaceName, out shape);
+        }
+
+        ArgumentSyntax? lambdaContextArgument = invocation.ArgumentList.Arguments.Count == 3
+            ? invocation.ArgumentList.Arguments[1]
+            : null;
+        bool hasContext = lambdaContextArgument is not null;
+        ITypeSymbol? contextType = null;
+        ParameterSyntax[] parameters = CallbackReader.LambdaParameters(lambda);
+        int parameterStart = 0;
+        if (hasContext)
+        {
+            if (!lambdaContextArgument!.RefKindKeyword.IsKind(SyntaxKind.RefKeyword)
+                || parameters.Length == 0
+                || !IsContextParameter(model, parameters[0], lambdaContextArgument, out contextType))
+            {
+                return false;
+            }
+
+            parameterStart = 1;
+        }
+
+        if (hasEntity)
+        {
+            if (parameters.Length <= parameterStart || !CallbackReader.IsEntityParameter(model, parameters[parameterStart]))
+            {
+                return false;
+            }
+
+            parameterStart++;
+        }
+        else if (parameters.Skip(parameterStart).Any(parameter => CallbackReader.IsEntityParameter(model, parameter)))
+        {
+            return false;
+        }
+
+        string pattern = new string(parameters
+            .Skip(parameterStart)
+            .Select(parameter => GeneratorSupport.PatternLetter(parameter))
+            .ToArray());
+        if (parameters.Skip(parameterStart).Any(parameter =>
+                !CallbackReader.HasTypedAccessibleParameter(model, parameter)
+                || GeneratorSupport.PatternLetter(parameter) == 'W'))
+        {
+            return false;
+        }
+
+        shape = new PredicateModel(
+            pattern,
+            isFunctor: false,
+            functorType: null,
+            hasEntity,
+            hasContext,
+            contextType is null ? null : GeneratorSupport.DisplayType(contextType),
+            components: null,
+            namespaceName);
+        ITypeSymbol[] componentTypes = parameters.Skip(parameterStart)
+            .Select(parameter => model.GetTypeInfo(parameter.Type!).Type!)
+            .ToArray();
+        SetClosedTypeArguments(shape, hasContext ? contextType : null, componentTypes);
+        return true;
+    }
 
     private static void Execute(
         Compilation compilation,
@@ -324,104 +423,6 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         }
 
         return CallbackReader.TryGetStaticMethodGroupTarget(model, expression, out method);
-    }
-
-
-    internal static bool TryReadPredicate(SemanticModel model, InvocationExpressionSyntax invocation, out PredicateModel? shape)
-    {
-        shape = null;
-        if (!TryGetWherePredicateCall(
-                model,
-                invocation,
-                out string name,
-                out ArgumentSyntax predicateArgument)
-            || !ApiDescriptor.TryGet(name, out ApiDescriptor descriptor)
-            || descriptor.Family != GeneratedApiKind.Where
-           )
-        {
-            return false;
-        }
-
-        var cursor = new InvocationCursor(model, invocation.ArgumentList.Arguments, descriptor);
-        if (!cursor.TryRead(invocation.ArgumentList.Arguments.Count - 1, out _))
-        {
-            return false;
-        }
-
-        bool hasEntity = name == "WhereEntity";
-        string namespaceName = GeneratorSupport.ContainingNamespace(model, invocation);
-
-        if (predicateArgument.Expression is not LambdaExpressionSyntax lambda)
-        {
-            if (TryReadStaticPredicateMethodGroup(model, invocation, predicateArgument.Expression, hasEntity, namespaceName, out shape))
-            {
-                return true;
-            }
-
-            ArgumentSyntax? contextArgument = invocation.ArgumentList.Arguments.Count == 3
-                ? invocation.ArgumentList.Arguments[1]
-                : null;
-            return TryReadFunctorPredicate(model, predicateArgument, contextArgument, hasEntity, namespaceName, out shape);
-        }
-
-        ArgumentSyntax? lambdaContextArgument = invocation.ArgumentList.Arguments.Count == 3
-            ? invocation.ArgumentList.Arguments[1]
-            : null;
-        bool hasContext = lambdaContextArgument is not null;
-        ITypeSymbol? contextType = null;
-        ParameterSyntax[] parameters = CallbackReader.LambdaParameters(lambda);
-        int parameterStart = 0;
-        if (hasContext)
-        {
-            if (!lambdaContextArgument!.RefKindKeyword.IsKind(SyntaxKind.RefKeyword)
-                || parameters.Length == 0
-                || !IsContextParameter(model, parameters[0], lambdaContextArgument, out contextType))
-            {
-                return false;
-            }
-
-            parameterStart = 1;
-        }
-
-        if (hasEntity)
-        {
-            if (parameters.Length <= parameterStart || !CallbackReader.IsEntityParameter(model, parameters[parameterStart]))
-            {
-                return false;
-            }
-
-            parameterStart++;
-        }
-        else if (parameters.Skip(parameterStart).Any(parameter => CallbackReader.IsEntityParameter(model, parameter)))
-        {
-            return false;
-        }
-
-        string pattern = new string(parameters
-            .Skip(parameterStart)
-            .Select(parameter => GeneratorSupport.PatternLetter(parameter))
-            .ToArray());
-        if (parameters.Skip(parameterStart).Any(parameter =>
-                !CallbackReader.HasTypedAccessibleParameter(model, parameter)
-                || GeneratorSupport.PatternLetter(parameter) == 'W'))
-        {
-            return false;
-        }
-
-        shape = new PredicateModel(
-            pattern,
-            isFunctor: false,
-            functorType: null,
-            hasEntity,
-            hasContext,
-            contextType is null ? null : GeneratorSupport.DisplayType(contextType),
-            components: null,
-            namespaceName);
-        ITypeSymbol[] componentTypes = parameters.Skip(parameterStart)
-            .Select(parameter => model.GetTypeInfo(parameter.Type!).Type!)
-            .ToArray();
-        SetClosedTypeArguments(shape, hasContext ? contextType : null, componentTypes);
-        return true;
     }
 
     private static bool TryReadFunctorPredicate(

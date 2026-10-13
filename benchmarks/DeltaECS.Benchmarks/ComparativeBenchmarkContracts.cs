@@ -6,9 +6,9 @@ namespace Delta.ECS.Benchmarks;
 /// <summary>Shared parameters for the cross-ECS iteration comparison.</summary>
 public static class ComparativeBenchmarkParameters
 {
-    public static readonly int[] Amounts = { 100, 1_000, 10_000, 100_000 };
     public const int SparseMatchStride = 4;
     public const int WideComponentCount = 8;
+    public static readonly int[] Amounts = { 100, 1_000, 10_000, 100_000 };
 }
 
 public enum ComparativeEcs
@@ -183,6 +183,25 @@ public static class ComparativeReportBuilder
         File.WriteAllText(Path.Combine(directory, "comparative-report.csv"), ToCsv(rows));
     }
 
+    internal static bool TryMapMethod(string method, out string workload, out ComparativeEcs ecs)
+    {
+        workload = method.Contains("Dense", StringComparison.OrdinalIgnoreCase) ? "Iteration.Dense" :
+            method.Contains("Movement2Components", StringComparison.OrdinalIgnoreCase) ? "Iteration.Movement2Components" :
+            method.Contains("Movement4Components", StringComparison.OrdinalIgnoreCase) ? "Iteration.Movement4Components" :
+            method.Contains("WideArchetypeNarrowQuery", StringComparison.OrdinalIgnoreCase) ? "Iteration.WideArchetypeNarrowQuery" :
+            method.Contains("SparseWorldQueryPlan", StringComparison.OrdinalIgnoreCase) ? "Iteration.SparseWorldQueryPlan" :
+            method.Contains("QueryPlanConstruction", StringComparison.OrdinalIgnoreCase) ? "Iteration.QueryPlanConstruction" : "";
+        bool mapped = true;
+        ecs = method.StartsWith("DeltaECS", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.DeltaECS :
+            method.StartsWith("Arch", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.Arch :
+            method.StartsWith("Friflo", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.FrifloEngineECS :
+            method.StartsWith("DefaultEcs", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.DefaultEcs :
+            method.StartsWith("LeoEcsLite", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.LeoEcsLite : UnknownEcs();
+        return workload.Length != 0 && mapped;
+
+        ComparativeEcs UnknownEcs() { mapped = false; return default; }
+    }
+
     private static int CountVictories(IEnumerable<ComparisonScenario> scenarios) =>
         scenarios.Count(scenario => scenario.Rivals.All(rival => scenario.Delta.Mean <= rival.Mean));
 
@@ -226,9 +245,6 @@ public static class ComparativeReportBuilder
     }
 
     private static bool IsMeasured(ComparativeReportRow row) => row.Supported && double.IsFinite(row.Mean) && row.Mean > 0;
-
-    private sealed record ComparisonScenario(string Workload, string Params, ComparativeReportRow Delta, ComparativeReportRow[] Rivals);
-    private sealed record BestRival(ComparativeEcs Ecs, string Params, double RatioToDelta);
 
     private static IReadOnlyList<ComparativeReportRow> BuildCombinedRows(string directory)
     {
@@ -320,25 +336,6 @@ public static class ComparativeReportBuilder
             .ThenBy(row => row.Params, StringComparer.Ordinal).ThenBy(row => row.Ecs).ToArray();
     }
 
-    internal static bool TryMapMethod(string method, out string workload, out ComparativeEcs ecs)
-    {
-        workload = method.Contains("Dense", StringComparison.OrdinalIgnoreCase) ? "Iteration.Dense" :
-            method.Contains("Movement2Components", StringComparison.OrdinalIgnoreCase) ? "Iteration.Movement2Components" :
-            method.Contains("Movement4Components", StringComparison.OrdinalIgnoreCase) ? "Iteration.Movement4Components" :
-            method.Contains("WideArchetypeNarrowQuery", StringComparison.OrdinalIgnoreCase) ? "Iteration.WideArchetypeNarrowQuery" :
-            method.Contains("SparseWorldQueryPlan", StringComparison.OrdinalIgnoreCase) ? "Iteration.SparseWorldQueryPlan" :
-            method.Contains("QueryPlanConstruction", StringComparison.OrdinalIgnoreCase) ? "Iteration.QueryPlanConstruction" : "";
-        bool mapped = true;
-        ecs = method.StartsWith("DeltaECS", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.DeltaECS :
-            method.StartsWith("Arch", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.Arch :
-            method.StartsWith("Friflo", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.FrifloEngineECS :
-            method.StartsWith("DefaultEcs", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.DefaultEcs :
-            method.StartsWith("LeoEcsLite", StringComparison.OrdinalIgnoreCase) ? ComparativeEcs.LeoEcsLite : UnknownEcs();
-        return workload.Length != 0 && mapped;
-
-        ComparativeEcs UnknownEcs() { mapped = false; return default; }
-    }
-
     private static double ParseMeasurement(string value, char csvSeparator)
     {
         string number = new string(value.TrimStart().TakeWhile(character => char.IsDigit(character) || character is '.' or ',' or '-' or '+' or 'e' or 'E' || char.IsWhiteSpace(character)).ToArray());
@@ -410,6 +407,9 @@ public static class ComparativeReportBuilder
     private static string DisplayName(ComparativeEcs ecs) => ecs == ComparativeEcs.FrifloEngineECS ? "Friflo.Engine.ECS" : ecs.ToString();
     private static string Csv(string value) => value.Contains(',') || value.Contains('"') ? $"\"{value.Replace("\"", "\"\"")}\"" : value;
     private static string Markdown(string value) => value.Replace("|", "\\|").Replace("\r", " ").Replace("\n", " ");
+
+    private sealed record ComparisonScenario(string Workload, string Params, ComparativeReportRow Delta, ComparativeReportRow[] Rivals);
+    private sealed record BestRival(ComparativeEcs Ecs, string Params, double RatioToDelta);
 }
 
 /// <summary>Only unified iteration benchmarks are exposed by this project.</summary>

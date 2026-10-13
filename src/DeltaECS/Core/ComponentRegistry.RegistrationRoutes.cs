@@ -3,6 +3,12 @@ namespace Delta.ECS;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 
+public sealed partial class ComponentRegistry :
+    IComponentRegistryUnmanagedRoute,
+    IComponentRegistryClassNewRoute
+{
+}
+
 /// <summary>Routes component registry extension calls through the selected registration constraints.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public interface IComponentRegistryRoute
@@ -38,12 +44,6 @@ public interface IComponentRegistryClassRoute : IComponentRegistryRoute
 public interface IComponentRegistryClassNewRoute :
     IComponentRegistryClassRoute,
     IComponentRegistryNewRoute
-{
-}
-
-public sealed partial class ComponentRegistry :
-    IComponentRegistryUnmanagedRoute,
-    IComponentRegistryClassNewRoute
 {
 }
 

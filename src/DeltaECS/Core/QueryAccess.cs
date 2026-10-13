@@ -7,27 +7,27 @@ using System.Runtime.CompilerServices;
 /// <summary>Non-generic query access token for a read row.</summary>
 public readonly struct ReadAccess
 {
+
+    internal QueryPlan? Query { get; }
+    internal int QueryComponentIndex { get; }
     internal ReadAccess(QueryPlan query, int queryComponentIndex)
     {
         Query = query;
         QueryComponentIndex = queryComponentIndex;
     }
-
-    internal QueryPlan? Query { get; }
-    internal int QueryComponentIndex { get; }
 }
 
 /// <summary>Non-generic query access token for a write row.</summary>
 public readonly struct WriteAccess
 {
+
+    internal QueryPlan? Query { get; }
+    internal int QueryComponentIndex { get; }
     internal WriteAccess(QueryPlan query, int queryComponentIndex)
     {
         Query = query;
         QueryComponentIndex = queryComponentIndex;
     }
-
-    internal QueryPlan? Query { get; }
-    internal int QueryComponentIndex { get; }
 }
 
 internal sealed class QueryPlan
@@ -96,6 +96,12 @@ internal sealed class QueryPlan
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static ComponentId GetTagComponentId(int route) => new(TagRouteOffset - route);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static bool IsTagRoute(int route) => route <= TagRouteOffset;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal TBinding GetDenseBinding<TBinding, TRows>(in Query query)
         where TBinding : GeneratedDenseBinding<TRows>, new()
         where TRows : struct
@@ -150,36 +156,6 @@ internal sealed class QueryPlan
         {
             TryGetTagSelection(chunks[index].Chunk, out _);
         }
-    }
-
-    private bool TryGetTagSelection(Chunk chunk, out TagSlotCacheEntry? entry)
-    {
-        bool constrainByAnyTags = _anyTagIndices.Length != 0
-            && !Owner.Archetypes[chunk.ArchetypeId].Mask.Intersects(_anyDataMask);
-        if (_allTagIndices.Length == 0 && _noneTagIndices.Length == 0 && !constrainByAnyTags)
-        {
-            entry = null;
-            return false;
-        }
-
-        entry = GetTagSlotCacheEntry(chunk.GlobalId);
-        int version = Owner.TagVersion;
-        if (entry.Version == version && ReferenceEquals(entry.Chunk, chunk))
-        {
-            return true;
-        }
-
-        lock (_tagSlotGate)
-        {
-            if (entry.Version != version || !ReferenceEquals(entry.Chunk, chunk))
-            {
-                BuildTagSlots(chunk, constrainByAnyTags, entry);
-                entry.Chunk = chunk;
-                entry.Version = version;
-            }
-        }
-
-        return true;
     }
 
     internal bool MatchesTagSlot(Chunk chunk, int slotIndex)
@@ -264,9 +240,6 @@ internal sealed class QueryPlan
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static ComponentId GetTagComponentId(int route) => new(TagRouteOffset - route);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetEntityRefReadRoute(ComponentId component, Type? runtimeType, out int route)
     {
         if (component.IsValid
@@ -284,9 +257,6 @@ internal sealed class QueryPlan
         route = -1;
         return false;
     }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static bool IsTagRoute(int route) => route <= TagRouteOffset;
 
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -490,6 +460,81 @@ internal sealed class QueryPlan
         _componentTypesByComponent.AsSpan().Clear();
     }
 
+    internal bool MatchesArchetype(Archetype archetype) => archetype.Mask.ContainsAll(_allDataMask)
+        && !archetype.Mask.Intersects(_noneDataMask)
+        && (_anyDataMask.IsEmpty || _anyTagIndices.Length != 0 || archetype.Mask.Intersects(_anyDataMask));
+
+    internal bool RequiresAll(ComponentId componentId)
+        => _allDataMask.Contains(componentId)
+            || (Owner.Components.TryGetTagIndex(componentId, out int tagIndex)
+                && Array.IndexOf(_allTagIndices, tagIndex) >= 0);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int GetTagRoute(ComponentId component) => TagRouteOffset - component.Value;
+
+    private static (ComponentMask DataMask, int[] TagIndices) PartitionQueryMask(World world, ComponentMask source)
+    {
+        if (source.IsEmpty)
+        {
+            return (default, Array.Empty<int>());
+        }
+
+        var dataIds = new ComponentId[source.Count];
+        int[] tagIndices = new int[source.Count];
+        int dataCount = 0;
+        int tagCount = 0;
+        foreach (ComponentId component in source)
+        {
+            if (!world.Components.TryGet(component, out _))
+            {
+                ThrowHelper.ThrowUnregisteredQueryComponent(component, default);
+            }
+
+            if (world.Components.TryGetTagIndex(component, out int tagIndex))
+            {
+                tagIndices[tagCount++] = tagIndex;
+            }
+            else
+            {
+                dataIds[dataCount++] = component;
+            }
+        }
+
+        Array.Resize(ref dataIds, dataCount);
+        Array.Resize(ref tagIndices, tagCount);
+        return (ComponentMask.From(dataIds), tagIndices);
+    }
+
+    private bool TryGetTagSelection(Chunk chunk, out TagSlotCacheEntry? entry)
+    {
+        bool constrainByAnyTags = _anyTagIndices.Length != 0
+            && !Owner.Archetypes[chunk.ArchetypeId].Mask.Intersects(_anyDataMask);
+        if (_allTagIndices.Length == 0 && _noneTagIndices.Length == 0 && !constrainByAnyTags)
+        {
+            entry = null;
+            return false;
+        }
+
+        entry = GetTagSlotCacheEntry(chunk.GlobalId);
+        int version = Owner.TagVersion;
+        if (entry.Version == version && ReferenceEquals(entry.Chunk, chunk))
+        {
+            return true;
+        }
+
+        lock (_tagSlotGate)
+        {
+            if (entry.Version != version || !ReferenceEquals(entry.Chunk, chunk))
+            {
+                BuildTagSlots(chunk, constrainByAnyTags, entry);
+                entry.Chunk = chunk;
+                entry.Version = version;
+            }
+        }
+
+        return true;
+    }
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private TBinding ResolveDenseBinding<TBinding, TRows>(in Query query)
         where TBinding : GeneratedDenseBinding<TRows>, new()
@@ -507,9 +552,6 @@ internal sealed class QueryPlan
         _lastDenseBinding = existing;
         return (TBinding)existing;
     }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int GetTagRoute(ComponentId component) => TagRouteOffset - component.Value;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryGetPreparedPrimaryRoute<T>(out int route) => TryGetPrimaryRoute(typeof(T).TypeHandle, out route);
@@ -704,48 +746,6 @@ internal sealed class QueryPlan
         Array.Resize(ref _matchingChunkPlanIndices, capacity);
     }
 
-    internal bool MatchesArchetype(Archetype archetype) => archetype.Mask.ContainsAll(_allDataMask)
-        && !archetype.Mask.Intersects(_noneDataMask)
-        && (_anyDataMask.IsEmpty || _anyTagIndices.Length != 0 || archetype.Mask.Intersects(_anyDataMask));
-
-    internal bool RequiresAll(ComponentId componentId)
-        => _allDataMask.Contains(componentId)
-            || (Owner.Components.TryGetTagIndex(componentId, out int tagIndex)
-                && Array.IndexOf(_allTagIndices, tagIndex) >= 0);
-
-    private static (ComponentMask DataMask, int[] TagIndices) PartitionQueryMask(World world, ComponentMask source)
-    {
-        if (source.IsEmpty)
-        {
-            return (default, Array.Empty<int>());
-        }
-
-        var dataIds = new ComponentId[source.Count];
-        int[] tagIndices = new int[source.Count];
-        int dataCount = 0;
-        int tagCount = 0;
-        foreach (ComponentId component in source)
-        {
-            if (!world.Components.TryGet(component, out _))
-            {
-                ThrowHelper.ThrowUnregisteredQueryComponent(component, default);
-            }
-
-            if (world.Components.TryGetTagIndex(component, out int tagIndex))
-            {
-                tagIndices[tagCount++] = tagIndex;
-            }
-            else
-            {
-                dataIds[dataCount++] = component;
-            }
-        }
-
-        Array.Resize(ref dataIds, dataCount);
-        Array.Resize(ref tagIndices, tagCount);
-        return (ComponentMask.From(dataIds), tagIndices);
-    }
-
     private TagSlotCacheEntry GetTagSlotCacheEntry(int chunkId)
     {
         if ((uint)chunkId >= (uint)_tagSlotsByChunk.Length)
@@ -893,6 +893,14 @@ internal sealed class QueryPlan
 
 internal struct ArchetypePlan
 {
+
+    private ChunkPlan[] _chunks;
+    private int _chunkTopologyVersion;
+
+    internal Archetype Archetype { get; }
+    internal int[] ComponentRows { get; }
+    internal ChunkPlan[] ChunkArray => _chunks;
+    internal int ChunkCount { get; private set; }
     internal ArchetypePlan(Archetype archetype, int[] componentRows)
     {
         Archetype = archetype;
@@ -904,9 +912,6 @@ internal struct ArchetypePlan
             OnChunkActivated(archetype.GetActiveChunk(chunkIndex), chunkIndex);
         }
     }
-
-    internal Archetype Archetype { get; }
-    internal int[] ComponentRows { get; }
     internal int FindChunkIndex(Chunk chunk, int startIndex = 0, int endIndex = -1)
     {
         int end = endIndex < 0 ? ChunkCount : Math.Min(endIndex, ChunkCount);
@@ -920,11 +925,6 @@ internal struct ArchetypePlan
 
         return -1;
     }
-    internal ChunkPlan[] ChunkArray => _chunks;
-    internal int ChunkCount { get; private set; }
-
-    private ChunkPlan[] _chunks;
-    private int _chunkTopologyVersion;
 
     internal void SetChunkTopologyVersion(int version) => _chunkTopologyVersion = version;
 
@@ -1022,26 +1022,26 @@ internal struct ArchetypePlan
 
 internal readonly struct ChunkPlan
 {
+
+    internal Chunk Chunk { get; }
+    internal Array[] ComponentRows { get; }
+    internal int[] ComponentIndices { get; }
     internal ChunkPlan(Chunk chunk, Array[] componentRows, int[] componentIndices)
     {
         Chunk = chunk;
         ComponentRows = componentRows;
         ComponentIndices = componentIndices;
     }
-
-    internal Chunk Chunk { get; }
-    internal Array[] ComponentRows { get; }
-    internal int[] ComponentIndices { get; }
 }
 
 internal readonly struct QueryPlanLink
 {
+
+    internal WeakReference<QueryPlan> Query { get; }
+    internal int PlanIndex { get; }
     internal QueryPlanLink(WeakReference<QueryPlan> query, int planIndex)
     {
         Query = query;
         PlanIndex = planIndex;
     }
-
-    internal WeakReference<QueryPlan> Query { get; }
-    internal int PlanIndex { get; }
 }

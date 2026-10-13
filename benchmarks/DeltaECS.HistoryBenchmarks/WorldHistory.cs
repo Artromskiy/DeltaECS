@@ -14,6 +14,8 @@ internal sealed class WorldHistory : IDisposable
     private readonly ComponentId[][] _entityComponentIds;
     private readonly IOperation[] _componentRestores = new IOperation[HistoryComponentCount];
 
+    internal int ComponentMembershipCount { get; private set; }
+
     internal WorldHistory(int entityCount)
     {
         var layouts = new ComponentRegistry();
@@ -47,7 +49,7 @@ internal sealed class WorldHistory : IDisposable
         }
     }
 
-    internal int ComponentMembershipCount { get; private set; }
+    public void Dispose() => _world.Dispose();
 
     internal void RestoreByComponent()
     {
@@ -87,8 +89,6 @@ internal sealed class WorldHistory : IDisposable
         return checksum;
     }
 
-    public void Dispose() => _world.Dispose();
-
     private static ComponentId RegisterComponent(ComponentRegistry layouts, int index, SchemaId schemaId) => (index % ComponentTypeCount) switch
     {
         0 => layouts.Register<HistoryPosition>(schemaId),
@@ -96,6 +96,8 @@ internal sealed class WorldHistory : IDisposable
         2 => layouts.Register<HistoryHealth>(schemaId),
         _ => layouts.Register<HistoryArmor>(schemaId)
     };
+
+    private static int SnapshotValue(EntityRef entity, ComponentId componentId) => entity.Index + componentId.Value + 1;
 
     private ComponentId[][] CreateRandomArchetypes(Random random)
     {
@@ -130,8 +132,6 @@ internal sealed class WorldHistory : IDisposable
         2 => _world.ForEachEntity(in query, id, new RestoreHealth(id)),
         _ => _world.ForEachEntity(in query, id, new RestoreArmor(id))
     };
-
-    private static int SnapshotValue(EntityRef entity, ComponentId componentId) => entity.Index + componentId.Value + 1;
 
     private void SetComponentValue(Entity entity, ComponentId componentId, int value)
     {

@@ -1,8 +1,11 @@
 using System;
 using System.Runtime.CompilerServices;
+
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.FennecsComponents;
+
 using fennecs;
 
 namespace Ecs.CSharp.Benchmark
@@ -10,35 +13,6 @@ namespace Ecs.CSharp.Benchmark
     public partial class SystemWithTwoComponents
     {
         [Context] private readonly FennecsContext _fennecs;
-
-        private sealed class FennecsContext : FennecsBaseContext
-        {
-            public Stream<Component1, Component2> query;
-
-            public FennecsContext(int entityCount, int entityPadding)
-            {
-                query = World.Query<Component1, Component2>().Stream();
-                for (int i = 0; i < entityCount; ++i)
-                {
-                    for (int j = 0; j < entityPadding; ++j)
-                    {
-                        Entity padding = World.Spawn();
-                        switch (j % 2)
-                        {
-                            case 0:
-                                padding.Add<Component1>();
-                                break;
-
-                            case 1:
-                                padding.Add<Component2>();
-                                break;
-                        }
-                    }
-
-                    World.Spawn().Add<Component1>().Add(new Component2 { Value = 1 });
-                }
-            }
-        }
 
         [BenchmarkCategory(Categories.Fennecs, Categories.SingleThread)]
         [Benchmark]
@@ -71,6 +45,35 @@ namespace Ecs.CSharp.Benchmark
                 }
             });
             return EntityCount;
+        }
+
+        private sealed class FennecsContext : FennecsBaseContext
+        {
+            public Stream<Component1, Component2> query;
+
+            public FennecsContext(int entityCount, int entityPadding)
+            {
+                query = World.Query<Component1, Component2>().Stream();
+                for (int i = 0; i < entityCount; ++i)
+                {
+                    for (int j = 0; j < entityPadding; ++j)
+                    {
+                        Entity padding = World.Spawn();
+                        switch (j % 2)
+                        {
+                            case 0:
+                                padding.Add<Component1>();
+                                break;
+
+                            case 1:
+                                padding.Add<Component2>();
+                                break;
+                        }
+                    }
+
+                    World.Spawn().Add<Component1>().Add(new Component2 { Value = 1 });
+                }
+            }
         }
     }
 }

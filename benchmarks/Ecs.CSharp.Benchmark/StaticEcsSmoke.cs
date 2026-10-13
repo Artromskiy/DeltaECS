@@ -1,18 +1,14 @@
 using System;
+
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.StaticEcsComponents;
+
 using FFS.Libraries.StaticEcs;
 
 namespace Ecs.CSharp.Benchmark
 {
     internal static class StaticEcsSmoke
     {
-        private struct Component1Sum : StaticEcsWorld.IQuery.Read<Component1>
-        {
-            internal int Value;
-
-            public void Invoke(StaticEcsWorld.Entity entity, in Component1 component) => Value += component.Value;
-        }
 
         internal static void Run()
         {
@@ -83,6 +79,12 @@ namespace Ecs.CSharp.Benchmark
             {
                 throw new InvalidOperationException($"StaticEcs query smoke expected component sum {expected}, got {sum.Value}.");
             }
+        }
+        private struct Component1Sum : StaticEcsWorld.IQuery.Read<Component1>
+        {
+            internal int Value;
+
+            public void Invoke(StaticEcsWorld.Entity entity, in Component1 component) => Value += component.Value;
         }
     }
 }

@@ -1,30 +1,21 @@
 using System;
 using System.Collections.Generic;
+
 using Delta;
 using Delta.ECS;
 using Delta.ECS.Integration;
 using Delta.ECS.Unity;
+
 using Unity.Properties;
+
 using UnityEditor;
 using UnityEditor.UIElements;
+
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Delta.ECS.Unity.Editor
 {
-    internal readonly struct ComponentPropertyBinding
-    {
-        internal readonly string[] Path;
-        internal readonly Type ValueType;
-        internal readonly VisualElement Control;
-
-        internal ComponentPropertyBinding(string[] path, Type valueType, VisualElement control)
-        {
-            Path = path;
-            ValueType = valueType;
-            Control = control;
-        }
-    }
 
     internal static class ComponentPropertyBagFields
     {
@@ -48,86 +39,6 @@ namespace Delta.ECS.Unity.Editor
                 bindings, onChanged, createEntityField);
             propertyBag.Accept(visitor, ref value);
             return bindings.ToArray();
-        }
-
-        private sealed class PropertyFieldVisitor : IPropertyBagVisitor, IPropertyVisitor
-        {
-            private readonly VisualElement _parent;
-            private readonly bool _canWrite;
-            private readonly string[] _path;
-            private readonly int _depth;
-            private readonly List<ComponentPropertyBinding> _bindings;
-            private readonly Action<string[], object> _onChanged;
-            private readonly Func<string, Entity, Action<object>, VisualElement> _createEntityField;
-
-            internal PropertyFieldVisitor(VisualElement parent, bool canWrite, string[] path, int depth,
-                List<ComponentPropertyBinding> bindings, Action<string[], object> onChanged,
-                Func<string, Entity, Action<object>, VisualElement> createEntityField)
-            {
-                _parent = parent;
-                _canWrite = canWrite;
-                _path = path;
-                _depth = depth;
-                _bindings = bindings;
-                _onChanged = onChanged;
-                _createEntityField = createEntityField;
-            }
-
-            public void Visit<TContainer>(IPropertyBag<TContainer> properties, ref TContainer container)
-            {
-                foreach (var property in properties.GetProperties(ref container))
-                {
-                    ((IPropertyAccept<TContainer>)property).Accept(this, ref container);
-                }
-            }
-
-            public void Visit<TContainer, TValue>(Property<TContainer, TValue> property, ref TContainer container)
-            {
-                TValue value = property.GetValue(ref container);
-                Type valueType = typeof(TValue);
-                string[] path = Append(_path, property.Name);
-                string label = GetLabel(property.Name);
-                bool canWrite = _canWrite && !property.IsReadOnly;
-
-                VisualElement control = CreateFieldControl(label, valueType, value,
-                    next => _onChanged(path, next), canWrite, _createEntityField);
-                if (control != null)
-                {
-                    _parent.Add(control);
-                    _bindings.Add(new ComponentPropertyBinding(path, valueType, control));
-                    return;
-                }
-
-                if (value != null && _depth < 24)
-                {
-                    object nestedValue = value;
-                    IPropertyBag nestedBag = PropertyBag.GetPropertyBag(nestedValue.GetType());
-                    if (nestedBag != null)
-                    {
-                        var foldout = new Foldout { text = label, value = true };
-                        foldout.AddToClassList("ecs-property-foldout");
-                        _parent.Add(foldout);
-                        int previousCount = _bindings.Count;
-                        bool canWriteNested = canWrite && valueType.IsValueType;
-                        var nestedVisitor = new PropertyFieldVisitor(foldout, canWriteNested, path,
-                            _depth + 1, _bindings, _onChanged, _createEntityField);
-                        nestedBag.Accept(nestedVisitor, ref nestedValue);
-                        if (_bindings.Count == previousCount)
-                        {
-                            var empty = new Label("No exposed properties.");
-                            empty.AddToClassList("ecs-empty-component");
-                            foldout.Add(empty);
-                        }
-
-                        return;
-                    }
-                }
-
-                string detail = value == null ? "Null" : $"Unsupported: {valueType.Name}";
-                var unsupported = new Label($"{label}  ·  {detail}");
-                unsupported.AddToClassList("ecs-unsupported-field");
-                _parent.Add(unsupported);
-            }
         }
 
         private static VisualElement CreateFieldControl(string label, Type type, object value,
@@ -275,6 +186,99 @@ namespace Delta.ECS.Unity.Editor
             return int.TryParse(name, out int index)
                 ? $"Element {index}"
                 : ObjectNames.NicifyVariableName(name);
+        }
+
+        private sealed class PropertyFieldVisitor : IPropertyBagVisitor, IPropertyVisitor
+        {
+            private readonly VisualElement _parent;
+            private readonly bool _canWrite;
+            private readonly string[] _path;
+            private readonly int _depth;
+            private readonly List<ComponentPropertyBinding> _bindings;
+            private readonly Action<string[], object> _onChanged;
+            private readonly Func<string, Entity, Action<object>, VisualElement> _createEntityField;
+
+            internal PropertyFieldVisitor(VisualElement parent, bool canWrite, string[] path, int depth,
+                List<ComponentPropertyBinding> bindings, Action<string[], object> onChanged,
+                Func<string, Entity, Action<object>, VisualElement> createEntityField)
+            {
+                _parent = parent;
+                _canWrite = canWrite;
+                _path = path;
+                _depth = depth;
+                _bindings = bindings;
+                _onChanged = onChanged;
+                _createEntityField = createEntityField;
+            }
+
+            public void Visit<TContainer>(IPropertyBag<TContainer> properties, ref TContainer container)
+            {
+                foreach (var property in properties.GetProperties(ref container))
+                {
+                    ((IPropertyAccept<TContainer>)property).Accept(this, ref container);
+                }
+            }
+
+            public void Visit<TContainer, TValue>(Property<TContainer, TValue> property, ref TContainer container)
+            {
+                TValue value = property.GetValue(ref container);
+                Type valueType = typeof(TValue);
+                string[] path = Append(_path, property.Name);
+                string label = GetLabel(property.Name);
+                bool canWrite = _canWrite && !property.IsReadOnly;
+
+                VisualElement control = CreateFieldControl(label, valueType, value,
+                    next => _onChanged(path, next), canWrite, _createEntityField);
+                if (control != null)
+                {
+                    _parent.Add(control);
+                    _bindings.Add(new ComponentPropertyBinding(path, valueType, control));
+                    return;
+                }
+
+                if (value != null && _depth < 24)
+                {
+                    object nestedValue = value;
+                    IPropertyBag nestedBag = PropertyBag.GetPropertyBag(nestedValue.GetType());
+                    if (nestedBag != null)
+                    {
+                        var foldout = new Foldout { text = label, value = true };
+                        foldout.AddToClassList("ecs-property-foldout");
+                        _parent.Add(foldout);
+                        int previousCount = _bindings.Count;
+                        bool canWriteNested = canWrite && valueType.IsValueType;
+                        var nestedVisitor = new PropertyFieldVisitor(foldout, canWriteNested, path,
+                            _depth + 1, _bindings, _onChanged, _createEntityField);
+                        nestedBag.Accept(nestedVisitor, ref nestedValue);
+                        if (_bindings.Count == previousCount)
+                        {
+                            var empty = new Label("No exposed properties.");
+                            empty.AddToClassList("ecs-empty-component");
+                            foldout.Add(empty);
+                        }
+
+                        return;
+                    }
+                }
+
+                string detail = value == null ? "Null" : $"Unsupported: {valueType.Name}";
+                var unsupported = new Label($"{label}  ·  {detail}");
+                unsupported.AddToClassList("ecs-unsupported-field");
+                _parent.Add(unsupported);
+            }
+        }
+    }
+    internal readonly struct ComponentPropertyBinding
+    {
+        internal readonly string[] Path;
+        internal readonly Type ValueType;
+        internal readonly VisualElement Control;
+
+        internal ComponentPropertyBinding(string[] path, Type valueType, VisualElement control)
+        {
+            Path = path;
+            ValueType = valueType;
+            Control = control;
         }
     }
 }

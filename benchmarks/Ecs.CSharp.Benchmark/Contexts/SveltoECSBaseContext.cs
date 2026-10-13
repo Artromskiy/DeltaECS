@@ -1,4 +1,5 @@
 using System;
+
 using Svelto.ECS;
 using Svelto.ECS.Schedulers;
 
@@ -6,20 +7,6 @@ namespace Ecs.CSharp.Benchmark.Contexts
 {
     internal class SveltoECSBaseContext : IDisposable
     {
-        public struct Component1 : IEntityComponent
-        {
-            public int Value;
-        }
-
-        public struct Component2 : IEntityComponent
-        {
-            public int Value;
-        }
-
-        public struct Component3 : IEntityComponent
-        {
-            public int Value;
-        }
 
         public static ExclusiveGroup Group { get; } = new();
 
@@ -38,6 +25,20 @@ namespace Ecs.CSharp.Benchmark.Contexts
         {
             Root.Dispose();
             Scheduler.Dispose();
+        }
+        public struct Component1 : IEntityComponent
+        {
+            public int Value;
+        }
+
+        public struct Component2 : IEntityComponent
+        {
+            public int Value;
+        }
+
+        public struct Component3 : IEntityComponent
+        {
+            public int Value;
         }
     }
 }

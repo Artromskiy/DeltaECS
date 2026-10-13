@@ -1,9 +1,11 @@
 namespace Delta.ECS.Systems.Tests;
 
 using System.Collections.Concurrent;
+
 using Delta.ECS;
 using Delta.ECS.Integration;
 using Delta.ECS.Systems;
+
 using NUnit.Framework;
 
 [TestFixture]
@@ -441,6 +443,10 @@ public sealed class SystemSchedulerTests
         private readonly int _value;
         private readonly Exception? _failure;
 
+        public World World { get; init; }
+
+        public SystemAccess Access { get; }
+
         internal RecordingSystem(
             World world,
             SystemAccess access,
@@ -455,10 +461,6 @@ public sealed class SystemSchedulerTests
             _failure = failure;
         }
 
-        public World World { get; init; }
-
-        public SystemAccess Access { get; }
-
         public void Tick()
         {
             _order.Enqueue(_value);
@@ -471,14 +473,14 @@ public sealed class SystemSchedulerTests
 
     private sealed class WorldAccessSystem : ISystem
     {
-        internal WorldAccessSystem(World world)
-        {
-            World = world;
-        }
 
         public World World { get; init; }
 
         public SystemAccess Access => SystemAccess.None;
+        internal WorldAccessSystem(World world)
+        {
+            World = world;
+        }
 
         public void Tick() => _ = World.IsAlive(default);
     }
@@ -488,16 +490,16 @@ public sealed class SystemSchedulerTests
         private readonly ManualResetEventSlim _started;
         private readonly ManualResetEventSlim _release;
 
+        public World World { get; init; }
+
+        public SystemAccess Access => SystemAccess.None;
+
         internal BlockingSystem(World world, ManualResetEventSlim started, ManualResetEventSlim release)
         {
             World = world;
             _started = started;
             _release = release;
         }
-
-        public World World { get; init; }
-
-        public SystemAccess Access => SystemAccess.None;
 
         public void Tick()
         {
@@ -514,15 +516,15 @@ public sealed class SystemSchedulerTests
         private readonly Query _query;
         private IOperation? _operation;
 
+        public World World { get; init; }
+
+        public SystemAccess Access => new(usesParallelExecutor: true);
+
         internal NestedParallelSystem(World world, Query query)
         {
             World = world;
             _query = query;
         }
-
-        public World World { get; init; }
-
-        public SystemAccess Access => new(usesParallelExecutor: true);
 
         public void Tick()
         {
@@ -546,6 +548,12 @@ public sealed class SystemSchedulerTests
         private readonly ManualResetEventSlim _started;
         private readonly ManualResetEventSlim _otherStarted;
 
+        public World World { get; init; }
+
+        public SystemAccess Access { get; }
+
+        internal bool Completed { get; private set; }
+
         internal BarrierSystem(
             World world,
             SystemAccess access,
@@ -557,12 +565,6 @@ public sealed class SystemSchedulerTests
             _started = started;
             _otherStarted = otherStarted;
         }
-
-        internal bool Completed { get; private set; }
-
-        public World World { get; init; }
-
-        public SystemAccess Access { get; }
 
         public void Tick()
         {
@@ -580,16 +582,16 @@ public sealed class SystemSchedulerTests
     {
         private readonly ConcurrencyState _state;
 
+        public World World { get; init; }
+
+        public SystemAccess Access { get; }
+
         internal ConcurrencySystem(World world, SystemAccess access, ConcurrencyState state)
         {
             World = world;
             Access = access;
             _state = state;
         }
-
-        public World World { get; init; }
-
-        public SystemAccess Access { get; }
 
         public void Tick()
         {
@@ -604,11 +606,13 @@ public sealed class SystemSchedulerTests
         private int _started;
         private int _active;
 
-        internal ManualResetEventSlim BothStarted { get; } = new();
-
         private int _maximumConcurrency;
 
+        internal ManualResetEventSlim BothStarted { get; } = new();
+
         internal int MaximumConcurrency => Volatile.Read(ref _maximumConcurrency);
+
+        public void Dispose() => BothStarted.Dispose();
 
         internal void Enter()
         {
@@ -631,8 +635,6 @@ public sealed class SystemSchedulerTests
         }
 
         internal void Exit() => Interlocked.Decrement(ref _active);
-
-        public void Dispose() => BothStarted.Dispose();
     }
 }
 
@@ -658,11 +660,11 @@ public struct EnemyUnit
 
 public sealed class QueryExecutionProbe
 {
+
+    public Barrier? Barrier;
     private int _activeInvocations;
     private int _maximumConcurrency;
     private int _invocationCount;
-
-    public Barrier? Barrier;
 
     public int InvocationCount => Volatile.Read(ref _invocationCount);
 
@@ -708,14 +710,14 @@ public sealed partial class PlayerPositionSystem : ISystem
     private QueryExecutionProbe _probe;
     private IOperation<QueryExecutionProbe>? _operation;
 
+    public World World { get; init; }
+
     public PlayerPositionSystem(World world, in Query query, QueryExecutionProbe probe)
     {
         World = world;
         _query = query;
         _probe = probe;
     }
-
-    public World World { get; init; }
 
     public void Tick()
     {
@@ -731,14 +733,14 @@ public sealed partial class EnemyPositionSystem : ISystem
     private QueryExecutionProbe _probe;
     private IOperation<QueryExecutionProbe>? _operation;
 
+    public World World { get; init; }
+
     public EnemyPositionSystem(World world, in Query query, QueryExecutionProbe probe)
     {
         World = world;
         _query = query;
         _probe = probe;
     }
-
-    public World World { get; init; }
 
     public void Tick()
     {
@@ -753,6 +755,10 @@ public sealed class AddEnemyToEntitySystem : ISystem
     private readonly Entity _entity;
     private readonly ComponentId _enemyId;
 
+    public World World { get; init; }
+
+    public SystemAccess Access { get; }
+
     public AddEnemyToEntitySystem(World world, Entity entity, ComponentId enemyId)
     {
         World = world;
@@ -760,10 +766,6 @@ public sealed class AddEnemyToEntitySystem : ISystem
         _enemyId = enemyId;
         Access = new SystemAccess(adds: stackalloc ComponentId[] { enemyId });
     }
-
-    public World World { get; init; }
-
-    public SystemAccess Access { get; }
 
     public void Tick() => World.Add(_entity, _enemyId);
 }
@@ -789,6 +791,12 @@ public sealed class SystemHistoryCaptureSystem : ISystem
     private SystemHistoryContext _context;
     private IOperation<SystemHistoryContext>? _operation;
 
+    public World World { get; init; }
+
+    public SystemAccess Access { get; }
+
+    public int InvocationCount => _context.InvocationCount;
+
     public SystemHistoryCaptureSystem(World world, in Query query, ComponentId valueId, ComponentId historyId)
     {
         World = world;
@@ -799,12 +807,6 @@ public sealed class SystemHistoryCaptureSystem : ISystem
             writes: new[] { historyId },
             readsTopology: true);
     }
-
-    public World World { get; init; }
-
-    public SystemAccess Access { get; }
-
-    public int InvocationCount => _context.InvocationCount;
 
     public void Tick()
     {
@@ -819,14 +821,14 @@ public sealed partial class InferredSystemHistoryCaptureSystem : ISystem
     private readonly ComponentId _valueId;
     private IOperation? _operation;
 
+    public World World { get; init; }
+
     public InferredSystemHistoryCaptureSystem(World world, in Query query, ComponentId valueId)
     {
         World = world;
         _query = query;
         _valueId = valueId;
     }
-
-    public World World { get; init; }
 
     public void Tick()
     {

@@ -3,6 +3,7 @@ namespace Delta.ECS.Tests;
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+
 using NUnit.Framework;
 
 [TestFixture]
@@ -396,25 +397,8 @@ internal sealed class TagComponentTests
     internal readonly struct OtherTag;
     internal readonly struct BlockedTag;
 
-    private sealed class EmptyClass;
-
-    private enum TagEnum
-    {
-        None
-    }
-
     [StructLayout(LayoutKind.Sequential, Size = 8)]
     internal struct ExplicitlySizedStruct { }
-
-    private readonly struct TagWithData
-    {
-        public readonly int Value;
-
-        public TagWithData(int value)
-        {
-            Value = value;
-        }
-    }
 
     internal struct CountPositionFunctor : IForEach
     {
@@ -435,6 +419,23 @@ internal sealed class TagComponentTests
         public ExtraData()
         {
             Value = 0;
+        }
+    }
+
+    private sealed class EmptyClass;
+
+    private enum TagEnum
+    {
+        None
+    }
+
+    private readonly struct TagWithData
+    {
+        public readonly int Value;
+
+        public TagWithData(int value)
+        {
+            Value = value;
         }
     }
 }

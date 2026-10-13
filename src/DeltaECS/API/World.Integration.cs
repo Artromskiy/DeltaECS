@@ -1,6 +1,7 @@
 namespace Delta.ECS;
 
 using System;
+
 using Delta.ECS.Integration;
 
 /// <summary>Implements the object-based tooling integration contract for a world.</summary>
@@ -20,6 +21,14 @@ public sealed partial class World : IEcsWorld
             return _integrationCatalog;
         }
     }
+
+    private static bool SupportsObjectAccess(ComponentLayout layout)
+        => !layout.RuntimeType.IsByRefLike
+            && !layout.RuntimeType.IsPointer
+            && Nullable.GetUnderlyingType(layout.RuntimeType) is null;
+
+    private static bool AllowsNull(Type valueType)
+        => !valueType.IsValueType || Nullable.GetUnderlyingType(valueType) is not null;
 
     void IEcsWorld.Initialize()
     {
@@ -295,14 +304,6 @@ public sealed partial class World : IEcsWorld
     }
 
     private void ThrowIfDisposed() => ThrowHelper.ThrowIfDisposed(IsDisposed, this);
-
-    private static bool SupportsObjectAccess(ComponentLayout layout)
-        => !layout.RuntimeType.IsByRefLike
-            && !layout.RuntimeType.IsPointer
-            && Nullable.GetUnderlyingType(layout.RuntimeType) is null;
-
-    private static bool AllowsNull(Type valueType)
-        => !valueType.IsValueType || Nullable.GetUnderlyingType(valueType) is not null;
 
     private enum IntegrationLifecycleState
     {

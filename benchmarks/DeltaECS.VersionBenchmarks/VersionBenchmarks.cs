@@ -4,15 +4,15 @@ extern alias candidateAdapter;
 namespace DeltaECS.VersionBenchmarks;
 
 using BaselineIterationScenario = baselineAdapter::DeltaECS.VersionAdapter.IterationScenario;
-using CandidateIterationScenario = candidateAdapter::DeltaECS.VersionAdapter.IterationScenario;
 using BenchmarkDotNet.Attributes;
+using CandidateIterationScenario = candidateAdapter::DeltaECS.VersionAdapter.IterationScenario;
 
 [MemoryDiagnoser]
 public class VersionDenseBenchmarks
 {
-    public int Amount { get; set; } = VersionBenchmarkConfiguration.CurrentAmount;
     private BaselineIterationScenario _baseline = null!;
     private CandidateIterationScenario _candidate = null!;
+    public int Amount { get; set; } = VersionBenchmarkConfiguration.CurrentAmount;
 
     [GlobalSetup]
     public void Setup()
@@ -28,9 +28,9 @@ public class VersionDenseBenchmarks
 [MemoryDiagnoser]
 public class VersionMovement2Benchmarks
 {
-    public int Amount { get; set; } = VersionBenchmarkConfiguration.CurrentAmount;
     private BaselineIterationScenario _baseline = null!;
     private CandidateIterationScenario _candidate = null!;
+    public int Amount { get; set; } = VersionBenchmarkConfiguration.CurrentAmount;
 
     [GlobalSetup]
     public void Setup()
@@ -52,9 +52,9 @@ public class VersionMovement2Benchmarks
 [MemoryDiagnoser]
 public class VersionMovement4Benchmarks
 {
-    public int Amount { get; set; } = VersionBenchmarkConfiguration.CurrentAmount;
     private BaselineIterationScenario _baseline = null!;
     private CandidateIterationScenario _candidate = null!;
+    public int Amount { get; set; } = VersionBenchmarkConfiguration.CurrentAmount;
 
     [GlobalSetup]
     public void Setup()

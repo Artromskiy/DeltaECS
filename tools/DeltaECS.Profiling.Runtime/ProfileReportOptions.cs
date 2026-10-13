@@ -2,6 +2,18 @@ using System.Diagnostics;
 
 namespace DeltaECS.Profiling;
 
+/// <summary>Controls report sections, formatting and ordering.</summary>
+public readonly record struct ProfileReportOptions(
+    ProfileReportSections Sections,
+    ProfileReportFormat Format,
+    ProfileReportSort Sort)
+{
+    public static ProfileReportOptions Default { get; } = new(
+        ProfileReportSections.All,
+        ProfileReportFormat.Text,
+        ProfileReportSort.Raw);
+}
+
 /// <summary>Sections included in a profiling report.</summary>
 [Flags]
 public enum ProfileReportSections
@@ -27,18 +39,6 @@ public enum ProfileReportSort
     Adjusted,
     Self,
     Calls
-}
-
-/// <summary>Controls report sections, formatting and ordering.</summary>
-public readonly record struct ProfileReportOptions(
-    ProfileReportSections Sections,
-    ProfileReportFormat Format,
-    ProfileReportSort Sort)
-{
-    public static ProfileReportOptions Default { get; } = new(
-        ProfileReportSections.All,
-        ProfileReportFormat.Text,
-        ProfileReportSort.Raw);
 }
 
 /// <summary>Immutable aggregate for one instrumented method.</summary>

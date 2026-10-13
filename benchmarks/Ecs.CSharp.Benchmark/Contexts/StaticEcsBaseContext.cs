@@ -1,4 +1,5 @@
 using System;
+
 using FFS.Libraries.StaticEcs;
 
 namespace Ecs.CSharp.Benchmark.Contexts
@@ -27,10 +28,6 @@ namespace Ecs.CSharp.Benchmark.Contexts
         internal struct Composition4 : IComponent { }
     }
 
-    internal struct StaticEcsWorldType : IWorldType { }
-
-    internal abstract class StaticEcsWorld : World<StaticEcsWorldType> { }
-
     internal abstract class StaticEcsBaseContext : IDisposable
     {
         protected StaticEcsBaseContext()
@@ -55,6 +52,10 @@ namespace Ecs.CSharp.Benchmark.Contexts
 
         public void Dispose() => StaticEcsWorld.Destroy(withHooks: false);
     }
+
+    internal struct StaticEcsWorldType : IWorldType { }
+
+    internal abstract class StaticEcsWorld : World<StaticEcsWorldType> { }
 
     internal sealed class StaticEcsCreateContext : StaticEcsBaseContext
     {

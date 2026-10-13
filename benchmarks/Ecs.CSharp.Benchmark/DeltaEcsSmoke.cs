@@ -1,6 +1,9 @@
 using System;
+
 using Delta.ECS;
+
 using DeltaEntity = Delta.ECS.Entity;
+
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.DeltaEcsComponents;
 

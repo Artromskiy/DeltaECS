@@ -4,17 +4,6 @@ using System;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 
-internal enum ParallelSchedulingStrategy
-{
-    RequestedWorkers,
-    LimitWorkersToChunkCount,
-    SingleThreadWhenUnderfilled,
-    SplitChunksWhenUnderfilled,
-    SingleThread,
-    MinimumGrainWithSingleChunkSplit,
-    ChunkBoundedGrain
-}
-
 /// <summary>
 /// Persistent executor for a generated invoker with static per-worker ranges.
 /// </summary>
@@ -61,6 +50,32 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
     internal StaticParallelQueryExecutor(ParallelSchedulingStrategy schedulingStrategy)
     {
         _schedulingStrategy = schedulingStrategy;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        Volatile.Write(ref _stopping, 1);
+        Worker[] workers = _workers;
+
+        for (int workerIndex = 0; workerIndex < workers.Length; workerIndex++)
+        {
+            workers.RefAt(workerIndex).Thread.Join();
+        }
+
+        _workers = Array.Empty<Worker>();
+        _workerSlots = Array.Empty<WorkerSlot>();
+        _workerInvokers = Array.Empty<TInvoker>();
+        _workerFailures = Array.Empty<ExceptionDispatchInfo?>();
+        _chunks = Array.Empty<ParallelChunk>();
+        _entities = Array.Empty<Entity>();
+        _ranges = Array.Empty<ParallelRange>();
+        _chunkOffsets = Array.Empty<int>();
     }
 
     internal void Execute(QueryPlan plan, ref TInvoker invoker, int requestedWorkerCount)
@@ -267,32 +282,6 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         }
 
         invoker = invocation;
-    }
-
-    public void Dispose()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-        Volatile.Write(ref _stopping, 1);
-        Worker[] workers = _workers;
-
-        for (int workerIndex = 0; workerIndex < workers.Length; workerIndex++)
-        {
-            workers.RefAt(workerIndex).Thread.Join();
-        }
-
-        _workers = Array.Empty<Worker>();
-        _workerSlots = Array.Empty<WorkerSlot>();
-        _workerInvokers = Array.Empty<TInvoker>();
-        _workerFailures = Array.Empty<ExceptionDispatchInfo?>();
-        _chunks = Array.Empty<ParallelChunk>();
-        _entities = Array.Empty<Entity>();
-        _ranges = Array.Empty<ParallelRange>();
-        _chunkOffsets = Array.Empty<int>();
     }
 
     private void BuildChunkList(QueryPlan plan)
@@ -598,28 +587,33 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
 
     private readonly struct ParallelRange
     {
+
+        internal int StartChunk { get; }
+        internal int EndChunk { get; }
         internal ParallelRange(int startChunk, int endChunk)
         {
             StartChunk = startChunk;
             EndChunk = endChunk;
         }
-
-        internal int StartChunk { get; }
-        internal int EndChunk { get; }
     }
 
     private readonly struct ParallelChunk
     {
+
+        internal ChunkPlan Chunk { get; }
         internal ParallelChunk(ChunkPlan chunk)
         {
             Chunk = chunk;
         }
-
-        internal ChunkPlan Chunk { get; }
     }
 
     private sealed class Worker
     {
+
+        internal StaticParallelQueryExecutor<TInvoker> Owner { get; }
+        internal int Index { get; }
+        internal WorkerSlot Slot { get; }
+        internal Thread Thread { get; }
         internal Worker(StaticParallelQueryExecutor<TInvoker> owner, int index, WorkerSlot slot)
         {
             Slot = slot;
@@ -631,10 +625,16 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             Owner = owner;
             Index = index;
         }
-
-        internal StaticParallelQueryExecutor<TInvoker> Owner { get; }
-        internal int Index { get; }
-        internal WorkerSlot Slot { get; }
-        internal Thread Thread { get; }
     }
+}
+
+internal enum ParallelSchedulingStrategy
+{
+    RequestedWorkers,
+    LimitWorkersToChunkCount,
+    SingleThreadWhenUnderfilled,
+    SplitChunksWhenUnderfilled,
+    SingleThread,
+    MinimumGrainWithSingleChunkSplit,
+    ChunkBoundedGrain
 }

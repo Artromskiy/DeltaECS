@@ -1,5 +1,7 @@
 using System;
+
 using Delta.ECS;
+
 using NUnit.Framework;
 
 namespace Delta.ECS.Tests;

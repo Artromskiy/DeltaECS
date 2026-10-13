@@ -1,213 +1,14 @@
 using BenchmarkDotNet.Attributes;
+
 using Delta.ECS;
 
 namespace Delta.ECS.MicroBenchmarks;
 
-internal struct ChangeWriteA { public int Value; }
-internal struct ChangeWriteB { public int Value; }
-internal struct ChangeWriteC { public int Value; }
-internal struct ChangeWriteD { public int Value; }
-internal struct ChangeWriteUnused { public int Value { get; set; } }
-internal struct ChangeWriteTagA { }
-internal struct ChangeWriteTagB { }
-internal struct ChangeWriteTagC { }
-internal struct ChangeWriteTagD { }
-
-internal sealed class ComponentWriteFixture : IDisposable
-{
-    private readonly ComponentId[] _componentIds;
-    private readonly Entity[] _entities;
-    private readonly IOperation _write;
-    private readonly IOperation[] _subscribers;
-
-    internal ComponentWriteFixture(int amount, int componentCount, int subscriberCount)
-    {
-        var layouts = new ComponentRegistry();
-        _componentIds =
-        [
-            layouts.Register<ChangeWriteA>(new SchemaId(93_001)),
-            layouts.Register<ChangeWriteB>(new SchemaId(93_002)),
-            layouts.Register<ChangeWriteC>(new SchemaId(93_003)),
-            layouts.Register<ChangeWriteD>(new SchemaId(93_004))
-        ];
-        ComponentId unusedId = layouts.Register<ChangeWriteUnused>(new SchemaId(93_005));
-        World = new World(layouts, initialEntityCapacity: amount);
-        _entities = new Entity[amount];
-        var entityComponents = new ComponentId[componentCount + 1];
-        _componentIds.AsSpan(0, componentCount).CopyTo(entityComponents);
-        entityComponents[^1] = unusedId;
-        World.Create(entityComponents, amount, _entities);
-
-        QuerySpec description = QuerySpec.WhereAll(_componentIds.AsSpan(0, componentCount));
-        Query query = World.CreateQuery(in description);
-        _write = componentCount switch
-        {
-            1 => World.ForEach(in query, static (ref ChangeWriteA a) => a.Value++),
-            4 => World.ForEach(in query,
-                static (ref ChangeWriteA a, ref ChangeWriteB b, ref ChangeWriteC c, ref ChangeWriteD d) =>
-                {
-                    a.Value++;
-                    b.Value++;
-                    c.Value++;
-                    d.Value++;
-                }),
-            _ => throw new ArgumentOutOfRangeException(nameof(componentCount))
-        };
-
-        _subscribers = new IOperation[subscriberCount];
-        for (int index = 0; index < subscriberCount; index++)
-        {
-            _subscribers[index] = CreateSubscriber(index % componentCount);
-            _subscribers[index].Invoke();
-        }
-    }
-
-    internal World World { get; }
-    internal void Invoke() => _write.Invoke();
-    public void Dispose() => World.Dispose();
-
-    private IOperation CreateSubscriber(int index) => index switch
-    {
-        0 => World.ForEachChange<ChangeWriteA>(_componentIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteA component) => { }),
-        1 => World.ForEachChange<ChangeWriteB>(_componentIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteB component) => { }),
-        2 => World.ForEachChange<ChangeWriteC>(_componentIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteC component) => { }),
-        3 => World.ForEachChange<ChangeWriteD>(_componentIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteD component) => { }),
-        _ => throw new ArgumentOutOfRangeException(nameof(index))
-    };
-}
-
-internal sealed class TagWriteFixture : IDisposable
-{
-    private readonly ComponentId[] _tagIds;
-    private readonly IOperation _write;
-    private readonly IOperation[] _subscribers;
-
-    internal TagWriteFixture(int amount, int tagCount, int subscriberCount)
-    {
-        var layouts = new ComponentRegistry();
-        _tagIds =
-        [
-            layouts.Register<ChangeWriteTagA>(new SchemaId(93_011)),
-            layouts.Register<ChangeWriteTagB>(new SchemaId(93_012)),
-            layouts.Register<ChangeWriteTagC>(new SchemaId(93_013)),
-            layouts.Register<ChangeWriteTagD>(new SchemaId(93_014))
-        ];
-        ComponentId unusedId = layouts.Register<ChangeWriteUnused>(new SchemaId(93_015));
-        World = new World(layouts, initialEntityCapacity: amount);
-        var entities = new ComponentId[tagCount + 1];
-        _tagIds.AsSpan(0, tagCount).CopyTo(entities);
-        entities[^1] = unusedId;
-        World.Create(entities, amount);
-
-        QuerySpec description = QuerySpec.WhereAll(_tagIds.AsSpan(0, tagCount));
-        Query query = World.CreateQuery(in description);
-        _write = tagCount switch
-        {
-            1 => World.ForEach(in query, static (ref ChangeWriteTagA tag) => { }),
-            4 => World.ForEach(in query,
-                static (ref ChangeWriteTagA a, ref ChangeWriteTagB b, ref ChangeWriteTagC c, ref ChangeWriteTagD d) => { }),
-            _ => throw new ArgumentOutOfRangeException(nameof(tagCount))
-        };
-
-        _subscribers = new IOperation[subscriberCount];
-        for (int index = 0; index < subscriberCount; index++)
-        {
-            _subscribers[index] = CreateSubscriber(index % tagCount);
-            _subscribers[index].Invoke();
-        }
-    }
-
-    internal World World { get; }
-    internal void Invoke() => _write.Invoke();
-    public void Dispose() => World.Dispose();
-
-    private IOperation CreateSubscriber(int index) => index switch
-    {
-        0 => World.ForEachChange<ChangeWriteTagA>(_tagIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteTagA tag) => { }),
-        1 => World.ForEachChange<ChangeWriteTagB>(_tagIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteTagB tag) => { }),
-        2 => World.ForEachChange<ChangeWriteTagC>(_tagIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteTagC tag) => { }),
-        3 => World.ForEachChange<ChangeWriteTagD>(_tagIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteTagD tag) => { }),
-        _ => throw new ArgumentOutOfRangeException(nameof(index))
-    };
-}
-
-internal sealed class ForEachChangeComponentFixture : IDisposable
-{
-    private readonly ComponentId _componentId;
-    private readonly Entity[] _entities;
-
-    internal ForEachChangeComponentFixture(int amount)
-    {
-        var layouts = new ComponentRegistry();
-        _componentId = layouts.Register<ChangeWriteA>(new SchemaId(93_001));
-        ComponentId unusedId = layouts.Register<ChangeWriteUnused>(new SchemaId(93_005));
-        World = new World(layouts, initialEntityCapacity: amount);
-        _entities = new Entity[amount];
-        World.Create([_componentId, unusedId], amount, _entities);
-        if (MicroBenchmarkConfiguration.ScatterChanges) { new Random(93_001).Shuffle(_entities); }
-        Operation = World.ForEachChange<ChangeWriteA>(
-            _componentId,
-            MicroBenchmarkConfiguration.CountChangeCallbacks ? Record : static (Entity entity, ChangeKind change, ref ChangeWriteA component) => { });
-    }
-
-    internal World World { get; }
-    internal ComponentChangeOperation<ChangeWriteA> Operation { get; }
-    internal long NotificationCount { get; private set; }
-
-    private void Record(Entity entity, ChangeKind change, ref ChangeWriteA component) => NotificationCount++;
-
-    internal void MarkModified(int count)
-    {
-        for (int index = 0; index < count; index++)
-        {
-            World.GetRef<ChangeWriteA>(_entities[index], _componentId) = default;
-        }
-    }
-
-    public void Dispose() => World.Dispose();
-}
-
-internal sealed class ForEachChangeTagFixture : IDisposable
-{
-    private readonly ComponentId _tagId;
-    private readonly Entity[] _entities;
-
-    internal ForEachChangeTagFixture(int amount)
-    {
-        var layouts = new ComponentRegistry();
-        _tagId = layouts.Register<ChangeWriteTagA>(new SchemaId(93_011));
-        ComponentId unusedId = layouts.Register<ChangeWriteUnused>(new SchemaId(93_005));
-        World = new World(layouts, initialEntityCapacity: amount);
-        _entities = new Entity[amount];
-        World.Create([_tagId, unusedId], amount, _entities);
-        if (MicroBenchmarkConfiguration.ScatterChanges) { new Random(93_001).Shuffle(_entities); }
-        Operation = World.ForEachChange<ChangeWriteTagA>(
-            _tagId,
-            MicroBenchmarkConfiguration.CountChangeCallbacks ? Record : static (Entity entity, ChangeKind change, ref ChangeWriteTagA tag) => { });
-    }
-
-    internal World World { get; }
-    internal ComponentChangeOperation<ChangeWriteTagA> Operation { get; }
-    internal long NotificationCount { get; private set; }
-
-    private void Record(Entity entity, ChangeKind change, ref ChangeWriteTagA component) => NotificationCount++;
-
-    internal void MarkModified(int count)
-    {
-        for (int index = 0; index < count; index++)
-        {
-            World.GetRef<ChangeWriteTagA>(_entities[index], _tagId) = default;
-        }
-    }
-
-    public void Dispose() => World.Dispose();
-}
-
 public class ForEachWriteObserverMicroBenchmarkImplementation
 {
-    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
     private ComponentWriteFixture[] _componentFixtures = null!;
     private TagWriteFixture[] _tagFixtures = null!;
+    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
 
     [GlobalSetup]
     public void Setup()
@@ -266,11 +67,11 @@ public class ForEachWriteObserverMicroBenchmarkImplementation
 
 public class ForEachChangeMicroBenchmarkImplementation : IDisposable
 {
-    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
     private ForEachChangeComponentFixture _componentFixture = null!;
     private ForEachChangeComponentFixture? _firstComponentFixture;
     private ForEachChangeTagFixture _tagFixture = null!;
     private ForEachChangeTagFixture? _firstTagFixture;
+    public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
 
     [GlobalSetup]
     public void Setup()
@@ -341,4 +142,204 @@ public class ForEachChangeMicroBenchmarkImplementation : IDisposable
         _firstTagFixture?.Dispose();
         GC.SuppressFinalize(this);
     }
+}
+
+internal struct ChangeWriteA { public int Value; }
+internal struct ChangeWriteB { public int Value; }
+internal struct ChangeWriteC { public int Value; }
+internal struct ChangeWriteD { public int Value; }
+internal struct ChangeWriteUnused { public int Value { get; set; } }
+internal struct ChangeWriteTagA { }
+internal struct ChangeWriteTagB { }
+internal struct ChangeWriteTagC { }
+internal struct ChangeWriteTagD { }
+
+internal sealed class ComponentWriteFixture : IDisposable
+{
+    private readonly ComponentId[] _componentIds;
+    private readonly Entity[] _entities;
+    private readonly IOperation _write;
+    private readonly IOperation[] _subscribers;
+
+    internal World World { get; }
+
+    internal ComponentWriteFixture(int amount, int componentCount, int subscriberCount)
+    {
+        var layouts = new ComponentRegistry();
+        _componentIds =
+        [
+            layouts.Register<ChangeWriteA>(new SchemaId(93_001)),
+            layouts.Register<ChangeWriteB>(new SchemaId(93_002)),
+            layouts.Register<ChangeWriteC>(new SchemaId(93_003)),
+            layouts.Register<ChangeWriteD>(new SchemaId(93_004))
+        ];
+        ComponentId unusedId = layouts.Register<ChangeWriteUnused>(new SchemaId(93_005));
+        World = new World(layouts, initialEntityCapacity: amount);
+        _entities = new Entity[amount];
+        var entityComponents = new ComponentId[componentCount + 1];
+        _componentIds.AsSpan(0, componentCount).CopyTo(entityComponents);
+        entityComponents[^1] = unusedId;
+        World.Create(entityComponents, amount, _entities);
+
+        QuerySpec description = QuerySpec.WhereAll(_componentIds.AsSpan(0, componentCount));
+        Query query = World.CreateQuery(in description);
+        _write = componentCount switch
+        {
+            1 => World.ForEach(in query, static (ref ChangeWriteA a) => a.Value++),
+            4 => World.ForEach(in query,
+                static (ref ChangeWriteA a, ref ChangeWriteB b, ref ChangeWriteC c, ref ChangeWriteD d) =>
+                {
+                    a.Value++;
+                    b.Value++;
+                    c.Value++;
+                    d.Value++;
+                }),
+            _ => throw new ArgumentOutOfRangeException(nameof(componentCount))
+        };
+
+        _subscribers = new IOperation[subscriberCount];
+        for (int index = 0; index < subscriberCount; index++)
+        {
+            _subscribers[index] = CreateSubscriber(index % componentCount);
+            _subscribers[index].Invoke();
+        }
+    }
+    public void Dispose() => World.Dispose();
+    internal void Invoke() => _write.Invoke();
+
+    private IOperation CreateSubscriber(int index) => index switch
+    {
+        0 => World.ForEachChange<ChangeWriteA>(_componentIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteA component) => { }),
+        1 => World.ForEachChange<ChangeWriteB>(_componentIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteB component) => { }),
+        2 => World.ForEachChange<ChangeWriteC>(_componentIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteC component) => { }),
+        3 => World.ForEachChange<ChangeWriteD>(_componentIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteD component) => { }),
+        _ => throw new ArgumentOutOfRangeException(nameof(index))
+    };
+}
+
+internal sealed class TagWriteFixture : IDisposable
+{
+    private readonly ComponentId[] _tagIds;
+    private readonly IOperation _write;
+    private readonly IOperation[] _subscribers;
+
+    internal World World { get; }
+
+    internal TagWriteFixture(int amount, int tagCount, int subscriberCount)
+    {
+        var layouts = new ComponentRegistry();
+        _tagIds =
+        [
+            layouts.Register<ChangeWriteTagA>(new SchemaId(93_011)),
+            layouts.Register<ChangeWriteTagB>(new SchemaId(93_012)),
+            layouts.Register<ChangeWriteTagC>(new SchemaId(93_013)),
+            layouts.Register<ChangeWriteTagD>(new SchemaId(93_014))
+        ];
+        ComponentId unusedId = layouts.Register<ChangeWriteUnused>(new SchemaId(93_015));
+        World = new World(layouts, initialEntityCapacity: amount);
+        var entities = new ComponentId[tagCount + 1];
+        _tagIds.AsSpan(0, tagCount).CopyTo(entities);
+        entities[^1] = unusedId;
+        World.Create(entities, amount);
+
+        QuerySpec description = QuerySpec.WhereAll(_tagIds.AsSpan(0, tagCount));
+        Query query = World.CreateQuery(in description);
+        _write = tagCount switch
+        {
+            1 => World.ForEach(in query, static (ref ChangeWriteTagA tag) => { }),
+            4 => World.ForEach(in query,
+                static (ref ChangeWriteTagA a, ref ChangeWriteTagB b, ref ChangeWriteTagC c, ref ChangeWriteTagD d) => { }),
+            _ => throw new ArgumentOutOfRangeException(nameof(tagCount))
+        };
+
+        _subscribers = new IOperation[subscriberCount];
+        for (int index = 0; index < subscriberCount; index++)
+        {
+            _subscribers[index] = CreateSubscriber(index % tagCount);
+            _subscribers[index].Invoke();
+        }
+    }
+    public void Dispose() => World.Dispose();
+    internal void Invoke() => _write.Invoke();
+
+    private IOperation CreateSubscriber(int index) => index switch
+    {
+        0 => World.ForEachChange<ChangeWriteTagA>(_tagIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteTagA tag) => { }),
+        1 => World.ForEachChange<ChangeWriteTagB>(_tagIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteTagB tag) => { }),
+        2 => World.ForEachChange<ChangeWriteTagC>(_tagIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteTagC tag) => { }),
+        3 => World.ForEachChange<ChangeWriteTagD>(_tagIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteTagD tag) => { }),
+        _ => throw new ArgumentOutOfRangeException(nameof(index))
+    };
+}
+
+internal sealed class ForEachChangeComponentFixture : IDisposable
+{
+    private readonly ComponentId _componentId;
+    private readonly Entity[] _entities;
+
+    internal World World { get; }
+    internal ComponentChangeOperation<ChangeWriteA> Operation { get; }
+    internal long NotificationCount { get; private set; }
+
+    internal ForEachChangeComponentFixture(int amount)
+    {
+        var layouts = new ComponentRegistry();
+        _componentId = layouts.Register<ChangeWriteA>(new SchemaId(93_001));
+        ComponentId unusedId = layouts.Register<ChangeWriteUnused>(new SchemaId(93_005));
+        World = new World(layouts, initialEntityCapacity: amount);
+        _entities = new Entity[amount];
+        World.Create([_componentId, unusedId], amount, _entities);
+        if (MicroBenchmarkConfiguration.ScatterChanges) { new Random(93_001).Shuffle(_entities); }
+        Operation = World.ForEachChange<ChangeWriteA>(
+            _componentId,
+            MicroBenchmarkConfiguration.CountChangeCallbacks ? Record : static (Entity entity, ChangeKind change, ref ChangeWriteA component) => { });
+    }
+
+    public void Dispose() => World.Dispose();
+
+    internal void MarkModified(int count)
+    {
+        for (int index = 0; index < count; index++)
+        {
+            World.GetRef<ChangeWriteA>(_entities[index], _componentId) = default;
+        }
+    }
+
+    private void Record(Entity entity, ChangeKind change, ref ChangeWriteA component) => NotificationCount++;
+}
+
+internal sealed class ForEachChangeTagFixture : IDisposable
+{
+    private readonly ComponentId _tagId;
+    private readonly Entity[] _entities;
+
+    internal World World { get; }
+    internal ComponentChangeOperation<ChangeWriteTagA> Operation { get; }
+    internal long NotificationCount { get; private set; }
+
+    internal ForEachChangeTagFixture(int amount)
+    {
+        var layouts = new ComponentRegistry();
+        _tagId = layouts.Register<ChangeWriteTagA>(new SchemaId(93_011));
+        ComponentId unusedId = layouts.Register<ChangeWriteUnused>(new SchemaId(93_005));
+        World = new World(layouts, initialEntityCapacity: amount);
+        _entities = new Entity[amount];
+        World.Create([_tagId, unusedId], amount, _entities);
+        if (MicroBenchmarkConfiguration.ScatterChanges) { new Random(93_001).Shuffle(_entities); }
+        Operation = World.ForEachChange<ChangeWriteTagA>(
+            _tagId,
+            MicroBenchmarkConfiguration.CountChangeCallbacks ? Record : static (Entity entity, ChangeKind change, ref ChangeWriteTagA tag) => { });
+    }
+
+    public void Dispose() => World.Dispose();
+
+    internal void MarkModified(int count)
+    {
+        for (int index = 0; index < count; index++)
+        {
+            World.GetRef<ChangeWriteTagA>(_entities[index], _tagId) = default;
+        }
+    }
+
+    private void Record(Entity entity, ChangeKind change, ref ChangeWriteTagA component) => NotificationCount++;
 }

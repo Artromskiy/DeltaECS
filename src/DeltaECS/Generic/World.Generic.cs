@@ -74,45 +74,79 @@ public sealed partial class World
         return TryGetCore(entity, componentId, out value);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TryGetRegisteredCore<T>(Entity entity, ComponentId componentId, out T value)
+    /// <summary>Reports whether an alive entity owns the primary component for <typeparamref name="T"/>.</summary>
+    public bool Has<T>(Entity entity)
     {
-        if (TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
+        EnsureExecutionAccess();
+        if (!TryGetPrimaryComponentId<T>(out ComponentId componentId))
         {
-            return TryGetRegisteredCore<T>(chunk, slotIndex, componentId, out value);
-        }
-
-        value = default!;
-        return false;
-
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TryGetRegisteredCoreTrusted<T>(Entity entity, ComponentId componentId, out T value)
-    {
-        Chunk chunk = GetEntityRefLocationTrusted(entity, out int slotIndex);
-        return TryGetRegisteredCore<T>(chunk, slotIndex, componentId, out value);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TryGetRegisteredCore<T>(Chunk chunk, int slotIndex, ComponentId componentId, out T value)
-    {
-        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
-        {
-            value = default!;
-            return chunk.HasTag(tagIndex, slotIndex);
-        }
-
-        Archetype archetype = Archetypes[chunk.ArchetypeId];
-        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
-        {
-            value = default!;
             return false;
         }
 
-        value = chunk.GetComponentRef<T>(componentIndex, slotIndex);
-        return true;
+        return Has(entity, componentId);
     }
+
+    /// <summary>
+    /// Reads one component, throwing when the entity is stale, missing the row,
+    /// or the requested type does not match the registered component type.
+    /// </summary>
+    public T Get<T>(Entity entity, ComponentId componentId)
+    {
+        EnsureRegisteredType<T>(componentId);
+        if (!TryGetRegisteredCore(entity, componentId, out T value))
+        {
+            return ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+        }
+
+        return value;
+    }
+
+    /// <summary>Reads the primary component for <typeparamref name="T"/> or throws when it is missing.</summary>
+    public T Get<T>(Entity entity)
+    {
+        ComponentId componentId = GetPrimaryComponentId<T>();
+        if (TryGetRegisteredCore(entity, componentId, out T value))
+        {
+            return value;
+        }
+
+        return ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+    }
+
+    /// <summary>
+    /// Returns a writable reference to one component row.
+    /// </summary>
+    /// <remarks>
+    /// The reference is invalid after a structural operation moves the entity
+    /// or changes its component rows. For a tag, this is a shared default
+    /// placeholder; writes through it are not stored.
+    /// </remarks>
+    public ref T GetRef<T>(Entity entity, ComponentId componentId)
+    {
+        EnsureExecutionAccess();
+        EnsureRegisteredType<T>(componentId);
+        return ref GetRefUnchecked<T>(entity, componentId);
+    }
+
+    /// <summary>Returns a writable reference to the primary component row.</summary>
+    public ref T GetRef<T>(Entity entity) => ref GetRefUnchecked<T>(entity, GetPrimaryComponentId<T>());
+
+    /// <summary>Returns a read-only reference to one component row.</summary>
+    /// <remarks>
+    /// The reference is invalid after a structural operation moves the entity
+    /// or changes its component rows. For a tag, this refers to the shared
+    /// default placeholder because tags have no per-entity value.
+    /// </remarks>
+    public ref readonly T GetReadRef<T>(Entity entity, ComponentId componentId)
+    {
+        EnsureExecutionAccess();
+        EnsureRegisteredType<T>(componentId);
+        return ref GetReadRefUnchecked<T>(entity, componentId);
+    }
+
+    /// <summary>Returns a read-only reference to the primary component row.</summary>
+    public ref readonly T GetReadRef<T>(Entity entity)
+        => ref GetReadRefUnchecked<T>(entity, GetPrimaryComponentId<T>());
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetTrusted<T>(Entity entity, out T value)
@@ -138,18 +172,6 @@ public sealed partial class World
         return TryGetTrusted<T>(ref view, componentId, out value);
     }
 
-    /// <summary>Reports whether an alive entity owns the primary component for <typeparamref name="T"/>.</summary>
-    public bool Has<T>(Entity entity)
-    {
-        EnsureExecutionAccess();
-        if (!TryGetPrimaryComponentId<T>(out ComponentId componentId))
-        {
-            return false;
-        }
-
-        return Has(entity, componentId);
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool HasTrusted<T>(Entity entity) => TryGetPrimaryComponentId<T>(out ComponentId componentId)
         && HasTrusted(entity, componentId);
@@ -171,21 +193,6 @@ public sealed partial class World
         }
 
         return IsRegisteredType<T>(componentId) && HasTrusted(ref view, componentId);
-    }
-
-    /// <summary>
-    /// Reads one component, throwing when the entity is stale, missing the row,
-    /// or the requested type does not match the registered component type.
-    /// </summary>
-    public T Get<T>(Entity entity, ComponentId componentId)
-    {
-        EnsureRegisteredType<T>(componentId);
-        if (!TryGetRegisteredCore(entity, componentId, out T value))
-        {
-            return ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
-        }
-
-        return value;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -211,18 +218,6 @@ public sealed partial class World
             : ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
     }
 
-    /// <summary>Reads the primary component for <typeparamref name="T"/> or throws when it is missing.</summary>
-    public T Get<T>(Entity entity)
-    {
-        ComponentId componentId = GetPrimaryComponentId<T>();
-        if (TryGetRegisteredCore(entity, componentId, out T value))
-        {
-            return value;
-        }
-
-        return ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal T GetTrusted<T>(Entity entity)
     {
@@ -237,21 +232,6 @@ public sealed partial class World
     {
         ComponentId componentId = GetPrimaryComponentId<T>();
         return GetTrusted<T>(ref view, componentId);
-    }
-
-    /// <summary>
-    /// Returns a writable reference to one component row.
-    /// </summary>
-    /// <remarks>
-    /// The reference is invalid after a structural operation moves the entity
-    /// or changes its component rows. For a tag, this is a shared default
-    /// placeholder; writes through it are not stored.
-    /// </remarks>
-    public ref T GetRef<T>(Entity entity, ComponentId componentId)
-    {
-        EnsureExecutionAccess();
-        EnsureRegisteredType<T>(componentId);
-        return ref GetRefUnchecked<T>(entity, componentId);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -288,90 +268,6 @@ public sealed partial class World
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ref T GetRefUnchecked<T>(Entity entity, ComponentId componentId)
-    {
-        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
-        {
-            ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
-        }
-
-        return ref GetRefUnchecked<T>(entity, componentId, chunk, slotIndex);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ref T GetRefTrustedUnchecked<T>(Entity entity, ComponentId componentId)
-    {
-        Chunk chunk = GetEntityRefLocationTrusted(entity, out int slotIndex);
-        return ref GetRefUnchecked<T>(entity, componentId, chunk, slotIndex);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ref T GetRefUnchecked<T>(Entity entity, ComponentId componentId, Chunk chunk, int slotIndex)
-    {
-        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
-        {
-            if (!chunk.HasTag(tagIndex, slotIndex))
-            {
-                ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
-            }
-
-            if (_componentChangeObservers is not null)
-            {
-                RecordComponentChange(chunk, slotIndex, componentId);
-            }
-
-            return ref GeneratedTagRows.GetReference<T>(0);
-        }
-
-        var archetype = Archetypes[chunk.ArchetypeId];
-        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
-        {
-            ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
-        }
-
-        if (_componentChangeObservers is not null)
-        {
-            RecordComponentChange(chunk, slotIndex, componentId);
-        }
-        return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ref T GetRefUnchecked<T>(ref GeneratedEntityRefView view, ComponentId componentId, Chunk chunk)
-    {
-        int slotIndex = view.SlotIndex;
-        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
-        {
-            if (!chunk.HasTag(tagIndex, slotIndex))
-            {
-                ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
-            }
-
-            if (_componentChangeObservers is not null)
-            {
-                RecordComponentChange(chunk, slotIndex, componentId);
-            }
-
-            return ref GeneratedTagRows.GetReference<T>(0);
-        }
-
-        var archetype = Archetypes[chunk.ArchetypeId];
-        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
-        {
-            ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
-        }
-
-        if (_componentChangeObservers is not null)
-        {
-            RecordComponentChange(chunk, slotIndex, componentId);
-        }
-        return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
-    }
-
-    /// <summary>Returns a writable reference to the primary component row.</summary>
-    public ref T GetRef<T>(Entity entity) => ref GetRefUnchecked<T>(entity, GetPrimaryComponentId<T>());
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref T GetRefTrusted<T>(Entity entity) => ref GetRefTrustedUnchecked<T>(entity, GetPrimaryComponentId<T>());
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -379,19 +275,6 @@ public sealed partial class World
     {
         ComponentId componentId = GetPrimaryComponentId<T>();
         return ref GetRefTrusted<T>(ref view, componentId);
-    }
-
-    /// <summary>Returns a read-only reference to one component row.</summary>
-    /// <remarks>
-    /// The reference is invalid after a structural operation moves the entity
-    /// or changes its component rows. For a tag, this refers to the shared
-    /// default placeholder because tags have no per-entity value.
-    /// </remarks>
-    public ref readonly T GetReadRef<T>(Entity entity, ComponentId componentId)
-    {
-        EnsureExecutionAccess();
-        EnsureRegisteredType<T>(componentId);
-        return ref GetReadRefUnchecked<T>(entity, componentId);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -427,62 +310,6 @@ public sealed partial class World
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ref readonly T GetReadRefTrustedUnchecked<T>(Entity entity, ComponentId componentId)
-    {
-        Chunk chunk = GetEntityRefLocationTrusted(entity, out int slotIndex);
-        return ref GetReadRefUnchecked<T>(entity, componentId, chunk, slotIndex);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ref readonly T GetReadRefUnchecked<T>(Entity entity, ComponentId componentId, Chunk chunk, int slotIndex)
-    {
-        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
-        {
-            if (!chunk.HasTag(tagIndex, slotIndex))
-            {
-                ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
-            }
-
-            return ref GeneratedTagRows.GetReference<T>(0);
-        }
-
-        var archetype = Archetypes[chunk.ArchetypeId];
-        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
-        {
-            ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
-        }
-
-        return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ref readonly T GetReadRefUnchecked<T>(ref GeneratedEntityRefView view, ComponentId componentId, Chunk chunk)
-    {
-        int slotIndex = view.SlotIndex;
-        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
-        {
-            if (!chunk.HasTag(tagIndex, slotIndex))
-            {
-                ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
-            }
-
-            return ref GeneratedTagRows.GetReference<T>(0);
-        }
-
-        var archetype = Archetypes[chunk.ArchetypeId];
-        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
-        {
-            ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
-        }
-
-        return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
-    }
-
-    /// <summary>Returns a read-only reference to the primary component row.</summary>
-    public ref readonly T GetReadRef<T>(Entity entity)
-        => ref GetReadRefUnchecked<T>(entity, GetPrimaryComponentId<T>());
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref readonly T GetReadRefTrusted<T>(Entity entity)
         => ref GetReadRefTrustedUnchecked<T>(entity, GetPrimaryComponentId<T>());
 
@@ -491,68 +318,6 @@ public sealed partial class World
     {
         ComponentId componentId = GetPrimaryComponentId<T>();
         return ref GetReadRefTrusted<T>(ref view, componentId);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool IsRegisteredType<T>(ComponentId componentId)
-    {
-        return _layouts.TryGet(componentId, out var layout)
-            && layout.RuntimeType == typeof(T);
-    }
-
-    private int AddComponentBatch<T>(ReadOnlySpan<Entity> entities, ComponentId componentId, in T value)
-    {
-        if (entities.Length == 0)
-        {
-            return 0;
-        }
-
-        EnsureNoActiveLease("add components");
-        ComponentSet changeSet = GetOrCreateComponentSet(stackalloc[] { componentId });
-        int edgeGeneration = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
-        int changed = 0;
-        Chunk? pendingChunk = null;
-        int pendingComponentIndex = -1;
-        int pendingSlotIndex = 0;
-        int pendingCount = 0;
-        for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
-        {
-            Entity entity = entities.RefAt(entityIndex);
-            if (!TryResolve(entity, out int recordIndex, out Chunk sourceChunk, out int sourceSlotIndex))
-            {
-                continue;
-            }
-
-            var sourceArchetype = Archetypes[sourceChunk.ArchetypeId];
-            var edge = edgeGeneration == 0
-                ? GetTransitionEdge(sourceArchetype.Id, changeSet, true)
-                : GetBatchTransitionEdge(sourceArchetype.Id, changeSet, true, edgeGeneration);
-            if (edge.IsNoOp)
-            {
-                continue;
-            }
-
-            MoveEntity(recordIndex, edge, out Chunk targetChunk, out int targetSlotIndex);
-            var targetArchetype = Archetypes[targetChunk.ArchetypeId];
-            int targetComponentIndex = targetArchetype.Mask.Rank(componentId);
-            if (pendingChunk is null
-                || !ReferenceEquals(pendingChunk, targetChunk)
-                || pendingComponentIndex != targetComponentIndex
-                || targetSlotIndex != pendingSlotIndex + pendingCount)
-            {
-                FillComponentRange(pendingChunk, pendingComponentIndex, pendingSlotIndex, pendingCount, in value);
-                pendingChunk = targetChunk;
-                pendingComponentIndex = targetComponentIndex;
-                pendingSlotIndex = targetSlotIndex;
-                pendingCount = 0;
-            }
-
-            pendingCount++;
-            changed++;
-        }
-
-        FillComponentRange(pendingChunk, pendingComponentIndex, pendingSlotIndex, pendingCount, in value);
-        return changed;
     }
 
     internal bool AddGeneratedComponentValues<TInitializer>(
@@ -719,6 +484,10 @@ public sealed partial class World
         return entity;
     }
 
+    internal void ValidateGeneratedComponentType<T>(ComponentId componentId) => EnsureRegisteredType<T>(componentId);
+
+    internal bool IsGeneratedComponentType<T>(ComponentId componentId) => IsRegisteredType<T>(componentId);
+
     private static void InitializeGeneratedComponentRange<TInitializer>(
         Chunk? chunk,
         Archetype? archetype,
@@ -748,6 +517,241 @@ public sealed partial class World
         chunk.GetComponentRow<T>(componentIndex).Slice(slotIndex, count).Fill(value);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryGetRegisteredCore<T>(Entity entity, ComponentId componentId, out T value)
+    {
+        if (TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
+        {
+            return TryGetRegisteredCore<T>(chunk, slotIndex, componentId, out value);
+        }
+
+        value = default!;
+        return false;
+
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryGetRegisteredCoreTrusted<T>(Entity entity, ComponentId componentId, out T value)
+    {
+        Chunk chunk = GetEntityRefLocationTrusted(entity, out int slotIndex);
+        return TryGetRegisteredCore<T>(chunk, slotIndex, componentId, out value);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryGetRegisteredCore<T>(Chunk chunk, int slotIndex, ComponentId componentId, out T value)
+    {
+        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
+        {
+            value = default!;
+            return chunk.HasTag(tagIndex, slotIndex);
+        }
+
+        Archetype archetype = Archetypes[chunk.ArchetypeId];
+        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
+        {
+            value = default!;
+            return false;
+        }
+
+        value = chunk.GetComponentRef<T>(componentIndex, slotIndex);
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ref T GetRefUnchecked<T>(Entity entity, ComponentId componentId)
+    {
+        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
+        {
+            ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+        }
+
+        return ref GetRefUnchecked<T>(entity, componentId, chunk, slotIndex);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ref T GetRefTrustedUnchecked<T>(Entity entity, ComponentId componentId)
+    {
+        Chunk chunk = GetEntityRefLocationTrusted(entity, out int slotIndex);
+        return ref GetRefUnchecked<T>(entity, componentId, chunk, slotIndex);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ref T GetRefUnchecked<T>(Entity entity, ComponentId componentId, Chunk chunk, int slotIndex)
+    {
+        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
+        {
+            if (!chunk.HasTag(tagIndex, slotIndex))
+            {
+                ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+            }
+
+            if (_componentChangeObservers is not null)
+            {
+                RecordComponentChange(chunk, slotIndex, componentId);
+            }
+
+            return ref GeneratedTagRows.GetReference<T>(0);
+        }
+
+        var archetype = Archetypes[chunk.ArchetypeId];
+        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
+        {
+            ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+        }
+
+        if (_componentChangeObservers is not null)
+        {
+            RecordComponentChange(chunk, slotIndex, componentId);
+        }
+        return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ref T GetRefUnchecked<T>(ref GeneratedEntityRefView view, ComponentId componentId, Chunk chunk)
+    {
+        int slotIndex = view.SlotIndex;
+        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
+        {
+            if (!chunk.HasTag(tagIndex, slotIndex))
+            {
+                ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
+            }
+
+            if (_componentChangeObservers is not null)
+            {
+                RecordComponentChange(chunk, slotIndex, componentId);
+            }
+
+            return ref GeneratedTagRows.GetReference<T>(0);
+        }
+
+        var archetype = Archetypes[chunk.ArchetypeId];
+        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
+        {
+            ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
+        }
+
+        if (_componentChangeObservers is not null)
+        {
+            RecordComponentChange(chunk, slotIndex, componentId);
+        }
+        return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ref readonly T GetReadRefTrustedUnchecked<T>(Entity entity, ComponentId componentId)
+    {
+        Chunk chunk = GetEntityRefLocationTrusted(entity, out int slotIndex);
+        return ref GetReadRefUnchecked<T>(entity, componentId, chunk, slotIndex);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ref readonly T GetReadRefUnchecked<T>(Entity entity, ComponentId componentId, Chunk chunk, int slotIndex)
+    {
+        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
+        {
+            if (!chunk.HasTag(tagIndex, slotIndex))
+            {
+                ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+            }
+
+            return ref GeneratedTagRows.GetReference<T>(0);
+        }
+
+        var archetype = Archetypes[chunk.ArchetypeId];
+        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
+        {
+            ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
+        }
+
+        return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ref readonly T GetReadRefUnchecked<T>(ref GeneratedEntityRefView view, ComponentId componentId, Chunk chunk)
+    {
+        int slotIndex = view.SlotIndex;
+        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
+        {
+            if (!chunk.HasTag(tagIndex, slotIndex))
+            {
+                ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
+            }
+
+            return ref GeneratedTagRows.GetReference<T>(0);
+        }
+
+        var archetype = Archetypes[chunk.ArchetypeId];
+        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
+        {
+            ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
+        }
+
+        return ref chunk.GetComponentRef<T>(componentIndex, slotIndex);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool IsRegisteredType<T>(ComponentId componentId)
+    {
+        return _layouts.TryGet(componentId, out var layout)
+            && layout.RuntimeType == typeof(T);
+    }
+
+    private int AddComponentBatch<T>(ReadOnlySpan<Entity> entities, ComponentId componentId, in T value)
+    {
+        if (entities.Length == 0)
+        {
+            return 0;
+        }
+
+        EnsureNoActiveLease("add components");
+        ComponentSet changeSet = GetOrCreateComponentSet(stackalloc[] { componentId });
+        int edgeGeneration = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
+        int changed = 0;
+        Chunk? pendingChunk = null;
+        int pendingComponentIndex = -1;
+        int pendingSlotIndex = 0;
+        int pendingCount = 0;
+        for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
+        {
+            Entity entity = entities.RefAt(entityIndex);
+            if (!TryResolve(entity, out int recordIndex, out Chunk sourceChunk, out int sourceSlotIndex))
+            {
+                continue;
+            }
+
+            var sourceArchetype = Archetypes[sourceChunk.ArchetypeId];
+            var edge = edgeGeneration == 0
+                ? GetTransitionEdge(sourceArchetype.Id, changeSet, true)
+                : GetBatchTransitionEdge(sourceArchetype.Id, changeSet, true, edgeGeneration);
+            if (edge.IsNoOp)
+            {
+                continue;
+            }
+
+            MoveEntity(recordIndex, edge, out Chunk targetChunk, out int targetSlotIndex);
+            var targetArchetype = Archetypes[targetChunk.ArchetypeId];
+            int targetComponentIndex = targetArchetype.Mask.Rank(componentId);
+            if (pendingChunk is null
+                || !ReferenceEquals(pendingChunk, targetChunk)
+                || pendingComponentIndex != targetComponentIndex
+                || targetSlotIndex != pendingSlotIndex + pendingCount)
+            {
+                FillComponentRange(pendingChunk, pendingComponentIndex, pendingSlotIndex, pendingCount, in value);
+                pendingChunk = targetChunk;
+                pendingComponentIndex = targetComponentIndex;
+                pendingSlotIndex = targetSlotIndex;
+                pendingCount = 0;
+            }
+
+            pendingCount++;
+            changed++;
+        }
+
+        FillComponentRange(pendingChunk, pendingComponentIndex, pendingSlotIndex, pendingCount, in value);
+        return changed;
+    }
+
     private int RemoveComponentBatch(ReadOnlySpan<Entity> entities, ComponentId componentId)
         => ApplyComponents(false, stackalloc[] { componentId }, entities);
 
@@ -763,10 +767,6 @@ public sealed partial class World
             ThrowHelper.ThrowGenericComponentTypeMismatch<T>(componentId, layout.RuntimeType!);
         }
     }
-
-    internal void ValidateGeneratedComponentType<T>(ComponentId componentId) => EnsureRegisteredType<T>(componentId);
-
-    internal bool IsGeneratedComponentType<T>(ComponentId componentId) => IsRegisteredType<T>(componentId);
 
     private void InitializeComponentValue<T>(Entity entity, ComponentId componentId, in T value)
     {

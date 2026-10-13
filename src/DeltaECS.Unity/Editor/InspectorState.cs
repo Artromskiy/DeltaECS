@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+
 using UnityEditor;
+
 using UnityEngine;
 
 namespace Delta.ECS.Unity.Editor
@@ -12,13 +14,6 @@ namespace Delta.ECS.Unity.Editor
     {
         private const string LegacyOrderPreferencePrefix = "DeltaEcs.Inspector.ComponentOrder.";
         private const string LegacyCollapsePreferencePrefix = "DeltaEcs.Inspector.ComponentCollapsed.";
-
-        [Serializable]
-        private struct ComponentFoldout
-        {
-            public string Schema;
-            public bool Expanded;
-        }
 
         [SerializeField] private List<string> _componentOrder = new();
         [SerializeField] private List<ComponentFoldout> _componentFoldouts = new();
@@ -148,6 +143,14 @@ namespace Delta.ECS.Unity.Editor
             Save(true);
         }
 
+        private static string GetLegacyCollapseKey(ulong schema) =>
+            $"{LegacyCollapsePreferencePrefix}{Application.dataPath}:{FormatSchema(schema)}";
+
+        private static string FormatSchema(ulong schema) => schema.ToString("X16", CultureInfo.InvariantCulture);
+
+        private static bool TryParseSchema(string value, out ulong schema) =>
+            ulong.TryParse(value, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out schema);
+
         private int FindFoldout(ulong schema)
         {
             string schemaText = FormatSchema(schema);
@@ -209,12 +212,11 @@ namespace Delta.ECS.Unity.Editor
             }
         }
 
-        private static string GetLegacyCollapseKey(ulong schema) =>
-            $"{LegacyCollapsePreferencePrefix}{Application.dataPath}:{FormatSchema(schema)}";
-
-        private static string FormatSchema(ulong schema) => schema.ToString("X16", CultureInfo.InvariantCulture);
-
-        private static bool TryParseSchema(string value, out ulong schema) =>
-            ulong.TryParse(value, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out schema);
+        [Serializable]
+        private struct ComponentFoldout
+        {
+            public string Schema;
+            public bool Expanded;
+        }
     }
 }

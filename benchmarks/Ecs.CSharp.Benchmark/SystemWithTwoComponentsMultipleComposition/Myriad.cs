@@ -1,8 +1,11 @@
 using System;
 using System.Numerics;
+
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.MyriadComponents;
+
 using Myriad.ECS;
 using Myriad.ECS.Collections;
 using Myriad.ECS.Command;
@@ -13,6 +16,27 @@ namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithTwoComponentsMultipleComposition
     {
+
+        [Context]
+        private readonly MyriadContext _myriad;
+
+        [BenchmarkCategory(Categories.Myriad, Categories.SingleThread)]
+        [Benchmark]
+        public int MyriadSingleThread()
+        {
+            World world = _myriad.World;
+            world.Execute<MyriadForEach2, Component1, Component2>();
+            return EntityCount;
+        }
+
+        [BenchmarkCategory(Categories.Myriad, Categories.SingleThread)]
+        [Benchmark]
+        public int MyriadSingleThreadChunk()
+        {
+            World world = _myriad.World;
+            world.ExecuteChunk<MyriadForEach2, Component1, Component2>();
+            return EntityCount;
+        }
         private struct MyriadForEach2
             : IQuery<Component1, Component2>, IChunkQuery<Component1, Component2>
         {
@@ -70,27 +94,6 @@ namespace Ecs.CSharp.Benchmark
 
                 cmd.Playback().Dispose();
             }
-        }
-
-        [Context]
-        private readonly MyriadContext _myriad;
-
-        [BenchmarkCategory(Categories.Myriad, Categories.SingleThread)]
-        [Benchmark]
-        public int MyriadSingleThread()
-        {
-            World world = _myriad.World;
-            world.Execute<MyriadForEach2, Component1, Component2>();
-            return EntityCount;
-        }
-
-        [BenchmarkCategory(Categories.Myriad, Categories.SingleThread)]
-        [Benchmark]
-        public int MyriadSingleThreadChunk()
-        {
-            World world = _myriad.World;
-            world.ExecuteChunk<MyriadForEach2, Component1, Component2>();
-            return EntityCount;
         }
 
 #if INCLUDE_SLOW_BENCHMARKS

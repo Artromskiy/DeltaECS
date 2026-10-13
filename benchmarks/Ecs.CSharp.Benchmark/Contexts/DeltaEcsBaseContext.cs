@@ -1,6 +1,8 @@
 using System;
 using System.Runtime.CompilerServices;
+
 using Delta.ECS;
+
 using DeltaComponentId = Delta.ECS.ComponentId;
 using DeltaEntity = Delta.ECS.Entity;
 using DeltaLayoutRegistry = Delta.ECS.ComponentRegistry;
@@ -8,6 +10,7 @@ using DeltaQuery = Delta.ECS.Query;
 using DeltaQuerySpec = Delta.ECS.QuerySpec;
 using DeltaSchemaId = Delta.ECS.SchemaId;
 using DeltaWorld = Delta.ECS.World;
+
 using Ecs.CSharp.Benchmark.Contexts.DeltaEcsComponents;
 
 namespace Ecs.CSharp.Benchmark.Contexts
@@ -48,6 +51,11 @@ namespace Ecs.CSharp.Benchmark.Contexts
         internal struct DeltaCompositionPadding3
         {
         }
+    }
+
+    public static class ParallelContext
+    {
+        public static int ParallelWorkerCount = Environment.ProcessorCount;
     }
 
     internal struct DeltaComponent1Functor : IForEach
@@ -192,9 +200,9 @@ namespace Ecs.CSharp.Benchmark.Contexts
 
     internal sealed class DeltaSystemOneContext : IDisposable
     {
-        internal DeltaWorld World { get; }
 
         internal DeltaQuery Query;
+        internal DeltaWorld World { get; }
 
         internal DeltaComponentId Component { get; }
 
@@ -227,9 +235,9 @@ namespace Ecs.CSharp.Benchmark.Contexts
 
     internal sealed class DeltaSystemTwoContext : IDisposable
     {
-        internal DeltaWorld World { get; }
 
         internal DeltaQuery Query;
+        internal DeltaWorld World { get; }
 
         internal DeltaComponentId First { get; }
 
@@ -266,9 +274,9 @@ namespace Ecs.CSharp.Benchmark.Contexts
 
     internal sealed class DeltaSystemThreeContext : IDisposable
     {
-        internal DeltaWorld World { get; }
 
         internal DeltaQuery Query;
+        internal DeltaWorld World { get; }
 
         internal DeltaComponentId First { get; }
 
@@ -309,9 +317,9 @@ namespace Ecs.CSharp.Benchmark.Contexts
 
     internal sealed class DeltaSystemMultipleCompositionContext : IDisposable
     {
-        internal DeltaWorld World { get; }
 
         internal DeltaQuery Query;
+        internal DeltaWorld World { get; }
 
         internal DeltaComponentId First { get; }
 
@@ -354,10 +362,5 @@ namespace Ecs.CSharp.Benchmark.Contexts
         }
 
         void IDisposable.Dispose() => World.Dispose();
-    }
-
-    public static class ParallelContext
-    {
-        public static int ParallelWorkerCount = Environment.ProcessorCount;
     }
 }

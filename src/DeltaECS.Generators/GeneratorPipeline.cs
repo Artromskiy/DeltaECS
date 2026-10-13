@@ -1,36 +1,9 @@
 using System.Collections.Immutable;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Delta.ECS.Generators;
-
-internal sealed class ShapeRegistry<TShape>
-    where TShape : class
-{
-    private readonly Func<TShape, string> _key;
-    private readonly Dictionary<string, TShape> _items = new(StringComparer.Ordinal);
-
-    internal ShapeRegistry(Func<TShape, string> key)
-    {
-        _key = key;
-    }
-
-    internal TShape GetOrAdd(TShape candidate, Action<TShape, TShape>? merge = null)
-    {
-        string shapeKey = _key(candidate);
-        if (_items.TryGetValue(shapeKey, out TShape? existing))
-        {
-            merge?.Invoke(existing, candidate);
-            return existing;
-        }
-
-        _items.Add(shapeKey, candidate);
-        return candidate;
-    }
-
-    internal IEnumerable<TShape> Ordered() => _items.OrderBy(static pair => pair.Key, StringComparer.Ordinal)
-            .Select(static pair => pair.Value);
-}
 
 internal static class GeneratorPipeline
 {
@@ -93,4 +66,32 @@ internal static class GeneratorPipeline
                 render(shape));
         }
     }
+}
+
+internal sealed class ShapeRegistry<TShape>
+    where TShape : class
+{
+    private readonly Func<TShape, string> _key;
+    private readonly Dictionary<string, TShape> _items = new(StringComparer.Ordinal);
+
+    internal ShapeRegistry(Func<TShape, string> key)
+    {
+        _key = key;
+    }
+
+    internal TShape GetOrAdd(TShape candidate, Action<TShape, TShape>? merge = null)
+    {
+        string shapeKey = _key(candidate);
+        if (_items.TryGetValue(shapeKey, out TShape? existing))
+        {
+            merge?.Invoke(existing, candidate);
+            return existing;
+        }
+
+        _items.Add(shapeKey, candidate);
+        return candidate;
+    }
+
+    internal IEnumerable<TShape> Ordered() => _items.OrderBy(static pair => pair.Key, StringComparer.Ordinal)
+            .Select(static pair => pair.Value);
 }

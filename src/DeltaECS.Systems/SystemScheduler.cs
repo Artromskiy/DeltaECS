@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.ExceptionServices;
 using System.Threading;
+
 using Delta.ECS;
 
 /// <summary>
@@ -20,6 +21,21 @@ public sealed class SystemScheduler : IDisposable
     private QueryPlanVersion[] _queryPlanVersions = Array.Empty<QueryPlanVersion>();
     private int _executing;
     private bool _disposed;
+
+    /// <summary>Gets the world shared by the scheduler's systems.</summary>
+    public World World { get; }
+
+    /// <summary>Gets the effective worker count; linear execution always returns one.</summary>
+    public int WorkerCount { get; }
+
+    /// <summary>Gets the number of registered systems.</summary>
+    public int Count => _systems.Count;
+
+    /// <summary>Gets whether the current system list has a compiled schedule.</summary>
+    public bool IsBuilt { get; private set; }
+
+    /// <summary>Gets a registered system by registration order.</summary>
+    public ISystem this[int index] => _systems[index];
 
     /// <summary>Creates a scheduler for one world with dependency-aware scheduling.</summary>
     /// <param name="world">World shared by all registered systems.</param>
@@ -69,21 +85,6 @@ public sealed class SystemScheduler : IDisposable
             _workers = new SchedulerWorkers(World, WorkerCount);
         }
     }
-
-    /// <summary>Gets the world shared by the scheduler's systems.</summary>
-    public World World { get; }
-
-    /// <summary>Gets the effective worker count; linear execution always returns one.</summary>
-    public int WorkerCount { get; }
-
-    /// <summary>Gets the number of registered systems.</summary>
-    public int Count => _systems.Count;
-
-    /// <summary>Gets whether the current system list has a compiled schedule.</summary>
-    public bool IsBuilt { get; private set; }
-
-    /// <summary>Gets a registered system by registration order.</summary>
-    public ISystem this[int index] => _systems[index];
 
     /// <summary>Adds a world-bound system and invalidates the compiled schedule.</summary>
     public void Add(ISystem system)
@@ -151,86 +152,6 @@ public sealed class SystemScheduler : IDisposable
         EnsureUsable();
         EnsureNotExecuting();
         BuildCore();
-    }
-
-    private void BuildCore()
-    {
-        int systemCount = _systems.Count;
-        if (systemCount == 0)
-        {
-            _batches = Array.Empty<ScheduleBatch>();
-            _queryPlanVersions = Array.Empty<QueryPlanVersion>();
-            _workers?.PrepareCapacity(0);
-            IsBuilt = true;
-            return;
-        }
-
-        if (!_optimizeSchedule)
-        {
-            ISystem[] systems = _systems.ToArray();
-            for (int index = 0; index < systems.Length; index++)
-            {
-                if (!ReferenceEquals(systems[index].World, World))
-                {
-                    ThrowHelper.ThrowSystemWorldChanged();
-                }
-            }
-
-            _batches = new[] { new ScheduleBatch(systems) };
-            _queryPlanVersions = Array.Empty<QueryPlanVersion>();
-            IsBuilt = true;
-            return;
-        }
-
-        var nodes = new SystemNode[systemCount];
-        for (int index = 0; index < systemCount; index++)
-        {
-            ISystem system = _systems[index];
-            if (!ReferenceEquals(system.World, World))
-            {
-                ThrowHelper.ThrowSystemWorldChanged();
-            }
-
-            SystemAccess access = system.Access;
-            ValidateQueryAccessWorlds(in access);
-            nodes[index] = new SystemNode(system, access);
-        }
-
-        int[] levels = new int[systemCount];
-        int maximumLevel = 0;
-        for (int current = 0; current < systemCount; current++)
-        {
-            int level = 0;
-            SystemAccess currentAccess = nodes[current].Access;
-            for (int previous = 0; previous < current; previous++)
-            {
-                SystemAccess previousAccess = nodes[previous].Access;
-                if (Conflicts(in previousAccess, in currentAccess))
-                {
-                    level = Math.Max(level, levels[previous] + 1);
-                }
-            }
-
-            levels[current] = level;
-            maximumLevel = Math.Max(maximumLevel, level);
-        }
-
-        var systemsByLevel = new List<ISystem>[maximumLevel + 1];
-        for (int index = 0; index < systemCount; index++)
-        {
-            int level = levels[index];
-            (systemsByLevel[level] ??= new List<ISystem>()).Add(nodes[index].System);
-        }
-
-        _batches = new ScheduleBatch[systemsByLevel.Length];
-        for (int level = 0; level < systemsByLevel.Length; level++)
-        {
-            _batches[level] = new ScheduleBatch(systemsByLevel[level].ToArray());
-        }
-
-        _workers?.PrepareCapacity(systemCount);
-        CaptureQueryPlanVersions(nodes);
-        IsBuilt = true;
     }
 
     /// <summary>Executes every compiled batch once.</summary>
@@ -302,22 +223,6 @@ public sealed class SystemScheduler : IDisposable
         _disposed = true;
         _workers?.Dispose();
         GC.SuppressFinalize(this);
-    }
-
-    private void EnsureUsable()
-    {
-        if (_disposed)
-        {
-            ThrowHelper.ThrowDisposedScheduler();
-        }
-    }
-
-    private void EnsureNotExecuting()
-    {
-        if (Volatile.Read(ref _executing) != 0)
-        {
-            ThrowHelper.ThrowSchedulerChangeDuringExecution();
-        }
     }
 
     private static bool Conflicts(in SystemAccess left, in SystemAccess right)
@@ -425,6 +330,118 @@ public sealed class SystemScheduler : IDisposable
         return false;
     }
 
+    private static bool Intersects(ReadOnlySpan<ComponentId> left, ReadOnlySpan<ComponentId> right)
+    {
+        for (int leftIndex = 0; leftIndex < left.Length; leftIndex++)
+        {
+            for (int rightIndex = 0; rightIndex < right.Length; rightIndex++)
+            {
+                if (left[leftIndex] == right[rightIndex])
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private void BuildCore()
+    {
+        int systemCount = _systems.Count;
+        if (systemCount == 0)
+        {
+            _batches = Array.Empty<ScheduleBatch>();
+            _queryPlanVersions = Array.Empty<QueryPlanVersion>();
+            _workers?.PrepareCapacity(0);
+            IsBuilt = true;
+            return;
+        }
+
+        if (!_optimizeSchedule)
+        {
+            ISystem[] systems = _systems.ToArray();
+            for (int index = 0; index < systems.Length; index++)
+            {
+                if (!ReferenceEquals(systems[index].World, World))
+                {
+                    ThrowHelper.ThrowSystemWorldChanged();
+                }
+            }
+
+            _batches = new[] { new ScheduleBatch(systems) };
+            _queryPlanVersions = Array.Empty<QueryPlanVersion>();
+            IsBuilt = true;
+            return;
+        }
+
+        var nodes = new SystemNode[systemCount];
+        for (int index = 0; index < systemCount; index++)
+        {
+            ISystem system = _systems[index];
+            if (!ReferenceEquals(system.World, World))
+            {
+                ThrowHelper.ThrowSystemWorldChanged();
+            }
+
+            SystemAccess access = system.Access;
+            ValidateQueryAccessWorlds(in access);
+            nodes[index] = new SystemNode(system, access);
+        }
+
+        int[] levels = new int[systemCount];
+        int maximumLevel = 0;
+        for (int current = 0; current < systemCount; current++)
+        {
+            int level = 0;
+            SystemAccess currentAccess = nodes[current].Access;
+            for (int previous = 0; previous < current; previous++)
+            {
+                SystemAccess previousAccess = nodes[previous].Access;
+                if (Conflicts(in previousAccess, in currentAccess))
+                {
+                    level = Math.Max(level, levels[previous] + 1);
+                }
+            }
+
+            levels[current] = level;
+            maximumLevel = Math.Max(maximumLevel, level);
+        }
+
+        var systemsByLevel = new List<ISystem>[maximumLevel + 1];
+        for (int index = 0; index < systemCount; index++)
+        {
+            int level = levels[index];
+            (systemsByLevel[level] ??= new List<ISystem>()).Add(nodes[index].System);
+        }
+
+        _batches = new ScheduleBatch[systemsByLevel.Length];
+        for (int level = 0; level < systemsByLevel.Length; level++)
+        {
+            _batches[level] = new ScheduleBatch(systemsByLevel[level].ToArray());
+        }
+
+        _workers?.PrepareCapacity(systemCount);
+        CaptureQueryPlanVersions(nodes);
+        IsBuilt = true;
+    }
+
+    private void EnsureUsable()
+    {
+        if (_disposed)
+        {
+            ThrowHelper.ThrowDisposedScheduler();
+        }
+    }
+
+    private void EnsureNotExecuting()
+    {
+        if (Volatile.Read(ref _executing) != 0)
+        {
+            ThrowHelper.ThrowSchedulerChangeDuringExecution();
+        }
+    }
+
     private void ValidateQueryAccessWorlds(in SystemAccess access)
     {
         ReadOnlySpan<SystemQueryAccess> queryAccesses = access.QueryAccesses;
@@ -506,54 +523,38 @@ public sealed class SystemScheduler : IDisposable
         }
     }
 
-    private static bool Intersects(ReadOnlySpan<ComponentId> left, ReadOnlySpan<ComponentId> right)
-    {
-        for (int leftIndex = 0; leftIndex < left.Length; leftIndex++)
-        {
-            for (int rightIndex = 0; rightIndex < right.Length; rightIndex++)
-            {
-                if (left[leftIndex] == right[rightIndex])
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
     private readonly struct SystemNode
     {
+
+        internal ISystem System { get; }
+        internal SystemAccess Access { get; }
         internal SystemNode(ISystem system, SystemAccess access)
         {
             System = system;
             Access = access;
         }
-
-        internal ISystem System { get; }
-        internal SystemAccess Access { get; }
     }
 
     private readonly struct ScheduleBatch
     {
+
+        internal ISystem[] Systems { get; }
         internal ScheduleBatch(ISystem[] systems)
         {
             Systems = systems;
         }
-
-        internal ISystem[] Systems { get; }
     }
 
     private readonly struct QueryPlanVersion
     {
+
+        internal QueryPlan Plan { get; }
+        internal int MatchingArchetypeVersion { get; }
         internal QueryPlanVersion(QueryPlan plan, int matchingArchetypeVersion)
         {
             Plan = plan;
             MatchingArchetypeVersion = matchingArchetypeVersion;
         }
-
-        internal QueryPlan Plan { get; }
-        internal int MatchingArchetypeVersion { get; }
     }
 
     private sealed class SchedulerWorkers : IDisposable
@@ -579,6 +580,25 @@ public sealed class SystemScheduler : IDisposable
                     Name = $"DeltaECS.Systems.Worker.{index}"
                 };
                 _threads[index].Start();
+            }
+        }
+
+        public void Dispose()
+        {
+            lock (_gate)
+            {
+                if (_stopping)
+                {
+                    return;
+                }
+
+                _stopping = true;
+                Monitor.PulseAll(_gate);
+            }
+
+            for (int index = 0; index < _threads.Length; index++)
+            {
+                _threads[index].Join();
             }
         }
 
@@ -623,25 +643,6 @@ public sealed class SystemScheduler : IDisposable
             }
 
             failure?.Throw();
-        }
-
-        public void Dispose()
-        {
-            lock (_gate)
-            {
-                if (_stopping)
-                {
-                    return;
-                }
-
-                _stopping = true;
-                Monitor.PulseAll(_gate);
-            }
-
-            for (int index = 0; index < _threads.Length; index++)
-            {
-                _threads[index].Join();
-            }
         }
 
         private void WorkerLoop()

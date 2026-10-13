@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Diagnosers;
@@ -23,22 +24,6 @@ public unsafe class ChunkIterationBenchmarks : IDisposable
     private UnmanagedChunk* _chainHead;
     private UnmanagedEndChunk* _endChainHead;
     private IntPtr _endChainStorage;
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct UnmanagedChunk
-    {
-        internal byte* DataPtr;
-        internal int Length;
-        internal UnmanagedChunk* Next;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct UnmanagedEndChunk
-    {
-        internal byte* DataPtr;
-        internal byte* EndPtr;
-        internal UnmanagedEndChunk* Next;
-    }
 
     /// <summary>Allocates identical chunks and prepares the traversal alternatives.</summary>
     [GlobalSetup]
@@ -238,6 +223,22 @@ public unsafe class ChunkIterationBenchmarks : IDisposable
         }
 
         return sum;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct UnmanagedChunk
+    {
+        internal byte* DataPtr;
+        internal int Length;
+        internal UnmanagedChunk* Next;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct UnmanagedEndChunk
+    {
+        internal byte* DataPtr;
+        internal byte* EndPtr;
+        internal UnmanagedEndChunk* Next;
     }
 }
 

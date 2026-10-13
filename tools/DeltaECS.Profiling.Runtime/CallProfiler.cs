@@ -9,6 +9,9 @@ public sealed class CallProfiler
 {
     private const int DefaultSampleCapacity = 1_048_576;
 
+    private const int NoParent = int.MinValue;
+    private const int NoInvocation = 0;
+
     private readonly Sample[] _samples;
     private readonly Frame[] _frames;
     private readonly int[] _rootMethodIds;
@@ -20,6 +23,12 @@ public sealed class CallProfiler
     private int _ownerThreadId;
     private int _nextInvocationId;
     private bool _capturingRoot;
+
+    /// <summary>Gets the number of samples captured since the last reset.</summary>
+    public int SampleCount => _sampleCount;
+
+    /// <summary>Gets the number of samples rejected because the buffer was full.</summary>
+    public long DroppedSamples => _droppedSamples;
 
     public CallProfiler(
         int maxDepth = 32,
@@ -34,12 +43,6 @@ public sealed class CallProfiler
         _rootMethodIds = rootMethodIds.ToArray();
         _capturingRoot = _rootMethodIds.Length == 0;
     }
-
-    /// <summary>Gets the number of samples captured since the last reset.</summary>
-    public int SampleCount => _sampleCount;
-
-    /// <summary>Gets the number of samples rejected because the buffer was full.</summary>
-    public long DroppedSamples => _droppedSamples;
 
     /// <summary>Clears measurements while retaining the preallocated sample and frame buffers.</summary>
     public void ResetMeasurements()
@@ -234,6 +237,167 @@ public sealed class CallProfiler
 
         void WriteSummaryValue(string name, string value)
             => writer.WriteLine(markdown ? $"| {name} | {value} |" : $"{name}: {value}");
+    }
+
+    internal void EnterMethod(int methodId)
+    {
+        EnsureThread();
+        if (!_capturingRoot)
+        {
+            if (!IsRootMethod(methodId))
+            {
+                return;
+            }
+
+            _capturingRoot = true;
+        }
+
+        if (_depth >= _maxDepth)
+        {
+            _suppressedDepth++;
+            return;
+        }
+
+        int parentInvocationId = _depth == 0
+            ? NoInvocation
+            : _frames[_depth - 1].InvocationId;
+        int invocationId = ++_nextInvocationId;
+        _frames[_depth] = new Frame(
+            Stopwatch.GetTimestamp(),
+            methodId,
+            invocationId,
+            parentInvocationId);
+        _depth++;
+    }
+
+    internal void ExitMethod(int methodId)
+    {
+        EnsureThread();
+        if (!_capturingRoot)
+        {
+            return;
+        }
+
+        if (_suppressedDepth != 0)
+        {
+            _suppressedDepth--;
+            return;
+        }
+
+        if (_depth == 0 || _frames[_depth - 1].MethodId != methodId)
+        {
+            ThrowInvalidInstrumentedExit();
+        }
+
+        ExitCurrentMethod();
+        if (_depth == 0 && _rootMethodIds.Length != 0)
+        {
+            _capturingRoot = false;
+        }
+    }
+
+    private static string ResolveMethodName(
+        int methodId,
+        IReadOnlyDictionary<int, string>? methodNames)
+        => methodNames is not null && methodNames.TryGetValue(methodId, out string? name)
+            ? name
+            : $"Method#{methodId}";
+
+    private static int CompareMethods(
+        ProfileMethod left,
+        ProfileMethod right,
+        ProfileReportSort sort)
+        => sort switch
+        {
+            ProfileReportSort.Adjusted => right.AdjustedInclusive.CompareTo(left.AdjustedInclusive),
+            ProfileReportSort.Self => right.AdjustedSelf.CompareTo(left.AdjustedSelf),
+            ProfileReportSort.Calls => right.Calls.CompareTo(left.Calls),
+            _ => right.RawInclusive.CompareTo(left.RawInclusive)
+        };
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowInvalidInstrumentedExit()
+    {
+        throw new InvalidOperationException("Instrumented method exits must be nested in LIFO order.");
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowWrongThread()
+    {
+        throw new InvalidOperationException("CallProfiler is single-threaded; use one profiler per thread.");
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowResetInsideScope()
+    {
+        throw new InvalidOperationException("Measurements cannot be reset while a profile scope is active.");
+    }
+
+    private static TimeSpan ToTimeSpan(long timestampTicks)
+        => TimeSpan.FromSeconds((double)timestampTicks / Stopwatch.Frequency);
+
+    private static TimeSpan ToTimeSpan(double timestampTicks)
+        => TimeSpan.FromSeconds(timestampTicks / Stopwatch.Frequency);
+
+    private static string Format(TimeSpan value)
+        => value.TotalMilliseconds.ToString("F3", CultureInfo.InvariantCulture) + " ms";
+
+    private static string CompactMethodName(string method)
+    {
+        int openParenthesis = method.IndexOf('(', StringComparison.Ordinal);
+        if (openParenthesis < 0
+            || (openParenthesis + 1 < method.Length && method[openParenthesis + 1] == ')'))
+        {
+            return method;
+        }
+
+        return method[..(openParenthesis + 1)] + "...)";
+    }
+
+    private static string FormatCompact(TimeSpan value)
+    {
+        double milliseconds = value.TotalMilliseconds;
+        if (milliseconds >= 1_000)
+        {
+            double seconds = value.TotalSeconds;
+            if (seconds < 1_000)
+            {
+                return seconds.ToString("F3", CultureInfo.InvariantCulture) + "s";
+            }
+
+            double minutes = value.TotalMinutes;
+            if (minutes < 1_000)
+            {
+                return minutes.ToString("F2", CultureInfo.InvariantCulture) + "m";
+            }
+
+            double hours = value.TotalHours;
+            return hours < 10_000
+                ? hours.ToString("F1", CultureInfo.InvariantCulture) + "h"
+                : ">9999h";
+        }
+
+        if (milliseconds >= 0.001)
+        {
+            return milliseconds.ToString("F3", CultureInfo.InvariantCulture) + "ms";
+        }
+
+        double microseconds = milliseconds * 1_000;
+        return microseconds >= 0.001
+            ? microseconds.ToString("F3", CultureInfo.InvariantCulture) + "us"
+            : (microseconds * 1_000).ToString("F1", CultureInfo.InvariantCulture) + "ns";
+    }
+
+    private static string FormatCount(int count)
+    {
+        if (count < 10_000_000)
+        {
+            return count.ToString(CultureInfo.InvariantCulture);
+        }
+
+        return count < 1_000_000_000
+            ? (count / 1_000_000d).ToString("F1", CultureInfo.InvariantCulture) + "M"
+            : (count / 1_000_000_000d).ToString("F1", CultureInfo.InvariantCulture) + "B";
     }
 
     private void WriteCallTree(
@@ -616,25 +780,6 @@ public sealed class CallProfiler
         return samplesByInvocation;
     }
 
-    private static string ResolveMethodName(
-        int methodId,
-        IReadOnlyDictionary<int, string>? methodNames)
-        => methodNames is not null && methodNames.TryGetValue(methodId, out string? name)
-            ? name
-            : $"Method#{methodId}";
-
-    private static int CompareMethods(
-        ProfileMethod left,
-        ProfileMethod right,
-        ProfileReportSort sort)
-        => sort switch
-        {
-            ProfileReportSort.Adjusted => right.AdjustedInclusive.CompareTo(left.AdjustedInclusive),
-            ProfileReportSort.Self => right.AdjustedSelf.CompareTo(left.AdjustedSelf),
-            ProfileReportSort.Calls => right.Calls.CompareTo(left.Calls),
-            _ => right.RawInclusive.CompareTo(left.RawInclusive)
-        };
-
     private void ExitCurrentMethod()
     {
         ref Frame frame = ref _frames[_depth - 1];
@@ -660,63 +805,6 @@ public sealed class CallProfiler
         if (_depth != 0)
         {
             _frames[_depth - 1].ChildTicks += inclusiveTicks;
-        }
-    }
-
-    internal void EnterMethod(int methodId)
-    {
-        EnsureThread();
-        if (!_capturingRoot)
-        {
-            if (!IsRootMethod(methodId))
-            {
-                return;
-            }
-
-            _capturingRoot = true;
-        }
-
-        if (_depth >= _maxDepth)
-        {
-            _suppressedDepth++;
-            return;
-        }
-
-        int parentInvocationId = _depth == 0
-            ? NoInvocation
-            : _frames[_depth - 1].InvocationId;
-        int invocationId = ++_nextInvocationId;
-        _frames[_depth] = new Frame(
-            Stopwatch.GetTimestamp(),
-            methodId,
-            invocationId,
-            parentInvocationId);
-        _depth++;
-    }
-
-    internal void ExitMethod(int methodId)
-    {
-        EnsureThread();
-        if (!_capturingRoot)
-        {
-            return;
-        }
-
-        if (_suppressedDepth != 0)
-        {
-            _suppressedDepth--;
-            return;
-        }
-
-        if (_depth == 0 || _frames[_depth - 1].MethodId != methodId)
-        {
-            ThrowInvalidInstrumentedExit();
-        }
-
-        ExitCurrentMethod();
-        if (_depth == 0 && _rootMethodIds.Length != 0)
-        {
-            _capturingRoot = false;
         }
     }
 
@@ -754,93 +842,14 @@ public sealed class CallProfiler
         _ownerThreadId = threadId;
     }
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowInvalidInstrumentedExit()
-    {
-        throw new InvalidOperationException("Instrumented method exits must be nested in LIFO order.");
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowWrongThread()
-    {
-        throw new InvalidOperationException("CallProfiler is single-threaded; use one profiler per thread.");
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowResetInsideScope()
-    {
-        throw new InvalidOperationException("Measurements cannot be reset while a profile scope is active.");
-    }
-
-    private static TimeSpan ToTimeSpan(long timestampTicks)
-        => TimeSpan.FromSeconds((double)timestampTicks / Stopwatch.Frequency);
-
-    private static TimeSpan ToTimeSpan(double timestampTicks)
-        => TimeSpan.FromSeconds(timestampTicks / Stopwatch.Frequency);
-
-    private static string Format(TimeSpan value)
-        => value.TotalMilliseconds.ToString("F3", CultureInfo.InvariantCulture) + " ms";
-
-    private static string CompactMethodName(string method)
-    {
-        int openParenthesis = method.IndexOf('(', StringComparison.Ordinal);
-        if (openParenthesis < 0
-            || (openParenthesis + 1 < method.Length && method[openParenthesis + 1] == ')'))
-        {
-            return method;
-        }
-
-        return method[..(openParenthesis + 1)] + "...)";
-    }
-
-    private static string FormatCompact(TimeSpan value)
-    {
-        double milliseconds = value.TotalMilliseconds;
-        if (milliseconds >= 1_000)
-        {
-            double seconds = value.TotalSeconds;
-            if (seconds < 1_000)
-            {
-                return seconds.ToString("F3", CultureInfo.InvariantCulture) + "s";
-            }
-
-            double minutes = value.TotalMinutes;
-            if (minutes < 1_000)
-            {
-                return minutes.ToString("F2", CultureInfo.InvariantCulture) + "m";
-            }
-
-            double hours = value.TotalHours;
-            return hours < 10_000
-                ? hours.ToString("F1", CultureInfo.InvariantCulture) + "h"
-                : ">9999h";
-        }
-
-        if (milliseconds >= 0.001)
-        {
-            return milliseconds.ToString("F3", CultureInfo.InvariantCulture) + "ms";
-        }
-
-        double microseconds = milliseconds * 1_000;
-        return microseconds >= 0.001
-            ? microseconds.ToString("F3", CultureInfo.InvariantCulture) + "us"
-            : (microseconds * 1_000).ToString("F1", CultureInfo.InvariantCulture) + "ns";
-    }
-
-    private static string FormatCount(int count)
-    {
-        if (count < 10_000_000)
-        {
-            return count.ToString(CultureInfo.InvariantCulture);
-        }
-
-        return count < 1_000_000_000
-            ? (count / 1_000_000d).ToString("F1", CultureInfo.InvariantCulture) + "M"
-            : (count / 1_000_000_000d).ToString("F1", CultureInfo.InvariantCulture) + "B";
-    }
-
     private struct Frame
     {
+
+        internal readonly long StartTimestamp;
+        internal readonly int MethodId;
+        internal readonly int InvocationId;
+        internal readonly int ParentInvocationId;
+        internal long ChildTicks;
         internal Frame(
             long startTimestamp,
             int methodId,
@@ -853,12 +862,6 @@ public sealed class CallProfiler
             ParentInvocationId = parentInvocationId;
             ChildTicks = 0;
         }
-
-        internal readonly long StartTimestamp;
-        internal readonly int MethodId;
-        internal readonly int InvocationId;
-        internal readonly int ParentInvocationId;
-        internal long ChildTicks;
     }
 
     private readonly struct Sample
@@ -895,9 +898,6 @@ public sealed class CallProfiler
         internal long DirectChildCalls;
         internal long DescendantCalls;
     }
-
-    private const int NoParent = int.MinValue;
-    private const int NoInvocation = 0;
 
     private readonly record struct CallPath(int ParentNodeId, int MethodId);
 

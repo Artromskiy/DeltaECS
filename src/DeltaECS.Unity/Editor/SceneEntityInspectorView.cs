@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+
 using Delta;
 using Delta.ECS;
 using Delta.ECS.Integration;
+
 using UnityEditor;
 using UnityEditor.UIElements;
+
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -28,6 +31,8 @@ namespace Delta.ECS.Unity.Editor
         private EntityAuthoring _authoringEntity;
         private ComponentId[] _runtimeComponentBuffer;
         private ComponentId[] _runtimeComponentIds;
+
+        internal int ComponentCount => _componentEntries.Count;
         private SceneAuthoring Authoring => _target.Authoring;
 
         public SceneEntityInspectorView(SelectionProxy proxy)
@@ -94,15 +99,140 @@ namespace Delta.ECS.Unity.Editor
             return _root;
         }
 
+        internal void ScheduleRefreshContent() => _root.schedule.Execute(RefreshContent);
+
+        private static VisualElement BuildViewField(GameObject currentView, Action<GameObject> onChanged)
+        {
+            var row = new VisualElement();
+            row.AddToClassList("ecs-view-binding");
+
+            var field = new ObjectField("Unity View")
+            {
+                objectType = typeof(GameObject),
+                allowSceneObjects = true,
+                value = currentView
+            };
+            AddInspectorFieldClasses(field);
+            row.Add(field);
+
+            var unbind = new Button(() => field.value = null)
+            {
+                text = "Unbind",
+                tooltip = "Remove the GameObject binding from this entity"
+            };
+            unbind.AddToClassList("ecs-action-button");
+            unbind.SetEnabled(currentView != null);
+            field.RegisterValueChangedCallback(evt =>
+            {
+                GameObject nextView = evt.newValue as GameObject;
+                unbind.SetEnabled(nextView != null);
+                onChanged(nextView);
+            });
+            row.Add(unbind);
+            return row;
+        }
+
+        private static void AddEntityInfo(VisualElement card, Entity entity, string stableId)
+        {
+            var idRow = new VisualElement { pickingMode = PickingMode.Ignore };
+            idRow.AddToClassList("ecs-entity-id-row");
+            idRow.Add(CreateEntityMetadata($"EntityId: {entity.Index}"));
+            idRow.Add(CreateEntityMetadata($"Generation: {entity.Generation}"));
+            card.Add(idRow);
+            card.Add(CreateEntityMetadata($"StableId: {(string.IsNullOrEmpty(stableId) ? "—" : stableId)}"));
+        }
+
+        private static Label CreateEntityMetadata(string text)
+        {
+            var label = CreateClassLabel(text, "ecs-entity-metadata");
+            label.pickingMode = PickingMode.Ignore;
+            label.style.minHeight = EditorGUIUtility.singleLineHeight;
+            return label;
+        }
+
+        private static ToolbarMenu CreateComponentMenu()
+        {
+            var menu = new ToolbarMenu { text = "⋮" };
+            menu.AddToClassList("ecs-component-menu");
+            menu.Q<VisualElement>(className: ToolbarMenu.arrowUssClassName)?.AddToClassList("ecs-component-menu-arrow");
+            menu.RegisterCallback<AttachToPanelEvent>(_ =>
+                menu.Q<VisualElement>(className: ToolbarMenu.arrowUssClassName)?.AddToClassList("ecs-component-menu-arrow"));
+            menu.RegisterCallback<PointerDownEvent>(evt => evt.StopPropagation());
+            menu.RegisterCallback<ClickEvent>(evt => evt.StopPropagation());
+            return menu;
+        }
+
+        private static Button CreateRemoveComponentButton(Action removeComponent)
+        {
+            var button = new Button(removeComponent) { text = "×", tooltip = "Remove component" };
+            button.AddToClassList("ecs-component-remove");
+            button.RegisterCallback<PointerDownEvent>(evt => evt.StopPropagation());
+            button.RegisterCallback<ClickEvent>(evt => evt.StopPropagation());
+            return button;
+        }
+
+        private static void AddHeaderAction(Toggle header, VisualElement action)
+        {
+            header.Add(action);
+        }
+
+        private static void AddInspectorFieldClasses(VisualElement field)
+        {
+            field.AddToClassList(BaseField<float>.alignedFieldUssClassName);
+            field.AddToClassList("ecs-value-field");
+        }
+
+        private static Label CreateClassLabel(string text, string className)
+        {
+            var label = new Label(text);
+            label.AddToClassList(className);
+            return label;
+        }
+
+        private static Label CreateEntityIcon() => CreateClassLabel("◆", "ecs-entity-icon");
+
+        private static ComponentDescriptor? TryGetDescriptor(ComponentData data,
+            IReadOnlyDictionary<ulong, ComponentDescriptor> descriptors)
+        {
+            ulong? schema = GetSchemaId(data);
+            return schema.HasValue && descriptors.TryGetValue(schema.Value, out ComponentDescriptor descriptor)
+                ? descriptor
+                : null;
+        }
+
+        private static string GetComponentMenuPath(ComponentDescriptor descriptor)
+        {
+            string namespacePath = descriptor.ValueType.Namespace?.Replace('.', '/') ?? string.Empty;
+            string shortName = GetShortTypeName(descriptor.ValueType);
+            return string.IsNullOrEmpty(namespacePath) ? shortName : $"{namespacePath}/{shortName}";
+        }
+
+        private static string GetShortTypeName(Type type)
+        {
+            string name = type.Name;
+            int genericMarker = name.IndexOf('`');
+            return genericMarker < 0 ? name : name.Substring(0, genericMarker);
+        }
+
+        private static ulong? GetSchemaId(ComponentData data)
+        {
+            return data != null && data.TryGetSchemaId(out SchemaId schema) ? schema.Value : null;
+        }
+
+        private static bool IsComponentExpanded(ulong schema) =>
+            InspectorState.instance.IsComponentExpanded(schema);
+
+        private static void SetComponentExpanded(ulong schema, bool expanded) =>
+            InspectorState.instance.SetComponentExpanded(schema, expanded);
+
+        private static int GetComponentOrder(ulong schema) =>
+            InspectorState.instance.GetComponentOrder(schema);
+
         private void OnEntitySelectionChanged()
         {
             SyncSelection();
             RefreshContent();
         }
-
-        internal int ComponentCount => _componentEntries.Count;
-
-        internal void ScheduleRefreshContent() => _root.schedule.Execute(RefreshContent);
 
         private void OnAuthoringChanged(SceneAuthoring changedAuthoring)
         {
@@ -284,55 +414,6 @@ namespace Delta.ECS.Unity.Editor
             });
         }
 
-        private static VisualElement BuildViewField(GameObject currentView, Action<GameObject> onChanged)
-        {
-            var row = new VisualElement();
-            row.AddToClassList("ecs-view-binding");
-
-            var field = new ObjectField("Unity View")
-            {
-                objectType = typeof(GameObject),
-                allowSceneObjects = true,
-                value = currentView
-            };
-            AddInspectorFieldClasses(field);
-            row.Add(field);
-
-            var unbind = new Button(() => field.value = null)
-            {
-                text = "Unbind",
-                tooltip = "Remove the GameObject binding from this entity"
-            };
-            unbind.AddToClassList("ecs-action-button");
-            unbind.SetEnabled(currentView != null);
-            field.RegisterValueChangedCallback(evt =>
-            {
-                GameObject nextView = evt.newValue as GameObject;
-                unbind.SetEnabled(nextView != null);
-                onChanged(nextView);
-            });
-            row.Add(unbind);
-            return row;
-        }
-
-        private static void AddEntityInfo(VisualElement card, Entity entity, string stableId)
-        {
-            var idRow = new VisualElement { pickingMode = PickingMode.Ignore };
-            idRow.AddToClassList("ecs-entity-id-row");
-            idRow.Add(CreateEntityMetadata($"EntityId: {entity.Index}"));
-            idRow.Add(CreateEntityMetadata($"Generation: {entity.Generation}"));
-            card.Add(idRow);
-            card.Add(CreateEntityMetadata($"StableId: {(string.IsNullOrEmpty(stableId) ? "—" : stableId)}"));
-        }
-
-        private static Label CreateEntityMetadata(string text)
-        {
-            var label = CreateClassLabel(text, "ecs-entity-metadata");
-            label.pickingMode = PickingMode.Ignore;
-            label.style.minHeight = EditorGUIUtility.singleLineHeight;
-            return label;
-        }
-
         private VisualElement BuildAuthoringComponentCard(EntityAuthoring authoring, ComponentData data, ComponentDescriptor descriptor)
         {
             return BuildComponentCard(descriptor, body =>
@@ -463,32 +544,6 @@ namespace Delta.ECS.Unity.Editor
             }
         }
 
-        private static ToolbarMenu CreateComponentMenu()
-        {
-            var menu = new ToolbarMenu { text = "⋮" };
-            menu.AddToClassList("ecs-component-menu");
-            menu.Q<VisualElement>(className: ToolbarMenu.arrowUssClassName)?.AddToClassList("ecs-component-menu-arrow");
-            menu.RegisterCallback<AttachToPanelEvent>(_ =>
-                menu.Q<VisualElement>(className: ToolbarMenu.arrowUssClassName)?.AddToClassList("ecs-component-menu-arrow"));
-            menu.RegisterCallback<PointerDownEvent>(evt => evt.StopPropagation());
-            menu.RegisterCallback<ClickEvent>(evt => evt.StopPropagation());
-            return menu;
-        }
-
-        private static Button CreateRemoveComponentButton(Action removeComponent)
-        {
-            var button = new Button(removeComponent) { text = "×", tooltip = "Remove component" };
-            button.AddToClassList("ecs-component-remove");
-            button.RegisterCallback<PointerDownEvent>(evt => evt.StopPropagation());
-            button.RegisterCallback<ClickEvent>(evt => evt.StopPropagation());
-            return button;
-        }
-
-        private static void AddHeaderAction(Toggle header, VisualElement action)
-        {
-            header.Add(action);
-        }
-
         private void DrawEditableValue(VisualElement body, EntityAuthoring authoring, ComponentData data,
             ComponentDescriptor descriptor, object value)
         {
@@ -558,12 +613,6 @@ namespace Delta.ECS.Unity.Editor
                 onChanged(next);
             });
             return fieldControl;
-        }
-
-        private static void AddInspectorFieldClasses(VisualElement field)
-        {
-            field.AddToClassList(BaseField<float>.alignedFieldUssClassName);
-            field.AddToClassList("ecs-value-field");
         }
 
         private void BuildRuntimeEntity()
@@ -890,15 +939,6 @@ namespace Delta.ECS.Unity.Editor
             return value?.ToString() ?? "None";
         }
 
-        private static Label CreateClassLabel(string text, string className)
-        {
-            var label = new Label(text);
-            label.AddToClassList(className);
-            return label;
-        }
-
-        private static Label CreateEntityIcon() => CreateClassLabel("◆", "ecs-entity-icon");
-
         private void RefreshRuntimeView()
         {
             if (SyncSelection())
@@ -1058,29 +1098,6 @@ namespace Delta.ECS.Unity.Editor
                 .ToArray();
         }
 
-        private static ComponentDescriptor? TryGetDescriptor(ComponentData data,
-            IReadOnlyDictionary<ulong, ComponentDescriptor> descriptors)
-        {
-            ulong? schema = GetSchemaId(data);
-            return schema.HasValue && descriptors.TryGetValue(schema.Value, out ComponentDescriptor descriptor)
-                ? descriptor
-                : null;
-        }
-
-        private static string GetComponentMenuPath(ComponentDescriptor descriptor)
-        {
-            string namespacePath = descriptor.ValueType.Namespace?.Replace('.', '/') ?? string.Empty;
-            string shortName = GetShortTypeName(descriptor.ValueType);
-            return string.IsNullOrEmpty(namespacePath) ? shortName : $"{namespacePath}/{shortName}";
-        }
-
-        private static string GetShortTypeName(Type type)
-        {
-            string name = type.Name;
-            int genericMarker = name.IndexOf('`');
-            return genericMarker < 0 ? name : name.Substring(0, genericMarker);
-        }
-
         private void AddComponent(EntityAuthoring authoring, ComponentDescriptor descriptor)
         {
             Undo.RecordObject(Authoring, $"Add {GetShortTypeName(descriptor.ValueType)}");
@@ -1137,20 +1154,6 @@ namespace Delta.ECS.Unity.Editor
             else Debug.LogError($"Could not reset {GetShortTypeName(descriptor.ValueType)}: {error.Code}.", Authoring);
             RefreshContent();
         }
-
-        private static ulong? GetSchemaId(ComponentData data)
-        {
-            return data != null && data.TryGetSchemaId(out SchemaId schema) ? schema.Value : null;
-        }
-
-        private static bool IsComponentExpanded(ulong schema) =>
-            InspectorState.instance.IsComponentExpanded(schema);
-
-        private static void SetComponentExpanded(ulong schema, bool expanded) =>
-            InspectorState.instance.SetComponentExpanded(schema, expanded);
-
-        private static int GetComponentOrder(ulong schema) =>
-            InspectorState.instance.GetComponentOrder(schema);
 
         private void MoveComponent(ulong schema, int direction)
         {

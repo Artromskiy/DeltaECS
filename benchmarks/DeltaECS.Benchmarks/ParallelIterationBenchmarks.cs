@@ -1,7 +1,9 @@
 namespace Delta.ECS.Benchmarks;
 
 using System.Runtime.CompilerServices;
+
 using BenchmarkDotNet.Attributes;
+
 using DeltaEntity = Delta.ECS.Entity;
 using DeltaWorld = Delta.ECS.World;
 
@@ -10,9 +12,6 @@ using DeltaWorld = Delta.ECS.World;
 [BenchmarkCategory("Iteration.ParallelMovement4")]
 public class ParallelMovement4IterationBenchmarks
 {
-    public int Amount { get; set; } = ParallelBenchmarkConfiguration.GetAmount();
-
-    public int WorkerCount { get; set; } = ParallelBenchmarkConfiguration.GetWorkerCount();
 
     private DeltaWorld _world = null!;
     private Query _query;
@@ -20,6 +19,9 @@ public class ParallelMovement4IterationBenchmarks
     private DeltaEntity[] _entities = null!;
     private IOperation? _singleThreadIteration;
     private IOperation? _parallelIteration;
+    public int Amount { get; set; } = ParallelBenchmarkConfiguration.GetAmount();
+
+    public int WorkerCount { get; set; } = ParallelBenchmarkConfiguration.GetWorkerCount();
 
     [GlobalSetup]
     public void Setup()

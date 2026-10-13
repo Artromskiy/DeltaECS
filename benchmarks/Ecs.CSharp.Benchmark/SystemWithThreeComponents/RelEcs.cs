@@ -1,24 +1,26 @@
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
+
 using RelEcs;
 
 namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithThreeComponents
     {
+
+        [Context]
+        private readonly RelEcsContext _relEcs;
+
+        [BenchmarkCategory(Categories.RelEcs, Categories.SingleThread)]
+        [Benchmark]
+        public int RelEcs()
+        {
+            _relEcs.MonoThreadSystem.Run(_relEcs.World);
+            return EntityCount;
+        }
         private sealed class RelEcsContext : RelEcsBaseContext
         {
-            private sealed class MonoThreadRunSystem : ISystem
-            {
-                public void Run(World world)
-                {
-                    Query<Component1, Component2, Component3> query = world.Query<Component1, Component2, Component3>().Build();
-                    foreach ((Component1 c1, Component2 c2, Component3 c3) in query)
-                    {
-                        c1.Value += c2.Value + c3.Value;
-                    }
-                }
-            }
 
             public ISystem MonoThreadSystem { get; } = new MonoThreadRunSystem();
 
@@ -51,17 +53,17 @@ namespace Ecs.CSharp.Benchmark
                         .Add(new Component3 { Value = 1 });
                 }
             }
-        }
-
-        [Context]
-        private readonly RelEcsContext _relEcs;
-
-        [BenchmarkCategory(Categories.RelEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int RelEcs()
-        {
-            _relEcs.MonoThreadSystem.Run(_relEcs.World);
-            return EntityCount;
+            private sealed class MonoThreadRunSystem : ISystem
+            {
+                public void Run(World world)
+                {
+                    Query<Component1, Component2, Component3> query = world.Query<Component1, Component2, Component3>().Build();
+                    foreach ((Component1 c1, Component2 c2, Component3 c3) in query)
+                    {
+                        c1.Value += c2.Value + c3.Value;
+                    }
+                }
+            }
         }
     }
 }

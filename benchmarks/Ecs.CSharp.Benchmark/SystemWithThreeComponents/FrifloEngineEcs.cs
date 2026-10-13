@@ -1,31 +1,17 @@
 using System;
 using System.Runtime.Intrinsics;
+
 using BenchmarkDotNet.Attributes;
+
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.FrifloEngineComponents;
+
 using Friflo.Engine.ECS;
 
 namespace Ecs.CSharp.Benchmark
 {
     public partial class SystemWithThreeComponents
     {
-        internal sealed class FrifloEngineEcsContext : FrifloEngineEcsBaseContext
-        {
-            public FrifloEngineEcsContext(int entityCount, int padding)
-                : base(entityCount, padding, ComponentTypes.Get<Component1, Component2, Component3>())
-            { }
-
-            internal static void ForEach(Chunk<Component1> component1, Chunk<Component2> component2, Chunk<Component3> component3, ChunkEntities entities)
-            {
-                Span<Component1> component1Span = component1.Span;
-                Span<Component2> component2Span = component2.Span;
-                Span<Component3> component3Span = component3.Span;
-                for (int n = 0; n < component1Span.Length; n++)
-                {
-                    Update(ref component1Span[n], ref component2Span[n], ref component3Span[n]);
-                }
-            }
-        }
 
         [Context]
         private readonly FrifloEngineEcsContext _frifloEngineEcs;
@@ -56,8 +42,6 @@ namespace Ecs.CSharp.Benchmark
             return EntityCount;
         }
 
-        private static void Update(ref Component1 c1, ref Component2 c2, ref Component3 c3) => c1.Value += c2.Value + c3.Value;
-
         [BenchmarkCategory(Categories.FrifloEngineEcs, Categories.SIMD)]
         [Benchmark]
         public int FrifloEngineEcsSIMDMonoThread()
@@ -80,6 +64,25 @@ namespace Ecs.CSharp.Benchmark
                 }
             }
             return EntityCount;
+        }
+
+        private static void Update(ref Component1 c1, ref Component2 c2, ref Component3 c3) => c1.Value += c2.Value + c3.Value;
+        internal sealed class FrifloEngineEcsContext : FrifloEngineEcsBaseContext
+        {
+            public FrifloEngineEcsContext(int entityCount, int padding)
+                : base(entityCount, padding, ComponentTypes.Get<Component1, Component2, Component3>())
+            { }
+
+            internal static void ForEach(Chunk<Component1> component1, Chunk<Component2> component2, Chunk<Component3> component3, ChunkEntities entities)
+            {
+                Span<Component1> component1Span = component1.Span;
+                Span<Component2> component2Span = component2.Span;
+                Span<Component3> component3Span = component3.Span;
+                for (int n = 0; n < component1Span.Length; n++)
+                {
+                    Update(ref component1Span[n], ref component2Span[n], ref component3Span[n]);
+                }
+            }
         }
     }
 }
